@@ -1,0 +1,12 @@
+#summary A Pidgin plugin to display "Now Playing".
+
+= Introduction =
+
+Pidgin-musictracker is a plugin for Pidgin (and possibly other libpurple-based messengers) that allows for Pidgin users to get the "Now Playing" information from a number of different media players. It is cross-platform and open-source.
+
+
+= Details =
+
+PsyMP3 supports the "Messenger compatible" interface of pidgin-musictracker. This interface implements a hidden MsnMsgrUiManager window, for which WM_COPYDATA messages are sent to update the status as seen by pidgin-musictracker.
+
+PsyMP3 also supports a subset of the Winamp IPC interface. Missing is support for getting the artist, song title, and album of the currently playing song. Pidgin-musictracker is, however, able to retrieve the song length, and current position in the song, using the Winamp IPC interface.
