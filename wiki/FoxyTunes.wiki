@@ -6,4 +6,4 @@ FoxyTunes is a proprietary Firefox and Internet Explorer add-on currently mainta
 
 = Details =
 
-PsyMP3 work fairly well with FoxyTunes, however, FoxyTunes is unable to grab the artist, song title, or album information from PsyMP3.
+PsyMP3 works fairly well with FoxyTunes, however, FoxyTunes is unable to grab the artist, song title, or album information from PsyMP3.
