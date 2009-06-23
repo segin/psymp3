@@ -1,0 +1,9 @@
+#summary One-sentence summary of this page.
+
+= Introduction =
+
+FoxyTunes is a proprietary Firefox and Internet Explorer add-on currently maintained by Yahoo!. It is not open-source.
+
+= Details =
+
+PsyMP3 work fairly well with FoxyTunes, however, FoxyTunes is unable to grab the artist, song title, or album information from PsyMP3.
