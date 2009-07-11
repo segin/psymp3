@@ -56,9 +56,9 @@ Now, assume the following information:
 
   * Player: "PsyMP3"
   * Format: "PsyMP3: {1} - {0}"
-  * Artist: "Dragonforce"
-  * Title: "Through The Fire And Flames"
-  * Album: "Inhuman Rampage"
+  * Artist: "[http://www.last.fm/music/DragonForce Dragonforce]"
+  * Title: "[http://www.last.fm/music/DragonForce/_/Through+the+Fire+and+Flames Through The Fire And Flames]"
+  * Album: "[http://www.last.fm/music/DragonForce/Inhuman+Rampage Inhuman Rampage]"
 
 Then you would get the string:
 
