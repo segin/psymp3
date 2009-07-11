@@ -11,13 +11,13 @@ The MsnMsgrUiManager window class is implemented by Windows Live Messsenger, MSN
 
 The following instant messaging applications are known to implement the receiving end of the interface:
   * [http://download.live.com/messenger Windows Live Messenger]
-  * [http://www.pidgin.im/ *Pidgin*] (via [http://code.google.com/p/pidgin-musictracker pidgin-musictracker])
-  * [http://www.amsn-project.net/ *aMSN*] (via the [http://www.amsn-project.net/plugins.php#13 Music] plugin)
+  * *[http://www.pidgin.im/ Pidgin]* (via [http://code.google.com/p/pidgin-musictracker pidgin-musictracker])
+  * *[http://www.amsn-project.net/ aMSN]* (via the [http://www.amsn-project.net/plugins.php#13 Music] plugin)
 
 == Media Player ==
 
 The following media players are known to implement the sending end of the interface:
-  * PsyMP3
+  * *PsyMP3*
   * [http://www.microsoft.com/windows/windowsmedia/player/ Windows Media Player]
   * [http://www.last.fm/download Last.fm Client]
   * [http://getopenpandora.appspot.com/ OpenPandora]
