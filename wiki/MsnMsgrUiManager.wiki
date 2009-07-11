@@ -14,11 +14,12 @@ The following instant messaging applications are known to implement the receivin
   * *[http://www.pidgin.im/ Pidgin]* (via [http://code.google.com/p/pidgin-musictracker pidgin-musictracker])
   * *[http://www.amsn-project.net/ aMSN]* (via the [http://www.amsn-project.net/plugins.php#13 Music] plugin)
 
-== Media Player ==
+== Media Players ==
 
 The following media players are known to implement the sending end of the interface:
   * *PsyMP3*
   * [http://www.microsoft.com/windows/windowsmedia/player/ Windows Media Player]
+  * [http://www.apple.com/itunes iTunes]
   * [http://www.last.fm/download Last.fm Client]
   * [http://getopenpandora.appspot.com/ OpenPandora]
   * [http://mpc-hc.sourceforge.net/ Media Player Classic Home Cinema]
@@ -29,7 +30,17 @@ The following media players are known to implement the sending end of the interf
 
 = Details =
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+The MsnMsgrUiManager Now Playing interface is rather straightforward. The sender program (the media player) sends a [http://msdn.microsoft.com/en-us/library/ms649011(VS.85).aspx WM_COPYDATA] message to any and all windows matching the MsnMsgrUiManager window class using the [http://msdn.microsoft.com/en-us/library/ms644950(VS.85).aspx SendMessage]()  function.
+
+The [http://msdn.microsoft.com/en-us/library/ms649011(VS.85).aspx WM_COPYDATA] message type requires the use of the [http://msdn.microsoft.com/en-us/library/ms649010(VS.85).aspx COPYDATASTRUCT] struct, which has three defined elements:
+  * dwData, which indicates the data type
+  * cbData, which indicates the length of the data buffer pointed to by lpData, and finally
+  * lpData, which is a pointer to a buffer containing the data to be passed via [http://msdn.microsoft.com/en-us/library/ms644950(VS.85).aspx SendMessage]()
+
+The actual message data passed via lpData is a wide-character string, terminated by a null character. The data fields are delimited by literal wide-character "\0" (literal backslash and literal zero, NOT a null-value wide character).
+
+The fields are described below:
+  # [iTunes extension] Player name. If you don't really care, leave it empty.
+  # Message type. There a number of things you could put here, but the only important value for this is "Music".
+  # Status Enabled. Does the message enable or disable the now playing information? When announcing a new song, this is "1", and at the end of a song (to clear the now playing from the messenger), this is "0".
+  # Format string
