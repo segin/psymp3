@@ -40,7 +40,38 @@ The [http://msdn.microsoft.com/en-us/library/ms649011(VS.85).aspx WM_COPYDATA] m
 The actual message data passed via lpData is a wide-character string, terminated by a null character. The data fields are delimited by literal wide-character "\0" (literal backslash and literal zero, NOT a null-value wide character).
 
 The fields are described below:
-  # [iTunes extension] Player name. If you don't really care, leave it empty.
+  # `[iTunes extension]` Player name. If you don't really care, leave it empty.
   # Message type. There a number of things you could put here, but the only important value for this is "Music".
   # Status Enabled. Does the message enable or disable the now playing information? When announcing a new song, this is "1", and at the end of a song (to clear the now playing from the messenger), this is "0".
-  # Format string - This is only really important for MSN Messenger and Windows Live Messenger. It is either string data to be used literally, or tokens referencing the argument strings, which come next. 
+  # Format string. This is only really important for MSN Messenger and Windows Live Messenger. It is either string data to be used literally, or tokens referencing the argument strings, which come next. Each argument is referenced by it's argument number, starting with 0, enclosed in curly brackets (`"{" and "}"`).
+  # Song Title. This is the first argument string, and is the title of the song.
+  # Artist. This is the second argument string, and is the name of the song artist.
+  # Album. This is the third argument string, and is the name of the album which the song is on.
+  # WMContentID. This is the string "WMContentID".
+
+So, in order, the final string looks like this (remember, this is entirely literals, nothing here is really escaped):
+"1\02\03\04\05\06\07\08\0" 
+
+Now, assume the following information:
+
+Player: PsyMP3
+Format: PsyMP3: {1} - {0}
+Artist: Dragonforce
+Title: Through The Fire And Flames
+Album: Inhuman Rampage
+
+Then you would get the string:
+
+"PsyMP3\0Music\01\0PsyMP3: {1} - {0}\0Through The Fire And Flames\0Dragonforce\0Inhuman Rampage\0WMContentID\0".
+
+The format string is only used by Windows Live Messenger, and it would set the display on Windows Live Messenger to say "PsyMP3: Dragonforce - Through The Fire And Flames". 
+
+You could omit the opening "PsyMP3" and start off with "\0"; the player name field there is an extension that originates from iTunes.
+
+Remember to escape the backslash in C strings, e.g. "\\0" in C (to get literal "\0")
+
+Once you have the string formatted, set the lpData element in the [http://msdn.microsoft.com/en-us/library/ms649010(VS.85).aspx COPYDATASTRUCT] struct to be the pointer to the message string. Set the cpData field to be length of the string, in characters, doubled, with two added after that, or in C, (([http://msdn.microsoft.com/en-us/library/78zh94ax(VS.80).aspx wcslen](message) * 2) + 2).
+
+Once you have the [http://msdn.microsoft.com/en-us/library/ms649010(VS.85).aspx COPYDATASTRUCT] structure filled out, now it's time to pass it to the instant messenger application via [http://msdn.microsoft.com/en-us/library/ms644950(VS.85).aspx SendMessage](). The first argument to [http://msdn.microsoft.com/en-us/library/ms644950(VS.85).aspx SendMessage]() will be the window handle to the messenger window (which you should have found using either [http://msdn.microsoft.com/en-us/library/ms633499(VS.85).aspx FindWindow]() or preferably [http://msdn.microsoft.com/en-us/library/ms633500(VS.85).aspx FindWindowEx]()). The second argument, the message type, is [http://msdn.microsoft.com/en-us/library/ms649011(VS.85).aspx WM_COPYDATA], while the wParam argument (the third argument) is the hWnd of your program's window - you can set this to 0 if it is not applicable. The lParam argument (final argument for [http://msdn.microsoft.com/en-us/library/ms644950(VS.85).aspx SendMessage]) will be the pointer to the [http://msdn.microsoft.com/en-us/library/ms649010(VS.85).aspx COPYDATASTRUCT] structure.
+
+For more information, please reference the implementation in the PsyMP3 source code.
