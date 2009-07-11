@@ -54,11 +54,11 @@ So, in order, the final string looks like this (remember, this is entirely liter
 
 Now, assume the following information:
 
-Player: PsyMP3
-Format: PsyMP3: {1} - {0}
-Artist: Dragonforce
-Title: Through The Fire And Flames
-Album: Inhuman Rampage
+  * Player: "PsyMP3"
+  * Format: "PsyMP3: {1} - {0}"
+  * Artist: "Dragonforce"
+  * Title: "Through The Fire And Flames"
+  * Album: "Inhuman Rampage"
 
 Then you would get the string:
 
@@ -66,7 +66,7 @@ Then you would get the string:
 
 The format string is only used by Windows Live Messenger, and it would set the display on Windows Live Messenger to say "PsyMP3: Dragonforce - Through The Fire And Flames". 
 
-You could omit the opening "PsyMP3" and start off with "\0"; the player name field there is an extension that originates from iTunes.
+You could omit the opening "PsyMP3" and start off with the first "\0"; the player name field there is an extension that originates from iTunes.
 
 Remember to escape the backslash in C strings, e.g. "\\0" in C (to get literal "\0")
 
