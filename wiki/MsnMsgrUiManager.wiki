@@ -1,0 +1,35 @@
+#summary A Win32 window class implemented by MSN Messenger and other compatible messengers
+#labels Phase-Implementation
+
+= Introduction =
+
+The MsnMsgrUiManager window class is implemented by Windows Live Messsenger, MSN Messenger, and my any messenger application (or associated plugins thereof) that wish to receive "Now Playing" data from any media player application that supports sending such data to MSN Messenger.
+
+= Known Implementations = 
+
+== Messengers == 
+
+The following instant messaging applications are known to implement the receiving end of the interface:
+  * [http://download.live.com/messenger Windows Live Messenger]
+  * [http://www.pidgin.im/ *Pidgin*] (via [http://code.google.com/p/pidgin-musictracker pidgin-musictracker])
+  * [http://www.amsn-project.net/ *aMSN*] (via the [http://www.amsn-project.net/plugins.php#13 Music] plugin)
+
+== Media Player ==
+
+The following media players are known to implement the sending end of the interface:
+  * PsyMP3
+  * [http://www.microsoft.com/windows/windowsmedia/player/ Windows Media Player]
+  * [http://www.last.fm/download Last.fm Client]
+  * [http://getopenpandora.appspot.com/ OpenPandora]
+  * [http://mpc-hc.sourceforge.net/ Media Player Classic Home Cinema]
+  * [http://getsongbird.com/ Songbird] (via the [http://addons.songbirdnest.com/addon/1204 LiveTweeter] extension)
+  * [http://www.spotify.com/ Spotify]
+  * [http://wwwct.ttplayer.com/index.html TTPlayer]
+  * [http://www.videolan.org/vlc/ VLC (VideoLan Client) Media Player]
+
+= Details =
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
