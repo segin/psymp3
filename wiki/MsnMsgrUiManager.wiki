@@ -43,4 +43,4 @@ The fields are described below:
   # [iTunes extension] Player name. If you don't really care, leave it empty.
   # Message type. There a number of things you could put here, but the only important value for this is "Music".
   # Status Enabled. Does the message enable or disable the now playing information? When announcing a new song, this is "1", and at the end of a song (to clear the now playing from the messenger), this is "0".
-  # Format string
+  # Format string - This is only really important for MSN Messenger and Windows Live Messenger. It is either string data to be used literally, or tokens referencing the argument strings, which come next. 
