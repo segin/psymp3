@@ -1,5 +1,5 @@
 #summary A Win32 window class implemented by MSN Messenger and other compatible messengers
-#labels Phase-Implementation
+#labels Phase-Implementation,Featured
 
 = Introduction =
 
