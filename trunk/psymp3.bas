@@ -80,6 +80,7 @@ Public:
    Declare Function getPosition() As Integer
    Declare Function getEntries() As Integer
    Declare Function isFileRaw() As Integer
+   Declare Function getFirstEntry() As String
 End Type
 
 Dim Shared As Playlist Songlist
@@ -90,18 +91,18 @@ Constructor Playlist ()
    this.m_playlist(1) = ""
 End Constructor
 
-Sub Playlist.addFile (file As String)
+Sub Playlist.addFile Alias "addFile" (file As String)
    this.m_entries += 1
    this.m_playlist(this.m_entries) = file
 End Sub
 
-Sub Playlist.addRawFile(file As String)
+Sub Playlist.addRawFile Alias "addRawFile" (file As String)
    this.m_entries += 1
    this.m_playlist(this.m_entries) = file
    this.m_israw(this.m_entries) = 1
 End Sub
 
-Function Playlist.getNextFile () As String
+Function Playlist.getNextFile Alias "getNextFile" () As String
    If this.m_entries = 0 Or this.m_entries <= this.m_position Then
       this.m_position = this.m_entries + 1
       Return ""
@@ -110,18 +111,23 @@ Function Playlist.getNextFile () As String
    Return this.m_playlist(this.m_position)
 End Function
 
-Function Playlist.getPrevFile () As String
+Function Playlist.getPrevFile Alias "getPrevFile" () As String
    If this.m_entries = 0 Then Return ""
    this.m_position -= 1
    Return this.m_playlist(this.m_position)
 End Function
 
-Function Playlist.getPosition () As Integer
+Function Playlist.getPosition Alias "getPosition" () As Integer
    Return this.m_position
 End Function
 
-Function Playlist.getEntries () As Integer
+Function Playlist.getEntries Alias "getEntries" () As Integer
    Return this.m_entries
+End Function
+
+Function Playlist.getFirstEntry Alias "getFirstEntry" () As String
+   this.m_position = 0
+   Return this.getNextFile()
 End Function
 
 '' End Playlist code.
