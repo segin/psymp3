@@ -1,0 +1,30 @@
+PsyMP3 is almost completely keyboard-controlled. Below is a list of all 
+commands and their associated keys:
+
+"Q" or "ESC":     This command closes PsyMP3. Using the graphics window's
+                  close button acts like you pressed a key that doesn't exist
+                  on your keyboard, and that also closes the window.
+
+"A":              Displays the about box (multiple presses to the main
+                  window will give you multiple boxes to play with :)
+                  
+"S":              Spectrum analyzer on/off. On even a decently modern box,
+                  PsyMP3 sucks about 10% CPU just for the graphics.
+
+"R":              Restarts the song.
+
+"L":              Loads a new song. If you press this by accident, 
+                  merely dismiss the file chooser dialog to cancel.
+                  
+"E":              Does nothing useful for the end-user, was meant to test
+                  FMOD functionality.
+
+"B":              Toggles Repeat Track mode, where it loops the song.
+
+"Z":              Displays a framerate counter.
+
+"Space":          Pauses/Plays the song
+
+"Left":           Goes back by 1.5 seconds (hold down to seek)
+
+"Right":          Goes forward by 1.5 seconds (hold down to seek)

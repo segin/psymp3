@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fileset>
+<file>
+   <path>psymp3.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>fbgl.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>id3tag.bi</path>
+   <type>BASIC</type>
+   <license>LGPL</license>
+</file>
+
+<file>
+   <path>psymp3.rc</path>
+   <type>C</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>manifest.xml</path>
+   <type>XML</type>
+   <license>MIT</license>
+</file>
+
+<file>
+   <path>dirname.c</path>
+   <type>C</type>
+   <license>BSD</license>
+</file>
+
+</fileset>

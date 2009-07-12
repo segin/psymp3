@@ -1,0 +1,18 @@
+ADDENDUM FOR PSYMP3 README, FOR GNU/LINUX AND FREEBSD
+Version 1.0.4
+
+Installing on Linux:
+
+Since there is no single directory on a user's system guarnteed to exist and contain
+TrueType fonts, there is thus no system-wide directory I can suggest you use to install
+vera.ttf; PsyMP3 will look in the current working directory and ~/.fonts.
+
+Make sure that libfmod.so is in your library path, coping it to either /usr/lib or /usr/local/lib
+should do it.
+
+NOTE: PsyMP3 seems to use several hundred megabytes of memory when running.
+It is not known if this is a FMOD problem, a compiler problem, or a 
+memory allocation problem of PsyMP3. This problem doesn't appear on Windows, so
+it is a good guess that my build of FMOD has a memory leak, but I am too lazy
+to run it through Valgrind to debug it. The memory usage is more severe the 
+longer that PsyMP3 runs. 

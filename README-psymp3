@@ -1,0 +1,71 @@
+PsyMP3 Version 1.0.4 Last Minute README
+=========================================
+
+1. Overview
+2. Usage
+3. Contacting the author
+
+=========================================
+
+1. OVERVIEW
+
+PsyMP3 is a general, all-round, simple media player. PsyMP3 was named
+for the bar spectrum visualization, which is a simple psychovisual display.
+
+System Requirements:
+	* WINDOWS AND REACTOS:
+	- Microsoft Windows 95, 98, NT 4.0, 2000, XP, and Server 2003
+	  (Vista and Server 2008 support not guarnteed -- Windows 7 support 
+	  guarnteed not to exist when Windows 7 does come out)
+	- ReactOS 0.3 or later
+	- Intel Pentium-MMX processor or AMD K6, 200MHz or better
+	- 800x600 16-bit SVGA or better (a ultra high-end 512MB PCI-E 16x card
+	  WILL NOT make this run any better)
+	- An additional 32MB of system RAM over your OS's requirement 
+	  (128MB is good)
+	- 1MB of disk space
+	- 16-bit sound card (just about every sound card made in the last 15
+	  years will work)
+	- FMOD 3.7x (included with PsyMP3)
+	- FreeType 2 (included with PsyMP3)
+	
+	* GNU/LINUX:
+	- Linux 2.4.16 or later (Older kernels will work, but why bother?)
+	- FMOD 3.7x (a copy of libfmod.so is included with PsyMP3)
+	- ALSA 0.9x or Open Sound System drivers (If the OSS on FreeBSD
+	  when running a Linux binary of PsyMP3 under FreeBSD doesn't work,
+	  this is a BUG)
+	- GTK+-2.4 or later (you can probably get away with older)
+	- a working X11 installation OR
+	- A working Linux framebuffer with at least 24-bit color 
+	- In either case, you still need Xlib and other base X libraries
+	- 1GB of RAM (2GB is better, see README-Linux for why)
+	- an i386 machine with a 400MHz CPU would be nice, 200MHz minimum
+
+2. USAGE
+
+PsyMP3 is a simple media player; in fact, it has very few features.
+If PsyMP3 is started without any command-line arguments, you will be 
+prompted for a filename by your OS's standard file selection dialog.
+If there are any command-line arguments, PsyMP3 will simply take the first
+argument and treat it as the path to a file to play.
+
+When playback of the selected media is complete, PsyMP3 will terminate
+
+When playing, PsyMP3 is controlled entirely by keyboard.
+
+Your keys are:
+	SPACE	  - This pauses and resumes playback
+	ESC or Q  - These close PsyMP3
+	LEFT	  - This rewinds playback, 1.5 seconds at a time
+	RIGHT	  - This fastforwards playback, 1.5 seconds at a time
+
+3. CONTACTING THE AUTHOR
+
+You may reach me at segin2005@gmail.com, however, I haven't checked my
+email for more than a year, and I lack a home Internet connection with which
+to do so.
+
+4. NOTES
+Starting with PsyMP3 1.0.6, we are going to try to stop using the FMOD sound
+ library. FMOD is proprietary and thus sucks.
