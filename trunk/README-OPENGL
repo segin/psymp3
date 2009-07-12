@@ -1,0 +1,9 @@
+ADDENUM FOR PSYMP3, VERSION 1.0.4
+OPENGL INFORMATION
+=================================
+
+If PsyMP3 is compiled with the __FBGL__ marco defined, then
+PsyMP3 will compiled and linked against the (included) fbgl 
+library, and your system's OpenGL libraries. If your system 
+has a 3D card (and I honestly can't see why it shouldn't), 
+then the entire display will be hardware-accelerated.
