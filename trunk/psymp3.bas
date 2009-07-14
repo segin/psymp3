@@ -1195,7 +1195,6 @@ End Sub
 #define KVIRC_WM_USER_TRANSFER 15000
 
 Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam As LPARAM) As LRESULT
-	Printf(!"hwnd = %#x, umsg = %d, wParam = %#x, lParam = %#x\n",hWnd, uMsg, wParam, lParam)
 	Static As Integer msgptr, lastcall
 	Static As ZString * 4096 buf
 	Select Case uMsg
@@ -1266,6 +1265,10 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					Return doRepeat
 				Case 253 ' IPC_SET_REPEAT
 					If wParam = 0 Or wParam = 1 Then doRepeat = wParam
+				Case 212 ' ICP_GETPLAYLISTTITLE
+					' I don't like this, it requires I return a pointer inside
+					' PsyMP3's memory space.
+					Return StrPtr(mp3name)
 				Case 104 ' IPC_ISPLAYING
 					Select Case As Const isPaused
 						Case 1
@@ -1276,12 +1279,14 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 							Return 0
 					End Select
 				Case Else
+					Printf(!"hwnd = %#x, umsg = %d, wParam = %#x, lParam = %#x\n",hWnd, uMsg, wParam, lParam)
 					Return 0
 			End Select
 		Case WM_GETMINMAXINFO
 			' printf(!"WM_GETMINMAXINFO caught.\n")
 			Return 0
 		Case Else
+			Printf(!"hwnd = %#x, umsg = %d, wParam = %#x, lParam = %#x\n",hWnd, uMsg, wParam, lParam)
 			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
 	End Select
 End Function
@@ -2200,6 +2205,7 @@ lastfm_scrobble()
 #ifdef __FB_WIN32__
 	ClearWMP()
 #EndIf
+isPaused = 2
 If doPrev = 1 Then
    doPrev = 0
    mp3file = Songlist.getPrevFile()
