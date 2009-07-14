@@ -55,6 +55,7 @@ Dim Shared doRepeat As Integer
 Dim Shared doCommand As Integer
 Dim Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
 Dim Shared songstart As Integer ' Song start time in UNIX format.
+Dim Shared WAWindow As HWND
 
 Using FB
 
@@ -1198,6 +1199,10 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 	Static As Integer msgptr, lastcall
 	Static As ZString * 4096 buf
 	Select Case uMsg
+		Case WM_COPYDATA
+			' Oh, fuck me running...
+			Dim cpd As CopyData Ptr = Cast(CopyData Ptr, lParam)
+			
 		Case 273 ' Remote control functions
 			Select Case As Const wParam
 				Case &h9c70
@@ -1254,6 +1259,9 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					Return Songlist.getPosition()
 				Case 124 ' IPC_GETLISTLENGTH
 					Return Songlist.getEntries()
+				Case 122 ' IPC_SETVOLUME
+					' Do nothing for now.
+					Return 255
 				Case 105 ' IPC_GETOUTPUTTIME
 					Select Case wParam
 						Case 0 ' Current playing time in msec.
@@ -1265,7 +1273,10 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					Return doRepeat
 				Case 253 ' IPC_SET_REPEAT
 					If wParam = 0 Or wParam = 1 Then doRepeat = wParam
-				Case 212 ' ICP_GETPLAYLISTTITLE
+				Case 260 ' IPC_GETWND
+					' We don't support this for obvious reasons.
+					Return -1
+				Case 212 ' IPC_GETPLAYLISTTITLE
 					' I don't like this, it requires I return a pointer inside
 					' PsyMP3's memory space.
 					Return StrPtr(mp3name)
@@ -1285,6 +1296,8 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 		Case WM_GETMINMAXINFO
 			' printf(!"WM_GETMINMAXINFO caught.\n")
 			Return 0
+		Case 12 ' I dunno what this is, but it's used by SetWindowText()
+			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
 		Case Else
 			Printf(!"hwnd = %#x, umsg = %d, wParam = %#x, lParam = %#x\n",hWnd, uMsg, wParam, lParam)
 			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
@@ -1292,7 +1305,6 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 End Function
 
 Sub InitKVIrcWinampInterface Alias "InitKVIrcWinampInterface" ()
-   Static WAWindow As HWND
    Dim As WNDCLASSEX WAClass 
    Dim As ATOM a
    Dim As Dword WINERR
@@ -1855,6 +1867,8 @@ Do
    Else
 		Action = "Paused"
    End If
+   SetWindowText(WAWindow, _
+		Songlist.getPosition & ". " + mp3artist + " - " + mp3name + " - Winamp")
    WindowTitle Int((FSOUND_Stream_GetTime(stream) / FSOUND_Stream_GetLengthMs(stream)) _ 
 		* 100) & "% PsyMP3 " & PSYMP3_VERSION & " - " + Action + " - -:[ " _
 		+ mp3artist + " ]:- -- -:[ " + mp3name + " ]:- [" & _ 
