@@ -54,6 +54,13 @@ Dim Shared songstart As Integer ' Song start time in UNIX format.
 Dim Shared WAWindow As HWND
 Dim Shared songlength As Integer
 
+Type extendedFileInfoStructW
+   As WString Ptr filename
+   As WString Ptr metadata
+   As WString Ptr ret
+   As Integer retlen
+End Type
+
 Using FB
 
 '' Playlist code. Object-oriented as an experiment
@@ -1171,6 +1178,10 @@ End Sub
 Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam As LPARAM) As LRESULT
 	Static As Integer msgptr, lastcall
 	Static As ZString * 4096 buf
+	Static As String wintitle
+	Static As WString * 4096 wmp3file
+	Static As WString * 4096 wret 
+	wmp3file = mp3file
 	Select Case uMsg
 		Case WM_COPYDATA
 			' Oh, fuck me running...
@@ -1261,10 +1272,13 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					Return 0
 				Case 211 ' IPC_GETPLAYLISTFILE
 					Return StrPtr(mp3file)
+				Case 214 ' IPC_GETPLAYLISTFILEW
+					Return StrPtr(wmp3file)
 				Case 212 ' IPC_GETPLAYLISTTITLE
 					' I don't like this, it requires I return a pointer inside
 					' PsyMP3's memory space.
-					Return StrPtr(mp3name)
+					wintitle = mp3artist + " - " + mp3name
+					Return StrPtr(wintitle)
 				Case 104 ' IPC_ISPLAYING
 					Select Case As Const isPaused
 						Case 1
@@ -1278,6 +1292,18 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					Return 0 ' 0 means not playing video.
 				Case 2000 To 3000 ' Freeform message. We aren't really Winamp, return 0
 					Return 0
+				Case 3026 ' WARNING: Satanic rituals at work here.
+					Dim As extendedFileInfoStructW Ptr efis = wParam
+					If *efis->filename <> wmp3file Then Return 0 
+					Select Case LCase(efis->metadata)
+						Case "artist"
+							*efis->ret = mp3artist
+						Case "title"
+							*efis->ret = mp3name
+						Case "album"
+							*efis->ret = mp3album
+					End Select
+					Return efis
 				Case Else
 					Printf(!"hwnd = %#x, umsg = %d, wParam = %#x, lParam = %#x\n",hWnd, uMsg, wParam, lParam)
 					Return 0
@@ -1285,7 +1311,7 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 		Case WM_GETMINMAXINFO
 			' printf(!"WM_GETMINMAXINFO caught.\n")
 			Return 0
-		Case 12 ' I dunno what this is, but it's used by SetWindowText()
+		Case 12 To 14' I dunno what this is, but it's used by SetWindowText()
 			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
 		Case Else
 			Printf(!"hwnd = %#x, umsg = %d, wParam = %#x, lParam = %#x\n",hWnd, uMsg, wParam, lParam)
@@ -1552,9 +1578,26 @@ Function lastfm_scrobble() As Integer
 	Dim As ZString * 10000 response
 	Dim As String response_data, httpdata, postdata
 
+   Dim As Integer qual
+
+   ' IIf keeps giving me "Invalid data types" so go with a more verbose workaround
+   If (songlength / 4000) > 240 Then
+      qual = 240
+   Else
+      qual = songlength / 4000
+   EndIf
+   /'
+   qual = IIf( _ 
+      Int(songlength/4000) > 240, _ 
+      240, _ 
+      songlength/4000 _
+   )
+   '/
+
+
    If songlength < 30000 Then Return 0
    
-   If curtime - songstart < IIf((songlength/4000) > 240, 240, (songlength/4000)) Then Return 0
+   If (curtime - songstart) < qual Then Return 0
 	
 	printf(!"Last.fm: Going to scrobble track. Artist: \"%s\", Title: \"%s\", Album: \"%s\".\n", mp3artist, mp3name, mp3album)
 	
