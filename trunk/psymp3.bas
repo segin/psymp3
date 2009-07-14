@@ -1199,7 +1199,7 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 	Static As Integer msgptr, lastcall
 	Static As ZString * 4096 buf
 	Select Case uMsg
-		Case 273 ' Remote control function s
+		Case 273 ' Remote control functions
 			Select Case As Const wParam
 				Case &h9c70
 					doCommand = PSYMP3_PLAY_NEXT
