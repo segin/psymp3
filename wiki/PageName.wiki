@@ -1,0 +1,49 @@
+#summary One-sentence summary of this page.
+
+= Introduction =
+
+PsyMP3 supports Now Playing in 
+  Pidgin (via pidgin-musictracker plugin)
+
+  Windows Live Messenger 
+
+  aMSN (via Music plugin)
+
+  and any other messenger programs that support the MsnMsgrUiManager window class.
+
+
+= Details =
+
+
+==Windows Live Messenger==
+	PsyMP3 works out-of-the-box with Windows Live Messenger.
+
+==Pidgin==
+	===Windows===
+		In order to get Now Playing information in Pidgin you must install the pidgin-musictracker plugin.
+
+    To install click on [http://pidgin-musictracker.googlecode.com/files/pidgin-musictracker-0.4.19.exe this link] and run the installer.
+
+    (Re)Start Pidgin and go to Tools > Plugins and check MusicTracker.
+
+		Hit the Configure Plugin button.
+
+		Select "Messenger Compatible" from the Player drop down list.
+
+	===Linux===
+		To get pidgin-musictracker installed on linux extract this [http://pidgin-musictracker.googlecode.com/files/pidgin-musictracker-0.4.19.tar.bz2 Archive] and cd into the directory.
+
+		Run ./configure and fix any issues that arise.
+
+		Run  make.
+
+		Run make install as root.
+
+		(Re)Start pidgin and go to Tools > Plugins adn check MusicTracker.
+
+		This should be all the configuration you have to do.
+
+
+
+==aMSN==
+	Follow this link for instructions on installing the plugins in aMSN. http://www.amsn-project.net/wiki/Installing_Plugins_and_Skins
