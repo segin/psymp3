@@ -1202,7 +1202,12 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 		Case WM_COPYDATA
 			' Oh, fuck me running...
 			Dim cpd As CopyData Ptr = Cast(CopyData Ptr, lParam)
-			
+			If cpd->dwData <> 3031 Then
+				printf(!"WAIntProc(): cpd->dwData = %d\n",cpd->dwData)
+				printf(!"WAIntProc(): cpd->cbData = %d\n",cpd->cbData)
+				printf(!"WAIntProc(): cpd->lpData = %d\n",cpd->lpData)
+			End If
+			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
 		Case 273 ' Remote control functions
 			Select Case As Const wParam
 				Case &h9c70
@@ -1253,6 +1258,8 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 				End Select
 			EndIf
 			Select Case lParam
+				Case 0
+					Return &h2000 ' Claim we are Winamp 2.000
 				Case 106
 					Return FSOUND_Stream_SetTime(stream, wParam)
 				Case 125 ' IPC_GETLISTPOS
@@ -1275,7 +1282,9 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					If wParam = 0 Or wParam = 1 Then doRepeat = wParam
 				Case 260 ' IPC_GETWND
 					' We don't support this for obvious reasons.
-					Return -1
+					Return 0
+				Case 211 ' IPC_GETPLAYLISTFILE
+					Return StrPtr(mp3file)
 				Case 212 ' IPC_GETPLAYLISTTITLE
 					' I don't like this, it requires I return a pointer inside
 					' PsyMP3's memory space.
@@ -1289,6 +1298,10 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 						Case 2
 							Return 0
 					End Select
+				Case 501 ' IPC_IS_PLAYING_VIDEO
+					Return 0 ' 0 means not playing video.
+				Case 2000 To 3000 ' Freeform message. We aren't really Winamp, return 0
+					Return 0
 				Case Else
 					Printf(!"hwnd = %#x, umsg = %d, wParam = %#x, lParam = %#x\n",hWnd, uMsg, wParam, lParam)
 					Return 0
