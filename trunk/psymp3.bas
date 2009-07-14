@@ -38,7 +38,7 @@
 #Include "md5.bi"
 #Include "wshelper.bas"
 
-#define PSYMP3_VERSION "1.1beta"
+#define PSYMP3_VERSION "1.1-RC"
 
 #If Not Defined(Boolean)
    #Define Boolean integer
@@ -1511,7 +1511,7 @@ Function lastfm_session() As String
 
    printf(!"Last.fm: Getting session key.\n")
 
-	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=1.1beta&u=" & lastfm_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(10) & "User-Agent: PsyMP3/1.1beta" & Chr(10) & Chr(10)
+	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v="PSYMP3_VERSION"&u=" & lastfm_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(10) & "User-Agent: PsyMP3/1.1beta" & Chr(10) & Chr(10)
 	hStart()
 	Dim s As SOCKET, addr As Integer
 	s = hOpen()
@@ -1542,7 +1542,7 @@ Function Lastfm_nowplaying() As SOCKET
 
 	httpdata = 	!"POST /np_1.2 HTTP/1.1\n" & _
 					!"Host: post.audioscrobbler.com\n" & _ 
-					!"User-Agent: PsyMP3/1.1beta\n" 
+					!"User-Agent: PsyMP3/"PSYMP3_VERSION"\n" 
 
 	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
 					"a=" & percent_encode(mp3artist) & "&" & _
@@ -1603,7 +1603,7 @@ Function lastfm_scrobble() As Integer
 	
    httpdata = 	!"POST /protocol_1.2 HTTP/1.1\n" & _
 		!"Host: post2.audioscrobbler.com\n" & _ 
-		!"User-Agent: PsyMP3/1.1beta\n" 
+		!"User-Agent: PsyMP3/"PSYMP3_VERSION"\n" 
  
 postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
 				"a[0]=" & percent_encode(mp3artist) & "&" & _
