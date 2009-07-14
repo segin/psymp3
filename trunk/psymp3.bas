@@ -34,10 +34,6 @@
 #define SIGINT 3
 #endif
 #include once "vbcompat.bi"
-#ifdef __FBGL__
-#include once "GL/gl.bi"
-#include once "fbgl.bi"
-#endif
 
 #Include "md5.bi"
 #Include "wshelper.bas"
@@ -1079,29 +1075,6 @@ Sub MsgBox(hWnd As Integer, msg As String)
 End Sub
 #endif
 
-#Ifdef __FBGL__
-Sub DrawSpectrum(spectrum As Single Ptr)
-   Dim X As Integer
-   For X = 0 to 320
-	win.color = iif(x>200,rgb((x-200)*2.15,0,255),iif(x<100, _
-	   			rgb(128,255,x*2.55),rgb(128-((x-100)*1.28),255 _
-			     - ((x-100)*2.55),255)))
-	'win.line x*2, 350-(spectrum[x]*350), x*2+1, 350, 2 
-	glBegin GL_QUADS
-		glVertex2f (x*2)+.1625, 350-(spectrum[x]*350)
-		glVertex2f (x*2)+.1625, 350
-		glVertex2f (x*2)+2.1625, 350
-		glVertex2f (x*2)+2.1625, 350-(spectrum[x]*350)
-	glEnd
-	glBegin GL_POINTS 
-		glVertex2f (x*2)+.1625, 350 
-	glEnd 
-	glBegin GL_POINTS 
-		glVertex2f (x*2)+1.1625, 350 
-	glEnd 
-   Next X
-End Sub
-#Else
 Sub DrawSpectrum(spectrum As Single Ptr)
    Dim X As Integer
 	For X = 0 to 320
@@ -1111,7 +1084,6 @@ Sub DrawSpectrum(spectrum As Single Ptr)
 			 - ((x-100)*2.55),255))), bf
 	Next X
 End Sub
-#EndIf
 
 Sub EndOfSong(stream As FSOUND_STREAM ptr)
 	FSOUND_Stream_Stop(stream)
@@ -1270,6 +1242,9 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					' Do nothing for now.
 					Return 255
 				Case 105 ' IPC_GETOUTPUTTIME
+					If IsPaused = 2 Then 
+						Return 0
+					End If
 					Select Case wParam
 						Case 0 ' Current playing time in msec.
 							Return FSOUND_Stream_GetTime(stream)
@@ -1685,6 +1660,12 @@ If Command(1) = "--version" Then
 	End
 End If
 
+Dim IsSilent As Integer
+
+If Command(1) = "--silent" Then
+   IsSilent = 1 
+EndIf
+
 If Command(1) = "--largo" Then
 	MsgBox hWnd, !"piro: OH MY GOD!! WHAT ARE YOU DOING?!?!\n\n" & _
 	!"largo: Relax, I got a copy of \"Meth for Dummies\"!\n\n" & _
@@ -1721,17 +1702,9 @@ EndIf
 	#EndIf
 #EndIf
 
-#ifdef __FBGL__
-	var win = fbgl(640,400)
-	win.blendMode = fbgl.ANTIALISED
-	win.lineSmooth = TRUE
-#Else
-	#ifdef __CRAZY_MODE__ 
-	ScreenRes 640, 400, 32, 2, GFX_NO_FRAME Or GFX_SHAPED_WINDOW
-	#else
+If IsSilent <> 1 Then
 	ScreenRes 640, 400, 32, 2
-	#endif
-#endif
+Endif
 
 #ifdef __FB_LINUX__
 	#ifdef __PERFER_OSS__
@@ -1840,9 +1813,7 @@ WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Playing - -:[ " + mp3artist + " ]:-
 ScreenSet 1
 'Dim wmctl As Any Ptr = ImageCreate(100, 25, , 32)
 'BLoad("aero-wmctl.bmp", wmctl)
-#ifndef __FBGL__
 var blank = ImageCreate(640, 350, rgba(0, 0, 0, 64), 32)
-#endif
 DoFPS = 0
 spectrum = FSOUND_DSP_GetSpectrum()
 FSOUND_Stream_Play( FSOUND_FREE, stream )
@@ -1893,7 +1864,6 @@ Do
         ' Lock the screen for flicker-free recomposition
         ' of display. Disable if you want to see if you
         ' will experience photosensitive elliptic seizures.
-#ifndef __FBGL__
    PCopy 1,0
    #Ifndef VOICEPRINT	
 	Put (0, 0), blank, Alpha
@@ -1901,24 +1871,6 @@ Do
    #Else 
    Dim Image As Any Ptr
    #EndIf
-#else
-	win.flip()
-	' win.cls()
-	' Let's try something else :)
-	glColor4ub(0,0,0,64)
-	glBegin GL_QUADS
-		glVertex2f .1625, 0
-		glVertex2f .1625, 420
-		glVertex2f 640.1625, 420
-		glVertex2f 640.1625, 0
-	glEnd
-#endif
-#ifdef __CRAZY_MODE__
-	Paint (320, 240), rgba(255, 0, 255, 0)
-	line (0,352)-(300, 400), 0, BF
-	Line (468, 355)-(565, 365), 0, BF
-#endif
-'#ifndef __FBGL__
    PrintFT(1,366,"Artist: " + mp3artist,sFont,12,rgb(255,255,255))
    PrintFT(1,381,"Title: " + mp3name,sFont,12)
    PrintFT(1,396,"Album: " + mp3album,sFont,12) 
@@ -1936,22 +1888,12 @@ Do
 
 
    ' The brackets on the ends of the progress bar
-#ifdef __FBGL__
-	win.color = rgb(255, 255, 255)
-	win.Line (399,370,399,385)
-   win.Line (621,370,621,385)
-	win.Line (399,370,402,370)
-   win.Line (399,385,402,385)
-   win.Line (618,370,621,370)
-   win.Line (618,385,621,385)
-#else
 	Line(399,370)-(399,385), rgb(255,255,255)
 	Line(621,370)-(621,385), rgb(255,255,255)
 	Line(399,370)-(402,370), rgb(255,255,255)
 	Line(399,385)-(402,385), rgb(255,255,255)
 	Line(618,370)-(621,370), rgb(255,255,255)
 	Line(618,385)-(621,385), rgb(255,255,255)
-#endif
 	' The progress bar
 	T = (FSOUND_Stream_GetTime(stream) / FSOUND_Stream_GetLengthMs(stream)) * 220
 	For x = 0 to T
@@ -1998,30 +1940,16 @@ Do
 	   EndOfSong stream
    End If
    If nkey = Chr(255) + "K" Then ' Left key pressed, go back 1.5sec
-#ifndef __FBGL__	
       Line(380,377)-(390,377), rgb(255,0,0)
       Line(380,377)-(383,374), rgb(255,0,0)
       Line(380,377)-(383,380), rgb(255,0,0)
-#else
-		win.color = rgb(255,0,0)
-		win.line(380,377,390,377)
-		win.line(380,377,383,374)
-		win.line(380,377,383,380)
-#endif
 		FSOUND_Stream_SetTime(stream, iif(FSOUND_Stream_GetTime(stream) - 1500 < 0, _
 			0, FSOUND_Stream_GetTime(stream) - 1500))
 	End If
 	If nkey = Chr(255) + "M" Then ' Right key pressed, forward 1.5sec
-#ifndef __FBGL__
 		Line(628,377)-(638,377), rgb(0,255,0)
 		Line(638,377)-(635,374), rgb(0,255,0)
 		Line(638,377)-(635,380), rgb(0,255,0)
-#else
-		win.color = rgb(0,255,0)
-		win.Line(628,377,638,377)
-		win.Line(638,377,635,374)
-		win.Line(638,377,635,380)
-#endif
 		FSOUND_Stream_SetTime(stream, FSOUND_Stream_GetTime(stream) + 1500)
    End If
    If nkey = " " Then
@@ -2158,41 +2086,13 @@ Do
 	     ' The previous will probably break and do so horribly
         ' Play and pause symbols to show status in a graphical and iconic fashion.
         If IsPaused = 1 Then
-#ifndef __FBGL__
             Line (580,354)-(583,366), rgb(255,255,255), BF
             Line (586,354)-(589,366), rgb(255,255,255), BF
-#else
-	win.color = rgb(255,255,255)
-	' Shit, better to make the GL calls ourselves...
-	glBegin GL_QUADS
-		glVertex2f 580, 354 
-		glVertex2f 580, 366
-		glVertex2f 583, 366
-		glVertex2f 583, 354
-	glEnd
-
-	glBegin GL_QUADS
-		glVertex2f 586, 354
-		glVertex2f 586, 366
-		glVertex2f 589, 366
-		glVertex2f 589, 354
-	glEnd
-
-#endif
         Else
-#ifndef __FBGL__
             Line (580,354)-(586,360), rgb(32,255,32)
             Line (580,354)-(580,366), rgb(32,255,32)
             Line (586,360)-(580,366), rgb(32,255,32)
             Paint (582, 360), rgb(32,255,32), rgb(32,255,32)
-#else
-	win.color = rgb(32,255,32)
-	glBegin GL_TRIANGLES
-		glVertex2f 580.1625,354.1625
-		glVertex2f 586.1625,360.1625
-		glVertex2f 580.1625,366.1625
-	glEnd
-#endif
 	End If
     'Beat detection and gfx
     Draw "BM630,360"
