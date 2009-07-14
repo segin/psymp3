@@ -52,6 +52,7 @@ Dim Shared doCommand As Integer
 Dim Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
 Dim Shared songstart As Integer ' Song start time in UNIX format.
 Dim Shared WAWindow As HWND
+Dim Shared songlength As Integer
 
 Using FB
 
@@ -1550,6 +1551,10 @@ Function lastfm_scrobble() As Integer
 	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
 	Dim As ZString * 10000 response
 	Dim As String response_data, httpdata, postdata
+
+   If songlength < 30000 Then Return 0
+   
+   If curtime - songstart < IIf((songlength/4000) > 240, 240, (songlength/4000)) Then Return 0
 	
 	printf(!"Last.fm: Going to scrobble track. Artist: \"%s\", Title: \"%s\", Album: \"%s\".\n", mp3artist, mp3name, mp3album)
 	
@@ -1768,8 +1773,10 @@ if( stream = 0 ) then
 	End 1
 end if
 
+If IsSilent <> 1 Then
 FSOUND_DSP_SetActive(FSOUND_DSP_GetFFTUnit, 1)
-    
+End If 
+
 InitFT()
 
 #ifdef __FB_WIN32__
@@ -1809,14 +1816,15 @@ mp3name = getmp3name(stream)
 mp3artist = getmp3artist(stream)
 mp3album = getmp3album(stream)
 getmp3albumart(stream)
-WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Playing - -:[ " + mp3artist + " ]:- -- -:[ " + mp3name + " ]:-"
-ScreenSet 1
-'Dim wmctl As Any Ptr = ImageCreate(100, 25, , 32)
-'BLoad("aero-wmctl.bmp", wmctl)
 var blank = ImageCreate(640, 350, rgba(0, 0, 0, 64), 32)
-DoFPS = 0
-spectrum = FSOUND_DSP_GetSpectrum()
+If isSilent <> 1 Then
+   WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Playing - -:[ " + mp3artist + " ]:- -- -:[ " + mp3name + " ]:-"
+   ScreenSet 1
+   DoFPS = 0
+   spectrum = FSOUND_DSP_GetSpectrum()
+End If
 FSOUND_Stream_Play( FSOUND_FREE, stream )
+songlength = FSOUND_Stream_GetLengthMs(stream)
 Do
    IsPaused = 0
    #Ifdef __FB_WIN32__
@@ -1828,12 +1836,17 @@ Do
    EndIf
    sock = Lastfm_nowplaying()
 Do  
+   SetWindowText(WAWindow, _
+		Songlist.getPosition & ". " + mp3artist + " - " + mp3name + " - Winamp")
+
+	Sleep 12 ' Timer delay
+
+If IsSilent <> 1 Then
 	If SpectrumOn = 1 Then      
 		DrawSpectrum(spectrum)       
 	End If
 
    'ScreenUnlock
-	Sleep 12 ' Timer delay, 30Hz (1000msec / 30Hz = ~33.3msec/tick)
    'Window title, is program name/version, artist and songname, and 
    'time elapsed/time remaining
 	FPS(2) = Timer
@@ -1851,8 +1864,6 @@ Do
    Else
 		Action = "Paused"
    End If
-   SetWindowText(WAWindow, _
-		Songlist.getPosition & ". " + mp3artist + " - " + mp3name + " - Winamp")
    WindowTitle Int((FSOUND_Stream_GetTime(stream) / FSOUND_Stream_GetLengthMs(stream)) _ 
 		* 100) & "% PsyMP3 " & PSYMP3_VERSION & " - " + Action + " - -:[ " _
 		+ mp3artist + " ]:- -- -:[ " + mp3name + " ]:- [" & _ 
@@ -2034,6 +2045,7 @@ Do
 			mp3album = getmp3album(stream)
 			'getmp3albumart(stream)
 			FSOUND_Stream_Play( FSOUND_FREE, stream )
+			songlength = FSOUND_Stream_GetLengthMs(stream)
 			IsPaused = 0
 #ifdef __FB_WIN32__
 			ClearWMP()
@@ -2124,6 +2136,7 @@ Do
 		hClose(sock)
 		sock = Lastfm_nowplaying()
    EndIf
+End IF
 Loop While (FSOUND_Stream_GetTime(stream) <> FSOUND_Stream_GetLengthMs(stream)) Or (doRepeat = 1)
 ' I don't want to quit at end-of-song anymore.
 FSOUND_Stream_Stop(stream)
@@ -2160,6 +2173,7 @@ If mp3file <> "" Then
 		mp3album = getmp3album(stream)
 		'getmp3albumart(stream)
 		FSOUND_Stream_Play( FSOUND_FREE, stream )
+		songlength = FSOUND_Stream_GetLengthMs(stream)
 		IsPaused = 0
 	'ElseIf LCase(Right(mp3file,5)) = ".m3u8" Then
 		'parse_m3u_playlist(mp3file)
@@ -2176,6 +2190,7 @@ If mp3file <> "" Then
 	mp3album = getmp3album(stream)
 	'getmp3albumart(stream)
 	FSOUND_Stream_Play( FSOUND_FREE, stream )
+	songlength = FSOUND_Stream_GetLengthMs(stream)
 	IsPaused = 0
 End If
 Else
