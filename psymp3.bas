@@ -1206,8 +1206,11 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					doCommand = PSYMP3_PLAY_PREV
 			End Select
 		Case WM_USER
-			'printf(!"WM_USER caught.\n")
 			If wParam = KVIRC_WM_USER Then
+				' Note: The KVIrc interface here might seem retarded and buggy.
+				' It's not. The GETTITLE and GETFILE thing just sets up the buffer.
+				' TRANSFER transfers the buffer (and it's up to KVIrc to pass the right
+				' lParam.
 				Select Case lParam 
 					Case KVIRC_WM_USER_CHECK
 						Return KVIRC_WM_USER_CHECK_REPLY
