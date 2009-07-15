@@ -10,6 +10,4 @@ Pidgin-musictracker is a plugin for Pidgin (and possibly other libpurple-based m
 
 PsyMP3 supports the "Messenger compatible" interface of pidgin-musictracker. This interface implements a hidden MsnMsgrUiManager window, for which WM_COPYDATA messages are sent to update the status as seen by pidgin-musictracker.
 
-PsyMP3 also supports a subset of the Winamp IPC interface. Missing is support for getting the artist, song title, and album of the currently playing song. Pidgin-musictracker is, however, able to retrieve the song length, and current position in the song, using the Winamp IPC interface.
-
-PsyMP3, however, does not implement this part of the Winamp IPC interface, and pidgin-musictracker is only able to retrieve the song length and current position.
+PsyMP3 also supports a subset of the Winamp IPC interface. Pidgin-musictracker is therefore able to retrieve the artist, song title, album, song length, and current position in the currently playing song, using the Winamp IPC interface.
