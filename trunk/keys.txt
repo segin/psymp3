@@ -23,6 +23,8 @@ commands and their associated keys:
 
 "Z":              Displays a framerate counter.
 
+"I":              Add a new file or playlist to the working playlist.
+
 "Space":          Pauses/Plays the song
 
 "Left":           Goes back by 1.5 seconds (hold down to seek)
