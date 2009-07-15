@@ -1,0 +1,135 @@
+/'
+
+   REVISION HISTORY
+
+'/
+
+0.6.8
+- Keyboard buffer is cleared when TEXTBOX or MULTITEXT 
+  control gets focus for the first time.
+0.6.7
+- Added .KeyPeek property to GUI to prevent multiple GUIs
+  from clearing chars from the keyboard buffer.
+0.6.5
+- Upgraded wrap function of multi-textbox control to word wrap
+- Keyboard control of combo now fires Combo_Select event
+0.6.4
+- Added new control property ShowFocus (Default=0)
+- Added keyboard control to GUI
+   *Arrows select combo, move sliders
+   *Spacebar presses buttons and toggles checkboxes/radios
+- Changed active control to always render on top
+- Added new GUI property MessageHandler to specify handler for 
+  GUI specific events
+- Added new event message Form_Click which fires when the 
+  mouse is clicked on form but not a specific control
+- Added new GUI property CloseBtn which specifies a pointer
+  to a button control to use as the form's close button.
+- Fixed bug where overlapping controls would both try to capture
+  control focus at the same time. 
+0.6.2
+- Fixed BUG where popup menus would re-appear if the mouse
+  was pressed in the last place the popup window appeared.
+0.6.1
+- Fixed typo in LoadBitmap function getting BMP header
+0.6.0
+- Changed _kGUI_Design class to support new Ver2 .kwk format
+- Added text overlay for Picture Control
+- Fixed bug in LoadBitmap that would endless loop if file not found
+- Added User Defined Events with optional param passing
+0.5.7
+- Added Radio Button control
+0.5.6
+- Added Refresh to Menu control to update menu text
+- Added basic CTRL-C/V copy/paste of text. *within same GUI object
+- Fixed rendering of Combo control when no items present
+0.5.5
+- Changed Combo drop length variable when below 10 items
+- Fixed GUI renderer always defaulting to TRANS
+- Added Color Picker control
+0.5.4
+- Fixed bug in Resize not updating dx/dy properties
+0.5.3
+- Added Resize method for GUI object
+0.5.2
+- Supressed crlf from appearing as text in textbox
+- Fixed BUG in loading GUIs with _kGUI_Design
+- Changed: .designmode property to default=0 when loading GUIs
+0.5.0
+- Added Design Object to generate GUI from KwikSet files
+- Added FindControl Method
+- Added Locked property
+- Added DesignMode to GUI object
+- Change: Border on Label control (0=default)
+0.4.2
+- Added LoadBitmap helper function
+- Added Console print helper function
+- Added Key_Press event for all controls
+- Added Enabled property to all controls
+- Added Keycode to event data
+- Added Extcode to event data
+- Added Sticky function to buttons for toggle
+0.4.0
+- Added ListBox control
+- Added HOME key functionality to text box controls
+- Added END key functionality to text box controls
+- Optimized gradient function
+- BUG Fix:textbox scrolling back to cursor
+- BUG Fix:cursor placement with mouse on single-line textbox
+0.3.8
+- Adjusted text position on button rendering
+0.3.7
+- Fixed Pattern property for FileList control
+- Fixed bug in datalist Clear() method
+- Internal changes to control layout
+0.3.6
+- Added FileList Control
+- Added DirList Control
+- Added Progress Bar Control
+- Added new event message Ctrl_Refresh
+- Added several new control properties
+	* Path = Path for DirList or FileList
+	* Pattern (Currently Disabled) = File matching pattern
+	* GUI = Pointer to GUI hosting control
+
+0.3.4
+- Improved rendering on Popup Menu,V/H Sliders
+- Added position marker to scroll bar for multi-textbox
+- Added new event message Slider_Scroll
+
+0.3.2
+- Added popup menu control
+- Added scroll bar for combo boxes
+- Added alpha blend option for GUI & popup rendering
+- Fixed textbox scrolling with arrow keys
+0.2.9
+- Fixed combo not showing all items
+0.2.8 
+- Cleaned up KwikPad demo app 
+- Reorganized KwikGUI header/library source 
+- Fixed bug in moveable titlebar 
+0.2.7
+- Fixed 1st rendering too high on textbox bug
+- Added new sample app KwikPad
+0.2.6
+- Added method for removing a control
+- Added scroll bar to multi-line textbox
+- Added release of datalist resources on control destruction
+0.2.0
+- Added arrow & DEL functionality to textbox control
+- Added new Multi-line text box with ability to edit text.
+Known Issues:
+- Using Up/Down arrow on multi-line text box will not go beyond carriage return or line feed.
+- Cursor treats carriage return and line feeds as on-screen characters
+
+0.1.5 	- 10/31/08
+- Added graphical button shape ability
+- Changed button rendering to gradient fill
+
+0.1.4	- 10/18/08
+- Added drop down COMBO control
+- Added methods for adding/removing/reading items in list
+
+0.1.3	- 10/14/08
+- Added VSLIDER and HSLIDER controls
+- Removed ctr.bi dependency
