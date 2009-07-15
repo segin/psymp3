@@ -14,8 +14,6 @@
 '
 ' vim: ts=4 syntax=freebasic
 '
-' FBGL library written by Angelo Mottola
-'
  
 #include once "crt.bi"
 #include once "crt/stdlib.bi"
@@ -1056,7 +1054,6 @@ end sub
 
 Sub MsgBox(hWnd As Integer, msg As String)
 	Dim as GtkWidget ptr gwindow, gbutton, gbox, label
-	gtk_init(0,0)
 	gwindow = gtk_window_new(GTK_WINDOW_TOPLEVEL)
 	label = gtk_label_new("PsyMP3: " & msg)
 	gtk_window_set_title (GTK_WINDOW (gwindow), "PsyMP3 - running as PID " & getpid())
@@ -1081,7 +1078,7 @@ Sub MsgBox(hWnd As Integer, msg As String)
 	gtk_widget_show(gwindow)
 	gtk_main ()
 End Sub
-#endif
+#EndIf
 
 Sub DrawSpectrum(spectrum As Single Ptr)
    Dim X As Integer
@@ -1093,14 +1090,15 @@ Sub DrawSpectrum(spectrum As Single Ptr)
 	Next X
 End Sub
 
-Sub EndOfSong(stream As FSOUND_STREAM ptr)
-	FSOUND_Stream_Stop(stream)
-	FSOUND_Stream_Close(stream)
+Sub EndPlayer()
 	#ifdef __FB_LINUX__
 		' kill_(getpid(),SIGINT)
 		end
-	#else
-		end
+	#ElseIf Defined(__FB_WIN32__)
+		DestroyWindow(WAWindow)
+		End
+	#Else 
+		End
 	#endif
 End Sub
 
@@ -1994,7 +1992,7 @@ If IsSilent <> 1 Then
 #ifdef __FB_WIN32__
 	   ClearWMP()
 #EndIf
-	   EndOfSong stream
+	   EndPlayer()
    End If
    If nkey = Chr(255) + "K" Then ' Left key pressed, go back 1.5sec
       Line(380,377)-(390,377), rgb(255,0,0)
@@ -2229,7 +2227,7 @@ If mp3file <> "" Then
 	songstart = Time_(NULL)
 	If( stream = 0 ) then 
 		MsgBox hWnd, !"Can't load music file \"" + mp3file + !"\""
-		end 1
+		EndPlayer()
 	end if
 	mp3name = getmp3name(stream)
 	mp3artist = getmp3artist(stream)
@@ -2246,4 +2244,4 @@ Loop
 #ifdef __FB_WIN32__
 	ClearWMP()
 #endif
-EndOfSong stream
+EndPlayer()
