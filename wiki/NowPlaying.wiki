@@ -3,13 +3,10 @@
 = Introduction =
 
 PsyMP3 supports Now Playing in 
-  Pidgin (via pidgin-musictracker plugin)
-
-  Windows Live Messenger 
-
-  aMSN (via Music plugin)
-
-  and any other messenger programs that support the MsnMsgrUiManager window class.
+  * Pidgin (via pidgin-musictracker plugin)
+  * Windows Live Messenger 
+  * aMSN (via Music plugin)
+  * and any other messenger programs that support the MsnMsgrUiManager window class.
 
 
 = Details =
