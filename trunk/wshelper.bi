@@ -3,6 +3,7 @@
 #include once "win/winsock2.bi"
 #else
 #include once "crt.bi"
+#include once "crt/netinet/in.bi"
 #endif
 
 ' #inclib "wshelper"
