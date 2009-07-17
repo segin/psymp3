@@ -984,12 +984,6 @@ function file_getname( byval hWnd as integer ) as string
 	gtk_file_chooser_add_filter (dialog, filter)
 	g_object_unref (filter)	
 	filter = gtk_file_filter_new()
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.wma")
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.asf")
-	gtk_file_filter_set_name (filter, "Windows Media Audio (*.wma; *.asf)")
-	gtk_file_chooser_add_filter (dialog, filter)
-	g_object_unref (filter)
-	filter = gtk_file_filter_new()
 	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.ogg")
 	gtk_file_filter_set_name (filter, "Ogg Vorbis/Ogg FLAC (*.ogg)")
 	gtk_file_chooser_add_filter (dialog, filter)
@@ -1094,7 +1088,7 @@ Sub EndPlayer()
 	#ifdef __FB_LINUX__
 		' kill_(getpid(),SIGINT)
 		end
-	#ElseIf Defined(__FB_WIN32__)
+   	#ElseIf Defined(__FB_WIN32__)
 		DestroyWindow(WAWindow)
 		End
 	#Else 
