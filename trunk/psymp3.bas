@@ -1088,7 +1088,7 @@ Sub EndPlayer()
 	#ifdef __FB_LINUX__
 		' kill_(getpid(),SIGINT)
 		end
-   	#ElseIf Defined(__FB_WIN32__)
+	#ElseIf Defined(__FB_WIN32__)
 		DestroyWindow(WAWindow)
 		End
 	#Else 
