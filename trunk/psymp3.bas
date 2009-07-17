@@ -1849,7 +1849,9 @@ if sFont = 0 Then
 	End If
 #endif
 End If
-InitKVIrcWinampInterface() 
+#ifdef __FB_WIN32__
+InitKVIrcWinampInterface()  
+#endif
 mp3name = getmp3name(stream)
 mp3artist = getmp3artist(stream)
 mp3album = getmp3album(stream)
