@@ -3,7 +3,6 @@
 ' Copyright (C) 2007-2009 Kirn Gill <segin2005@gmail.com>
 '
 ' Parts of this code are from OpenGH, copyright as above.
-' Portions from OpenGH are modified from:'
 '
 ' FMOD code based upon the "playmp3.bas" example, and the 
 ' FMOD player example provided with the FMOD distribution.
@@ -1850,7 +1849,8 @@ if sFont = 0 Then
 #endif
 End If
 #ifdef __FB_WIN32__
-InitKVIrcWinampInterface()  
+InitKVIrcWinampInterface() 
+ 
 #endif
 mp3name = getmp3name(stream)
 mp3artist = getmp3artist(stream)
