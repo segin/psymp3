@@ -1876,10 +1876,12 @@ Do
    EndIf
    sock = Lastfm_nowplaying()
 Do  
+#ifdef __FB_WIN32__     
    SetWindowText(WAWindow, _
 		Songlist.getPosition & ". " + mp3artist + " - " + mp3name + " - Winamp")
 
 	Sleep 12 ' Timer delay
+#endif
 
 If IsSilent <> 1 Then
 	If SpectrumOn = 1 Then      
