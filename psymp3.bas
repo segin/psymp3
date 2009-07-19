@@ -51,6 +51,9 @@ Dim Shared songstart As Integer ' Song start time in UNIX format.
 Dim Shared WAWindow As HWND
 Dim Shared songlength As Integer
 
+Declare Function getmp3artist(stream As FSOUND_STREAM Ptr) As String
+Declare Function getmp3name(stream As FSOUND_STREAM Ptr) As String
+
 Type extendedFileInfoStructW
    As WString Ptr filename
    As WString Ptr metadata
@@ -77,6 +80,7 @@ Public:
    Declare Constructor ()
    Declare Sub addFile(file As String)
    Declare Sub addRawFile(file As String)
+   Declare Sub savePlaylist(file As String)
    Declare Function getNextFile() As String
    Declare Function getPrevFile() As String
    Declare Function getPosition() As Integer
@@ -131,6 +135,28 @@ Function Playlist.getFirstEntry Alias "getFirstEntry" () As String
    this.m_position = 0
    Return this.getNextFile()
 End Function
+
+Sub Playlist.savePlaylist Alias "savePlaylist" (file As String)
+   ' Rationale: 
+   ' This function iterates through the entire playlist and attempts to write
+   ' an M3U that is compatible with Winamp, et. al.
+   Dim As Integer fd, ret, i, slen
+   Dim tmp As FSOUND_STREAM Ptr
+   Dim As String Artist, Title
+   fd = FreeFile()
+   ret = Open(file As fd)
+   If ret <> 0 Then Return
+   Print #fd, "#EXTM3U"
+   For i = 1 To this.m_entries
+      tmp = FSOUND_Stream_Open( this.m_playlist(i), FSOUND_MPEGACCURATE, 0, 0 )
+      slen = Int(FSOUND_Stream_GetLengthMs(tmp)/1000)
+      Artist = getmp3artist(tmp)
+      Title = getmp3name(tmp)
+      FSOUND_Stream_Close(tmp)
+      Print #fd, "#EXTINF:" & slen & "," & Artist & " - " & Title
+      Print #fd, this.m_playlist(i)
+   Next
+End Sub
 
 '' End Playlist code.
 
@@ -1757,7 +1783,7 @@ Endif
 			printf(!"Sound output: ESound (ESD)\n")
 			FSOUND_SetOutput(FSOUND_OUTPUT_ESD)
 		#else
-			printf(!"Sound output: ALSA\n")
+			printf(!"Sound output: ALSA\n") 
 			FSOUND_SetOutput(FSOUND_OUTPUT_ALSA)
 		#endif
 	#endif
@@ -2110,6 +2136,11 @@ If IsSilent <> 1 Then
 			EndIf
 		End If
 	End If
+	' Dump playlist.
+	If LCase(nkey) = "o" Then
+		PrintFT(30,130, "Saving playlist to " & CurDir() & "PsyMP3-" & time_(NULL) & ".m3u", sFont, 32, RGB(255,255,255))
+		Songlist.savePlaylist("PsyMP3-" & time_(NULL) & ".m3u")
+	EndIf
 	If LCase(nkey) = "z" Then
 		If DoFPS = 0 Then
 			DoFPS = 1
