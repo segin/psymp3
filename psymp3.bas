@@ -140,22 +140,26 @@ Sub Playlist.savePlaylist Alias "savePlaylist" (file As String)
    ' Rationale: 
    ' This function iterates through the entire playlist and attempts to write
    ' an M3U that is compatible with Winamp, et. al.
-   Dim As Integer fd, ret, i, slen
+   Dim As Integer ret, i, slen
+   Dim As Any Ptr fd
    Dim tmp As FSOUND_STREAM Ptr
    Dim As String Artist, Title
-   fd = FreeFile()
-   ret = Open(file As fd)
-   If ret <> 0 Then Return
-   Print #fd, "#EXTM3U"
+   fd = fopen(file, "wt")
+   If fd = 0 Then 
+      printf(!"Playlist::savePlayList(): Unable to open %s!\n", file)
+      Return
+   EndIf
+   fprintf(fd, "#EXTM3U\n")
    For i = 1 To this.m_entries
       tmp = FSOUND_Stream_Open( this.m_playlist(i), FSOUND_MPEGACCURATE, 0, 0 )
       slen = Int(FSOUND_Stream_GetLengthMs(tmp)/1000)
       Artist = getmp3artist(tmp)
       Title = getmp3name(tmp)
       FSOUND_Stream_Close(tmp)
-      Print #fd, "#EXTINF:" & slen & "," & Artist & " - " & Title
-      Print #fd, this.m_playlist(i)
+      fprintf(fd, !"#EXTINF:%d,%s - %s\n", slen, Artist, Title)
+      fprintf(fd, !"%s\n", this.m_playlist(i))
    Next
+   fclose(fd)
 End Sub
 
 '' End Playlist code.
@@ -1264,6 +1268,8 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 			Select Case lParam
 				Case 0
 					Return &h2000 ' Claim we are Winamp 2.000
+				Case 102
+					doCommand = PSYMP3_PLAY
 				Case 106
 					Return FSOUND_Stream_SetTime(stream, wParam)
 				Case 125 ' IPC_GETLISTPOS
@@ -1475,7 +1481,7 @@ Sub parse_m3u_playlist(m3u_file As String)
 		Line Input #fd, text
 		If Left(text,1) <> "#" Then
 			#Ifdef __FB_WIN32__
-			If Mid(text,1,2) = ":\" Then
+			If Mid(text,2,2) = ":\" Then
 			#Else
 			If text[0] = Asc("/") Then
 			#EndIf
@@ -1583,6 +1589,9 @@ Function Lastfm_nowplaying() As SOCKET
 	hSend(s, strptr(httpdata), len(httpdata))
 	hReceive(s, strptr(response), 10000)
    response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
+
+   printf(!"Lastfm_nowplaying(): Response_data = %s\n", response_data)
+
 
    if left(response_data,3) = !"OK\n" Then
 	   printf !"Last.fm: Server response OK. Track sucessfully sent as nowplaying!\n"
@@ -2039,6 +2048,9 @@ If IsSilent <> 1 Then
 		End If
 		FSOUND_SetPaused(FSOUND_ALL, IsPaused)
    End If
+   If doCommand = PSYMP3_PLAY And IsPaused = 1 Then
+      IsPaused = 0
+   EndIf
 	If doCommand = PSYMP3_PAUSE Then
 		doCommand = PSYMP3_PLAY
 		If IsPaused = 1 Then
@@ -2139,6 +2151,7 @@ If IsSilent <> 1 Then
 	' Dump playlist.
 	If LCase(nkey) = "o" Then
 		PrintFT(30,130, "Saving playlist to " & CurDir() & "PsyMP3-" & time_(NULL) & ".m3u", sFont, 32, RGB(255,255,255))
+		PCopy 1,0
 		Songlist.savePlaylist("PsyMP3-" & time_(NULL) & ".m3u")
 	EndIf
 	If LCase(nkey) = "z" Then
