@@ -1465,6 +1465,7 @@ Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr
    Return path
 End Function
 #Else
+
 #Inclib "dir"
 Extern "c"
 Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
@@ -2048,8 +2049,9 @@ If IsSilent <> 1 Then
 		End If
 		FSOUND_SetPaused(FSOUND_ALL, IsPaused)
    End If
-   If doCommand = PSYMP3_PLAY And IsPaused = 1 Then
+   If doCommand = PSYMP3_PAUSE And IsPaused = 1 Then
       IsPaused = 0
+      doCommand = PSYMP3_PLAY
    EndIf
 	If doCommand = PSYMP3_PAUSE Then
 		doCommand = PSYMP3_PLAY
