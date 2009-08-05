@@ -12,7 +12,7 @@ CompileIfNewer=0
 [Make]
 Module=Module Build,fbc -c
 Recompile=2
-Current=1
+Current=5
 1=Windows Console (debug/SSE),fbc -g -s console -fpu sse
 2=Windows Console (SSE),fbc -s console -fpu sse
 3=Voiceprint (console/debug/SSE),fbc -g -s console -fpu sse -d VOICEPRINT
