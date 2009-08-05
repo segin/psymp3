@@ -35,7 +35,7 @@
 #Include "md5.bi"
 #Include "wshelper.bas"
 
-#define PSYMP3_VERSION "1.1-RC"
+#define PSYMP3_VERSION "1.1-RELEASE"
 
 #If Not Defined(Boolean)
    #Define Boolean integer
@@ -2150,12 +2150,14 @@ If IsSilent <> 1 Then
 			EndIf
 		End If
 	End If
-	' Dump playlist.
+	' Dump playlist. DISABLED for 1.1-RELEASE due to buggyiness.
+   /'	
 	If LCase(nkey) = "o" Then
 		PrintFT(30,130, "Saving playlist to " & CurDir() & "PsyMP3-" & time_(NULL) & ".m3u", sFont, 32, RGB(255,255,255))
 		PCopy 1,0
 		Songlist.savePlaylist("PsyMP3-" & time_(NULL) & ".m3u")
 	EndIf
+	'/
 	If LCase(nkey) = "z" Then
 		If DoFPS = 0 Then
 			DoFPS = 1
