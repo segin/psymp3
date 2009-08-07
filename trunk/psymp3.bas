@@ -1594,8 +1594,9 @@ If cpuvendor = "GenuineIntel" Then
 	Next x
 EndIf
 
-libui_init(0,0)
-'MsgBox(0,"Welcome to PsyMP3!")
+#Ifndef __FB_WIN32__
+libui_init(__FB_ARGC__,__FB_ARGV__)
+#endif
 
 doCommand = PSYMP3_PLAY
 
