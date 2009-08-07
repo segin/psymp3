@@ -12,7 +12,17 @@
 
 void libui_init(int argc, char *argv[])
 {
-	QApplication app(argc, argv);
+	QApplication *app = new QApplication(argc, argv);
+	// while(1) sleep(100);
+	QMessageBox msgBox;
+	QString titleName = "PsyMP3 " PSYMP3_RELEASE " [pid: " +
+		QString::number(getpid()) + "]";
+	QString message = "test";
+	msgBox.setIcon(QMessageBox::Information);
+	msgBox.setDefaultButton(QMessageBox::Ok);
+	msgBox.setStandardButtons(QMessageBox::Ok);
+	msgBox.setWindowTitle(titleName);
+	msgBox.setText(message);
 }
 
 char *getFile(void)
@@ -35,7 +45,7 @@ char *getFile(void)
 	return(ret);
 }
 
-void messageBox(char *msg) 
+void messageBox(int UNUSED, char *msg) 
 {
 	QMessageBox msgBox;
 	QString titleName = "PsyMP3 " PSYMP3_RELEASE " [pid: " +
@@ -53,6 +63,6 @@ void messageBox(char *msg)
 int main(int argc, char **argv)
 {
 	libui_init(argc, argv);
-	messageBox(getFile());
+	messageBox(0,getFile());
 }
 #endif
