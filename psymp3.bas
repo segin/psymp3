@@ -27,7 +27,6 @@
 #define WIN_INCLUDEALL
 #include once "windows.bi"
 #else
-#include once "gtk/gtk.bi"
 #define SIGINT 3
 #endif
 #include once "vbcompat.bi"
@@ -48,7 +47,9 @@ Dim Shared doRepeat As Integer
 Dim Shared doCommand As Integer
 Dim Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
 Dim Shared songstart As Integer ' Song start time in UNIX format.
+#ifdef __FB_WIN32__
 Dim Shared WAWindow As HWND
+#endif
 Dim Shared songlength As Integer
 
 Declare Function getmp3artist(stream As FSOUND_STREAM Ptr) As String
@@ -191,7 +192,9 @@ Declare Function GetFont(ByVal FontName As String) As Integer
 #Ifdef __FB_WIN32__
 Declare sub MsgBox(hWnd As HWND, msg As String)
 #Else
-Declare sub MsgBox(hWnd As Integer, msg As String)
+Extern "C++"
+	Declare Sub MsgBox Alias "messageBox" (ByVal hWnd as Integer, ByVal msg As ZString Ptr)
+End Extern
 #endif
  
 ' Alpha blending 
@@ -976,131 +979,17 @@ sub TTY_MsgBox(hWnd As Integer, msg As String)
     Print #console, "PsyMP3 [" & getpid() & "] (XID: 0x" + Hex(hWnd, 8) + "): " + msg
 End Sub
 
-function file_getname( byval hWnd as integer ) as string
-	Dim as GtkWidget ptr dialog
-	Dim retfile As String 
-	Dim kgtk As Any Pointer
-	'Dim As Function kgtk_file_chooser_dialog_new, kgtk_dialog_run, _
-	'	kgtk_file_chooser_get_filename
-	
-	
-	' For some reason or another, if you select the file via the list
-	' and click "OK" to dismiss the dialog, the dialog lingers but frozen.
-	'
-	' It should go away when the program terminates. Also, on Linux,
-	' FMOD hangs on a FSOUND_Stream_Stop command. PsyMP3 can be left 
-	' running with 2 windows that the user cannot simply dismiss with the
-	' close button on his favourite WM's decoration.
-	'
-	' If the user has KGTK (a LD_PRELOAD wrapper for GTK+2.0 programs to
-	' use the KDE file dialogs with all the benefits of kioslaves) which, 
-	' needless to say, thus also needs KDE installed. 
-	'
-	'kgtk = DyLibLoad("/usr/share/apps/kgtk/libkgtk.so")
-	'kgtk_file_chooser_dialog_new = DyLibSymbol(kgtk, "gtk_file_chooser_dialog_new")
-	'kgtk_dialog_run = DyLibSymbol(kgtk, "gtk_dialog_run")
-	'kgtk_file_chooser_get_filename = DyLibSymbol(kgtk, "gtk_file_chooser_get_filename")
-
-	gtk_init(0,0)
-	dialog = gtk_file_chooser_dialog_new( "PsyMP3 - Select an mp3" + _
-		" or Ogg Vorbis file...", _
-		NULL, 	  GTK_FILE_CHOOSER_ACTION_OPEN, _
-		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL, _
-		GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT, NULL )
-	Dim As GtkFileFilter Ptr filter = gtk_file_filter_new()
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.mp3")
-	gtk_file_filter_set_name (filter, "MPEG Layer-3 Audio (*.mp3)")
-	gtk_file_chooser_add_filter (dialog, filter)
-	g_object_unref (filter)	
-	filter = gtk_file_filter_new()
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.ogg")
-	gtk_file_filter_set_name (filter, "Ogg Vorbis/Ogg FLAC (*.ogg)")
-	gtk_file_chooser_add_filter (dialog, filter)
-	g_object_unref (filter)
-	filter = gtk_file_filter_new()
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.flac")
-	gtk_file_filter_set_name (filter, "Free Lossless Audio Codec/FLAC (*.flac)")
-	gtk_file_chooser_add_filter (dialog, filter)
-	g_object_unref (filter)
-	filter = gtk_file_filter_new()
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.m3u")
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.m3u8")
-	gtk_file_filter_set_name (filter, "M3U Playlist (*.m3u; *.m3u8)")
-	gtk_file_chooser_add_filter (dialog, filter)
-	g_object_unref (filter)
-	filter = gtk_file_filter_new()
-	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.*")
-	gtk_file_filter_set_name (filter, "All Files (*.*)")
-	gtk_file_chooser_add_filter (dialog, filter)
-	g_object_unref (filter)	
-	if( gtk_dialog_run( GTK_DIALOG( dialog ) ) = GTK_RESPONSE_ACCEPT ) Then
-    	dim as zstring ptr filename
-    	filename = gtk_file_chooser_get_filename( GTK_FILE_CHOOSER( dialog ) )
-	   retfile = *filename
-	   g_free( filename )
-  	end if
-
-'	gtk_widget_destroy( GTK_WIDGET(dialog) )
-
-	return(retfile)
-
+#inclib "ui"
+Extern "C++"
+	Declare Function getFile Alias "getFile" () As ZString Ptr
+	Declare Sub libui_init Alias "libui_init" (ByVal argc As Integer, ByVal argv As Zstring Ptr Ptr) 
+End Extern
+Function file_getname (ByVal hWnd as integer) As String
+	ScreenLock
+	Return *getFile()
+	ScreenUnlock
 End Function
 
-' GTK shit
-
-sub hello cdecl(widget as GtkWidget ptr, shit as gpointer) static
-	g_print(!"MsgBox(): Destroying window.\n")
-end sub
-
-function delete_event cdecl(widget as GtkWidget ptr , _
-                            event as GdkEvent  ptr, _
-                            shit as gpointer) As gboolean Static
-    /' If you return FALSE in the "delete_event" signal handler,
-     ' GTK will emit the "destroy" signal. Returning TRUE means
-     ' you don't want the window to be destroyed.
-     ' This is useful for popping up 'are you sure you want to quit?'
-     ' type dialogs. '/
-
-    g_print (!"delete event occurred\n")
-
-    /' Change TRUE to FALSE and the main window will be destroyed with
-     ' a "delete_event". '/
-
-    return TRUE
-End Function
-
-sub destroy cdecl(widget as GtkWidget ptr, _
-                  shit as gpointer)
-    gtk_main_quit
-end sub
-
-
-Sub MsgBox(hWnd As Integer, msg As String)
-	Dim as GtkWidget ptr gwindow, gbutton, gbox, label
-	gwindow = gtk_window_new(GTK_WINDOW_TOPLEVEL)
-	label = gtk_label_new("PsyMP3: " & msg)
-	gtk_window_set_title (GTK_WINDOW (gwindow), "PsyMP3 - running as PID " & getpid())
-	g_signal_connect (GTK_OBJECT (gwindow), "delete_event", _
-	   GTK_SIGNAL_FUNC (@delete_event), NULL)
-	g_signal_connect (GTK_OBJECT (gwindow), "destroy", _
-      GTK_SIGNAL_FUNC (@destroy), NULL)    
-	gbox = gtk_vbox_new (FALSE, 0)
-	gtk_container_add (GTK_CONTAINER (gwindow), gbox)
-	gtk_container_set_border_width (GTK_CONTAINER (gwindow), 15)
-	gbutton = gtk_button_new_with_mnemonic ("_Ok")
-    	g_signal_connect (GTK_OBJECT (gbutton), "clicked", _
-        	          GTK_SIGNAL_FUNC (@hello), NULL)
-    	g_signal_connect_swapped (GTK_OBJECT (gbutton), "clicked", _
-        	                  GTK_SIGNAL_FUNC (@gtk_widget_destroy), _
-                	          GTK_OBJECT (gwindow))
-	gtk_box_pack_start (GTK_BOX(gbox), label, FALSE, FALSE, 5)
-	gtk_box_pack_start (GTK_BOX(gbox), gbutton, FALSE, FALSE, 5)
-	gtk_widget_show(label)
-	gtk_widget_show(gbutton)
-	gtk_widget_show(gbox)
-	gtk_widget_show(gwindow)
-	gtk_main ()
-End Sub
 #EndIf
 
 Sub DrawSpectrum(spectrum As Single Ptr)
@@ -1466,7 +1355,10 @@ Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr
 End Function
 #Else
 
+#ifdef __FB_WIN32__
 #Inclib "dir"
+#endif
+
 Extern "c"
 Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
 End Extern
@@ -1701,6 +1593,9 @@ If cpuvendor = "GenuineIntel" Then
 		EndIf
 	Next x
 EndIf
+
+libui_init(0,0)
+'MsgBox(0,"Welcome to PsyMP3!")
 
 doCommand = PSYMP3_PLAY
 
