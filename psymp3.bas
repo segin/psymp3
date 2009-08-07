@@ -34,7 +34,7 @@
 #Include "md5.bi"
 #Include "wshelper.bas"
 
-#define PSYMP3_VERSION "1.1-RELEASE"
+#define PSYMP3_VERSION "1.1-CURRENT"
 
 #If Not Defined(Boolean)
    #Define Boolean integer
@@ -183,7 +183,8 @@ declare function kill_ alias "kill" (byval pid as pid_t, byval sig as integer) a
 #Ifdef __FB_WIN32__
 Declare Function wsprintfW Alias "wsprintfW" (buf As WString ptr, fmt As WString Ptr, ...) As Integer 
 #endif
-end extern
+Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
+End Extern
 
 
 Declare sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
@@ -197,6 +198,10 @@ Extern "C++"
 End Extern
 #endif
  
+#ifdef __FB_WIN32__
+#Inclib "dir"
+#endif
+
 ' Alpha blending 
 #define FT_MASK_RB_32         &h00FF00FF 
 #define FT_MASK_G_32          &h0000FF00 
@@ -985,9 +990,12 @@ Extern "C++"
 	Declare Sub libui_init Alias "libui_init" (ByVal argc As Integer, ByVal argv As Zstring Ptr Ptr) 
 End Extern
 Function file_getname (ByVal hWnd as integer) As String
-	ScreenLock
-	Return *getFile()
-	ScreenUnlock
+	Dim ret As String
+	Dim path As String
+	ret = *getFile()
+	Function = ret
+	path = *dirname(ret)
+	chdir(path)
 End Function
 
 #EndIf
@@ -1336,32 +1344,6 @@ Sub AnnounceWMP(artist As String, Title As String, Album As String)
 End Sub
 #endif
 
-#Ifdef WANT_BROKEN_GNU_DIRNAME
-Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr
-   Dim dot As String = "."
-   Dim last_slash As ZString Ptr
-   last_slash = IIf(path <> Cast(ZString Ptr, NULL), Strrchr(path, Asc("\")), NULL)
-   If last_slash = path Then 
-      last_slash += 1
-   ElseIf (last_slash <> NULL) And (last_slash[1] = 0) Then
-      last_slash = memchr(path, last_slash - path, Asc("\"))
-   End If
-   If last_slash <> NULL Then
-      last_slash[0] = 0
-   Else
-      *path = dot 
-   EndIf
-   Return path
-End Function
-#Else
-
-#ifdef __FB_WIN32__
-#Inclib "dir"
-#endif
-
-Extern "c"
-Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
-End Extern
 #endif
 
 Sub parse_m3u_playlist(m3u_file As String)
@@ -1380,7 +1362,7 @@ Sub parse_m3u_playlist(m3u_file As String)
 			#EndIf
 				Songlist.addFile(text)
 			Else
-				Songlist.addFile(*Cast(ZString Ptr,dirname(m3u_file)) + "\" + text)
+				Songlist.addFile(*Cast(ZString Ptr,dirname(m3u_file)) + "/" + text)
 			End If
 		End If
 	Loop While Eof(fd) = 0
