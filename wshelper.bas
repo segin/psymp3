@@ -7,8 +7,9 @@
 #include once "wshelper.bi"
 
 #ifdef __FB_WIN32__
-function hStart( byval verhigh as integer = 2, byval verlow as integer = 0 ) as integer export
+function hStart( ) as integer export
 	dim wsaData as WSAData
+	dim verhigh as integer = 2, verlow as integer = 0
 	
 	if( WSAStartup( MAKEWORD( verhigh, verlow ), @wsaData ) <> 0 ) then
 		return FALSE
@@ -27,7 +28,6 @@ function hShutdown( ) as integer export
 	function = WSACleanup( )
 	
 end function
-#define hPrintError(e) print "error calling "; #e; ": "; WSAGetLastError( ) 
 
 #endif
 #ifdef __FB_LINUX__
