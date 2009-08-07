@@ -2,13 +2,18 @@
 #ifdef __FB_WIN32__
 #include once "win/winsock2.bi"
 #else
-#include once "crt.bi"
 #include once "crt/netinet/in.bi"
+#include once "crt/arpa/inet.bi"
+#include once "crt/netdb.bi"
+#include once "crt/sys/socket.bi"
+#include once "crt/errno.bi"
+#define TRUE	1
+#define FALSE	0
 #endif
 
 ' #inclib "wshelper"
 
-declare function hStart		( byval verhigh as integer = 2, byval verlow as integer = 0 ) as integer
+declare function hStart		( ) as integer
 declare function hShutdown	( ) as integer
 declare function hResolve	( byval hostname as string ) as integer
 declare function hOpen		( byval proto as integer = IPPROTO_TCP ) as SOCKET
