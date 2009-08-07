@@ -27,7 +27,7 @@ libui.so: libui-qt4.cpp
 	$(CXX) libui-qt4.cpp -o libui.so -shared -D_LIBUI_QT4 $(QT4_CFLAGS) $(QT4_LDFLAGS)
 
 clean: 
-       $(RM) psymp3
-       $(RM) psymp3.obj
-       $(RM) libui.so
-       $(RM) libmd5.so
+	$(RM) psymp3
+	$(RM) psymp3.obj
+	$(RM) libui.so
+	$(RM) libmd5.so
