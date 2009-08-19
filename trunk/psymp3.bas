@@ -54,6 +54,13 @@ Dim Shared songlength As Integer
 
 Declare Function getmp3artist(stream As FSOUND_STREAM Ptr) As String
 Declare Function getmp3name(stream As FSOUND_STREAM Ptr) As String
+Declare Function getmp3artistW(stream As FSOUND_STREAM Ptr) As WString Ptr
+Declare Function getmp3nameW(stream As FSOUND_STREAM Ptr) As WString Ptr
+
+Union tagText
+   As Byte Ptr ascii
+   As Short Ptr utf16
+End Union
 
 Type extendedFileInfoStructW
    As WString Ptr filename
@@ -866,7 +873,26 @@ function getmp3name( byval stream as FSOUND_STREAM ptr ) as string
 	End if
 	printf(!"getmp3name(): tagname = \"%s\" taglen = %d\n", tagname, taglen)
 	getmp3name = left( *tagname, taglen )
-end function
+end Function
+
+function getmp3nameW( byval stream as FSOUND_STREAM ptr ) as WString Ptr
+   Static wret As WString * 256
+	dim tagname as zstring ptr, taglen as integer
+
+	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TIT2", @tagname, @taglen )
+	tagname += 1 
+	If( taglen = 0 ) then 
+		FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V1, "TITLE", @tagname, @taglen )
+	End if
+	If Left(*tagname,2) = Chr(255) + Chr(254) Then
+	   tagname += 2
+	   wret = *CPtr(WString Ptr, tagname)  
+	Else
+	   wret = left( *tagname, taglen )
+	EndIf
+	printf(!"getmp3nameW(): tagname = \"%ls\" taglen = %d\n", @wret, taglen)
+	Return @wret
+end Function
 
 '':::::
 function getmp3artist( byval stream as FSOUND_STREAM ptr ) as string
@@ -882,6 +908,26 @@ function getmp3artist( byval stream as FSOUND_STREAM ptr ) as string
 	printf(!"getmp3artist(): tagname = \"%s\" taglen = %d\n", tagname, taglen)
 	getmp3artist = left( *tagname, taglen )
 end function
+
+function getmp3artistW( byval stream as FSOUND_STREAM ptr ) as WString Ptr
+   Static wret As WString * 256
+	dim tagname as zstring ptr, taglen as integer
+
+	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TPE1", @tagname, @taglen )
+	tagname += 1 
+	If( taglen = 0 ) then 
+		FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V1, "ARTIST", @tagname, @taglen )
+	End if
+	If Left(*tagname,2) = Chr(255) + Chr(254) Then
+	   tagname += 2
+	   wret = *CPtr(WString Ptr, tagname)  
+	Else
+	   wret = left( *tagname, taglen )
+	EndIf
+	printf(!"getmp3artistW(): tagname = \"%ls\" taglen = %d\n", @wret, taglen)
+	Return @wret
+end Function
+
 
 '':::::
 function getmp3album( byval stream as FSOUND_STREAM ptr ) as string
@@ -899,6 +945,26 @@ function getmp3album( byval stream as FSOUND_STREAM ptr ) as string
    printf(!"getmp3album(): tagname = \"%s\" taglen = %d\n", tagname, taglen)
 	getmp3album = left( *tagname, taglen ) 
 end function
+
+function getmp3albumW( byval stream as FSOUND_STREAM ptr ) as WString Ptr
+   Static wret As WString * 256
+	dim tagname as zstring ptr, taglen as integer
+
+	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TALB", @tagname, @taglen )
+	tagname += 1 
+	If( taglen = 0 ) then 
+		FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V1, "ALBUM", @tagname, @taglen )
+	End if
+	If Left(*tagname,2) = Chr(255) + Chr(254) Then
+	   tagname += 2
+	   wret = *CPtr(WString Ptr, tagname)  
+	Else
+	   wret = left( *tagname, taglen )
+	EndIf
+	printf(!"getmp3albumW(): tagname = \"%ls\" taglen = %d\n", @wret, taglen)
+	Return @wret
+end Function
+
 
 function getmp3albumart( byval stream as FSOUND_STREAM ptr ) as Any Ptr
 	dim imgdata As Any Ptr, buflen As Integer
@@ -1220,11 +1286,11 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					If *efis->filename <> wmp3file Then Return 0 
 					Select Case LCase(efis->metadata)
 						Case "artist"
-							*efis->ret = mp3artist
+							*efis->ret = *getmp3artistW(stream)
 						Case "title"
-							*efis->ret = mp3name
+							*efis->ret = *getmp3nameW(stream)
 						Case "album"
-							*efis->ret = mp3album
+							*efis->ret = *getmp3albumW(stream)
 					End Select
 					Return efis
 				Case Else
@@ -1311,16 +1377,29 @@ End Sub
 Sub AnnounceWMP(artist As String, Title As String, Album As String)
 	Dim cpd As CopyData
 	Dim msgr As HWND
+	Dim tmp As String
 	Dim Found As Integer
 	Dim wmsg As WString * 500
 	Dim As WString * 30 WMContentID = "WMContentID"
 	Dim As WString * 500 MSNMusicString = !"PsyMP3\\0Music\\0%d\\0%s\\0%s\\0%s\\0%s\\0%s\\0"
 	Dim As WString * 100 FormatStr = "PsyMP3: {1} - {0}"
-
+   ''' WARNING: Some ID3 tags are UTF-16, this (poorly) detects them.
 	Dim As WString * 500 WTitle, WArtist, WAlbum
-	MultiByteToWideChar(CP_UTF8, 0, StrPtr(artist), Len(artist), WArtist, Len(artist))
-	MultiByteToWideChar(CP_UTF8, 0, StrPtr(Title), Len(Title), WTitle, Len(Title))
-	MultiByteToWideChar(CP_UTF8, 0, StrPtr(Album), Len(Album), WAlbum, Len(Album))
+   If Left(Artist,2) = Chr(255) + Chr(254) Then
+		WArtist = *CPtr(wstring ptr, @Artist[2])
+   Else
+		MultiByteToWideChar(CP_UTF8, 0, StrPtr(artist), Len(artist), WArtist, Len(artist))
+   EndIf
+   If Left(Title,2) = Chr(255) + Chr(254) Then
+		WTitle = *CPtr(WString Ptr,@Title[2])
+   Else
+		MultiByteToWideChar(CP_UTF8, 0, StrPtr(Title), Len(Title), WTitle, Len(Title))
+   EndIf
+   If Left(Album,2) = Chr(255) + Chr(254) Then
+		WAlbum = *CPtr(WString Ptr,@Album[2])
+   Else
+		MultiByteToWideChar(CP_UTF8, 0, StrPtr(Album), Len(Album), WAlbum, Len(Album))
+   EndIf
 	wsprintfW(wmsg, MSNMusicString, 1, FormatStr, WTitle, WArtist, WAlbum, WMContentID) 
 	cpd.dwData = 1351
 	cpd.cbData = (Len(wmsg) * 2) + 2 
