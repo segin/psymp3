@@ -34,13 +34,15 @@
 #Include "md5.bi"
 #Include "wshelper.bas"
 
-#define PSYMP3_VERSION "1.1-CURRENT"
+#define PSYMP3_VERSION "1.1.1"
 
 #If Not Defined(Boolean)
    #Define Boolean integer
 #endif
 
 Dim Shared As String mp3artist, mp3name, mp3album, mp3file
+Dim Shared As WString * 1024 mp3artistW, mp3nameW, mp3albumW, mp3fileW
+
 Dim Shared stream as FSOUND_STREAM Ptr
 Dim Shared IsPaused as Integer
 Dim Shared doRepeat As Integer
@@ -291,6 +293,59 @@ Function PrintFT(ByVal x As Integer, ByVal y As Integer, ByVal Text As String, B
     For i = 0 To Len(Text) - 1 
         ' Load character index 
         GlyphIndex = FT_Get_Char_Index(FontFT, Text[i]) 
+        
+        ' Load character glyph 
+        ErrorMsg = FT_Load_Glyph(FontFT, GlyphIndex, FT_LOAD_DEFAULT) 
+        If ErrorMsg Then Return 0 
+        
+        ' Render glyph 
+        ErrorMsg = FT_Render_Glyph(FontFT->Glyph, FT_RENDER_MODE_NORMAL) 
+        If ErrorMsg Then Return 0 
+        
+        ' Check clipping 
+        If (PenX + FontFT->Glyph->Bitmap_Left + FontFT->Glyph->Bitmap.Width) > 640 Then Exit For 
+        If (PenY - FontFT->Glyph->Bitmap_Top + FontFT->Glyph->Bitmap.Rows) > 400 Then Exit For 
+        If (PenX + FontFT->Glyph->Bitmap_Left) < 0 Then Exit For 
+        If (PenY - FontFT->Glyph->Bitmap_Top) < 0 Then Exit For 
+        
+        ' Set pixels 
+        DrawGlyph FontFT, PenX + FontFT->Glyph->Bitmap_Left, PenY - FontFT->Glyph->Bitmap_Top, Clr 
+        
+        PenX += Slot->Advance.x Shr 6 
+    Next i 
+End Function
+
+Function PrintFTW(ByVal x As Integer, ByVal y As Integer, Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as integer
+    Dim ErrorMsg   As FT_Error 
+    Dim FontFT     As FT_Face 
+    Dim GlyphIndex As FT_UInt 
+    Dim Slot       As FT_GlyphSlot 
+    Dim PenX       As Integer 
+    Dim PenY       As Integer 
+    Dim i          As Integer 
+    Dim WText      As WString * 1024
+    
+    WText = *Text
+    
+    ' Get rid of any alpha channel in AlphaClr 
+    Clr = Clr Shl 8 Shr 8 
+
+    ' Convert font handle 
+    FontFT = Cast(FT_Face, Font) 
+    
+    ' Set font size 
+    ErrorMsg = FT_Set_Pixel_Sizes(FontFT, Size, Size) 
+    FT_Var.PixelSize = Size 
+    If ErrorMsg Then Return 0 
+    
+    ' Draw each character 
+    Slot = FontFT->Glyph 
+    PenX = x 
+    PenY = y 
+        
+    For i = 0 To Len(WText) - 1 
+        ' Load character index 
+        GlyphIndex = FT_Get_Char_Index(FontFT, WText[i]) 
         
         ' Load character glyph 
         ErrorMsg = FT_Load_Glyph(FontFT, GlyphIndex, FT_LOAD_DEFAULT) 
@@ -1200,7 +1255,7 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 						Return KVIRC_WM_USER_CHECK_REPLY
 					Case KVIRC_WM_USER_GETTITLE
 						lastcall = KVIRC_WM_USER_GETTITLE
-						buf = mp3artist + " - " + mp3name
+						buf = mp3artistW + " - " + mp3nameW
 						Return Len(buf)
 					Case KVIRC_WM_USER_GETFILE
 						lastcall = KVIRC_WM_USER_GETTITLE
@@ -1491,7 +1546,7 @@ Function lastfm_session() As String
 
    printf(!"Last.fm: Getting session key.\n")
 
-	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v="PSYMP3_VERSION"&u=" & lastfm_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(10) & "User-Agent: PsyMP3/1.1beta" & Chr(10) & Chr(10)
+	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=" & PSYMP3_VERSION & "&u=" & lastfm_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(13) & Chr(10) & "User-Agent: PsyMP3/" & PSYMP3_VERSION & Chr(13) & Chr(10) & Chr (13) & Chr(10)
 	hStart()
 	Dim s As SOCKET, addr As Integer
 	s = hOpen()
@@ -1522,7 +1577,7 @@ Function Lastfm_nowplaying() As SOCKET
 
 	httpdata = 	!"POST /np_1.2 HTTP/1.1\n" & _
 					!"Host: post.audioscrobbler.com\n" & _ 
-					!"User-Agent: PsyMP3/"PSYMP3_VERSION"\n" 
+					!"User-Agent: PsyMP3" & "/" & PSYMP3_VERSION & !"\n" 
 
 	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
 					"a=" & percent_encode(mp3artist) & "&" & _
@@ -1586,7 +1641,7 @@ Function lastfm_scrobble() As Integer
 	
    httpdata = 	!"POST /protocol_1.2 HTTP/1.1\n" & _
 		!"Host: post2.audioscrobbler.com\n" & _ 
-		!"User-Agent: PsyMP3/"PSYMP3_VERSION"\n" 
+		!"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n" 
  
 postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
 				"a[0]=" & percent_encode(mp3artist) & "&" & _
@@ -1848,10 +1903,14 @@ InitKVIrcWinampInterface()
 mp3name = getmp3name(stream)
 mp3artist = getmp3artist(stream)
 mp3album = getmp3album(stream)
+mp3nameW = *getmp3nameW(stream)
+mp3artistW = *getmp3artistW(stream)
+mp3albumW = *getmp3albumW(stream)
+
 getmp3albumart(stream)
 var blank = ImageCreate(640, 350, rgba(0, 0, 0, 64), 32)
 If isSilent <> 1 Then
-   WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Playing - -:[ " + mp3artist + " ]:- -- -:[ " + mp3name + " ]:-"
+   WindowTitle "PsyMP3 " + PSYMP3_VERSION + " - Playing - -:[ " & mp3artistW & " ]:- -- -:[ " + mp3nameW + " ]:-"
    ScreenSet 1
    DoFPS = 0
    spectrum = FSOUND_DSP_GetSpectrum()
@@ -1871,8 +1930,7 @@ Do
 Do  
 #ifdef __FB_WIN32__     
    SetWindowText(WAWindow, _
-		Songlist.getPosition & ". " + mp3artist + " - " + mp3name + " - Winamp")
-
+		Songlist.getPosition & ". " + mp3artistW + " - " + mp3nameW + " - Winamp")
 	Sleep 12 ' Timer delay
 #endif
 
@@ -1917,11 +1975,11 @@ If IsSilent <> 1 Then
    #Else 
    Dim Image As Any Ptr
    #EndIf
-   PrintFT(1,366,"Artist: " + mp3artist,sFont,12,rgb(255,255,255))
-   PrintFT(1,381,"Title: " + mp3name,sFont,12)
-   PrintFT(1,396,"Album: " + mp3album,sFont,12) 
-   PrintFT(300,366,"Playlist: " & Songlist.getPosition & "/" & Songlist.getEntries, sFont, 12, rgb(255,255,255)) 
-   PrintFT(280,396,"CPU: " + cpuname + ", Vendor: " + cpuvendor,sFont,9)
+   PrintFTW(1,366,"Artist: " + mp3artistW,sFont,12,rgb(255,255,255))
+   PrintFTW(1,381,"Title: " + mp3nameW,sFont,12)
+   PrintFTW(1,396,"Album: " + mp3albumW,sFont,12) 
+   PrintFTW(300,366,"Playlist: " & Songlist.getPosition & "/" & Songlist.getEntries, sFont, 12, rgb(255,255,255)) 
+   PrintFTW(280,396,"CPU: " + cpuname + ", Vendor: " + cpuvendor,sFont,9)
    'Put (600, 350), wmctl
    'Time elapsed and time remaining
 	PrintFT((400+620)/2-40,365, _
@@ -2082,6 +2140,9 @@ If IsSilent <> 1 Then
 			mp3name = getmp3name(stream)
 			mp3artist = getmp3artist(stream)
 			mp3album = getmp3album(stream)
+			mp3nameW = *getmp3nameW(stream)
+			mp3artistW = *getmp3artistW(stream)
+			mp3albumW = *getmp3albumW(stream)
 			'getmp3albumart(stream)
 			FSOUND_Stream_Play( FSOUND_FREE, stream )
 			songlength = FSOUND_Stream_GetLengthMs(stream)
@@ -2218,6 +2279,9 @@ If mp3file <> "" Then
 		mp3name = getmp3name(stream)
 		mp3artist = getmp3artist(stream)
 		mp3album = getmp3album(stream)
+		mp3nameW = *getmp3nameW(stream)
+		mp3artistW = *getmp3artistW(stream)
+		mp3albumW = *getmp3albumW(stream)
 		'getmp3albumart(stream)
 		FSOUND_Stream_Play( FSOUND_FREE, stream )
 		songlength = FSOUND_Stream_GetLengthMs(stream)
@@ -2232,9 +2296,9 @@ If mp3file <> "" Then
 		MsgBox hWnd, !"Can't load music file \"" + mp3file + !"\""
 		EndPlayer()
 	end if
-	mp3name = getmp3name(stream)
-	mp3artist = getmp3artist(stream)
-	mp3album = getmp3album(stream)
+	mp3nameW = *getmp3nameW(stream)
+	mp3artistW = *getmp3artistW(stream)
+	mp3albumW = *getmp3albumW(stream)
 	'getmp3albumart(stream)
 	FSOUND_Stream_Play( FSOUND_FREE, stream )
 	songlength = FSOUND_Stream_GetLengthMs(stream)
