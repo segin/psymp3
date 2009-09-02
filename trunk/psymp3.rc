@@ -1,18 +1,17 @@
 #define MANIFEST 24
+#define FileIcon 101
 #define IDR_XPMANIFEST1 1
 #define IDD_ABOUT_WIN32RICH 1000
 #define IDC_IMG1 1001
 #define IDC_BTN1 1002
 #define IDR_RCDATA1 1
-// #define FB_PROGRAM_ICON 100
-#define FileIcon 101
 
-FB_PROGRAM_ICON ICON "psymp3.ico"
+FB_PROGRAM_ICON ICON DISCARDABLE "psymp3.ico"
 FileIcon ICON DISCARDABLE "music.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,0,5,9000
-PRODUCTVERSION 1,0,5,9000
+FILEVERSION 1,1,0,10101
+PRODUCTVERSION 1,1,0,10101
 FILEOS 0x00040004
 FILETYPE 0x00000001
 BEGIN
@@ -20,15 +19,16 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "Comments", "This is PsyMP3 version 1.0.5 Release Canidate over 9000\0"
+      VALUE "Comments", "This is PsyMP3 version 1.1-CURRENT\0"
       VALUE "CompanyName", "segin.no-ip.org\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
-      VALUE "FileVersion", "1, 0, 4, 853\0"
+      VALUE "FileVersion", "1, 1, 0, 10101\0"
       VALUE "InternalName", "PsyMP3\0"
       VALUE "LegalCopyright", "GNU General Public License, version 2\0"
       VALUE "OriginalFilename", "psymp3.exe\0"
       VALUE "ProductName", "PsyMP3 Audio Player\0"
-      VALUE "ProductVersion", "1.0.5-rc_over9000\0"
+      VALUE "ProductVersion", "1.1-CURRENT\0"
+      VALUE "LegalTrademarks", "Main program is © 2008-2009 Kirn Gill\n\nMD5 library is Copyright © 2002 Aladdin Enterprises, © 1999, 2000 artofcode LLC\n\n\0"
     END
   END
   BLOCK "VarFileInfo"
@@ -51,6 +51,4 @@ END
 IDR_RCDATA1 RCDATA
 BEGIN
 END
-
-
 
