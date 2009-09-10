@@ -28,7 +28,7 @@ BEGIN
       VALUE "OriginalFilename", "psymp3.exe\0"
       VALUE "ProductName", "PsyMP3 Audio Player\0"
       VALUE "ProductVersion", "1.1-CURRENT\0"
-      VALUE "LegalTrademarks", "Main program is © 2008-2009 Kirn Gill\n\nMD5 library is Copyright © 2002 Aladdin Enterprises, © 1999, 2000 artofcode LLC\n\n\0"
+      VALUE "LegalTrademarks", "Main program is © 2008-2009 Kirn Gill. MD5 library is Copyright © 2002 Aladdin Enterprises, © 1999, 2000 artofcode LLC. libdir is Copyright © 2009 maties.\0"
     END
   END
   BLOCK "VarFileInfo"
