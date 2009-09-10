@@ -1341,11 +1341,11 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 					If *efis->filename <> wmp3file Then Return 0 
 					Select Case LCase(efis->metadata)
 						Case "artist"
-							*efis->ret = *getmp3artistW(stream)
+							*efis->ret = mp3artistW
 						Case "title"
-							*efis->ret = *getmp3nameW(stream)
+							*efis->ret = mp3nameW
 						Case "album"
-							*efis->ret = *getmp3albumW(stream)
+							*efis->ret = mp3albumW
 					End Select
 					Return efis
 				Case Else
@@ -1354,7 +1354,7 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 			End Select
 		Case WM_GETMINMAXINFO
 			' printf(!"WM_GETMINMAXINFO caught.\n")
-			Return 0
+			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
 		Case 12 To 14' I dunno what this is, but it's used by SetWindowText()
 			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
 		Case Else
@@ -1440,22 +1440,7 @@ Sub AnnounceWMP(artist As String, Title As String, Album As String)
 	Dim As WString * 100 FormatStr = "PsyMP3: {1} - {0}"
    ''' WARNING: Some ID3 tags are UTF-16, this (poorly) detects them.
 	Dim As WString * 500 WTitle, WArtist, WAlbum
-   If Left(Artist,2) = Chr(255) + Chr(254) Then
-		WArtist = *CPtr(wstring ptr, @Artist[2])
-   Else
-		MultiByteToWideChar(CP_UTF8, 0, StrPtr(artist), Len(artist), WArtist, Len(artist))
-   EndIf
-   If Left(Title,2) = Chr(255) + Chr(254) Then
-		WTitle = *CPtr(WString Ptr,@Title[2])
-   Else
-		MultiByteToWideChar(CP_UTF8, 0, StrPtr(Title), Len(Title), WTitle, Len(Title))
-   EndIf
-   If Left(Album,2) = Chr(255) + Chr(254) Then
-		WAlbum = *CPtr(WString Ptr,@Album[2])
-   Else
-		MultiByteToWideChar(CP_UTF8, 0, StrPtr(Album), Len(Album), WAlbum, Len(Album))
-   EndIf
-	wsprintfW(wmsg, MSNMusicString, 1, FormatStr, WTitle, WArtist, WAlbum, WMContentID) 
+	wsprintfW(wmsg, MSNMusicString, 1, FormatStr, mp3nameW, mp3artistW, mp3albumW, WMContentID) 
 	cpd.dwData = 1351
 	cpd.cbData = (Len(wmsg) * 2) + 2 
 	cpd.lpData = @wmsg
