@@ -33,6 +33,7 @@
 
 #Include "md5.bi"
 #Include "wshelper.bas"
+#Include "libseven.bi"
 
 #define PSYMP3_VERSION "1.1.1"
 
@@ -51,7 +52,8 @@ Dim Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
 Dim Shared songstart As Integer ' Song start time in UNIX format.
 #ifdef __FB_WIN32__
 Dim Shared WAWindow As HWND
-#endif
+Dim Shared MainWnd As HWND
+#EndIf
 Dim Shared songlength As Integer
 
 Declare Function getmp3artist(stream As FSOUND_STREAM Ptr) As String
@@ -1438,7 +1440,6 @@ Sub AnnounceWMP(artist As String, Title As String, Album As String)
 	Dim As WString * 30 WMContentID = "WMContentID"
 	Dim As WString * 500 MSNMusicString = !"PsyMP3\\0Music\\0%d\\0%s\\0%s\\0%s\\0%s\\0%s\\0"
 	Dim As WString * 100 FormatStr = "PsyMP3: {1} - {0}"
-   ''' WARNING: Some ID3 tags are UTF-16, this (poorly) detects them.
 	Dim As WString * 500 WTitle, WArtist, WAlbum
 	wsprintfW(wmsg, MSNMusicString, 1, FormatStr, mp3nameW, mp3artistW, mp3albumW, WMContentID) 
 	cpd.dwData = 1351
@@ -1565,9 +1566,9 @@ Function Lastfm_nowplaying() As SOCKET
 					!"User-Agent: PsyMP3" & "/" & PSYMP3_VERSION & !"\n" 
 
 	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-					"a=" & percent_encode(mp3artist) & "&" & _
-					"t=" & percent_encode(mp3name) & "&" & _ 
-					"b=" & percent_encode(mp3album) & "&" & _
+					"a=" & percent_encode(mp3artistW) & "&" & _
+					"t=" & percent_encode(mp3nameW) & "&" & _ 
+					"b=" & percent_encode(mp3albumW) & "&" & _
 					"l=" & length & "&" & _
 					"n=&m="
 
@@ -1622,20 +1623,20 @@ Function lastfm_scrobble() As Integer
    
    If (curtime - songstart) < qual Then Return 0
 	
-	printf(!"Last.fm: Going to scrobble track. Artist: \"%s\", Title: \"%s\", Album: \"%s\".\n", mp3artist, mp3name, mp3album)
+	printf(!"Last.fm: Going to scrobble track. Artist: \"%ls\", Title: \"%ls\", Album: \"%ls\".\n", mp3artistW, mp3nameW, mp3albumW)
 	
    httpdata = 	!"POST /protocol_1.2 HTTP/1.1\n" & _
 		!"Host: post2.audioscrobbler.com\n" & _ 
 		!"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n" 
  
 postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-				"a[0]=" & percent_encode(mp3artist) & "&" & _
-				"t[0]=" & percent_encode(mp3name) & "&" & _ 
+				"a[0]=" & percent_encode(mp3artistW) & "&" & _
+				"t[0]=" & percent_encode(mp3nameW) & "&" & _ 
 				"i[0]=" & time_(NULL) & "&" & _ 
 				"o[0]=P&" & _ 
 				"r[0]=&" & _ 
 				"l[0]=" & Int(FSOUND_Stream_GetLengthMs(stream)/1000) & "&" & _
-				"b[0]=" & percent_encode(mp3album) & "&" & _
+				"b[0]=" & percent_encode(mp3albumW) & "&" & _
 				"n[0]=&m[0]="
 
 httpdata &= _
@@ -1781,6 +1782,8 @@ If IsSilent <> 1 Then
 	ScreenRes 640, 400, 32, 2
 Endif
 
+ScreenControl 2, hWnd
+
 #ifdef __FB_LINUX__
 	#ifdef __PERFER_OSS__
 		printf(!"Sound output: OSS\n")
@@ -1795,6 +1798,7 @@ Endif
 		#endif
 	#endif
 #endif
+
 
 WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Not playing"
 InitFMOD()        
@@ -1815,6 +1819,7 @@ Else
 End If 
 #else
 
+#If 1
 Do
    mp3file = file_getname(hWnd)
    If mp3file = "" Then
@@ -1831,6 +1836,20 @@ Do
       Songlist.addFile(mp3file)
    EndIf
 Loop 
+#endif
+
+#ifdef __FB_WIN32__
+InitKVIrcWinampInterface() 
+printf("Attempting to initialize ITaskbarList3... ")
+Var ITB = InitializeTaskbar()
+If ITB = -1 Then
+   printf(!"failed!\n")
+Else
+   printf(!"done.\n")
+EndIf
+AssociateHwnd(hWnd)
+#EndIf
+
 #endif
 mp3file = Songlist.getNextFile()
         
@@ -1881,10 +1900,7 @@ if sFont = 0 Then
 	End If
 #endif
 End If
-#ifdef __FB_WIN32__
-InitKVIrcWinampInterface() 
- 
-#endif
+
 mp3name = getmp3name(stream)
 mp3artist = getmp3artist(stream)
 mp3album = getmp3album(stream)
@@ -1907,6 +1923,7 @@ Do
    #Ifdef __FB_WIN32__
 		ClearWMP()
 		AnnounceWMP(mp3artist, mp3name, mp3album)
+		SetProgressType(TASKBAR_PROGRESS)
    #EndIf
    If sock <> 0 Then
       hClose(sock)
@@ -1916,8 +1933,14 @@ Do
 #ifdef __FB_WIN32__     
    SetWindowText(WAWindow, _
 		Songlist.getPosition & ". " + mp3artistW + " - " + mp3nameW + " - Winamp")
-	Sleep 12 ' Timer delay
+	If IsPaused = 1 Then 
+		SetProgressType(TASKBAR_PAUSED)
+	Else
+		SetProgressType(TASKBAR_PROGRESS)
+		UpdateProgressBar(FSOUND_Stream_GetTime(stream),FSOUND_Stream_GetLengthMs(stream))
+	EndIf
 #endif
+	Sleep 12 ' Timer delay
 
 If IsSilent <> 1 Then
 	If SpectrumOn = 1 Then      
@@ -1975,7 +1998,7 @@ If IsSilent <> 1 Then
             Format(Int(FSOUND_Stream_GetLengthMs(stream)/1000) Mod 60,"00"), _
             sFont, 12)
 
-
+   
    ' The brackets on the ends of the progress bar
 	Line(399,370)-(399,385), rgb(255,255,255)
 	Line(621,370)-(621,385), rgb(255,255,255)
@@ -2043,8 +2066,14 @@ If IsSilent <> 1 Then
    End If
    If nkey = " " Then
 		If IsPaused = 1 Then
-			IsPaused = 0 
+			IsPaused = 0
+			#Ifdef __FB_WIN32__
+				SetProgressType(TASKBAR_PROGRESS)
+			#EndIf 
 		Else
+			#Ifdef __FB_WIN32__
+				SetProgressType(TASKBAR_PAUSED)
+			#EndIf
 			IsPaused = 1
 		End If
 		FSOUND_SetPaused(FSOUND_ALL, IsPaused)
@@ -2237,6 +2266,7 @@ FSOUND_Stream_Close(stream)
 lastfm_scrobble()
 #ifdef __FB_WIN32__
 	ClearWMP()
+	SetProgressType(TASKBAR_INDETERMINATE)
 #EndIf
 isPaused = 2
 If doPrev = 1 Then
@@ -2260,7 +2290,7 @@ If mp3file <> "" Then
 		If( stream = 0 ) then 
 			MsgBox hWnd, !"Can't load music file \"" + mp3file + !"\""
 			end 1
-		end if
+		end If
 		mp3name = getmp3name(stream)
 		mp3artist = getmp3artist(stream)
 		mp3album = getmp3album(stream)
@@ -2280,7 +2310,10 @@ If mp3file <> "" Then
 	If( stream = 0 ) then 
 		MsgBox hWnd, !"Can't load music file \"" + mp3file + !"\""
 		EndPlayer()
-	end if
+	end If
+	mp3name = getmp3name(stream)
+	mp3artist = getmp3artist(stream)
+	mp3album = getmp3album(stream)
 	mp3nameW = *getmp3nameW(stream)
 	mp3artistW = *getmp3artistW(stream)
 	mp3albumW = *getmp3albumW(stream)
