@@ -1,4 +1,4 @@
-PsyMP3 Version 1.0.4 Last Minute README
+PsyMP3 Version 1.1-CURRENT README
 =========================================
 
 1. Overview
@@ -14,11 +14,10 @@ for the bar spectrum visualization, which is a simple psychovisual display.
 
 System Requirements:
 	* WINDOWS AND REACTOS:
-	- Microsoft Windows 95, 98, NT 4.0, 2000, XP, and Server 2003
-	  (Vista and Server 2008 support not guarnteed -- Windows 7 support 
-	  guarnteed not to exist when Windows 7 does come out)
+	- Microsoft Windows 95, 98, NT 4.0, 2000, XP, Server 2003/2008, 
+	  Windows Vista, Windows 7
 	- ReactOS 0.3 or later
-	- Intel Pentium-MMX processor or AMD K6, 200MHz or better
+	- Intel Pentium III or better, Core Solo/Atom or better recommended.
 	- 800x600 16-bit SVGA or better (a ultra high-end 512MB PCI-E 16x card
 	  WILL NOT make this run any better)
 	- An additional 32MB of system RAM over your OS's requirement 
@@ -29,6 +28,7 @@ System Requirements:
 	- FMOD 3.7x (included with PsyMP3)
 	- FreeType 2 (included with PsyMP3)
 	
+	[ Note: The Linux port is dead for now ]
 	* GNU/LINUX:
 	- Linux 2.4.16 or later (Older kernels will work, but why bother?)
 	- FMOD 3.7x (a copy of libfmod.so is included with PsyMP3)
@@ -45,12 +45,9 @@ System Requirements:
 2. USAGE
 
 PsyMP3 is a simple media player; in fact, it has very few features.
-If PsyMP3 is started without any command-line arguments, you will be 
-prompted for a filename by your OS's standard file selection dialog.
-If there are any command-line arguments, PsyMP3 will simply take the first
-argument and treat it as the path to a file to play.
-
-When playback of the selected media is complete, PsyMP3 will terminate
+When started, you will be presented a series of file choosers.
+You build an initial playlist by selecting files, one at a time.
+Cancel out a chooser at any time to finish the playlist.
 
 When playing, PsyMP3 is controlled entirely by keyboard.
 
@@ -59,13 +56,32 @@ Your keys are:
 	ESC or Q  - These close PsyMP3
 	LEFT	  - This rewinds playback, 1.5 seconds at a time
 	RIGHT	  - This fastforwards playback, 1.5 seconds at a time
+	R	  - Restarts the playing track
+	L	  - Loads a new track into this playlist slot temporarly
+	I	  - Appends a new track to the end of the playlist
+	B	  - Turns on "Repeat Track"
+	Z	  - Displays framerate counter
+
+If you want your played tracks to be scrobbled to Last.fm, create lastfm_config.txt
+in the PsyMP3 directory. Enter your username on the first like and your password 
+on the second, like so:
+
+------------- file begins below -------------
+username
+password
+------------- file ended above --------------
+
+If you use various Winamp front-end software, such as the FoxyTunes toolbar for
+Firefox, or the Winamp Toolbar, or even RndSkin, these can all be used to 
+control PsyMP3, as if it were Winamp
+
+If you use MSN Messenger or Pidgin, you can have Now Playing sent to your messenger.
+See the PsyMP3 website at http://code.google.com/p/psymp3/ for more details.
 
 3. CONTACTING THE AUTHOR
 
-You may reach me at segin2005@gmail.com, however, I haven't checked my
-email for more than a year, and I lack a home Internet connection with which
-to do so.
+You may reach me at segin2005@gmail.com.
 
 4. NOTES
-Starting with PsyMP3 1.0.6, we are going to try to stop using the FMOD sound
- library. FMOD is proprietary and thus sucks.
+
+<To be written.>
