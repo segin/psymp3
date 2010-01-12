@@ -1,0 +1,17 @@
+#summary Basic guide to the libmpg123 API
+#labels Phase-Implementation
+
+<wiki:toc max_depth="2" />
+
+= Introduction =
+
+This document provides a basic overview of the libmpg123 API.
+
+== Function Synopsis ==
+
+= Details =
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
