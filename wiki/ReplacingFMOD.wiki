@@ -26,7 +26,7 @@ For the fast-Fourier transform, I believe that FFTW (Fastest Fourier Transform i
 
 For the tag reader, we can use libid3tag (from MAD), or libID3 to read ID3 tags. 
 
-For the audio decoder, I want to use libmpg123 for MP3 audio, as it is the world's fastest  decoder for ISO/MPEG Layer-III Audio, and libvorbis for, well, Ogg Vorbis.
+For the audio decoder, I want to use libmpg123 for MP3 audio, as it is the world's fastest  decoder for ISO/MPEG Layer-III Audio, or maybe MAD, and libvorbis for, well, Ogg Vorbis. Other formats could be handled with ffmpeg/libavcodec and libFLAC.
 
 This all considered, I have here a set of links to the websites for all the aforementioned libraries. If anyone thinks they can help, drop me a line.
 
@@ -34,3 +34,11 @@ This all considered, I have here a set of links to the websites for all the afor
 || libmpg123 || http://mpg123.de/ ||
 || SDL || http://www.libsdl.org/ ||
 || OpenAL || http://connect.creativelabs.com/openal/ ||
+|| libao || http://www.xiph.org/ao/ ||
+|| FFTW || http://www.fftw.org/ || 
+|| MAD (libid3tag) || http://www.underbit.com/products/mad/ ||
+|| libID3 || http://tangent.org/480/libID3.html ||
+|| libvorbis || http://www.xiph.org/vorbis/ ||
+|| libogg || http://www.xiph.org/ogg/ || 
+|| FFmpeg/libavcodec || http://ffmpeg.org/ || 
+|| libFLAC || http://flac.sourceforge.net/ ||
