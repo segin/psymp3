@@ -1,0 +1,29 @@
+#summary A guide on how we plan on replacing FMOD with an open-source solution.
+#labels Phase-Requirements,Featured
+
+= Introduction =
+
+In the due course of things, I discovered that FMOD is a clumbersome, proprietary mess that only exists on Windows and Linux. While this means that the majority of PC users can potentially enjoy PsyMP3, this also means that there is a small set that cannot.
+
+= Details =
+
+Since PsyMP3 has a good percentage of it's code in FreeBASIC, this means that PsyMP3 is ultimately limited to the platforms that is supported by FreeBASIC; however, this includes operating systems not supported by FMOD.
+
+FMOD is a core library that drives the entire music engine for PsyMP3; however, since FMOD is not open-source, it cannot be adapted to run on new platforms that FreeBASIC gains support for, nor can it have it's bugs fixed.
+
+FMOD currently provides several critical components:
+ * An audio output engine
+ * A fast-Fourier transform engine, to drive the visualization
+ * A tag reader
+ * An audio decoder
+ * and a core "media player" engine to tie it all together.
+
+Now, since PsyMP3 is a media player, the core "media player" engine that ties the other ones  together is best implemented in the main PsyMP3 program. For the other systems, there are already open-source libraries available that we can use.
+
+For an audio output engine, we can either use write our own thin library engine around the mpg123 output plugins, use SDL, use OpenAL, or libao.
+
+For the fast-Fourier transform, I believe that FFTW (Fastest Fourier Transform in the West) would be the best choice, since it the fastest free and open source FFT engine available.
+
+For the tag reader, we can use libid3tag (from MAD), or libID3 to read ID3 tags. 
+
+For the audio decoder, I want to use libmpg123 for MP3 audio, as it is the world's fastest  decoder for ISO/MPEG Layer-III Audio, and libvorbis for, well, Ogg Vorbis.
