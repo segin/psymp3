@@ -9,6 +9,11 @@ This document provides a basic overview of the libmpg123 API.
 
 == Function Synopsis ==
 
+*int*  mpg123_init(*void*);
+*void* mpg123_exit(*void*);
+mpg123_handle `*`mpg123_new(*const char*`*` decoder, *int* `*`error);
+*void* mpg123_delete(mpg123_handle `*`mh);
+
 = Details =
 
 Add your content here.  Format your content with:
