@@ -1,0 +1,14 @@
+#summary An open-source library to simplify access to the Windows 7 Taskbar API by wrapping the ITaskbarList3 COM object to standard C.
+#labels Phase-Implementation,Featured
+
+= Introduction =
+
+During the development of PsyMP3, I got my hands on a copy of the Windows 7 Beta, and I noticed that it featured a programmable progress bar in the application's taskbar button.
+
+
+= Details =
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
