@@ -1,4 +1,4 @@
-#summary Initializes the libseven APL
+#summary Initializes the libseven API
 #labels Phase-Implementation
 
 = Synopsis =
