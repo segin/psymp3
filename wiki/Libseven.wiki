@@ -5,10 +5,12 @@
 
 During the development of PsyMP3, I got my hands on a copy of the Windows 7 Beta, and I noticed that it featured a programmable progress bar in the application's taskbar button.
 
+= Basic Usage =
 
-= Details =
+# Call InitializeTaskbar() to initialize the library.
+# Create a window with CreateWindow() or CreateWindowEx() or any other similar function
+# Call AssociateHwnd() with the hWnd of the window in step 2
+# Call SetProgressType() with one of the TASKBAR_* enum values, generally TASKBAR_PROGRESS is what you want since that is the one to set if you want to do a progress-on-taskbar indicator
+# Call UpdateProgressBar() once you call SetProgressType() with TASKBAR_PROGRESS or TASKBAR_PAUSED to update the progress bar. It takes two values, the current value and the maximum value. You could choose to have the "maximum" value be the number of bytes total in a file, and the "current" be the number copied/downloaded/uploaded so far.
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+That's basically it.
