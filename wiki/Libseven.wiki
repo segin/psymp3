@@ -14,3 +14,7 @@ During the development of PsyMP3, I got my hands on a copy of the Windows 7 Beta
   # Call UpdateProgressBar() once you call SetProgressType() with TASKBAR_PROGRESS or TASKBAR_PAUSED to update the progress bar. It takes two values, the current value and the maximum value. You could choose to have the "maximum" value be the number of bytes total in a file, and the "current" be the number copied/downloaded/uploaded so far.
 
 That's basically it.
+
+= Functions =
+
+= Definitions =
