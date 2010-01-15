@@ -1,0 +1,18 @@
+#summary A quick list of PsyMP3's mention by other sites.
+#labels Publicity
+
+= Introduction =
+
+As time goes on, many websites have gained word of PsyMP3, and while most of them just steal content for some download page, as most of them are so-called "download warehouses", a la C|NET Download.com and Softpedia.
+
+This includes a short, almost guaranteed to be incomplete list of such download pages and other references.
+
+= Details =
+
+  * Someone tried to use PsyMP3's libseven with Java: (in German) http://www.java-forum.org/awt-swing-swt/92289-java-windows-7-taskbar.
+  * http://www.softwarelist.us/-363329-PsyMP3%201.1.html
+  * http://esoftlib.com/psymp3-1-1
+  * http://www.softpedia.com/get/Multimedia/Audio/Audio-Players/PsyMP3.shtml
+  * (in Korean) http://free.nuguni.com/pub/pds/pds_view.php?desc=regdate&start=90&viewCnt=15&no=83249&cate_sid=10&cate_id=14
+  * (in Korean) http://www.utilbada.com/detail.php?p_uid=1168&c_uid1=2&c_uid2=17&order=p_down
+  * (in Korean) http://simfile.chol.com/pc/view.html?fnum=230523&cat=43&boldKey=psymp3
