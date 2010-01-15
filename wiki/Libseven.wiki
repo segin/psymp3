@@ -17,4 +17,8 @@ That's basically it.
 
 = Functions =
 
+To be written.
+
 = Definitions =
+
+To be written.
