@@ -1,0 +1,19 @@
+#summary Windows API function to create a new window
+#labels Phase-Implementation
+
+= Introduction =
+
+The CreateWindow() function creates a new overlapped, pop-up, or child window. It specifies such attributes such as the title, class, position, size, etc. of the new window.
+
+Extended window styles are supported via the CreateWindowEx() function.
+
+= Synopsis =
+
+HWND CreateWindow(LPCTSTR lpClassName, LPCTSTR lpWindowName, DWORD dwStyle, *int* x, *int* y, *int* nWidth, *int* nHeight, HWND hWndParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam);
+
+= Description =
+
+== Parameters ==
+
+|| *Name* || *Direction* || *Description* ||
+|| _lpClassName_ || in || ||
