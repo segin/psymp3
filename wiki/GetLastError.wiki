@@ -1,0 +1,20 @@
+#summary Windows API function to get the last error code generated in the calling thread.
+#labels Phase-Implementation,Win32-API
+
+= Introduction =
+
+The GetLastError() function returns the value of the last error caused by the calling thread. The last-error code is maintained on a per-thread basis.
+
+= Synopsis =
+
+DWORD WINAPI GetLastError(*void*);
+
+= Description =
+
+== Parameters ==
+
+This function takes no parameters.
+
+== Return Value ==
+
+This function returns the last error that occurred in this thread, as set by *`SetLastError`*(). Note that some functions will call *`SetLastError`*() with a value of zero on success, overwriting the last error. 
