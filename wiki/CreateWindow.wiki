@@ -16,4 +16,5 @@ HWND CreateWindow(LPCTSTR lpClassName, LPCTSTR lpWindowName, DWORD dwStyle, *int
 == Parameters ==
 
 || *Name* || *Direction* || *Description* ||
-|| _lpClassName_ || in || ||
+|| _lpClassName_ || in || This is either a string containing the name of the window class, or a class atom returned from a previous invocation of *`RegisterClass`*(). The atom must be in the low-order word; the high order word must be zero. If a class name string is used, any  class registered with *`RegisterClass`*() or *`RegisterClassEx`*() by the same module can be used. Also, one can use any of the predefined system class names. ||
+|| _lpWindowName_ || in || String to specify the window name. When specifying a window with a title bar, this string is displayed on the title bar. When this function is being used to create controls, such as buttons, this string is used for the button title. When this function is used to create a static control with the *`SS_ICON`* style, then the string is the icon identifier or name. For identifiers, the string format is "#_num_", where _num_ is the identifier number. ||
