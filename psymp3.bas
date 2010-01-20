@@ -205,8 +205,12 @@ Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr
 End Extern
 
 
-Declare sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
-Declare Function PrintFT(ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as integer
+Declare Sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
+Declare Sub DrawGlyphBuffer(ByVal Buffer As Any Ptr, ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
+Declare Function PrintFT(ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
+Declare Function PrintFTW(ByVal x As Integer, ByVal y As Integer, ByVal Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
+Declare Function PrintFTB(ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
+Declare Function PrintFTBW(ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, ByVal Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
 Declare Function GetFont(ByVal FontName As String) As Integer
 #Ifdef __FB_WIN32__
 Declare sub MsgBox(hWnd As HWND, msg As String)
@@ -377,7 +381,110 @@ Function PrintFTW(ByVal x As Integer, ByVal y As Integer, Text As WString Ptr, B
     Next i 
 End Function 
 
-sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
+Function PrintFTB(ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as integer
+    Dim ErrorMsg   As FT_Error 
+    Dim FontFT     As FT_Face 
+    Dim GlyphIndex As FT_UInt 
+    Dim Slot       As FT_GlyphSlot 
+    Dim PenX       As Integer 
+    Dim PenY       As Integer 
+    Dim i          As Integer 
+    
+    ' Get rid of any alpha channel in AlphaClr 
+    Clr = Clr Shl 8 Shr 8 
+
+    ' Convert font handle 
+    FontFT = Cast(FT_Face, Font) 
+    
+    ' Set font size 
+    ErrorMsg = FT_Set_Pixel_Sizes(FontFT, Size, Size) 
+    FT_Var.PixelSize = Size 
+    If ErrorMsg Then Return 0 
+    
+    ' Draw each character 
+    Slot = FontFT->Glyph 
+    PenX = x 
+    PenY = y 
+        
+    For i = 0 To Len(Text) - 1 
+        ' Load character index 
+        GlyphIndex = FT_Get_Char_Index(FontFT, Text[i]) 
+        
+        ' Load character glyph 
+        ErrorMsg = FT_Load_Glyph(FontFT, GlyphIndex, FT_LOAD_DEFAULT) 
+        If ErrorMsg Then Return 0 
+        
+        ' Render glyph 
+        ErrorMsg = FT_Render_Glyph(FontFT->Glyph, FT_RENDER_MODE_NORMAL) 
+        If ErrorMsg Then Return 0 
+        
+        ' Check clipping 
+        If (PenX + FontFT->Glyph->Bitmap_Left + FontFT->Glyph->Bitmap.Width) > 640 Then Exit For 
+        If (PenY - FontFT->Glyph->Bitmap_Top + FontFT->Glyph->Bitmap.Rows) > 400 Then Exit For 
+        If (PenX + FontFT->Glyph->Bitmap_Left) < 0 Then Exit For 
+        If (PenY - FontFT->Glyph->Bitmap_Top) < 0 Then Exit For 
+        
+        ' Set pixels 
+        DrawGlyphBuffer Buffer, FontFT, PenX + FontFT->Glyph->Bitmap_Left, PenY - FontFT->Glyph->Bitmap_Top, Clr 
+        
+        PenX += Slot->Advance.x Shr 6 
+    Next i 
+End Function
+
+Function PrintFTBW(ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as integer
+    Dim ErrorMsg   As FT_Error 
+    Dim FontFT     As FT_Face 
+    Dim GlyphIndex As FT_UInt 
+    Dim Slot       As FT_GlyphSlot 
+    Dim PenX       As Integer 
+    Dim PenY       As Integer 
+    Dim i          As Integer 
+    Dim WText      As WString * 1024
+    
+    WText = *Text
+    
+    ' Get rid of any alpha channel in AlphaClr 
+    Clr = Clr Shl 8 Shr 8 
+
+    ' Convert font handle 
+    FontFT = Cast(FT_Face, Font) 
+    
+    ' Set font size 
+    ErrorMsg = FT_Set_Pixel_Sizes(FontFT, Size, Size) 
+    FT_Var.PixelSize = Size 
+    If ErrorMsg Then Return 0 
+    
+    ' Draw each character 
+    Slot = FontFT->Glyph 
+    PenX = x 
+    PenY = y 
+        
+    For i = 0 To Len(WText) - 1 
+        ' Load character index 
+        GlyphIndex = FT_Get_Char_Index(FontFT, WText[i]) 
+        
+        ' Load character glyph 
+        ErrorMsg = FT_Load_Glyph(FontFT, GlyphIndex, FT_LOAD_DEFAULT) 
+        If ErrorMsg Then Return 0 
+        
+        ' Render glyph 
+        ErrorMsg = FT_Render_Glyph(FontFT->Glyph, FT_RENDER_MODE_NORMAL) 
+        If ErrorMsg Then Return 0 
+        
+        ' Check clipping 
+        If (PenX + FontFT->Glyph->Bitmap_Left + FontFT->Glyph->Bitmap.Width) > 640 Then Exit For 
+        If (PenY - FontFT->Glyph->Bitmap_Top + FontFT->Glyph->Bitmap.Rows) > 400 Then Exit For 
+        If (PenX + FontFT->Glyph->Bitmap_Left) < 0 Then Exit For 
+        If (PenY - FontFT->Glyph->Bitmap_Top) < 0 Then Exit For 
+        
+        ' Set pixels 
+        DrawGlyphBuffer Buffer, FontFT, PenX + FontFT->Glyph->Bitmap_Left, PenY - FontFT->Glyph->Bitmap_Top, Clr 
+        
+        PenX += Slot->Advance.x Shr 6 
+    Next i 
+End Function 
+
+Sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
     Dim BitmapFT As FT_Bitmap 
     Dim BitmapPtr As UByte Ptr 
     Dim DestPtr As UInteger Ptr 
@@ -428,7 +535,66 @@ sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, B
         DestPtr += BitmapPitch 
     Loop 
     
-End sub
+End Sub
+
+Sub DrawGlyphBuffer(ByVal Buffer As Any Ptr, ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
+    Dim BitmapFT As FT_Bitmap 
+    Dim BitmapPtr As UByte Ptr 
+    Dim DestPtr As UInteger Ptr 
+    
+    Dim BitmapHgt As Integer 
+    Dim BitmapWid As Integer 
+    Dim BitmapPitch As Integer 
+    
+    Dim BufferHgt As Integer 
+    Dim BufferWid As Integer
+    Dim BufferPtr As Any Ptr
+    
+    ImageInfo(Buffer, BufferWid, BufferHgt, , , BufferPtr)
+    
+    Dim Src_RB As UInteger 
+    Dim Src_G As UInteger 
+    Dim Dst_RB As UInteger 
+    Dim Dst_G As UInteger 
+    Dim Dst_Color As UInteger 
+    Dim Alpha As Integer 
+
+    BitmapFT = FontFT->Glyph->Bitmap 
+    BitmapPtr = BitmapFT.Buffer 
+    BitmapWid = BitmapFT.Width 
+    BitmapHgt = BitmapFT.Rows 
+    BitmapPitch = BufferWid - BitmapFT.Width 
+    
+    DestPtr = BufferPtr + (y * BufferWid) + x 
+    
+    Do While BitmapHgt 
+        Do While BitmapWid 
+            ' Thanks, GfxLib 
+            Src_RB = Clr And FT_MASK_RB_32 
+            Src_G  = Clr And FT_MASK_G_32 
+
+            Dst_Color = *DestPtr 
+            Alpha = *BitmapPtr 
+            
+            Dst_RB = Dst_Color And FT_MASK_RB_32 
+            Dst_G  = Dst_Color And FT_MASK_G_32 
+            
+            Src_RB = ((Src_RB - Dst_RB) * Alpha) Shr 8 
+            Src_G  = ((Src_G - Dst_G) * Alpha) Shr 8 
+            
+            *DestPtr = ((Dst_RB + Src_RB) And FT_MASK_RB_32) Or ((Dst_G + Src_G) And FT_MASK_G_32) 
+            
+            DestPtr += 1 
+            BitmapPtr += 1 
+            BitmapWid -= 1 
+        Loop 
+        
+        BitmapWid = BitmapFT.Width 
+        BitmapHgt -= 1 
+        DestPtr += BitmapPitch 
+    Loop 
+    
+End Sub
 ''
 '' End FreeType2 functions
 ''
