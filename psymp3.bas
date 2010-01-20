@@ -66,6 +66,13 @@ Union tagText
    As Short Ptr utf16
 End Union
 
+Type extendedFileInfoStruct
+   As ZString Ptr filename
+   As ZString Ptr metadata
+   As ZString Ptr ret
+   As Integer retlen
+End Type
+
 Type extendedFileInfoStructW
    As WString Ptr filename
    As WString Ptr metadata
@@ -1348,6 +1355,18 @@ Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam 
 							*efis->ret = mp3nameW
 						Case "album"
 							*efis->ret = mp3albumW
+					End Select
+					Return efis
+				Case 290
+					Dim As extendedFileInfoStruct Ptr efis = wParam
+					If *efis->filename <> mp3file Then Return 0 
+					Select Case LCase(*efis->metadata)
+						Case "artist"
+							*efis->ret = mp3artist
+						Case "title"
+							*efis->ret = mp3name
+						Case "album"
+							*efis->ret = mp3album
 					End Select
 					Return efis
 				Case Else
