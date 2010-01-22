@@ -60,6 +60,9 @@ Declare Function getmp3artist Alias "getmp3artist" (stream As FSOUND_STREAM Ptr)
 Declare Function getmp3name Alias "getmp3name" (stream As FSOUND_STREAM Ptr) As String
 Declare Function getmp3artistW Alias "getmp3artistW" (stream As FSOUND_STREAM Ptr) As WString Ptr
 Declare Function getmp3nameW Alias "getmp3nameW" (stream As FSOUND_STREAM Ptr) As WString Ptr
+Declare Function MD5str Alias "MD5str" (chars As String) As String
+Declare Function percent_encode Alias "percent_encode" (message As String) As String
+Declare Function percent_encodeW Alias "percent_encodeW" (messageW As WString Ptr) As String
 
 Union tagText
    As Byte Ptr ascii
@@ -193,9 +196,93 @@ Private:
    m_length(500) As UInteger
    m_curtime(500) As Integer
    m_entries As Integer
+   m_session As String
+   c_username As String
+   c_password As String
+   c_apihost As String
 Public:
-   
+   Declare Constructor()
+   Declare Sub readConfig Alias "readConfig" ()
+   Declare Function getSessionKey Alias "getSessionKey" () As String
+   Declare Function setNowPlaying Alias "setNowPlaying" () As SOCKET
+   Declare Function scrobbleTrack Alias "scrobbleTrack" () As Integer
+   Declare Function submitData Alias "submitData" () As SOCKET
+   Declare Function saveScrobble Alias "saveScrobble" () As Integer
+   Declare Function dumpScrobbles Alias "dumpScrobbles" () As Integer
+   Declare Sub loadScrobbles Alias "loadScrobbles" ()
 End Type
+
+Constructor LastFM() Export
+   this.readConfig()
+   printf(!"LastFM::LastFM(): username: %s, password: %s.\n", this.c_username, String(Len(this.c_password), "*")) 
+   this.m_session = this.getSessionKey()
+   printf(!"LastFM::LastFM(): Last.fm login successful!\n")
+End Constructor
+
+Sub LastFM.readConfig Alias "readConfig" () Export
+   Dim fd As Integer = FreeFile()
+   Open "lastfm_config.txt" For Input As #fd
+   Line Input #fd, this.c_username
+   Line Input #fd, this.c_password
+   Close #fd
+End Sub
+
+Function LastFM.getSessionKey Alias "getSessionKey" () As String Export
+   Dim As Integer curtime = time_(NULL)
+	Dim As String authkey = MD5str(MD5str(this.c_password) & curtime)
+	Dim As ZString * 10000 response
+	Dim As String response_data, httpdata
+
+   If this.c_username = "" Or this.c_password = "" Then Return ""
+   
+   printf(!"LastFM::getSessionKey(): Getting session key.\n")
+
+	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=" & PSYMP3_VERSION & "&u=" & this.c_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(13) & Chr(10) & "User-Agent: PsyMP3/" & PSYMP3_VERSION & Chr(13) & Chr(10) & Chr (13) & Chr(10)
+	hStart()
+	Dim s As SOCKET, addr As Integer
+	s = hOpen()
+	addr = hResolve("post.audioscrobbler.com")
+	hConnect(s, addr, 80)
+	hSend(s, strptr(httpdata), len(httpdata))
+	hReceive(s, strptr(response), 10000)
+	hClose(s)
+	
+	response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
+	
+	If left(response_data,3) = !"OK\n" Then
+		printf(!"LastFM::getSessionKey(): Session key retreived:%s\n", Mid(response_data, 4, 32))
+		Function = Mid(response_data, 4, 32)
+	Else
+		printf(!"LastFM::getSessionKey(): Failed to authenticate (bad password?)\n")
+		Function = ""
+	End If
+End Function
+
+Function LastFM.setNowPlaying Alias "setNowPlaying" () As SOCKET Export
+	Dim As Integer curtime = time_(NULL)
+	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
+	Dim As ZString * 10000 response
+	Dim As String response_data, httpdata, postdata
+   
+   Dim As Integer length = Int(FSOUND_Stream_GetLengthMs(stream)/1000)
+
+	httpdata = 	!"POST /np_1.2 HTTP/1.1\n" & _
+					!"Host: post.audioscrobbler.com\n" & _ 
+					!"User-Agent: PsyMP3" & "/" & PSYMP3_VERSION & !"\n" 
+
+	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
+					"a=" & percent_encode(mp3artistW) & "&" & _
+					"t=" & percent_encode(mp3nameW) & "&" & _ 
+					"b=" & percent_encode(mp3albumW) & "&" & _
+					"l=" & length & "&" & _
+					"n=&m="
+
+	httpdata &= !"Content-Length: " & Len(postdata) & !"\n" & _
+					!"Content-Type: application/x-www-form-urlencoded\n\n" & _
+					postdata
+End Function
+
+'' End Last.fm code
 
 Enum PSYMP3_COMMANDS
    PSYMP3_PLAY_NEXT
@@ -1724,6 +1811,45 @@ Function percent_encode Alias "percent_encode" (message As String) As String Exp
 	Return ret
 End Function
 
+Function wstring_to_utf8 Alias "wstring_to_utf8" (from As WString Ptr) As String Export
+	Dim ret As String
+	Dim i As Integer
+	For i = 0 to Len(*from) - 1
+	Select Case((*from)[i])
+		Case Is < &h80
+			ret &= Chr((*from)[i])
+		Case Is < &h800
+			ret &= Chr(&hc0 Or (*from)[i] Shr 6)
+			ret &= Chr(&h80 Or (*from)[i] And &h3f)
+		Case Is < &h10000
+			ret &= Chr(&he0 Or (*from)[i] Shr 12)
+			ret &= Chr(&h80 Or (*from)[i] Shr 6 And &h3f)
+			ret &= Chr(&h80 Or (*from)[i] And &h3f)
+		Case Is < &h200000
+			ret &= Chr(&hf0 Or (*from)[i] Shr 18)
+			ret &= Chr(&h80 Or (*from)[i] Shr 12 And &h3f)
+			ret &= Chr(&h80 Or (*from)[i] Shr 6 And &h3f)
+			ret &= Chr(&h80 Or (*from)[i] And &h3f)
+	End Select
+	Next
+	Return ret
+End Function
+
+Function percent_encodeW Alias "percent_encodeW" (messageW As WString Ptr) As String Export
+	Dim ret As String
+ 	Dim i As Integer
+ 	Dim message As String = wstring_to_utf8(messageW)
+	For i = 0 to Len(message) - 1
+	Select Case(message[i])
+		Case &h0 To &h2c, &h2f, &h3a, &h3b, &h3d, &h3f, &h40, &h5b, &h5d, &h80 to &hff
+		ret &= "%" & Hex(message[i])
+		Case Else
+		ret &= Chr(message[i])
+	End Select
+	Next
+	Return ret
+End Function
+
 Function lastfm_session Alias "lastfm_session" () As String Export
 	Dim As Integer curtime = time_(NULL)
 	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
@@ -1768,9 +1894,9 @@ Function lastfm_nowplaying Alias "lastfm_nowplaying" () As SOCKET Export
 					!"User-Agent: PsyMP3" & "/" & PSYMP3_VERSION & !"\n" 
 
 	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-					"a=" & percent_encode(mp3artistW) & "&" & _
-					"t=" & percent_encode(mp3nameW) & "&" & _ 
-					"b=" & percent_encode(mp3albumW) & "&" & _
+					"a=" & percent_encodeW(mp3artistW) & "&" & _
+					"t=" & percent_encodeW(mp3nameW) & "&" & _ 
+					"b=" & percent_encodeW(mp3albumW) & "&" & _
 					"l=" & length & "&" & _
 					"n=&m="
 
@@ -1832,13 +1958,13 @@ Function lastfm_scrobble Alias "lastfm_scrobble" () As Integer Export
 		!"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n" 
  
 	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-					"a[0]=" & percent_encode(mp3artistW) & "&" & _
-					"t[0]=" & percent_encode(mp3nameW) & "&" & _ 
+					"a[0]=" & percent_encodeW(mp3artistW) & "&" & _
+					"t[0]=" & percent_encodeW(mp3nameW) & "&" & _ 
 					"i[0]=" & time_(NULL) & "&" & _ 
 					"o[0]=P&" & _ 
 					"r[0]=&" & _ 
 					"l[0]=" & Int(FSOUND_Stream_GetLengthMs(stream)/1000) & "&" & _
-					"b[0]=" & percent_encode(mp3albumW) & "&" & _
+					"b[0]=" & percent_encodeW(mp3albumW) & "&" & _
 					"n[0]=&m[0]="
 
 	httpdata &= _
@@ -1953,6 +2079,8 @@ If Command(1) = "--largo" Then
 	!"and the whole place could blow..."
 	End
 End If
+
+'Dim Shared As LastFM Scrobbler
 
 Dim fd As Integer = FreeFile()
 Open "lastfm_config.txt" For Input As #fd
@@ -2375,6 +2503,13 @@ If IsSilent <> 1 Then
 			AnnounceWMP(mp3artist, mp3name, mp3album)
 #EndIf
 			hClose(sock)
+			Line(0,350)-(639,399),0,BF
+			PrintFTW(1,366,"Artist: " + mp3artistW,sFont,12,rgb(255,255,255))
+			PrintFTW(1,381,"Title: " + mp3nameW,sFont,12)
+			PrintFTW(1,396,"Album: " + mp3albumW,sFont,12) 
+			PrintFTW(300,366,"Playlist: " & Songlist.getPosition & "/" & Songlist.getEntries, sFont, 12, rgb(255,255,255)) 
+			PrintFTW(280,396,"CPU: " + cpuname + ", Vendor: " + cpuvendor,sFont,9)
+			Get (0, 350)-(639,399), TextMap
 			sock = Lastfm_nowplaying()
 		End If
 	End If
