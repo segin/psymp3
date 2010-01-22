@@ -1,4 +1,4 @@
-PsyMP3 Version 1.1-CURRENT README
+PsyMP3 Version 1.2-RELEASE README
 =========================================
 
 1. Overview
