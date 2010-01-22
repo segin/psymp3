@@ -1,6 +1,6 @@
 '
 ' PsyMP3 Player
-' Copyright (C) 2007-2009 Kirn Gill <segin2005@gmail.com>
+' Copyright (C) 2007-2010 Kirn Gill <segin2005@gmail.com>
 '
 ' Parts of this code are from OpenGH, copyright as above.
 '
