@@ -1,6 +1,6 @@
 '
 ' PsyMP3 Player
-' Copyright (C) 2007-2010 Kirn Gill <segin2005@gmail.com>
+' Copyright (C) 2007-2009 Kirn Gill <segin2005@gmail.com>
 '
 ' Parts of this code are from OpenGH, copyright as above.
 '
@@ -25,56 +25,34 @@
 #include once "freetype2/freetype.bi"
 #ifdef __FB_WIN32__
 #define WIN_INCLUDEALL
-#include once "windows.bi" 
+#include once "windows.bi"
 #else
+#include once "gtk/gtk.bi"
 #define SIGINT 3
 #endif
 #include once "vbcompat.bi"
 
 #Include "md5.bi"
 #Include "wshelper.bas"
-#Include "libseven.bi"
 
-#define PSYMP3_VERSION "1.2-RELEASE"
+#define PSYMP3_VERSION "1.1-RELEASE"
 
 #If Not Defined(Boolean)
    #Define Boolean integer
 #endif
 
 Dim Shared As String mp3artist, mp3name, mp3album, mp3file
-Dim Shared As WString * 1024 mp3artistW, mp3nameW, mp3albumW, mp3fileW
-
 Dim Shared stream as FSOUND_STREAM Ptr
 Dim Shared IsPaused as Integer
 Dim Shared doRepeat As Integer
 Dim Shared doCommand As Integer
 Dim Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
 Dim Shared songstart As Integer ' Song start time in UNIX format.
-#ifdef __FB_WIN32__
 Dim Shared WAWindow As HWND
-Dim Shared MainWnd As HWND
-#EndIf
 Dim Shared songlength As Integer
 
-Declare Function getmp3artist Alias "getmp3artist" (stream As FSOUND_STREAM Ptr) As String
-Declare Function getmp3name Alias "getmp3name" (stream As FSOUND_STREAM Ptr) As String
-Declare Function getmp3artistW Alias "getmp3artistW" (stream As FSOUND_STREAM Ptr) As WString Ptr
-Declare Function getmp3nameW Alias "getmp3nameW" (stream As FSOUND_STREAM Ptr) As WString Ptr
-Declare Function MD5str Alias "MD5str" (chars As String) As String
-Declare Function percent_encode Alias "percent_encode" (message As String) As String
-Declare Function percent_encodeW Alias "percent_encodeW" (messageW As WString Ptr) As String
-
-Union tagText
-   As Byte Ptr ascii
-   As Short Ptr utf16
-End Union
-
-Type extendedFileInfoStruct
-   As ZString Ptr filename
-   As ZString Ptr metadata
-   As ZString Ptr ret
-   As Integer retlen
-End Type
+Declare Function getmp3artist(stream As FSOUND_STREAM Ptr) As String
+Declare Function getmp3name(stream As FSOUND_STREAM Ptr) As String
 
 Type extendedFileInfoStructW
    As WString Ptr filename
@@ -100,37 +78,37 @@ Private:
    m_title(15000) As String
 Public:
    Declare Constructor ()
-   Declare Sub addFile Alias "addFile" (file As String)
-   Declare Sub addRawFile Alias "addRawFile" (file As String)
-   Declare Sub savePlaylist Alias "savePlayList" (file As String)
-   Declare Function getNextFile Alias "getNextFile" () As String
-   Declare Function getPrevFile Alias "getPrevFile" () As String
-   Declare Function getPosition Alias "getPosition" () As Integer
-   Declare Function getEntries Alias "getEntries" () As Integer
-   Declare Function isFileRaw Alias "isFileRaw" () As Integer
-   Declare Function getFirstEntry Alias "getFirstEntry" () As String
+   Declare Sub addFile(file As String)
+   Declare Sub addRawFile(file As String)
+   Declare Sub savePlaylist(file As String)
+   Declare Function getNextFile() As String
+   Declare Function getPrevFile() As String
+   Declare Function getPosition() As Integer
+   Declare Function getEntries() As Integer
+   Declare Function isFileRaw() As Integer
+   Declare Function getFirstEntry() As String
 End Type
 
 Dim Shared As Playlist Songlist
 
-Constructor Playlist () Export
+Constructor Playlist ()
    this.m_entries = 0
    this.m_position = 0
    this.m_playlist(1) = ""
 End Constructor
 
-Sub Playlist.addFile Alias "addFile" (file As String) Export
+Sub Playlist.addFile Alias "addFile" (file As String)
    this.m_entries += 1
    this.m_playlist(this.m_entries) = file
 End Sub
 
-Sub Playlist.addRawFile Alias "addRawFile" (file As String) Export
+Sub Playlist.addRawFile Alias "addRawFile" (file As String)
    this.m_entries += 1
    this.m_playlist(this.m_entries) = file
    this.m_israw(this.m_entries) = 1
 End Sub
 
-Function Playlist.getNextFile Alias "getNextFile" () As String Export
+Function Playlist.getNextFile Alias "getNextFile" () As String
    If this.m_entries = 0 Or this.m_entries <= this.m_position Then
       this.m_position = this.m_entries + 1
       Return ""
@@ -139,26 +117,26 @@ Function Playlist.getNextFile Alias "getNextFile" () As String Export
    Return this.m_playlist(this.m_position)
 End Function
 
-Function Playlist.getPrevFile Alias "getPrevFile" () As String Export
+Function Playlist.getPrevFile Alias "getPrevFile" () As String
    If this.m_entries = 0 Then Return ""
    this.m_position -= 1
    Return this.m_playlist(this.m_position)
 End Function
 
-Function Playlist.getPosition Alias "getPosition" () As Integer Export
+Function Playlist.getPosition Alias "getPosition" () As Integer
    Return this.m_position
 End Function
 
-Function Playlist.getEntries Alias "getEntries" () As Integer Export
+Function Playlist.getEntries Alias "getEntries" () As Integer
    Return this.m_entries
 End Function
 
-Function Playlist.getFirstEntry Alias "getFirstEntry" () As String Export
+Function Playlist.getFirstEntry Alias "getFirstEntry" () As String
    this.m_position = 0
    Return this.getNextFile()
 End Function
 
-Sub Playlist.savePlaylist Alias "savePlaylist" (file As String) Export
+Sub Playlist.savePlaylist Alias "savePlaylist" (file As String)
    ' Rationale: 
    ' This function iterates through the entire playlist and attempts to write
    ' an M3U that is compatible with Winamp, et. al.
@@ -186,270 +164,6 @@ End Sub
 
 '' End Playlist code.
 
-'' Begin New Last.fm Code
-
-Type LastFM Alias "LastFM"
-Private:
-   m_artist(500) As WString * 1024
-   m_name(500) As WString * 1024
-   m_album(500) As WString * 1024
-   m_length(500) As UInteger
-   m_curtime(500) As Integer
-   m_entries As Integer
-   m_session As String
-   c_username As String
-   c_password As String
-   c_apihost(2) As String
-   c_apiport(2) As Short
-   c_apipath(2) As String
-Public:
-   Declare Constructor()
-   Declare Destructor()
-   Declare Sub readConfig Alias "readConfig" ()
-   Declare Function getSessionKey Alias "getSessionKey" () As String
-   Declare Function setNowPlaying Alias "setNowPlaying" () As SOCKET
-   Declare Function scrobbleTrack Alias "scrobbleTrack" () As Integer
-   Declare Function submitData Alias "submitData" (sData As String, host As Integer) As SOCKET
-   Declare Function submitScrobbles Alias "submitScrobbles" () As Integer
-   Declare Function saveScrobble Alias "saveScrobble" (WArtist As WString Ptr, WName As WString Ptr, WAlbum As WString Ptr, length As Integer, curtime As UInteger) As Integer
-   Declare Function dumpScrobbles Alias "dumpScrobbles" () As Integer
-   Declare Sub loadScrobbles Alias "loadScrobbles" ()
-End Type
-
-Constructor LastFM() Export
-   this.readConfig()
-   printf(!"LastFM::LastFM(): username: %s, password: %s.\n", this.c_username, String(Len(this.c_password), "*")) 
-   this.m_session = this.getSessionKey()
-   Lastfm_sessionkey = this.m_session
-   printf(!"LastFM::LastFM(): Last.fm login successful!\n")
-End Constructor
-
-Destructor LastFM() Export
-   printf(!"LastFM::~LastFM(): Dumping scrobbles\n")
-   this.dumpScrobbles()
-End Destructor
-
-Sub LastFM.readConfig Alias "readConfig" () Export
-   Dim fd As Integer = FreeFile()
-   Open "lastfm_config.txt" For Input As #fd
-   Line Input #fd, this.c_username
-   Line Input #fd, this.c_password
-   Close #fd
-End Sub
-
-Function LastFM.getSessionKey Alias "getSessionKey" () As String Export
-   Dim As Integer curtime = time_(NULL)
-	Dim As String authkey = MD5str(MD5str(this.c_password) & curtime)
-	Dim As ZString * 10000 response
-	Dim As String response_data, httpdata
-
-   If this.c_username = "" Or this.c_password = "" Then Return ""
-   
-   printf(!"LastFM::getSessionKey(): Getting session key.\n")
-
-	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=" & PSYMP3_VERSION & "&u=" & this.c_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(13) & Chr(10) & "User-Agent: PsyMP3/" & PSYMP3_VERSION & Chr(13) & Chr(10) & Chr (13) & Chr(10)
-	hStart()
-	Dim s As SOCKET, addr As Integer
-	s = hOpen()
-	addr = hResolve("post.audioscrobbler.com")
-	hConnect(s, addr, 80)
-	hSend(s, strptr(httpdata), len(httpdata))
-	hReceive(s, strptr(response), 10000)
-	hClose(s)
-	
-	response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-	
-	If left(response_data,3) = !"OK\n" Then
-		printf(!"LastFM::getSessionKey(): Session key retreived:%s\n", Mid(response_data, 4, 32))
-		Function = Mid(response_data, 4, 32)
-		response_data = Mid(response_data, InStr(response_data, !"\n") + 1)
-		response_data = Mid(response_data, InStr(response_data, !"\n") + 1)
-		Dim As String surl(2)
-		Dim As String buf, host, port, path
-		For curtime = 1 To 2
-			surl(curtime) = Left(response_data, InStr(response_data, !"\n") - 1)
-			host = Mid(response_data, InStr(response_data, !"http://") + 7)
-			buf = host
-			host = Left(host, InStr(host, !":") - 1)
-			port = Mid(buf, InStr(buf, !":") + 1)
-			buf = port
-			port = Left(port, InStr(buf, "/") - 1)
-			path = Mid(buf, InStr(buf, "/"))
-			path = Left(path, InStr(path, !"\n") - 1)
-			this.c_apihost(curtime) = host
-			this.c_apiport(curtime) = Val(port)
-			this.c_apipath(curtime) = path
-			response_data = Mid(response_data, InStr(response_data, !"\n") + 1)
-		Next curtime
-	Else
-		printf(!"LastFM::getSessionKey(): Failed to authenticate (bad password?)\n")
-		Function = ""
-	End If   
-End Function
-
-Function LastFM.setNowPlaying Alias "setNowPlaying" () As SOCKET Export
-	Dim As Integer curtime = time_(NULL)
-	Dim As String authkey = MD5str(MD5str(this.c_password) & curtime)
-	Dim As ZString * 10000 response
-	Dim As String response_data, httpdata, postdata
-   
-   Dim As Integer length = Int(FSOUND_Stream_GetLengthMs(stream)/1000)
-
-	If this.m_session = "" Then Return 0
-
-	Dim As Boolean submitted = FALSE 
-	
-	While submitted = FALSE 
-
-		httpdata = 	"POST " & this.c_apipath(1) & !" HTTP/1.1\n" & _
-						"Host: " & this.c_apihost(1) & !"\n" & _ 
-						"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n"
-	
-		postdata = 	"s=" & this.m_session & "&" & _ 
-						"a=" & percent_encodeW(mp3artistW) & "&" & _
-						"t=" & percent_encodeW(mp3nameW) & "&" & _ 
-						"b=" & percent_encodeW(mp3albumW) & "&" & _
-						"l=" & length & "&" & _
-						"n=&m="
-
-		httpdata &= !"Content-Length: " & Len(postdata) & !"\n" & _
-						!"Content-Type: application/x-www-form-urlencoded\n\n" & _
-						postdata
-	
-	
-		Dim s As SOCKET = this.submitData(httpdata, 1)
-		hReceive(s, strptr(response), 10000)
-		response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-		Dim status As String = Left(response_data, InStr(response_data, !"\n") - 1)
-	
-		Select Case status
-			Case "OK"
-				printf !"LastFM::setNowPlaying(): Server response OK. Track sucessfully sent as nowplaying!\n"
-				this.submitScrobbles()
-				submitted = TRUE
-			Case "BADSESSION"
-				this.m_session = this.getSessionKey()  
-			Case Else
-				printf !"LastFM::setNowPlaying(): Sending track as nowplaying failed\n"
-				submitted = TRUE
-		End Select
-   Wend
-End Function
-
-Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
-	Dim As Integer curtime = time_(NULL)
-	Dim As String authkey = MD5str(MD5str(this.c_password) & curtime)
-	Dim As ZString * 10000 response
-	Dim As String response_data, httpdata, postdata
-
-   Dim As Integer qual
-
-   ' IIf keeps giving me "Invalid data types" so go with a more verbose workaround
-   /' If (songlength / 4000) > 240 Then
-      qual = 240
-   Else
-      qual = songlength / 4000
-   EndIf
-
-   If songlength < 30000 Then Return 0
-   
-   If (curtime - songstart) < qual Then Return 0 '/
-	
-	printf(!"LastFM::scrobbleTrack(): Going to scrobble track. Artist: \"%ls\", Title: \"%ls\", Album: \"%ls\".\n", mp3artistW, mp3nameW, mp3albumW)
-	
-	Dim As Boolean submitted = FALSE
-	Dim As Integer length = Int(FSOUND_Stream_GetLengthMs(stream)/1000) 
-	
-	While submitted = FALSE 
-	
-		httpdata = 	"POST " & this.c_apipath(2) & !" HTTP/1.1\n" & _
-			"Host: " &this.c_apihost(2) & !"\n" & _ 
-			"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n" 
-	
-		postdata = 	"s=" & this.m_session & "&" & _ 
-						"a[0]=" & percent_encodeW(mp3artistW) & "&" & _
-						"t[0]=" & percent_encodeW(mp3nameW) & "&" & _ 
-						"i[0]=" & time_(NULL) & "&" & _ 
-						"o[0]=P&" & _ 
-						"r[0]=&" & _ 
-						"l[0]=" & length & "&" & _
-						"b[0]=" & percent_encodeW(mp3albumW) & "&" & _
-						"n[0]=&m[0]="
-
-		httpdata &= _
-				!"Content-Length: " & Len(postdata) & !"\n" & _
-				!"Content-Type: application/x-www-form-urlencoded\n\n" & _
-				postdata
-
-		Dim s As SOCKET = this.submitData(httpdata, 2)
-		hReceive(s, strptr(response), 10000)
-		response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-	
-		Dim status As String = Left(response_data, InStr(response_data, !"\n") - 1)
-	
-		Select Case status
-			Case "OK"
-				printf !"LastFM::scrobbleTrack(): Server response OK. Track sucessfully scrobbled!\n"
-				this.submitScrobbles()
-				submitted = TRUE
-			Case "BADSESSION"
-				this.m_session = this.getSessionKey()  
-			Case Else
-				printf !"LastFM::scrobbleTrack(): Scrobbling track failed, storing scrobble.\n"
-				this.saveScrobble(mp3artistW, mp3nameW, mp3albumW, length, curtime)
-				submitted = TRUE
-		End Select
-	Wend
-End Function
-
-Function LastFM.submitData Alias "submitData" (sData As String, host As Integer) As SOCKET
-	Dim rhost As String
-	Dim rport As Integer
-	If this.c_apihost(host) <> "" Then rhost = this.c_apihost(host) Else rhost = "post.audioscrobbler.com"
-	If this.c_apiport(host) <> 0 Then rport = this.c_apiport(host) Else rport = 80
-	Dim s As SOCKET, addr As Integer
-	s = hOpen()
-	printf !"LastFM::submitData(): host %s port %d\n", rhost, rport
-	addr = hResolve(rhost)
-	hConnect(s, addr, rport)
-	hSend(s, strptr(sData), len(sData))
-	Return(s)
-End Function
-
-Function LastFM.submitScrobbles Alias "submitScrobbles" () As Integer Export
-   
-End Function
-
-
-Function LastFM.saveScrobble Alias "saveScrobble" (WArtist As WString Ptr, WName As WString Ptr, WAlbum As WString Ptr, length As Integer, curtime As UInteger) As Integer Export
-	If this.m_entries = 500 Then Return -1
-	this.m_entries += 1
-	this.m_artist(this.m_entries) = *WArtist
-	this.m_name(this.m_entries) = *WName
-	this.m_album(this.m_entries) = *WAlbum
-	this.m_length(this.m_entries) = length
-	this.m_curtime(this.m_entries) = curtime
-End Function
-
-Function LastFM.dumpScrobbles Alias "dumpScrobbles" () As Integer Export
-   Dim As Integer i, FAR
-   FAR = 232
-   Kill("lastfm.txt")
-   Open "lastfm.txt" For Output Lock Write As #FAR
-   If Err>0 Then Printf !"Error opening the file\n"
-   Write #FAR, "Number of Entries", this.m_entries 
-   For i = 1 To this.m_entries
-      Write #FAR, this.m_artist(i), this.m_name(i), this.m_album(i), this.m_length(i), this.m_curtime(i)
-   Next i
-   Close #FAR
-End Function
-
-Sub LastFM.loadScrobbles Alias "loadScrobbles" () Export
-   
-End Sub
-
-'' End Last.fm code
-
 Enum PSYMP3_COMMANDS
    PSYMP3_PLAY_NEXT
    PSYMP3_PLAY_PREV
@@ -468,29 +182,18 @@ declare function kill_ alias "kill" (byval pid as pid_t, byval sig as integer) a
 #Ifdef __FB_WIN32__
 Declare Function wsprintfW Alias "wsprintfW" (buf As WString ptr, fmt As WString Ptr, ...) As Integer 
 #endif
-Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
-End Extern
+end extern
 
 
-Declare Sub DrawGlyph Alias "DrawGlyph" (ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
-Declare Sub DrawGlyphBuffer Alias "DrawGlyphBuffer" (ByVal Buffer As Any Ptr, ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
-Declare Function PrintFT Alias "PrintFT" (ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
-Declare Function PrintFTW Alias "PrintFTW" (ByVal x As Integer, ByVal y As Integer, ByVal Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
-Declare Function PrintFTB Alias "PrintFTB" (ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
-Declare Function PrintFTBW Alias "PrintFTBW" (ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, ByVal Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer
-Declare Function GetFont Alias "GetFont" (ByVal FontName As String) As Integer
+Declare sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
+Declare Function PrintFT(ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as integer
+Declare Function GetFont(ByVal FontName As String) As Integer
 #Ifdef __FB_WIN32__
 Declare sub MsgBox(hWnd As HWND, msg As String)
 #Else
-Extern "C++"
-	Declare Sub MsgBox Alias "messageBox" (ByVal hWnd as Integer, ByVal msg As ZString Ptr)
-End Extern
+Declare sub MsgBox(hWnd As Integer, msg As String)
 #endif
  
-#ifdef __FB_WIN32__
-#Inclib "dir"
-#endif
-
 ' Alpha blending 
 #define FT_MASK_RB_32         &h00FF00FF 
 #define FT_MASK_G_32          &h0000FF00 
@@ -508,7 +211,7 @@ Type CopyData
 End Type
 
 Dim Shared FT_Var As FT_Var 
-Function InitFT Alias "InitFT" () As Integer Export
+Function InitFT() As Integer
 	Dim console As Integer
 	console = FreeFile
 	Open Err As #console
@@ -524,7 +227,7 @@ Function InitFT Alias "InitFT" () As Integer Export
 	Close #console
 End Function
 
-Function GetFont Alias "GetFont" (ByVal FontName As String) As Integer Export 
+Function GetFont(ByVal FontName As String) As Integer 
    Dim Face As FT_Face 
    Dim ErrorMsg As FT_Error 
    Dim console As Integer
@@ -545,7 +248,7 @@ End Function
 
 ' Print Text 
 ' ---------- 
-Function PrintFT Alias "PrintFT" (ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer Export
+Function PrintFT(ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as integer
     Dim ErrorMsg   As FT_Error 
     Dim FontFT     As FT_Face 
     Dim GlyphIndex As FT_UInt 
@@ -593,165 +296,9 @@ Function PrintFT Alias "PrintFT" (ByVal x As Integer, ByVal y As Integer, ByVal 
         
         PenX += Slot->Advance.x Shr 6 
     Next i 
-End Function
-
-Function PrintFTW Alias "PrintFTW" (ByVal x As Integer, ByVal y As Integer, Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer Export
-    Dim ErrorMsg   As FT_Error 
-    Dim FontFT     As FT_Face 
-    Dim GlyphIndex As FT_UInt 
-    Dim Slot       As FT_GlyphSlot 
-    Dim PenX       As Integer 
-    Dim PenY       As Integer 
-    Dim i          As Integer 
-    Dim WText      As WString * 1024
-    
-    WText = *Text
-    
-    ' Get rid of any alpha channel in AlphaClr 
-    Clr = Clr Shl 8 Shr 8 
-
-    ' Convert font handle 
-    FontFT = Cast(FT_Face, Font) 
-    
-    ' Set font size 
-    ErrorMsg = FT_Set_Pixel_Sizes(FontFT, Size, Size) 
-    FT_Var.PixelSize = Size 
-    If ErrorMsg Then Return 0 
-    
-    ' Draw each character 
-    Slot = FontFT->Glyph 
-    PenX = x 
-    PenY = y 
-        
-    For i = 0 To Len(WText) - 1 
-        ' Load character index 
-        GlyphIndex = FT_Get_Char_Index(FontFT, WText[i]) 
-        
-        ' Load character glyph 
-        ErrorMsg = FT_Load_Glyph(FontFT, GlyphIndex, FT_LOAD_DEFAULT) 
-        If ErrorMsg Then Return 0 
-        
-        ' Render glyph 
-        ErrorMsg = FT_Render_Glyph(FontFT->Glyph, FT_RENDER_MODE_NORMAL) 
-        If ErrorMsg Then Return 0 
-        
-        ' Check clipping 
-        If (PenX + FontFT->Glyph->Bitmap_Left + FontFT->Glyph->Bitmap.Width) > 640 Then Exit For 
-        If (PenY - FontFT->Glyph->Bitmap_Top + FontFT->Glyph->Bitmap.Rows) > 400 Then Exit For 
-        If (PenX + FontFT->Glyph->Bitmap_Left) < 0 Then Exit For 
-        If (PenY - FontFT->Glyph->Bitmap_Top) < 0 Then Exit For 
-        
-        ' Set pixels 
-        DrawGlyph FontFT, PenX + FontFT->Glyph->Bitmap_Left, PenY - FontFT->Glyph->Bitmap_Top, Clr 
-        
-        PenX += Slot->Advance.x Shr 6 
-    Next i 
 End Function 
 
-Function PrintFTB Alias "PrintFTB" (ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, ByVal Text As String, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer Export
-    Dim ErrorMsg   As FT_Error 
-    Dim FontFT     As FT_Face 
-    Dim GlyphIndex As FT_UInt 
-    Dim Slot       As FT_GlyphSlot 
-    Dim PenX       As Integer 
-    Dim PenY       As Integer 
-    Dim i          As Integer 
-    
-    ' Get rid of any alpha channel in AlphaClr 
-    Clr = Clr Shl 8 Shr 8 
-
-    ' Convert font handle 
-    FontFT = Cast(FT_Face, Font) 
-    
-    ' Set font size 
-    ErrorMsg = FT_Set_Pixel_Sizes(FontFT, Size, Size) 
-    FT_Var.PixelSize = Size 
-    If ErrorMsg Then Return 0 
-    
-    ' Draw each character 
-    Slot = FontFT->Glyph 
-    PenX = x 
-    PenY = y 
-        
-    For i = 0 To Len(Text) - 1 
-        ' Load character index 
-        GlyphIndex = FT_Get_Char_Index(FontFT, Text[i]) 
-        
-        ' Load character glyph 
-        ErrorMsg = FT_Load_Glyph(FontFT, GlyphIndex, FT_LOAD_DEFAULT) 
-        If ErrorMsg Then Return 0 
-        
-        ' Render glyph 
-        ErrorMsg = FT_Render_Glyph(FontFT->Glyph, FT_RENDER_MODE_NORMAL) 
-        If ErrorMsg Then Return 0 
-        
-        ' Check clipping 
-        If (PenX + FontFT->Glyph->Bitmap_Left + FontFT->Glyph->Bitmap.Width) > 640 Then Exit For 
-        If (PenY - FontFT->Glyph->Bitmap_Top + FontFT->Glyph->Bitmap.Rows) > 400 Then Exit For 
-        If (PenX + FontFT->Glyph->Bitmap_Left) < 0 Then Exit For 
-        If (PenY - FontFT->Glyph->Bitmap_Top) < 0 Then Exit For 
-        
-        ' Set pixels 
-        DrawGlyphBuffer Buffer, FontFT, PenX + FontFT->Glyph->Bitmap_Left, PenY - FontFT->Glyph->Bitmap_Top, Clr 
-        
-        PenX += Slot->Advance.x Shr 6 
-    Next i 
-End Function
-
-Function PrintFTBW Alias "PrintFTBW" (ByVal Buffer As Any Ptr, ByVal x As Integer, ByVal y As Integer, Text As WString Ptr, ByVal Font As Integer, ByVal Size As Integer = 14, ByVal Clr As UInteger = Rgb(255, 255, 255)) as Integer Export
-    Dim ErrorMsg   As FT_Error 
-    Dim FontFT     As FT_Face 
-    Dim GlyphIndex As FT_UInt 
-    Dim Slot       As FT_GlyphSlot 
-    Dim PenX       As Integer 
-    Dim PenY       As Integer 
-    Dim i          As Integer 
-    Dim WText      As WString * 1024
-    
-    WText = *Text
-    
-    ' Get rid of any alpha channel in AlphaClr 
-    Clr = Clr Shl 8 Shr 8 
-
-    ' Convert font handle 
-    FontFT = Cast(FT_Face, Font) 
-    
-    ' Set font size 
-    ErrorMsg = FT_Set_Pixel_Sizes(FontFT, Size, Size) 
-    FT_Var.PixelSize = Size 
-    If ErrorMsg Then Return 0 
-    
-    ' Draw each character 
-    Slot = FontFT->Glyph 
-    PenX = x 
-    PenY = y 
-        
-    For i = 0 To Len(WText) - 1 
-        ' Load character index 
-        GlyphIndex = FT_Get_Char_Index(FontFT, WText[i]) 
-        
-        ' Load character glyph 
-        ErrorMsg = FT_Load_Glyph(FontFT, GlyphIndex, FT_LOAD_DEFAULT) 
-        If ErrorMsg Then Return 0 
-        
-        ' Render glyph 
-        ErrorMsg = FT_Render_Glyph(FontFT->Glyph, FT_RENDER_MODE_NORMAL) 
-        If ErrorMsg Then Return 0 
-        
-        ' Check clipping 
-        If (PenX + FontFT->Glyph->Bitmap_Left + FontFT->Glyph->Bitmap.Width) > 640 Then Exit For 
-        If (PenY - FontFT->Glyph->Bitmap_Top + FontFT->Glyph->Bitmap.Rows) > 400 Then Exit For 
-        If (PenX + FontFT->Glyph->Bitmap_Left) < 0 Then Exit For 
-        If (PenY - FontFT->Glyph->Bitmap_Top) < 0 Then Exit For 
-        
-        ' Set pixels 
-        DrawGlyphBuffer Buffer, FontFT, PenX + FontFT->Glyph->Bitmap_Left, PenY - FontFT->Glyph->Bitmap_Top, Clr 
-        
-        PenX += Slot->Advance.x Shr 6 
-    Next i 
-End Function 
-
-Sub DrawGlyph Alias "DrawGlyph" (ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger) Export
+sub DrawGlyph(ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger)
     Dim BitmapFT As FT_Bitmap 
     Dim BitmapPtr As UByte Ptr 
     Dim DestPtr As UInteger Ptr 
@@ -766,18 +313,14 @@ Sub DrawGlyph Alias "DrawGlyph" (ByVal FontFT As FT_Face, ByVal x As Integer, By
     Dim Dst_G As UInteger 
     Dim Dst_Color As UInteger 
     Dim Alpha As Integer 
-    
-    Dim ScreenWid As Integer
-    
-    ScreenInfo(ScreenWid)
 
     BitmapFT = FontFT->Glyph->Bitmap 
     BitmapPtr = BitmapFT.Buffer 
     BitmapWid = BitmapFT.Width 
     BitmapHgt = BitmapFT.Rows 
-    BitmapPitch = ScreenWid - BitmapFT.Width 
+    BitmapPitch = 640 - BitmapFT.Width 
     
-    DestPtr = Cast(UInteger Ptr, ScreenPtr) + (y * ScreenWid) + x 
+    DestPtr = Cast(UInteger Ptr, ScreenPtr) + (y * 640) + x 
     
     Do While BitmapHgt 
         Do While BitmapWid 
@@ -806,66 +349,7 @@ Sub DrawGlyph Alias "DrawGlyph" (ByVal FontFT As FT_Face, ByVal x As Integer, By
         DestPtr += BitmapPitch 
     Loop 
     
-End Sub
-
-Sub DrawGlyphBuffer Alias "DrawGlyphBuffer" (ByVal Buffer As Any Ptr, ByVal FontFT As FT_Face, ByVal x As Integer, ByVal y As Integer, ByVal Clr As UInteger) Export
-    Dim BitmapFT As FT_Bitmap 
-    Dim BitmapPtr As UByte Ptr 
-    Dim DestPtr As UInteger Ptr 
-    
-    Dim BitmapHgt As Integer 
-    Dim BitmapWid As Integer 
-    Dim BitmapPitch As Integer 
-    
-    Dim BufferHgt As Integer 
-    Dim BufferWid As Integer
-    Dim BufferPtr As Any Ptr
-    
-    ImageInfo(Buffer, BufferWid, BufferHgt, , , BufferPtr)
-    
-    Dim Src_RB As UInteger 
-    Dim Src_G As UInteger 
-    Dim Dst_RB As UInteger 
-    Dim Dst_G As UInteger 
-    Dim Dst_Color As UInteger 
-    Dim Alpha As Integer 
-
-    BitmapFT = FontFT->Glyph->Bitmap 
-    BitmapPtr = BitmapFT.Buffer 
-    BitmapWid = BitmapFT.Width 
-    BitmapHgt = BitmapFT.Rows 
-    BitmapPitch = BufferWid - BitmapFT.Width 
-    
-    DestPtr = BufferPtr + (y * BufferWid) + x
-    
-    Do While BitmapHgt 
-        Do While BitmapWid 
-            ' Thanks, GfxLib 
-            Src_RB = Clr And FT_MASK_RB_32 
-            Src_G  = Clr And FT_MASK_G_32 
-
-            Dst_Color = *DestPtr 
-            Alpha = *BitmapPtr 
-            
-            Dst_RB = Dst_Color And FT_MASK_RB_32 
-            Dst_G  = Dst_Color And FT_MASK_G_32 
-            
-            Src_RB = ((Src_RB - Dst_RB) * Alpha) Shr 8 
-            Src_G  = ((Src_G - Dst_G) * Alpha) Shr 8 
-            
-            *DestPtr = ((Dst_RB + Src_RB) And FT_MASK_RB_32) Or ((Dst_G + Src_G) And FT_MASK_G_32) 
-            
-            DestPtr += 1 
-            BitmapPtr += 1 
-            BitmapWid -= 1 
-        Loop 
-        
-        BitmapWid = BitmapFT.Width 
-        BitmapHgt -= 1 
-        DestPtr += BitmapPitch 
-    Loop 
-    
-End Sub
+End sub
 ''
 '' End FreeType2 functions
 ''
@@ -876,15 +360,14 @@ End Sub
 
 #define UseRad 'if not then Rotate are in degres
 
-Sub MultiPut Alias "MultiPut" _
-            (Byval lpTarget As Any Ptr= 0, _
+Sub MultiPut(Byval lpTarget As Any Ptr= 0, _
              Byval xMidPos  As Integer= 0, _
              Byval yMidPos  As Integer= 0, _
              Byval lpSource As Any Ptr   , _
              Byval xScale   As Single = 1, _
              Byval yScale   As Single = 1, _
              Byval Rotate   As Single = 0, _
-             Byval Trans    As Integer= 0) Export
+             Byval Trans    As Integer= 0)
 
   If (screenptr=0) Or (lpSource=0) Then Exit Sub
 
@@ -1154,7 +637,7 @@ End Sub
 
 '' End Multiput code
 /'
-function imageread_jpg( byval buf as any ptr ) as FB.IMAGE ptr Export
+function imageread_jpg( byval buf as any ptr ) as FB.IMAGE ptr
 	
 	if( buf = NULL ) then
 		return NULL
@@ -1211,19 +694,19 @@ end function
 #define true 1
 #define false 0
 
-Function ReadEFLAG Alias "ReadEFLAG" () as UInteger Export
+Function ReadEFLAG() as uinteger
   asm pushfd  'eflag on stack
   asm pop eax 'in eax
   asm mov [function],eax 
 End Function
 
-Sub WriteEFLAG Alias "WriteEFLAG" (ByVal value as UInteger) Export
+Sub WriteEFLAG(byval value as uinteger)
   asm mov eax,[value]
   asm push eax 'value on stack
   asm popfd    'pop in eflag
 End Sub
 
-Function IsCPUID Alias "IsCPUID" () As Boolean Export 'CPUID command available
+Function IsCPUID() as boolean 'CPUID command available
   
   dim as UInteger old, _new
   old = readeflag() 
@@ -1236,52 +719,52 @@ Function IsCPUID Alias "IsCPUID" () As Boolean Export 'CPUID command available
   end if
 end function
 
-Function IsFPU486 Alias "IsFPU486" () As Boolean Export 'FPU available
-  Dim tmp As UShort
+Function IsFPU486() as boolean 'FPU available
+  dim tmp as ushort
   tmp = &HFFFF
-  Asm fninit 'try FPU init
-  Asm fnstsw [tmp] 'store statusword
-  If tmp=0 Then 'is it really 0
-    Asm fnstcw [tmp] 'store control
-    If tmp=&H37F Then Function = TRUE
-  End If
-End Function
+  asm fninit 'try FPU init
+  asm fnstsw [tmp] 'store statusword
+  if tmp=0 then 'is it really 0
+    asm fnstcw [tmp] 'store control
+    if tmp=&H37F then function = true
+  end if
+end function
 
-Function CPUCounter Alias "CPUCounter" () as ULongInt Export
-  Dim tmp as ULongInt
-  Asm RDTSC
-  Asm mov [tmp],eax
-  Asm mov [tmp+4],edx
-  Function = tmp
-End Function
+Function CPUCounter() as ulongint
+  dim tmp as ulongint
+  asm RDTSC
+  asm mov [tmp],eax
+  asm mov [tmp+4],edx
+  function = tmp
+end function
 
 '' Inspired by the Linux kernel
 
-Function CPUID_EDX Alias "CPUID_EDX" (byval funcnr as uinteger) as UInteger Export
+Function CPUID_EDX(byval funcnr as uinteger) as uinteger
   asm mov dword ptr eax,[funcnr]
   asm cpuid
   asm mov [function],edx
 end Function
 
-Function CPUID_ECX Alias "CPUID_ECX" (byval funcnr as uinteger) as UInteger Export
+Function CPUID_ECX(byval funcnr as uinteger) as uinteger
   asm mov dword ptr eax,[funcnr]
   asm cpuid
   asm mov [function],ecx
 end Function
 
-Function CPUID_EBX Alias "CPUID_EBX" (byval funcnr as uinteger) as UInteger Export
+Function CPUID_EBX(byval funcnr as uinteger) as uinteger
   asm mov dword ptr eax,[funcnr]
   asm cpuid
   asm mov [function],ebx
 end Function
 
-Function CPUID_EAX Alias "CPUID_EAX" (byval funcnr as uinteger) as UInteger Export
+Function CPUID_EAX(byval funcnr as uinteger) as uinteger
   asm mov dword ptr eax,[funcnr]
   asm cpuid
   asm mov [function],eax
 end Function
 
-Sub CPUID Alias "CPUID" (byval funcnr as UInteger, ByVal ra As Any Ptr, ByVal rb As Any Ptr, ByVal rc As Any Ptr, ByVal rd As Any Ptr) Export 
+Sub CPUID(byval funcnr as UInteger, ByVal ra As Any Ptr, ByVal rb As Any Ptr, ByVal rc As Any Ptr, ByVal rd As Any Ptr) 
    Asm 
       mov dword ptr eax,[funcnr]
       cpuid
@@ -1292,7 +775,7 @@ Sub CPUID Alias "CPUID" (byval funcnr as UInteger, ByVal ra As Any Ptr, ByVal rb
    End Asm
 End Sub
 
-Function GetCPUVendor Alias "GetCPUVendor" () As String Export
+Function GetCPUVendor() As String
    Dim vendor As ZString * 12 
    Asm
       mov eax, 0x0
@@ -1304,7 +787,7 @@ Function GetCPUVendor Alias "GetCPUVendor" () As String Export
    Return vendor
 End Function
 
-Function GetCPUName Alias "GetCPUName" () As String Export
+Function GetCPUName() As String
    Dim cpu As ZString * 48
    Asm
       mov eax, 0x80000002
@@ -1329,19 +812,19 @@ Function GetCPUName Alias "GetCPUName" () As String Export
    Return cpu
 End Function
 
-Function IsSSE2 Alias "IsSSE2" () As Boolean Export
+Function IsSSE2() As Boolean
    dim retvalue as uinteger
    retvalue = CPUID_EDX(1)
    If (retvalue And &H4000000) Then Return TRUE Else Return False
 End Function
 
-Function IsSSE Alias "IsSSE" () As Boolean Export
+Function IsSSE() As Boolean
    dim retvalue as uinteger
    retvalue = CPUID_EDX(1)
    If (retvalue And &H2000000) Then Return TRUE Else Return False
 End Function
 
-Function GetMHz Alias "GetMHz" () As Integer Export
+Function GetMHz() As Integer
    Dim As UInteger retvalue, flag
    Dim As Double a, Start
       
@@ -1365,7 +848,7 @@ End Function
 '' End CPUID Functions.
 ''
 
-Function getmp3name Alias "getmp3name" ( byval stream as FSOUND_STREAM ptr ) as String Export 
+function getmp3name( byval stream as FSOUND_STREAM ptr ) as string
 	dim tagname as zstring ptr, taglen as integer
 
 	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TIT2", @tagname, @taglen )
@@ -1375,29 +858,10 @@ Function getmp3name Alias "getmp3name" ( byval stream as FSOUND_STREAM ptr ) as 
 	End if
 	printf(!"getmp3name(): tagname = \"%s\" taglen = %d\n", tagname, taglen)
 	getmp3name = left( *tagname, taglen )
-end Function
-
-Function getmp3nameW Alias "getmp3nameW" ( byval stream as FSOUND_STREAM ptr ) as WString Ptr Export
-   Static wret As WString * 256
-	dim tagname as zstring ptr, taglen as integer
-
-	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TIT2", @tagname, @taglen )
-	tagname += 1 
-	If( taglen = 0 ) then 
-		FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V1, "TITLE", @tagname, @taglen )
-	End if
-	If Left(*tagname,2) = Chr(255) + Chr(254) Then
-	   tagname += 2
-	   wret = *CPtr(WString Ptr, tagname)  
-	Else
-	   wret = left( *tagname, taglen )
-	EndIf
-	printf(!"getmp3nameW(): tagname = \"%ls\" taglen = %d\n", @wret, taglen)
-	Return @wret
-end Function
+end function
 
 '':::::
-Function getmp3artist Alias "getmp3artist" ( byval stream as FSOUND_STREAM ptr ) as String Export
+function getmp3artist( byval stream as FSOUND_STREAM ptr ) as string
 	dim tagname as zstring ptr, taglen as integer
 	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TPE1", @tagname, @taglen )
 	tagname += 1
@@ -1411,28 +875,8 @@ Function getmp3artist Alias "getmp3artist" ( byval stream as FSOUND_STREAM ptr )
 	getmp3artist = left( *tagname, taglen )
 end function
 
-function getmp3artistW Alias "getmp3artistW" ( byval stream as FSOUND_STREAM ptr ) as WString Ptr Export
-   Static wret As WString * 256
-	dim tagname as zstring ptr, taglen as integer
-
-	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TPE1", @tagname, @taglen )
-	tagname += 1 
-	If( taglen = 0 ) then 
-		FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V1, "ARTIST", @tagname, @taglen )
-	End if
-	If Left(*tagname,2) = Chr(255) + Chr(254) Then
-	   tagname += 2
-	   wret = *CPtr(WString Ptr, tagname)  
-	Else
-	   wret = left( *tagname, taglen )
-	EndIf
-	printf(!"getmp3artistW(): tagname = \"%ls\" taglen = %d\n", @wret, taglen)
-	Return @wret
-end Function
-
-
 '':::::
-function getmp3album Alias "getmp3album" ( byval stream as FSOUND_STREAM ptr ) as String Export
+function getmp3album( byval stream as FSOUND_STREAM ptr ) as string
 	dim tagname as zstring ptr, taglen as integer
    
    FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TALB", @tagname, @taglen )
@@ -1448,27 +892,7 @@ function getmp3album Alias "getmp3album" ( byval stream as FSOUND_STREAM ptr ) a
 	getmp3album = left( *tagname, taglen ) 
 end function
 
-function getmp3albumW Alias "getmp3albumW" ( byval stream as FSOUND_STREAM ptr ) as WString Ptr Export
-   Static wret As WString * 256
-	dim tagname as zstring ptr, taglen as integer
-
-	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TALB", @tagname, @taglen )
-	tagname += 1 
-	If( taglen = 0 ) then 
-		FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V1, "ALBUM", @tagname, @taglen )
-	End if
-	If Left(*tagname,2) = Chr(255) + Chr(254) Then
-	   tagname += 2
-	   wret = *CPtr(WString Ptr, tagname)  
-	Else
-	   wret = left( *tagname, taglen )
-	EndIf
-	printf(!"getmp3albumW(): tagname = \"%ls\" taglen = %d\n", @wret, taglen)
-	Return @wret
-end Function
-
-
-function getmp3albumart Alias "getmp3albumart" ( byval stream as FSOUND_STREAM ptr ) as Any Ptr Export
+function getmp3albumart( byval stream as FSOUND_STREAM ptr ) as Any Ptr
 	dim imgdata As Any Ptr, buflen As Integer
 	Dim console As Integer
 	Dim ret As Boolean
@@ -1496,7 +920,7 @@ function getmp3albumart Alias "getmp3albumart" ( byval stream as FSOUND_STREAM p
 end Function
 
 #ifdef __FB_WIN32__
-function file_getname Alias "file_getname" ( byval hWnd as HWND ) as String Export
+function file_getname( byval hWnd as HWND ) as string
 
 	dim ofn as OPENFILENAME
 	dim filename as zstring * MAX_PATH+1
@@ -1539,11 +963,11 @@ function file_getname Alias "file_getname" ( byval hWnd as HWND ) as String Expo
 	
 end function
 
-sub MsgBox Alias "MsgBox" (hWnd As HWND, msg As String) Export
+sub MsgBox(hWnd As HWND, msg As String)
     MessageBox(hWnd, msg, "PsyMP3 Player (pid: " & getpid() & ")", 0)
 End Sub
 #else 
-sub TTY_MsgBox Alias "TTY_MsgBox" (hWnd As Integer, msg As String) Export
+sub TTY_MsgBox(hWnd As Integer, msg As String)
     ' simply print to the console until I find a method of creating 
     ' a X11 window which is modal to it's parent.
     Dim console As Integer
@@ -1552,23 +976,134 @@ sub TTY_MsgBox Alias "TTY_MsgBox" (hWnd As Integer, msg As String) Export
     Print #console, "PsyMP3 [" & getpid() & "] (XID: 0x" + Hex(hWnd, 8) + "): " + msg
 End Sub
 
-#inclib "ui"
-Extern "C++"
-	Declare Function getFile Alias "getFile" () As ZString Ptr
-	Declare Sub libui_init Alias "libui_init" (ByVal argc As Integer, ByVal argv As Zstring Ptr Ptr) 
-End Extern
-Function file_getname Alias "file_getname" (ByVal hWnd as integer) As String Export
-	Dim ret As String
-	Dim path As String
-	ret = *getFile()
-	Function = ret
-	path = *dirname(ret)
-	chdir(path)
+function file_getname( byval hWnd as integer ) as string
+	Dim as GtkWidget ptr dialog
+	Dim retfile As String 
+	Dim kgtk As Any Pointer
+	'Dim As Function kgtk_file_chooser_dialog_new, kgtk_dialog_run, _
+	'	kgtk_file_chooser_get_filename
+	
+	
+	' For some reason or another, if you select the file via the list
+	' and click "OK" to dismiss the dialog, the dialog lingers but frozen.
+	'
+	' It should go away when the program terminates. Also, on Linux,
+	' FMOD hangs on a FSOUND_Stream_Stop command. PsyMP3 can be left 
+	' running with 2 windows that the user cannot simply dismiss with the
+	' close button on his favourite WM's decoration.
+	'
+	' If the user has KGTK (a LD_PRELOAD wrapper for GTK+2.0 programs to
+	' use the KDE file dialogs with all the benefits of kioslaves) which, 
+	' needless to say, thus also needs KDE installed. 
+	'
+	'kgtk = DyLibLoad("/usr/share/apps/kgtk/libkgtk.so")
+	'kgtk_file_chooser_dialog_new = DyLibSymbol(kgtk, "gtk_file_chooser_dialog_new")
+	'kgtk_dialog_run = DyLibSymbol(kgtk, "gtk_dialog_run")
+	'kgtk_file_chooser_get_filename = DyLibSymbol(kgtk, "gtk_file_chooser_get_filename")
+
+	gtk_init(0,0)
+	dialog = gtk_file_chooser_dialog_new( "PsyMP3 - Select an mp3" + _
+		" or Ogg Vorbis file...", _
+		NULL, 	  GTK_FILE_CHOOSER_ACTION_OPEN, _
+		GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL, _
+		GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT, NULL )
+	Dim As GtkFileFilter Ptr filter = gtk_file_filter_new()
+	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.mp3")
+	gtk_file_filter_set_name (filter, "MPEG Layer-3 Audio (*.mp3)")
+	gtk_file_chooser_add_filter (dialog, filter)
+	g_object_unref (filter)	
+	filter = gtk_file_filter_new()
+	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.ogg")
+	gtk_file_filter_set_name (filter, "Ogg Vorbis/Ogg FLAC (*.ogg)")
+	gtk_file_chooser_add_filter (dialog, filter)
+	g_object_unref (filter)
+	filter = gtk_file_filter_new()
+	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.flac")
+	gtk_file_filter_set_name (filter, "Free Lossless Audio Codec/FLAC (*.flac)")
+	gtk_file_chooser_add_filter (dialog, filter)
+	g_object_unref (filter)
+	filter = gtk_file_filter_new()
+	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.m3u")
+	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.m3u8")
+	gtk_file_filter_set_name (filter, "M3U Playlist (*.m3u; *.m3u8)")
+	gtk_file_chooser_add_filter (dialog, filter)
+	g_object_unref (filter)
+	filter = gtk_file_filter_new()
+	gtk_file_filter_add_pattern (GTK_FILE_FILTER(filter), "*.*")
+	gtk_file_filter_set_name (filter, "All Files (*.*)")
+	gtk_file_chooser_add_filter (dialog, filter)
+	g_object_unref (filter)	
+	if( gtk_dialog_run( GTK_DIALOG( dialog ) ) = GTK_RESPONSE_ACCEPT ) Then
+    	dim as zstring ptr filename
+    	filename = gtk_file_chooser_get_filename( GTK_FILE_CHOOSER( dialog ) )
+	   retfile = *filename
+	   g_free( filename )
+  	end if
+
+'	gtk_widget_destroy( GTK_WIDGET(dialog) )
+
+	return(retfile)
+
 End Function
 
+' GTK shit
+
+sub hello cdecl(widget as GtkWidget ptr, shit as gpointer) static
+	g_print(!"MsgBox(): Destroying window.\n")
+end sub
+
+function delete_event cdecl(widget as GtkWidget ptr , _
+                            event as GdkEvent  ptr, _
+                            shit as gpointer) As gboolean Static
+    /' If you return FALSE in the "delete_event" signal handler,
+     ' GTK will emit the "destroy" signal. Returning TRUE means
+     ' you don't want the window to be destroyed.
+     ' This is useful for popping up 'are you sure you want to quit?'
+     ' type dialogs. '/
+
+    g_print (!"delete event occurred\n")
+
+    /' Change TRUE to FALSE and the main window will be destroyed with
+     ' a "delete_event". '/
+
+    return TRUE
+End Function
+
+sub destroy cdecl(widget as GtkWidget ptr, _
+                  shit as gpointer)
+    gtk_main_quit
+end sub
+
+
+Sub MsgBox(hWnd As Integer, msg As String)
+	Dim as GtkWidget ptr gwindow, gbutton, gbox, label
+	gwindow = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+	label = gtk_label_new("PsyMP3: " & msg)
+	gtk_window_set_title (GTK_WINDOW (gwindow), "PsyMP3 - running as PID " & getpid())
+	g_signal_connect (GTK_OBJECT (gwindow), "delete_event", _
+	   GTK_SIGNAL_FUNC (@delete_event), NULL)
+	g_signal_connect (GTK_OBJECT (gwindow), "destroy", _
+      GTK_SIGNAL_FUNC (@destroy), NULL)    
+	gbox = gtk_vbox_new (FALSE, 0)
+	gtk_container_add (GTK_CONTAINER (gwindow), gbox)
+	gtk_container_set_border_width (GTK_CONTAINER (gwindow), 15)
+	gbutton = gtk_button_new_with_mnemonic ("_Ok")
+    	g_signal_connect (GTK_OBJECT (gbutton), "clicked", _
+        	          GTK_SIGNAL_FUNC (@hello), NULL)
+    	g_signal_connect_swapped (GTK_OBJECT (gbutton), "clicked", _
+        	                  GTK_SIGNAL_FUNC (@gtk_widget_destroy), _
+                	          GTK_OBJECT (gwindow))
+	gtk_box_pack_start (GTK_BOX(gbox), label, FALSE, FALSE, 5)
+	gtk_box_pack_start (GTK_BOX(gbox), gbutton, FALSE, FALSE, 5)
+	gtk_widget_show(label)
+	gtk_widget_show(gbutton)
+	gtk_widget_show(gbox)
+	gtk_widget_show(gwindow)
+	gtk_main ()
+End Sub
 #EndIf
 
-Sub DrawSpectrum Alias "DrawSpectrum" (spectrum As Single Ptr) Export
+Sub DrawSpectrum(spectrum As Single Ptr)
    Dim X As Integer
 	For X = 0 to 320
       line(x*2,350-(spectrum[x]*350))-(x*2+1,350), _
@@ -1578,12 +1113,7 @@ Sub DrawSpectrum Alias "DrawSpectrum" (spectrum As Single Ptr) Export
 	Next X
 End Sub
 
-Dim Shared As LastFM Scrobbler
-
-Sub EndPlayer Alias "EndPlayer" () Export
-   
-   Scrobbler.dumpScrobbles()
-   
+Sub EndPlayer()
 	#ifdef __FB_LINUX__
 		' kill_(getpid(),SIGINT)
 		end
@@ -1601,7 +1131,7 @@ Dim Shared As HWND hWnd
 Dim Shared As Integer hWnd
 #EndIf
 
-Sub ShowAbout Alias "ShowAbout" (ByVal T As Any Ptr) Export
+Sub ShowAbout(ByVal T As Any Ptr)
    MsgBox(hWnd, !"This is PsyMP3 version " & PSYMP3_VERSION & !"\n\n" _
 	   !"PsyMP3 is free software.  You may redistribute and/or modify it under the terms of\n" & _
 	   !"the GNU General Public License <http://www.gnu.org/licenses/gpl-2.0.html>,\n" & _
@@ -1622,10 +1152,12 @@ Sub ShowAbout Alias "ShowAbout" (ByVal T As Any Ptr) Export
    	!"to study, copy, and modify, and in return distribute the modified versions\n" & _
 	   !"(only, of course, if these same rules also apply to their versions)\n\n" & _ 
 	   !"Written by Kirn Gill <segin2005@gmail.com>\n\n" & _ 
-	   !"Dedicated to my beautiful girlfriend Virginia Wood.")
+	   !"Dedicated to my friends: Melissa Pegley, Ayana Smith, Justin, Mike, Nick Smith,\n" & _
+	   !"Deandre and Warren Ervin, Micheal and Brittany Stearns, Virginia Wood," & _  
+	   !"and everyone else I forgot!")
 End Sub
 
-Sub InitFMOD Alias "InitFMOD" () Export 
+Sub InitFMOD() 
    if( FSOUND_GetVersion < FMOD_VERSION ) then 
       MsgBox hWnd, "FMOD version " + str(FMOD_VERSION) + " or greater required" 
       end 1
@@ -1664,7 +1196,7 @@ End Sub
 #define KVIRC_WM_USER_GETFILE 10000
 #define KVIRC_WM_USER_TRANSFER 15000
 
-Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam As LPARAM) As LRESULT Export
+Function WAIntProc StdCall(hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam As LPARAM) As LRESULT
 	Static As Integer msgptr, lastcall
 	Static As ZString * 4096 buf
 	Static As String wintitle
@@ -1705,7 +1237,7 @@ Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam
 						Return KVIRC_WM_USER_CHECK_REPLY
 					Case KVIRC_WM_USER_GETTITLE
 						lastcall = KVIRC_WM_USER_GETTITLE
-						buf = mp3artistW + " - " + mp3nameW
+						buf = mp3artist + " - " + mp3name
 						Return Len(buf)
 					Case KVIRC_WM_USER_GETFILE
 						lastcall = KVIRC_WM_USER_GETTITLE
@@ -1791,18 +1323,6 @@ Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam
 					If *efis->filename <> wmp3file Then Return 0 
 					Select Case LCase(efis->metadata)
 						Case "artist"
-							*efis->ret = mp3artistW
-						Case "title"
-							*efis->ret = mp3nameW
-						Case "album"
-							*efis->ret = mp3albumW
-					End Select
-					Return efis
-				Case 290
-					Dim As extendedFileInfoStruct Ptr efis = wParam
-					If *efis->filename <> mp3file Then Return 0 
-					Select Case LCase(*efis->metadata)
-						Case "artist"
 							*efis->ret = mp3artist
 						Case "title"
 							*efis->ret = mp3name
@@ -1816,7 +1336,7 @@ Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam
 			End Select
 		Case WM_GETMINMAXINFO
 			' printf(!"WM_GETMINMAXINFO caught.\n")
-			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
+			Return 0
 		Case 12 To 14' I dunno what this is, but it's used by SetWindowText()
 			Return DefWindowProc(hWnd, uMsg, wParam, lParam)
 		Case Else
@@ -1825,7 +1345,7 @@ Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam
 	End Select
 End Function
 
-Sub InitKVIrcWinampInterface Alias "InitKVIrcWinampInterface" () Export
+Sub InitKVIrcWinampInterface Alias "InitKVIrcWinampInterface" ()
    Dim As WNDCLASSEX WAClass 
    Dim As ATOM a
    Dim As Dword WINERR
@@ -1864,7 +1384,7 @@ Sub InitKVIrcWinampInterface Alias "InitKVIrcWinampInterface" () Export
                               
 End Sub
 
-Sub ClearWMP Alias "ClearWMP" () Export
+Sub ClearWMP()
 	Dim cpd As CopyData
 	Dim wmsg As WString * 500
 	Dim msgr As HWND
@@ -1891,17 +1411,20 @@ Sub ClearWMP Alias "ClearWMP" () Export
 	Loop
 End Sub
 
-Sub AnnounceWMP Alias "AnnounceWMP" (artist As String, Title As String, Album As String) Export
+Sub AnnounceWMP(artist As String, Title As String, Album As String)
 	Dim cpd As CopyData
 	Dim msgr As HWND
-	Dim tmp As String
 	Dim Found As Integer
 	Dim wmsg As WString * 500
 	Dim As WString * 30 WMContentID = "WMContentID"
 	Dim As WString * 500 MSNMusicString = !"PsyMP3\\0Music\\0%d\\0%s\\0%s\\0%s\\0%s\\0%s\\0"
 	Dim As WString * 100 FormatStr = "PsyMP3: {1} - {0}"
+
 	Dim As WString * 500 WTitle, WArtist, WAlbum
-	wsprintfW(wmsg, MSNMusicString, 1, FormatStr, mp3nameW, mp3artistW, mp3albumW, WMContentID) 
+	MultiByteToWideChar(CP_UTF8, 0, StrPtr(artist), Len(artist), WArtist, Len(artist))
+	MultiByteToWideChar(CP_UTF8, 0, StrPtr(Title), Len(Title), WTitle, Len(Title))
+	MultiByteToWideChar(CP_UTF8, 0, StrPtr(Album), Len(Album), WAlbum, Len(Album))
+	wsprintfW(wmsg, MSNMusicString, 1, FormatStr, WTitle, WArtist, WAlbum, WMContentID) 
 	cpd.dwData = 1351
 	cpd.cbData = (Len(wmsg) * 2) + 2 
 	cpd.lpData = @wmsg
@@ -1924,9 +1447,32 @@ Sub AnnounceWMP Alias "AnnounceWMP" (artist As String, Title As String, Album As
 End Sub
 #endif
 
+#Ifdef WANT_BROKEN_GNU_DIRNAME
+Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr
+   Dim dot As String = "."
+   Dim last_slash As ZString Ptr
+   last_slash = IIf(path <> Cast(ZString Ptr, NULL), Strrchr(path, Asc("\")), NULL)
+   If last_slash = path Then 
+      last_slash += 1
+   ElseIf (last_slash <> NULL) And (last_slash[1] = 0) Then
+      last_slash = memchr(path, last_slash - path, Asc("\"))
+   End If
+   If last_slash <> NULL Then
+      last_slash[0] = 0
+   Else
+      *path = dot 
+   EndIf
+   Return path
+End Function
+#Else
+
+#Inclib "dir"
+Extern "c"
+Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
+End Extern
 #endif
 
-Sub parse_m3u_playlist Alias "parse_m3u_playlist" (m3u_file As String) Export
+Sub parse_m3u_playlist(m3u_file As String)
 	Dim As Integer fd = FreeFile()
 	Dim As String text
 	Dim As Integer ret
@@ -1942,14 +1488,14 @@ Sub parse_m3u_playlist Alias "parse_m3u_playlist" (m3u_file As String) Export
 			#EndIf
 				Songlist.addFile(text)
 			Else
-				Songlist.addFile(*Cast(ZString Ptr,dirname(m3u_file)) + "/" + text)
+				Songlist.addFile(*Cast(ZString Ptr,dirname(m3u_file)) + "\" + text)
 			End If
 		End If
 	Loop While Eof(fd) = 0
 	Close #fd
 End Sub
 
-Function MD5str Alias "MD5str" (chars As String) As String Export
+Function MD5str (chars As String) As String
 	Dim md5hex As ZString * 32
 	Dim digest As ZString * 16
 	Dim state As md5_state_s
@@ -1968,7 +1514,7 @@ Function MD5str Alias "MD5str" (chars As String) As String Export
 	Return md5hex
 End Function
 
-Function percent_encode Alias "percent_encode" (message As String) As String Export
+Function percent_encode(message As String) As String
 	Dim ret As String
 	Dim i As Integer
 	For i = 0 to Len(message) - 1
@@ -1982,56 +1528,17 @@ Function percent_encode Alias "percent_encode" (message As String) As String Exp
 	Return ret
 End Function
 
-Function wstring_to_utf8 Alias "wstring_to_utf8" (from As WString Ptr) As String Export
-	Dim ret As String
-	Dim i As Integer
-	For i = 0 to Len(*from) - 1
-	Select Case((*from)[i])
-		Case Is < &h80
-			ret &= Chr((*from)[i])
-		Case Is < &h800
-			ret &= Chr(&hc0 Or (*from)[i] Shr 6)
-			ret &= Chr(&h80 Or (*from)[i] And &h3f)
-		Case Is < &h10000
-			ret &= Chr(&he0 Or (*from)[i] Shr 12)
-			ret &= Chr(&h80 Or (*from)[i] Shr 6 And &h3f)
-			ret &= Chr(&h80 Or (*from)[i] And &h3f)
-		Case Is < &h200000
-			ret &= Chr(&hf0 Or (*from)[i] Shr 18)
-			ret &= Chr(&h80 Or (*from)[i] Shr 12 And &h3f)
-			ret &= Chr(&h80 Or (*from)[i] Shr 6 And &h3f)
-			ret &= Chr(&h80 Or (*from)[i] And &h3f)
-	End Select
-	Next
-	Return ret
-End Function
-
-Function percent_encodeW Alias "percent_encodeW" (messageW As WString Ptr) As String Export
-	Dim ret As String
- 	Dim i As Integer
- 	Dim message As String = wstring_to_utf8(messageW)
-	For i = 0 to Len(message) - 1
-	Select Case(message[i])
-		Case &h0 To &h2c, &h2f, &h3a, &h3b, &h3d, &h3f, &h40, &h5b, &h5d, &h80 to &hff
-		ret &= "%" & Hex(message[i])
-		Case Else
-		ret &= Chr(message[i])
-	End Select
-	Next
-	Return ret
-End Function
-
-Function lastfm_session Alias "lastfm_session" () As String Export
+Function lastfm_session() As String
 	Dim As Integer curtime = time_(NULL)
 	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
 	Dim As ZString * 10000 response
 	Dim As String response_data, httpdata
-   Return ""
+
    If lastfm_username = "" Or Lastfm_password = "" Then Return ""
 
    printf(!"Last.fm: Getting session key.\n")
 
-	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=" & PSYMP3_VERSION & "&u=" & lastfm_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(13) & Chr(10) & "User-Agent: PsyMP3/" & PSYMP3_VERSION & Chr(13) & Chr(10) & Chr (13) & Chr(10)
+	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v="PSYMP3_VERSION"&u=" & lastfm_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(10) & "User-Agent: PsyMP3/1.1beta" & Chr(10) & Chr(10)
 	hStart()
 	Dim s As SOCKET, addr As Integer
 	s = hOpen()
@@ -2052,7 +1559,7 @@ Function lastfm_session Alias "lastfm_session" () As String Export
 	End If
 End Function
 
-Function lastfm_nowplaying Alias "lastfm_nowplaying" () As SOCKET Export
+Function Lastfm_nowplaying() As SOCKET
 	Dim As Integer curtime = time_(NULL)
 	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
 	Dim As ZString * 10000 response
@@ -2062,12 +1569,12 @@ Function lastfm_nowplaying Alias "lastfm_nowplaying" () As SOCKET Export
 
 	httpdata = 	!"POST /np_1.2 HTTP/1.1\n" & _
 					!"Host: post.audioscrobbler.com\n" & _ 
-					!"User-Agent: PsyMP3" & "/" & PSYMP3_VERSION & !"\n" 
+					!"User-Agent: PsyMP3/"PSYMP3_VERSION"\n" 
 
 	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-					"a=" & percent_encodeW(mp3artistW) & "&" & _
-					"t=" & percent_encodeW(mp3nameW) & "&" & _ 
-					"b=" & percent_encodeW(mp3albumW) & "&" & _
+					"a=" & percent_encode(mp3artist) & "&" & _
+					"t=" & percent_encode(mp3name) & "&" & _ 
+					"b=" & percent_encode(mp3album) & "&" & _
 					"l=" & length & "&" & _
 					"n=&m="
 
@@ -2095,7 +1602,7 @@ Function lastfm_nowplaying Alias "lastfm_nowplaying" () As SOCKET Export
 Return(s)
 End Function
 
-Function lastfm_scrobble Alias "lastfm_scrobble" () As Integer Export
+Function lastfm_scrobble() As Integer
 	Dim As Integer curtime = time_(NULL)
 	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
 	Dim As ZString * 10000 response
@@ -2122,42 +1629,40 @@ Function lastfm_scrobble Alias "lastfm_scrobble" () As Integer Export
    
    If (curtime - songstart) < qual Then Return 0
 	
-	printf(!"Last.fm: Going to scrobble track. Artist: \"%ls\", Title: \"%ls\", Album: \"%ls\".\n", mp3artistW, mp3nameW, mp3albumW)
+	printf(!"Last.fm: Going to scrobble track. Artist: \"%s\", Title: \"%s\", Album: \"%s\".\n", mp3artist, mp3name, mp3album)
 	
    httpdata = 	!"POST /protocol_1.2 HTTP/1.1\n" & _
 		!"Host: post2.audioscrobbler.com\n" & _ 
-		!"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n" 
+		!"User-Agent: PsyMP3/"PSYMP3_VERSION"\n" 
  
-	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-					"a[0]=" & percent_encodeW(mp3artistW) & "&" & _
-					"t[0]=" & percent_encodeW(mp3nameW) & "&" & _ 
-					"i[0]=" & time_(NULL) & "&" & _ 
-					"o[0]=P&" & _ 
-					"r[0]=&" & _ 
-					"l[0]=" & Int(FSOUND_Stream_GetLengthMs(stream)/1000) & "&" & _
-					"b[0]=" & percent_encodeW(mp3albumW) & "&" & _
-					"n[0]=&m[0]="
+postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
+				"a[0]=" & percent_encode(mp3artist) & "&" & _
+				"t[0]=" & percent_encode(mp3name) & "&" & _ 
+				"i[0]=" & time_(NULL) & "&" & _ 
+				"o[0]=P&" & _ 
+				"r[0]=&" & _ 
+				"l[0]=" & Int(FSOUND_Stream_GetLengthMs(stream)/1000) & "&" & _
+				"b[0]=" & percent_encode(mp3album) & "&" & _
+				"n[0]=&m[0]="
 
-	httpdata &= _
-			!"Content-Length: " & Len(postdata) & !"\n" & _
-			!"Content-Type: application/x-www-form-urlencoded\n\n" & _
-			postdata
+httpdata &= _
+		!"Content-Length: " & Len(postdata) & !"\n" & _
+		!"Content-Type: application/x-www-form-urlencoded\n\n" & _
+		postdata
 
-	Dim s As SOCKET
-	Dim addr As Integer
-	s = hOpen()
-	addr = hResolve("post2.audioscrobbler.com")
-	hConnect(s, addr, 80)
-	
-	hSend(s, strptr(httpdata), len(httpdata))
-	hReceive(s, strptr(response), 10000)
-	response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-	If left(response_data,3) = !"OK\n" Then
-		printf !"Last.fm: Server response OK. Track sucessfully scrobbled!\n"
-	End If 
+Dim s As SOCKET
+Dim addr As Integer
+s = hOpen()
+addr = hResolve("post2.audioscrobbler.com")
+hConnect(s, addr, 80)
+
+hSend(s, strptr(httpdata), len(httpdata))
+hReceive(s, strptr(response), 10000)
+response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
+if left(response_data,3) = !"OK\n" Then
+	printf !"Last.fm: Server response OK. Track sucessfully scrobbled!\n"
+End If 
 End Function
-
-
 
 ''
 '' End of functions
@@ -2196,10 +1701,6 @@ If cpuvendor = "GenuineIntel" Then
 		EndIf
 	Next x
 EndIf
-
-#Ifndef __FB_WIN32__
-libui_init(__FB_ARGC__,__FB_ARGV__)
-#endif
 
 doCommand = PSYMP3_PLAY
 
@@ -2251,8 +1752,6 @@ If Command(1) = "--largo" Then
 	End
 End If
 
-
-/'
 Dim fd As Integer = FreeFile()
 Open "lastfm_config.txt" For Input As #fd
 Line Input #fd, lastfm_username
@@ -2264,7 +1763,7 @@ lastfm_sessionkey = lastfm_session()
 If lastfm_sessionkey <> "" Then
    printf(!"Last.fm login successful!\n")
 EndIf
-'/
+
 #Ifndef IGNORE_FBVER
 	#if (__FB_VER_MAJOR__ = 0) And (__FB_VER_MINOR__ >= 20)
       ' Not known if this is needed because gfxlib2 is using more
@@ -2285,8 +1784,6 @@ If IsSilent <> 1 Then
 	ScreenRes 640, 400, 32, 2
 Endif
 
-ScreenControl 2, hWnd
-
 #ifdef __FB_LINUX__
 	#ifdef __PERFER_OSS__
 		printf(!"Sound output: OSS\n")
@@ -2301,7 +1798,6 @@ ScreenControl 2, hWnd
 		#endif
 	#endif
 #endif
-
 
 WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Not playing"
 InitFMOD()        
@@ -2322,7 +1818,6 @@ Else
 End If 
 #else
 
-#If 1
 Do
    mp3file = file_getname(hWnd)
    If mp3file = "" Then
@@ -2339,20 +1834,6 @@ Do
       Songlist.addFile(mp3file)
    EndIf
 Loop 
-#endif
-
-#ifdef __FB_WIN32__
-InitKVIrcWinampInterface() 
-printf("Attempting to initialize ITaskbarList3... ")
-Var ITB = InitializeTaskbar()
-If ITB = -1 Then
-   printf(!"failed!\n")
-Else
-   printf(!"done.\n")
-EndIf
-AssociateHwnd(hWnd)
-#EndIf
-
 #endif
 mp3file = Songlist.getNextFile()
         
@@ -2403,56 +1884,40 @@ if sFont = 0 Then
 	End If
 #endif
 End If
-
+#ifdef __FB_WIN32__
+InitKVIrcWinampInterface() 
+ 
+#endif
 mp3name = getmp3name(stream)
 mp3artist = getmp3artist(stream)
 mp3album = getmp3album(stream)
-mp3nameW = *getmp3nameW(stream)
-mp3artistW = *getmp3artistW(stream)
-mp3albumW = *getmp3albumW(stream)
-
 getmp3albumart(stream)
 var blank = ImageCreate(640, 350, rgba(0, 0, 0, 64), 32)
 If isSilent <> 1 Then
-   WindowTitle "PsyMP3 " + PSYMP3_VERSION + " - Playing - -:[ " & mp3artistW & " ]:- -- -:[ " + mp3nameW + " ]:-"
+   WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Playing - -:[ " + mp3artist + " ]:- -- -:[ " + mp3name + " ]:-"
    ScreenSet 1
    DoFPS = 0
    spectrum = FSOUND_DSP_GetSpectrum()
 End If
 FSOUND_Stream_Play( FSOUND_FREE, stream )
 songlength = FSOUND_Stream_GetLengthMs(stream)
-Dim As Any Ptr TextMap = ImageCreate(640, 50, RGB(0, 0, 0), 32)
 Do
    IsPaused = 0
    #Ifdef __FB_WIN32__
 		ClearWMP()
 		AnnounceWMP(mp3artist, mp3name, mp3album)
-		SetProgressType(TASKBAR_PROGRESS)
    #EndIf
    If sock <> 0 Then
       hClose(sock)
    EndIf
-   sock = Scrobbler.setNowPlaying()
-   
-   Line(0,350)-(639,399),0,BF
-   PrintFTW(1,366,"Artist: " + mp3artistW,sFont,12,rgb(255,255,255))
-   PrintFTW(1,381,"Title: " + mp3nameW,sFont,12)
-   PrintFTW(1,396,"Album: " + mp3albumW,sFont,12) 
-   PrintFTW(300,366,"Playlist: " & Songlist.getPosition & "/" & Songlist.getEntries, sFont, 12, rgb(255,255,255)) 
-   PrintFTW(280,396,"CPU: " + cpuname + ", Vendor: " + cpuvendor,sFont,9)
-   Get (0, 350)-(639,399), TextMap
+   sock = Lastfm_nowplaying()
 Do  
 #ifdef __FB_WIN32__     
    SetWindowText(WAWindow, _
-		Songlist.getPosition & ". " + mp3artistW + " - " + mp3nameW + " - Winamp")
-	If IsPaused = 1 Then 
-		SetProgressType(TASKBAR_PAUSED)
-	Else
-		SetProgressType(TASKBAR_PROGRESS)
-		UpdateProgressBar(FSOUND_Stream_GetTime(stream),FSOUND_Stream_GetLengthMs(stream))
-	EndIf
-#endif
+		Songlist.getPosition & ". " + mp3artist + " - " + mp3name + " - Winamp")
+
 	Sleep 12 ' Timer delay
+#endif
 
 If IsSilent <> 1 Then
 	If SpectrumOn = 1 Then      
@@ -2495,7 +1960,11 @@ If IsSilent <> 1 Then
    #Else 
    Dim Image As Any Ptr
    #EndIf
-   Put (0, 350), TextMap, PSet
+   PrintFT(1,366,"Artist: " + mp3artist,sFont,12,rgb(255,255,255))
+   PrintFT(1,381,"Title: " + mp3name,sFont,12)
+   PrintFT(1,396,"Album: " + mp3album,sFont,12) 
+   PrintFT(300,366,"Playlist: " & Songlist.getPosition & "/" & Songlist.getEntries, sFont, 12, rgb(255,255,255)) 
+   PrintFT(280,396,"CPU: " + cpuname + ", Vendor: " + cpuvendor,sFont,9)
    'Put (600, 350), wmctl
    'Time elapsed and time remaining
 	PrintFT((400+620)/2-40,365, _
@@ -2506,7 +1975,7 @@ If IsSilent <> 1 Then
             Format(Int(FSOUND_Stream_GetLengthMs(stream)/1000) Mod 60,"00"), _
             sFont, 12)
 
-   
+
    ' The brackets on the ends of the progress bar
 	Line(399,370)-(399,385), rgb(255,255,255)
 	Line(621,370)-(621,385), rgb(255,255,255)
@@ -2557,8 +2026,6 @@ If IsSilent <> 1 Then
 #ifdef __FB_WIN32__
 	   ClearWMP()
 #EndIf
-      Scrobbler.scrobbleTrack()
-      Scrobbler.dumpScrobbles()
 	   EndPlayer()
    End If
    If nkey = Chr(255) + "K" Then ' Left key pressed, go back 1.5sec
@@ -2576,14 +2043,8 @@ If IsSilent <> 1 Then
    End If
    If nkey = " " Then
 		If IsPaused = 1 Then
-			IsPaused = 0
-			#Ifdef __FB_WIN32__
-				SetProgressType(TASKBAR_PROGRESS)
-			#EndIf 
+			IsPaused = 0 
 		Else
-			#Ifdef __FB_WIN32__
-				SetProgressType(TASKBAR_PAUSED)
-			#EndIf
 			IsPaused = 1
 		End If
 		FSOUND_SetPaused(FSOUND_ALL, IsPaused)
@@ -2653,7 +2114,7 @@ If IsSilent <> 1 Then
 		If mp3file <> "" Then
 			FSOUND_Stream_Stop(stream)
 			FSOUND_Stream_Close(stream)
-			Scrobbler.scrobbleTrack()
+			lastfm_scrobble()
 			printf(!"File to open: \"%s\"\n", mp3file)
 			stream = FSOUND_Stream_Open( mp3file, FSOUND_MPEGACCURATE, 0, 0 )
 			songstart = Time_(NULL)
@@ -2664,9 +2125,6 @@ If IsSilent <> 1 Then
 			mp3name = getmp3name(stream)
 			mp3artist = getmp3artist(stream)
 			mp3album = getmp3album(stream)
-			mp3nameW = *getmp3nameW(stream)
-			mp3artistW = *getmp3artistW(stream)
-			mp3albumW = *getmp3albumW(stream)
 			'getmp3albumart(stream)
 			FSOUND_Stream_Play( FSOUND_FREE, stream )
 			songlength = FSOUND_Stream_GetLengthMs(stream)
@@ -2676,14 +2134,7 @@ If IsSilent <> 1 Then
 			AnnounceWMP(mp3artist, mp3name, mp3album)
 #EndIf
 			hClose(sock)
-			Line(0,350)-(639,399),0,BF
-			PrintFTW(1,366,"Artist: " + mp3artistW,sFont,12,rgb(255,255,255))
-			PrintFTW(1,381,"Title: " + mp3nameW,sFont,12)
-			PrintFTW(1,396,"Album: " + mp3albumW,sFont,12) 
-			PrintFTW(300,366,"Playlist: " & Songlist.getPosition & "/" & Songlist.getEntries, sFont, 12, rgb(255,255,255)) 
-			PrintFTW(280,396,"CPU: " + cpuname + ", Vendor: " + cpuvendor,sFont,9)
-			Get (0, 350)-(639,399), TextMap
-			sock = Scrobbler.setNowPlaying()
+			sock = Lastfm_nowplaying()
 		End If
 	End If
 	' Append song or m3u to playlist.
@@ -2773,17 +2224,16 @@ If IsSilent <> 1 Then
 		AnnounceWMP(mp3artist, mp3name, mp3album)
 	#EndIf
 		hClose(sock)
-		sock = Scrobbler.setNowPlaying()
+		sock = Lastfm_nowplaying()
    EndIf
 End IF
 Loop While (FSOUND_Stream_GetTime(stream) <> FSOUND_Stream_GetLengthMs(stream)) Or (doRepeat = 1)
 ' I don't want to quit at end-of-song anymore.
 FSOUND_Stream_Stop(stream)
 FSOUND_Stream_Close(stream)
-Scrobbler.scrobbleTrack()
+lastfm_scrobble()
 #ifdef __FB_WIN32__
 	ClearWMP()
-	SetProgressType(TASKBAR_INDETERMINATE)
 #EndIf
 isPaused = 2
 If doPrev = 1 Then
@@ -2807,13 +2257,10 @@ If mp3file <> "" Then
 		If( stream = 0 ) then 
 			MsgBox hWnd, !"Can't load music file \"" + mp3file + !"\""
 			end 1
-		end If
+		end if
 		mp3name = getmp3name(stream)
 		mp3artist = getmp3artist(stream)
 		mp3album = getmp3album(stream)
-		mp3nameW = *getmp3nameW(stream)
-		mp3artistW = *getmp3artistW(stream)
-		mp3albumW = *getmp3albumW(stream)
 		'getmp3albumart(stream)
 		FSOUND_Stream_Play( FSOUND_FREE, stream )
 		songlength = FSOUND_Stream_GetLengthMs(stream)
@@ -2826,15 +2273,11 @@ If mp3file <> "" Then
 	songstart = Time_(NULL)
 	If( stream = 0 ) then 
 		MsgBox hWnd, !"Can't load music file \"" + mp3file + !"\""
-		Scrobbler.dumpScrobbles()
 		EndPlayer()
-	end If
+	end if
 	mp3name = getmp3name(stream)
 	mp3artist = getmp3artist(stream)
 	mp3album = getmp3album(stream)
-	mp3nameW = *getmp3nameW(stream)
-	mp3artistW = *getmp3artistW(stream)
-	mp3albumW = *getmp3albumW(stream)
 	'getmp3albumart(stream)
 	FSOUND_Stream_Play( FSOUND_FREE, stream )
 	songlength = FSOUND_Stream_GetLengthMs(stream)
@@ -2846,6 +2289,5 @@ End If
 Loop
 #ifdef __FB_WIN32__
 	ClearWMP()
-#EndIf
-Scrobbler.dumpScrobbles()
+#endif
 EndPlayer()
