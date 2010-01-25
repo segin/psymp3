@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fileset>
+<file>
+   <path>psymp3.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>wshelper.bi</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>wshelper.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>md5.bi</path>
+   <type>BASIC</type>
+   <license>BSD</license>
+</file>
+
+<file>
+   <path>psymp3cons.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>psymp3.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>psymp3.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>fbgl.bas</path>
+   <type>BASIC</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>id3tag.bi</path>
+   <type>BASIC</type>
+   <license>LGPL</license>
+</file>
+
+<file>
+   <path>psymp3.rc</path>
+   <type>C</type>
+   <license>GPL</license>
+</file>
+
+<file>
+   <path>manifest.xml</path>
+   <type>XML</type>
+   <license>MIT</license>
+</file>
+
+<file>
+   <path>dirname.c</path>
+   <type>C</type>
+   <license>BSD</license>
+</file>
+
+<file>
+   <path>md5.c</path>
+   <type>C</type>
+   <license>BSD</license>
+</file>
+
+<file>
+   <path>md5main.c</path>
+   <type>C</type>
+   <license>BSD</license>
+</file>
+
+<file>
+   <path>md5.h</path>
+   <type>C</type>
+   <license>BSD</license>
+</file>
+
+
+</fileset>

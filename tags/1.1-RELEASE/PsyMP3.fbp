@@ -1,0 +1,75 @@
+
+[Project]
+Version=3
+Description=PsyMP3 Media Player
+Api=fb (FreeBASIC)
+Grouping=1
+AddMainFiles=1
+AddModuleFiles=1
+ResExport=
+CompileIfNewer=0
+
+[Make]
+Module=Module Build,fbc -c
+Recompile=2
+Current=5
+1=Windows Console (debug/SSE),fbc -g -s console -fpu sse
+2=Windows Console (SSE),fbc -s console -fpu sse
+3=Voiceprint (console/debug/SSE),fbc -g -s console -fpu sse -d VOICEPRINT
+4=Windows GUI (debug/SSE),fbc -g -s gui -fpu sse
+5=Windows GUI (SSE),fbc -s gui -fpu sse
+6=Windows Console (debug),fbc -g -s console
+7=Windows Console,fbc -s console
+8=Windows GUI (debug),fbc -g -s gui
+9=Windows GUI,fbc -s gui
+10=OpenGL (debug/SSE),fbc -s console -g -fpu sse -d __FBGL__
+Output=
+Run=
+
+[File]
+1=psymp3.bas
+2=psymp3.rc
+3=KEYS.txt
+4=manifest.xml
+5=ChangeLog
+6=README-Linux
+7=psymp3.ico
+8=README-Win32
+9=Vera.ttf
+1001=
+10=id3tag.bi
+11=PACKAGEMAP.xml
+12=md5.bi
+13=wshelper.bas
+14=wshelper.bi
+15=dirname.c
+16=Makefile
+17=md5.c
+18=md5.h
+19=md5main.c
+
+[FileInfo]
+2=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+1=0,2053,1,48,12288,18888704,0,-2138422528,30589,0,0,0,0,0,0,0,0,0,0
+3=0,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+9=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+8=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+7=0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+6=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+4=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+5=0,22,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+11=0,89,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+10=0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+19=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+18=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+17=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+16=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+15=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+14=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+13=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+[TabOrder]
+TabOrder=1,10,11
+[BreakPoint]
+1=
+10=
+11=
