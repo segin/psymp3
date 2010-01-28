@@ -1,0 +1,16 @@
+#summary A notice stating which platforms are supported.
+#labels Featured,Phase-Design,Phase-Support
+
+PsyMP3 is officially supported only on Microsoft Windows. Although code exists for Linux, at this time, it is unlikely that a fully-supported Linux version will ever exist.
+
+If you want to know why there is no supported Linux version, here's a few reasons:
+
+  * Bugs. I do not know if it's FMOD, Linux, PsyMP3, QT, etc. I believe the issue to be in FMOD, but I cannot be certain. One thing that happens is that the song will play, but then it will go silent, and the media player will run through the song really fast (the time counter will go up 10 seconds or more for every real second that passes). Any attempts to load a new song merely start at the silent broken buggy mode. FMOD versions 3.x and earlier are no longer supported by Firelight Technologies, and no updates, bug fixes, or anything of the sort will ever be issued, therefore, unless we replace FMOD (see [ReplacingFMOD here]), we are suck on FMOD version 3.75, _forever_. Also, occasionally, the program randomly segfaults, and I've spent nearly a thousand hours (!) debugging with gdb without finding so much as one clue as to the cause
+  * Lack of manpower: I'm one man. I'm not God. I don't know everything. And I sure the hell    can't spend every waking moment trying to fix the nasty bug just because some GNU nazi wants to piss and moan about Windows. Sure, Windows sucks ass, I'll admit to it, but I'm not being paid to kiss the ass of every Linux user out there, either.
+  * FMOD Licensing: FMOD appears to be buggy and unreliable on Linux. The worse bit is that versions of FMOD that are *not* FMOD EX are unsupported by Firelight Technologies. Put short, the bugs that exist in classic FMOD (the very same FMOD used by PsyMP3) will *never* be fixed. Ever. Worse yet, unless I pay Firelight Technologies $3000 (about €2140, or 140000 Indian rupees) for a source license, I will never see so much as the first line of FMOD source. As such, FMOD is not a library which we can continue to use in the future.
+
+If you want to see a Linux version, pick up an editor, write some code, and send me a patch. 
+
+If you cannot program, go pay a freelance programmer to do the coding and then have her submit the patch.
+
+If you cannot program, *and* you cannot afford to hire a programmer to help me program, then simply stop bugging me with requests for a Linux version. Begging simply makes me program even slower.
