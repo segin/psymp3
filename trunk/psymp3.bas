@@ -29,13 +29,18 @@
 #else
 #define SIGINT 3
 #endif
-#include once "vbcompat.bi"
+#include Once "vbcompat.bi"
+#Include Once "md5.bi"
+#Include Once "wshelper.bas"
+#Ifdef LIBSEVEN
+#Include Once "libseven.bi"
+#EndIf
+#include Once "libxml/xmlreader.bi"
+#include Once "libxml/xmlwriter.bi"
 
-#Include "md5.bi"
-#Include "wshelper.bas"
-#Include "libseven.bi"
+LIBXML_TEST_VERSION()
 
-#define PSYMP3_VERSION "1.2-RELEASE"
+#define PSYMP3_VERSION "1.2.1-CURRENT"
 
 #If Not Defined(Boolean)
    #Define Boolean integer
@@ -114,17 +119,20 @@ End Type
 Dim Shared As Playlist Songlist
 
 Constructor Playlist () Export
+   printf(!"Playlist::Playlist(): Creating playlist.\n")
    this.m_entries = 0
    this.m_position = 0
    this.m_playlist(1) = ""
 End Constructor
 
 Sub Playlist.addFile Alias "addFile" (file As String) Export
+   printf(!"Playlist::addFile(): Adding file %s\n", file)
    this.m_entries += 1
    this.m_playlist(this.m_entries) = file
 End Sub
 
 Sub Playlist.addRawFile Alias "addRawFile" (file As String) Export
+   printf(!"Playlist::addRawFile(): Adding raw file %s\n", file)
    this.m_entries += 1
    this.m_playlist(this.m_entries) = file
    this.m_israw(this.m_entries) = 1
@@ -133,14 +141,19 @@ End Sub
 Function Playlist.getNextFile Alias "getNextFile" () As String Export
    If this.m_entries = 0 Or this.m_entries <= this.m_position Then
       this.m_position = this.m_entries + 1
+      printf(!"Playlist::getNextFile(): No next file\n")
       Return ""
    EndIf 
    this.m_position += 1
+   printf(!"Playlist::getNextFile(): Next file is %s.\n", this.m_playlist(this.m_position))
    Return this.m_playlist(this.m_position)
 End Function
 
 Function Playlist.getPrevFile Alias "getPrevFile" () As String Export
-   If this.m_entries = 0 Then Return ""
+   If this.m_entries = 0 Then 
+      printf(!"Playlist::getPrevFile(): No previous file\n")
+      Return ""
+   End If
    this.m_position -= 1
    Return this.m_playlist(this.m_position)
 End Function
@@ -154,6 +167,7 @@ Function Playlist.getEntries Alias "getEntries" () As Integer Export
 End Function
 
 Function Playlist.getFirstEntry Alias "getFirstEntry" () As String Export
+   printf(!"Playlist::getFirstEntry(): Returning to top of playlist.\n")
    this.m_position = 0
    Return this.getNextFile()
 End Function
@@ -190,9 +204,9 @@ End Sub
 
 Type LastFM Alias "LastFM"
 Private:
-   m_artist(500) As WString * 1024
-   m_name(500) As WString * 1024
-   m_album(500) As WString * 1024
+   m_artist(500) As String
+   m_name(500) As String
+   m_album(500) As String
    m_length(500) As UInteger
    m_curtime(500) As Integer
    m_entries As Integer
@@ -211,8 +225,9 @@ Public:
    Declare Function scrobbleTrack Alias "scrobbleTrack" () As Integer
    Declare Function submitData Alias "submitData" (sData As String, host As Integer) As SOCKET
    Declare Function submitScrobbles Alias "submitScrobbles" () As Integer
-   Declare Function saveScrobble Alias "saveScrobble" (WArtist As WString Ptr, WName As WString Ptr, WAlbum As WString Ptr, length As Integer, curtime As UInteger) As Integer
-   Declare Function dumpScrobbles Alias "dumpScrobbles" () As Integer
+   Declare Function saveScrobble Alias "saveScrobble" (artist As String, Title As String, album As String, length As Integer, curtime As UInteger) As Integer
+   Declare Sub dumpScrobbles Alias "dumpScrobbles" ()
+   Declare Sub dumpScrobbles2 Alias "dumpScrobbles2" () 
    Declare Sub loadScrobbles Alias "loadScrobbles" ()
 End Type
 
@@ -226,7 +241,7 @@ End Constructor
 
 Destructor LastFM() Export
    printf(!"LastFM::~LastFM(): Dumping scrobbles\n")
-   this.dumpScrobbles()
+   this.dumpScrobbles2()
 End Destructor
 
 Sub LastFM.readConfig Alias "readConfig" () Export
@@ -295,7 +310,7 @@ Function LastFM.setNowPlaying Alias "setNowPlaying" () As SOCKET Export
    
    Dim As Integer length = Int(FSOUND_Stream_GetLengthMs(stream)/1000)
 
-	If this.m_session = "" Then Return 0
+	If this.m_session = "" Then this.m_session = this.getSessionKey() 
 
 	Dim As Boolean submitted = FALSE 
 	
@@ -341,8 +356,15 @@ Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
 	Dim As String authkey = MD5str(MD5str(this.c_password) & curtime)
 	Dim As ZString * 10000 response
 	Dim As String response_data, httpdata, postdata
+	
+	Dim As String artist, Title, album
+	Artist = percent_encodeW(mp3artistW)
+	Title = percent_encodeW(mp3nameW)
+	Album = percent_encodeW(mp3albumW)
 
    Dim As Integer qual
+   
+   If this.m_session = "" Then this.m_session = this.getSessionKey() 
 
    ' IIf keeps giving me "Invalid data types" so go with a more verbose workaround
    /' If (songlength / 4000) > 240 Then
@@ -367,13 +389,13 @@ Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
 			"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n" 
 	
 		postdata = 	"s=" & this.m_session & "&" & _ 
-						"a[0]=" & percent_encodeW(mp3artistW) & "&" & _
-						"t[0]=" & percent_encodeW(mp3nameW) & "&" & _ 
-						"i[0]=" & time_(NULL) & "&" & _ 
+						"a[0]=" & Artist & "&" & _
+						"t[0]=" & Title & "&" & _ 
+						"i[0]=" & curtime & "&" & _ 
 						"o[0]=P&" & _ 
 						"r[0]=&" & _ 
 						"l[0]=" & length & "&" & _
-						"b[0]=" & percent_encodeW(mp3albumW) & "&" & _
+						"b[0]=" & Album & "&" & _
 						"n[0]=&m[0]="
 
 		httpdata &= _
@@ -384,9 +406,9 @@ Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
 		Dim s As SOCKET = this.submitData(httpdata, 2)
 		hReceive(s, strptr(response), 10000)
 		response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-	
+
 		Dim status As String = Left(response_data, InStr(response_data, !"\n") - 1)
-	
+
 		Select Case status
 			Case "OK"
 				printf !"LastFM::scrobbleTrack(): Server response OK. Track sucessfully scrobbled!\n"
@@ -395,8 +417,8 @@ Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
 			Case "BADSESSION"
 				this.m_session = this.getSessionKey()  
 			Case Else
-				printf !"LastFM::scrobbleTrack(): Scrobbling track failed, storing scrobble.\n"
-				this.saveScrobble(mp3artistW, mp3nameW, mp3albumW, length, curtime)
+				printf !"LastFM::scrobbleTrack(): Scrobbling track failed!\n"
+				this.saveScrobble(artist, Title, album , length, curtime)
 				submitted = TRUE
 		End Select
 	Wend
@@ -421,31 +443,140 @@ Function LastFM.submitScrobbles Alias "submitScrobbles" () As Integer Export
 End Function
 
 
-Function LastFM.saveScrobble Alias "saveScrobble" (WArtist As WString Ptr, WName As WString Ptr, WAlbum As WString Ptr, length As Integer, curtime As UInteger) As Integer Export
+Function LastFM.saveScrobble Alias "saveScrobble" (artist As String, Title As String, album As String, length As Integer, curtime As UInteger) As Integer Export
 	If this.m_entries = 500 Then Return -1
+	printf(!"LastFM::saveScrobble(): storing scrobble in memory.\n")
 	this.m_entries += 1
-	this.m_artist(this.m_entries) = *WArtist
-	this.m_name(this.m_entries) = *WName
-	this.m_album(this.m_entries) = *WAlbum
+	this.m_artist(this.m_entries) = artist
+	this.m_name(this.m_entries) = title
+	this.m_album(this.m_entries) = album
 	this.m_length(this.m_entries) = length
 	this.m_curtime(this.m_entries) = curtime
 End Function
 
-Function LastFM.dumpScrobbles Alias "dumpScrobbles" () As Integer Export
-   Dim As Integer i, FAR
-   FAR = 232
-   Kill("lastfm.txt")
-   Open "lastfm.txt" For Output Lock Write As #FAR
-   If Err>0 Then Printf !"Error opening the file\n"
-   Write #FAR, "Number of Entries", this.m_entries 
+Sub LastFM.dumpScrobbles2 Alias "dumpScrobbles2" () Export
+   Dim fd As FILE Ptr
+   Dim i As Integer, ret As Integer
+   fd = fopen("lastfm.xml","wb")
+   If fd = 0 Then 
+      printf(!"LastFM::dumpScrobbles2(): Error opening lastfm.xml.\n")
+      Return
+   EndIf
+   ret = fprintf(fd, !"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<lastfm>\n")
+   If fd = 0 Then 
+      printf(!"LastFM::dumpScrobbles2(): Error writing lastfm.xml.\n")
+      Return
+   EndIf
    For i = 1 To this.m_entries
-      Write #FAR, this.m_artist(i), this.m_name(i), this.m_album(i), this.m_length(i), this.m_curtime(i)
+      ret = fprintf(fd, !"\t<entry artist=\"%s\" title=\"%s\" album=\"%s\" time=\"%d\" length=\"%d\" />\n", this.m_artist(i), this.m_name(i), this.m_album(i), this.m_curtime(i), this.m_length(i))
+      If fd = 0 Then 
+         printf(!"LastFM::dumpScrobbles2(): Error writing lastfm.xml.\n")
+         Return
+      EndIf
    Next i
-   Close #FAR
-End Function
+   ret = fprintf(fd, "</lastfm>")
+   If fd = 0 Then 
+      printf(!"LastFM::dumpScrobbles2(): Error writing lastfm.xml.\n")
+      Return
+   EndIf
+End Sub
+
+Sub LastFM.dumpScrobbles Alias "dumpScrobbles" () Export
+   Dim As xmlTextWriterPtr writer
+   Dim As Integer ret, i
+   
+   If this.m_entries = 0 Then Return
+   printf(!"LastFM::dumpScrobbles(): Dumping scrobbles\n")
+   writer = xmlNewTextWriterFilename("lastfm.xml", 0)
+   
+   If writer = 0 Then 
+      printf !"LastFM::dumpScrobbles(): xmlNewTextWriterFilename() failed!\n"
+      Return 
+   EndIf
+   
+   ret = xmlTextWriterStartDocument(writer, NULL, "UTF-8", NULL)
+   
+   If ret <> 0 Then 
+      printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
+      Return 
+   EndIf
+   
+   ret = xmlTextWriterStartElement(writer, "lastfm")
+   If ret <> 0 Then 
+      printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
+      Return 
+   EndIf
+   
+   ret = xmlTextWriterStartElement(writer, "encoding")
+   If ret <> 0 Then 
+      printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
+      Return 
+   EndIf
+  
+   ret = xmlTextWriterWriteAttribute(writer, "character", "UTF-8")
+   If ret <> 0 Then 
+      printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
+      Return 
+   EndIf
+  
+   ret = xmlTextWriterWriteAttribute(writer, "data", "RFC 1378")
+   If ret <> 0 Then 
+      printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
+      Return 
+   End If   
+   For i = 1 To this.m_entries
+      ret = xmlTextWriterStartElement(writer, "entries")
+      If ret <> 0 Then 
+         printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
+         Return 
+      End If         
+      ret = xmlTextWriterWriteAttribute(writer, "artist", this.m_artist(i))
+      ret = xmlTextWriterWriteAttribute(writer, "title", this.m_name(i))
+      ret = xmlTextWriterWriteAttribute(writer, "album", this.m_album(i))
+      ret = xmlTextWriterWriteAttribute(writer, "time", Str(this.m_curtime(i)))
+      ret = xmlTextWriterWriteAttribute(writer, "length", Str(this.m_length(i)))
+   Next i
+   
+   ret = xmlTextWriterEndElement(writer)
+   ret = xmlTextWriterEndDocument(writer)
+   xmlFreeTextWriter(writer)
+   
+End Sub
 
 Sub LastFM.loadScrobbles Alias "loadScrobbles" () Export
+   Dim reader As xmlTextReaderPtr
+   Dim ret As Integer, getNext As Integer
+   Dim As Integer entries
+   dim constname as zstring ptr, value as zstring Ptr
+   Dim As String Artist, Title, Album
+   Dim As Integer curtime, length
    
+	reader = xmlReaderForFile("lastfm.xml", NULL, 0)
+   
+	If reader = NULL Then Return
+	ret = xmlTextReaderRead(reader)
+	Do While(ret = 1)
+		constname = xmlTextReaderConstName(reader)
+		value = xmlTextReaderConstValue(reader)
+		Select Case *constname
+			Case "lastfm"
+				Select Case xmlTextReaderNodeType(reader)
+					Case 1
+						printf !"LastFM::loadScrobbles(): Start of database\n"
+					Case 15
+						printf !"LastFM::loadScrobbles(): End of database\n"
+				End Select
+			Case "entry"
+				Artist = *xmlTextReaderGetAttribute(reader, "artist")
+				Title = *xmlTextReaderGetAttribute(reader, "title")
+				Album = *xmlTextReaderGetAttribute(reader, "album")
+				curtime = Val(*xmlTextReaderGetAttribute(reader, "time"))
+				length = Val(*xmlTextReaderGetAttribute(reader, "length"))
+				this.saveScrobble(artist, Title, album, curtime, length)
+		End Select
+		ret = xmlTextReaderRead(reader)
+	Loop
+    
 End Sub
 
 '' End Last.fm code
@@ -1581,18 +1712,15 @@ End Sub
 Dim Shared As LastFM Scrobbler
 
 Sub EndPlayer Alias "EndPlayer" () Export
-   
-   Scrobbler.dumpScrobbles()
-   
 	#ifdef __FB_LINUX__
 		' kill_(getpid(),SIGINT)
-		end
 	#ElseIf Defined(__FB_WIN32__)
 		DestroyWindow(WAWindow)
-		End
 	#Else 
-		End
-	#endif
+		' TODO: For future use
+	#EndIf
+
+	End
 End Sub
 
 #ifdef __FB_WIN32__
@@ -1969,6 +2097,7 @@ Function MD5str Alias "MD5str" (chars As String) As String Export
 End Function
 
 Function percent_encode Alias "percent_encode" (message As String) As String Export
+   ' TODO: Test for strict RFC 1738 conformance
 	Dim ret As String
 	Dim i As Integer
 	For i = 0 to Len(message) - 1
@@ -2010,154 +2139,8 @@ Function percent_encodeW Alias "percent_encodeW" (messageW As WString Ptr) As St
 	Dim ret As String
  	Dim i As Integer
  	Dim message As String = wstring_to_utf8(messageW)
-	For i = 0 to Len(message) - 1
-	Select Case(message[i])
-		Case &h0 To &h2c, &h2f, &h3a, &h3b, &h3d, &h3f, &h40, &h5b, &h5d, &h80 to &hff
-		ret &= "%" & Hex(message[i])
-		Case Else
-		ret &= Chr(message[i])
-	End Select
-	Next
-	Return ret
+	Return percent_encode(message)
 End Function
-
-Function lastfm_session Alias "lastfm_session" () As String Export
-	Dim As Integer curtime = time_(NULL)
-	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
-	Dim As ZString * 10000 response
-	Dim As String response_data, httpdata
-   Return ""
-   If lastfm_username = "" Or Lastfm_password = "" Then Return ""
-
-   printf(!"Last.fm: Getting session key.\n")
-
-	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=" & PSYMP3_VERSION & "&u=" & lastfm_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(13) & Chr(10) & "User-Agent: PsyMP3/" & PSYMP3_VERSION & Chr(13) & Chr(10) & Chr (13) & Chr(10)
-	hStart()
-	Dim s As SOCKET, addr As Integer
-	s = hOpen()
-	addr = hResolve("post.audioscrobbler.com")
-	hConnect(s, addr, 80)
-	hSend(s, strptr(httpdata), len(httpdata))
-	hReceive(s, strptr(response), 10000)
-	hClose(s)
-	
-	response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-	
-	If left(response_data,3) = !"OK\n" Then
-		printf(!"Last.fm: Session key retreived: %s.\n", Mid(response_data, 4, 32))
-		Function = Mid(response_data, 4, 32)
-	Else
-		printf(!"Last.fm: Failed to authenticate (bad password?)\n")
-		Function = ""
-	End If
-End Function
-
-Function lastfm_nowplaying Alias "lastfm_nowplaying" () As SOCKET Export
-	Dim As Integer curtime = time_(NULL)
-	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
-	Dim As ZString * 10000 response
-	Dim As String response_data, httpdata, postdata
-   
-   Dim As Integer length = Int(FSOUND_Stream_GetLengthMs(stream)/1000)
-
-	httpdata = 	!"POST /np_1.2 HTTP/1.1\n" & _
-					!"Host: post.audioscrobbler.com\n" & _ 
-					!"User-Agent: PsyMP3" & "/" & PSYMP3_VERSION & !"\n" 
-
-	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-					"a=" & percent_encodeW(mp3artistW) & "&" & _
-					"t=" & percent_encodeW(mp3nameW) & "&" & _ 
-					"b=" & percent_encodeW(mp3albumW) & "&" & _
-					"l=" & length & "&" & _
-					"n=&m="
-
-	httpdata &= !"Content-Length: " & Len(postdata) & !"\n" & _
-					!"Content-Type: application/x-www-form-urlencoded\n\n" & _
-					postdata
-
-
-	Dim s As SOCKET, addr As Integer
-	s = hOpen()
-	addr = hResolve("post.audioscrobbler.com")
-	hConnect(s, addr, 80)
-	hSend(s, strptr(httpdata), len(httpdata))
-	hReceive(s, strptr(response), 10000)
-   response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-
-   printf(!"Lastfm_nowplaying(): Response_data = %s\n", response_data)
-
-
-   if left(response_data,3) = !"OK\n" Then
-	   printf !"Last.fm: Server response OK. Track sucessfully sent as nowplaying!\n"
-   Else 
-      printf !"Last.fm: Sending track as nowplaying failed!\n"
-   End If 
-Return(s)
-End Function
-
-Function lastfm_scrobble Alias "lastfm_scrobble" () As Integer Export
-	Dim As Integer curtime = time_(NULL)
-	Dim As String authkey = MD5str(MD5str(lastfm_password) & curtime)
-	Dim As ZString * 10000 response
-	Dim As String response_data, httpdata, postdata
-
-   Dim As Integer qual
-
-   ' IIf keeps giving me "Invalid data types" so go with a more verbose workaround
-   If (songlength / 4000) > 240 Then
-      qual = 240
-   Else
-      qual = songlength / 4000
-   EndIf
-   /'
-   qual = IIf( _ 
-      Int(songlength/4000) > 240, _ 
-      240, _ 
-      songlength/4000 _
-   )
-   '/
-
-
-   If songlength < 30000 Then Return 0
-   
-   If (curtime - songstart) < qual Then Return 0
-	
-	printf(!"Last.fm: Going to scrobble track. Artist: \"%ls\", Title: \"%ls\", Album: \"%ls\".\n", mp3artistW, mp3nameW, mp3albumW)
-	
-   httpdata = 	!"POST /protocol_1.2 HTTP/1.1\n" & _
-		!"Host: post2.audioscrobbler.com\n" & _ 
-		!"User-Agent: PsyMP3/" & PSYMP3_VERSION & !"\n" 
- 
-	postdata = 	"s=" & lastfm_sessionkey & "&" & _ 
-					"a[0]=" & percent_encodeW(mp3artistW) & "&" & _
-					"t[0]=" & percent_encodeW(mp3nameW) & "&" & _ 
-					"i[0]=" & time_(NULL) & "&" & _ 
-					"o[0]=P&" & _ 
-					"r[0]=&" & _ 
-					"l[0]=" & Int(FSOUND_Stream_GetLengthMs(stream)/1000) & "&" & _
-					"b[0]=" & percent_encodeW(mp3albumW) & "&" & _
-					"n[0]=&m[0]="
-
-	httpdata &= _
-			!"Content-Length: " & Len(postdata) & !"\n" & _
-			!"Content-Type: application/x-www-form-urlencoded\n\n" & _
-			postdata
-
-	Dim s As SOCKET
-	Dim addr As Integer
-	s = hOpen()
-	addr = hResolve("post2.audioscrobbler.com")
-	hConnect(s, addr, 80)
-	
-	hSend(s, strptr(httpdata), len(httpdata))
-	hReceive(s, strptr(response), 10000)
-	response_data = Mid(response, InStr(response, !"\r\n\r\n") + 4)
-	If left(response_data,3) = !"OK\n" Then
-		printf !"Last.fm: Server response OK. Track sucessfully scrobbled!\n"
-	End If 
-End Function
-
-
 
 ''
 '' End of functions
@@ -2172,6 +2155,7 @@ Dim Sock As SOCKET
 Dim DoFPS As Integer
 Dim As Integer sFont, SpectrumOn = 1
 Dim As String olddir, userfontdir
+Dim I As Integer
 Dim X As Integer
 Dim Y As Integer
 Dim T As Integer
@@ -2179,7 +2163,8 @@ Dim dectBeat As Integer
 Dim Action as String
 Dim As Integer posx, posy, buttons, mousex, mousey, _
 	   oldposx, oldposy, oldmousex, oldmousey
-Dim FPS(2) As Double
+Dim FPS(40) As Double
+Dim Sum As Double
 Dim As String cpuvendor, cpuname
 Dim As Integer doPrev
 olddir = CurDir
@@ -2341,7 +2326,7 @@ Do
 Loop 
 #endif
 
-#ifdef __FB_WIN32__
+#If Defined(__FB_WIN32__) And Defined(LIBSEVEN)
 InitKVIrcWinampInterface() 
 printf("Attempting to initialize ITaskbarList3... ")
 Var ITB = InitializeTaskbar()
@@ -2427,7 +2412,9 @@ Do
    #Ifdef __FB_WIN32__
 		ClearWMP()
 		AnnounceWMP(mp3artist, mp3name, mp3album)
+	#Ifdef LIBSEVEN
 		SetProgressType(TASKBAR_PROGRESS)
+	#EndIf
    #EndIf
    If sock <> 0 Then
       hClose(sock)
@@ -2445,13 +2432,15 @@ Do
 #ifdef __FB_WIN32__     
    SetWindowText(WAWindow, _
 		Songlist.getPosition & ". " + mp3artistW + " - " + mp3nameW + " - Winamp")
+	#Ifdef LIBSEVEN
 	If IsPaused = 1 Then 
 		SetProgressType(TASKBAR_PAUSED)
 	Else
 		SetProgressType(TASKBAR_PROGRESS)
 		UpdateProgressBar(FSOUND_Stream_GetTime(stream),FSOUND_Stream_GetLengthMs(stream))
 	EndIf
-#endif
+	#EndIf
+#EndIf
 	Sleep 12 ' Timer delay
 
 If IsSilent <> 1 Then
@@ -2462,9 +2451,19 @@ If IsSilent <> 1 Then
    'ScreenUnlock
    'Window title, is program name/version, artist and songname, and 
    'time elapsed/time remaining
-	FPS(2) = Timer
+	
+   For i = 1 To 39
+      fps(i) = fps(i+1)
+   Next
+	FPS(40) = Timer
+	Dim avg As Double
+	avg = 0   
+	For i = 39 To 2 Step -1
+		avg += fps(i) - fps(i - 1)
+	Next i
+	avg /= 39.0
 	If DoFPS = 1 Then
-		Var szFPS = Format(1000 / ((FPS(2) - FPS(1)) * 1000), "#.0 FPS")
+		Var szFPS = Format(avg * 1000, "#.00 FPS")
 		Locate 1, 70 : Print szFPS
 		Locate 2, 70 
 		Dim As UInteger status, bufferused, bitrate, flags
@@ -2484,7 +2483,6 @@ If IsSilent <> 1 Then
 		Format(Int(FSOUND_Stream_GetTime(stream)/1000) Mod 60,"00") _ 
 		& "/" & Int(FSOUND_Stream_GetLengthMs(stream)/1000)\60 & ":" & _
 		Format(Int(FSOUND_Stream_GetLengthMs(stream)/1000) Mod 60,"00") & "]"
-
         ' Lock the screen for flicker-free recomposition
         ' of display. Disable if you want to see if you
         ' will experience photosensitive elliptic seizures.
@@ -2558,7 +2556,6 @@ If IsSilent <> 1 Then
 	   ClearWMP()
 #EndIf
       Scrobbler.scrobbleTrack()
-      Scrobbler.dumpScrobbles()
 	   EndPlayer()
    End If
    If nkey = Chr(255) + "K" Then ' Left key pressed, go back 1.5sec
@@ -2577,11 +2574,11 @@ If IsSilent <> 1 Then
    If nkey = " " Then
 		If IsPaused = 1 Then
 			IsPaused = 0
-			#Ifdef __FB_WIN32__
+			#If Defined(__FB_WIN32__) And Defined(LIBSEVEN)
 				SetProgressType(TASKBAR_PROGRESS)
 			#EndIf 
 		Else
-			#Ifdef __FB_WIN32__
+			#If Defined(__FB_WIN32__) And Defined(LIBSEVEN)
 				SetProgressType(TASKBAR_PAUSED)
 			#EndIf
 			IsPaused = 1
@@ -2696,6 +2693,13 @@ If IsSilent <> 1 Then
 				' parse_m3u8_playlist(mp3file)
 			Else
 				Songlist.addFile(mp3file)
+				Line(0,350)-(639,399),0,BF
+				PrintFTW(1,366,"Artist: " + mp3artistW,sFont,12,rgb(255,255,255))
+				PrintFTW(1,381,"Title: " + mp3nameW,sFont,12)
+				PrintFTW(1,396,"Album: " + mp3albumW,sFont,12) 
+				PrintFTW(300,366,"Playlist: " & Songlist.getPosition & "/" & Songlist.getEntries, sFont, 12, rgb(255,255,255)) 
+				PrintFTW(280,396,"CPU: " + cpuname + ", Vendor: " + cpuvendor,sFont,9)
+				Get (0, 350)-(639,399), TextMap
 			EndIf
 		End If
 	End If
@@ -2783,7 +2787,9 @@ FSOUND_Stream_Close(stream)
 Scrobbler.scrobbleTrack()
 #ifdef __FB_WIN32__
 	ClearWMP()
+	#Ifdef LIBSEVEN
 	SetProgressType(TASKBAR_INDETERMINATE)
+	#EndIf
 #EndIf
 isPaused = 2
 If doPrev = 1 Then
@@ -2826,7 +2832,6 @@ If mp3file <> "" Then
 	songstart = Time_(NULL)
 	If( stream = 0 ) then 
 		MsgBox hWnd, !"Can't load music file \"" + mp3file + !"\""
-		Scrobbler.dumpScrobbles()
 		EndPlayer()
 	end If
 	mp3name = getmp3name(stream)
@@ -2847,5 +2852,4 @@ Loop
 #ifdef __FB_WIN32__
 	ClearWMP()
 #EndIf
-Scrobbler.dumpScrobbles()
 EndPlayer()
