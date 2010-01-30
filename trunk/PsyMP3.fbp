@@ -12,7 +12,7 @@ CompileIfNewer=0
 [Make]
 Module=Module Build,fbc -c
 Recompile=2
-Current=5
+Current=1
 1=Windows Console (debug/SSE),fbc -g -s console -fpu sse
 2=Windows Console (SSE),fbc -s console -fpu sse
 3=Voiceprint (console/debug/SSE),fbc -g -s console -fpu sse -d VOICEPRINT
@@ -32,9 +32,9 @@ Run=
 3=KEYS.txt
 4=manifest.xml
 5=ChangeLog
-6=README-Linux
+6=README.txt
 7=psymp3.ico
-8=README-Win32
+8=
 9=Vera.ttf
 1001=
 10=id3tag.bi
@@ -51,8 +51,8 @@ Run=
 21=libseven.bi
 
 [FileInfo]
-2=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-1=0,183,1,36,12288,57344,0,272629760,143275040,0,134217728,0,0,0,0,0,0,0,0
+2=0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+1=0,2563,1,36,12288,57344,0,272629760,5152,0,0,0,0,0,0,0,0,0,0
 3=0,5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 9=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 8=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -69,7 +69,7 @@ Run=
 15=0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 14=0,15,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 13=0,151,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-21=0,24,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+21=0,24,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 [TabOrder]
 TabOrder=1,10,11
 [BreakPoint]
