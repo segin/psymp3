@@ -1,13 +1,66 @@
 #summary Getting Started guide
 
-= Introduction =
+=Getting Started=
 
-This is meant as a quick, no-thrills guide for quickly getting started on the use of PsyMP3.
+PsyMP3 is a rather straightforward audio media player. The entire program is controlled by the keyboard; you do not use the mouse (except for choosing files)
 
+==Starting up...==
 
-= Details =
+When you first start PsyMP3, you will be presented a blank player window:
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+http://img14.imageshack.us/img14/5682/psymp3startup.png
+
+On non-stable versions of PsyMP3 (those that do not end in -RELEASE), you will have a debug console window, like this:
+
+http://img9.imageshack.us/img9/2008/psymp3console.png
+
+This window will fill up with text as PsyMP3 runs.
+
+*Do not close this window!* If you close it, PsyMP3 will immediately exit. This is something in the core design of Windows, I can't keep the program running if you close this window. If it bothers you, just minimize it, or use a `-RELEASE` version, which will not have this debug console.
+
+==Choosing your music==
+Once PsyMP3 is loaded, it will open a file chooser dialog like this:
+
+http://img6.imageshack.us/img6/46/psymp3filechooser.png
+
+You can choose files in multiple formats by changing the "Files of Type" drop down box. The following types are available:
+
+  * ISO/MPEG Layer-III Audio (MP3)
+  * Ogg Vorbis and Ogg FLAC
+  * Windows Media Audio (*Windows only!*)
+  * Native FLAC
+  * M3U playlists.
+
+As noted above, you can select M3U playlists as well: 
+
+http://img3.imageshack.us/img3/4879/psymp3filechooserm3u.png
+
+After you make your file choice, you will be asked to make a new choice. By repeatedly selecting files and playlists, you build the playlist for PsyMP3. Playlists are opened and read, and all files are added as if you were to have selected them in order yourself. NOTE: If you need a program to make M3U playlists quickly, use [http://www.winamp.com/ Winamp].
+
+When you are done, finally cancel the file dialog box.
+
+==Jammin' Out==
+
+Once PsyMP3 has been programmed with tunes to play, it will begin to play them, in order. 
+You will get a spectrum analyzer visualization and the full player interface: 
+
+http://img3.imageshack.us/img3/3083/psymp3playlist.png
+
+PsyMP3 also works on Windows 7:
+
+http://img38.imageshack.us/img38/8497/newpsymp3.png
+
+The program's interface is purely keyboard-based. You do not use the mouse for anything except the file chooser windows.
+
+The keys are as follows: 
+
+  * *Left*: Rewind 1.5 seconds
+  * *Right*: Fast-forward 1.5 seconds
+  * *Spacebar*: Toggle pause/play
+  * *A*: Display the program about box.
+  * *S*: Turn off/on the spectrum.
+  * *Z*: Display frames-per-second
+  * *Q* or *ESC*: Quit.
+  * *L*: Load-in-place. Loads a new song now, and resumes playing the playlist with the next song.
+  * *B*: Toggle Repeat Track.
+  * *I*: Add files to the end of the PsyMP3 playlist.
