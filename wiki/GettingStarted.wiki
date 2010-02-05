@@ -1,4 +1,5 @@
 #summary Getting Started guide
+#labels Phase-Support,Featured
 
 =Getting Started=
 
