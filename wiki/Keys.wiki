@@ -1,0 +1,17 @@
+#summary List of keys and what they do
+#labels Phase-Support,Featured
+
+= Keys =
+
+The keys are as follows: 
+
+  * *Left*: Rewind 1.5 seconds
+  * *Right*: Fast-forward 1.5 seconds
+  * *Spacebar*: Toggle pause/play
+  * *A*: Display the program about box.
+  * *S*: Turn off/on the spectrum.
+  * *Z*: Display frames-per-second
+  * *Q* or *ESC*: Quit.
+  * *L*: Load-in-place. Loads a new song now, and resumes playing the playlist with the next song.
+  * *B*: Toggle Repeat Track.
+  * *I*: Add files to the end of the PsyMP3 playlist.
