@@ -1,5 +1,5 @@
 #summary Initializes the libseven API
-#labels Phase-Implementation
+#labels Phase-Implementation,Libseven-Docuimentation
 
 = Synopsis =
 
