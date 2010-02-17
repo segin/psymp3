@@ -1,0 +1,10 @@
+#summary One-sentence summary of this page.
+#labels Phase-Implementation,Libseven-Documentation
+
+= Synopsis =
+
+*void* SetProgressType(*int* type);
+
+= Description =
+
+InitializeTaskbar() is the API function that must be called before any other function is called in libseven. This function initializes the COM object and sets up any storage and structures used by libseven.
