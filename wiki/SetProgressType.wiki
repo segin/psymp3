@@ -3,7 +3,7 @@
 
 = Synopsis =
 
-*void* SetProgressType(*int* type);
+*void* SetProgressType(*int* _type_);
 
 = Description =
 
