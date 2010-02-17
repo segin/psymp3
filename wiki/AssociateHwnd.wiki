@@ -1,5 +1,5 @@
 #summary Associates libseven with a window handle
-#labels Phase-Implementation
+#labels Phase-Implementation,Libseven-Documentation
 
 = Synopsis =
 
