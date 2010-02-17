@@ -1,0 +1,16 @@
+#summary Sets the progress display mode/type
+#labels Phase-Implementation
+
+= Synopsis =
+
+*void* SetProgressType(*int* type);
+
+= Description =
+
+SetProgressType() sets the type of progress indicator that is displayed over the associated window's taskbar button, as specified by _type_
+
+_type_ may be one of the following:
+|| TASKBAR_PROGRESS || This sets the progress indicator to a standard green progress bar. ||
+|| TASKBAR_PAUSED || This sets the progress indicator to a paused yellow progress bar. ||
+|| TASKBAR_NORMAL || This clears the progress indicator, and is the normal condition. ||
+|| TASKBAR_INDETERMINATE || This is for the rolling green bar for indeterminate progress. ||
