@@ -1,5 +1,5 @@
 #summary Sets the progress display mode/type
-#labels Phase-Implementation
+#labels Phase-Implementation,Libseven-Docuimentation
 
 = Synopsis =
 
