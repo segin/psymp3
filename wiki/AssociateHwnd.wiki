@@ -1,0 +1,10 @@
+#summary Associates libseven with a window handle
+#labels Phase-Implementation
+
+= Synopsis =
+
+*void* AssociateHwnd(HWND hWnd);
+
+= Description =
+
+AssociateHwnd() associates the [Libseven libseven] library with a given window handle; Libseven is not capable of performing operations on multiple windows at this time.
