@@ -3,7 +3,7 @@
 
 = Synopsis =
 
-*int* InitializeTaskbar(*void*);
+*void* InitializeTaskbar(*void*);
 
 = Description =
 
