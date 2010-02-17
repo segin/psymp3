@@ -1,5 +1,5 @@
 #summary An open-source library to simplify access to the Windows 7 Taskbar API by wrapping the ITaskbarList3 COM object to standard C.
-#labels Phase-Implementation,Featured
+#labels Phase-Implementation,Featured,Libseven-Docuimentation
 
 = Introduction =
 
