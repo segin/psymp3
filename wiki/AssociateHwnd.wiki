@@ -3,7 +3,7 @@
 
 = Synopsis =
 
-*void* AssociateHwnd(HWND hWnd);
+*void* AssociateHwnd(HWND _hWnd_);
 
 = Description =
 
