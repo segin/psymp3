@@ -9,4 +9,4 @@
 
 InitializeTaskbar() is the API function that must be called before any other function is called in libseven. This function initializes the COM object and sets up any storage and structures used by libseven.
 
-This function must be called before any other function in [libseven] is called.
+This function must be called before any other function in [Libseven libseven] is called.
