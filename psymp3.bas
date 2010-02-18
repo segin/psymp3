@@ -11,8 +11,10 @@
 ' FreeType interface code from the Freetype2 library test, 
 ' by jofers (spam[at]betterwebber.com) 
 '
-' vim: ts=4 syntax=freebasic
+' vim: ts=4 sw=4 syntax=freebasic ff=dos encoding=utf-8
 '
+ 
+#Include Once "psymp3.bi" 
  
 #include once "crt.bi"
 #include once "crt/stdlib.bi"
@@ -216,6 +218,7 @@ Private:
    c_apihost(2) As String
    c_apiport(2) As Short
    c_apipath(2) As String
+   c_xmlpath As String
 Public:
    Declare Constructor()
    Declare Destructor()
@@ -224,24 +227,28 @@ Public:
    Declare Function setNowPlaying Alias "setNowPlaying" () As SOCKET
    Declare Function scrobbleTrack Alias "scrobbleTrack" () As Integer
    Declare Function submitData Alias "submitData" (sData As String, host As Integer) As SOCKET
-   Declare Function submitScrobbles Alias "submitScrobbles" () As Integer
+   Declare Function submitScrobble Alias "submitScrobble" (artist As String, Title As String, album As String, length As Integer, curtime As UInteger) As Integer
    Declare Function saveScrobble Alias "saveScrobble" (artist As String, Title As String, album As String, length As Integer, curtime As UInteger) As Integer
    Declare Sub dumpScrobbles Alias "dumpScrobbles" ()
    Declare Sub dumpScrobbles2 Alias "dumpScrobbles2" () 
    Declare Sub loadScrobbles Alias "loadScrobbles" ()
+   Declare Sub submitSavedScrobbles Alias "submitSavedScrobbles" ()
 End Type
 
 Constructor LastFM() Export
    this.readConfig()
+   this.loadScrobbles()
    printf(!"LastFM::LastFM(): username: %s, password: %s.\n", this.c_username, String(Len(this.c_password), "*")) 
    this.m_session = this.getSessionKey()
    Lastfm_sessionkey = this.m_session
    printf(!"LastFM::LastFM(): Last.fm login successful!\n")
+   this.c_xmlpath = CurDir()
+   printf(!"LastFM::LastFM(): last.fm directory: %s\n", this.c_xmlpath)
 End Constructor
 
 Destructor LastFM() Export
    printf(!"LastFM::~LastFM(): Dumping scrobbles\n")
-   this.dumpScrobbles2()
+   this.dumpScrobbles()
 End Destructor
 
 Sub LastFM.readConfig Alias "readConfig" () Export
@@ -340,7 +347,7 @@ Function LastFM.setNowPlaying Alias "setNowPlaying" () As SOCKET Export
 		Select Case status
 			Case "OK"
 				printf !"LastFM::setNowPlaying(): Server response OK. Track sucessfully sent as nowplaying!\n"
-				this.submitScrobbles()
+				this.submitSavedScrobbles()
 				submitted = TRUE
 			Case "BADSESSION"
 				this.m_session = this.getSessionKey()  
@@ -353,9 +360,7 @@ End Function
 
 Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
 	Dim As Integer curtime = time_(NULL)
-	Dim As String authkey = MD5str(MD5str(this.c_password) & curtime)
-	Dim As ZString * 10000 response
-	Dim As String response_data, httpdata, postdata
+	Dim As Integer length = Int( FSOUND_Stream_GetLengthMs(stream) /1000) 
 	
 	Dim As String artist, Title, album
 	Artist = percent_encodeW(mp3artistW)
@@ -377,10 +382,30 @@ Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
    
    If (curtime - songstart) < qual Then Return 0 '/
 	
-	printf(!"LastFM::scrobbleTrack(): Going to scrobble track. Artist: \"%ls\", Title: \"%ls\", Album: \"%ls\".\n", mp3artistW, mp3nameW, mp3albumW)
-	
+   curtime = this.submitScrobble(Artist, Title, Album, Length, curtime)
+   If curtime = TRUE Then 
+      this.submitSavedScrobbles()
+   EndIf
+End Function
+
+Function LastFM.submitData Alias "submitData" (sData As String, host As Integer) As SOCKET
+	Dim rhost As String
+	Dim rport As Integer
+	If this.c_apihost(host) <> "" Then rhost = this.c_apihost(host) Else rhost = "post.audioscrobbler.com"
+	If this.c_apiport(host) <> 0 Then rport = this.c_apiport(host) Else rport = 80
+	Dim s As SOCKET, addr As Integer
+	s = hOpen()
+	printf !"LastFM::submitData(): host %s port %d\n", rhost, rport
+	addr = hResolve(rhost)
+	hConnect(s, addr, rport)
+	hSend(s, strptr(sData), len(sData))
+	Return(s)
+End Function
+
+Function LastFM.submitScrobble Alias "submitScrobble" (artist As String, Title As String, album As String, length As Integer, curtime As UInteger) As Integer Export 
 	Dim As Boolean submitted = FALSE
-	Dim As Integer length = Int(FSOUND_Stream_GetLengthMs(stream)/1000) 
+	Dim As ZString * 10000 response
+	Dim As String response_data, httpdata, postdata
 	
 	While submitted = FALSE 
 	
@@ -411,37 +436,31 @@ Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
 
 		Select Case status
 			Case "OK"
-				printf !"LastFM::scrobbleTrack(): Server response OK. Track sucessfully scrobbled!\n"
-				this.submitScrobbles()
+				printf !"LastFM::submitScrobble(): Server response OK. Track sucessfully scrobbled!\n"
 				submitted = TRUE
 			Case "BADSESSION"
 				this.m_session = this.getSessionKey()  
 			Case Else
-				printf !"LastFM::scrobbleTrack(): Scrobbling track failed!\n"
+				printf !"LastFM::submitScrobble(): Scrobbling track failed!\n"
 				this.saveScrobble(artist, Title, album , length, curtime)
 				submitted = TRUE
 		End Select
 	Wend
 End Function
 
-Function LastFM.submitData Alias "submitData" (sData As String, host As Integer) As SOCKET
-	Dim rhost As String
-	Dim rport As Integer
-	If this.c_apihost(host) <> "" Then rhost = this.c_apihost(host) Else rhost = "post.audioscrobbler.com"
-	If this.c_apiport(host) <> 0 Then rport = this.c_apiport(host) Else rport = 80
-	Dim s As SOCKET, addr As Integer
-	s = hOpen()
-	printf !"LastFM::submitData(): host %s port %d\n", rhost, rport
-	addr = hResolve(rhost)
-	hConnect(s, addr, rport)
-	hSend(s, strptr(sData), len(sData))
-	Return(s)
-End Function
-
-Function LastFM.submitScrobbles Alias "submitScrobbles" () As Integer Export
-   
-End Function
-
+Sub LastFM.submitSavedScrobbles Alias "submitSavedScrobbles" ()
+	If this.m_entries = 0 Then Return
+	While this.m_entries > 0
+		this.submitScrobble( _
+			this.m_artist(this.m_entries), _
+			this.m_name(this.m_entries), _
+			this.m_album(this.m_entries), _
+			this.m_length(this.m_entries), _
+			this.m_curtime(this.m_entries) _
+		)
+		this.m_entries -= 1
+	Wend
+End Sub
 
 Function LastFM.saveScrobble Alias "saveScrobble" (artist As String, Title As String, album As String, length As Integer, curtime As UInteger) As Integer Export
 	If this.m_entries = 500 Then Return -1
@@ -457,7 +476,7 @@ End Function
 Sub LastFM.dumpScrobbles2 Alias "dumpScrobbles2" () Export
    Dim fd As FILE Ptr
    Dim i As Integer, ret As Integer
-   fd = fopen("lastfm.xml","wb")
+   fd = fopen(this.c_xmlpath & "/lastfm.xml","wb")
    If fd = 0 Then 
       printf(!"LastFM::dumpScrobbles2(): Error opening lastfm.xml.\n")
       Return
@@ -486,8 +505,8 @@ Sub LastFM.dumpScrobbles Alias "dumpScrobbles" () Export
    Dim As Integer ret, i
    
    If this.m_entries = 0 Then Return
-   printf(!"LastFM::dumpScrobbles(): Dumping scrobbles\n")
-   writer = xmlNewTextWriterFilename("lastfm.xml", 0)
+   printf(!"LastFM::dumpScrobbles(): Dumping scrobbles to " & this.c_xmlpath & !"/lastfm.xml\n")
+   writer = xmlNewTextWriterFilename(this.c_xmlpath & "/lastfm.xml", 0)
    
    If writer = 0 Then 
       printf !"LastFM::dumpScrobbles(): xmlNewTextWriterFilename() failed!\n"
@@ -523,22 +542,27 @@ Sub LastFM.dumpScrobbles Alias "dumpScrobbles" () Export
    If ret <> 0 Then 
       printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
       Return 
-   End If   
+   End If 
+   xmlTextWriterEndElement(writer)
    For i = 1 To this.m_entries
-      ret = xmlTextWriterStartElement(writer, "entries")
+      ret = xmlTextWriterStartElement(writer, "entry")
       If ret <> 0 Then 
          printf !"LastFM::dumpScrobbles(): xmlTextWriterStartDocument() failed!\n"
+            xmlTextWriterEndElement(writer)
+            xmlTextWriterEndDocument(writer)
+            xmlFreeTextWriter(writer)
          Return 
       End If         
-      ret = xmlTextWriterWriteAttribute(writer, "artist", this.m_artist(i))
-      ret = xmlTextWriterWriteAttribute(writer, "title", this.m_name(i))
-      ret = xmlTextWriterWriteAttribute(writer, "album", this.m_album(i))
-      ret = xmlTextWriterWriteAttribute(writer, "time", Str(this.m_curtime(i)))
-      ret = xmlTextWriterWriteAttribute(writer, "length", Str(this.m_length(i)))
+      xmlTextWriterWriteAttribute(writer, "artist", this.m_artist(i))
+      xmlTextWriterWriteAttribute(writer, "title", this.m_name(i))
+      xmlTextWriterWriteAttribute(writer, "album", this.m_album(i))
+      xmlTextWriterWriteAttribute(writer, "time", Str(this.m_curtime(i)))
+      xmlTextWriterWriteAttribute(writer, "length", Str(this.m_length(i)))
+      xmlTextWriterEndElement(writer)
    Next i
    
-   ret = xmlTextWriterEndElement(writer)
-   ret = xmlTextWriterEndDocument(writer)
+   xmlTextWriterEndElement(writer)
+   xmlTextWriterEndDocument(writer)
    xmlFreeTextWriter(writer)
    
 End Sub
@@ -555,6 +579,7 @@ Sub LastFM.loadScrobbles Alias "loadScrobbles" () Export
    
 	If reader = NULL Then Return
 	ret = xmlTextReaderRead(reader)
+	ret = 1
 	Do While(ret = 1)
 		constname = xmlTextReaderConstName(reader)
 		value = xmlTextReaderConstValue(reader)
@@ -1339,6 +1364,8 @@ end function
 '' Start CPUID Functions.
 ''
 
+#Ifdef USE_ASM
+
 #define true 1
 #define false 0
 
@@ -1491,6 +1518,8 @@ Function GetMHz Alias "GetMHz" () As Integer Export
    end If
    Return 0
 End Function
+
+#EndIf
 
 ''
 '' End CPUID Functions.
@@ -2169,8 +2198,10 @@ Dim As String cpuvendor, cpuname
 Dim As Integer doPrev
 olddir = CurDir
 
+#Ifdef USE_ASM
 cpuvendor = GetCPUVendor()
 cpuname = GetCPUName()
+#EndIf
 
 If cpuvendor = "GenuineIntel" Then
 	' Intel fucked their own CPUID instruction. No fault of my own, ugh...
@@ -2193,6 +2224,7 @@ printf(!"PsyMP3 version %s, built with FreeBASIC %d.%d.%d\n", _
        PSYMP3_VERSION,__FB_VER_MAJOR__,__FB_VER_MINOR__,__FB_VER_PATCH__)
 printf(!"CPU is %s %s.\n", cpuvendor, cpuname)
 #Ifdef __FB_SSE__
+ #Ifdef USE_ASM 
    printf(!"Compiled with SSE support.\n")
    If (IsSSE2() = False) Then 
       Dim Feats As String
@@ -2213,9 +2245,10 @@ printf(!"CPU is %s %s.\n", cpuvendor, cpuname)
          End 0
       EndIf
    EndIf
+   #EndIf
 #Else
    printf(!"Compiled without SSE support.\n")
-#endif
+#EndIf
 
 If Command(1) = "--version" Then
    ShowAbout(0)
@@ -2853,3 +2886,4 @@ Loop
 	ClearWMP()
 #EndIf
 EndPlayer()
+End
