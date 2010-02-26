@@ -9,11 +9,24 @@ This includes a short, almost guaranteed to be incomplete list of such download 
 
 = Details =
 
+All links without a (in language) marker are in English.
+
   * Someone tried to use PsyMP3's libseven with Java: (in German) http://www.java-forum.org/awt-swing-swt/92289-java-windows-7-taskbar.
+  * http://www.addictivetips.com/windows-tips/psymp3-portable-keyboard-only-music-player/
   * http://www.softwarelist.us/-363329-PsyMP3%201.1.html
   * http://esoftlib.com/psymp3-1-1
   * http://www.softpedia.com/get/Multimedia/Audio/Audio-Players/PsyMP3.shtml
+  * http://psymp3.en.malavida.com/
+  * (in either Spanish or Portuguese) http://psymp3.softbull.com/
+  * (in Spanish) http://webadicto.huaral.net/novedad-psymp3-1-2-en-reproductores-24022010/ which links to:
+  * (in Spanish) http://mundoinformatica.portalmundos.com/novedad-psymp3-12-en-reproductores-24022010/ finally linking to:
+  * (in Spanish) http://psymp3.uptodown.com/
+  * http://www.addictivetips.com/windows-tips/psymp3-portable-keyboard-only-music-player/
   * (in Korean) http://free.nuguni.com/pub/pds/pds_view.php?desc=regdate&start=90&viewCnt=15&no=83249&cate_sid=10&cate_id=14
   * (in Korean) http://www.utilbada.com/detail.php?p_uid=1168&c_uid1=2&c_uid2=17&order=p_down
   * (in Korean) http://simfile.chol.com/pc/view.html?fnum=230523&cat=43&boldKey=psymp3
   * (in Korean) http://file.naver.com/pc/view.html?fnum=230523&cat=43
+  * (in Korean) http://dvbox.net/freebbs/view.php?id=3180
+  * (in Vietnamese) http://diendan.ave.vn/multimedia-audio-video/17551-psymp3-1-2-a.html
+  * (in Vietnamese) http://webtinhoc.vn/home/showthread.php?7679-PsyMP3-1.2-nghe-nh%E1%BA%A1c-mp3
+  * (in Vietnamese) http://www.biethet.com/download/software/psymp3-12_soft10326.html
