@@ -17,7 +17,7 @@ All links without a (in language) marker are in English.
   * http://esoftlib.com/psymp3-1-1
   * http://www.softpedia.com/get/Multimedia/Audio/Audio-Players/PsyMP3.shtml
   * http://psymp3.en.malavida.com/
-  * (in either Spanish or Portuguese) http://psymp3.softbull.com/
+  * (in Spanish) http://psymp3.softbull.com/
   * (in Spanish) http://webadicto.huaral.net/novedad-psymp3-1-2-en-reproductores-24022010/ which links to:
   * (in Spanish) http://mundoinformatica.portalmundos.com/novedad-psymp3-12-en-reproductores-24022010/ finally linking to:
   * (in Spanish) http://psymp3.uptodown.com/
