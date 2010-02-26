@@ -11,7 +11,7 @@ This includes a short, almost guaranteed to be incomplete list of such download 
 
 All links without a (in language) marker are in English.
 
-  * Someone tried to use PsyMP3's libseven with Java: (in German) http://www.java-forum.org/awt-swing-swt/92289-java-windows-7-taskbar.
+  * Someone tried to use PsyMP3's libseven with Java: (in German) http://www.java-forum.org/awt-swing-swt/92289-java-windows-7-taskbar.html
   * http://www.addictivetips.com/windows-tips/psymp3-portable-keyboard-only-music-player/
   * http://www.softwarelist.us/-363329-PsyMP3%201.1.html
   * http://esoftlib.com/psymp3-1-1
