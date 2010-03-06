@@ -2145,7 +2145,7 @@ Dim dectBeat As Integer
 Dim Action as String
 Dim As Integer posx, posy, buttons, mousex, mousey, _
 	   oldposx, oldposy, oldmousex, oldmousey
-Dim FPS(40) As Double
+Dim FPS(100) As Double
 Dim Sum As Double
 Dim As String cpuvendor, cpuname
 Dim As Integer doPrev
@@ -2438,16 +2438,16 @@ Do
 			'Window title, is program name/version, artist and songname, and 
 			'time elapsed/time remaining
 	
-			For i = 1 To 39
+			For i = 1 To 99
 				fps(i) = fps(i+1)
 			Next
-			FPS(40) = Timer
+			FPS(100) = Timer
 			Dim avg As Double
 			avg = 0   
-			For i = 39 To 2 Step -1
+			For i = 100 To 2 Step -1
 				avg += fps(i) - fps(i - 1)
 			Next i
-			avg /= 39.0
+			avg /= 99.0
 	
 			If DoFPS = 1 Then
 				Var szFPS = Format(avg * 1000, "#.00 FPS")
