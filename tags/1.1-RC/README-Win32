@@ -1,0 +1,14 @@
+ADDENDUM FOR PSYMP3 README, FOR MICROSOFT WINDOWS AND REACTOS
+Version 1.0.4
+
+IMPORTANT: You MUST have the file zlib1.dll, fmod.dll, and freetype6.dll either in
+%systemroot%\System32 or the directory in which PsyMP3's executable resides.
+
+PsyMP3 uses the BitStream Vera Sans font, which must be in either %systemroot%\Fonts
+or the directory in which PsyMP3 was installed. Note that PsyMP3 is able to dectect
+the exact location of your Windows installation, irregardless of what it is named or on
+what drive it is installed. This is accomplished via the GetWindowsDirectory() function,
+so if windows is installed in G:\OS\NT, then PsyMP3 will look for G:\OS\NT\Fonts\vera.ttf.
+
+If BitStream Vera Sans is not installed, or the file is not correctly named, then the 
+font Tahoma will be used. PsyMP3 only checks %systemroot%\Fonts for Tahoma.
