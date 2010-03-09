@@ -1,0 +1,54 @@
+ChangeLog for PsyMP3
+
+- PsyMP3 1.2.1-RELEASE
+	* Improvments in Last.fm scrobbler, scrobbles now saved if they fail to submit
+	* Adjusted granularity of framerate counter.
+
+- PsyMP3 1.2-RELEASE
+	* Removed GTK+ code for Qt4
+	* Added ANSI support code for Winamp interface
+	* Improved font rendering
+	* Rewrote Last.fm scrobbler
+
+- PsyMP3 1.1-RELEASE
+	* Finished playlist code
+	* Improved compatibility
+
+- PsyMP3 1.1-RC
+	* Changed versioning scheme
+	* Rounded out Winamp interface
+	* Added Last.fm scrobbler
+
+- PsyMP3 1.1beta
+	* Fixed the annoying 31-character limit on ID3 tags.
+	* Fixed the lack of icon for the player window on Win32.
+	* Added support For Basic playlist functionality.
+	* Added KVIrc-extensions To Winamp IPC interface.
+	* Main Winamp IPC interface Not supported, just KVIrc extensions.
+
+- PsyMP3 1.0.5
+	* Added support for SSE, And CPU detection
+	* Improved code maintainability somewhat
+	* Added MSN-compatable announce support - tags assumed to be UTF-8
+	* Never officially released, though I released RCs of 1.0.5
+   
+- PsyMP3 1.0.4
+	* Fixed all various time displays (were rounding seconds wrong),
+	  500msec would mean 0:01 on a time display.
+	* Added MPlayer-style fractional second display
+	* Errors are no longer simply printed on the console; 
+	  GTK+ is used to display a simple message dialog.
+	* Added about box
+	* Added "crazy mode" (build Option)
+	* Added ability To load a New song
+	* Added ability To restart song "R" key
+
+- PsyMP3 1.0.3
+	* Beat dector
+
+- PsyMP3 1.0.2 (Unreleased)
+	* Win32: Added WMA support
+
+- PsyMP3 1.0.1 (Unreleased)
+	* Added pause support
+	* Added status indicator for play/pause
