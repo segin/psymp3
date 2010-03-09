@@ -42,7 +42,7 @@
 
 LIBXML_TEST_VERSION()
 
-#define PSYMP3_VERSION "1.2.1-CURRENT"
+#define PSYMP3_VERSION "1.2.1-RELEASE"
 
 #If Not Defined(Boolean)
 	#Define Boolean integer
