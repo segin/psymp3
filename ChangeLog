@@ -1,24 +1,5 @@
 ChangeLog for PsyMP3
 
-- PsyMP3 1.2.1-RELEASE
-	* Improvments in Last.fm scrobbler, scrobbles now saved if they fail to submit
-	* Adjusted granularity of framerate counter.
-
-- PsyMP3 1.2-RELEASE
-	* Removed GTK+ code for Qt4
-	* Added ANSI support code for Winamp interface
-	* Improved font rendering
-	* Rewrote Last.fm scrobbler
-
-- PsyMP3 1.1-RELEASE
-	* Finished playlist code
-	* Improved compatibility
-
-- PsyMP3 1.1-RC
-	* Changed versioning scheme
-	* Rounded out Winamp interface
-	* Added Last.fm scrobbler
-
 - PsyMP3 1.1beta
 	* Fixed the annoying 31-character limit on ID3 tags.
 	* Fixed the lack of icon for the player window on Win32.

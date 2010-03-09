@@ -1,33 +1,28 @@
 #
-# PsyMP3 master Makefile
-# Linux-specific.
+# Makefile for PsyMP3 external libs
+#
+# Copyright © 2009 Kirn Gill <segin2005@gmail.com>
 #
 
-FBC	= fbc
-CXX	= g++
-CC	= gcc
+SOEXT=dll
+#SOEXT=so.0
+CC=gcc
+RM=del /y
+#RM=rm -f 
 
-RM = rm -rf
 
-QT4_CFLAGS	= `pkg-config QtGui --cflags` 
-QT4_LDFLAGS	= `pkg-config QtGui --libs`
+all: libdir libmd5
 
-psymp3: libmd5 libui psymp3.bas
-	$(FBC) -g psymp3.bas psymp3_icon.xpm -Wl -rpath,.
+libmd5: libmd5.$(SOEXT)
 
-libui: libui.so
+libmd5.$(SOEXT):
+	$(CC) md5.c -shared -o libmd5.$(SOEXT)
 
-libmd5: libmd5.so 
+libdir: libdir.$(SOEXT)
 
-libmd5.so: libs/util/md5.c
-	cd libs/util && exec make libmd5
-	mv libs/util/libmd5.dll libmd5.so
-	
-libui.so: libui-qt4.cpp
-	$(CXX) libui-qt4.cpp -o libui.so -shared -D_LIBUI_QT4 $(QT4_CFLAGS) $(QT4_LDFLAGS)
+libdir.$(SOEXT):
+	$(CC) dirname.c -shared -o libdir.$(SOEXT)
 
-clean: 
-	$(RM) psymp3
-	$(RM) psymp3.obj
-	$(RM) libui.so
-	$(RM) libmd5.so
+clean:
+	$(RM) libmd5.$(SOEXT)
+	$(RM) libdir.$(SOEXT)

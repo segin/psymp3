@@ -1,5 +1,0 @@
-PsyMP3 was principally written by: 
-
-Kirn Gill (segin) <segin2005@gmail.com> - author, conceptionist, main code, libseven
-Mattis Michel (maties) <sic_zer0@hotmail.com> - libdir
-Michael Romanovsky (Agamemnus) - new icons!

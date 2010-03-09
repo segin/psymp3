@@ -2,14 +2,24 @@
 '' to compile: fbc wshelper.bas -lib
 ''
 
-
-#include once "crt.bi"
 #include once "wshelper.bi"
 
-#ifdef __FB_WIN32__
-function hStart Alias "hStart" ( ) as integer export
+#ifndef __FB_WIN32__
+Type SOCKET As Integer
+
+Function hStart ( ByVal verhigh As Integer, ByVal verlow As Integer) As Integer
+	Return 0
+End Function
+
+Function hShutdown () As Integer
+	Return 0
+End Function
+
+#else 
+
+'':::::
+function hStart( byval verhigh as integer = 2, byval verlow as integer = 0 ) as integer
 	dim wsaData as WSAData
-	dim verhigh as integer = 2, verlow as integer = 0
 	
 	if( WSAStartup( MAKEWORD( verhigh, verlow ), @wsaData ) <> 0 ) then
 		return FALSE
@@ -23,26 +33,17 @@ function hStart Alias "hStart" ( ) as integer export
 	function = TRUE
 
 end function
-function hShutdown Alias "hShutdown" ( ) as integer export
+
+'':::::
+function hShutdown( ) as integer
 
 	function = WSACleanup( )
 	
 end function
 
 #endif
-#ifdef __FB_LINUX__
-'
-' Linux does NOT need socket library inits, unlike Windows...
-'
-function hStart Alias "hStart" () as integer export
-	return TRUE
-end function
-
-function hShutdown Alias "hShutdown" () as Integer export
-	return hStart()
-end function
-#endif
-function hResolve Alias "hResolve" ( byval hostname as string ) as integer export
+'':::::
+function hResolve( byval hostname as string ) as integer
 	dim ia as in_addr
 	dim hostentry as hostent ptr
 
@@ -68,7 +69,7 @@ function hResolve Alias "hResolve" ( byval hostname as string ) as integer expor
 end function
 
 '':::::
-function hOpen Alias "hOpen" ( byval proto as integer = IPPROTO_TCP ) as SOCKET export
+function hOpen( byval proto as integer = IPPROTO_TCP ) as SOCKET
 	dim s as SOCKET
     
     s = opensocket( AF_INET, SOCK_STREAM, proto )
@@ -81,7 +82,7 @@ function hOpen Alias "hOpen" ( byval proto as integer = IPPROTO_TCP ) as SOCKET 
 end function
 
 '':::::
-function hConnect Alias "hConnect" ( byval s as SOCKET, byval ip as integer, byval port as integer ) as integer export
+function hConnect( byval s as SOCKET, byval ip as integer, byval port as integer ) as integer
 	dim sa as sockaddr_in
 
 	sa.sin_port			= htons( port )
@@ -93,7 +94,7 @@ function hConnect Alias "hConnect" ( byval s as SOCKET, byval ip as integer, byv
 end function
 
 '':::::
-function hBind Alias "hBind" ( byval s as SOCKET, byval port as integer ) as integer export
+function hBind( byval s as SOCKET, byval port as integer ) as integer
 	dim sa as sockaddr_in
 
 	sa.sin_port			= htons( port )
@@ -105,14 +106,14 @@ function hBind Alias "hBind" ( byval s as SOCKET, byval port as integer ) as int
 end function
 
 '':::::
-function hListen Alias "hListen" ( byval s as SOCKET, byval timeout as integer = SOMAXCONN ) as integer export
+function hListen( byval s as SOCKET, byval timeout as integer = SOMAXCONN ) as integer
 	
 	function = listen( s, timeout ) <> SOCKET_ERROR
 	
 end function
 
 '':::::
-function hAccept Alias "hAccept" ( byval s as SOCKET, byval sa as sockaddr_in ptr ) as SOCKET export
+function hAccept( byval s as SOCKET, byval sa as sockaddr_in ptr ) as SOCKET
 	dim salen as integer 
 	
 	salen = len( sockaddr_in )
@@ -121,35 +122,30 @@ function hAccept Alias "hAccept" ( byval s as SOCKET, byval sa as sockaddr_in pt
 end function	
 
 '':::::
-function hClose Alias "hClose" ( byval s as SOCKET ) as integer export
+function hClose( byval s as SOCKET ) as integer
 
 	shutdown( s, 2 )
 	
-	#ifdef __FB_WIN32__
 	function = closesocket( s )
-	#endif
-	#if defined(__FB_LINUX__) or defined(__FB_FREEBSD__)
-	function = close(s)
-	#endif
 	
 end function
 
 '':::::
-function hSend Alias "hSend" ( byval s as SOCKET, byval buffer as zstring ptr, byval bytes as integer ) as integer export
+function hSend( byval s as SOCKET, byval buffer as zstring ptr, byval bytes as integer ) as integer
 
     function = send( s, buffer, bytes, 0 )
     
 end function
 
 '':::::
-function hReceive Alias "hReceive" ( byval s as SOCKET, byval buffer as zstring ptr, byval bytes as integer ) as integer export
+function hReceive( byval s as SOCKET, byval buffer as zstring ptr, byval bytes as integer ) as integer
 
     function = recv( s, buffer, bytes, 0 )
     
 end function
 
 '':::::
-function hIp2Addr Alias "hIp2Addr" ( byval ip as integer ) as zstring ptr export
+function hIp2Addr( byval ip as integer ) as zstring ptr
 	dim ia as in_addr
 	
 	ia.S_addr = ip
@@ -157,7 +153,3 @@ function hIp2Addr Alias "hIp2Addr" ( byval ip as integer ) as zstring ptr export
 	function = inet_ntoa( ia )
 
 end function
-
-#define CLIENTADDR(c) *hIp2Addr( c.sin_addr.S_addr ) & "(" & c.sin_addr & ")"
-
-
