@@ -1,0 +1,26 @@
+#summary How to get PsyMP3 to (hopefully) run on FreeBSD
+#labels Phase-Deploy,Featured
+
+= Introduction =
+
+For the most part, PsyMP3 is a Wine-friendly application. However, on occasion, there are some issues with it. Here's some quick tips to get it working
+
+= Tips =
+
+First, start Winecfg.
+
+http://img707.imageshack.us/img707/2858/winecfgstart.png
+
+Secondly, add an override for PsyMP3. Click "Add Application..." and select the PsyMP3 executable like so:
+
+http://img717.imageshack.us/img717/5998/winecfgchoosefile.png
+
+Select the psymp3.exe override. Set the Windows version to Windows XP.
+
+http://img193.imageshack.us/img193/6739/winecfgwinver.png
+
+Go to the Audio tab. Make sure that the psymp3.exe title still appears in the titlebar. Set the DirectSound Hardware Acceleration to "Emulation". 
+
+http://img191.imageshack.us/img191/2450/winecfgaudio.png
+
+And there you have it! PsyMP3 should now work under FreeBSD.
