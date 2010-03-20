@@ -14,8 +14,8 @@ FB_PROGRAM_ICON ICON DISCARDABLE "psymp3.ico"
 FileIcon ICON DISCARDABLE "music.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 1,2,1,166
-PRODUCTVERSION 1,2,1,166
+FILEVERSION 2,0,0,0
+PRODUCTVERSION 2,0,0,0
 FILEOS 0x00040004
 FILETYPE 0x00000001
 BEGIN
@@ -23,15 +23,15 @@ BEGIN
   BEGIN
     BLOCK "040904B0"
     BEGIN
-      VALUE "Comments", "This is PsyMP3 version 1.2.1-RELEASE\0"
+      VALUE "Comments", "This is PsyMP3 version 2-CURRENT\0"
       VALUE "CompanyName", "segin.no-ip.org Foundation\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
-      VALUE "FileVersion", "1, 2, 1, 165\0"
+      VALUE "FileVersion", "2, 0, 0, 0\0"
       VALUE "InternalName", "PsyMP3\0"
       VALUE "LegalCopyright", "GNU General Public License, version 2\0"
       VALUE "OriginalFilename", "psymp3.exe\0"
       VALUE "ProductName", "PsyMP3 Audio Player\0"
-      VALUE "ProductVersion", "1.2.1-RELEASE\0"
+      VALUE "ProductVersion", "2-CURRENT\0"
       VALUE "LegalTrademarks", "Main program is © 2008-2010 Kirn Gill. MD5 library is Copyright © 2002 Aladdin Enterprises, © 1999, 2000 artofcode LLC. libdir is Copyright © 2009-2010 Mattis Michel.\0"
     END
   END
