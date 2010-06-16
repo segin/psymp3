@@ -13,17 +13,14 @@
 '
 ' vim: ts=4 sw=4 syntax=freebasic ff=dos encoding=utf-8
 '
-' Portions based on 'yetiplay', which is in the public domain.
-'
-'
-
+ 
 #Include Once "psymp3.bi" 
-#include once "SDL/SDL.bi"
+ 
 #include once "crt.bi"
 #include once "crt/stdlib.bi"
 #include once "crt/sys/types.bi"
 #include once "crt/stddef.bi"
-'#include once "fmod.bi"
+#include once "fmod.bi"
 #include once "fbgfx.bi"
 '#Include Once "id3tag.bi"
 '#include once "jpeg.bi"
@@ -42,19 +39,10 @@
 #EndIf
 #include Once "libxml/xmlreader.bi"
 #include Once "libxml/xmlwriter.bi"
-#include once "vorbis/vorbisfile.bi"
-#include once "mpg123.bi"
-
-type psymp3_t
-	screen_width  as integer = 640     '
-	screen_height as integer = 400     '
-	buffer_count  as integer = 2048*2  ' samples in a buffer
-	fourier_size  as integer = 2048*1  ' number of samples fourier will use
-end Type
 
 LIBXML_TEST_VERSION()
 
-#define PSYMP3_VERSION "2-CURRENT"
+#define PSYMP3_VERSION "1.2.1-RELEASE"
 
 #If Not Defined(Boolean)
 	#Define Boolean integer
@@ -1573,7 +1561,6 @@ function getmp3artistW Alias "getmp3artistW" ( byval stream as FSOUND_STREAM ptr
 end Function
 
 function getmp3album Alias "getmp3album" ( byval stream as FSOUND_STREAM ptr ) as String Export
-/'
 	dim tagname as zstring ptr, taglen as integer
    
 	FSOUND_Stream_FindTagField( stream, FSOUND_TAGFIELD_ID3V2, "TALB", @tagname, @taglen )
@@ -1587,11 +1574,9 @@ function getmp3album Alias "getmp3album" ( byval stream as FSOUND_STREAM ptr ) a
 	End if
 	printf(!"getmp3album(): tagname = \"%s\" taglen = %d\n", tagname, taglen)
 	getmp3album = left( *tagname, taglen ) 
-'/ 
 end function
 
 function getmp3albumW Alias "getmp3albumW" ( byval stream as FSOUND_STREAM ptr ) as WString Ptr Export
-/'
 	Static wret As WString * 256
 	dim tagname as zstring ptr, taglen as integer
 
@@ -1608,7 +1593,6 @@ function getmp3albumW Alias "getmp3albumW" ( byval stream as FSOUND_STREAM ptr )
 	End If
 	printf(!"getmp3albumW(): tagname = \"%ls\" taglen = %d\n", @wret, taglen)
 	Return @wret
-'/ 
 end Function
 
 
@@ -1652,6 +1636,8 @@ function file_getname Alias "file_getname" ( byval hWnd as HWND ) as String Expo
 		.lpstrFilter 		= strptr( _ 
 				!"MPEG Layer-3 Audio/MP3 File, (*.mp3)\0*.mp3\0" _
 				!"Ogg Vorbis (*.ogg)\0*.ogg\0" _
+				!"Windows Media Audio (*.asf; *.wma)\0*.wma;*.asf\0" _
+				!"Free Lossless Audio Codec/FLAC (*.flac)\0*.flac\0" _
 				!"M3U Playlist (*.m3u; *.m3u8)\0*.m3u;*.m3u8\0" _
 				!"All Files, (*.*)\0*.*\0\0" _
 			)
@@ -1709,519 +1695,6 @@ Function file_getname Alias "file_getname" (ByVal hWnd as integer) As String Exp
 End Function
 
 #EndIf
-
-sub quadfft _
-	( _
-		byval n        as integer, _
-		byval in_data  as complex_t ptr, _
-		byval out_data as complex_t ptr, _
-		byval inverse  as integer = 0 _
-	)
-
-	dim as integer   br  (0 to n - 1)
-	dim as double    FFTB(0 to n - 1)
-
-	CONST AS DOUBLE  PI = 3.1415926535897932384626433
-	DIM   AS DOUBLE  c, s, xt, yt, p, a, i, j, k, l, n1, n2, ie, ia
-	DIM   AS INTEGER ST
-	dim   as integer m = int(log(n) / log(2))
-
-	FOR i = 0 TO (N - 1)
-		out_data[i].re = in_data[i].re
-		out_data[i].im = in_data[i].im
-	NEXT i
-
-	'----------------------------------------------------
-	'--------------------------FFT-----------------------
-	'----------------------------------------------------
-	p = 2*PI/n
-	n2 = n
-	for k = 1 to m
-	n1 = n2
-	n2 /= 2
-	ie = n/n1
-	ia = 1
-	for j = 0 to n2-1
-		a = (ia - 1)*p
-		c = cos(a)
-		s = sin(a)
-		ia += ie
-		for i = j to n-1 step n1
-			l = i + n2
-			xt = out_data[i].re - out_data[l].re
-			out_data[i].re += out_data[l].re
-			yt = out_data[i].im - out_data[l].im
-			out_data[i].im += out_data[l].im
-			out_data[l].re = c * xt + s * yt
-			out_data[l].im = c * yt - s * xt
-		next i
-	next j
-	next k
-	'----------------------------------------------------
-	'----------------------END-FFT-----------------------
-	'----------------------------------------------------
-
-	'----------------------------------------------------
-	'--------------------------BIT-REVERSAL--------------
-	'----------------------------------------------------
-	'--------------------REAL
-	ST=1
-	DO
-		FOR k = 1 to 2^(ST-1)
-			br(k) *= 2
-		NEXT k
-		FOR k = 0 to 2^(ST-1)-1
-			br(k + 2^(st-1)) = br(k) + 1
-		NEXT k
-		ST += 1
-	LOOP UNTIL ST > M
-
-	FOR k = 0 to N - 1
-		FFTB(k) = out_data[br(k)].re
-	NEXT K
-
-	FOR k = 0 to N - 1
-		out_data[k].re = FFTB(k)
-	NEXT k
-	'--------------------IMAGINARY
-	ST=1
-	DO
-		FOR k = 1 to 2^(ST-1)
-			br(k) *= 2
-		NEXT k
-		FOR k = 0 to 2^(ST-1)-1
-			br(k + 2^(st-1)) = br(k) + 1
-		NEXT k
-		ST += 1
-	LOOP UNTIL ST > M
-
-	FOR k = 0 to N-1
-		FFTB(k) = out_data[br(k)].im
-	NEXT K
-
-	FOR k = 1 to N - 1
-		out_data[k].im = -FFTB(k)
-	NEXT k
-	'----------------------------------------------------
-	'----------------------END-BIT-REVERSAL--------------
-	'---------------------------------------------------- 
-
-	'----------------------------------------------------
-	'--------------------------Conjugate-Normalize-------
-	'----------------------------------------------------
-	if inverse then
-		for i = 0 to n-1
-			out_data[i].im = -out_data[i].im
-		next i
-	end if
-
-	if inverse = 0 then
-		p = n
-		for i = 0 to n-1
-			out_data[i].im /= p
-			out_data[i].re /= p
-		next i
-	end if
-	'----------------------------------------------------
-	'----------------------End-Conjugate-Normalize-------
-	'----------------------------------------------------
-
-end sub
-
-'' yetiplay-derived audio engine is as follows:
-
-'::::::::
-type ogg_t
-	oggStream as OggVorbis_File
-end type
-
-'::::::::
-type mp3_t
-	m as any ptr
-end type
-
-'::::::::
-enum audiofile_e
-	AF_BAD
-	AF_NONE
-	AF_MP3
-	AF_OGG
-end enum
-
-'::::::::
-type audiofile_t
-	t        as audiofile_e
-	mp3      as mp3_t ptr
-	ogg      as ogg_t ptr
-	filename as string
-	hfile    as FILE ptr
-	rate     as integer
-	channels as integer
-	pcm_buf  as string
-end type
-
-'::::::::
-type audio_t
-	af      as audiofile_t ptr
-	samples as integer
-	skip    as integer
-	playing as integer
-	mute    as integer
-	pcm     as string
-end type
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' Callbacks for ogg/mp3 decoding and feeding to audio backend
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-sub af_read_until cdecl _
-	( _
-		byval af     as audiofile_t ptr, _
-		byval amount as integer _
-	)
-
-	while len( af->pcm_buf ) < amount
-
-	dim as integer read_len
-	dim as string  _in     = space( 16384 )
-	dim as string  _out    = space( 32768 )
-	dim as integer INBUFF  = 16384
-	dim as integer OUTBUFF = 32768
-
-	select case af->t
-		case AF_MP3
-			dim as mp3_t ptr mp3 = af->mp3
-
-			' Try and decode some more mp3 if running low
-			dim as integer size
-			dim as integer ret
-
-			read_len = fread( @_in[0], 1, INBUFF, af->hfile )
-			if read_len > 0 then
-				ret = mpg123_decode( af->mp3->m, @_in[0], read_len, @_out[0], OUTBUFF, @size )
-
-				af->pcm_buf += left( _out, size )
-
-				while (ret <> MPG123_ERR) and (ret <> MPG123_NEED_MORE)
-					ret = mpg123_decode( af->mp3->m,NULL,0,@_out[0],OUTBUFF,@size)
-					af->pcm_buf += left( _out, size )
-				wend
-
-				if ret = MPG123_ERR then
-					puts "audiofile_open: MPG123_ERR"
-					end 1
-				end if
-			elseif read_len < 0 then
-				puts "fread error 3"
-				end
-			else
-				exit sub
-			end if
-		case AF_OGG
-			dim as integer section
-
-			read_len = ov_read( @af->ogg->oggStream, @_out[0], OUTBUFF, 0, 2, 1, @section )
-			if read_len > 0 then
-				af->pcm_buf += left( _out, read_len )
-			elseif read_len < 0 then
-				puts "vorbis error 3"
-				end
-			else
-				exit sub
-			end if
-	end select
-
-	wend
-
-end sub
-
-dim shared as integer callbacks
-
-'::::::::
-sub af_callback cdecl _
-	( _
-		byval userdata as any ptr, _
-		byval stream   as Uint8 ptr, _
-		byval _len     as integer _
-	)
-
-	callbacks += 1
-
-	dim as audio_t ptr audio = userdata
-	dim as audiofile_t ptr af = audio->af
-	dim as integer skipbytes = (audio->skip / 1000) * af->rate * af->channels * sizeof( short )
-
-	' Read enough to be able to skip
-	af_read_until( af, skipbytes )
-
-	' Perform skip
-	af->pcm_buf = right( af->pcm_buf, len( af->pcm_buf ) - skipbytes )
-	audio->skip = 0
-
-	' Read some to play
-	af_read_until( af, _len )
-
-	' play what we have, and end if we have none left
-	if len( af->pcm_buf ) > _len then
-		memcpy( stream, @af->pcm_buf[0], _len )
-		af->pcm_buf = right( af->pcm_buf, len( af->pcm_buf ) - _len )
-	elseif len( af->pcm_buf ) > 0 then
-		memcpy( stream, @af->pcm_buf[0], len( af->pcm_buf ) )
-		af->pcm_buf = ""
-	else
-		SDL_PauseAudio(1)
-		audio->playing = 0
-		exit sub
-	end if
-
-	audio->pcm += space( _len )
-
-	dim as any ptr p = @audio->pcm[len( audio->pcm ) - _len]
-
-	memcpy( p, stream, _len )
-
-	if audio->mute then
-		memset( stream, 0, _len )
-	end if
-
-end sub
-
-'::::::::
-function audiofile_open _
-	( _
-		byref _filename_ as string _
-	) as audiofile_t ptr
-
-	dim as audiofile_t ptr af = new audiofile_t
-
-	select case lcase( right( _filename_, 4 ) )
-		case ".mp3"
-			af->t = AF_MP3
-			af->mp3 = new mp3_t
-		case ".ogg"
-			af->t = AF_OGG
-			af->ogg = new ogg_t
-		case else
-			puts "audiofile_open: bad filetype"
-			end 1
-	end select
-
-	af->filename = _filename_
-	if _filename_ = "" then
-		puts "audiofile_open: attempt to open an file with no name specified"
-		end 1
-	end if
-
-	af->hfile = fopen( _filename_, "rb" )
-	if af->hfile = NULL then
-		puts "audiofile_open: fopen failed"
-		end 1
-	end if
-
-	select case af->t
-		case AF_MP3
-			af->mp3->m = mpg123_new( NULL, NULL )
-			if af->mp3->m = NULL then
-				puts "audiofile_open: mpg123_new failed"
-				end 1
-			end if
-
-			mpg123_open_feed( af->mp3->m )
-
-			dim as integer read_len
-			dim as integer size
-			dim as integer ret
-			dim as string  _in     = space( 16384 )
-			dim as string  _out    = space( 32768 )
-			dim as integer INBUFF  = 16384
-			dim as integer OUTBUFF = 32768
-
-			dim as integer skip_size ' id3v2 skip size
-
-			read_len = fread( @_in[0], 1, INBUFF, af->hfile )
-
-			' skip any ID3 header, we need to get the NEW_FORMAT asap
-			if left( _in, 3 ) = "ID3" then
-				dim as uinteger i = *cast( uinteger ptr, @_in[6] )
-				dim as uinteger j
-
-				for k as integer = 0 to 3
-					j shl= 7
-					j or= cast( ubyte ptr, @i )[k]
-				next k
-
-				skip_size = j + 10 ' footer not going to be a problem here?
-			end if
-
-			while skip_size > 0
-				if skip_size >= INBUFF then
-					read_len = fread( @_in[0], 1, INBUFF, af->hfile )
-					if read_len <= 0 then
-						puts "audiofile_open: empty mp3 file?"
-						end 1
-					end if
-					skip_size -= read_len
-				else
-					' need to do more here really...
-					exit while
-				end if
-			wend
-
-			if read_len <= 0 then
-				puts "audiofile_open: empty mp3 file?"
-				end 1
-			end if
-
-			ret = mpg123_decode( af->mp3->m, @_in[0], read_len, @_out[0], OUTBUFF, @size )
-			if ret = MPG123_NEW_FORMAT then
-				dim as long rate
-				dim as integer channels, enc
-				mpg123_getformat( af->mp3->m, @rate, @channels, @enc )
-				af->channels = channels
-				af->rate = rate
-				puts "New format: " & rate & " Hz, " & channels & " channels, encoding value " & enc
-			else
-				puts "Expected format"
-				end 1
-			end if
-
-			af->pcm_buf += left( _out, size )
-
-			while (ret <> MPG123_ERR) and (ret <> MPG123_NEED_MORE)
-				ret = mpg123_decode( af->mp3->m,NULL,0,@_out[0],OUTBUFF,@size)
-				af->pcm_buf += left( _out, size )
-			wend
-
-			if ret = MPG123_ERR then
-				puts "audiofile_open: MPG123_ERR"
-				end 1
-			end if
-
-			' Read some to play
-			af_read_until( af, 32768 )
-		case AF_OGG
-			dim as vorbis_info ptr vorbisInfo
-
-			if ov_open( af->hfile, @af->ogg->oggStream, NULL, 0 ) <> 0 then
-				puts "audiofile_open: ov_open failed"
-				end 1
-			end if
-
-			vorbisInfo = ov_info( @af->ogg->oggStream, -1 )
-
-			af->rate = vorbisInfo->rate
-			af->channels = vorbisInfo->channels
-
-			' Read some to play
-			af_read_until( af, 32768 )
-	end select
-
-	function = af
-
-end function
-
-'::::::::
-sub audiofile_close _
-	( _
-		byval af as audiofile_t ptr _
-	)
-
-	select case af->t
-		case AF_MP3
-			mpg123_delete( af->mp3->m )
-			delete af->mp3
-			af->t = AF_NONE
-		case AF_OGG
-			ov_clear( @af->ogg->oggStream )
-			delete af->ogg
-			af->t = AF_NONE
-	end select
-
-	delete af
-
-end sub
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-' audio backend object functions
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-'::::::::
-function audio_open _
-	( _
-		byval af      as audiofile_t ptr, _
-		byval samples as integer _
-	) as audio_t ptr
-
-	dim as audio_t ptr   audio = new audio_t
-	dim as SDL_AudioSpec desired
-
-	audio->af        = af
-	audio->samples   = samples
-
-	desired.freq     = af->rate
-	desired.format   = AUDIO_S16
-	desired.channels = af->channels
-	desired.samples  = samples
-	desired.callback = @af_callback
-	desired.userdata = audio
-
-	if SDL_OpenAudio( @desired, NULL ) then
-		puts "SDL_OpenAudio: " & *SDL_GetError( )
-		end
-	end if
-
-	function = audio
-
-end function
-
-'::::::::
-sub audio_play _
-	( _
-		byval audio as audio_t ptr _
-	)
-
-	audio->playing = -1
-	SDL_PauseAudio(0)
-
-end sub
-
-'::::::::
-sub audio_stop _
-	( _
-		byval audio as audio_t ptr _
-	)
-
-	SDL_PauseAudio(1)
-	audio->playing = 0
-
-end sub
-
-'::::::::
-sub audio_skip _
-	( _
-		byval audio        as audio_t ptr, _
-		byval milliseconds as integer _
-	)
-
-	SDL_LockAudio( )
-	audio->skip += milliseconds
-	SDL_UnlockAudio( )
-
-end sub
-
-'::::::::
-sub audio_close _
-	( _
-		byval audio as audio_t ptr _
-	)
-
-	SDL_CloseAudio( )
-
-	delete audio
-
-end sub
-
-
 
 Sub DrawSpectrum Alias "DrawSpectrum" (spectrum As Single Ptr) Export
 	Dim X As Integer
@@ -2958,7 +2431,7 @@ Do
 
 		If IsSilent <> 1 Then
 			If SpectrumOn = 1 Then      
-				DrawSpectrum(spectrum)       
+			DrawSpectrum(spectrum)       
 			End If
 
 			'ScreenUnlock
