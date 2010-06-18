@@ -1,0 +1,14 @@
+#summary How to play unsupported files on Unix
+#labels Phase-Requirements,Phase-Design
+
+= Introduction =
+
+On Windows, there is the DirectShow API to provide access to system-wide codecs, and will be used to leverage support for unsupported formats on Windows. However, Linux (and other Unixes) do not have DirectShow, but instead, GStreamer.
+
+= Details =
+
+PsyMP3 2.x will support a new audio subsystem to replace FMOD, and this subsystem will be rolling a few built-in codecs. Failing to find a suitable built-in codec, there will be a "catch-all" codec that links to an external API.
+
+As stated previously, the Windows version of this codec will be a wrapper to DirectShow or, failing to find a codec there, to the ACM API. On Linux, instead, the "catch-all" codec will instead use GStreamer to play any formats not directly supported.
+
+On other OSes aside from traditional UNIX and Windows, external codec support probably won't exist, but don't fret: MP3, Ogg Vorbis, and FLAC are core formats and will _always_ be supported.
