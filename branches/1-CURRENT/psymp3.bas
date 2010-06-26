@@ -15,7 +15,6 @@
 '
 ' $Id $
 '
-#Include Once "ext/containers/queue.bi"
 
 
 #Include Once "psymp3.bi"
@@ -23,9 +22,6 @@
 '#Include Once "id3tag.bi"
 '#include once "jpeg.bi"
 #include once "freetype2/freetype.bi"
-
-#include Once "vbcompat.bi"
-#Include Once "md5.bi"
 
 #Ifdef LIBSEVEN
 #Include Once "libseven.bi"
@@ -37,22 +33,7 @@ LIBXML_TEST_VERSION()
 
 #If Not Defined(Boolean)
 	#Define Boolean integer
-#endif
-
-Dim Shared As String mp3artist, mp3name, mp3album, mp3file
-Dim Shared As WString * 1024 mp3artistW, mp3nameW, mp3albumW, mp3fileW
-
-Dim Shared stream as FSOUND_STREAM Ptr
-Dim Shared IsPaused as Integer
-Dim Shared doRepeat As Integer
-Dim Shared doCommand As Integer
-Dim Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
-Dim Shared songstart As Integer ' Song start time in UNIX format.
-#ifdef __FB_WIN32__
-Dim Shared WAWindow As HWND
-Dim Shared MainWnd As HWND
 #EndIf
-Dim Shared songlength As Integer
 
 Using FB
 
@@ -1699,20 +1680,6 @@ If Command(1) = "--largo" Then
 	End
 End If
 
-
-/'
-Dim fd As Integer = FreeFile()
-Open "lastfm_config.txt" For Input As #fd
-Line Input #fd, lastfm_username
-Line Input #fd, lastfm_password
-Close #fd
-
-printf(!"Last.fm username: %s. password: %s.\n", lastfm_username, String(Len(lastfm_password), "*"))
-lastfm_sessionkey = lastfm_session()
-If lastfm_sessionkey <> "" Then
-   printf(!"Last.fm login successful!\n")
-EndIf
-'/
 #Ifndef IGNORE_FBVER
 	#if (__FB_VER_MAJOR__ = 0) And (__FB_VER_MINOR__ >= 20)
       ' Not known if this is needed because gfxlib2 is using more

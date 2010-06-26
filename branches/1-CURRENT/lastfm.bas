@@ -26,7 +26,7 @@ Constructor LastFM() Export
 	this.loadScrobbles()
 	printf(!"LastFM::LastFM(): username: %s, password: %s.\n", this.c_username, String(Len(this.c_password), "*")) 
 	this.m_session = this.getSessionKey()
-	Lastfm_sessionkey = this.m_session
+	'Lastfm_sessionkey = this.m_session
 	printf(!"LastFM::LastFM(): Last.fm login successful!\n")
 	this.c_xmlpath = CurDir()
 	printf(!"LastFM::LastFM(): last.fm directory: %s\n", this.c_xmlpath)
