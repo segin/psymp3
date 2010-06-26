@@ -212,8 +212,7 @@ ScreenControl 2, hWnd
 			FSOUND_SetOutput(FSOUND_OUTPUT_ALSA)
 		#endif
 	#endif
-#endif
-
+#EndIf
 
 WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Not playing"
 InitFMOD()        

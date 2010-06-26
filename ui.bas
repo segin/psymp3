@@ -52,11 +52,12 @@ function file_getname Alias "file_getname" ( byval hWnd as HWND ) as String Expo
 		.nFileExtension		= 0
 		.lpstrDefExt		= NULL
 		.lCustData			= 0
-		.lpfnHook			= NULL
+		'.lpfnHook		= NULL
 		.lpTemplateName		= NULL
 	end With
 	
-	if( GetOpenFileName( @ofn ) = FALSE ) then
+	
+	If( GetOpenFileName( @ofn ) = FALSE ) then
 		return ""
 	else
 		return filename
