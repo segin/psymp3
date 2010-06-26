@@ -23,15 +23,16 @@
 #Define __PSYMP3_BI__
 
 #define PSYMP3_VERSION "1-CURRENT"
-#include once "fmod.bi"
 
-#Include once "crt.bi"
-#include once "crt/stdlib.bi"
-#include once "crt/sys/types.bi"
-#include once "crt/stddef.bi"
+#Include Once "fmod.bi"
+#Include Once "crt.bi"
+#Include Once "crt/stdlib.bi"
+#Include Once "crt/sys/types.bi"
+#Include Once "crt/stddef.bi"
 '#Include Once "ext/containers/queue.bi"
-#include Once "libxml/xmlreader.bi"
-#include Once "libxml/xmlwriter.bi"
+#Include Once "libxml/xmlreader.bi"
+#Include Once "libxml/xmlwriter.bi"
+#Include Once "freetype2/freetype.bi"
 #Ifdef __FB_WIN32__
 #define WIN_INCLUDEALL
 #include once "windows.bi" 
@@ -39,14 +40,19 @@
 #define SIGINT 3
 #EndIf
 
-/' Misc library defines '/
+/' Misc library headers '/
 #Include Once "wshelper.bi"
 #include Once "vbcompat.bi"
 #Include Once "md5.bi"
+#include once "fbgfx.bi"
 
+/' Local headers '/
 #Include Once "scrobble.bi"
 #Include Once "lastfm.bi"
 #Include Once "playlist.bi"
+#Include Once "strings.bi"
+#Include Once "freetype2.bi"
+#Include Once "multiput.bi"
 
 ' #Define USE_ASM 1 
 
@@ -60,9 +66,7 @@ Declare Function getmp3artist Alias "getmp3artist" (stream As FSOUND_STREAM Ptr)
 Declare Function getmp3name Alias "getmp3name" (stream As FSOUND_STREAM Ptr) As String
 Declare Function getmp3artistW Alias "getmp3artistW" (stream As FSOUND_STREAM Ptr) As WString Ptr
 Declare Function getmp3nameW Alias "getmp3nameW" (stream As FSOUND_STREAM Ptr) As WString Ptr
-Declare Function MD5str Alias "MD5str" (chars As String) As String
-Declare Function percent_encode Alias "percent_encode" (message As String) As String
-Declare Function percent_encodeW Alias "percent_encodeW" (messageW As WString Ptr) As String
+
 
 Union tagText
 	As Byte Ptr ascii
@@ -83,9 +87,14 @@ Type extendedFileInfoStructW
 	As Integer retlen
 End Type
 
+Type CopyData
+	dwData As Integer
+	cbData As Integer
+	lpData As Any Ptr
+End Type
+
 Common Shared As String mp3artist, mp3name, mp3album, mp3file
 Common Shared As WString * 1024 mp3artistW, mp3nameW, mp3albumW, mp3fileW
-
 Common Shared stream as FSOUND_STREAM Ptr
 Common Shared IsPaused as Integer
 Common Shared doRepeat As Integer
@@ -98,5 +107,28 @@ Common Shared MainWnd As HWND
 #EndIf
 Common Shared songlength As Integer
 
+extern "c"
+declare function getpid () as Integer
+#ifndef __FB_WIN32__
+Declare Sub _Exit Alias "_Exit" (ByVal errcode As Integer)
+declare function kill_ alias "kill" (byval pid as pid_t, byval sig as integer) as Integer
+#endif
+#Ifdef __FB_WIN32__
+Declare Function wsprintfW Alias "wsprintfW" (buf As WString ptr, fmt As WString Ptr, ...) As Integer 
+#endif
+Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
+End Extern
+
+#Ifdef __FB_WIN32__
+Declare sub MsgBox(hWnd As HWND, msg As String)
+#Else
+Extern "C++"
+	Declare Sub MsgBox Alias "messageBox" (ByVal hWnd as Integer, ByVal msg As ZString Ptr)
+End Extern
+#endif
+ 
+#ifdef __FB_WIN32__
+#Inclib "dir"
+#EndIf
 
 #EndIf /' __PSYMP3_BI__ '/
