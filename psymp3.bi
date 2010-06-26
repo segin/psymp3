@@ -22,7 +22,7 @@
 #Ifndef __PSYMP3_BI__
 #Define __PSYMP3_BI__
 
-#define PSYMP3_VERSION "1-CURRENT"
+#Include Once "psymp3-release.bi"
 
 #Include Once "fmod.bi"
 #Include Once "crt.bi"
@@ -46,6 +46,8 @@
 #Include Once "md5.bi"
 #include once "fbgfx.bi"
 
+#Define USE_ASM 1 
+
 /' Local headers '/
 #Include Once "scrobble.bi"
 #Include Once "lastfm.bi"
@@ -53,8 +55,13 @@
 #Include Once "strings.bi"
 #Include Once "freetype2.bi"
 #Include Once "multiput.bi"
-
-' #Define USE_ASM 1 
+#Include Once "tagutil.bi"
+#Include Once "cpuid.bi"
+#Include Once "ui.bi"
+#Ifdef __FB_WIN32__
+#Include Once "msnmsgr.bi"
+#Include Once "winamp-ipc.bi"
+#EndIf /' __FB_WIN32__ '/
 
 #If Defined(__FB_LINUX__) And Not Defined(I_UNDERSTAND_PSYMP3_IS_BROKEN_ON_LINUX) 
 #error PSYMP3 IS KNOWN TO BE BROKEN ON LINUX. I REFUSE TO HELP YOU IF IT BREAKS.
@@ -62,11 +69,19 @@
 #Error Define the symbol I_UNDERSTAND_PSYMP3_IS_BROKEN_ON_LINUX to disable this checkpoint.
 #EndIf
 
-Declare Function getmp3artist Alias "getmp3artist" (stream As FSOUND_STREAM Ptr) As String
-Declare Function getmp3name Alias "getmp3name" (stream As FSOUND_STREAM Ptr) As String
-Declare Function getmp3artistW Alias "getmp3artistW" (stream As FSOUND_STREAM Ptr) As WString Ptr
-Declare Function getmp3nameW Alias "getmp3nameW" (stream As FSOUND_STREAM Ptr) As WString Ptr
+#If Not Defined(Boolean)
+	#Define Boolean integer
+#EndIf
 
+Using FB
+
+Enum PSYMP3_COMMANDS
+	PSYMP3_PLAY_NEXT
+	PSYMP3_PLAY_PREV
+	PSYMP3_PAUSE
+	PSYMP3_PLAY
+	PSYMP3_STOP ' alias for kill
+End Enum
 
 Union tagText
 	As Byte Ptr ascii
@@ -93,6 +108,9 @@ Type CopyData
 	lpData As Any Ptr
 End Type
 
+Declare Function plGetPosition Alias "plGetPosition" () As Integer
+Declare Function plGetEntries Alias "plGetEntries" () As Integer
+
 Common Shared As String mp3artist, mp3name, mp3album, mp3file
 Common Shared As WString * 1024 mp3artistW, mp3nameW, mp3albumW, mp3fileW
 Common Shared stream as FSOUND_STREAM Ptr
@@ -104,6 +122,9 @@ Common Shared songstart As Integer ' Song start time in UNIX format.
 #ifdef __FB_WIN32__
 Common Shared WAWindow As HWND
 Common Shared MainWnd As HWND
+Common Shared As HWND hWnd
+#else 
+Common Shared As Integer hWnd
 #EndIf
 Common Shared songlength As Integer
 
@@ -119,14 +140,6 @@ Declare Function wsprintfW Alias "wsprintfW" (buf As WString ptr, fmt As WString
 Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
 End Extern
 
-#Ifdef __FB_WIN32__
-Declare sub MsgBox(hWnd As HWND, msg As String)
-#Else
-Extern "C++"
-	Declare Sub MsgBox Alias "messageBox" (ByVal hWnd as Integer, ByVal msg As ZString Ptr)
-End Extern
-#endif
- 
 #ifdef __FB_WIN32__
 #Inclib "dir"
 #EndIf

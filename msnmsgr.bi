@@ -1,4 +1,4 @@
-/*
+/'
     $Id $
 
     This file is part of PsyMP3.
@@ -16,18 +16,16 @@
     You should have received a copy of the GNU General Public License
     along with PsyMP3; if not, write to the Free Software
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
-*/
+'/
 
-#include <iostream>
+#Ifndef __MSNMSGR_BI__
+#Define __MSNMSGR_BI__
 
-class Playlist { 
-private:
-	int		m_entries;
-	int		m_position;
-	string[]	m_playlist;
-public:
-	Playlist();
-	~Playlist();
-}
+#Include Once "psymp3.bi"
 
+#Ifdef __FB_WIN32__
+Declare Sub AnnounceWMP Alias "AnnounceWMP" (artist As String, Title As String, Album As String)
+Declare Sub ClearWMP Alias "ClearWMP" ()
+#EndIf __FB_WIN32__
 
+#EndIf /' __MSNMSGR_BI__ '/
