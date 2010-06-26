@@ -29,7 +29,7 @@
 #include once "crt/stdlib.bi"
 #include once "crt/sys/types.bi"
 #include once "crt/stddef.bi"
-#Include Once "ext/containers/queue.bi"
+'#Include Once "ext/containers/queue.bi"
 #include Once "libxml/xmlreader.bi"
 #include Once "libxml/xmlwriter.bi"
 #Ifdef __FB_WIN32__
