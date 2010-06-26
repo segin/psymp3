@@ -46,7 +46,7 @@
 #Include Once "md5.bi"
 #include once "fbgfx.bi"
 
-#Define USE_ASM 1 
+' #Define USE_ASM 1 
 
 /' Local headers '/
 #Include Once "scrobble.bi"
