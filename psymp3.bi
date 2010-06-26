@@ -23,22 +23,26 @@
 #Define __PSYMP3_BI__
 
 #define PSYMP3_VERSION "1-CURRENT"
+#include once "fmod.bi"
 
 #Include once "crt.bi"
 #include once "crt/stdlib.bi"
 #include once "crt/sys/types.bi"
 #include once "crt/stddef.bi"
+#Include Once "ext/containers/queue.bi"
 #include Once "libxml/xmlreader.bi"
 #include Once "libxml/xmlwriter.bi"
-#ifdef __FB_WIN32__
+#Ifdef __FB_WIN32__
 #define WIN_INCLUDEALL
 #include once "windows.bi" 
 #else
 #define SIGINT 3
 #EndIf
-#include once "fmod.bi"
 
+/' Misc library defines '/
 #Include Once "wshelper.bi"
+#include Once "vbcompat.bi"
+#Include Once "md5.bi"
 
 #Include Once "scrobble.bi"
 #Include Once "lastfm.bi"
@@ -79,4 +83,20 @@ Type extendedFileInfoStructW
 	As Integer retlen
 End Type
 
+Common Shared As String mp3artist, mp3name, mp3album, mp3file
+Common Shared As WString * 1024 mp3artistW, mp3nameW, mp3albumW, mp3fileW
+
+Common Shared stream as FSOUND_STREAM Ptr
+Common Shared IsPaused as Integer
+Common Shared doRepeat As Integer
+Common Shared doCommand As Integer
+Common Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
+Common Shared songstart As Integer ' Song start time in UNIX format.
+#ifdef __FB_WIN32__
+Common Shared WAWindow As HWND
+Common Shared MainWnd As HWND
 #EndIf
+Common Shared songlength As Integer
+
+
+#EndIf /' __PSYMP3_BI__ '/
