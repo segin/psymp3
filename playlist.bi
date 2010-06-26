@@ -39,6 +39,7 @@ Public:
 	Declare Sub addFile Alias "addFile" (file As String)
 	Declare Sub addRawFile Alias "addRawFile" (file As String)
 	Declare Sub savePlaylist Alias "savePlayList" (file As String)
+	Declare Sub addPlaylist Alias "addPlayList" (m3u_file As String)
 	Declare Function getNextFile Alias "getNextFile" () As String
 	Declare Function getPrevFile Alias "getPrevFile" () As String
 	Declare Function getPosition Alias "getPosition" () As Integer

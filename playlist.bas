@@ -102,4 +102,27 @@ Sub Playlist.savePlaylist Alias "savePlaylist" (file As String) Export
 	fclose(fd)
 End Sub
 
+Sub Playlist.addPlaylist Alias "addPlaylist" (m3u_file As String) Export
+	Dim As Integer fd = FreeFile()
+	Dim As String text
+	Dim As Integer ret
+	ret = Open (m3u_file, For Input, As #fd)
+	If ret <> 0 Then Return
+	Do
+		Line Input #fd, text
+		If Left(text,1) <> "#" Then
+			#Ifdef __FB_WIN32__
+			If Mid(text,2,2) = ":\" Then
+			#Else
+			If text[0] = Asc("/") Then
+			#EndIf
+				This.addFile(text)
+			Else
+				This.addFile(*Cast(ZString Ptr,dirname(m3u_file)) + "/" + text)
+			End If
+		End If
+	Loop While Eof(fd) = 0
+	Close #fd
+End Sub
+
 '' End Playlist code.
