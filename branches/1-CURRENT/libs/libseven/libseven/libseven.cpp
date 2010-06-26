@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 struct tState state = {
-	420, 
+	0, 
 	NULL,
 	NULL,
 	NULL
