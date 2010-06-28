@@ -21,7 +21,7 @@
 #Ifndef __CPUID_BI__
 #Define __CPUID_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 #Ifdef USE_ASM
 Declare Function ReadEFLAG Alias "ReadEFLAG" () as UInteger

@@ -24,8 +24,7 @@
 ''
 
 
-#include once "crt.bi"
-#include once "wshelper.bi"
+#Include Once "psymp3.bi"
 
 #ifdef __FB_WIN32__
 function hStart Alias "hStart" ( ) as integer export

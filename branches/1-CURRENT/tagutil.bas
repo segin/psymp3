@@ -18,7 +18,7 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 '/
 
-#Include Once "tagutil.bi"
+#Include Once "psymp3.bi"
 
 Function getmp3name Alias "getmp3name" ( byval stream as FSOUND_STREAM ptr ) as String Export 
 	dim tagname as zstring ptr, taglen as integer

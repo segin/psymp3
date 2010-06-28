@@ -21,7 +21,7 @@
 #Ifndef __MULTIPUT_BI__
 #Define __MULTIPUT_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 Declare Sub MultiPut Alias "MultiPut" (Byval lpTarget As Any Ptr= 0, Byval xMidPos  As Integer= 0, Byval yMidPos  As Integer= 0, Byval lpSource As Any Ptr   , Byval xScale   As Single = 1, Byval yScale   As Single = 1, Byval Rotate   As Single = 0, Byval Trans    As Integer= 0)
 

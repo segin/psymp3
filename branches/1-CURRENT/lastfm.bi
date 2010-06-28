@@ -21,8 +21,8 @@
 #Ifndef __LASTFM_BI__
 #Define __LASTFM_BI__
 
-#Include Once "psymp3.bi"
-#Include Once "scrobble.bi"
+'#Include Once "psymp3.bi"
+'#Include Once "scrobble.bi"
 
 Type LastFM Alias "LastFM"
 Private:

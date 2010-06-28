@@ -21,7 +21,7 @@
 #Ifndef __MSNMSGR_BI__
 #Define __MSNMSGR_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 #Ifdef __FB_WIN32__
 Declare Sub AnnounceWMP Alias "AnnounceWMP" (artist As String, Title As String, Album As String)

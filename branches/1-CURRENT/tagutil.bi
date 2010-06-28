@@ -21,7 +21,7 @@
 #Ifndef __TAGUTIL_BI__
 #Define __TAGUTIL_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 Declare Function getmp3artist Alias "getmp3artist" (stream As FSOUND_STREAM Ptr) As String
 Declare Function getmp3name Alias "getmp3name" (stream As FSOUND_STREAM Ptr) As String

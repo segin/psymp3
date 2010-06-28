@@ -21,7 +21,7 @@
 #Ifndef __STRINGS_BI__
 #Define __STRINGS_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 Declare Function MD5str Alias "MD5str" (chars As String) As String
 Declare Function percent_encode Alias "percent_encode" (message As String) As String

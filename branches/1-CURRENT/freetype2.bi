@@ -21,7 +21,7 @@
 #Ifndef __FREETYPE2_BI__
 #Define __FREETYPE2_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 ' Alpha blending 
 #define FT_MASK_RB_32         &h00FF00FF 

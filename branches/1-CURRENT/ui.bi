@@ -21,7 +21,7 @@
 #Ifndef __UI_BI__
 #Define __UI_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 #ifdef __FB_WIN32__
 Declare Function file_getname Alias "file_getname" ( byval hWnd as HWND ) as String
@@ -38,5 +38,41 @@ Declare Function file_getname Alias "file_getname" (ByVal hWnd as integer) As St
 #EndIf /' __FB_WIN32__ '/
 Declare Sub DrawSpectrum Alias "DrawSpectrum" (spectrum As Single Ptr)
 Declare Sub ShowAbout Alias "ShowAbout" (ByVal T As Any Ptr)
+
+Declare sub draw_notes _
+	( _
+		byval n        as integer, _        /' number of samples '/
+		byval out_data as complex_t ptr, _  /' sample data after fft '/
+		byval col      as uinteger _        /' colour '/
+	)
+	
+Declare sub draw_fft _
+	( _
+		byval n        as integer, _        /' number of samples '/
+		byval out_data as complex_t ptr, _  /' sample data after fft '/
+		byval max_freq as integer, _        /' display 0 - max_freq '/
+		byval col      as uinteger, _       /' colour '/
+		byval sp       as any ptr, _        /' screen ptr '/
+		byval pitch    as integer _         /' screen pitch '/
+	)
+	
+Declare sub draw_scope _
+	( _
+		byval n        as integer, _        /' number of samples '/
+		byval in_data  as complex_t ptr, _  /' sample data '/
+		byval col      as uinteger _        /' colour '/
+	)
+Declare Sub fade_screen Alias "fade_screen" _
+	( _
+		byval sp       as any ptr, _        /' screen ptr '/
+		byval pitch    as integer _         /' screen pitch '/
+	)
+Declare Sub draw_screen Alias "draw_screen" _
+	( _
+		byval n        as integer, _        /' number of samples '/
+		byval in_data  as complex_t ptr, _  /' sample data '/
+		byval out_data as complex_t ptr, _  /' sample data after fft '/
+		byval max_freq as integer _         /' display 0 - max_freq '/
+	)
 
 #EndIf /' __UI_BI__ '/

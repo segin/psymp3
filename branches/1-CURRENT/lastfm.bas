@@ -19,7 +19,7 @@
 '/
 
 #Define PSYMP3_CORE_GLOBALS
-#Include "lastfm.bi"
+#Include "psymp3.bi"
 
 Constructor LastFM() Export
 	this.readConfig()
@@ -366,3 +366,5 @@ Sub LastFM.loadScrobbles Alias "loadScrobbles" () Export
 	Loop
     
 End Sub
+
+'' End Last.fm code

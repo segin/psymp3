@@ -33,39 +33,46 @@
 #Include Once "libxml/xmlreader.bi"
 #Include Once "libxml/xmlwriter.bi"
 #Include Once "freetype2/freetype.bi"
+#Include Once "vorbis/vorbisfile.bi"
+#Include Once "mpg123.bi"
+#Include Once "SDL/SDL.bi"
+'#Include Once "id3tag.bi"
+'#include once "jpeg.bi"
 #Ifdef __FB_WIN32__
-#define WIN_INCLUDEALL
-#include once "windows.bi" 
-#else
-#define SIGINT 3
+#Define WIN_INCLUDEALL
+#Include Once "windows.bi"
+#Include Once "win/winsock2.bi"
+#Else
+#Include Once "crt/netinet/in.bi"
+#Include Once "crt/arpa/inet.bi"
+#Include Once "crt/netdb.bi"
+#Include Once "crt/sys/socket.bi"
+#Include Once "crt/errno.bi"
+#Define TRUE	1
+#Define FALSE	0
+#Define SIGINT 3
 #EndIf
+
 
 /' Misc library headers '/
 #Include Once "wshelper.bi"
 #include Once "vbcompat.bi"
 #Include Once "md5.bi"
-#include once "fbgfx.bi"
+#Include Once "fbgfx.bi"
 
-' #Define USE_ASM 1 
+Using FB
+
+#Define USE_ASM 1 
 
 /' Local headers '/
-#Include Once "scrobble.bi"
-#Include Once "lastfm.bi"
-#Include Once "playlist.bi"
-#Include Once "strings.bi"
-#Include Once "freetype2.bi"
-#Include Once "multiput.bi"
-#Include Once "tagutil.bi"
-#Include Once "cpuid.bi"
-#Include Once "ui.bi"
-#Ifdef __FB_WIN32__
-#Include Once "msnmsgr.bi"
-#Include Once "winamp-ipc.bi"
-#EndIf /' __FB_WIN32__ '/
+
+#Ifdef LIBSEVEN
+#Include Once "libseven.bi"
+#EndIf
 
 #If Defined(__FB_LINUX__) And Not Defined(I_UNDERSTAND_PSYMP3_IS_BROKEN_ON_LINUX) 
-#error PSYMP3 IS KNOWN TO BE BROKEN ON LINUX. I REFUSE TO HELP YOU IF IT BREAKS.
-#error YOU HAVE BEEN WARNED. DANGER LIES AHEAD. TURN BACK NOW AND USE PSYMP3 ON WINDOWS.
+#Error PSYMP3 IS KNOWN TO BE BROKEN ON LINUX. I REFUSE TO HELP YOU IF IT BREAKS.
+#Error YOU HAVE BEEN WARNED. DANGER LIES AHEAD. TURN BACK NOW AND USE PSYMP3 ON WINDOWS.
 #Error Define the symbol I_UNDERSTAND_PSYMP3_IS_BROKEN_ON_LINUX to disable this checkpoint.
 #EndIf
 
@@ -74,6 +81,11 @@
 #EndIf
 
 Using FB
+
+Type complex_t
+	re As Double ' real
+	im As Double ' imaginary
+End Type
 
 Enum PSYMP3_COMMANDS
 	PSYMP3_PLAY_NEXT
@@ -108,40 +120,73 @@ Type CopyData
 	lpData As Any Ptr
 End Type
 
+/'
+Type yetiplay_t
+	screen_width  As Integer = 1024    '
+	screen_height As Integer = 768     '
+	buffer_count  As Integer = 2048*2  ' samples in a buffer
+	fourier_size  As Integer = 2048*1  ' number of samples fourier will use
+End Type
+'/
+
+Type yetiplay_t
+	screen_width  As Integer   '
+	screen_height As Integer   '
+	buffer_count  As Integer   ' samples in a buffer
+	fourier_size  As Integer   ' number of samples fourier will use
+End Type
+
 Declare Function plGetPosition Alias "plGetPosition" () As Integer
 Declare Function plGetEntries Alias "plGetEntries" () As Integer
 
 Common Shared As String mp3artist, mp3name, mp3album, mp3file
 Common Shared As WString * 1024 mp3artistW, mp3nameW, mp3albumW, mp3fileW
-Common Shared stream as FSOUND_STREAM Ptr
-Common Shared IsPaused as Integer
+Common Shared stream As FSOUND_STREAM Ptr
+Common Shared IsPaused As Integer
 Common Shared doRepeat As Integer
 Common Shared doCommand As Integer
 Common Shared As String lastfm_username, lastfm_password, lastfm_sessionkey
 Common Shared songstart As Integer ' Song start time in UNIX format.
-#ifdef __FB_WIN32__
+#Ifdef __FB_WIN32__
 Common Shared WAWindow As HWND
 Common Shared MainWnd As HWND
 Common Shared As HWND hWnd
-#else 
+#Else
 Common Shared As Integer hWnd
 #EndIf
 Common Shared songlength As Integer
 
-extern "c"
-declare function getpid () as Integer
-#ifndef __FB_WIN32__
+Common Shared As yetiplay_t yetiplay
+
+Extern "c"
+declare Function getpid () As Integer
+#Ifndef __FB_WIN32__
 Declare Sub _Exit Alias "_Exit" (ByVal errcode As Integer)
-declare function kill_ alias "kill" (byval pid as pid_t, byval sig as integer) as Integer
-#endif
+declare function kill_ alias "kill" (ByVal pid As pid_t, ByVal sig As Integer) As Integer
+#EndIf
 #Ifdef __FB_WIN32__
-Declare Function wsprintfW Alias "wsprintfW" (buf As WString ptr, fmt As WString Ptr, ...) As Integer 
-#endif
+Declare Function wsprintfW Alias "wsprintfW" (buf As WString Ptr, fmt As WString Ptr, ...) As Integer 
+#EndIf
 Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr 
 End Extern
 
-#ifdef __FB_WIN32__
+#Ifdef __FB_WIN32__
 #Inclib "dir"
 #EndIf
+
+#Include Once "quadfft.bi"
+#Include Once "winamp-ipc.bi"
+#Include Once "ui.bi"
+#Include Once "quadfft.bi"
+#Include Once "scrobble.bi"
+#Include Once "lastfm.bi"
+#Include Once "playlist.bi"
+#Include Once "strings.bi"
+#Include Once "freetype2.bi"
+#Include Once "multiput.bi"
+#Include Once "tagutil.bi"
+#Include Once "cpuid.bi"
+#Include Once "msnmsgr.bi"
+#Include Once "yetiplay.bi"
 
 #EndIf /' __PSYMP3_BI__ '/
