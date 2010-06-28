@@ -21,7 +21,7 @@
 #Ifndef __SCROBBLE_BI__
 #Define __SCROBBLE_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 Type Scrobble Alias "Scrobble" 
 Public: 'This is probably a bad idea, but who cares?

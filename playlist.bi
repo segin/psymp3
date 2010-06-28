@@ -21,7 +21,7 @@
 #Ifndef __PLAYLIST_BI__
 #Define __PLAYLIST_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 Type Playlist Alias "Playlist"
 Private:

@@ -21,7 +21,7 @@
 #Ifndef __WINAMP_IPC_BI__
 #Define __WINAMP_IPC_BI__
 
-#Include Once "psymp3.bi"
+'#Include Once "psymp3.bi"
 
 #Ifdef __FB_WIN32__
 #define IPC_PLAYFILE	100
@@ -47,6 +47,7 @@
 
 Declare Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam As LPARAM) As LRESULT
 Declare Sub InitKVIrcWinampInterface Alias "InitKVIrcWinampInterface" ()
+
 #EndIf /' __FB_WIN32__ '/
 
 #EndIf /' __WINAMP_IPC_BI__ '/

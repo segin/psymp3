@@ -22,7 +22,7 @@
 '' Start CPUID Functions.
 ''
 
-#Include "cpuid.bi"
+#Include "psymp3.bi"
 
 #Ifdef USE_ASM
 

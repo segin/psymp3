@@ -18,7 +18,7 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 '/
 
-#Include Once "strings.bi"
+#Include Once "psymp3.bi"
 
 Function MD5str Alias "MD5str" (chars As String) As String Export
 	Dim md5hex As ZString * 32

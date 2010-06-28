@@ -18,7 +18,7 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 '/
 
-#Include "multiput.bi"
+#Include "psymp3.bi"
 
 ' by D.J.Peters (Joshy)
 ' an put, scale, rotate hackfor the new ImageHeader format.

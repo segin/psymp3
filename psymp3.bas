@@ -17,19 +17,10 @@
 '
 
 #Include Once "psymp3.bi"
-'#Include Once "id3tag.bi"
-'#include once "jpeg.bi"
-
-#Ifdef LIBSEVEN
-#Include Once "libseven.bi"
-#EndIf
 
 LIBXML_TEST_VERSION()
 
 Dim Shared As Playlist Songlist
-
-'' End Last.fm code
-
 Dim Shared As LastFM Scrobbler
 
 Sub EndPlayer Alias "EndPlayer" () Export
@@ -253,6 +244,7 @@ Loop
 #endif
 
 InitKVIrcWinampInterface()
+
 #If Defined(__FB_WIN32__) And Defined(LIBSEVEN)
 printf("Attempting to initialize ITaskbarList3... ")
 Var ITB = InitializeTaskbar()

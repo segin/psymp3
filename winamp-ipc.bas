@@ -18,7 +18,7 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 '/
 
-#Include Once "winamp-ipc.bi"
+#Include Once "psymp3.bi"
 
 #Ifdef __FB_WIN32__
 
@@ -90,7 +90,7 @@ Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam
 				Case IPC_GETLISTPOS
 					Return plGetPosition()
 				Case IPC_GETLISTLENGTH
-					Return plGetEntries()
+						Return plGetEntries()
 				Case IPC_SETVOLUME
 					' Do nothing for now.
 					Return 255

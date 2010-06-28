@@ -18,24 +18,12 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 '/
 
-#Include "psymp3.bi"
 
-Constructor Scrobble()
-	This.setData("", "", "", 0, 0)
-End Constructor
+#Ifndef __QUADFFT_BI__
+#Define __QUADFFT_BI__
 
-Constructor Scrobble(ByRef cpy As Scrobble)
-	This.setData(cpy.m_artist, cpy.m_title, cpy.m_album, cpy.m_length, cpy.m_curtime)
-End Constructor
+'#Include Once "psymp3.bi"
 
-Constructor Scrobble(artist As String, title As String, album As String, length As UInteger, curtime As UInteger)
-	This.setData(artist, title, album, length, curtime)
-End Constructor
+Declare Sub quadfft Alias "quadfft" (ByVal n As Integer, ByVal in_data As complex_t Ptr, ByVal out_data As complex_t Ptr, ByVal inverse As Integer = 0 )
 
-Sub Scrobble.setData Alias "setData" (artist As String, title As String, album As String, length As UInteger, curtime As UInteger)
-	This.m_artist = artist
-	This.m_title = title
-	This.m_album = album
-	This.m_length = length
-	This.m_curtime = curtime
-End Sub
+#EndIf /' __QUADFFT_BI__ '/

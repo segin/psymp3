@@ -18,7 +18,7 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 '/
 
-#Include Once "playlist.bi"
+#Include Once "psymp3.bi"
 
 '' Playlist code. Object-oriented as an experiment
 
