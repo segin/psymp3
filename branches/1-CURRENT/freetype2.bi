@@ -21,7 +21,9 @@
 #Ifndef __FREETYPE2_BI__
 #Define __FREETYPE2_BI__
 
-'#Include Once "psymp3.bi"
+'Type FT2Drawer Alias "FT2Drawer"
+'	
+'End Type
 
 ' Alpha blending 
 #define FT_MASK_RB_32         &h00FF00FF 

@@ -21,8 +21,11 @@
 #Ifndef __LASTFM_BI__
 #Define __LASTFM_BI__
 
-'#Include Once "psymp3.bi"
-'#Include Once "scrobble.bi"
+fbext_TDeclare(fbext_Queue, ((Scrobble)) )
+
+Namespace ext	
+	Type ScrobbleList As fbext_Queue( ((Scrobble)) )
+End Namespace
 
 Type LastFM Alias "LastFM"
 Private:
@@ -32,6 +35,7 @@ Private:
 	m_length(500) As UInteger
 	m_curtime(500) As Integer
 	m_entries As Integer
+	m_scrobbles As ext.ScrobbleList
 	m_session As String
 	c_username As String
 	c_password As String
@@ -55,4 +59,4 @@ Public:
 	Declare Sub submitSavedScrobbles Alias "submitSavedScrobbles" ()
 End Type
 
-#EndIf /' __LASTFM_BI__ '/
+#EndIf /' __LASTFM_BI__ '/ 

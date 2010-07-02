@@ -31,10 +31,13 @@ Public: 'This is probably a bad idea, but who cares?
 	m_length As Integer
 	m_curtime As Integer
 	Declare Constructor()
-	Declare Constructor(ByRef cpy As Scrobble)
-	Declare Constructor(artist As String, title As String, album As String, length As UInteger, curtime As UInteger)
+	Declare Constructor(ByRef cpy As Const Scrobble)
+	Declare Constructor(artist As Const String, title As Const String, album As Const String, length As Const UInteger, curtime As Const UInteger)
 	Declare Destructor()
-	Declare Sub setData Alias "setData" (artist As String, title As String, album As String, length As UInteger, curtime As UInteger)
+	Declare Sub setData Alias "setData" (artist As Const String, title As Const String, album As Const String, length As Const UInteger, curtime As Const UInteger)
 End Type
+
+Declare Operator = (ByRef lhs As Scrobble, ByRef rhs As Scrobble) As Integer
+Declare Operator <> (ByRef lhs As Scrobble, ByRef rhs As Scrobble) As Integer
 
 #EndIf /' __SCROBBLE_BI__ '/

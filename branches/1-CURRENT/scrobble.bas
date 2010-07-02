@@ -24,18 +24,30 @@ Constructor Scrobble()
 	This.setData("", "", "", 0, 0)
 End Constructor
 
-Constructor Scrobble(ByRef cpy As Scrobble)
+Constructor Scrobble(ByRef cpy As Const Scrobble)
 	This.setData(cpy.m_artist, cpy.m_title, cpy.m_album, cpy.m_length, cpy.m_curtime)
 End Constructor
 
-Constructor Scrobble(artist As String, title As String, album As String, length As UInteger, curtime As UInteger)
+Constructor Scrobble(artist As Const String, title As Const String, album As Const String, length As Const UInteger, curtime As Const UInteger)
 	This.setData(artist, title, album, length, curtime)
 End Constructor
 
-Sub Scrobble.setData Alias "setData" (artist As String, title As String, album As String, length As UInteger, curtime As UInteger)
+Destructor Scrobble()
+	This.setData("", "", "", 0, 0)
+End Destructor
+
+Sub Scrobble.setData Alias "setData" (artist As Const String, title As Const String, album As Const String, length As Const UInteger, curtime As Const UInteger)
 	This.m_artist = artist
 	This.m_title = title
 	This.m_album = album
 	This.m_length = length
 	This.m_curtime = curtime
 End Sub
+
+Operator = (ByRef lhs As Scrobble, ByRef rhs As Scrobble) As Integer Export 
+	If lhs.m_curtime = rhs.m_curtime Then
+		Return TRUE
+	Else
+		Return FALSE
+	EndIf
+End Operator

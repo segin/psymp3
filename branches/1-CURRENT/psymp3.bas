@@ -22,6 +22,8 @@ LIBXML_TEST_VERSION()
 
 Dim Shared As Playlist Songlist
 Dim Shared As LastFM Scrobbler
+Dim Shared As audio_t audio
+Dim Shared As audiofile_t af
 
 Sub EndPlayer Alias "EndPlayer" () Export
 	#ifdef __FB_LINUX__
@@ -31,7 +33,6 @@ Sub EndPlayer Alias "EndPlayer" () Export
 	#Else 
 		' TODO: For future use
 	#EndIf
-
 	End
 End Sub
 
@@ -67,6 +68,24 @@ Sub InitFMOD Alias "InitFMOD" () Export
 	FSOUND_Stream_SetBufferSize( 1024 )
 End Sub
 
+Sub InitAudio() 
+	mpg123_init( )
+	SDL_Init( SDL_INIT_EVERYTHING )
+	SDL_AudioInit( NULL )
+End Sub
+
+Sub FiniAudio()
+'	audio_stop( audio )
+'	audio_close( audio )
+'	audiofile_close( af )
+
+	' Cleanly shut down libraries
+	SDL_AudioQuit( )
+	SDL_Quit( )
+	mpg123_exit( )
+End Sub
+
+
 #endif
 
 
@@ -101,6 +120,13 @@ olddir = CurDir
 cpuvendor = GetCPUVendor()
 cpuname = GetCPUName()
 #EndIf
+
+With yetiplay
+	.screen_width = 1024
+	.screen_height = 768 
+	.buffer_count = 2048*2 ' samples in a buffer
+	.fourier_size = 2048*1 
+End With
 
 If cpuvendor = "GenuineIntel" Then
 	' Intel fucked their own CPUID instruction. No fault of my own, ugh...
@@ -206,7 +232,11 @@ ScreenControl 2, hWnd
 #EndIf
 
 WindowTitle "PsyMP3 " & PSYMP3_VERSION & " - Not playing"
-InitFMOD()        
+InitFMOD()
+
+'Var af = audiofile_open("C:\Users\segin\Documents\GTA San Andreas User Files\User Tracks\Everclear - Santa Monica.mp3")
+'audio_open(yetiplay.buffer_count)
+
 #Ifdef CLASSIC
 If Command(1) <> "" Then
 	mp3file = Command(1)
@@ -315,7 +345,7 @@ mp3artistW = *getmp3artistW(stream)
 mp3albumW = *getmp3albumW(stream)
 
 getmp3albumart(stream)
-var blank = ImageCreate(640, 350, rgba(0, 0, 0, 64), 32)
+var blank = ImageCreate(640, 350, rgba(0, 0, 0, 32), 32)
 If isSilent <> 1 Then
 	WindowTitle "PsyMP3 " + PSYMP3_VERSION + " - Playing - -:[ " & mp3artistW & " ]:- -- -:[ " + mp3nameW + " ]:-"
 	ScreenSet 1
@@ -359,7 +389,7 @@ Do
 		EndIf
 		#EndIf
 		#EndIf
-		Sleep 12 ' Timer delay
+		Sleep 8 ' Timer delay
 
 		If IsSilent <> 1 Then
 			If SpectrumOn = 1 Then      
@@ -374,20 +404,21 @@ Do
 				fps(i) = fps(i+1)
 			Next
 			FPS(100) = Timer
-			Dim avg As Double
+			Dim As Double avg, framerate
 			avg = 0   
 			For i = 100 To 2 Step -1
 				avg += fps(i) - fps(i - 1)
 			Next i
-			avg /= 99.0
-	
+			avg /= 99.0f
+			framerate = (1000.0f / (avg * 1000.0f))
+			Paint blank, (320, 240), RGBA(0, 0, 0, avg * 1500)
 			If DoFPS = 1 Then
-				Var szFPS = Format(avg * 1000, "#.00 FPS")
-				Locate 1, 70 : Print szFPS
-				Locate 2, 70 
-				Dim As UInteger status, bufferused, bitrate, flags
-				FSOUND_Stream_Net_GetStatus(stream, @status, @bufferused, @bitrate, @flags)
-				Print bitrate
+				Var szFPS = Format(framerate, "#.00 FPS")
+				szFPS &= " " & (Point(300, 200, blank) / 256 / 256 / 256) & " Alpha"
+				PrintFT(305, 382, szFPS, sFont, 9)
+				'Dim As UInteger status, bufferused, bitrate, flags
+				'FSOUND_Stream_Net_GetStatus(stream, @status, @bufferused, @bitrate, @flags)
+				'Print bitrate
 			End If
 			FPS(1) = Timer
 			If IsPaused = 0 Then

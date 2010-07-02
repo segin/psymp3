@@ -39,11 +39,11 @@ Sub ClearWMP Alias "ClearWMP" () Export
 					If Found = 0 Then Printf(!"Cannot find messenger for announce!\n")
 					Exit Do, Do
 				EndIf
-				SendMessage(msgr, WM_COPYDATA, 0, @cpd)
+				PostMessage(msgr, WM_COPYDATA, 0, @cpd)
 				Found = 1
 			Loop
 		EndIf
-		SendMessage(msgr, WM_COPYDATA, 0, @cpd)
+		PostMessage(msgr, WM_COPYDATA, 0, @cpd)
 		Found = 1
 	Loop
 End Sub
@@ -68,14 +68,14 @@ Sub AnnounceWMP Alias "AnnounceWMP" (artist As String, Title As String, Album As
 			Do
 				msgr = FindWindowEx(0, msgr,"MsnMsgrUIManager", 0)
 				If msgr = 0 Then
-					If Found = 0 Then Printf(!"Cannot find messenger for announce!\n")
+					If Found = 0 Then Printf(!"AnnounceWMP(): Cannot find messenger for announce!\n")
 					Exit Do, Do
 				EndIf
-				SendMessage(msgr, WM_COPYDATA, 0, @cpd)
+				PostMessage(msgr, WM_COPYDATA, 0, @cpd)
 				Found = 1
 			Loop
 		EndIf
-		SendMessage(msgr, WM_COPYDATA, 0, @cpd)
+		PostMessage(msgr, WM_COPYDATA, 0, @cpd)
 		Found = 1
 	Loop
 End Sub
