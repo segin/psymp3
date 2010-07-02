@@ -587,4 +587,4 @@ function main _
 
 	function = 0
 
-end Function
+End Function

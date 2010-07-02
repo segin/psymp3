@@ -24,12 +24,15 @@
 
 #Include Once "psymp3-release.bi"
 
+#Define FBEXT_USE_ZLIB_DLL
+#Define fbext_NoBuiltinInstanciations() 1
+
 #Include Once "fmod.bi"
 #Include Once "crt.bi"
 #Include Once "crt/stdlib.bi"
 #Include Once "crt/sys/types.bi"
 #Include Once "crt/stddef.bi"
-'#Include Once "ext/containers/queue.bi"
+#Include Once "ext/containers/queue.bi"
 #Include Once "libxml/xmlreader.bi"
 #Include Once "libxml/xmlwriter.bi"
 #Include Once "freetype2/freetype.bi"
@@ -48,8 +51,6 @@
 #Include Once "crt/netdb.bi"
 #Include Once "crt/sys/socket.bi"
 #Include Once "crt/errno.bi"
-#Define TRUE	1
-#Define FALSE	0
 #Define SIGINT 3
 #EndIf
 
@@ -171,7 +172,7 @@ Declare Function dirname Alias "dirname" (path As ZString Ptr) As ZString Ptr
 End Extern
 
 #Ifdef __FB_WIN32__
-#Inclib "dir"
+'#Inclib "dir"
 #EndIf
 
 #Include Once "quadfft.bi"
@@ -188,5 +189,9 @@ End Extern
 #Include Once "cpuid.bi"
 #Include Once "msnmsgr.bi"
 #Include Once "yetiplay.bi"
+
+Common Shared Scrobbler2 As LastFM Ptr
+
+Declare Sub FiniAudio()
 
 #EndIf /' __PSYMP3_BI__ '/
