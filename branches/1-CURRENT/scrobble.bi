@@ -40,4 +40,6 @@ End Type
 Declare Operator = (ByRef lhs As Scrobble, ByRef rhs As Scrobble) As Integer
 Declare Operator <> (ByRef lhs As Scrobble, ByRef rhs As Scrobble) As Integer
 
+fbext_Instanciate( fbExt_Queue, ((Scrobble)) )
+
 #EndIf /' __SCROBBLE_BI__ '/

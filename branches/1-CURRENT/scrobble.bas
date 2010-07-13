@@ -21,10 +21,12 @@
 #Include "psymp3.bi"
 
 Constructor Scrobble()
+	printf(!"Scrobble::Scrobble(): Creating scrobble object!\n")
 	This.setData("", "", "", 0, 0)
 End Constructor
 
 Constructor Scrobble(ByRef cpy As Const Scrobble)
+	printf(!"Scrobble::Scrobble(Scrobble&): Copying preexisting scrobble.\n")
 	This.setData(cpy.m_artist, cpy.m_title, cpy.m_album, cpy.m_length, cpy.m_curtime)
 End Constructor
 
@@ -33,6 +35,7 @@ Constructor Scrobble(artist As Const String, title As Const String, album As Con
 End Constructor
 
 Destructor Scrobble()
+	printf(!"Scrobble::~Scrobble(): Deleting scrobble object!\n")
 	This.setData("", "", "", 0, 0)
 End Destructor
 

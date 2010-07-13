@@ -19,7 +19,7 @@
 '/
 
 #Define PSYMP3_CORE_GLOBALS
-#Include "psymp3.bi"
+	#Include "psymp3.bi"
 
 Constructor LastFM() Export
 	this.readConfig()
@@ -155,6 +155,7 @@ Function LastFM.scrobbleTrack Alias "scrobbleTrack" () As Integer Export
 	
 	Dim As Integer qual
 	
+	' If this fails, just forget it and store the scrobble.
 	If this.m_session = "" Then this.m_session = this.getSessionKey() 
 	
 	' IIf keeps giving me "Invalid data types" so go with a more verbose workaround
@@ -235,39 +236,26 @@ Function LastFM.submitScrobble Alias "submitScrobble" (artist As String, Title A
 End Function
 
 Sub LastFM.submitSavedScrobbles Alias "submitSavedScrobbles" ()
-	If this.m_entries = 0 Then Return
-	Dim As Integer I
-	For i = 1 To this.m_entries
-		this.submitScrobble( _
-			this.m_artist(i), _
-			this.m_name(i), _
-			this.m_album(i), _
-			this.m_length(i), _
-			this.m_curtime(i) _
-		)
-		this.m_artist(i) = ""
-		this.m_name(i) = ""
-		this.m_album(i) = ""
-		this.m_length(i) = 0
-		this.m_curtime(i) = 0
-	Next I
-	this.m_entries = 0
+	Dim s As Scrobble Ptr
+	If This.m_scrobbles.Empty() Then Return
+	While(This.m_scrobbles.Empty() = 0)
+		s = This.m_scrobbles.Front()
+		this.submitScrobble(s->m_artist, s->m_title, s->m_album, s->m_length, s->m_curtime)
+		This.m_scrobbles.Pop()
+	Wend
 End Sub
 
 Function LastFM.saveScrobble Alias "saveScrobble" (artist As String, Title As String, album As String, length As Integer, curtime As UInteger) As Integer Export
-	If this.m_entries = 500 Then Return -1
+	Dim s As Scrobble
 	printf(!"LastFM::saveScrobble(): storing scrobble in memory.\n")
-	this.m_entries += 1
-	this.m_artist(this.m_entries) = artist
-	this.m_name(this.m_entries) = title
-	this.m_album(this.m_entries) = album
-	this.m_length(this.m_entries) = length
-	this.m_curtime(this.m_entries) = curtime
+	s.setData(artist, title, album, length, curtime)
+	This.m_scrobbles.Push(s)
 End Function
 
 Sub LastFM.dumpScrobbles2 Alias "dumpScrobbles2" () Export
 	Dim fd As FILE Ptr
 	Dim i As Integer, ret As Integer
+	Dim s As Scrobble Ptr
 	fd = fopen(this.c_xmlpath & "/lastfm.xml","wb")
    
 	If fd = 0 Then 
@@ -280,13 +268,15 @@ Sub LastFM.dumpScrobbles2 Alias "dumpScrobbles2" () Export
 		printf(!"LastFM::dumpScrobbles2(): Error writing lastfm.xml.\n")
 		Return
 	EndIf
-	For i = 1 To this.m_entries
-		ret = fprintf(fd, !"\t<entry artist=\"%s\" title=\"%s\" album=\"%s\" time=\"%d\" length=\"%d\" />\n", this.m_artist(i), this.m_name(i), this.m_album(i), this.m_curtime(i), this.m_length(i))
+	While(This.m_scrobbles.Empty() = 0)
+		s = This.m_scrobbles.Front()
+		ret = fprintf(fd, !"\t<entry artist=\"%s\" title=\"%s\" album=\"%s\" time=\"%d\" length=\"%d\" />\n", s->m_artist, s->m_title, s->m_album, s->m_curtime, s->m_length)
 		If fd = 0 Then 
 			printf(!"LastFM::dumpScrobbles2(): Error writing lastfm.xml.\n")
 			Return
 		EndIf
-	Next i
+		This.m_scrobbles.Pop()
+	Wend
 	ret = fprintf(fd, "</lastfm>")
 	If fd = 0 Then 
 		printf(!"LastFM::dumpScrobbles2(): Error writing lastfm.xml.\n")
@@ -297,8 +287,8 @@ End Sub
 Sub LastFM.dumpScrobbles Alias "dumpScrobbles" () Export
 	Dim As xmlTextWriterPtr writer
 	Dim As Integer ret, i
+	Dim As Scrobble Ptr s 
    
-	If this.m_entries = 0 Then Return
 	printf(!"LastFM::dumpScrobbles(): Dumping scrobbles to " & this.c_xmlpath & !"/lastfm.xml\n")
 	writer = xmlNewTextWriterFilename(this.c_xmlpath & "/lastfm.xml", 0)
    
@@ -313,21 +303,22 @@ Sub LastFM.dumpScrobbles Alias "dumpScrobbles" () Export
 	xmlTextWriterWriteAttribute(writer, "character", "UTF-8")
 	xmlTextWriterWriteAttribute(writer, "data", "RFC 1378")
 	xmlTextWriterEndElement(writer)
-	For i = 1 To this.m_entries
+	While(This.m_scrobbles.Empty() = 0)
+		s = This.m_scrobbles.Front()
 		xmlTextWriterStartElement(writer, "entry")  
-		xmlTextWriterWriteAttribute(writer, "artist", this.m_artist(i))
-		xmlTextWriterWriteAttribute(writer, "title", this.m_name(i))
-		xmlTextWriterWriteAttribute(writer, "album", this.m_album(i))
-		xmlTextWriterWriteAttribute(writer, "time", Str(this.m_curtime(i)))
-		xmlTextWriterWriteAttribute(writer, "length", Str(this.m_length(i)))
+		xmlTextWriterWriteAttribute(writer, "artist", s->m_artist)
+		xmlTextWriterWriteAttribute(writer, "title", s->m_title)
+		xmlTextWriterWriteAttribute(writer, "album", s->m_album)
+		xmlTextWriterWriteAttribute(writer, "time", Str(s->m_curtime))
+		xmlTextWriterWriteAttribute(writer, "length", Str(s->m_length))
 		xmlTextWriterEndElement(writer)
-	Next i
+		This.m_scrobbles.Pop()
+	Wend
 	xmlTextWriterEndElement(writer)
 	xmlTextWriterEndDocument(writer)
 	xmlFreeTextWriter(writer)
 	
 	printf(!"LastFM::dumpScrobbles(): Done.\n")
-	
 End Sub
 
 Sub LastFM.loadScrobbles Alias "loadScrobbles" () Export

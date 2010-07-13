@@ -116,6 +116,10 @@ Dim As String cpuvendor, cpuname
 Dim As Integer doPrev
 olddir = CurDir
 
+#Ifdef __FB_WIN32__
+'SetProcessDEPPolicy(PROCESS_DEP_ENABLE)
+#EndIf
+
 #Ifdef USE_ASM
 cpuvendor = GetCPUVendor()
 cpuname = GetCPUName()

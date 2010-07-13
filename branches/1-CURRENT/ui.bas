@@ -101,23 +101,23 @@ End Sub
 
 Sub ShowAbout Alias "ShowAbout" (ByVal T As Any Ptr) Export
 	MsgBox(hWnd, !"This is PsyMP3 version " & PSYMP3_VERSION & !"\n\n" _
-		!"PsyMP3 is free software.  You may redistribute and/or modify it under the terms of\n" & _
-		!"the GNU General Public License <http://www.gnu.org/licenses/gpl-2.0.html>,\n" & _
+		!"PsyMP3 is free software.  You may redistribute and/or modify it under the terms of " & _
+		!"the GNU General Public License <http://www.gnu.org/licenses/gpl-2.0.html>, " & _
 		!"either version 2, or at your option, any later version.\n\n" & _
-		!"PsyMP3 is distributed in the hope that it will be useful, but WITHOUT\n" & _
-		!"ANY WARRANTY, not even the implied warranty of MERCHANTABILITY or\n" & _
+		!"PsyMP3 is distributed in the hope that it will be useful, but WITHOUT " & _
+		!"ANY WARRANTY, not even the implied warranty of MERCHANTABILITY or " & _
 		!"FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License" & _
 		!" for details.\n\n" & _
-		!"You should have recieved a copy of the GNU General Public License\n" & _
-		!"along with PsyMP3; if not, write to the Free Software Foundation, Inc.,\n" & _
+		!"You should have recieved a copy of the GNU General Public License " & _
+		!"along with PsyMP3; if not, write to the Free Software Foundation, Inc., " & _
 		!"51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA.\n\n" & _
-		!"For those that do not understand, PsyMP3 is free as in speech;\n" & _
-		!"in most commercial programs, you can only use the software for certain\n" & _
-		!"uses which the author approves of, and any other use instantly makes it\n" & _
-		!"illegal to use the software, and it is also illegal to try to take\n" & _ 
-		!"the software to see how it works or change it. In contrast, PsyMP3\n" & _
-		!"has no limitations on use, and full source code is provided for anyone\n" & _
-		!"to study, copy, and modify, and in return distribute the modified versions\n" & _
+		!"For those that do not understand, PsyMP3 is free as in speech; " & _
+		!"in most commercial programs, you can only use the software for certain " & _
+		!"uses which the author approves of, and any other use instantly makes it " & _
+		!"illegal to use the software, and it is also illegal to try to take " & _ 
+		!"the software to see how it works or change it. In contrast, PsyMP3 " & _
+		!"has no limitations on use, and full source code is provided for anyone " & _
+		!"to study, copy, and modify, and in return distribute the modified versions " & _
 		!"(only, of course, if these same rules also apply to their versions)\n\n" & _ 
 		!"Written by Kirn Gill <segin2005@gmail.com>\n\n" & _ 
 		!"Dedicated to my beautiful girlfriend Virginia Wood.")
