@@ -183,13 +183,13 @@ Sub InitKVIrcWinampInterface Alias "InitKVIrcWinampInterface" () Export
 		.lpfnWndProc = @WAIntProc
 		.cbClsExtra = 0
 		.cbWndExtra = 0
-	      .hInstance = GetModuleHandle(NULL)
-	      .hIcon = 0
-	      .hCursor = 0 
-	      .hbrBackground = 0
-	      .lpszMenuName = NULL
-	      .lpszClassName = @"Winamp v1.x"
-	      .hIconSm = 0
+		.hInstance = GetModuleHandle(NULL)
+		.hIcon = 0
+		.hCursor = 0 
+		.hbrBackground = 0
+		.lpszMenuName = NULL
+		.lpszClassName = @"Winamp v1.x"
+		.hIconSm = 0
 	End With
 	
 	a = RegisterClassEx(@WAClass)

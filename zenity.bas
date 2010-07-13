@@ -18,10 +18,27 @@
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 '/
 
-#ifndef __PSYMP3_RELEASE_BI__
-#define __PSYMP3_RELEASE_BI__
+#If __FB_UNIX__
+function loadfile( byref defdir as string = "" ) as string
+	var ff = freefile
+	var directory = defdir
+	var olddir = curdir
+	if directory <> "" then
+		chdir directory
+	end if
+	var result = ""
+	open pipe "zenity --file-selection" for input as #ff
+		line input #ff, result
+	close ff
+	if olddir <> directory then chdir olddir
+	return result
+end function
 
-#define PSYMP3_VERSION "svn_20100710"
+sub zmessage( byref msg as string )
+	shell( !"zenity --info --text=\"" & msg & !"\"" )
+end sub
 
+zmessage("oh noes!")
+
+? loadfile("/home/sirmud/projects")
 #EndIf
-

@@ -137,6 +137,14 @@ Type yetiplay_t
 	fourier_size  As Integer   ' number of samples fourier will use
 End Type
 
+#Ifdef __FB_WIN32__
+Extern "windows" Lib "kernel32"
+Declare Function SetProcessDEPPolicy (ByVal As DWORD) As BOOL
+End Extern
+
+#Define PROCESS_DEP_ENABLE 1 
+#EndIf /' __FB_WIN32__ '/
+
 Declare Function plGetPosition Alias "plGetPosition" () As Integer
 Declare Function plGetEntries Alias "plGetEntries" () As Integer
 
@@ -189,8 +197,6 @@ End Extern
 #Include Once "cpuid.bi"
 #Include Once "msnmsgr.bi"
 #Include Once "yetiplay.bi"
-
-Common Shared Scrobbler2 As LastFM Ptr
 
 Declare Sub FiniAudio()
 

@@ -4,3 +4,5 @@ Kirn Gill (segin) <segin2005@gmail.com> - author, conceptionist, main code, libs
 Mattis Michel (maties) <sic_zer0@hotmail.com> - libdir
 Michael Romanovsky (Agamemnus) - new icons!
 D.J. Peters (Joshy) - Multiput()
+Ebben Feagan (sir_mud) <sir@mud.owlbox.net> - Zenity wrapper, Lead Developer of FreeBASIC Extended Library
+Unknown (yetifoot) <unknown@unknown> - all of yetiplay.bas 
