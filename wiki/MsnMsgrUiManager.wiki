@@ -14,6 +14,10 @@ The following instant messaging applications are known to implement the receivin
   * *[http://www.pidgin.im/ Pidgin]* (via [http://code.google.com/p/pidgin-musictracker pidgin-musictracker])
   * *[http://www.amsn-project.net/ aMSN]* (via the [http://www.amsn-project.net/plugins.php#13 Music] plugin)
 
+===Libraries===
+Libraries that implement the interface on the behalf of a messenger or status-display app:
+  * [http://libmsnmsgruimanager.codeplex.com/ libMsnMsgrUIManager] - which in fact is implemented using this exact documentation page for interface specs.
+
 == Media Players ==
 
 The following media players are known to implement the sending end of the interface:
@@ -27,10 +31,6 @@ The following media players are known to implement the sending end of the interf
   * [http://www.spotify.com/ Spotify]
   * [http://wwwct.ttplayer.com/index.html TTPlayer]
   * [http://www.videolan.org/vlc/ VLC (VideoLan Client) Media Player]
-
-===Libraries===
-Libraries that implement the interface on the behalf of the media player:
-  * [http://libmsnmsgruimanager.codeplex.com/ libMsnMsgrUIManager] - which in fact is implemented using this exact documentation page for interface specs.
 
 = Details =
 
