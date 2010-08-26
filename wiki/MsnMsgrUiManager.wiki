@@ -37,8 +37,8 @@ The following media players are known to implement the sending end of the interf
 The MsnMsgrUiManager Now Playing interface is rather straightforward. The sender program (the media player) sends a [http://msdn.microsoft.com/en-us/library/ms649011(VS.85).aspx WM_COPYDATA] message to any and all windows matching the MsnMsgrUiManager window class using the [http://msdn.microsoft.com/en-us/library/ms644950(VS.85).aspx SendMessage]()  function.
 
 The [http://msdn.microsoft.com/en-us/library/ms649011(VS.85).aspx WM_COPYDATA] message type requires the use of the [http://msdn.microsoft.com/en-us/library/ms649010(VS.85).aspx COPYDATASTRUCT] struct, which has three defined elements:
-  * dwData, which indicates the data type
-  * cbData, which indicates the length of the data buffer pointed to by lpData, and finally
+  * dwData, which indicates the data type. This should be 1351 when sending updates to the media player.
+  * cbData, which indicates the length of the data buffer (in bytes) pointed to by lpData, and finally
   * lpData, which is a pointer to a buffer containing the data to be passed via [http://msdn.microsoft.com/en-us/library/ms644950(VS.85).aspx SendMessage]()
 
 The actual message data passed via lpData is a wide-character string, terminated by a null character. The data fields are delimited by literal wide-character "\0" (literal backslash and literal zero, NOT a null-value wide character).
