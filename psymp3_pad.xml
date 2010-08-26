@@ -34,9 +34,9 @@
       <Contact_First_Name>Kirn</Contact_First_Name>
       <Contact_Last_Name>Gill</Contact_Last_Name>
       <Contact_Email>segin2005@gmail.com</Contact_Email>
-      <Author_First_Name></Author_First_Name>
-      <Author_Last_Name></Author_Last_Name>
-      <Author_Email></Author_Email>
+      <Author_Email>segin2005@gmail.com</Author_Email>
+      <Author_First_Name>Kirn</Author_First_Name>
+      <Author_Last_Name>Gill</Author_Last_Name>
     </Contact_Info>
     <Support_Info>
       <Sales_Email>segin2005@gmail.com</Sales_Email>
@@ -48,8 +48,48 @@
       <Fax_Phone>+1-813-704-0420</Fax_Phone>
     </Support_Info>
   </Company_Info>
+  <NewsFeed>
+    <NewsFeed_FORM>Y</NewsFeed_FORM>
+    <NewsFeed_VERSION>1.0</NewsFeed_VERSION>
+    <NewsFeed_URL>http://Submit-Everywhere.com/extensions/NewsFeed.htm</NewsFeed_URL>
+    <NewsFeed_DESCRIPTION>This PAD extension allows you to add your RSS and Atom news feeds info into your PAD file. This info can be used by RSS feed submission software or by feed directories themselves.</NewsFeed_DESCRIPTION>
+    <NewsFeed_Type>RSS 0.90</NewsFeed_Type>
+    <NewsFeed_Language>English</NewsFeed_Language>
+    <NewsFeed_Purpose>News</NewsFeed_Purpose>
+    <NewsFeed_Author_Email>segin2005@gmail.com</NewsFeed_Author_Email>
+    <NewsFeed_Author_First_Name>Kirn</NewsFeed_Author_First_Name>
+    <NewsFeed_Author_Last_Name>Gill</NewsFeed_Author_Last_Name>
+    <NewsFeed_Feed_URL></NewsFeed_Feed_URL>
+    <NewsFeed_Site_Name></NewsFeed_Site_Name>
+    <NewsFeed_Site_URL></NewsFeed_Site_URL>
+    <NewsFeed_Title></NewsFeed_Title>
+    <NewsFeed_Description_70></NewsFeed_Description_70>
+    <NewsFeed_Description_250></NewsFeed_Description_250>
+  </NewsFeed>
   <Program_Info>
+    <Program_Name>PsyMP3</Program_Name>
+    <Program_Version>1.2.1-RELEASE</Program_Version>
+    <Program_Release_Month>03</Program_Release_Month>
+    <Program_Release_Day>09</Program_Release_Day>
+    <Program_Release_Year>2010</Program_Release_Year>
     <Program_Cost_Dollars>0</Program_Cost_Dollars>
+    <Program_Type>Freeware</Program_Type>
+    <Program_Release_Status>Major Update</Program_Release_Status>
+    <Program_Install_Support>No Install Support</Program_Install_Support>
+    <Program_OS_Support>WinXP,WinVista,WinVista x64,Win7 x32,Win7 x64,Win2000,Windows2000,Windows2003,WinServer,Win98,WinME,WinNT 4.x,Win95</Program_OS_Support>
+    <Program_Language>English</Program_Language>
+    <Program_Change_Info>Complete Last.fm scrobbler, see svn ChangeLog for more</Program_Change_Info>
+    <Program_System_Requirements>Pentium II 400MHz, 64MB of RAM, Windows 95/NT 4.0 or later, may work on earlier versions</Program_System_Requirements>
+    <Program_Category_Class>Audio &amp; Multimedia::Audio File Players</Program_Category_Class>
+    <File_Info>
+      <File_Size_Bytes>1741824</File_Size_Bytes>
+      <File_Size_K>1701</File_Size_K>
+      <File_Size_MB>1.66</File_Size_MB>
+      <Filename_Versioned></Filename_Versioned>
+      <Filename_Previous></Filename_Previous>
+      <Filename_Generic></Filename_Generic>
+      <Filename_Long></Filename_Long>
+    </File_Info>
     <Expire_Info>
       <Has_Expire_Info>N</Has_Expire_Info>
       <Expire_Based_On>Days</Expire_Based_On>
@@ -59,29 +99,7 @@
       <Expire_Day></Expire_Day>
       <Expire_Year></Expire_Year>
     </Expire_Info>
-    <Program_Name>PsyMP3</Program_Name>
-    <Program_Version>1.2.1-RELEASE</Program_Version>
-    <Program_Release_Year>2010</Program_Release_Year>
-    <Program_Release_Month>03</Program_Release_Month>
-    <Program_Release_Day>09</Program_Release_Day>
-    <Program_Type>Freeware</Program_Type>
-    <Program_Release_Status>Major Update</Program_Release_Status>
-    <Program_Install_Support>No Install Support</Program_Install_Support>
-    <Program_OS_Support>WinXP,WinVista,WinVista x64,Win7 x32,Win7 x64,Win2000,Windows2000,Windows2003,WinServer,Win98,WinME,WinNT 4.x,Win95</Program_OS_Support>
-    <Program_Language>English</Program_Language>
-    <Program_System_Requirements>Pentium II 400MHz, 64MB of RAM, Windows 95/NT 4.0 or later, may work on earlier versions</Program_System_Requirements>
     <Limitations>Asides from the bugs, none.</Limitations>
-    <Program_Category_Class>Audio &amp; Multimedia::Audio File Players</Program_Category_Class>
-    <File_Info>
-      <File_Size_K>1701</File_Size_K>
-      <File_Size_Bytes>1741824</File_Size_Bytes>
-      <File_Size_MB>1.66</File_Size_MB>
-      <Filename_Versioned></Filename_Versioned>
-      <Filename_Previous></Filename_Previous>
-      <Filename_Generic></Filename_Generic>
-      <Filename_Long></Filename_Long>
-    </File_Info>
-    <Program_Change_Info>Complete Last.fm scrobbler, see svn ChangeLog for more</Program_Change_Info>
     <Program_Cost_Other_Code></Program_Cost_Other_Code>
     <Program_Cost_Other></Program_Cost_Other>
     <Awards></Awards>
@@ -94,10 +112,10 @@
   <Web_Info>
     <Application_URLs>
       <Application_Info_URL>http://code.google.com/p/psymp3/</Application_Info_URL>
-      <Application_Icon_URL>http://code.google.com/p/psymp3/logo?cct=1278404076</Application_Icon_URL>
       <Application_Screenshot_URL>http://a.imageshack.us/img523/9840/foob.png</Application_Screenshot_URL>
+      <Application_Icon_URL>http://code.google.com/p/psymp3/logo?cct=1278404076</Application_Icon_URL>
+      <Application_XML_File_URL>http://psymp3.googlecode.com/svn/branches/1-CURRENT/psymp3_pad.xml</Application_XML_File_URL>
       <Application_Order_URL></Application_Order_URL>
-      <Application_XML_File_URL></Application_XML_File_URL>
     </Application_URLs>
     <Download_URLs>
       <Primary_Download_URL>http://psymp3.googlecode.com/files/PsyMP3-1.2.1-RELEASE-bin.zip</Primary_Download_URL>
@@ -107,6 +125,7 @@
     </Download_URLs>
   </Web_Info>
   <Permissions>
+    <Distribution_Permissions>This software may be modified, copied, redistributed, etc. as per the GNU General Public License, version 2.</Distribution_Permissions>
     <EULA>GNU GENERAL PUBLIC LICENSE
                        Version 2, June 1991
 
@@ -446,7 +465,6 @@ proprietary programs.  If your program is a subroutine library, you may
 consider it more useful to permit linking proprietary applications with the
 library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.</EULA>
-    <Distribution_Permissions>This software may be modified, copied, redistributed, etc. as per the GNU General Public License, version 2.</Distribution_Permissions>
   </Permissions>
   <Program_Descriptions>
     <English>
