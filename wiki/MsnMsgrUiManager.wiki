@@ -15,7 +15,7 @@ The following instant messaging applications are known to implement the receivin
   * *[http://www.amsn-project.net/ aMSN]* (via the [http://www.amsn-project.net/plugins.php#13 Music] plugin)
 
 ===Libraries===
-Libraries that implement the interface on the behalf of a messenger or status-display app:
+Libraries that implement the receiver interface on the behalf of a messenger or status-display app:
   * [http://libmsnmsgruimanager.codeplex.com/ libMsnMsgrUIManager] - which in fact is implemented using this exact documentation page for interface specs.
 
 == Media Players ==
