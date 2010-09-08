@@ -1,0 +1,18 @@
+#summary How PsyMP3 handles ID3 tag data retrieved from FMOD's APIs.
+
+= Supported encodings = 
+ * ISO-8859-1
+ * UTF-16LE
+
+
+= Introduction =
+
+Add your content here.
+
+
+= Details =
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
