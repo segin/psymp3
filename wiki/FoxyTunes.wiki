@@ -2,7 +2,7 @@
 
 = Introduction =
 
-FoxyTunes is a proprietary Firefox and Internet Explorer add-on currently maintained by Yahoo!. It is not open-source. FoxyTunes is cross-platform and supports a wife array of media players.
+FoxyTunes is a proprietary Firefox and Internet Explorer add-on currently maintained by Yahoo!. It is not open-source. FoxyTunes is cross-platform and supports a wide array of media players.
 
 = Details =
 
