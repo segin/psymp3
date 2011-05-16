@@ -23,7 +23,10 @@
 #Ifdef __FB_WIN32__
 
 '
-' This emulates the interface of Winamp
+' This emulates the IPC interface of Winamp - which is mostly meant for
+' plugins to communicate with the main thread in-process, which is why
+' all the pointers. External programs that need the song metadata have
+' to attach to PsyMP3 as a debugger and read our memory space. Yuck!
 '
 
 Function WAIntProc StdCall Alias "WAIntProc" (hWnd As HWND, uMsg As UINT, wParam As WPARAM, lParam As LPARAM) As LRESULT Export
