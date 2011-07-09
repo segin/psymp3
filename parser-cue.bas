@@ -1,3 +1,0 @@
-'
-' CUE sheet test parser
-'
