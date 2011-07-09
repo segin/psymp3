@@ -2,6 +2,7 @@
 
 int main ( int argc, char** argv )
 {
+    unsigned char a;
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_VIDEO ) < 0 )
     {
@@ -13,7 +14,7 @@ int main ( int argc, char** argv )
     atexit(SDL_Quit);
 
     // create a new window
-    SDL_Surface* screen = SDL_SetVideoMode(640, 480, 16,
+    SDL_Surface* screen = SDL_SetVideoMode(640, 400, 16,
                                            SDL_HWSURFACE|SDL_DOUBLEBUF);
     if ( !screen )
     {
@@ -38,6 +39,7 @@ int main ( int argc, char** argv )
     bool done = false;
     while (!done)
     {
+
         // message processing loop
         SDL_Event event;
         while (SDL_PollEvent(&event))
@@ -70,6 +72,8 @@ int main ( int argc, char** argv )
         SDL_BlitSurface(bmp, 0, screen, &dstrect);
 
         // DRAWING ENDS HERE
+        lineColor(screen, 0, 0, a++, 400, 0xFFFFFF80);
+
 
         // finally, update the screen :)
         SDL_Flip(screen);
