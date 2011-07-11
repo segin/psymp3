@@ -26,31 +26,8 @@ class Display : public Surface
 {
     public:
         Display();
-/*
-int rectangleColor(SDL_Surface * dst, Sint16 x1, Sint16 y1,
-Sint16 x2, Sint16 y2, Uint32 color);
-int rectangleRGBA(SDL_Surface * dst, Sint16 x1, Sint16 y1,
-Sint16 x2, Sint16 y2, Uint8 r, Uint8 g,
-Uint8 b, Uint8 a);
-Filled rectangle (Box)
-int boxColor(SDL_Surface * dst, Sint16 x1, Sint16 y1,
-Sint16 x2, Sint16 y2, Uint32 color);
-int boxRGBA(SDL_Surface * dst, Sint16 x1, Sint16 y1, Sint16 x2,
-Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-
-
-Horizontal line
-int hlineColor(SDL_Surface * dst, Sint16 x1, Sint16 x2,
-Sint16 y, Uint32 color);
-int hlineRGBA(SDL_Surface * dst, Sint16 x1, Sint16 x2,
-Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-Vertical line
-int vlineColor(SDL_Surface * dst, Sint16 x, Sint16 y1,
-Sint16 y2, Uint32 color);
-int vlineRGBA(SDL_Surface * dst, Sint16 x, Sint16 y1,
-Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-Rectangle
-*/
+        void SetCaption(const char *, const char *);
+        void SetCaption(std::string, std::string);
 };
 
 #endif // DISPLAY_H

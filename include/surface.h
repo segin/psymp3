@@ -29,7 +29,12 @@ class Surface
         Surface();
         Surface(SDL_Surface *sfc);
         virtual ~Surface();
+        static Surface& FromBMP(const char *a_file);
+        static Surface& FromBMP(std::string a_file);
         bool isInit();
+        uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
+        void FillRect(uint32_t color);
+        void Flip();
         void pixel(int16_t x, int16_t y, uint32_t color);
         void pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color);
@@ -40,6 +45,8 @@ class Surface
         void hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void vline(int16_t x, int16_t y1, int16_t y2, uint32_t color);
         void vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+        int16_t height();
+        int16_t width();
         SDL_Surface * getHandle();
     protected:
         SDL_Surface * m_handle; //!< Member variable "m_handle"

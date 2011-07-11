@@ -25,6 +25,17 @@
 Display::Display()
 {
     //ctor
-    Surface(SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF));
+    m_handle = SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF);
+    std::cout << "Display::Display() got 0x" << std::hex << (unsigned int) m_handle << std::endl;
+    SDL_WM_SetCaption("PsyMP3 " PSYMP3_VERSION, "PsyMP3");
 }
 
+void Display::SetCaption(const char *title, const char *icon_title)
+{
+    SDL_WM_SetCaption(title, icon_title);
+}
+
+void Display::SetCaption(std::string title, std::string icon_title)
+{
+    SDL_WM_SetCaption(title.c_str(), icon_title.c_str());
+}

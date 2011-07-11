@@ -28,18 +28,25 @@ Player::Player()
     // -- but we will delete them in ~Player()
     // So, instead, print a startup banner to the console.
     std::cout << "PsyMP3 version " << PSYMP3_VERSION << "." << std::endl;
+    screen = NULL;
+    playlist = NULL;
 }
 
 Player::~Player()
 {
-    if(display) delete display;
-    if(playlist) delete playlist;
+    if (screen)
+        delete screen;
+    if (playlist)
+        delete playlist;
 }
 
 void Player::Run(std::vector<std::string> args)
 {
-    std::cout << "Do something here, damnit!" << std::endl;
-        unsigned char a = 0;
+    if((args.size() > 1) && args[1] == "--version") {
+        about_console();
+        return;
+    }
+    unsigned char a = 0;
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_AUDIO | SDL_INIT_VIDEO ) < 0 )
     {
@@ -51,6 +58,7 @@ void Player::Run(std::vector<std::string> args)
     atexit(SDL_Quit);
 
     // create a new window
+    /*
     SDL_Surface* screen = SDL_SetVideoMode(640, 400, 16,
                                            SDL_HWSURFACE|SDL_DOUBLEBUF);
     if ( !screen )
@@ -67,10 +75,15 @@ void Player::Run(std::vector<std::string> args)
         return;
     }
 
+    */
+    screen = new Display();
+    playlist = new Playlist();
+    Surface bmp = Surface::FromBMP("cb.bmp");
+
     // centre the bitmap on screen
     SDL_Rect dstrect;
-    dstrect.x = (screen->w - bmp->w) / 2;
-    dstrect.y = (screen->h - bmp->h) / 2;
+    dstrect.x = (screen->width() - bmp.width()) / 2;
+    dstrect.y = (screen->height() - bmp.height()) / 2;
 
     // program main loop
     bool done = false;
@@ -103,21 +116,17 @@ void Player::Run(std::vector<std::string> args)
         // DRAWING STARTS HERE
 
         // clear screen
-        SDL_FillRect(screen, 0, SDL_MapRGB(screen->format, 0, 0, 0));
+        screen->FillRect(screen->MapRGB(0, 0, 0));
 
         // draw bitmap
-        SDL_BlitSurface(bmp, 0, screen, &dstrect);
+        SDL_BlitSurface(bmp.getHandle(), 0, screen->getHandle(), &dstrect);
 
         // DRAWING ENDS HERE
-        lineColor(screen, 0, 0, a++, 400, 0xFFFFFF80);
-
+        screen->hline(0, 400, a++, 0xFFFFFF80);
 
         // finally, update the screen :)
-        SDL_Flip(screen);
+        screen->Flip();
     } // end main loop
-
-    // free loaded bitmap
-    SDL_FreeSurface(bmp);
 
     // all is well ;)
     printf("Exited cleanly\n");
