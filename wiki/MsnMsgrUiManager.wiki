@@ -3,7 +3,7 @@
 
 = Introduction =
 
-The MsnMsgrUiManager window class is implemented by Windows Live Messsenger, MSN Messenger, and my any messenger application (or associated plugins thereof) that wish to receive "Now Playing" data from any media player application that supports sending such data to MSN Messenger.
+The MsnMsgrUiManager window class is implemented by Windows Live Messsenger, MSN Messenger, and by any messenger application (or associated plugins thereof) that wish to receive "Now Playing" data from any media player application that supports sending such data to MSN Messenger.
 
 = Known Implementations = 
 
