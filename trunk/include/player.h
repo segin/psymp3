@@ -11,7 +11,7 @@ class Player
         void Run(std::vector<std::string> args);
     protected:
     private:
-        Display *display;
+        Display *screen;
         Playlist *playlist;
 };
 

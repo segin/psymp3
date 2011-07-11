@@ -30,6 +30,7 @@ Surface::Surface()
 
 Surface::Surface(SDL_Surface *sfc)
 {
+    std::cout << "Surface::Surface(SDL_Surface*): called, 0x" << std::hex << (unsigned int) sfc << std::endl;
     m_handle = sfc;
 }
 
@@ -39,9 +40,37 @@ Surface::~Surface()
     if (m_handle) SDL_FreeSurface(m_handle);
 }
 
+Surface& Surface::FromBMP(std::string a_file)
+{
+    return *(new Surface(SDL_LoadBMP(a_file.c_str())));
+}
+
+Surface& Surface::FromBMP(const char *a_file)
+{
+    return *(new Surface(SDL_LoadBMP(a_file)));
+}
+
 bool Surface::isInit()
 {
     if (m_handle) return true; else return false;
+}
+
+uint32_t Surface::MapRGB(uint8_t r, uint8_t g, uint8_t b)
+{
+    if (!m_handle) return -1;
+    return SDL_MapRGB(m_handle->format, r, g, b);
+}
+
+void Surface::FillRect(uint32_t color)
+{
+    if (!m_handle) return;
+    SDL_FillRect(m_handle, 0, color);
+}
+
+void Surface::Flip()
+{
+    if (!m_handle) return;
+    SDL_Flip(m_handle);
 }
 
 void Surface::pixel(int16_t x, int16_t y, uint32_t color)
@@ -102,6 +131,18 @@ void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uin
 {
     if (!m_handle) return;
     vlineRGBA(m_handle, x, y1, y2, r, g, b, a);
+}
+
+int16_t Surface::height()
+{
+    if (!m_handle) return 0;
+    return m_handle->h;
+}
+
+int16_t Surface::width()
+{
+    if (!m_handle) return 0;
+    return m_handle->w;
 }
 
 SDL_Surface * Surface::getHandle()

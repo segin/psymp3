@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1310354386 source:/home/segin/psymp3/main.cpp
+1310364222 source:/home/segin/psymp3/main.cpp
 	"psymp3.h"
 
 1301615163 /usr/include/SDL/SDL.h
@@ -182,7 +182,7 @@
 	"begin_code.h"
 	"close_code.h"
 
-1310267229 /home/segin/psymp3/include//psymp3.h
+1310354721 /home/segin/psymp3/include//psymp3.h
 	<iostream>
 	<string>
 	<vector>
@@ -196,9 +196,11 @@
 	<SDL_gfxPrimitives.h>
 	"track.h"
 	"playlist.h"
+	"surface.h"
+	"display.h"
 	"player.h"
 
-1310336808 /home/segin/psymp3/include//track.h
+1310343517 /home/segin/psymp3/include//track.h
 
 1310343530 source:/home/segin/psymp3/src/track.cpp
 	"psymp3.h"
@@ -221,9 +223,9 @@
 	<math.h>
 	"SDL.h"
 
-1310267177 /home/segin/psymp3/include//player.h
+1310360248 /home/segin/psymp3/include//player.h
 
-1310354721 /home/segin/psymp3/include/psymp3.h
+1310368332 /home/segin/psymp3/include/psymp3.h
 	<iostream>
 	<string>
 	<vector>
@@ -235,6 +237,7 @@
 	<SDL.h>
 	<SDL_mixer.h>
 	<SDL_gfxPrimitives.h>
+	"about.h"
 	"track.h"
 	"playlist.h"
 	"surface.h"
@@ -245,23 +248,37 @@
 
 1310273332 /home/segin/psymp3/include/playlist.h
 
-1310350330 /home/segin/psymp3/include/player.h
+1310368672 /home/segin/psymp3/include/player.h
 
-1310355230 /home/segin/psymp3/include/display.h
+1310370856 /home/segin/psymp3/include/display.h
 
 1310255489 source:/home/segin/psymp3/src/fft_draw.cpp
 	"fft_draw.h"
 
 1310343530 /home/segin/psymp3/include/fft_draw.h
 
-1310354367 source:/home/segin/psymp3/src/player.cpp
+1310370826 source:/home/segin/psymp3/src/player.cpp
 	"psymp3.h"
 
 1310343531 source:/home/segin/psymp3/src/playlist.cpp
 	"psymp3.h"
 
-1310355232 source:/home/segin/psymp3/src/display.cpp
+1310369647 source:/home/segin/psymp3/src/display.cpp
 	"psymp3.h"
 
-1310355280 /home/segin/psymp3/include/surface.h
+1310369459 /home/segin/psymp3/include/surface.h
+
+1310369185 source:/home/segin/psymp3/src/surface.cpp
+	"psymp3.h"
+
+1310361256 /home/segin/psymp3/include//surface.h
+
+1310356789 /home/segin/psymp3/include//display.h
+
+1310343530 /home/segin/psymp3/include//fft_draw.h
+
+1310368359 /home/segin/psymp3/include/about.h
+
+1310368421 source:/home/segin/psymp3/src/about.cpp
+	"psymp3.h"
 

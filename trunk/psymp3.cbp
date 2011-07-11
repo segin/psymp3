@@ -13,7 +13,6 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-g" />
-					<Add directory="/home/segin/psymp3/include/" />
 				</Compiler>
 			</Target>
 			<Target title="Release">
@@ -30,16 +29,30 @@
 			</Target>
 		</Build>
 		<Compiler>
-			<Add option="`sdl-config --cflags`" />
 			<Add option="-Wall" />
+			<Add option="`sdl-config --cflags`" />
+			<Add directory="include" />
 		</Compiler>
 		<Linker>
 			<Add option="`sdl-config --libs`" />
+			<Add option="`pkg-config SDL_gfx --libs`" />
 		</Linker>
 		<Unit filename="cb.bmp" />
+		<Unit filename="include/about.h" />
+		<Unit filename="include/display.h" />
+		<Unit filename="include/fft_draw.h" />
+		<Unit filename="include/player.h" />
+		<Unit filename="include/playlist.h" />
 		<Unit filename="include/psymp3.h" />
+		<Unit filename="include/surface.h" />
 		<Unit filename="include/track.h" />
 		<Unit filename="main.cpp" />
+		<Unit filename="src/about.cpp" />
+		<Unit filename="src/display.cpp" />
+		<Unit filename="src/fft_draw.cpp" />
+		<Unit filename="src/player.cpp" />
+		<Unit filename="src/playlist.cpp" />
+		<Unit filename="src/surface.cpp" />
 		<Unit filename="src/track.cpp" />
 		<Extensions>
 			<code_completion />

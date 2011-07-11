@@ -1,5 +1,5 @@
 /*
- * psymp3.h - main include for all other source files.
+ * about.h - Header for about.cpp
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
@@ -19,40 +19,12 @@
  *
  */
 
-#ifndef __PSYMP3_H__
-#define __PSYMP3_H__
+#ifndef ABOUT_H_INCLUDED
+#define ABOUT_H_INCLUDED
 
-// defines
-#define PSYMP3_VERSION "2-CURRENT"
-#define PSYMP3_MAINTAINER "Kirn Gill <segin2005@gmail.com>"
+void about_console();
+void about_ui(); // maybe one day...
 
-// system includes
-#include <iostream>
-#include <string>
-#include <vector>
-#ifdef __cplusplus
-    #include <cstdlib>
-#else
-    #include <stdlib.h>
-#endif
-#ifdef __APPLE__
-#include <SDL/SDL.h>
-#include <SDL/SDL_mixer.h>
-#include <SDL/SDL_gfxPrimitives.h>
-#else
-#include <SDL.h>
-#include <SDL_mixer.h>
-#include <SDL_gfxPrimitives.h>
-#endif
 
-// local includes
-#include "about.h"
-#include "track.h"
-#include "playlist.h"
-#include "surface.h"
-#include "display.h"
-#include "player.h"
 
-// global singletons
-
-#endif // __PSYMP3_H__
+#endif // ABOUT_H_INCLUDED
