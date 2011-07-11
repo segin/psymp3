@@ -1,5 +1,6 @@
 /*
  * display.h - class header for SDL display wrapper
+ * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -26,9 +27,36 @@ class Display
     public:
         Display();
         virtual ~Display();
+        bool isInit();
         void pixel(int16_t x, int16_t y, uint32_t color);
-        void pixel(int16_t x, int16_t y, int8_t r, int8_t g, int8_t b, int8_t a);
+        void pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+        /*
+int rectangleColor(SDL_Surface * dst, Sint16 x1, Sint16 y1,
+Sint16 x2, Sint16 y2, Uint32 color);
+int rectangleRGBA(SDL_Surface * dst, Sint16 x1, Sint16 y1,
+Sint16 x2, Sint16 y2, Uint8 r, Uint8 g,
+Uint8 b, Uint8 a);
+Filled rectangle (Box)
+int boxColor(SDL_Surface * dst, Sint16 x1, Sint16 y1,
+Sint16 x2, Sint16 y2, Uint32 color);
+int boxRGBA(SDL_Surface * dst, Sint16 x1, Sint16 y1, Sint16 x2,
+Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+
+
+Horizontal line
+int hlineColor(SDL_Surface * dst, Sint16 x1, Sint16 x2,
+Sint16 y, Uint32 color);
+int hlineRGBA(SDL_Surface * dst, Sint16 x1, Sint16 x2,
+Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+Vertical line
+int vlineColor(SDL_Surface * dst, Sint16 x, Sint16 y1,
+Sint16 y2, Uint32 color);
+int vlineRGBA(SDL_Surface * dst, Sint16 x, Sint16 y1,
+Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+Rectangle
+*/
         SDL_Surface * getHandle();
+
     protected:
     private:
         SDL_Surface * m_handle; //!< Member variable "m_handle"

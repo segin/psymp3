@@ -1,5 +1,6 @@
 /*
- * display.h - class header for SDL display wrapper
+ * psymp3.h - main include for all other source files.
+ * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
@@ -45,8 +46,12 @@
 
 #include "track.h"
 #include "playlist.h"
-#include "player.h"
 #include "display.h"
+#include "player.h"
+
+// defines
+
+#define PSYMP3_VERSION "2-CURRENT"
 
 // global singletons
 
