@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1310337215 source:/home/segin/psymp3/main.cpp
+1310354300 source:/home/segin/psymp3/main.cpp
 	"psymp3.h"
 
 1301615163 /usr/include/SDL/SDL.h
@@ -200,7 +200,7 @@
 
 1310336808 /home/segin/psymp3/include//track.h
 
-1310242588 source:/home/segin/psymp3/src/track.cpp
+1310343530 source:/home/segin/psymp3/src/track.cpp
 	"psymp3.h"
 
 1310273332 /home/segin/psymp3/include//playlist.h
@@ -222,4 +222,43 @@
 	"SDL.h"
 
 1310267177 /home/segin/psymp3/include//player.h
+
+1310353745 /home/segin/psymp3/include/psymp3.h
+	<iostream>
+	<string>
+	<vector>
+	<cstdlib>
+	<stdlib.h>
+	<SDL/SDL.h>
+	<SDL/SDL_mixer.h>
+	<SDL/SDL_gfxPrimitives.h>
+	<SDL.h>
+	<SDL_mixer.h>
+	<SDL_gfxPrimitives.h>
+	"track.h"
+	"playlist.h"
+	"display.h"
+	"player.h"
+
+1310343517 /home/segin/psymp3/include/track.h
+
+1310273332 /home/segin/psymp3/include/playlist.h
+
+1310350330 /home/segin/psymp3/include/player.h
+
+1310349044 /home/segin/psymp3/include/display.h
+
+1310255489 source:/home/segin/psymp3/src/fft_draw.cpp
+	"fft_draw.h"
+
+1310343530 /home/segin/psymp3/include/fft_draw.h
+
+1310350298 source:/home/segin/psymp3/src/player.cpp
+	"psymp3.h"
+
+1310343531 source:/home/segin/psymp3/src/playlist.cpp
+	"psymp3.h"
+
+1310346164 source:/home/segin/psymp3/src/display.cpp
+	"psymp3.h"
 

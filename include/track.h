@@ -1,5 +1,6 @@
 /*
- * display.h - class header for SDL display wrapper
+ * track.h - class header for track class
+ * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
