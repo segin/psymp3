@@ -1,18 +1,18 @@
 #ifndef PLAYLIST_H
 #define PLAYLIST_H
 
-#include "track.h"
-
-class playlist
+class Playlist
 {
     public:
         /** Default constructor */
-        playlist();
+        Playlist();
+        bool addFile(std::wstring path);
+
         /** Default destructor */
-        virtual ~playlist();
+        virtual ~Playlist();
     protected:
     private:
-        std::vector<track> tracks; //!< Member variable "tracks"
+    std::vector<track> tracks;
 };
 
 #endif // PLAYLIST_H
