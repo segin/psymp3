@@ -1,5 +1,5 @@
 /*
- * display.h - class implementation for SDL display wrapper
+ * display.h - SDL_Surface wrapper header for display window.
  * This also wraps SDL_gfx for primitives.
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
@@ -20,63 +20,11 @@
  *
  */
 
-
 #include "psymp3.h"
 
 Display::Display()
 {
     //ctor
-    m_handle = SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF);
+    Surface(SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF));
 }
 
-Display::~Display()
-{
-    //dtor
-    if (m_handle) SDL_FreeSurface(m_handle);
-}
-
-bool Display::isInit()
-{
-    if (m_handle) return true; else return false;
-}
-
-void Display::pixel(int16_t x, int16_t y, uint32_t color)
-{
-    pixelColor(m_handle, x, y, color);
-}
-
-void Display::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
-{
-    pixelRGBA(m_handle, x, y, r, g, b, a);
-}
-
-/*
-int rectangleColor(SDL_Surface * dst, Sint16 x1, Sint16 y1,
-Sint16 x2, Sint16 y2, Uint32 color);
-int rectangleRGBA(SDL_Surface * dst, Sint16 x1, Sint16 y1,
-Sint16 x2, Sint16 y2, Uint8 r, Uint8 g,
-Uint8 b, Uint8 a);
-Filled rectangle (Box)
-int boxColor(SDL_Surface * dst, Sint16 x1, Sint16 y1,
-Sint16 x2, Sint16 y2, Uint32 color);
-int boxRGBA(SDL_Surface * dst, Sint16 x1, Sint16 y1, Sint16 x2,
-Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-
-
-Horizontal line
-int hlineColor(SDL_Surface * dst, Sint16 x1, Sint16 x2,
-Sint16 y, Uint32 color);
-int hlineRGBA(SDL_Surface * dst, Sint16 x1, Sint16 x2,
-Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-Vertical line
-int vlineColor(SDL_Surface * dst, Sint16 x, Sint16 y1,
-Sint16 y2, Uint32 color);
-int vlineRGBA(SDL_Surface * dst, Sint16 x, Sint16 y1,
-Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
-Rectangle
-*/
-
-SDL_Surface * Display::getHandle()
-{
-    return m_handle;
-}

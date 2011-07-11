@@ -46,6 +46,7 @@
 
 #include "track.h"
 #include "playlist.h"
+#include "surface.h"
 #include "display.h"
 #include "player.h"
 
