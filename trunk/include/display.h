@@ -1,5 +1,5 @@
 /*
- * display.h - class header for SDL display wrapper
+ * display.h - SDL_Surface wrapper implementation for display window.
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
@@ -22,15 +22,11 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-class Display
+class Display : public Surface
 {
     public:
         Display();
-        virtual ~Display();
-        bool isInit();
-        void pixel(int16_t x, int16_t y, uint32_t color);
-        void pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
-        /*
+/*
 int rectangleColor(SDL_Surface * dst, Sint16 x1, Sint16 y1,
 Sint16 x2, Sint16 y2, Uint32 color);
 int rectangleRGBA(SDL_Surface * dst, Sint16 x1, Sint16 y1,
@@ -55,11 +51,6 @@ int vlineRGBA(SDL_Surface * dst, Sint16 x, Sint16 y1,
 Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
 Rectangle
 */
-        SDL_Surface * getHandle();
-
-    protected:
-    private:
-        SDL_Surface * m_handle; //!< Member variable "m_handle"
 };
 
 #endif // DISPLAY_H
