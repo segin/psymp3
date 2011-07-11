@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1310255304 source:/home/segin/psymp3/main.cpp
+1310337215 source:/home/segin/psymp3/main.cpp
 	"psymp3.h"
 
 1301615163 /usr/include/SDL/SDL.h
@@ -182,7 +182,7 @@
 	"begin_code.h"
 	"close_code.h"
 
-1310253735 /home/segin/psymp3/include//psymp3.h
+1310267229 /home/segin/psymp3/include//psymp3.h
 	<iostream>
 	<string>
 	<vector>
@@ -196,14 +196,14 @@
 	<SDL_gfxPrimitives.h>
 	"track.h"
 	"playlist.h"
+	"player.h"
 
-1310243514 /home/segin/psymp3/include//track.h
+1310336808 /home/segin/psymp3/include//track.h
 
 1310242588 source:/home/segin/psymp3/src/track.cpp
 	"psymp3.h"
 
-1310247306 /home/segin/psymp3/include//playlist.h
-	"track.h"
+1310273332 /home/segin/psymp3/include//playlist.h
 
 1292267207 /usr/include/SDL/SDL_mixer.h
 	"SDL_types.h"
@@ -220,4 +220,6 @@
 1287169885 /usr/include/SDL/SDL_gfxPrimitives.h
 	<math.h>
 	"SDL.h"
+
+1310267177 /home/segin/psymp3/include//player.h
 
