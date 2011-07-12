@@ -9,6 +9,7 @@ class Stream
         Stream();
         /** Default destructor */
         virtual ~Stream();
+
     protected:
     private:
 };

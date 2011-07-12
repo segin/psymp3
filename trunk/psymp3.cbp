@@ -31,11 +31,16 @@
 		<Compiler>
 			<Add option="-Wall" />
 			<Add option="`sdl-config --cflags`" />
+			<Add option="`pkg-config vorbisfile --cflags`" />
+			<Add option="`pkg-config libmpg123 --cflags`" />
 			<Add directory="include" />
 		</Compiler>
 		<Linker>
 			<Add option="`sdl-config --libs`" />
 			<Add option="`pkg-config SDL_gfx --libs`" />
+			<Add option="`pkg-config libmpg123 --libs`" />
+			<Add option="`pkg-config vorbisfile --libs`" />
+			<Add option="-lSDL_ttf" />
 		</Linker>
 		<Unit filename="cb.bmp" />
 		<Unit filename="include/about.h" />
@@ -45,9 +50,11 @@
 		<Unit filename="include/player.h" />
 		<Unit filename="include/playlist.h" />
 		<Unit filename="include/psymp3.h" />
+		<Unit filename="include/scrobble.h" />
 		<Unit filename="include/stream.h" />
 		<Unit filename="include/surface.h" />
 		<Unit filename="include/track.h" />
+		<Unit filename="include/truetype.h" />
 		<Unit filename="include/vorbisw.h" />
 		<Unit filename="main.cpp" />
 		<Unit filename="src/about.cpp" />
@@ -56,9 +63,11 @@
 		<Unit filename="src/libmpg123.cpp" />
 		<Unit filename="src/player.cpp" />
 		<Unit filename="src/playlist.cpp" />
+		<Unit filename="src/scrobble.cpp" />
 		<Unit filename="src/stream.cpp" />
 		<Unit filename="src/surface.cpp" />
 		<Unit filename="src/track.cpp" />
+		<Unit filename="src/truetype.cpp" />
 		<Unit filename="src/vorbis.cpp" />
 		<Extensions>
 			<code_completion />

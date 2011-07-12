@@ -1,11 +1,11 @@
 #include "psymp3.h"
 
-Vorbis::Vorbis()
+Scrobble::Scrobble()
 {
     //ctor
 }
 
-Vorbis::~Vorbis()
+Scrobble::~Scrobble()
 {
     //dtor
 }
