@@ -44,8 +44,13 @@
 #include <SDL_mixer.h>
 #include <SDL_gfxPrimitives.h>
 #endif
+#include <mpg123.h>
+#include <vorbis.h>
 
 // local includes
+#include "stream.h"
+#include "libmpg123w.h"
+#include "vorbisw.h"
 #include "about.h"
 #include "track.h"
 #include "playlist.h"

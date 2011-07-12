@@ -23,6 +23,8 @@
 #ifndef SURFACE_H
 #define SURFACE_H
 
+class Display;
+
 class Surface
 {
     public:
@@ -48,6 +50,7 @@ class Surface
         int16_t height();
         int16_t width();
         SDL_Surface * getHandle();
+        friend class Display;
     protected:
         SDL_Surface * m_handle; //!< Member variable "m_handle"
     private:

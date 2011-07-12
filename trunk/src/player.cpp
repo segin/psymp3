@@ -57,25 +57,6 @@ void Player::Run(std::vector<std::string> args)
     // make sure SDL cleans up before exit
     atexit(SDL_Quit);
 
-    // create a new window
-    /*
-    SDL_Surface* screen = SDL_SetVideoMode(640, 400, 16,
-                                           SDL_HWSURFACE|SDL_DOUBLEBUF);
-    if ( !screen )
-    {
-        printf("Unable to set 640x480 video: %s\n", SDL_GetError());
-        return;
-    }
-
-    // load an image
-    SDL_Surface* bmp = SDL_LoadBMP("cb.bmp");
-    if (!bmp)
-    {
-        printf("Unable to load bitmap: %s\n", SDL_GetError());
-        return;
-    }
-
-    */
     screen = new Display();
     playlist = new Playlist();
     Surface bmp = Surface::FromBMP("cb.bmp");
@@ -106,7 +87,7 @@ void Player::Run(std::vector<std::string> args)
             case SDL_KEYDOWN:
                 {
                     // exit if ESCAPE is pressed
-                    if (event.key.keysym.sym == SDLK_ESCAPE)
+                    if ((event.key.keysym.sym == SDLK_ESCAPE) || (event.key.keysym.sym == SDLK_q))
                         done = true;
                     break;
                 }
@@ -126,6 +107,8 @@ void Player::Run(std::vector<std::string> args)
 
         // finally, update the screen :)
         screen->Flip();
+
+        usleep(33);
     } // end main loop
 
     // all is well ;)
