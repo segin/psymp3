@@ -39,13 +39,15 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_mixer.h>
 #include <SDL/SDL_gfxPrimitives.h>
+#include <SDL/SDL_ttf.h>
 #else
 #include <SDL.h>
 #include <SDL_mixer.h>
 #include <SDL_gfxPrimitives.h>
+#include <SDL_ttf.h>
 #endif
 #include <mpg123.h>
-#include <vorbis.h>
+#include <vorbis/vorbisfile.h>
 
 // local includes
 #include "stream.h"
@@ -53,9 +55,11 @@
 #include "vorbisw.h"
 #include "about.h"
 #include "track.h"
+#include "scrobble.h"
 #include "playlist.h"
 #include "surface.h"
 #include "display.h"
+#include "truetype.h"
 #include "player.h"
 
 // global singletons

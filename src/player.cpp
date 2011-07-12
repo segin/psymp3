@@ -57,6 +57,8 @@ void Player::Run(std::vector<std::string> args)
     // make sure SDL cleans up before exit
     atexit(SDL_Quit);
 
+    TrueType::Init();
+
     screen = new Display();
     playlist = new Playlist();
     Surface bmp = Surface::FromBMP("cb.bmp");
