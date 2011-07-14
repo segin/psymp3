@@ -30,22 +30,26 @@
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
-			<Add option="`sdl-config --cflags`" />
+			<Add option="`pkg-config sdl --cflags`" />
 			<Add option="`pkg-config vorbisfile --cflags`" />
 			<Add option="`pkg-config libmpg123 --cflags`" />
+			<Add option="`pkg-config vorbisfile --cflags`" />
+			<Add option="`pkg-config taglib --cflags`" />
 			<Add directory="include" />
 		</Compiler>
 		<Linker>
-			<Add option="`sdl-config --libs`" />
+			<Add option="`pkg-config sdl --libs`" />
 			<Add option="`pkg-config SDL_gfx --libs`" />
 			<Add option="`pkg-config libmpg123 --libs`" />
 			<Add option="`pkg-config vorbisfile --libs`" />
+			<Add option="`pkg-config taglib --libs`" />
 			<Add option="-lSDL_ttf" />
 		</Linker>
 		<Unit filename="cb.bmp" />
 		<Unit filename="include/about.h" />
 		<Unit filename="include/display.h" />
 		<Unit filename="include/fft_draw.h" />
+		<Unit filename="include/font.h" />
 		<Unit filename="include/libmpg123w.h" />
 		<Unit filename="include/player.h" />
 		<Unit filename="include/playlist.h" />
@@ -60,6 +64,7 @@
 		<Unit filename="src/about.cpp" />
 		<Unit filename="src/display.cpp" />
 		<Unit filename="src/fft_draw.cpp" />
+		<Unit filename="src/font.cpp" />
 		<Unit filename="src/libmpg123.cpp" />
 		<Unit filename="src/player.cpp" />
 		<Unit filename="src/playlist.cpp" />

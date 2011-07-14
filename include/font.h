@@ -1,5 +1,5 @@
 /*
- * player.h - player singleton class header.
+ * font.cpp - wrapper for SDL_ttf's TTF_Font type, class header.
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
@@ -19,21 +19,18 @@
  *
  */
 
-#ifndef PLAYER_H
-#define PLAYER_H
+#ifndef FONT_H
+#define FONT_H
 
-/* PsyMP3 main class! */
-
-class Player
+class Font
 {
     public:
-        Player();
-        virtual ~Player();
-        void Run(std::vector<std::string> args);
+        explicit Font(TagLib::String file, int ptsize = 12);
+        virtual ~Font();
+        bool isValid();
     protected:
     private:
-        Display *screen;
-        Playlist *playlist;
+        TTF_Font * m_font;
 };
 
-#endif // PLAYER_H
+#endif // FONT_H

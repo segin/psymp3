@@ -32,22 +32,26 @@ class track
         track(std::string a_FilePath);
         virtual ~track();
         track& operator=(const track& rhs);
-        std::wstring GetArtist() { return m_Artist; }
+        TagLib::String GetArtist() { return m_Artist; }
         void SetArtist(std::wstring val) { m_Artist = val; }
-        std::wstring GetTitle() { return m_Title; }
+        void SetArtist(std::string val) { m_Artist = val; }
+        TagLib::String GetTitle() { return m_Title; }
         void SetTitle(std::wstring val) { m_Title = val; }
-        std::wstring GetAlbum() { return m_Album; }
+        void SetTitle(std::string val) { m_Title = val; }
+        TagLib::String GetAlbum() { return m_Album; }
         void SetAlbum(std::wstring val) { m_Album = val; }
-        std::wstring GetFilePath() { return m_FilePath; }
+        void SetAlbum(std::string val) { m_Album = val; }
+        TagLib::String GetFilePath() { return m_FilePath; }
         void SetFilePath(std::wstring val) { m_FilePath = val; }
+        void SetFilePath(std::string val) { m_FilePath = val; }
         unsigned int GetLen() { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }
     protected:
     private:
-        std::wstring m_Artist;
-        std::wstring m_Title;
-        std::wstring m_Album;
-        std::wstring m_FilePath;
+        TagLib::String m_Artist;
+        TagLib::String m_Title;
+        TagLib::String m_Album;
+        TagLib::String m_FilePath;
         unsigned int m_Len;
 };
 
