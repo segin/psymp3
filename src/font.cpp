@@ -31,7 +31,6 @@ Font::Font(TagLib::String file, int ptsize = 12)
 
 }
 
-
 Font::~Font()
 {
     //dtor
