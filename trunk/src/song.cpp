@@ -1,5 +1,5 @@
 /*
- * player.h - player singleton class header.
+ * song.cpp - Play a song!
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
@@ -19,21 +19,14 @@
  *
  */
 
-#ifndef PLAYER_H
-#define PLAYER_H
+#include "psymp3.h"
 
-/* PsyMP3 main class! */
-
-class Player
+Song::Song()
 {
-    public:
-        Player();
-        virtual ~Player();
-        void Run(std::vector<std::string> args);
-    protected:
-    private:
-        Display *screen;
-        Playlist *playlist;
-};
+    //ctor
+}
 
-#endif // PLAYER_H
+Song::~Song()
+{
+    //dtor
+}

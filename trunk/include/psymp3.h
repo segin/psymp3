@@ -48,6 +48,7 @@
 #endif
 #include <mpg123.h>
 #include <vorbis/vorbisfile.h>
+#include <taglib/tag.h>
 
 // local includes
 #include "stream.h"
@@ -55,11 +56,13 @@
 #include "vorbisw.h"
 #include "about.h"
 #include "track.h"
+#include "song.h"
 #include "scrobble.h"
 #include "playlist.h"
 #include "surface.h"
 #include "display.h"
 #include "truetype.h"
+#include "font.h"
 #include "player.h"
 
 // global singletons

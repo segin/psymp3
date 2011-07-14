@@ -52,7 +52,10 @@ track::track(wstring a_Artist, wstring a_Title, wstring a_Album, wstring a_FileP
 track::track(string a_Artist, string a_Title, string a_Album, string a_FilePath, unsigned int a_Len)
 {
     //ctor
-    // m_Artist = a_Artist;
+    m_Artist = a_Artist;
+    m_Title = a_Title;
+    m_Album = a_Album;
+    m_FilePath = a_FilePath;
     m_Len = a_Len;
 }
 
