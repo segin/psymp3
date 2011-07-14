@@ -34,6 +34,7 @@ class Player
     private:
         Display *screen;
         Playlist *playlist;
+        Font *font;
 };
 
 #endif // PLAYER_H

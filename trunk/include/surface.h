@@ -33,8 +33,9 @@ class Surface
         virtual ~Surface();
         static Surface& FromBMP(const char *a_file);
         static Surface& FromBMP(std::string a_file);
-        bool isInit();
+        bool isValid();
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
+        void Blit(Surface& src, Rect& rect);
         void FillRect(uint32_t color);
         void Flip();
         void pixel(int16_t x, int16_t y, uint32_t color);

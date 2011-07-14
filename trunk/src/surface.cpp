@@ -30,7 +30,7 @@ Surface::Surface()
 
 Surface::Surface(SDL_Surface *sfc)
 {
-    std::cout << "Surface::Surface(SDL_Surface*): called, 0x" << std::hex << (unsigned int) sfc << std::endl;
+    //std::cout << "Surface::Surface(SDL_Surface*): called, 0x" << std::hex << (unsigned int) sfc << std::endl;
     m_handle = sfc;
 }
 
@@ -50,7 +50,14 @@ Surface& Surface::FromBMP(const char *a_file)
     return *(new Surface(SDL_LoadBMP(a_file)));
 }
 
-bool Surface::isInit()
+void Surface::Blit(Surface& src, Rect& rect)
+{
+    if (!m_handle) return;
+    SDL_Rect r = { rect.width(), rect.height() };
+    SDL_BlitSurface(src.m_handle, 0, m_handle, &r);
+}
+
+bool Surface::isValid()
 {
     if (m_handle) return true; else return false;
 }

@@ -27,6 +27,7 @@ class Font
     public:
         explicit Font(TagLib::String file, int ptsize = 12);
         virtual ~Font();
+        Surface& Render(TagLib::String text, uint8_t r = 255, uint8_t g = 255, uint8_t b = 255);
         bool isValid();
     protected:
     private:

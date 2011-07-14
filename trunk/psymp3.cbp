@@ -33,7 +33,6 @@
 			<Add option="`pkg-config sdl --cflags`" />
 			<Add option="`pkg-config vorbisfile --cflags`" />
 			<Add option="`pkg-config libmpg123 --cflags`" />
-			<Add option="`pkg-config vorbisfile --cflags`" />
 			<Add option="`pkg-config taglib --cflags`" />
 			<Add directory="include" />
 		</Compiler>
@@ -54,6 +53,7 @@
 		<Unit filename="include/player.h" />
 		<Unit filename="include/playlist.h" />
 		<Unit filename="include/psymp3.h" />
+		<Unit filename="include/rect.h" />
 		<Unit filename="include/scrobble.h" />
 		<Unit filename="include/stream.h" />
 		<Unit filename="include/surface.h" />
@@ -68,6 +68,7 @@
 		<Unit filename="src/libmpg123.cpp" />
 		<Unit filename="src/player.cpp" />
 		<Unit filename="src/playlist.cpp" />
+		<Unit filename="src/rect.cpp" />
 		<Unit filename="src/scrobble.cpp" />
 		<Unit filename="src/stream.cpp" />
 		<Unit filename="src/surface.cpp" />
