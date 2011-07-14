@@ -202,7 +202,7 @@
 
 1310343517 /home/segin/psymp3/include//track.h
 
-1310343530 source:/home/segin/psymp3/src/track.cpp
+1310631125 source:/home/segin/psymp3/src/track.cpp
 	"psymp3.h"
 
 1310273332 /home/segin/psymp3/include//playlist.h
@@ -225,7 +225,7 @@
 
 1310360248 /home/segin/psymp3/include//player.h
 
-1310368332 /home/segin/psymp3/include/psymp3.h
+1310634841 /home/segin/psymp3/include/psymp3.h
 	<iostream>
 	<string>
 	<vector>
@@ -234,41 +234,54 @@
 	<SDL/SDL.h>
 	<SDL/SDL_mixer.h>
 	<SDL/SDL_gfxPrimitives.h>
+	<SDL/SDL_ttf.h>
 	<SDL.h>
 	<SDL_mixer.h>
 	<SDL_gfxPrimitives.h>
+	<SDL_ttf.h>
+	<mpg123.h>
+	<vorbis/vorbisfile.h>
+	<taglib/tag.h>
+	"stream.h"
+	"libmpg123w.h"
+	"vorbisw.h"
 	"about.h"
 	"track.h"
+	"song.h"
+	"scrobble.h"
 	"playlist.h"
+	"rect.h"
 	"surface.h"
 	"display.h"
+	"truetype.h"
+	"font.h"
 	"player.h"
 
-1310424188 /home/segin/psymp3/include/track.h
+1310598711 /home/segin/psymp3/include/track.h
 
 1310273332 /home/segin/psymp3/include/playlist.h
 
-1310368672 /home/segin/psymp3/include/player.h
+1310623931 /home/segin/psymp3/include/player.h
 
-1310370856 /home/segin/psymp3/include/display.h
+1310627734 /home/segin/psymp3/include/display.h
 
-1310255489 source:/home/segin/psymp3/src/fft_draw.cpp
+1310638792 source:/home/segin/psymp3/src/fft_draw.cpp
 	"fft_draw.h"
 
 1310343530 /home/segin/psymp3/include/fft_draw.h
 
-1310370826 source:/home/segin/psymp3/src/player.cpp
+1310639269 source:/home/segin/psymp3/src/player.cpp
 	"psymp3.h"
 
 1310343531 source:/home/segin/psymp3/src/playlist.cpp
 	"psymp3.h"
 
-1310369647 source:/home/segin/psymp3/src/display.cpp
+1310638731 source:/home/segin/psymp3/src/display.cpp
 	"psymp3.h"
 
-1310424023 /home/segin/psymp3/include/surface.h
+1310635047 /home/segin/psymp3/include/surface.h
 
-1310370864 source:/home/segin/psymp3/src/surface.cpp
+1310635234 source:/home/segin/psymp3/src/surface.cpp
 	"psymp3.h"
 
 1310361256 /home/segin/psymp3/include//surface.h
@@ -279,6 +292,48 @@
 
 1310368359 /home/segin/psymp3/include/about.h
 
-1310368421 source:/home/segin/psymp3/src/about.cpp
+1310603940 source:/home/segin/psymp3/src/about.cpp
+	"psymp3.h"
+
+1301737694 /usr/include/SDL/SDL_ttf.h
+	"SDL.h"
+	"begin_code.h"
+	"close_code.h"
+
+1310457964 /home/segin/psymp3/include/stream.h
+
+1310437793 /home/segin/psymp3/include/libmpg123w.h
+
+1310441376 /home/segin/psymp3/include/vorbisw.h
+
+1310599420 /home/segin/psymp3/include/song.h
+
+1310457259 /home/segin/psymp3/include/scrobble.h
+
+1310541359 /home/segin/psymp3/include/truetype.h
+
+1310639429 /home/segin/psymp3/include/font.h
+
+1310638867 source:/home/segin/psymp3/src/font.cpp
+	"psymp3.h"
+
+1310438154 source:/home/segin/psymp3/src/libmpg123.cpp
+	"psymp3.h"
+
+1310457224 source:/home/segin/psymp3/src/scrobble.cpp
+	"psymp3.h"
+
+1310438296 source:/home/segin/psymp3/src/stream.cpp
+	"stream.h"
+
+1310543747 source:/home/segin/psymp3/src/truetype.cpp
+	"psymp3.h"
+
+1310442962 source:/home/segin/psymp3/src/vorbis.cpp
+	"psymp3.h"
+
+1310635210 /home/segin/psymp3/include/rect.h
+
+1310634812 source:/home/segin/psymp3/src/rect.cpp
 	"psymp3.h"
 

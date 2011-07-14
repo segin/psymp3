@@ -37,9 +37,7 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "with PsyMP3; if not, write to the Free Software Foundation, Inc.,\n"
             "51 Franklin St., Fifth Floor, Boston, MA 02110-1301, USA.\n"
             "\n"
-            "Written by " PSYMP3_MAINTAINER "\n"
-            "\n"
-            "Dedicated to my best friend Virginia, and our son Matthew.";
+            "Written by " PSYMP3_MAINTAINER "\n";
 
 void about_console()
 {

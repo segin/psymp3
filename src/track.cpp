@@ -26,11 +26,13 @@ using namespace std;
 track::track(wstring a_FilePath)
 {
     //ctor
+    m_FilePath = a_FilePath;
 }
 
 track::track(string a_FilePath)
 {
     //ctor
+    m_FilePath = a_FilePath;
 }
 
 

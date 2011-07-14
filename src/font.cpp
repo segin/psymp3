@@ -21,17 +21,35 @@
 
 #include "psymp3.h"
 
-Font::Font()
+Font::Font(TagLib::String file, int ptsize)
 {
-    //ctor
-}
-
-Font::Font(TagLib::String file, int ptsize = 12)
-{
-
+    if(!TTF_WasInit()) return;
+    std::cout << "Font::Font(): Requesting font " << file.to8Bit(true) << std::endl;
+    m_font = TTF_OpenFont(file.toCString(), ptsize);
+    std::cout << "Font::Font(): m_font = " << std::hex << m_font << std::endl;
 }
 
 Font::~Font()
 {
     //dtor
+    TTF_CloseFont(m_font);
+}
+
+Surface& Font::Render(TagLib::String text, uint8_t r, uint8_t g, uint8_t b)
+{
+    if (!m_font) return *(new Surface());
+    SDL_Color sdlcolor;
+    sdlcolor.r = r;
+    sdlcolor.g = g;
+    sdlcolor.b = b;
+    std::cout << "Font::Render(): r = " << (unsigned int) sdlcolor.r << ", b = " << (unsigned int) sdlcolor.b << ", g = " << (unsigned int) sdlcolor.g << std::endl;
+    return *(new Surface(TTF_RenderUTF8_Blended(m_font, text.toCString(true), sdlcolor)));
+}
+
+bool Font::isValid()
+{
+    if(m_font)
+        return true;
+    else
+        return false;
 }

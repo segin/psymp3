@@ -30,12 +30,7 @@ Display::Display()
     SDL_WM_SetCaption("PsyMP3 " PSYMP3_VERSION, "PsyMP3");
 }
 
-void Display::SetCaption(const char *title, const char *icon_title)
+void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
-    SDL_WM_SetCaption(title, icon_title);
-}
-
-void Display::SetCaption(std::string title, std::string icon_title)
-{
-    SDL_WM_SetCaption(title.c_str(), icon_title.c_str());
+    SDL_WM_SetCaption(title.toCString(true), icon_title.toCString(true));
 }

@@ -26,8 +26,7 @@ class Display : public Surface
 {
     public:
         Display();
-        void SetCaption(const char *, const char *);
-        void SetCaption(std::string, std::string);
+        void SetCaption(TagLib::String, TagLib::String);
 };
 
 #endif // DISPLAY_H

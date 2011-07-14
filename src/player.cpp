@@ -61,12 +61,18 @@ void Player::Run(std::vector<std::string> args)
 
     screen = new Display();
     playlist = new Playlist();
+    font = new Font("res/vera.ttf");
+    std::cout << "font->isValid():" << font->isValid() << std::endl;
     Surface bmp = Surface::FromBMP("cb.bmp");
 
     // centre the bitmap on screen
-    SDL_Rect dstrect;
-    dstrect.x = (screen->width() - bmp.width()) / 2;
-    dstrect.y = (screen->height() - bmp.height()) / 2;
+    Rect dstrect;
+    dstrect.width((screen->width() - bmp.width()) / 2);
+    dstrect.height((screen->height() - bmp.height()) / 2);
+
+    Surface s_artist = font->Render("Artist: Chris Cornell");
+    Surface s_title = font->Render("Title: You Know My Name");
+    Surface s_album = font->Render("Album: Carry On");
 
     // program main loop
     bool done = false;
@@ -102,15 +108,25 @@ void Player::Run(std::vector<std::string> args)
         screen->FillRect(screen->MapRGB(0, 0, 0));
 
         // draw bitmap
-        SDL_BlitSurface(bmp.getHandle(), 0, screen->getHandle(), &dstrect);
+        screen->Blit(bmp, dstrect);
+
+        Rect f;
+        f.width(1);
+        f.height(354);
+
+        screen->Blit(s_artist, f);
+        f.height(369);
+        screen->Blit(s_title, f);
+        f.height(384);
+        screen->Blit(s_album, f);
 
         // DRAWING ENDS HERE
-        screen->hline(0, 400, a++, 0xFFFFFF80);
+        screen->hline(0, 400, a++, 0xFFFFFF00 + (a & 255));
 
         // finally, update the screen :)
         screen->Flip();
 
-        usleep(33);
+        usleep(33000);
     } // end main loop
 
     // all is well ;)

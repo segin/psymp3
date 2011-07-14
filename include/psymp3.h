@@ -59,6 +59,7 @@
 #include "song.h"
 #include "scrobble.h"
 #include "playlist.h"
+#include "rect.h"
 #include "surface.h"
 #include "display.h"
 #include "truetype.h"
