@@ -42,7 +42,6 @@ Surface& Font::Render(TagLib::String text, uint8_t r, uint8_t g, uint8_t b)
     sdlcolor.r = r;
     sdlcolor.g = g;
     sdlcolor.b = b;
-    std::cout << "Font::Render(): r = " << (unsigned int) sdlcolor.r << ", b = " << (unsigned int) sdlcolor.b << ", g = " << (unsigned int) sdlcolor.g << std::endl;
     return *(new Surface(TTF_RenderUTF8_Blended(m_font, text.toCString(true), sdlcolor)));
 }
 

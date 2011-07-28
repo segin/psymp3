@@ -62,7 +62,7 @@ void Player::Run(std::vector<std::string> args)
     screen = new Display();
     playlist = new Playlist();
     font = new Font("res/vera.ttf");
-    std::cout << "font->isValid():" << font->isValid() << std::endl;
+    std::cout << "font->isValid(): " << font->isValid() << std::endl;
     Surface bmp = Surface::FromBMP("cb.bmp");
 
     // centre the bitmap on screen
