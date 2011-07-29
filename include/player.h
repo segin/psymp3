@@ -35,6 +35,7 @@ class Player
         Display *screen;
         Playlist *playlist;
         Font *font;
+        Stream *stream;
 };
 
 #endif // PLAYER_H
