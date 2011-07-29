@@ -49,6 +49,7 @@
 #include <mpg123.h>
 #include <vorbis/vorbisfile.h>
 #include <taglib/tag.h>
+#include <taglib/fileref.h>
 
 // local includes
 #include "stream.h"

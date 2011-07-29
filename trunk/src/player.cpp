@@ -61,6 +61,7 @@ void Player::Run(std::vector<std::string> args)
 
     screen = new Display();
     playlist = new Playlist();
+    stream = new Stream(args[1]);
     font = new Font("res/vera.ttf");
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     Surface bmp = Surface::FromBMP("cb.bmp");
@@ -70,9 +71,10 @@ void Player::Run(std::vector<std::string> args)
     dstrect.width((screen->width() - bmp.width()) / 2);
     dstrect.height((screen->height() - bmp.height()) / 2);
 
-    Surface s_artist = font->Render("Artist: Chris Cornell");
-    Surface s_title = font->Render("Title: You Know My Name");
-    Surface s_album = font->Render("Album: Carry On");
+
+    Surface s_artist = font->Render("Artist: " + stream->getArtist());
+    Surface s_title = font->Render("Title: " + stream->getTitle());
+    Surface s_album = font->Render("Album: " + stream->getAlbum());
 
     // program main loop
     bool done = false;
