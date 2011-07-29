@@ -26,24 +26,18 @@ class track
 {
     public:
         track();
-        track(std::wstring a_Artist, std::wstring a_Title, std::wstring a_Album, std::wstring a_FilePath, unsigned int a_Len);
-        track(std::string a_Artist, std::string a_Title, std::string a_Album, std::string a_FilePath, unsigned int a_Len);
-        track(std::wstring a_FilePath);
-        track(std::string a_FilePath);
+        track(TagLib::String a_Artist, TagLib::String a_Title, TagLib::String a_Album, TagLib::String a_FilePath, unsigned int a_Len);
+        track(TagLib::String a_FilePath);
         virtual ~track();
         track& operator=(const track& rhs);
         TagLib::String GetArtist() { return m_Artist; }
-        void SetArtist(std::wstring val) { m_Artist = val; }
-        void SetArtist(std::string val) { m_Artist = val; }
+        void SetArtist(TagLib::String val) { m_Artist = val; }
         TagLib::String GetTitle() { return m_Title; }
-        void SetTitle(std::wstring val) { m_Title = val; }
-        void SetTitle(std::string val) { m_Title = val; }
+        void SetTitle(TagLib::String val) { m_Title = val; }
         TagLib::String GetAlbum() { return m_Album; }
-        void SetAlbum(std::wstring val) { m_Album = val; }
-        void SetAlbum(std::string val) { m_Album = val; }
+        void SetAlbum(TagLib::String val) { m_Album = val; }
         TagLib::String GetFilePath() { return m_FilePath; }
-        void SetFilePath(std::wstring val) { m_FilePath = val; }
-        void SetFilePath(std::string val) { m_FilePath = val; }
+        void SetFilePath(TagLib::String val) { m_FilePath = val; }
         unsigned int GetLen() { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }
     protected:

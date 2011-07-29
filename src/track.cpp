@@ -21,37 +21,19 @@
 
 #include "psymp3.h"
 
-using namespace std;
-
-track::track(wstring a_FilePath)
+track::track(TagLib::String a_FilePath)
 {
     //ctor
     m_FilePath = a_FilePath;
 }
-
-track::track(string a_FilePath)
-{
-    //ctor
-    m_FilePath = a_FilePath;
-}
-
 
 track::track()
 {
     //ctor
 }
 
-track::track(wstring a_Artist, wstring a_Title, wstring a_Album, wstring a_FilePath, unsigned int a_Len)
-{
-    //ctor
-    m_Artist = a_Artist;
-    m_Title = a_Title;
-    m_Album = a_Album;
-    m_FilePath = a_FilePath;
-    m_Len = a_Len;
-}
 
-track::track(string a_Artist, string a_Title, string a_Album, string a_FilePath, unsigned int a_Len)
+track::track(TagLib::String a_Artist, TagLib::String a_Title, TagLib::String a_Album, TagLib::String a_FilePath, unsigned int a_Len)
 {
     //ctor
     m_Artist = a_Artist;
