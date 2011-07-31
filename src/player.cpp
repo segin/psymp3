@@ -122,7 +122,7 @@ void Player::Run(std::vector<std::string> args)
     // program main loop
     bool done = false;
     audio->play(true);
-    timer = SDL_AddTimer(20, AppLoopTimer, this);
+    timer = SDL_AddTimer(33, AppLoopTimer, NULL);
     while (!done)
     {
 
@@ -130,7 +130,11 @@ void Player::Run(std::vector<std::string> args)
         SDL_Event event;
         while (SDL_WaitEvent(&event))
         {
+            bool sdone = false;
             // check for messages
+ #ifdef DEBUG
+            std::cout << "event.type :" << std::dec << (int) event.type << std::endl;
+ #endif
             switch (event.type)
             {
                 // exit if the window is closed
@@ -176,10 +180,11 @@ void Player::Run(std::vector<std::string> args)
 
                     // finally, update the screen :)
                     screen->Flip();
-                    if(stream->getPosition() >= stream->getLength()) break;
+                    if(stream->getPosition() >= stream->getLength()) sdone = true;
                 }
-
+                break;
             } // end switch
+            if (done) break;
         } // end of message processing
 
         // DRAWING STARTS HERE
