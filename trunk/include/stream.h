@@ -40,7 +40,7 @@ class Stream
         virtual unsigned int getEncoding(); // returns undefined
         virtual unsigned int getPosition(); // returns undefined
         virtual size_t getData(size_t len, void *buf) = 0;
-        virtual void seekTo(unsigned int pos) = 0;
+        virtual void seekTo(unsigned long pos) = 0;
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer

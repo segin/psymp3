@@ -84,10 +84,10 @@ size_t Libmpg123::getData(size_t len, void *buf)
     return actual;
 }
 
-void Libmpg123::seekTo(unsigned int pos)
+void Libmpg123::seekTo(unsigned long pos)
 {
-    long long a = pos * m_rate / 1000;
-    m_position = (long long) mpg123_seek((mpg123_handle *) m_handle, (off_t) a, SEEK_SET) * 1000 / m_rate;
+    long long a = (long long) pos * m_rate / 1000;
+    m_position = (long long) mpg123_seek((mpg123_handle *) m_handle, a, SEEK_SET) * 1000 / m_rate;
 }
 
 void Libmpg123::init()
