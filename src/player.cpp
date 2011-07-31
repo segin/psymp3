@@ -61,7 +61,7 @@ void Player::Run(std::vector<std::string> args)
 
     screen = new Display();
     playlist = new Playlist();
-    stream = new Stream(args[1]);
+    stream = new Libmpg123(args[1]);
     font = new Font("res/vera.ttf");
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     Surface bmp = Surface::FromBMP("cb.bmp");
