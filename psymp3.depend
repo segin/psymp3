@@ -263,7 +263,7 @@
 
 1310273332 /home/segin/psymp3/include/playlist.h
 
-1311927017 /home/segin/psymp3/include/player.h
+1312097268 /home/segin/psymp3/include/player.h
 
 1310627734 /home/segin/psymp3/include/display.h
 
@@ -272,7 +272,7 @@
 
 1310343530 /home/segin/psymp3/include/fft_draw.h
 
-1311992839 source:/home/segin/psymp3/src/player.cpp
+1312097339 source:/home/segin/psymp3/src/player.cpp
 	"psymp3.h"
 
 1310343531 source:/home/segin/psymp3/src/playlist.cpp
@@ -302,9 +302,9 @@
 	"begin_code.h"
 	"close_code.h"
 
-1311992313 /home/segin/psymp3/include/stream.h
+1312097457 /home/segin/psymp3/include/stream.h
 
-1311992356 /home/segin/psymp3/include/libmpg123w.h
+1312096367 /home/segin/psymp3/include/libmpg123w.h
 
 1310441376 /home/segin/psymp3/include/vorbisw.h
 
@@ -319,13 +319,13 @@
 1310688865 source:/home/segin/psymp3/src/font.cpp
 	"psymp3.h"
 
-1311992283 source:/home/segin/psymp3/src/libmpg123.cpp
+1312097316 source:/home/segin/psymp3/src/libmpg123.cpp
 	"psymp3.h"
 
 1310457224 source:/home/segin/psymp3/src/scrobble.cpp
 	"psymp3.h"
 
-1311992552 source:/home/segin/psymp3/src/stream.cpp
+1312087444 source:/home/segin/psymp3/src/stream.cpp
 	"psymp3.h"
 
 1310543747 source:/home/segin/psymp3/src/truetype.cpp
@@ -339,8 +339,8 @@
 1311992342 source:/home/segin/psymp3/src/rect.cpp
 	"psymp3.h"
 
-1311990172 /home/segin/psymp3/include/audio.h
+1312097278 /home/segin/psymp3/include/audio.h
 
-1311936333 source:/home/segin/psymp3/src/audio.cpp
+1312097829 source:/home/segin/psymp3/src/audio.cpp
 	"psymp3.h"
 

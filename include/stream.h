@@ -38,8 +38,7 @@ class Stream
         virtual unsigned int getChannels();
         virtual unsigned int getRate();
         virtual unsigned int getEncoding(); // returns undefined
-        virtual void *getBuffer();
-        virtual size_t getBufferLength();
+        virtual size_t getData(size_t len, void *buf) = 0;
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer

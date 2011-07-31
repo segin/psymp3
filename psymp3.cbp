@@ -46,6 +46,7 @@
 		</Linker>
 		<Unit filename="cb.bmp" />
 		<Unit filename="include/about.h" />
+		<Unit filename="include/audio.h" />
 		<Unit filename="include/display.h" />
 		<Unit filename="include/fft_draw.h" />
 		<Unit filename="include/font.h" />
@@ -62,6 +63,7 @@
 		<Unit filename="include/vorbisw.h" />
 		<Unit filename="main.cpp" />
 		<Unit filename="src/about.cpp" />
+		<Unit filename="src/audio.cpp" />
 		<Unit filename="src/display.cpp" />
 		<Unit filename="src/fft_draw.cpp" />
 		<Unit filename="src/font.cpp" />
