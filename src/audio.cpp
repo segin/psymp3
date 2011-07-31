@@ -3,7 +3,7 @@
 Audio::Audio(Stream *stream)
 {
     m_stream = stream;
-    std::cout << "Audio::Audio(): " << (int) stream->getRate() << ":" << (int) stream->getChannels() << std::endl;
+    std::cout << "Audio::Audio(): " << std::dec << stream->getRate() << ":" << std::dec << stream->getChannels() << std::endl;
     setup();
 }
 
