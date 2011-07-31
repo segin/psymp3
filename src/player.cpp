@@ -125,12 +125,11 @@ void Player::Run(std::vector<std::string> args)
     timer = SDL_AddTimer(33, AppLoopTimer, NULL);
     while (!done)
     {
-
+        bool sdone = false;
         // message processing loop
         SDL_Event event;
         while (SDL_WaitEvent(&event))
         {
-            bool sdone = false;
             // check for messages
  #ifdef DEBUG
             std::cout << "event.type: " << std::dec << (int) event.type << std::endl;
@@ -156,23 +155,42 @@ void Player::Run(std::vector<std::string> args)
 
                     // draw bitmap
                     screen->Blit(bmp, dstrect);
-
-                    Rect f;
-                    f.width(1);
-                    f.height(354);
-
+                    // draw tag strings
+                    Rect f(1, 354);
                     screen->Blit(s_artist, f);
                     f.height(369);
                     screen->Blit(s_title, f);
                     f.height(384);
                     screen->Blit(s_album, f);
-
+                    // position indicator
                     Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                 + ":" + convertInt2((stream->getPosition() / 1000) % 60)
-                                                + "." + convertInt2((stream->getPosition() / 10) % 100));
+                                                + "." + convertInt2((stream->getPosition() / 10) % 100)
+                                                + "/" + convertInt(stream->getLength() / 60000)
+                                                + ":" + convertInt2((stream->getLength() / 1000) % 60)
+                                                + "." + convertInt2((stream->getLength() / 10) % 100));
                     f.width(200);
                     screen->Blit(s_pos, f);
 
+                    // draw progress bar
+                    screen->vline(399, 370, 385, 0xFFFFFFFF);
+                    screen->vline(621, 370, 385, 0xFFFFFFFF);
+                    screen->hline(399, 402, 370, 0xFFFFFFFF);
+                    screen->hline(399, 402, 385, 0xFFFFFFFF);
+                    screen->hline(618, 621, 370, 0xFFFFFFFF);
+                    screen->hline(618, 621, 385, 0xFFFFFFFF);
+
+                    double t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
+                    std::cout << "t: " << t << std::endl;
+                    for(double x = 0; x < t; x++) {
+                        if(x > 146) {
+                            screen->vline(x + 400, 372, 383, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
+                        } else if (x < 73) {
+                            screen->vline(x + 400, 372, 383, 128, 255, (uint8_t) (x * 3.5), 255);
+                        } else {
+                            screen->vline(x + 400, 372, 383, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
+                        }
+                    };
                     // DRAWING ENDS HERE
                     screen->hline(0, 400, a++,
                                   0xFFFFFF00 + ((int) a & 255));
@@ -183,7 +201,7 @@ void Player::Run(std::vector<std::string> args)
                 }
                 break;
             } // end switch
-            if (done) break;
+            if (sdone || done) break;
         } // end of message processing
 
         // DRAWING STARTS HERE
