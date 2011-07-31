@@ -6,7 +6,7 @@ class Audio
 {
     public:
         Audio(Stream *stream);
-        virtual ~Audio();
+        ~Audio();
         void play(bool go);
         static void callback(void *data, Uint8 *buf, int len);
     protected:
