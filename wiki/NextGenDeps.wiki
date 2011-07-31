@@ -1,0 +1,17 @@
+#summary A list of dependencies for PsyMP3 2.x.
+
+= Introduction =
+
+A list of dependencies in the C++ PsyMP3 2.x. List edited when I feel like it.
+
+= Dependecies =
+
+Non-exaustive:
+  * SDL
+  * SDL_gfx
+  * TagLib
+  * libmpg123
+  * libogg
+  * libvorbis
+  * vorbisfile
+  * a working C++ compiler
