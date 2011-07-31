@@ -29,6 +29,7 @@
 // system includes
 #include <iostream>
 #include <string>
+#include <sstream>
 #include <vector>
 #ifdef __cplusplus
     #include <cstdlib>

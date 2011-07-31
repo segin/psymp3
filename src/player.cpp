@@ -21,6 +21,23 @@
 
 #include "psymp3.h"
 
+std::string convertInt(long number)
+{
+   std::stringstream ss;//create a stringstream
+   ss << number;//add number to the stream
+   return ss.str();//return a string with the contents of the stream
+}
+
+std::string convertInt2(long number)
+{
+    std::stringstream ss;
+    ss << number;
+    if(ss.str().size() == 1)
+        return "0" + ss.str();
+    else
+        return ss.str();
+}
+
 Player::Player()
 {
     //ctor - you'd think we'd initialize our object pointers here,
@@ -131,6 +148,12 @@ void Player::Run(std::vector<std::string> args)
         screen->Blit(s_title, f);
         f.height(384);
         screen->Blit(s_album, f);
+
+        Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 3600000)
+                                    + ":" + convertInt2((stream->getPosition() / 60000) % 60)
+                                    + ":" + convertInt2((stream->getPosition() / 1000) % 60));
+        f.width(200);
+        screen->Blit(s_pos, f);
 
         // DRAWING ENDS HERE
         screen->hline(0, 400, a++, 0xFFFFFF00 + (a & 255));

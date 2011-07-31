@@ -53,7 +53,7 @@ void Libmpg123::open(TagLib::String name)
     if (ret == -1) {
 
     }
-    ret = mpg123_format((mpg123_handle *) m_handle, m_rate, m_channels, m_encoding);
+    ret = mpg123_format((mpg123_handle *) m_handle, m_rate, m_channels, MPG123_ENC_SIGNED_16);
     if (ret == -1) {
 
     }
@@ -77,10 +77,17 @@ unsigned int Libmpg123::getEncoding()
 size_t Libmpg123::getData(size_t len, void *buf)
 {
     size_t actual;
-    std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
+    //std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
     mpg123_read((mpg123_handle *) m_handle, (unsigned char *) buf, len, &actual);
-    std::cout << "Libmpg123::getData(): actual = " << (int) actual << std::endl;
+    m_position = mpg123_tell((mpg123_handle *) m_handle) * 1000 / m_rate;
+    //std::cout << "Libmpg123::getData(): actual = " << (int) actual << std::endl;
     return actual;
+}
+
+void Libmpg123::seekTo(unsigned int pos)
+{
+    long long a = pos * m_rate / 1000;
+    m_position = mpg123_seek((mpg123_handle *) m_handle, (off_t) a, SEEK_SET) * 1000 / m_rate;
 }
 
 void Libmpg123::init()
