@@ -151,7 +151,8 @@ void Player::Run(std::vector<std::string> args)
 
         Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 3600000)
                                     + ":" + convertInt2((stream->getPosition() / 60000) % 60)
-                                    + ":" + convertInt2((stream->getPosition() / 1000) % 60));
+                                    + ":" + convertInt2((stream->getPosition() / 1000) % 60)
+                                    + "." + convertInt2((stream->getPosition() / 10) % 100));
         f.width(200);
         screen->Blit(s_pos, f);
 
@@ -162,6 +163,7 @@ void Player::Run(std::vector<std::string> args)
         screen->Flip();
 
         usleep(33000);
+        if(stream->getPosition() >= stream->getLength()) break;
     } // end main loop
 
     // all is well ;)
