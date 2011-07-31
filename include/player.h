@@ -28,8 +28,9 @@ class Player
 {
     public:
         Player();
-        virtual ~Player();
+        ~Player();
         void Run(std::vector<std::string> args);
+        static Uint32 AppLoopTimer(Uint32 interval, void* param);
     protected:
     private:
         Display *screen;

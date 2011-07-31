@@ -1,5 +1,5 @@
 /*
- * rect.cpp - Rect class "implementation" (does nothing)
+ * rect.cpp - Rect class "implementation" (does nothing much)
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
@@ -19,12 +19,18 @@
  *
  */
 
-
 #include "psymp3.h"
 
 Rect::Rect()
 {
     //ctor
+}
+
+Rect::Rect(unsigned int width, unsigned int height)
+{
+    //ctor
+    m_width = width;
+    m_height = height;
 }
 
 Rect::~Rect()

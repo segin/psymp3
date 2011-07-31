@@ -63,6 +63,21 @@ Player::~Player()
         delete stream;
 }
 
+Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
+{
+    // Create a user event to call the game loop.
+    SDL_Event event;
+
+    event.type = SDL_USEREVENT;
+    event.user.code = RUN_GUI_ITERATION;
+    event.user.data1 = 0;
+    event.user.data2 = 0;
+
+    SDL_PushEvent(&event);
+
+    return interval;
+}
+
 void Player::Run(std::vector<std::string> args)
 {
     if((args.size() > 1) && args[1] == "--version") {
@@ -71,7 +86,7 @@ void Player::Run(std::vector<std::string> args)
     }
     unsigned char a = 0;
     // initialize SDL video
-    if ( SDL_Init( SDL_INIT_AUDIO | SDL_INIT_VIDEO ) < 0 )
+    if ( SDL_Init( SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_TIMER ) < 0 )
     {
         printf( "Unable to init SDL: %s\n", SDL_GetError() );
         return;
@@ -97,6 +112,8 @@ void Player::Run(std::vector<std::string> args)
     dstrect.width((screen->width() - bmp.width()) / 2);
     dstrect.height((screen->height() - bmp.height()) / 2);
 
+    SDL_TimerID timer;
+
 
     Surface s_artist = font->Render("Artist: " + stream->getArtist());
     Surface s_title = font->Render("Title: " + stream->getTitle());
@@ -105,12 +122,13 @@ void Player::Run(std::vector<std::string> args)
     // program main loop
     bool done = false;
     audio->play(true);
+    timer = SDL_AddTimer(20, AppLoopTimer, this);
     while (!done)
     {
 
         // message processing loop
         SDL_Event event;
-        while (SDL_PollEvent(&event))
+        while (SDL_WaitEvent(&event))
         {
             // check for messages
             switch (event.type)
@@ -128,42 +146,46 @@ void Player::Run(std::vector<std::string> args)
                         done = true;
                     break;
                 }
+            case SDL_USEREVENT:
+                if (event.user.code == RUN_GUI_ITERATION) {
+                    screen->FillRect(screen->MapRGB(0, 0, 0));
+
+                    // draw bitmap
+                    screen->Blit(bmp, dstrect);
+
+                    Rect f;
+                    f.width(1);
+                    f.height(354);
+
+                    screen->Blit(s_artist, f);
+                    f.height(369);
+                    screen->Blit(s_title, f);
+                    f.height(384);
+                    screen->Blit(s_album, f);
+
+                    Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 3600000)
+                                                + ":" + convertInt2((stream->getPosition() / 60000) % 60)
+                                                + ":" + convertInt2((stream->getPosition() / 1000) % 60)
+                                                + "." + convertInt2((stream->getPosition() / 10) % 100));
+                    f.width(200);
+                    screen->Blit(s_pos, f);
+
+                    // DRAWING ENDS HERE
+                    screen->hline(0, 400, a++,
+                                  0xFFFFFF00 + ((int) a & 255));
+
+                    // finally, update the screen :)
+                    screen->Flip();
+                    if(stream->getPosition() >= stream->getLength()) break;
+                }
+
             } // end switch
         } // end of message processing
 
         // DRAWING STARTS HERE
 
         // clear screen
-        screen->FillRect(screen->MapRGB(0, 0, 0));
 
-        // draw bitmap
-        screen->Blit(bmp, dstrect);
-
-        Rect f;
-        f.width(1);
-        f.height(354);
-
-        screen->Blit(s_artist, f);
-        f.height(369);
-        screen->Blit(s_title, f);
-        f.height(384);
-        screen->Blit(s_album, f);
-
-        Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 3600000)
-                                    + ":" + convertInt2((stream->getPosition() / 60000) % 60)
-                                    + ":" + convertInt2((stream->getPosition() / 1000) % 60)
-                                    + "." + convertInt2((stream->getPosition() / 10) % 100));
-        f.width(200);
-        screen->Blit(s_pos, f);
-
-        // DRAWING ENDS HERE
-        screen->hline(0, 400, a++, 0xFFFFFF00 + (a & 255));
-
-        // finally, update the screen :)
-        screen->Flip();
-
-        usleep(33000);
-        if(stream->getPosition() >= stream->getLength()) break;
     } // end main loop
 
     // all is well ;)
