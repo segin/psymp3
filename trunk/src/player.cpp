@@ -133,7 +133,7 @@ void Player::Run(std::vector<std::string> args)
             bool sdone = false;
             // check for messages
  #ifdef DEBUG
-            std::cout << "event.type :" << std::dec << (int) event.type << std::endl;
+            std::cout << "event.type: " << std::dec << (int) event.type << std::endl;
  #endif
             switch (event.type)
             {
@@ -167,8 +167,7 @@ void Player::Run(std::vector<std::string> args)
                     f.height(384);
                     screen->Blit(s_album, f);
 
-                    Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 3600000)
-                                                + ":" + convertInt2((stream->getPosition() / 60000) % 60)
+                    Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                 + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                                 + "." + convertInt2((stream->getPosition() / 10) % 100));
                     f.width(200);
