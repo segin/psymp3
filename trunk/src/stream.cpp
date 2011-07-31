@@ -34,7 +34,7 @@ Stream::Stream(TagLib::String name)
 
 Stream::~Stream()
 {
-    delete m_tags;
+    if (m_tags) delete m_tags;
 }
 
 void Stream::open(TagLib::String name)
@@ -61,3 +61,35 @@ TagLib::String Stream::getAlbum()
     return m_tags->tag()->album();
 }
 
+unsigned int Stream::getLength()
+{
+    if(!m_tags) return 0;
+    return m_tags->audioProperties()->length() * 1000; // * 1000 to make msec
+}
+
+unsigned int Stream::getChannels()
+{
+    if(!m_tags) return 0;
+    return m_tags->audioProperties()->channels();
+}
+
+unsigned int Stream::getRate()
+{
+    if(!m_tags) return 0;
+    return m_tags->audioProperties()->sampleRate();
+}
+
+unsigned int Stream::getEncoding()
+{
+    return 0;
+}
+
+void *Stream::getBuffer()
+{
+    return NULL;
+}
+
+size_t Stream::getBufferLength()
+{
+    return 0;
+}

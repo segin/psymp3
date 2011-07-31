@@ -202,7 +202,7 @@
 
 1310343517 /home/segin/psymp3/include//track.h
 
-1310631125 source:/home/segin/psymp3/src/track.cpp
+1311930378 source:/home/segin/psymp3/src/track.cpp
 	"psymp3.h"
 
 1310273332 /home/segin/psymp3/include//playlist.h
@@ -225,7 +225,7 @@
 
 1310360248 /home/segin/psymp3/include//player.h
 
-1311927231 /home/segin/psymp3/include/psymp3.h
+1311936295 /home/segin/psymp3/include/psymp3.h
 	<iostream>
 	<string>
 	<vector>
@@ -246,6 +246,7 @@
 	"stream.h"
 	"libmpg123w.h"
 	"vorbisw.h"
+	"audio.h"
 	"about.h"
 	"track.h"
 	"song.h"
@@ -271,7 +272,7 @@
 
 1310343530 /home/segin/psymp3/include/fft_draw.h
 
-1311927131 source:/home/segin/psymp3/src/player.cpp
+1311992839 source:/home/segin/psymp3/src/player.cpp
 	"psymp3.h"
 
 1310343531 source:/home/segin/psymp3/src/playlist.cpp
@@ -301,9 +302,9 @@
 	"begin_code.h"
 	"close_code.h"
 
-1311928182 /home/segin/psymp3/include/stream.h
+1311992313 /home/segin/psymp3/include/stream.h
 
-1311928079 /home/segin/psymp3/include/libmpg123w.h
+1311992356 /home/segin/psymp3/include/libmpg123w.h
 
 1310441376 /home/segin/psymp3/include/vorbisw.h
 
@@ -311,21 +312,21 @@
 
 1310457259 /home/segin/psymp3/include/scrobble.h
 
-1310541359 /home/segin/psymp3/include/truetype.h
+1311992386 /home/segin/psymp3/include/truetype.h
 
 1310639429 /home/segin/psymp3/include/font.h
 
 1310688865 source:/home/segin/psymp3/src/font.cpp
 	"psymp3.h"
 
-1311928149 source:/home/segin/psymp3/src/libmpg123.cpp
+1311992283 source:/home/segin/psymp3/src/libmpg123.cpp
 	"psymp3.h"
 
 1310457224 source:/home/segin/psymp3/src/scrobble.cpp
 	"psymp3.h"
 
-1310438296 source:/home/segin/psymp3/src/stream.cpp
-	"stream.h"
+1311992552 source:/home/segin/psymp3/src/stream.cpp
+	"psymp3.h"
 
 1310543747 source:/home/segin/psymp3/src/truetype.cpp
 	"psymp3.h"
@@ -335,6 +336,11 @@
 
 1310635210 /home/segin/psymp3/include/rect.h
 
-1310634812 source:/home/segin/psymp3/src/rect.cpp
+1311992342 source:/home/segin/psymp3/src/rect.cpp
+	"psymp3.h"
+
+1311990172 /home/segin/psymp3/include/audio.h
+
+1311936333 source:/home/segin/psymp3/src/audio.cpp
 	"psymp3.h"
 

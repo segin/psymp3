@@ -1,8 +1,8 @@
-#include "audio.h"
+#include "psymp3.h"
 
-Audio::Audio()
+Audio::Audio(Stream *stream)
 {
-    //ctor
+    m_stream = stream;
 }
 
 Audio::~Audio()

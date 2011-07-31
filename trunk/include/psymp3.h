@@ -55,6 +55,7 @@
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
+#include "audio.h"
 #include "about.h"
 #include "track.h"
 #include "song.h"
