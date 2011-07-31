@@ -26,6 +26,8 @@
 #define PSYMP3_VERSION "2-CURRENT"
 #define PSYMP3_MAINTAINER "Kirn Gill <segin2005@gmail.com>"
 
+#define RUN_GUI_ITERATION 0xfe0f
+
 // system includes
 #include <iostream>
 #include <string>
