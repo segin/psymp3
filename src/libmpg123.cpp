@@ -79,7 +79,7 @@ size_t Libmpg123::getData(size_t len, void *buf)
     size_t actual;
     //std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
     mpg123_read((mpg123_handle *) m_handle, (unsigned char *) buf, len, &actual);
-    m_position = mpg123_tell((mpg123_handle *) m_handle) * 1000 / m_rate;
+    m_position = (long long) mpg123_tell((mpg123_handle *) m_handle) * 1000 / m_rate;
     //std::cout << "Libmpg123::getData(): actual = " << (int) actual << std::endl;
     return actual;
 }
@@ -87,7 +87,7 @@ size_t Libmpg123::getData(size_t len, void *buf)
 void Libmpg123::seekTo(unsigned int pos)
 {
     long long a = pos * m_rate / 1000;
-    m_position = mpg123_seek((mpg123_handle *) m_handle, (off_t) a, SEEK_SET) * 1000 / m_rate;
+    m_position = (long long) mpg123_seek((mpg123_handle *) m_handle, (off_t) a, SEEK_SET) * 1000 / m_rate;
 }
 
 void Libmpg123::init()
