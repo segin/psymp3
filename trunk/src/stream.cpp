@@ -83,13 +83,3 @@ unsigned int Stream::getEncoding()
 {
     return 0;
 }
-
-void *Stream::getBuffer()
-{
-    return NULL;
-}
-
-size_t Stream::getBufferLength()
-{
-    return 0;
-}

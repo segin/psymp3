@@ -38,6 +38,12 @@ Player::~Player()
         delete screen;
     if (playlist)
         delete playlist;
+    if (font)
+        delete font;
+    if (audio)
+        delete audio;
+    if (stream)
+        delete stream;
 }
 
 void Player::Run(std::vector<std::string> args)
@@ -58,10 +64,13 @@ void Player::Run(std::vector<std::string> args)
     atexit(SDL_Quit);
 
     TrueType::Init();
+    Libmpg123::init();
 
     screen = new Display();
     playlist = new Playlist();
     stream = new Libmpg123(args[1]);
+    if (stream)
+        audio = new Audio(stream);
     font = new Font("res/vera.ttf");
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     Surface bmp = Surface::FromBMP("cb.bmp");
@@ -78,6 +87,7 @@ void Player::Run(std::vector<std::string> args)
 
     // program main loop
     bool done = false;
+    audio->play(true);
     while (!done)
     {
 

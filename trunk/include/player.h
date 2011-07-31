@@ -36,6 +36,7 @@ class Player
         Playlist *playlist;
         Font *font;
         Stream *stream;
+        Audio *audio;
 };
 
 #endif // PLAYER_H

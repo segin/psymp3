@@ -23,7 +23,11 @@
 
 Libmpg123::Libmpg123(TagLib::String name) : Stream(name)
 {
-    m_handle = mpg123_new(NULL, NULL);
+    int err = MPG123_OK;
+    m_handle = mpg123_new(NULL, &err);
+    if (!m_handle) {
+        std::cerr << "mpg123_new() failed: " << mpg123_plain_strerror(err) << std::endl;
+    }
     open(name);
 }
 
@@ -36,15 +40,23 @@ Libmpg123::~Libmpg123()
 
 void Libmpg123::open(TagLib::String name)
 {
-    mpg123_open((mpg123_handle *) m_handle, name.toCString(true));
-    mpg123_getformat((mpg123_handle *) m_handle, &m_rate, &m_channels, &m_encoding);
-    mpg123_format_none((mpg123_handle *) m_handle);
-    mpg123_format((mpg123_handle *) m_handle, m_rate, m_channels, m_encoding);
-}
+    int ret;
+    ret = mpg123_open((mpg123_handle *) m_handle, name.toCString(true));
+    if (ret == MPG123_OK) {
+        std::cerr << "mpg123_open() failed: " << ret << std::endl;
+    }
+    ret = mpg123_getformat((mpg123_handle *) m_handle, &m_rate, &m_channels, &m_encoding);
+    if (ret == -1) {
 
-unsigned int Libmpg123::getLength()
-{
-    return 0;
+    }
+    ret = mpg123_format_none((mpg123_handle *) m_handle);
+    if (ret == -1) {
+
+    }
+    ret = mpg123_format((mpg123_handle *) m_handle, m_rate, m_channels, m_encoding);
+    if (ret == -1) {
+
+    }
 }
 
 unsigned int Libmpg123::getChannels()
@@ -62,14 +74,13 @@ unsigned int Libmpg123::getEncoding()
     return 0;
 }
 
-void *Libmpg123::getBuffer()
+size_t Libmpg123::getData(size_t len, void *buf)
 {
-    return NULL;
-}
-
-size_t Libmpg123::getBufferLength()
-{
-    return 0;
+    size_t actual;
+    std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
+    mpg123_read((mpg123_handle *) m_handle, (unsigned char *) buf, len, &actual);
+    std::cout << "Libmpg123::getData(): actual = " << (int) actual << std::endl;
+    return actual;
 }
 
 void Libmpg123::init()
