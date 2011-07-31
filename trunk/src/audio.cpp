@@ -15,11 +15,10 @@ Audio::~Audio()
 void Audio::setup()
 {
     SDL_AudioSpec fmt;
-    /* Set 16-bit stereo audio at 22Khz */
     fmt.freq = m_stream->getRate();
-    fmt.format = AUDIO_S16;
+    fmt.format = AUDIO_S16; /* Always, I hope */
     fmt.channels = m_stream->getChannels();
-    fmt.samples = 512;        /* A good value for games */
+    fmt.samples = 512 * fmt.channels * 2; /* 512 samples for fft */
     fmt.callback = callback;
     fmt.userdata = (void *) m_stream;
     if ( SDL_OpenAudio(&fmt, NULL) < 0 ) {

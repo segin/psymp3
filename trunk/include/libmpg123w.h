@@ -34,6 +34,7 @@ class Libmpg123 : public Stream
         virtual unsigned int getRate();
         virtual unsigned int getEncoding(); // returns undefined
         virtual size_t getData(size_t len, void *buf);
+        virtual void seekTo(unsigned int pos);
         static void init();
         static void fini();
     protected:

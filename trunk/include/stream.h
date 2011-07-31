@@ -38,7 +38,9 @@ class Stream
         virtual unsigned int getChannels();
         virtual unsigned int getRate();
         virtual unsigned int getEncoding(); // returns undefined
+        virtual unsigned int getPosition(); // returns undefined
         virtual size_t getData(size_t len, void *buf) = 0;
+        virtual void seekTo(unsigned int pos) = 0;
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer
@@ -46,6 +48,7 @@ class Stream
         TagLib::String  m_path;
         long            m_rate;
         int             m_channels;
+        int             m_position; // in msec;
         int             m_encoding; // value ???
     private:
         TagLib::FileRef *m_tags;

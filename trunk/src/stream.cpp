@@ -83,3 +83,8 @@ unsigned int Stream::getEncoding()
 {
     return 0;
 }
+
+unsigned int Stream::getPosition()
+{
+    return m_position;
+}
