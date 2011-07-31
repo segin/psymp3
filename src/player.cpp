@@ -84,7 +84,7 @@ void Player::Run(std::vector<std::string> args)
         about_console();
         return;
     }
-    unsigned char a = 0;
+    unsigned char a = 0, seek = 0;
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_TIMER ) < 0 )
     {
@@ -145,9 +145,34 @@ void Player::Run(std::vector<std::string> args)
             case SDL_KEYDOWN:
                 {
                     // exit if ESCAPE is pressed
-                    if ((event.key.keysym.sym == SDLK_ESCAPE) || (event.key.keysym.sym == SDLK_q))
+                    switch (event.key.keysym.sym) {
+                    case SDLK_ESCAPE:
+                    case SDLK_q:
                         done = true;
+                        break;
+                    case SDLK_LEFT:
+#ifdef DEBUG
+                        std::cout << "seeking back 1500msec" << std::endl;
+#endif
+                        seek = 1;
+                        break;
+                    case SDLK_RIGHT:
+                        seek = 2;
+                        break;
+                    default:
+                        break;
+                    }
                     break;
+                }
+            case SDL_KEYUP:
+                {
+                    switch (event.key.keysym.sym) {
+                    case SDLK_LEFT:
+                    case SDLK_RIGHT:
+                        seek = 0;
+                    default:
+                        break;
+                    }
                 }
             case SDL_USEREVENT:
                 if (event.user.code == RUN_GUI_ITERATION) {
@@ -179,16 +204,25 @@ void Player::Run(std::vector<std::string> args)
                     screen->hline(399, 402, 385, 0xFFFFFFFF);
                     screen->hline(618, 621, 370, 0xFFFFFFFF);
                     screen->hline(618, 621, 385, 0xFFFFFFFF);
-
+                    std::cout << "seek: " << (uint32_t) seek << std::endl;
+                    if(seek == 1) {
+                        if (stream)
+                            stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
+                    } else if (seek == 2) {
+                        if (stream)
+                            stream->seekTo((long long) stream->getPosition() + 1500);
+                    }
                     double t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
+#ifdef DEBUG
                     std::cout << "t: " << t << std::endl;
+#endif
                     for(double x = 0; x < t; x++) {
                         if(x > 146) {
-                            screen->vline(x + 400, 372, 383, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
+                            screen->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
                         } else if (x < 73) {
-                            screen->vline(x + 400, 372, 383, 128, 255, (uint8_t) (x * 3.5), 255);
+                            screen->vline(x + 400, 373, 382, 128, 255, (uint8_t) (x * 3.5), 255);
                         } else {
-                            screen->vline(x + 400, 372, 383, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
+                            screen->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
                         }
                     };
                     // DRAWING ENDS HERE
