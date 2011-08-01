@@ -41,6 +41,7 @@ class Stream
         virtual unsigned int getPosition(); // returns undefined
         virtual size_t getData(size_t len, void *buf) = 0;
         virtual void seekTo(unsigned long pos) = 0;
+        virtual bool eof() = 0;
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer
@@ -50,6 +51,7 @@ class Stream
         int             m_channels;
         int             m_position; // in msec;
         int             m_encoding; // value ???
+        bool            m_eof;
     private:
         TagLib::FileRef *m_tags;
 };

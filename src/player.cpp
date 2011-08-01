@@ -159,6 +159,11 @@ void Player::Run(std::vector<std::string> args)
                     case SDLK_RIGHT:
                         seek = 2;
                         break;
+                    case SDLK_SPACE:
+                        audio->play(!audio->isPlaying());
+                        break;
+                    case SDLK_r:
+                        stream->seekTo(0);
                     default:
                         break;
                     }
@@ -188,12 +193,16 @@ void Player::Run(std::vector<std::string> args)
                     f.height(384);
                     screen->Blit(s_album, f);
                     // position indicator
-                    Surface s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
+                    Surface s_pos;
+                    if(stream)
+                    s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                 + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                                 + "." + convertInt2((stream->getPosition() / 10) % 100)
                                                 + "/" + convertInt(stream->getLength() / 60000)
                                                 + ":" + convertInt2((stream->getLength() / 1000) % 60)
                                                 + "." + convertInt2((stream->getLength() / 10) % 100));
+                    else
+                        s_pos = font->Render("Position: -:--.-- / -:--.--");
                     f.width(200);
                     screen->Blit(s_pos, f);
 
@@ -231,7 +240,8 @@ void Player::Run(std::vector<std::string> args)
 
                     // finally, update the screen :)
                     screen->Flip();
-                    if(stream->getPosition() >= stream->getLength()) sdone = true;
+                    // and if end of stream...
+                    sdone = stream->eof();
                 }
                 break;
             } // end switch
