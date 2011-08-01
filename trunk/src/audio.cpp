@@ -29,7 +29,8 @@ void Audio::setup()
 
 void Audio::play(bool go)
 {
-    std::cout << go << std::endl;
+    std::cout << "Audio::play(): " << go << std::endl;
+    m_playing = go;
     if (go)
         SDL_PauseAudio(0);
     else
