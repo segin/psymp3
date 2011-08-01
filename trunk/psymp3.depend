@@ -225,7 +225,7 @@
 
 1310360248 /home/segin/psymp3/include//player.h
 
-1312134559 /home/segin/psymp3/include/psymp3.h
+1312172052 /home/segin/psymp3/include/psymp3.h
 	<iostream>
 	<string>
 	<sstream>
@@ -233,7 +233,6 @@
 	<cstdlib>
 	<stdlib.h>
 	<SDL/SDL.h>
-	<SDL/SDL_mixer.h>
 	<SDL/SDL_gfxPrimitives.h>
 	<SDL/SDL_ttf.h>
 	<SDL.h>
@@ -273,7 +272,7 @@
 
 1310343530 /home/segin/psymp3/include/fft_draw.h
 
-1312166174 source:/home/segin/psymp3/src/player.cpp
+1312171184 source:/home/segin/psymp3/src/player.cpp
 	"psymp3.h"
 
 1310343531 source:/home/segin/psymp3/src/playlist.cpp
@@ -342,6 +341,6 @@
 
 1312171081 /home/segin/psymp3/include/audio.h
 
-1312147712 source:/home/segin/psymp3/src/audio.cpp
+1312171055 source:/home/segin/psymp3/src/audio.cpp
 	"psymp3.h"
 
