@@ -44,7 +44,6 @@
 #include <SDL/SDL_ttf.h>
 #else
 #include <SDL.h>
-#include <SDL_mixer.h>
 #include <SDL_gfxPrimitives.h>
 #include <SDL_ttf.h>
 #endif
