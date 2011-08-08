@@ -117,13 +117,13 @@ void Player::Run(std::vector<std::string> args)
         audio = new Audio(&ATdata);
     font = new Font("res/vera.ttf");
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
-    Surface bmp = Surface::FromBMP("cb.bmp");
+    //Surface bmp = Surface::FromBMP("cb.bmp");
     graph = new Surface(640, 350);
 
     // centre the bitmap on screen
     Rect dstrect;
-    dstrect.width((screen->width() - bmp.width()) / 2);
-    dstrect.height((screen->height() - bmp.height()) / 2);
+//    dstrect.width((screen->width() - bmp.width()) / 2);
+//    dstrect.height((screen->height() - bmp.height()) / 2);
 
     SDL_TimerID timer;
 
@@ -197,7 +197,7 @@ void Player::Run(std::vector<std::string> args)
                     screen->FillRect(screen->MapRGB(0, 0, 0));
 
                     // draw bitmap
-                    screen->Blit(bmp, dstrect);
+                    //screen->Blit(bmp, dstrect);
                     // draw tag strings
                     Rect f(1, 354);
                     screen->Blit(s_artist, f);
@@ -219,7 +219,15 @@ void Player::Run(std::vector<std::string> args)
 
                     f.width(200);
                     screen->Blit(s_pos, f);
-                    screen->SetCaption("PsyMP3 " PSYMP3_VERSION,"PsyMP3 " PSYMP3_VERSION);
+                    screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
+                                       (std::string) " -:[ " + stream->getArtist() + " ]:- -- -:[ " +
+                                       stream->getTitle() + " ]:- ["
+                                       + convertInt(stream->getPosition() / 60000)
+                                       + ":" + convertInt2((stream->getPosition() / 1000) % 60)
+                                       + "." + convertInt2((stream->getPosition() / 10) % 100)
+                                       + "/" + convertInt(stream->getLength() / 60000)
+                                       + ":" + convertInt2((stream->getLength() / 1000) % 60)
+                                       + "]", "PsyMP3 " PSYMP3_VERSION);
                     // draw progress bar
                     screen->vline(399, 370, 385, 0xFFFFFFFF);
                     screen->vline(621, 370, 385, 0xFFFFFFFF);
