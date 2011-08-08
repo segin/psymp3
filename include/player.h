@@ -34,10 +34,12 @@ class Player
     protected:
     private:
         Display *screen;
+        Surface *graph;
         Playlist *playlist;
         Font *font;
         Stream *stream;
         Audio *audio;
+        FastFourier *fft;
 };
 
 #endif // PLAYER_H

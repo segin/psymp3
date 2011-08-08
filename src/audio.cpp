@@ -1,10 +1,10 @@
 #include "psymp3.h"
 
-Audio::Audio(Stream *stream)
+Audio::Audio(struct atdata *data)
 {
-    m_stream = stream;
-    std::cout << "Audio::Audio(): " << std::dec << stream->getRate() << "Hz, channels: " << std::dec << stream->getChannels() << std::endl;
-    setup();
+    m_stream = data->stream;
+    std::cout << "Audio::Audio(): " << std::dec << m_stream->getRate() << "Hz, channels: " << std::dec << m_stream->getChannels() << std::endl;
+    setup(data);
 }
 
 Audio::~Audio()
@@ -12,7 +12,7 @@ Audio::~Audio()
     //dtor
 }
 
-void Audio::setup()
+void Audio::setup(struct atdata *data)
 {
     SDL_AudioSpec fmt;
     fmt.freq = m_stream->getRate();
@@ -20,8 +20,8 @@ void Audio::setup()
     fmt.channels = m_stream->getChannels();
     fmt.samples = 512 * fmt.channels * 2; /* 512 samples for fft */
     fmt.callback = callback;
-    fmt.userdata = (void *) m_stream;
-    if ( SDL_OpenAudio(&fmt, NULL) < 0 ) {
+    fmt.userdata = (void *) data;
+    if ( SDL_OpenAudio(&fmt, (SDL_AudioSpec *) NULL) < 0 ) {
         std::cerr << "Unable to open audio: " << SDL_GetError() << std::endl;
         // throw;
     }
@@ -39,6 +39,23 @@ void Audio::play(bool go)
 
 void Audio::callback(void *data, Uint8 *buf, int len)
 {
-    Stream *stream = (Stream *) data;
+    struct atdata *ldata = (struct atdata *) data;
+    Stream *stream = ldata->stream;
+    FastFourier *fft = ldata->fft;
+#ifdef DEBUG
+    std::cout << "stream = " << std::hex << stream << ", fft = " << std::hex << fft << std::endl;
+#endif
     stream->getData(len, (void *) buf);
+    toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
+    fft->doFFT();
+}
+
+void Audio::toFloat(int channels, int16_t *in, float *out)
+{
+    if(channels == 1)
+        for(int x = 0; x < 512; x++)
+            out[x] = in[x] / 32768.0f;
+    else if (channels == 2)
+        for(int x = 0; x < 512; x++)
+            out[x] = ((long long) in[x * 2] + in[(x * 2) + 1]) / 65536.0f;
 }

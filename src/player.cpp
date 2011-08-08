@@ -45,14 +45,16 @@ Player::Player()
     // -- but we will delete them in ~Player()
     // So, instead, print a startup banner to the console.
     std::cout << "PsyMP3 version " << PSYMP3_VERSION << "." << std::endl;
-    screen = NULL;
-    playlist = NULL;
+    screen = (Display *) NULL;
+    playlist = (Playlist *) NULL;
 }
 
 Player::~Player()
 {
     if (screen)
         delete screen;
+    if (graph)
+        delete graph;
     if (playlist)
         delete playlist;
     if (font)
@@ -61,6 +63,8 @@ Player::~Player()
         delete audio;
     if (stream)
         delete stream;
+    if (fft)
+        delete fft;
 }
 
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
@@ -80,6 +84,7 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
 
 void Player::Run(std::vector<std::string> args)
 {
+    struct atdata ATdata;
     if((args.size() > 1) && args[1] == "--version") {
         about_console();
         return;
@@ -97,15 +102,23 @@ void Player::Run(std::vector<std::string> args)
 
     TrueType::Init();
     Libmpg123::init();
+    FastFourier::init();
 
     screen = new Display();
     playlist = new Playlist();
     stream = new Libmpg123(args[1]);
+    fft = new FastFourier();
+    ATdata.fft = fft;
+    ATdata.stream = stream;
+#ifdef DEBUG
+    std::cout << "stream = " << std::hex << stream << ", fft = " << std::hex << fft << std::endl;
+#endif
     if (stream)
-        audio = new Audio(stream);
+        audio = new Audio(&ATdata);
     font = new Font("res/vera.ttf");
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     Surface bmp = Surface::FromBMP("cb.bmp");
+    graph = new Surface(640, 350);
 
     // centre the bitmap on screen
     Rect dstrect;
@@ -203,6 +216,7 @@ void Player::Run(std::vector<std::string> args)
                                                 + "." + convertInt2((stream->getLength() / 10) % 100));
                     else
                         s_pos = font->Render("Position: -:--.-- / -:--.--");
+
                     f.width(200);
                     screen->Blit(s_pos, f);
                     screen->SetCaption("PsyMP3 " PSYMP3_VERSION,"PsyMP3 " PSYMP3_VERSION);
@@ -234,6 +248,13 @@ void Player::Run(std::vector<std::string> args)
                             screen->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
                         }
                     };
+                    float *spectrum = fft->getFFT();
+                    for(int16_t x=0; x < 320; x++) {
+                        screen->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f) , (x * 2) + 1 , 350, 0xFFFFFFFF);
+                    }
+                    f.height(0);
+                    f.width(0);
+                    screen->Blit(*graph, f);
                     // DRAWING ENDS HERE
                     screen->hline(0, 400, a++,
                                   0xFFFFFF00 + ((int) a & 255));
