@@ -36,7 +36,7 @@ Surface::Surface(SDL_Surface *sfc)
 
 Surface::Surface(int width, int height)
 {
-    SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0, 0, 0, 0);
+    m_handle = SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0, 0, 0, 0);
 }
 
 Surface::~Surface()
@@ -71,6 +71,12 @@ uint32_t Surface::MapRGB(uint8_t r, uint8_t g, uint8_t b)
 {
     if (!m_handle) return -1;
     return SDL_MapRGB(m_handle->format, r, g, b);
+}
+
+uint32_t Surface::MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    if (!m_handle) return -1;
+    return SDL_MapRGBA(m_handle->format, r, g, b, a);
 }
 
 void Surface::FillRect(uint32_t color)

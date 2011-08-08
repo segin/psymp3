@@ -36,6 +36,7 @@ class Surface
         static Surface& FromBMP(std::string a_file);
         bool isValid();
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
+        uint32_t MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
         void Blit(Surface& src, Rect& rect);
         void FillRect(uint32_t color);
         void Flip();

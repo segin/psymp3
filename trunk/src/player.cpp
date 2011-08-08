@@ -89,7 +89,7 @@ void Player::Run(std::vector<std::string> args)
         about_console();
         return;
     }
-    unsigned char a = 0, seek = 0;
+    unsigned char seek = 0;
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_TIMER ) < 0 )
     {
@@ -249,15 +249,17 @@ void Player::Run(std::vector<std::string> args)
                         }
                     };
                     float *spectrum = fft->getFFT();
+                    for (int x = 0; x < 350; x++) {
+                        graph->hline(0, 639, x, 64);
+                    }
                     for(int16_t x=0; x < 320; x++) {
-                        screen->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f) , (x * 2) + 1 , 350, 0xFFFFFFFF);
+                        graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
                     }
                     f.height(0);
                     f.width(0);
                     screen->Blit(*graph, f);
                     // DRAWING ENDS HERE
-                    screen->hline(0, 400, a++,
-                                  0xFFFFFF00 + ((int) a & 255));
+
 
                     // finally, update the screen :)
                     screen->Flip();
