@@ -36,6 +36,7 @@
 			<Add option="`pkg-config vorbisfile --cflags`" />
 			<Add option="`pkg-config libmpg123 --cflags`" />
 			<Add option="`pkg-config taglib --cflags`" />
+			<Add option="`pkg-config libvisual-0.4 --cflags`" />
 			<Add directory="include" />
 		</Compiler>
 		<Linker>
@@ -44,6 +45,7 @@
 			<Add option="`pkg-config libmpg123 --libs`" />
 			<Add option="`pkg-config vorbisfile --libs`" />
 			<Add option="`pkg-config taglib --libs`" />
+			<Add option="`pkg-config libvisual-0.4 --libs`" />
 			<Add option="-lSDL_ttf" />
 		</Linker>
 		<Unit filename="cb.bmp" />

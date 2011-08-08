@@ -22,21 +22,20 @@
 #ifndef FFT_DRAW_H
 #define FFT_DRAW_H
 
-
-class fft_draw
+class FastFourier
 {
     public:
-        /** Default constructor */
-        fft_draw();
-        /** Default destructor */
-        virtual ~fft_draw();
-        /** Set m_fft[512]
-         * \param val New value to set
-         */
-        void Setfft(float val) { m_fft[512] = val; }
+        FastFourier();
+        ~FastFourier();
+        float *getFFT() { return (float *) m_fft; }
+        float *getTimeDom() { return (float *) m_samples; }
+        void doFFT();
+        static void init();
     protected:
     private:
-        float m_fft[512]; //!< Member variable "m_fft[512]"
+        VisDFT *m_handle;
+        float m_samples[512];
+        float m_fft[512];
 };
 
 #endif // FFT_DRAW_H

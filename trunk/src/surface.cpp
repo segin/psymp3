@@ -25,13 +25,18 @@
 Surface::Surface()
 {
     //ctor - wat do?
-    m_handle = NULL; // XXX: Figure out what to do for a default constructor, if we're to ever use it.
+    m_handle = (SDL_Surface *) NULL; // XXX: Figure out what to do for a default constructor, if we're to ever use it.
 }
 
 Surface::Surface(SDL_Surface *sfc)
 {
     //std::cout << "Surface::Surface(SDL_Surface*): called, 0x" << std::hex << (unsigned int) sfc << std::endl;
     m_handle = sfc;
+}
+
+Surface::Surface(int width, int height)
+{
+    SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0, 0, 0, 0);
 }
 
 Surface::~Surface()

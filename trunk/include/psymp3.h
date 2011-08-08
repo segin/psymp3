@@ -47,6 +47,7 @@
 #include <SDL_gfxPrimitives.h>
 #include <SDL_ttf.h>
 #endif
+#include <libvisual/libvisual.h>
 #include <mpg123.h>
 #include <vorbis/vorbisfile.h>
 #include <taglib/tag.h>
@@ -57,6 +58,7 @@
 #include "libmpg123w.h"
 #include "vorbisw.h"
 #include "audio.h"
+#include "fft_draw.h"
 #include "about.h"
 #include "track.h"
 #include "song.h"
@@ -70,5 +72,12 @@
 #include "player.h"
 
 // global singletons
+
+// structs that aren't classes
+
+struct atdata {
+    Stream *stream;
+    FastFourier *fft;
+};
 
 #endif // __PSYMP3_H__

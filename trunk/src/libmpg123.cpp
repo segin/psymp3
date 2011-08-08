@@ -24,7 +24,7 @@
 Libmpg123::Libmpg123(TagLib::String name) : Stream(name)
 {
     int err = MPG123_OK;
-    m_handle = mpg123_new(NULL, &err);
+    m_handle = mpg123_new((const char *) NULL, &err);
     if (!m_handle) {
         std::cerr << "mpg123_new() failed: " << mpg123_plain_strerror(err) << std::endl;
     }
