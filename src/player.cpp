@@ -205,7 +205,7 @@ void Player::Run(std::vector<std::string> args)
                         s_pos = font->Render("Position: -:--.-- / -:--.--");
                     f.width(200);
                     screen->Blit(s_pos, f);
-
+                    screen->SetCaption("PsyMP3 " PSYMP3_VERSION,"PsyMP3 " PSYMP3_VERSION);
                     // draw progress bar
                     screen->vline(399, 370, 385, 0xFFFFFFFF);
                     screen->vline(621, 370, 385, 0xFFFFFFFF);
