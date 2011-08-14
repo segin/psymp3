@@ -600,3 +600,659 @@
 1280315616 /usr/include/libvisual-0.4/libvisual/lv_os.h
 	<libvisual/lv_common.h>
 
+1313228177 source:/usr/home/segin/psymp3/src/vorbis.cpp
+	"psymp3.h"
+
+1313228177 /usr/home/segin/psymp3/include/psymp3.h
+	<iostream>
+	<string>
+	<sstream>
+	<vector>
+	<cstdlib>
+	<stdlib.h>
+	<SDL/SDL.h>
+	<SDL/SDL_gfxPrimitives.h>
+	<SDL/SDL_ttf.h>
+	<SDL.h>
+	<SDL_gfxPrimitives.h>
+	<SDL_ttf.h>
+	<libvisual/libvisual.h>
+	<mpg123.h>
+	<vorbis/vorbisfile.h>
+	<taglib/tag.h>
+	<taglib/fileref.h>
+	"stream.h"
+	"libmpg123w.h"
+	"vorbisw.h"
+	"audio.h"
+	"fft_draw.h"
+	"about.h"
+	"track.h"
+	"song.h"
+	"scrobble.h"
+	"playlist.h"
+	"rect.h"
+	"surface.h"
+	"display.h"
+	"truetype.h"
+	"font.h"
+	"player.h"
+
+1313011207 /usr/local/include/SDL/SDL.h
+	"SDL_main.h"
+	"SDL_stdinc.h"
+	"SDL_audio.h"
+	"SDL_cdrom.h"
+	"SDL_cpuinfo.h"
+	"SDL_endian.h"
+	"SDL_error.h"
+	"SDL_events.h"
+	"SDL_loadso.h"
+	"SDL_mutex.h"
+	"SDL_rwops.h"
+	"SDL_thread.h"
+	"SDL_timer.h"
+	"SDL_video.h"
+	"SDL_version.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_main.h
+	"SDL_stdinc.h"
+	"begin_code.h"
+	"close_code.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_stdinc.h
+	"SDL_config.h"
+	<sys/types.h>
+	<stdio.h>
+	<stdlib.h>
+	<stddef.h>
+	<stdarg.h>
+	<stdlib.h>
+	<malloc.h>
+	<stddef.h>
+	<stdarg.h>
+	<memory.h>
+	<string.h>
+	<strings.h>
+	<inttypes.h>
+	<stdint.h>
+	<ctype.h>
+	<iconv.h>
+	"begin_code.h"
+	<alloca.h>
+	<malloc.h>
+	<malloc.h>
+	<malloc.h>
+	<stdlib.h>
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_config.h
+	"SDL_platform.h"
+	<stdarg.h>
+
+1313011207 /usr/local/include/SDL/SDL_platform.h
+
+1312852850 /usr/local/include/iconv.h
+	"iconv.h"
+	<stddef.h>
+	<errno.h>
+	<stddef.h>
+	<stdio.h>
+	<time.h>
+	<wchar.h>
+
+1313011207 /usr/local/include/SDL/begin_code.h
+
+1313011207 /usr/local/include/SDL/close_code.h
+
+1313011207 /usr/local/include/SDL/SDL_audio.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"SDL_endian.h"
+	"SDL_mutex.h"
+	"SDL_thread.h"
+	"SDL_rwops.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_error.h
+	"SDL_stdinc.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_endian.h
+	"SDL_stdinc.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_mutex.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_thread.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"SDL_mutex.h"
+	"begin_code.h"
+	<process.h>
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_rwops.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_cdrom.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_cpuinfo.h
+	"SDL_stdinc.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_events.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"SDL_active.h"
+	"SDL_keyboard.h"
+	"SDL_mouse.h"
+	"SDL_joystick.h"
+	"SDL_quit.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_active.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_keyboard.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"SDL_keysym.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_keysym.h
+
+1313011207 /usr/local/include/SDL/SDL_mouse.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"SDL_video.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_video.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"SDL_rwops.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_joystick.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_quit.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+
+1313011207 /usr/local/include/SDL/SDL_loadso.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_timer.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313011207 /usr/local/include/SDL/SDL_version.h
+	"SDL_stdinc.h"
+	"begin_code.h"
+	"close_code.h"
+
+1313209879 /usr/local/include/SDL/SDL_gfxPrimitives.h
+	<math.h>
+	"SDL.h"
+
+1313209775 /usr/local/include/SDL/SDL_ttf.h
+	"SDL.h"
+	"begin_code.h"
+	"close_code.h"
+
+1312866637 /usr/local/include/libvisual-0.4/libvisual/libvisual.h
+	<libvisual/lvconfig.h>
+	<libvisual/lv_bits.h>
+	<libvisual/lv_time.h>
+	<libvisual/lv_color.h>
+	<libvisual/lv_param.h>
+	<libvisual/lv_config.h>
+	<libvisual/lv_cpu.h>
+	<libvisual/lv_bin.h>
+	<libvisual/lv_event.h>
+	<libvisual/lv_keysym.h>
+	<libvisual/lv_actor.h>
+	<libvisual/lv_input.h>
+	<libvisual/lv_audio.h>
+	<libvisual/lv_fourier.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_palette.h>
+	<libvisual/lv_plugin.h>
+	<libvisual/lv_video.h>
+	<libvisual/lv_libvisual.h>
+	<libvisual/lv_songinfo.h>
+	<libvisual/lv_morph.h>
+	<libvisual/lv_transform.h>
+	<libvisual/lv_bmp.h>
+	<libvisual/lv_log.h>
+	<libvisual/lv_random.h>
+	<libvisual/lv_ui.h>
+	<libvisual/lv_collection.h>
+	<libvisual/lv_hashmap.h>
+	<libvisual/lv_cache.h>
+	<libvisual/lv_ringbuffer.h>
+	<libvisual/lv_rectangle.h>
+	<libvisual/lv_error.h>
+	<libvisual/lv_thread.h>
+	<libvisual/lv_object.h>
+	<libvisual/lv_types.h>
+	<libvisual/lv_utils.h>
+	<libvisual/lv_gl.h>
+	<libvisual/lv_math.h>
+	<libvisual/lv_os.h>
+	<libvisual/lv_common.h>
+
+1312866637 /usr/local/include/libvisual-0.4/libvisual/lvconfig.h
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_bits.h
+	<libvisual/lvconfig.h>
+	<libvisual/lv_defines.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_defines.h
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_time.h
+	<sys/time.h>
+	<time.h>
+	<libvisual/lv_common.h>
+
+1312866637 /usr/local/include/libvisual-0.4/libvisual/lv_common.h
+	<libvisual/lv_defines.h>
+	<libvisual/lv_mem.h>
+	<libvisual/lv_log.h>
+	<libvisual/lv_error.h>
+	<libvisual/lv_types.h>
+	<libvisual/lv_object.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_mem.h
+	<libvisual/lvconfig.h>
+	<libvisual/lv_defines.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_log.h
+	<stdio.h>
+	<string.h>
+	<stdarg.h>
+	<assert.h>
+	<libvisual/lv_defines.h>
+	<libvisual/lvconfig.h>
+	<signal.h>
+	<signal.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_error.h
+	<libvisual/lv_defines.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_types.h
+	<libvisual/lv_defines.h>
+	<stdint.h>
+	<sys/types.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_object.h
+	<libvisual/lv_defines.h>
+	<libvisual/lv_types.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_color.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_param.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_color.h>
+	<libvisual/lv_palette.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_event.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_palette.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_color.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_list.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_collection.h>
+	<sys/queue.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_collection.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_event.h
+	<libvisual/lv_songinfo.h>
+	<libvisual/lv_video.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_keysym.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_songinfo.h
+	<libvisual/lv_time.h>
+	<libvisual/lv_video.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_video.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_palette.h>
+	<libvisual/lv_rectangle.h>
+	<libvisual/lv_buffer.h>
+	<libvisual/lv_gl.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_rectangle.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_buffer.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_gl.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_hashmap.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_hashmap.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_collection.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_keysym.h
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_config.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_list.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_cpu.h
+	<libvisual/lvconfig.h>
+	<libvisual/lv_common.h>
+
+1312866637 /usr/local/include/libvisual-0.4/libvisual/lv_bin.h
+	<libvisual/lv_actor.h>
+	<libvisual/lv_input.h>
+	<libvisual/lv_morph.h>
+	<libvisual/lv_video.h>
+	<libvisual/lv_time.h>
+
+1312866637 /usr/local/include/libvisual-0.4/libvisual/lv_actor.h
+	<libvisual/lv_audio.h>
+	<libvisual/lv_video.h>
+	<libvisual/lv_palette.h>
+	<libvisual/lv_plugin.h>
+	<libvisual/lv_songinfo.h>
+	<libvisual/lv_event.h>
+
+1312866637 /usr/local/include/libvisual-0.4/libvisual/lv_audio.h
+	<libvisual/lv_fourier.h>
+	<libvisual/lv_time.h>
+	<libvisual/lv_ringbuffer.h>
+	<libvisual/lv_hashmap.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_fourier.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_ringbuffer.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_buffer.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_plugin.h
+	<libvisual/lv_video.h>
+	<libvisual/lv_audio.h>
+	<libvisual/lv_palette.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_songinfo.h>
+	<libvisual/lv_event.h>
+	<libvisual/lv_param.h>
+	<libvisual/lv_ui.h>
+	<libvisual/lv_random.h>
+	<libvisual/lv_types.h>
+	"lvconfig.h"
+	<windows.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_ui.h
+	<libvisual/lv_list.h>
+	<libvisual/lv_param.h>
+	<libvisual/lv_video.h>
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_random.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_input.h
+	<libvisual/lv_audio.h>
+	<libvisual/lv_plugin.h>
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_morph.h
+	<libvisual/lv_palette.h>
+	<libvisual/lv_plugin.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_video.h>
+	<libvisual/lv_time.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_libvisual.h
+	<libvisual/lv_param.h>
+	<libvisual/lv_ui.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_transform.h
+	<libvisual/lv_audio.h>
+	<libvisual/lv_video.h>
+	<libvisual/lv_palette.h>
+	<libvisual/lv_plugin.h>
+	<libvisual/lv_songinfo.h>
+	<libvisual/lv_event.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_bmp.h
+	<libvisual/lv_video.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_cache.h
+	<libvisual/lv_common.h>
+	<libvisual/lv_time.h>
+	<libvisual/lv_list.h>
+	<libvisual/lv_hashmap.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_thread.h
+	<libvisual/lvconfig.h>
+	<libvisual/lv_common.h>
+	"lvconfig.h"
+	<windows.h>
+	<pthread.h>
+	<glib/gthread.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_utils.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_math.h
+	<libvisual/lv_common.h>
+
+1312866638 /usr/local/include/libvisual-0.4/libvisual/lv_os.h
+	<libvisual/lv_common.h>
+
+1313279799 /usr/local/include/mpg123.h
+	<stdlib.h>
+	<sys/types.h>
+
+1313007695 /usr/local/include/vorbis/vorbisfile.h
+	<stdio.h>
+	"codec.h"
+
+1313007695 /usr/local/include/vorbis/codec.h
+	<ogg/ogg.h>
+
+1313007605 /usr/local/include/ogg/ogg.h
+	<stddef.h>
+	<ogg/os_types.h>
+
+1313007605 /usr/local/include/ogg/os_types.h
+	<stdint.h>
+	<sys/types.h>
+	<sys/types.h>
+	<inttypes.h>
+	<sys/types.h>
+	<inttypes.h>
+	<ogg/config_types.h>
+
+1313007605 /usr/local/include/ogg/config_types.h
+	<inttypes.h>
+	<stdint.h>
+	<sys/types.h>
+
+1202137916 /usr/local/include/taglib/tag.h
+	"taglib_export.h"
+	"tstring.h"
+
+1271097124 /usr/local/include/taglib/taglib_export.h
+	"taglib_config.h"
+
+1313211749 /usr/local/include/taglib/taglib_config.h
+
+1313209908 /usr/local/include/taglib/tstring.h
+	"taglib_export.h"
+	"taglib.h"
+	"tbytevector.h"
+	<string>
+	<iostream>
+
+1271094183 /usr/local/include/taglib/taglib.h
+	<string>
+
+1246568072 /usr/local/include/taglib/tbytevector.h
+	"taglib.h"
+	"taglib_export.h"
+	<vector>
+	<iostream>
+
+1255122239 /usr/local/include/taglib/fileref.h
+	"tfile.h"
+	"tstringlist.h"
+	"taglib_export.h"
+	"audioproperties.h"
+
+1247428486 /usr/local/include/taglib/tfile.h
+	"taglib_export.h"
+	"taglib.h"
+	"tbytevector.h"
+
+1202137916 /usr/local/include/taglib/tstringlist.h
+	"tstring.h"
+	"tlist.h"
+	"tbytevectorlist.h"
+	"taglib_export.h"
+	<iostream>
+
+1202137916 /usr/local/include/taglib/tlist.h
+	"taglib.h"
+	<list>
+	"tlist.tcc"
+
+1202137916 /usr/local/include/taglib/tlist.tcc
+	<algorithm>
+
+1202137916 /usr/local/include/taglib/tbytevectorlist.h
+	"taglib_export.h"
+	"tbytevector.h"
+	"tlist.h"
+
+1202137916 /usr/local/include/taglib/audioproperties.h
+	"taglib_export.h"
+
+1313228177 /usr/home/segin/psymp3/include/stream.h
+
+1313228177 /usr/home/segin/psymp3/include/libmpg123w.h
+
+1313228177 /usr/home/segin/psymp3/include/vorbisw.h
+
+1313228177 /usr/home/segin/psymp3/include/audio.h
+
+1313228177 /usr/home/segin/psymp3/include/fft_draw.h
+
+1313228177 /usr/home/segin/psymp3/include/about.h
+
+1313228177 /usr/home/segin/psymp3/include/track.h
+
+1313228177 /usr/home/segin/psymp3/include/song.h
+
+1313228177 /usr/home/segin/psymp3/include/scrobble.h
+
+1313228177 /usr/home/segin/psymp3/include/playlist.h
+
+1313228177 /usr/home/segin/psymp3/include/rect.h
+
+1313228177 /usr/home/segin/psymp3/include/surface.h
+
+1313228177 /usr/home/segin/psymp3/include/display.h
+
+1313228177 /usr/home/segin/psymp3/include/truetype.h
+
+1313228177 /usr/home/segin/psymp3/include/font.h
+
+1313228177 /usr/home/segin/psymp3/include/player.h
+
+1313228177 source:/usr/home/segin/psymp3/src/about.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/audio.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/fft_draw.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/font.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/libmpg123.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/player.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/playlist.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/rect.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/scrobble.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/stream.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/surface.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/track.cpp
+	"psymp3.h"
+
+1313228177 source:/usr/home/segin/psymp3/src/truetype.cpp
+	"psymp3.h"
+
+1313228206 source:/usr/home/segin/psymp3/main.cpp
+	"psymp3.h"
+
+1313279846 source:/usr/home/segin/psymp3/src/display.cpp
+	"psymp3.h"
+

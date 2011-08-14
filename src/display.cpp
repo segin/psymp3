@@ -26,7 +26,7 @@ Display::Display()
 {
     //ctor
     m_handle = SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF);
-    std::cout << "Display::Display() got 0x" << std::hex << (unsigned int) m_handle << std::endl;
+    std::cout << "Display::Display() got 0x" << std::hex << m_handle << std::endl;
     SDL_WM_SetCaption("PsyMP3 " PSYMP3_VERSION, "PsyMP3");
 }
 
