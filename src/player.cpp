@@ -115,7 +115,7 @@ void Player::Run(std::vector<std::string> args)
 #endif
     if (stream)
         audio = new Audio(&ATdata);
-    font = new Font("res/vera.ttf");
+    font = new Font(PSYMP3_DATADIR "/vera.ttf");
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     //Surface bmp = Surface::FromBMP("cb.bmp");
     graph = new Surface(640, 350);
