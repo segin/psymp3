@@ -20,4 +20,4 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 
 AC_CHECK_FUNCS([atexit getcwd memset])
 
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2.13 libmpg123 = 1.8 taglib >= 1.6 libvisual-0.4 >= 0.4.0 vorbisfile >= 1.3 SDL_gfx >= 2.0])
+PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2.13 libmpg123 >= 1.8 taglib >= 1.6 libvisual-0.4 >= 0.4.0 vorbisfile >= 1.3 SDL_gfx >= 2.0])
