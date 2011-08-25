@@ -43,7 +43,7 @@ void Libmpg123::open(TagLib::String name)
     int ret;
     ret = mpg123_open((mpg123_handle *) m_handle, name.toCString(true));
     if (ret != MPG123_OK) {
-        std::cerr << "mpg123_open() failed: " << mpg123_plain_strerror(ret) << std::endl;
+        std::cerr << "mpg123_open() failed: " << ret << std::endl;
     }
     ret = mpg123_getformat((mpg123_handle *) m_handle, &m_rate, &m_channels, &m_encoding);
     if (ret == -1) {

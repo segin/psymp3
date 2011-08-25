@@ -117,16 +117,10 @@ void Player::Run(std::vector<std::string> args)
         audio = new Audio(&ATdata);
     font = new Font(PSYMP3_DATADIR "/vera.ttf");
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
-    //Surface bmp = Surface::FromBMP("cb.bmp");
     graph = new Surface(640, 350);
 
-    // centre the bitmap on screen
     Rect dstrect;
-//    dstrect.width((screen->width() - bmp.width()) / 2);
-//    dstrect.height((screen->height() - bmp.height()) / 2);
-
     SDL_TimerID timer;
-
 
     Surface s_artist = font->Render("Artist: " + stream->getArtist());
     Surface s_title = font->Render("Title: " + stream->getTitle());
@@ -144,9 +138,6 @@ void Player::Run(std::vector<std::string> args)
         while (SDL_WaitEvent(&event))
         {
             // check for messages
- #ifdef DEBUG
-            std::cout << "event.type: " << std::dec << (int) event.type << std::endl;
- #endif
             switch (event.type)
             {
                 // exit if the window is closed
@@ -195,7 +186,6 @@ void Player::Run(std::vector<std::string> args)
             case SDL_USEREVENT:
                 if (event.user.code == RUN_GUI_ITERATION) {
                     screen->FillRect(screen->MapRGB(0, 0, 0));
-
                     // draw bitmap
                     //screen->Blit(bmp, dstrect);
                     // draw tag strings
@@ -216,7 +206,6 @@ void Player::Run(std::vector<std::string> args)
                                                 + "." + convertInt2((stream->getLength() / 10) % 100));
                     else
                         s_pos = font->Render("Position: -:--.-- / -:--.--");
-
                     f.height(353);
                     f.width(400);
                     screen->Blit(s_pos, f);
