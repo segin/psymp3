@@ -9,7 +9,7 @@ Audio::Audio(struct atdata *data)
 
 Audio::~Audio()
 {
-    //dtor
+    play(false);
 }
 
 void Audio::setup(struct atdata *data)
@@ -29,7 +29,6 @@ void Audio::setup(struct atdata *data)
 
 void Audio::play(bool go)
 {
-    std::cout << "Audio::play(): " << go << std::endl;
     m_playing = go;
     if (go)
         SDL_PauseAudio(0);
@@ -42,9 +41,6 @@ void Audio::callback(void *data, Uint8 *buf, int len)
     struct atdata *ldata = (struct atdata *) data;
     Stream *stream = ldata->stream;
     FastFourier *fft = ldata->fft;
-#ifdef DEBUG
-    std::cout << "stream = " << std::hex << stream << ", fft = " << std::hex << fft << std::endl;
-#endif
     stream->getData(len, (void *) buf);
     toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
     fft->doFFT();

@@ -33,6 +33,7 @@
 #include <string>
 #include <sstream>
 #include <vector>
+#include <exception>
 #ifdef __cplusplus
     #include <cstdlib>
 #else
@@ -42,10 +43,14 @@
 #include <SDL/SDL.h>
 #include <SDL/SDL_gfxPrimitives.h>
 #include <SDL/SDL_ttf.h>
+#include <SDL/SDL_thread.h>
+#include <SDL/SDL_mutex.h>
 #else
 #include <SDL.h>
 #include <SDL_gfxPrimitives.h>
 #include <SDL_ttf.h>
+#include <SDL_thread.h>
+#include <SDL_mutex.h>
 #endif
 #include <libvisual/libvisual.h>
 #include <mpg123.h>
@@ -54,6 +59,7 @@
 #include <taglib/fileref.h>
 
 // local includes
+#include "exceptions.h"
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
