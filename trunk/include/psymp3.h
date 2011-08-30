@@ -28,17 +28,21 @@
 
 #define RUN_GUI_ITERATION 0xfe0f
 
-// system includes
+// system includes - runtime libraries
 #include <iostream>
 #include <string>
 #include <sstream>
 #include <vector>
 #include <exception>
+#include <typeinfo>
+
 #ifdef __cplusplus
     #include <cstdlib>
 #else
     #include <stdlib.h>
 #endif
+
+// system includes - third-party libraries
 #ifdef __APPLE__
 #include <SDL/SDL.h>
 #include <SDL/SDL_gfxPrimitives.h>
@@ -60,6 +64,7 @@
 
 // local includes
 #include "exceptions.h"
+#include "mutex.h"
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
@@ -84,6 +89,7 @@
 struct atdata {
     Stream *stream;
     FastFourier *fft;
+    Mutex *mutex;
 };
 
 #endif // __PSYMP3_H__

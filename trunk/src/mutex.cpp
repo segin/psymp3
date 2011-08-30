@@ -1,4 +1,4 @@
-#include "mutex.h"
+#include "psymp3.h"
 
 Mutex::Mutex() : m_handle(SDL_CreateMutex())
 {
@@ -7,5 +7,15 @@ Mutex::Mutex() : m_handle(SDL_CreateMutex())
 
 Mutex::~Mutex()
 {
-    //dtor
+    SDL_DestroyMutex(m_handle);
+}
+
+void Mutex::lock()
+{
+    SDL_mutexP(m_handle);
+}
+
+void Mutex::unlock()
+{
+    SDL_mutexV(m_handle);
 }
