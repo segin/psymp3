@@ -41,9 +41,15 @@ void Audio::callback(void *data, Uint8 *buf, int len)
     struct atdata *ldata = (struct atdata *) data;
     Stream *stream = ldata->stream;
     FastFourier *fft = ldata->fft;
+    Mutex *mutex = ldata->mutex;
+    mutex->lock();
     stream->getData(len, (void *) buf);
+    mutex->unlock();
+    // This doesn't need a mutex lock.
     toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
+    mutex->lock();
     fft->doFFT();
+    mutex->unlock();
 }
 
 void Audio::toFloat(int channels, int16_t *in, float *out)

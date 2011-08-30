@@ -108,8 +108,10 @@ void Player::Run(std::vector<std::string> args)
     playlist = new Playlist();
     stream = new Libmpg123(args[1]);
     fft = new FastFourier();
+    mutex = new Mutex();
     ATdata.fft = fft;
     ATdata.stream = stream;
+    ATdata.mutex = mutex;
 #ifdef DEBUG
     std::cout << "stream = " << std::hex << stream << ", fft = " << std::hex << fft << std::endl;
 #endif
@@ -197,6 +199,7 @@ void Player::Run(std::vector<std::string> args)
                     screen->Blit(s_album, f);
                     // position indicator
                     Surface s_pos;
+                    mutex->lock();
                     if(stream)
                     s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                 + ":" + convertInt2((stream->getPosition() / 1000) % 60)
@@ -249,6 +252,7 @@ void Player::Run(std::vector<std::string> args)
                     for(int16_t x=0; x < 320; x++) {
                         graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
                     }
+                    mutex->unlock();
                     f.height(0);
                     f.width(0);
                     screen->Blit(*graph, f);
