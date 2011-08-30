@@ -40,6 +40,7 @@ class Player
         Stream *stream;
         Audio *audio;
         FastFourier *fft;
+        Mutex *mutex;
 };
 
 #endif // PLAYER_H

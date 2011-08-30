@@ -1,7 +1,7 @@
 #ifndef EXCEPTIONS_H
 #define EXCEPTIONS_H
 
-class InvalidMediaException : public exception
+class InvalidMediaException : public std::exception
 {
     public:
         /** Default constructor */

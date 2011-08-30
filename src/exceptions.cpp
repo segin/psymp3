@@ -1,4 +1,4 @@
-#include "exceptions.h"
+#include "psymp3.h"
 
 InvalidMediaException::InvalidMediaException()
 {

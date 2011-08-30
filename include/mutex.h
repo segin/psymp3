@@ -7,6 +7,8 @@ class Mutex
     public:
         Mutex();
         ~Mutex();
+        void lock();
+        void unlock();
     protected:
         SDL_mutex *m_handle;
     private:
