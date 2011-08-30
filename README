@@ -1,1 +1,49 @@
+README FOR PSYMP3 2-CURRENT
+===========================
+
+ 1. Overview
+ 2. System Requirements
+ 3. Notes
+
+===========================
+
+1. OVERVIEW
+
+PsyMP3 is a simplistic audio media player with a flashy Fourier transform.
+PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas
+1.x was written in FreeBASIC, 2.x is written in C++, and is portable!
+
+The "2-CURRENT" version tag represents the "bleeding edge" of development.
+End users shouldn't be using this; please use the last version tagged as 
+-RELEASE. -CURRENT means "This is what I am working on, in whatever state
+it happens to be in, complete or not."
+
+You can reach me at <segin2005@gmail.com>.
+
+2. SYSTEM REQUIREMENTS
+
+   Windows NT: 
+	NT 4.0 or later, Windows 2000 recommended
+	Minimum CPU isn't known currently, 1GHz Pentium III is my current guess
+	64MB of RAM, not counting your OS configuration or other software.
+	DirectDraw-accelerated drivers help.
+
+   Linux, *BSD:
+	glibc-2.3 or later, FreeBSD 6, NetBSD 4, or OpenBSD 3.5 or later recommended.
+	Older releases may or may not work; please email your results!
+	X11 is recommended, or an SDL compiled to use some other graphics output.
+	POSIX threads. On Linux, NTPL is recommended (requires kernel 2.6.9 or later)
+
+   Mac OS X:
+	Windows installed in Boot Camp, or Darwine
+	An Intel CPU is probably also required, although PowerPC might work later on.
+
+3. NOTES
+
+At this time, PsyMP3 2.x is incomplete. There's very little UI code, and most
+features are missing at this time. If you are a developer, and are interested
+in helping me, please email me above.
+
+If you are an end user and you don't like this program, feel free to use 
+something else.
 
