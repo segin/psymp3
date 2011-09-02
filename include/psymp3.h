@@ -88,7 +88,7 @@
 
 struct atdata {
     Stream *stream;
-    FastFourier *fft;
+    FastFourier *   fft;
     Mutex *mutex;
 };
 

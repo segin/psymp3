@@ -65,6 +65,8 @@ Player::~Player()
         delete stream;
     if (fft)
         delete fft;
+    if (mutex)
+        delete mutex;
 }
 
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
@@ -131,7 +133,7 @@ void Player::Run(std::vector<std::string> args)
     // program main loop
     bool done = false;
     audio->play(true);
-    timer = SDL_AddTimer(33, AppLoopTimer, NULL);
+    timer = SDL_AddTimer(20, AppLoopTimer, NULL);
     while (!done)
     {
         bool sdone = false;
