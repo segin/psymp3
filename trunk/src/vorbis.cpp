@@ -24,6 +24,7 @@
 Vorbis::Vorbis(TagLib::String name) : Stream(name)
 {
     m_handle = new OggVorbis_File;
+    m_session = 0;
     open(name);
 }
 
@@ -39,12 +40,14 @@ void Vorbis::open(TagLib::String name)
     switch (ret) {
     case OV_ENOTVORBIS:
         // throw WrongFormatException();
+        throw;
         break;
     case OV_EREAD:
     case OV_EVERSION:
     case OV_EBADHEADER:
     case OV_EFAULT:
-        // throw BadFormatException();
+        //throw BadFormatException();
+        throw;
         break;
     default: // returned 0 for success
         break;
@@ -62,9 +65,32 @@ void Vorbis::open(TagLib::String name)
     };
 }
 
+void Vorbis::seekTo(unsigned long pos)
+{
+    long long a = (long long) pos * m_rate / 1000;
+    m_session = a;
+    m_position = ((long long) m_session * 1000 / m_rate);
+}
+
+size_t Vorbis::getData(size_t len, void *buf)
+{
+    long ret = ov_read((OggVorbis_File *) m_handle, (char *) buf, len, 0, 2, 1, &m_session);
+    m_position = ((long long) m_session * 1000 / m_rate);
+}
+
 unsigned int Vorbis::getLength()
 {
+    return (int) ((long long) ov_pcm_total((OggVorbis_File *) m_handle, -1) * 1000 / m_rate);
+}
 
+unsigned long long Vorbis::getSLength()
+{
+    return ov_pcm_total((OggVorbis_File *) m_handle, -1);
+}
+
+unsigned long long Vorbis::getSPosition()
+{
+    return m_session;
 }
 
 unsigned int Vorbis::getChannels()
@@ -80,5 +106,15 @@ unsigned int Vorbis::getRate()
 unsigned int Vorbis::getEncoding()
 {
     return 0;
+}
+
+unsigned int Vorbis::getBitrate()
+{
+    return m_bitrate;
+}
+
+bool Vorbis::eof()
+{
+    return m_eof;
 }
 

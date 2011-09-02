@@ -28,7 +28,9 @@ class Vorbis : public Stream
         Vorbis(TagLib::String name);
         virtual ~Vorbis();
         void open(TagLib::String name);
-        virtual unsigned int getLength()
+        virtual unsigned int getLength();
+        virtual unsigned long long getSLength();
+        virtual unsigned long long getSPosition();
         virtual unsigned int getChannels();
         virtual unsigned int getRate();
         virtual unsigned int getBitrate();
@@ -38,6 +40,7 @@ class Vorbis : public Stream
         virtual bool eof();
     protected:
     private:
+        int m_session;
 };
 
 #endif // VORBIS_H

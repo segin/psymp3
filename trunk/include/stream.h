@@ -40,7 +40,7 @@ class Stream
         virtual unsigned int getRate();
         virtual unsigned int getEncoding(); // returns undefined
         virtual unsigned int getPosition(); // in msec!
-        virtual unsigned int getSPosition(); // in samples!
+        virtual unsigned long long getSPosition(); // in samples!
         virtual unsigned int getBitrate(); // bitrate in bits per second!
         virtual size_t getData(size_t len, void *buf) = 0;
         virtual void seekTo(unsigned long pos) = 0;
