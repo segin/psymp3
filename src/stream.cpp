@@ -120,3 +120,8 @@ unsigned int Stream::getPosition()
 {
     return m_position;
 }
+
+unsigned long long Stream::getSPosition()
+{
+    return m_sposition;
+}
