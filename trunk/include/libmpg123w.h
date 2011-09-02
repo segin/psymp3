@@ -1,5 +1,5 @@
 /*
- * stream.cpp - Stream functionality base class
+ * libmpg123w.h - MP3 decoder class header
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
@@ -33,6 +33,7 @@ class Libmpg123 : public Stream
         virtual unsigned int getChannels();
         virtual unsigned int getRate();
         virtual unsigned int getEncoding(); // returns undefined
+        virtual unsigned long long getSLength(); // in samples!
         virtual size_t getData(size_t len, void *buf);
         virtual void seekTo(unsigned long pos);
         virtual bool eof();

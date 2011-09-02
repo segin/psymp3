@@ -34,12 +34,12 @@ class track
         unsigned int GetLen() { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }
     protected:
-    private:
         TagLib::String m_Artist;
         TagLib::String m_Title;
         TagLib::String m_Album;
         TagLib::String m_FilePath;
         unsigned int m_Len;
+    private:
 };
 
 #endif // TRACK_H
