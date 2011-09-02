@@ -4,9 +4,7 @@
 class Scrobble : public track
 {
     public:
-        /** Default constructor */
-        Scrobble();
-        /** Default destructor */
+        Scrobble(const track& rhs);
         virtual ~Scrobble();
     protected:
     private:

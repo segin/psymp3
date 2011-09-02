@@ -1,6 +1,6 @@
 #include "psymp3.h"
 
-Scrobble::Scrobble()
+Scrobble::Scrobble(const track& rhs) : track(TagLib::String::null)
 {
     //ctor
 }

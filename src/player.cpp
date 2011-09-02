@@ -107,7 +107,7 @@ void Player::Run(std::vector<std::string> args)
     FastFourier::init();
 
     screen = new Display();
-    playlist = new Playlist();
+    playlist = new Playlist(args);
     stream = new Libmpg123(args[1]);
     fft = new FastFourier();
     mutex = new Mutex();

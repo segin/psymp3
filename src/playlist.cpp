@@ -22,9 +22,14 @@
 
 #include "psymp3.h"
 
-Playlist::Playlist()
+Playlist::Playlist(std::vector<std::string> args)
 {
     //ctor
+}
+
+Playlist::Playlist(TagLib::String playlist)
+{
+    // M3U ctor
 }
 
 Playlist::~Playlist()

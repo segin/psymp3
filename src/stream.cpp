@@ -23,7 +23,7 @@
 
 Stream::Stream()
 {
-
+    /* Not sure if I need this... */
 }
 
 Stream::Stream(TagLib::String name)
@@ -61,12 +61,33 @@ TagLib::String Stream::getAlbum()
     return m_tags->tag()->album();
 }
 
+/* Note that the base class version falls back to TagLib, which is inaccurate.
+ * Having all this generic functionality in TagLib as well as the children codec
+ * classes is to make writing child codecs easier by providing generic, working
+ * functionality until the codec version is implemented.
+ */
 unsigned int Stream::getLength()
 {
     if(!m_tags) return 0;
     return m_tags->audioProperties()->length() * 1000; // * 1000 to make msec
 }
 
+/* As the data we're getting from TagLib is inaccurate but percise, we can
+ * simply multiply it by the sample rate to get the approximate length in
+ * samples.
+ */
+unsigned long long Stream::getSLength()
+{
+    if(!m_tags) return 0;
+    return m_tags->audioProperties()->length() * m_tags->audioProperties()->bitrate();
+}
+
+/* TagLib provides this information in a generic manner for a mulitude of
+ * different formats. This will aid greatly in implementing child codec
+ * classes by providing an already-working mechanism for grabbing the data.
+ * However, eventually, the codec class must override these classes if
+ * possible. Best to get the data from the codec and decoder libraries.
+ */
 unsigned int Stream::getChannels()
 {
     if(!m_tags) return 0;
@@ -79,6 +100,17 @@ unsigned int Stream::getRate()
     return m_tags->audioProperties()->sampleRate();
 }
 
+unsigned int Stream::getBitrate()
+{
+    if(!m_tags) return 0;
+    return m_tags->audioProperties()->bitrate();
+}
+
+/* This is the sample encoding. So far, we can force all output to be
+ * signed 16-bit little endian. As such, this is, so far, unneeded and
+ * implemented solely as a stub. However, it may be needed in the future,
+ * so for now, I leave it in place.
+ */
 unsigned int Stream::getEncoding()
 {
     return 0;

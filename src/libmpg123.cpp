@@ -44,6 +44,7 @@ void Libmpg123::open(TagLib::String name)
     ret = mpg123_open((mpg123_handle *) m_handle, name.toCString(true));
     if (ret != MPG123_OK) {
         std::cerr << "mpg123_open() failed: " << ret << std::endl;
+        // throw WrongFormatException();
     }
     ret = mpg123_getformat((mpg123_handle *) m_handle, &m_rate, &m_channels, &m_encoding);
     if (ret == -1) {
@@ -57,6 +58,7 @@ void Libmpg123::open(TagLib::String name)
     if (ret == -1) {
 
     }
+    m_eof = false;
 }
 
 unsigned int Libmpg123::getChannels()

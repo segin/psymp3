@@ -4,12 +4,10 @@
 class Playlist
 {
     public:
-        /** Default constructor */
-        Playlist();
-        bool addFile(std::wstring path);
-
-        /** Default destructor */
-        virtual ~Playlist();
+        Playlist(std::vector<std::string> args);
+        Playlist(TagLib::String playlist);
+        ~Playlist();
+        bool addFile(TagLib::String path);
     protected:
     private:
     std::vector<track> tracks;
