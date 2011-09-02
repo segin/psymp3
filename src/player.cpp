@@ -159,9 +159,6 @@ void Player::Run(std::vector<std::string> args)
                         done = true;
                         break;
                     case SDLK_LEFT:
-#ifdef DEBUG
-                        std::cout << "seeking back 1500msec" << std::endl;
-#endif
                         seek = 1;
                         break;
                     case SDLK_RIGHT:
