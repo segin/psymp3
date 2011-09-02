@@ -28,6 +28,9 @@
 	<File name="include/display.h" open="0" top="0" tabpos="6">
 		<Cursor position="962" topLine="0" />
 	</File>
+	<File name="include/exceptions.h" open="1" top="0" tabpos="6">
+		<Cursor position="97" topLine="0" />
+	</File>
 	<File name="include/fft_draw.h" open="0" top="0" tabpos="14">
 		<Cursor position="1043" topLine="0" />
 	</File>
@@ -37,14 +40,17 @@
 	<File name="include/libmpg123w.h" open="0" top="0" tabpos="18">
 		<Cursor position="1377" topLine="0" />
 	</File>
-	<File name="include/player.h" open="0" top="0" tabpos="21">
-		<Cursor position="1178" topLine="0" />
+	<File name="include/mutex.h" open="1" top="0" tabpos="4">
+		<Cursor position="146" topLine="0" />
+	</File>
+	<File name="include/player.h" open="1" top="0" tabpos="5">
+		<Cursor position="1308" topLine="11" />
 	</File>
 	<File name="include/playlist.h" open="0" top="0" tabpos="19">
 		<Cursor position="18" topLine="0" />
 	</File>
-	<File name="include/psymp3.h" open="0" top="0" tabpos="3">
-		<Cursor position="1422" topLine="22" />
+	<File name="include/psymp3.h" open="1" top="0" tabpos="9">
+		<Cursor position="2176" topLine="77" />
 	</File>
 	<File name="include/rect.h" open="0" top="0" tabpos="13">
 		<Cursor position="105" topLine="0" />
@@ -73,11 +79,14 @@
 	<File name="src/about.cpp" open="0" top="0" tabpos="11">
 		<Cursor position="854" topLine="0" />
 	</File>
-	<File name="src/audio.cpp" open="0" top="0" tabpos="23">
-		<Cursor position="338" topLine="10" />
+	<File name="src/audio.cpp" open="1" top="0" tabpos="3">
+		<Cursor position="1483" topLine="15" />
 	</File>
 	<File name="src/display.cpp" open="0" top="0" tabpos="7">
 		<Cursor position="1094" topLine="0" />
+	</File>
+	<File name="src/exceptions.cpp" open="1" top="0" tabpos="7">
+		<Cursor position="89" topLine="0" />
 	</File>
 	<File name="src/fft_draw.cpp" open="0" top="0" tabpos="24">
 		<Cursor position="578" topLine="0" />
@@ -88,8 +97,14 @@
 	<File name="src/libmpg123.cpp" open="0" top="0" tabpos="22">
 		<Cursor position="1295" topLine="63" />
 	</File>
-	<File name="src/player.cpp" open="0" top="0" tabpos="20">
-		<Cursor position="8091" topLine="176" />
+	<File name="src/main.cpp" open="1" top="0" tabpos="2">
+		<Cursor position="0" topLine="0" />
+	</File>
+	<File name="src/mutex.cpp" open="1" top="0" tabpos="1">
+		<Cursor position="205" topLine="0" />
+	</File>
+	<File name="src/player.cpp" open="1" top="1" tabpos="8">
+		<Cursor position="3700" topLine="198" />
 	</File>
 	<File name="src/rect.cpp" open="0" top="0" tabpos="17">
 		<Cursor position="90" topLine="0" />
