@@ -27,30 +27,3 @@ track::track(TagLib::String a_FilePath)
     m_FilePath = a_FilePath;
 }
 
-track::track()
-{
-    //ctor
-}
-
-
-track::track(TagLib::String a_Artist, TagLib::String a_Title, TagLib::String a_Album, TagLib::String a_FilePath, unsigned int a_Len)
-{
-    //ctor
-    m_Artist = a_Artist;
-    m_Title = a_Title;
-    m_Album = a_Album;
-    m_FilePath = a_FilePath;
-    m_Len = a_Len;
-}
-
-track::~track()
-{
-    //dtor
-}
-
-track& track::operator=(const track& rhs)
-{
-    if (this == &rhs) return *this; // handle self assignment
-    //assignment operator
-    return *this;
-}

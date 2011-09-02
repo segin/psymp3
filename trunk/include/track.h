@@ -25,17 +25,10 @@
 class track
 {
     public:
-        track();
-        track(TagLib::String a_Artist, TagLib::String a_Title, TagLib::String a_Album, TagLib::String a_FilePath, unsigned int a_Len);
         track(TagLib::String a_FilePath);
-        virtual ~track();
-        track& operator=(const track& rhs);
         TagLib::String GetArtist() { return m_Artist; }
-        void SetArtist(TagLib::String val) { m_Artist = val; }
         TagLib::String GetTitle() { return m_Title; }
-        void SetTitle(TagLib::String val) { m_Title = val; }
         TagLib::String GetAlbum() { return m_Album; }
-        void SetAlbum(TagLib::String val) { m_Album = val; }
         TagLib::String GetFilePath() { return m_FilePath; }
         void SetFilePath(TagLib::String val) { m_FilePath = val; }
         unsigned int GetLen() { return m_Len; }
