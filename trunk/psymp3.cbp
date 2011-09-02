@@ -73,6 +73,7 @@
 		<Unit filename="include/scrobble.h" />
 		<Unit filename="include/stream.h" />
 		<Unit filename="include/surface.h" />
+		<Unit filename="include/system.h" />
 		<Unit filename="include/track.h" />
 		<Unit filename="include/truetype.h" />
 		<Unit filename="include/vorbisw.h" />
@@ -95,6 +96,7 @@
 		<Unit filename="src/scrobble.cpp" />
 		<Unit filename="src/stream.cpp" />
 		<Unit filename="src/surface.cpp" />
+		<Unit filename="src/system.cpp" />
 		<Unit filename="src/track.cpp" />
 		<Unit filename="src/truetype.cpp" />
 		<Unit filename="src/vorbis.cpp" />
