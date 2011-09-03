@@ -9,9 +9,11 @@ A list of dependencies in the C++ PsyMP3 2.x. List edited when I feel like it.
 Non-exaustive:
   * SDL
   * SDL_gfx
+  * SDL_ttf
   * TagLib
   * libmpg123
   * libogg
   * libvorbis
   * vorbisfile
+  * libvisual-0.4
   * a working C++ compiler
