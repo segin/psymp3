@@ -41,6 +41,7 @@ class Vorbis : public Stream
     protected:
     private:
         int m_session;
+        vorbis_info *m_vi;
 };
 
 #endif // VORBIS_H

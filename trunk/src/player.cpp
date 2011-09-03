@@ -79,7 +79,7 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
     event.user.data1 = 0;
     event.user.data2 = 0;
 
-    SDL_PushEvent(&event);
+    if (!gui_iteration_running) SDL_PushEvent(&event);
 
     return interval;
 }
@@ -108,7 +108,7 @@ void Player::Run(std::vector<std::string> args)
 
     screen = new Display();
     //playlist = new Playlist(args);
-    stream = new Vorbis(args[1]);
+    stream = new Libmpg123(args[1]);
     fft = new FastFourier();
     mutex = new Mutex();
     ATdata.fft = fft;
@@ -133,7 +133,7 @@ void Player::Run(std::vector<std::string> args)
     // program main loop
     bool done = false;
     audio->play(true);
-    timer = SDL_AddTimer(20, AppLoopTimer, NULL);
+    timer = SDL_AddTimer(33, AppLoopTimer, NULL);
     while (!done)
     {
         bool sdone = false;
@@ -186,6 +186,7 @@ void Player::Run(std::vector<std::string> args)
                 }
             case SDL_USEREVENT:
                 if (event.user.code == RUN_GUI_ITERATION) {
+                    gui_iteration_running = true;
                     screen->FillRect(screen->MapRGB(0, 0, 0));
                     // draw bitmap
                     //screen->Blit(bmp, dstrect);
@@ -227,7 +228,7 @@ void Player::Run(std::vector<std::string> args)
                     screen->hline(399, 402, 385, 0xFFFFFFFF);
                     screen->hline(618, 621, 370, 0xFFFFFFFF);
                     screen->hline(618, 621, 385, 0xFFFFFFFF);
-                    if(seek == 1) {
+                    if (seek == 1) {
                         if (stream)
                             stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
                     } else if (seek == 2) {
@@ -236,7 +237,7 @@ void Player::Run(std::vector<std::string> args)
                     }
                     double t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
                     for(double x = 0; x < t; x++) {
-                        if(x > 146) {
+                        if (x > 146) {
                             screen->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
                         } else if (x < 73) {
                             screen->vline(x + 400, 373, 382, 128, 255, (uint8_t) (x * 3.5), 255);
@@ -262,6 +263,7 @@ void Player::Run(std::vector<std::string> args)
                     screen->Flip();
                     // and if end of stream...
                     sdone = stream->eof();
+                    gui_iteration_running = false;
                 }
                 break;
             } // end switch
