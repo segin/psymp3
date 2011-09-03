@@ -21,7 +21,7 @@
 
 #include "psymp3.h"
 
-int main ( int argc, char** argv )
+int main(int argc, char *argv[])
 {
     Player PsyMP3;
     std::vector<std::string> args;
@@ -29,4 +29,5 @@ int main ( int argc, char** argv )
         args.push_back(argv[i]);
     }
     PsyMP3.Run(args);
+    return 0;
 }

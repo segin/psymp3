@@ -32,6 +32,7 @@ Vorbis::~Vorbis()
 {
     ov_clear((OggVorbis_File *) m_handle);
     delete (OggVorbis_File *) m_handle;
+    m_handle = NULL;
 }
 
 void Vorbis::open(TagLib::String name)
@@ -52,12 +53,14 @@ void Vorbis::open(TagLib::String name)
     default: // returned 0 for success
         break;
     };
-    vorbis_info *vi = ov_info((OggVorbis_File *) m_handle, -1);
-    switch(vi->channels) {
+    m_vi = ov_info((OggVorbis_File *) m_handle, -1);
+    switch(m_vi->channels) {
     case 1:
     case 2:
-        m_channels = vi->channels;
-        m_bitrate = vi->bitrate_nominal;
+        m_channels = m_vi->channels;
+        m_bitrate = m_vi->bitrate_nominal;
+        m_length = ov_time_total((OggVorbis_File *) m_handle, -1) * 1000;
+        m_slength = ov_pcm_total((OggVorbis_File *) m_handle, -1);
         break;
     default:
         // throw
@@ -67,30 +70,31 @@ void Vorbis::open(TagLib::String name)
 
 void Vorbis::seekTo(unsigned long pos)
 {
-    long long a = (long long) pos * m_rate / 1000;
-    m_session = a;
-    m_position = ((long long) m_session * 1000 / m_rate);
+    ov_time_seek((OggVorbis_File *) m_handle, (double) pos / 1000.0D);
+    m_sposition = ov_pcm_tell((OggVorbis_File *) m_handle);
+    m_position = ov_time_tell((OggVorbis_File *) m_handle) * 1000;
 }
 
 size_t Vorbis::getData(size_t len, void *buf)
 {
     long ret = ov_read((OggVorbis_File *) m_handle, (char *) buf, len, 0, 2, 1, &m_session);
-    m_position = ((long long) m_session * 1000 / m_rate);
+    m_sposition = ov_pcm_tell((OggVorbis_File *) m_handle);
+    m_position = ov_time_tell((OggVorbis_File *) m_handle) * 1000;
 }
 
 unsigned int Vorbis::getLength()
 {
-    return (int) ((long long) ov_pcm_total((OggVorbis_File *) m_handle, -1) * 1000 / m_rate);
+    return m_length;
 }
 
 unsigned long long Vorbis::getSLength()
 {
-    return ov_pcm_total((OggVorbis_File *) m_handle, -1);
+    return m_slength;
 }
 
 unsigned long long Vorbis::getSPosition()
 {
-    return m_session;
+    return m_sposition;
 }
 
 unsigned int Vorbis::getChannels()

@@ -92,4 +92,7 @@ struct atdata {
     Mutex *mutex;
 };
 
+// Forgive me.
+static bool gui_iteration_running;
+
 #endif // __PSYMP3_H__

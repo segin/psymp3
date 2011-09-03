@@ -60,6 +60,7 @@
 		<Unit filename="depcomp" />
 		<Unit filename="include/about.h" />
 		<Unit filename="include/audio.h" />
+		<Unit filename="include/config.h.in" />
 		<Unit filename="include/display.h" />
 		<Unit filename="include/exceptions.h" />
 		<Unit filename="include/fft_draw.h" />
@@ -71,6 +72,7 @@
 		<Unit filename="include/psymp3.h" />
 		<Unit filename="include/rect.h" />
 		<Unit filename="include/scrobble.h" />
+		<Unit filename="include/song.h" />
 		<Unit filename="include/stream.h" />
 		<Unit filename="include/surface.h" />
 		<Unit filename="include/system.h" />
@@ -94,6 +96,7 @@
 		<Unit filename="src/playlist.cpp" />
 		<Unit filename="src/rect.cpp" />
 		<Unit filename="src/scrobble.cpp" />
+		<Unit filename="src/song.cpp" />
 		<Unit filename="src/stream.cpp" />
 		<Unit filename="src/surface.cpp" />
 		<Unit filename="src/system.cpp" />
