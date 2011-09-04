@@ -8,6 +8,7 @@ class Playlist
         Playlist(TagLib::String playlist);
         ~Playlist();
         bool addFile(TagLib::String path);
+        void parseArgs(std::vector<std::string> args);
     protected:
     private:
     std::vector<track> tracks;

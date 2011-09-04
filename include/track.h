@@ -25,7 +25,7 @@
 class track
 {
     public:
-        track(TagLib::String a_FilePath);
+        track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef = (TagLib::FileRef *) NULL);
         TagLib::String GetArtist() { return m_Artist; }
         TagLib::String GetTitle() { return m_Title; }
         TagLib::String GetAlbum() { return m_Album; }
