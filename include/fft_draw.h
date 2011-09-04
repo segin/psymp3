@@ -34,7 +34,7 @@ class FastFourier
     protected:
     private:
         VisDFT *m_handle;
-        float m_samples[512];
+        float m_samples[1024];
         float m_fft[512];
 };
 

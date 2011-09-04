@@ -64,6 +64,7 @@ void Audio::callback(void *data, Uint8 *buf, int len)
     Stream *stream = ldata->stream;
     FastFourier *fft = ldata->fft;
     Mutex *mutex = ldata->mutex;
+    std::cout << "callback: len " << std::dec << len << std::endl;
     mutex->lock();
     stream->getData(len, (void *) buf);
     toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());

@@ -79,7 +79,10 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
     event.user.data1 = 0;
     event.user.data2 = 0;
 
-    if (!gui_iteration_running) SDL_PushEvent(&event);
+    if (!gui_iteration_running)
+        SDL_PushEvent(&event);
+    else
+        std::cout << "timer: skipped" << std::endl;
 
     return interval;
 }
@@ -254,9 +257,17 @@ void Player::Run(std::vector<std::string> args)
                     for (int x = 0; x < 350; x++) {
                         graph->hline(0, 639, x, 64);
                     }
-                    for(int16_t x=0; x < 320; x++) {
-                        graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
-                    }
+                    for(uint16_t x=0; x < 320; x++) {
+                        // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
+                        if (x > 213) {
+                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.399), 0, 255, 255);
+                        } else if (x < 106) {
+                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.399), 255);
+                        } else {
+                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.2)), (uint8_t) (255 - ((x - 106) * 2.4)), 255, 255);
+                        }
+                    };
+
                     mutex->unlock();
                     f.height(0);
                     f.width(0);
