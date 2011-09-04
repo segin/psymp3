@@ -24,7 +24,7 @@
 
 Playlist::Playlist(std::vector<std::string> args)
 {
-    //ctor
+    parseArgs(args);
 }
 
 Playlist::Playlist(TagLib::String playlist)
@@ -35,4 +35,23 @@ Playlist::Playlist(TagLib::String playlist)
 Playlist::~Playlist()
 {
     //dtor
+}
+
+void Playlist::parseArgs(std::vector<std::string> args)
+{
+    for(int i = 0; i < args.size(); i++) {
+
+    }
+}
+
+bool Playlist::addFile(TagLib::String path)
+{
+    TagLib::FileRef *fileref;
+    track *ntrk;
+    try {
+        fileref = new TagLib::FileRef(path.toCString(true));
+        ntrk = new track(path, fileref);
+    } catch (std::exception& e) {
+        std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
+    }
 }
