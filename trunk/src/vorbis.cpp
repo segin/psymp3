@@ -51,19 +51,19 @@ void Vorbis::open(TagLib::String name)
         throw;
         break;
     default: // returned 0 for success
-        break;
-    };
-    m_vi = ov_info((OggVorbis_File *) m_handle, -1);
-    switch(m_vi->channels) {
-    case 1:
-    case 2:
-        m_channels = m_vi->channels;
-        m_bitrate = m_vi->bitrate_nominal;
-        m_length = ov_time_total((OggVorbis_File *) m_handle, -1) * 1000;
-        m_slength = ov_pcm_total((OggVorbis_File *) m_handle, -1);
-        break;
-    default:
-        // throw
+        m_vi = ov_info((OggVorbis_File *) m_handle, -1);
+        switch(m_vi->channels) {
+        case 1:
+        case 2:
+            m_channels = m_vi->channels;
+            m_bitrate = m_vi->bitrate_nominal;
+            m_length = ov_time_total((OggVorbis_File *) m_handle, -1) * 1000;
+            m_slength = ov_pcm_total((OggVorbis_File *) m_handle, -1);
+            break;
+        default:
+            // throw
+            break;
+        };
         break;
     };
 }
