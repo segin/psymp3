@@ -14,7 +14,7 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas
 1.x was written in FreeBASIC, 2.x is written in C++, and is portable!
 
 The "2-CURRENT" version tag represents the "bleeding edge" of development.
-End users shouldn't be using this; please use the last version tagged as 
+End users shouldn't be using this; please use the last version tagged as
 -RELEASE. -CURRENT means "This is what I am working on, in whatever state
 it happens to be in, complete or not."
 
@@ -22,7 +22,7 @@ You can reach me at <segin2005@gmail.com>.
 
 2. SYSTEM REQUIREMENTS
 
-   Windows NT: 
+   Windows NT:
 	NT 4.0 or later, Windows 2000 recommended
 	Minimum CPU isn't known currently, 1GHz Pentium III is my current guess
 	64MB of RAM, not counting your OS configuration or other software.
@@ -44,6 +44,9 @@ At this time, PsyMP3 2.x is incomplete. There's very little UI code, and most
 features are missing at this time. If you are a developer, and are interested
 in helping me, please email me above.
 
-If you are an end user and you don't like this program, feel free to use 
+If you are an end user and you don't like this program, feel free to use
 something else.
+
+At this current time, you need to provide it exactly one argument; the path to a
+valid mp3 file. Failure to comply will result in a crash :) You have been warned.
 
