@@ -21,12 +21,9 @@
 
 #include "psymp3.h"
 
-track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef)
+track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath(a_FilePath)
 {
-    m_FilePath = a_FilePath;
-    if (a_FileRef)
-        ;
-    else {
+    if (!a_FileRef) {
         try {
             a_FileRef = new TagLib::FileRef(a_FilePath.toCString(true));
         } catch (std::exception& e) {
@@ -39,6 +36,7 @@ track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef)
         m_Title = a_FileRef->tag()->title();
         m_Album = a_FileRef->tag()->album();
         m_Len = a_FileRef->audioProperties()->length();
+        delete a_FileRef;
     }
 }
 

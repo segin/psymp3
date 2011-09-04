@@ -26,7 +26,12 @@
 #define PSYMP3_VERSION "2-CURRENT"
 #define PSYMP3_MAINTAINER "Kirn Gill <segin2005@gmail.com>"
 
-#define RUN_GUI_ITERATION 0xfe0f
+enum {
+    RUN_GUI_ITERATION = 0xfe0f,
+    DO_NEXT_TRACK,
+    DO_PREV_TRACK,
+    SEEK_TRACK
+};
 
 // system includes - runtime libraries
 #include <iostream>
@@ -68,6 +73,7 @@
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
+#include "mediafile.h"
 #include "audio.h"
 #include "fft_draw.h"
 #include "about.h"

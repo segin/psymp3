@@ -108,7 +108,12 @@ void Player::Run(std::vector<std::string> args)
 
     screen = new Display();
     //playlist = new Playlist(args);
-    stream = new Libmpg123(args[1]);
+    try {
+        stream = MediaFile::open(args[1]);
+    } catch (std::exception& e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+        return;
+    }
     fft = new FastFourier();
     mutex = new Mutex();
     ATdata.fft = fft;

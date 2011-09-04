@@ -40,7 +40,7 @@ Playlist::~Playlist()
 void Playlist::parseArgs(std::vector<std::string> args)
 {
     for(int i = 0; i < args.size(); i++) {
-
+        addFile(args[i]);
     }
 }
 
@@ -50,8 +50,9 @@ bool Playlist::addFile(TagLib::String path)
     track *ntrk;
     try {
         fileref = new TagLib::FileRef(path.toCString(true));
-        ntrk = new track(path, fileref);
     } catch (std::exception& e) {
         std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
     }
+    ntrk = new track(path, fileref);
+    tracks.push_back(*ntrk);
 }
