@@ -66,10 +66,7 @@ void Audio::callback(void *data, Uint8 *buf, int len)
     Mutex *mutex = ldata->mutex;
     mutex->lock();
     stream->getData(len, (void *) buf);
-    mutex->unlock();
-    // This doesn't need a mutex lock.
     toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
-    mutex->lock();
     fft->doFFT();
     mutex->unlock();
 }
