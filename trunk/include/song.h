@@ -1,5 +1,5 @@
 /*
- * about.cpp - Print about info to either dialog box or console
+ * song.h - Song class header
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
