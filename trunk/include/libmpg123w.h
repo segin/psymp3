@@ -33,6 +33,8 @@ class Libmpg123 : public Stream
         virtual unsigned int getChannels();
         virtual unsigned int getRate();
         virtual unsigned int getEncoding(); // returns undefined
+        virtual unsigned int getPosition(); // in msec!
+        virtual unsigned long long getSPosition(); // in samples!
         virtual unsigned int getLength(); // in msec!
         virtual unsigned long long getSLength(); // in samples!
         virtual size_t getData(size_t len, void *buf);

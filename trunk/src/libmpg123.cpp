@@ -86,6 +86,16 @@ unsigned long long Libmpg123::getSLength()
     return mpg123_length((mpg123_handle *) m_handle);
 }
 
+unsigned int Libmpg123::getPosition()
+{
+    return (int) ((long long) mpg123_tell((mpg123_handle *) m_handle) * 1000 / m_rate);
+}
+
+unsigned long long Libmpg123::getSPosition()
+{
+    return mpg123_tell((mpg123_handle *) m_handle);
+}
+
 size_t Libmpg123::getData(size_t len, void *buf)
 {
     size_t actual;
