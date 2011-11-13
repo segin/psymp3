@@ -70,7 +70,7 @@ void Vorbis::open(TagLib::String name)
 
 void Vorbis::seekTo(unsigned long pos)
 {
-    ov_time_seek((OggVorbis_File *) m_handle, (double) pos / 1000.0D);
+    ov_time_seek((OggVorbis_File *) m_handle, (double) pos / 1000.0);
     m_sposition = ov_pcm_tell((OggVorbis_File *) m_handle);
     m_position = ov_time_tell((OggVorbis_File *) m_handle) * 1000;
 }
