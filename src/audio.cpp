@@ -57,6 +57,10 @@ void Audio::play(bool go)
         SDL_PauseAudio(1);
 }
 
+/* Actually push the audio to the soundcard.
+ * Audio is summed to mono (if stereo) and then FFT'd.
+ */
+
 void Audio::callback(void *data, Uint8 *buf, int len)
 {
     struct atdata *ldata = (struct atdata *) data;
