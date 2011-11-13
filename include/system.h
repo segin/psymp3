@@ -27,6 +27,8 @@ class System
     public:
         /** Default constructor */
         System();
+        TagLib::String getHome();
+        TagLib::String getStoragePath();
     protected:
     private:
 };
