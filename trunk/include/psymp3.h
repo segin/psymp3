@@ -69,6 +69,7 @@ enum {
 
 // local includes
 #include "exceptions.h"
+#include "system.h"
 #include "mutex.h"
 #include "stream.h"
 #include "libmpg123w.h"
@@ -77,6 +78,8 @@ enum {
 #include "audio.h"
 #include "fft_draw.h"
 #include "about.h"
+#include "sqlite3.h"
+#include "persistentstorage.h"
 #include "track.h"
 #include "song.h"
 #include "scrobble.h"
