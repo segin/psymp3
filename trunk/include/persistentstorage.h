@@ -1,7 +1,7 @@
 /*
- * system.h - Header for system-level functionality.
+ * persistentstorage.h - SQLite3 wrapper.
  * This file is part of PsyMP3.
- * Copyright Â© 2011 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
@@ -19,16 +19,17 @@
  *
  */
 
-#ifndef SYSTEM_H
-#define SYSTEM_H
+#ifndef STORAGE_H
+#define STORAGE_H
 
-class System
+
+class PersistentStorage
 {
     public:
-        /** Default constructor */
-        System();
+        PersistentStorage();
+        ~PersistentStorage();
     protected:
     private:
 };
 
-#endif // SYSTEM_H
+#endif // STORAGE_H
