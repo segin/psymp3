@@ -73,6 +73,8 @@
 		<Unit filename="include/rect.h" />
 		<Unit filename="include/scrobble.h" />
 		<Unit filename="include/song.h" />
+		<Unit filename="include/sqlite3.h" />
+		<Unit filename="include/sqlite3ext.h" />
 		<Unit filename="include/stream.h" />
 		<Unit filename="include/surface.h" />
 		<Unit filename="include/system.h" />
@@ -82,6 +84,8 @@
 		<Unit filename="install-sh" />
 		<Unit filename="missing" />
 		<Unit filename="res/Makefile.am" />
+		<Unit filename="res/psymp3.rc" />
+		<Unit filename="res/xpmanifest.xml" />
 		<Unit filename="src/Makefile.am" />
 		<Unit filename="src/about.cpp" />
 		<Unit filename="src/audio.cpp" />
@@ -97,6 +101,9 @@
 		<Unit filename="src/rect.cpp" />
 		<Unit filename="src/scrobble.cpp" />
 		<Unit filename="src/song.cpp" />
+		<Unit filename="src/sqlite3.c">
+			<Option compilerVar="CC" />
+		</Unit>
 		<Unit filename="src/stream.cpp" />
 		<Unit filename="src/surface.cpp" />
 		<Unit filename="src/system.cpp" />
