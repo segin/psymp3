@@ -1,0 +1,17 @@
+#summary Gallery of screenshots.
+
+First screenshot, running on Ubuntu 11.04, i386: 
+
+http://img16.imageshack.us/img16/9080/psymp3201109030144.png
+
+And interestingly enough, I grabbed the screenshot in the middle of a frame update, as you can see in the textual representation of the position indicator. Another screenshot:
+
+http://img24.imageshack.us/img24/5637/screenshot1ar.png
+
+And on Vista:
+
+http://img546.imageshack.us/img546/2852/psymp3201111141950.png
+
+http://img703.imageshack.us/img703/3990/psymp320111114.png
+
+http://img716.imageshack.us/img716/7017/psymp32betavista.png
