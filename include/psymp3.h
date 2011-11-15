@@ -66,6 +66,10 @@ enum {
 #include <vorbis/vorbisfile.h>
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
+#if defined(_WIN32)
+#include <windows.h>
+#include <initguid.h>
+#endif
 
 // local includes
 #include "exceptions.h"

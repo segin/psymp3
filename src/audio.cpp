@@ -39,7 +39,8 @@ void Audio::setup(struct atdata *data)
     fmt.freq = m_stream->getRate();
     fmt.format = AUDIO_S16; /* Always, I hope */
     fmt.channels = m_stream->getChannels();
-    fmt.samples = 512 * fmt.channels * 2; /* 512 samples for fft */
+    std::cout << "Audio::setup: channels: " << m_stream->getChannels() << std::endl;
+    fmt.samples = 512 * fmt.channels; /* 512 samples for fft */
     fmt.callback = callback;
     fmt.userdata = (void *) data;
     if ( SDL_OpenAudio(&fmt, (SDL_AudioSpec *) NULL) < 0 ) {

@@ -260,9 +260,9 @@ void Player::Run(std::vector<std::string> args)
                     for(uint16_t x=0; x < 320; x++) {
                         // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
                         if (x > 213) {
-                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.399), 0, 255, 255);
+                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
                         } else if (x < 106) {
-                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.399), 255);
+                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.4), 255);
                         } else {
                             graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.2)), (uint8_t) (255 - ((x - 106) * 2.4)), 255, 255);
                         }
