@@ -27,9 +27,9 @@ class System
     public:
         /** Default constructor */
         System();
-        TagLib::String getHome();
-        TagLib::String getStoragePath();
-        bool createStoragePath(); // directory name is implicit.
+        static TagLib::String getHome();
+        static TagLib::String getStoragePath();
+        static bool createStoragePath(); // directory name is implicit.
     protected:
     private:
 };

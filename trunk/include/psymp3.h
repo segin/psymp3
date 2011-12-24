@@ -69,6 +69,7 @@ enum {
 #if defined(_WIN32)
 #include <windows.h>
 #include <initguid.h>
+#include <tchar.h>
 #endif
 
 // local includes

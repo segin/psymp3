@@ -37,9 +37,14 @@ TagLib::String System::getHome()
 TagLib::String System::getStoragePath()
 {
     #ifdef _WIN32
-        return getenv("APPDATA") + "\PsyMP3";
+        TagLib::String spath;
+        WCHAR env[1024];
+        GetEnvironmentVariable(L"APPDATA", env, 1024);
+        spath = std::wstring(env);
+        spath += "\\PsyMP3";
+        return spath;
     #else
-        return getHome() + "/.psymp3";
+        return getHome() << (std::string) "/.psymp3";
     #endif
 }
 
