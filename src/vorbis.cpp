@@ -77,6 +77,7 @@ void Vorbis::seekTo(unsigned long pos)
 
 size_t Vorbis::getData(size_t len, void *buf)
 {
+    std::cout << "Vorbis::getData(): len = " << len << std::endl;
     long ret = ov_read((OggVorbis_File *) m_handle, (char *) buf, len, 0, 2, 1, &m_session);
     m_sposition = ov_pcm_tell((OggVorbis_File *) m_handle);
     m_position = ov_time_tell((OggVorbis_File *) m_handle) * 1000;

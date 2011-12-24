@@ -105,6 +105,8 @@ void Player::Run(std::vector<std::string> args)
     // make sure SDL cleans up before exit
     atexit(SDL_Quit);
 
+    std::cout << "System::getStoragePath: " << System::getStoragePath().to8Bit(true) << std::endl;
+
     TrueType::Init();
     Libmpg123::init();
     FastFourier::init();
