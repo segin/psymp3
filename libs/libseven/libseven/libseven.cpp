@@ -1,7 +1,7 @@
 /* libseven - Windows 7 Taskbar API wrapper
- * 
+ *
  * Copyright © 2009 Kirn Gill <segin2005@gmail.com>
- * 
+ *
  */
 
 #include "stdafx.h"
@@ -12,7 +12,7 @@ extern "C" {
 #endif
 
 struct tState state = {
-	0, 
+	0,
 	NULL,
 	NULL,
 	NULL
@@ -68,19 +68,19 @@ LIBSEVEN_API void InitThumbButtons(int buttons)
 {
 	THUMBBUTTON *thbButtons;
 
-	if (state.hWnd == NULL || buttons == 0 || buttons > 7) { 
+	if (state.hWnd == NULL || buttons == 0 || buttons > 7) {
 		return;
 	}
-	
+
 	state.buttons = (struct tButtons *) malloc(sizeof(struct tButtons));
-	
+
 	if (state.buttons == NULL) {
 		return;
 	}
-	
+
 	state.buttons->magic = 420;
 	thbButtons = (THUMBBUTTON *) calloc(buttons, sizeof(THUMBBUTTON));
-	
+
 	if (thbButtons == NULL) {
 		return;
 	}
@@ -100,7 +100,7 @@ LIBSEVEN_API int SetThumbButtonTooltipA(int index, char *tooltip)
 {
 	if (state.buttons == NULL) return -1;
 	if (state.buttons->count < index) return -2;
-	MultiByteToWideChar(CP_ACP,MB_PRECOMPOSED, tooltip, 
+	MultiByteToWideChar(CP_ACP,MB_PRECOMPOSED, tooltip,
 		strlen(tooltip) > 260 ? 260 : strlen(tooltip),
 		state.buttons->buttons[index - 1].szTip, 260);
 	return(0);

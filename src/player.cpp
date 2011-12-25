@@ -67,6 +67,8 @@ Player::~Player()
         delete fft;
     if (mutex)
         delete mutex;
+    if (system)
+        delete system;
 }
 
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
@@ -106,6 +108,9 @@ void Player::Run(std::vector<std::string> args)
     atexit(SDL_Quit);
 
     std::cout << "System::getStoragePath: " << System::getStoragePath().to8Bit(true) << std::endl;
+    std::cout << "System::getUser: " << System::getUser().to8Bit(true) << std::endl;
+    std::cout << "System::getHome: " << System::getHome().to8Bit(true) << std::endl;
+    std::cout << "System::getHwnd: " << std::hex << System::getHwnd() << std::endl;
 
     TrueType::Init();
     Libmpg123::init();
@@ -121,12 +126,11 @@ void Player::Run(std::vector<std::string> args)
     }
     fft = new FastFourier();
     mutex = new Mutex();
+    system = new System();
     ATdata.fft = fft;
     ATdata.stream = stream;
     ATdata.mutex = mutex;
-#ifdef DEBUG
-    std::cout << "stream = " << std::hex << stream << ", fft = " << std::hex << fft << std::endl;
-#endif
+
     if (stream)
         audio = new Audio(&ATdata);
     font = new Font(PSYMP3_DATADIR "/vera.ttf");
@@ -143,6 +147,7 @@ void Player::Run(std::vector<std::string> args)
     // program main loop
     bool done = false;
     audio->play(true);
+    // if (system) system->progressState(TBPF_NORMAL);
     timer = SDL_AddTimer(33, AppLoopTimer, NULL);
     while (!done)
     {
@@ -210,6 +215,7 @@ void Player::Run(std::vector<std::string> args)
                     // position indicator
                     Surface s_pos;
                     mutex->lock();
+                    //system->updateProgress(stream->getPosition(), stream->getLength());
                     if(stream)
                     s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                 + ":" + convertInt2((stream->getPosition() / 1000) % 60)

@@ -70,6 +70,9 @@ enum {
 #include <windows.h>
 #include <initguid.h>
 #include <tchar.h>
+#include <lm.h>
+#include <shlobj.h>
+#include <SDL_syswm.h>
 #endif
 
 // local includes

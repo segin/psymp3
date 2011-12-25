@@ -2,7 +2,35 @@
 
 System::System()
 {
-    //ctor
+    InitalizeTaskbar();
+}
+
+void System::InitalizeTaskbar()
+{
+    HRESULT hr = CoCreateInstance(CLSID_TaskbarList, (IUnknown *) NULL, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, (void **) &m_taskbar);
+
+    if (SUCCEEDED(hr)) {
+        std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar << std::endl;
+        hr = m_taskbar->HrInit();
+
+        if (FAILED(hr)) {
+            std::cerr << "Error initializing ITaskbarList3 COM object!" << std::endl;
+            m_taskbar->Release();
+            m_taskbar = (ITaskbarList3 *) NULL;
+        }
+    } else std::cerr << "Error initializing ITaskbarList3 COM object!" << std::endl;
+}
+
+TagLib::String System::getUser()
+{
+#ifdef _WIN32
+    WCHAR user[48];
+    DWORD bufsize = 48;
+    GetUserName(user, &bufsize);
+    return user;
+#else
+    return getenv("USER");
+#endif
 }
 
 /* Get the current user's home directory. This is determined via
@@ -10,7 +38,7 @@ System::System()
  * GetUserProfileDirectory(), along with OpenProcessToken() and
  * GetCurrentProcess(), but that seems a roundabout way of acomplishing
  * something so trivial when there's an environment variable that
- * does the same thing
+ * does the same thing.
  * Note: Seems I could also do SHGetFolderPath(), except then I need
  * to check whether we're on Vista and later, or XP and earlier, and
  * SHGetKnownFolderPath() is the one to use on Vista - and it doesn't
@@ -22,11 +50,31 @@ System::System()
 
 TagLib::String System::getHome()
 {
-    #ifdef _WIN32
-        return getenv("USERPROFILE");
-    #else
-        return getenv("HOME");
-    #endif
+#ifdef _WIN32
+    // GetEnvironmentVariable() method.
+    TagLib::String spath;
+    WCHAR env[1024];
+    GetEnvironmentVariable(L"USERPROFILE", env, 1024);
+    spath = env;
+    return spath;
+    // GetUserProfileDirectory() method.
+
+
+    // SHGet(Known)FolderPath() method.
+
+
+    // NetUserGetInfo() method.
+    WCHAR user[48], path[256];
+    DWORD bufsize = 48;
+    BYTE *uinfo;
+    GetUserName(user, &bufsize);
+    if(NetUserGetInfo((WCHAR *) NULL, user, 11, &uinfo)) {
+        std::cout << "NetUserGetInfo() failed!" << std::endl;
+    }
+    return ((LPUSER_INFO_11)uinfo)->usri11_home_dir;
+#else
+    return getenv("HOME");
+#endif
 }
 
 /* This function returns the storage path. This is determined based on
@@ -40,11 +88,11 @@ TagLib::String System::getStoragePath()
         TagLib::String spath;
         WCHAR env[1024];
         GetEnvironmentVariable(L"APPDATA", env, 1024);
-        spath = std::wstring(env);
-        spath += "\\PsyMP3";
+        spath = env;
+        spath += L"\\PsyMP3";
         return spath;
     #else
-        return getHome() << (std::string) "/.psymp3";
+        return getHome() + (std::string) "/.psymp3";
     #endif
 }
 
@@ -56,3 +104,32 @@ bool System::createStoragePath()
 {
 
 }
+
+#ifdef _WIN32
+HWND System::getHwnd()
+{
+    SDL_SysWMinfo wmi;
+    SDL_VERSION(&wmi.version);
+
+    if(!SDL_GetWMInfo(&wmi)) return 0;
+
+    return wmi.window;
+}
+
+void System::updateProgress(ULONGLONG now, ULONGLONG max)
+{
+    if(m_taskbar)
+        m_taskbar->SetProgressValue(getHwnd(), now, max);
+    else
+        std::cerr << "System::updateProgress(): No ITaskbarList3 OLE interface!" << std::endl;
+}
+void System::progressState(TBPFLAG status)
+{
+    std::cout << "System::updateProgress(): Called." << std::endl;
+    if(m_taskbar)
+        m_taskbar->SetProgressState(getHwnd(), status);
+    else
+        std::cerr << "System::updateProgress(): No ITaskbarList3 OLE interface!" << std::endl;
+}
+
+#endif
