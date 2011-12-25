@@ -41,6 +41,7 @@ class Player
         Audio *audio;
         FastFourier *fft;
         Mutex *mutex;
+        System *system;
 };
 
 #endif // PLAYER_H
