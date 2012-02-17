@@ -50,7 +50,7 @@
 		<Cursor position="320" topLine="0" />
 	</File>
 	<File name="include/psymp3.h" open="1" top="0" tabpos="13">
-		<Cursor position="1857" topLine="48" />
+		<Cursor position="1857" topLine="40" />
 	</File>
 	<File name="include/rect.h" open="0" top="0" tabpos="13">
 		<Cursor position="105" topLine="0" />
@@ -59,13 +59,13 @@
 		<Cursor position="105" topLine="0" />
 	</File>
 	<File name="include/stream.h" open="1" top="0" tabpos="1">
-		<Cursor position="1547" topLine="13" />
+		<Cursor position="1547" topLine="0" />
 	</File>
 	<File name="include/surface.h" open="0" top="0" tabpos="5">
 		<Cursor position="2369" topLine="0" />
 	</File>
-	<File name="include/system.h" open="1" top="1" tabpos="14">
-		<Cursor position="1059" topLine="31" />
+	<File name="include/system.h" open="1" top="0" tabpos="14">
+		<Cursor position="4571" topLine="93" />
 	</File>
 	<File name="include/track.h" open="0" top="0" tabpos="1">
 		<Cursor position="1339" topLine="12" />
@@ -88,8 +88,8 @@
 	<File name="src/about.cpp" open="0" top="0" tabpos="11">
 		<Cursor position="854" topLine="0" />
 	</File>
-	<File name="src/audio.cpp" open="1" top="0" tabpos="10">
-		<Cursor position="1175" topLine="41" />
+	<File name="src/audio.cpp" open="1" top="1" tabpos="10">
+		<Cursor position="1506" topLine="26" />
 	</File>
 	<File name="src/display.cpp" open="0" top="0" tabpos="7">
 		<Cursor position="1094" topLine="0" />
@@ -113,10 +113,10 @@
 		<Cursor position="42" topLine="0" />
 	</File>
 	<File name="src/player.cpp" open="1" top="0" tabpos="8">
-		<Cursor position="9803" topLine="243" />
+		<Cursor position="7482" topLine="172" />
 	</File>
 	<File name="src/playlist.cpp" open="1" top="0" tabpos="7">
-		<Cursor position="1014" topLine="0" />
+		<Cursor position="2" topLine="0" />
 	</File>
 	<File name="src/rect.cpp" open="0" top="0" tabpos="17">
 		<Cursor position="90" topLine="0" />
@@ -131,7 +131,7 @@
 		<Cursor position="1939" topLine="65" />
 	</File>
 	<File name="src/system.cpp" open="1" top="0" tabpos="12">
-		<Cursor position="1397" topLine="30" />
+		<Cursor position="3058" topLine="0" />
 	</File>
 	<File name="src/track.cpp" open="0" top="0" tabpos="2">
 		<Cursor position="0" topLine="0" />
@@ -140,6 +140,6 @@
 		<Cursor position="207" topLine="0" />
 	</File>
 	<File name="src/vorbis.cpp" open="1" top="0" tabpos="3">
-		<Cursor position="3025" topLine="87" />
+		<Cursor position="3025" topLine="50" />
 	</File>
 </CodeBlocks_layout_file>
