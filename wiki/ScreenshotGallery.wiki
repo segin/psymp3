@@ -1,5 +1,7 @@
 #summary Gallery of screenshots.
 
+Screenshots of the development of 2.x. Screenshots with color are newer.
+
 First screenshot, running on Ubuntu 11.04, i386: 
 
 http://img16.imageshack.us/img16/9080/psymp3201109030144.png
