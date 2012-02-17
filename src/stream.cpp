@@ -64,7 +64,7 @@ TagLib::String Stream::getAlbum()
 /* Note that the base class version falls back to TagLib, which is inaccurate.
  * Having all this generic functionality in TagLib as well as the children codec
  * classes is to make writing child codecs easier by providing generic, working
- * functionality until the codec version is implemented.
+ * functionality until the codec version is fully implemented.
  */
 unsigned int Stream::getLength()
 {
