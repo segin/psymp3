@@ -19,3 +19,6 @@ http://img546.imageshack.us/img546/2852/psymp3201111141950.png
 http://img703.imageshack.us/img703/3990/psymp320111114.png
 
 http://img716.imageshack.us/img716/7017/psymp32betavista.png
+
+Here's one of 1.2.1 being interfaced by Star Trek Online (via Winamp API): 
+http://img72.imageshack.us/img72/9633/psymp3controlledbysto.png
