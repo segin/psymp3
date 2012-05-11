@@ -128,6 +128,19 @@ DEFINE_GUID_(IID_ITaskbarList4,0xc43dc798,0x95d1,0x4bea,0x90,0x30,0xbb,0x99,0xe2
 
 #endif /* _WIN32 && MISSING_WIN7API*/
 
+#ifdef _WIN32
+
+// Pointerizing this Vista-and-later call for XP/2000 compat, etc.
+typedef HRESULT (WINAPI* lpSHGetKnownFolderPath)(
+    REFKNOWNFOLDERID rfid,
+    DWORD dwFlags,
+    HANDLE hToken,
+    PWSTR *ppszPath
+);
+
+#endif
+
+
 class System
 {
     public:

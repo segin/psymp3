@@ -28,6 +28,7 @@ class Stream
     public:
         Stream();
         Stream(TagLib::String name);
+        Stream(TagLib::String name, TagLib::FileRef *ref);
         /** Default destructor */
         virtual ~Stream();
         virtual void open(TagLib::String name);
