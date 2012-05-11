@@ -61,7 +61,15 @@ TagLib::String System::getHome()
 
 
     // SHGet(Known)FolderPath() method.
+    HMODULE hndl_shell32;
+    lpSHGetKnownFolderPath pSHGetKnownFolderPath;
+    hndl_shell32 = LoadLibrary("shell32");
+    pSHGetKnownFolderPath = GetProcAddress(hndl_shell32, "SHGetKnownFolderPathW");
+    if(pSHGetKnownFolderPath != NULL) {
 
+    } else {
+
+    }
 
     // NetUserGetInfo() method.
     WCHAR user[48], path[256];

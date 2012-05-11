@@ -28,7 +28,7 @@
 	<File name="include/display.h" open="0" top="0" tabpos="6">
 		<Cursor position="962" topLine="0" />
 	</File>
-	<File name="include/exceptions.h" open="1" top="0" tabpos="5">
+	<File name="include/exceptions.h" open="1" top="0" tabpos="1">
 		<Cursor position="305" topLine="0" />
 	</File>
 	<File name="include/fft_draw.h" open="0" top="0" tabpos="14">
@@ -37,7 +37,7 @@
 	<File name="include/font.h" open="0" top="0" tabpos="9">
 		<Cursor position="895" topLine="0" />
 	</File>
-	<File name="include/libmpg123w.h" open="1" top="0" tabpos="4">
+	<File name="include/libmpg123w.h" open="1" top="0" tabpos="14">
 		<Cursor position="1333" topLine="0" />
 	</File>
 	<File name="include/mutex.h" open="0" top="0" tabpos="4">
@@ -49,7 +49,7 @@
 	<File name="include/playlist.h" open="0" top="0" tabpos="19">
 		<Cursor position="320" topLine="0" />
 	</File>
-	<File name="include/psymp3.h" open="1" top="0" tabpos="13">
+	<File name="include/psymp3.h" open="1" top="0" tabpos="7">
 		<Cursor position="1857" topLine="40" />
 	</File>
 	<File name="include/rect.h" open="0" top="0" tabpos="13">
@@ -58,14 +58,14 @@
 	<File name="include/scrobble.h" open="0" top="0" tabpos="12">
 		<Cursor position="105" topLine="0" />
 	</File>
-	<File name="include/stream.h" open="1" top="0" tabpos="1">
-		<Cursor position="1547" topLine="0" />
+	<File name="include/stream.h" open="1" top="0" tabpos="10">
+		<Cursor position="1029" topLine="3" />
 	</File>
 	<File name="include/surface.h" open="0" top="0" tabpos="5">
 		<Cursor position="2369" topLine="0" />
 	</File>
-	<File name="include/system.h" open="1" top="0" tabpos="14">
-		<Cursor position="4571" topLine="93" />
+	<File name="include/system.h" open="1" top="0" tabpos="8">
+		<Cursor position="4712" topLine="93" />
 	</File>
 	<File name="include/track.h" open="0" top="0" tabpos="1">
 		<Cursor position="1339" topLine="12" />
@@ -73,13 +73,13 @@
 	<File name="include/truetype.h" open="0" top="0" tabpos="19">
 		<Cursor position="107" topLine="0" />
 	</File>
-	<File name="include/vorbisw.h" open="1" top="0" tabpos="2">
+	<File name="include/vorbisw.h" open="1" top="0" tabpos="12">
 		<Cursor position="1170" topLine="0" />
 	</File>
 	<File name="res/Makefile.am" open="0" top="0" tabpos="30">
 		<Cursor position="57" topLine="0" />
 	</File>
-	<File name="res/psymp3.rc" open="1" top="0" tabpos="11">
+	<File name="res/psymp3.rc" open="1" top="0" tabpos="6">
 		<Cursor position="19" topLine="0" />
 	</File>
 	<File name="src/Makefile.am" open="0" top="0" tabpos="25">
@@ -88,13 +88,13 @@
 	<File name="src/about.cpp" open="0" top="0" tabpos="11">
 		<Cursor position="854" topLine="0" />
 	</File>
-	<File name="src/audio.cpp" open="1" top="1" tabpos="10">
-		<Cursor position="1506" topLine="26" />
+	<File name="src/audio.cpp" open="1" top="0" tabpos="5">
+		<Cursor position="2690" topLine="0" />
 	</File>
 	<File name="src/display.cpp" open="0" top="0" tabpos="7">
 		<Cursor position="1094" topLine="0" />
 	</File>
-	<File name="src/exceptions.cpp" open="1" top="0" tabpos="6">
+	<File name="src/exceptions.cpp" open="1" top="0" tabpos="2">
 		<Cursor position="89" topLine="0" />
 	</File>
 	<File name="src/fft_draw.cpp" open="0" top="0" tabpos="24">
@@ -103,8 +103,8 @@
 	<File name="src/font.cpp" open="0" top="0" tabpos="10">
 		<Cursor position="1222" topLine="0" />
 	</File>
-	<File name="src/libmpg123.cpp" open="1" top="0" tabpos="9">
-		<Cursor position="1186" topLine="39" />
+	<File name="src/libmpg123.cpp" open="1" top="0" tabpos="15">
+		<Cursor position="3295" topLine="67" />
 	</File>
 	<File name="src/main.cpp" open="0" top="0" tabpos="2">
 		<Cursor position="0" topLine="0" />
@@ -112,10 +112,10 @@
 	<File name="src/mutex.cpp" open="0" top="0" tabpos="1">
 		<Cursor position="42" topLine="0" />
 	</File>
-	<File name="src/player.cpp" open="1" top="0" tabpos="8">
+	<File name="src/player.cpp" open="1" top="0" tabpos="4">
 		<Cursor position="7482" topLine="172" />
 	</File>
-	<File name="src/playlist.cpp" open="1" top="0" tabpos="7">
+	<File name="src/playlist.cpp" open="1" top="0" tabpos="3">
 		<Cursor position="2" topLine="0" />
 	</File>
 	<File name="src/rect.cpp" open="0" top="0" tabpos="17">
@@ -124,14 +124,14 @@
 	<File name="src/scrobble.cpp" open="0" top="0" tabpos="12">
 		<Cursor position="152" topLine="0" />
 	</File>
-	<File name="src/stream.cpp" open="0" top="0" tabpos="16">
-		<Cursor position="2000" topLine="20" />
+	<File name="src/stream.cpp" open="1" top="0" tabpos="11">
+		<Cursor position="1842" topLine="29" />
 	</File>
 	<File name="src/surface.cpp" open="0" top="0" tabpos="4">
 		<Cursor position="1939" topLine="65" />
 	</File>
-	<File name="src/system.cpp" open="1" top="0" tabpos="12">
-		<Cursor position="3058" topLine="0" />
+	<File name="src/system.cpp" open="1" top="1" tabpos="9">
+		<Cursor position="2295" topLine="40" />
 	</File>
 	<File name="src/track.cpp" open="0" top="0" tabpos="2">
 		<Cursor position="0" topLine="0" />
@@ -139,7 +139,7 @@
 	<File name="src/truetype.cpp" open="0" top="0" tabpos="15">
 		<Cursor position="207" topLine="0" />
 	</File>
-	<File name="src/vorbis.cpp" open="1" top="0" tabpos="3">
+	<File name="src/vorbis.cpp" open="1" top="0" tabpos="13">
 		<Cursor position="3025" topLine="50" />
 	</File>
 </CodeBlocks_layout_file>
