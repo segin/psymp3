@@ -1,4 +1,5 @@
 #summary A list of dependencies for PsyMP3 2.x.
+#labels Phase-Requirements,Phase-Deploy,Development
 
 = Introduction =
 
@@ -17,3 +18,22 @@ Non-exaustive:
   * vorbisfile
   * libvisual-0.4
   * a working C++ compiler
+
+== Dependency Installation on Debian and Ubuntu ==
+
+You'll need to install these packages:
+  * build-essential (this one is a no-brainer) 
+  * libsdl1.2-dev
+  * libsdl-gfx1.2-dev
+  * libsdl-ttf2.0-dev
+  * libtag1-dev
+  * libmpg123-dev
+  * libogg-dev
+  * libvorbis-dev
+  * libvisual-0.4-dev
+
+On the command line, you can easily install with: 
+
+{{{
+sudo apt-get install build-essential libsdl1.2-dev libsdl-gfx1.2-dev libsdl-ttf2.0-dev libtag1-dev libmpg123-dev libogg-dev libvorbis-dev libvisual-0.4-dev
+}}}
