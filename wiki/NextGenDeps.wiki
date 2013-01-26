@@ -3,7 +3,7 @@
 
 = Introduction =
 
-A list of dependencies in the C++ PsyMP3 2.x. List edited when I feel like it.
+A list of dependencies in the C++ PsyMP3 2.x. List edited when I feel like it. Note that the dependency lists are geared towards development and build-time requirements, which generally also pull in all dependencies required at run-time.
 
 = Dependecies =
 
