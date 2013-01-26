@@ -37,3 +37,21 @@ On the command line, you can easily install with:
 {{{
 sudo apt-get install build-essential libsdl1.2-dev libsdl-gfx1.2-dev libsdl-ttf2.0-dev libtag1-dev libmpg123-dev libogg-dev libvorbis-dev libvisual-0.4-dev
 }}}
+
+== Dependency Installation on FreeBSD ==
+
+*Please note:* Building of PsyMP3 2.x was last tested on 9.0-RELEASE. Due to the switch of the native toolchain to clang/llvm on 9.1-RELEASE, I cannot say whether or not PsyMP3 will build on 9.1 using the native compiler.
+
+You'll need to install these Ports:
+  * devel/sdl12
+  * graphics/sdl_gfx
+  * graphics/sdl_ttf
+  * audio/taglib
+  * audio/mpg123
+  * audio/libogg
+  * audio/libvorbis
+
+
+== Dependency Building for Microsoft Windows ==
+
+Currently, PsyMP3 is cross-compiled from a Unix box. Install mingw32 on a Linux or FreeBSD box and build all the dependencies from source from there. Note that I've had issues building SDL, so you may want to replace the SDL.dll from your build with a pre-built copy from somewhere else.
