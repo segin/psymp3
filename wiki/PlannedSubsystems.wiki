@@ -1,0 +1,18 @@
+#summary New subsystems and classes, plus children thereof
+#labels Phase-Implementation
+
+= Introduction =
+
+This is a list of all the planned subsystems for PsyMP3. It will also include what the (planned) design and functional class layout for them are.
+
+= Details =
+
+File - Generic file access
+  * File::Local - Local files
+  * File::HTTP - Web files and media streams. Will use HTTP::Get listed below.
+
+HTTP - Generic HTTP support for network streams and Last.fm scrobbling support
+  * HTTP::Get - Stream and webfile access. 
+  * HTTP::Post - POST method for Last.fm scrobbler
+
+Scrobbler - Last.fm scrobbler
