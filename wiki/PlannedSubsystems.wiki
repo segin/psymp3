@@ -7,12 +7,24 @@ This is a list of all the planned subsystems for PsyMP3. It will also include wh
 
 = Details =
 
-File - Generic file access
-  * File::Local - Local files
-  * File::HTTP - Web files and media streams. Will use HTTP::Get listed below.
+*File* - Generic file access
+  * *File::Local* - Local files
+  * *File::HTTP* - Web files and media streams. Will use HTTP::Get listed below.
 
-HTTP - Generic HTTP support for network streams and Last.fm scrobbling support
-  * HTTP::Get - Stream and webfile access. 
-  * HTTP::Post - POST method for Last.fm scrobbler
+*HTTP* - Generic HTTP support for network streams and Last.fm scrobbling support
+  * *HTTP::Get* - Stream and webfile access. 
+  * *HTTP::Post* - POST method for Last.fm scrobbler
 
-Scrobbler - Last.fm scrobbler
+*Scrobbler* - Last.fm scrobbler
+
+*Playlist* - Internal playlist/queue
+  * *Playlist::Serialize* - Save playlist to disk as M3U
+  * *Playlist::Deserialize* - Read saved playlist from disk
+
+*PersistentStorage* - SQLite-backed storage for persistent configuration settings (Last.fm username/password, current playlist/queue, etc.) 
+
+*OuterLoop* - A new UI class for interfacing with the native windowing system, and initializing a SDL_Display as a widget of a native window. Named thus because it's primary function once initialization is complete is to serve as an "outer" event loop for catching native windowing events, dealing with native UI dialogs, and marshalling UI events to the SDL event subsystem for consumption by the "inner" event loop in Player
+  * *OuterLoop::Win32* - Windows native UI
+  * *OuterLoop::Wx* - wxWidgets UI for Linux/*BSD/Solaris (don't use on other OSes if possible to reduce bloat/dist size)
+  * *OuterLoop::Cocoa* - Mac OS X native UI
+  * *OuterLoop::Be* - Haiku/BeOS native UI
