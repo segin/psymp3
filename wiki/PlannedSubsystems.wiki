@@ -25,6 +25,6 @@ This is a list of all the planned subsystems for PsyMP3. It will also include wh
 
 *OuterLoop* - A new UI class for interfacing with the native windowing system, and initializing a SDL_Display as a widget of a native window. Named thus because it's primary function once initialization is complete is to serve as an "outer" event loop for catching native windowing events, dealing with native UI dialogs, and marshalling UI events to the SDL event subsystem for consumption by the "inner" event loop in Player
   * *OuterLoop::Win32* - Windows native UI
-  * *OuterLoop::Wx* - wxWidgets UI for Linux/*BSD/Solaris (don't use on other OSes if possible to reduce bloat/dist size)
+  * *OuterLoop::Wx* - wxWidgets UI for Linux/`*`BSD/Solaris (don't use on other OSes if possible to reduce bloat/dist size)
   * *OuterLoop::Cocoa* - Mac OS X native UI
   * *OuterLoop::Be* - Haiku/BeOS native UI
