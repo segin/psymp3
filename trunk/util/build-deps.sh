@@ -98,14 +98,15 @@ distfiles_sum () {
 	package=$2
 	package_check $package
 	distfile=$(basename ${DISTS[$package]})
-	if [ $1 = "SHA256" ]; then
-		distsum=${DISTSHA256[$package]}
-	elif [ $1 = "MD5" ]; then
-		distsum=${DISTMD5[$package]}
-	else
-		notice "Invalid checksum algorithm tried!"
-		exit 1
-	fi
+	case $1 in
+		SHA256)
+			distsum=${DISTSHA256[$package]}
+		MD5)
+			distsum=${DISTMD5[$package]}
+		*)
+			notice "Invalid checksum algorithm tried! Bailing!"
+			exit 1
+	esac
 	
 }
 
