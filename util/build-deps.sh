@@ -13,10 +13,13 @@ if [ -z ${ZSH_VERSION} ]; then
 fi
 
 # First, configuration
+TUPLE=i686-w64-mingw32
 BUILDDIR=${HOME}/build
 DISTFILES=${BUILDDIR}/distfiles
 typeset -A DISTS
 typeset -A DISTVERS
+typeset -A DISTMD5
+typeset -A DISTSHA256
 
 DISTS=(
 	zlib		"http://zlib.net/zlib-1.2.7.tar.gz"
@@ -44,10 +47,41 @@ DISTVERS=(
 	vorbis		"1.3.3"
 )
 
+DISTMD5=(
+		
+)
+
+DISTSHA256=(
+)
+
 PACKAGES=( zlib	SDL SDL_ttf SDL_gfx	freetype taglib libvisual mpg123 ogg vorbis )
 
-# Magic!
+# Initialize our build environment 
 mkdir -p ${BUILDDIR} ${DISTFILES}
+
+notice () { 
+	echo "===> " $*
+}
+
+distfiles_sha256sum () { 
+	
+}
+
+distfiles_md5sum () {
+
+}
+
+distfiles_fetch () { 
+	package=$1
+	if [ -z ${DISTS[$package]} ]; then
+		notice "Invalid package " $package
+		exit 1
+	fi
+
+	notice "Fetching for ${package}-${DISTVERS[$package]}"
+	wget -O ${DISTFILES}/$(basename ${DISTS[$package]}) ${DISTS[$package]}
+}
+
 
 # XXX: better system for fetching distfiles needed!!
 
