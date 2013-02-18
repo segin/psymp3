@@ -110,7 +110,9 @@ void Player::Run(std::vector<std::string> args)
     std::cout << "System::getStoragePath: " << System::getStoragePath().to8Bit(true) << std::endl;
     std::cout << "System::getUser: " << System::getUser().to8Bit(true) << std::endl;
     std::cout << "System::getHome: " << System::getHome().to8Bit(true) << std::endl;
+#ifdef _WIN32
     std::cout << "System::getHwnd: " << std::hex << System::getHwnd() << std::endl;
+#endif /* _WIN32 */ 
 
     TrueType::Init();
     Libmpg123::init();
