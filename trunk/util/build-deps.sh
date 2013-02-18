@@ -1,9 +1,9 @@
 #!/bin/zsh
+# 
+# vim: set encoding=utf-8 syntax=zsh ts=4 sw=4 ai
 #
 # This script cross compiles the various dependencies for PsyMP3 2.x
 # Currently assumes a Debian-like distro.
-# 
-# vim: encoding=utf-8 syntax=zsh ts=4 sw=4 ai
 #
 
 # Are we really running on zsh? 
@@ -48,10 +48,29 @@ DISTVERS=(
 )
 
 DISTMD5=(
-		
+	zlib		60df6a37c56e7c1366cca812414f7b85
+	SDL			9d96df8417572a2afb781a7c4c811a85
+	SDL_ttf		61e29bd9da8d245bc2471d1b2ce591aa
+	SDL_gfx		838514185ff9a3b6377760aaa52fef8a
+	freetype	5af8234cf36f64dc2b97f44f89325117
+	taglib		dcb8bd1b756f2843e18b1fdf3aaeee15
+	libvisual	f4e78547c79ea8a8ad111cf8b85011bb
+	mpg123		a72d0c60a1d7dbec7cfe966bc11672bf
+	ogg			0a7eb40b86ac050db3a789ab65fe21c2
+	vorbis		6b1a36f0d72332fae5130688e65efe1f
 )
 
 DISTSHA256=(
+	zlib		fa9c9c8638efb8cb8ef5e4dd5453e455751e1c530b1595eed466e1be9b7e26c5
+	SDL			d6d316a793e5e348155f0dd93b979798933fb98aa1edebcc108829d6474aad00
+	SDL_ttf		724cd895ecf4da319a3ef164892b72078bd92632a5d812111261cde248ebcdb7
+	SDL_gfx		30ad38c3e17586e5212ce4a43955adf26463e69a24bb241f152493da28d59118
+	freetype	29a70e55863e4b697f6d9f3ddc405a88b83a317e3c8fd9c09dc4e4c8b5f9ec3e
+	taglib		66d33481703c90236a0a9d1c38fd81b584ca7109ded049225f5463dcaffc209a
+	libvisual	0b4dfdb87125e129567752089e3c8b54cefed601eef169d2533d8659da8dc1d7
+	mpg123		9ca189f24eb4ec6b5046b64d72c3c8439fd9ea300ce1b8b91a05cd6a9d3e5c12
+	ogg			a8de807631014615549d2356fd36641833b8288221cea214f8a72750efe93780
+	vorbis		6d747efe7ac4ad249bf711527882cef79fb61d9194c45b5ca5498aa60f290762
 )
 
 PACKAGES=( zlib	SDL SDL_ttf SDL_gfx	freetype taglib libvisual mpg123 ogg vorbis )
