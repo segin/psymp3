@@ -47,9 +47,12 @@ DISTVERS=(
 PACKAGES=( zlib	SDL SDL_ttf SDL_gfx	freetype taglib libvisual mpg123 ogg vorbis )
 
 # Magic!
-mkdir -p ${BUILDDIR} ${SRCDIR}
+mkdir -p ${BUILDDIR} ${DISTFILES}
 
 # XXX: better system for fetching distfiles needed!!
 
+for i in ${PACKAGES}; do
+	wget -O ${DISTFILES}/$(basename ${DISTS[$i]}) ${DISTS[$i]}
+done
 
 
