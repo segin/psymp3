@@ -96,32 +96,46 @@ package_check () {
 
 distfiles_sum () { 
 	package=$2
-	package_check $package
-	distfile=$(basename ${DISTS[$package]})
+	package_check ${package}
+	distfile="${DISTFILES}/$(basename ${DISTS[$package]})"
 	case $1 in
 		SHA256)
 			distsum=${DISTSHA256[$package]}
+			filesum=$(sha256sum ${distfile})
+			;;
 		MD5)
 			distsum=${DISTMD5[$package]}
+			filesum=$(md5sum ${distfile})
+			;;
 		*)
 			notice "Invalid checksum algorithm tried! Bailing!"
 			exit 1
+			;;
 	esac
-	
+	if [ ${filesum} = "${distsum}  ${distfile}" ]; then
+		distnotice "$1 Checksum OK for $(basename ${distfile})."
+		return 0;
+	else
+		distnotice "$1 Checksum mismatch for $(basename ${distfile})."
+		return 1;
+	fi
 }
 
 distfiles_fetch () { 
 	package=$1
-	package_check $package
+	package_check ${package}
 	notice "Fetching for ${package}-${DISTVERS[$package]}"
 	wget -O ${DISTFILES}/$(basename ${DISTS[$package]}) ${DISTS[$package]}
+	distfiles_sum MD5 ${package}
+	distfiles_sum SHA256 ${package}
 }
 
 
 # XXX: better system for fetching distfiles needed!!
 
 for i in ${PACKAGES}; do
-	wget -O ${DISTFILES}/$(basename ${DISTS[$i]}) ${DISTS[$i]}
+	# wget -O ${DISTFILES}/$(basename ${DISTS[$i]}) ${DISTS[$i]}
+	distfiles_fetch ${i}
 done
 
 
