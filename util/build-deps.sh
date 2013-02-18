@@ -24,6 +24,11 @@ DISTS=(
 	SDL_ttf		"http://www.libsdl.org/projects/SDL_ttf/release/SDL_ttf-2.0.11.tar.gz"
 	SDL_gfx		"http://www.ferzkopp.net/Software/SDL_gfx-2.0/SDL_gfx-2.0.24.tar.gz"
 	freetype	"http://download.savannah.gnu.org/releases/freetype/freetype-2.4.11.tar.gz"
+	taglib		"http://taglib.github.com/releases/taglib-1.8.tar.gz"
+	libvisual	"http://ftp.freebsd.org/pub/FreeBSD/ports/distfiles/libvisual-0.4.0.tar.gz"
+	mpg123		"http://mpg123.de/download/mpg123-1.14.4.tar.bz2"
+	ogg			"http://downloads.xiph.org/releases/ogg/libogg-1.3.0.tar.gz"
+	vorbis		"http://downloads.xiph.org/releases/vorbis/libvorbis-1.3.3.tar.gz"
 )
 
 DISTVERS=(
@@ -31,8 +36,20 @@ DISTVERS=(
 	SDL			"1.2.15"
 	SDL_ttf		"2.0.11"
 	SDL_gfx		"2.0.24"
-	
+	freetype	"2.4.11"
+	taglib		"1.8"
+	libvisual	"0.4.0"
+	mpg123		"1.14.4"
+	ogg			"1.3.0"
+	vorbis		"1.3.3"
+)
+
+PACKAGES=( zlib	SDL SDL_ttf SDL_gfx	freetype taglib libvisual mpg123 ogg vorbis )
 
 # Magic!
 mkdir -p ${BUILDDIR} ${SRCDIR}
+
+# XXX: better system for fetching distfiles needed!!
+
+
 
