@@ -82,21 +82,36 @@ notice () {
 	echo "===> " $*
 }
 
-distfiles_sha256sum () { 
-	
+distnotice () { 
+	echo "=>" $*
 }
 
-distfiles_md5sum () {
-
-}
-
-distfiles_fetch () { 
+package_check () { 
 	package=$1
 	if [ -z ${DISTS[$package]} ]; then
 		notice "Invalid package " $package
 		exit 1
 	fi
+}
 
+distfiles_sum () { 
+	package=$2
+	package_check $package
+	distfile=$(basename ${DISTS[$package]})
+	if [ $1 = "SHA256" ]; then
+		distsum=${DISTSHA256[$package]}
+	elif [ $1 = "MD5" ]; then
+		distsum=${DISTMD5[$package]}
+	else
+		notice "Invalid checksum algorithm tried!"
+		exit 1
+	fi
+	
+}
+
+distfiles_fetch () { 
+	package=$1
+	package_check $package
 	notice "Fetching for ${package}-${DISTVERS[$package]}"
 	wget -O ${DISTFILES}/$(basename ${DISTS[$package]}) ${DISTS[$package]}
 }
