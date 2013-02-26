@@ -15,11 +15,26 @@ fi
 # First, configuration
 TUPLE=i686-w64-mingw32
 BUILDDIR=${HOME}/build
-DISTFILES=${BUILDDIR}/distfiles
+WORKDIR=${BUILDDIR}/work
+TARGETDIR=${BUILDDIR}/target
+DISTDIR=${BUILDDIR}/distfiles
 typeset -A DISTS
 typeset -A DISTVERS
 typeset -A DISTMD5
 typeset -A DISTSHA256
+
+WORKDIRS=(
+	zlib		"1.2.7"
+	SDL			"1.2.15"
+	SDL_ttf		"2.0.11"
+	SDL_gfx		"2.0.24"
+	freetype	"2.4.11"
+	taglib		"1.8"
+	libvisual	"0.4.0"
+	mpg123		"1.14.4"
+	ogg			"1.3.0"
+	vorbis		"1.3.3"
+)
 
 DISTS=(
 	zlib		"http://zlib.net/zlib-1.2.7.tar.gz"
@@ -75,8 +90,7 @@ DISTSHA256=(
 
 PACKAGES=( zlib	SDL SDL_ttf SDL_gfx	freetype taglib libvisual mpg123 ogg vorbis )
 
-# Initialize our build environment 
-mkdir -p ${BUILDDIR} ${DISTFILES}
+# Utility functions
 
 notice () { 
 	echo "===> " $*
@@ -94,10 +108,45 @@ package_check () {
 	fi
 }
 
+# cleaning functions
+
+clean_distfiles() { 
+	package=$1
+	package_check ${package}
+	distfile="${DISTDIR}/$(basename ${DISTS[$package]})"
+
+	notice "Cleaning distfiles for ${package}."
+	rm -f ${distfile}
+}
+
+clean_workdir() { 
+	package=$1
+	package_check ${package}
+	distfile="${DISTDIR}/$(basename ${DISTS[$package]})"
+
+	notice "Cleaning for ${package}."
+	rm -f ${distfile}
+}
+
+
+# dist-related functions
+
+distfiles_check() { # does the distfile exist?
+	package=$1
+	package_check ${package}
+	distfile="${DISTDIR}/$(basename ${DISTS[$package]})"
+	
+	if [ -f ${distfile} ]; then
+		distnotice "$(basename ${distfile}) exists in ${DISTDIR}."
+	else
+
+	fi
+}
+
 distfiles_sum () { 
 	package=$2
 	package_check ${package}
-	distfile="${DISTFILES}/$(basename ${DISTS[$package]})"
+	distfile="${DISTDIR}/$(basename ${DISTS[$package]})"
 	case $1 in
 		SHA256)
 			distsum=${DISTSHA256[$package]}
@@ -125,10 +174,13 @@ distfiles_fetch () {
 	package=$1
 	package_check ${package}
 	notice "Fetching for ${package}-${DISTVERS[$package]}"
-	wget -O ${DISTFILES}/$(basename ${DISTS[$package]}) ${DISTS[$package]}
+	wget -O ${DISTDIR}/$(basename ${DISTS[$package]}) ${DISTS[$package]}
 	distfiles_sum MD5 ${package}
 	distfiles_sum SHA256 ${package}
 }
+
+# Initialize our build environment 
+mkdir -p ${BUILDDIR} ${DISTDIR} ${TARGETDIR} ${WORKDIR}
 
 
 # XXX: better system for fetching distfiles needed!!
