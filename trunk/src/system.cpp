@@ -9,7 +9,7 @@ System::System()
 
 void System::InitalizeTaskbar()
 {
-#ifdef _WIN32
+#ifdef _WIN32 && WIN_OPTIONAL
     HRESULT hr = CoCreateInstance(CLSID_TaskbarList, (IUnknown *) NULL, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, (void **) &m_taskbar);
 
     if (SUCCEEDED(hr)) {
@@ -63,7 +63,7 @@ TagLib::String System::getHome()
     return spath;
     // GetUserProfileDirectory() method.
 
-
+#ifdef WIN_OPTIONAL
     // SHGet(Known)FolderPath() method.
     HMODULE hndl_shell32;
     lpSHGetKnownFolderPath pSHGetKnownFolderPath;
@@ -84,6 +84,7 @@ TagLib::String System::getHome()
         std::cout << "NetUserGetInfo() failed!" << std::endl;
     }
     return ((LPUSER_INFO_11)uinfo)->usri11_home_dir;
+#endif
 #else
     return getenv("HOME");
 #endif
