@@ -36,6 +36,20 @@ class FastFourier
         VisDFT *m_handle;
         float m_samples[1024];
         float m_fft[512];
+	// may not need these
+	std::vector<float> bitrevtable;
+	std::vector<float> sintable;
+	std::vector<float> costable;
+        unsigned int       sample_count;
+        unsigned int       spectrum_size;
+        unsigned int       samples_out;
+        std::vector<float> real;
+        std::vector<float> imag;
+ 	void perform(float const* samples);
+	void fft_bitrev_table_init (unsigned int sample_count);
+	void fft_cossin_table_init (unsigned int sample_count);
+	void dft_cossin_table_init (unsigned int sample_count);
+
 };
 
 #endif // FFT_DRAW_H
