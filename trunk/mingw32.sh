@@ -1,0 +1,1 @@
+ PKG_CONFIG_LIBDIR=/home/segin/build/target/lib/pkgconfig/ i686-w64-mingw32-g++ src/*.cpp -o psymp3.exe `PKG_CONFIG_LIBDIR=/home/segin/build/target/lib/pkgconfig/ pkg-config --cflags --libs sdl libmpg123 libvisual-0.4 vorbisfile SDL_gfx` `~/build/target/bin/taglib-config --cflags --libs`  -Iinclude -lSDL_ttf -U_GNU_SOURCE -DPSYMP3_DATADIR=\".\" -DUNICODE -lole32 psymp3-res.o 
