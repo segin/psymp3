@@ -1,7 +1,4 @@
 #define MANIFEST 24
-#ifndef FB_PROGRAM_ICON
-#define FB_PROGRAM_ICON 100
-#endif
 #define FileIcon 101
 #define IDR_XPMANIFEST1 1
 #define IDD_ABOUT_WIN32RICH 1000
