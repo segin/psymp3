@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  *
  */
 
@@ -142,8 +142,8 @@ void Player::Run(std::vector<std::string> args)
     Rect dstrect;
     SDL_TimerID timer;
 
-    Surface s_artist = font->Render("Artist: " + stream->getArtist());
-    Surface s_title = font->Render("Title: " + stream->getTitle());
+    Surface s_artist = font->Render("Artiest: " + stream->getArtist());
+    Surface s_title = font->Render("Titel: " + stream->getTitle());
     Surface s_album = font->Render("Album: " + stream->getAlbum());
 
     // program main loop
@@ -219,7 +219,7 @@ void Player::Run(std::vector<std::string> args)
                     mutex->lock();
                     //system->updateProgress(stream->getPosition(), stream->getLength());
                     if(stream)
-                    s_pos = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
+                    s_pos = font->Render("Ligging: " + convertInt(stream->getPosition() / 60000)
                                                 + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                                 + "." + convertInt2((stream->getPosition() / 10) % 100)
                                                 + "/" + convertInt(stream->getLength() / 60000)
@@ -231,8 +231,8 @@ void Player::Run(std::vector<std::string> args)
                     f.width(400);
                     screen->Blit(s_pos, f);
                     screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
-                                       (std::string) " -:[ " + stream->getArtist() + " ]:- -- -:[ " +
-                                       stream->getTitle() + " ]:- ["
+                                       (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
+                                       stream->getTitle().to8Bit(true) + " ]:- ["
                                        + convertInt(stream->getPosition() / 60000)
                                        + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                        + "." + convertInt2((stream->getPosition() / 10) % 100)

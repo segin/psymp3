@@ -1,6 +1,5 @@
 /*
  * scrobble.h - Scrobble class header
- * This also wraps SDL_gfx for primitives.
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *

@@ -15,14 +15,14 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 datadir=$(prefix)/share/psymp3/data
 
-AM_CPPFLAGS = $(DEPENDS_CFLAGS) -DPSYMP3_DATADIR=\"$(datadir)\"
+AM_CPPFLAGS = $(DEPENDS_CFLAGS) -DPSYMP4_DATADIR=\"$(datadir)\"
 AM_LDFLAGS = $(DEPENDS_LIBS) -lSDL_ttf
 
 bin_PROGRAMS = psymp3
