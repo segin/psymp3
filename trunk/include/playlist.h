@@ -1,6 +1,5 @@
 /*
  * playlist.h - Playlist class header
- * This also wraps SDL_gfx for primitives.
  * This file is part of PsyMP3.
  * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
  *
@@ -16,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  *
  */
 
@@ -31,9 +30,16 @@ class Playlist
         ~Playlist();
         bool addFile(TagLib::String path);
         void parseArgs(std::vector<std::string> args);
+        long getPosition();
+        bool setPosition(long position);
+        TagLib::String setPositionAndJump(long position);
+        TagLib::String getTrack(long position);
+        TagLib::String next();
+        TagLib::String prev();
     protected:
     private:
     std::vector<track> tracks;
+    long m_position;
 };
 
 #endif // PLAYLIST_H
