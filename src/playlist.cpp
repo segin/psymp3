@@ -65,7 +65,7 @@ long Playlist::getPosition(void)
 
 bool Playlist::setPosition(long position);
 {
-    if(position =< tracks.size()) {
+    if(position <= tracks.size()) {
         m_position = position;
         return true;
     } else {
