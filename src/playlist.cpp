@@ -63,7 +63,7 @@ long Playlist::getPosition(void)
     return m_position;
 }
 
-bool Playlist::setPosition(long position);
+bool Playlist::setPosition(long position)
 {
     if(position <= tracks.size()) {
         m_position = position;
@@ -71,4 +71,29 @@ bool Playlist::setPosition(long position);
     } else {
         return false;
     }
+}
+
+TagLib::String Playlist::setPositionAndJump(long position)
+{
+    setPosition(position);
+    return getTrack(position);
+}
+
+TagLib::String Playlist::getTrack(long position)
+{
+    if(position <= tracks.size()) {
+        return tracks[position].m_FilePath;
+    } else {
+        return "";
+    }
+}
+
+TagLib::String Playlist::next()
+{
+    return getTrack(++m_position);
+}
+
+TagLib::String Playlist::prev()
+{
+    return getTrack(--m_position);
 }
