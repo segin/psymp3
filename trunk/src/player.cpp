@@ -47,6 +47,13 @@ Player::Player()
     std::cout << "PsyMP3 version " << PSYMP3_VERSION << "." << std::endl;
     screen = (Display *) NULL;
     playlist = (Playlist *) NULL;
+    graph = (Surface *) NULL;
+    font = (Font *) NULL;
+    stream = (Stream *) NULL;
+    audio = (Audio *) NULL;
+    fft = (FastFourier *) NULL;
+    mutex = (Mutex *) NULL;
+    system = (System *) NULL;
 }
 
 Player::~Player()
