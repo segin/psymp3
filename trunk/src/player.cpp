@@ -23,9 +23,9 @@
 
 std::string convertInt(long number)
 {
-   std::stringstream ss;//create a stringstream
-   ss << number;//add number to the stream
-   return ss.str();//return a string with the contents of the stream
+   std::stringstream ss;
+   ss << number;
+   return ss.str();
 }
 
 std::string convertInt2(long number)
