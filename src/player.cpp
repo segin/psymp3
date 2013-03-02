@@ -147,6 +147,9 @@ void Player::Run(std::vector<std::string> args)
     Surface s_artist = font->Render("Artiest: " + stream->getArtist());
     Surface s_title = font->Render("Titel: " + stream->getTitle());
     Surface s_album = font->Render("Album: " + stream->getAlbum());
+    Surface s_playlist = font->Render("Afspeellijst: " + 
+                                      convertInt(playlist->getPosition() + 1) +
+                                      convertInt(playlist->entries() + 1));
 
     // program main loop
     bool done = false;
@@ -191,6 +194,10 @@ void Player::Run(std::vector<std::string> args)
                             s_artist = font->Render("Artiest: " + stream->getArtist());
                             s_title = font->Render("Titel: " + stream->getTitle());
                             s_album = font->Render("Album: " + stream->getAlbum());
+                            s_playlist = font->Render("Afspeellijst: " + 
+                                      convertInt(playlist->getPosition() + 1) +
+                                      convertInt(playlist->entries() + 1));
+
                         }
                         break;
                     }
@@ -203,6 +210,10 @@ void Player::Run(std::vector<std::string> args)
                         s_artist = font->Render("Artiest: " + stream->getArtist());
                         s_title = font->Render("Titel: " + stream->getTitle());
                         s_album = font->Render("Album: " + stream->getAlbum());
+                        s_playlist = font->Render("Afspeellijst: " + 
+                                      convertInt(playlist->getPosition() + 1) +
+                                      convertInt(playlist->entries() + 1));
+
                         break;
                     case SDLK_LEFT:
                         seek = 1;
