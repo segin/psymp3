@@ -126,13 +126,8 @@ void Player::Run(std::vector<std::string> args)
     FastFourier::init();
 
     screen = new Display();
-    //playlist = new Playlist(args);
-    try {
-        stream = MediaFile::open(args[1]);
-    } catch (std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        return;
-    }
+    playlist = new Playlist(args);
+    stream = MediaFile::open(playlist->getTrack(0));
     fft = new FastFourier();
     mutex = new Mutex();
     system = new System();
@@ -181,6 +176,29 @@ void Player::Run(std::vector<std::string> args)
                     case SDLK_ESCAPE:
                     case SDLK_q:
                         done = true;
+                        break;
+                    case SDLK_n:
+                    {
+                        delete stream;
+                        TagLib::String nextfile = playlist->next();
+			if (nextfile == "") {
+                            done = true;
+                        } else {
+                            stream = MediaFile::open(nextfile);
+                            ATdata.stream = stream;
+                            s_artist = font->Render("Artiest: " + stream->getArtist());
+                            s_title = font->Render("Titel: " + stream->getTitle());
+                            s_album = font->Render("Album: " + stream->getAlbum());
+                        }
+                        break;
+                    }
+                    case SDLK_p:
+			delete stream;
+                        stream = MediaFile::open(playlist->prev());
+                        ATdata.stream = stream;
+                        s_artist = font->Render("Artiest: " + stream->getArtist());
+                        s_title = font->Render("Titel: " + stream->getTitle());
+                        s_album = font->Render("Album: " + stream->getAlbum());
                         break;
                     case SDLK_LEFT:
                         seek = 1;
@@ -300,7 +318,7 @@ void Player::Run(std::vector<std::string> args)
                 }
                 break;
             } // end switch
-            if (sdone || done) break;
+            if (done) break;
         } // end of message processing
 
         // DRAWING STARTS HERE

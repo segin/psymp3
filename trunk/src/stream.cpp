@@ -26,10 +26,9 @@ Stream::Stream()
     /* Not sure if I need this... */
 }
 
-Stream::Stream(TagLib::String name)
+Stream::Stream(TagLib::String name) : m_path(name)
 {
     m_tags = new TagLib::FileRef(name.toCString(true));
-    m_path = name;
 }
 
 Stream::~Stream()
