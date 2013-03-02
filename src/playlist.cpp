@@ -39,7 +39,7 @@ Playlist::~Playlist()
 
 void Playlist::parseArgs(std::vector<std::string> args)
 {
-    for(int i = 0; i < args.size(); i++) {
+    for(int i = 1; i < args.size(); i++) {
         addFile(args[i]);
     }
 }
@@ -49,6 +49,7 @@ bool Playlist::addFile(TagLib::String path)
     TagLib::FileRef *fileref;
     track *ntrk;
     try {
+        std::cout << "Attempting open of " << path << std::endl;
         fileref = new TagLib::FileRef(path.toCString(true));
     } catch (std::exception& e) {
         std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
@@ -61,6 +62,11 @@ bool Playlist::addFile(TagLib::String path)
 long Playlist::getPosition(void)
 {
     return m_position;
+}
+
+long Playlist::entries(void)
+{
+    return tracks.size();
 }
 
 bool Playlist::setPosition(long position)
@@ -95,5 +101,6 @@ TagLib::String Playlist::next()
 
 TagLib::String Playlist::prev()
 {
+    if (m_position == 0) m_position++;
     return getTrack(--m_position);
 }

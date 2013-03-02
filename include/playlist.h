@@ -31,6 +31,7 @@ class Playlist
         bool addFile(TagLib::String path);
         void parseArgs(std::vector<std::string> args);
         long getPosition();
+        long entries();
         bool setPosition(long position);
         TagLib::String setPositionAndJump(long position);
         TagLib::String getTrack(long position);
@@ -38,8 +39,8 @@ class Playlist
         TagLib::String prev();
     protected:
     private:
-    std::vector<track> tracks;
-    long m_position;
+        std::vector<track> tracks;
+        long m_position;
 };
 
 #endif // PLAYLIST_H
