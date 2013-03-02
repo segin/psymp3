@@ -148,8 +148,8 @@ void Player::Run(std::vector<std::string> args)
     Surface s_title = font->Render("Titel: " + stream->getTitle());
     Surface s_album = font->Render("Album: " + stream->getAlbum());
     Surface s_playlist = font->Render("Afspeellijst: " + 
-                                      convertInt(playlist->getPosition() + 1) +
-                                      convertInt(playlist->entries() + 1));
+                                      convertInt(playlist->getPosition() + 1) + "/" +
+                                      convertInt(playlist->entries()));
 
     // program main loop
     bool done = false;
@@ -195,8 +195,8 @@ void Player::Run(std::vector<std::string> args)
                             s_title = font->Render("Titel: " + stream->getTitle());
                             s_album = font->Render("Album: " + stream->getAlbum());
                             s_playlist = font->Render("Afspeellijst: " + 
-                                      convertInt(playlist->getPosition() + 1) +
-                                      convertInt(playlist->entries() + 1));
+                                      convertInt(playlist->getPosition() + 1) + "/" +
+                                      convertInt(playlist->entries()));
 
                         }
                         break;
@@ -211,8 +211,8 @@ void Player::Run(std::vector<std::string> args)
                         s_title = font->Render("Titel: " + stream->getTitle());
                         s_album = font->Render("Album: " + stream->getAlbum());
                         s_playlist = font->Render("Afspeellijst: " + 
-                                      convertInt(playlist->getPosition() + 1) +
-                                      convertInt(playlist->entries() + 1));
+                                      convertInt(playlist->getPosition() + 1) + "/" +
+                                      convertInt(playlist->entries()));
 
                         break;
                     case SDLK_LEFT:
@@ -250,6 +250,9 @@ void Player::Run(std::vector<std::string> args)
                     // draw tag strings
                     Rect f(1, 354);
                     screen->Blit(s_artist, f);
+                    f.width(270);
+                    screen->Blit(s_playlist, f);
+                    f.width(1);
                     f.height(369);
                     screen->Blit(s_title, f);
                     f.height(384);

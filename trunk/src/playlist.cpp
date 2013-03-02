@@ -71,7 +71,7 @@ long Playlist::entries(void)
 
 bool Playlist::setPosition(long position)
 {
-    if(position <= tracks.size()) {
+    if(position < tracks.size()) {
         m_position = position;
         return true;
     } else {
@@ -87,7 +87,8 @@ TagLib::String Playlist::setPositionAndJump(long position)
 
 TagLib::String Playlist::getTrack(long position)
 {
-    if(position <= tracks.size()) {
+    if(position < tracks.size()) {
+        std::string path = tracks[position].GetFilePath().to8Bit(true);
         return tracks[position].GetFilePath();
     } else {
         return "";
