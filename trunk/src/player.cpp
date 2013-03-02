@@ -319,6 +319,13 @@ void Player::Run(std::vector<std::string> args)
                 break;
             } // end switch
             if (done) break;
+            if (sdone) { 
+                // synthesize "n" key event
+                SDL_Event event;
+                event.type = SDL_KEYDOWN;
+                event.key.keysym.sym = SDLK_n;
+                SDL_PushEvent(&event);
+            }
         } // end of message processing
 
         // DRAWING STARTS HERE
