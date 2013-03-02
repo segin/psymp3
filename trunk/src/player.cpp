@@ -179,13 +179,15 @@ void Player::Run(std::vector<std::string> args)
                         break;
                     case SDLK_n:
                     {
-                        delete stream;
                         TagLib::String nextfile = playlist->next();
 			if (nextfile == "") {
                             done = true;
                         } else {
+                            mutex->lock();
+                            delete stream;
                             stream = MediaFile::open(nextfile);
                             ATdata.stream = stream;
+                            mutex->unlock();
                             s_artist = font->Render("Artiest: " + stream->getArtist());
                             s_title = font->Render("Titel: " + stream->getTitle());
                             s_album = font->Render("Album: " + stream->getAlbum());
@@ -193,9 +195,11 @@ void Player::Run(std::vector<std::string> args)
                         break;
                     }
                     case SDLK_p:
+                        mutex->lock();
 			delete stream;
                         stream = MediaFile::open(playlist->prev());
                         ATdata.stream = stream;
+                        mutex->unlock();
                         s_artist = font->Render("Artiest: " + stream->getArtist());
                         s_title = font->Render("Titel: " + stream->getTitle());
                         s_album = font->Render("Album: " + stream->getAlbum());
