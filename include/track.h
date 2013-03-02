@@ -33,7 +33,6 @@ class track
         void SetFilePath(TagLib::String val) { m_FilePath = val; }
         unsigned int GetLen() { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }
-        friend class Playlist;
     protected:
         TagLib::String m_Artist;
         TagLib::String m_Title;
