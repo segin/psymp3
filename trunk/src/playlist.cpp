@@ -82,7 +82,7 @@ TagLib::String Playlist::setPositionAndJump(long position)
 TagLib::String Playlist::getTrack(long position)
 {
     if(position <= tracks.size()) {
-        return tracks[position].m_FilePath;
+        return tracks[position].GetFilePath();
     } else {
         return "";
     }
