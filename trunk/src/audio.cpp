@@ -73,8 +73,10 @@ void Audio::callback(void *data, Uint8 *buf, int len)
 #endif
     mutex->lock();
     stream->getData(len, (void *) buf);
-    toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
-    fft->doFFT();
+    if(!gui_iteration_running) {
+        toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
+        fft->doFFT();
+    }
     mutex->unlock();
 }
 
