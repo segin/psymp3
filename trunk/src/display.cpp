@@ -32,5 +32,5 @@ Display::Display()
 
 void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
-    SDL_WM_SetCaption(title.toCString(true), icon_title.toCString(true));
+    SDL_WM_SetCaption(title.toCString(false), icon_title.toCString(false));
 }
