@@ -30,12 +30,9 @@ std::string convertInt(long number)
 
 std::string convertInt2(long number)
 {
-    std::stringstream ss;
-    ss << number;
-    if(ss.str().size() == 1)
-        return "0" + ss.str();
-    else
-        return ss.str();
+    char s[8];
+    snprintf(s, 8, "%02ld", number);
+    return s;
 }
 
 Player::Player()
