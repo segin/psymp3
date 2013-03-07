@@ -50,7 +50,7 @@
 		<Cursor position="320" topLine="0" />
 	</File>
 	<File name="include/psymp3.h" open="1" top="0" tabpos="7">
-		<Cursor position="1857" topLine="40" />
+		<Cursor position="1857" topLine="58" />
 	</File>
 	<File name="include/rect.h" open="0" top="0" tabpos="13">
 		<Cursor position="105" topLine="0" />
@@ -59,7 +59,7 @@
 		<Cursor position="105" topLine="0" />
 	</File>
 	<File name="include/stream.h" open="1" top="0" tabpos="10">
-		<Cursor position="1029" topLine="3" />
+		<Cursor position="1029" topLine="0" />
 	</File>
 	<File name="include/surface.h" open="0" top="0" tabpos="5">
 		<Cursor position="2369" topLine="0" />
@@ -89,13 +89,13 @@
 		<Cursor position="854" topLine="0" />
 	</File>
 	<File name="src/audio.cpp" open="1" top="0" tabpos="5">
-		<Cursor position="2690" topLine="0" />
+		<Cursor position="2690" topLine="54" />
 	</File>
 	<File name="src/display.cpp" open="0" top="0" tabpos="7">
 		<Cursor position="1094" topLine="0" />
 	</File>
 	<File name="src/exceptions.cpp" open="1" top="0" tabpos="2">
-		<Cursor position="89" topLine="0" />
+		<Cursor position="1105" topLine="0" />
 	</File>
 	<File name="src/fft_draw.cpp" open="0" top="0" tabpos="24">
 		<Cursor position="578" topLine="0" />
@@ -112,8 +112,8 @@
 	<File name="src/mutex.cpp" open="0" top="0" tabpos="1">
 		<Cursor position="42" topLine="0" />
 	</File>
-	<File name="src/player.cpp" open="1" top="0" tabpos="4">
-		<Cursor position="7482" topLine="172" />
+	<File name="src/player.cpp" open="1" top="1" tabpos="4">
+		<Cursor position="7326" topLine="292" />
 	</File>
 	<File name="src/playlist.cpp" open="1" top="0" tabpos="3">
 		<Cursor position="2" topLine="0" />
@@ -130,8 +130,8 @@
 	<File name="src/surface.cpp" open="0" top="0" tabpos="4">
 		<Cursor position="1939" topLine="65" />
 	</File>
-	<File name="src/system.cpp" open="1" top="1" tabpos="9">
-		<Cursor position="2295" topLine="40" />
+	<File name="src/system.cpp" open="1" top="0" tabpos="9">
+		<Cursor position="785" topLine="6" />
 	</File>
 	<File name="src/track.cpp" open="0" top="0" tabpos="2">
 		<Cursor position="0" topLine="0" />
