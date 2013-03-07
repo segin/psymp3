@@ -116,7 +116,7 @@ void Player::Run(std::vector<std::string> args)
     std::cout << "System::getHome: " << System::getHome().to8Bit(true) << std::endl;
 #ifdef _WIN32
     std::cout << "System::getHwnd: " << std::hex << System::getHwnd() << std::endl;
-#endif /* _WIN32 */ 
+#endif /* _WIN32 */
 
     TrueType::Init();
     Libmpg123::init();
@@ -141,10 +141,10 @@ void Player::Run(std::vector<std::string> args)
     Rect dstrect;
     SDL_TimerID timer;
 
-    Surface s_artist = font->Render("Artiest: " + stream->getArtist());
-    Surface s_title = font->Render("Titel: " + stream->getTitle());
+    Surface s_artist = font->Render("Artist: " + stream->getArtist());
+    Surface s_title = font->Render("Title: " + stream->getTitle());
     Surface s_album = font->Render("Album: " + stream->getAlbum());
-    Surface s_playlist = font->Render("Afspeellijst: " + 
+    Surface s_playlist = font->Render("Playlist: " +
                                       convertInt(playlist->getPosition() + 1) + "/" +
                                       convertInt(playlist->entries()));
 
@@ -184,14 +184,16 @@ void Player::Run(std::vector<std::string> args)
                             done = true;
                         } else {
                             mutex->lock();
-                            delete stream;
+                            if (stream) {
+                                delete stream;
+                            }
                             stream = MediaFile::open(nextfile);
                             ATdata.stream = stream;
                             mutex->unlock();
-                            s_artist = font->Render("Artiest: " + stream->getArtist());
-                            s_title = font->Render("Titel: " + stream->getTitle());
+                            s_artist = font->Render("Artist: " + stream->getArtist());
+                            s_title = font->Render("Title: " + stream->getTitle());
                             s_album = font->Render("Album: " + stream->getAlbum());
-                            s_playlist = font->Render("Afspeellijst: " + 
+                            s_playlist = font->Render("Playlist: " +
                                       convertInt(playlist->getPosition() + 1) + "/" +
                                       convertInt(playlist->entries()));
 
@@ -200,14 +202,16 @@ void Player::Run(std::vector<std::string> args)
                     }
                     case SDLK_p:
                         mutex->lock();
-			delete stream;
+                        if (stream) {
+                            delete stream;
+                        }
                         stream = MediaFile::open(playlist->prev());
                         ATdata.stream = stream;
                         mutex->unlock();
-                        s_artist = font->Render("Artiest: " + stream->getArtist());
-                        s_title = font->Render("Titel: " + stream->getTitle());
+                        s_artist = font->Render("Artist: " + stream->getArtist());
+                        s_title = font->Render("Title: " + stream->getTitle());
                         s_album = font->Render("Album: " + stream->getAlbum());
-                        s_playlist = font->Render("Afspeellijst: " + 
+                        s_playlist = font->Render("Playlist: " +
                                       convertInt(playlist->getPosition() + 1) + "/" +
                                       convertInt(playlist->entries()));
 
@@ -334,7 +338,7 @@ void Player::Run(std::vector<std::string> args)
                 break;
             } // end switch
             if (done) break;
-            if (sdone) { 
+            if (sdone) {
                 // synthesize "n" key event
                 SDL_Event event;
                 event.type = SDL_KEYDOWN;
