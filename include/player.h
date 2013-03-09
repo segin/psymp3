@@ -15,7 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  *
  */
 
@@ -31,8 +31,21 @@ class Player
         ~Player();
         void Run(std::vector<std::string> args);
         static Uint32 AppLoopTimer(Uint32 interval, void* param);
+        /* SDL event synthesis */
+        static void synthesizeUserEvent(int uevent, void *data1, void *data2);
+        static void synthesizeKeyEvent(SDLKey kpress);
+        /* state management */
+        bool nextTrack(void);
+        bool prevTrack(void);
+        bool stop(void);
+        bool pause(void);
+        bool play(void);
+        bool playPause(void);
     protected:
+        int state;
     private:
+        void updateInfo(void);
+        void updateGraph(void);
         Display *screen;
         Surface *graph;
         Playlist *playlist;
@@ -42,6 +55,7 @@ class Player
         FastFourier *fft;
         Mutex *mutex;
         System *system;
+        std::map<std::string, Surface> info;
 };
 
 #endif // PLAYER_H
