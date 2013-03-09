@@ -119,22 +119,22 @@ bool Player::prevTrack(void)
 
 }
 
-bool Player::stop()
+bool Player::stop(void)
 {
 
 }
 
-bool Player::pause()
+bool Player::pause(void)
 {
 
 }
 
-bool Player::play()
+bool Player::play(void)
 {
 
 }
 
-bool Player::playPause()
+bool Player::playPause(void)
 {
 
 }
@@ -190,10 +190,10 @@ void Player::Run(std::vector<std::string> args)
     Rect dstrect;
     SDL_TimerID timer;
 
-    Surface s_artist = font->Render("Artist: " + stream->getArtist());
-    Surface s_title = font->Render("Title: " + stream->getTitle());
-    Surface s_album = font->Render("Album: " + stream->getAlbum());
-    Surface s_playlist = font->Render("Playlist: " +
+    info["artist"] = font->Render("Artist: " + stream->getArtist());
+    info["title"] = font->Render("Title: " + stream->getTitle());
+    info["album"] = font->Render("Album: " + stream->getAlbum());
+    info["playlist"] = font->Render("Playlist: " +
                                       convertInt(playlist->getPosition() + 1) + "/" +
                                       convertInt(playlist->entries()));
 
@@ -239,10 +239,10 @@ void Player::Run(std::vector<std::string> args)
                             stream = MediaFile::open(nextfile);
                             ATdata.stream = stream;
                             mutex->unlock();
-                            s_artist = font->Render("Artist: " + stream->getArtist());
-                            s_title = font->Render("Title: " + stream->getTitle());
-                            s_album = font->Render("Album: " + stream->getAlbum());
-                            s_playlist = font->Render("Playlist: " +
+                            info["artist"] = font->Render("Artist: " + stream->getArtist());
+                            info["title"] = font->Render("Title: " + stream->getTitle());
+                            info["album"] = font->Render("Album: " + stream->getAlbum());
+                            info["playlist"] = font->Render("Playlist: " +
                                       convertInt(playlist->getPosition() + 1) + "/" +
                                       convertInt(playlist->entries()));
 
@@ -257,10 +257,10 @@ void Player::Run(std::vector<std::string> args)
                         stream = MediaFile::open(playlist->prev());
                         ATdata.stream = stream;
                         mutex->unlock();
-                        s_artist = font->Render("Artist: " + stream->getArtist());
-                        s_title = font->Render("Title: " + stream->getTitle());
-                        s_album = font->Render("Album: " + stream->getAlbum());
-                        s_playlist = font->Render("Playlist: " +
+                        info["artist"] = font->Render("Artist: " + stream->getArtist());
+                        info["title"] = font->Render("Title: " + stream->getTitle());
+                        info["album"] = font->Render("Album: " + stream->getAlbum());
+                        info["playlist"] = font->Render("Playlist: " +
                                       convertInt(playlist->getPosition() + 1) + "/" +
                                       convertInt(playlist->entries()));
 
@@ -301,30 +301,29 @@ void Player::Run(std::vector<std::string> args)
                         //screen->Blit(bmp, dstrect);
                         // draw tag strings
                         Rect f(1, 354);
-                        screen->Blit(s_artist, f);
+                        screen->Blit(info["artist"], f);
                         f.width(270);
-                        screen->Blit(s_playlist, f);
+                        screen->Blit(info["playlist"], f);
                         f.width(1);
                         f.height(369);
-                        screen->Blit(s_title, f);
+                        screen->Blit(info["title"], f);
                         f.height(384);
-                        screen->Blit(s_album, f);
+                        screen->Blit(info["album"], f);
                         // position indicator
-                        Surface s_pos;
                         mutex->lock();
                         //system->updateProgress(stream->getPosition(), stream->getLength());
                         if(stream)
-                        s_pos = font->Render("Positie: " + convertInt(stream->getPosition() / 60000)
+                        info["position"] = font->Render("Positie: " + convertInt(stream->getPosition() / 60000)
                                                     + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                                     + "." + convertInt2((stream->getPosition() / 10) % 100)
                                                     + "/" + convertInt(stream->getLength() / 60000)
                                                     + ":" + convertInt2((stream->getLength() / 1000) % 60)
                                                     + "." + convertInt2((stream->getLength() / 10) % 100));
                         else
-                            s_pos = font->Render("Position: -:--.-- / -:--.--");
+                            info["position"] = font->Render("Position: -:--.-- / -:--.--");
                         f.height(353);
                         f.width(400);
-                        screen->Blit(s_pos, f);
+                        screen->Blit(info["position"], f);
                         screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
                                            (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
                                            stream->getTitle().to8Bit(true) + " ]:- ["
