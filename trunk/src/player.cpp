@@ -393,10 +393,12 @@ void Player::Run(std::vector<std::string> args)
                 }
                 break;
             } // end switch
-            if (done) break;
             if (sdone) {
                 synthesizeKeyEvent(SDLK_n);
+                sdone = false;
             }
+            if (done) break;
+
         } // end of message processing
 
         // DRAWING STARTS HERE
