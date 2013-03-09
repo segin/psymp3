@@ -75,6 +75,7 @@ Player::~Player()
         delete system;
 }
 
+/* SDL event synthesis */
 void Player::synthesizeKeyEvent(SDLKey kpress)
 {
     SDL_Event event;
@@ -107,6 +108,40 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
     return interval;
 }
 
+/* Player control functions */
+bool Player::nextTrack(void)
+{
+
+}
+
+bool Player::prevTrack(void)
+{
+
+}
+
+bool Player::stop()
+{
+
+}
+
+bool Player::pause()
+{
+
+}
+
+bool Player::play()
+{
+
+}
+
+bool Player::playPause()
+{
+
+}
+
+/* Internal UI compartments */
+
+/* Main player functionality */
 void Player::Run(std::vector<std::string> args)
 {
     struct atdata ATdata;
