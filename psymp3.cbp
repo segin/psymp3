@@ -60,13 +60,16 @@
 		<Unit filename="depcomp" />
 		<Unit filename="include/about.h" />
 		<Unit filename="include/audio.h" />
+		<Unit filename="include/config.h" />
 		<Unit filename="include/config.h.in" />
 		<Unit filename="include/display.h" />
 		<Unit filename="include/exceptions.h" />
 		<Unit filename="include/fft_draw.h" />
 		<Unit filename="include/font.h" />
 		<Unit filename="include/libmpg123w.h" />
+		<Unit filename="include/mediafile.h" />
 		<Unit filename="include/mutex.h" />
+		<Unit filename="include/persistentstorage.h" />
 		<Unit filename="include/player.h" />
 		<Unit filename="include/playlist.h" />
 		<Unit filename="include/psymp3.h" />
@@ -75,6 +78,7 @@
 		<Unit filename="include/song.h" />
 		<Unit filename="include/sqlite3.h" />
 		<Unit filename="include/sqlite3ext.h" />
+		<Unit filename="include/stamp-h1" />
 		<Unit filename="include/stream.h" />
 		<Unit filename="include/surface.h" />
 		<Unit filename="include/system.h" />
@@ -95,7 +99,9 @@
 		<Unit filename="src/font.cpp" />
 		<Unit filename="src/libmpg123.cpp" />
 		<Unit filename="src/main.cpp" />
+		<Unit filename="src/mediafile.cpp" />
 		<Unit filename="src/mutex.cpp" />
+		<Unit filename="src/persistentstorage.cpp" />
 		<Unit filename="src/player.cpp" />
 		<Unit filename="src/playlist.cpp" />
 		<Unit filename="src/rect.cpp" />
