@@ -75,18 +75,32 @@ Player::~Player()
         delete system;
 }
 
-Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
+void Player::synthesizeKeyEvent(SDLKey kpress)
 {
-    // Create a user event to call the game loop.
+    SDL_Event event;
+    event.type = SDL_KEYDOWN;
+    event.key.keysym.sym = kpress;
+    SDL_PushEvent(&event);
+    event.type = SDL_KEYUP;
+    SDL_PushEvent(&event);
+}
+
+void Player::synthesizeUserEvent(int code, void *data1, void* data2)
+{
     SDL_Event event;
 
     event.type = SDL_USEREVENT;
-    event.user.code = RUN_GUI_ITERATION;
-    event.user.data1 = 0;
-    event.user.data2 = 0;
+    event.user.code = code;
+    event.user.data1 = data1;
+    event.user.data2 = data2;
 
+    SDL_PushEvent(&event);
+}
+
+Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
+{
     if (!gui_iteration_running)
-        SDL_PushEvent(&event);
+        synthesizeUserEvent(RUN_GUI_ITERATION, NULL, NULL);
     else
         std::cout << "timer: skipped" << std::endl;
 
@@ -180,7 +194,7 @@ void Player::Run(std::vector<std::string> args)
                     case SDLK_n:
                     {
                         TagLib::String nextfile = playlist->next();
-			if (nextfile == "") {
+                        if (nextfile == "") {
                             done = true;
                         } else {
                             mutex->lock();
@@ -243,107 +257,111 @@ void Player::Run(std::vector<std::string> args)
                     }
                 }
             case SDL_USEREVENT:
-                if (event.user.code == RUN_GUI_ITERATION) {
-                    gui_iteration_running = true;
-                    screen->FillRect(screen->MapRGB(0, 0, 0));
-                    // draw bitmap
-                    //screen->Blit(bmp, dstrect);
-                    // draw tag strings
-                    Rect f(1, 354);
-                    screen->Blit(s_artist, f);
-                    f.width(270);
-                    screen->Blit(s_playlist, f);
-                    f.width(1);
-                    f.height(369);
-                    screen->Blit(s_title, f);
-                    f.height(384);
-                    screen->Blit(s_album, f);
-                    // position indicator
-                    Surface s_pos;
-                    mutex->lock();
-                    //system->updateProgress(stream->getPosition(), stream->getLength());
-                    if(stream)
-                    s_pos = font->Render("Positie: " + convertInt(stream->getPosition() / 60000)
-                                                + ":" + convertInt2((stream->getPosition() / 1000) % 60)
-                                                + "." + convertInt2((stream->getPosition() / 10) % 100)
-                                                + "/" + convertInt(stream->getLength() / 60000)
-                                                + ":" + convertInt2((stream->getLength() / 1000) % 60)
-                                                + "." + convertInt2((stream->getLength() / 10) % 100));
-                    else
-                        s_pos = font->Render("Position: -:--.-- / -:--.--");
-                    f.height(353);
-                    f.width(400);
-                    screen->Blit(s_pos, f);
-                    screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
-                                       (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
-                                       stream->getTitle().to8Bit(true) + " ]:- ["
-                                       + convertInt(stream->getPosition() / 60000)
-                                       + ":" + convertInt2((stream->getPosition() / 1000) % 60)
-                                       + "." + convertInt2((stream->getPosition() / 10) % 100)
-                                       + "/" + convertInt(stream->getLength() / 60000)
-                                       + ":" + convertInt2((stream->getLength() / 1000) % 60)
-                                       + "]", "PsyMP3 " PSYMP3_VERSION);
-                    // draw progress bar
-                    screen->vline(399, 370, 385, 0xFFFFFFFF);
-                    screen->vline(621, 370, 385, 0xFFFFFFFF);
-                    screen->hline(399, 402, 370, 0xFFFFFFFF);
-                    screen->hline(399, 402, 385, 0xFFFFFFFF);
-                    screen->hline(618, 621, 370, 0xFFFFFFFF);
-                    screen->hline(618, 621, 385, 0xFFFFFFFF);
-                    if (seek == 1) {
-                        if (stream)
-                            stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
-                    } else if (seek == 2) {
-                        if (stream)
-                            stream->seekTo((long long) stream->getPosition() + 1500);
-                    }
-                    double t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
-                    for(double x = 0; x < t; x++) {
-                        if (x > 146) {
-                            screen->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
-                        } else if (x < 73) {
-                            screen->vline(x + 400, 373, 382, 128, 255, (uint8_t) (x * 3.5), 255);
-                        } else {
-                            screen->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
+                switch(event.user.code) {
+                    case RUN_GUI_ITERATION:
+                    {
+                        gui_iteration_running = true;
+                        screen->FillRect(screen->MapRGB(0, 0, 0));
+                        // draw bitmap
+                        //screen->Blit(bmp, dstrect);
+                        // draw tag strings
+                        Rect f(1, 354);
+                        screen->Blit(s_artist, f);
+                        f.width(270);
+                        screen->Blit(s_playlist, f);
+                        f.width(1);
+                        f.height(369);
+                        screen->Blit(s_title, f);
+                        f.height(384);
+                        screen->Blit(s_album, f);
+                        // position indicator
+                        Surface s_pos;
+                        mutex->lock();
+                        //system->updateProgress(stream->getPosition(), stream->getLength());
+                        if(stream)
+                        s_pos = font->Render("Positie: " + convertInt(stream->getPosition() / 60000)
+                                                    + ":" + convertInt2((stream->getPosition() / 1000) % 60)
+                                                    + "." + convertInt2((stream->getPosition() / 10) % 100)
+                                                    + "/" + convertInt(stream->getLength() / 60000)
+                                                    + ":" + convertInt2((stream->getLength() / 1000) % 60)
+                                                    + "." + convertInt2((stream->getLength() / 10) % 100));
+                        else
+                            s_pos = font->Render("Position: -:--.-- / -:--.--");
+                        f.height(353);
+                        f.width(400);
+                        screen->Blit(s_pos, f);
+                        screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
+                                           (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
+                                           stream->getTitle().to8Bit(true) + " ]:- ["
+                                           + convertInt(stream->getPosition() / 60000)
+                                           + ":" + convertInt2((stream->getPosition() / 1000) % 60)
+                                           + "." + convertInt2((stream->getPosition() / 10) % 100)
+                                           + "/" + convertInt(stream->getLength() / 60000)
+                                           + ":" + convertInt2((stream->getLength() / 1000) % 60)
+                                           + "]", "PsyMP3 " PSYMP3_VERSION);
+                        // draw progress bar
+                        screen->vline(399, 370, 385, 0xFFFFFFFF);
+                        screen->vline(621, 370, 385, 0xFFFFFFFF);
+                        screen->hline(399, 402, 370, 0xFFFFFFFF);
+                        screen->hline(399, 402, 385, 0xFFFFFFFF);
+                        screen->hline(618, 621, 370, 0xFFFFFFFF);
+                        screen->hline(618, 621, 385, 0xFFFFFFFF);
+                        if (seek == 1) {
+                            if (stream)
+                                stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
+                        } else if (seek == 2) {
+                            if (stream)
+                                stream->seekTo((long long) stream->getPosition() + 1500);
                         }
-                    };
-                    float *spectrum = fft->getFFT();
-                    for (int x = 0; x < 350; x++) {
-                        graph->hline(0, 639, x, 64);
-                    }
-                    for(uint16_t x=0; x < 320; x++) {
-                        // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
-                        if (x > 213) {
-                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
-                        } else if (x < 106) {
-                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.4), 255);
-                        } else {
-                            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.2)), (uint8_t) (255 - ((x - 106) * 2.4)), 255, 255);
+                        double t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
+                        for(double x = 0; x < t; x++) {
+                            if (x > 146) {
+                                screen->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
+                            } else if (x < 73) {
+                                screen->vline(x + 400, 373, 382, 128, 255, (uint8_t) (x * 3.5), 255);
+                            } else {
+                                screen->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
+                            }
+                        };
+                        float *spectrum = fft->getFFT();
+                        for (int x = 0; x < 350; x++) {
+                            graph->hline(0, 639, x, 64);
                         }
-                    };
+                        for(uint16_t x=0; x < 320; x++) {
+                            // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
+                            if (x > 213) {
+                                graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
+                            } else if (x < 106) {
+                                graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.4), 255);
+                            } else {
+                                graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.2)), (uint8_t) (255 - ((x - 106) * 2.4)), 255, 255);
+                            }
+                        };
 
-                    mutex->unlock();
-                    f.height(0);
-                    f.width(0);
-                    screen->Blit(*graph, f);
-                    // DRAWING ENDS HERE
+                        mutex->unlock();
+                        f.height(0);
+                        f.width(0);
+                        screen->Blit(*graph, f);
+                        // DRAWING ENDS HERE
 
 
-                    // finally, update the screen :)
-                    screen->Flip();
-                    // and if end of stream...
-                    sdone = stream->eof();
-                    gui_iteration_running = false;
+                        // finally, update the screen :)
+                        screen->Flip();
+                        // and if end of stream...
+                        sdone = stream->eof();
+                        gui_iteration_running = false;
+                        break;
+                    }
+                    case DO_NEXT_TRACK:
+                    {
+
+                    }
                 }
                 break;
             } // end switch
             if (done) break;
             if (sdone) {
-                // synthesize "n" key event
-                SDL_Event event;
-                event.type = SDL_KEYDOWN;
-                event.key.keysym.sym = SDLK_n;
-                SDL_PushEvent(&event);
+                synthesizeKeyEvent(SDLK_n);
             }
         } // end of message processing
 
