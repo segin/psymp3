@@ -1,0 +1,65 @@
+#summary This is the old home page
+
+<g:plusone size="medium">+1 PsyMP3 on Google+!</g:plusone>
+
+PsyMP3 is an audio media player written in C++, sporting a simple, minimalistic, and keyboard-driven user interface.
+
+Previously written in FreeBASIC, I have decided to rewrite the entire program in portable C++, enabling ports to *GNU/Linux, [http://www.freebsd.org/ Free]/[http://www.openbsd.org/ Open]/[http://www.netbsd.org/ Net]BSD, [http://www.apple.com/macosx/ Mac OS X], [http://www.oracle.com/solaris Solaris] (and it's open-source derivative, [http://openindiana.org/ OpenIndiana]), and anything else I can get my hands on*.
+
+So far, PsyMP3 2.x is in development, The 2-CURRENT source is currently at the completeness level of a pre-alpha technical demonstration. As such, it's not very useful yet. It's somewhat buggy, and requires special tricks to start up. But, it does work and is a stepping stone to a full-fledged portable PsyMP3 on many OSes. 
+
+Check out the ScreenshotGallery!
+
+[https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=UGRQZB3Y7DNFG https://www.paypal.com/en_US/i/btn/btn_donateCC_LG.gif]
+
+You can always donate via Bitcoin, as well: 19UxYy2k6KLB84WkMpxt4YnZQr2GPYR96L
+
+= Everything Below This Line Is Outdated. 1.x Information only: = 
+
+There is support for sending "Now Playing" to MSN Messenger (or pidgin-musictracker or aMSN), remote control via the Winamp remote-control interface (e.g. FoxyTunes, the Winamp toolbar, etc.), basic playlist support (more to come), and other side features.
+
+Features to date include:
+  * Will send "Now Playing" information to MSN Messenger, pidgin-musictracker (when configured to "Messenger compatible"), and aMSN's Music plugin. Possibly others. 
+  * Supports being remote-controlled by things like the FoxyTunes plugin for Firefox. Tell it that PsyMP3 is actually Winamp. No song title/artist/album yet.
+  * Last.fm Scrobbler support - supports "now playing", client ID, scrobble caching.
+
+
+<wiki:video url="http://www.youtube.com/watch?v=Bk7gku7ni7s" />
+
+_Image courtesy of [http://www.softpedia.com/ Softpedia]_
+
+http://img28.imageshack.us/img28/6278/psymp31.png
+
+See GettingStarted for a guide on how to get started using PsyMP3!
+
+=Last.fm Scrobbler support=
+
+http://img41.imageshack.us/img41/7287/nowlistening.png
+
+In the latest builds of PsyMP3 (later than July 5th), create a file named
+"lastfm_config.txt" in the PsyMP3 program directory, and on the first line, put your username, on the second line, put you password. The file should look like this:
+
+{{{
+someuser
+mypass32
+}}}
+
+=Now Playing support=
+
+*NOTE TO GNU/LINUX, *BSD, ETC. USERS:* PsyMP3 running in Wine will NOT announce itself to native messengers. If you REALLY want this feature to work on Linux, run Pidgin in Wine, or do without.
+
+http://img188.imageshack.us/img188/5373/psymp3nowplaying.png
+
+Works out of the box with Windows Live Messenger.
+
+Pidgin users: Make sure you have [http://code.google.com/p/pidgin-musictracker/ pidgin-musictracker] installed and set it to use the "Messenger compatible" interface.
+
+http://img7.imageshack.us/img7/6866/musictrackersettings.png
+
+Make sure that the "Swap artist and title" checkbox under "Properties" is DISABLED.
+
+http://img7.imageshack.us/img7/7725/musictrackersettingsext.png
+
+=Wakoopa Stats=
+
+http://wakoopa.com/software/psymp3-audio-player/badge.png
