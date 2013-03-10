@@ -416,10 +416,6 @@ void Player::Run(std::vector<std::string> args)
                         gui_iteration_running = false;
                         break;
                     }
-                    case DO_NEXT_TRACK:
-                    {
-
-                    }
                 }
                 break;
             } // end switch
