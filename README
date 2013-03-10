@@ -41,7 +41,8 @@ You can reach me at <segin2005@gmail.com>.
 	POSIX threads. On Linux, NTPL is recommended (requires kernel 2.6.9 or later)
 	The following dependencies are required:
 	 SDL 1.2.13 or later
-	 mpg123-1.10 or later
+	 mpg123-1.8 or later
+	 taglib-1.6 or later
      libvisual-0.4 or later
      libvorbis
      libogg
