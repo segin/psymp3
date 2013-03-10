@@ -109,6 +109,10 @@ enum {
 #include "font.h"
 #include "player.h"
 
+#ifdef DEBUG
+#define PSYMP3_DATADIR "/usr/local/share/psymp3/data"
+#endif /* DEBUG */
+
 // global singletons
 
 
