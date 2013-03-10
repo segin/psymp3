@@ -313,14 +313,15 @@ void Player::Run(std::vector<std::string> args)
             }
             case SDL_USEREVENT:
                 switch(event.user.code) {
-                    case DO_NEXT_TRACK
+                    case DO_NEXT_TRACK:
                     {
                         done = !nextTrack();
                         break;
                     }
-                    case
+                    case DO_PREV_TRACK:
                     {
-
+                        prevTrack();
+                        break;
                     }
                     case RUN_GUI_ITERATION:
                     {
