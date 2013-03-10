@@ -1,0 +1,22 @@
+#summary Projects further influenced.
+#labels Info
+
+= Introduction =
+
+This page is a non-exhaustive list of projects and other programs created by other developers using or based on the supporting code and documentation I created during the development of PsyMP3.
+
+
+= MsnMsgrUiManager =
+
+Documentation on the MSN 'now playing' interface.
+
+  * Someone used my interface doc on a StackOverflow answer: http://stackoverflow.com/questions/13079432/windows-live-messenger-what-im-listening-to-function
+  * libMsnMsgrUiManager - http://libmsnmsgruimanager.codeplex.com/
+  * An LCDStudio plugin based on libMsnMsgrUiManager - http://www.lcdstudio.com/forum/viewtopic.php?p=37562&sid=03e67892fa9b0ee396bec9225b081567
+
+= Libseven = 
+
+Libseven is a incomplete wrapper around the ITaskbarList3 COM object. It at least implements the parts needed to use the taskbar progress indicator functionality introduced with Windows 7.
+
+  * An AutoIt script that uses Libseven: http://www.autoitscript.com/forum/topic/110768-itaskbarlist3/page__st__20
+  * An attempt at a Java binding: http://www.java-forum.org/585590-post9.html
