@@ -343,7 +343,7 @@ void Player::Run(std::vector<std::string> args)
                         mutex->lock();
                         //system->updateProgress(stream->getPosition(), stream->getLength());
                         if(stream)
-                        info["position"] = font->Render("Positie: " + convertInt(stream->getPosition() / 60000)
+                        info["position"] = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                     + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                                     + "." + convertInt2((stream->getPosition() / 10) % 100)
                                                     + "/" + convertInt(stream->getLength() / 60000)
