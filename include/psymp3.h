@@ -111,13 +111,6 @@ enum {
 
 // global singletons
 
-// structs that aren't classes
-
-struct atdata {
-    Stream *stream;
-    FastFourier *fft;
-    Mutex *mutex;
-};
 
 // Forgive me.
 static bool gui_iteration_running;
