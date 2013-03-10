@@ -111,32 +111,79 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
 /* Player control functions */
 bool Player::nextTrack(void)
 {
+    TagLib::String nextfile = playlist->next();
+    if (nextfile == "") {
+        return false;
+    } else {
+        mutex->lock();
+        if (stream) {
+            delete stream;
+        }
+        stream = MediaFile::open(nextfile);
+        ATdata.stream = stream;
+        mutex->unlock();
+        info["artist"] = font->Render("Artist: " + stream->getArtist());
+        info["title"] = font->Render("Title: " + stream->getTitle());
+        info["album"] = font->Render("Album: " + stream->getAlbum());
+        info["playlist"] = font->Render("Playlist: " +
+            convertInt(playlist->getPosition() + 1) + "/" +
+            convertInt(playlist->entries()));
 
+    }
+    return true;
 }
 
 bool Player::prevTrack(void)
 {
-
+   mutex->lock();
+    if (stream) {
+        delete stream;
+    }
+    stream = MediaFile::open(playlist->prev());
+    ATdata.stream = stream;
+    mutex->unlock();
+    info["artist"] = font->Render("Artist: " + stream->getArtist());
+    info["title"] = font->Render("Title: " + stream->getTitle());
+    info["album"] = font->Render("Album: " + stream->getAlbum());
+    info["playlist"] = font->Render("Playlist: " +
+        convertInt(playlist->getPosition() + 1) + "/" +
+        convertInt(playlist->entries()));
+    return true;
 }
 
 bool Player::stop(void)
 {
-
+    /* XXX: Implement stopped state. */
+    state = STOPPED;
 }
 
 bool Player::pause(void)
 {
-
+    audio->play(false);
+    state = PAUSED;
 }
 
 bool Player::play(void)
 {
-
+    audio->play(true);
+    state = PLAYING;
 }
 
 bool Player::playPause(void)
 {
-
+    switch(state) {
+        case STOPPED:
+        case PAUSED:
+        {
+            play();
+            break;
+        }
+        case PLAYING:
+        {
+            pause();
+            break;
+        }
+    }
 }
 
 /* Internal UI compartments */
@@ -144,7 +191,6 @@ bool Player::playPause(void)
 /* Main player functionality */
 void Player::Run(std::vector<std::string> args)
 {
-    struct atdata ATdata;
     if((args.size() > 1) && args[1] == "--version") {
         about_console();
         return;
@@ -228,52 +274,29 @@ void Player::Run(std::vector<std::string> args)
                         break;
                     case SDLK_n:
                     {
-                        TagLib::String nextfile = playlist->next();
-                        if (nextfile == "") {
-                            done = true;
-                        } else {
-                            mutex->lock();
-                            if (stream) {
-                                delete stream;
-                            }
-                            stream = MediaFile::open(nextfile);
-                            ATdata.stream = stream;
-                            mutex->unlock();
-                            info["artist"] = font->Render("Artist: " + stream->getArtist());
-                            info["title"] = font->Render("Title: " + stream->getTitle());
-                            info["album"] = font->Render("Album: " + stream->getAlbum());
-                            info["playlist"] = font->Render("Playlist: " +
-                                      convertInt(playlist->getPosition() + 1) + "/" +
-                                      convertInt(playlist->entries()));
-
-                        }
+                        done = !nextTrack();
                         break;
                     }
                     case SDLK_p:
-                        mutex->lock();
-                        if (stream) {
-                            delete stream;
-                        }
-                        stream = MediaFile::open(playlist->prev());
-                        ATdata.stream = stream;
-                        mutex->unlock();
-                        info["artist"] = font->Render("Artist: " + stream->getArtist());
-                        info["title"] = font->Render("Title: " + stream->getTitle());
-                        info["album"] = font->Render("Album: " + stream->getAlbum());
-                        info["playlist"] = font->Render("Playlist: " +
-                                      convertInt(playlist->getPosition() + 1) + "/" +
-                                      convertInt(playlist->entries()));
-
+                    {
+                        prevTrack();
                         break;
+                    }
                     case SDLK_LEFT:
+                    {
                         seek = 1;
                         break;
+                    }
                     case SDLK_RIGHT:
+                    {
                         seek = 2;
                         break;
+                    }
                     case SDLK_SPACE:
-                        audio->play(!audio->isPlaying());
+                    {
+                        playPause();
                         break;
+                    }
                     case SDLK_r:
                         stream->seekTo(0);
                     default:
@@ -394,7 +417,7 @@ void Player::Run(std::vector<std::string> args)
                 break;
             } // end switch
             if (sdone) {
-                synthesizeKeyEvent(SDLK_n);
+                done = !nextTrack();
                 sdone = false;
             }
             if (done) break;
