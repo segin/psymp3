@@ -23,30 +23,58 @@ You can reach me at <segin2005@gmail.com>.
 2. SYSTEM REQUIREMENTS
 
    Windows NT:
-	NT 4.0 or later, Windows 2000 recommended
+	NT 4.0 for i386 or later, Windows 2000 recommended.
 	Minimum CPU isn't known currently, 1GHz Pentium III is my current guess
-	64MB of RAM, not counting your OS configuration or other software.
+	64MB of RAM
 	DirectDraw-accelerated drivers help.
+	(Note: Itanium not officially supported due to poor WOW64 emulator performance.)
 
-   Linux, *BSD:
+   Windows x64:
+    Windows XP Professional x64 Service Pack 2 or later, Windows 7 recommended.
+    Any CPU compatible with your OS
+    96MB of RAM
+
+   Linux, *BSD, Solaris:
 	glibc-2.3 or later, FreeBSD 6, NetBSD 4, or OpenBSD 3.5 or later recommended.
 	Older releases may or may not work; please email your results!
 	X11 is recommended, or an SDL compiled to use some other graphics output.
 	POSIX threads. On Linux, NTPL is recommended (requires kernel 2.6.9 or later)
+	The following dependencies are required:
+	 SDL 1.2.13 or later
+	 mpg123-1.10 or later
+     libvisual-0.4 or later
+     libvorbis
+     libogg
+     FreeType 2.4 or later
+     SDL_ttf 1.2 or later
+     SDL_gfx 2.0 or later
+     zlib-1.2.3 or later
 
    Mac OS X:
-	Windows installed in Boot Camp, or Darwine
-	An Intel CPU is probably also required, although PowerPC might work later on.
+	Not officially supported, but building the dependencies for Linux/BSD with MacPorts might work.
 
-3. NOTES
+3. USAGE
+
+Pass the paths to the MP3s or Ogg Vorbis files to be played as program arguments.
+Audio files will be played in the order they are passed on the command line.
+All user interaction, aside from clicking the 'close' button for the window, is done via the keyboard.
+
+Keys and what they do:
+  * ESC and Q: Quit PsyMP3.
+  * Space: Pause (or resume) playback.
+  * R: Restart the current track from the beginning
+  * N: Seek to the next track.
+  * P: Seek to the previous track.
+
+4. NOTES
 
 At this time, PsyMP3 2.x is incomplete. There's very little UI code, and most
 features are missing at this time. If you are a developer, and are interested
 in helping me, please email me above.
 
 If you are an end user and you don't like this program, feel free to use
-something else.
+something else, and check back later for improvements
 
-At this current time, you need to provide it exactly one argument; the path to a
-valid mp3 file. Failure to comply will result in a crash :) You have been warned.
-
+Unicode ID3 tags are supported. Please replace the included 'vera.ttf' with a different
+font file containing the Unicode glpyhs you desire. Advanced text layout is not supported
+(e.g. connected Arabic characters.)

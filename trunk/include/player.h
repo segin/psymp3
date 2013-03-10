@@ -22,6 +22,12 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
+struct atdata {
+    Stream *stream;
+    FastFourier *fft;
+    Mutex *mutex;
+};
+
 /* PsyMP3 main class! */
 
 class Player
@@ -56,6 +62,7 @@ class Player
         Mutex *mutex;
         System *system;
         std::map<std::string, Surface> info;
+        struct atdata ATdata;
 };
 
 #endif // PLAYER_H
