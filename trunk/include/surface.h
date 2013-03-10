@@ -31,6 +31,7 @@ class Surface
         Surface();
         Surface(SDL_Surface *sfc);
         Surface(int width, int height);
+        Surface& operator= (const Surface &rhs);
         virtual ~Surface();
         static Surface& FromBMP(const char *a_file);
         static Surface& FromBMP(std::string a_file);

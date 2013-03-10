@@ -39,6 +39,12 @@ Surface::Surface(int width, int height)
     m_handle = SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0, 0, 0, 0);
 }
 
+Surface& Surface::operator= (const Surface &rhs)
+{
+    if (m_handle) SDL_FreeSurface(m_handle);
+    m_handle = rhs.m_handle;
+}
+
 Surface::~Surface()
 {
     //dtor
