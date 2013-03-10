@@ -248,16 +248,13 @@ void Player::Run(std::vector<std::string> args)
     audio->play(true);
     // if (system) system->progressState(TBPF_NORMAL);
     timer = SDL_AddTimer(33, AppLoopTimer, NULL);
-    while (!done)
-    {
+    while (!done) {
         bool sdone = false;
         // message processing loop
         SDL_Event event;
-        while (SDL_WaitEvent(&event))
-        {
+        while (SDL_WaitEvent(&event)) {
             // check for messages
-            switch (event.type)
-            {
+            switch (event.type) {
                 // exit if the window is closed
             case SDL_QUIT:
                 done = true;
@@ -265,57 +262,66 @@ void Player::Run(std::vector<std::string> args)
 
                 // check for keypresses
             case SDL_KEYDOWN:
+            {
+                // exit if ESCAPE is pressed
+                switch (event.key.keysym.sym) {
+                case SDLK_ESCAPE:
+                case SDLK_q:
+                    done = true;
+                    break;
+                case SDLK_n:
                 {
-                    // exit if ESCAPE is pressed
-                    switch (event.key.keysym.sym) {
-                    case SDLK_ESCAPE:
-                    case SDLK_q:
-                        done = true;
-                        break;
-                    case SDLK_n:
+                    done = !nextTrack();
+                    break;
+                }
+                case SDLK_p:
+                {
+                    prevTrack();
+                    break;
+                }
+                case SDLK_LEFT:
+                {
+                    seek = 1;
+                    break;
+                }
+                case SDLK_RIGHT:
+                {
+                    seek = 2;
+                    break;
+                }
+                case SDLK_SPACE:
+                {
+                    playPause();
+                    break;
+                }
+                case SDLK_r:
+                    stream->seekTo(0);
+                default:
+                    break;
+                }
+                break;
+            }
+            case SDL_KEYUP:
+            {
+                switch (event.key.keysym.sym) {
+                case SDLK_LEFT:
+                case SDLK_RIGHT:
+                    seek = 0;
+                default:
+                    break;
+                }
+            }
+            case SDL_USEREVENT:
+                switch(event.user.code) {
+                    case DO_NEXT_TRACK
                     {
                         done = !nextTrack();
                         break;
                     }
-                    case SDLK_p:
+                    case
                     {
-                        prevTrack();
-                        break;
+
                     }
-                    case SDLK_LEFT:
-                    {
-                        seek = 1;
-                        break;
-                    }
-                    case SDLK_RIGHT:
-                    {
-                        seek = 2;
-                        break;
-                    }
-                    case SDLK_SPACE:
-                    {
-                        playPause();
-                        break;
-                    }
-                    case SDLK_r:
-                        stream->seekTo(0);
-                    default:
-                        break;
-                    }
-                    break;
-                }
-            case SDL_KEYUP:
-                {
-                    switch (event.key.keysym.sym) {
-                    case SDLK_LEFT:
-                    case SDLK_RIGHT:
-                        seek = 0;
-                    default:
-                        break;
-                    }
-                }
-            case SDL_USEREVENT:
-                switch(event.user.code) {
                     case RUN_GUI_ITERATION:
                     {
                         gui_iteration_running = true;
