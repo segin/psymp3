@@ -2,7 +2,7 @@
 1310364222 source:/home/segin/psymp3/main.cpp
 	"psymp3.h"
 
-1301615163 /usr/include/SDL/SDL.h
+1327665706 /usr/include/SDL/SDL.h
 	"SDL_main.h"
 	"SDL_stdinc.h"
 	"SDL_audio.h"
@@ -21,14 +21,14 @@
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_main.h
+1327665706 /usr/include/SDL/SDL_main.h
 	"SDL_stdinc.h"
 	"begin_code.h"
 	"close_code.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_stdinc.h
+1327665706 /usr/include/SDL/SDL_stdinc.h
 	"SDL_config.h"
 	<sys/types.h>
 	<stdio.h>
@@ -54,17 +54,17 @@
 	<stdlib.h>
 	"close_code.h"
 
-1301615164 /usr/include/SDL/SDL_config.h
+1327665706 /usr/include/SDL/SDL_config.h
 	"SDL_platform.h"
 	<stdarg.h>
 
-1301615163 /usr/include/SDL/SDL_platform.h
+1327665706 /usr/include/SDL/SDL_platform.h
 
-1301615163 /usr/include/SDL/begin_code.h
+1327665706 /usr/include/SDL/begin_code.h
 
-1301615164 /usr/include/SDL/close_code.h
+1327665706 /usr/include/SDL/close_code.h
 
-1301615163 /usr/include/SDL/SDL_audio.h
+1327665706 /usr/include/SDL/SDL_audio.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"SDL_endian.h"
@@ -74,23 +74,23 @@
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_error.h
+1327665706 /usr/include/SDL/SDL_error.h
 	"SDL_stdinc.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_endian.h
+1327665706 /usr/include/SDL/SDL_endian.h
 	"SDL_stdinc.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_mutex.h
+1327665706 /usr/include/SDL/SDL_mutex.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_thread.h
+1327665706 /usr/include/SDL/SDL_thread.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"SDL_mutex.h"
@@ -98,24 +98,24 @@
 	<process.h>
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_rwops.h
+1327665706 /usr/include/SDL/SDL_rwops.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_cdrom.h
+1327665706 /usr/include/SDL/SDL_cdrom.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_cpuinfo.h
+1327665706 /usr/include/SDL/SDL_cpuinfo.h
 	"SDL_stdinc.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_events.h
+1327665706 /usr/include/SDL/SDL_events.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"SDL_active.h"
@@ -126,58 +126,58 @@
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_active.h
+1327665706 /usr/include/SDL/SDL_active.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_keyboard.h
+1327665706 /usr/include/SDL/SDL_keyboard.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"SDL_keysym.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_keysym.h
+1327665706 /usr/include/SDL/SDL_keysym.h
 
-1301615163 /usr/include/SDL/SDL_mouse.h
+1327665706 /usr/include/SDL/SDL_mouse.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"SDL_video.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_video.h
+1327665706 /usr/include/SDL/SDL_video.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"SDL_rwops.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_joystick.h
+1327665706 /usr/include/SDL/SDL_joystick.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_quit.h
+1327665706 /usr/include/SDL/SDL_quit.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 
-1301615163 /usr/include/SDL/SDL_loadso.h
-	"SDL_stdinc.h"
-	"SDL_error.h"
-	"begin_code.h"
-	"close_code.h"
-
-1301615163 /usr/include/SDL/SDL_timer.h
+1327665706 /usr/include/SDL/SDL_loadso.h
 	"SDL_stdinc.h"
 	"SDL_error.h"
 	"begin_code.h"
 	"close_code.h"
 
-1301615163 /usr/include/SDL/SDL_version.h
+1327665706 /usr/include/SDL/SDL_timer.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"begin_code.h"
+	"close_code.h"
+
+1327665706 /usr/include/SDL/SDL_version.h
 	"SDL_stdinc.h"
 	"begin_code.h"
 	"close_code.h"
@@ -202,7 +202,7 @@
 
 1310343517 /home/segin/psymp3/include//track.h
 
-1311930378 source:/home/segin/psymp3/src/track.cpp
+1362270415 source:/home/segin/psymp3/src/track.cpp
 	"psymp3.h"
 
 1310273332 /home/segin/psymp3/include//playlist.h
@@ -219,36 +219,55 @@
 1301615163 /usr/include/SDL/SDL_types.h
 	"SDL_stdinc.h"
 
-1287169885 /usr/include/SDL/SDL_gfxPrimitives.h
+1326466595 /usr/include/SDL/SDL_gfxPrimitives.h
 	<math.h>
 	"SDL.h"
 
 1310360248 /home/segin/psymp3/include//player.h
 
-1312787142 /home/segin/psymp3/include/psymp3.h
+1362905467 /home/segin/psymp3/include/psymp3.h
 	<iostream>
+	<map>
 	<string>
 	<sstream>
 	<vector>
+	<exception>
+	<typeinfo>
 	<cstdlib>
 	<stdlib.h>
 	<SDL/SDL.h>
 	<SDL/SDL_gfxPrimitives.h>
 	<SDL/SDL_ttf.h>
+	<SDL/SDL_thread.h>
+	<SDL/SDL_mutex.h>
 	<SDL.h>
 	<SDL_gfxPrimitives.h>
 	<SDL_ttf.h>
+	<SDL_thread.h>
+	<SDL_mutex.h>
 	<libvisual/libvisual.h>
 	<mpg123.h>
 	<vorbis/vorbisfile.h>
 	<taglib/tag.h>
 	<taglib/fileref.h>
+	<windows.h>
+	<initguid.h>
+	<tchar.h>
+	<lm.h>
+	<shlobj.h>
+	<SDL_syswm.h>
+	"exceptions.h"
+	"system.h"
+	"mutex.h"
 	"stream.h"
 	"libmpg123w.h"
 	"vorbisw.h"
+	"mediafile.h"
 	"audio.h"
 	"fft_draw.h"
 	"about.h"
+	"sqlite3.h"
+	"persistentstorage.h"
 	"track.h"
 	"song.h"
 	"scrobble.h"
@@ -260,31 +279,31 @@
 	"font.h"
 	"player.h"
 
-1311930423 /home/segin/psymp3/include/track.h
+1362270415 /home/segin/psymp3/include/track.h
 
-1310273332 /home/segin/psymp3/include/playlist.h
+1362247258 /home/segin/psymp3/include/playlist.h
 
-1312791532 /home/segin/psymp3/include/player.h
+1362879883 /home/segin/psymp3/include/player.h
 
-1310627734 /home/segin/psymp3/include/display.h
+1362868289 /home/segin/psymp3/include/display.h
 
-1312895069 source:/home/segin/psymp3/src/fft_draw.cpp
+1361179033 source:/home/segin/psymp3/src/fft_draw.cpp
 	"psymp3.h"
 
-1312791040 /home/segin/psymp3/include/fft_draw.h
+1362868289 /home/segin/psymp3/include/fft_draw.h
 
-1312895259 source:/home/segin/psymp3/src/player.cpp
+1362886539 source:/home/segin/psymp3/src/player.cpp
 	"psymp3.h"
 
-1310343531 source:/home/segin/psymp3/src/playlist.cpp
+1362300376 source:/home/segin/psymp3/src/playlist.cpp
 	"psymp3.h"
 
-1310638731 source:/home/segin/psymp3/src/display.cpp
+1362868120 source:/home/segin/psymp3/src/display.cpp
 	"psymp3.h"
 
-1312794365 /home/segin/psymp3/include/surface.h
+1362875608 /home/segin/psymp3/include/surface.h
 
-1312794350 source:/home/segin/psymp3/src/surface.cpp
+1362868121 source:/home/segin/psymp3/src/surface.cpp
 	"psymp3.h"
 
 1310361256 /home/segin/psymp3/include//surface.h
@@ -293,59 +312,59 @@
 
 1310343530 /home/segin/psymp3/include//fft_draw.h
 
-1311921068 /home/segin/psymp3/include/about.h
+1362868289 /home/segin/psymp3/include/about.h
 
-1310603940 source:/home/segin/psymp3/src/about.cpp
+1362867966 source:/home/segin/psymp3/src/about.cpp
 	"psymp3.h"
 
-1301737694 /usr/include/SDL/SDL_ttf.h
+1325205385 /usr/include/SDL/SDL_ttf.h
 	"SDL.h"
 	"begin_code.h"
 	"close_code.h"
 
-1312165032 /home/segin/psymp3/include/stream.h
+1362867966 /home/segin/psymp3/include/stream.h
 
-1312166032 /home/segin/psymp3/include/libmpg123w.h
+1362867966 /home/segin/psymp3/include/libmpg123w.h
 
-1310441376 /home/segin/psymp3/include/vorbisw.h
+1362867966 /home/segin/psymp3/include/vorbisw.h
 
-1310599420 /home/segin/psymp3/include/song.h
+1362868290 /home/segin/psymp3/include/song.h
 
-1310457259 /home/segin/psymp3/include/scrobble.h
+1362868290 /home/segin/psymp3/include/scrobble.h
 
-1311992386 /home/segin/psymp3/include/truetype.h
+1362868290 /home/segin/psymp3/include/truetype.h
 
-1310639429 /home/segin/psymp3/include/font.h
+1362868289 /home/segin/psymp3/include/font.h
 
-1310688865 source:/home/segin/psymp3/src/font.cpp
+1362868120 source:/home/segin/psymp3/src/font.cpp
 	"psymp3.h"
 
-1312787294 source:/home/segin/psymp3/src/libmpg123.cpp
+1362867966 source:/home/segin/psymp3/src/libmpg123.cpp
 	"psymp3.h"
 
-1310457224 source:/home/segin/psymp3/src/scrobble.cpp
+1362868121 source:/home/segin/psymp3/src/scrobble.cpp
 	"psymp3.h"
 
-1312100640 source:/home/segin/psymp3/src/stream.cpp
+1362270415 source:/home/segin/psymp3/src/stream.cpp
 	"psymp3.h"
 
-1310543747 source:/home/segin/psymp3/src/truetype.cpp
+1361179033 source:/home/segin/psymp3/src/truetype.cpp
 	"psymp3.h"
 
-1310442962 source:/home/segin/psymp3/src/vorbis.cpp
+1362867966 source:/home/segin/psymp3/src/vorbis.cpp
 	"psymp3.h"
 
-1312140987 /home/segin/psymp3/include/rect.h
+1362868290 /home/segin/psymp3/include/rect.h
 
-1312444113 source:/home/segin/psymp3/src/rect.cpp
+1362868121 source:/home/segin/psymp3/src/rect.cpp
 	"psymp3.h"
 
-1312791844 /home/segin/psymp3/include/audio.h
+1362868289 /home/segin/psymp3/include/audio.h
 
-1312895259 source:/home/segin/psymp3/src/audio.cpp
+1362867965 source:/home/segin/psymp3/src/audio.cpp
 	"psymp3.h"
 
-1280315616 /usr/include/libvisual-0.4/libvisual/libvisual.h
+1319640355 /usr/include/libvisual-0.4/libvisual/libvisual.h
 	<libvisual/lvconfig.h>
 	<libvisual/lv_bits.h>
 	<libvisual/lv_time.h>
@@ -387,20 +406,20 @@
 	<libvisual/lv_os.h>
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lvconfig.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lvconfig.h
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_bits.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_bits.h
 	<libvisual/lvconfig.h>
 	<libvisual/lv_defines.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_defines.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_defines.h
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_time.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_time.h
 	<sys/time.h>
 	<time.h>
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_common.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_common.h
 	<libvisual/lv_defines.h>
 	<libvisual/lv_mem.h>
 	<libvisual/lv_log.h>
@@ -408,11 +427,11 @@
 	<libvisual/lv_types.h>
 	<libvisual/lv_object.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_mem.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_mem.h
 	<libvisual/lvconfig.h>
 	<libvisual/lv_defines.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_log.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_log.h
 	<stdio.h>
 	<string.h>
 	<stdarg.h>
@@ -422,90 +441,90 @@
 	<signal.h>
 	<signal.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_error.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_error.h
 	<libvisual/lv_defines.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_types.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_types.h
 	<libvisual/lv_defines.h>
 	<stdint.h>
 	<sys/types.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_object.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_object.h
 	<libvisual/lv_defines.h>
 	<libvisual/lv_types.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_color.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_color.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_param.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_param.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_color.h>
 	<libvisual/lv_palette.h>
 	<libvisual/lv_list.h>
 	<libvisual/lv_event.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_palette.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_palette.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_color.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_list.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_list.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_collection.h>
 	<sys/queue.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_collection.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_collection.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_event.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_event.h
 	<libvisual/lv_songinfo.h>
 	<libvisual/lv_video.h>
 	<libvisual/lv_list.h>
 	<libvisual/lv_keysym.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_songinfo.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_songinfo.h
 	<libvisual/lv_time.h>
 	<libvisual/lv_video.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_video.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_video.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_palette.h>
 	<libvisual/lv_rectangle.h>
 	<libvisual/lv_buffer.h>
 	<libvisual/lv_gl.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_rectangle.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_rectangle.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_buffer.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_buffer.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_gl.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_gl.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_hashmap.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_hashmap.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_hashmap.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_list.h>
 	<libvisual/lv_collection.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_keysym.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_keysym.h
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_config.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_config.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_list.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_cpu.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_cpu.h
 	<libvisual/lvconfig.h>
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_bin.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_bin.h
 	<libvisual/lv_actor.h>
 	<libvisual/lv_input.h>
 	<libvisual/lv_morph.h>
 	<libvisual/lv_video.h>
 	<libvisual/lv_time.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_actor.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_actor.h
 	<libvisual/lv_audio.h>
 	<libvisual/lv_video.h>
 	<libvisual/lv_palette.h>
@@ -513,21 +532,21 @@
 	<libvisual/lv_songinfo.h>
 	<libvisual/lv_event.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_audio.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_audio.h
 	<libvisual/lv_fourier.h>
 	<libvisual/lv_time.h>
 	<libvisual/lv_ringbuffer.h>
 	<libvisual/lv_hashmap.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_fourier.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_fourier.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_ringbuffer.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_ringbuffer.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_list.h>
 	<libvisual/lv_buffer.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_plugin.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_plugin.h
 	<libvisual/lv_video.h>
 	<libvisual/lv_audio.h>
 	<libvisual/lv_palette.h>
@@ -541,32 +560,32 @@
 	"lvconfig.h"
 	<windows.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_ui.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_ui.h
 	<libvisual/lv_list.h>
 	<libvisual/lv_param.h>
 	<libvisual/lv_video.h>
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_random.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_random.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_input.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_input.h
 	<libvisual/lv_audio.h>
 	<libvisual/lv_plugin.h>
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_morph.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_morph.h
 	<libvisual/lv_palette.h>
 	<libvisual/lv_plugin.h>
 	<libvisual/lv_list.h>
 	<libvisual/lv_video.h>
 	<libvisual/lv_time.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_libvisual.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_libvisual.h
 	<libvisual/lv_param.h>
 	<libvisual/lv_ui.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_transform.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_transform.h
 	<libvisual/lv_audio.h>
 	<libvisual/lv_video.h>
 	<libvisual/lv_palette.h>
@@ -574,16 +593,16 @@
 	<libvisual/lv_songinfo.h>
 	<libvisual/lv_event.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_bmp.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_bmp.h
 	<libvisual/lv_video.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_cache.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_cache.h
 	<libvisual/lv_common.h>
 	<libvisual/lv_time.h>
 	<libvisual/lv_list.h>
 	<libvisual/lv_hashmap.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_thread.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_thread.h
 	<libvisual/lvconfig.h>
 	<libvisual/lv_common.h>
 	"lvconfig.h"
@@ -591,13 +610,13 @@
 	<pthread.h>
 	<glib/gthread.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_utils.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_utils.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_math.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_math.h
 	<libvisual/lv_common.h>
 
-1280315616 /usr/include/libvisual-0.4/libvisual/lv_os.h
+1319640355 /usr/include/libvisual-0.4/libvisual/lv_os.h
 	<libvisual/lv_common.h>
 
 1313228177 source:/usr/home/segin/psymp3/src/vorbis.cpp
@@ -1254,5 +1273,98 @@
 	"psymp3.h"
 
 1313279846 source:/usr/home/segin/psymp3/src/display.cpp
+	"psymp3.h"
+
+1327665706 /usr/include/SDL/SDL_syswm.h
+	"SDL_stdinc.h"
+	"SDL_error.h"
+	"SDL_version.h"
+	"begin_code.h"
+	<X11/Xlib.h>
+	<X11/Xatom.h>
+	<microwin/nano-X.h>
+	<windows.h>
+	<sys/neutrino.h>
+	<Ph.h>
+	"close_code.h"
+
+1362867965 /home/segin/psymp3/include/exceptions.h
+
+1362867965 /home/segin/psymp3/include/system.h
+
+1362868290 /home/segin/psymp3/include/mutex.h
+
+1362868290 /home/segin/psymp3/include/mediafile.h
+
+1361179032 /home/segin/psymp3/include/sqlite3.h
+	<stdarg.h>
+
+1362868290 /home/segin/psymp3/include/persistentstorage.h
+
+1362867965 source:/home/segin/psymp3/src/exceptions.cpp
+	"psymp3.h"
+
+1362868120 source:/home/segin/psymp3/src/main.cpp
+	"psymp3.h"
+
+1362868121 source:/home/segin/psymp3/src/mediafile.cpp
+	"psymp3.h"
+
+1362868121 source:/home/segin/psymp3/src/mutex.cpp
+	"psymp3.h"
+
+1362868121 source:/home/segin/psymp3/src/persistentstorage.cpp
+	"persistentstorage.h"
+
+1362868310 source:/home/segin/psymp3/src/song.cpp
+	"psymp3.h"
+
+1361179033 source:/home/segin/psymp3/src/sqlite3.c
+	"config.h"
+	<stdint.h>
+	<inttypes.h>
+	<tcl.h>
+	<stdarg.h>
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<assert.h>
+	<stddef.h>
+	<windows.h>
+	<os2safe.h>
+	<os2.h>
+	<uconv.h>
+	<ctype.h>
+	<time.h>
+	<pthread.h>
+	<math.h>
+	<sys/types.h>
+	<sys/stat.h>
+	<fcntl.h>
+	<unistd.h>
+	<sys/time.h>
+	<errno.h>
+	<sys/mman.h>
+	<sys/ioctl.h>
+	<semaphore.h>
+	<limits.h>
+	<sys/file.h>
+	<sys/param.h>
+	<sys/mount.h>
+	<utime.h>
+	<dlfcn.h>
+	<winbase.h>
+	<sys/cygwin.h>
+	"sqlite3rtree.h"
+	<unicode/utypes.h>
+	<unicode/uregex.h>
+	<unicode/ustring.h>
+	<unicode/ucol.h>
+	<unicode/ubrk.h>
+	<unicode/utf16.h>
+
+1361179796 /home/segin/psymp3/include/config.h
+
+1361807767 source:/home/segin/psymp3/src/system.cpp
 	"psymp3.h"
 
