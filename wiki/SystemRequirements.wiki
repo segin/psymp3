@@ -6,33 +6,33 @@ The system requirements for PsyMP3 2.x aren't very incredible, but in general:
 = Microsoft Windows =
 
 == 32-bit ==
+ 
+  * Windows NT 4.0 with Service Pack 6a or later (i386 only)
+  * Intel Pentium III or later. Due to the use of SSE, older processors are not supported. "nosse" builds may be released in case this is a problem for anyone.
+  * 64MB of RAM
+  * At least 20MB free disk space.
+  * 24-bit display or better. 16-bit might work, but it is untested.
 
-Windows NT 4.0 with Service Pack 6a or later (i386 only)
-Intel Pentium III or later. Due to the use of SSE, older processors are not supported. "nosse" builds may be released in case this is a problem for anyone.
-64MB of RAM
-At least 20MB free disk space.
-24-bit display or better. 16-bit might work, but it is untested.
-
-Intel Itanium is unsupported but may work. Use at your own risk.
+Intel Itanium is unsupported but may work. *Use at your own risk!*
 
 == 64-bit ==
 
-Windows XP Professional x64 or later.
-AMD Athlon64 or later, or Intel Pentium 4 with Intel 64 or later.
-128MB of RAM
-At least 20MB free disk space.
-24-bit display or better.
+  * Windows XP Professional x64 or later.
+  * AMD Athlon64 or later, or Intel Pentium 4 with Intel 64 or later.
+  * 128MB of RAM
+  * At least 20MB free disk space.
+  * 24-bit display or better.
 
 = Unix =
 
-Linux: Linux 2.4/2.6 or later with glibc 2.3 or later
-FreeBSD: FreeBSD 6.2-RELEASE or later
-NetBSD: NetBSD 3.0 or later
-OpenBSD: OpenBSD 3.2 or later
-DragonFlyBSD, Solaris: Not sure, any recent version should work flawlessly.
-Minix: 3.2 or later.
+  * Linux: Linux 2.4/2.6 or later with glibc 2.3 or later
+  * FreeBSD: FreeBSD 6.2-RELEASE or later
+  * NetBSD: NetBSD 3.0 or later
+  * OpenBSD: OpenBSD 3.2 or later
+  * DragonFlyBSD, Solaris: Not sure, any recent version should work flawlessly.
+  * Minix: 3.2 or later.
 
-GCC 3.4 or later
-All libraries listed in the NextGenDeps list
-An appropriate SDL-supported display method (X11, Wayland/Weston, DirectFB, etc.)
-An appropriate SDL-supported audio output method (ALSA, PulseAudio, etc.)
+  * GCC 3.4 or later
+  * All libraries listed in the NextGenDeps list
+  * An appropriate SDL-supported display method (X11, Wayland/Weston, DirectFB, etc.)
+  *An appropriate SDL-supported audio output method (ALSA, PulseAudio, etc.)
