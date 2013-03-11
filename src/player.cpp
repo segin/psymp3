@@ -159,8 +159,13 @@ bool Player::stop(void)
 
 bool Player::pause(void)
 {
-    audio->play(false);
-    state = PAUSED;
+    if (state != STOPPED) {
+        audio->play(false);
+        state = PAUSED;
+        return true;
+    } else {
+        return false;
+    }
 }
 
 bool Player::play(void)
@@ -246,6 +251,7 @@ void Player::Run(std::vector<std::string> args)
     // program main loop
     bool done = false;
     audio->play(true);
+    state = PLAYING;
     // if (system) system->progressState(TBPF_NORMAL);
     timer = SDL_AddTimer(33, AppLoopTimer, NULL);
     while (!done) {
