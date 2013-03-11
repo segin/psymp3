@@ -1,0 +1,9 @@
+#summary PsyMP3 architecture
+
+= Introduction =
+
+This is a description of the PsyMP3 2.x architecture.
+
+= Startup =
+
+PsyMP3 starts up 
