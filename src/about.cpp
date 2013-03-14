@@ -23,6 +23,10 @@
 
 static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
+            "Copyright © 2009-2013 Kirn Gill II <segin2005@gmail.com>\n"
+            "Copyright © 2010-2013 Mattis Michel <sic_zer0@hotmail.com>\n"
+            "Font \"Droid Sans Fallback\" is Copyright © 2006-2013 Google, Inc.\n"
+            "\n"
             "PsyMP3 is free software. You may redistribute and/or modify it under\n"
             "the terms of the GNU General Public License, either version 2,\n"
             "<http://www.gnu.org/licenses/gpl-2.0.html>, or at your option,\n"
