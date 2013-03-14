@@ -1,3 +1,7 @@
+1.90.1:
+  * Fixed a runaway memory leak that resulted in 2GiB of memory usage with just 1 hour of running PsyMP3.
+  * Fixed mixing files of different sample rates/channel counts resulting in broken playback.
+
 1.90.0:
   * First packaged release of the PsyMP3 2.x codebase!
   * Added a working runtime playlist.
