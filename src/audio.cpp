@@ -31,14 +31,15 @@ Audio::Audio(struct atdata *data)
 Audio::~Audio()
 {
     play(false);
+    SDL_CloseAudio();
 }
 
 void Audio::setup(struct atdata *data)
 {
     SDL_AudioSpec fmt;
-    fmt.freq = m_stream->getRate();
+    fmt.freq = m_rate = m_stream->getRate();
     fmt.format = AUDIO_S16; /* Always, I hope */
-    fmt.channels = m_stream->getChannels();
+    fmt.channels = m_channels = m_stream->getChannels();
     std::cout << "Audio::setup: channels: " << m_stream->getChannels() << std::endl;
     fmt.samples = 512 * fmt.channels; /* 512 samples for fft */
     fmt.callback = callback;
@@ -58,10 +59,28 @@ void Audio::play(bool go)
         SDL_PauseAudio(1);
 }
 
+/* Reopen due to format change across tracks. */
+void Audio::reopen(struct atdata *data)
+{
+    m_stream = data->stream;
+    std::cout << "Audio::reopen(): " << std::dec << m_stream->getRate() << "Hz, channels: " << std::dec << m_stream->getChannels() << std::endl;
+    SDL_CloseAudio();
+    setup(data);
+}
+
+void Audio::lock(void)
+{
+    SDL_LockAudio();
+}
+
+void Audio::unlock(void)
+{
+    SDL_UnlockAudio();
+}
+
 /* Actually push the audio to the soundcard.
  * Audio is summed to mono (if stereo) and then FFT'd.
  */
-
 void Audio::callback(void *data, Uint8 *buf, int len)
 {
     struct atdata *ldata = (struct atdata *) data;
@@ -71,13 +90,13 @@ void Audio::callback(void *data, Uint8 *buf, int len)
 #ifdef _AUDIO_DEBUG
     std::cout << "callback: len " << std::dec << len << std::endl;
 #endif
-    mutex->lock();
+   // mutex->lock();
     stream->getData(len, (void *) buf);
     if(!gui_iteration_running) {
         toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
         fft->doFFT();
     }
-    mutex->unlock();
+   // mutex->unlock();
 }
 
 void Audio::toFloat(int channels, int16_t *in, float *out)

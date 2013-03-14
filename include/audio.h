@@ -32,11 +32,18 @@ class Audio
         static void callback(void *data, Uint8 *buf, int len);
         static void toFloat(int channels, int16_t *in, float *out); // 512 samples of stereo
         bool isPlaying() { return m_playing; };
+        int getRate() { return m_rate; };
+        int getChannels() { return m_channels; };
+        void reopen(struct atdata *data);
+        void lock(void);
+        void unlock(void);
     protected:
     private:
         void setup(struct atdata *data);
         Stream *m_stream;
         bool m_playing;
+        int  m_rate;
+        int  m_channels;
 };
 
 #endif // AUDIO_H

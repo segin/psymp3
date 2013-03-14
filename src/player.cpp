@@ -108,6 +108,32 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
     return interval;
 }
 
+void Player::openTrack(TagLib::String path)
+{
+    audio->lock();
+    if (stream) {
+        delete stream;
+    }
+    stream = MediaFile::open(path);
+    ATdata.stream = stream;
+    if (stream && (audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
+        pause();
+        audio->unlock();
+        delete audio;
+        audio = new Audio(&ATdata);
+        play();
+    } else {
+        audio->unlock();
+    }
+    info["artist"] = font->Render("Artist: " + stream->getArtist());
+    info["title"] = font->Render("Title: " + stream->getTitle());
+    info["album"] = font->Render("Album: " + stream->getAlbum());
+    info["playlist"] = font->Render("Playlist: " +
+        convertInt(playlist->getPosition() + 1) + "/" +
+        convertInt(playlist->entries()));
+    return;
+}
+
 /* Player control functions */
 bool Player::nextTrack(void)
 {
@@ -115,40 +141,14 @@ bool Player::nextTrack(void)
     if (nextfile == "") {
         return false;
     } else {
-        mutex->lock();
-        if (stream) {
-            delete stream;
-        }
-        stream = MediaFile::open(nextfile);
-        ATdata.stream = stream;
-        mutex->unlock();
-        info["artist"] = font->Render("Artist: " + stream->getArtist());
-        info["title"] = font->Render("Title: " + stream->getTitle());
-        info["album"] = font->Render("Album: " + stream->getAlbum());
-        info["playlist"] = font->Render("Playlist: " +
-            convertInt(playlist->getPosition() + 1) + "/" +
-            convertInt(playlist->entries()));
-
+        openTrack(nextfile);
     }
     return true;
 }
 
 bool Player::prevTrack(void)
 {
-   mutex->lock();
-    if (stream) {
-        delete stream;
-    }
-    stream = MediaFile::open(playlist->prev());
-    ATdata.stream = stream;
-    mutex->unlock();
-    info["artist"] = font->Render("Artist: " + stream->getArtist());
-    info["title"] = font->Render("Title: " + stream->getTitle());
-    info["album"] = font->Render("Album: " + stream->getAlbum());
-    info["playlist"] = font->Render("Playlist: " +
-        convertInt(playlist->getPosition() + 1) + "/" +
-        convertInt(playlist->entries()));
-    return true;
+    openTrack(playlist->prev());
 }
 
 bool Player::stop(void)

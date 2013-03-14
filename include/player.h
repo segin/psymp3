@@ -47,6 +47,7 @@ class Player
         bool pause(void);
         bool play(void);
         bool playPause(void);
+        void openTrack(TagLib::String path);
     protected:
         int state;
     private:
