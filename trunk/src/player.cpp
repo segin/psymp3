@@ -108,6 +108,10 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
     return interval;
 }
 
+/* If we're stopped or paused when a new track is requested, we should
+ * switch to playing - this is consistent with the majority of players
+ * on the market.
+ */
 void Player::openTrack(TagLib::String path)
 {
     audio->lock();
@@ -117,11 +121,10 @@ void Player::openTrack(TagLib::String path)
     stream = MediaFile::open(path);
     ATdata.stream = stream;
     if (stream && (audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
-        pause();
+        pause(); /* otherwise a race condition can occur */
         audio->unlock();
         delete audio;
         audio = new Audio(&ATdata);
-        play();
     } else {
         audio->unlock();
     }
@@ -131,6 +134,7 @@ void Player::openTrack(TagLib::String path)
     info["playlist"] = font->Render("Playlist: " +
         convertInt(playlist->getPosition() + 1) + "/" +
         convertInt(playlist->entries()));
+    play();
     return;
 }
 
