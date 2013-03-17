@@ -21,15 +21,33 @@
 
 #include "psymp3.h"
 
+std::vector<std::string> &MediaFile::split(const std::string &s, char delim, std::vector<std::string> &elems)
+{
+    std::stringstream ss(s);
+    std::string item;
+    while(std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+    return elems;
+}
+
+std::vector<std::string> MediaFile::split(const std::string &s, char delim)
+{
+    std::vector<std::string> elems;
+    split(s, delim, elems);
+    return elems;
+}
+
 Stream *MediaFile::open(TagLib::String name)
 {
-    TagLib::String a = name.substr(name.size() - 3).upper();
+    std::vector<std::string> tokens = split(name.to8Bit(true), '.');
+    TagLib::String ext(TagLib::String(tokens[tokens.size() - 1]).upper());
 #ifdef DEBUG
-    std::cout << "MediaFile::open(): " << a << std::endl;
+    std::cout << "MediaFile::open(): " << ext << std::endl;
 #endif
-    if(a == "MP3")
+    if(ext == "MP3")
         return new Libmpg123(name);
-    if(a == "OGG")
+    if(ext == "OGG")
         return new Vorbis(name);
     throw InvalidMediaException("Unsupported format!");
 }
