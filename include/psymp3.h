@@ -43,6 +43,7 @@ enum {
 };
 
 // system includes - runtime libraries
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <string>
@@ -72,6 +73,7 @@ enum {
 #include <SDL_mutex.h>
 #endif
 #include <libvisual/libvisual.h>
+#include <FLAC++/decoder.h>
 #include <mpg123.h>
 #include <vorbis/vorbisfile.h>
 #include <taglib/tag.h>
@@ -92,6 +94,7 @@ enum {
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
+#include "flac.h"
 #include "mediafile.h"
 #include "audio.h"
 #include "fft_draw.h"
