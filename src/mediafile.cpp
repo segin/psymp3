@@ -40,7 +40,11 @@ std::vector<std::string> MediaFile::split(const std::string &s, char delim)
 
 Stream *MediaFile::open(TagLib::String name)
 {
+#ifdef _RISCOS
+    std::vector<std::string> tokens = split(name.to8Bit(true), '/');
+#else
     std::vector<std::string> tokens = split(name.to8Bit(true), '.');
+#endif
     TagLib::String ext(TagLib::String(tokens[tokens.size() - 1]).upper());
 #ifdef DEBUG
     std::cout << "MediaFile::open(): " << ext << std::endl;
