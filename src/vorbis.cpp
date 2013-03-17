@@ -37,7 +37,7 @@ Vorbis::~Vorbis()
 
 void Vorbis::open(TagLib::String name)
 {
-    int ret = ov_fopen(name.toCString(true), (OggVorbis_File *) m_handle);
+    int ret = ov_fopen((char *) name.toCString(true), (OggVorbis_File *) m_handle);
     switch (ret) {
     case OV_ENOTVORBIS:
         // throw WrongFormatException();
