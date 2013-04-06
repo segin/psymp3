@@ -1,0 +1,29 @@
+#summary Release notes for PsyMP3
+#labels Phase-Deploy,Featured
+
+= PsyMP3 1.90.0 Release Notes =
+
+== Windows == 
+
+PsyMP3 1.90.0-ALPHA does not have any of the Windows GUI features of the previous 1.2.1-RELEASE. This is a result of throwing out all the old code and rewriting it all from scratch.
+
+== Linux == 
+
+Compilation is known to fail during the linking step. This is due to a change in GNU binutils. At this time, there is no direct fix known. 
+
+However, if you copy-and-paste the linker command line and change the order of arguments, you can manually link PsyMP3. Hopefully a more permanent fix can be developed soon. 
+
+Consider this `make` output: 
+
+{{{segin@darvos:~/psymp3$ make
+Making all in src
+make[1]: Entering directory `/home/segin/psymp3/src'
+g++  -g -O2 -lmpg123 -ltag -lpthread -ldl -lvisual-0.4 -lvorbisfile -lvorbis -lm -logg -lSDL_gfx -lSDL   -lSDL_ttf  -o psymp3 about.o audio.o display.o exceptions.o fft_draw.o flac.o font.o libmpg123.o main.o mediafile.o mutex.o player.o playlist.o rect.o scrobble.o song.o sqlite3.o stream.o surface.o system.o track.o truetype.o vorbis.o  }}}
+
+Do a `cd` into the `src` directory, and reorder the command line arguments so that the -l flags come after the .o object files, such as:
+
+`g++  -g -O2 -o psymp3 about.o audio.o display.o exceptions.o fft_draw.o flac.o font.o libmpg123.o main.o mediafile.o mutex.o player.o playlist.o rect.o scrobble.o song.o sqlite3.o stream.o surface.o system.o track.o truetype.o vorbis.o -lmpg123 -ltag -lpthread -ldl -lvisual-0.4 -lvorbisfile -lvorbis -lm -logg -lSDL_gfx -lSDL   -lSDL_ttf`
+
+== Known Bugs ==
+
+There is a memory leak reported in issue 27, and subsequently fixed in Subversion as of revision 357, and this fix will be released as part of 1.90.1.
