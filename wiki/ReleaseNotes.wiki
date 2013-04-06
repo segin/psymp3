@@ -9,7 +9,7 @@ PsyMP3 1.90.0-ALPHA does not have any of the Windows GUI features of the previou
 
 == Linux == 
 
-Compilation is known to fail during the linking step. This is due to a change in GNU binutils. At this time, there is no direct fix known. 
+Compilation is known to fail during the linking step. This does not occur on all distributions, This is due to a change in GNU binutils. At this time, there is no direct fix known at this time. This issue is not present on FreeBSD 9.0.
 
 However, if you copy-and-paste the linker command line and change the order of arguments, you can manually link PsyMP3. Hopefully a more permanent fix can be developed soon. 
 
