@@ -1,5 +1,5 @@
-AC_PREREQ([2.63])
-AC_INIT([PsyMP3], [1.99.0], [segin2005@gmail.com], [psymp3], [http://code.google.com/p/psymp3])
+AC_PREREQ([2.69])
+AC_INIT([PsyMP3], [1.99.2], [segin2005@gmail.com], [psymp3], [http://code.google.com/p/psymp3])
 AM_INIT_AUTOMAKE([1.10])
 
 AC_PROG_CPP
