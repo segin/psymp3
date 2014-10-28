@@ -1,5 +1,5 @@
 #!/bin/sh
 
-aclocal --add-missing
-autoconf --add-missing
+aclocal 
 automake --add-missing
+autoconf
