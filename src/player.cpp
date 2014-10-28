@@ -197,6 +197,26 @@ bool Player::playPause(void)
 
 /* Internal UI compartments */
 
+void Player::renderSpectrum(Surface *graph)
+{
+    float *spectrum = fft->getFFT();
+    for (int x = 0; x < 350; x++) {
+        graph->hline(0, 639, x, 64);
+    }
+    for(uint16_t x=0; x < 320; x++) {
+        // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
+        if (x > 213) {
+            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
+        } else if (x < 106) {
+            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 3.98) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.398), 255);
+        } else {
+            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.2)), (uint8_t) (255 - ((x - 106) * 2.4)), 255, 255);
+        }
+    };
+}
+
+
+
 /* Main player functionality */
 void Player::Run(std::vector<std::string> args)
 {
@@ -397,21 +417,7 @@ void Player::Run(std::vector<std::string> args)
                                 screen->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
                             }
                         };
-                        float *spectrum = fft->getFFT();
-                        for (int x = 0; x < 350; x++) {
-                            graph->hline(0, 639, x, 64);
-                        }
-                        for(uint16_t x=0; x < 320; x++) {
-                            // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
-                            if (x > 213) {
-                                graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
-                            } else if (x < 106) {
-                                graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.4), 255);
-                            } else {
-                                graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.2)), (uint8_t) (255 - ((x - 106) * 2.4)), 255, 255);
-                            }
-                        };
-
+                        this->renderSpectrum(graph);
                         mutex->unlock();
                         f.height(0);
                         f.width(0);
@@ -436,10 +442,6 @@ void Player::Run(std::vector<std::string> args)
             if (done) break;
 
         } // end of message processing
-
-        // DRAWING STARTS HERE
-
-        // clear screen
 
     } // end main loop
 
