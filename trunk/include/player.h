@@ -50,9 +50,10 @@ class Player
         void openTrack(TagLib::String path);
     protected:
         int state;
+        void renderSpectrum(Surface *graph);
     private:
         void updateInfo(void);
-        void updateGraph(void);
+
         Display *screen;
         Surface *graph;
         Playlist *playlist;
