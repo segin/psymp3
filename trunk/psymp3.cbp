@@ -4,13 +4,13 @@
 	<Project>
 		<Option title="psymp3" />
 		<Option pch_mode="2" />
-		<Option compiler="icc" />
+		<Option compiler="gcc" />
 		<Build>
 			<Target title="Debug">
 				<Option output="bin/Debug/psymp3" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj/Debug/" />
 				<Option type="1" />
-				<Option compiler="icc" />
+				<Option compiler="gcc" />
 				<Option parameters='&quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/01 - The Offspring - The Future Is Now.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/02 - The Offspring - Secrets From The Underground.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/03 - The Offspring - Days Go By.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/04 - The Offspring - Turning Into You.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/05 - The Offspring - Hurting As One.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/06 - The Offspring - Cruising California (Bumpin&apos; In My Trunk).mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/07 - The Offspring - All I Have Left Is You.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/08 - The Offspring - O.C. Guns.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/09 - The Offspring - Dirty Magic.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/10 - The Offspring - I Wanna Secret Family (With You).mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/11 - The Offspring - Dividing By Zero.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/12 - The Offspring - Slim Pickens Does the Right Thing and Rides the Bomb to Hell.mp3&quot;' />
 				<Compiler>
 					<Add option="-g" />
@@ -21,7 +21,7 @@
 				<Option output="bin/Release/psymp3" prefix_auto="1" extension_auto="1" />
 				<Option object_output="obj/Release/" />
 				<Option type="0" />
-				<Option compiler="icc" />
+				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-O2" />
 				</Compiler>
