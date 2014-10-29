@@ -53,5 +53,9 @@ void Widget::BlitTo(Surface& target)
 void Widget::operator=(const Surface& rhs)
 {
     m_handle = rhs.m_handle;
-    m_pos = Rect(0, 0);
+}
+
+void Widget::updatePosition(const Rect& position)
+{
+    m_pos = position;
 }
