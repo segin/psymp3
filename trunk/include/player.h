@@ -63,7 +63,7 @@ class Player
         FastFourier *fft;
         Mutex *mutex;
         System *system;
-        std::map<std::string, Surface> info;
+        std::map<std::string, Widget> info;
         struct atdata ATdata;
 };
 

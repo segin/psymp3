@@ -27,9 +27,12 @@ class Widget : public Surface
     public:
         Widget();
         virtual ~Widget();
+        Widget(const Surface& other);
         Widget(const Widget& other);
         Widget(const Surface& other, Rect& position);
         void BlitTo(Surface& target);
+        void operator=(const Surface& rhs);
+        void updatePosition(const Rect& position);
     protected:
     private:
         Rect m_pos;
