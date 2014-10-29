@@ -24,6 +24,7 @@
 #define SURFACE_H
 
 class Display;
+class Widget;
 
 class Surface
 {
@@ -57,8 +58,9 @@ class Surface
         int16_t width();
         SDL_Surface * getHandle();
         friend class Display;
+        friend class Widget;
     protected:
-        SDL_Surface * m_handle; //!< Member variable "m_handle"
+        SDL_Surface * m_handle;
     private:
 
 };

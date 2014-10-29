@@ -31,5 +31,15 @@ Widget::~Widget()
 
 Widget::Widget(const Widget& other)
 {
-    //copy ctor
+}
+
+Widget::Widget(const Surface& other, Rect& position) :
+    Surface(other),
+    m_pos(position)
+{
+}
+
+void Widget::BlitTo(Surface& target)
+{
+    target.Blit(*this, m_pos);
 }

@@ -28,8 +28,11 @@ class Widget : public Surface
         Widget();
         virtual ~Widget();
         Widget(const Widget& other);
+        Widget(const Surface& other, Rect& position);
+        void BlitTo(Surface& target);
     protected:
     private:
+        Rect m_pos;
 };
 
 #endif // WIDGET_H
