@@ -29,6 +29,12 @@ Widget::~Widget()
     //dtor
 }
 
+Widget::Widget(const Surface& other) :
+    Surface(other),
+    m_pos(0, 0)
+{
+}
+
 Widget::Widget(const Widget& other)
 {
 }
@@ -42,4 +48,10 @@ Widget::Widget(const Surface& other, Rect& position) :
 void Widget::BlitTo(Surface& target)
 {
     target.Blit(*this, m_pos);
+}
+
+void Widget::operator=(const Surface& rhs)
+{
+    m_handle = rhs.m_handle;
+    m_pos = Rect(0, 0);
 }
