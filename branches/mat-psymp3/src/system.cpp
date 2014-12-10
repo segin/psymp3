@@ -9,7 +9,8 @@ System::System()
 
 void System::InitalizeTaskbar()
 {
-#ifdef _WIN32 && WIN_OPTIONAL
+#ifdef _WIN32
+#ifdef WIN_OPTIONAL
     HRESULT hr = CoCreateInstance(CLSID_TaskbarList, (IUnknown *) NULL, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, (void **) &m_taskbar);
 
     if (SUCCEEDED(hr)) {
@@ -22,6 +23,7 @@ void System::InitalizeTaskbar()
             m_taskbar = (ITaskbarList3 *) NULL;
         }
     } else std::cerr << "Error initializing ITaskbarList3 COM object!" << std::endl;
+#endif
 #endif
 }
 
