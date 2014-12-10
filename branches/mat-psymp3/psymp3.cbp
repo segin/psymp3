@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>
+<CodeBlocks_project_file>
+	<FileVersion major="1" minor="6" />
+	<Project>
+		<Option title="psymp3" />
+		<Option pch_mode="2" />
+		<Option compiler="gcc" />
+		<Build>
+			<Target title="Debug">
+				<Option output="bin/Debug/psymp3" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Debug/" />
+				<Option type="1" />
+				<Option compiler="gcc" />
+				<Option parameters='&quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/01 - The Offspring - The Future Is Now.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/02 - The Offspring - Secrets From The Underground.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/03 - The Offspring - Days Go By.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/04 - The Offspring - Turning Into You.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/05 - The Offspring - Hurting As One.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/06 - The Offspring - Cruising California (Bumpin&apos; In My Trunk).mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/07 - The Offspring - All I Have Left Is You.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/08 - The Offspring - O.C. Guns.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/09 - The Offspring - Dirty Magic.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/10 - The Offspring - I Wanna Secret Family (With You).mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/11 - The Offspring - Dividing By Zero.mp3&quot; &quot;/home/segin/Music/The Offspring - Days Go By(2012)(MP3@320Kbps)-TBS/CD/12 - The Offspring - Slim Pickens Does the Right Thing and Rides the Bomb to Hell.mp3&quot;' />
+				<Compiler>
+					<Add option="-g" />
+					<Add option="-DDEBUG" />
+				</Compiler>
+			</Target>
+			<Target title="Release">
+				<Option output="bin/Release/psymp3" prefix_auto="1" extension_auto="1" />
+				<Option object_output="obj/Release/" />
+				<Option type="0" />
+				<Option compiler="gcc" />
+				<Compiler>
+					<Add option="-O2" />
+				</Compiler>
+				<Linker>
+					<Add option="-s" />
+				</Linker>
+			</Target>
+		</Build>
+		<Compiler>
+			<Add option="`pkg-config sdl --cflags`" />
+			<Add option="`pkg-config vorbisfile --cflags`" />
+			<Add option="`pkg-config libmpg123 --cflags`" />
+			<Add option="`pkg-config taglib --cflags`" />
+			<Add option="`pkg-config libvisual-0.4 --cflags`" />
+			<Add directory="include" />
+		</Compiler>
+		<Linker>
+			<Add option="`pkg-config sdl --libs`" />
+			<Add option="`pkg-config SDL_gfx --libs`" />
+			<Add option="`pkg-config libmpg123 --libs`" />
+			<Add option="`pkg-config vorbisfile --libs`" />
+			<Add option="`pkg-config taglib --libs`" />
+			<Add option="`pkg-config libvisual-0.4 --libs`" />
+			<Add option="-lSDL_ttf" />
+		</Linker>
+		<Unit filename="AUTHORS" />
+		<Unit filename="COPYING" />
+		<Unit filename="ChangeLog" />
+		<Unit filename="INSTALL" />
+		<Unit filename="Makefile.am" />
+		<Unit filename="NEWS" />
+		<Unit filename="README" />
+		<Unit filename="build.sh" />
+		<Unit filename="cb.bmp" />
+		<Unit filename="configure.ac" />
+		<Unit filename="depcomp" />
+		<Unit filename="include/about.h" />
+		<Unit filename="include/audio.h" />
+		<Unit filename="include/config.h" />
+		<Unit filename="include/config.h.in" />
+		<Unit filename="include/display.h" />
+		<Unit filename="include/exceptions.h" />
+		<Unit filename="include/fft_draw.h" />
+		<Unit filename="include/font.h" />
+		<Unit filename="include/libmpg123w.h" />
+		<Unit filename="include/mediafile.h" />
+		<Unit filename="include/mutex.h" />
+		<Unit filename="include/persistentstorage.h" />
+		<Unit filename="include/player.h" />
+		<Unit filename="include/playlist.h" />
+		<Unit filename="include/psymp3.h" />
+		<Unit filename="include/rect.h" />
+		<Unit filename="include/scrobble.h" />
+		<Unit filename="include/song.h" />
+		<Unit filename="include/sqlite3.h" />
+		<Unit filename="include/sqlite3ext.h" />
+		<Unit filename="include/stamp-h1" />
+		<Unit filename="include/stream.h" />
+		<Unit filename="include/surface.h" />
+		<Unit filename="include/system.h" />
+		<Unit filename="include/track.h" />
+		<Unit filename="include/truetype.h" />
+		<Unit filename="include/vorbisw.h" />
+		<Unit filename="install-sh" />
+		<Unit filename="missing" />
+		<Unit filename="res/Makefile.am" />
+		<Unit filename="res/psymp3.rc" />
+		<Unit filename="res/xpmanifest.xml" />
+		<Unit filename="src/Makefile.am" />
+		<Unit filename="src/about.cpp" />
+		<Unit filename="src/audio.cpp" />
+		<Unit filename="src/display.cpp" />
+		<Unit filename="src/exceptions.cpp" />
+		<Unit filename="src/fft_draw.cpp" />
+		<Unit filename="src/font.cpp" />
+		<Unit filename="src/libmpg123.cpp" />
+		<Unit filename="src/main.cpp" />
+		<Unit filename="src/mediafile.cpp" />
+		<Unit filename="src/mutex.cpp" />
+		<Unit filename="src/persistentstorage.cpp" />
+		<Unit filename="src/player.cpp" />
+		<Unit filename="src/playlist.cpp" />
+		<Unit filename="src/rect.cpp" />
+		<Unit filename="src/scrobble.cpp" />
+		<Unit filename="src/song.cpp" />
+		<Unit filename="src/sqlite3.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="src/stream.cpp" />
+		<Unit filename="src/surface.cpp" />
+		<Unit filename="src/system.cpp" />
+		<Unit filename="src/track.cpp" />
+		<Unit filename="src/truetype.cpp" />
+		<Unit filename="src/vorbis.cpp" />
+		<Extensions>
+			<code_completion />
+			<debugger />
+			<envvars />
+		</Extensions>
+	</Project>
+</CodeBlocks_project_file>

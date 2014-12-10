@@ -1,0 +1,81 @@
+README FOR PSYMP3 2-CURRENT
+===========================
+
+ 1. Overview
+ 2. System Requirements
+ 3. Notes
+
+===========================
+
+1. OVERVIEW
+
+PsyMP3 is a simplistic audio media player with a flashy Fourier transform.
+PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas
+1.x was written in FreeBASIC, 2.x is written in C++, and is portable!
+
+The "2-CURRENT" version tag represents the "bleeding edge" of development.
+End users shouldn't be using this; please use the last version tagged as
+-RELEASE. -CURRENT means "This is what I am working on, in whatever state
+it happens to be in, complete or not."
+
+You can reach me at <segin2005@gmail.com>.
+
+2. SYSTEM REQUIREMENTS
+
+   Windows NT:
+	NT 4.0 for i386 or later, Windows 2000 recommended.
+	Minimum CPU isn't known currently, 1GHz Pentium III is my current guess
+	64MB of RAM
+	DirectDraw-accelerated drivers help.
+	(Note: Itanium not officially supported due to poor WOW64 emulator performance.)
+
+   Windows x64:
+    Windows XP Professional x64 Service Pack 2 or later, Windows 7 recommended.
+    Any CPU compatible with your OS
+    96MB of RAM
+
+   Linux, *BSD, Solaris:
+	glibc-2.3 or later, FreeBSD 6, NetBSD 4, or OpenBSD 3.5 or later recommended.
+	Older releases may or may not work; please email your results!
+	X11 is recommended, or an SDL compiled to use some other graphics output.
+	POSIX threads. On Linux, NTPL is recommended (requires kernel 2.6.9 or later)
+	The following dependencies are required:
+	 SDL 1.2.13 or later
+	 mpg123-1.8 or later
+	 taglib-1.6 or later
+     libvisual-0.4 or later
+     libvorbis
+     libogg
+     FreeType 2.4 or later
+     SDL_ttf 1.2 or later
+     SDL_gfx 2.0 or later
+     zlib-1.2.3 or later
+
+   Mac OS X:
+	Not officially supported, but building the dependencies for Linux/BSD with MacPorts might work.
+
+3. USAGE
+
+Pass the paths to the MP3s or Ogg Vorbis files to be played as program arguments.
+Audio files will be played in the order they are passed on the command line.
+All user interaction, aside from clicking the 'close' button for the window, is done via the keyboard.
+
+Keys and what they do:
+  * ESC and Q: Quit PsyMP3.
+  * Space: Pause (or resume) playback.
+  * R: Restart the current track from the beginning
+  * N: Seek to the next track.
+  * P: Seek to the previous track.
+
+4. NOTES
+
+At this time, PsyMP3 2.x is incomplete. There's very little UI code, and most
+features are missing at this time. If you are a developer, and are interested
+in helping me, please email me above.
+
+If you are an end user and you don't like this program, feel free to use
+something else, and check back later for improvements
+
+Unicode ID3 tags are supported. Please replace the included 'vera.ttf' with a different
+font file containing the Unicode glpyhs you desire. Advanced text layout is not supported
+(e.g. connected Arabic characters.)
