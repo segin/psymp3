@@ -110,7 +110,6 @@ enum {
 #include "display.h"
 #include "truetype.h"
 #include "font.h"
-#include "Widget.h"
 #include "player.h"
 
 #ifdef DEBUG
