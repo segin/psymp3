@@ -20,7 +20,7 @@ void FFT::fft(float *output, const float *input) {
 	int nu = (int) ((float) log(size) / log(2.0)); // Number of bits of item indexes
 	int n2 = size / 2;
 	int nu1 = nu - 1;
-	float tr, ti, p, arg, c, s;
+	float tr, ti, arg, c, s;
 
 	for (int i = 0; i < size; ++i) {
 		real[i] = input[i];
@@ -28,12 +28,12 @@ void FFT::fft(float *output, const float *input) {
 	}
 
 	// Stage 1 - calculation
+	float f = -2 * M_PI / size;
 	for (int l = 1; l <= nu; l++) {
 		int k = 0;
 		while (k < size) {
 			for (int i = 1; i <= n2; i++) {
-				p = bitreverse(k >> nu1, nu);
-				arg = -2 * M_PI * p / size;
+				arg = bitreverse(k >> nu1, nu) * f;
 				c = cos(arg);
 				s = sin(arg);
 				tr = real[k + n2] * c + imag[k + n2] * s;
