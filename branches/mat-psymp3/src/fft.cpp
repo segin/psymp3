@@ -13,8 +13,11 @@ FFT::~FFT() {
 	delete[] imag;
 }
 
+#include <iostream>
+using namespace std;
+
 void FFT::fft(float *output, const float *input) { 
-	int nu = (int) ((float) log(size) / log(2.0)); // number of bits of item indexes
+	int nu = (int) ((float) log(size) / log(2.0)); // Number of bits of item indexes
 	int n2 = size / 2;
 	int nu1 = nu - 1;
 	float tr, ti, p, arg, c, s;
@@ -24,7 +27,7 @@ void FFT::fft(float *output, const float *input) {
 		imag[i] = 0;
 	}
 
-	// First phase - calculation
+	// Stage 1 - calculation
 	for (int l = 1; l <= nu; l++) {
 		int k = 0;
 		while (k < size) {
@@ -46,26 +49,19 @@ void FFT::fft(float *output, const float *input) {
 		nu1--;
 		n2 /= 2;
 	}
+
+	// Stage 2 - normalize the output and feed the magnitudes to the output array
+	for (int i = 0; i < size; ++i)
+		output[i] = sqrt(real[i] * real[i] + imag[i] * imag[i]) / size;
  
-	// Second phase - recombination
+	// Stage 3 - recombination
 	for (int k = 0; k < size; ++k) {
 		int r = bitreverse(k, nu);
 		if (r > k) {
-			tr = real[k];
-			ti = imag[k];
-			real[k] = real[r];
-			imag[k] = imag[r];
-			real[r] = tr;
-			imag[r] = ti;
+			tr = output[k];
+			output[k] = output[r];
+			output[r] = tr;
 		}
-	}
-	
-	// Normalize the output and feed the magnitudes to the output array
-	float radice = 1 / sqrt(size);
-	for (int i = 0; i < size; ++i) {
-		real[i] *= radice;
-		imag[i] *= radice;
-		output[i] = sqrt(real[i] * real[i] + imag[i] * imag[i]);
 	}
 }
 

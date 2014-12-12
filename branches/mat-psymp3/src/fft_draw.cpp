@@ -12,7 +12,7 @@ FastFourier::~FastFourier()
 
 void FastFourier::doFFT()
 {
-    fft->fft(m_fft, m_samples);
+	fft->fft(m_fft, m_samples);
 }
 
 
