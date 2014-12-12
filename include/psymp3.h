@@ -72,7 +72,6 @@ enum {
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #endif
-#include <libvisual/libvisual.h>
 #include <FLAC++/decoder.h>
 #include <mpg123.h>
 #include <vorbis/vorbisfile.h>
