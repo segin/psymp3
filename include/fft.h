@@ -6,7 +6,7 @@ class FFT {
 		float *real, *imag;
 		int size;
 
-		unsigned int bitreverse(unsigned int in, int bits);
+		static unsigned int bitreverse(unsigned int in, int bits);
 
 	public:
 		FFT(int size); // size must be a power of 2 (!)
