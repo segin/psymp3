@@ -1,5 +1,7 @@
 #!/bin/sh
 # A hackish way of building it all. Deprecated; DO NOT USE!
+# Correction: Better than autotools, maybe it should be used...
+
 
 # i needed the following packages for debian
 #   libSDL-dev
@@ -10,5 +12,5 @@
 #   libflac++-dev
 #   libtag1-dev
 
-g++ `pkg-config --cflags --libs sdl libmpg123 taglib vorbisfile SDL_gfx` -o psymp3 -DPSYMP3_DATADIR="\"/usr\"" -Iinclude src/psymp3.final.cpp -lSDL_ttf
+g++ -O0 -ggdb3 `pkg-config --cflags sdl libmpg123 taglib vorbisfile SDL_gfx` -o psymp3 -DPSYMP3_DATADIR="\"/usr/share/psymp3\"" -Iinclude src/psymp3.final.cpp -lSDL_ttf `pkg-config --libs sdl libmpg123 taglib vorbisfile SDL_gfx`
 
