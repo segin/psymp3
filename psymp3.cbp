@@ -96,6 +96,7 @@
 		<Unit filename="src/display.cpp" />
 		<Unit filename="src/exceptions.cpp" />
 		<Unit filename="src/fft_draw.cpp" />
+		<Unit filename="src/flac.cpp" />
 		<Unit filename="src/font.cpp" />
 		<Unit filename="src/libmpg123.cpp" />
 		<Unit filename="src/main.cpp" />
