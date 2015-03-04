@@ -81,6 +81,7 @@ size_t Vorbis::getData(size_t len, void *buf)
     long ret = ov_read((OggVorbis_File *) m_handle, (char *) buf, len, 0, 2, 1, &m_session);
     m_sposition = ov_pcm_tell((OggVorbis_File *) m_handle);
     m_position = ov_time_tell((OggVorbis_File *) m_handle) * 1000;
+    return ret;
 }
 
 unsigned int Vorbis::getLength()
