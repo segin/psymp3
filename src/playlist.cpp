@@ -40,7 +40,7 @@ Playlist::~Playlist()
 void Playlist::parseArgs(std::vector<std::string> args)
 {
     for(int i = 1; i < args.size(); i++) {
-        addFile(args[i]);
+        addFile(TagLib::String(args[i].c_str(), TagLib::String::UTF8));
     }
 }
 
