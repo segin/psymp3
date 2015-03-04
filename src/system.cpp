@@ -117,7 +117,9 @@ TagLib::String System::getStoragePath()
 
 bool System::createStoragePath()
 {
-
+    // TODO: Actually implement.
+    // For now, return failure, since nothing happens.
+    return false;
 }
 
 #ifdef _WIN32
