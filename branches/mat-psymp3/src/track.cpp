@@ -32,10 +32,12 @@ track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath
         }
     }
     if (a_FileRef) {
-        m_Artist = a_FileRef->tag()->artist();
-        m_Title = a_FileRef->tag()->title();
-        m_Album = a_FileRef->tag()->album();
-        m_Len = a_FileRef->audioProperties()->length();
+        if (!(a_FileRef->isNull())) {
+            m_Artist = a_FileRef->tag()->artist();
+            m_Title = a_FileRef->tag()->title();
+            m_Album = a_FileRef->tag()->album();
+            m_Len = a_FileRef->audioProperties()->length();
+        }
         delete a_FileRef;
     }
 }
