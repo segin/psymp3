@@ -120,7 +120,7 @@ void Player::openTrack(TagLib::String path)
     }
     stream = MediaFile::open(path);
     ATdata.stream = stream;
-    if (stream && (audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
+    if ((stream) && ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels()))) {
         pause(); /* otherwise a race condition can occur */
         audio->unlock();
         delete audio;
@@ -153,12 +153,15 @@ bool Player::nextTrack(void)
 bool Player::prevTrack(void)
 {
     openTrack(playlist->prev());
+    // FIXME: Actually check to see if there's a previous track before trying to open one, etc.
+    return true;
 }
 
 bool Player::stop(void)
 {
     /* XXX: Implement stopped state. */
     state = STOPPED;
+    return true;
 }
 
 bool Player::pause(void)
@@ -176,6 +179,8 @@ bool Player::play(void)
 {
     audio->play(true);
     state = PLAYING;
+    // TODO: Handle cases where stream resume fails.
+    return true;
 }
 
 bool Player::playPause(void)
@@ -193,6 +198,7 @@ bool Player::playPause(void)
             break;
         }
     }
+    return true;
 }
 
 /* Internal UI compartments */
