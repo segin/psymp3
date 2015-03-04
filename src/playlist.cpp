@@ -57,6 +57,7 @@ bool Playlist::addFile(TagLib::String path)
     }
     ntrk = new track(path, fileref);
     tracks.push_back(*ntrk);
+    return true;
 }
 
 long Playlist::getPosition(void)
