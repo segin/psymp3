@@ -38,42 +38,42 @@ void Flac::open(TagLib::String name)
 
 unsigned int Flac::getChannels()
 {
-
+    return 0;
 }
 
 unsigned int Flac::getRate()
 {
-
+    return 0;
 }
 
 unsigned int Flac::getEncoding()
 {
-
+    return 0;
 }
 
 unsigned int Flac::getLength()
 {
-
+    return 0;
 }
 
 unsigned long long Flac::getSLength()
 {
-
+    return 0LL;
 }
 
 unsigned int Flac::getPosition()
 {
-
+    return 0;
 }
 
 unsigned long long Flac::getSPosition()
 {
-
+    return 0LL;
 }
 
 size_t Flac::getData(size_t len, void *buf)
 {
-
+    return 0;
 }
 
 void Flac::seekTo(unsigned long pos)
@@ -83,7 +83,7 @@ void Flac::seekTo(unsigned long pos)
 
 bool Flac::eof()
 {
-
+    return true;
 }
 
 void Flac::init()
