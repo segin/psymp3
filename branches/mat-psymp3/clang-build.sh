@@ -12,5 +12,5 @@
 #   libflac++-dev
 #   libtag1-dev
 
-clang -ggdb3 `pkg-config --cflags sdl libmpg123 taglib vorbisfile SDL_gfx` -o psymp3 -DPSYMP3_DATADIR="\"/usr/share/psymp3\"" -Iinclude src/psymp3.final.cpp -lSDL_ttf `pkg-config --libs sdl libmpg123 taglib vorbisfile SDL_gfx`
+clang -ggdb3 `pkg-config --cflags sdl libmpg123 taglib vorbisfile SDL_gfx` -o psymp3 -DPSYMP3_DATADIR="\"/usr/share/psymp3\"" -Iinclude src/psymp3.final.cpp -lSDL_ttf `pkg-config --libs sdl libmpg123 taglib vorbisfile SDL_gfx` -march=native -lstdc++
 
