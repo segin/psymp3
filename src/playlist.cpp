@@ -49,7 +49,7 @@ bool Playlist::addFile(TagLib::String path)
     TagLib::FileRef *fileref;
     track *ntrk;
     try {
-        std::cout << "Attempting open of " << path << std::endl;
+        std::cout << "Attempting open of " << path.to8Bit(true) << std::endl;
         fileref = new TagLib::FileRef(path.toCString(true));
     } catch (std::exception& e) {
         std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
