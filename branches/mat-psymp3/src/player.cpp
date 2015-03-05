@@ -167,8 +167,12 @@ bool Player::stop(void)
 bool Player::pause(void)
 {
     if (state != STOPPED) {
-        audio->play(false);
-        state = PAUSED;
+        if (audio != NULL) {
+            audio->play(false);
+            state = PAUSED;
+            delete audio;
+            audio = NULL;
+        }
         return true;
     } else {
         return false;
@@ -177,6 +181,9 @@ bool Player::pause(void)
 
 bool Player::play(void)
 {
+    if (audio == NULL) {
+        audio = new Audio(&ATdata);
+    }
     audio->play(true);
     state = PLAYING;
     // TODO: Handle cases where stream resume fails.
@@ -247,6 +254,9 @@ void Player::Run(std::vector<std::string> args)
 #ifdef _WIN32
     std::cout << "System::getHwnd: " << std::hex << System::getHwnd() << std::endl;
 #endif /* _WIN32 */
+
+    // Icon requires early init.
+    SDL_WM_SetIcon(SDL_LoadBMP(PSYMP3_DATADIR "/icon_large.bmp"));
 
     TrueType::Init();
     Libmpg123::init();
