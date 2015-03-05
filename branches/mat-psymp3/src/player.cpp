@@ -256,7 +256,7 @@ void Player::Run(std::vector<std::string> args)
 #endif /* _WIN32 */
 
     // Icon requires early init.
-    SDL_WM_SetIcon(SDL_LoadBMP(PSYMP3_DATADIR "/icon_large.bmp"));
+    SDL_WM_SetIcon(SDL_LoadBMP(PSYMP3_DATADIR "/icon_large.bmp"), NULL);
 
     TrueType::Init();
     Libmpg123::init();
