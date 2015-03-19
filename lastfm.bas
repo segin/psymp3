@@ -55,7 +55,7 @@ Function LastFM.getSessionKey Alias "getSessionKey" () As String Export
    
 	printf(!"LastFM::getSessionKey(): Getting session key.\n")
 
-	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=" & PSYMP3_VERSION & "&u=" & this.c_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(13) & Chr(10) & "User-Agent: PsyMP3/" & PSYMP3_VERSION & Chr(13) & Chr(10) & Chr (13) & Chr(10)
+	httpdata = "GET /?hs=true&p=1.2.1&c=psy&v=" & PSYMP3_VERSION & "&u=" & this.c_username & "&t=" & curtime & "&a=" & authkey & " HTTP/1.1" & Chr(10) & "Host: post.audioscrobbler.com" & Chr(13) & Chr(10) & "User-Agent: PsyMP3/" & PSYMP3_VERSION & Chr(13) & Chr(10) & "X-Clacks-Overhead: GNU Terry Pratchett" & Chr(13) & Chr(10) & Chr (13) & Chr(10)
 	hStart()
 	Dim s As SOCKET, addr As Integer
 	s = hOpen()
