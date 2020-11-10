@@ -1,45 +1,48 @@
 /*
  * about.cpp - Print about info to either dialog box or console
  * This file is part of PsyMP3.
- * Copyright © 2011 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2 of the
- * License, or (at your option) any later version.
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
  *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
- *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that
+ * the above copyright notice and this permission notice appear in all
+ * copies.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
 #include "psymp3.h"
 
 static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
-            "Copyright © 2009-2013 Kirn Gill II <segin2005@gmail.com>\n"
-            "Copyright © 2010-2013 Mattis Michel <sic_zer0@hotmail.com>\n"
-            "Font \"Droid Sans Fallback\" is Copyright © 2006-2013 Google, Inc.\n"
+            "Copyright © 2009-2020 Kirn Gill II <segin2005@gmail.com>\n"
+            "Copyright © 2010-2020 Mattis Michel <sic_zer0@hotmail.com>\n"
+            "Font \"Droid Sans Fallback\" is Copyright © 2006-2020 Google, Inc.\n"
             "\n"
             "PsyMP3 is free software. You may redistribute and/or modify it under\n"
-            "the terms of the GNU General Public License, either version 2,\n"
-            "<http://www.gnu.org/licenses/gpl-2.0.html>, or at your option,\n"
-            "any later version.\n"
+            "the terms of the ISC License <https://opensource.org/licenses/ISC>\n"
             "\n"
-            "PsyMP3 is distributed in the hope that it will be useful, but WITHOUT\n"
-            "ANY WARRANTY, not even the implied warranty of MERCHANTABILITY or\n"
-            "FIRNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License\n"
-            "for details.\n"
+            "Permission to use, copy, modify, and/or distribute this software for any\n"
+            "purpose with or without fee is hereby granted, provided that the above\n"
+            "copyright notice and this permission notice appear in all copies.\n"
             "\n"
-            "You should have recieved a copy of the GNU General Public license along\n"
-            "with PsyMP3; if not, write to the Free Software Foundation, Inc.,\n"
-            "51 Franklin St., Fifth Floor, Boston, MA 02110-1301, USA.\n"
+            "THE SOFTWARE IS PROVIDED \"AS IS\" AND THE AUTHOR DISCLAIMS ALL WARRANTIES\n"
+            "WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF\n"
+            "MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR\n"
+            "ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES\n"
+            "WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN\n"
+            "ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF\n"
+            "OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.\n"
             "\n"
             "Written by " PSYMP3_MAINTAINER "\n";
 
@@ -47,3 +50,29 @@ void about_console()
 {
     std::cout << _about_message << std::endl;
 }
+
+#if 0
+void about_windows() {
+    if (WCHAR *about = static_cast<WCHAR*>(malloc((strlen(_about_message) * sizeof(WCHAR)) + 4))) {     
+        try { 
+            // get SDL window's hWnd
+            SDL_SysWMinfo *info = new SDL_SysWMinfo();
+            SDL_VERSION(&info->version);
+            if (SDL_GetWMInfo(info)) {
+# ifdef UNICODE
+                MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, _about_message, strlen(_about_message), about, strlen(_about_message));
+                MessageBox(info->window, about, L"PsyMP3", MB_OK);
+# elif
+                MessageBox(info->window, _about_message, "PsyMP3", MB_OK); 
+# endif
+            }
+            delete info;
+        } catch (std::bad_alloc e) {
+            std::cerr << "Cannot allocate memory!" << std::endl;
+        } catch (...) {
+            std::cerr << "Something went wrong!" << std::endl;
+        }
+        free(about);
+    }
+}
+#endif // _WIN32
