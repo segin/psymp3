@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([PsyMP3], [1.99.2], [segin2005@gmail.com], [psymp3], [http://code.google.com/p/psymp3])
+AC_INIT([PsyMP3], [1.99.2], [segin2005@gmail.com], [psymp3], [https://github.com/segin/psymp3])
 AM_INIT_AUTOMAKE([1.10])
 
 AC_PROG_CPP
@@ -17,7 +17,7 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 
 AC_CHECK_FUNCS([atexit getcwd memset])
 
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2.13 libmpg123 >= 1.8 taglib >= 1.6 libvisual-0.4 >= 0.4.0 vorbisfile >= 1.3 SDL_gfx >= 2.0])
+PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2.13 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 SDL_gfx >= 2.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
