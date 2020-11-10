@@ -51,27 +51,15 @@ void about_console()
     std::cout << _about_message << std::endl;
 }
 
-#if 0
+#if defined(_WIN32)
 void about_windows() {
     if (WCHAR *about = static_cast<WCHAR*>(malloc((strlen(_about_message) * sizeof(WCHAR)) + 4))) {     
-        try { 
-            // get SDL window's hWnd
-            SDL_SysWMinfo *info = new SDL_SysWMinfo();
-            SDL_VERSION(&info->version);
-            if (SDL_GetWMInfo(info)) {
 # ifdef UNICODE
-                MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, _about_message, strlen(_about_message), about, strlen(_about_message));
-                MessageBox(info->window, about, L"PsyMP3", MB_OK);
+        MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, _about_message, strlen(_about_message), about, strlen(_about_message));
+        MessageBox(System::getHwnd(), about, L"PsyMP3", MB_OK);
 # elif
-                MessageBox(info->window, _about_message, "PsyMP3", MB_OK); 
+        MessageBox(System::getHwnd(), _about_message, "PsyMP3", MB_OK); 
 # endif
-            }
-            delete info;
-        } catch (std::bad_alloc e) {
-            std::cerr << "Cannot allocate memory!" << std::endl;
-        } catch (...) {
-            std::cerr << "Something went wrong!" << std::endl;
-        }
         free(about);
     }
 }
