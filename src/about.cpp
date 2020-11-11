@@ -53,14 +53,14 @@ void about_console()
 
 #if defined(_WIN32)
 void about_windows() {
-    if (WCHAR *about = static_cast<WCHAR*>(malloc((strlen(_about_message) * sizeof(WCHAR)) + 4))) {     
 # ifdef UNICODE
+    if (WCHAR *about = static_cast<WCHAR*>(malloc((strlen(_about_message) * sizeof(WCHAR)) + 4))) {     
         MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, _about_message, strlen(_about_message), about, strlen(_about_message));
         MessageBox(System::getHwnd(), about, L"PsyMP3", MB_OK);
-# elif
-        MessageBox(System::getHwnd(), _about_message, "PsyMP3", MB_OK); 
-# endif
         free(about);
     }
+# elif
+    MessageBox(System::getHwnd(), _about_message, "PsyMP3", MB_OK); 
+# endif
 }
 #endif // _WIN32
