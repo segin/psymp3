@@ -155,12 +155,14 @@ bool Player::nextTrack(void)
 bool Player::prevTrack(void)
 {
     openTrack(playlist->prev());
+    return true;
 }
 
 bool Player::stop(void)
 {
     /* XXX: Implement stopped state. */
     state = STOPPED;
+    return true;
 }
 
 bool Player::pause(void)
@@ -178,6 +180,7 @@ bool Player::play(void)
 {
     audio->play(true);
     state = PLAYING;
+    return true;
 }
 
 bool Player::playPause(void)
@@ -195,6 +198,7 @@ bool Player::playPause(void)
             break;
         }
     }
+    return true;
 }
 
 /* Internal UI compartments */
@@ -216,8 +220,6 @@ void Player::renderSpectrum(Surface *graph)
         }
     };
 }
-
-
 
 /* Main player functionality */
 void Player::Run(std::vector<std::string> args)
