@@ -102,6 +102,7 @@ enum {
 #include "flac.h"
 #include "mediafile.h"
 #include "audio.h"
+#include "fft.h"
 #include "fft_draw.h"
 #include "about.h"
 #include "sqlite3.h"
