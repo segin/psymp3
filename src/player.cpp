@@ -246,7 +246,7 @@ void Player::Run(std::vector<std::string> args)
 
     TrueType::Init();
     Libmpg123::init();
-    FastFourier::init();
+    // FastFourier::init();
 
     screen = new Display();
     playlist = new Playlist(args);
