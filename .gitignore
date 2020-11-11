@@ -1,0 +1,14 @@
+src/.deps/**
+src/*.o
+.vscode/*
+autom4te.cache/*
+include/config.h
+include/stamp-h1
+aclocal.m4
+compile
+config.log
+config.status
+configure
+Makefile
+Makefile.in
+missing
