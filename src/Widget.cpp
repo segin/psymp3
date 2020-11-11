@@ -21,6 +21,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "psymp3.h"
+
 Widget::Widget()
 {
     //ctor
