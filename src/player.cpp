@@ -44,15 +44,15 @@ Player::Player()
     // -- but we will delete them in ~Player()
     // So, instead, print a startup banner to the console.
     std::cout << "PsyMP3 version " << PSYMP3_VERSION << "." << std::endl;
-    screen = (Display *) NULL;
-    playlist = (Playlist *) NULL;
-    graph = (Surface *) NULL;
-    font = (Font *) NULL;
-    stream = (Stream *) NULL;
-    audio = (Audio *) NULL;
-    fft = (FastFourier *) NULL;
-    mutex = (Mutex *) NULL;
-    system = (System *) NULL;
+    screen = nullptr;
+    playlist = nullptr;
+    graph = nullptr;
+    font = nullptr;
+    stream = nullptr;
+    audio = nullptr;
+    fft = nullptr;
+    mutex = nullptr;
+    system = nullptr;
 }
 
 Player::~Player()

@@ -30,7 +30,7 @@ track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath
             a_FileRef = new TagLib::FileRef(a_FilePath.toCString(true));
         } catch (std::exception& e) {
             std::cerr << "track::track(): Exception: " << e.what() << std::endl;
-            a_FileRef = (TagLib::FileRef *) NULL;
+            a_FileRef = nullptr;
         }
     }
     if (a_FileRef) {
