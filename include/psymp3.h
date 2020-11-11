@@ -56,11 +56,23 @@ enum {
 
 #ifdef __cplusplus
     #include <cstdlib>
+    #include <cmath>
 #else
     #include <stdlib.h>
+    #include <math.h>
 #endif
 
 // system includes - third-party libraries
+#if defined(_WIN32)
+#define _UNICODE
+#define UNICODE
+#include <windows.h>
+#include <initguid.h>
+#include <tchar.h>
+#include <lm.h>
+#include <shlobj.h>
+#include <SDL_syswm.h>
+#endif
 #if defined(__APPLE__) 
 #include <SDL/SDL.h>
 #include <SDL/SDL_gfxPrimitives.h>
@@ -79,16 +91,6 @@ enum {
 #include <vorbis/vorbisfile.h>
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
-#if defined(_WIN32)
-#define _UNICODE
-#define UNICODE
-#include <windows.h>
-#include <initguid.h>
-#include <tchar.h>
-#include <lm.h>
-#include <shlobj.h>
-#include <SDL_syswm.h>
-#endif
 
 // local includes
 #include "exceptions.h"
