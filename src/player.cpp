@@ -260,7 +260,11 @@ void Player::Run(std::vector<std::string> args)
 
     if (stream)
         audio = new Audio(&ATdata);
+#if defined(_WIN32)
+    font = new Font("./vera.ttf");
+#else
     font = new Font(PSYMP3_DATADIR "/vera.ttf");
+#endif // _WIN32
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     graph = new Surface(640, 350);
 
