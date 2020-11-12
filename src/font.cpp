@@ -25,7 +25,10 @@
 
 Font::Font(TagLib::String file, int ptsize)
 {
-    if(!TTF_WasInit()) return;
+    if(!TTF_WasInit()) {
+        std::cerr << "Font::Font(): SDL_ttf was not initalized (did you call TrueType::Init()?)" << std::endl;
+        return;
+    }
     std::cout << "Font::Font(): Requesting font " << file.to8Bit(true) << std::endl;
     m_font = TTF_OpenFont(file.toCString(), ptsize);
     std::cout << "Font::Font(): m_font = " << std::hex << m_font << std::endl;
