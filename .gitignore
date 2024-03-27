@@ -6,8 +6,7 @@ include/config.h
 include/stamp-h1
 aclocal.m4
 compile
-config.log
-config.status
+config.*
 configure
 Makefile
 Makefile.in
