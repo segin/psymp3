@@ -1,7 +1,7 @@
 /*
  * track.h - class header for track class
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -35,6 +35,7 @@ class track
         void SetFilePath(TagLib::String val) { m_FilePath = val; }
         unsigned int GetLen() { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }
+        static TagLib::String nullstr;
     protected:
         TagLib::String m_Artist;
         TagLib::String m_Title;

@@ -1,7 +1,7 @@
 /*
  * stream.cpp - Stream functionality base class
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -46,19 +46,19 @@ void Stream::open(TagLib::String name)
 
 TagLib::String Stream::getArtist()
 {
-    if(!m_tags) return TagLib::String::null;
+    if(!m_tags) return track::nullstr;
     return m_tags->tag()->artist();
 }
 
 TagLib::String Stream::getTitle()
 {
-    if(!m_tags) return TagLib::String::null;
+    if(!m_tags) return track::nullstr;
     return m_tags->tag()->title();
 }
 
 TagLib::String Stream::getAlbum()
 {
-    if(!m_tags) return TagLib::String::null;
+    if(!m_tags) return track::nullstr;
     return m_tags->tag()->album();
 }
 
