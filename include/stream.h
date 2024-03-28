@@ -48,6 +48,13 @@ class Stream
         virtual size_t getData(size_t len, void *buf) = 0;
         virtual void seekTo(unsigned long pos) = 0;
         virtual bool eof() = 0;
+        /* init() and fini() static methods should be used in child classes like so: 
+        
+        static void init();
+        static void fini(); 
+        
+        These should be used to perform library-global initialization and finalization.
+        */
     protected:
         void *          m_handle; // any handle type
         void *          m_buffer; // decoded audio buffer
