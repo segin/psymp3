@@ -32,7 +32,7 @@ System::System()
 
 void System::InitalizeTaskbar()
 {
-#ifdef _WIN32 && WIN_OPTIONAL
+#if defined(_WIN32) && defined(WIN_OPTIONAL)
     HRESULT hr = CoCreateInstance(CLSID_TaskbarList, (IUnknown *) NULL, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, (void **) &m_taskbar);
 
     if (SUCCEEDED(hr)) {
@@ -138,7 +138,7 @@ TagLib::String System::getStoragePath()
 
 bool System::createStoragePath()
 {
-
+    return false;
 }
 
 #ifdef _WIN32
