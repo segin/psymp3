@@ -1,7 +1,7 @@
 /*
  * vorbisw.h - Ogg Vorbis decoder class header
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -21,8 +21,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef VORBIS_H
-#define VORBIS_H
+#ifndef VORBISW_H
+#define VORBISW_H
 
 class Vorbis : public Stream
 {
@@ -46,4 +46,4 @@ class Vorbis : public Stream
         vorbis_info *m_vi;
 };
 
-#endif // VORBIS_H
+#endif // VORBISW_H
