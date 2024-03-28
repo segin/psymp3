@@ -32,8 +32,6 @@ class Flac : public Stream
         /** Default destructor */
         virtual ~Flac();
         virtual void open(TagLib::String name);
-        virtual unsigned int getLength(); // in msec!
-        virtual unsigned long long getSLength(); // in samples!
         virtual size_t getData(size_t len, void *buf);
         virtual void seekTo(unsigned long pos);
         virtual bool eof();

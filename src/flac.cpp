@@ -38,16 +38,6 @@ void Flac::open(TagLib::String name)
     return;
 }
 
-unsigned int Flac::getLength()
-{
-    return m_length;
-}
-
-unsigned long long Flac::getSLength()
-{
-    return m_slength;
-}
-
 size_t Flac::getData(size_t len, void *buf)
 {
     return 0;
