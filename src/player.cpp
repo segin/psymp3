@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-static bool Player::guiRunning;
+bool Player::guiRunning;
 
 std::string convertInt(long number)
 {
@@ -254,7 +254,11 @@ void Player::Run(std::vector<std::string> args)
 
     screen = new Display();
     playlist = new Playlist(args);
-    stream = MediaFile::open(playlist->getTrack(0));
+    if (playlist->entries()) 
+        stream = MediaFile::open(playlist->getTrack(0));
+    else {
+        
+    }
     fft = new FastFourier();
     mutex = new Mutex();
     system = new System();

@@ -94,7 +94,7 @@ void Audio::callback(void *data, Uint8 *buf, int len)
 #endif
    // mutex->lock();
     stream->getData(len, (void *) buf);
-    if(!gui_iteration_running) {
+    if(!Player::guiRunning) {
         toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
         fft->doFFT();
     }
