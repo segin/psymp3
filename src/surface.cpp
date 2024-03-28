@@ -50,12 +50,14 @@ Surface& Surface::operator= (const Surface &rhs)
 {
     if (m_handle) SDL_FreeSurface(m_handle);
     m_handle = rhs.m_handle;
+    return *this;
 }
 
 Surface& Surface::operator= (const Surface *rhs)
 {
     if (m_handle) SDL_FreeSurface(m_handle);
     m_handle = rhs->m_handle;
+    return *this;
 }
 
 Surface::~Surface()
