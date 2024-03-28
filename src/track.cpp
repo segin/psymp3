@@ -44,7 +44,7 @@ void track::loadTags() {
         m_Artist = tag->artist();
         m_Title = tag->title();
         m_Album = tag->album();
-        m_Len = m_FileRef->audioProperties()->length();
+        m_Len = m_FileRef->audioProperties()->lengthInSeconds();
         delete m_FileRef;
     }
 }

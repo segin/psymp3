@@ -71,7 +71,7 @@ unsigned int Stream::getLength()
 {
     if(m_length) return m_length;
     if(!m_tags) return 0;
-    return m_tags->audioProperties()->length() * 1000; // * 1000 to make msec
+    return m_tags->audioProperties()->lengthInMilliseconds(); // * 1000 to make msec
 }
 
 /* As the data we're getting from TagLib is inaccurate but percise, we can
@@ -82,7 +82,7 @@ unsigned long long Stream::getSLength()
 {
     if(m_slength) return m_slength;
     if(!m_tags) return 0;
-    return m_tags->audioProperties()->length() * m_tags->audioProperties()->bitrate();
+    return m_tags->audioProperties()->lengthInSeconds() * m_tags->audioProperties()->bitrate();
 }
 
 /* TagLib provides this information in a generic manner for a mulitude of
