@@ -57,9 +57,11 @@ enum {
 #ifdef __cplusplus
     #include <cstdlib>
     #include <cmath>
+    #include <cstdio>
 #else
     #include <stdlib.h>
     #include <math.h>
+    #include <stdio.h>
 #endif
 
 // system includes - third-party libraries
@@ -122,11 +124,5 @@ enum {
 #ifdef DEBUG
 #define PSYMP3_DATADIR "/usr/local/share/psymp3/data"
 #endif /* DEBUG */
-
-// global singletons
-
-
-// Forgive me.
-static bool gui_iteration_running;
 
 #endif // __PSYMP3_H__
