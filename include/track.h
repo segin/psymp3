@@ -35,12 +35,14 @@ class track
         void SetFilePath(TagLib::String val) { m_FilePath = val; }
         unsigned int GetLen() { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }
+        void loadTags();
         static TagLib::String nullstr;
     protected:
         TagLib::String m_Artist;
         TagLib::String m_Title;
         TagLib::String m_Album;
         TagLib::String m_FilePath;
+        TagLib::FileRef *m_FileRef;
         unsigned int m_Len;
     private:
 };

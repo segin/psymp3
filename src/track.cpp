@@ -25,22 +25,26 @@
 
 TagLib::String track::nullstr;
 
-track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath(a_FilePath)
+track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath(a_FilePath), m_FileRef(a_FileRef)
 {
-    if (!a_FileRef) {
-        try {
-            a_FileRef = new TagLib::FileRef(a_FilePath.toCString(true));    
-        } catch (std::exception& e) {
-            std::cerr << "track::track(): Exception: " << e.what() << std::endl;
-            a_FileRef = nullptr;
-        }
-    }
-    if (a_FileRef) {
-        m_Artist = a_FileRef->tag()->artist();
-        m_Title = a_FileRef->tag()->title();
-        m_Album = a_FileRef->tag()->album();
-        m_Len = a_FileRef->audioProperties()->length();
-        delete a_FileRef;
-    }
+    loadTags();
 }
 
+void track::loadTags() { 
+    if (!m_FileRef) {
+        try {
+            m_FileRef = new TagLib::FileRef(m_FilePath.toCString(true));    
+        } catch (std::exception& e) {
+            std::cerr << "track::track(): Exception: " << e.what() << std::endl;
+            m_FileRef = nullptr;
+        }
+    }
+    if (m_FileRef) {
+        auto tag = m_FileRef->tag();
+        m_Artist = tag->artist();
+        m_Title = tag->title();
+        m_Album = tag->album();
+        m_Len = m_FileRef->audioProperties()->length();
+        delete m_FileRef;
+    }
+}
