@@ -69,6 +69,7 @@ TagLib::String Stream::getAlbum()
  */
 unsigned int Stream::getLength()
 {
+    if(m_length) return m_length;
     if(!m_tags) return 0;
     return m_tags->audioProperties()->length() * 1000; // * 1000 to make msec
 }
@@ -79,6 +80,7 @@ unsigned int Stream::getLength()
  */
 unsigned long long Stream::getSLength()
 {
+    if(m_slength) return m_slength;
     if(!m_tags) return 0;
     return m_tags->audioProperties()->length() * m_tags->audioProperties()->bitrate();
 }
@@ -105,6 +107,7 @@ unsigned int Stream::getRate()
 
 unsigned int Stream::getBitrate()
 {
+    if(m_bitrate) return m_bitrate;
     if(!m_tags) return 0;
     return m_tags->audioProperties()->bitrate();
 }
