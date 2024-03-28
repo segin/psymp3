@@ -28,16 +28,16 @@ class Rect
 {
     public:
         Rect();
-        Rect(unsigned int, unsigned int);
+        Rect(int16_t, int16_t);
         ~Rect();
-        unsigned int width() { return m_width; };
-        unsigned int height() { return m_height; };
-        void width(unsigned int a) { m_width = a; };
-        void height(unsigned int a) { m_height = a; };
+        int16_t width() { return m_width; };
+        int16_t height() { return m_height; };
+        void width(int16_t a) { m_width = a; };
+        void height(int16_t a) { m_height = a; };
     protected:
     private:
-        unsigned int m_width;
-        unsigned int m_height;
+        int16_t m_width;
+        int16_t m_height;
 };
 
 #endif // RECT_H

@@ -28,11 +28,8 @@ Rect::Rect()
     //ctor
 }
 
-Rect::Rect(unsigned int width, unsigned int height)
+Rect::Rect(int16_t width, int16_t height) : m_width(width), m_height(height)
 {
-    //ctor
-    m_width = width;
-    m_height = height;
 }
 
 Rect::~Rect()
