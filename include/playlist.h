@@ -27,7 +27,8 @@ class Playlist
 {
     public:
         Playlist(std::vector<std::string> args);
-        Playlist(TagLib::String playlist);
+        Playlist(track trk);
+        Playlist() { }
         ~Playlist();
         bool addFile(TagLib::String path);
         void parseArgs(std::vector<std::string> args);
@@ -38,6 +39,8 @@ class Playlist
         TagLib::String getTrack(long position);
         TagLib::String next();
         TagLib::String prev();
+        static Playlist loadPlaylist(TagLib::String path);
+        void savePlaylist(TagLib::String path);
     protected:
     private:
         std::vector<track> tracks;

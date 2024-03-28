@@ -29,7 +29,7 @@ Playlist::Playlist(std::vector<std::string> args)
     parseArgs(args);
 }
 
-Playlist::Playlist(TagLib::String playlist)
+Playlist::Playlist(track trk)
 {
     // M3U ctor
 }
@@ -55,7 +55,7 @@ bool Playlist::addFile(TagLib::String path)
         fileref = new TagLib::FileRef(path.toCString(true));
     } catch (std::exception& e) {
         std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
-	return false;
+	    return false;
     }
     ntrk = new track(path, fileref);
     tracks.push_back(*ntrk);
@@ -107,4 +107,16 @@ TagLib::String Playlist::prev()
 {
     if (m_position == 0) m_position++;
     return getTrack(--m_position);
+}
+
+Playlist Playlist::loadPlaylist(TagLib::String path)
+{
+    Playlist nply;
+
+    return nply;
+}
+
+void Playlist::savePlaylist(TagLib::String path)
+{
+
 }
