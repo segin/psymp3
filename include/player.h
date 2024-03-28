@@ -50,6 +50,7 @@ class Player
         bool play(void);
         bool playPause(void);
         void openTrack(TagLib::String path);
+        static bool guiRunning; \
     protected:
         int state;
         void renderSpectrum(Surface *graph);

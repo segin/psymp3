@@ -23,6 +23,8 @@
 
 #include "psymp3.h"
 
+static bool Player::guiRunning;
+
 std::string convertInt(long number)
 {
    std::stringstream ss;
@@ -102,7 +104,7 @@ void Player::synthesizeUserEvent(int code, void *data1, void* data2)
 
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
 {
-    if (!gui_iteration_running)
+    if (!Player::guiRunning)
         synthesizeUserEvent(RUN_GUI_ITERATION, NULL, NULL);
     else
         std::cout << "timer: skipped" << std::endl;
@@ -363,7 +365,7 @@ void Player::Run(std::vector<std::string> args)
                     }
                     case RUN_GUI_ITERATION:
                     {
-                        gui_iteration_running = true;
+                        Player::guiRunning = true;
                         screen->FillRect(screen->MapRGB(0, 0, 0));
                         // draw bitmap
                         //screen->Blit(bmp, dstrect);
@@ -437,7 +439,7 @@ void Player::Run(std::vector<std::string> args)
                         screen->Flip();
                         // and if end of stream...
                         sdone = stream->eof();
-                        gui_iteration_running = false;
+                        Player::guiRunning = false;
                         break;
                     }
                 }
