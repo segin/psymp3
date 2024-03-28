@@ -91,12 +91,14 @@ unsigned long long Stream::getSLength()
  */
 unsigned int Stream::getChannels()
 {
+    if(m_channels) return m_channels;
     if(!m_tags) return 0;
     return m_tags->audioProperties()->channels();
 }
 
 unsigned int Stream::getRate()
 {
+    if(m_rate) return m_rate;
     if(!m_tags) return 0;
     return m_tags->audioProperties()->sampleRate();
 }

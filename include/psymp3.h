@@ -1,7 +1,7 @@
 /*
  * psymp3.h - main include for all other source files.
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -26,7 +26,7 @@
 
 // defines
 #define PSYMP3_VERSION "2-CURRENT"
-#define PSYMP3_MAINTAINER "Kirn Gill <segin2005@gmail.com>"
+#define PSYMP3_MAINTAINER "Kirn Gill II <segin2005@gmail.com>"
 
 enum {
     RUN_GUI_ITERATION = 0xfe0f,

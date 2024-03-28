@@ -63,21 +63,6 @@ void Libmpg123::open(TagLib::String name)
     m_eof = false;
 }
 
-unsigned int Libmpg123::getChannels()
-{
-    return m_channels;
-}
-
-unsigned int Libmpg123::getRate()
-{
-    return m_rate;
-}
-
-unsigned int Libmpg123::getEncoding()
-{
-    return 0;
-}
-
 unsigned int Libmpg123::getLength()
 {
     return (int) ((long long) mpg123_length((mpg123_handle *) m_handle) * 1000 / m_rate);

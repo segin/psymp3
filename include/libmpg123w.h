@@ -32,9 +32,6 @@ class Libmpg123 : public Stream
         /** Default destructor */
         virtual ~Libmpg123();
         virtual void open(TagLib::String name);
-        virtual unsigned int getChannels();
-        virtual unsigned int getRate();
-        virtual unsigned int getEncoding(); // returns undefined
         virtual unsigned int getPosition(); // in msec!
         virtual unsigned long long getSPosition(); // in samples!
         virtual unsigned int getLength(); // in msec!

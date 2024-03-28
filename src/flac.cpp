@@ -38,21 +38,6 @@ void Flac::open(TagLib::String name)
     return;
 }
 
-unsigned int Flac::getChannels()
-{
-    return m_channels;
-}
-
-unsigned int Flac::getRate()
-{
-    return m_rate;
-}
-
-unsigned int Flac::getEncoding()
-{
-    return 0;
-}
-
 unsigned int Flac::getLength()
 {
     return m_length;
@@ -61,16 +46,6 @@ unsigned int Flac::getLength()
 unsigned long long Flac::getSLength()
 {
     return m_slength;
-}
-
-unsigned int Flac::getPosition()
-{
-    return m_position;
-}
-
-unsigned long long Flac::getSPosition()
-{
-    return m_sposition;
 }
 
 size_t Flac::getData(size_t len, void *buf)
