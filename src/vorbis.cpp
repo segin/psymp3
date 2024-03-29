@@ -42,15 +42,14 @@ void Vorbis::open(TagLib::String name)
     int ret = ov_fopen((char *) name.toCString(true), (OggVorbis_File *) m_handle);
     switch (ret) {
     case OV_ENOTVORBIS:
-        // throw WrongFormatException();
-        throw;
+        throw WrongFormatException("Not a Vorbis file: " + name);
         break;
     case OV_EREAD:
     case OV_EVERSION:
     case OV_EBADHEADER:
     case OV_EFAULT:
-        //throw BadFormatException();
-        throw;
+        throw BadFormatException("Bad file: " + name);
+        //throw;
         break;
     default: // returned 0 for success
         m_vi = ov_info((OggVorbis_File *) m_handle, -1);
