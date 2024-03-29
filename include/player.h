@@ -50,7 +50,7 @@ class Player
         bool play(void);
         bool playPause(void);
         void openTrack(TagLib::String path);
-        static bool guiRunning; \
+        static bool guiRunning; 
     protected:
         int state;
         void renderSpectrum(Surface *graph);
@@ -66,7 +66,7 @@ class Player
         FastFourier *fft;
         Mutex *mutex;
         System *system;
-        std::map<std::string, Widget> info;
+        std::map<std::string, Surface> info;
         struct atdata ATdata;
 };
 
