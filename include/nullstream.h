@@ -27,12 +27,14 @@
 class NullStream : public Stream
 {
     public:
-        NullStream();
-        NullStream(TagLib::String name);
-        virtual ~NullStream();
-        virtual size_t getData(size_t len, void *buf);
-        virtual void seekTo(unsigned long pos);
-        virtual bool eof();
+        NullStream() { }
+        NullStream(TagLib::String name) { }
+        virtual ~NullStream() { }
+        virtual size_t getData(size_t len, void *buf) { return len; }
+        virtual void seekTo(unsigned long pos) { }
+        virtual bool eof() { return false; }
     protected:
     private:
 };
+
+#endif /* NULLSTREAM_H */
