@@ -24,6 +24,24 @@
 #ifndef FLAC_H
 #define FLAC_H
 
+class FlacDecoder: public FLAC::Decoder::File
+{
+    public:
+        FlacDecoder(TagLib::String path) : FLAC::Decoder::File(), m_path(path) { }
+        TagLib::String m_path;
+        long long      m_slength;
+        long           m_rate;
+        long           m_channels;
+        long           m_bitdepth;
+    protected:
+        virtual ::FLAC__StreamDecoderWriteStatus write_callback(const ::FLAC__Frame *frame, const FLAC__int32 * const buffer[]);
+        virtual void metadata_callback(const ::FLAC__StreamMetadata *metadata);
+        virtual void error_callback(::FLAC__StreamDecoderErrorStatus status);
+    private:
+    	FlacDecoder(const FlacDecoder&);
+	    FlacDecoder &operator=(const FlacDecoder&);
+};
+
 class Flac : public Stream
 {
     public:
@@ -39,7 +57,8 @@ class Flac : public Stream
         static void fini();
     protected:
     private:
-
+        FlacDecoder m_handle;
+        char *sampbuf;
 };
 
 #endif // LIBMPG123_H

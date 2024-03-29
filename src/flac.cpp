@@ -22,20 +22,22 @@
  */
 
 #include "psymp3.h"
+#include "flac.h"
 
-Flac::Flac(TagLib::String name) : Stream(name)
+Flac::Flac(TagLib::String name) : Stream(name), m_handle(name)
 {
-
+    sampbuf = new char[16384];
+    open(name);
 }
 
 Flac::~Flac()
 {
-
+    delete[] sampbuf;
 }
 
 void Flac::open(TagLib::String name)
 {
-    return;
+    m_handle.init(name.to8Bit(true));
 }
 
 size_t Flac::getData(size_t len, void *buf)
@@ -61,4 +63,14 @@ void Flac::init()
 void Flac::fini()
 {
 
+}
+
+::FLAC__StreamDecoderWriteStatus FlacDecoder::write_callback(const ::FLAC__Frame *frame, const FLAC__int32 *const buffer[]) {
+    return ::FLAC__StreamDecoderWriteStatus();
+}
+
+void FlacDecoder::metadata_callback(const ::FLAC__StreamMetadata *metadata) {
+}
+
+void FlacDecoder::error_callback(::FLAC__StreamDecoderErrorStatus status) {
 }
