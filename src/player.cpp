@@ -26,22 +26,19 @@
 
 bool Player::guiRunning;
 
-std::string convertInt(long number)
-{
+std::string convertInt(long number) {
    std::stringstream ss;
    ss << number;
    return ss.str();
 }
 
-std::string convertInt2(long number)
-{
+std::string convertInt2(long number) {
     char s[8];
     snprintf(s, 8, "%02ld", number);
     return s;
 }
 
-Player::Player()
-{
+Player::Player() {
     //ctor - you'd think we'd initialize our object pointers here,
     // but no, some depend on SDL, which is initialized in Run()
     // -- but we will delete them in ~Player()
@@ -58,8 +55,7 @@ Player::Player()
     system = nullptr;
 }
 
-Player::~Player()
-{
+Player::~Player() {
     if (screen)
         delete screen;
     if (graph)
@@ -81,8 +77,7 @@ Player::~Player()
 }
 
 /* SDL event synthesis */
-void Player::synthesizeKeyEvent(SDLKey kpress)
-{
+void Player::synthesizeKeyEvent(SDLKey kpress) {
     SDL_Event event;
     event.type = SDL_KEYDOWN;
     event.key.keysym.sym = kpress;
@@ -91,8 +86,7 @@ void Player::synthesizeKeyEvent(SDLKey kpress)
     SDL_PushEvent(&event);
 }
 
-void Player::synthesizeUserEvent(int code, void *data1, void* data2)
-{
+void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
     SDL_Event event;
 
     event.type = SDL_USEREVENT;
@@ -103,8 +97,7 @@ void Player::synthesizeUserEvent(int code, void *data1, void* data2)
     SDL_PushEvent(&event);
 }
 
-Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
-{
+Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     if (!Player::guiRunning)
         synthesizeUserEvent(RUN_GUI_ITERATION, NULL, NULL);
     else
@@ -117,8 +110,7 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param)
  * switch to playing - this is consistent with the majority of players
  * on the market.
  */
-void Player::openTrack(TagLib::String path)
-{
+void Player::openTrack(TagLib::String path) {
     audio->lock();
     if (stream) {
         delete stream;
@@ -146,8 +138,7 @@ void Player::openTrack(TagLib::String path)
 }
 
 /* Player control functions */
-bool Player::nextTrack(void)
-{
+bool Player::nextTrack(void) {
     TagLib::String nextfile = playlist->next();
     if (nextfile == "") {
         return false;
@@ -157,14 +148,12 @@ bool Player::nextTrack(void)
     return true;
 }
 
-bool Player::prevTrack(void)
-{
+bool Player::prevTrack(void) {
     openTrack(playlist->prev());
     return true;
 }
 
-bool Player::stop(void)
-{
+bool Player::stop(void) {
     state = STOPPED;
     if (stream) { 
         delete stream; 
@@ -173,8 +162,7 @@ bool Player::stop(void)
     return true;
 }
 
-bool Player::pause(void)
-{
+bool Player::pause(void) {
     if (state != STOPPED) {
         audio->play(false);
         state = PAUSED;
@@ -184,15 +172,13 @@ bool Player::pause(void)
     }
 }
 
-bool Player::play(void)
-{
+bool Player::play(void) {
     audio->play(true);
     state = PLAYING;
     return true;
 }
 
-bool Player::playPause(void)
-{
+bool Player::playPause(void) {
     switch(state) {
         case STOPPED:
         case PAUSED:
@@ -211,8 +197,7 @@ bool Player::playPause(void)
 
 /* Internal UI compartments */
 
-void Player::renderSpectrum(Surface *graph)
-{
+void Player::renderSpectrum(Surface *graph) {
     float *spectrum = fft->getFFT();
     for (int x = 0; x < 350; x++) {
         graph->hline(0, 639, x, 64);
@@ -229,14 +214,12 @@ void Player::renderSpectrum(Surface *graph)
     };
 }
 
-void Player::updateInfo(void)
-{
+void Player::updateInfo(void) {
 } 
 
 /* Main player functionality */
 
-void Player::Run(std::vector<std::string> args)
-{
+void Player::Run(std::vector<std::string> args) {
     if((args.size() > 1) && args[1] == "--version") {
         about_console();
         return;
