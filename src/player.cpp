@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include "player.h"
 
 bool Player::guiRunning;
 
@@ -228,7 +229,12 @@ void Player::renderSpectrum(Surface *graph)
     };
 }
 
+void Player::updateInfo(void)
+{
+} 
+
 /* Main player functionality */
+
 void Player::Run(std::vector<std::string> args)
 {
     if((args.size() > 1) && args[1] == "--version") {
