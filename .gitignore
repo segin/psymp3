@@ -8,6 +8,7 @@ aclocal.m4
 compile
 config.*
 configure
+configure~
 Makefile
 Makefile.in
 missing
@@ -15,3 +16,4 @@ src/stdout.txt
 src/stderr.exe
 src/psymp3.exe
 src/psymp3
+
