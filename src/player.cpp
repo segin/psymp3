@@ -164,7 +164,6 @@ bool Player::prevTrack(void)
 
 bool Player::stop(void)
 {
-    /* XXX: Implement stopped state. */
     state = STOPPED;
     if (stream) { 
         delete stream; 
