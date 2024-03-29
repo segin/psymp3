@@ -53,6 +53,8 @@ enum {
 #include <vector>
 #include <exception>
 #include <typeinfo>
+#include <thread>
+#include <unordered_set>
 
 #ifdef __cplusplus
     #include <cstdlib>
@@ -102,6 +104,7 @@ enum {
 #include "libmpg123w.h"
 #include "vorbisw.h"
 #include "flac.h"
+#include "nullstream.h"
 #include "mediafile.h"
 #include "audio.h"
 #include "fft.h"
