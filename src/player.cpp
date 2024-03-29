@@ -278,18 +278,21 @@ void Player::Run(std::vector<std::string> args)
 
     Rect dstrect;
     SDL_TimerID timer;
+    if (stream) {
+        info["artist"] = font->Render("Artist: " + stream->getArtist());
+        info["title"] = font->Render("Title: " + stream->getTitle());
+        info["album"] = font->Render("Album: " + stream->getAlbum());
+        info["playlist"] = font->Render("Playlist: " +
+                                        convertInt(playlist->getPosition() + 1) + "/" +
+                                        convertInt(playlist->entries()));
 
-    info["artist"] = font->Render("Artist: " + stream->getArtist());
-    info["title"] = font->Render("Title: " + stream->getTitle());
-    info["album"] = font->Render("Album: " + stream->getAlbum());
-    info["playlist"] = font->Render("Playlist: " +
-                                      convertInt(playlist->getPosition() + 1) + "/" +
-                                      convertInt(playlist->entries()));
-
-    // program main loop
+        // program main loop
+        audio->play(true);
+        state = PLAYING;
+    } else {
+        state = STOPPED;
+    }
     bool done = false;
-    audio->play(true);
-    state = PLAYING;
     // if (system) system->progressState(TBPF_NORMAL);
     timer = SDL_AddTimer(33, AppLoopTimer, NULL);
     while (!done) {
@@ -387,7 +390,7 @@ void Player::Run(std::vector<std::string> args)
                         mutex->lock();
                         //system->updateProgress(stream->getPosition(), stream->getLength());
                         if(stream)
-                        info["position"] = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
+                            info["position"] = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                     + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                                     + "." + convertInt2((stream->getPosition() / 10) % 100)
                                                     + "/" + convertInt(stream->getLength() / 60000)
@@ -398,7 +401,8 @@ void Player::Run(std::vector<std::string> args)
                         f.height(353);
                         f.width(400);
                         screen->Blit(info["position"], f);
-                        screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
+                        if(stream)
+                            screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
                                            (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
                                            stream->getTitle().to8Bit(true) + " ]:- ["
                                            + convertInt(stream->getPosition() / 60000)
@@ -407,6 +411,8 @@ void Player::Run(std::vector<std::string> args)
                                            + "/" + convertInt(stream->getLength() / 60000)
                                            + ":" + convertInt2((stream->getLength() / 1000) % 60)
                                            + "]", "PsyMP3 " PSYMP3_VERSION);
+                        else
+                            screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
                         // draw progress bar
                         screen->vline(399, 370, 385, 0xFFFFFFFF);
                         screen->vline(621, 370, 385, 0xFFFFFFFF);
@@ -421,7 +427,11 @@ void Player::Run(std::vector<std::string> args)
                             if (stream)
                                 stream->seekTo((long long) stream->getPosition() + 1500);
                         }
-                        double t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
+                        double t;
+                        if(stream)
+                            t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
+                        else   
+                            t = 0.0f;
                         for(double x = 0; x < t; x++) {
                             if (x > 146) {
                                 screen->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
@@ -442,7 +452,10 @@ void Player::Run(std::vector<std::string> args)
                         // finally, update the screen :)
                         screen->Flip();
                         // and if end of stream...
-                        sdone = stream->eof();
+                        if (stream)
+                            sdone = stream->eof();
+                        else
+                            sdone = false; 
                         Player::guiRunning = false;
                         break;
                     }
