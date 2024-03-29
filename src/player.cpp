@@ -123,22 +123,24 @@ void Player::openTrack(TagLib::String path)
         delete stream;
     }
     stream = MediaFile::open(path);
-    ATdata.stream = stream;
-    if (stream && (audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
-        pause(); /* otherwise a race condition can occur */
-        audio->unlock();
-        delete audio;
-        audio = new Audio(&ATdata);
-    } else {
-        audio->unlock();
+    if (stream) {
+        ATdata.stream = stream;
+        if (stream && (audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
+            pause(); /* otherwise a race condition can occur */
+            audio->unlock();
+            delete audio;
+            audio = new Audio(&ATdata);
+        } else {
+            audio->unlock();
+        }
+        info["artist"] = font->Render("Artist: " + stream->getArtist());
+        info["title"] = font->Render("Title: " + stream->getTitle());
+        info["album"] = font->Render("Album: " + stream->getAlbum());
+        info["playlist"] = font->Render("Playlist: " +
+            convertInt(playlist->getPosition() + 1) + "/" +
+            convertInt(playlist->entries()));
+        play();
     }
-    info["artist"] = font->Render("Artist: " + stream->getArtist());
-    info["title"] = font->Render("Title: " + stream->getTitle());
-    info["album"] = font->Render("Album: " + stream->getAlbum());
-    info["playlist"] = font->Render("Playlist: " +
-        convertInt(playlist->getPosition() + 1) + "/" +
-        convertInt(playlist->entries()));
-    play();
     return;
 }
 
@@ -164,6 +166,10 @@ bool Player::stop(void)
 {
     /* XXX: Implement stopped state. */
     state = STOPPED;
+    if (stream) { 
+        delete stream; 
+        stream = nullptr;
+    }
     return true;
 }
 
