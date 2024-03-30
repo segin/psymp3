@@ -32,14 +32,14 @@ Vorbis::Vorbis(TagLib::String name) : Stream(name)
 
 Vorbis::~Vorbis()
 {
-    ov_clear((OggVorbis_File *) m_handle);
-    delete (OggVorbis_File *) m_handle;
-    m_handle = NULL;
+    ov_clear(static_cast<OggVorbis_File *>(m_handle));
+    delete static_cast<OggVorbis_File *>(m_handle);
+    m_handle = nullptr;
 }
 
 void Vorbis::open(TagLib::String name)
 {
-    int ret = ov_fopen((char *) name.toCString(true), (OggVorbis_File *) m_handle);
+    int ret = ov_fopen((char *) name.toCString(true), static_cast<OggVorbis_File *>(m_handle));
     switch (ret) {
     case OV_ENOTVORBIS:
         throw WrongFormatException("Not a Vorbis file: " + name);
@@ -52,14 +52,14 @@ void Vorbis::open(TagLib::String name)
         //throw;
         break;
     default: // returned 0 for success
-        m_vi = ov_info((OggVorbis_File *) m_handle, -1);
+        m_vi = ov_info(static_cast<OggVorbis_File *>(m_handle), -1);
         switch(m_vi->channels) {
         case 1:
         case 2:
             m_channels = m_vi->channels;
             m_bitrate = m_vi->bitrate_nominal;
-            m_length = ov_time_total((OggVorbis_File *) m_handle, -1) * 1000;
-            m_slength = ov_pcm_total((OggVorbis_File *) m_handle, -1);
+            m_length = ov_time_total(static_cast<OggVorbis_File *>(m_handle), -1) * 1000;
+            m_slength = ov_pcm_total(static_cast<OggVorbis_File *>(m_handle), -1);
             break;
         default:
             // throw
@@ -71,17 +71,17 @@ void Vorbis::open(TagLib::String name)
 
 void Vorbis::seekTo(unsigned long pos)
 {
-    ov_time_seek((OggVorbis_File *) m_handle, (double) pos / 1000.0);
-    m_sposition = ov_pcm_tell((OggVorbis_File *) m_handle);
-    m_position = ov_time_tell((OggVorbis_File *) m_handle) * 1000;
+    ov_time_seek(static_cast<OggVorbis_File *>(m_handle), (double) pos / 1000.0);
+    m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
+    m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
 }
 
 size_t Vorbis::getData(size_t len, void *buf)
 {
     std::cout << "Vorbis::getData(): len = " << len << std::endl;
-    long ret = ov_read((OggVorbis_File *) m_handle, (char *) buf, len, 0, 2, 1, &m_session);
-    m_sposition = ov_pcm_tell((OggVorbis_File *) m_handle);
-    m_position = ov_time_tell((OggVorbis_File *) m_handle) * 1000;
+    long ret = ov_read(static_cast<OggVorbis_File *>(m_handle), static_cast<char *>(buf), len, 0, 2, 1, &m_session);
+    m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
+    m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
     return (size_t) ret;
 }
 
