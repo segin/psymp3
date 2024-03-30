@@ -1,4 +1,4 @@
-#include "fft.h"
+#include "psymp3.h"
 
 FFT::FFT(int size) {
 	real = new float[size];
