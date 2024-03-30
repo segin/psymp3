@@ -27,12 +27,12 @@
 // Convert wide-character string to UTF-8
 std::string WideCharToUTF8(const wchar_t* wideStr) {
     int wideStrLen = wcslen(wideStr);
-    int utf8StrLen = WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, NULL, 0, NULL, NULL);
+    int utf8StrLen = WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, nullptr, 0, nullptr, nullptr);
     if (utf8StrLen == 0) {
         return ""; // Conversion failed
     }
     std::vector<char> buffer(utf8StrLen + 1); // +1 for null terminator
-    WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, buffer.data(), utf8StrLen, NULL, NULL);
+    WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, buffer.data(), utf8StrLen, nullptr, nullptr);
     return std::string(buffer.data());
 }
 
@@ -44,7 +44,7 @@ std::vector<std::string> ParseCommandLine(int argc, char *argv[]) {
     int wideArgc;
 
     wideArgv = CommandLineToArgvW(GetCommandLineW(), &wideArgc);
-    if (wideArgv == NULL) {
+    if (wideArgv == nullptr) {
         std::cerr << "Failed to parse command line" << std::endl;
         exit(1);
     }

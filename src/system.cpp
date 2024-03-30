@@ -33,7 +33,7 @@ System::System()
 void System::InitalizeTaskbar()
 {
 #if defined(_WIN32) && defined(WIN_OPTIONAL)
-    HRESULT hr = CoCreateInstance(CLSID_TaskbarList, (IUnknown *) NULL, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, (void **) &m_taskbar);
+    HRESULT hr = CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, (void **) &m_taskbar);
 
     if (SUCCEEDED(hr)) {
         std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar << std::endl;
@@ -42,7 +42,7 @@ void System::InitalizeTaskbar()
         if (FAILED(hr)) {
             std::cerr << "Error initializing ITaskbarList3 COM object!" << std::endl;
             m_taskbar->Release();
-            m_taskbar = (ITaskbarList3 *) NULL;
+            m_taskbar = nullptr;
         }
     } else std::cerr << "Error initializing ITaskbarList3 COM object!" << std::endl;
 #endif
@@ -92,7 +92,7 @@ TagLib::String System::getHome()
     lpSHGetKnownFolderPath pSHGetKnownFolderPath;
     hndl_shell32 = LoadLibrary("shell32");
     pSHGetKnownFolderPath = GetProcAddress(hndl_shell32, "SHGetKnownFolderPathW");
-    if(pSHGetKnownFolderPath != NULL) {
+    if(pSHGetKnownFolderPath != nullptr) {
 
     } else {
 
@@ -103,7 +103,7 @@ TagLib::String System::getHome()
     DWORD bufsize = 48;
     BYTE *uinfo;
     GetUserName(user, &bufsize);
-    if(NetUserGetInfo((WCHAR *) NULL, user, 11, &uinfo)) {
+    if(NetUserGetInfo(nullptr, user, 11, &uinfo)) {
         std::cout << "NetUserGetInfo() failed!" << std::endl;
     }
     return ((LPUSER_INFO_11)uinfo)->usri11_home_dir;

@@ -37,7 +37,7 @@ Libmpg123::~Libmpg123()
 {
     mpg123_close(static_cast<mpg123_handle *>(m_handle));
     mpg123_delete(static_cast<mpg123_handle *>(m_handle));
-    m_handle = NULL;
+    m_handle = nullptr;
 }
 
 void Libmpg123::open(TagLib::String name)

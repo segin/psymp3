@@ -46,7 +46,7 @@ void Audio::setup(struct atdata *data)
     fmt.samples = 512 * fmt.channels; /* 512 samples for fft */
     fmt.callback = callback;
     fmt.userdata = (void *) data;
-    if ( SDL_OpenAudio(&fmt, (SDL_AudioSpec *) NULL) < 0 ) {
+    if ( SDL_OpenAudio(&fmt, nullptr) < 0 ) {
         std::cerr << "Unable to open audio: " << SDL_GetError() << std::endl;
         // throw;
     }

@@ -99,7 +99,7 @@ void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
 
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     if (!Player::guiRunning)
-        synthesizeUserEvent(RUN_GUI_ITERATION, NULL, NULL);
+        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     else
         std::cout << "timer: skipped" << std::endl;
 
@@ -288,7 +288,7 @@ void Player::Run(std::vector<std::string> args) {
     }
     bool done = false;
     // if (system) system->progressState(TBPF_NORMAL);
-    timer = SDL_AddTimer(33, AppLoopTimer, NULL);
+    timer = SDL_AddTimer(33, AppLoopTimer, nullptr);
     while (!done) {
         bool sdone = false;
         // message processing loop

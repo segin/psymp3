@@ -27,7 +27,7 @@
 Surface::Surface()
 {
     //ctor - wat do?
-    m_handle = (SDL_Surface *) NULL; // XXX: Figure out what to do for a default constructor, if we're to ever use it.
+    m_handle = nullptr; // XXX: Figure out what to do for a default constructor, if we're to ever use it.
 }
 
 Surface::Surface(SDL_Surface *sfc)
