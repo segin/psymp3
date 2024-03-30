@@ -24,10 +24,9 @@
 
 #include "psymp3.h"
 
-FFT::FFT(int size) {
+FFT::FFT(int size) : size(size) {
 	real = new float[size];
 	imag = new float[size];
-	this->size = size;
 }
 
 FFT::~FFT() {
