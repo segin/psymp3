@@ -69,7 +69,6 @@ std::vector<std::string> ParseCommandLine(int argc, char *argv[]) {
 }
 #endif
 
-
 int main(int argc, char *argv[]) {
     Player PsyMP3;
     PsyMP3.Run(ParseCommandLine(argc, argv));
