@@ -88,7 +88,7 @@ size_t Libmpg123::getData(size_t len, void *buf)
     size_t actual;
     int cond;
     //std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
-    cond = mpg123_read(static_cast<mpg123_handle *>(m_handle), (unsigned char *) buf, len, &actual);
+    cond = mpg123_read(static_cast<mpg123_handle *>(m_handle), static_cast<unsigned char *>(buf), len, &actual);
     if (cond == MPG123_DONE)
         m_eof = true;
     m_position = (long long) mpg123_tell(static_cast<mpg123_handle *>(m_handle)) * 1000 / m_rate;
