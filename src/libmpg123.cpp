@@ -35,28 +35,28 @@ Libmpg123::Libmpg123(TagLib::String name) : Stream(name)
 
 Libmpg123::~Libmpg123()
 {
-    mpg123_close((mpg123_handle *) m_handle);
-    mpg123_delete((mpg123_handle *) m_handle);
+    mpg123_close(static_cast<mpg123_handle *>(m_handle));
+    mpg123_delete(static_cast<mpg123_handle *>(m_handle));
     m_handle = NULL;
 }
 
 void Libmpg123::open(TagLib::String name)
 {
     int ret;
-    ret = mpg123_open((mpg123_handle *) m_handle, name.toCString(true));
+    ret = mpg123_open(static_cast<mpg123_handle *>(m_handle), name.toCString(true));
     if (ret != MPG123_OK) {
         std::cerr << "mpg123_open() failed: " << ret << std::endl;
         // throw WrongFormatException();
     }
-    ret = mpg123_getformat((mpg123_handle *) m_handle, &m_rate, &m_channels, &m_encoding);
+    ret = mpg123_getformat(static_cast<mpg123_handle *>(m_handle), &m_rate, &m_channels, &m_encoding);
     if (ret == -1) {
 
     }
-    ret = mpg123_format_none((mpg123_handle *) m_handle);
+    ret = mpg123_format_none(static_cast<mpg123_handle *>(m_handle));
     if (ret == -1) {
 
     }
-    ret = mpg123_format((mpg123_handle *) m_handle, m_rate, m_channels, MPG123_ENC_SIGNED_16);
+    ret = mpg123_format(static_cast<mpg123_handle *>(m_handle), m_rate, m_channels, MPG123_ENC_SIGNED_16);
     if (ret == -1) {
 
     }
@@ -65,22 +65,22 @@ void Libmpg123::open(TagLib::String name)
 
 unsigned int Libmpg123::getLength()
 {
-    return (int) ((long long) mpg123_length((mpg123_handle *) m_handle) * 1000 / m_rate);
+    return (int) ((long long) mpg123_length(static_cast<mpg123_handle *>(m_handle)) * 1000 / m_rate);
 }
 
 unsigned long long Libmpg123::getSLength()
 {
-    return mpg123_length((mpg123_handle *) m_handle);
+    return mpg123_length(static_cast<mpg123_handle *>(m_handle));
 }
 
 unsigned int Libmpg123::getPosition()
 {
-    return (int) ((long long) mpg123_tell((mpg123_handle *) m_handle) * 1000 / m_rate);
+    return (int) ((long long) mpg123_tell(static_cast<mpg123_handle *>(m_handle)) * 1000 / m_rate);
 }
 
 unsigned long long Libmpg123::getSPosition()
 {
-    return mpg123_tell((mpg123_handle *) m_handle);
+    return mpg123_tell(static_cast<mpg123_handle *>(m_handle));
 }
 
 size_t Libmpg123::getData(size_t len, void *buf)
@@ -88,10 +88,10 @@ size_t Libmpg123::getData(size_t len, void *buf)
     size_t actual;
     int cond;
     //std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
-    cond = mpg123_read((mpg123_handle *) m_handle, (unsigned char *) buf, len, &actual);
+    cond = mpg123_read(static_cast<mpg123_handle *>(m_handle), (unsigned char *) buf, len, &actual);
     if (cond == MPG123_DONE)
         m_eof = true;
-    m_position = (long long) mpg123_tell((mpg123_handle *) m_handle) * 1000 / m_rate;
+    m_position = (long long) mpg123_tell(static_cast<mpg123_handle *>(m_handle)) * 1000 / m_rate;
     //std::cout << "Libmpg123::getData(): actual = " << (int) actual << std::endl;
     return actual;
 }
@@ -99,7 +99,7 @@ size_t Libmpg123::getData(size_t len, void *buf)
 void Libmpg123::seekTo(unsigned long pos)
 {
     long long a = (long long) pos * m_rate / 1000;
-    m_position = (long long) mpg123_seek((mpg123_handle *) m_handle, a, SEEK_SET) * 1000 / m_rate;
+    m_position = (long long) mpg123_seek(static_cast<mpg123_handle *>(m_handle), a, SEEK_SET) * 1000 / m_rate;
 }
 
 bool Libmpg123::eof()
