@@ -1,7 +1,5 @@
 #include "fft.h"
 
-#include <cmath>
-
 FFT::FFT(int size) {
 	real = new float[size];
 	imag = new float[size];
@@ -12,9 +10,6 @@ FFT::~FFT() {
 	delete[] real;
 	delete[] imag;
 }
-
-#include <iostream>
-using namespace std;
 
 void FFT::fft(float *output, const float *input) { 
 	int nu = (int) ((float) log(size) / log(2.0)); // Number of bits of item indexes
