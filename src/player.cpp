@@ -195,6 +195,11 @@ bool Player::playPause(void) {
     return true;
 }
 
+float Player::logarithmicScale(float x) {
+    x = std::max(0.0f, std::min(1.0f, x));
+    return std::log(1.0f + 9.0f * x) / std::log(10.0f);
+}
+
 /* Internal UI compartments */
 
 void Player::renderSpectrum(Surface *graph) {
@@ -205,11 +210,11 @@ void Player::renderSpectrum(Surface *graph) {
     for(uint16_t x=0; x < 320; x++) {
         // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
         if (x > 213) {
-            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
+            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(spectrum[x]) * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
         } else if (x < 106) {
-            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 3.98) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.398), 255);
+            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(spectrum[x]) * 350.0f * 3.98) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.398), 255);
         } else {
-            graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.1962615)), (uint8_t) (255 - ((x - 106) * 2.383177)), 255, 255);
+            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(spectrum[x]) * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.1962615)), (uint8_t) (255 - ((x - 106) * 2.383177)), 255, 255);
         }
     };
 }
