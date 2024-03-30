@@ -85,7 +85,7 @@ void Audio::unlock(void)
  */
 void Audio::callback(void *data, Uint8 *buf, int len)
 {
-    struct atdata *ldata = (struct atdata *) data;
+    struct atdata *ldata = static_cast<struct atdata *>(data);
     Stream *stream = ldata->stream;
     FastFourier *fft = ldata->fft;
     Mutex *mutex = ldata->mutex;
