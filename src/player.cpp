@@ -195,9 +195,12 @@ bool Player::playPause(void) {
     return true;
 }
 
-float Player::logarithmicScale(float x) {
-    x = std::max(0.0f, std::min(1.0f, x));
-    return std::log(1.0f + 9.0f * x) / std::log(10.0f);
+float Player::logarithmicScale(const int f, float x) {
+    x = std::clamp(x, 0.0f, 1.0f);
+    if(f) 
+        for (auto i=0;i<f;i++) 
+            x = std::log10(1.0f + 9.0f * x);
+    return x;
 }
 
 /* Internal UI compartments */
@@ -205,16 +208,16 @@ float Player::logarithmicScale(float x) {
 void Player::renderSpectrum(Surface *graph) {
     float *spectrum = fft->getFFT();
     for (int x = 0; x < 350; x++) {
-        graph->hline(0, 639, x, 64);
+        graph->hline(0, 639, x, 64 * decayfactor);
     }
     for(uint16_t x=0; x < 320; x++) {
         // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
         if (x > 213) {
-            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(spectrum[x]) * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
+            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
         } else if (x < 106) {
-            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(spectrum[x]) * 350.0f * 3.98) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.398), 255);
+            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.398), 255);
         } else {
-            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(spectrum[x]) * 350.0f * 4) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.1962615)), (uint8_t) (255 - ((x - 106) * 2.383177)), 255, 255);
+            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.1962615)), (uint8_t) (255 - ((x - 106) * 2.383177)), 255, 255);
         }
     };
 }
@@ -284,7 +287,7 @@ void Player::Run(std::vector<std::string> args) {
         info["playlist"] = font->Render("Playlist: " +
                                         convertInt(playlist->getPosition() + 1) + "/" +
                                         convertInt(playlist->entries()));
-
+        info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
         // program main loop
         audio->play(true);
         state = PLAYING;
@@ -323,6 +326,36 @@ void Player::Run(std::vector<std::string> args) {
                 case SDLK_p:
                 {
                     prevTrack();
+                    break;
+                }
+                case SDLK_0:
+                {
+                    scalefactor = 0;
+                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    break;
+                }
+                case SDLK_1:
+                {
+                    scalefactor = 1;
+                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    break;
+                }
+                case SDLK_2:
+                {
+                    scalefactor = 2;
+                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    break;
+                }
+                case SDLK_3:
+                {
+                    scalefactor = 3;
+                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    break;
+                }
+                case SDLK_4:
+                {
+                    scalefactor = 4;
+                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
                     break;
                 }
                 case SDLK_LEFT:
@@ -445,6 +478,8 @@ void Player::Run(std::vector<std::string> args) {
                         f.height(0);
                         f.width(0);
                         screen->Blit(*graph, f);
+                        f.width(550);
+                        screen->Blit(info["scale"], f);
                         // DRAWING ENDS HERE
 
 

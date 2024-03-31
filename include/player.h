@@ -38,7 +38,7 @@ class Player
         Player();
         ~Player();
         void Run(std::vector<std::string> args);
-        static float logarithmicScale(float x);
+        static float logarithmicScale(const int f, float x);
         static Uint32 AppLoopTimer(Uint32 interval, void* param);
         /* SDL event synthesis */
         static void synthesizeUserEvent(int uevent, void *data1, void *data2);
@@ -69,6 +69,8 @@ class Player
         System *system;
         std::map<std::string, Surface> info;
         struct atdata ATdata;
+        int scalefactor = 2;
+        float decayfactor = 1.0f;
 };
 
 #endif // PLAYER_H
