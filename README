@@ -22,37 +22,31 @@ You can reach me at <segin2005@gmail.com>.
 
 2. SYSTEM REQUIREMENTS
 
-   Windows NT:
-	NT 4.0 for i386 or later, Windows 2000 recommended.
-	Minimum CPU isn't known currently, 1GHz Pentium III is my current guess
-	64MB of RAM
-	DirectDraw-accelerated drivers help.
-	(Note: Itanium not officially supported due to poor WOW64 emulator performance.)
+   Windows:
+   Windows 10 or later. Windows 7 through 8.1 might work, YMMV.
 
-   Windows x64:
-    Windows XP Professional x64 Service Pack 2 or later, Windows 7 recommended.
-    Any CPU compatible with your OS
-    96MB of RAM
-
-   Linux, *BSD, Solaris:
-	glibc-2.3 or later, FreeBSD 6, NetBSD 4, or OpenBSD 3.5 or later recommended.
-	Older releases may or may not work; please email your results!
-	X11 is recommended, or an SDL compiled to use some other graphics output.
-	POSIX threads. On Linux, NTPL is recommended (requires kernel 2.6.9 or later)
+   Linux, *BSD:
 	The following dependencies are required:
-	 SDL 1.2.13 or later
+	 SDL 1.2 or later
 	 mpg123-1.8 or later
 	 taglib-1.6 or later
      libvisual-0.4 or later
+     libvorbisfile
      libvorbis
+     libopusfile
+     libopus
      libogg
+     libFLAC++
+     libFLAC
      FreeType 2.4 or later
      SDL_ttf 1.2 or later
      SDL_gfx 2.0 or later
      zlib-1.2.3 or later
-
+     
    Mac OS X:
 	Not officially supported, but building the dependencies for Linux/BSD with MacPorts might work.
+
+   Building from git requires autoconf-archive for the extended macros.
 
 3. USAGE
 
