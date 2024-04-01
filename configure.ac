@@ -2,7 +2,7 @@ AC_PREREQ([2.72])
 AC_INIT([PsyMP3],[1.99.3],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
 AM_INIT_AUTOMAKE([1.10])
 
-AU_DEFUN([AX_CXX_COMPILE_STDCXX_17], [ax_check_compile_flag([-std=c++17], [CXXFLAGS="$CXXFLAGS -std=c++17"])])
+AU_DEFUN([AX_REQUIRE_CPP], [ax_require_cpp(std_17, reject)])
 
 AC_PROG_CPP
 AC_PROG_CC
