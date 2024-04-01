@@ -37,11 +37,16 @@ Flac::~Flac()
 
 void Flac::open(TagLib::String name)
 {
-    m_handle.init(name.to8Bit(true));
+    try {
+        m_handle.init(name.to8Bit(true));
+    } catch (...) {
+        throw InvalidMediaException("Couldn't open as FLAC!");
+    }
 }
 
 size_t Flac::getData(size_t len, void *buf)
 {
+    memset(buf, 0, len);
     return 0;
 }
 

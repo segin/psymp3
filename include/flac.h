@@ -59,6 +59,7 @@ class Flac : public Stream
     private:
         FlacDecoder m_handle;
         char *sampbuf;
+        FLAC__StreamMetadata_StreamInfo *m_info;
 };
 
 #endif // LIBMPG123_H
