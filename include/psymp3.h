@@ -93,6 +93,7 @@ enum {
 #include <FLAC++/decoder.h>
 #include <mpg123.h>
 #include <vorbis/vorbisfile.h>
+#include <opusfile.h>
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
 
