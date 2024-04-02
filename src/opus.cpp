@@ -25,6 +25,7 @@
 
 OpusFile::OpusFile(TagLib::String name) : Stream(name)
 {
+    m_eof = false;
     open(name);
 }
 
@@ -57,12 +58,21 @@ void OpusFile::seekTo(unsigned long pos)
 
 size_t OpusFile::getData(size_t len, void *buf)
 {
-    int ret = op_read_stereo(static_cast<OggOpusFile *>(m_handle), static_cast<opus_int16 *>(buf), len / 2);
-    if (ret == OP_HOLE || ret == OP_EBADLINK || ret == OP_EINVAL)
-        throw BadFormatException("Failed to read Opus file");
+    auto nbuf = buf;
+    auto nlen = len;
+    auto ret = 0, tret = 0;
+    do { 
+        ret = op_read_stereo(static_cast<OggOpusFile *>(m_handle), static_cast<opus_int16 *>(nbuf), nlen / 2);
+        if (ret == OP_HOLE || ret == OP_EBADLINK || ret == OP_EINVAL)
+            throw BadFormatException("Failed to read Opus file");
+        tret += ret;
+        nlen -= ret * 4;
+        nbuf = static_cast<char*>(buf) + (static_cast<char*>(buf) - static_cast<char*>(buf) + len - nlen);
+        if(!tret) m_eof = true;
+    } while (ret && nlen);
     m_sposition = op_pcm_tell(static_cast<OggOpusFile *>(m_handle));
     m_position = m_sposition / 48;
-    return ret * 4;       
+    return tret * 4;       
 }
 
 unsigned int OpusFile::getLength()
