@@ -288,6 +288,7 @@ void Player::Run(std::vector<std::string> args) {
                                         convertInt(playlist->getPosition() + 1) + "/" +
                                         convertInt(playlist->entries()));
         info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+        info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
         // program main loop
         audio->play(true);
         state = PLAYING;
@@ -356,6 +357,24 @@ void Player::Run(std::vector<std::string> args) {
                 {
                     scalefactor = 4;
                     info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    break;
+                }
+                case SDLK_z:
+                {
+                    decayfactor = 0.5f;
+                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+                    break;
+                }
+                case SDLK_x:
+                {
+                    decayfactor = 1.0f;
+                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+                    break;
+                }
+                case SDLK_c:
+                {
+                    decayfactor = 2.0f;
+                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
                     break;
                 }
                 case SDLK_LEFT:
@@ -480,6 +499,8 @@ void Player::Run(std::vector<std::string> args) {
                         screen->Blit(*graph, f);
                         f.width(550);
                         screen->Blit(info["scale"], f);
+                        f.height(15);
+                        screen->Blit(info["decay"], f);
                         // DRAWING ENDS HERE
 
 
