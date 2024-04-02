@@ -55,6 +55,8 @@ Stream *MediaFile::open(TagLib::String name)
         return new Libmpg123(name);
     if(ext == "OGG")
         return new Vorbis(name);
+    if(ext == "OPUS")
+        return new OpusFile(name);
     throw InvalidMediaException("Unsupported format!");
 }
 

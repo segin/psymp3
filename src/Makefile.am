@@ -28,6 +28,6 @@ AM_LDFLAGS = $(DEPENDS_LIBS) -lSDL_ttf
 bin_PROGRAMS = psymp3
 psymp3_SOURCES = about.cpp audio.cpp display.cpp exceptions.cpp fft.cpp\
  fft_draw.cpp flac.cpp font.cpp libmpg123.cpp main.cpp mediafile.cpp \
- mutex.cpp player.cpp \
- playlist.cpp rect.cpp scrobble.cpp song.cpp stream.cpp \
+ mutex.cpp player.cpp playlist.cpp \
+ opus.cpp rect.cpp scrobble.cpp song.cpp stream.cpp \
  surface.cpp system.cpp track.cpp truetype.cpp vorbis.cpp Widget.cpp

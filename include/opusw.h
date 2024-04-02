@@ -21,14 +21,14 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef OPUS_H
-#define OPUS_H
+#ifndef OPUSW_H
+#define OPUSW_H
 
-class Opus : public Stream
+class OpusFile : public Stream
 {
     public:
-        Opus(TagLib::String name);
-        virtual ~Opus();
+        OpusFile(TagLib::String name);
+        virtual ~OpusFile();
         void open(TagLib::String name);
         virtual unsigned int getLength();
         virtual unsigned long long getSLength();
@@ -45,4 +45,4 @@ class Opus : public Stream
         int m_session;
 };
 
-#endif // OPUS_H
+#endif // OPUSW_H

@@ -23,104 +23,84 @@
 
 #include "psymp3.h"
 
-Vorbis::Vorbis(TagLib::String name) : Stream(name)
+OpusFile::OpusFile(TagLib::String name) : Stream(name)
 {
-    m_handle = new OggVorbis_File;
-    m_session = 0;
     open(name);
 }
 
-Vorbis::~Vorbis()
+OpusFile::~OpusFile()
 {
-    ov_clear(static_cast<OggVorbis_File *>(m_handle));
-    delete static_cast<OggVorbis_File *>(m_handle);
+    op_free(static_cast<OggOpusFile *>(m_handle));
     m_handle = nullptr;
 }
 
-void Vorbis::open(TagLib::String name)
+void OpusFile::open(TagLib::String name)
 {
-    int ret = ov_fopen((char *) name.toCString(true), static_cast<OggVorbis_File *>(m_handle));
-    switch (ret) {
-    case OV_ENOTVORBIS:
-        throw WrongFormatException("Not a Vorbis file: " + name);
-        break;
-    case OV_EREAD:
-    case OV_EVERSION:
-    case OV_EBADHEADER:
-    case OV_EFAULT:
-        throw BadFormatException("Bad file: " + name);
-        //throw;
-        break;
-    default: // returned 0 for success
-        m_vi = ov_info(static_cast<OggVorbis_File *>(m_handle), -1);
-        switch(m_vi->channels) {
-        case 1:
-        case 2:
-            m_channels = m_vi->channels;
-            m_bitrate = m_vi->bitrate_nominal;
-            m_length = ov_time_total(static_cast<OggVorbis_File *>(m_handle), -1) * 1000;
-            m_slength = ov_pcm_total(static_cast<OggVorbis_File *>(m_handle), -1);
-            break;
-        default:
-            // throw
-            break;
-        };
-        break;
-    };
+    int error;
+    m_handle = op_open_file(name.toCString(true), &error);
+    if(!m_handle) 
+        throw InvalidMediaException("Failed to open Opus file: " + name.to8Bit(true));
+    const OpusHead *m_oi = op_head(static_cast<OggOpusFile *>(m_handle), -1);
+    m_channels = 2;
+    m_bitrate = 0;
+    m_slength = op_pcm_total(static_cast<OggOpusFile *>(m_handle), -1);
+    m_rate = 48000;
+    m_length = m_slength / 48;
 }
 
-void Vorbis::seekTo(unsigned long pos)
+void OpusFile::seekTo(unsigned long pos)
 {
-    ov_time_seek(static_cast<OggVorbis_File *>(m_handle), (double) pos / 1000.0);
-    m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
-    m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
+    op_pcm_seek(static_cast<OggOpusFile *>(m_handle), pos * 48);
+    m_sposition = op_pcm_tell(static_cast<OggOpusFile *>(m_handle));
+    m_position = m_sposition / 48;
 }
 
-size_t Vorbis::getData(size_t len, void *buf)
+size_t OpusFile::getData(size_t len, void *buf)
 {
-    std::cout << "Vorbis::getData(): len = " << len << std::endl;
-    long ret = ov_read(static_cast<OggVorbis_File *>(m_handle), static_cast<char *>(buf), len, 0, 2, 1, &m_session);
-    m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
-    m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
-    return (size_t) ret;
+    int ret = op_read_stereo(static_cast<OggOpusFile *>(m_handle), static_cast<opus_int16 *>(buf), len / 2);
+    if (ret == OP_HOLE || ret == OP_EBADLINK || ret == OP_EINVAL)
+        throw BadFormatException("Failed to read Opus file");
+    m_sposition = op_pcm_tell(static_cast<OggOpusFile *>(m_handle));
+    m_position = m_sposition / 48;
+    return ret * 4;       
 }
 
-unsigned int Vorbis::getLength()
+unsigned int OpusFile::getLength()
 {
     return m_length;
 }
 
-unsigned long long Vorbis::getSLength()
+unsigned long long OpusFile::getSLength()
 {
     return m_slength;
 }
 
-unsigned long long Vorbis::getSPosition()
+unsigned long long OpusFile::getSPosition()
 {
     return m_sposition;
 }
 
-unsigned int Vorbis::getChannels()
+unsigned int OpusFile::getChannels()
 {
     return m_channels;
 }
 
-unsigned int Vorbis::getRate()
+unsigned int OpusFile::getRate()
 {
     return m_rate;
 }
 
-unsigned int Vorbis::getEncoding()
+unsigned int OpusFile::getEncoding()
 {
     return 0;
 }
 
-unsigned int Vorbis::getBitrate()
+unsigned int OpusFile::getBitrate()
 {
     return m_bitrate;
 }
 
-bool Vorbis::eof()
+bool OpusFile::eof()
 {
     return m_eof;
 }
