@@ -93,7 +93,7 @@ enum {
 #include <FLAC++/decoder.h>
 #include <mpg123.h>
 #include <vorbis/vorbisfile.h>
-#include <opusfile.h>
+#include <opus/opusfile.h>
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
 
@@ -104,6 +104,7 @@ enum {
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
+#include "opusw.h"
 #include "flac.h"
 #include "nullstream.h"
 #include "mediafile.h"
