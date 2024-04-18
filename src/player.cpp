@@ -257,7 +257,12 @@ void Player::Run(std::vector<std::string> args) {
     screen = new Display();
     playlist = new Playlist(args);
     if (playlist->entries()) 
-        stream = MediaFile::open(playlist->getTrack(0));
+        try {
+            stream = MediaFile::open(playlist->getTrack(0));
+        } catch { 
+            std::cerr << "Can't open stream: " << playlist->getTrack(0) << std::endl;
+            stream = nullptr;
+        }
     else {
         
     }
