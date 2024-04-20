@@ -30,8 +30,8 @@ class InvalidMediaException : public std::exception
 {
     public:
         InvalidMediaException(TagLib::String why);
-        virtual const char *what();
         ~InvalidMediaException() throw ();
+        virtual const char *what();
     protected:
     private:
     TagLib::String m_why;
