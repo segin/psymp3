@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "flac.h"
 
 Flac::Flac(TagLib::String name) : Stream(name), m_handle(name)
 {
