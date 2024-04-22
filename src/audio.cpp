@@ -23,21 +23,18 @@
 
 #include "psymp3.h"
 
-Audio::Audio(struct atdata *data)
-{
+Audio::Audio(struct atdata *data) {
     m_stream = data->stream;
     std::cout << "Audio::Audio(): " << std::dec << m_stream->getRate() << "Hz, channels: " << std::dec << m_stream->getChannels() << std::endl;
     setup(data);
 }
 
-Audio::~Audio()
-{
+Audio::~Audio() {
     play(false);
     SDL_CloseAudio();
 }
 
-void Audio::setup(struct atdata *data)
-{
+void Audio::setup(struct atdata *data) {
     SDL_AudioSpec fmt;
     fmt.freq = m_rate = m_stream->getRate();
     fmt.format = AUDIO_S16; /* Always, I hope */
@@ -52,8 +49,7 @@ void Audio::setup(struct atdata *data)
     }
 }
 
-void Audio::play(bool go)
-{
+void Audio::play(bool go) {
     m_playing = go;
     if (go)
         SDL_PauseAudio(0);
@@ -62,29 +58,25 @@ void Audio::play(bool go)
 }
 
 /* Reopen due to format change across tracks. */
-void Audio::reopen(struct atdata *data)
-{
+void Audio::reopen(struct atdata *data) {
     m_stream = data->stream;
     std::cout << "Audio::reopen(): " << std::dec << m_stream->getRate() << "Hz, channels: " << std::dec << m_stream->getChannels() << std::endl;
     SDL_CloseAudio();
     setup(data);
 }
 
-void Audio::lock(void)
-{
+void Audio::lock(void) {
     SDL_LockAudio();
 }
 
-void Audio::unlock(void)
-{
+void Audio::unlock(void) {
     SDL_UnlockAudio();
 }
 
 /* Actually push the audio to the soundcard.
  * Audio is summed to mono (if stereo) and then FFT'd.
  */
-void Audio::callback(void *data, Uint8 *buf, int len)
-{
+void Audio::callback(void *data, Uint8 *buf, int len) {
     struct atdata *ldata = static_cast<struct atdata *>(data);
     Stream *stream = ldata->stream;
     FastFourier *fft = ldata->fft;
@@ -101,8 +93,7 @@ void Audio::callback(void *data, Uint8 *buf, int len)
    // mutex->unlock();
 }
 
-void Audio::toFloat(int channels, int16_t *in, float *out)
-{
+void Audio::toFloat(int channels, int16_t *in, float *out) {
     if(channels == 1)
         for(int x = 0; x < 512; x++)
             out[x] = in[x] / 32768.0f;
