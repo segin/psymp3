@@ -28,6 +28,7 @@ namespace MediaFile {
     Stream *open(TagLib::String name);
     std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems);
     std::vector<std::string> split(const std::string &s, char delim);
+    bool exists(const TagLib::String& file);
 }
 
 #endif // MEDIAFILE_H

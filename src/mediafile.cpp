@@ -23,6 +23,18 @@
 
 #include "psymp3.h"
 
+bool MediaFile::exists(const TagLib::String& file) {
+    auto filestring = 
+#ifdef _WIN32
+        file.toWString();
+#else
+        file.to8Bit(true);
+#endif
+    /* std::ifstream filestream;
+    filestream.open(filestring);
+    return filestream.good();   */  
+}
+
 std::vector<std::string> &MediaFile::split(const std::string &s, char delim, std::vector<std::string> &elems)
 {
     std::stringstream ss(s);
