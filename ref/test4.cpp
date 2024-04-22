@@ -14,7 +14,7 @@ int main() {
     }
 
     // Now, all I/O operations will use UTF-8 encoding
-    std::cout << "Hello, こんにちは, مرحبا\n";
+    std::cout << "Hello, こんにちは, مرحبا\n" << std::endl << "Original locale: " << localeName << std::endl;
 
     return 0;
 }
