@@ -191,6 +191,8 @@ bool Player::playPause(void) {
             pause();
             break;
         }
+        default:
+            return false;
     }
     return true;
 }
@@ -259,12 +261,12 @@ void Player::Run(std::vector<std::string> args) {
     if (playlist->entries()) 
         try {
             stream = MediaFile::open(playlist->getTrack(0));
-        } catch { 
-            std::cerr << "Can't open stream: " << playlist->getTrack(0) << std::endl;
+        } catch (const std::exception& e) { 
+            std::cerr << e.what() << ": Can't open stream: " << playlist->getTrack(0) << std::endl;
             stream = nullptr;
         }
     else {
-        
+       // stream = new NullStream(); 
     }
     fft = new FastFourier();
     mutex = new Mutex();
