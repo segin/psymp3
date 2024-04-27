@@ -32,7 +32,8 @@ bool MediaFile::exists(const TagLib::String& file) {
 #endif
     /* std::ifstream filestream;
     filestream.open(filestring);
-    return filestream.good();   */  
+    return filestream.good(); */
+    return true;  
 }
 
 std::vector<std::string> &MediaFile::split(const std::string &s, char delim, std::vector<std::string> &elems)
