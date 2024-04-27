@@ -39,7 +39,30 @@ Vorbis::~Vorbis()
 
 void Vorbis::open(TagLib::String name)
 {
-    int ret = ov_fopen((char *) name.toCString(true), static_cast<OggVorbis_File *>(m_handle));
+# ifdef _WIN32
+    FILE *fd = _wfopen(name.toCWString(), "rb");
+# else
+    FILE *fd = fopen(name.toCString(true), "r");
+# endif
+    if (!fd) 
+        throw BadFormatException("Bad file: " + name);
+    auto ret = ov_open_callbacks(fd, static_cast<OggVorbis_File *>(m_handle), nullptr, 0, { 
+        [](void *ptr, size_t size, size_t nmemb, void *fd) -> size_t {
+            return fread(ptr, size, nmemb, static_cast<FILE *>(fd));
+        },
+        [](void *fd, ogg_int64_t offset, int whence) -> int {
+            return fseek(static_cast<FILE *>(fd), offset, whence);
+        },
+        [](void *fd) -> int {
+            return fclose(static_cast<FILE *>(fd));
+        },
+        [](void *fd) -> long {
+            return ftell(static_cast<FILE *>(fd));
+        }
+    }); 
+#if 0
+    auto ret = ov_fopen((char *) name.toCString(true), static_cast<OggVorbis_File *>(m_handle));
+#endif
     switch (ret) {
     case OV_ENOTVORBIS:
         throw WrongFormatException("Not a Vorbis file: " + name);
@@ -53,9 +76,11 @@ void Vorbis::open(TagLib::String name)
         break;
     default: // returned 0 for success
         m_vi = ov_info(static_cast<OggVorbis_File *>(m_handle), -1);
+        m_eof = false;
         switch(m_vi->channels) {
         case 1:
         case 2:
+            m_rate = m_vi->rate;
             m_channels = m_vi->channels;
             m_bitrate = m_vi->bitrate_nominal;
             m_length = ov_time_total(static_cast<OggVorbis_File *>(m_handle), -1) * 1000;
@@ -78,8 +103,18 @@ void Vorbis::seekTo(unsigned long pos)
 
 size_t Vorbis::getData(size_t len, void *buf)
 {
-    std::cout << "Vorbis::getData(): len = " << len << std::endl;
-    long ret = ov_read(static_cast<OggVorbis_File *>(m_handle), static_cast<char *>(buf), len, 0, 2, 1, &m_session);
+    auto nbuf = buf;
+    auto nlen = len;
+    auto ret = 0, tret = 0;
+    do { 
+        ret = ret = ov_read(static_cast<OggVorbis_File *>(m_handle), static_cast<char *>(buf), nlen, 0, 2, 1, &m_session);
+        if (ret == OV_HOLE || ret == OV_EBADLINK || ret == OV_EINVAL)
+            throw BadFormatException("Failed to read Vorbis file");
+        tret += ret;
+        nlen -= ret;
+        nbuf = static_cast<char*>(buf) + (static_cast<char*>(buf) - static_cast<char*>(buf) + len - nlen);
+        if(!tret) m_eof = true;
+    } while (ret && nlen);
     m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
     m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
     return (size_t) ret;
