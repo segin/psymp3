@@ -20,7 +20,7 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 
 AC_CHECK_FUNCS([atexit getcwd memset])
 
-PKG_CHECK_MODULES([SDL], [sdl >= 1.2.13])
+PKG_CHECK_MODULES([SDL], [sdl >= 1.2])
 PKG_CHECK_MODULES([LIBMPG123], [libmpg123 >= 1.8])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([VORBISFILE], [vorbisfile >= 1.3])
@@ -29,7 +29,7 @@ PKG_CHECK_MODULES([SDL_TTF], [SDL_ttf >= 2.0])
 PKG_CHECK_MODULES([FLACMM], [flac++ >= 1.4])
 PKG_CHECK_MODULES([OPUSFILE], [opusfile >= 0.12])
 
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2.13 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 SDL_gfx >= 2.0 SDL_ttf >= 2.0 flac++ >= 1.4 opusfile >= 0.12])
+PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 SDL_gfx >= 2.0 SDL_ttf >= 2.0 flac++ >= 1.4 opusfile >= 0.12])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
