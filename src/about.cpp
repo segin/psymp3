@@ -1,7 +1,7 @@
 /*
  * about.cpp - Print about info to either dialog box or console
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -25,9 +25,10 @@
 
 static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
-            "Copyright © 2009-2020 Kirn Gill II <segin2005@gmail.com>\n"
-            "Copyright © 2010-2020 Mattis Michel <sic_zer0@hotmail.com>\n"
-            "Font \"Droid Sans Fallback\" is Copyright © 2006-2020 Google, Inc.\n"
+            "Copyright © 2009-2024 Kirn Gill II <segin2005@gmail.com>\n"
+            "Copyright © 2010-2024 Mattis Michel <sic_zer0@hotmail.com>\n"
+            "Copyright (c) 2009-2024 Rajesh Rajan <seanawake@gmail.com>\n"
+            "Font \"Droid Sans Fallback\" is Copyright © 2006-2024 Google, Inc.\n"
             "\n"
             "PsyMP3 is free software. You may redistribute and/or modify it under\n"
             "the terms of the ISC License <https://opensource.org/licenses/ISC>\n"
