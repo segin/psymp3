@@ -26,8 +26,8 @@
 #ifdef _WIN32
 
 std::string WideCharToUTF8(const wchar_t* wideStr) {
-    int wideStrLen = wcslen(wideStr);
-    int utf8StrLen = WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, nullptr, 0, nullptr, nullptr);
+    auto wideStrLen = wcslen(wideStr);
+    auto utf8StrLen = WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, nullptr, 0, nullptr, nullptr);
     if (utf8StrLen == 0) 
         return "";
     std::vector<char> buffer(utf8StrLen + 1); 
@@ -36,9 +36,9 @@ std::string WideCharToUTF8(const wchar_t* wideStr) {
 }
 
 std::vector<std::string> ParseCommandLine(int, char *[]) {
-    std::vector<std::string> args;
-    int wideArgc;
-    LPWSTR* wideArgv = CommandLineToArgvW(GetCommandLineW(), &wideArgc);;
+    auto args;
+    auto wideArgc;
+    auto wideArgv = CommandLineToArgvW(GetCommandLineW(), &wideArgc);;
     if (wideArgv == nullptr) {
         std::cerr << "Failed to parse command line" << std::endl;
         exit(1);
@@ -53,7 +53,7 @@ std::vector<std::string> ParseCommandLine(int, char *[]) {
 // Parse command line arguments on Linux
 std::vector<std::string> ParseCommandLine(int argc, char *argv[]) {
     std::vector<std::string> args;
-    for (int i = 0; i < argc; ++i)
+    for (auto i = 0; i < argc; ++i)
         args.push_back(argv[i]);
     return args;
 }
