@@ -50,7 +50,7 @@ You can reach me at <segin2005@gmail.com>.
 
 3. USAGE
 
-Pass the paths to the MP3s or Ogg Vorbis files to be played as program arguments.
+Pass the paths to the MP3s, Ogg Vorbis, or Opus files to be played as program arguments.
 Audio files will be played in the order they are passed on the command line.
 All user interaction, aside from clicking the 'close' button for the window, is done via the keyboard.
 
@@ -73,3 +73,7 @@ something else, and check back later for improvements
 Unicode ID3 tags are supported. Please replace the included 'vera.ttf' with a different
 font file containing the Unicode glpyhs you desire. Advanced text layout is not supported
 (e.g. connected Arabic characters.)
+
+5. LAST UPDATED
+
+This README was last updated on April 27th, 2024.
