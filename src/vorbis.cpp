@@ -40,7 +40,7 @@ Vorbis::~Vorbis()
 void Vorbis::open(TagLib::String name)
 {
 # ifdef _WIN32
-    FILE *fd = _wfopen(name.toCWString(), "rb");
+    FILE *fd = _wfopen(name.toCWString(), L"rb");
 # else
     FILE *fd = fopen(name.toCString(true), "r");
 # endif
