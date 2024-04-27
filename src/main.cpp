@@ -36,8 +36,8 @@ std::string WideCharToUTF8(const wchar_t* wideStr) {
 }
 
 std::vector<std::string> ParseCommandLine(int, char *[]) {
-    auto args;
-    auto wideArgc;
+    std::vector<std::string> args;
+    int wideArgc;
     auto wideArgv = CommandLineToArgvW(GetCommandLineW(), &wideArgc);;
     if (wideArgv == nullptr) {
         std::cerr << "Failed to parse command line" << std::endl;
