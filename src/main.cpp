@@ -24,30 +24,28 @@
 #include "psymp3.h"
 
 #ifdef _WIN32
-// Convert wide-character string to UTF-8
+
 std::string WideCharToUTF8(const wchar_t* wideStr) {
     int wideStrLen = wcslen(wideStr);
     int utf8StrLen = WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, nullptr, 0, nullptr, nullptr);
     if (utf8StrLen == 0) 
-        return ""; // Conversion failed
-    std::vector<char> buffer(utf8StrLen + 1); // +1 for null terminator
+        return "";
+    std::vector<char> buffer(utf8StrLen + 1); 
     WideCharToMultiByte(CP_UTF8, 0, wideStr, wideStrLen, buffer.data(), utf8StrLen, nullptr, nullptr);
     return std::string(buffer.data());
 }
 
-// Parse command line arguments on Windows
 std::vector<std::string> ParseCommandLine(int, char *[]) {
     std::vector<std::string> args;
-    LPWSTR* wideArgv = CommandLineToArgvW(GetCommandLineW(), &wideArgc);;
     int wideArgc;
+    LPWSTR* wideArgv = CommandLineToArgvW(GetCommandLineW(), &wideArgc);;
     if (wideArgv == nullptr) {
         std::cerr << "Failed to parse command line" << std::endl;
         exit(1);
     }
-    // Convert wide-character argv to UTF-8
     for (int i = 0; i < wideArgc; ++i) 
         args.push_back(WideCharToUTF8(wideArgv[i]));
-    LocalFree(wideArgv); // Free memory allocated by CommandLineToArgvW
+    LocalFree(wideArgv);
     return args;
 }
 
