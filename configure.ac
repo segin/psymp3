@@ -1,4 +1,4 @@
-AC_PREREQ([2.72])
+AC_PREREQ([2.69])
 AC_INIT([PsyMP3],[1.99.3],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
 AM_INIT_AUTOMAKE([1.10])
 
