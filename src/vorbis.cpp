@@ -117,7 +117,7 @@ size_t Vorbis::getData(size_t len, void *buf)
     } while (ret && nlen);
     m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
     m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
-    return (size_t) ret;
+    return ret;
 }
 
 unsigned int Vorbis::getLength()
