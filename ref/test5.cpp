@@ -30,7 +30,7 @@ int custom_getopt_long(std::vector<std::string>& args, const char* short_opts,
             if (long_opts[i].name == long_opt) {
                 if (long_opts[i].has_arg == required_argument) {
                     if (opt_index + 1 < static_cast<int>(args.size())) {
-                        optarg = args[opt_index + 1]; // Store as std::string
+                        optarg = const_cast<char*>(args[opt_index + 1].c_str()); // Store as char*
                         opt_index += 2;
                         return long_opts[i].val;
                     } else {
@@ -52,7 +52,7 @@ int custom_getopt_long(std::vector<std::string>& args, const char* short_opts,
             if (long_opts[i].val == short_opt) {
                 if (long_opts[i].has_arg == required_argument) {
                     if (opt_index + 1 < static_cast<int>(args.size())) {
-                        optarg = args[opt_index + 1]; // Store as std::string
+                        optarg = const_cast<char*>(args[opt_index + 1].c_str()); // Store as char*
                         opt_index += 2;
                         return short_opt;
                     } else {
