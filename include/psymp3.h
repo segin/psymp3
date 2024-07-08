@@ -112,7 +112,6 @@ enum {
 #include "fft.h"
 #include "fft_draw.h"
 #include "about.h"
-#include "sqlite3.h"
 #include "persistentstorage.h"
 #include "track.h"
 #include "song.h"
