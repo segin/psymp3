@@ -86,7 +86,6 @@ enum {
 #include <SDL/SDL_mutex.h>
 #else
 #include <SDL.h>
-#include <SDL_gfxPrimitives.h>
 #include <SDL_ttf.h>
 #include <SDL_thread.h>
 #include <SDL_mutex.h>

@@ -64,7 +64,9 @@ class Surface
     protected:
         SDL_Surface * m_handle;
     private:
-
+        void put_pixel_unlocked(int16_t x, int16_t y, uint32_t color);
+        void hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color);
+        void vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color);
 };
 
 /* This is experimental */

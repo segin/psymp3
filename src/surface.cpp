@@ -112,64 +112,119 @@ void Surface::Flip()
     SDL_Flip(m_handle);
 }
 
+void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
+{
+    // No bounds checking here, expecting caller to handle it.
+    // Assumes 32bpp surface, which is what the graph uses.
+    uint32_t *target_pixel = (uint32_t *)((uint8_t *)m_handle->pixels + y * m_handle->pitch + x * sizeof(uint32_t));
+    *target_pixel = color;
+}
+
+void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
+{
+    // No surface lock/unlock, expecting caller to handle it.
+    if (y < 0 || y >= m_handle->h) return;
+    if (x1 > x2) std::swap(x1, x2);
+    if (x1 >= m_handle->w || x2 < 0) return;
+
+    x1 = std::max<int16_t>(x1, 0);
+    x2 = std::min<int16_t>(x2, m_handle->w - 1);
+
+    uint32_t *row = (uint32_t *)((uint8_t *)m_handle->pixels + y * m_handle->pitch);
+    for (int16_t x = x1; x <= x2; ++x) {
+        row[x] = color;
+    }
+}
+
+void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
+{
+    // No surface lock/unlock, expecting caller to handle it.
+    if (x < 0 || x >= m_handle->w) return;
+    if (y1 > y2) std::swap(y1, y2);
+    if (y1 >= m_handle->h || y2 < 0) return;
+
+    y1 = std::max<int16_t>(y1, 0);
+    y2 = std::min<int16_t>(y2, m_handle->h - 1);
+
+    uint8_t *pixel_addr = (uint8_t *)m_handle->pixels + y1 * m_handle->pitch + x * sizeof(uint32_t);
+    for (int16_t y = y1; y <= y2; ++y) {
+        *(uint32_t *)pixel_addr = color;
+        pixel_addr += m_handle->pitch;
+    }
+}
+
 void Surface::pixel(int16_t x, int16_t y, uint32_t color)
 {
     if (!m_handle) return;
-    pixelColor(m_handle, x, y, color);
+    if (x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) return;
+    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    put_pixel_unlocked(x, y, color);
+    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
 }
 
 void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
-    pixelRGBA(m_handle, x, y, r, g, b, a);
+    pixel(x, y, MapRGBA(r, g, b, a));
 }
 
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    rectangleColor(m_handle, x1, y1, x2, y2, color);
+    // This is implemented as a filled rectangle (box) to match its usage in the spectrum analyzer.
+    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    if (y1 > y2) std::swap(y1, y2);
+    for (int16_t y = y1; y <= y2; ++y) {
+        hline_unlocked(x1, x2, y, color);
+    }
+    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
 }
 
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
-    rectangleRGBA(m_handle, x1, y1, x2, y2, r, g, b, a);
+    rectangle(x1, y1, x2, y2, MapRGBA(r, g, b, a));
 }
 
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    boxColor(m_handle, x1, y1, x2, y2, color);
+    // A box is a filled rectangle.
+    rectangle(x1, y1, x2, y2, color);
 }
 
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
-    boxRGBA(m_handle, x1, y1, x2, y2, r, g, b, a);
+    box(x1, y1, x2, y2, MapRGBA(r, g, b, a));
 }
 
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 {
     if (!m_handle) return;
-    hlineColor(m_handle, x1, x2, y, color);
+    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    hline_unlocked(x1, x2, y, color);
+    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
 }
 
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
-    hlineRGBA(m_handle, x1, x2, y, r, g, b, a);
+    hline(x1, x2, y, MapRGBA(r, g, b, a));
 }
 
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    vlineColor(m_handle, x, y1, y2, color);
+    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    vline_unlocked(x, y1, y2, color);
+    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
 }
 
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
-    vlineRGBA(m_handle, x, y1, y2, r, g, b, a);
+    vline(x, y1, y2, MapRGBA(r, g, b, a));
 }
 
 int16_t Surface::height()
