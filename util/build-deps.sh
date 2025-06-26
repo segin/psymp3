@@ -23,19 +23,6 @@ typeset -A DISTVERS
 typeset -A DISTMD5
 typeset -A DISTSHA256
 
-WORKDIRS=(
-	zlib		"1.2.7"
-	SDL			"1.2.15"
-	SDL_ttf		"2.0.11"
-	SDL_gfx		"2.0.24"
-	freetype	"2.4.11"
-	taglib		"1.8"
-	libvisual	"0.4.0"
-	mpg123		"1.14.4"
-	ogg			"1.3.0"
-	vorbis		"1.3.3"
-)
-
 DISTS=(
 	zlib		"http://zlib.net/zlib-1.2.7.tar.gz"
 	SDL			"http://www.libsdl.org/release/SDL-1.2.15.tar.gz"
@@ -122,10 +109,10 @@ clean_distfiles() {
 clean_workdir() { 
 	package=$1
 	package_check ${package}
-	distfile="${DISTDIR}/$(basename ${DISTS[$package]})"
+	workdir="${WORKDIR}/${package}-${DISTVERS[$package]}"
 
-	notice "Cleaning for ${package}."
-	rm -f ${distfile}
+	notice "Cleaning work directory for ${package}."
+	rm -rf ${workdir}
 }
 
 
@@ -189,5 +176,3 @@ for i in ${PACKAGES}; do
 	# wget -O ${DISTFILES}/$(basename ${DISTS[$i]}) ${DISTS[$i]}
 	distfiles_fetch ${i}
 done
-
-
