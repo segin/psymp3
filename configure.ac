@@ -5,9 +5,9 @@ AC_PREREQ([2.69])
 AC_INIT([PsyMP3],[1.99.3],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
 AM_INIT_AUTOMAKE([1.10])
 AC_INIT([psymp3], [2-CURRENT], [segin2005@gmail.com])
-AC_CONFIG_SRCDIR([src/main.cpp])
+AC_CONFIG_SRCDIR([src])
+AC_CONFIG_FILES([Makefile src/Makefile res/Makefile])
 AC_CONFIG_HEADERS([include/config.h])
-AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 AU_DEFUN([AX_REQUIRE_CPP], [ax_require_cpp(std_17, reject)])
 
@@ -55,8 +55,4 @@ PKG_CHECK_MODULES([FLACMM], [flac++ >= 1.2])
 PKG_CHECK_MODULES([OPUSFILE], [opusfile >= 0.9])
 
 PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 SDL_gfx >= 2.0 SDL_ttf >= 2.0 flac++ >= 1.2 opusfile >= 0.9])
-
-AC_CONFIG_SRCDIR([src])
-AC_CONFIG_HEADERS([include/config.h])
-AC_CONFIG_FILES([Makefile src/Makefile res/Makefile])
 AC_OUTPUT
