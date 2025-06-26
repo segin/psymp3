@@ -24,32 +24,32 @@
 
 #include "psymp3.h"
 
-InvalidMediaException::InvalidMediaException(TagLib::String why) : m_why(why)
+InvalidMediaException::InvalidMediaException(TagLib::String why) : std::exception(), m_why(why)
 {
     //ctor
 }
 
 const char *InvalidMediaException::what() const noexcept
 {
-    return m_why.toCString(true);
+    return m_why.toCString(true); // Return UTF-8 C-string representation
 }
 
-BadFormatException::BadFormatException(TagLib::String why) : m_why(why)
+BadFormatException::BadFormatException(TagLib::String why) : std::exception(), m_why(why)
 {
     //ctor
 }
 
 const char *BadFormatException::what() const noexcept
 {
-    return m_why.toCString(true);
+    return m_why.toCString(true); // Return UTF-8 C-string representation
 }
 
-WrongFormatException::WrongFormatException(TagLib::String why) : m_why(why)
+WrongFormatException::WrongFormatException(TagLib::String why) : std::exception(), m_why(why)
 {
     //ctor
 }
 
 const char *WrongFormatException::what() const noexcept
 {
-    return m_why.toCString(true);
+    return m_why.toCString(true); // Return UTF-8 C-string representation
 }
