@@ -53,7 +53,7 @@ bool Playlist::addFile(TagLib::String path)
     try {
         std::cout << "Attempting open of " << path << std::endl;
         fileref = new TagLib::FileRef(path.toCString(true));
-    } catch (std::exception& e) {
+    } catch (const TagLib::FileRef::NotAFile& e) { // Catch specific TagLib exception
         std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
 	    return false;
     }
