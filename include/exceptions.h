@@ -30,8 +30,8 @@ class InvalidMediaException : public std::exception
 {
     public:
         InvalidMediaException(TagLib::String why);
-        ~InvalidMediaException() throw ();
-        virtual const char *what();
+        ~InvalidMediaException() noexcept override = default;
+        const char *what() const noexcept override;
     protected:
     private:
         TagLib::String m_why;
@@ -42,8 +42,8 @@ class BadFormatException : public std::exception
 {
     public:
         BadFormatException(TagLib::String why);
-        ~BadFormatException() throw ();
-        virtual const char *what();
+        ~BadFormatException() noexcept override = default;
+        const char *what() const noexcept override;
     protected:
     private:
         TagLib::String m_why;
@@ -54,8 +54,8 @@ class WrongFormatException : public std::exception
 {
     public:
         WrongFormatException(TagLib::String why);
-        ~WrongFormatException() throw ();
-        virtual const char *what();
+        ~WrongFormatException() noexcept override = default;
+        const char *what() const noexcept override;
     protected:
     private:
         TagLib::String m_why;
