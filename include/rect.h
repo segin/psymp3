@@ -28,16 +28,23 @@ class Rect
 {
     public:
         Rect();
-        Rect(int16_t, int16_t);
+        Rect(int16_t x, int16_t y, uint16_t w, uint16_t h); // New constructor for full rect
+        Rect(uint16_t w, uint16_t h); // Existing constructor, now for width/height only (assumes x=0, y=0)
         ~Rect();
-        int16_t width() { return m_width; };
-        int16_t height() { return m_height; };
-        void width(int16_t a) { m_width = a; };
-        void height(int16_t a) { m_height = a; };
+        int16_t x() const { return m_x; };
+        int16_t y() const { return m_y; };
+        uint16_t width() const { return m_width; };
+        uint16_t height() const { return m_height; };
+        void x(int16_t val) { m_x = val; };
+        void y(int16_t val) { m_y = val; };
+        void width(uint16_t a) { m_width = a; };
+        void height(uint16_t a) { m_height = a; };
     protected:
     private:
-        int16_t m_width;
-        int16_t m_height;
+        int16_t m_x;
+        int16_t m_y;
+        uint16_t m_width;
+        uint16_t m_height;
 };
 
 #endif // RECT_H

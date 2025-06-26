@@ -36,7 +36,7 @@ Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Su
 }
 
 Surface::Surface(int width, int height)
-    : m_handle(SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
+    : m_handle(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
 {
     if (!m_handle) {
         throw SDLException("Could not create RGB surface");
@@ -58,11 +58,17 @@ std::unique_ptr<Surface> Surface::FromBMP(const char *a_file)
     return surface;
 }
 
-void Surface::Blit(Surface& src, Rect& rect)
+void Surface::SetAlpha(uint32_t flags, uint8_t alpha)
 {
     if (!m_handle) return;
-    SDL_Rect r = { rect.width(), rect.height() };
-    SDL_BlitSurface(src.getHandle(), 0, m_handle.get(), &r);
+    SDL_SetAlpha(m_handle.get(), flags, alpha);
+}
+
+void Surface::Blit(Surface& src, const Rect& rect) // Changed to const Rect&
+{
+    if (!m_handle) return;
+    SDL_Rect r = { rect.x(), rect.y(), rect.width(), rect.height() };
+    SDL_BlitSurface(src.getHandle(), nullptr, m_handle.get(), &r);
 }
 
 bool Surface::isValid()

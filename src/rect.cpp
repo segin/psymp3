@@ -28,7 +28,11 @@ Rect::Rect()
     //ctor
 }
 
-Rect::Rect(int16_t width, int16_t height) : m_width(width), m_height(height)
+Rect::Rect(uint16_t width, uint16_t height) : m_x(0), m_y(0), m_width(width), m_height(height)
+{
+}
+
+Rect::Rect(int16_t x, int16_t y, uint16_t w, uint16_t h) : m_x(x), m_y(y), m_width(w), m_height(h)
 {
 }
 

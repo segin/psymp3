@@ -210,9 +210,32 @@ float Player::logarithmicScale(const int f, float x) {
 
 void Player::renderSpectrum(Surface *graph) {
     float *spectrum = fft->getFFT();
-    for (int x = 0; x < 350; x++) {
-        graph->hline(0, 639, x, 64 * decayfactor);
+
+    // --- Fade effect implementation ---
+    // Create a temporary surface for the fade effect.
+    // It's crucial that this surface supports alpha (e.g., 32-bit).
+    // Using 'static' to avoid repeated allocation/deallocation per frame.
+    static std::unique_ptr<Surface> fade_surface_ptr;
+    if (!fade_surface_ptr || fade_surface_ptr->width() != graph->width() || fade_surface_ptr->height() != graph->height()) {
+        fade_surface_ptr = std::make_unique<Surface>(graph->width(), graph->height()); // Creates a 32-bit surface
     }
+    Surface& fade_surface = *fade_surface_ptr;
+
+    // Calculate alpha for the fade (0-255)
+    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 2.0f)); // decayfactor from 0.5 to 2.0
+
+    // Fill the fade surface with black, using the calculated alpha
+    fade_surface.FillRect(fade_surface.MapRGB(0, 0, 0)); // Fill with opaque black
+
+    // Set alpha blending for the fade surface (source surface for blitting)
+    fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
+
+    // Blit the semi-transparent black fade_surface onto the graph surface
+    Rect blit_dest_rect(0, 0, graph->width(), graph->height());
+    graph->Blit(fade_surface, blit_dest_rect); // This will blend if SDL_SRCALPHA is set on src
+
+    // --- End Fade effect implementation ---
+
     for(uint16_t x=0; x < 320; x++) {
         // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
         if (x > 213) {
@@ -284,7 +307,7 @@ void Player::Run(std::vector<std::string> args) {
     font = new Font(PSYMP3_DATADIR "/vera.ttf");
 #endif // _WIN32
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
-    graph = new Surface(640, 350);
+    graph = new Surface(640, 400); // Make graph the same size as the screen for full-frame drawing
 
     Rect dstrect;
     SDL_TimerID timer;
@@ -430,22 +453,12 @@ void Player::Run(std::vector<std::string> args) {
                     case RUN_GUI_ITERATION:
                     {
                         Player::guiRunning = true;
-                        screen->FillRect(screen->MapRGB(0, 0, 0));
-                        // draw bitmap
-                        //screen->Blit(bmp, dstrect);
-                        // draw tag strings
-                        Rect f(1, 354);
-                        if(info["artist"].isValid()) screen->Blit(info["artist"], f);
-                        f.width(270);
-                        if(info["playlist"].isValid()) screen->Blit(info["playlist"], f);
-                        f.width(1);
-                        f.height(369);
-                        if(info["title"].isValid()) screen->Blit(info["title"], f);
-                        f.height(384);
-                        if(info["album"].isValid()) screen->Blit(info["album"], f);
-                        // position indicator
                         mutex->lock();
-                        //system->updateProgress(stream->getPosition(), stream->getLength());
+
+                        // Clear the graph surface for new drawing (spectrum + progress bar)
+                        graph->FillRect(graph->MapRGB(0, 0, 0));
+
+                        // Render position text onto info["position"] surface
                         if(stream)
                             info["position"] = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                     + ":" + convertInt2((stream->getPosition() / 1000) % 60)
@@ -455,9 +468,7 @@ void Player::Run(std::vector<std::string> args) {
                                                     + "." + convertInt2((stream->getLength() / 10) % 100));
                         else
                             info["position"] = font->Render("Position: -:--.-- / -:--.--");
-                        f.height(353);
-                        f.width(400);
-                        if(info["position"].isValid()) screen->Blit(info["position"], f);
+
                         if(stream)
                             screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
                                            (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
@@ -470,13 +481,14 @@ void Player::Run(std::vector<std::string> args) {
                                            + "]", "PsyMP3 " PSYMP3_VERSION);
                         else
                             screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
-                        // draw progress bar
-                        screen->vline(399, 370, 385, 0xFFFFFFFF);
-                        screen->vline(621, 370, 385, 0xFFFFFFFF);
-                        screen->hline(399, 402, 370, 0xFFFFFFFF);
-                        screen->hline(399, 402, 385, 0xFFFFFFFF);
-                        screen->hline(618, 621, 370, 0xFFFFFFFF);
-                        screen->hline(618, 621, 385, 0xFFFFFFFF);
+
+                        // draw progress bar on the graph surface
+                        graph->vline(399, 370, 385, 0xFFFFFFFF);
+                        graph->vline(621, 370, 385, 0xFFFFFFFF);
+                        graph->hline(399, 402, 370, 0xFFFFFFFF);
+                        graph->hline(399, 402, 385, 0xFFFFFFFF);
+                        graph->hline(618, 621, 370, 0xFFFFFFFF);
+                        graph->hline(618, 621, 385, 0xFFFFFFFF);
                         if (seek == 1) {
                             if (stream)
                                 stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
@@ -489,26 +501,33 @@ void Player::Run(std::vector<std::string> args) {
                             t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
                         else   
                             t = 0.0f;
+                        // Draw progress bar fill on graph surface
                         for(double x = 0; x < t; x++) {
                             if (x > 146) {
-                                screen->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
+                                graph->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
                             } else if (x < 73) {
-                                screen->vline(x + 400, 373, 382, 128, 255, (uint8_t) (x * 3.5), 255);
+                                graph->vline(x + 400, 373, 382, 128, 255, (uint8_t) (x * 3.5), 255);
                             } else {
-                                screen->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
+                                graph->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
                             }
                         };
+                        // Draw the spectrum analyzer on the graph surface
                         this->renderSpectrum(graph);
                         mutex->unlock();
-                        f.height(0);
-                        f.width(0);
-                        screen->Blit(*graph, f);
-                        f.width(550);
-                        if(info["scale"].isValid()) screen->Blit(info["scale"], f);
-                        f.height(15);
-                        if(info["decay"].isValid()) screen->Blit(info["decay"], f);
-                        // DRAWING ENDS HERE
 
+                        // --- Final Scene Composition ---
+                        // 1. Clear the main screen
+                        screen->FillRect(screen->MapRGB(0, 0, 0));
+                        // 2. Blit the entire dynamic buffer (graph) to the screen
+                        screen->Blit(*graph, Rect(0, 0, graph->width(), graph->height()));
+                        // 3. Draw all static text labels on top
+                        if(info["artist"].isValid()) screen->Blit(info["artist"], Rect(1, 354, info["artist"].width(), info["artist"].height()));
+                        if(info["playlist"].isValid()) screen->Blit(info["playlist"], Rect(270, 354, info["playlist"].width(), info["playlist"].height()));
+                        if(info["title"].isValid()) screen->Blit(info["title"], Rect(1, 369, info["title"].width(), info["title"].height()));
+                        if(info["album"].isValid()) screen->Blit(info["album"], Rect(1, 384, info["album"].width(), info["album"].height()));
+                        if(info["position"].isValid()) screen->Blit(info["position"], Rect(400, 353, info["position"].width(), info["position"].height()));
+                        if(info["scale"].isValid()) screen->Blit(info["scale"], Rect(550, 0, info["scale"].width(), info["scale"].height()));
+                        if(info["decay"].isValid()) screen->Blit(info["decay"], Rect(550, 15, info["decay"].width(), info["decay"].height()));
 
                         // finally, update the screen :)
                         screen->Flip();

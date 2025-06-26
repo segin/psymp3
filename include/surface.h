@@ -49,8 +49,9 @@ class Surface
         static std::unique_ptr<Surface> FromBMP(std::string a_file);
         bool isValid();
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
+        void SetAlpha(uint32_t flags, uint8_t alpha); // SDL_SRCALPHA, SDL_ALPHA_OPAQUE, etc.
         uint32_t MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
-        void Blit(Surface& src, Rect& rect);
+        void Blit(Surface& src, const Rect& rect); // Changed to const Rect&
         void FillRect(uint32_t color);
         void Flip();
         void pixel(int16_t x, int16_t y, uint32_t color);
