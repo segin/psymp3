@@ -29,12 +29,7 @@ InvalidMediaException::InvalidMediaException(TagLib::String why) : m_why(why)
     //ctor
 }
 
-InvalidMediaException::~InvalidMediaException() throw ()
-{
-
-}
-
-const char *InvalidMediaException::what()
+const char *InvalidMediaException::what() const noexcept
 {
     return m_why.toCString(true);
 }
@@ -44,12 +39,7 @@ BadFormatException::BadFormatException(TagLib::String why) : m_why(why)
     //ctor
 }
 
-BadFormatException::~BadFormatException() throw ()
-{
-
-}
-
-const char *BadFormatException::what()
+const char *BadFormatException::what() const noexcept
 {
     return m_why.toCString(true);
 }
@@ -59,15 +49,7 @@ WrongFormatException::WrongFormatException(TagLib::String why) : m_why(why)
     //ctor
 }
 
-WrongFormatException::~WrongFormatException() throw ()
-{
-
-}
-
-const char *WrongFormatException::what()
+const char *WrongFormatException::what() const noexcept
 {
     return m_why.toCString(true);
 }
-
-
-
