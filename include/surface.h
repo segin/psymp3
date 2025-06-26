@@ -68,6 +68,7 @@ class Surface
         SDL_Surface * getHandle();
         friend class Display;
         friend class Widget;
+        friend class Font;
     protected:
         std::unique_ptr<SDL_Surface, void (*)(SDL_Surface*)> m_handle;
     private:

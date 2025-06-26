@@ -40,14 +40,17 @@ Font::~Font()
     TTF_CloseFont(m_font);
 }
 
-Surface* Font::Render(TagLib::String text, uint8_t r, uint8_t g, uint8_t b)
+Surface Font::Render(TagLib::String text, uint8_t r, uint8_t g, uint8_t b)
 {
-    if (!m_font) return new Surface();
+    Surface surface; // Default-constructs an empty surface with the correct deleter
+    if (!m_font) return surface;
+
     SDL_Color sdlcolor;
     sdlcolor.r = r;
     sdlcolor.g = g;
     sdlcolor.b = b;
-    return new Surface(TTF_RenderUTF8_Blended(m_font, text.toCString(true), sdlcolor));
+    surface.m_handle.reset(TTF_RenderUTF8_Blended(m_font, text.toCString(true), sdlcolor));
+    return surface;
 }
 
 bool Font::isValid()
