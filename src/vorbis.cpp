@@ -103,21 +103,29 @@ void Vorbis::seekTo(unsigned long pos)
 
 size_t Vorbis::getData(size_t len, void *buf)
 {
-    auto nbuf = buf;
-    auto nlen = len;
-    auto ret = 0, tret = 0;
-    do { 
-        ret = ret = ov_read(static_cast<OggVorbis_File *>(m_handle), static_cast<char *>(buf), nlen, 0, 2, 1, &m_session);
-        if (ret == OV_HOLE || ret == OV_EBADLINK || ret == OV_EINVAL)
-            throw BadFormatException("Failed to read Vorbis file");
-        tret += ret;
-        nlen -= ret;
-        nbuf = static_cast<char*>(buf) + (static_cast<char*>(buf) - static_cast<char*>(buf) + len - nlen);
-        if(!tret) m_eof = true;
-    } while (ret && nlen);
+    char *current_buf = static_cast<char *>(buf);
+    size_t bytes_left = len;
+    size_t total_bytes_read = 0;
+
+    while (bytes_left > 0) {
+        long bytes_read_this_call = ov_read(static_cast<OggVorbis_File *>(m_handle), current_buf, bytes_left, 0, 2, 1, &m_session);
+
+        if (bytes_read_this_call < 0) { // Error
+            if (bytes_read_this_call == OV_HOLE || bytes_read_this_call == OV_EBADLINK || bytes_read_this_call == OV_EINVAL)
+                throw BadFormatException("Failed to read Vorbis file");
+            break; // Other errors, stop reading.
+        } else if (bytes_read_this_call == 0) { // End of file
+            m_eof = true;
+            break;
+        }
+
+        total_bytes_read += bytes_read_this_call;
+        current_buf += bytes_read_this_call;
+        bytes_left -= bytes_read_this_call;
+    }
     m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
     m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
-    return ret;
+    return total_bytes_read;
 }
 
 unsigned int Vorbis::getLength()
@@ -159,4 +167,3 @@ bool Vorbis::eof()
 {
     return m_eof;
 }
-
