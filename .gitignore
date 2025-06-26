@@ -19,3 +19,6 @@ src/psymp3
 
 vera.ttf
 **/*~
+confdefs.h
+conftest.c
+conftest.err
