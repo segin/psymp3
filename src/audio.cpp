@@ -84,13 +84,13 @@ void Audio::callback(void *data, Uint8 *buf, int len) {
 #ifdef _AUDIO_DEBUG
     std::cout << "callback: len " << std::dec << len << std::endl;
 #endif
-   // mutex->lock();
+    mutex->lock();
     stream->getData(len, (void *) buf);
     if(!Player::guiRunning) {
         toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
         fft->doFFT();
     }
-   // mutex->unlock();
+    mutex->unlock();
 }
 
 void Audio::toFloat(int channels, int16_t *in, float *out) {
