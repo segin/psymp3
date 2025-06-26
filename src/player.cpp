@@ -24,6 +24,8 @@
 #include "psymp3.h"
 #include "player.h"
 
+#include <iomanip> // For std::setw, std::setfill
+
 bool Player::guiRunning;
 
 std::string convertInt(long number) {
@@ -33,9 +35,9 @@ std::string convertInt(long number) {
 }
 
 std::string convertInt2(long number) {
-    char s[8];
-    snprintf(s, 8, "%02ld", number);
-    return s;
+    std::stringstream ss;
+    ss << std::setw(2) << std::setfill('0') << number;
+    return ss.str();
 }
 
 Player::Player() {
@@ -126,10 +128,12 @@ void Player::openTrack(TagLib::String path) {
         } else {
             audio->unlock();
         }
-        info["artist"] = font->Render("Artist: " + stream->getArtist());
-        info["title"] = font->Render("Title: " + stream->getTitle());
-        info["album"] = font->Render("Album: " + stream->getAlbum());
-        info["playlist"] = font->Render("Playlist: " +
+        // Using .reset() on the unique_ptr in the map automatically handles deleting the old surface.
+        // This assumes font->Render() returns a raw pointer to a new Surface.
+        info["artist"].reset(font->Render("Artist: " + stream->getArtist()));
+        info["title"].reset(font->Render("Title: " + stream->getTitle()));
+        info["album"].reset(font->Render("Album: " + stream->getAlbum()));
+        info["playlist"].reset(font->Render("Playlist: " +
             convertInt(playlist->getPosition() + 1) + "/" +
             convertInt(playlist->entries()));
         play();
@@ -288,14 +292,14 @@ void Player::Run(std::vector<std::string> args) {
     Rect dstrect;
     SDL_TimerID timer;
     if (stream) {
-        info["artist"] = font->Render("Artist: " + stream->getArtist());
-        info["title"] = font->Render("Title: " + stream->getTitle());
-        info["album"] = font->Render("Album: " + stream->getAlbum());
-        info["playlist"] = font->Render("Playlist: " +
+        info["artist"].reset(font->Render("Artist: " + stream->getArtist()));
+        info["title"].reset(font->Render("Title: " + stream->getTitle()));
+        info["album"].reset(font->Render("Album: " + stream->getAlbum()));
+        info["playlist"].reset(font->Render("Playlist: " +
                                         convertInt(playlist->getPosition() + 1) + "/" +
                                         convertInt(playlist->entries()));
-        info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
-        info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+        info["scale"].reset(font->Render("log scale = " + std::to_string(scalefactor)));
+        info["decay"].reset(font->Render("decay = " + std::to_string(decayfactor)));
         // program main loop
         audio->play(true);
         state = PLAYING;
@@ -339,49 +343,49 @@ void Player::Run(std::vector<std::string> args) {
                 case SDLK_0:
                 {
                     scalefactor = 0;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    info["scale"].reset(font->Render("log scale = " + std::to_string(scalefactor)));
                     break;
                 }
                 case SDLK_1:
                 {
                     scalefactor = 1;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    info["scale"].reset(font->Render("log scale = " + std::to_string(scalefactor)));
                     break;
                 }
                 case SDLK_2:
                 {
                     scalefactor = 2;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    info["scale"].reset(font->Render("log scale = " + std::to_string(scalefactor)));
                     break;
                 }
                 case SDLK_3:
                 {
                     scalefactor = 3;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    info["scale"].reset(font->Render("log scale = " + std::to_string(scalefactor)));
                     break;
                 }
                 case SDLK_4:
                 {
                     scalefactor = 4;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+                    info["scale"].reset(font->Render("log scale = " + std::to_string(scalefactor)));
                     break;
                 }
                 case SDLK_z:
                 {
                     decayfactor = 0.5f;
-                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+                    info["decay"].reset(font->Render("decay = " + std::to_string(decayfactor)));
                     break;
                 }
                 case SDLK_x:
                 {
                     decayfactor = 1.0f;
-                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+                    info["decay"].reset(font->Render("decay = " + std::to_string(decayfactor)));
                     break;
                 }
                 case SDLK_c:
                 {
                     decayfactor = 2.0f;
-                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+                    info["decay"].reset(font->Render("decay = " + std::to_string(decayfactor)));
                     break;
                 }
                 case SDLK_LEFT:
@@ -436,29 +440,29 @@ void Player::Run(std::vector<std::string> args) {
                         //screen->Blit(bmp, dstrect);
                         // draw tag strings
                         Rect f(1, 354);
-                        screen->Blit(info["artist"], f);
+                        if(info["artist"]) screen->Blit(*info["artist"], f);
                         f.width(270);
-                        screen->Blit(info["playlist"], f);
+                        if(info["playlist"]) screen->Blit(*info["playlist"], f);
                         f.width(1);
                         f.height(369);
-                        screen->Blit(info["title"], f);
+                        if(info["title"]) screen->Blit(*info["title"], f);
                         f.height(384);
-                        screen->Blit(info["album"], f);
+                        if(info["album"]) screen->Blit(*info["album"], f);
                         // position indicator
                         mutex->lock();
                         //system->updateProgress(stream->getPosition(), stream->getLength());
                         if(stream)
-                            info["position"] = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
+                            info["position"].reset(font->Render("Position: " + convertInt(stream->getPosition() / 60000)
                                                     + ":" + convertInt2((stream->getPosition() / 1000) % 60)
                                                     + "." + convertInt2((stream->getPosition() / 10) % 100)
                                                     + "/" + convertInt(stream->getLength() / 60000)
                                                     + ":" + convertInt2((stream->getLength() / 1000) % 60)
                                                     + "." + convertInt2((stream->getLength() / 10) % 100));
                         else
-                            info["position"] = font->Render("Position: -:--.-- / -:--.--");
+                            info["position"].reset(font->Render("Position: -:--.-- / -:--.--"));
                         f.height(353);
                         f.width(400);
-                        screen->Blit(info["position"], f);
+                        if(info["position"]) screen->Blit(*info["position"], f);
                         if(stream)
                             screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
                                            (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
@@ -505,9 +509,9 @@ void Player::Run(std::vector<std::string> args) {
                         f.width(0);
                         screen->Blit(*graph, f);
                         f.width(550);
-                        screen->Blit(info["scale"], f);
+                        if(info["scale"]) screen->Blit(*info["scale"], f);
                         f.height(15);
-                        screen->Blit(info["decay"], f);
+                        if(info["decay"]) screen->Blit(*info["decay"], f);
                         // DRAWING ENDS HERE
 
 
