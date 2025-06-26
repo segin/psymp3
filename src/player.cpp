@@ -215,13 +215,13 @@ void Player::renderSpectrum(Surface *graph) {
     // Create a temporary surface for the fade effect.
     // It's crucial that this surface supports alpha (e.g., 32-bit).
     // Using 'static' to avoid repeated allocation/deallocation per frame.
-    static std::unique_ptr<Surface> fade_surface_ptr;
-    if (!fade_surface_ptr || fade_surface_ptr->width() != graph->width() || fade_surface_ptr->height() != graph->height()) {
-        fade_surface_ptr = std::make_unique<Surface>(graph->width(), graph->height()); // Creates a 32-bit surface
+    static std::unique_ptr<Surface> fade_surface_ptr; // Declared static to persist across calls
+    if (!fade_surface_ptr || fade_surface_ptr->width() != 640 || fade_surface_ptr->height() != 350) {
+        fade_surface_ptr = std::make_unique<Surface>(640, 350); // Creates a 32-bit surface for FFT area only
     }
     Surface& fade_surface = *fade_surface_ptr;
 
-    // Calculate alpha for the fade (0-255)
+    // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
     uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 2.0f)); // decayfactor from 0.5 to 2.0
 
     // Fill the fade surface with black, using the calculated alpha
@@ -229,9 +229,9 @@ void Player::renderSpectrum(Surface *graph) {
 
     // Set alpha blending for the fade surface (source surface for blitting)
     fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
-
-    // Blit the semi-transparent black fade_surface onto the graph surface
-    Rect blit_dest_rect(0, 0, graph->width(), graph->height());
+    
+    // Blit the semi-transparent black fade_surface onto the graph surface at (0,0)
+    Rect blit_dest_rect(0, 0, 640, 350); // Blit only to the FFT area
     graph->Blit(fade_surface, blit_dest_rect); // This will blend if SDL_SRCALPHA is set on src
 
     // --- End Fade effect implementation ---
@@ -425,6 +425,26 @@ void Player::Run(std::vector<std::string> args) {
                     stream->seekTo(0);
                 default:
                     break;
+                }
+                break;
+            }
+            case SDL_MOUSEBUTTONDOWN:
+            {
+                if (event.button.button == SDL_BUTTON_LEFT) {
+                    // Check if click is within progress bar area
+                    // Progress bar X: 400 to 620 (width 220)
+                    // Progress bar Y: 370 to 385
+                    if (event.button.x >= 400 && event.button.x <= 620 &&
+                        event.button.y >= 370 && event.button.y <= 385) {
+                        if (stream && stream->getLength() > 0) {
+                            int relative_x = event.button.x - 400; // 0 to 220
+                            double progress_ratio = static_cast<double>(relative_x) / 220.0;
+                            unsigned long new_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
+                            stream->seekTo(new_position_ms);
+                            // Force a GUI update to show new position immediately
+                            synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+                        }
+                    }
                 }
                 break;
             }
