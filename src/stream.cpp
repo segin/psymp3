@@ -30,12 +30,12 @@ Stream::Stream()
 
 Stream::Stream(TagLib::String name) : m_path(name)
 {
-    m_tags = new TagLib::FileRef(name.toCString(true));
+    m_tags = std::make_unique<TagLib::FileRef>(name.toCString(true));
 }
 
 Stream::~Stream()
 {
-    if (m_tags) delete m_tags;
+    // No longer need to delete m_tags, std::unique_ptr handles it.
 }
 
 void Stream::open(TagLib::String name)
@@ -82,7 +82,7 @@ unsigned long long Stream::getSLength()
 {
     if(m_slength) return m_slength;
     if(!m_tags) return 0;
-    return m_tags->audioProperties()->lengthInSeconds() * m_tags->audioProperties()->bitrate();
+    return static_cast<unsigned long long>(m_tags->audioProperties()->lengthInSeconds()) * m_tags->audioProperties()->sampleRate();
 }
 
 /* TagLib provides this information in a generic manner for a mulitude of
