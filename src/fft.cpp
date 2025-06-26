@@ -24,14 +24,10 @@
 
 #include "psymp3.h"
 
-FFT::FFT(int size) : size(size) {
-	real = new float[size];
-	imag = new float[size];
-}
-
-FFT::~FFT() {
-	delete[] real;
-	delete[] imag;
+FFT::FFT(int size) : real(size), imag(size), size(size)
+{
+	// The std::vectors are now initialized in the member initializer list.
+	// The destructor was removed as std::vector handles its own memory (RAII).
 }
 
 void FFT::fft(float *output, const float *input) { 
@@ -91,4 +87,3 @@ unsigned int FFT::bitreverse(unsigned int in, int bits) {
 	}
 	return out;
 }
-
