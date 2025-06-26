@@ -321,6 +321,7 @@ void Player::Run(std::vector<std::string> args) {
         // program main loop
         audio->play(true);
         state = PLAYING;
+
     } else {
         state = STOPPED;
     }
@@ -434,6 +435,7 @@ void Player::Run(std::vector<std::string> args) {
                     // Check if click is within progress bar area
                     // Progress bar X: 400 to 620 (width 220)
                     // Progress bar Y: 370 to 385
+                    m_is_dragging = false; // Ensure flag is clear at start
                     if (event.button.x >= 400 && event.button.x <= 620 &&
                         event.button.y >= 370 && event.button.y <= 385) {
                         if (stream && stream->getLength() > 0) {
@@ -441,10 +443,36 @@ void Player::Run(std::vector<std::string> args) {
                             double progress_ratio = static_cast<double>(relative_x) / 220.0;
                             unsigned long new_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
                             stream->seekTo(new_position_ms);
-                            // Force a GUI update to show new position immediately
-                            synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+                            m_is_dragging = true;
+                            m_drag_start_x = event.button.x;
+                            m_drag_start_time = SDL_GetTicks();
                         }
                     }
+                }
+                break;
+            }
+            case SDL_MOUSEMOTION:
+            {
+                if (m_is_dragging && stream && stream->getLength() > 0 &&
+                    event.motion.x >= 400 && event.motion.x <= 620 &&
+                    event.motion.y >= 370 && event.motion.y <= 385) {
+                    int relative_x = event.motion.x - 400; // 0 to 220
+                    double progress_ratio = static_cast<double>(relative_x) / 220.0;
+                    m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
+                    synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr); // Update display during drag
+                }
+                break;
+            }
+            case SDL_MOUSEBUTTONUP:
+            {
+                if (event.button.button == SDL_BUTTON_LEFT && m_is_dragging && stream) {
+                    // Perform the seek only on mouse up
+                    unsigned long current_time = SDL_GetTicks();
+                    if ((current_time - m_last_seek_time) > 200) { // 200ms cooldown
+                        stream->seekTo(m_drag_position_ms);
+                        m_last_seek_time = current_time;
+                    }
+                    m_is_dragging = false;
                 }
                 break;
             }
@@ -535,6 +563,10 @@ void Player::Run(std::vector<std::string> args) {
                         this->renderSpectrum(graph);
                         mutex->unlock();
 
+                        // If dragging, use the drag position; otherwise, use the actual stream position
+                        unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : (stream ? stream->getPosition() : 0);
+
+
                         // --- Final Scene Composition ---
                         // 1. Clear the main screen
                         screen->FillRect(screen->MapRGB(0, 0, 0));
@@ -546,7 +578,7 @@ void Player::Run(std::vector<std::string> args) {
                         if(info["title"].isValid()) screen->Blit(info["title"], Rect(1, 369, info["title"].width(), info["title"].height()));
                         if(info["album"].isValid()) screen->Blit(info["album"], Rect(1, 384, info["album"].width(), info["album"].height()));
                         if(info["position"].isValid()) screen->Blit(info["position"], Rect(400, 353, info["position"].width(), info["position"].height()));
-                        if(info["scale"].isValid()) screen->Blit(info["scale"], Rect(550, 0, info["scale"].width(), info["scale"].height()));
+                        if(info["scale"].isValid()) screen->Blit(info["scale"], Rect(550, 0, info["scale"].width(), info["scale"].height())); 
                         if(info["decay"].isValid()) screen->Blit(info["decay"], Rect(550, 15, info["decay"].width(), info["decay"].height()));
 
                         // finally, update the screen :)
@@ -571,6 +603,13 @@ void Player::Run(std::vector<std::string> args) {
         } // end of message processing
 
     } // end main loop
+
+    SDL_RemoveTimer(timer);
+#ifdef _WIN32
+    if (system) system->progressState(TBPF_NOPROGRESS);
+    if (system) system->updateProgress(0, 0);
+#endif
+    if (audio) audio->play(false);
 
     // all is well ;)
     printf("Exited cleanly\n");
