@@ -24,9 +24,17 @@
 #ifndef TRACK_H
 #define TRACK_H
 
+#include <memory> // For std::unique_ptr
+
 class track
 {
     public:
+        // Disable copy constructor and copy assignment due to unique_ptr member
+        track(const track&) = delete;
+        track& operator=(const track&) = delete;
+        // Enable default move constructor and move assignment
+        track(track&&) = default;
+        track& operator=(track&&) = default;
         track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef = (TagLib::FileRef *) NULL);
         TagLib::String GetArtist() { return m_Artist; }
         TagLib::String GetTitle() { return m_Title; }
@@ -42,7 +50,7 @@ class track
         TagLib::String m_Title;
         TagLib::String m_Album;
         TagLib::String m_FilePath;
-        TagLib::FileRef *m_FileRef;
+        std::unique_ptr<TagLib::FileRef> m_FileRef;
         unsigned int m_Len;
     private:
 };
