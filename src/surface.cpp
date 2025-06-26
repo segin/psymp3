@@ -139,9 +139,9 @@ void Surface::pixel(int16_t x, int16_t y, uint32_t color)
 {
     if (!m_handle) return;
     if (x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) return;
-    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
     put_pixel_unlocked(x, y, color);
-    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -154,12 +154,12 @@ void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t
 {
     if (!m_handle) return;
     // This is implemented as a filled rectangle (box) to match its usage in the spectrum analyzer.
-    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
     if (y1 > y2) std::swap(y1, y2);
     for (int16_t y = y1; y <= y2; ++y) {
         hline_unlocked(x1, x2, y, color);
     }
-    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -184,9 +184,9 @@ void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uin
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 {
     if (!m_handle) return;
-    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
     hline_unlocked(x1, x2, y, color);
-    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -198,9 +198,9 @@ void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uin
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    if (SDL_MUSTLOCK(m_handle)) SDL_LockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
     vline_unlocked(x, y1, y2, color);
-    if (SDL_MUSTLOCK(m_handle)) SDL_UnlockSurface(m_handle);
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)

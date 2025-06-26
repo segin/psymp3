@@ -33,18 +33,16 @@ Widget::~Widget()
     //dtor
 }
 
-Widget::Widget(const Surface& other) :
-    Surface(other),
+// Move constructor: takes ownership of the Surface's internal SDL_Surface*
+Widget::Widget(Surface&& other) :
+    Surface(std::move(other)), // Move the base Surface part
     m_pos(0, 0)
 {
 }
 
-Widget::Widget(const Widget& other)
-{
-}
-
-Widget::Widget(const Surface& other, Rect& position) :
-    Surface(other),
+// Move constructor with position: takes ownership of the Surface and sets position
+Widget::Widget(Surface&& other, Rect& position) :
+    Surface(std::move(other)), // Move the base Surface part
     m_pos(position)
 {
 }
@@ -52,11 +50,6 @@ Widget::Widget(const Surface& other, Rect& position) :
 void Widget::BlitTo(Surface& target)
 {
     target.Blit(*this, m_pos);
-}
-
-void Widget::operator=(const Surface& rhs)
-{
-    m_handle = rhs.m_handle;
 }
 
 void Widget::updatePosition(const Rect& position)

@@ -28,9 +28,11 @@
 #include <cerrno>
 #endif
 
-System::System() : m_taskbar(nullptr)
+System::System()
 {
 #ifdef _WIN32
+    // Initialize m_taskbar to nullptr only if it's a member (i.e., on Windows)
+    m_taskbar = nullptr;
     InitializeTaskbar();
 #endif
 }

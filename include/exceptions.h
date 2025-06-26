@@ -25,6 +25,13 @@
 #ifndef EXCEPTIONS_H
 #define EXCEPTIONS_H
 
+#include <stdexcept> // For std::runtime_error
+
+class SDLException : public std::runtime_error {
+public:
+    explicit SDLException(const std::string& message) : std::runtime_error(message) {}
+};
+
 // When no format can open the file.
 class InvalidMediaException : public std::exception
 {

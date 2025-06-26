@@ -29,11 +29,16 @@ class Widget : public Surface
     public:
         Widget();
         virtual ~Widget();
-        Widget(const Surface& other);
-        Widget(const Widget& other);
-        Widget(const Surface& other, Rect& position);
+        // Widget objects are not copyable, as they contain a unique_ptr via Surface base.
+        Widget(const Widget&) = delete;
+        Widget& operator=(const Widget&) = delete;
+        // Allow moving
+        Widget(Widget&&) = default;
+        Widget& operator=(Widget&&) = default;
+        Widget(Surface&& other); // Take ownership by moving a Surface
+        Widget(Surface&& other, Rect& position); // Take ownership by moving a Surface
         void BlitTo(Surface& target);
-        void operator=(const Surface& rhs);
+        // Removed operator=(const Surface& rhs) as it's not copy-assignable.
         void updatePosition(const Rect& position);
     protected:
     private:
