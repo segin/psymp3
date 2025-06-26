@@ -30,7 +30,6 @@ class Stream
     public:
         Stream();
         Stream(TagLib::String name);
-        Stream(TagLib::String name, TagLib::FileRef *ref);
         /** Default destructor */
         virtual ~Stream();
         virtual void open(TagLib::String name);
@@ -70,7 +69,7 @@ class Stream
         int             m_encoding;  // value ??? - for later use
         bool            m_eof;
     private:
-        TagLib::FileRef *m_tags;
+        std::unique_ptr<TagLib::FileRef> m_tags;
 };
 
 #endif // STREAM_H

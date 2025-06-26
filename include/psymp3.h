@@ -54,6 +54,7 @@ enum {
 #include <exception>
 #include <typeinfo>
 #include <thread>
+#include <memory>
 #include <unordered_set>
 
 #ifdef __cplusplus
