@@ -80,7 +80,6 @@ enum {
 #endif
 #if defined(__APPLE__) 
 #include <SDL/SDL.h>
-#include <SDL/SDL_gfxPrimitives.h>
 #include <SDL/SDL_ttf.h>
 #include <SDL/SDL_thread.h>
 #include <SDL/SDL_mutex.h>
