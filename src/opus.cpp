@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-OpusFile::OpusFile(TagLib::String name) : Stream(name)
+OpusFile::OpusFile(TagLib::String name) : Stream(name), m_session(nullptr)
 {
     m_eof = false;
     open(name);
@@ -31,48 +31,85 @@ OpusFile::OpusFile(TagLib::String name) : Stream(name)
 
 OpusFile::~OpusFile()
 {
-    op_free(static_cast<OggOpusFile *>(m_handle));
-    m_handle = nullptr;
+    if (m_session) {
+        op_free(m_session);
+        m_session = nullptr;
+    }
 }
 
 void OpusFile::open(TagLib::String name)
 {
     int error;
-    m_handle = op_open_file(name.toCString(true), &error);
-    if(!m_handle) 
-        throw InvalidMediaException("Failed to open Opus file: " + name.to8Bit(true));
-    const OpusHead *m_oi = op_head(static_cast<OggOpusFile *>(m_handle), -1);
+    // Clean up previous session if any
+    if (m_session) {
+        op_free(m_session);
+        m_session = nullptr;
+    }
+    m_session = op_open_file(name.toCString(true), &error);
+    if(!m_session) {
+        // Provide a more informative exception, including the library's error code.
+        throw InvalidMediaException("Failed to open Opus file '" + name + "'. Error code: " + std::to_string(error));
+    }
+
+    // As per the opusfile manual, output is always 48kHz.
+    // Since op_read_stereo() is used, output is always 2 channels.
     m_channels = 2;
-    m_bitrate = 0;
-    m_slength = op_pcm_total(static_cast<OggOpusFile *>(m_handle), -1);
     m_rate = 48000;
-    m_length = m_slength / 48;
+    m_bitrate = 0;
+    m_slength = op_pcm_total(m_session, -1);
+    // Explicitly calculate length in milliseconds from samples and rate.
+    if (m_rate > 0) {
+        m_length = (m_slength * 1000) / m_rate;
+    } else {
+        m_length = 0;
+    }
 }
 
 void OpusFile::seekTo(unsigned long pos)
 {
-    op_pcm_seek(static_cast<OggOpusFile *>(m_handle), pos * 48);
-    m_sposition = op_pcm_tell(static_cast<OggOpusFile *>(m_handle));
-    m_position = m_sposition / 48;
+    if (!m_session) return;
+    // Use 64-bit arithmetic to prevent potential overflow when calculating sample position from milliseconds.
+    ogg_int64_t pcm_offset = (static_cast<ogg_int64_t>(pos) * m_rate) / 1000;
+    op_pcm_seek(m_session, pcm_offset);
+    m_sposition = op_pcm_tell(m_session);
+    if (m_rate > 0) {
+        m_position = (m_sposition * 1000) / m_rate;
+    }
 }
 
 size_t OpusFile::getData(size_t len, void *buf)
 {
-    auto nbuf = buf;
-    auto nlen = len;
-    auto ret = 0, tret = 0;
-    do { 
-        ret = op_read_stereo(static_cast<OggOpusFile *>(m_handle), static_cast<opus_int16 *>(nbuf), nlen / 2);
-        if (ret == OP_HOLE || ret == OP_EBADLINK || ret == OP_EINVAL)
-            throw BadFormatException("Failed to read Opus file");
-        tret += ret;
-        nlen -= ret * 4;
-        nbuf = static_cast<char*>(buf) + (static_cast<char*>(buf) - static_cast<char*>(buf) + len - nlen);
-        if(!tret) m_eof = true;
-    } while (ret && nlen);
-    m_sposition = op_pcm_tell(static_cast<OggOpusFile *>(m_handle));
-    m_position = m_sposition / 48;
-    return tret * 4;       
+    if (!m_session) return 0;
+
+    char *current_ptr = static_cast<char *>(buf);
+    size_t bytes_left = len;
+    size_t total_bytes_read = 0;
+
+    while (bytes_left > 0) {
+        // op_read_stereo wants the total number of opus_int16 values the buffer can hold.
+        int buffer_capacity_in_samples = bytes_left / sizeof(opus_int16);
+        if (buffer_capacity_in_samples == 0) break;
+
+        int samples_read_per_channel = op_read_stereo(m_session, reinterpret_cast<opus_int16 *>(current_ptr), buffer_capacity_in_samples);
+
+        if (samples_read_per_channel < 0) { // Error
+            throw BadFormatException("Failed to read Opus file, error: " + std::to_string(samples_read_per_channel));
+        } else if (samples_read_per_channel == 0) { // End of file
+            m_eof = true;
+            break;
+        }
+
+        size_t bytes_read_this_call = samples_read_per_channel * m_channels * sizeof(opus_int16);
+        total_bytes_read += bytes_read_this_call;
+        current_ptr += bytes_read_this_call;
+        bytes_left -= bytes_read_this_call;
+    }
+
+    m_sposition = op_pcm_tell(m_session);
+    if (m_rate > 0) {
+        m_position = (m_sposition * 1000) / m_rate;
+    }
+    return total_bytes_read;
 }
 
 unsigned int OpusFile::getLength()
@@ -87,7 +124,8 @@ unsigned long long OpusFile::getSLength()
 
 unsigned long long OpusFile::getSPosition()
 {
-    return m_sposition;
+    if (!m_session) return 0;
+    return op_pcm_tell(m_session);
 }
 
 unsigned int OpusFile::getChannels()
@@ -114,4 +152,3 @@ bool OpusFile::eof()
 {
     return m_eof;
 }
-

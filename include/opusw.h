@@ -42,7 +42,7 @@ class OpusFile : public Stream
         virtual bool eof();
     protected:
     private:
-        int m_session;
+        OggOpusFile *m_session;
 };
 
 #endif // OPUSW_H
