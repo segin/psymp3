@@ -23,14 +23,16 @@
 
 
 #include "psymp3.h"
+#include <taglib/fileref.h>
 
 Playlist::Playlist(std::vector<std::string> args)
 {
     parseArgs(args);
 }
 
-Playlist::Playlist(track trk)
+Playlist::Playlist(track&& trk) // Take by rvalue reference
 {
+    tracks.emplace_back(std::move(trk)); // Move the track into the vector
     // M3U ctor
 }
 
@@ -53,12 +55,13 @@ bool Playlist::addFile(TagLib::String path)
     try {
         std::cout << "Attempting open of " << path << std::endl;
         fileref = new TagLib::FileRef(path.toCString(true));
-    } catch (const TagLib::FileRef::NotAFile& e) { // Catch specific TagLib exception
+    } catch (const std::exception& e) { // Revert to catching std::exception, as TagLib::FileRef::NotAFile is not a standard TagLib exception.
         std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
 	    return false;
     }
-    ntrk = new track(path, fileref);
-    tracks.push_back(*ntrk);
+    // Construct track directly in the vector, passing the raw pointer.
+    // The track constructor will take ownership of 'fileref' via unique_ptr.
+    tracks.emplace_back(path, fileref);
     return true;
 }
 
