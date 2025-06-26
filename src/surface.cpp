@@ -97,9 +97,34 @@ void Surface::Flip()
 void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
 {
     // No bounds checking here, expecting caller to handle it.
-    // Assumes 32bpp surface, which is what the graph uses.
-    uint32_t *target_pixel = (uint32_t *)((uint8_t *)m_handle->pixels + y * m_handle->pitch + x * sizeof(uint32_t));
-    *target_pixel = color;
+    int bpp = m_handle->format->BytesPerPixel;
+    uint8_t *p = (uint8_t *)m_handle->pixels + y * m_handle->pitch + x * bpp;
+
+    switch (bpp) {
+    case 1:
+        *p = color;
+        break;
+
+    case 2:
+        *(uint16_t *)p = color;
+        break;
+
+    case 3:
+        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+            p[0] = (color >> 16) & 0xff;
+            p[1] = (color >> 8) & 0xff;
+            p[2] = color & 0xff;
+        } else {
+            p[0] = color & 0xff;
+            p[1] = (color >> 8) & 0xff;
+            p[2] = (color >> 16) & 0xff;
+        }
+        break;
+
+    case 4:
+        *(uint32_t *)p = color;
+        break;
+    }
 }
 
 void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
@@ -112,9 +137,24 @@ void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
     x1 = std::max<int16_t>(x1, 0);
     x2 = std::min<int16_t>(x2, m_handle->w - 1);
 
-    uint32_t *row = (uint32_t *)((uint8_t *)m_handle->pixels + y * m_handle->pitch);
-    for (int16_t x = x1; x <= x2; ++x) {
-        row[x] = color;
+    int bpp = m_handle->format->BytesPerPixel;
+    uint8_t *row_start = (uint8_t *)m_handle->pixels + y * m_handle->pitch + x1 * bpp;
+
+    // Optimize for common cases
+    if (bpp == 2) {
+        uint16_t *p = (uint16_t*)row_start;
+        for (int16_t x = x1; x <= x2; ++x) {
+            *p++ = color;
+        }
+    } else if (bpp == 4) {
+        uint32_t *p = (uint32_t*)row_start;
+        for (int16_t x = x1; x <= x2; ++x) {
+            *p++ = color;
+        }
+    } else { // Generic fallback for 1 and 3 bpp
+        for (int16_t x = x1; x <= x2; ++x) {
+            put_pixel_unlocked(x, y, color);
+        }
     }
 }
 
@@ -128,10 +168,16 @@ void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
     y1 = std::max<int16_t>(y1, 0);
     y2 = std::min<int16_t>(y2, m_handle->h - 1);
 
-    uint8_t *pixel_addr = (uint8_t *)m_handle->pixels + y1 * m_handle->pitch + x * sizeof(uint32_t);
+    int bpp = m_handle->format->BytesPerPixel;
+    uint8_t *p = (uint8_t *)m_handle->pixels + y1 * m_handle->pitch + x * bpp;
+
     for (int16_t y = y1; y <= y2; ++y) {
-        *(uint32_t *)pixel_addr = color;
-        pixel_addr += m_handle->pitch;
+        // This is a bit slow due to the switch, but correct for all bpp.
+        // An outer switch would be faster but more verbose.
+        if (bpp == 2) *(uint16_t*)p = color;
+        else if (bpp == 4) *(uint32_t*)p = color;
+        else put_pixel_unlocked(x, y, color); // Fallback for other bpp
+        p += m_handle->pitch;
     }
 }
 
