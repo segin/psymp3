@@ -31,15 +31,22 @@ class Widget;
 class Surface
 {
     public:
-        Surface();
-        Surface(SDL_Surface *sfc);
-        Surface(const Surface *rhs);
+        // Default constructor for an empty surface
+        Surface(); 
+        // Constructor for creating a new, owned surface
         Surface(int width, int height);
-        Surface& operator= (const Surface &rhs);
-        Surface& operator= (const Surface *rhs);
-        virtual ~Surface();
-        static Surface& FromBMP(const char *a_file);
-        static Surface& FromBMP(std::string a_file);
+        // Constructor for wrapping a non-owned surface (e.g., the main screen)
+        explicit Surface(SDL_Surface *non_owned_sfc);
+
+        // Rule of Five: Disable copy/move to prevent ownership issues
+        Surface(const Surface&) = delete;
+        Surface& operator=(const Surface&) = delete;
+        Surface(Surface&&) = default;
+        Surface& operator=(Surface&&) = default;
+        virtual ~Surface() = default;
+
+        static std::unique_ptr<Surface> FromBMP(const char *a_file);
+        static std::unique_ptr<Surface> FromBMP(std::string a_file);
         bool isValid();
         uint32_t MapRGB(uint8_t r, uint8_t g, uint8_t b);
         uint32_t MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
@@ -62,7 +69,7 @@ class Surface
         friend class Display;
         friend class Widget;
     protected:
-        SDL_Surface * m_handle;
+        std::unique_ptr<SDL_Surface, void (*)(SDL_Surface*)> m_handle;
     private:
         void put_pixel_unlocked(int16_t x, int16_t y, uint32_t color);
         void hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color);

@@ -24,63 +24,45 @@
 
 #include "psymp3.h"
 
-Surface::Surface()
+Surface::Surface() : m_handle(nullptr, SDL_FreeSurface)
 {
-    //ctor - wat do?
-    m_handle = nullptr; // XXX: Figure out what to do for a default constructor, if we're to ever use it.
+    // Default constructor creates a null handle.
 }
 
-Surface::Surface(SDL_Surface *sfc)
+Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Surface*){ /* do nothing */ })
 {
-    //std::cout << "Surface::Surface(SDL_Surface*): called, 0x" << std::hex << (unsigned int) sfc << std::endl;
-    m_handle = sfc;
-}
-
-Surface::Surface(const Surface *rhs)
-{
-    m_handle = rhs->m_handle;
+    // This constructor wraps a pointer but does not take ownership.
+    // The custom empty deleter ensures SDL_FreeSurface is not called on it.
 }
 
 Surface::Surface(int width, int height)
+    : m_handle(SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
 {
-    m_handle = SDL_CreateRGBSurface(SDL_SWSURFACE, width, height, 32, 0, 0, 0, 0);
+    if (!m_handle) {
+        throw SDLException("Could not create RGB surface");
+    }
 }
 
-Surface& Surface::operator= (const Surface &rhs)
+std::unique_ptr<Surface> Surface::FromBMP(std::string a_file)
 {
-    if (m_handle) SDL_FreeSurface(m_handle);
-    m_handle = rhs.m_handle;
-    return *this;
+    return FromBMP(a_file.c_str());
 }
 
-Surface& Surface::operator= (const Surface *rhs)
+std::unique_ptr<Surface> Surface::FromBMP(const char *a_file)
 {
-    if (m_handle) SDL_FreeSurface(m_handle);
-    m_handle = rhs->m_handle;
-    return *this;
-}
-
-Surface::~Surface()
-{
-    //dtor
-    if (m_handle) SDL_FreeSurface(m_handle);
-}
-
-Surface& Surface::FromBMP(std::string a_file)
-{
-    return *(new Surface(SDL_LoadBMP(a_file.c_str())));
-}
-
-Surface& Surface::FromBMP(const char *a_file)
-{
-    return *(new Surface(SDL_LoadBMP(a_file)));
+    auto surface = std::make_unique<Surface>(); // Create an empty surface
+    surface->m_handle.reset(SDL_LoadBMP(a_file)); // Load BMP and assign to the unique_ptr
+    if (!surface->m_handle) {
+        throw SDLException("Could not load BMP");
+    }
+    return surface;
 }
 
 void Surface::Blit(Surface& src, Rect& rect)
 {
     if (!m_handle) return;
     SDL_Rect r = { rect.width(), rect.height() };
-    SDL_BlitSurface(src.m_handle, 0, m_handle, &r);
+    SDL_BlitSurface(src.getHandle(), 0, m_handle.get(), &r);
 }
 
 bool Surface::isValid()
@@ -103,13 +85,13 @@ uint32_t Surface::MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 void Surface::FillRect(uint32_t color)
 {
     if (!m_handle) return;
-    SDL_FillRect(m_handle, 0, color);
+    SDL_FillRect(m_handle.get(), 0, color);
 }
 
 void Surface::Flip()
 {
     if (!m_handle) return;
-    SDL_Flip(m_handle);
+    SDL_Flip(m_handle.get());
 }
 
 void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
@@ -241,5 +223,5 @@ int16_t Surface::width()
 
 SDL_Surface * Surface::getHandle()
 {
-    return m_handle;
+    return m_handle.get();
 }
