@@ -210,30 +210,21 @@ float Player::logarithmicScale(const int f, float x) {
 
 void Player::renderSpectrum(Surface *graph) {
     float *spectrum = fft->getFFT();
-
+ 
     // --- Fade effect implementation ---
-    // Create a temporary surface for the fade effect.
-    // It's crucial that this surface supports alpha (e.g., 32-bit).
-    // Using 'static' to avoid repeated allocation/deallocation per frame.
     static std::unique_ptr<Surface> fade_surface_ptr; // Declared static to persist across calls
     if (!fade_surface_ptr || fade_surface_ptr->width() != 640 || fade_surface_ptr->height() != 350) {
         fade_surface_ptr = std::make_unique<Surface>(640, 350); // Creates a 32-bit surface for FFT area only
+        fade_surface_ptr->FillRect(fade_surface_ptr->MapRGB(0, 0, 0)); // Fill with opaque black once
     }
     Surface& fade_surface = *fade_surface_ptr;
 
-    // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
-    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 2.0f)); // decayfactor from 0.5 to 2.0
-
-    // Fill the fade surface with black, using the calculated alpha
-    fade_surface.FillRect(fade_surface.MapRGB(0, 0, 0)); // Fill with opaque black
-
-    // Set alpha blending for the fade surface (source surface for blitting)
+    // A higher decayfactor should mean a faster fade (more opaque).
+    uint8_t fade_alpha = static_cast<uint8_t>(std::clamp(32.0f * decayfactor, 0.0f, 255.0f));
     fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
     
-    // Blit the semi-transparent black fade_surface onto the graph surface at (0,0)
     Rect blit_dest_rect(0, 0, 640, 350); // Blit only to the FFT area
     graph->Blit(fade_surface, blit_dest_rect); // This will blend if SDL_SRCALPHA is set on src
-
     // --- End Fade effect implementation ---
 
     for(uint16_t x=0; x < 320; x++) {
@@ -503,9 +494,6 @@ void Player::Run(std::vector<std::string> args) {
                         Player::guiRunning = true;
                         mutex->lock();
 
-                        // Clear the graph surface for new drawing (spectrum + progress bar)
-                        graph->FillRect(graph->MapRGB(0, 0, 0));
-
                         // Render position text onto info["position"] surface
                         if(stream)
                             info["position"] = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
@@ -529,6 +517,10 @@ void Player::Run(std::vector<std::string> args) {
                                            + "]", "PsyMP3 " PSYMP3_VERSION);
                         else
                             screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
+
+                        // Clear only the bottom part of the graph surface (for the progress bar).
+                        // The top part (spectrum) is handled by renderSpectrum for the fade effect.
+                        graph->box(0, 350, 639, 399, 0, 0, 0, 255);
 
                         // draw progress bar on the graph surface
                         graph->vline(399, 370, 385, 0xFFFFFFFF);
