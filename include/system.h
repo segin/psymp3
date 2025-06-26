@@ -148,7 +148,15 @@ class System
     public:
         /** Default constructor */
         System();
-        void InitalizeTaskbar();
+        ~System();
+
+        // Prevent copying and moving to avoid issues with the raw COM pointer m_taskbar.
+        System(const System&) = delete;
+        System& operator=(const System&) = delete;
+        System(System&&) = delete;
+        System& operator=(System&&) = delete;
+
+        void InitializeTaskbar();
         static TagLib::String getUser(); // where applicable
         static TagLib::String getHome();
         static TagLib::String getStoragePath();
@@ -158,7 +166,6 @@ class System
         void updateProgress(ULONGLONG now, ULONGLONG max);
         void progressState(TBPFLAG status);
         #endif
-    protected:
     private:
     #if defined(_WIN32)
         ITaskbarList3 *m_taskbar;

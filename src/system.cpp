@@ -23,14 +23,29 @@
 
 #include "psymp3.h"
 
-System::System()
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <cerrno>
+#endif
+
+System::System() : m_taskbar(nullptr)
 {
 #ifdef _WIN32
-    InitalizeTaskbar();
+    InitializeTaskbar();
 #endif
 }
 
-void System::InitalizeTaskbar()
+System::~System()
+{
+#if defined(_WIN32)
+    if (m_taskbar) {
+        m_taskbar->Release();
+        m_taskbar = nullptr;
+    }
+#endif
+}
+
+void System::InitializeTaskbar()
 {
 #if defined(_WIN32) && defined(WIN_OPTIONAL)
     HRESULT hr = CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER, IID_ITaskbarList3, (void **) &m_taskbar);
@@ -138,7 +153,14 @@ TagLib::String System::getStoragePath()
 
 bool System::createStoragePath()
 {
-    return false;
+    TagLib::String path = getStoragePath();
+#ifdef _WIN32
+    // CreateDirectoryW returns non-zero on success.
+    return CreateDirectoryW(path.toWString().c_str(), NULL) || (GetLastError() == ERROR_ALREADY_EXISTS);
+#else
+    // mkdir returns 0 on success.
+    return mkdir(path.toCString(true), 0755) == 0 || (errno == EEXIST);
+#endif
 }
 
 #ifdef _WIN32
