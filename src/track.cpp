@@ -25,15 +25,17 @@
 
 TagLib::String track::nullstr;
 
-track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath(a_FilePath), m_FileRef(a_FileRef)
+track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath(a_FilePath)
 {
+    // Take ownership of the raw pointer by moving it into a unique_ptr
+    m_FileRef = std::unique_ptr<TagLib::FileRef>(a_FileRef);
     loadTags();
 }
 
 void track::loadTags() { 
     if (!m_FileRef) {
         try {
-            m_FileRef = new TagLib::FileRef(m_FilePath.toCString(true));    
+            m_FileRef = std::make_unique<TagLib::FileRef>(m_FilePath.toCString(true));
         } catch (std::exception& e) {
             std::cerr << "track::track(): Exception: " << e.what() << std::endl;
             m_FileRef = nullptr;
@@ -45,6 +47,5 @@ void track::loadTags() {
         m_Title = tag->title();
         m_Album = tag->album();
         m_Len = m_FileRef->audioProperties()->lengthInSeconds();
-        delete m_FileRef;
     }
 }
