@@ -169,7 +169,11 @@ class System
         #endif
     private:
     #if defined(_WIN32)
-        ITaskbarList3 *m_taskbar;
+        // Using a smart pointer for the COM object automates Release() calls,
+        // making resource management safer and simpler (RAII).
+        // This requires #include <wrl/client.h>
+        // Microsoft::WRL::ComPtr<ITaskbarList3> m_taskbar;
+        ITaskbarList3 *m_taskbar; // Keeping original for now, but ComPtr is recommended.
     #endif
 
 };

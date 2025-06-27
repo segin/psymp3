@@ -227,18 +227,31 @@ void System::setThisThreadName(const std::string& name)
     std::string truncated_name = name.substr(0, 15);
     pthread_set_name_np(pthread_self(), truncated_name.c_str());
 #elif defined(_WIN32)
-    THREADNAME_INFO info;
-    info.dwType = 0x1000;
-    info.szName = name.c_str();
-    info.dwThreadID = GetCurrentThreadId();
-    info.dwFlags = 0;
+    // The SetThreadDescription API is available on Windows 10 1607+
+    // We dynamically load it to maintain compatibility with older systems.
+    using SetThreadDescription_t = HRESULT(WINAPI*)(HANDLE, PCWSTR);
+    auto pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "SetThreadDescription");
 
-    __try
-    {
-        RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
-    }
-    __except(EXCEPTION_EXECUTE_HANDLER)
-    {
+    if (pSetThreadDescription) {
+        // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API
+        int size_needed = MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), NULL, 0);
+        std::wstring wname(size_needed, 0);
+        MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), &wname[0], size_needed);
+        
+        pSetThreadDescription(GetCurrentThread(), wname.c_str());
+    } else {
+        // Fallback to the old MSVC debugger-specific method.
+        // This is only supported by the MSVC compiler and its debugger.
+#if defined(_MSC_VER)
+        THREADNAME_INFO info;
+        info.dwType = 0x1000;
+        info.szName = name.c_str();
+        info.dwThreadID = (DWORD)-1; // -1=caller thread
+        info.dwFlags = 0;
+
+        __try { RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info); }
+        __except(EXCEPTION_EXECUTE_HANDLER) { }
+#endif // _MSC_VER
     }
 #else
     // No-op for other platforms.
