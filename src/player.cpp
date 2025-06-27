@@ -592,29 +592,40 @@ void Player::Run(std::vector<std::string> args) {
 
                             m_loading_track = false; // Loading complete
 
-                            audio->lock(); // Lock audio before modifying stream
+                            // If an audio device exists, lock it before we swap streams.
+                            if (audio) {
+                                audio->lock();
+                            }
+
                             if (stream) {
                                 delete stream; // Delete old stream
                             }
                             stream = new_stream;
                             ATdata.stream = stream;
 
-                            if (stream && ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels()))) {
-                                pause(); // Pause to avoid race condition during audio device re-open
-                                audio->unlock(); // Unlock before deleting/recreating Audio
-                                delete audio;
-                                audio = new Audio(&ATdata);
-                            } else {
-                                audio->unlock(); // Unlock if no audio re-open
-                            }
-
                             if (stream) {
+                                if (!audio) {
+                                    // First track loaded, create the audio device.
+                                    audio = new Audio(&ATdata);
+                                } else {
+                                    // Audio device exists, check if we need to re-open it for the new format.
+                                    if ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
+                                        pause(); // Pause to avoid race condition during audio device re-open
+                                        audio->unlock(); // Unlock before deleting/recreating Audio
+                                        delete audio;
+                                        audio = new Audio(&ATdata);
+                                    } else {
+                                        // Format is the same, just unlock.
+                                        audio->unlock();
+                                    }
+                                }
+
                                 // Render text surfaces and store them in the map.
                                 info["artist"] = font->Render("Artist: " + stream->getArtist());
                                 info["title"] = font->Render("Title: " + stream->getTitle());
                                 info["album"] = font->Render("Album: " + stream->getAlbum());
                                 info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
-                                info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor)); // This line is duplicated below, will be overwritten
+                                info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
                                 info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
                                 info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
                                 play();
