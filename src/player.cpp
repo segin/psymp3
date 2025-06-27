@@ -22,9 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "player.h"
-
-#include <iomanip> // For std::setw, std::setfill
 
 bool Player::guiRunning;
 

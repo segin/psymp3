@@ -23,7 +23,6 @@
 
 
 #include "psymp3.h"
-#include <taglib/fileref.h>
 
 Playlist::Playlist(std::vector<std::string> args)
 {

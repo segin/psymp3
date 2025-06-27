@@ -56,6 +56,7 @@ enum {
 #include <thread>
 #include <memory>
 #include <unordered_set>
+#include <iomanip>
 
 #ifdef __cplusplus
     #include <cstdlib>
