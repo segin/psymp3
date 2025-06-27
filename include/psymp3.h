@@ -85,9 +85,7 @@ enum {
     #include <stdio.h>
 #endif
 
-#ifndef _WIN32
 #include <sys/stat.h>
-#endif
 
 // system includes - third-party libraries
 #if defined(_WIN32)
