@@ -106,6 +106,6 @@ void Audio::toFloat(int channels, int16_t *in, float *out) {
             out[x] = in[x] / 32768.0f;
     else if (channels == 2)
         for(int x = 0; x < 512; x++)
-            // Normalize the sum of two 16-bit samples to the range [-1.0, 1.0]
+            // Average and normalize two 16-bit stereo samples to mono in the range [-1.0, 1.0]
             out[x] = ((long long)in[x * 2] + (long long)in[(x * 2) + 1]) / 65536.0f;
 }
