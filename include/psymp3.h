@@ -39,7 +39,8 @@ enum {
     // Custom events for asynchronous track loading
     TRACK_LOAD_REQUEST,  // Sent to loader thread (via queue)
     TRACK_LOAD_SUCCESS,  // Sent from loader thread to main thread
-    TRACK_LOAD_FAILURE   // Sent from loader thread to main thread
+    TRACK_LOAD_FAILURE,  // Sent from loader thread to main thread
+    START_FIRST_TRACK    // Sent from playlist populator to main thread
 };
 
 enum {

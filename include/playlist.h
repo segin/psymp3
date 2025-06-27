@@ -26,18 +26,15 @@
 class Playlist
 {
     public:
-        Playlist(std::vector<std::string> args);
         // Explicitly delete copy operations as std::vector<track> is non-copyable
         Playlist(const Playlist&) = delete;
         Playlist& operator=(const Playlist&) = delete;
         // Explicitly default move operations
         Playlist(Playlist&&) = default;
         Playlist& operator=(Playlist&&) = default;
-        Playlist(track&& trk); // Take track by rvalue reference to allow moving
         Playlist() { }
         ~Playlist();
         bool addFile(TagLib::String path);
-        void parseArgs(std::vector<std::string> args);
         long getPosition();
         long entries();
         bool setPosition(long position);

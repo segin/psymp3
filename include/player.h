@@ -96,6 +96,10 @@ class Player
         std::queue<TagLib::String> m_loader_queue; // Queue of paths to load
         std::atomic<bool> m_loader_active;
         std::atomic<bool> m_loading_track; // Flag to prevent multiple simultaneous loads
+
+        // New thread for populating playlist from command line
+        std::thread m_playlist_populator_thread;
+        void playlistPopulatorLoop(std::vector<std::string> args);
 };
 
 #endif // PLAYER_H

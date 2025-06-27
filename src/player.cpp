@@ -83,6 +83,10 @@ Player::~Player() {
             m_loader_thread.join();
         }
     }
+    // Join the playlist populator thread
+    if (m_playlist_populator_thread.joinable()) {
+        m_playlist_populator_thread.join();
+    }
     if (system)
         delete system;
 }
@@ -171,6 +175,23 @@ void Player::loaderThreadLoop() {
         result->error_message = error_msg;
         
         synthesizeUserEvent(new_stream ? TRACK_LOAD_SUCCESS : TRACK_LOAD_FAILURE, result, nullptr);
+    }
+}
+
+void Player::playlistPopulatorLoop(std::vector<std::string> args) {
+    System::setThisThreadName("playlist-populator");
+
+    // Add the first file.
+    if (args.size() > 1) {
+        if (playlist->addFile(TagLib::String(args[1], TagLib::String::UTF8))) {
+            // If successful, tell the main thread to start playing it.
+            synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
+        }
+    }
+
+    // Add the rest of the files in the background.
+    for (size_t i = 2; i < args.size(); ++i) {
+        playlist->addFile(TagLib::String(args[i], TagLib::String::UTF8));
     }
 }
 
@@ -325,55 +346,53 @@ void Player::Run(std::vector<std::string> args) {
     Libmpg123::init();
     // FastFourier::init();
 
+    // Initialize UI and essential components first to show the window quickly.
     screen = new Display();
-    playlist = new Playlist(args);
-    if (playlist->entries()) 
-        try {
-            stream = MediaFile::open(playlist->getTrack(0));
-        } catch (const std::exception& e) { 
-            std::cerr << e.what() << ": Can't open stream: " << playlist->getTrack(0) << std::endl;
-            stream = nullptr;
-        }
-    else {
-       // stream = new NullStream(); 
-    }
-    fft = new FastFourier();
-    mutex = new std::mutex();
     system = new System();
-    ATdata.fft = fft;
-    ATdata.stream = stream;
-    ATdata.mutex = mutex;
-
-    if (stream)
-        audio = new Audio(&ATdata);
 #if defined(_WIN32)
     font = new Font("./vera.ttf");
 #else
     font = new Font(PSYMP3_DATADIR "/vera.ttf");
 #endif // _WIN32
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
-    graph = new Surface(640, 400); // Make graph the same size as the screen for full-frame drawing
+    graph = new Surface(640, 400);
 
-    Rect dstrect;
-    SDL_TimerID timer;
-    if (stream) {
-        info["artist"] = font->Render("Artist: " + stream->getArtist());
-        info["title"] = font->Render("Title: " + stream->getTitle());
-        info["album"] = font->Render("Album: " + stream->getAlbum());
-        info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
-        info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
-        info["decay"] = font->Render("decay = " + std::to_string(decayfactor)); // This line is duplicated below, will be overwritten
-        info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
-        // program main loop
-        audio->play(true);
-        state = PLAYING;
+    // Create an empty playlist. It will be populated in the background.
+    playlist = new Playlist();
 
+    fft = new FastFourier();
+    mutex = new std::mutex();
+
+    stream = nullptr; // No stream initially
+    audio = nullptr;  // No audio initially
+
+    ATdata.fft = fft;
+    ATdata.stream = stream;
+    ATdata.mutex = mutex;
+
+    // If command line arguments are provided, start populating the playlist
+    // and load the first track in a background thread.
+    if (args.size() > 1) {
+        m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, args);
+        state = STOPPED; // Will transition to playing when track loads
     } else {
+        // No files, start with stopped state and an empty screen.
         state = STOPPED;
+        info["artist"] = font->Render("Artist: ");
+        info["title"] = font->Render("Title: ");
+        info["album"] = font->Render("Album: ");
+        info["playlist"] = font->Render("Playlist: 0/0");
+        info["position"] = font->Render("Position: --:--.-- / --:--.--");
+        info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
+        info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+        info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
+        // Force one GUI update to show the initial empty state
+        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     }
     bool done = false;
     // if (system) system->progressState(TBPF_NORMAL);
-    timer = SDL_AddTimer(33, AppLoopTimer, nullptr);
+    SDL_TimerID timer = SDL_AddTimer(33, AppLoopTimer, nullptr);
     while (!done) {
         bool sdone = false;
         // message processing loop
@@ -548,6 +567,13 @@ void Player::Run(std::vector<std::string> args) {
             }
             case SDL_USEREVENT:
                 switch(event.user.code) {
+                    case START_FIRST_TRACK:
+                    {
+                        if (playlist->entries() > 0) {
+                            requestTrackLoad(playlist->getTrack(0));
+                        }
+                        break;
+                    }
                     case DO_NEXT_TRACK:
                     {
                         done = !nextTrack();
@@ -558,16 +584,8 @@ void Player::Run(std::vector<std::string> args) {
                         prevTrack();
                         break;
                     }
-                    case RUN_GUI_ITERATION:
-                    {
-                        Player::guiRunning = true;
-                        unsigned long current_pos_ms = 0;
-                        unsigned long total_len_ms = 0;
-                        TagLib::String artist, title;
-
-                        // Handle asynchronous track loading results
-                        // These events are pushed by the loaderThreadLoop
-                        if (event.user.code == TRACK_LOAD_SUCCESS) {
+                    case TRACK_LOAD_SUCCESS:
+                        {
                             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.user.data1);
                             Stream* new_stream = result->stream;
                             delete result; // Free the result struct
@@ -610,7 +628,10 @@ void Player::Run(std::vector<std::string> args) {
                                 info["playlist"] = font->Render("Playlist: N/A");
                                 info["position"] = font->Render("Position: --:--.-- / --:--.--");
                             }
-                        } else if (event.user.code == TRACK_LOAD_FAILURE) {
+                        }
+                        break;
+                    case TRACK_LOAD_FAILURE:
+                        {
                             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.user.data1);
                             TagLib::String error_msg = result->error_message;
                             delete result; // Free the result struct
@@ -627,12 +648,15 @@ void Player::Run(std::vector<std::string> args) {
                             info["playlist"] = font->Render("Playlist: N/A");
                             info["position"] = font->Render("Position: --:--.-- / --:--.--");
                         }
+                        break;
+                    case RUN_GUI_ITERATION:
+                    {
+                        Player::guiRunning = true;
+                        unsigned long current_pos_ms = 0;
+                        unsigned long total_len_ms = 0;
+                        TagLib::String artist, title;
 
-                        // If this is not a track load event, proceed with GUI iteration
-                        if (event.user.code != TRACK_LOAD_SUCCESS && event.user.code != TRACK_LOAD_FAILURE) {
-                            // Original RUN_GUI_ITERATION logic
-                        }
-
+                        // --- GUI Update Logic ---
                         // --- Start of critical section ---
                         // Lock the mutex only while accessing shared data (stream, fft).
                         {

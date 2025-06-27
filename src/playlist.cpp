@@ -24,27 +24,9 @@
 
 #include "psymp3.h"
 
-Playlist::Playlist(std::vector<std::string> args)
-{
-    parseArgs(args);
-}
-
-Playlist::Playlist(track&& trk) // Take by rvalue reference
-{
-    tracks.emplace_back(std::move(trk)); // Move the track into the vector
-    // M3U ctor
-}
-
 Playlist::~Playlist()
 {
     //dtor
-}
-
-void Playlist::parseArgs(std::vector<std::string> args)
-{
-    for(int i = 1; i < args.size(); i++) {
-        addFile(TagLib::String(args[i],TagLib::String::UTF8));
-    }
 }
 
 bool Playlist::addFile(TagLib::String path)
