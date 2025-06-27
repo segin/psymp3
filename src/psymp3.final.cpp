@@ -9,7 +9,6 @@
 #include "libmpg123.cpp"
 #include "main.cpp"
 #include "mediafile.cpp"
-#include "mutex.cpp"
 #include "opus.cpp"
 #include "persistentstorage.cpp"
 #include "player.cpp"
