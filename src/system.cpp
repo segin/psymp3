@@ -141,7 +141,7 @@ TagLib::String System::getStoragePath()
         TagLib::String spath;
         WCHAR env[1024];
         GetEnvironmentVariable(L"APPDATA", env, 1024);
-        spath = env;
+        spath = env; // Changed this line, it was not returning from the right spot.
         spath += L"\\PsyMP3";
         return spath;
     #else
