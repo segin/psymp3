@@ -321,8 +321,9 @@ void Player::Run(std::vector<std::string> args) {
         info["title"] = font->Render("Title: " + stream->getTitle());
         info["album"] = font->Render("Album: " + stream->getAlbum());
         info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
-        info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
+        info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
         info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+        info["fft_mode"] = font->Render(std::string("FFT Mode: ") + (m_use_optimized_fft ? "Optimized" : "Original"));
         // program main loop
         audio->play(true);
         state = PLAYING;
@@ -429,11 +430,21 @@ void Player::Run(std::vector<std::string> args) {
                 }
                 case SDLK_r:
                     this->seekTo(0);
-                default:
+                    break;
+                case SDLK_f:
+                {
+                    m_use_optimized_fft = !m_use_optimized_fft;
+                    if (fft) { // Ensure fft is not null
+                        fft->setUseOptimizedFFT(m_use_optimized_fft);
+                    }
+                    info["fft_mode"] = font->Render(std::string("FFT Mode: ") + (m_use_optimized_fft ? "Optimized" : "Original"));
                     break;
                 }
-                break;
+                default:
+                    break;
             }
+            break;
+        }
             case SDL_MOUSEBUTTONDOWN:
             {
                 if (event.button.button == SDL_BUTTON_LEFT) {
@@ -483,9 +494,10 @@ void Player::Run(std::vector<std::string> args) {
                 case SDLK_LEFT:
                 case SDLK_RIGHT:
                     seek = 0;
+                    break;
                 default:
                     break;
-                }
+               }
             }
             case SDL_USEREVENT:
                 switch(event.user.code) {

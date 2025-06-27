@@ -36,3 +36,8 @@ void FastFourier::doFFT()
 {
 	fft->fft(m_fft.data(), m_samples.data());
 }
+
+void FastFourier::setUseOptimizedFFT(bool use_optimized)
+{
+    fft->setUseOptimizedFFT(use_optimized);
+}
