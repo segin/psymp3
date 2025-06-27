@@ -23,7 +23,8 @@
 
 #include "psymp3.h"
 
-Scrobble::Scrobble(const track& rhs) : track(track::nullstr)
+Scrobble::Scrobble(const track& rhs) :
+    track(rhs.GetFilePath(), rhs.GetArtist(), rhs.GetTitle(), rhs.GetLen())
 {
     //ctor
 }

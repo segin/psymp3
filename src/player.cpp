@@ -181,20 +181,35 @@ void Player::loaderThreadLoop() {
 void Player::playlistPopulatorLoop(std::vector<std::string> args) {
     System::setThisThreadName("playlist-populator");
 
-    // Add the first file.
-    if (args.size() > 1) {
-        if (playlist->addFile(TagLib::String(args[1], TagLib::String::UTF8))) {
-            // If successful, tell the main thread to start playing it.
-            synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
+    if (args.size() <= 1) return; // Nothing to do
+
+    // Check if the first argument is a playlist file (M3U/M3U8)
+    TagLib::String first_arg(args[1], TagLib::String::UTF8);
+    std::string first_arg_str = first_arg.to8Bit(true);
+    size_t dot_pos = first_arg_str.find_last_of('.');
+    if (dot_pos != std::string::npos) {
+        std::string ext = first_arg_str.substr(dot_pos + 1);
+        if (ext == "m3u" || ext == "m3u8") {
+            // Load the playlist file
+            auto loaded_playlist = Playlist::loadPlaylist(first_arg);
+            if (loaded_playlist && loaded_playlist->entries() > 0) {
+                // Replace the current playlist with the loaded one
+                playlist = loaded_playlist.release(); // Transfer ownership
+                // Start playing the first track from the loaded playlist
+                synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
+                return; // We've handled the playlist, so exit
+            } else {
+                std::cerr << "Failed to load or empty playlist: " << first_arg << std::endl;
+            }
         }
     }
 
-    // Add the rest of the files in the background.
-    for (size_t i = 2; i < args.size(); ++i) {
+    // If not a playlist or loading failed, treat arguments as individual files
+    for (size_t i = 1; i < args.size(); ++i) {
         playlist->addFile(TagLib::String(args[i], TagLib::String::UTF8));
+        if (i == 1) synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr); // Start first track
     }
 }
-
 
 /* Player control functions */
 bool Player::nextTrack(void) {

@@ -25,6 +25,20 @@
 
 TagLib::String track::nullstr;
 
+track::track(TagLib::String a_FilePath, TagLib::String extinf_artist, TagLib::String extinf_title, long extinf_duration)
+    : m_FilePath(a_FilePath), m_Len(0) // Initialize m_Len to 0, other strings are default constructed empty
+{
+    // Prioritize EXTINF data if provided
+    if (!extinf_artist.isEmpty()) m_Artist = extinf_artist;
+    if (!extinf_title.isEmpty()) m_Title = extinf_title;
+    if (extinf_duration != 0) m_Len = extinf_duration;
+
+    // Then attempt to load tags from TagLib, which will fill in missing info
+    // and create m_FileRef if not already done.
+    loadTags();
+}
+
+// Existing constructor, now calls loadTags() which handles prioritization
 track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath(a_FilePath)
 {
     // Take ownership of the raw pointer by moving it into a unique_ptr
@@ -41,11 +55,15 @@ void track::loadTags() {
             m_FileRef = nullptr;
         }
     }
-    if (m_FileRef) {
-        auto tag = m_FileRef->tag();
-        m_Artist = tag->artist();
-        m_Title = tag->title();
-        m_Album = tag->album();
-        m_Len = m_FileRef->audioProperties()->lengthInSeconds();
+    if (m_FileRef && m_FileRef->tag() && m_FileRef->audioProperties()) {
+        // Only set if not already set by EXTINF data
+        if (m_Artist.isEmpty()) m_Artist = m_FileRef->tag()->artist();
+        if (m_Title.isEmpty()) m_Title = m_FileRef->tag()->title();
+        
+        // Always get album from TagLib as it's not part of EXTINF
+        m_Album = m_FileRef->tag()->album();
+        
+        // Only set length if not already set by EXTINF data
+        if (m_Len == 0) m_Len = m_FileRef->audioProperties()->lengthInSeconds();
     }
 }

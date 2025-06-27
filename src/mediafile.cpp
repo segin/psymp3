@@ -59,7 +59,9 @@ using StreamCreator = std::function<Stream*(const TagLib::String&)>;
 // Create a static map to hold the extension-to-creator mappings.
 // This makes adding new formats much cleaner.
 static const std::map<TagLib::String, StreamCreator> stream_factory = {
-    {"MP3",  [](const TagLib::String& name) { return new Libmpg123(name); }},
+    // Add M3U/M3U8 as a playlist type (using NullStream as a placeholder)
+    {"M3U", [](const TagLib::String& name) { return new NullStream(name); }},
+    {"MP3", [](const TagLib::String& name) { return new Libmpg123(name); }},
     {"OGG",  [](const TagLib::String& name) { return new Vorbis(name); }},
     {"OPUS", [](const TagLib::String& name) { return new OpusFile(name); }},
     {"FLAC", [](const TagLib::String& name) { return new Flac(name); }}
@@ -76,7 +78,14 @@ Stream *MediaFile::open(TagLib::String name)
 #ifdef DEBUG
     std::cout << "MediaFile::open(): " << ext << std::endl;
 #endif
-    auto it = stream_factory.find(ext);
+    // Check for M3U8 extension as well
+    auto it = stream_factory.find(ext == "M3U8" ? "M3U" : ext);
+
+    // If it's an M3U playlist, load it and return a NullStream
+    if (ext == "M3U" || ext == "M3U8") {
+        return it->second(name);
+    }
+
     if (it != stream_factory.end())
         return it->second(name); // Call the creation function
 
