@@ -41,7 +41,7 @@ You can reach me at <segin2005@gmail.com>.
      SDL_ttf 1.2 or later
      zlib-1.2.3 or later
      
-   Mac OS X:
+   macOS:
 	Not officially supported, but building the dependencies for Linux/BSD with MacPorts might work.
 
    Building from git requires autoconf-archive for the extended macros.
