@@ -287,6 +287,15 @@ void FlacDecoder::decoderThreadLoop() {
     for (unsigned i = 0; i < frame->header.blocksize; ++i) {
         for (unsigned channel = 0; channel < frame->header.channels; ++channel) {
             int32_t sample = buffer[channel][i];
+            
+            // Perform bit depth conversion if necessary
+            if (m_stream_info.bits_per_sample > 16) {
+                // Downscale higher bit depth to 16-bit
+                sample >>= (m_stream_info.bits_per_sample - 16);
+            } else if (m_stream_info.bits_per_sample < 16) {
+                // Upscale lower bit depth to 16-bit
+                sample <<= (16 - m_stream_info.bits_per_sample);
+            }
 
             // Clamp to int16_t range and convert
             if (sample > 32767) sample = 32767;
