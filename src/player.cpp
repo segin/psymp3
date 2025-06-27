@@ -59,6 +59,22 @@ Player::Player() {
 }
 
 Player::~Player() {
+    // Signal threads to stop and wait for them to finish *before*
+    // destroying any resources they might be using. This prevents use-after-free.
+    if (m_loader_active) {
+        m_loader_active = false;
+        m_loader_queue_cv.notify_one(); // Wake up loader thread to exit
+        if (m_loader_thread.joinable()) {
+            m_loader_thread.join();
+        }
+    }
+
+    // Join the playlist populator thread.
+    // This thread might be accessing 'playlist', so we must join it before deleting.
+    if (m_playlist_populator_thread.joinable()) {
+        m_playlist_populator_thread.join();
+    }
+
     if (screen)
         delete screen;
     if (graph)
@@ -75,18 +91,6 @@ Player::~Player() {
         delete fft;
     if (mutex)
         delete mutex;
-
-    if (m_loader_active) {
-        m_loader_active = false;
-        m_loader_queue_cv.notify_one(); // Wake up loader thread to exit
-        if (m_loader_thread.joinable()) {
-            m_loader_thread.join();
-        }
-    }
-    // Join the playlist populator thread
-    if (m_playlist_populator_thread.joinable()) {
-        m_playlist_populator_thread.join();
-    }
     if (system)
         delete system;
 }
