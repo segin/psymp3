@@ -53,6 +53,18 @@ std::vector<std::string> MediaFile::split(const std::string &s, char delim)
     return elems;
 }
 
+// Define a type for our creation functions for clarity
+using StreamCreator = std::function<Stream*(const TagLib::String&)>;
+
+// Create a static map to hold the extension-to-creator mappings.
+// This makes adding new formats much cleaner.
+static const std::map<TagLib::String, StreamCreator> stream_factory = {
+    {"MP3",  [](const TagLib::String& name) { return new Libmpg123(name); }},
+    {"OGG",  [](const TagLib::String& name) { return new Vorbis(name); }},
+    {"OPUS", [](const TagLib::String& name) { return new OpusFile(name); }},
+    {"FLAC", [](const TagLib::String& name) { return new Flac(name); }}
+};
+
 Stream *MediaFile::open(TagLib::String name)
 {
 #ifdef _RISCOS
@@ -64,12 +76,9 @@ Stream *MediaFile::open(TagLib::String name)
 #ifdef DEBUG
     std::cout << "MediaFile::open(): " << ext << std::endl;
 #endif
-    if(ext == "MP3")
-        return new Libmpg123(name);
-    if(ext == "OGG")
-        return new Vorbis(name);
-    if(ext == "OPUS")
-        return new OpusFile(name);
-    throw InvalidMediaException("Unsupported format!");
-}
+    auto it = stream_factory.find(ext);
+    if (it != stream_factory.end())
+        return it->second(name); // Call the creation function
 
+    throw InvalidMediaException("Unsupported format: " + ext);
+}

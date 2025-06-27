@@ -59,6 +59,7 @@ enum {
 #include <iomanip>
 #include <mutex>
 #include <condition_variable>
+#include <functional>
 
 #ifdef __cplusplus
     #include <cstdlib>
