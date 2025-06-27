@@ -51,6 +51,7 @@ class Player
         bool play(void);
         bool playPause(void);
         void openTrack(TagLib::String path);
+        void seekTo(unsigned long pos);
         static bool guiRunning; 
     protected:
         int state;

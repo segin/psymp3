@@ -25,15 +25,13 @@
 
 Flac::Flac(TagLib::String name) : Stream(name), m_handle(name) // m_handle is FlacDecoder
 {
-    // sampbuf is no longer needed with the new buffering approach in FlacDecoder
-    // delete[] sampbuf; // Remove this line if it was in the constructor
     open(name);
+    m_handle.startDecoderThread();
 }
 
 Flac::~Flac()
 {
-    // m_handle (FlacDecoder) is a member, its destructor will be called automatically.
-    // No need to delete sampbuf here.
+    m_handle.stopDecoderThread();
 }
 
 void Flac::open(TagLib::String name)
@@ -69,54 +67,47 @@ void Flac::open(TagLib::String name)
 size_t Flac::getData(size_t len, void *buf)
 {
     char *current_buf = static_cast<char *>(buf);
-    size_t bytes_left = len;
+    size_t bytes_to_read = len;
     size_t total_bytes_read = 0;
 
-    while (bytes_left > 0) {
-        // First, check our internal buffer for any available data.
+    while (bytes_to_read > 0) {
         std::unique_lock<std::mutex> lock(m_handle.m_output_buffer_mutex);
+
+        // Wait until there's data in the buffer or the decoder has finished.
+        m_handle.m_output_buffer_cv.wait(lock, [this]{
+            return !m_handle.m_output_buffer.empty() || m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM;
+        });
+
+        // If the buffer is empty and we're at the end, there's nothing more to do.
+        if (m_handle.m_output_buffer.empty() && m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM) {
+            m_eof = true;
+            break;
+        }
+
         size_t samples_available = m_handle.m_output_buffer.size();
+        size_t samples_needed = bytes_to_read / sizeof(int16_t);
+        size_t samples_to_copy = std::min(samples_available, samples_needed);
 
-        if (samples_available > 0) {
-            size_t samples_needed = bytes_left / sizeof(int16_t);
-            size_t samples_to_copy = std::min(samples_available, samples_needed);
-
-            // Copy the data and update our state.
+        if (samples_to_copy > 0) {
             std::memcpy(current_buf, m_handle.m_output_buffer.data(), samples_to_copy * sizeof(int16_t));
             m_handle.m_output_buffer.erase(m_handle.m_output_buffer.begin(), m_handle.m_output_buffer.begin() + samples_to_copy);
 
             size_t bytes_copied = samples_to_copy * sizeof(int16_t);
             total_bytes_read += bytes_copied;
             current_buf += bytes_copied;
-            bytes_left -= bytes_copied;
+            bytes_to_read -= bytes_copied;
         }
-        lock.unlock(); // Release the lock before potentially decoding more.
 
-        // If we still need more data, drive the decoder to produce some.
-        if (bytes_left > 0) {
-            // Check if the decoder has already finished.
-            if (m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM) {
-                m_eof = true;
-                break; // No more data can be decoded.
-            }
-
-            // process_single() will synchronously call the write_callback, filling our buffer.
-            if (!m_handle.process_single()) {
-                if (m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM) {
-                    m_eof = true;
-                } else {
-                    std::cerr << "FLAC::getData: process_single() failed." << std::endl;
-                }
-                break; // Stop trying to get data on failure or EOF.
-            }
-        }
+        // Unlock and notify the producer thread that there's now space in the buffer.
+        lock.unlock();
+        m_handle.m_output_buffer_cv.notify_one();
     }
 
     // Update position based on samples read
     // Note: m_sposition is total samples across all channels.
-    m_sposition += (total_bytes_read / sizeof(int16_t));
+    m_sposition += (total_bytes_read / (m_channels * sizeof(int16_t)));
     if (m_channels > 0 && m_rate > 0) {
-        m_position = static_cast<unsigned int>((m_sposition / m_channels * 1000) / m_rate);
+        m_position = static_cast<unsigned int>((m_sposition * 1000) / m_rate);
     } else {
         m_position = 0;
     }
@@ -126,24 +117,13 @@ size_t Flac::getData(size_t len, void *buf)
 
 void Flac::seekTo(unsigned long pos)
 {
-    if (!m_handle.is_valid()) {
-        throw InvalidMediaException("FLAC decoder not initialized for seeking.");
-    }
-
     // Convert milliseconds to sample offset based on original FLAC rate
     ogg_int64_t target_sample = (static_cast<ogg_int64_t>(pos) * m_handle.m_stream_info.sample_rate) / 1000;
 
-    if (!m_handle.seek_absolute(target_sample)) {
-        throw BadFormatException("Failed to seek in FLAC file to " + std::to_string(pos) + "ms.");
-    }
-
-    // Clear internal buffer after seek, as data is no longer valid
-    std::unique_lock<std::mutex> lock(m_handle.m_output_buffer_mutex);
-    m_handle.m_output_buffer.clear();
-    lock.unlock();
+    m_handle.requestSeek(target_sample);
 
     // Update positions
-    m_sposition = target_sample;
+    m_sposition = target_sample; // This is an approximation until the seek completes
     m_position = pos;
     m_eof = false; // Reset EOF flag after seek
 }
@@ -167,8 +147,12 @@ void Flac::fini()
 }
 
 FlacDecoder::FlacDecoder(TagLib::String path)
-    : FLAC::Decoder::Stream(), m_path(path), m_file_handle(nullptr)
+    : FLAC::Decoder::Stream(), m_path(path), m_file_handle(nullptr),
+      m_decoding_active(false), m_seek_request(false), m_seek_position_samples(0)
 {
+    // High-water mark for the decoded buffer to prevent it from growing too large.
+    // Pre-allocate to avoid reallocations in the audio/decoder threads.
+    m_output_buffer.reserve(48000 * 2 * 4); // ~4 seconds of 48kHz stereo audio
 }
 
 FlacDecoder::~FlacDecoder()
@@ -177,6 +161,7 @@ FlacDecoder::~FlacDecoder()
         fclose(m_file_handle);
         m_file_handle = nullptr;
     }
+    stopDecoderThread();
 }
 
 ::FLAC__StreamDecoderInitStatus FlacDecoder::init()
@@ -231,6 +216,65 @@ FlacDecoder::~FlacDecoder()
 
 bool FlacDecoder::eof_callback() {
     return feof(m_file_handle) ? true : false;
+}
+
+void FlacDecoder::startDecoderThread() {
+    if (!m_decoding_active) {
+        m_decoding_active = true;
+        m_decoder_thread = std::thread(&FlacDecoder::decoderThreadLoop, this);
+    }
+}
+
+void FlacDecoder::stopDecoderThread() {
+    if (m_decoding_active) {
+        m_decoding_active = false;
+        m_output_buffer_cv.notify_all(); // Wake up all waiting threads
+        if (m_decoder_thread.joinable()) {
+            m_decoder_thread.join();
+        }
+    }
+}
+
+void FlacDecoder::requestSeek(FLAC__uint64 sample_offset) {
+    m_seek_position_samples = sample_offset;
+    m_seek_request = true;
+    m_output_buffer_cv.notify_one(); // Wake up decoder thread if it's waiting
+}
+
+void FlacDecoder::decoderThreadLoop() {
+    // High-water mark for the decoded buffer to prevent it from growing too large.
+    // 4 seconds of 48kHz stereo audio: 48000 samples/sec * 2 channels * 4 seconds
+    constexpr size_t BUFFER_HIGH_WATER_MARK = 48000 * 2 * 4;
+
+    while (m_decoding_active) {
+        if (m_seek_request) {
+            if (seek_absolute(m_seek_position_samples.load())) {
+                std::unique_lock<std::mutex> lock(m_output_buffer_mutex);
+                m_output_buffer.clear(); // Clear buffer after a successful seek
+                lock.unlock();
+                m_output_buffer_cv.notify_one(); // Notify consumer that seek is done
+            }
+            m_seek_request = false;
+        }
+
+        // Wait if the buffer is full to avoid using too much memory
+        std::unique_lock<std::mutex> lock(m_output_buffer_mutex);
+        m_output_buffer_cv.wait(lock, [this]{
+            return m_output_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_decoding_active || m_seek_request;
+        });
+        lock.unlock();
+
+        if (!m_decoding_active) break;
+        if (m_seek_request) continue; // Loop back to handle seek immediately
+
+        // If we are not at the end of the stream, process more data
+        if (get_state() != FLAC__STREAM_DECODER_END_OF_STREAM) {
+            if (!process_single()) {
+                // process_single() returned false, might be an error or EOF.
+                // The state will be updated, and the loop will terminate naturally.
+            }
+        }
+    }
 }
 
 ::FLAC__StreamDecoderWriteStatus FlacDecoder::write_callback(const ::FLAC__Frame *frame, const FLAC__int32 *const buffer[]) {

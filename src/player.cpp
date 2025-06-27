@@ -195,6 +195,14 @@ bool Player::playPause(void) {
     return true;
 }
 
+void Player::seekTo(unsigned long pos)
+{
+    std::lock_guard<std::mutex> lock(*mutex);
+    if (stream) {
+        stream->seekTo(pos);
+    }
+}
+
 float Player::logarithmicScale(const int f, float x) {
     x = std::clamp(x, 0.0f, 1.0f);
     if(f) 
@@ -420,7 +428,7 @@ void Player::Run(std::vector<std::string> args) {
                     break;
                 }
                 case SDLK_r:
-                    stream->seekTo(0);
+                    this->seekTo(0);
                 default:
                     break;
                 }
@@ -432,14 +440,15 @@ void Player::Run(std::vector<std::string> args) {
                     // Check if click is within progress bar area
                     // Progress bar X: 400 to 620 (width 220)
                     // Progress bar Y: 370 to 385
-                    m_is_dragging = false; // Ensure flag is clear at start
                     if (event.button.x >= 400 && event.button.x <= 620 &&
                         event.button.y >= 370 && event.button.y <= 385) {
-                        if (stream && stream->getLength() > 0) {
-                            int relative_x = event.button.x - 400; // 0 to 220
+                        if (stream) {
+                            m_is_dragging = true;
+                            // Don't seek here, just update the visual position and start the drag.
+                            int relative_x = event.button.x - 400;
                             double progress_ratio = static_cast<double>(relative_x) / 220.0;
-                            unsigned long new_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
-                            stream->seekTo(new_position_ms);
+                            m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
+                            synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
                             m_is_dragging = true;
                             m_drag_start_x = event.button.x;
                             m_drag_start_time = SDL_GetTicks();
@@ -462,13 +471,8 @@ void Player::Run(std::vector<std::string> args) {
             }
             case SDL_MOUSEBUTTONUP:
             {
-                if (event.button.button == SDL_BUTTON_LEFT && m_is_dragging && stream) {
-                    // Perform the seek only on mouse up
-                    unsigned long current_time = SDL_GetTicks();
-                    if ((current_time - m_last_seek_time) > 200) { // 200ms cooldown
-                        stream->seekTo(m_drag_position_ms);
-                        m_last_seek_time = current_time;
-                    }
+                if (event.button.button == SDL_BUTTON_LEFT && m_is_dragging) {
+                    this->seekTo(m_drag_position_ms);
                     m_is_dragging = false;
                 }
                 break;
