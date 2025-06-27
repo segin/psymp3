@@ -72,6 +72,7 @@ class Player
         struct atdata ATdata;
         int scalefactor = 2;
         float decayfactor = 1.0f;
+        bool m_use_optimized_fft = false; // New flag for FFT mode
         // For progress bar dragging
         bool m_is_dragging = false;
         Uint32 m_last_seek_time = 0;

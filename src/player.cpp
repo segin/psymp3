@@ -502,43 +502,53 @@ void Player::Run(std::vector<std::string> args) {
                     case RUN_GUI_ITERATION:
                     {
                         Player::guiRunning = true;
-                        std::lock_guard<std::mutex> lock(*mutex);
+                        unsigned long current_pos_ms = 0;
+                        unsigned long total_len_ms = 0;
+                        TagLib::String artist, title;
 
-                        // The fade effect in renderSpectrum handles clearing the spectrum area.
-                        // We only need to manually clear the bottom part of the graph surface
-                        // where the progress bar and other info will be drawn.
-                        // This preserves the previous frame's spectrum for the fade to work.
-                        // The spectrum is in y=0-350. We clear from y=351 to the bottom.
-                        Rect bottom_clear_rect(0, 351, graph->width(), graph->height() - 351);
-                        graph->box(bottom_clear_rect.x(), bottom_clear_rect.y(),
-                                   bottom_clear_rect.x() + bottom_clear_rect.width() - 1,
-                                   bottom_clear_rect.y() + bottom_clear_rect.height() - 1,
-                                   graph->MapRGB(0, 0, 0));
+                        // --- Start of critical section ---
+                        // Lock the mutex only while accessing shared data (stream, fft).
+                        {
+                            std::lock_guard<std::mutex> lock(*mutex);
 
-                        // Render position text onto info["position"] surface
-                        if(stream)
-                            info["position"] = font->Render("Position: " + convertInt(stream->getPosition() / 60000)
-                                                    + ":" + convertInt2((stream->getPosition() / 1000) % 60)
-                                                    + "." + convertInt2((stream->getPosition() / 10) % 100)
-                                                    + "/" + convertInt(stream->getLength() / 60000)
-                                                    + ":" + convertInt2((stream->getLength() / 1000) % 60)
-                                                    + "." + convertInt2((stream->getLength() / 10) % 100));
-                        else
-                            info["position"] = font->Render("Position: -:--.-- / -:--.--");
+                            // The fade effect in renderSpectrum handles clearing the spectrum area.
+                            // We only need to manually clear the bottom part of the graph surface
+                            // where the progress bar and other info will be drawn.
+                            Rect bottom_clear_rect(0, 351, graph->width(), graph->height() - 351);
+                            graph->box(bottom_clear_rect.x(), bottom_clear_rect.y(),
+                                       bottom_clear_rect.x() + bottom_clear_rect.width() - 1,
+                                       bottom_clear_rect.y() + bottom_clear_rect.height() - 1,
+                                       graph->MapRGB(0, 0, 0));
 
-                        if(stream)
+                            // Copy data from stream object while locked
+                            if (stream) {
+                                current_pos_ms = stream->getPosition();
+                                total_len_ms = stream->getLength();
+                                artist = stream->getArtist();
+                                title = stream->getTitle();
+                            }
+
+                            // Draw the spectrum analyzer on the graph surface
+                            this->renderSpectrum(graph);
+                        }
+                        // --- End of critical section ---
+
+                        // Now use the copied data for rendering, outside the lock.
+                        if(stream) {
+                            info["position"] = font->Render("Position: " + convertInt(current_pos_ms / 60000)
+                                                    + ":" + convertInt2((current_pos_ms / 1000) % 60)
+                                                    + "." + convertInt2((current_pos_ms / 10) % 100)
+                                                    + "/" + convertInt(total_len_ms / 60000)
+                                                    + ":" + convertInt2((total_len_ms / 1000) % 60)
+                                                    + "." + convertInt2((total_len_ms / 10) % 100));
                             screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
-                                           (std::string) " -:[ " + stream->getArtist().to8Bit(true) + " ]:- -- -:[ " +
-                                           stream->getTitle().to8Bit(true) + " ]:- ["
-                                           + convertInt(stream->getPosition() / 60000)
-                                           + ":" + convertInt2((stream->getPosition() / 1000) % 60)
-                                           + "." + convertInt2((stream->getPosition() / 10) % 100)
-                                           + "/" + convertInt(stream->getLength() / 60000)
-                                           + ":" + convertInt2((stream->getLength() / 1000) % 60)
-                                           + "]", "PsyMP3 " PSYMP3_VERSION);
-                        else
+                                           (std::string) " -:[ " + artist.to8Bit(true) + " ]:- -- -:[ " +
+                                           title.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+                        } else {
+                            info["position"] = font->Render("Position: -:--.-- / -:--.--");
                             screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
-
+                        }
+                        
                         // draw progress bar on the graph surface
                         graph->vline(399, 370, 385, 0xFFFFFFFF);
                         graph->vline(621, 370, 385, 0xFFFFFFFF);
@@ -554,8 +564,8 @@ void Player::Run(std::vector<std::string> args) {
                                 stream->seekTo((long long) stream->getPosition() + 1500);
                         }
                         double t;
-                        if(stream)
-                            t = ((double) stream->getPosition() / (double) stream->getLength()) * 220;
+                        if(total_len_ms > 0)
+                            t = ((double) current_pos_ms / (double) total_len_ms) * 220;
                         else   
                             t = 0.0f;
                         // Draw progress bar fill on graph surface
@@ -568,8 +578,6 @@ void Player::Run(std::vector<std::string> args) {
                                 graph->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
                             }
                         };
-                        // Draw the spectrum analyzer on the graph surface
-                        this->renderSpectrum(graph);
 
                         // If dragging, use the drag position; otherwise, use the actual stream position
                         unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : (stream ? stream->getPosition() : 0);
@@ -587,6 +595,7 @@ void Player::Run(std::vector<std::string> args) {
                         if(info["album"].isValid()) screen->Blit(info["album"], Rect(1, 384, info["album"].width(), info["album"].height()));
                         if(info["position"].isValid()) screen->Blit(info["position"], Rect(400, 353, info["position"].width(), info["position"].height()));
                         if(info["scale"].isValid()) screen->Blit(info["scale"], Rect(550, 0, info["scale"].width(), info["scale"].height())); 
+                        if(info["fft_mode"].isValid()) screen->Blit(info["fft_mode"], Rect(550, 30, info["fft_mode"].width(), info["fft_mode"].height()));
                         if(info["decay"].isValid()) screen->Blit(info["decay"], Rect(550, 15, info["decay"].width(), info["decay"].height()));
 
                         // finally, update the screen :)

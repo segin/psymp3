@@ -24,13 +24,27 @@
 
 #include "psymp3.h"
 
-FFT::FFT(int size) : real(size), imag(size), size(size)
+FFT::FFT(int size) : real(size), imag(size), size(size), m_use_optimized_fft_flag(false)
 {
-	// The std::vectors are now initialized in the member initializer list.
-	// The destructor was removed as std::vector handles its own memory (RAII).
+    precompute_twiddle_factors();
 }
 
-void FFT::fft(float *output, const float *input) { 
+void FFT::setUseOptimizedFFT(bool use_optimized) {
+    m_use_optimized_fft_flag = use_optimized;
+}
+
+void FFT::precompute_twiddle_factors() {
+    m_twiddle_cos.resize(size / 2);
+    m_twiddle_sin.resize(size / 2);
+    for (int i = 0; i < size / 2; ++i) {
+        double angle = -2 * M_PI * i / size;
+        m_twiddle_cos[i] = static_cast<float>(cos(angle));
+        m_twiddle_sin[i] = static_cast<float>(sin(angle));
+    }
+}
+
+// Renamed original FFT implementation
+void FFT::original_fft_impl(float *output, const float *input) { 
 	int nu = (int) ((float) log(size) / log(2.0)); // Number of bits of item indexes
 	int n2 = size / 2;
 	int nu1 = nu - 1;
@@ -79,6 +93,44 @@ void FFT::fft(float *output, const float *input) {
 	}
 }
 
+// New, optimized FFT implementation (Radix-2 DIT with precomputed twiddle factors)
+void FFT::optimized_fft_impl(float *output, const float *input) {
+    int nu = (int) ((float) log(size) / log(2.0)); // Number of bits for bitreverse
+
+    // 1. Copy input to internal real/imag and perform bit-reversal permutation
+    for (int i = 0; i < size; ++i) {
+        int r = bitreverse(i, nu);
+        real[r] = input[i];
+        imag[r] = 0;
+    }
+
+    // 2. Iterative butterfly stages
+    for (int len = 2; len <= size; len <<= 1) { // len = current butterfly group size (2, 4, 8, ..., size)
+        int half_len = len / 2;
+        
+        for (int i = 0; i < size; i += len) { // i = start of current butterfly group
+            for (int j = 0; j < half_len; ++j) { // j = index within the group
+                // Use precomputed twiddle factors
+                float cos_val = m_twiddle_cos[j * (size / len)];
+                float sin_val = m_twiddle_sin[j * (size / len)];
+
+                float t_real = real[i + j + half_len] * cos_val - imag[i + j + half_len] * sin_val;
+                float t_imag = real[i + j + half_len] * sin_val + imag[i + j + half_len] * cos_val;
+
+                real[i + j + half_len] = real[i + j] - t_real;
+                imag[i + j + half_len] = imag[i + j] - t_imag;
+                real[i + j] += t_real;
+                imag[i + j] += t_imag;
+            }
+        }
+    }
+
+    // 3. Calculate magnitudes and normalize
+    for (int i = 0; i < size; ++i) {
+        output[i] = sqrt(real[i] * real[i] + imag[i] * imag[i]) / size;
+    }
+}
+
 unsigned int FFT::bitreverse(unsigned int in, int bits) {
 	unsigned int out = 0;
 	while (bits--) {
@@ -86,4 +138,14 @@ unsigned int FFT::bitreverse(unsigned int in, int bits) {
 		in >>= 1;
 	}
 	return out;
+}
+
+
+// Public dispatcher method
+void FFT::fft(float *output, const float *input) {
+    if (m_use_optimized_fft_flag) {
+        optimized_fft_impl(output, input);
+    } else {
+        original_fft_impl(output, input);
+    }
 }

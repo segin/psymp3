@@ -29,12 +29,19 @@ class FFT {
 	private:
 		std::vector<float> real, imag;
 		int size;
+		bool m_use_optimized_fft_flag; // New flag to toggle FFT implementation
+		std::vector<float> m_twiddle_cos; // Precomputed cosine factors
+		std::vector<float> m_twiddle_sin; // Precomputed sine factors
 
 		static unsigned int bitreverse(unsigned int in, int bits);
+		void precompute_twiddle_factors(); // New method to precompute twiddle factors
+		void original_fft_impl(float *output, const float *input); // Renamed original FFT
+		void optimized_fft_impl(float *output, const float *input); // New, optimized FFT
 
 	public:
 		FFT(int size); // size must be a power of 2 (!)
-		void fft(float *output, const float *input);
+		void fft(float *output, const float *input); // Dispatcher method
+		void setUseOptimizedFFT(bool use_optimized); // Setter for the flag
 };
 
 #endif // FFT_H
