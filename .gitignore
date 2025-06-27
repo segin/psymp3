@@ -22,3 +22,6 @@ vera.ttf
 confdefs.h
 conftest.c
 conftest.err
+depcomp
+INSTALL
+install-sh
