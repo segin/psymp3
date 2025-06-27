@@ -222,7 +222,7 @@ void Player::renderSpectrum(Surface *graph) {
     Surface& fade_surface = *fade_surface_ptr;
 
     // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
-    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 2.0f)); // decayfactor from 0.5 to 2.0
+    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 4.0f)); // Even slower fade: divisor increased from 3.0 to 4.0
 
     // Fill the fade surface with black, using the calculated alpha
     fade_surface.FillRect(fade_surface.MapRGB(0, 0, 0)); // Fill with opaque black
@@ -503,8 +503,16 @@ void Player::Run(std::vector<std::string> args) {
                         Player::guiRunning = true;
                         mutex->lock();
 
-                        // Clear the graph surface for new drawing (spectrum + progress bar)
-                        graph->FillRect(graph->MapRGB(0, 0, 0));
+                        // The fade effect in renderSpectrum handles clearing the spectrum area.
+                        // We only need to manually clear the bottom part of the graph surface
+                        // where the progress bar and other info will be drawn.
+                        // This preserves the previous frame's spectrum for the fade to work.
+                        // The spectrum is in y=0-350. We clear from y=351 to the bottom.
+                        Rect bottom_clear_rect(0, 351, graph->width(), graph->height() - 351);
+                        graph->box(bottom_clear_rect.x(), bottom_clear_rect.y(),
+                                   bottom_clear_rect.x() + bottom_clear_rect.width() - 1,
+                                   bottom_clear_rect.y() + bottom_clear_rect.height() - 1,
+                                   graph->MapRGB(0, 0, 0));
 
                         // Render position text onto info["position"] surface
                         if(stream)
