@@ -27,7 +27,7 @@
 struct atdata {
     Stream *stream;
     FastFourier *fft;
-    Mutex *mutex;
+    std::mutex *mutex;
 };
 
 /* PsyMP3 main class! */
@@ -65,7 +65,7 @@ class Player
         Stream *stream;
         Audio *audio;
         FastFourier *fft;
-        Mutex *mutex;
+        std::mutex *mutex;
         System *system;
         std::map<std::string, Surface> info;
         struct atdata ATdata;

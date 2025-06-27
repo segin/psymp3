@@ -290,7 +290,7 @@ void Player::Run(std::vector<std::string> args) {
        // stream = new NullStream(); 
     }
     fft = new FastFourier();
-    mutex = new Mutex();
+    mutex = new std::mutex();
     system = new System();
     ATdata.fft = fft;
     ATdata.stream = stream;
@@ -498,7 +498,7 @@ void Player::Run(std::vector<std::string> args) {
                     case RUN_GUI_ITERATION:
                     {
                         Player::guiRunning = true;
-                        mutex->lock();
+                        std::lock_guard<std::mutex> lock(*mutex);
 
                         // The fade effect in renderSpectrum handles clearing the spectrum area.
                         // We only need to manually clear the bottom part of the graph surface
@@ -566,7 +566,6 @@ void Player::Run(std::vector<std::string> args) {
                         };
                         // Draw the spectrum analyzer on the graph surface
                         this->renderSpectrum(graph);
-                        mutex->unlock();
 
                         // If dragging, use the drag position; otherwise, use the actual stream position
                         unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : (stream ? stream->getPosition() : 0);

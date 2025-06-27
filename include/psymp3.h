@@ -57,11 +57,14 @@ enum {
 #include <memory>
 #include <unordered_set>
 #include <iomanip>
+#include <mutex>
+#include <condition_variable>
 
 #ifdef __cplusplus
     #include <cstdlib>
     #include <cmath>
     #include <cstdio>
+    #include <cstring>
 #else
     #include <stdlib.h>
     #include <math.h>
@@ -100,7 +103,6 @@ enum {
 // local includes
 #include "exceptions.h"
 #include "system.h"
-#include "mutex.h"
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"

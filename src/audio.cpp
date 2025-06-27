@@ -80,17 +80,16 @@ void Audio::callback(void *data, Uint8 *buf, int len) {
     struct atdata *ldata = static_cast<struct atdata *>(data);
     Stream *stream = ldata->stream;
     FastFourier *fft = ldata->fft;
-    Mutex *mutex = ldata->mutex;
+    std::mutex *mutex = ldata->mutex;
 #ifdef _AUDIO_DEBUG
     std::cout << "callback: len " << std::dec << len << std::endl;
 #endif
-    mutex->lock();
+    std::lock_guard<std::mutex> lock(*mutex);
     stream->getData(len, (void *) buf);
     if(!Player::guiRunning) {
         toFloat(stream->getChannels(), (int16_t *) buf, fft->getTimeDom());
         fft->doFFT();
     }
-    mutex->unlock();
 }
 
 void Audio::toFloat(int channels, int16_t *in, float *out) {
