@@ -190,10 +190,8 @@ void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 void Surface::pixel(int16_t x, int16_t y, uint32_t color)
 {
     if (!m_handle) return;
-    if (x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) return;
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    if (x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) return; // Bounds check
     put_pixel_unlocked(x, y, color);
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
