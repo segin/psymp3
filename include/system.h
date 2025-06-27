@@ -161,6 +161,7 @@ class System
         static TagLib::String getHome();
         static TagLib::String getStoragePath();
         static bool createStoragePath(); // directory name is implicit.
+        static void setThisThreadName(const std::string& name);
         #if defined(_WIN32)
         static HWND getHwnd();
         void updateProgress(ULONGLONG now, ULONGLONG max);

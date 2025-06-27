@@ -242,6 +242,8 @@ void FlacDecoder::requestSeek(FLAC__uint64 sample_offset) {
 }
 
 void FlacDecoder::decoderThreadLoop() {
+    System::setThisThreadName("flac-decoder");
+
     // High-water mark for the decoded buffer to prevent it from growing too large.
     // 4 seconds of 48kHz stereo audio: 48000 samples/sec * 2 channels * 4 seconds
     constexpr size_t BUFFER_HIGH_WATER_MARK = 48000 * 2 * 4;

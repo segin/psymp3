@@ -77,6 +77,14 @@ void Audio::unlock(void) {
  * Audio is summed to mono (if stereo) and then FFT'd.
  */
 void Audio::callback(void *data, Uint8 *buf, int len) {
+    // Name the audio thread on its first run.
+    // 'thread_local' ensures this is only done once per thread.
+    thread_local bool thread_name_set = false;
+    if (!thread_name_set) {
+        System::setThisThreadName("sdl-audio");
+        thread_name_set = true;
+    }
+
     struct atdata *ldata = static_cast<struct atdata *>(data);
     Stream *stream = ldata->stream;
     FastFourier *fft = ldata->fft;
@@ -98,5 +106,6 @@ void Audio::toFloat(int channels, int16_t *in, float *out) {
             out[x] = in[x] / 32768.0f;
     else if (channels == 2)
         for(int x = 0; x < 512; x++)
-            out[x] = ((long long) in[x * 2] + in[(x * 2) + 1]) / 65536.0f;
+            // Normalize the sum of two 16-bit samples to the range [-1.0, 1.0]
+            out[x] = ((long long)in[x * 2] + (long long)in[(x * 2) + 1]) / 65536.0f;
 }

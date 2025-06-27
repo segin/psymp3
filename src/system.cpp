@@ -23,6 +23,28 @@
 
 #include "psymp3.h"
 
+#if defined(__linux__)
+#include <sys/prctl.h>
+#elif defined(__FreeBSD__)
+#include <pthread.h>
+#elif defined(__FreeBSD__)
+#include <pthread_np.h>
+#endif
+
+#ifdef _WIN32
+// For setting thread name in the Visual Studio debugger
+const DWORD MS_VC_EXCEPTION = 0x406D1388;
+#pragma pack(push,8)
+typedef struct tagTHREADNAME_INFO
+{
+    DWORD dwType; // Must be 0x1000.
+    LPCSTR szName; // Pointer to name (in user addr space).
+    DWORD dwThreadID; // Thread ID (-1=caller thread).
+    DWORD dwFlags; // Reserved for future use, must be zero.
+} THREADNAME_INFO;
+#pragma pack(pop)
+#endif
+
 #ifndef _WIN32
 #include <sys/stat.h>
 #include <cerrno>
@@ -193,3 +215,33 @@ void System::progressState(TBPFLAG status)
 }
 
 #endif
+
+void System::setThisThreadName(const std::string& name)
+{
+#if defined(__linux__)
+    // Linux limits thread names to 16 bytes (including null terminator).
+    std::string truncated_name = name.substr(0, 15);
+    prctl(PR_SET_NAME, truncated_name.c_str(), 0, 0, 0);
+#elif defined(__FreeBSD__)
+    // FreeBSD also has a limit, typically MAXCOMLEN + 1 (16 bytes).
+    std::string truncated_name = name.substr(0, 15);
+    pthread_set_name_np(pthread_self(), truncated_name.c_str());
+#elif defined(_WIN32)
+    THREADNAME_INFO info;
+    info.dwType = 0x1000;
+    info.szName = name.c_str();
+    info.dwThreadID = GetCurrentThreadId();
+    info.dwFlags = 0;
+
+    __try
+    {
+        RaiseException(MS_VC_EXCEPTION, 0, sizeof(info) / sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+    }
+#else
+    // No-op for other platforms.
+    (void)name;
+#endif
+}
