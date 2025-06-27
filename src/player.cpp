@@ -43,15 +43,6 @@ Player::Player() {
     // -- but we will delete them in ~Player()
     // So, instead, print a startup banner to the console.
     std::cout << "PsyMP3 version " << PSYMP3_VERSION << "." << std::endl;
-    screen = nullptr;
-    playlist = nullptr;
-    graph = nullptr;
-    font = nullptr;
-    stream = nullptr;
-    audio = nullptr;
-    fft = nullptr;
-    mutex = nullptr;
-    system = nullptr;
 
     m_loader_active = true;
     m_loading_track = false;
@@ -74,25 +65,6 @@ Player::~Player() {
     if (m_playlist_populator_thread.joinable()) {
         m_playlist_populator_thread.join();
     }
-
-    if (screen)
-        delete screen;
-    if (graph)
-        delete graph;
-    if (playlist)
-        delete playlist;
-    if (font)
-        delete font;
-    if (audio)
-        delete audio;
-    if (stream)
-        delete stream;
-    if (fft)
-        delete fft;
-    if (mutex)
-        delete mutex;
-    if (system)
-        delete system;
 }
 
 /* SDL event synthesis */
@@ -198,7 +170,7 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
             auto loaded_playlist = Playlist::loadPlaylist(first_arg);
             if (loaded_playlist && loaded_playlist->entries() > 0) {
                 // Replace the current playlist with the loaded one
-                playlist = loaded_playlist.release(); // Transfer ownership
+                playlist = std::move(loaded_playlist); // Transfer ownership
                 // Start playing the first track from the loaded playlist
                 synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
                 return; // We've handled the playlist, so exit
@@ -233,10 +205,7 @@ bool Player::prevTrack(void) {
 
 bool Player::stop(void) {
     state = STOPPED;
-    if (stream) { 
-        delete stream; 
-        stream = nullptr;
-    }
+    stream.reset();
     return true;
 }
 
@@ -366,28 +335,25 @@ void Player::Run(std::vector<std::string> args) {
     // FastFourier::init();
 
     // Initialize UI and essential components first to show the window quickly.
-    screen = new Display();
-    system = new System();
+    screen = std::make_unique<Display>();
+    system = std::make_unique<System>();
 #if defined(_WIN32)
-    font = new Font("./vera.ttf");
+    font = std::make_unique<Font>("./vera.ttf");
 #else
-    font = new Font(PSYMP3_DATADIR "/vera.ttf");
+    font = std::make_unique<Font>(PSYMP3_DATADIR "/vera.ttf");
 #endif // _WIN32
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
-    graph = new Surface(640, 400);
+    graph = std::make_unique<Surface>(640, 400);
 
     // Create an empty playlist. It will be populated in the background.
-    playlist = new Playlist();
+    playlist = std::make_unique<Playlist>();
 
-    fft = new FastFourier();
-    mutex = new std::mutex();
+    fft = std::make_unique<FastFourier>();
+    mutex = std::make_unique<std::mutex>();
 
-    stream = nullptr; // No stream initially
-    audio = nullptr;  // No audio initially
-
-    ATdata.fft = fft;
-    ATdata.stream = stream;
-    ATdata.mutex = mutex;
+    ATdata.fft = fft.get();
+    ATdata.stream = stream.get();
+    ATdata.mutex = mutex.get();
 
     // If command line arguments are provided, start populating the playlist
     // and load the first track in a background thread.
@@ -616,23 +582,18 @@ void Player::Run(std::vector<std::string> args) {
                                 audio->lock();
                             }
 
-                            if (stream) {
-                                delete stream; // Delete old stream
-                            }
-                            stream = new_stream;
-                            ATdata.stream = stream;
-
+                            stream.reset(new_stream);
+                            ATdata.stream = stream.get();
                             if (stream) {
                                 if (!audio) {
                                     // First track loaded, create the audio device.
-                                    audio = new Audio(&ATdata);
+                                    audio = std::make_unique<Audio>(&ATdata);
                                 } else {
                                     // Audio device exists, check if we need to re-open it for the new format.
                                     if ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
                                         pause(); // Pause to avoid race condition during audio device re-open
                                         audio->unlock(); // Unlock before deleting/recreating Audio
-                                        delete audio;
-                                        audio = new Audio(&ATdata);
+                                        audio = std::make_unique<Audio>(&ATdata);
                                     } else {
                                         // Format is the same, just unlock.
                                         audio->unlock();
@@ -710,7 +671,7 @@ void Player::Run(std::vector<std::string> args) {
                             }
 
                             // Draw the spectrum analyzer on the graph surface
-                            this->renderSpectrum(graph);
+                            this->renderSpectrum(graph.get());
                         }
                         // --- End of critical section ---
 

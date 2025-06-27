@@ -69,15 +69,15 @@ class Player
     private:
         void updateInfo(void);
 
-        Display *screen;
-        Surface *graph;
-        Playlist *playlist;
-        Font *font;
-        Stream *stream;
-        Audio *audio;
-        FastFourier *fft;
-        std::mutex *mutex;
-        System *system;
+        std::unique_ptr<Display> screen;
+        std::unique_ptr<Surface> graph;
+        std::unique_ptr<Playlist> playlist;
+        std::unique_ptr<Font> font;
+        std::unique_ptr<Stream> stream;
+        std::unique_ptr<Audio> audio;
+        std::unique_ptr<FastFourier> fft;
+        std::unique_ptr<std::mutex> mutex;
+        std::unique_ptr<System> system;
         std::map<std::string, Surface> info;
         struct atdata ATdata;
         int scalefactor = 2;
