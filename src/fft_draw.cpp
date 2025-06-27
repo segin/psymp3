@@ -23,19 +23,16 @@
 
 #include "psymp3.h"
 
-FastFourier::FastFourier()
+FastFourier::FastFourier() :
+    fft(std::make_unique<FFT>(512)),
+    m_samples(512), // Match FFT size
+    m_fft(512)      // Match FFT size
 {
-	fft = new FFT(512);
 }
 
-FastFourier::~FastFourier()
-{
-	delete fft;
-}
+FastFourier::~FastFourier() = default; // std::unique_ptr handles deletion
 
 void FastFourier::doFFT()
 {
-	fft->fft(m_fft, m_samples);
+	fft->fft(m_fft.data(), m_samples.data());
 }
-
-

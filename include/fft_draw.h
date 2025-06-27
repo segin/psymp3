@@ -31,14 +31,14 @@ class FastFourier
     public:
 		FastFourier();
 		~FastFourier();
-		float *getFFT() { return (float *) m_fft; }
-		float *getTimeDom() { return (float *) m_samples; }
+		float *getFFT() { return m_fft.data(); }
+		float *getTimeDom() { return m_samples.data(); }
 		void doFFT();
     protected:
 	private:
-		FFT *fft;
-		float m_samples[1024];
-		float m_fft[512];
+		std::unique_ptr<FFT> fft;
+		std::vector<float> m_samples;
+		std::vector<float> m_fft;
 };
 
 #endif // FFT_DRAW_H
