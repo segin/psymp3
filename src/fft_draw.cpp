@@ -37,7 +37,17 @@ void FastFourier::doFFT()
 	fft->fft(m_fft.data(), m_samples.data());
 }
 
-void FastFourier::setUseOptimizedFFT(bool use_optimized)
+void FastFourier::setFFTMode(FFTMode mode)
 {
-    fft->setUseOptimizedFFT(use_optimized);
+    fft->setFFTMode(mode);
+}
+
+FFTMode FastFourier::getFFTMode() const
+{
+    return fft->getFFTMode();
+}
+
+std::string FastFourier::getFFTModeName() const
+{
+    return fft->getFFTModeName();
 }

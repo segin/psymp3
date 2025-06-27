@@ -28,12 +28,6 @@
 #define PSYMP3_VERSION "2-CURRENT"
 #define PSYMP3_MAINTAINER "Kirn Gill II <segin2005@gmail.com>"
 
-// Forward declarations to resolve dependencies in TrackLoadResult
-class Stream;
-namespace TagLib {
-    class String;
-}
-
 enum {
     RUN_GUI_ITERATION = 0xfe0f,
     DO_NEXT_TRACK,
@@ -72,6 +66,11 @@ enum {
 #include <functional>
 #include <queue>
 #include <atomic>
+#include <complex> // For std::complex
+
+#ifndef M_PI_F
+#define M_PI_F 3.14159265358979323846f
+#endif
 
 #ifdef __cplusplus
     #include <cstdlib>

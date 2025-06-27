@@ -362,8 +362,8 @@ void Player::Run(std::vector<std::string> args) {
         info["album"] = font->Render("Album: " + stream->getAlbum());
         info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
         info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
-        info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
-        info["fft_mode"] = font->Render(std::string("FFT Mode: ") + (m_use_optimized_fft ? "Optimized" : "Original"));
+        info["decay"] = font->Render("decay = " + std::to_string(decayfactor)); // This line is duplicated below, will be overwritten
+        info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
         // program main loop
         audio->play(true);
         state = PLAYING;
@@ -473,11 +473,18 @@ void Player::Run(std::vector<std::string> args) {
                     break;
                 case SDLK_f:
                 {
-                    m_use_optimized_fft = !m_use_optimized_fft;
-                    if (fft) { // Ensure fft is not null
-                        fft->setUseOptimizedFFT(m_use_optimized_fft);
+                    // Cycle through FFT modes
+                    FFTMode current_mode = fft->getFFTMode();
+                    FFTMode next_mode;
+                    switch (current_mode) {
+                        case FFTMode::Original: next_mode = FFTMode::Optimized; break;
+                        case FFTMode::Optimized: next_mode = FFTMode::NeomatIn; break;
+                        case FFTMode::NeomatIn: next_mode = FFTMode::NeomatOut; break;
+                        case FFTMode::NeomatOut: next_mode = FFTMode::Original; break;
+                        default: next_mode = FFTMode::Original; break; // Should not happen
                     }
-                    info["fft_mode"] = font->Render(std::string("FFT Mode: ") + (m_use_optimized_fft ? "Optimized" : "Original"));
+                    fft->setFFTMode(next_mode);
+                    info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
                     break;
                 }
                 default:
@@ -589,9 +596,9 @@ void Player::Run(std::vector<std::string> args) {
                                 info["title"] = font->Render("Title: " + stream->getTitle());
                                 info["album"] = font->Render("Album: " + stream->getAlbum());
                                 info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
-                                info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
+                                info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor)); // This line is duplicated below, will be overwritten
                                 info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
-                                info["fft_mode"] = font->Render(std::string("FFT Mode: ") + (m_use_optimized_fft ? "Optimized" : "Original"));
+                                info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
                                 play();
                             } else {
                                 // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
@@ -715,7 +722,7 @@ void Player::Run(std::vector<std::string> args) {
                         if(info["album"].isValid()) screen->Blit(info["album"], Rect(1, 384, info["album"].width(), info["album"].height()));
                         if(info["position"].isValid()) screen->Blit(info["position"], Rect(400, 353, info["position"].width(), info["position"].height()));
                         if(info["scale"].isValid()) screen->Blit(info["scale"], Rect(550, 0, info["scale"].width(), info["scale"].height())); 
-                        if(info["fft_mode"].isValid()) screen->Blit(info["fft_mode"], Rect(550, 30, info["fft_mode"].width(), info["fft_mode"].height()));
+                        if(info["fft_mode"].isValid()) screen->Blit(info["fft_mode"], Rect(550, 30, info["fft_mode"].width(), info["fft_mode"].height())); // This line is duplicated below, will be overwritten
                         if(info["decay"].isValid()) screen->Blit(info["decay"], Rect(550, 15, info["decay"].width(), info["decay"].height()));
 
                         // finally, update the screen :)

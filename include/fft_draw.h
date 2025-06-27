@@ -34,7 +34,9 @@ class FastFourier
 		float *getFFT() { return m_fft.data(); }
 		float *getTimeDom() { return m_samples.data(); }
 		void doFFT();
-		void setUseOptimizedFFT(bool use_optimized);
+		void setFFTMode(FFTMode mode);
+		FFTMode getFFTMode() const;
+		std::string getFFTModeName() const;
     protected:
 	private:
 		std::unique_ptr<FFT> fft;
