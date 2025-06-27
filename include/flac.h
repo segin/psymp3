@@ -29,10 +29,11 @@ class FlacDecoder: public FLAC::Decoder::File
     public:
         FlacDecoder(TagLib::String path) : FLAC::Decoder::File(), m_path(path) { }
         TagLib::String m_path;
-        long long      m_slength;
-        long           m_rate;
-        long           m_channels;
-        long           m_bitdepth;
+        // Internal buffer for decoded 16-bit PCM samples
+        std::vector<int16_t> m_output_buffer;
+        std::mutex m_output_buffer_mutex;
+        std::condition_variable m_output_buffer_cv;
+        FLAC__StreamMetadata_StreamInfo m_stream_info; // To store metadata from callback
     protected:
         virtual ::FLAC__StreamDecoderWriteStatus write_callback(const ::FLAC__Frame *frame, const FLAC__int32 * const buffer[]);
         virtual void metadata_callback(const ::FLAC__StreamMetadata *metadata);
