@@ -44,6 +44,16 @@ class Player
         static void synthesizeUserEvent(int uevent, void *data1, void *data2);
         static void synthesizeKeyEvent(SDLKey kpress);
         /* state management */
+
+        // Data structure for asynchronous track loading results
+        struct TrackLoadResult {
+            Stream* stream;
+            TagLib::String error_message;
+        };
+        // Asynchronous track loading
+        void requestTrackLoad(TagLib::String path);
+        void loaderThreadLoop();
+
         bool nextTrack(void);
         bool prevTrack(void);
         bool stop(void);
@@ -79,6 +89,14 @@ class Player
         Uint32 m_drag_start_time = 0;
         Uint16 m_drag_start_x = 0;
         unsigned long m_drag_position_ms = 0;
+
+        // Asynchronous loader thread members
+        std::thread m_loader_thread;
+        std::mutex m_loader_queue_mutex;
+        std::condition_variable m_loader_queue_cv;
+        std::queue<TagLib::String> m_loader_queue; // Queue of paths to load
+        std::atomic<bool> m_loader_active;
+        std::atomic<bool> m_loading_track; // Flag to prevent multiple simultaneous loads
 };
 
 #endif // PLAYER_H

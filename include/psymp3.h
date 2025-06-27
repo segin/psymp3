@@ -28,6 +28,12 @@
 #define PSYMP3_VERSION "2-CURRENT"
 #define PSYMP3_MAINTAINER "Kirn Gill II <segin2005@gmail.com>"
 
+// Forward declarations to resolve dependencies in TrackLoadResult
+class Stream;
+namespace TagLib {
+    class String;
+}
+
 enum {
     RUN_GUI_ITERATION = 0xfe0f,
     DO_NEXT_TRACK,
@@ -35,7 +41,11 @@ enum {
     SEEK_TRACK,
     ADD_TRACK,
     DEL_TRACK,
-    QUIT
+    QUIT,
+    // Custom events for asynchronous track loading
+    TRACK_LOAD_REQUEST,  // Sent to loader thread (via queue)
+    TRACK_LOAD_SUCCESS,  // Sent from loader thread to main thread
+    TRACK_LOAD_FAILURE   // Sent from loader thread to main thread
 };
 
 enum {
@@ -60,6 +70,7 @@ enum {
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <queue>
 #include <atomic>
 
 #ifdef __cplusplus

@@ -52,6 +52,10 @@ Player::Player() {
     fft = nullptr;
     mutex = nullptr;
     system = nullptr;
+
+    m_loader_active = true;
+    m_loading_track = false;
+    m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
 }
 
 Player::~Player() {
@@ -71,6 +75,14 @@ Player::~Player() {
         delete fft;
     if (mutex)
         delete mutex;
+
+    if (m_loader_active) {
+        m_loader_active = false;
+        m_loader_queue_cv.notify_one(); // Wake up loader thread to exit
+        if (m_loader_thread.joinable()) {
+            m_loader_thread.join();
+        }
+    }
     if (system)
         delete system;
 }
@@ -109,31 +121,59 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
  * switch to playing - this is consistent with the majority of players
  * on the market.
  */
-void Player::openTrack(TagLib::String path) {
-    audio->lock();
-    if (stream) {
-        delete stream;
+void Player::requestTrackLoad(TagLib::String path) {
+    if (m_loading_track) {
+        std::cerr << "Already loading a track, ignoring new request: " << path << std::endl;
+        return; // Or queue it, depending on desired behavior
     }
-    stream = MediaFile::open(path);
-    if (stream) {
-        ATdata.stream = stream;
-        if (stream && (audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
-            pause(); /* otherwise a race condition can occur */
-            audio->unlock();
-            delete audio;
-            audio = new Audio(&ATdata);
-        } else {
-            audio->unlock();
-        }
-        // Render text surfaces and store them in the map.
-        info["artist"] = font->Render("Artist: " + stream->getArtist());
-        info["title"] = font->Render("Title: " + stream->getTitle());
-        info["album"] = font->Render("Album: " + stream->getAlbum());
-        info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
-        play();
+    m_loading_track = true;
+    // Clear current track info immediately to show "loading" state
+    info["artist"] = font->Render("Artist: Loading...");
+    info["title"] = font->Render("Title: Loading...");
+    info["album"] = font->Render("Album: Loading...");
+    info["position"] = font->Render("Position: --:--.-- / --:--.--");
+    screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ]:-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
+    
+    // Push request to queue and notify loader thread
+    {
+        std::lock_guard<std::mutex> lock(m_loader_queue_mutex);
+        m_loader_queue.push(path);
     }
-    return;
+    m_loader_queue_cv.notify_one();
 }
+
+void Player::loaderThreadLoop() {
+    System::setThisThreadName("track-loader");
+    while (m_loader_active) {
+        TagLib::String path_to_load;
+        {
+            std::unique_lock<std::mutex> lock(m_loader_queue_mutex);
+            m_loader_queue_cv.wait(lock, [this]{
+                return !m_loader_queue.empty() || !m_loader_active;
+            });
+            if (!m_loader_active) break; // Exit condition
+            path_to_load = m_loader_queue.front();
+            m_loader_queue.pop();
+        } // Unlock mutex before blocking I/O
+
+        Stream* new_stream = nullptr;
+        TagLib::String error_msg;
+        try {
+            new_stream = MediaFile::open(path_to_load);
+        } catch (const std::exception& e) {
+            error_msg = e.what();
+            new_stream = nullptr; // Ensure null if exception
+        }
+
+        // Synthesize event back to main thread
+        TrackLoadResult* result = new TrackLoadResult(); // Allocated on heap, freed by main thread
+        result->stream = new_stream;
+        result->error_message = error_msg;
+        
+        synthesizeUserEvent(new_stream ? TRACK_LOAD_SUCCESS : TRACK_LOAD_FAILURE, result, nullptr);
+    }
+}
+
 
 /* Player control functions */
 bool Player::nextTrack(void) {
@@ -141,13 +181,13 @@ bool Player::nextTrack(void) {
     if (nextfile == "") {
         return false;
     } else {
-        openTrack(nextfile);
+        requestTrackLoad(nextfile);
     }
     return true;
 }
 
 bool Player::prevTrack(void) {
-    openTrack(playlist->prev());
+    requestTrackLoad(playlist->prev());
     return true;
 }
 
@@ -517,6 +557,74 @@ void Player::Run(std::vector<std::string> args) {
                         unsigned long current_pos_ms = 0;
                         unsigned long total_len_ms = 0;
                         TagLib::String artist, title;
+
+                        // Handle asynchronous track loading results
+                        // These events are pushed by the loaderThreadLoop
+                        if (event.user.code == TRACK_LOAD_SUCCESS) {
+                            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.user.data1);
+                            Stream* new_stream = result->stream;
+                            delete result; // Free the result struct
+
+                            m_loading_track = false; // Loading complete
+
+                            audio->lock(); // Lock audio before modifying stream
+                            if (stream) {
+                                delete stream; // Delete old stream
+                            }
+                            stream = new_stream;
+                            ATdata.stream = stream;
+
+                            if (stream && ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels()))) {
+                                pause(); // Pause to avoid race condition during audio device re-open
+                                audio->unlock(); // Unlock before deleting/recreating Audio
+                                delete audio;
+                                audio = new Audio(&ATdata);
+                            } else {
+                                audio->unlock(); // Unlock if no audio re-open
+                            }
+
+                            if (stream) {
+                                // Render text surfaces and store them in the map.
+                                info["artist"] = font->Render("Artist: " + stream->getArtist());
+                                info["title"] = font->Render("Title: " + stream->getTitle());
+                                info["album"] = font->Render("Album: " + stream->getAlbum());
+                                info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
+                                info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
+                                info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+                                info["fft_mode"] = font->Render(std::string("FFT Mode: ") + (m_use_optimized_fft ? "Optimized" : "Original"));
+                                play();
+                            } else {
+                                // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
+                                state = STOPPED;
+                                screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error loading track ]:-", "PsyMP3 " PSYMP3_VERSION);
+                                info["artist"] = font->Render("Artist: N/A");
+                                info["title"] = font->Render("Title: Error loading track");
+                                info["album"] = font->Render("Album: N/A");
+                                info["playlist"] = font->Render("Playlist: N/A");
+                                info["position"] = font->Render("Position: --:--.-- / --:--.--");
+                            }
+                        } else if (event.user.code == TRACK_LOAD_FAILURE) {
+                            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.user.data1);
+                            TagLib::String error_msg = result->error_message;
+                            delete result; // Free the result struct
+
+                            m_loading_track = false; // Loading complete
+
+                            std::cerr << "Failed to load track: " << error_msg << std::endl;
+                            // Handle error: stop playback, display error message
+                            stop(); // Stop current playback
+                            screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+                            info["artist"] = font->Render("Artist: N/A");
+                            info["title"] = font->Render("Title: Error: " + error_msg);
+                            info["album"] = font->Render("Album: N/A");
+                            info["playlist"] = font->Render("Playlist: N/A");
+                            info["position"] = font->Render("Position: --:--.-- / --:--.--");
+                        }
+
+                        // If this is not a track load event, proceed with GUI iteration
+                        if (event.user.code != TRACK_LOAD_SUCCESS && event.user.code != TRACK_LOAD_FAILURE) {
+                            // Original RUN_GUI_ITERATION logic
+                        }
 
                         // --- Start of critical section ---
                         // Lock the mutex only while accessing shared data (stream, fft).
