@@ -27,8 +27,11 @@ PKG_CHECK_MODULES([VORBISFILE], [vorbisfile >= 1.3])
 PKG_CHECK_MODULES([SDL_TTF], [SDL_ttf >= 2.0])
 PKG_CHECK_MODULES([FLACMM], [flac++ >= 1.2])
 PKG_CHECK_MODULES([OPUSFILE], [opusfile >= 0.9])
+PKG_CHECK_MODULES([VORBIS], [vorbis])
+PKG_CHECK_MODULES([OPUS], [opus])
+PKG_CHECK_MODULES([OGG], [ogg])
 
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 SDL_ttf >= 2.0 flac++ >= 1.2 opusfile >= 0.9])
+PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 SDL_ttf >= 2.0 flac++ >= 1.2 opusfile >= 0.9 vorbis opus ogg])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
