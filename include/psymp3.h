@@ -60,6 +60,7 @@ enum {
 #include <mutex>
 #include <condition_variable>
 #include <functional>
+#include <atomic>
 
 #ifdef __cplusplus
     #include <cstdlib>
@@ -70,6 +71,10 @@ enum {
     #include <stdlib.h>
     #include <math.h>
     #include <stdio.h>
+#endif
+
+#ifndef _WIN32
+#include <sys/stat.h>
 #endif
 
 // system includes - third-party libraries
