@@ -24,23 +24,43 @@
 #ifndef FLAC_H
 #define FLAC_H
 
-class FlacDecoder: public FLAC::Decoder::File
+class FlacDecoder: public FLAC::Decoder::Stream
 {
     public:
-        FlacDecoder(TagLib::String path) : FLAC::Decoder::File(), m_path(path) { }
+        FlacDecoder(TagLib::String path);
+        ~FlacDecoder();
         TagLib::String m_path;
         // Internal buffer for decoded 16-bit PCM samples
         std::vector<int16_t> m_output_buffer;
         std::mutex m_output_buffer_mutex;
         std::condition_variable m_output_buffer_cv;
         FLAC__StreamMetadata_StreamInfo m_stream_info; // To store metadata from callback
+        virtual ::FLAC__StreamDecoderInitStatus init();
+
+        // Threading and state management
+        void startDecoderThread();
+        void stopDecoderThread();
+        void requestSeek(FLAC__uint64 sample_offset);
+
     protected:
         virtual ::FLAC__StreamDecoderWriteStatus write_callback(const ::FLAC__Frame *frame, const FLAC__int32 * const buffer[]);
         virtual void metadata_callback(const ::FLAC__StreamMetadata *metadata);
         virtual void error_callback(::FLAC__StreamDecoderErrorStatus status);
+        virtual ::FLAC__StreamDecoderReadStatus read_callback(FLAC__byte buffer[], size_t *bytes);
+        virtual ::FLAC__StreamDecoderSeekStatus seek_callback(FLAC__uint64 absolute_byte_offset);
+        virtual ::FLAC__StreamDecoderTellStatus tell_callback(FLAC__uint64 *absolute_byte_offset);
+        virtual ::FLAC__StreamDecoderLengthStatus length_callback(FLAC__uint64 *stream_length);
+        virtual bool eof_callback();
     private:
     	FlacDecoder(const FlacDecoder&);
 	    FlacDecoder &operator=(const FlacDecoder&);
+        FILE *m_file_handle;
+        std::thread m_decoder_thread;
+        std::atomic<bool> m_decoding_active;
+        std::atomic<bool> m_seek_request;
+        std::atomic<FLAC__uint64> m_seek_position_samples;
+
+        void decoderThreadLoop(); // The function for our thread
 };
 
 class Flac : public Stream
@@ -59,8 +79,6 @@ class Flac : public Stream
     protected:
     private:
         FlacDecoder m_handle;
-        char *sampbuf;
-        FLAC__StreamMetadata_StreamInfo *m_info;
 };
 
 #endif // LIBMPG123_H
