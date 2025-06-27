@@ -1,19 +1,22 @@
 /* include/config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* Define to 1 if you have the 'atexit' function. */
+/* Define to 1 if you have the `atexit' function. */
 #undef HAVE_ATEXIT
 
-/* Define to 1 if you have the 'getcwd' function. */
+/* define if the compiler supports basic C++17 syntax */
+#undef HAVE_CXX17
+
+/* Define to 1 if you have the `getcwd' function. */
 #undef HAVE_GETCWD
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if your system has a GNU libc compatible 'malloc' function, and
+/* Define to 1 if your system has a GNU libc compatible `malloc' function, and
    to 0 otherwise. */
 #undef HAVE_MALLOC
 
-/* Define to 1 if you have the 'memset' function. */
+/* Define to 1 if you have the `memset' function. */
 #undef HAVE_MEMSET
 
 /* Define to 1 if stdbool.h conforms to C99. */
@@ -43,7 +46,7 @@
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
 
-/* Define to 1 if the system has the type '_Bool'. */
+/* Define to 1 if the system has the type `_Bool'. */
 #undef HAVE__BOOL
 
 /* Name of package */
@@ -67,7 +70,7 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
-/* Define to 1 if all of the C89 standard headers exist (not just the ones
+/* Define to 1 if all of the C90 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
 #undef STDC_HEADERS
@@ -92,7 +95,7 @@
 /* Define to rpl_malloc if the replacement function should be used. */
 #undef malloc
 
-/* Define as 'unsigned int' if <stddef.h> doesn't define. */
+/* Define to `unsigned int' if <sys/types.h> does not define. */
 #undef size_t
 
 /* Define to the type of an unsigned integer type of width exactly 32 bits if
