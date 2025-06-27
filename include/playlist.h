@@ -28,10 +28,10 @@ class Playlist
     public:
         // Explicitly delete copy operations as std::vector<track> is non-copyable
         Playlist(const Playlist&) = delete;
-        Playlist& operator=(const Playlist&) = delete;
-        // Explicitly default move operations
-        Playlist(Playlist&&) = default;
-        Playlist& operator=(Playlist&&) = default;
+        Playlist& operator=(const Playlist&) = delete; // Keep copy assignment deleted
+        // Move operations are implicitly deleted due to std::recursive_mutex
+        // Playlist(Playlist&&) = default; // Removed: Cannot be defaulted due to non-movable member
+        // Playlist& operator=(Playlist&&) = default; // Removed: Cannot be defaulted due to non-movable member
         Playlist() { }
         ~Playlist();
         bool addFile(TagLib::String path);
@@ -42,12 +42,13 @@ class Playlist
         TagLib::String getTrack(long position);
         TagLib::String next();
         TagLib::String prev();
-        static Playlist loadPlaylist(TagLib::String path);
+        static std::unique_ptr<Playlist> loadPlaylist(TagLib::String path);
         void savePlaylist(TagLib::String path);
     protected:
     private:
         std::vector<track> tracks;
-        long m_position;
+        long m_position = 0;
+        mutable std::recursive_mutex m_mutex;
 };
 
 #endif // PLAYLIST_H

@@ -31,6 +31,7 @@ Playlist::~Playlist()
 
 bool Playlist::addFile(TagLib::String path)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     TagLib::FileRef *fileref;
     track *ntrk;
     try {
@@ -48,16 +49,19 @@ bool Playlist::addFile(TagLib::String path)
 
 long Playlist::getPosition(void)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_position;
 }
 
 long Playlist::entries(void)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return tracks.size();
 }
 
 bool Playlist::setPosition(long position)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if(position < tracks.size()) {
         m_position = position;
         return true;
@@ -68,12 +72,14 @@ bool Playlist::setPosition(long position)
 
 TagLib::String Playlist::setPositionAndJump(long position)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     setPosition(position);
     return getTrack(position);
 }
 
 TagLib::String Playlist::getTrack(long position)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if(position < tracks.size()) {
         std::string path = tracks[position].GetFilePath().to8Bit(true);
         return tracks[position].GetFilePath();
@@ -84,19 +90,21 @@ TagLib::String Playlist::getTrack(long position)
 
 TagLib::String Playlist::next()
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return getTrack(++m_position);
 }
 
 TagLib::String Playlist::prev()
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (m_position == 0) m_position++;
     return getTrack(--m_position);
 }
 
-Playlist Playlist::loadPlaylist(TagLib::String path)
+std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
 {
-    Playlist nply;
-
+    auto nply = std::make_unique<Playlist>();
+    // TODO: Implement actual playlist loading logic here, populating nply
     return nply;
 }
 
