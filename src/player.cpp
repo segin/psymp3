@@ -582,8 +582,11 @@ void Player::Run(std::vector<std::string> args) {
                                 audio->lock();
                             }
 
-                            stream.reset(new_stream);
-                            ATdata.stream = stream.get();
+                            {
+                                std::lock_guard<std::mutex> lock(*mutex);
+                                stream.reset(new_stream);
+                                ATdata.stream = stream.get();
+                            }
                             if (stream) {
                                 if (!audio) {
                                     // First track loaded, create the audio device.

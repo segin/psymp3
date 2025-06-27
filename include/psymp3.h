@@ -67,7 +67,7 @@ enum {
 #include <functional>
 #include <queue>
 #include <atomic>
-#include <complex> // For std::complex
+#include <complex>
 #include <fstream>
 
 #ifndef M_PI_F
@@ -128,9 +128,9 @@ enum {
 #include "flac.h"
 #include "nullstream.h"
 #include "mediafile.h"
-#include "audio.h"
 #include "fft.h"
 #include "fft_draw.h"
+#include "audio.h"
 #include "about.h"
 #include "persistentstorage.h"
 #include "track.h"
