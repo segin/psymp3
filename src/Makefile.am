@@ -26,7 +26,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 datadir=$(prefix)/share/psymp3/data
 
 AM_CPPFLAGS = $(DEPENDS_CFLAGS) -DPSYMP3_DATADIR=\"$(datadir)\"
-AM_LDFLAGS = $(DEPENDS_LIBS)
+psymp3_LDADD = $(DEPENDS_LIBS)
 
 bin_PROGRAMS = psymp3
 psymp3_SOURCES = about.cpp audio.cpp display.cpp exceptions.cpp fft.cpp\
