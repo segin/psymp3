@@ -66,6 +66,7 @@ class Player
     protected:
         int state;
         void renderSpectrum(Surface *graph);
+        void precomputeSpectrumColors();
     private:
         void updateInfo(void);
 
@@ -100,6 +101,9 @@ class Player
         // New thread for populating playlist from command line
         std::thread m_playlist_populator_thread;
         void playlistPopulatorLoop(std::vector<std::string> args);
+
+        // Precomputed colors for spectrum analyzer
+        std::vector<uint32_t> m_spectrum_colors;
 };
 
 #endif // PLAYER_H

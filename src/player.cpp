@@ -260,6 +260,29 @@ float Player::logarithmicScale(const int f, float x) {
     return x;
 }
 
+void Player::precomputeSpectrumColors() {
+    if (!graph) return;
+
+    m_spectrum_colors.resize(320);
+    for (uint16_t x = 0; x < 320; ++x) {
+        uint8_t r, g, b;
+        if (x > 213) {
+            r = static_cast<uint8_t>((x - 214) * 2.4);
+            g = 0;
+            b = 255;
+        } else if (x < 106) {
+            r = 128;
+            g = 255;
+            b = static_cast<uint8_t>(x * 2.398);
+        } else {
+            r = static_cast<uint8_t>(128 - ((x - 106) * 1.1962615));
+            g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
+            b = 255;
+        }
+        m_spectrum_colors[x] = graph->MapRGBA(r, g, b, 255);
+    }
+}
+
 /* Internal UI compartments */
 
 void Player::renderSpectrum(Surface *graph) {
@@ -290,15 +313,12 @@ void Player::renderSpectrum(Surface *graph) {
 
     // --- End Fade effect implementation ---
 
+    // float *spectrum = fft->getFFT(); // Removed redundant declaration
     for(uint16_t x=0; x < 320; x++) {
-        // graph->rectangle(x * 2, (int16_t) 350 - (spectrum[x] * 350.0f * 4) , (x * 2) + 1 , 350, 0xFFFFFFFF);
-        if (x > 213) {
-            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f) , (x * 2) + 1, 350, (uint8_t) ((x - 214) * 2.4), 0, 255, 255);
-        } else if (x < 106) {
-            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f) , (x * 2) + 1, 350, 128, 255, (uint8_t) (x * 2.398), 255);
-        } else {
-            graph->rectangle(x * 2, (int16_t) 350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f) , (x * 2) + 1, 350, (uint8_t) (128 - ((x - 106) * 1.1962615)), (uint8_t) (255 - ((x - 106) * 2.383177)), 255, 255);
-        }
+        // Calculate the bar's height
+        int16_t y_start = static_cast<int16_t>(350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f));
+        // Draw the rectangle using the precomputed color
+        graph->rectangle(x * 2, y_start, (x * 2) + 1, 350, m_spectrum_colors[x]);
     };
 }
 
@@ -344,6 +364,7 @@ void Player::Run(std::vector<std::string> args) {
 #endif // _WIN32
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     graph = std::make_unique<Surface>(640, 400);
+    precomputeSpectrumColors();
 
     // Create an empty playlist. It will be populated in the background.
     playlist = std::make_unique<Playlist>();
