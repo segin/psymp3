@@ -193,13 +193,21 @@ FlacDecoder::~FlacDecoder()
 }
 
 ::FLAC__StreamDecoderSeekStatus FlacDecoder::seek_callback(FLAC__uint64 absolute_byte_offset) {
+#ifdef _WIN32
+    if (_fseeki64(m_file_handle, static_cast<__int64>(absolute_byte_offset), SEEK_SET) < 0)
+#else
     if (fseeko(m_file_handle, static_cast<off_t>(absolute_byte_offset), SEEK_SET) < 0)
+#endif
         return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
     return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
 }
 
 ::FLAC__StreamDecoderTellStatus FlacDecoder::tell_callback(FLAC__uint64 *absolute_byte_offset) {
+#ifdef _WIN32
+    __int64 pos = _ftelli64(m_file_handle);
+#else
     off_t pos = ftello(m_file_handle);
+#endif
     if (pos < 0)
         return FLAC__STREAM_DECODER_TELL_STATUS_ERROR;
     *absolute_byte_offset = static_cast<FLAC__uint64>(pos);
@@ -207,8 +215,14 @@ FlacDecoder::~FlacDecoder()
 }
 
 ::FLAC__StreamDecoderLengthStatus FlacDecoder::length_callback(FLAC__uint64 *stream_length) {
+#ifdef _WIN32
+    // Use 64-bit file status functions for large file support on Windows.
+    struct __stat64 st;
+    if (_fstat64(_fileno(m_file_handle), &st) != 0)
+#else
     struct stat st;
     if (fstat(fileno(m_file_handle), &st) != 0)
+#endif
         return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
     *stream_length = st.st_size;
     return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
