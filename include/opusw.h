@@ -42,6 +42,7 @@ class OpusFile : public Stream
         virtual bool eof();
     protected:
     private:
+        FILE* m_file_handle = nullptr;
         OggOpusFile *m_session;
 };
 

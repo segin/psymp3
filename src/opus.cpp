@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-OpusFile::OpusFile(TagLib::String name) : Stream(name), m_session(nullptr)
+OpusFile::OpusFile(TagLib::String name) : Stream(name), m_file_handle(nullptr), m_session(nullptr)
 {
     m_eof = false;
     open(name);
@@ -31,6 +31,11 @@ OpusFile::OpusFile(TagLib::String name) : Stream(name), m_session(nullptr)
 
 OpusFile::~OpusFile()
 {
+    // op_free will call our close callback, which closes the file handle.
+    // This is just a safeguard in case op_free was not called or failed.
+    if (m_file_handle) {
+        fclose(m_file_handle);
+    }
     if (m_session) {
         op_free(m_session);
         m_session = nullptr;
@@ -40,13 +45,39 @@ OpusFile::~OpusFile()
 void OpusFile::open(TagLib::String name)
 {
     int error;
-    // Clean up previous session if any
-    if (m_session) {
-        op_free(m_session);
-        m_session = nullptr;
+
+#ifdef _WIN32
+    m_file_handle = _wfopen(name.toCWString(), L"rb");
+#else
+    m_file_handle = fopen(name.toCString(true), "rb");
+#endif
+
+    if (!m_file_handle) {
+        throw BadFormatException("OpusFile: Could not open file handle for " + name);
     }
-    m_session = op_open_file(name.toCString(true), &error);
+
+    OpusFileCallbacks callbacks = {
+        // read
+        [](void *_stream, unsigned char *_ptr, int _nbytes) -> int {
+            return fread(_ptr, 1, _nbytes, static_cast<FILE*>(_stream));
+        },
+        // seek
+        [](void *_stream, opus_int64 _offset, int _whence) -> int {
+            return fseek(static_cast<FILE*>(_stream), _offset, _whence);
+        },
+        // tell
+        [](void *_stream) -> opus_int64 {
+            return ftell(static_cast<FILE*>(_stream));
+        },
+        // close
+        [](void *_stream) -> int {
+            return fclose(static_cast<FILE*>(_stream));
+        }
+    };
+
+    m_session = op_open_callbacks(m_file_handle, &callbacks, nullptr, 0, &error);
     if(!m_session) {
+        m_file_handle = nullptr; // op_open_callbacks calls close on failure.
         // Provide a more informative exception, including the library's error string.
         throw InvalidMediaException("Failed to open Opus file '" + name + "': " + opus_strerror(error));
     }
