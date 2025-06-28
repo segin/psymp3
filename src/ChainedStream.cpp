@@ -58,6 +58,8 @@ ChainedStream::ChainedStream(std::vector<TagLib::String> paths)
             }
             m_total_length_ms += temp_stream->getLength();
             m_total_samples += temp_stream->getSLength();
+            m_track_lengths_ms.push_back(temp_stream->getLength());
+            m_track_lengths_samples.push_back(temp_stream->getSLength());
         } catch (const std::exception& e) {
             // Re-throw with more context
             throw InvalidMediaException("ChainedStream: Error processing track " + path + ": " + e.what());
@@ -174,8 +176,48 @@ unsigned long long ChainedStream::getSPosition()
 
 void ChainedStream::seekTo(unsigned long pos)
 {
-    // Seeking in a ChainedStream is complex. A full implementation would require
-    // finding which track the position 'pos' falls into, opening that track,
-    // and seeking within it. For now, this is a no-op.
-    // TODO: Implement proper seeking for ChainedStream.
+    // 1. Convert target time in ms to an absolute sample position for the whole chain.
+    unsigned long long target_sample_pos = (static_cast<unsigned long long>(pos) * m_rate) / 1000;
+    if (target_sample_pos > m_total_samples) {
+        target_sample_pos = m_total_samples;
+    }
+
+    // 2. Find which track this absolute sample position falls into.
+    unsigned long long cumulative_samples = 0;
+    size_t target_track_index = 0;
+    for (size_t i = 0; i < m_track_lengths_samples.size(); ++i) {
+        if (target_sample_pos < cumulative_samples + m_track_lengths_samples[i]) {
+            target_track_index = i;
+            break;
+        }
+        cumulative_samples += m_track_lengths_samples[i];
+        // Handle case where seek is to the very end of the last track.
+        if (i == m_track_lengths_samples.size() - 1) {
+            target_track_index = i;
+        }
+    }
+
+    // 3. Open the target track. This replaces the current stream.
+    try {
+        m_current_stream.reset(MediaFile::open(m_paths[target_track_index]));
+    } catch (const std::exception& e) {
+        std::cerr << "ChainedStream::seekTo: Failed to open track " << m_paths[target_track_index] << ": " << e.what() << std::endl;
+        m_current_stream.reset();
+        m_eof = true; // Can't play anymore.
+        return;
+    }
+
+    // 4. Update state variables to reflect the new track.
+    m_current_track_index = target_track_index + 1; // Next call to openNextTrack will open track after this one.
+    m_samples_played_in_previous_tracks = cumulative_samples; // This is the sum of samples before the target track.
+
+    // 5. Seek within the newly opened track.
+    unsigned long long seek_pos_in_track_samples = target_sample_pos - m_samples_played_in_previous_tracks;
+    unsigned long seek_pos_in_track_ms = (m_rate > 0) ? (seek_pos_in_track_samples * 1000) / m_rate : 0;
+    m_current_stream->seekTo(seek_pos_in_track_ms);
+
+    // 6. Reset EOF flag and update base class position members for consistency.
+    m_eof = false;
+    m_sposition = getSPosition();
+    m_position = getPosition();
 }

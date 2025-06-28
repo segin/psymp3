@@ -46,6 +46,8 @@ private:
     bool openNextTrack();
 
     std::vector<TagLib::String> m_paths;
+    std::vector<unsigned int> m_track_lengths_ms;
+    std::vector<unsigned long long> m_track_lengths_samples;
     size_t m_current_track_index;
     std::unique_ptr<Stream> m_current_stream;
 
@@ -55,4 +57,3 @@ private:
 };
 
 #endif // CHAINEDSTREAM_H
-
