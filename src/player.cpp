@@ -528,16 +528,12 @@ bool Player::updateGUI()
     graph->hline(399, 402, 385, 0xFFFFFFFF);
     graph->hline(618, 621, 370, 0xFFFFFFFF);
     graph->hline(618, 621, 385, 0xFFFFFFFF);
-    if (m_seek_direction == 1) {
-        if (stream)
-            stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
-    } else if (m_seek_direction == 2) {
-        if (stream)
-            stream->seekTo((long long) stream->getPosition() + 1500);
-    }
+
+    // If dragging, use the drag position; otherwise, use the actual stream position
+    unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : current_pos_ms;
     double t;
     if(total_len_ms > 0)
-        t = ((double) current_pos_ms / (double) total_len_ms) * 220;
+        t = ((double) display_position_ms / (double) total_len_ms) * 220;
     else   
         t = 0.0f;
     // Draw progress bar fill on graph surface
@@ -550,10 +546,6 @@ bool Player::updateGUI()
             graph->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
         }
     };
-
-    // If dragging, use the drag position; otherwise, use the actual stream position
-    unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : (stream ? stream->getPosition() : 0);
-
 
     // --- Final Scene Composition ---
     // 1. Clear the main screen
@@ -618,10 +610,28 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_LEFT:
             m_seek_direction = 1;
+            if (!m_seek_left_indicator) {
+                m_seek_left_indicator = std::make_unique<Widget>();
+                auto sfc = std::make_unique<Surface>(11, 7);
+                sfc->line(0, 3, 10, 3, 255, 0, 0, 255); // shaft
+                sfc->line(0, 3, 3, 0, 255, 0, 0, 255); // top arrowhead
+                sfc->line(0, 3, 3, 6, 255, 0, 0, 255); // bottom arrowhead
+                m_seek_left_indicator->setSurface(std::move(sfc));
+                m_seek_left_indicator->setPos(Rect(380, 374, 11, 7));
+            }
             break;
 
         case SDLK_RIGHT:
             m_seek_direction = 2;
+            if (!m_seek_right_indicator) {
+                m_seek_right_indicator = std::make_unique<Widget>();
+                auto sfc = std::make_unique<Surface>(11, 7);
+                sfc->line(0, 3, 10, 3, 0, 255, 0, 255); // shaft
+                sfc->line(10, 3, 7, 0, 0, 255, 0, 255); // top arrowhead
+                sfc->line(10, 3, 7, 6, 0, 255, 0, 255); // bottom arrowhead
+                m_seek_right_indicator->setSurface(std::move(sfc));
+                m_seek_right_indicator->setPos(Rect(628, 374, 11, 7));
+            }
             break;
 
         case SDLK_SPACE:
