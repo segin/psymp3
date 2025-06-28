@@ -540,16 +540,21 @@ bool Player::updateGUI()
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
         // This implements a continuous seek while arrow keys are held down.
-        const unsigned long seek_increment_ms = 250; // Use unsigned for safer math
+        const long long seek_increment_ms = 250; // Use signed type for safer math
         unsigned long new_pos_ms = current_pos_ms;
 
         if (m_seek_direction == 1) { // backwards
-            // Explicitly check before subtracting to prevent unsigned underflow
-            if (current_pos_ms > seek_increment_ms) {
-                new_pos_ms = current_pos_ms - seek_increment_ms;
-            } else {
+            // Perform math with signed types to prevent unsigned underflow issues.
+            std::cout << "SEEK_BWD: current_pos_ms=" << current_pos_ms;
+            long long signed_pos = current_pos_ms;
+            signed_pos -= seek_increment_ms;
+            std::cout << ", signed_pos=" << signed_pos;
+            if (signed_pos < 0) {
                 new_pos_ms = 0;
+            } else {
+                new_pos_ms = static_cast<unsigned long>(signed_pos);
             }
+            std::cout << ", new_pos_ms=" << new_pos_ms << std::endl;
         } else if (m_seek_direction == 2) { // forwards
             new_pos_ms = current_pos_ms + seek_increment_ms;
             if (total_len_ms > 0 && new_pos_ms > total_len_ms) {
