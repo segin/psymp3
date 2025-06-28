@@ -1095,6 +1095,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case DO_SAVE_PLAYLIST:
         {
             if (playlist) {
+                System::createStoragePath(); // Ensure the directory exists before writing.
                 TagLib::String save_path = System::getStoragePath() + "/playlist.m3u";
                 playlist->savePlaylist(save_path);
                 showToast("Current playlist saved!");
