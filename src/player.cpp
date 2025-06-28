@@ -413,7 +413,13 @@ bool Player::updateGUI()
 
         // Copy data from stream object while locked
         if (stream) {
-            current_pos_ms = stream->getPosition();
+            // During a keyboard seek, we use our manually-controlled position for
+            // instant visual feedback. Otherwise, get the position from the stream.
+            if (m_seek_direction != 0) {
+                current_pos_ms = m_seek_position_ms;
+            } else {
+                current_pos_ms = stream->getPosition();
+            }
             total_len_ms = stream->getLength();
             artist = stream->getArtist();
             title = stream->getTitle();
@@ -540,25 +546,20 @@ bool Player::updateGUI()
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
         // This implements a continuous seek while arrow keys are held down.
-        const long long seek_increment_ms = 250; // Use signed type for safer math
-        unsigned long new_pos_ms = current_pos_ms;
+        const long long seek_increment_ms = 250;
 
         if (m_seek_direction == 1) { // backwards
-            long long signed_pos = current_pos_ms;
+            long long signed_pos = m_seek_position_ms;
             signed_pos -= seek_increment_ms;
-            if (signed_pos < 0) {
-                new_pos_ms = 0;
-            } else {
-                new_pos_ms = static_cast<unsigned long>(signed_pos);
-            }
+            m_seek_position_ms = (signed_pos < 0) ? 0 : static_cast<unsigned long>(signed_pos);
         } else if (m_seek_direction == 2) { // forwards
-            new_pos_ms = current_pos_ms + seek_increment_ms;
-            if (total_len_ms > 0 && new_pos_ms > total_len_ms) {
-                new_pos_ms = total_len_ms;
+            m_seek_position_ms += seek_increment_ms;
+            if (total_len_ms > 0 && m_seek_position_ms > total_len_ms) {
+                m_seek_position_ms = total_len_ms;
             }
         }
-        seekTo(new_pos_ms); // Request the asynchronous seek
-        current_pos_ms = new_pos_ms; // Update local var for instant visual feedback
+        seekTo(m_seek_position_ms); // Request the asynchronous seek
+        current_pos_ms = m_seek_position_ms; // Update local var for instant visual feedback
     }
 
     // If dragging, use the drag position; otherwise, use the actual stream position
@@ -641,10 +642,9 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_c: decayfactor = 2.0f; updateInfo(); break;
 
         case SDLK_LEFT:
-            // On the initial key press, pause the audio pump to prevent race conditions.
-            if (m_seek_direction == 0) {
-                m_state_before_seek = state;
-                if (state == PlayerState::Playing) audio->play(false);
+            // On the initial key press, capture the current position to seek from.
+            if (m_seek_direction == 0 && stream) {
+                m_seek_position_ms = stream->getPosition();
             }
             m_seek_direction = 1;
             if (!m_seek_left_indicator) {
@@ -660,10 +660,9 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_RIGHT:
-            // On the initial key press, pause the audio pump to prevent race conditions.
-            if (m_seek_direction == 0) {
-                m_state_before_seek = state;
-                if (state == PlayerState::Playing) audio->play(false);
+            // On the initial key press, capture the current position to seek from.
+            if (m_seek_direction == 0 && stream) {
+                m_seek_position_ms = stream->getPosition();
             }
             m_seek_direction = 2;
             if (!m_seek_right_indicator) {
@@ -769,20 +768,13 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
             if (m_seek_left_indicator) {
                 m_seek_left_indicator->fadeOut();
             }
-            // Only act if we are releasing the key that started the seek.
-            if (m_seek_direction == 1) {
-                if (m_state_before_seek == PlayerState::Playing) audio->play(true);
-                m_seek_direction = 0;
-            }
+            m_seek_direction = 0;
             break;
         case SDLK_RIGHT:
             if (m_seek_right_indicator) {
                 m_seek_right_indicator->fadeOut();
             }
-            if (m_seek_direction == 2) {
-                if (m_state_before_seek == PlayerState::Playing) audio->play(true);
-                m_seek_direction = 0;
-            }
+            m_seek_direction = 0;
             break;
         default:
             break;

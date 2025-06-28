@@ -120,6 +120,7 @@ class Player
         Uint32 m_drag_start_time = 0;
         Uint16 m_drag_start_x = 0;
         unsigned long m_drag_position_ms = 0;
+        unsigned long m_seek_position_ms = 0; // For keyboard seeking
 
         // UI Widget tree
         std::unique_ptr<Widget> m_ui_root;
