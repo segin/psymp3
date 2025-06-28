@@ -1,7 +1,7 @@
 /*
  * vorbis.cpp - Extends the Stream base class to decode Ogg Vorbis.
  * This file is part of PsyMP3.
- * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -111,9 +111,8 @@ size_t Vorbis::getData(size_t len, void *buf)
         long bytes_read_this_call = ov_read(static_cast<OggVorbis_File *>(m_handle), current_buf, bytes_left, 0, 2, 1, &m_session);
 
         if (bytes_read_this_call < 0) { // Error
-            if (bytes_read_this_call == OV_HOLE || bytes_read_this_call == OV_EBADLINK || bytes_read_this_call == OV_EINVAL)
-                throw BadFormatException("Failed to read Vorbis file");
-            break; // Other errors, stop reading.
+            // Any negative value from ov_read is a fatal error.
+            throw BadFormatException("Failed to read Vorbis file, error code: " + std::to_string(bytes_read_this_call));
         } else if (bytes_read_this_call == 0) { // End of file
             m_eof = true;
             break;

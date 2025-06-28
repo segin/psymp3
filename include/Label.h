@@ -1,7 +1,7 @@
 /*
  * Label.h - A text label widget.
  * This file is part of PsyMP3.
- * Copyright © 2024 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>

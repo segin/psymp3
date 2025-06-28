@@ -1,7 +1,7 @@
 /*
- * vorbis.cpp - Extends the Stream base class to decode Ogg Vorbis.
+ * opus.cpp - Extends the Stream base class to decode Ogg Opus.
  * This file is part of PsyMP3.
- * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -48,7 +48,7 @@ void OpusFile::open(TagLib::String name)
     m_session = op_open_file(name.toCString(true), &error);
     if(!m_session) {
         // Provide a more informative exception, including the library's error code.
-        throw InvalidMediaException("Failed to open Opus file '" + name + "'. Error code: " + std::to_string(error));
+        throw InvalidMediaException("Failed to open Opus file '" + name + "': " + op_strerror(error));
     }
 
     // As per the opusfile manual, output is always 48kHz.
