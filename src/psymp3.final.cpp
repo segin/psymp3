@@ -6,6 +6,7 @@
 #include "fft_draw.cpp"
 #include "flac.cpp"
 #include "font.cpp"
+#include "Label.cpp"
 #include "libmpg123.cpp"
 #include "main.cpp"
 #include "mediafile.cpp"
