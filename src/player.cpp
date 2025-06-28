@@ -501,9 +501,17 @@ bool Player::updateGUI()
     graph->hline(618, 621, 370, 0xFFFFFFFF);
     graph->hline(618, 621, 385, 0xFFFFFFFF);
     if (m_seek_direction == 1) {
+        // Draw left-pointing red arrow to indicate seeking backward
+        graph->line(380, 377, 390, 377, 255, 0, 0, 255); // shaft
+        graph->line(380, 377, 383, 374, 255, 0, 0, 255); // top arrowhead
+        graph->line(380, 377, 383, 380, 255, 0, 0, 255); // bottom arrowhead
         if (stream)
             stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
     } else if (m_seek_direction == 2) {
+        // Draw right-pointing green arrow to indicate seeking forward
+        graph->line(628, 377, 638, 377, 0, 255, 0, 255); // shaft
+        graph->line(638, 377, 635, 374, 0, 255, 0, 255); // top arrowhead
+        graph->line(638, 377, 635, 380, 0, 255, 0, 255); // bottom arrowhead
         if (stream)
             stream->seekTo((long long) stream->getPosition() + 1500);
     }
