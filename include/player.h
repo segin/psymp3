@@ -39,7 +39,6 @@ class Player
         Player();
         ~Player();
         void Run(std::vector<std::string> args);
-        static float logarithmicScale(const int f, float x);
         static Uint32 AppLoopTimer(Uint32 interval, void* param);
         /* SDL event synthesis */
         static void synthesizeUserEvent(int uevent, void *data1, void *data2);

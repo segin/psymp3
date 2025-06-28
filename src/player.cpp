@@ -239,14 +239,6 @@ void Player::seekTo(unsigned long pos)
     }
 }
 
-float Player::logarithmicScale(const int f, float x) {
-    x = std::clamp(x, 0.0f, 1.0f);
-    if(f) 
-        for (auto i=0;i<f;i++) 
-            x = std::log10(1.0f + 9.0f * x);
-    return x;
-}
-
 void Player::precomputeSpectrumColors() {
     if (!graph) return;
 
@@ -303,7 +295,7 @@ void Player::renderSpectrum(Surface *graph) {
     // float *spectrum = fft->getFFT(); // Removed redundant declaration
     for(uint16_t x=0; x < 320; x++) {
         // Calculate the bar's height
-        int16_t y_start = static_cast<int16_t>(350 - (logarithmicScale(scalefactor, spectrum[x]) * 350.0f));
+        int16_t y_start = static_cast<int16_t>(350 - (Util::logarithmicScale(scalefactor, spectrum[x]) * 350.0f));
         // Draw the rectangle using the precomputed color
         graph->rectangle(x * 2, y_start, (x * 2) + 1, 350, m_spectrum_colors[x]);
     };
