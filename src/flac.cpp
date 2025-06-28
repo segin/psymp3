@@ -1,7 +1,7 @@
 /*
  * flac.cpp - Extends the Stream base class to decode FLACs.
  * This file is part of PsyMP3.
- * Copyright © 2011-2024 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -54,7 +54,7 @@ void Flac::open(TagLib::String name)
     m_bitrate = 0; // FLAC is lossless, bitrate is variable. Can estimate if needed.
 
     // Calculate length in milliseconds
-    if (m_rate > 0) {
+    if (m_rate > 0) {Ac
         m_length = static_cast<unsigned int>((m_slength * 1000) / m_rate);
     } else {
         m_length = 0;
