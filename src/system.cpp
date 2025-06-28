@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <cwctype> // For iswalnum in percentEncodeW
 
 #if defined(__linux__)
 #include <sys/prctl.h>
@@ -180,6 +179,42 @@ LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
 
         case WM_USER:
         {
+            // KVIrc-specific IPC interface. This is checked before the standard Winamp IPC.
+            if (wParam == KVIRC_WM_USER) {
+                switch (lParam)
+                {
+                    case KVIRC_WM_USER_CHECK:
+                        return KVIRC_WM_USER_CHECK_REPLY;
+
+                    case KVIRC_WM_USER_GETTITLE:
+                        if (player->stream) {
+                            currentTitleW = player->stream->getArtist().toWString() + L" - " + player->stream->getTitle().toWString();
+                            kvircBufferW = currentTitleW;
+                            return kvircBufferW.length();
+                        }
+                        return 0;
+
+                    case KVIRC_WM_USER_GETFILE:
+                        if (player->stream) {
+                            std::wstring path = player->stream->getFilePath().toWString();
+                            kvircBufferW = percentEncodeW(path);
+                            return kvircBufferW.length();
+                        }
+                        return 0;
+
+                    default:
+                        // Handle character-by-character transfer requests
+                        if (lParam >= KVIRC_WM_USER_TRANSFER && lParam < KVIRC_WM_USER_TRANSFER + 4096) {
+                            size_t index = lParam - KVIRC_WM_USER_TRANSFER;
+                            if (index < kvircBufferW.length()) {
+                                return kvircBufferW[index];
+                            }
+                        }
+                        return 0;
+                }
+            }
+
+            // Standard Winamp IPC messages
             switch (lParam)
             {
                 case IPC_GETVERSION:
