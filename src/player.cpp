@@ -424,6 +424,71 @@ bool Player::updateGUI()
     return stream ? stream->eof() : false;
 }
 
+bool Player::handleKeyPress(const SDL_Keysym& keysym)
+{
+    switch (keysym.sym) {
+        case SDLK_ESCAPE:
+        case SDLK_q:
+            return true; // Signal to exit
+
+        case SDLK_n:
+            return !nextTrack(); // Signal to exit if no next track
+
+        case SDLK_p:
+            prevTrack();
+            break;
+
+        case SDLK_0: scalefactor = 0; info["scale"] = font->Render("log scale = " + std::to_string(scalefactor)); break;
+        case SDLK_1: scalefactor = 1; info["scale"] = font->Render("log scale = " + std::to_string(scalefactor)); break;
+        case SDLK_2: scalefactor = 2; info["scale"] = font->Render("log scale = " + std::to_string(scalefactor)); break;
+        case SDLK_3: scalefactor = 3; info["scale"] = font->Render("log scale = " + std::to_string(scalefactor)); break;
+        case SDLK_4: scalefactor = 4; info["scale"] = font->Render("log scale = " + std::to_string(scalefactor)); break;
+
+        case SDLK_z: decayfactor = 0.5f; info["decay"] = font->Render("decay = " + std::to_string(decayfactor)); break;
+        case SDLK_x: decayfactor = 1.0f; info["decay"] = font->Render("decay = " + std::to_string(decayfactor)); break;
+        case SDLK_c: decayfactor = 2.0f; info["decay"] = font->Render("decay = " + std::to_string(decayfactor)); break;
+
+        case SDLK_LEFT:
+            m_seek_direction = 1;
+            break;
+
+        case SDLK_RIGHT:
+            m_seek_direction = 2;
+            break;
+
+        case SDLK_SPACE:
+            playPause();
+            break;
+
+        case SDLK_r:
+            this->seekTo(0);
+            break;
+
+        case SDLK_f:
+        {
+            // Cycle through FFT modes
+            FFTMode current_mode = fft->getFFTMode();
+            FFTMode next_mode;
+            switch (current_mode) {
+                case FFTMode::Original:  next_mode = FFTMode::Optimized; break;
+                case FFTMode::Optimized: next_mode = FFTMode::NeomatIn;  break;
+                case FFTMode::NeomatIn:  next_mode = FFTMode::NeomatOut; break;
+                case FFTMode::NeomatOut: next_mode = FFTMode::Original;  break;
+                default:                 next_mode = FFTMode::Original;  break; // Should not happen
+            }
+            fft->setFFTMode(next_mode);
+            info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
+            break;
+        }
+
+        default:
+            // No action for other keys
+            break;
+    }
+
+    return false; // Do not exit
+}
+
 /* Main player functionality */
 
 void Player::Run(std::vector<std::string> args) {
@@ -515,109 +580,9 @@ void Player::Run(std::vector<std::string> args) {
                 // check for keypresses
             case SDL_KEYDOWN:
             {
-                // exit if ESCAPE is pressed
-                switch (event.key.keysym.sym) {
-                case SDLK_ESCAPE:
-                case SDLK_q:
-                    done = true;
-                    break;
-                case SDLK_n:
-                {
-                    done = !nextTrack();
-                    break;
-                }
-                case SDLK_p:
-                {
-                    prevTrack();
-                    break;
-                }
-                case SDLK_0:
-                {
-                    scalefactor = 0;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
-                    break;
-                }
-                case SDLK_1:
-                {
-                    scalefactor = 1;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
-                    break;
-                }
-                case SDLK_2:
-                {
-                    scalefactor = 2;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
-                    break;
-                }
-                case SDLK_3:
-                {
-                    scalefactor = 3;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
-                    break;
-                }
-                case SDLK_4:
-                {
-                    scalefactor = 4;
-                    info["scale"] = font->Render("log scale = " + std::to_string(scalefactor));
-                    break;
-                }
-                case SDLK_z:
-                {
-                    decayfactor = 0.5f;
-                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
-                    break;
-                }
-                case SDLK_x:
-                {
-                    decayfactor = 1.0f;
-                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
-                    break;
-                }
-                case SDLK_c:
-                {
-                    decayfactor = 2.0f;
-                    info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
-                    break;
-                }
-                case SDLK_LEFT:
-                {
-                    m_seek_direction = 1;
-                    break;
-                }
-                case SDLK_RIGHT:
-                {
-                    m_seek_direction = 2;
-                    break;
-                }
-                case SDLK_SPACE:
-                {
-                    playPause();
-                    break;
-                }
-                case SDLK_r:
-                    this->seekTo(0);
-                    break;
-                case SDLK_f:
-                {
-                    // Cycle through FFT modes
-                    FFTMode current_mode = fft->getFFTMode();
-                    FFTMode next_mode;
-                    switch (current_mode) {
-                        case FFTMode::Original: next_mode = FFTMode::Optimized; break;
-                        case FFTMode::Optimized: next_mode = FFTMode::NeomatIn; break;
-                        case FFTMode::NeomatIn: next_mode = FFTMode::NeomatOut; break;
-                        case FFTMode::NeomatOut: next_mode = FFTMode::Original; break;
-                        default: next_mode = FFTMode::Original; break; // Should not happen
-                    }
-                    fft->setFFTMode(next_mode);
-                    info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
-                    break;
-                }
-                default:
-                    break;
+                done = handleKeyPress(event.key);
+                break;
             }
-            break;
-        }
             case SDL_MOUSEBUTTONDOWN:
             {
                 if (event.button.button == SDL_BUTTON_LEFT) {
