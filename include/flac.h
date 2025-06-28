@@ -41,6 +41,7 @@ class FlacDecoder: public FLAC::Decoder::Stream
         void startDecoderThread();
         void stopDecoderThread();
         void requestSeek(FLAC__uint64 sample_offset);
+        FLAC__uint64 get_current_sample_position() const { return m_current_sample_position.load(); }
 
     protected:
         virtual ::FLAC__StreamDecoderWriteStatus write_callback(const ::FLAC__Frame *frame, const FLAC__int32 * const buffer[]);
@@ -59,6 +60,7 @@ class FlacDecoder: public FLAC::Decoder::Stream
         std::atomic<bool> m_decoding_active;
         std::atomic<bool> m_seek_request;
         std::atomic<FLAC__uint64> m_seek_position_samples;
+        std::atomic<FLAC__uint64> m_current_sample_position{0};
 
         void decoderThreadLoop(); // The function for our thread
 };
@@ -72,6 +74,8 @@ class Flac : public Stream
         virtual ~Flac();
         virtual void open(TagLib::String name);
         virtual size_t getData(size_t len, void *buf);
+        virtual unsigned int getPosition();
+        virtual unsigned long long getSPosition();
         virtual void seekTo(unsigned long pos);
         virtual bool eof();
         static void init();
@@ -81,4 +85,4 @@ class Flac : public Stream
         FlacDecoder m_handle;
 };
 
-#endif // LIBMPG123_H
+#endif // FLAC_H

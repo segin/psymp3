@@ -114,16 +114,22 @@ size_t Flac::getData(size_t len, void *buf)
         m_handle.m_output_buffer_cv.notify_one();
     }
 
-    // Update position based on samples read
-    // Note: m_sposition is total samples across all channels.
-    m_sposition += (total_bytes_read / (m_channels * sizeof(int16_t)));
-    if (m_channels > 0 && m_rate > 0) {
-        m_position = static_cast<unsigned int>((m_sposition * 1000) / m_rate);
-    } else {
-        m_position = 0;
-    }
-
     return total_bytes_read;
+}
+
+unsigned int Flac::getPosition()
+{
+    // Get the real-time sample position from the decoder thread
+    // and convert it to milliseconds.
+    if (m_rate > 0) {
+        return (m_handle.get_current_sample_position() * 1000) / m_rate;
+    }
+    return 0;
+}
+
+unsigned long long Flac::getSPosition()
+{
+    return m_handle.get_current_sample_position();
 }
 
 void Flac::seekTo(unsigned long pos)
@@ -132,11 +138,7 @@ void Flac::seekTo(unsigned long pos)
     ogg_int64_t target_sample = (static_cast<ogg_int64_t>(pos) * m_handle.m_stream_info.sample_rate) / 1000;
 
     m_handle.requestSeek(target_sample);
-
-    // Update positions
-    m_sposition = target_sample; // This is an approximation until the seek completes
-    m_position = pos;
-    m_eof = false; // Reset EOF flag after seek
+    m_eof = false; // Reset EOF flag after seek. Position is now updated by getPosition().
 }
 
 bool Flac::eof()
@@ -159,7 +161,7 @@ void Flac::fini()
 
 FlacDecoder::FlacDecoder(TagLib::String path)
     : FLAC::Decoder::Stream(), m_path(path), m_file_handle(nullptr),
-      m_decoding_active(false), m_seek_request(false), m_seek_position_samples(0)
+      m_decoding_active(false), m_seek_request(false)
 {
     // High-water mark for the decoded buffer to prevent it from growing too large.
     // Pre-allocate to avoid reallocations in the audio/decoder threads.
@@ -278,6 +280,7 @@ void FlacDecoder::decoderThreadLoop() {
             if (seek_absolute(m_seek_position_samples.load())) {
                 std::unique_lock<std::mutex> lock(m_output_buffer_mutex);
                 m_output_buffer.clear(); // Clear buffer after a successful seek
+                m_current_sample_position = m_seek_position_samples.load(); // Update position after seek
                 lock.unlock();
                 m_output_buffer_cv.notify_one(); // Notify consumer that seek is done
             }
@@ -327,6 +330,9 @@ void FlacDecoder::decoderThreadLoop() {
             m_output_buffer.push_back(static_cast<int16_t>(sample));
         }
     }
+
+    // Update the real-time sample position.
+    m_current_sample_position += frame->header.blocksize;
 
     m_output_buffer_cv.notify_one(); // Notify that data is available
     return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
