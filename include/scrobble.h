@@ -27,7 +27,7 @@
 class Scrobble : public track
 {
     public:
-        Scrobble(const track& rhs);
+        explicit Scrobble(const track& rhs);
         virtual ~Scrobble();
     protected:
     private:

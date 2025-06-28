@@ -148,17 +148,6 @@ bool Flac::eof()
     return m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM && m_handle.m_output_buffer.empty();
 }
 
-void Flac::init()
-{
-    // FLAC++ library doesn't require global init/fini like mpg123
-    // but if there were any global FLAC settings, they'd go here.
-}
-
-void Flac::fini()
-{
-    // No global finalization needed for FLAC++
-}
-
 FlacDecoder::FlacDecoder(TagLib::String path)
     : FLAC::Decoder::Stream(), m_path(path), m_file_handle(nullptr),
       m_decoding_active(false), m_seek_request(false)

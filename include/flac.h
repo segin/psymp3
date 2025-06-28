@@ -78,8 +78,6 @@ class Flac : public Stream
         virtual unsigned long long getSPosition();
         virtual void seekTo(unsigned long pos);
         virtual bool eof();
-        static void init();
-        static void fini();
     protected:
     private:
         FlacDecoder m_handle;
