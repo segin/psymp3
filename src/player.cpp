@@ -424,7 +424,7 @@ bool Player::updateGUI()
     return stream ? stream->eof() : false;
 }
 
-bool Player::handleKeyPress(const SDL_Keysym& keysym)
+bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
         case SDLK_ESCAPE:
@@ -580,7 +580,7 @@ void Player::Run(std::vector<std::string> args) {
                 // check for keypresses
             case SDL_KEYDOWN:
             {
-                done = handleKeyPress(event.key);
+                done = handleKeyPress(event.key.keysym);
                 break;
             }
             case SDL_MOUSEBUTTONDOWN:

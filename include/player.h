@@ -70,7 +70,7 @@ class Player
         void precomputeSpectrumColors();
     private:
         bool updateGUI();
-        bool handleKeyPress(const SDL_Keysym& keysym);
+        bool handleKeyPress(const SDL_keysym& keysym);
         void updateInfo(void);
 
         uint8_t m_seek_direction = 0;
