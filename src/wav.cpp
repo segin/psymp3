@@ -91,6 +91,15 @@ static int16_t ulaw2linear(uint8_t ulawbyte)
 	return sign ? -sample : sample;
 }
 
+/**
+ * @brief Constructs a WaveStream object from a file path.
+ *
+ * This opens the file and immediately calls parseHeaders() to validate the
+ * RIFF/WAVE format and extract stream information like sample rate, channels,
+ * and the location of the audio data chunk.
+ * @param path The file path of the WAVE file to open.
+ * @throws InvalidMediaException if the file cannot be opened.
+ */
 WaveStream::WaveStream(const TagLib::String& path) : Stream(path) {
     m_file.open(path.toCString(true), std::ios::binary);
     if (!m_file.is_open()) {
@@ -104,12 +113,24 @@ WaveStream::WaveStream(const TagLib::String& path) : Stream(path) {
     }
 }
 
+/**
+ * @brief Destroys the WaveStream object.
+ *
+ * Ensures that the file handle is properly closed if it was opened.
+ */
 WaveStream::~WaveStream() {
     if (m_file.is_open()) {
         m_file.close();
     }
 }
 
+/**
+ * @brief Parses the RIFF/WAVE file headers.
+ *
+ * This method reads through the file's chunks to find the 'fmt ' and 'data' chunks, extracting essential metadata and validating the audio format.
+ * @throws WrongFormatException if the file is not a valid RIFF/WAVE file.
+ * @throws BadFormatException if the WAVE format is unsupported or the file is malformed.
+ */
 void WaveStream::parseHeaders() {
     if (read_le<uint32_t>(m_file) != RIFF_ID) throw WrongFormatException("Not a RIFF file.");
     read_le<uint32_t>(m_file); // Overall file size, unused.
@@ -176,6 +197,17 @@ void WaveStream::parseHeaders() {
     throw BadFormatException("WAVE file is missing 'data' chunk.");
 }
 
+/**
+ * @brief Reads decoded audio data from the WAVE stream.
+ *
+ * This method reads the raw sample data from the file's 'data' chunk. It performs
+ * on-the-fly conversion from the source format (e.g., 8-bit, 24-bit, 32-bit float,
+ * A-law, mu-law) into the standard 16-bit signed PCM format required by the
+ * application's audio pipeline.
+ * @param len The number of bytes requested for the output buffer.
+ * @param buf A pointer to the buffer where the 16-bit PCM data should be stored.
+ * @return The total number of bytes actually written into the buffer.
+ */
 size_t WaveStream::getData(size_t len, void *buf) {
     if (eof()) return 0;
 
@@ -248,6 +280,13 @@ size_t WaveStream::getData(size_t len, void *buf) {
     return bytes_written;
 }
 
+/**
+ * @brief Seeks to a specific time within the WAVE stream.
+ *
+ * Calculates the byte offset corresponding to the given time in milliseconds and
+ * repositions the file stream's read pointer.
+ * @param pos The target position to seek to, in milliseconds.
+ */
 void WaveStream::seekTo(unsigned long pos) {
     unsigned long long sample_pos = (static_cast<unsigned long long>(pos) * m_rate) / 1000;
     unsigned long long byte_pos = sample_pos * m_channels * m_bytes_per_sample;
@@ -263,6 +302,10 @@ void WaveStream::seekTo(unsigned long pos) {
     m_position = pos;
 }
 
+/**
+ * @brief Checks if the end of the audio data chunk has been reached.
+ * @return `true` if all data from the 'data' chunk has been read, `false` otherwise.
+ */
 bool WaveStream::eof() {
     return m_bytes_read_from_data >= m_data_chunk_size;
 }
