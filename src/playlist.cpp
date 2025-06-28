@@ -24,11 +24,24 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Destroys the Playlist object.
+ *
+ * The default destructor is sufficient as the std::vector of tracks will handle its own cleanup.
+ */
 Playlist::~Playlist()
 {
     //dtor
 }
 
+/**
+ * @brief Adds a single media file to the end of the playlist.
+ *
+ * This method creates a `track` object from the given file path, which triggers
+ * TagLib to read its metadata.
+ * @param path The full file path of the media file to add.
+ * @return `true` if the file was added successfully, `false` otherwise.
+ */
 bool Playlist::addFile(TagLib::String path)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -42,6 +55,17 @@ bool Playlist::addFile(TagLib::String path)
     }
 }
 
+/**
+ * @brief Adds a media file to the playlist using pre-parsed metadata.
+ *
+ * This version is used when loading playlists (like M3U) that already contain
+ * metadata, avoiding the need to re-read every file's tags.
+ * @param path The full file path of the media file.
+ * @param artist The artist name from the playlist metadata.
+ * @param title The track title from the playlist metadata.
+ * @param duration The track duration in seconds from the playlist metadata.
+ * @return `true` if the file was added successfully.
+ */
 bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::String title, long duration)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -54,19 +78,33 @@ bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::Strin
 
 
 
-
+/**
+ * @brief Gets the current playback position (index) in the playlist.
+ * @return The zero-based index of the currently playing or selected track.
+ */
 long Playlist::getPosition(void)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_position;
 }
 
+/**
+ * @brief Gets the total number of tracks in the playlist.
+ * @return The total number of entries.
+ */
 long Playlist::entries(void)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return tracks.size();
 }
 
+/**
+ * @brief Sets the current playback position to a specific index.
+ *
+ * This method does not trigger playback, it only updates the internal cursor.
+ * @param position The new zero-based index to set.
+ * @return `true` if the position was valid and set successfully, `false` otherwise.
+ */
 bool Playlist::setPosition(long position)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -78,6 +116,11 @@ bool Playlist::setPosition(long position)
     }
 }
 
+/**
+ * @brief Sets the playback position and returns the file path at that new position.
+ * @param position The new zero-based index to jump to.
+ * @return The file path of the track at the new position, or an empty string if invalid.
+ */
 TagLib::String Playlist::setPositionAndJump(long position)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -85,6 +128,11 @@ TagLib::String Playlist::setPositionAndJump(long position)
     return getTrack(position);
 }
 
+/**
+ * @brief Gets the file path of the track at a specific index.
+ * @param position The zero-based index of the desired track.
+ * @return The file path of the track, or an empty string if the index is out of bounds.
+ */
 TagLib::String Playlist::getTrack(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -95,6 +143,12 @@ TagLib::String Playlist::getTrack(long position) const
     }
 }
 
+/**
+ * @brief Advances the playback position to the next track.
+ *
+ * If the end of the playlist is reached, it wraps around to the beginning.
+ * @return The file path of the next track.
+ */
 TagLib::String Playlist::next()
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -106,6 +160,12 @@ TagLib::String Playlist::next()
     return getTrack(m_position);
 }
 
+/**
+ * @brief Moves the playback position to the previous track.
+ *
+ * If the beginning of the playlist is reached, it wraps around to the end.
+ * @return The file path of the previous track.
+ */
 TagLib::String Playlist::prev()
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -118,6 +178,12 @@ TagLib::String Playlist::prev()
     return getTrack(m_position);
 }
 
+/**
+ * @brief Gets the file path of the next track without advancing the playback position.
+ *
+ * This is useful for pre-loading. It wraps around if the current track is the last one.
+ * @return The file path of the next track in the sequence.
+ */
 TagLib::String Playlist::peekNext() const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -133,6 +199,13 @@ TagLib::String Playlist::peekNext() const
     return getTrack(next_pos);
 }
 
+/**
+ * @brief Gets a pointer to the full track object at a specific index.
+ *
+ * This provides access to all metadata (artist, title, length, etc.).
+ * @param position The zero-based index of the desired track.
+ * @return A const pointer to the `track` object, or `nullptr` if the index is out of bounds.
+ */
 const track* Playlist::getTrackInfo(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
@@ -185,6 +258,15 @@ static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String
     }
     return TagLib::String(base_str, TagLib::String::UTF8) + relative;
 }
+
+/**
+ * @brief Loads a playlist from a file (M3U or M3U8 format).
+ *
+ * This static factory method parses the specified file, resolving relative paths
+ * and reading EXTINF metadata.
+ * @param path The file path of the playlist to load.
+ * @return A `std::unique_ptr<Playlist>` containing the loaded tracks. Returns a pointer to an empty playlist on failure.
+ */
 std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
 {
     auto playlist = std::make_unique<Playlist>();
@@ -262,6 +344,12 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
     return playlist;
 }
 
+/**
+ * @brief Saves the current playlist to a file in extended M3U format.
+ *
+ * The saved file will include #EXTINF metadata for each track.
+ * @param path The destination file path for the new playlist file.
+ */
 void Playlist::savePlaylist(TagLib::String path)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
