@@ -27,6 +27,12 @@
 // Define I for float complex
 static const std::complex<float> I_f(0.0f, 1.0f);
 
+/**
+ * @brief Constructs an FFT object for a given size.
+ * @param size The number of samples for the FFT, which must be a power of two.
+ * This constructor initializes internal buffers and precomputes the "twiddle factors"
+ * (complex roots of unity) used by the various FFT algorithms to improve performance.
+ */
 FFT::FFT(int size) : real(size), imag(size), size(size), m_current_fft_mode(FFTMode::Original)
 {
     precompute_twiddle_factors();
@@ -35,14 +41,26 @@ FFT::FFT(int size) : real(size), imag(size), size(size), m_current_fft_mode(FFTM
     m_complex_output_buffer.resize(size);
 }
 
+/**
+ * @brief Sets the active FFT implementation.
+ * @param mode The FFTMode to use for subsequent calls to fft().
+ */
 void FFT::setFFTMode(FFTMode mode) {
     m_current_fft_mode = mode;
 }
 
+/**
+ * @brief Gets the currently active FFT implementation mode.
+ * @return The current FFTMode enum value.
+ */
 FFTMode FFT::getFFTMode() const {
     return m_current_fft_mode;
 }
 
+/**
+ * @brief Gets the human-readable name of the current FFT mode.
+ * @return A std::string representing the current mode (e.g., "mat-og", "vibe-1").
+ */
 std::string FFT::getFFTModeName() const {
     switch (m_current_fft_mode) {
         case FFTMode::Original: return "mat-og";
@@ -53,6 +71,12 @@ std::string FFT::getFFTModeName() const {
     }
 }
 
+/**
+ * @brief Precomputes sine and cosine "twiddle factors" for the optimized FFT implementation.
+ * 
+ * This is done once at initialization to avoid repeated, expensive sin/cos
+ * calculations during the FFT process itself.
+ */
 void FFT::precompute_twiddle_factors() {
     m_twiddle_cos.resize(size / 2);
     m_twiddle_sin.resize(size / 2);
@@ -63,6 +87,12 @@ void FFT::precompute_twiddle_factors() {
     }
 }
 
+/**
+ * @brief Precomputes complex "twiddle factors" for the Neomat FFT implementations.
+ * 
+ * This stores the complex roots of unity in a format optimized for the Neomat
+ * algorithms, improving performance by avoiding recalculations.
+ */
 void FFT::neomat_fft_init_twiddle_factors() {
     // The neomat twiddle factor array has n-1 elements.
     // The largest index used is (n/2 - 1) + (n/2 - 1) = n - 2.
@@ -80,7 +110,14 @@ void FFT::neomat_fft_init_twiddle_factors() {
     }
 }
 
-// Renamed original FFT implementation
+/**
+ * @brief The original, unoptimized FFT implementation (mat-og).
+ * 
+ * This version serves as a baseline and reference. It is functionally correct
+ * but less performant than the other implementations.
+ * @param output A pointer to the float array to store the resulting frequency magnitudes.
+ * @param input A pointer to the float array of time-domain input samples.
+ */
 void FFT::original_fft_impl(float *output, const float *input) { 
 	int nu = (int) (logf(size) / logf(2.0f)); // Number of bits of item indexes
 	int n2 = size / 2;
@@ -130,7 +167,15 @@ void FFT::original_fft_impl(float *output, const float *input) {
 	}
 }
 
-// New, optimized FFT implementation (Radix-2 DIT with precomputed twiddle factors)
+/**
+ * @brief An optimized Radix-2 Decimation-in-Time (DIT) FFT implementation (vibe-1).
+ * 
+ * This version improves performance by using precomputed twiddle factors and a
+ * more efficient butterfly calculation structure. It first reorders the input
+ * using bit-reversal and then iteratively builds the result.
+ * @param output A pointer to the float array to store the resulting frequency magnitudes.
+ * @param input A pointer to the float array of time-domain input samples.
+ */
 void FFT::optimized_fft_impl(float *output, const float *input) { // vibe-1
     int nu = (int) (logf(size) / logf(2.0f)); // Number of bits for bitreverse
 
@@ -168,7 +213,14 @@ void FFT::optimized_fft_impl(float *output, const float *input) { // vibe-1
     }
 }
 
-// Neomat In-Place FFT implementation
+/**
+ * @brief An in-place Cooley-Tukey FFT implementation (neomat-in).
+ * 
+ * This version operates directly on a single complex buffer, which can be more
+ * memory-efficient. It uses precomputed complex twiddle factors for performance.
+ * @param output A pointer to the float array to store the resulting frequency magnitudes.
+ * @param input A pointer to the float array of time-domain input samples.
+ */
 void FFT::neomat_in_place_fft_impl(float *output, const float *input) { // neomat-in
     int nu = (int) (logf(size) / logf(2.0f));
 
@@ -195,7 +247,14 @@ void FFT::neomat_in_place_fft_impl(float *output, const float *input) { // neoma
     }
 }
 
-// Neomat Out-of-Place FFT implementation
+/**
+ * @brief An out-of-place Cooley-Tukey FFT implementation (neomat-out).
+ * 
+ * This version uses separate input and output buffers, which can sometimes simplify
+ * the algorithm and data flow at the cost of higher memory usage.
+ * @param output A pointer to the float array to store the resulting frequency magnitudes.
+ * @param input A pointer to the float array of time-domain input samples.
+ */
 void FFT::neomat_out_of_place_fft_impl(float *output, const float *input) { // neomat-out
     int nu = (int) (logf(size) / logf(2.0f));
 
@@ -222,6 +281,15 @@ void FFT::neomat_out_of_place_fft_impl(float *output, const float *input) { // n
     }
 }
 
+/**
+ * @brief Performs bit-reversal on an integer index.
+ * 
+ * This is a crucial helper function for FFT algorithms that reorder the input
+ * or output data to achieve computational efficiency.
+ * @param in The integer index to reverse.
+ * @param bits The number of bits in the index (log2 of the FFT size).
+ * @return The bit-reversed integer.
+ */
 unsigned int FFT::bitreverse(unsigned int in, int bits) {
 	unsigned int out = 0;
 	while (bits--) {
@@ -232,7 +300,14 @@ unsigned int FFT::bitreverse(unsigned int in, int bits) {
 }
 
 
-// Public dispatcher method
+/**
+ * @brief Performs the FFT using the currently selected algorithm.
+ * 
+ * This public method acts as a dispatcher, calling the appropriate private
+ * implementation based on the mode set by setFFTMode().
+ * @param output A pointer to the float array where the frequency magnitudes will be stored.
+ * @param input A pointer to the float array of time-domain input samples.
+ */
 void FFT::fft(float *output, const float *input) {
     switch (m_current_fft_mode) {
         case FFTMode::Original:
