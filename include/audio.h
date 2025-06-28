@@ -32,6 +32,7 @@ public:
     void play(bool go);
     void lock(void);
     void unlock(void);
+    void setStream(Stream* new_stream);
 
     int getRate() const { return m_rate; }
     int getChannels() const { return m_channels; }
@@ -46,6 +47,8 @@ private:
     std::thread m_decoder_thread;
     std::vector<int16_t> m_buffer;
     std::mutex m_buffer_mutex;
+    std::mutex m_stream_mutex;
+    std::condition_variable m_stream_cv;
     std::condition_variable m_buffer_cv;
     std::atomic<bool> m_active;
 

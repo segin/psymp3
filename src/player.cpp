@@ -982,25 +982,27 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             m_loading_track = false; // Loading complete
 
             // If an audio device exists, we need to handle the transition carefully
-            // to avoid race conditions with the audio decoder thread.
-            if (audio) {
-                // Always destroy the old audio object before we change the stream.
-                // This is crucial to stop its decoder thread, which is using the old stream object.
-                // Failing to do this causes a race condition and the "pure virtual method called" crash.
+            bool recreate_audio = (!audio || (new_stream && (audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels())));
+
+            if (recreate_audio) {
+                // The format changed, so we must destroy and recreate the audio device.
                 audio.reset();
             }
 
             // Now it's safe to update the stream pointer, which destroys the old stream.
             {
                 std::lock_guard<std::mutex> lock(*mutex);
-                stream.reset(new_stream);
-                ATdata.stream = stream.get();
+                stream.reset(new_stream); // This takes ownership and destroys the old stream
+                ATdata.stream = stream.get(); // Update the pointer for the audio thread data
             }
 
             if (stream) {
-                // If audio was destroyed or never existed, create it now.
-                if (!audio) {
+                if (recreate_audio) {
+                    // Create a new audio device for the new format.
                     audio = std::make_unique<Audio>(&ATdata);
+                } else {
+                    // Format is the same, just set the new stream on the existing audio device.
+                    audio->setStream(stream.get());
                 }
 
                 updateInfo();
@@ -1058,8 +1060,11 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 // Track ended. Check for a preloaded stream.
                 if (m_next_stream) {
                     // Seamless swap logic
-                    bool recreate_audio = (!audio || audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels());
-                    if (recreate_audio) audio.reset();
+                    bool recreate_audio = (!audio || (m_next_stream && (audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels())));
+
+                    if (recreate_audio) {
+                        audio.reset();
+                    }
 
                     {
                         std::lock_guard<std::mutex> lock(*mutex);
@@ -1067,6 +1072,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                         for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
                             playlist->next();
                         }
+                        // The old stream is destroyed when the unique_ptr is reset.
                         stream = std::move(m_next_stream);
                         m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
                         m_num_tracks_in_next_stream = 0;
@@ -1074,7 +1080,11 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                     }
 
                     if (!audio) {
+                        // Create new audio device if it was reset.
                         audio = std::make_unique<Audio>(&ATdata);
+                    } else {
+                        // Otherwise, just set the new stream.
+                        audio->setStream(stream.get());
                     }
                     updateInfo();
                     play();
@@ -1175,6 +1185,8 @@ void Player::Run(std::vector<std::string> args) {
     fft = std::make_unique<FastFourier>();
     mutex = std::make_unique<std::mutex>();
 
+    // Set up the shared data struct for the audio thread.
+    // The stream pointer will be null initially.
     ATdata.fft = fft.get();
     ATdata.stream = stream.get();
     ATdata.mutex = mutex.get();

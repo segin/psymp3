@@ -37,6 +37,9 @@ Audio::Audio(struct atdata *data)
       m_active(true),
       m_playing(false)
 {
+    if (!m_stream) {
+        throw std::invalid_argument("Audio constructor called with a null stream.");
+    }
     std::cout << "Audio::Audio(): " << std::dec << m_stream->getRate() << "Hz, channels: " << std::dec << m_stream->getChannels() << std::endl;
     m_buffer.reserve(16384); // Reserve space for the buffer to avoid reallocations
     setup();
@@ -92,6 +95,21 @@ void Audio::play(bool go) {
 }
 
 /**
+ * @brief Sets a new stream for the decoder thread to process.
+ * This method is thread-safe and is used to seamlessly switch tracks.
+ * @param new_stream A pointer to the new Stream object.
+ */
+void Audio::setStream(Stream* new_stream)
+{
+    {
+        std::lock_guard<std::mutex> lock(m_stream_mutex);
+        m_stream = new_stream;
+    }
+    // Notify the decoder thread that a new stream is available.
+    m_stream_cv.notify_one();
+}
+
+/**
  * @brief Locks the audio device using the SDL_LockAudio function.
  * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
  */
@@ -124,40 +142,50 @@ void Audio::decoderThreadLoop() {
     // the maximum amount of decoded audio to keep in the buffer.
     constexpr size_t BUFFER_HIGH_WATER_MARK = 48000 * 2; // 1 sec of 48kHz stereo
 
-    while (m_active) {
+    while (m_active)
+    {
+        // Wait until there is a valid stream to process.
         {
-            std::unique_lock<std::mutex> lock(m_buffer_mutex);
-            m_buffer_cv.wait(lock, [this] {
-                // Wait if the buffer is full, but not if we're shutting down
-                return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active;
+            std::unique_lock<std::mutex> lock(m_stream_mutex);
+            m_stream_cv.wait(lock, [this] {
+                return m_stream != nullptr || !m_active;
             });
         }
 
         if (!m_active) break;
 
-        size_t bytes_read = 0;
-        bool eof = false;
-        {
-            // Lock the player mutex to safely access the stream object
-            std::lock_guard<std::mutex> lock(*m_player_mutex);
-            if (m_stream) {
-                bytes_read = m_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
-                eof = m_stream->eof();
+        // Inner loop: Decode from the current stream until it ends.
+        while (m_stream && m_active) {
+            {
+                std::unique_lock<std::mutex> lock(m_buffer_mutex);
+                m_buffer_cv.wait(lock, [this] {
+                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active;
+                });
             }
-        }
 
-        if (bytes_read > 0) {
-            std::lock_guard<std::mutex> lock(m_buffer_mutex);
-            size_t samples_read = bytes_read / sizeof(int16_t);
-            m_buffer.insert(m_buffer.end(), decode_chunk.begin(), decode_chunk.begin() + samples_read);
-        }
+            if (!m_active) break;
 
-        m_buffer_cv.notify_one(); // Notify callback that data is available
+            size_t bytes_read = 0;
+            bool eof = false;
+            {
+                std::lock_guard<std::mutex> lock(*m_player_mutex);
+                if (m_stream) {
+                    bytes_read = m_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
+                    eof = m_stream->eof();
+                }
+            }
 
-        if (eof) {
-            // The stream is finished, so the decoder's job is done for this track.
-            // The thread will exit, and a new Audio object will be created for the next track.
-            break;
+            if (bytes_read > 0) {
+                std::lock_guard<std::mutex> lock(m_buffer_mutex);
+                size_t samples_read = bytes_read / sizeof(int16_t);
+                m_buffer.insert(m_buffer.end(), decode_chunk.begin(), decode_chunk.begin() + samples_read);
+            }
+            m_buffer_cv.notify_one();
+
+            if (eof) {
+                std::lock_guard<std::mutex> lock(m_stream_mutex);
+                m_stream = nullptr; // Signal that this stream is done.
+            }
         }
     }
 }
