@@ -107,12 +107,8 @@ void Player::requestTrackLoad(TagLib::String path) {
         return; // Or queue it, depending on desired behavior
     }
     m_loading_track = true;
-    // Clear current track info immediately to show "loading" state
-    m_artist_label->setText("Artist: Loading...");
-    m_title_label->setText("Title: Loading...");
-    m_album_label->setText("Album: Loading...");
-    m_position_label->setText("Position: --:--.-- / --:--.--");
-    screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ]:-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
+    // Update UI to show "loading" state
+    updateInfo(true);
     
     // Push request to queue and notify loader thread
     {
@@ -313,8 +309,41 @@ void Player::renderSpectrum(Surface *graph) {
     };
 }
 
-void Player::updateInfo(void) {
-} 
+void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
+{
+    if (is_loading) {
+        m_artist_label->setText("Artist: Loading...");
+        m_title_label->setText("Title: Loading...");
+        m_album_label->setText("Album: Loading...");
+        m_position_label->setText("Position: --:--.-- / --:--.--");
+        screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ]:-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
+    } else if (!error_msg.isEmpty()) {
+        m_artist_label->setText("Artist: N/A");
+        m_title_label->setText("Title: Error: " + error_msg);
+        m_album_label->setText("Album: N/A");
+        m_playlist_label->setText("Playlist: N/A");
+        m_position_label->setText("Position: --:--.-- / --:--.--");
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+    } else if (stream) {
+        m_artist_label->setText("Artist: " + stream->getArtist());
+        m_title_label->setText("Title: " + stream->getTitle());
+        m_album_label->setText("Album: " + stream->getAlbum());
+        m_playlist_label->setText("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
+    } else {
+        // Default empty state
+        m_artist_label->setText("Artist: ");
+        m_title_label->setText("Title: ");
+        m_album_label->setText("Album: ");
+        m_playlist_label->setText("Playlist: 0/0");
+        m_position_label->setText("Position: --:--.-- / --:--.--");
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
+    }
+
+    // These are always updated based on player settings, not track info
+    m_scale_label->setText("log scale = " + std::to_string(scalefactor));
+    m_decay_label->setText("decay = " + std::to_string(decayfactor));
+    m_fft_mode_label->setText("FFT Mode: " + fft->getFFTModeName());
+}
 
 bool Player::updateGUI()
 {
@@ -431,15 +460,30 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             prevTrack();
             break;
 
-        case SDLK_0: scalefactor = 0; m_scale_label->setText("log scale = " + std::to_string(scalefactor)); break;
-        case SDLK_1: scalefactor = 1; m_scale_label->setText("log scale = " + std::to_string(scalefactor)); break;
-        case SDLK_2: scalefactor = 2; m_scale_label->setText("log scale = " + std::to_string(scalefactor)); break;
-        case SDLK_3: scalefactor = 3; m_scale_label->setText("log scale = " + std::to_string(scalefactor)); break;
-        case SDLK_4: scalefactor = 4; m_scale_label->setText("log scale = " + std::to_string(scalefactor)); break;
+        case SDLK_0:
+            scalefactor = 0;
+            updateInfo();
+            break;
+        case SDLK_1:
+            scalefactor = 1;
+            updateInfo();
+            break;
+        case SDLK_2:
+            scalefactor = 2;
+            updateInfo();
+            break;
+        case SDLK_3:
+            scalefactor = 3;
+            updateInfo();
+            break;
+        case SDLK_4:
+            scalefactor = 4;
+            updateInfo();
+            break;
 
-        case SDLK_z: decayfactor = 0.5f; m_decay_label->setText("decay = " + std::to_string(decayfactor)); break;
-        case SDLK_x: decayfactor = 1.0f; m_decay_label->setText("decay = " + std::to_string(decayfactor)); break;
-        case SDLK_c: decayfactor = 2.0f; m_decay_label->setText("decay = " + std::to_string(decayfactor)); break;
+        case SDLK_z: decayfactor = 0.5f; updateInfo(); break;
+        case SDLK_x: decayfactor = 1.0f; updateInfo(); break;
+        case SDLK_c: decayfactor = 2.0f; updateInfo(); break;
 
         case SDLK_LEFT:
             m_seek_direction = 1;
@@ -470,7 +514,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 default:                 next_mode = FFTMode::Original;  break; // Should not happen
             }
             fft->setFFTMode(next_mode);
-            m_fft_mode_label->setText("FFT Mode: " + fft->getFFTModeName());
+            updateInfo();
             break;
         }
 
@@ -589,25 +633,13 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                     audio = std::make_unique<Audio>(&ATdata);
                 }
 
-                // Render text surfaces and store them in the map.
-                m_artist_label->setText("Artist: " + stream->getArtist());
-                m_title_label->setText("Title: " + stream->getTitle());
-                m_album_label->setText("Album: " + stream->getAlbum());
-                m_playlist_label->setText("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
-                m_scale_label->setText("log scale = " + std::to_string(scalefactor));
-                m_decay_label->setText("decay = " + std::to_string(decayfactor));
-                m_fft_mode_label->setText("FFT Mode: " + fft->getFFTModeName());
+                updateInfo();
                 play();
             } else {
                 // If the new stream is null, audio would have been reset above.
                 // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
                 state = PlayerState::Stopped;
-                screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error loading track ]:-", "PsyMP3 " PSYMP3_VERSION);
-                m_artist_label->setText("Artist: N/A");
-                m_title_label->setText("Title: Error loading track");
-                m_album_label->setText("Album: N/A");
-                m_playlist_label->setText("Playlist: N/A");
-                m_position_label->setText("Position: --:--.-- / --:--.--");
+                updateInfo(false, "Error loading track");
             }
             break;
         }
@@ -622,12 +654,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             std::cerr << "Failed to load track: " << error_msg << std::endl;
             // Handle error: stop playback, display error message
             stop(); // Stop current playback
-            screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
-            m_artist_label->setText("Artist: N/A");
-            m_title_label->setText("Title: Error: " + error_msg);
-            m_album_label->setText("Album: N/A");
-            m_playlist_label->setText("Playlist: N/A");
-            m_position_label->setText("Position: --:--.-- / --:--.--");
+            updateInfo(false, error_msg);
             break;
         }
         case RUN_GUI_ITERATION:
@@ -722,15 +749,7 @@ void Player::Run(std::vector<std::string> args) {
     } else {
         // No files, start with stopped state and an empty screen.
         state = PlayerState::Stopped;
-        m_artist_label->setText("Artist: ");
-        m_title_label->setText("Title: ");
-        m_album_label->setText("Album: ");
-        m_playlist_label->setText("Playlist: 0/0");
-        m_position_label->setText("Position: --:--.-- / --:--.--");
-        m_scale_label->setText("log scale = " + std::to_string(scalefactor));
-        m_decay_label->setText("decay = " + std::to_string(decayfactor));
-        m_fft_mode_label->setText("FFT Mode: " + fft->getFFTModeName());
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
+        updateInfo();
         // Force one GUI update to show the initial empty state
         synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     }

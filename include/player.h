@@ -76,7 +76,7 @@ class Player
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
         bool handleUserEvent(const SDL_UserEvent& event);
         void handleKeyUp(const SDL_keysym& keysym);
-        void updateInfo(void);
+        void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
 
         uint8_t m_seek_direction = 0;
         std::unique_ptr<Display> screen;
