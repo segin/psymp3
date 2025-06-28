@@ -24,12 +24,31 @@
 #ifndef URI_H
 #define URI_H
 
+/**
+ * @brief A simple class for parsing and handling Uniform Resource Identifiers (URIs).
+ *
+ * This class takes a string and splits it into a scheme (e.g., "file", "http")
+ * and a path. It is designed to handle common file URI variations and defaults
+ * to the "file" scheme for plain local paths.
+ */
 class URI
 {
 public:
+    /**
+     * @brief Constructs a URI object by parsing a URI string.
+     * @param uri_string The full URI string to parse.
+     */
     explicit URI(const TagLib::String& uri_string);
 
+    /**
+     * @brief Gets the scheme component of the URI.
+     * @return A TagLib::String containing the scheme (e.g., "file").
+     */
     TagLib::String scheme() const;
+    /**
+     * @brief Gets the path component of the URI.
+     * @return A TagLib::String containing the path.
+     */
     TagLib::String path() const;
 
 private:

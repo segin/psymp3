@@ -23,6 +23,12 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Constructs a URI object by parsing a URI string.
+ *
+ * The parser handles common `file:` scheme variations (`file:///` and `file:/`) as well as generic `scheme://` formats. If no scheme is detected, it defaults to "file".
+ * @param uri_string The full URI string to parse.
+ */
 URI::URI(const TagLib::String& uri_string)
 {
     std::string s = uri_string.to8Bit(true);
@@ -50,11 +56,19 @@ URI::URI(const TagLib::String& uri_string)
     }
 }
 
+/**
+ * @brief Gets the scheme component of the URI.
+ * @return A TagLib::String containing the scheme (e.g., "file").
+ */
 TagLib::String URI::scheme() const
 {
     return m_scheme;
 }
 
+/**
+ * @brief Gets the path component of the URI.
+ * @return A TagLib::String containing the path.
+ */
 TagLib::String URI::path() const
 {
     return m_path;
