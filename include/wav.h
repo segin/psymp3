@@ -40,6 +40,7 @@ private:
 
     std::ifstream m_file;
     uint16_t m_bits_per_sample = 0;
+    bool m_is_float = false;
     uint16_t m_bytes_per_sample = 0;
     uint32_t m_data_chunk_offset = 0;
     uint32_t m_data_chunk_size = 0;

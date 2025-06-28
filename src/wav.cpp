@@ -85,16 +85,21 @@ void WaveStream::parseHeaders() {
             if (format_tag == WAVE_FORMAT_MPEGLAYER3) {
                 throw BadFormatException("MP3 in WAVE container is not yet supported.");
             }
-            if (format_tag != WAVE_FORMAT_PCM) {
-                throw BadFormatException("Unsupported WAVE format: not LPCM.");
+            if (format_tag != WAVE_FORMAT_PCM && format_tag != WAVE_FORMAT_IEEE_FLOAT) {
+                throw BadFormatException("Unsupported WAVE format: not LPCM or IEEE Float.");
             }
 
             m_channels = read_le<uint16_t>(m_file);
             m_rate = read_le<uint32_t>(m_file);
             m_file.seekg(6, std::ios_base::cur); // Skip ByteRate and BlockAlign
             m_bits_per_sample = read_le<uint16_t>(m_file);
+            m_is_float = (format_tag == WAVE_FORMAT_IEEE_FLOAT);
 
-            if (m_bits_per_sample != 8 && m_bits_per_sample != 16 && m_bits_per_sample != 24) {
+            if (m_is_float) {
+                if (m_bits_per_sample != 32) {
+                    throw BadFormatException("Unsupported WAVE format: only 32-bit IEEE Float is supported.");
+                }
+            } else if (m_bits_per_sample != 8 && m_bits_per_sample != 16 && m_bits_per_sample != 24) {
                 throw BadFormatException("Unsupported WAVE format: only 8, 16, or 24-bit LPCM is supported.");
             }
             m_bytes_per_sample = m_bits_per_sample / 8;
@@ -163,6 +168,13 @@ size_t WaveStream::getData(size_t len, void *buf) {
             int32_t s24_sample = (static_cast<int8_t>(in_ptr[2]) << 16) | (static_cast<uint8_t>(in_ptr[1]) << 8) | static_cast<uint8_t>(in_ptr[0]);
             in_ptr += 3;
             *out_ptr++ = static_cast<int16_t>(s24_sample >> 8);
+        }
+    } else if (m_is_float && m_bits_per_sample == 32) {
+        // 32-bit float is [-1.0, 1.0]. Convert to 16-bit signed.
+        const float* float_in_ptr = reinterpret_cast<const float*>(source_buffer.data());
+        for (size_t i = 0; i < samples_to_convert; ++i) {
+            float sample = std::clamp(*float_in_ptr++, -1.0f, 1.0f);
+            *out_ptr++ = static_cast<int16_t>(sample * 32767.0f);
         }
     }
 
