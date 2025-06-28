@@ -541,6 +541,12 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             prevTrack();
             break;
 
+        case SDLK_s:
+            if (keysym.mod & (KMOD_LCTRL | KMOD_RCTRL)) {
+                synthesizeUserEvent(DO_SAVE_PLAYLIST, nullptr, nullptr);
+            }
+            break;
+
         case SDLK_0:
             scalefactor = 0;
             updateInfo();
@@ -791,6 +797,16 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                     // No preloaded track, use the old method.
                     return !nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
                 }
+            }
+            break;
+        }
+        case DO_SAVE_PLAYLIST:
+        {
+            if (playlist) {
+                TagLib::String save_path = System::getStoragePath() + "/playlist.m3u";
+                playlist->savePlaylist(save_path);
+                // For now, just log to console. A proper status message system would be better.
+                std::cout << "Playlist saved to " << save_path.to8Bit(true) << std::endl;
             }
             break;
         }

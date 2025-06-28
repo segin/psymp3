@@ -236,5 +236,25 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
 
 void Playlist::savePlaylist(TagLib::String path)
 {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    std::ofstream file(path.toCString(true));
+    if (!file.is_open()) {
+        std::cerr << "Playlist::savePlaylist(): Unable to open " << path.to8Bit(true) << " for writing!" << std::endl;
+        return;
+    }
 
+    file << "#EXTM3U\n";
+
+    for (const auto& track : tracks) {
+        long duration = track.GetLen();
+        std::string artist = track.GetArtist().to8Bit(true);
+        std::string title = track.GetTitle().to8Bit(true);
+        std::string track_path = track.GetFilePath().to8Bit(true);
+
+        file << "#EXTINF:" << duration << "," << artist << " - " << title << "\n";
+        file << track_path << "\n";
+    }
+
+    file.close();
+    std::cout << "Playlist saved to " << path.to8Bit(true) << std::endl;
 }

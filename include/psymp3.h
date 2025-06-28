@@ -43,7 +43,8 @@ enum {
     START_FIRST_TRACK,   // Sent from playlist populator to main thread
     TRACK_PRELOAD_SUCCESS, // Sent from loader thread for a preloaded track
     TRACK_PRELOAD_FAILURE, // Sent from loader thread for a failed preload
-    DO_SEAMLESS_SWAP     // Event to perform the actual track swap
+    DO_SEAMLESS_SWAP,    // Event to perform the actual track swap
+    DO_SAVE_PLAYLIST
 };
 
 enum class PlayerState {
