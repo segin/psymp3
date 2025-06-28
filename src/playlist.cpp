@@ -142,20 +142,49 @@ const track* Playlist::getTrackInfo(long position) const
     return nullptr;
 }
 
+/**
+ * @brief Checks if a given path is absolute.
+ * @param path The path to check.
+ * @return True if the path is absolute, false otherwise.
+ */
+static bool isAbsolutePath(const TagLib::String& path) {
+    std::string p = path.to8Bit(true);
+    if (p.empty()) {
+        return false;
+    }
+#ifdef _WIN32
+    // e.g., "C:\..." or "C:/"
+    if (p.length() >= 3 && isalpha(p[0]) && p[1] == ':' && (p[2] == '\\' || p[2] == '/')) {
+        return true;
+    }
+    // e.g., "\\server\share" or "//server/share" (UNC)
+    if (p.length() >= 2 && (p[0] == '\\' || p[0] == '/') && (p[1] == '\\' || p[1] == '/')) {
+        return true;
+    }
+#endif
+    // e.g., "/path/to/file" on Unix, or "\path\to\file" on Windows (absolute to current drive root)
+    if (p[0] == '/' || p[0] == '\\') {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief Joins a base directory path and a relative path.
+ * @param base The base directory path.
+ * @param relative The relative path to append.
+ * @return The combined path.
+ */
 static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String& relative) {
     if (base.isEmpty()) return relative;
     if (relative.isEmpty()) return base;
 
-    TagLib::String result = base;
-    // Check if base already ends with a separator or relative starts with one
-    if (result.to8Bit(true).back() != '/' && result.to8Bit(true).back() != '\\' &&
-        relative.to8Bit(true).front() != '/' && relative.to8Bit(true).front() != '\\') {
-        result += "/"; // Default to Unix-style separator for joining
+    std::string base_str = base.to8Bit(true);
+    if (base_str.back() != '/' && base_str.back() != '\\') {
+        base_str += '/'; // Use forward slash as a universal separator
     }
-    result += relative;
-    return result;
+    return TagLib::String(base_str, TagLib::String::UTF8) + relative;
 }
-
 std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
 {
     auto playlist = std::make_unique<Playlist>();
@@ -216,8 +245,7 @@ std::unique_ptr<Playlist> Playlist::loadPlaylist(TagLib::String path)
             TagLib::String track_path(line, TagLib::String::UTF8);
             TagLib::String final_track_path;
 
-            // Check if track_path is absolute (simple check for leading / or drive letter)
-            if (track_path.to8Bit(true).length() > 0 && (track_path.to8Bit(true)[0] == '/' || (track_path.to8Bit(true).length() > 1 && track_path.to8Bit(true)[1] == ':'))) {
+            if (isAbsolutePath(track_path)) {
                 final_track_path = track_path;
             } else {
                 final_track_path = joinPaths(playlist_dir, track_path);
