@@ -36,3 +36,4 @@ psymp3_SOURCES = \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
  ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
  vorbis.cpp wav.cpp Widget.cpp persistentstorage.cpp FileIOHandler.cpp
+
