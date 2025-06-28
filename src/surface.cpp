@@ -259,6 +259,40 @@ void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uin
     vline(x, y1, y2, MapRGBA(r, g, b, a));
 }
 
+void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    if (!m_handle) return;
+    uint32_t color = MapRGBA(r, g, b, a);
+
+    // Bresenham's line algorithm
+    int dx = abs(x2 - x1);
+    int dy = abs(y2 - y1);
+    int sx = (x1 < x2) ? 1 : -1;
+    int sy = (y1 < y2) ? 1 : -1;
+    int err = dx - dy;
+
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+
+    while (true) {
+        if (x1 >= 0 && x1 < m_handle->w && y1 >= 0 && y1 < m_handle->h) {
+            put_pixel_unlocked(x1, y1, color);
+        }
+
+        if (x1 == x2 && y1 == y2) break;
+        int e2 = 2 * err;
+        if (e2 > -dy) {
+            err -= dy;
+            x1 += sx;
+        }
+        if (e2 < dx) {
+            err += dx;
+            y1 += sy;
+        }
+    }
+
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+}
+
 void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle) return;
