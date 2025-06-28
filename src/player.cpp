@@ -531,6 +531,18 @@ void Player::handleMouseButtonUp(const SDL_MouseButtonEvent& event)
     }
 }
 
+void Player::handleKeyUp(const SDL_keysym& keysym)
+{
+    switch (keysym.sym) {
+        case SDLK_LEFT:
+        case SDLK_RIGHT:
+            m_seek_direction = 0;
+            break;
+        default:
+            break;
+    }
+}
+
 bool Player::handleUserEvent(const SDL_UserEvent& event)
 {
     switch(event.code) {

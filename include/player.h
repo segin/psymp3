@@ -75,6 +75,7 @@ class Player
         void handleMouseMotion(const SDL_MouseMotionEvent& event);
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
         bool handleUserEvent(const SDL_UserEvent& event);
+        void handleKeyUp(const SDL_keysym& keysym);
         void updateInfo(void);
 
         uint8_t m_seek_direction = 0;
