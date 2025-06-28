@@ -47,12 +47,25 @@ static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
             "Written by " PSYMP3_MAINTAINER "\n";
 
+/**
+ * @brief Prints the application's about information to the standard console output.
+ * 
+ * This function is typically used for command-line invocations or on non-GUI platforms
+ * to display version, copyright, and licensing details.
+ */
 void about_console()
 {
     std::cout << _about_message << std::endl;
 }
 
 #if defined(_WIN32)
+/**
+ * @brief Displays the application's about information in a native Windows message box.
+ * 
+ * This function handles both Unicode and non-Unicode builds. For Unicode, it converts
+ * the UTF-8 about message to a wide string before displaying it. For non-Unicode,
+ * it displays the message directly.
+ */
 void about_windows() {
 #ifdef UNICODE
     // Use modern C++ vector for buffer management instead of malloc/free.

@@ -23,6 +23,13 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Constructs an Audio object.
+ * @param data A pointer to a struct containing shared data from the Player,
+ *             including the stream to play, the FFT object to populate, and
+ *             the mutex for thread-safe access to the stream.
+ * This constructor initializes the audio system for the given stream and starts the background decoder thread.
+ */
 Audio::Audio(struct atdata *data)
     : m_stream(data->stream),
       m_fft(data->fft),
@@ -36,6 +43,12 @@ Audio::Audio(struct atdata *data)
     m_decoder_thread = std::thread(&Audio::decoderThreadLoop, this);
 }
 
+/**
+ * @brief Destroys the Audio object.
+ * 
+ * This stops playback, signals the decoder thread to terminate, waits for it to join,
+ * and then closes the SDL audio device, ensuring a clean shutdown.
+ */
 Audio::~Audio() {
     play(false);
     if (m_active) {
@@ -48,6 +61,12 @@ Audio::~Audio() {
     SDL_CloseAudio();
 }
 
+/**
+ * @brief Configures and opens the SDL audio device.
+ * 
+ * It sets up the audio format (sample rate, channels, etc.) based on the properties
+ * of the current stream and registers the static `callback` function to be called by SDL.
+ */
 void Audio::setup() {
     SDL_AudioSpec fmt;
     fmt.freq = m_rate = m_stream->getRate();
@@ -63,22 +82,46 @@ void Audio::setup() {
     }
 }
 
+/**
+ * @brief Starts or pauses audio playback.
+ * @param go `true` to start/resume playback, `false` to pause.
+ */
 void Audio::play(bool go) {
     m_playing = go;
     SDL_PauseAudio(go ? 0 : 1);
 }
 
+/**
+ * @brief Locks the audio device using the SDL_LockAudio function.
+ * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
+ */
 void Audio::lock(void) {
     SDL_LockAudio();
 }
 
+/**
+ * @brief Unlocks the audio device using the SDL_UnlockAudio function.
+ * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
+ */
 void Audio::unlock(void) {
     SDL_UnlockAudio();
 }
 
+/**
+ * @brief The main loop for the background audio decoder thread.
+ * 
+ * This function runs in a separate thread and is responsible for continuously
+ * decoding audio data from the source stream and placing it into a thread-safe
+ * buffer. It waits if the buffer is full and is woken up by the audio callback
+ * when more data is needed. This producer-consumer pattern decouples file I/O
+ * and decoding from the real-time audio callback.
+ */
 void Audio::decoderThreadLoop() {
     System::setThisThreadName("audio-decoder");
     std::vector<int16_t> decode_chunk(4096); // Decode in 8KB chunks
+    // The high water mark prevents the decoder from reading too far ahead,
+    // which is important for responsive seeking and track changes. It defines
+    // the maximum amount of decoded audio to keep in the buffer.
     constexpr size_t BUFFER_HIGH_WATER_MARK = 48000 * 2; // 1 sec of 48kHz stereo
 
     while (m_active) {
@@ -119,8 +162,18 @@ void Audio::decoderThreadLoop() {
     }
 }
 
-/* Actually push the audio to the soundcard.
- * Audio is summed to mono (if stereo) and then FFT'd.
+/**
+ * @brief The static callback function invoked by SDL to request audio data.
+ * 
+ * This function is the heart of the audio playback. It runs on a high-priority
+ * thread managed by SDL. Its primary job is to copy decoded audio data from the
+ * internal buffer into the buffer provided by SDL. If not enough data is available,
+ * it fills the remainder with silence. It also passes the audio data to the FFT
+ * for processing before it's sent to the sound card.
+ * 
+ * @param userdata A pointer to the `Audio` instance.
+ * @param buf A pointer to the hardware audio buffer to be filled.
+ * @param len The length of the buffer in bytes.
  */
 void Audio::callback(void *userdata, Uint8 *buf, int len) {
     // Name the audio thread on its first run.
@@ -166,6 +219,17 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     }
 }
 
+/**
+ * @brief Converts 16-bit integer audio samples to floating-point samples for FFT processing.
+ * 
+ * This function normalizes the audio data to a range of [-1.0, 1.0]. If the input
+ * is stereo, it sums the left and right channels to produce a mono signal, which is
+ * what the FFT algorithm expects.
+ * 
+ * @param channels The number of channels in the input audio (1 for mono, 2 for stereo).
+ * @param in A pointer to the buffer of 16-bit signed integer input samples.
+ * @param out A pointer to the destination buffer for the converted float samples.
+ */
 void Audio::toFloat(int channels, int16_t *in, float *out) {
     if(channels == 1)
         for(int x = 0; x < 512; x++)

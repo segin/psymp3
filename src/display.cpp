@@ -24,6 +24,14 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Constructs the main Display object.
+ * 
+ * This constructor initializes the SDL video mode with a fixed size of 640x400
+ * and 16-bit color depth, using a hardware surface with double buffering.
+ * It then sets the initial window caption. The resulting SDL_Surface for the
+ * screen is passed to the base `Surface` class constructor.
+ */
 Display::Display() : Surface(SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF))
 {
     //ctor
@@ -31,6 +39,11 @@ Display::Display() : Surface(SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_
     SDL_WM_SetCaption("PsyMP3 " PSYMP3_VERSION, "PsyMP3");
 }
 
+/**
+ * @brief Sets the main window's title bar text.
+ * @param title The main text to display in the window's title bar.
+ * @param icon_title The text to use for the window when it is iconified (minimized).
+ */
 void Display::SetCaption(TagLib::String title, TagLib::String icon_title)
 {
     SDL_WM_SetCaption(title.toCString(false), icon_title.toCString(false));
