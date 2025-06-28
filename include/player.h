@@ -125,6 +125,9 @@ class Player
 
         // Overlay widgets
         std::unique_ptr<ToastNotification> m_toast;
+        std::unique_ptr<Widget> m_seek_left_indicator;
+        std::unique_ptr<Widget> m_seek_right_indicator;
+
 
         // Asynchronous loader thread members
         std::thread m_loader_thread;
