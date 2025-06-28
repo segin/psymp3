@@ -118,6 +118,64 @@ void System::InitializeIPC(Player* player)
 #endif
 
 #ifdef _WIN32
+/**
+ * @brief Finds all MsnMsgrUIManager windows and sends them a WM_COPYDATA message.
+ * @param message The wide-character string payload, with fields separated by nulls.
+ */
+void System::broadcastMsnMessage(const std::wstring& message)
+{
+    COPYDATASTRUCT cds;
+    cds.dwData = 1351; // Magic number for MSN Now Playing IPC
+    // The size is the total number of bytes, including the final null terminator.
+    cds.cbData = (message.length() + 1) * sizeof(wchar_t);
+    cds.lpData = (PVOID)message.c_str();
+
+    HWND msgr_hwnd = NULL;
+    // Loop through all top-level windows to find all messenger instances.
+    do {
+        msgr_hwnd = FindWindowEx(NULL, msgr_hwnd, L"MsnMsgrUIManager", NULL);
+        if (msgr_hwnd) {
+            // Using SendMessage for synchronous delivery.
+            SendMessage(msgr_hwnd, WM_COPYDATA, (WPARAM)getHwnd(), (LPARAM)&cds);
+        }
+    } while (msgr_hwnd != NULL);
+}
+
+/**
+ * @brief Announces the currently playing track to MSN-compatible messengers.
+ * @param artist The artist of the track.
+ * @param title The title of the track.
+ * @param album The album of the track.
+ */
+void System::announceNowPlaying(const TagLib::String& artist, const TagLib::String& title, const TagLib::String& album)
+{
+    std::wstringstream wss;
+    // Format string with embedded nulls:
+    // {PlayerName}\0{MessageType}\0{Enabled}\0{FormatString}\0{Title}\0{Artist}\0{Album}\0{ContentID}\0
+    wss << L"PsyMP3" << L"\\0"
+        << L"Music" << L"\\0"
+        << L"1" << L"\\0" // 1 = Enabled
+        << L"PsyMP3: {1} - {0}" << L"\\0" // Format: {1} is artist, {0} is title
+        << title.toWString() << L"\\0"
+        << artist.toWString() << L"\\0"
+        << album.toWString() << L"\\0"
+        << L"WMContentID" << L"\\0";
+
+    broadcastMsnMessage(wss.str());
+}
+
+/**
+ * @brief Clears the "Now Playing" status from MSN-compatible messengers.
+ */
+void System::clearNowPlaying()
+{
+    // To clear, we send a message with the "Enabled" field set to 0.
+    std::wstring clear_message = L"PsyMP3\\0Music\\00\\0\\0\\0\\0\\0\\0";
+    broadcastMsnMessage(clear_message);
+}
+#endif
+
+#ifdef _WIN32
 LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     // On first creation, store the Player pointer passed in CreateWindowEx

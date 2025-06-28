@@ -213,12 +213,16 @@ class System
         void InitializeIPC(class Player* player);
 #endif
         void InitializeTaskbar();
+        #if defined(_WIN32)
+        void announceNowPlaying(const TagLib::String& artist, const TagLib::String& title, const TagLib::String& album);
+        void clearNowPlaying();
+        #endif
         static TagLib::String getUser(); // where applicable
         static TagLib::String getHome();
         static TagLib::String getStoragePath();
         static bool createStoragePath(); // directory name is implicit.
         static void setThisThreadName(const std::string& name);
-        #if defined(_WIN32)
+        #if defined(_WIN32) // This block is for static methods
         static HWND getHwnd();
         void updateProgress(ULONGLONG now, ULONGLONG max);
         void progressState(TBPFLAG status);
@@ -226,6 +230,7 @@ class System
     private:
     #if defined(_WIN32)
         static LRESULT CALLBACK ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+        void broadcastMsnMessage(const std::wstring& message);
         // Using a smart pointer for the COM object automates Release() calls,
         // making resource management safer and simpler (RAII).
         // This requires #include <wrl/client.h>

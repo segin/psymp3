@@ -91,6 +91,9 @@ Player::~Player() {
     if (m_playlist_populator_thread.joinable()) {
         m_playlist_populator_thread.join();
     }
+#ifdef _WIN32
+    if (system) system->clearNowPlaying();
+#endif
 }
 
 /**
@@ -336,6 +339,9 @@ bool Player::stop(void) {
     state = PlayerState::Stopped;
     m_pause_indicator.reset();
     stream.reset();
+#ifdef _WIN32
+    if (system) system->clearNowPlaying();
+#endif
     return true;
 }
 
@@ -1003,6 +1009,9 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
                 updateInfo();
                 play();
+#ifdef _WIN32
+                if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
+#endif
             } else {
                 // If the new stream is null, audio would have been reset above.
                 // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
@@ -1073,6 +1082,9 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                     }
                     updateInfo();
                     play();
+#ifdef _WIN32
+                    if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
+#endif
                 } else {
                     // No preloaded track, use the old method.
                     return !nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
