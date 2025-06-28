@@ -85,11 +85,10 @@ TagLib::String Playlist::setPositionAndJump(long position)
     return getTrack(position);
 }
 
-TagLib::String Playlist::getTrack(long position)
+TagLib::String Playlist::getTrack(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if(position >= 0 && position < tracks.size()) {
-        std::string path = tracks[position].GetFilePath().to8Bit(true);
         return tracks[position].GetFilePath();
     } else {
         return "";
@@ -117,6 +116,30 @@ TagLib::String Playlist::prev()
         m_position = tracks.size() - 1; // Wrap around to the end
     }
     return getTrack(m_position);
+}
+
+TagLib::String Playlist::peekNext() const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (tracks.empty()) {
+        return "";
+    }
+
+    long next_pos = m_position + 1;
+    if (next_pos >= tracks.size()) {
+        next_pos = 0; // Wrap around
+    }
+    
+    return getTrack(next_pos);
+}
+
+const track* Playlist::getTrackInfo(long position) const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (position >= 0 && position < tracks.size()) {
+        return &tracks[position];
+    }
+    return nullptr;
 }
 
 static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String& relative) {

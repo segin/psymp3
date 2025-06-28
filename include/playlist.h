@@ -40,9 +40,11 @@ class Playlist
         long entries();
         bool setPosition(long position);
         TagLib::String setPositionAndJump(long position);
-        TagLib::String getTrack(long position);
+        TagLib::String getTrack(long position) const;
         TagLib::String next();
         TagLib::String prev();
+        TagLib::String peekNext() const;
+        const track* getTrackInfo(long position) const;
         static std::unique_ptr<Playlist> loadPlaylist(TagLib::String path);
         void savePlaylist(TagLib::String path);
     protected:
