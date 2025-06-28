@@ -28,7 +28,7 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
 {
     const int PADDING = 8;
 
-    SDL_Color text_color = {230, 230, 230, 255}; // Light grey text
+    SDL_Color text_color = {255, 255, 255, 255}; // Opaque white text
     // Create the label as a child of this widget
     auto label = std::make_unique<Label>(font, Rect(PADDING, PADDING, 0, 0), TagLib::String(message, TagLib::String::UTF8), text_color);
 
