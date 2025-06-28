@@ -20,3 +20,33 @@
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
+
+#ifndef FADINGWIDGET_H
+#define FADINGWIDGET_H
+
+#include "Widget.h"
+
+class FadingWidget : public Widget {
+public:
+    FadingWidget();
+    ~FadingWidget() override = default;
+
+    void BlitTo(Surface& target) override;
+    void fadeIn();
+    void fadeOut();
+    [[nodiscard]] bool isHidden() const;
+
+private:
+    enum class FadeState {
+        FadingIn,
+        Visible,
+        FadingOut,
+        Hidden
+    };
+
+    FadeState m_state = FadeState::Hidden;
+    Uint32 m_fade_duration = 250;
+    Uint32 m_state_change_time = 0;
+};
+
+#endif //FADINGWIDGET_H

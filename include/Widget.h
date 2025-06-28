@@ -37,7 +37,7 @@ class Widget : public Surface
         Widget& operator=(Widget&&) = default;
         explicit Widget(Surface&& other); // Take ownership by moving a Surface
         Widget(Surface&& other, const Rect& position); // Take ownership by moving a Surface
-        void BlitTo(Surface& target);
+        virtual void BlitTo(Surface& target);
         // Removed operator=(const Surface& rhs) as it's not copy-assignable.
         void setPos(const Rect& position);
         const Rect& getPos() const { return m_pos; }
