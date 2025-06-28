@@ -322,36 +322,29 @@ TagLib::String System::getUser()
 TagLib::String System::getHome()
 {
 #ifdef _WIN32
-    // GetEnvironmentVariable() method.
-    TagLib::String spath;
-    WCHAR env[1024];
-    GetEnvironmentVariable(L"USERPROFILE", env, 1024);
-    spath = env;
-    return spath;
-    // GetUserProfileDirectory() method.
-
-#ifdef WIN_OPTIONAL
-    // SHGet(Known)FolderPath() method.
-    HMODULE hndl_shell32;
-    lpSHGetKnownFolderPath pSHGetKnownFolderPath;
-    hndl_shell32 = LoadLibrary("shell32");
-    pSHGetKnownFolderPath = GetProcAddress(hndl_shell32, "SHGetKnownFolderPathW");
-    if(pSHGetKnownFolderPath != nullptr) {
-
-    } else {
-
+    WCHAR env_buffer[1024];
+    // 1. Check for HOME, common in development environments like MSYS2.
+    if (GetEnvironmentVariableW(L"HOME", env_buffer, 1024) > 0) {
+        return TagLib::String(env_buffer);
     }
-
-    // NetUserGetInfo() method.
-    WCHAR user[48], path[256];
-    DWORD bufsize = 48;
-    BYTE *uinfo;
-    GetUserName(user, &bufsize);
-    if(NetUserGetInfo(nullptr, user, 11, &uinfo)) {
-        std::cout << "NetUserGetInfo() failed!" << std::endl;
+    // 2. Check for USERPROFILE, the standard on Windows.
+    if (GetEnvironmentVariableW(L"USERPROFILE", env_buffer, 1024) > 0) {
+        return TagLib::String(env_buffer);
     }
-    return ((LPUSER_INFO_11)uinfo)->usri11_home_dir;
-#endif
+    // 3. Query the registry for the "My Documents" path (most reliable for Win9x+).
+    HKEY hKey;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Shell Folders", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+    {
+        DWORD buffer_size = sizeof(env_buffer);
+        if (RegQueryValueExW(hKey, L"Personal", NULL, NULL, (LPBYTE)env_buffer, &buffer_size) == ERROR_SUCCESS)
+        {
+            RegCloseKey(hKey);
+            return TagLib::String(env_buffer);
+        }
+        RegCloseKey(hKey);
+    }
+    // 4. Final fallback for very old systems or unusual configurations.
+    return TagLib::String("C:\\My Documents", TagLib::String::Latin1);
 #else
     return getenv("HOME");
 #endif
