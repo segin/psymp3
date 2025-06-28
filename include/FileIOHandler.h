@@ -36,6 +36,7 @@ public:
     int seek(long offset, int whence) override;
     long tell() override;
     int close() override;
+    bool eof() override;
 
 private:
     FILE* m_file_handle;

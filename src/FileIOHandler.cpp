@@ -59,3 +59,8 @@ int FileIOHandler::close() {
     m_file_handle = nullptr; // Prevent double-closing
     return result;
 }
+
+bool FileIOHandler::eof() {
+    if (!m_file_handle) return true;
+    return feof(m_file_handle) != 0;
+}

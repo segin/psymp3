@@ -32,6 +32,7 @@ public:
     virtual int seek(long offset, int whence);
     virtual long tell();
     virtual int close();
+    virtual bool eof();
 };
 
 #endif // IOHANDLER_H

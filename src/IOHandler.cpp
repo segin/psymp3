@@ -51,3 +51,9 @@ int IOHandler::close()
     // Default behavior: do nothing, return success.
     return 0;
 }
+
+bool IOHandler::eof()
+{
+    // Default behavior: always at end of file.
+    return true;
+}
