@@ -31,6 +31,5 @@ psymp3_LDADD = $(DEPENDS_LIBS)
 bin_PROGRAMS = psymp3
 psymp3_SOURCES = about.cpp audio.cpp display.cpp exceptions.cpp fft.cpp\
  fft_draw.cpp flac.cpp font.cpp Label.cpp libmpg123.cpp main.cpp mediafile.cpp \
- player.cpp playlist.cpp \
- opus.cpp rect.cpp scrobble.cpp song.cpp stream.cpp \
- surface.cpp system.cpp track.cpp truetype.cpp vorbis.cpp Widget.cpp
+ player.cpp playlist.cpp opus.cpp rect.cpp scrobble.cpp song.cpp stream.cpp \
+ surface.cpp system.cpp track.cpp truetype.cpp utility.cpp vorbis.cpp Widget.cpp
