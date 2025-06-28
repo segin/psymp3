@@ -27,33 +27,30 @@
 // These must have C linkage and cannot be member functions.
 
 // Read callback
-static ssize_t read_callback(void *handle, void *buffer, size_t count) {
-    return fread(buffer, 1, count, static_cast<FILE*>(handle));
+static ssize_t read_callback(void *handle, void *buffer, size_t count)
+{
+    return static_cast<IOHandler*>(handle)->read(buffer, 1, count);
 }
 
 // Seek callback
-static off_t lseek_callback(void *handle, off_t offset, int whence) {
-#ifdef _WIN32
-    if (_fseeki64(static_cast<FILE*>(handle), offset, whence) != 0) {
+static off_t lseek_callback(void *handle, off_t offset, int whence)
+{
+    auto* handler = static_cast<IOHandler*>(handle);
+    if (handler->seek(static_cast<long>(offset), whence) != 0) {
         return -1;
     }
-    return _ftelli64(static_cast<FILE*>(handle));
-#else
-    if (fseeko(static_cast<FILE*>(handle), offset, whence) != 0) {
-        return -1;
-    }
-    return ftello(static_cast<FILE*>(handle));
-#endif
+    return handler->tell();
 }
 
 // Cleanup callback
-static void cleanup_callback(void *handle) {
-    if (handle) {
-        fclose(static_cast<FILE*>(handle));
-    }
+static void cleanup_callback(void *handle)
+{
+    // The IOHandler's lifetime is managed by the Libmpg123 class's unique_ptr.
+    // This callback can ensure the underlying handle is closed if necessary.
+    static_cast<IOHandler*>(handle)->close();
 }
 
-Libmpg123::Libmpg123(TagLib::String name) : Stream(name), m_mpg_handle(nullptr), m_file_handle(nullptr)
+Libmpg123::Libmpg123(TagLib::String name) : Stream(name), m_mpg_handle(nullptr)
 {
     int err = MPG123_OK;
     m_mpg_handle = mpg123_new(nullptr, &err);
@@ -72,24 +69,22 @@ Libmpg123::~Libmpg123()
 
 void Libmpg123::open(TagLib::String name)
 {
-    int ret;
-#ifdef _WIN32
-    m_file_handle = _wfopen(name.toCWString(), L"rb");
-#else
-    m_file_handle = fopen(name.toCString(true), "rb");
-#endif
-    if (!m_file_handle) {
-        throw BadFormatException("Libmpg123: Could not open file handle for " + name);
+    // Use the new URI and IOHandler abstraction layer.
+    URI uri(name);
+    if (uri.scheme() == "file") {
+        m_handler = std::make_unique<FileIOHandler>(uri.path());
+    } else {
+        // In the future, a factory could create other IOHandlers here.
+        throw InvalidMediaException("Unsupported URI scheme for MP3: " + uri.scheme());
     }
 
     // Replace the default I/O with our callback-based reader.
     mpg123_replace_reader_handle(m_mpg_handle, read_callback, lseek_callback, cleanup_callback);
 
-    // "Open" the handle, which now uses our callbacks and the provided FILE* handle.
-    ret = mpg123_open_handle(m_mpg_handle, m_file_handle);
+    // "Open" the handle, which now uses our callbacks and the provided IOHandler* handle.
+    int ret = mpg123_open_handle(m_mpg_handle, m_handler.get());
     if (ret != MPG123_OK) {
-        // The cleanup callback will be called by mpg123_close in the destructor.
-        throw BadFormatException("mpg123_open_handle() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
+        throw InvalidMediaException("mpg123_open_handle() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
     }
 
     ret = mpg123_getformat(m_mpg_handle, &m_rate, &m_channels, &m_encoding);

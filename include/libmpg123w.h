@@ -24,6 +24,8 @@
 #ifndef LIBMPG123_H
 #define LIBMPG123_H
 
+#include "IOHandler.h"
+
 class Libmpg123 : public Stream
 {
     public:
@@ -41,8 +43,8 @@ class Libmpg123 : public Stream
         virtual bool eof();
     protected:
     private:
+        std::unique_ptr<IOHandler> m_handler;
         mpg123_handle* m_mpg_handle = nullptr;
-        FILE* m_file_handle = nullptr;
 };
 
 #endif // LIBMPG123_H
