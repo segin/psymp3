@@ -519,6 +519,21 @@ bool Player::updateGUI()
     // 3. Blit the entire UI widget tree. This will render all the labels.
     m_ui_root->BlitTo(*screen);
 
+    // --- Toast Notification Management and Rendering ---
+    if (m_toast) {
+        if (m_toast->isExpired()) {
+            m_toast.reset();
+        } else {
+            // Center the toast in the graph area
+            const Rect& current_pos = m_toast->getPos();
+            Rect new_pos = current_pos; // Make a copy to modify
+            new_pos.setX((graph->width() - current_pos.width()) / 2);
+            new_pos.setY((graph->height() - current_pos.height()) / 2);
+            m_toast->setPos(new_pos);
+            m_toast->BlitTo(*screen);
+        }
+    }
+
     // finally, update the screen :)
     screen->Flip();
     
@@ -805,8 +820,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             if (playlist) {
                 TagLib::String save_path = System::getStoragePath() + "/playlist.m3u";
                 playlist->savePlaylist(save_path);
-                // For now, just log to console. A proper status message system would be better.
-                std::cout << "Playlist saved to " << save_path.to8Bit(true) << std::endl;
+                m_toast = std::make_unique<ToastNotification>(font.get(), "Current playlist saved!", 3000);
             }
             break;
         }

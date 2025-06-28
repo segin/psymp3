@@ -122,6 +122,9 @@ class Player
         std::unique_ptr<Widget> m_ui_root;
         std::map<std::string, Label*> m_labels; // Non-owning pointers for quick access
 
+        // Overlay widgets
+        std::unique_ptr<ToastNotification> m_toast;
+
         // Asynchronous loader thread members
         std::thread m_loader_thread;
         std::mutex m_loader_queue_mutex;

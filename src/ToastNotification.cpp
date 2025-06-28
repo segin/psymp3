@@ -22,4 +22,32 @@
  */
 
 #include "psymp3.h"
-#include "ToastNotification.h"
+
+ToastNotification::ToastNotification(Font* font, const std::string& message, Uint32 duration_ms)
+    : Widget() // Call base class constructor
+{
+    const int PADDING = 8;
+
+    // Create the label as a child of this widget
+    auto label = std::make_unique<Label>(font, message, Rect(PADDING, PADDING, 0, 0));
+    label->setColor({230, 230, 230, 255}); // Light grey text
+
+    // Set the size of this ToastNotification widget to fit the label plus padding
+    m_pos.w = label->getPos().w + (PADDING * 2);
+    m_pos.h = label->getPos().h + (PADDING * 2);
+
+    // The background surface for the rounded box
+    m_surface = std::make_unique<Surface>(m_pos.w, m_pos.h);
+    m_surface->SetAlpha(SDL_SRCALPHA, 255); // Enable alpha blending for the surface
+    m_surface->roundedBoxRGBA(0, 0, m_pos.w - 1, m_pos.h - 1, 8, 50, 50, 50, 210);
+
+    // Add the label as a child so it gets drawn relative to this widget
+    addChild(std::move(label));
+
+    m_expiration_time = SDL_GetTicks() + duration_ms;
+}
+
+bool ToastNotification::isExpired() const
+{
+    return SDL_GetTicks() >= m_expiration_time;
+}
