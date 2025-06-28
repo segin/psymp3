@@ -41,7 +41,7 @@ Widget::Widget(Surface&& other) :
 }
 
 // Move constructor with position: takes ownership of the Surface and sets position
-Widget::Widget(Surface&& other, Rect& position) :
+Widget::Widget(Surface&& other, const Rect& position) :
     Surface(std::move(other)), // Move the base Surface part
     m_pos(position)
 {
@@ -49,10 +49,41 @@ Widget::Widget(Surface&& other, Rect& position) :
 
 void Widget::BlitTo(Surface& target)
 {
-    target.Blit(*this, m_pos);
+    // Blit this widget's own surface content first (if it has any)
+    if (this->isValid()) {
+        target.Blit(*this, m_pos);
+    }
+
+    // Then, recursively blit all children, passing this widget's position as the parent offset.
+    for (const auto& child : m_children) {
+        child->recursiveBlitTo(target, m_pos);
+    }
+}
+
+void Widget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    // Calculate the child's absolute on-screen position by adding its relative position to the parent's absolute position.
+    Rect absolute_pos(parent_absolute_pos.x() + m_pos.x(),
+                      parent_absolute_pos.y() + m_pos.y(),
+                      m_pos.width(), m_pos.height());
+
+    // Blit the child's own surface content.
+    if (this->isValid()) {
+        target.Blit(*this, absolute_pos);
+    }
+
+    // Recursively blit this child's children.
+    for (const auto& child : m_children) {
+        child->recursiveBlitTo(target, absolute_pos);
+    }
 }
 
 void Widget::updatePosition(const Rect& position)
 {
     m_pos = position;
+}
+
+void Widget::addChild(std::unique_ptr<Widget> child)
+{
+    m_children.push_back(std::move(child));
 }
