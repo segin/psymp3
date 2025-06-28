@@ -88,8 +88,11 @@ size_t Libmpg123::getData(size_t len, void *buf)
     int cond;
     //std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
     cond = mpg123_read(static_cast<mpg123_handle *>(m_handle), static_cast<unsigned char *>(buf), len, &actual);
-    if (cond == MPG123_DONE)
+    if (cond == MPG123_DONE) {
         m_eof = true;
+    } else if (cond != MPG123_OK) {
+        throw BadFormatException("mpg123_read() failed: " + TagLib::String(mpg123_plain_strerror(cond)));
+    }
     m_position = (long long) mpg123_tell(static_cast<mpg123_handle *>(m_handle)) * 1000 / m_rate;
     //std::cout << "Libmpg123::getData(): actual = " << (int) actual << std::endl;
     return actual;
