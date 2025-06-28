@@ -24,6 +24,18 @@
 #include "psymp3.h"
 #include "ChainedStream.h"
 
+/**
+ * @brief Constructs a ChainedStream from a vector of file paths.
+ *
+ * This constructor initializes the stream by pre-scanning all provided file paths.
+ * It calculates the total length and sample count for the entire chain and validates
+ * that all tracks share the same sample rate and channel count to ensure seamless
+ * playback. It then opens the first track to begin playback.
+ *
+ * @param paths A vector of TagLib::String objects representing the file paths to be chained.
+ * @throws std::invalid_argument if the path list is empty.
+ * @throws InvalidMediaException if any track is invalid or formats are inconsistent.
+ */
 ChainedStream::ChainedStream(std::vector<TagLib::String> paths)
     : Stream(), // Call base constructor
       m_paths(std::move(paths)),
@@ -81,6 +93,14 @@ ChainedStream::ChainedStream(std::vector<TagLib::String> paths)
     }
 }
 
+/**
+ * @brief Opens the next track in the sequence.
+ *
+ * This private helper method is called when the current track finishes or when seeking.
+ * It updates the total samples played, closes the current stream, and opens the next
+ * one in the `m_paths` vector.
+ * @return `true` if the next track was opened successfully, `false` if there are no more tracks.
+ */
 bool ChainedStream::openNextTrack()
 {
     if (m_current_track_index >= m_paths.size()) {
@@ -104,12 +124,30 @@ bool ChainedStream::openNextTrack()
     }
 }
 
+/**
+ * @brief A no-op override for the open method.
+ *
+ * ChainedStream is initialized with all its paths at construction time and does not
+ * support being "re-opened" with a single file path. This method does nothing.
+ * @param name This parameter is ignored.
+ */
 void ChainedStream::open(TagLib::String name)
 {
     // This is a no-op for ChainedStream as it's initialized with a list of paths.
     // The name parameter is ignored.
 }
 
+/**
+ * @brief Reads decoded audio data from the stream chain.
+ *
+ * This method fulfills a read request by pulling data from the currently active
+ * stream. If the current stream ends, it automatically and seamlessly opens the
+ * next track in the chain and continues filling the buffer until the request is met
+ * or the entire chain ends.
+ * @param len The number of bytes of audio data requested.
+ * @param buf A pointer to the buffer where the decoded audio data should be stored.
+ * @return The total number of bytes actually read into the buffer.
+ */
 size_t ChainedStream::getData(size_t len, void *buf)
 {
     char *current_buf = static_cast<char *>(buf);
@@ -151,6 +189,10 @@ size_t ChainedStream::getData(size_t len, void *buf)
     return total_bytes_read;
 }
 
+/**
+ * @brief Checks if the end of the entire stream chain has been reached.
+ * @return `true` if the last track has finished playing, `false` otherwise.
+ */
 bool ChainedStream::eof()
 {
     // The chain is at its end if there is no current stream to play from.
@@ -158,22 +200,54 @@ bool ChainedStream::eof()
     return !m_current_stream;
 }
 
-// The following methods provide aggregated values for the entire chain.
+/**
+ * @brief Gets the total combined length of all tracks in the chain.
+ * @return The total duration in milliseconds.
+ */
 unsigned int ChainedStream::getLength() { return m_total_length_ms; }
+
+/**
+ * @brief Gets the total combined length in PCM samples of all tracks in the chain.
+ * @return The total number of samples.
+ */
 unsigned long long ChainedStream::getSLength() { return m_total_samples; }
 
+/**
+ * @brief Gets the current playback position within the entire chain, in milliseconds.
+ *
+ * This is calculated by adding the position within the current track to the
+ * total length of all previously played tracks.
+ * @return The current aggregated position in milliseconds.
+ */
 unsigned int ChainedStream::getPosition()
 {
     if (m_rate > 0) return (getSPosition() * 1000) / m_rate;
     return 0;
 }
 
+/**
+ * @brief Gets the current playback position within the entire chain, in PCM samples.
+ *
+ * This is calculated by adding the sample position within the current track to the
+ * total number of samples from all previously played tracks.
+ * @return The current aggregated position in samples.
+ */
 unsigned long long ChainedStream::getSPosition()
 {
     if (!m_current_stream) return m_total_samples;
     return m_samples_played_in_previous_tracks + m_current_stream->getSPosition();
 }
 
+/**
+ * @brief Seeks to a specific time within the entire stream chain.
+ *
+ * This method calculates which track in the chain corresponds to the target
+ * millisecond offset. It then opens that track and seeks to the correct
+ * relative position within it, updating all internal state to reflect the
+ * new position.
+ *
+ * @param pos The target position to seek to, in milliseconds, from the beginning of the chain.
+ */
 void ChainedStream::seekTo(unsigned long pos)
 {
     // 1. Convert target time in ms to an absolute sample position for the whole chain.
