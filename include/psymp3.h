@@ -124,6 +124,7 @@ enum class PlayerState {
 #include "vorbisw.h"
 #include "opusw.h"
 #include "flac.h"
+#include "ChainedStream.h"
 #include "nullstream.h"
 #include "mediafile.h"
 #include "fft.h"

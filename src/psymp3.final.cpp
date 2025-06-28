@@ -1,5 +1,6 @@
 #include "about.cpp"
 #include "audio.cpp"
+#include "ChainedStream.cpp"
 #include "display.cpp"
 #include "exceptions.cpp"
 #include "fft.cpp"
