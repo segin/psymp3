@@ -21,6 +21,7 @@
 #include "surface.cpp"
 #include "system.cpp"
 #include "track.cpp"
+#include "utility.cpp"
 #include "truetype.cpp"
 #include "vorbis.cpp"
 #include "Widget.cpp"
