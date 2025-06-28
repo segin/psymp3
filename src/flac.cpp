@@ -54,7 +54,7 @@ void Flac::open(TagLib::String name)
     m_bitrate = 0; // FLAC is lossless, bitrate is variable. Can estimate if needed.
 
     // Calculate length in milliseconds
-    if (m_rate > 0) {Ac
+    if (m_rate > 0) {
         m_length = static_cast<unsigned int>((m_slength * 1000) / m_rate);
     } else {
         m_length = 0;
