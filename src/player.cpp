@@ -540,15 +540,19 @@ bool Player::updateGUI()
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
         // This implements a continuous seek while arrow keys are held down.
-        const long long seek_increment_ms = 250; // Seek by 250ms per frame
-        long long new_pos_ms = current_pos_ms;
+        const unsigned long seek_increment_ms = 250; // Use unsigned for safer math
+        unsigned long new_pos_ms = current_pos_ms;
 
         if (m_seek_direction == 1) { // backwards
-            new_pos_ms -= seek_increment_ms;
-            if (new_pos_ms < 0) new_pos_ms = 0;
+            // Explicitly check before subtracting to prevent unsigned underflow
+            if (current_pos_ms > seek_increment_ms) {
+                new_pos_ms = current_pos_ms - seek_increment_ms;
+            } else {
+                new_pos_ms = 0;
+            }
         } else if (m_seek_direction == 2) { // forwards
-            new_pos_ms += seek_increment_ms;
-            if (total_len_ms > 0 && new_pos_ms > (long long)total_len_ms) {
+            new_pos_ms = current_pos_ms + seek_increment_ms;
+            if (total_len_ms > 0 && new_pos_ms > total_len_ms) {
                 new_pos_ms = total_len_ms;
             }
         }
