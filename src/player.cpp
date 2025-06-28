@@ -984,14 +984,10 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             // If an audio device exists, we need to handle the transition carefully
             // to avoid race conditions with the audio decoder thread.
             if (audio) {
-                // Check if we need to recreate the audio device because the format changed,
-                // or if the new stream failed to load (new_stream is null).
-                bool recreate_audio = (!new_stream || audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels());
-                if (recreate_audio) {
-                    // Destroy the old audio object *before* we change the stream.
-                    // This stops its thread, which might be using the old stream.
-                    audio.reset();
-                }
+                // Always destroy the old audio object before we change the stream.
+                // This is crucial to stop its decoder thread, which is using the old stream object.
+                // Failing to do this causes a race condition and the "pure virtual method called" crash.
+                audio.reset();
             }
 
             // Now it's safe to update the stream pointer, which destroys the old stream.
