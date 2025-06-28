@@ -41,7 +41,8 @@ class Libmpg123 : public Stream
         virtual bool eof();
     protected:
     private:
-
+        mpg123_handle* m_mpg_handle = nullptr;
+        FILE* m_file_handle = nullptr;
 };
 
 #endif // LIBMPG123_H
