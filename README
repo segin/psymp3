@@ -48,7 +48,8 @@ You can reach me at <segin2005@gmail.com>.
 
 3. USAGE
 
-Pass the paths to the MP3s, Ogg Vorbis, or Opus files to be played as program arguments.
+Pass the paths to the audio files to be played as program arguments.
+Supported formats include MP3, Ogg Vorbis, Opus, FLAC, and RIFF WAVE.
 Audio files will be played in the order they are passed on the command line.
 All user interaction, aside from clicking the 'close' button for the window, is done via the keyboard.
 
