@@ -71,6 +71,9 @@ class Player
     private:
         bool updateGUI();
         bool handleKeyPress(const SDL_keysym& keysym);
+        void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
+        void handleMouseMotion(const SDL_MouseMotionEvent& event);
+        void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
         void updateInfo(void);
 
         uint8_t m_seek_direction = 0;

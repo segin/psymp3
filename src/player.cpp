@@ -489,6 +489,48 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     return false; // Do not exit
 }
 
+void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
+{
+    if (event.button == SDL_BUTTON_LEFT) {
+        // Check if click is within progress bar area
+        // Progress bar X: 400 to 620 (width 220)
+        // Progress bar Y: 370 to 385
+        if (event.x >= 400 && event.x <= 620 &&
+            event.y >= 370 && event.y <= 385) {
+            if (stream) {
+                m_is_dragging = true;
+                // Don't seek here, just update the visual position and start the drag.
+                int relative_x = event.x - 400;
+                double progress_ratio = static_cast<double>(relative_x) / 220.0;
+                m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
+                synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+                m_drag_start_x = event.x;
+                m_drag_start_time = SDL_GetTicks();
+            }
+        }
+    }
+}
+
+void Player::handleMouseMotion(const SDL_MouseMotionEvent& event)
+{
+    if (m_is_dragging && stream && stream->getLength() > 0 &&
+        event.x >= 400 && event.x <= 620 &&
+        event.y >= 370 && event.y <= 385) {
+        int relative_x = event.x - 400; // 0 to 220
+        double progress_ratio = static_cast<double>(relative_x) / 220.0;
+        m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
+        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr); // Update display during drag
+    }
+}
+
+void Player::handleMouseButtonUp(const SDL_MouseButtonEvent& event)
+{
+    if (event.button == SDL_BUTTON_LEFT && m_is_dragging) {
+        this->seekTo(m_drag_position_ms);
+        m_is_dragging = false;
+    }
+}
+
 /* Main player functionality */
 
 void Player::Run(std::vector<std::string> args) {
@@ -585,45 +627,17 @@ void Player::Run(std::vector<std::string> args) {
             }
             case SDL_MOUSEBUTTONDOWN:
             {
-                if (event.button.button == SDL_BUTTON_LEFT) {
-                    // Check if click is within progress bar area
-                    // Progress bar X: 400 to 620 (width 220)
-                    // Progress bar Y: 370 to 385
-                    if (event.button.x >= 400 && event.button.x <= 620 &&
-                        event.button.y >= 370 && event.button.y <= 385) {
-                        if (stream) {
-                            m_is_dragging = true;
-                            // Don't seek here, just update the visual position and start the drag.
-                            int relative_x = event.button.x - 400;
-                            double progress_ratio = static_cast<double>(relative_x) / 220.0;
-                            m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
-                            synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
-                            m_is_dragging = true;
-                            m_drag_start_x = event.button.x;
-                            m_drag_start_time = SDL_GetTicks();
-                        }
-                    }
-                }
+                handleMouseButtonDown(event.button);
                 break;
             }
             case SDL_MOUSEMOTION:
             {
-                if (m_is_dragging && stream && stream->getLength() > 0 &&
-                    event.motion.x >= 400 && event.motion.x <= 620 &&
-                    event.motion.y >= 370 && event.motion.y <= 385) {
-                    int relative_x = event.motion.x - 400; // 0 to 220
-                    double progress_ratio = static_cast<double>(relative_x) / 220.0;
-                    m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress_ratio);
-                    synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr); // Update display during drag
-                }
+                handleMouseMotion(event.motion);
                 break;
             }
             case SDL_MOUSEBUTTONUP:
             {
-                if (event.button.button == SDL_BUTTON_LEFT && m_is_dragging) {
-                    this->seekTo(m_drag_position_ms);
-                    m_is_dragging = false;
-                }
+                handleMouseButtonUp(event.button);
                 break;
             }
             case SDL_KEYUP:
