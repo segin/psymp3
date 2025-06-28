@@ -204,15 +204,15 @@ bool Player::prevTrack(void) {
 }
 
 bool Player::stop(void) {
-    state = STOPPED;
+    state = PlayerState::Stopped;
     stream.reset();
     return true;
 }
 
 bool Player::pause(void) {
-    if (state != STOPPED) {
+    if (state != PlayerState::Stopped) {
         audio->play(false);
-        state = PAUSED;
+        state = PlayerState::Paused;
         return true;
     } else {
         return false;
@@ -221,25 +221,16 @@ bool Player::pause(void) {
 
 bool Player::play(void) {
     audio->play(true);
-    state = PLAYING;
+    state = PlayerState::Playing;
     return true;
 }
 
 bool Player::playPause(void) {
-    switch(state) {
-        case STOPPED:
-        case PAUSED:
-        {
-            play();
-            break;
-        }
-        case PLAYING:
-        {
-            pause();
-            break;
-        }
-        default:
-            return false;
+    if (state == PlayerState::Playing) {
+        pause();
+    } else {
+        // This handles both Stopped and Paused states correctly.
+        play();
     }
     return true;
 }
@@ -383,10 +374,10 @@ void Player::Run(std::vector<std::string> args) {
     // and load the first track in a background thread.
     if (args.size() > 1) {
         m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, args);
-        state = STOPPED; // Will transition to playing when track loads
+        state = PlayerState::Stopped; // Will transition to playing when track loads
     } else {
         // No files, start with stopped state and an empty screen.
-        state = STOPPED;
+        state = PlayerState::Stopped;
         info["artist"] = font->Render("Artist: ");
         info["title"] = font->Render("Title: ");
         info["album"] = font->Render("Album: ");
@@ -638,7 +629,7 @@ void Player::Run(std::vector<std::string> args) {
                                 play();
                             } else {
                                 // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
-                                state = STOPPED;
+                                state = PlayerState::Stopped;
                                 screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error loading track ]:-", "PsyMP3 " PSYMP3_VERSION);
                                 info["artist"] = font->Render("Artist: N/A");
                                 info["title"] = font->Render("Title: Error loading track");

@@ -221,9 +221,9 @@ LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     return 0x2091; // Report as Winamp 2.91
                 case IPC_ISPLAYING:
                     switch (player->state) {
-                        case PLAYING: return 1;
-                        case PAUSED:  return 3;
-                        default:      return 0; // STOPPED
+                        case PlayerState::Playing: return 1;
+                        case PlayerState::Paused:  return 3;
+                        default:                   return 0; // PlayerState::Stopped
                     }
                 case IPC_GETOUTPUTTIME:
                     if (player->stream) {

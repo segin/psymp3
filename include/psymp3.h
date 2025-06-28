@@ -43,10 +43,10 @@ enum {
     START_FIRST_TRACK    // Sent from playlist populator to main thread
 };
 
-enum {
-    STOPPED,
-    PLAYING,
-    PAUSED
+enum class PlayerState {
+    Stopped,
+    Playing,
+    Paused
 };
 
 // system includes - runtime libraries

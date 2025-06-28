@@ -65,7 +65,7 @@ class Player
         void seekTo(unsigned long pos);
         static bool guiRunning; 
     protected:
-        int state;
+        PlayerState state;
         void renderSpectrum(Surface *graph);
         void precomputeSpectrumColors();
     private:
