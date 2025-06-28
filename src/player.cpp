@@ -529,6 +529,22 @@ bool Player::updateGUI()
     graph->hline(618, 621, 370, 0xFFFFFFFF);
     graph->hline(618, 621, 385, 0xFFFFFFFF);
 
+    // --- Continuous Keyboard Seeking ---
+    if (m_seek_direction != 0 && stream && !m_is_dragging) {
+        // This implements a continuous seek while arrow keys are held down.
+        // We seek by a fixed amount per frame for simplicity and responsiveness.
+        const long long seek_increment_ms = 250; // Seek by 250ms per frame
+        if (m_seek_direction == 1) { // backwards
+            long long current_pos = stream->getPosition();
+            seekTo(current_pos > seek_increment_ms ? current_pos - seek_increment_ms : 0);
+        } else if (m_seek_direction == 2) { // forwards
+            seekTo(stream->getPosition() + seek_increment_ms);
+        }
+        // After seeking, we must update our local copy of the position
+        // to ensure the progress bar reflects the change in this frame.
+        current_pos_ms = stream->getPosition();
+    }
+
     // If dragging, use the drag position; otherwise, use the actual stream position
     unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : current_pos_ms;
     double t;
