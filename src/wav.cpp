@@ -33,6 +33,7 @@ constexpr uint32_t DATA_ID = 0x61746164; // "data"
 // WAVE format tags
 constexpr uint16_t WAVE_FORMAT_PCM = 0x0001;
 constexpr uint16_t WAVE_FORMAT_MPEGLAYER3 = 0x0055;
+constexpr uint16_t WAVE_FORMAT_IEEE_FLOAT = 0x0003;
 
 /**
  * @brief Helper function to read a little-endian value from the file stream.
