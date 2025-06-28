@@ -357,6 +357,9 @@ void Player::Run(std::vector<std::string> args) {
     // Initialize UI and essential components first to show the window quickly.
     screen = std::make_unique<Display>();
     system = std::make_unique<System>();
+#ifdef _WIN32
+    system->InitializeIPC(this);
+#endif
 #if defined(_WIN32)
     font = std::make_unique<Font>("./vera.ttf");
 #else

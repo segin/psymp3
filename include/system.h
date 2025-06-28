@@ -130,6 +130,58 @@ DEFINE_GUID_(IID_ITaskbarList4,0xc43dc798,0x95d1,0x4bea,0x90,0x30,0xbb,0x99,0xe2
 
 #endif /* _WIN32 && MISSING_WIN7API*/
 
+#ifdef _WIN32
+// Winamp IPC message constants
+#define IPC_GETVERSION 0
+#define IPC_PLAYFILE 100
+#define IPC_ISPLAYING 104
+#define IPC_GETOUTPUTTIME 105
+#define IPC_JUMPTOTIME 106
+#define IPC_WRITEPLAYLIST 120
+#define IPC_SETPLAYLISTPOS 121
+#define IPC_SETVOLUME 122
+#define IPC_GETLISTLENGTH 124
+#define IPC_GETLISTPOS 125
+#define IPC_GETINFO 126
+#define IPC_GETPLAYLISTFILE 211
+#define IPC_GETPLAYLISTTITLE 212
+#define IPC_GET_REPEAT 251
+#define IPC_SET_REPEAT 253
+#define IPC_GETWND 260
+#define IPC_IS_PLAYING_VIDEO 501
+
+// Winamp remote control commands (sent via WM_COMMAND)
+#define WINAMP_BUTTON1 40044 // Prev
+#define WINAMP_BUTTON2 40045 // Play
+#define WINAMP_BUTTON3 40046 // Pause
+#define WINAMP_BUTTON4 40047 // Stop
+#define WINAMP_BUTTON5 40048 // Next
+
+// KVIrc custom interface constants
+#define KVIRC_WM_USER 63112
+#define KVIRC_WM_USER_CHECK 13123
+#define KVIRC_WM_USER_CHECK_REPLY 13124
+#define KVIRC_WM_USER_GETTITLE 5000
+#define KVIRC_WM_USER_GETFILE 10000
+#define KVIRC_WM_USER_TRANSFER 15000
+
+// For IPC_GETINFO
+#pragma pack(push, 1)
+typedef struct {
+    char* filename;
+    char* metadata;
+    char* ret;
+    int retlen;
+} extendedFileInfoStruct;
+
+typedef struct {
+    wchar_t* filename;
+    wchar_t* metadata;
+    wchar_t* ret;
+    int retlen;
+} extendedFileInfoStructW;
+#pragma pack(pop)
+#endif
 #if defined(_WIN32) && defined(WIN_OPTIONAL)
 
 // Pointerizing this Vista-and-later call for XP/2000 compat, etc.
@@ -156,6 +208,9 @@ class System
         System(System&&) = delete;
         System& operator=(System&&) = delete;
 
+#ifdef _WIN32
+        void InitializeIPC(class Player* player);
+#endif
         void InitializeTaskbar();
         static TagLib::String getUser(); // where applicable
         static TagLib::String getHome();
@@ -169,11 +224,13 @@ class System
         #endif
     private:
     #if defined(_WIN32)
+        static LRESULT CALLBACK ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
         // Using a smart pointer for the COM object automates Release() calls,
         // making resource management safer and simpler (RAII).
         // This requires #include <wrl/client.h>
         // Microsoft::WRL::ComPtr<ITaskbarList3> m_taskbar;
         ITaskbarList3 *m_taskbar; // Keeping original for now, but ComPtr is recommended.
+        HWND m_ipc_hwnd = nullptr;
     #endif
 
 };

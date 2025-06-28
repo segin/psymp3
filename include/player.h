@@ -35,6 +35,7 @@ struct atdata {
 class Player
 {
     public:
+        friend class System;
         Player();
         ~Player();
         void Run(std::vector<std::string> args);

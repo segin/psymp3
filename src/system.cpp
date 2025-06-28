@@ -54,7 +54,8 @@ System::System()
 {
 #ifdef _WIN32
     // Initialize m_taskbar to nullptr only if it's a member (i.e., on Windows)
-    m_taskbar = nullptr;
+    m_taskbar = nullptr; // For taskbar features
+    m_ipc_hwnd = nullptr; // For Winamp IPC
     InitializeTaskbar();
 #endif
 }
@@ -62,12 +63,146 @@ System::System()
 System::~System()
 {
 #if defined(_WIN32)
+    if (m_ipc_hwnd) {
+        DestroyWindow(m_ipc_hwnd);
+    }
     if (m_taskbar) {
         m_taskbar->Release();
         m_taskbar = nullptr;
     }
 #endif
 }
+
+#ifdef _WIN32
+void System::InitializeIPC(Player* player)
+{
+    WNDCLASSEXW wcx = {0};
+    wcx.cbSize = sizeof(WNDCLASSEXW);
+    wcx.lpfnWndProc = System::ipcWndProc;
+    wcx.hInstance = GetModuleHandle(NULL);
+    wcx.lpszClassName = L"Winamp v1.x";
+
+    if (!RegisterClassExW(&wcx)) {
+        std::cerr << "Failed to register Winamp IPC window class. Error: " << GetLastError() << std::endl;
+        return;
+    }
+
+    // Create a hidden window to listen for Winamp IPC messages.
+    // We pass the 'player' pointer as the creation parameter.
+    // This allows the static ipcWndProc to retrieve it and interact with the player instance.
+    m_ipc_hwnd = CreateWindowExW(
+        0,                              // Optional window styles.
+        L"Winamp v1.x",                 // Window class
+        L"PsyMP3 Winamp Interface",     // Window text
+        0,                              // Window style (not visible)
+        0, 0, 0, 0,                     // Position and size (hidden)
+        NULL,                           // Parent window
+        NULL,                           // Menu
+        GetModuleHandle(NULL),          // Instance handle
+        player                          // Additional application data (the Player pointer)
+    );
+
+    if (!m_ipc_hwnd) {
+        std::cerr << "Failed to create Winamp IPC window. Error: " << GetLastError() << std::endl;
+    }
+}
+#endif
+
+#ifdef _WIN32
+LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    // On first creation, store the Player pointer passed in CreateWindowEx
+    if (uMsg == WM_NCCREATE) {
+        CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
+        SetWindowLongPtr(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pCreate->lpCreateParams));
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    // Retrieve the Player pointer for subsequent messages
+    Player* player = reinterpret_cast<Player*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+    if (!player) {
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    }
+
+    // These static buffers are needed because some legacy IPC calls return a direct pointer
+    // to internal data. This is an unsafe pattern required for compatibility.
+    static std::string currentFileA;
+    static std::wstring currentFileW;
+    static std::string currentTitleA;
+    static std::wstring currentTitleW;
+    static std::wstring kvircBufferW;
+
+    switch (uMsg)
+    {
+        case WM_COMMAND:
+            switch (wParam)
+            {
+                case WINAMP_BUTTON1: // Prev
+                    player->synthesizeUserEvent(DO_PREV_TRACK, nullptr, nullptr);
+                    break;
+                case WINAMP_BUTTON2: // Play
+                    player->play();
+                    break;
+                case WINAMP_BUTTON3: // Pause
+                    player->playPause();
+                    break;
+                case WINAMP_BUTTON4: // Stop
+                    player->stop();
+                    break;
+                case WINAMP_BUTTON5: // Next
+                    player->synthesizeUserEvent(DO_NEXT_TRACK, nullptr, nullptr);
+                    break;
+            }
+            return 0;
+
+        case WM_USER:
+        {
+            switch (lParam)
+            {
+                case IPC_GETVERSION:
+                    return 0x2091; // Report as Winamp 2.91
+                case IPC_ISPLAYING:
+                    switch (player->state) {
+                        case PLAYING: return 1;
+                        case PAUSED:  return 3;
+                        default:      return 0; // STOPPED
+                    }
+                case IPC_GETOUTPUTTIME:
+                    if (player->stream) {
+                        if (wParam == 0) return player->stream->getPosition(); // Position in ms
+                        if (wParam == 1) return player->stream->getLength() / 1000; // Length in seconds
+                    }
+                    return 0;
+                case IPC_JUMPTOTIME:
+                    if (player->stream) {
+                        player->seekTo(wParam);
+                    }
+                    break;
+                case IPC_GETLISTLENGTH:
+                    if (player->playlist) {
+                        return player->playlist->entries();
+                    }
+                    return 0;
+                case IPC_GETLISTPOS:
+                    if (player->playlist) {
+                        return player->playlist->getPosition();
+                    }
+                    return 0;
+                case IPC_GETPLAYLISTTITLE:
+                    break;
+                case IPC_GETPLAYLISTFILE:
+                    break;
+                case IPC_GETPLAYLISTFILEW:
+                    break;
+            }
+            return 0; // WM_USER handled
+        }
+        default:
+            return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    }
+    return 0;
+}
+#endif
 
 void System::InitializeTaskbar()
 {
