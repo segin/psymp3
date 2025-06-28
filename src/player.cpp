@@ -546,7 +546,24 @@ bool Player::updateGUI()
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
         // This implements a continuous seek while arrow keys are held down.
-        const long long seek_increment_ms = 250;
+        const long long BASE_SEEK_INCREMENT_MS = 250;
+        const Uint32 ACCELERATION_START_TIME_MS = 500; // Start accelerating after 0.5s
+        const float MAX_MULTIPLIER = 8.0f; // Seek up to 8x faster
+
+        long long seek_increment_ms = BASE_SEEK_INCREMENT_MS;
+
+        // If we have a valid start time, calculate the acceleration multiplier.
+        if (m_last_seek_time > 0) {
+            Uint32 hold_duration = SDL_GetTicks() - m_last_seek_time;
+            if (hold_duration > ACCELERATION_START_TIME_MS) {
+                // Ramp up to max speed over the next 2 seconds.
+                const float RAMP_UP_DURATION_MS = 2000.0f;
+                float progress = (hold_duration - ACCELERATION_START_TIME_MS) / RAMP_UP_DURATION_MS;
+                progress = std::clamp(progress, 0.0f, 1.0f);
+                float multiplier = 1.0f + (progress * (MAX_MULTIPLIER - 1.0f));
+                seek_increment_ms = static_cast<long long>(BASE_SEEK_INCREMENT_MS * multiplier);
+            }
+        }
 
         if (m_seek_direction == 1) { // backwards
             long long signed_pos = m_seek_position_ms;
@@ -645,6 +662,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             // On the initial key press, capture the current position to seek from.
             if (m_seek_direction == 0 && stream) {
                 m_seek_position_ms = stream->getPosition();
+                m_last_seek_time = SDL_GetTicks();
             }
             m_seek_direction = 1;
             if (!m_seek_left_indicator) {
@@ -663,6 +681,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             // On the initial key press, capture the current position to seek from.
             if (m_seek_direction == 0 && stream) {
                 m_seek_position_ms = stream->getPosition();
+                m_last_seek_time = SDL_GetTicks();
             }
             m_seek_direction = 2;
             if (!m_seek_right_indicator) {
@@ -769,12 +788,14 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
                 m_seek_left_indicator->fadeOut();
             }
             m_seek_direction = 0;
+            m_last_seek_time = 0;
             break;
         case SDLK_RIGHT:
             if (m_seek_right_indicator) {
                 m_seek_right_indicator->fadeOut();
             }
             m_seek_direction = 0;
+            m_last_seek_time = 0;
             break;
         default:
             break;
