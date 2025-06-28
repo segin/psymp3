@@ -83,6 +83,7 @@ class Player
         std::unique_ptr<Playlist> playlist;
         std::unique_ptr<Font> font;
         std::unique_ptr<Stream> stream;
+        std::unique_ptr<Stream> m_next_stream; // Slot for the pre-loaded next track
         std::unique_ptr<Audio> audio;
         std::unique_ptr<FastFourier> fft;
         std::unique_ptr<std::mutex> mutex;
