@@ -71,11 +71,19 @@ size_t Flac::getData(size_t len, void *buf)
     size_t total_bytes_read = 0;
 
     while (bytes_to_read > 0) {
+        // Check for a decoder error before waiting or processing data.
+        FLAC__StreamDecoderErrorStatus error = m_handle.m_last_error.load();
+        if (error != FLAC__STREAM_DECODER_ERROR_STATUS_OK) {
+            throw BadFormatException("FLAC decoder error: " + TagLib::String(FLAC__StreamDecoderErrorStatusString[error]));
+        }
+
         std::unique_lock<std::mutex> lock(m_handle.m_output_buffer_mutex);
 
-        // Wait until there's data in the buffer or the decoder has finished.
+        // Wait until there's data, the decoder has finished, or an error has occurred.
         m_handle.m_output_buffer_cv.wait(lock, [this]{
-            return !m_handle.m_output_buffer.empty() || m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM;
+            return !m_handle.m_output_buffer.empty()
+                || m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM
+                || m_handle.m_last_error.load() != FLAC__STREAM_DECODER_ERROR_STATUS_OK;
         });
 
         // If the buffer is empty and we're at the end, there's nothing more to do.
@@ -311,9 +319,7 @@ void FlacDecoder::decoderThreadLoop() {
                 sample <<= (16 - m_stream_info.bits_per_sample);
             }
 
-            // Clamp to int16_t range and convert
-            if (sample > 32767) sample = 32767;
-            else if (sample < -32768) sample = -32768;
+            sample = std::clamp(sample, -32768, 32767);
 
             m_output_buffer.push_back(static_cast<int16_t>(sample));
         }
