@@ -75,7 +75,7 @@ long Playlist::entries(void)
 bool Playlist::setPosition(long position)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if(position < tracks.size()) {
+    if(position >= 0 && position < tracks.size()) {
         m_position = position;
         return true;
     } else {
@@ -93,7 +93,7 @@ TagLib::String Playlist::setPositionAndJump(long position)
 TagLib::String Playlist::getTrack(long position)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if(position < tracks.size()) {
+    if(position >= 0 && position < tracks.size()) {
         std::string path = tracks[position].GetFilePath().to8Bit(true);
         return tracks[position].GetFilePath();
     } else {
