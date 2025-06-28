@@ -133,6 +133,12 @@ unsigned int Vorbis::getLength()
     return m_length;
 }
 
+unsigned int Vorbis::getPosition()
+{
+    if (!m_handle) return 0;
+    return ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
+}
+
 unsigned long long Vorbis::getSLength()
 {
     return m_slength;

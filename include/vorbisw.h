@@ -31,6 +31,7 @@ class Vorbis : public Stream
         virtual ~Vorbis();
         void open(TagLib::String name);
         virtual unsigned int getLength();
+        virtual unsigned int getPosition();
         virtual unsigned long long getSLength();
         virtual unsigned long long getSPosition();
         virtual unsigned int getChannels();
