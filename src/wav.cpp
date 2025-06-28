@@ -92,17 +92,18 @@ void WaveStream::parseHeaders() {
             m_channels = read_le<uint16_t>(m_file);
             m_rate = read_le<uint32_t>(m_file);
             m_file.seekg(6, std::ios_base::cur); // Skip ByteRate and BlockAlign
-            uint16_t bits_per_sample = read_le<uint16_t>(m_file);
+            m_bits_per_sample = read_le<uint16_t>(m_file);
 
-            if (bits_per_sample != 16) {
-                throw BadFormatException("Unsupported WAVE format: only 16-bit LPCM is supported.");
+            if (m_bits_per_sample != 8 && m_bits_per_sample != 16 && m_bits_per_sample != 24) {
+                throw BadFormatException("Unsupported WAVE format: only 8, 16, or 24-bit LPCM is supported.");
             }
+            m_bytes_per_sample = m_bits_per_sample / 8;
             found_fmt = true;
         } else if (chunk_id == DATA_ID) {
             if (!found_fmt) throw BadFormatException("WAVE 'data' chunk found before 'fmt ' chunk.");
             m_data_chunk_offset = chunk_start_pos;
             m_data_chunk_size = chunk_size;
-            m_slength = m_data_chunk_size / (m_channels * (16 / 8));
+            m_slength = m_data_chunk_size / (m_channels * m_bytes_per_sample);
             m_length = (m_slength * 1000) / m_rate;
             m_file.seekg(m_data_chunk_offset); // Position at start of data
             return; // Found both, we're done parsing.
@@ -120,20 +121,62 @@ void WaveStream::parseHeaders() {
 size_t WaveStream::getData(size_t len, void *buf) {
     if (eof()) return 0;
 
-    size_t bytes_to_read = std::min(len, static_cast<size_t>(m_data_chunk_size - m_bytes_read_from_data));
-    m_file.read(static_cast<char*>(buf), bytes_to_read);
-    size_t bytes_read = m_file.gcount();
+    // If the source is already 16-bit, we can perform a direct, efficient read.
+    if (m_bits_per_sample == 16) {
+        size_t bytes_to_read = std::min(len, static_cast<size_t>(m_data_chunk_size - m_bytes_read_from_data));
+        m_file.read(static_cast<char*>(buf), bytes_to_read);
+        size_t bytes_read = m_file.gcount();
+        m_bytes_read_from_data += bytes_read;
+        m_sposition = m_bytes_read_from_data / (m_channels * m_bytes_per_sample);
+        m_position = (m_sposition * 1000) / m_rate;
+        return bytes_read;
+    }
 
-    m_bytes_read_from_data += bytes_read;
-    m_sposition = m_bytes_read_from_data / (m_channels * 2);
+    // For 8-bit and 24-bit, we must convert to 16-bit.
+    // Calculate how many source bytes we need to read to fill the output buffer.
+    size_t max_output_samples = len / 2; // Output buffer expects 16-bit (2-byte) samples.
+    size_t source_bytes_to_read = max_output_samples * m_bytes_per_sample;
+    source_bytes_to_read = std::min(source_bytes_to_read, static_cast<size_t>(m_data_chunk_size - m_bytes_read_from_data));
+    if (source_bytes_to_read == 0) return 0;
+
+    // Read the raw source data into a temporary buffer.
+    std::vector<char> source_buffer(source_bytes_to_read);
+    m_file.read(source_buffer.data(), source_bytes_to_read);
+    size_t actual_source_bytes_read = m_file.gcount();
+    if (actual_source_bytes_read == 0) return 0;
+
+    // Pointers for conversion.
+    auto* out_ptr = static_cast<int16_t*>(buf);
+    const char* in_ptr = source_buffer.data();
+    size_t samples_to_convert = actual_source_bytes_read / m_bytes_per_sample;
+
+    if (m_bits_per_sample == 8) {
+        // 8-bit WAVE is unsigned. Convert to 16-bit signed.
+        for (size_t i = 0; i < samples_to_convert; ++i) {
+            uint8_t u8_sample = static_cast<uint8_t>(*in_ptr++);
+            *out_ptr++ = (static_cast<int16_t>(u8_sample) - 128) << 8;
+        }
+    } else if (m_bits_per_sample == 24) {
+        // 24-bit WAVE is signed. Convert to 16-bit signed by taking the most significant bytes.
+        for (size_t i = 0; i < samples_to_convert; ++i) {
+            // Read 3 bytes for a 24-bit sample (little-endian) and sign-extend.
+            int32_t s24_sample = (static_cast<int8_t>(in_ptr[2]) << 16) | (static_cast<uint8_t>(in_ptr[1]) << 8) | static_cast<uint8_t>(in_ptr[0]);
+            in_ptr += 3;
+            *out_ptr++ = static_cast<int16_t>(s24_sample >> 8);
+        }
+    }
+
+    size_t bytes_written = samples_to_convert * 2; // We wrote 16-bit (2-byte) samples.
+    m_bytes_read_from_data += actual_source_bytes_read;
+    m_sposition = m_bytes_read_from_data / (m_channels * m_bytes_per_sample);
     m_position = (m_sposition * 1000) / m_rate;
 
-    return bytes_read;
+    return bytes_written;
 }
 
 void WaveStream::seekTo(unsigned long pos) {
     unsigned long long sample_pos = (static_cast<unsigned long long>(pos) * m_rate) / 1000;
-    unsigned long long byte_pos = sample_pos * m_channels * 2; // 16-bit = 2 bytes
+    unsigned long long byte_pos = sample_pos * m_channels * m_bytes_per_sample;
 
     if (byte_pos > m_data_chunk_size) {
         byte_pos = m_data_chunk_size;

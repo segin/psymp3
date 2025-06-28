@@ -39,6 +39,8 @@ private:
     void parseHeaders();
 
     std::ifstream m_file;
+    uint16_t m_bits_per_sample = 0;
+    uint16_t m_bytes_per_sample = 0;
     uint32_t m_data_chunk_offset = 0;
     uint32_t m_data_chunk_size = 0;
     uint32_t m_bytes_read_from_data = 0;
