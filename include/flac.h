@@ -24,6 +24,8 @@
 #ifndef FLAC_H
 #define FLAC_H
 
+#include "IOHandler.h"
+
 class FlacDecoder: public FLAC::Decoder::Stream
 {
     public:
@@ -55,7 +57,7 @@ class FlacDecoder: public FLAC::Decoder::Stream
     private:
     	FlacDecoder(const FlacDecoder&);
 	    FlacDecoder &operator=(const FlacDecoder&);
-        FILE *m_file_handle;
+        std::unique_ptr<IOHandler> m_handler;
         std::thread m_decoder_thread;
         std::atomic<bool> m_decoding_active;
         std::atomic<bool> m_seek_request;

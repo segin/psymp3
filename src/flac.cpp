@@ -149,67 +149,49 @@ bool Flac::eof()
 }
 
 FlacDecoder::FlacDecoder(TagLib::String path)
-    : FLAC::Decoder::Stream(), m_path(path), m_file_handle(nullptr),
+    : FLAC::Decoder::Stream(), m_path(path),
       m_decoding_active(false), m_seek_request(false)
 {
     // High-water mark for the decoded buffer to prevent it from growing too large.
     // Pre-allocate to avoid reallocations in the audio/decoder threads.
     m_output_buffer.reserve(48000 * 2 * 4); // ~4 seconds of 48kHz stereo audio
+
+    URI uri(path);
+    if (uri.scheme() == "file") {
+        m_handler = std::make_unique<FileIOHandler>(uri.path());
+    } else {
+        throw InvalidMediaException("Unsupported URI scheme for FLAC: " + uri.scheme());
+    }
 }
 
 FlacDecoder::~FlacDecoder()
 {
-    if (m_file_handle) {
-        fclose(m_file_handle);
-        m_file_handle = nullptr;
-    }
     stopDecoderThread();
 }
 
 ::FLAC__StreamDecoderInitStatus FlacDecoder::init()
 {
-    // Open the file using fopen for better control over paths
-#ifdef _WIN32
-    m_file_handle = _wfopen(m_path.toCWString(), L"rb");
-#else
-    m_file_handle = fopen(m_path.toCString(true), "rb");
-#endif
-
-    if (!m_file_handle) {
-        return FLAC__STREAM_DECODER_INIT_STATUS_ERROR_OPENING_FILE;
-    }
-
     // Now initialize the base stream decoder
     return FLAC::Decoder::Stream::init();
 }
 
 ::FLAC__StreamDecoderReadStatus FlacDecoder::read_callback(FLAC__byte buffer[], size_t *bytes) {
     if (*bytes > 0) {
-        *bytes = fread(buffer, sizeof(FLAC__byte), *bytes, m_file_handle);
-        if (ferror(m_file_handle))
-            return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
-        else
-            return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+        *bytes = m_handler->read(buffer, 1, *bytes);
+        // As per libFLAC examples, return END_OF_STREAM when 0 bytes are read.
+        return *bytes == 0 ? FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM : FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
     }
-    return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
+    return FLAC__STREAM_DECODER_READ_STATUS_ABORT; // Should not be called with *bytes == 0
 }
 
 ::FLAC__StreamDecoderSeekStatus FlacDecoder::seek_callback(FLAC__uint64 absolute_byte_offset) {
-#ifdef _WIN32
-    if (_fseeki64(m_file_handle, static_cast<__int64>(absolute_byte_offset), SEEK_SET) < 0)
-#else
-    if (fseeko(m_file_handle, static_cast<off_t>(absolute_byte_offset), SEEK_SET) < 0)
-#endif
+    if (m_handler->seek(static_cast<long>(absolute_byte_offset), SEEK_SET) != 0)
         return FLAC__STREAM_DECODER_SEEK_STATUS_ERROR;
     return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
 }
 
 ::FLAC__StreamDecoderTellStatus FlacDecoder::tell_callback(FLAC__uint64 *absolute_byte_offset) {
-#ifdef _WIN32
-    __int64 pos = _ftelli64(m_file_handle);
-#else
-    off_t pos = ftello(m_file_handle);
-#endif
+    long pos = m_handler->tell();
     if (pos < 0)
         return FLAC__STREAM_DECODER_TELL_STATUS_ERROR;
     *absolute_byte_offset = static_cast<FLAC__uint64>(pos);
@@ -217,21 +199,24 @@ FlacDecoder::~FlacDecoder()
 }
 
 ::FLAC__StreamDecoderLengthStatus FlacDecoder::length_callback(FLAC__uint64 *stream_length) {
-#ifdef _WIN32
-    // Use 64-bit file status functions for large file support on Windows.
-    struct __stat64 st;
-    if (_fstat64(_fileno(m_file_handle), &st) != 0)
-#else
-    struct stat st;
-    if (fstat(fileno(m_file_handle), &st) != 0)
-#endif
-        return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
-    *stream_length = st.st_size;
+    // Get stream length by seeking to the end, telling, and seeking back.
+    long current_pos = m_handler->tell();
+    if (current_pos < 0) return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
+
+    if (m_handler->seek(0, SEEK_END) != 0) return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
+
+    long size = m_handler->tell();
+    if (size < 0) return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
+
+    // Restore original position
+    if (m_handler->seek(current_pos, SEEK_SET) != 0) return FLAC__STREAM_DECODER_LENGTH_STATUS_ERROR;
+
+    *stream_length = static_cast<FLAC__uint64>(size);
     return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
 }
 
 bool FlacDecoder::eof_callback() {
-    return feof(m_file_handle) ? true : false;
+    return m_handler->eof();
 }
 
 void FlacDecoder::startDecoderThread() {
