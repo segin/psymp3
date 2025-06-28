@@ -104,14 +104,24 @@ TagLib::String Playlist::getTrack(long position)
 TagLib::String Playlist::next()
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    return getTrack(++m_position);
+    if (tracks.empty()) return "";
+    m_position++;
+    if (m_position >= tracks.size()) {
+        m_position = 0; // Wrap around to the beginning
+    }
+    return getTrack(m_position);
 }
 
 TagLib::String Playlist::prev()
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if (m_position == 0) m_position++;
-    return getTrack(--m_position);
+    if (tracks.empty()) return "";
+    if (m_position > 0) {
+        m_position--;
+    } else {
+        m_position = tracks.size() - 1; // Wrap around to the end
+    }
+    return getTrack(m_position);
 }
 
 static TagLib::String joinPaths(const TagLib::String& base, const TagLib::String& relative) {
