@@ -47,8 +47,8 @@ void OpusFile::open(TagLib::String name)
     }
     m_session = op_open_file(name.toCString(true), &error);
     if(!m_session) {
-        // Provide a more informative exception, including the library's error code.
-        throw InvalidMediaException("Failed to open Opus file '" + name + "': " + op_strerror(error));
+        // Provide a more informative exception, including the library's error string.
+        throw InvalidMediaException("Failed to open Opus file '" + name + "': " + opus_strerror(error));
     }
 
     // As per the opusfile manual, output is always 48kHz.
