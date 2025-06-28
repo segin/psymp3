@@ -531,6 +531,110 @@ void Player::handleMouseButtonUp(const SDL_MouseButtonEvent& event)
     }
 }
 
+bool Player::handleUserEvent(const SDL_UserEvent& event)
+{
+    switch(event.code) {
+        case START_FIRST_TRACK:
+        {
+            if (playlist->entries() > 0) {
+                requestTrackLoad(playlist->getTrack(0));
+            }
+            break;
+        }
+        case DO_NEXT_TRACK:
+        {
+            return !nextTrack();
+        }
+        case DO_PREV_TRACK:
+        {
+            prevTrack();
+            break;
+        }
+        case TRACK_LOAD_SUCCESS:
+        {
+            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
+            Stream* new_stream = result->stream;
+            delete result; // Free the result struct
+
+            m_loading_track = false; // Loading complete
+
+            // If an audio device exists, lock it before we swap streams.
+            if (audio) {
+                audio->lock();
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(*mutex);
+                stream.reset(new_stream);
+                ATdata.stream = stream.get();
+            }
+            if (stream) {
+                if (!audio) {
+                    // First track loaded, create the audio device.
+                    audio = std::make_unique<Audio>(&ATdata);
+                } else {
+                    // Audio device exists, check if we need to re-open it for the new format.
+                    if ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
+                        pause(); // Pause to avoid race condition during audio device re-open
+                        audio->unlock(); // Unlock before deleting/recreating Audio
+                        audio = std::make_unique<Audio>(&ATdata);
+                    } else {
+                        // Format is the same, just unlock.
+                        audio->unlock();
+                    }
+                }
+
+                // Render text surfaces and store them in the map.
+                info["artist"] = font->Render("Artist: " + stream->getArtist());
+                info["title"] = font->Render("Title: " + stream->getTitle());
+                info["album"] = font->Render("Album: " + stream->getAlbum());
+                info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
+                info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
+                info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
+                info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
+                play();
+            } else {
+                // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
+                state = PlayerState::Stopped;
+                screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error loading track ]:-", "PsyMP3 " PSYMP3_VERSION);
+                info["artist"] = font->Render("Artist: N/A");
+                info["title"] = font->Render("Title: Error loading track");
+                info["album"] = font->Render("Album: N/A");
+                info["playlist"] = font->Render("Playlist: N/A");
+                info["position"] = font->Render("Position: --:--.-- / --:--.--");
+            }
+            break;
+        }
+        case TRACK_LOAD_FAILURE:
+        {
+            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
+            TagLib::String error_msg = result->error_message;
+            delete result; // Free the result struct
+
+            m_loading_track = false; // Loading complete
+
+            std::cerr << "Failed to load track: " << error_msg << std::endl;
+            // Handle error: stop playback, display error message
+            stop(); // Stop current playback
+            screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+            info["artist"] = font->Render("Artist: N/A");
+            info["title"] = font->Render("Title: Error: " + error_msg);
+            info["album"] = font->Render("Album: N/A");
+            info["playlist"] = font->Render("Playlist: N/A");
+            info["position"] = font->Render("Position: --:--.-- / --:--.--");
+            break;
+        }
+        case RUN_GUI_ITERATION:
+        {
+            if (updateGUI()) {
+                return !nextTrack();
+            }
+            break;
+        }
+    }
+    return false; // Do not exit
+}
+
 /* Main player functionality */
 
 void Player::Run(std::vector<std::string> args) {
@@ -650,110 +754,14 @@ void Player::Run(std::vector<std::string> args) {
                 default:
                     break;
                }
+               break;
             }
             case SDL_USEREVENT:
-                switch(event.user.code) {
-                    case START_FIRST_TRACK:
-                    {
-                        if (playlist->entries() > 0) {
-                            requestTrackLoad(playlist->getTrack(0));
-                        }
-                        break;
-                    }
-                    case DO_NEXT_TRACK:
-                    {
-                        done = !nextTrack();
-                        break;
-                    }
-                    case DO_PREV_TRACK:
-                    {
-                        prevTrack();
-                        break;
-                    }
-                    case TRACK_LOAD_SUCCESS:
-                        {
-                            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.user.data1);
-                            Stream* new_stream = result->stream;
-                            delete result; // Free the result struct
-
-                            m_loading_track = false; // Loading complete
-
-                            // If an audio device exists, lock it before we swap streams.
-                            if (audio) {
-                                audio->lock();
-                            }
-
-                            {
-                                std::lock_guard<std::mutex> lock(*mutex);
-                                stream.reset(new_stream);
-                                ATdata.stream = stream.get();
-                            }
-                            if (stream) {
-                                if (!audio) {
-                                    // First track loaded, create the audio device.
-                                    audio = std::make_unique<Audio>(&ATdata);
-                                } else {
-                                    // Audio device exists, check if we need to re-open it for the new format.
-                                    if ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
-                                        pause(); // Pause to avoid race condition during audio device re-open
-                                        audio->unlock(); // Unlock before deleting/recreating Audio
-                                        audio = std::make_unique<Audio>(&ATdata);
-                                    } else {
-                                        // Format is the same, just unlock.
-                                        audio->unlock();
-                                    }
-                                }
-
-                                // Render text surfaces and store them in the map.
-                                info["artist"] = font->Render("Artist: " + stream->getArtist());
-                                info["title"] = font->Render("Title: " + stream->getTitle());
-                                info["album"] = font->Render("Album: " + stream->getAlbum());
-                                info["playlist"] = font->Render("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
-                                info["scale"] = font->Render(std::string("log scale = ") + std::to_string(scalefactor));
-                                info["decay"] = font->Render("decay = " + std::to_string(decayfactor));
-                                info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
-                                play();
-                            } else {
-                                // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
-                                state = PlayerState::Stopped;
-                                screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error loading track ]:-", "PsyMP3 " PSYMP3_VERSION);
-                                info["artist"] = font->Render("Artist: N/A");
-                                info["title"] = font->Render("Title: Error loading track");
-                                info["album"] = font->Render("Album: N/A");
-                                info["playlist"] = font->Render("Playlist: N/A");
-                                info["position"] = font->Render("Position: --:--.-- / --:--.--");
-                            }
-                        }
-                        break;
-                    case TRACK_LOAD_FAILURE:
-                        {
-                            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.user.data1);
-                            TagLib::String error_msg = result->error_message;
-                            delete result; // Free the result struct
-
-                            m_loading_track = false; // Loading complete
-
-                            std::cerr << "Failed to load track: " << error_msg << std::endl;
-                            // Handle error: stop playback, display error message
-                            stop(); // Stop current playback
-                            screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
-                            info["artist"] = font->Render("Artist: N/A");
-                            info["title"] = font->Render("Title: Error: " + error_msg);
-                            info["album"] = font->Render("Album: N/A");
-                            info["playlist"] = font->Render("Playlist: N/A");
-                            info["position"] = font->Render("Position: --:--.-- / --:--.--");
-                        }
-                        break;
-                    case RUN_GUI_ITERATION:
-                    {
-                        if (updateGUI()) {
-                            done = !nextTrack();
-                        }
-                        break;
-                    }
-                }
+            {
+                done = handleUserEvent(event.user);
                 break;
-            } // end switch
+            }
+            } // end switch (event.type)
             if (done) break;
 
         } // end of message processing
