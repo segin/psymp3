@@ -23,20 +23,40 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief A static helper function to convert a long integer to a string.
+ * @param number The number to convert.
+ * @return The string representation of the number.
+ */
 bool Player::guiRunning;
 
+/**
+ * @brief A static helper function to convert a long integer to a string.
+ * @param number The number to convert.
+ * @return The string representation of the number.
+ */
 static std::string convertInt(long number) {
    std::stringstream ss;
    ss << number;
    return ss.str();
 }
 
+/**
+ * @brief A static helper function to convert a long integer to a two-digit, zero-padded string.
+ * @param number The number to convert.
+ * @return The zero-padded string representation (e.g., 7 becomes "07").
+ */
 static std::string convertInt2(long number) {
     std::stringstream ss;
     ss << std::setw(2) << std::setfill('0') << number;
     return ss.str();
 }
 
+/**
+ * @brief Constructs the Player object.
+ * This initializes the player's state and starts the background track loader thread.
+ * Most object initialization is deferred to the Run() method, as it depends on SDL.
+ */
 Player::Player() {
     //ctor - you'd think we'd initialize our object pointers here,
     // but no, some depend on SDL, which is initialized in Run()
@@ -50,6 +70,11 @@ Player::Player() {
     m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
 }
 
+/**
+ * @brief Destroys the Player object.
+ * This ensures a clean shutdown by signaling all background threads (loader, playlist populator)
+ * to terminate and waiting for them to join before destroying shared resources.
+ */
 Player::~Player() {
     // Signal threads to stop and wait for them to finish *before*
     // destroying any resources they might be using. This prevents use-after-free.
@@ -68,7 +93,11 @@ Player::~Player() {
     }
 }
 
-/* SDL event synthesis */
+/**
+ * @brief Synthesizes and pushes a key down and key up event into the SDL event queue.
+ * This is useful for programmatically triggering key press actions.
+ * @param kpress The SDLKey symbol for the key to be pressed.
+ */
 void Player::synthesizeKeyEvent(SDLKey kpress) {
     SDL_Event event;
     event.type = SDL_KEYDOWN;
@@ -78,6 +107,14 @@ void Player::synthesizeKeyEvent(SDLKey kpress) {
     SDL_PushEvent(&event);
 }
 
+/**
+ * @brief Synthesizes and pushes a custom user event into the SDL event queue.
+ * This is the primary mechanism for inter-thread communication, allowing background threads
+ * to safely notify the main thread of completed work or required actions.
+ * @param code The integer code identifying the user event.
+ * @param data1 A pointer to the first data payload.
+ * @param data2 A pointer to the second data payload.
+ */
 void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
     SDL_Event event;
 
@@ -89,6 +126,14 @@ void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
     SDL_PushEvent(&event);
 }
 
+/**
+ * @brief A static timer callback function for SDL_AddTimer.
+ * This function is called periodically by an SDL timer to push a GUI update event
+ * into the queue, ensuring the UI remains responsive even when no other events are occurring.
+ * @param interval The timer interval.
+ * @param param A user-defined parameter (unused).
+ * @return The interval for the next timer call.
+ */
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     if (!Player::guiRunning)
         synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
@@ -98,9 +143,11 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     return interval;
 }
 
-/* If we're stopped or paused when a new track is requested, we should
- * switch to playing - this is consistent with the majority of players
- * on the market.
+/**
+ * @brief Requests the asynchronous loading of a track for immediate playback.
+ * This method adds a 'PlayNow' request to a queue, which is processed by a background
+ * loader thread. This prevents the UI from freezing during file I/O and decoding.
+ * @param path The file path of the track to load and play.
  */
 void Player::requestTrackLoad(TagLib::String path) {
     if (m_loading_track) {
@@ -122,6 +169,12 @@ void Player::requestTrackLoad(TagLib::String path) {
     m_loader_queue_cv.notify_one();
 }
 
+/**
+ * @brief Requests the asynchronous pre-loading of the next track in the playlist.
+ * This is typically called when the current track is nearing its end. The pre-loaded
+ * stream is held in `m_next_stream` for a seamless transition.
+ * @param path The file path of the track to preload.
+ */
 void Player::requestTrackPreload(const TagLib::String& path) {
     if (m_loading_track || m_preloading_track || m_next_stream) return;
     m_preloading_track = true;
@@ -132,6 +185,12 @@ void Player::requestTrackPreload(const TagLib::String& path) {
     m_loader_queue_cv.notify_one();
 }
 
+/**
+ * @brief Requests the asynchronous loading of a ChainedStream.
+ * This is used for "hidden track" sequences, where multiple short audio files
+ * are treated as a single, continuous stream.
+ * @param paths A vector of file paths to be chained together.
+ */
 void Player::requestChainedStreamLoad(const std::vector<TagLib::String>& paths) {
     if (m_loading_track || m_preloading_track || m_next_stream) return;
     m_preloading_track = true;
@@ -142,6 +201,13 @@ void Player::requestChainedStreamLoad(const std::vector<TagLib::String>& paths) 
     m_loader_queue_cv.notify_one();
 }
 
+/**
+ * @brief The main loop for the background track loader thread.
+ * This thread waits for load requests to appear in a queue. When a request is
+ * received, it opens the corresponding media file (which can be a blocking operation)
+ * and then posts a success or failure event back to the main thread with the result.
+ * This design keeps the UI responsive.
+ */
 void Player::loaderThreadLoop() {
     System::setThisThreadName("track-loader");
     while (m_loader_active) {
@@ -191,6 +257,13 @@ void Player::loaderThreadLoop() {
     }
 }
 
+/**
+ * @brief The main loop for the background playlist populator thread.
+ * This thread is responsible for parsing command-line arguments and adding them
+ * to the playlist. This is done in the background to allow the main window to
+ * appear immediately on startup, without waiting for file system access.
+ * @param args The vector of command-line arguments passed to the application.
+ */
 void Player::playlistPopulatorLoop(std::vector<std::string> args) {
     System::setThisThreadName("playlist-populator");
 
@@ -224,7 +297,12 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
     }
 }
 
-/* Player control functions */
+/**
+ * @brief Advances to the next track in the playlist.
+ * @param advance_count The number of tracks to advance by. Defaults to 1.
+ * @return `true` if a track was successfully loaded, `false` if the playlist is empty
+ * or the end was reached without wrapping.
+ */
 bool Player::nextTrack(size_t advance_count) {
     if (advance_count == 0) advance_count = 1; // Must advance at least once.
 
@@ -240,11 +318,20 @@ bool Player::nextTrack(size_t advance_count) {
     return true;
 }
 
+/**
+ * @brief Moves to the previous track in the playlist.
+ * @return `true` always.
+ */
 bool Player::prevTrack(void) {
     requestTrackLoad(playlist->prev());
     return true;
 }
 
+/**
+ * @brief Stops playback completely.
+ * Resets the stream and audio device.
+ * @return `true` always.
+ */
 bool Player::stop(void) {
     state = PlayerState::Stopped;
     m_pause_indicator.reset();
@@ -252,6 +339,11 @@ bool Player::stop(void) {
     return true;
 }
 
+/**
+ * @brief Pauses playback.
+ * If already playing, it pauses the audio output. Does nothing if stopped.
+ * @return `true` if paused successfully, `false` if the player was stopped.
+ */
 bool Player::pause(void) {
     if (state != PlayerState::Stopped) {
         audio->play(false);
@@ -266,6 +358,10 @@ bool Player::pause(void) {
     }
 }
 
+/**
+ * @brief Starts or resumes playback.
+ * @return `true` always.
+ */
 bool Player::play(void) {
     m_pause_indicator.reset();
     audio->play(true);
@@ -273,6 +369,10 @@ bool Player::play(void) {
     return true;
 }
 
+/**
+ * @brief Toggles between play and pause states.
+ * @return `true` always.
+ */
 bool Player::playPause(void) {
     if (state == PlayerState::Playing) {
         pause();
@@ -283,6 +383,11 @@ bool Player::playPause(void) {
     return true;
 }
 
+/**
+ * @brief Seeks the current stream to a specific position.
+ * This is a thread-safe operation that locks the player mutex.
+ * @param pos The target position in milliseconds.
+ */
 void Player::seekTo(unsigned long pos)
 {
     std::lock_guard<std::mutex> lock(*mutex);
@@ -291,6 +396,10 @@ void Player::seekTo(unsigned long pos)
     }
 }
 
+/**
+ * @brief Pre-calculates the color gradient for the spectrum analyzer.
+ * This is done once at startup to avoid expensive color calculations in the main render loop.
+ */
 void Player::precomputeSpectrumColors() {
     if (!graph) return;
 
@@ -314,8 +423,12 @@ void Player::precomputeSpectrumColors() {
     }
 }
 
-/* Internal UI compartments */
-
+/**
+ * @brief Renders the spectrum analyzer visualization onto a given surface.
+ * This includes the falling-bar visualization and the "ghosting" or fade effect,
+ * which is achieved by blitting a semi-transparent black rectangle over the previous frame.
+ * @param graph The destination surface to draw the spectrum on.
+ */
 void Player::renderSpectrum(Surface *graph) {
     float *spectrum = fft->getFFT();
 
@@ -353,6 +466,13 @@ void Player::renderSpectrum(Surface *graph) {
     };
 }
 
+/**
+ * @brief Updates the text of all on-screen labels.
+ * This function centralizes the logic for displaying track metadata, error messages,
+ * and player settings. It is called whenever the player's state changes.
+ * @param is_loading `true` to display a "Loading..." state.
+ * @param error_msg A string to display if an error has occurred.
+ */
 void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
 {
     if (is_loading) {
@@ -389,6 +509,14 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
     m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
 }
 
+/**
+ * @brief The main GUI update function, called on every frame.
+ * This function is responsible for orchestrating all rendering. It locks shared data,
+ * renders the spectrum, updates and renders overlay widgets (toasts, pause indicators),
+ * handles pre-loading logic, draws the progress bar, and finally composes the scene
+ * and flips the screen buffer.
+ * @return `true` if the current track has ended, `false` otherwise.
+ */
 bool Player::updateGUI()
 {
     Player::guiRunning = true;
@@ -596,6 +724,12 @@ bool Player::updateGUI()
     return stream ? stream->eof() : false;
 }
 
+/**
+ * @brief Handles key press events.
+ * This function contains the main logic for all keyboard shortcuts.
+ * @param keysym The SDL_keysym structure for the pressed key.
+ * @return `true` if the event signals that the application should exit, `false` otherwise.
+ */
 bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
@@ -711,11 +845,21 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     return false; // Do not exit
 }
 
+/**
+ * @brief Displays a short-lived "toast" notification on the screen.
+ * @param message The text message to display.
+ * @param duration_ms The duration in milliseconds for the toast to be visible.
+ */
 void Player::showToast(const std::string& message, Uint32 duration_ms)
 {
     m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
 }
 
+/**
+ * @brief Handles mouse button down events.
+ * This is primarily used to detect when the user clicks on the progress bar to initiate a seek drag.
+ * @param event The SDL_MouseButtonEvent structure.
+ */
 void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
 {
     if (event.button == SDL_BUTTON_LEFT) {
@@ -738,6 +882,11 @@ void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
     }
 }
 
+/**
+ * @brief Handles mouse motion events.
+ * If a drag-seek is in progress, this updates the visual position of the progress bar.
+ * @param event The SDL_MouseMotionEvent structure.
+ */
 void Player::handleMouseMotion(const SDL_MouseMotionEvent& event)
 {
     if (m_is_dragging && stream && stream->getLength() > 0 &&
@@ -750,6 +899,11 @@ void Player::handleMouseMotion(const SDL_MouseMotionEvent& event)
     }
 }
 
+/**
+ * @brief Handles mouse button up events.
+ * If a drag-seek was in progress, this finalizes the seek by sending the actual seek command.
+ * @param event The SDL_MouseButtonEvent structure.
+ */
 void Player::handleMouseButtonUp(const SDL_MouseButtonEvent& event)
 {
     if (event.button == SDL_BUTTON_LEFT && m_is_dragging) {
@@ -761,6 +915,11 @@ void Player::handleMouseButtonUp(const SDL_MouseButtonEvent& event)
     }
 }
 
+/**
+ * @brief Handles key release events.
+ * This is used to stop continuous actions, such as keyboard seeking.
+ * @param keysym The SDL_keysym structure for the released key.
+ */
 void Player::handleKeyUp(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
@@ -781,6 +940,13 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
     }
 }
 
+/**
+ * @brief Handles custom SDL user events.
+ * This is the main entry point for processing events sent from background threads,
+ * such as track loading results, or from the GUI timer.
+ * @param event The SDL_UserEvent structure.
+ * @return `true` if the event signals that the application should exit, `false` otherwise.
+ */
 bool Player::handleUserEvent(const SDL_UserEvent& event)
 {
     switch(event.code) {
@@ -927,8 +1093,12 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
     return false; // Do not exit
 }
 
-/* Main player functionality */
-
+/**
+ * @brief The main entry point and run loop for the Player.
+ * This function initializes SDL and all major components (display, fonts, UI),
+ * starts the main event loop, and handles cleanup on exit.
+ * @param args The vector of command-line arguments passed to the application.
+ */
 void Player::Run(std::vector<std::string> args) {
     if((args.size() > 1) && args[1] == "--version") {
         about_console();
