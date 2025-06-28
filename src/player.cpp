@@ -453,10 +453,18 @@ bool Player::updateGUI()
 
     // --- Seek Indicator Rendering ---
     if (m_seek_left_indicator) {
-        m_seek_left_indicator->BlitTo(*graph);
+        if (m_seek_left_indicator->isHidden()) {
+            m_seek_left_indicator.reset();
+        } else {
+            m_seek_left_indicator->BlitTo(*graph);
+        }
     }
     if (m_seek_right_indicator) {
-        m_seek_right_indicator->BlitTo(*graph);
+        if (m_seek_right_indicator->isHidden()) {
+            m_seek_right_indicator.reset();
+        } else {
+            m_seek_right_indicator->BlitTo(*graph);
+        }
     }
 
 
@@ -532,17 +540,20 @@ bool Player::updateGUI()
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
         // This implements a continuous seek while arrow keys are held down.
-        // We seek by a fixed amount per frame for simplicity and responsiveness.
         const long long seek_increment_ms = 250; // Seek by 250ms per frame
+        long long new_pos_ms = current_pos_ms;
+
         if (m_seek_direction == 1) { // backwards
-            long long current_pos = stream->getPosition();
-            seekTo(current_pos > seek_increment_ms ? current_pos - seek_increment_ms : 0);
+            new_pos_ms -= seek_increment_ms;
+            if (new_pos_ms < 0) new_pos_ms = 0;
         } else if (m_seek_direction == 2) { // forwards
-            seekTo(stream->getPosition() + seek_increment_ms);
+            new_pos_ms += seek_increment_ms;
+            if (total_len_ms > 0 && new_pos_ms > (long long)total_len_ms) {
+                new_pos_ms = total_len_ms;
+            }
         }
-        // After seeking, we must update our local copy of the position
-        // to ensure the progress bar reflects the change in this frame.
-        current_pos_ms = stream->getPosition();
+        seekTo(new_pos_ms); // Request the asynchronous seek
+        current_pos_ms = new_pos_ms; // Update local var for instant visual feedback
     }
 
     // If dragging, use the drag position; otherwise, use the actual stream position
@@ -627,27 +638,29 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_LEFT:
             m_seek_direction = 1;
             if (!m_seek_left_indicator) {
-                m_seek_left_indicator = std::make_unique<Widget>();
                 auto sfc = std::make_unique<Surface>(11, 7);
                 sfc->line(0, 3, 10, 3, 255, 0, 0, 255); // shaft
                 sfc->line(0, 3, 3, 0, 255, 0, 0, 255); // top arrowhead
                 sfc->line(0, 3, 3, 6, 255, 0, 0, 255); // bottom arrowhead
+                m_seek_left_indicator = std::make_unique<FadingWidget>();
                 m_seek_left_indicator->setSurface(std::move(sfc));
                 m_seek_left_indicator->setPos(Rect(380, 374, 11, 7));
             }
+            m_seek_left_indicator->fadeIn();
             break;
 
         case SDLK_RIGHT:
             m_seek_direction = 2;
             if (!m_seek_right_indicator) {
-                m_seek_right_indicator = std::make_unique<Widget>();
                 auto sfc = std::make_unique<Surface>(11, 7);
                 sfc->line(0, 3, 10, 3, 0, 255, 0, 255); // shaft
                 sfc->line(10, 3, 7, 0, 0, 255, 0, 255); // top arrowhead
                 sfc->line(10, 3, 7, 6, 0, 255, 0, 255); // bottom arrowhead
+                m_seek_right_indicator = std::make_unique<FadingWidget>();
                 m_seek_right_indicator->setSurface(std::move(sfc));
                 m_seek_right_indicator->setPos(Rect(628, 374, 11, 7));
             }
+            m_seek_right_indicator->fadeIn();
             break;
 
         case SDLK_SPACE:
@@ -738,11 +751,15 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
         case SDLK_LEFT:
-            m_seek_left_indicator.reset();
+            if (m_seek_left_indicator) {
+                m_seek_left_indicator->fadeOut();
+            }
             m_seek_direction = 0;
             break;
         case SDLK_RIGHT:
-            m_seek_right_indicator.reset();
+            if (m_seek_right_indicator) {
+                m_seek_right_indicator->fadeOut();
+            }
             m_seek_direction = 0;
             break;
         default:

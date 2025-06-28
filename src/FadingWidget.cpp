@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "FadingWidget.h"
 
 FadingWidget::FadingWidget() : Widget()
 {
