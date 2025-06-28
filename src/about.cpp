@@ -54,14 +54,18 @@ void about_console()
 
 #if defined(_WIN32)
 void about_windows() {
-# ifdef UNICODE
-    if (WCHAR *about = static_cast<WCHAR*>(malloc((strlen(_about_message) * sizeof(WCHAR)) + 4))) {     
-        MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, _about_message, strlen(_about_message), about, strlen(_about_message));
-        MessageBox(System::getHwnd(), about, L"PsyMP3", MB_OK);
-        free(about);
+#ifdef UNICODE
+    // Use modern C++ vector for buffer management instead of malloc/free.
+    // First, determine the required buffer size for the wide string.
+    int required_size = MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, NULL, 0);
+    if (required_size > 0) {
+        std::vector<wchar_t> wide_buffer(required_size);
+        // Now, perform the actual conversion.
+        MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, wide_buffer.data(), required_size);
+        MessageBoxW(System::getHwnd(), wide_buffer.data(), L"PsyMP3", MB_OK);
     }
-# elif
-    MessageBox(System::getHwnd(), _about_message, "PsyMP3", MB_OK); 
-# endif
+#else
+    MessageBoxA(System::getHwnd(), _about_message, "PsyMP3", MB_OK);
+#endif
 }
 #endif // _WIN32
