@@ -100,6 +100,7 @@ class Player
         std::unique_ptr<Surface> graph;
         std::unique_ptr<Playlist> playlist;
         std::unique_ptr<Font> font;
+        std::unique_ptr<Font> m_large_font;
         std::unique_ptr<Stream> stream;
         std::unique_ptr<Stream> m_next_stream; // Slot for the pre-loaded next track
         size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
@@ -125,6 +126,7 @@ class Player
 
         // Overlay widgets
         std::unique_ptr<ToastNotification> m_toast;
+        std::unique_ptr<Label> m_pause_indicator;
         std::unique_ptr<Widget> m_seek_left_indicator;
         std::unique_ptr<Widget> m_seek_right_indicator;
 

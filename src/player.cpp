@@ -247,6 +247,7 @@ bool Player::prevTrack(void) {
 
 bool Player::stop(void) {
     state = PlayerState::Stopped;
+    m_pause_indicator.reset();
     stream.reset();
     return true;
 }
@@ -255,6 +256,10 @@ bool Player::pause(void) {
     if (state != PlayerState::Stopped) {
         audio->play(false);
         state = PlayerState::Paused;
+        if (!m_pause_indicator) {
+            SDL_Color pause_color = {255, 255, 255, 180}; // Semi-transparent white
+            m_pause_indicator = std::make_unique<Label>(m_large_font.get(), Rect(0,0,0,0), "PAUSED", pause_color);
+        }
         return true;
     } else {
         return false;
@@ -262,6 +267,7 @@ bool Player::pause(void) {
 }
 
 bool Player::play(void) {
+    m_pause_indicator.reset();
     audio->play(true);
     state = PlayerState::Playing;
     return true;
@@ -432,6 +438,28 @@ bool Player::updateGUI()
             m_toast->BlitTo(*graph); // Blit to the graph surface for correct alpha blending
         }
     }
+
+    // --- Pause Indicator Rendering ---
+    // This should be drawn after the toast so it appears on top if both are active.
+    if (m_pause_indicator) {
+        // Center the indicator in the graph area
+        const Rect& current_pos = m_pause_indicator->getPos();
+        Rect new_pos = current_pos;
+        new_pos.x((graph->width() - current_pos.width()) / 2);
+        new_pos.y((350 - current_pos.height()) / 2); // Center in the 350px FFT area
+        m_pause_indicator->setPos(new_pos);
+        m_pause_indicator->BlitTo(*graph);
+    }
+
+    // --- Seek Indicator Rendering ---
+    if (m_seek_left_indicator) {
+        m_seek_left_indicator->BlitTo(*graph);
+    }
+    if (m_seek_right_indicator) {
+        m_seek_right_indicator->BlitTo(*graph);
+    }
+
+
     // --- End of critical section ---
 
     // Now use the copied data for rendering, outside the lock.
@@ -501,17 +529,9 @@ bool Player::updateGUI()
     graph->hline(618, 621, 370, 0xFFFFFFFF);
     graph->hline(618, 621, 385, 0xFFFFFFFF);
     if (m_seek_direction == 1) {
-        // Draw left-pointing red arrow to indicate seeking backward
-        graph->line(380, 377, 390, 377, 255, 0, 0, 255); // shaft
-        graph->line(380, 377, 383, 374, 255, 0, 0, 255); // top arrowhead
-        graph->line(380, 377, 383, 380, 255, 0, 0, 255); // bottom arrowhead
         if (stream)
             stream->seekTo((long long) stream->getPosition() > 1500? (long long) stream->getPosition() - 1500 : 0);
     } else if (m_seek_direction == 2) {
-        // Draw right-pointing green arrow to indicate seeking forward
-        graph->line(628, 377, 638, 377, 0, 255, 0, 255); // shaft
-        graph->line(638, 377, 635, 374, 0, 255, 0, 255); // top arrowhead
-        graph->line(638, 377, 635, 380, 0, 255, 0, 255); // bottom arrowhead
         if (stream)
             stream->seekTo((long long) stream->getPosition() + 1500);
     }
@@ -680,7 +700,10 @@ void Player::handleMouseMotion(const SDL_MouseMotionEvent& event)
 void Player::handleMouseButtonUp(const SDL_MouseButtonEvent& event)
 {
     if (event.button == SDL_BUTTON_LEFT && m_is_dragging) {
-        this->seekTo(m_drag_position_ms);
+        // The actual seek happens here, on mouse release.
+        if (stream) {
+            seekTo(m_drag_position_ms);
+        }
         m_is_dragging = false;
     }
 }
@@ -689,7 +712,17 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
         case SDLK_LEFT:
+            if (m_seek_direction == 1 && stream) {
+                seekTo((long long) stream->getPosition() > 1500 ? (long long) stream->getPosition() - 1500 : 0);
+            }
+            m_seek_left_indicator.reset();
+            m_seek_direction = 0;
+            break;
         case SDLK_RIGHT:
+            if (m_seek_direction == 2 && stream) {
+                seekTo((long long) stream->getPosition() + 1500);
+            }
+            m_seek_right_indicator.reset();
             m_seek_direction = 0;
             break;
         default:
@@ -880,8 +913,10 @@ void Player::Run(std::vector<std::string> args) {
 #if defined(_WIN32)
     font = std::make_unique<Font>("./vera.ttf");
 #else
-    font = std::make_unique<Font>(PSYMP3_DATADIR "/vera.ttf");
+    font = std::make_unique<Font>(PSYMP3_DATADIR "/vera.ttf", 12);
 #endif // _WIN32
+    // Create a larger font for status indicators like the pause message.
+    m_large_font = std::make_unique<Font>(PSYMP3_DATADIR "/vera.ttf", 36);
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     graph = std::make_unique<Surface>(640, 400);
     precomputeSpectrumColors();
@@ -963,15 +998,8 @@ void Player::Run(std::vector<std::string> args) {
             }
             case SDL_KEYUP:
             {
-                switch (event.key.keysym.sym) {
-                case SDLK_LEFT:
-                case SDLK_RIGHT:
-                    m_seek_direction = 0;
-                    break;
-                default:
-                    break;
-               }
-               break;
+                handleKeyUp(event.key.keysym);
+                break;
             }
             case SDL_USEREVENT:
             {

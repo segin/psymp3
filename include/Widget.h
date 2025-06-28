@@ -41,6 +41,7 @@ class Widget : public Surface
         // Removed operator=(const Surface& rhs) as it's not copy-assignable.
         void setPos(const Rect& position);
         const Rect& getPos() const { return m_pos; }
+        void setSurface(std::unique_ptr<Surface> surface);
         void addChild(std::unique_ptr<Widget> child);
     protected:
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);

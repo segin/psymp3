@@ -83,6 +83,16 @@ void Widget::setPos(const Rect& position)
     m_pos = position;
 }
 
+void Widget::setSurface(std::unique_ptr<Surface> surface)
+{
+    if (surface && surface->isValid()) {
+        // Since Widget IS-A Surface, we can move the handle.
+        this->m_handle = std::move(surface->m_handle);
+    } else {
+        this->m_handle.reset();
+    }
+}
+
 void Widget::addChild(std::unique_ptr<Widget> child)
 {
     m_children.push_back(std::move(child));
