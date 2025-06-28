@@ -34,6 +34,8 @@ constexpr uint32_t DATA_ID = 0x61746164; // "data"
 constexpr uint16_t WAVE_FORMAT_PCM = 0x0001;
 constexpr uint16_t WAVE_FORMAT_MPEGLAYER3 = 0x0055;
 constexpr uint16_t WAVE_FORMAT_IEEE_FLOAT = 0x0003;
+constexpr uint16_t WAVE_FORMAT_ALAW = 0x0006;
+constexpr uint16_t WAVE_FORMAT_MULAW = 0x0007;
 
 /**
  * @brief Helper function to read a little-endian value from the file stream.
@@ -124,25 +126,34 @@ void WaveStream::parseHeaders() {
 
         if (chunk_id == FMT_ID) {
             uint16_t format_tag = read_le<uint16_t>(m_file);
-            if (format_tag == WAVE_FORMAT_MPEGLAYER3) {
-                throw BadFormatException("MP3 in WAVE container is not yet supported.");
-            }
-            if (format_tag != WAVE_FORMAT_PCM && format_tag != WAVE_FORMAT_IEEE_FLOAT) {
-                throw BadFormatException("Unsupported WAVE format: not LPCM or IEEE Float.");
+            if (format_tag == WAVE_FORMAT_PCM) m_encoding = WaveEncoding::PCM;
+            else if (format_tag == WAVE_FORMAT_IEEE_FLOAT) m_encoding = WaveEncoding::IEEE_FLOAT;
+            else if (format_tag == WAVE_FORMAT_ALAW) m_encoding = WaveEncoding::ALAW;
+            else if (format_tag == WAVE_FORMAT_MULAW) m_encoding = WaveEncoding::MULAW;
+            else if (format_tag == WAVE_FORMAT_MPEGLAYER3) throw BadFormatException("MP3 in WAVE container is not yet supported.");
+            else {
+                throw BadFormatException("Unsupported WAVE format tag: " + std::to_string(format_tag));
             }
 
             m_channels = read_le<uint16_t>(m_file);
             m_rate = read_le<uint32_t>(m_file);
             m_file.seekg(6, std::ios_base::cur); // Skip ByteRate and BlockAlign
             m_bits_per_sample = read_le<uint16_t>(m_file);
-            m_is_float = (format_tag == WAVE_FORMAT_IEEE_FLOAT);
 
-            if (m_is_float) {
-                if (m_bits_per_sample != 32) {
-                    throw BadFormatException("Unsupported WAVE format: only 32-bit IEEE Float is supported.");
-                }
-            } else if (m_bits_per_sample != 8 && m_bits_per_sample != 16 && m_bits_per_sample != 24) {
-                throw BadFormatException("Unsupported WAVE format: only 8, 16, or 24-bit LPCM is supported.");
+            switch (m_encoding) {
+                case WaveEncoding::PCM:
+                    if (m_bits_per_sample != 8 && m_bits_per_sample != 16 && m_bits_per_sample != 24)
+                        throw BadFormatException("Unsupported PCM bit depth.");
+                    break;
+                case WaveEncoding::IEEE_FLOAT:
+                    if (m_bits_per_sample != 32) throw BadFormatException("Only 32-bit IEEE Float is supported.");
+                    break;
+                case WaveEncoding::ALAW:
+                case WaveEncoding::MULAW:
+                    if (m_bits_per_sample != 8) throw BadFormatException("A-law/mu-law must be 8-bit.");
+                    break;
+                default:
+                    throw BadFormatException("Unsupported WAVE format.");
             }
             m_bytes_per_sample = m_bits_per_sample / 8;
             found_fmt = true;
@@ -169,7 +180,7 @@ size_t WaveStream::getData(size_t len, void *buf) {
     if (eof()) return 0;
 
     // If the source is already 16-bit, we can perform a direct, efficient read.
-    if (m_bits_per_sample == 16) {
+    if (m_encoding == WaveEncoding::PCM && m_bits_per_sample == 16) {
         size_t bytes_to_read = std::min(len, static_cast<size_t>(m_data_chunk_size - m_bytes_read_from_data));
         m_file.read(static_cast<char*>(buf), bytes_to_read);
         size_t bytes_read = m_file.gcount();
@@ -179,7 +190,7 @@ size_t WaveStream::getData(size_t len, void *buf) {
         return bytes_read;
     }
 
-    // For 8-bit and 24-bit, we must convert to 16-bit.
+    // For other formats, we must convert to 16-bit.
     // Calculate how many source bytes we need to read to fill the output buffer.
     size_t max_output_samples = len / 2; // Output buffer expects 16-bit (2-byte) samples.
     size_t source_bytes_to_read = max_output_samples * m_bytes_per_sample;
@@ -197,27 +208,36 @@ size_t WaveStream::getData(size_t len, void *buf) {
     const char* in_ptr = source_buffer.data();
     size_t samples_to_convert = actual_source_bytes_read / m_bytes_per_sample;
 
-    if (m_bits_per_sample == 8) {
-        // 8-bit WAVE is unsigned. Convert to 16-bit signed.
-        for (size_t i = 0; i < samples_to_convert; ++i) {
-            uint8_t u8_sample = static_cast<uint8_t>(*in_ptr++);
-            *out_ptr++ = (static_cast<int16_t>(u8_sample) - 128) << 8;
-        }
-    } else if (m_bits_per_sample == 24) {
-        // 24-bit WAVE is signed. Convert to 16-bit signed by taking the most significant bytes.
-        for (size_t i = 0; i < samples_to_convert; ++i) {
-            // Read 3 bytes for a 24-bit sample (little-endian) and sign-extend.
-            int32_t s24_sample = (static_cast<int8_t>(in_ptr[2]) << 16) | (static_cast<uint8_t>(in_ptr[1]) << 8) | static_cast<uint8_t>(in_ptr[0]);
-            in_ptr += 3;
-            *out_ptr++ = static_cast<int16_t>(s24_sample >> 8);
-        }
-    } else if (m_is_float && m_bits_per_sample == 32) {
-        // 32-bit float is [-1.0, 1.0]. Convert to 16-bit signed.
-        const float* float_in_ptr = reinterpret_cast<const float*>(source_buffer.data());
-        for (size_t i = 0; i < samples_to_convert; ++i) {
-            float sample = std::clamp(*float_in_ptr++, -1.0f, 1.0f);
-            *out_ptr++ = static_cast<int16_t>(sample * 32767.0f);
-        }
+    switch (m_encoding) {
+        case WaveEncoding::PCM:
+            if (m_bits_per_sample == 8) {
+                for (size_t i = 0; i < samples_to_convert; ++i) *out_ptr++ = (static_cast<int16_t>(static_cast<uint8_t>(*in_ptr++)) - 128) << 8;
+            } else if (m_bits_per_sample == 24) {
+                for (size_t i = 0; i < samples_to_convert; ++i) {
+                    int32_t s24_sample = (static_cast<int8_t>(in_ptr[2]) << 16) | (static_cast<uint8_t>(in_ptr[1]) << 8) | static_cast<uint8_t>(in_ptr[0]);
+                    in_ptr += 3;
+                    *out_ptr++ = static_cast<int16_t>(s24_sample >> 8);
+                }
+            }
+            break;
+        case WaveEncoding::IEEE_FLOAT:
+            if (m_bits_per_sample == 32) {
+                const float* float_in_ptr = reinterpret_cast<const float*>(source_buffer.data());
+                for (size_t i = 0; i < samples_to_convert; ++i) {
+                    float sample = std::clamp(*float_in_ptr++, -1.0f, 1.0f);
+                    *out_ptr++ = static_cast<int16_t>(sample * 32767.0f);
+                }
+            }
+            break;
+        case WaveEncoding::ALAW:
+            for (size_t i = 0; i < samples_to_convert; ++i) *out_ptr++ = alaw2linear(static_cast<uint8_t>(*in_ptr++));
+            break;
+        case WaveEncoding::MULAW:
+            for (size_t i = 0; i < samples_to_convert; ++i) *out_ptr++ = ulaw2linear(static_cast<uint8_t>(*in_ptr++));
+            break;
+        case WaveEncoding::Unsupported:
+            // Should not happen if parseHeaders is correct.
+            break;
     }
 
     size_t bytes_written = samples_to_convert * 2; // We wrote 16-bit (2-byte) samples.
