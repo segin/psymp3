@@ -23,6 +23,12 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Constructs a FastFourier object.
+ *
+ * This constructor initializes the underlying FFT processing engine with a fixed
+ * size of 512 samples and allocates buffers for time-domain and frequency-domain data.
+ */
 FastFourier::FastFourier() :
     fft(std::make_unique<FFT>(512)),
     m_samples(512), // Match FFT size
@@ -30,23 +36,47 @@ FastFourier::FastFourier() :
 {
 }
 
+/**
+ * @brief Destroys the FastFourier object.
+ *
+ * The default destructor is sufficient as std::unique_ptr will handle the
+ * cleanup of the underlying FFT object.
+ */
 FastFourier::~FastFourier() = default; // std::unique_ptr handles deletion
 
+/**
+ * @brief Performs the Fast Fourier Transform.
+ *
+ * This method takes the time-domain sample data stored internally and computes
+ * the frequency-domain (spectrum) data, storing the result.
+ */
 void FastFourier::doFFT()
 {
 	fft->fft(m_fft.data(), m_samples.data());
 }
 
+/**
+ * @brief Sets the current FFT processing mode.
+ * @param mode The desired FFTMode to use for subsequent transformations.
+ */
 void FastFourier::setFFTMode(FFTMode mode)
 {
     fft->setFFTMode(mode);
 }
 
+/**
+ * @brief Gets the current FFT processing mode.
+ * @return The currently active FFTMode.
+ */
 FFTMode FastFourier::getFFTMode() const
 {
     return fft->getFFTMode();
 }
 
+/**
+ * @brief Gets the name of the current FFT processing mode as a string.
+ * @return A std::string containing the human-readable name of the current FFT mode.
+ */
 std::string FastFourier::getFFTModeName() const
 {
     return fft->getFFTModeName();

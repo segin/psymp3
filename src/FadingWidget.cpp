@@ -23,11 +23,23 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Constructs a FadingWidget.
+ *
+ * The widget is initialized in a hidden state by default and must be explicitly
+ * made visible by calling fadeIn().
+ */
 FadingWidget::FadingWidget() : Widget()
 {
     // The widget starts in a hidden state by default.
 }
 
+/**
+ * @brief Initiates the fade-in animation for the widget.
+ *
+ * If the widget is currently hidden or fading out, its state is changed to
+ * FadingIn, and the animation timer is started.
+ */
 void FadingWidget::fadeIn()
 {
     if (m_state == FadeState::Hidden || m_state == FadeState::FadingOut) {
@@ -36,6 +48,13 @@ void FadingWidget::fadeIn()
     }
 }
 
+/**
+ * @brief Initiates the fade-out animation for the widget.
+ *
+ * If the widget is currently visible or fading in, its state is changed to
+ * FadingOut, and the animation timer is started. The widget will be automatically
+ * set to the Hidden state upon completion of the fade.
+ */
 void FadingWidget::fadeOut()
 {
     if (m_state == FadeState::Visible || m_state == FadeState::FadingIn) {
@@ -44,11 +63,23 @@ void FadingWidget::fadeOut()
     }
 }
 
+/**
+ * @brief Checks if the widget is fully hidden.
+ * @return `true` if the widget's state is Hidden, `false` otherwise.
+ */
 bool FadingWidget::isHidden() const
 {
     return m_state == FadeState::Hidden;
 }
 
+/**
+ * @brief Renders the widget to a target surface, applying fade effects.
+ *
+ * This overridden method calculates the widget's current alpha value based on its
+ * fade state and the elapsed time. It then applies this alpha value before
+ * blitting the widget to the target. The widget is not rendered if it is hidden.
+ * @param target The destination surface to render onto.
+ */
 void FadingWidget::BlitTo(Surface& target)
 {
     if (m_state == FadeState::Hidden) {
