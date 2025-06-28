@@ -29,11 +29,10 @@ AM_CPPFLAGS = $(DEPENDS_CFLAGS) -DPSYMP3_DATADIR=\"$(datadir)\"
 psymp3_LDADD = $(DEPENDS_LIBS)
 
 bin_PROGRAMS = psymp3
-psymp3_SOURCES = about.cpp audio.cpp display.cpp exceptions.cpp fft.cpp\
- fft_draw.cpp flac.cpp font.cpp Label.cpp libmpg123.cpp main.cpp mediafile.cpp \
- player.cpp playlist.cpp opus.cpp rect.cpp scrobble.cpp song.cpp stream.cpp \
- surface.cpp system.cpp track.cpp truetype.cpp utility.cpp vorbis.cpp wav.cpp \
- Widget.cpp ChainedStream.cpp ToastNotification.cpp FadingWidget.cpp
-
-# psymp3_CXXFLAGS = $(AM_CXXFLAGS)
-
+psymp3_SOURCES = \
+ about.cpp audio.cpp ChainedStream.cpp display.cpp exceptions.cpp fft.cpp \
+ fft_draw.cpp flac.cpp font.cpp FadingWidget.cpp IOHandler.cpp Label.cpp \
+ libmpg123.cpp main.cpp mediafile.cpp opus.cpp player.cpp playlist.cpp \
+ rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
+ ToastNotification.cpp track.cpp truetype.cpp utility.cpp vorbis.cpp wav.cpp \
+ Widget.cpp persistentstorage.cpp

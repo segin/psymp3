@@ -130,6 +130,8 @@ enum class PlayerState {
 #include "wav.h"
 #include "flac.h"
 #include "ChainedStream.h"
+#include "URI.h"
+#include "IOHandler.h"
 #include "nullstream.h"
 #include "mediafile.h"
 #include "fft.h"
