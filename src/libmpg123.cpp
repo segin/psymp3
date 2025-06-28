@@ -45,20 +45,19 @@ void Libmpg123::open(TagLib::String name)
     int ret;
     ret = mpg123_open(static_cast<mpg123_handle *>(m_handle), name.toCString(true));
     if (ret != MPG123_OK) {
-        std::cerr << "mpg123_open() failed: " << ret << std::endl;
-        // throw WrongFormatException();
+        throw BadFormatException("mpg123_open() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
     }
     ret = mpg123_getformat(static_cast<mpg123_handle *>(m_handle), &m_rate, &m_channels, &m_encoding);
-    if (ret == -1) {
-
+    if (ret != MPG123_OK) {
+        throw BadFormatException("mpg123_getformat() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
     }
     ret = mpg123_format_none(static_cast<mpg123_handle *>(m_handle));
-    if (ret == -1) {
-
+    if (ret != MPG123_OK) {
+        throw BadFormatException("mpg123_format_none() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
     }
     ret = mpg123_format(static_cast<mpg123_handle *>(m_handle), m_rate, m_channels, MPG123_ENC_SIGNED_16);
-    if (ret == -1) {
-
+    if (ret != MPG123_OK) {
+        throw BadFormatException("mpg123_format() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
     }
     m_eof = false;
 }
