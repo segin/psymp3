@@ -12,12 +12,40 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
-    - name: configure
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          autoconf \
+          automake \
+          libtool \
+          pkg-config \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libmpg123-dev \
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libflac++-dev \
+          libfreetype6-dev \
+          libsdl-ttf2.0-dev \
+          zlib1g-dev
+
+    - name: Generate configure script
+      run: autoreconf -fi
+
+    - name: Configure build
       run: ./configure
-    - name: make
+
+    - name: Build project
       run: make
-    - name: make check
+
+    - name: Run tests (if any)
       run: make check
-    - name: make distcheck
+
+    - name: Check distribution packaging
       run: make distcheck
