@@ -152,9 +152,8 @@ void WaveStream::parseHeaders() {
             else if (format_tag == WAVE_FORMAT_ALAW) m_encoding = WaveEncoding::ALAW;
             else if (format_tag == WAVE_FORMAT_MULAW) m_encoding = WaveEncoding::MULAW;
             else if (format_tag == WAVE_FORMAT_MPEGLAYER3) throw BadFormatException("MP3 in WAVE container is not yet supported.");
-            else {
-                throw BadFormatException("Unsupported WAVE format tag: " + std::to_string(format_tag));
-            }
+            // For any other format, we throw WrongFormatException to allow other decoders to try.
+            else throw WrongFormatException("Unsupported WAVE format tag: " + std::to_string(format_tag));
 
             m_channels = read_le<uint16_t>(m_file);
             m_rate = read_le<uint32_t>(m_file);
