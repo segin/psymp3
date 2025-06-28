@@ -59,7 +59,6 @@ class FlacDecoder: public FLAC::Decoder::Stream
         std::atomic<bool> m_decoding_active;
         std::atomic<bool> m_seek_request;
         std::atomic<FLAC__uint64> m_seek_position_samples;
-        std::atomic<FLAC__StreamDecoderErrorStatus> m_last_error{FLAC__STREAM_DECODER_ERROR_STATUS_OK};
 
         void decoderThreadLoop(); // The function for our thread
 };

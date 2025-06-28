@@ -71,39 +71,42 @@ size_t Flac::getData(size_t len, void *buf)
     size_t total_bytes_read = 0;
 
     while (bytes_to_read > 0) {
-        // Check for a decoder error before waiting or processing data.
-        FLAC__StreamDecoderErrorStatus error = m_handle.m_last_error.load();
-        if (error != FLAC__STREAM_DECODER_ERROR_STATUS_OK) {
-            throw BadFormatException("FLAC decoder error: " + TagLib::String(FLAC__StreamDecoderErrorStatusString[error]));
-        }
-
         std::unique_lock<std::mutex> lock(m_handle.m_output_buffer_mutex);
 
-        // Wait until there's data, the decoder has finished, or an error has occurred.
+        // Wait until there's data in the buffer, or the decoder has finished (or errored).
+        // All error states are > FLAC__STREAM_DECODER_END_OF_STREAM.
         m_handle.m_output_buffer_cv.wait(lock, [this]{
-            return !m_handle.m_output_buffer.empty()
-                || m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM
-                || m_handle.m_last_error.load() != FLAC__STREAM_DECODER_ERROR_STATUS_OK;
+            return !m_handle.m_output_buffer.empty() || m_handle.get_state() >= FLAC__STREAM_DECODER_END_OF_STREAM;
         });
 
+        // After waking up, check the decoder's state.
+        FLAC__StreamDecoderState state = m_handle.get_state();
+
+        // If the state is an error state, throw an exception.
+        if (state > FLAC__STREAM_DECODER_END_OF_STREAM) {
+            throw BadFormatException("FLAC decoder error: " + TagLib::String(FLAC__StreamDecoderStateString[state]));
+        }
+
         // If the buffer is empty and we're at the end, there's nothing more to do.
-        if (m_handle.m_output_buffer.empty() && m_handle.get_state() == FLAC__STREAM_DECODER_END_OF_STREAM) {
+        if (m_handle.m_output_buffer.empty() && state == FLAC__STREAM_DECODER_END_OF_STREAM) {
             m_eof = true;
             break;
         }
 
-        size_t samples_available = m_handle.m_output_buffer.size();
-        size_t samples_needed = bytes_to_read / sizeof(int16_t);
-        size_t samples_to_copy = std::min(samples_available, samples_needed);
+        // Copy available data from the buffer.
+        if (!m_handle.m_output_buffer.empty()) {
+            size_t samples_available = m_handle.m_output_buffer.size();
+            size_t samples_to_copy = std::min(samples_available, bytes_to_read / sizeof(int16_t));
 
-        if (samples_to_copy > 0) {
-            std::memcpy(current_buf, m_handle.m_output_buffer.data(), samples_to_copy * sizeof(int16_t));
-            m_handle.m_output_buffer.erase(m_handle.m_output_buffer.begin(), m_handle.m_output_buffer.begin() + samples_to_copy);
+            if (samples_to_copy > 0) {
+                size_t bytes_to_copy = samples_to_copy * sizeof(int16_t);
+                std::memcpy(current_buf, m_handle.m_output_buffer.data(), bytes_to_copy);
+                m_handle.m_output_buffer.erase(m_handle.m_output_buffer.begin(), m_handle.m_output_buffer.begin() + samples_to_copy);
 
-            size_t bytes_copied = samples_to_copy * sizeof(int16_t);
-            total_bytes_read += bytes_copied;
-            current_buf += bytes_copied;
-            bytes_to_read -= bytes_copied;
+                total_bytes_read += bytes_to_copy;
+                current_buf += bytes_to_copy;
+                bytes_to_read -= bytes_to_copy;
+            }
         }
 
         // Unlock and notify the producer thread that there's now space in the buffer.
@@ -337,13 +340,8 @@ void FlacDecoder::metadata_callback(const ::FLAC__StreamMetadata *metadata) {
 
 void FlacDecoder::error_callback(::FLAC__StreamDecoderErrorStatus status) {
     std::cerr << "FLAC Decoder Error: " << FLAC__StreamDecoderErrorStatusString[status] << std::endl;
-    // Depending on the error, you might want to set a flag or throw an exception
-    // to signal the main thread that playback cannot continue.
-    // For now, we just log it.
-    // If this error indicates end of stream, ensure getData loop terminates.
-    if (status == FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC ||
-        status == FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER ||
-        status == FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM) {
-        // Consider setting m_eof = true in the Flac class or similar.
-    }
+    // An error occurred, which changes the decoder's internal state.
+    // We just need to wake up the consumer thread in case it's waiting for data.
+    // It will then check the new state and handle the error.
+    m_output_buffer_cv.notify_one();
 }
