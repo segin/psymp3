@@ -112,11 +112,9 @@ void Audio::decoderThreadLoop() {
         m_buffer_cv.notify_one(); // Notify callback that data is available
 
         if (eof) {
-            // Stream is done, wait for the buffer to be consumed before looping again
-            std::unique_lock<std::mutex> lock(m_buffer_mutex);
-            m_buffer_cv.wait(lock, [this] {
-                return m_buffer.empty() || !m_active;
-            });
+            // The stream is finished, so the decoder's job is done for this track.
+            // The thread will exit, and a new Audio object will be created for the next track.
+            break;
         }
     }
 }
