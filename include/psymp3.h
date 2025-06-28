@@ -127,6 +127,7 @@ enum class PlayerState {
 #include "libmpg123w.h"
 #include "vorbisw.h"
 #include "opusw.h"
+#include "wav.h"
 #include "flac.h"
 #include "ChainedStream.h"
 #include "nullstream.h"

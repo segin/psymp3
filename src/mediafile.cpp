@@ -60,15 +60,27 @@ using StreamCreator = std::function<Stream*(const TagLib::String&)>;
 // This makes adding new formats much cleaner.
 static const std::map<TagLib::String, StreamCreator> stream_factory = {
     // Add M3U/M3U8 as a playlist type (using NullStream as a placeholder)
-    {"M3U", [](const TagLib::String& name) { return new NullStream(name); }},
-    {"MP3", [](const TagLib::String& name) { return new Libmpg123(name); }},
+    {"M3U",  [](const TagLib::String& name) { return new NullStream(name); }},
+    {"MP3",  [](const TagLib::String& name) { return new Libmpg123(name); }},
     {"OGG",  [](const TagLib::String& name) { return new Vorbis(name); }},
     {"OPUS", [](const TagLib::String& name) { return new OpusFile(name); }},
-    {"FLAC", [](const TagLib::String& name) { return new Flac(name); }}
+    {"FLAC", [](const TagLib::String& name) { return new Flac(name); }},
+    {"WAV",  [](const TagLib::String& name) { return new WaveStream(name); }}
 };
 
 Stream *MediaFile::open(TagLib::String name)
 {
+    /*
+    // For future expansion: Magic-based detection is more robust than extensions.
+    // This block shows how it could be implemented.
+    try {
+        // The WaveStream constructor checks the file header.
+        return new WaveStream(name);
+    } catch (const WrongFormatException &e) {
+        // It's not a WAVE file, so fall through to the extension-based factory.
+    }
+    */
+
 #ifdef _RISCOS
     std::vector<std::string> tokens = split(name.to8Bit(true), '/');
 #else
