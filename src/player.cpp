@@ -722,16 +722,10 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
         case SDLK_LEFT:
-            if (m_seek_direction == 1 && stream) {
-                seekTo((long long) stream->getPosition() > 1500 ? (long long) stream->getPosition() - 1500 : 0);
-            }
             m_seek_left_indicator.reset();
             m_seek_direction = 0;
             break;
         case SDLK_RIGHT:
-            if (m_seek_direction == 2 && stream) {
-                seekTo((long long) stream->getPosition() + 1500);
-            }
             m_seek_right_indicator.reset();
             m_seek_direction = 0;
             break;
