@@ -24,8 +24,7 @@
 #ifndef WAVSTREAM_H
 #define WAVSTREAM_H
 
-#include <fstream>
-
+#include "IOHandler.h"
 class WaveStream : public Stream {
 public:
     explicit WaveStream(const TagLib::String& path);
@@ -46,7 +45,7 @@ private:
         MULAW
     };
 
-    std::ifstream m_file;
+    std::unique_ptr<IOHandler> m_handler;
     WaveEncoding m_encoding = WaveEncoding::Unsupported;
     uint16_t m_bits_per_sample = 0;
     uint16_t m_bytes_per_sample = 0;

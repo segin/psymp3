@@ -42,10 +42,13 @@ constexpr uint16_t WAVE_FORMAT_MULAW = 0x0007;
  * @param file The input file stream.
  * @return The value read from the stream.
  */
-template<typename T>
-T read_le(std::ifstream& file) {
+template <typename T>
+T read_le(IOHandler* handler)
+{
     T value;
-    file.read(reinterpret_cast<char*>(&value), sizeof(T));
+    if (handler->read(&value, sizeof(T), 1) != 1) {
+        throw BadFormatException("WaveStream: Unexpected end of file while reading header.");
+    }
     return value;
 }
 
@@ -100,16 +103,14 @@ static int16_t ulaw2linear(uint8_t ulawbyte)
  * @throws InvalidMediaException if the file cannot be opened.
  */
 WaveStream::WaveStream(const TagLib::String& path) : Stream(path) {
-    m_file.open(path.toCString(true), std::ios::binary);
-    if (!m_file.is_open()) {
-        throw InvalidMediaException("WaveStream: Could not open file.");
+    URI uri(path);
+    if (uri.scheme() == "file") {
+        m_handler = std::make_unique<FileIOHandler>(uri.path());
+    } else {
+        throw InvalidMediaException("Unsupported URI scheme for WAVE: " + uri.scheme());
     }
-    try {
-        parseHeaders();
-    } catch (...) {
-        m_file.close();
-        throw; // Re-throw the exception after closing the file.
-    }
+
+    parseHeaders();
 }
 
 /**
@@ -118,9 +119,7 @@ WaveStream::WaveStream(const TagLib::String& path) : Stream(path) {
  * Ensures that the file handle is properly closed if it was opened.
  */
 WaveStream::~WaveStream() {
-    if (m_file.is_open()) {
-        m_file.close();
-    }
+    // m_handler's destructor will automatically call close()
 }
 
 /**
@@ -131,21 +130,21 @@ WaveStream::~WaveStream() {
  * @throws BadFormatException if the WAVE format is unsupported or the file is malformed.
  */
 void WaveStream::parseHeaders() {
-    if (read_le<uint32_t>(m_file) != RIFF_ID) throw WrongFormatException("Not a RIFF file.");
-    read_le<uint32_t>(m_file); // Overall file size, unused.
-    if (read_le<uint32_t>(m_file) != WAVE_ID) throw WrongFormatException("Not a WAVE file.");
+    if (read_le<uint32_t>(m_handler.get()) != RIFF_ID) throw WrongFormatException("Not a RIFF file.");
+    read_le<uint32_t>(m_handler.get()); // Overall file size, unused.
+    if (read_le<uint32_t>(m_handler.get()) != WAVE_ID) throw WrongFormatException("Not a WAVE file.");
 
     bool found_fmt = false;
 
-    while (!m_file.eof()) {
-        uint32_t chunk_id = read_le<uint32_t>(m_file);
-        uint32_t chunk_size = read_le<uint32_t>(m_file);
-        if (m_file.eof()) break;
+    while (!m_handler->eof()) {
+        uint32_t chunk_id = read_le<uint32_t>(m_handler.get());
+        uint32_t chunk_size = read_le<uint32_t>(m_handler.get());
+        if (m_handler->eof()) break;
 
-        std::streampos chunk_start_pos = m_file.tellg();
+        long chunk_start_pos = m_handler->tell();
 
         if (chunk_id == FMT_ID) {
-            uint16_t format_tag = read_le<uint16_t>(m_file);
+            uint16_t format_tag = read_le<uint16_t>(m_handler.get());
             if (format_tag == WAVE_FORMAT_PCM) m_encoding = WaveEncoding::PCM;
             else if (format_tag == WAVE_FORMAT_IEEE_FLOAT) m_encoding = WaveEncoding::IEEE_FLOAT;
             else if (format_tag == WAVE_FORMAT_ALAW) m_encoding = WaveEncoding::ALAW;
@@ -154,10 +153,10 @@ void WaveStream::parseHeaders() {
             // For any other format, we throw WrongFormatException to allow other decoders to try.
             else throw WrongFormatException("Unsupported WAVE format tag: " + std::to_string(format_tag));
 
-            m_channels = read_le<uint16_t>(m_file);
-            m_rate = read_le<uint32_t>(m_file);
-            m_file.seekg(6, std::ios_base::cur); // Skip ByteRate and BlockAlign
-            m_bits_per_sample = read_le<uint16_t>(m_file);
+            m_channels = read_le<uint16_t>(m_handler.get());
+            m_rate = read_le<uint32_t>(m_handler.get());
+            m_handler->seek(6, SEEK_CUR); // Skip ByteRate and BlockAlign
+            m_bits_per_sample = read_le<uint16_t>(m_handler.get());
 
             switch (m_encoding) {
                 case WaveEncoding::PCM:
@@ -182,15 +181,14 @@ void WaveStream::parseHeaders() {
             m_data_chunk_size = chunk_size;
             m_slength = m_data_chunk_size / (m_channels * m_bytes_per_sample);
             m_length = (m_slength * 1000) / m_rate;
-            m_file.seekg(m_data_chunk_offset); // Position at start of data
+            m_handler->seek(m_data_chunk_offset, SEEK_SET); // Position at start of data
             return; // Found both, we're done parsing.
         }
 
         // Seek to the next chunk, accounting for padding byte if chunk size is odd.
-        m_file.seekg(chunk_start_pos + static_cast<std::streamoff>(chunk_size));
-        if (chunk_size % 2 != 0) {
-            m_file.seekg(1, std::ios_base::cur);
-        }
+        m_handler->seek(chunk_start_pos + chunk_size, SEEK_SET);
+        if (chunk_size % 2 != 0)
+            m_handler->seek(1, SEEK_CUR);
     }
     throw BadFormatException("WAVE file is missing 'data' chunk.");
 }
@@ -212,8 +210,8 @@ size_t WaveStream::getData(size_t len, void *buf) {
     // If the source is already 16-bit, we can perform a direct, efficient read.
     if (m_encoding == WaveEncoding::PCM && m_bits_per_sample == 16) {
         size_t bytes_to_read = std::min(len, static_cast<size_t>(m_data_chunk_size - m_bytes_read_from_data));
-        m_file.read(static_cast<char*>(buf), bytes_to_read);
-        size_t bytes_read = m_file.gcount();
+        size_t bytes_read = m_handler->read(static_cast<char*>(buf), 1, bytes_to_read);
+
         m_bytes_read_from_data += bytes_read;
         m_sposition = m_bytes_read_from_data / (m_channels * m_bytes_per_sample);
         m_position = (m_sposition * 1000) / m_rate;
@@ -229,8 +227,8 @@ size_t WaveStream::getData(size_t len, void *buf) {
 
     // Read the raw source data into a temporary buffer.
     std::vector<char> source_buffer(source_bytes_to_read);
-    m_file.read(source_buffer.data(), source_bytes_to_read);
-    size_t actual_source_bytes_read = m_file.gcount();
+    size_t actual_source_bytes_read = m_handler->read(source_buffer.data(), 1, source_bytes_to_read);
+
     if (actual_source_bytes_read == 0) return 0;
 
     // Pointers for conversion.
@@ -293,8 +291,7 @@ void WaveStream::seekTo(unsigned long pos) {
         byte_pos = m_data_chunk_size;
     }
 
-    m_file.clear(); // Clear any EOF flags
-    m_file.seekg(m_data_chunk_offset + byte_pos);
+    m_handler->seek(m_data_chunk_offset + byte_pos, SEEK_SET);
     m_bytes_read_from_data = byte_pos;
     m_sposition = sample_pos;
     m_position = pos;
