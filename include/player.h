@@ -116,7 +116,6 @@ class Player
         float decayfactor = 1.0f;
         // For progress bar dragging
         bool m_is_dragging = false;
-        Uint32 m_last_seek_time = 0;
         Uint32 m_drag_start_time = 0;
         Uint16 m_drag_start_x = 0;
         unsigned long m_drag_position_ms = 0;
