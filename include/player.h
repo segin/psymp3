@@ -69,8 +69,10 @@ class Player
         void renderSpectrum(Surface *graph);
         void precomputeSpectrumColors();
     private:
+        bool updateGUI();
         void updateInfo(void);
 
+        uint8_t m_seek_direction = 0;
         std::unique_ptr<Display> screen;
         std::unique_ptr<Surface> graph;
         std::unique_ptr<Playlist> playlist;
