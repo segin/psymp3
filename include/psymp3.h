@@ -147,6 +147,7 @@ enum class PlayerState {
 #include "font.h"
 #include "Widget.h"
 #include "Label.h"
+#include "ToastNotification.h"
 #include "utility.h"
 #include "player.h"
 
