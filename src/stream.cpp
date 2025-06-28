@@ -62,6 +62,11 @@ TagLib::String Stream::getAlbum()
     return m_tags->tag()->album();
 }
 
+TagLib::String Stream::getFilePath() const
+{
+    return m_path;
+}
+
 /* Note that the base class version falls back to TagLib, which is inaccurate.
  * Having all this generic functionality in TagLib as well as the children codec
  * classes is to make writing child codecs easier by providing generic, working

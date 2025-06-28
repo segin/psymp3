@@ -189,11 +189,23 @@ LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM 
                     }
                     return 0;
                 case IPC_GETPLAYLISTTITLE:
-                    break;
+                    if (player->stream) {
+                        currentTitleA = player->stream->getArtist().to8Bit(true) + " - " + player->stream->getTitle().to8Bit(true);
+                        return (LRESULT)currentTitleA.c_str();
+                    }
+                    return 0;
                 case IPC_GETPLAYLISTFILE:
-                    break;
+                    if (player->stream) {
+                        currentFileA = player->stream->getFilePath().to8Bit(true);
+                        return (LRESULT)currentFileA.c_str();
+                    }
+                    return 0;
                 case IPC_GETPLAYLISTFILEW:
-                    break;
+                    if (player->stream) {
+                        currentFileW = player->stream->getFilePath().toWString();
+                        return (LRESULT)currentFileW.c_str();
+                    }
+                    return 0;
             }
             return 0; // WM_USER handled
         }

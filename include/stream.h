@@ -36,6 +36,7 @@ class Stream
         TagLib::String getArtist();
         TagLib::String getTitle();
         TagLib::String getAlbum();
+        TagLib::String getFilePath() const;
         virtual unsigned int getLength(); // in msec!
         virtual unsigned long long getSLength(); // in samples!
         virtual unsigned int getChannels();
