@@ -25,43 +25,54 @@
 
 Vorbis::Vorbis(TagLib::String name) : Stream(name)
 {
-    m_session = 0;
-    // Point the base class handle to our specific handle struct for consistency.
-    m_handle = &m_vorbis_file;
-    open(name);
+    m_session = 0; // Initialize session
+    open(name); // open() will handle handler creation and callbacks
 }
 
 Vorbis::~Vorbis()
 {
+    // ov_clear will call the close callback, which is handled by our IOHandler.
+    // The m_handler unique_ptr will then be destroyed, ensuring resources are freed.
     ov_clear(&m_vorbis_file);
 }
 
 void Vorbis::open(TagLib::String name)
 {
-# ifdef _WIN32
-    FILE *fd = _wfopen(name.toCWString(), L"rb");
-# else
-    FILE *fd = fopen(name.toCString(true), "r");
-# endif
-    if (!fd) 
-        throw BadFormatException("Bad file: " + name);
-    auto ret = ov_open_callbacks(fd, &m_vorbis_file, nullptr, 0, { 
-        [](void *ptr, size_t size, size_t nmemb, void *fd) -> size_t {
-            return fread(ptr, size, nmemb, static_cast<FILE *>(fd));
+    // Use the new URI and IOHandler abstraction layer.
+    URI uri(name);
+    if (uri.scheme() == "file") {
+        m_handler = std::make_unique<FileIOHandler>(uri.path());
+    } else {
+        // In the future, a factory could create other IOHandlers here (e.g., HttpIOHandler).
+        throw InvalidMediaException("Unsupported URI scheme for Vorbis: " + uri.scheme());
+    }
+
+    // These callbacks now forward to the generic IOHandler interface.
+    ov_callbacks callbacks = {
+        /* read_func */
+        [](void *ptr, size_t size, size_t nmemb, void *datasource) -> size_t {
+            return static_cast<IOHandler*>(datasource)->read(ptr, size, nmemb);
         },
-        [](void *fd, ogg_int64_t offset, int whence) -> int {
-            return fseek(static_cast<FILE *>(fd), offset, whence);
+        /* seek_func */
+        [](void *datasource, ogg_int64_t offset, int whence) -> int {
+            return static_cast<IOHandler*>(datasource)->seek(offset, whence);
         },
-        [](void *fd) -> int {
-            return fclose(static_cast<FILE *>(fd));
+        /* close_func */
+        [](void *datasource) -> int {
+            // The IOHandler is managed by the Vorbis class's unique_ptr,
+            // so its destructor will handle the actual closing. We can return 0 here.
+            // Alternatively, for handlers that need explicit closing:
+            return static_cast<IOHandler*>(datasource)->close();
         },
-        [](void *fd) -> long {
-            return ftell(static_cast<FILE *>(fd));
+        /* tell_func */
+        [](void *datasource) -> long {
+            return static_cast<IOHandler*>(datasource)->tell();
         }
-    }); 
-#if 0
-    auto ret = ov_fopen((char *) name.toCString(true), &m_vorbis_file);
-#endif
+    };
+
+    // Pass the raw pointer to our IOHandler as the datasource.
+    auto ret = ov_open_callbacks(m_handler.get(), &m_vorbis_file, nullptr, 0, callbacks);
+
     switch (ret) {
     case OV_ENOTVORBIS:
         throw WrongFormatException("Not a Vorbis file: " + name);

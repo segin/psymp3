@@ -23,7 +23,6 @@
  */
 
 #include "psymp3.h"
-#include <complex> // For std::complex
 
 // Define I for float complex
 static const std::complex<float> I_f(0.0f, 1.0f);

@@ -23,14 +23,6 @@
 
 #include "psymp3.h"
 
-#if defined(__linux__)
-#include <sys/prctl.h>
-#elif defined(__FreeBSD__)
-#include <pthread.h>
-#elif defined(__FreeBSD__)
-#include <pthread_np.h>
-#endif
-
 #ifdef _WIN32
 // For setting thread name in the Visual Studio debugger
 const DWORD MS_VC_EXCEPTION = 0x406D1388;
@@ -43,11 +35,6 @@ typedef struct tagTHREADNAME_INFO
     DWORD dwFlags; // Reserved for future use, must be zero.
 } THREADNAME_INFO;
 #pragma pack(pop)
-#endif
-
-#ifndef _WIN32
-#include <sys/stat.h>
-#include <cerrno>
 #endif
 
 /**

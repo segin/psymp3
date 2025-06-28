@@ -1,5 +1,5 @@
 /*
- * IOHandler.cpp - Implementation for the I/O handler base class.
+ * FileIOHandler.h - Concrete IOHandler for local file access.
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,33 +21,24 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "psymp3.h"
+#ifndef FILEIOHANDLER_H
+#define FILEIOHANDLER_H
 
-// Default implementations for the IOHandler base class.
-// These can be overridden by concrete subclasses.
+#include "IOHandler.h"
+#include <cstdio> // For FILE
 
-IOHandler::~IOHandler() = default;
+class FileIOHandler : public IOHandler {
+public:
+    explicit FileIOHandler(const TagLib::String& path);
+    ~FileIOHandler() override;
 
-size_t IOHandler::read(void* buffer, size_t size, size_t count)
-{
-    // Default behavior: read nothing.
-    return 0;
-}
+    size_t read(void* buffer, size_t size, size_t count) override;
+    int seek(long offset, int whence) override;
+    long tell() override;
+    int close() override;
 
-int IOHandler::seek(long offset, int whence)
-{
-    // Default behavior: indicate an error (not seekable).
-    return -1;
-}
+private:
+    FILE* m_file_handle;
+};
 
-long IOHandler::tell()
-{
-    // Default behavior: indicate an error.
-    return -1;
-}
-
-int IOHandler::close()
-{
-    // Default behavior: do nothing, return success.
-    return 0;
-}
+#endif // FILEIOHANDLER_H

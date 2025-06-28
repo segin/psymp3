@@ -22,6 +22,28 @@
  */
 
 #include "psymp3.h"
-#include "URI.h"
 
-// Implementation will go here.
+URI::URI(const TagLib::String& uri_string)
+{
+    std::string s = uri_string.to8Bit(true);
+    size_t scheme_end = s.find("://");
+
+    if (scheme_end != std::string::npos) {
+        m_scheme = TagLib::String(s.substr(0, scheme_end), TagLib::String::UTF8);
+        m_path = TagLib::String(s.substr(scheme_end + 3), TagLib::String::UTF8);
+    } else {
+        // No scheme provided, assume it's a local file path.
+        m_scheme = "file";
+        m_path = uri_string;
+    }
+}
+
+TagLib::String URI::scheme() const
+{
+    return m_scheme;
+}
+
+TagLib::String URI::path() const
+{
+    return m_path;
+}

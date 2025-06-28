@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "wav.h"
 
 // RIFF FourCC codes (in little-endian)
 constexpr uint32_t RIFF_ID = 0x46464952; // "RIFF"

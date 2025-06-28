@@ -52,46 +52,41 @@ enum class PlayerState {
     Playing,
     Paused
 };
-
-// system includes - runtime libraries
+//
+// C++ Standard Library
 #include <algorithm>
-#include <iostream>
-#include <map>
-#include <string>
-#include <sstream>
-#include <vector>
-#include <exception>
-#include <typeinfo>
-#include <thread>
-#include <memory>
-#include <unordered_set>
-#include <iomanip>
-#include <mutex>
-#include <condition_variable>
-#include <functional>
-#include <queue>
 #include <atomic>
 #include <complex>
+#include <condition_variable>
+#include <exception>
 #include <fstream>
+#include <functional>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <string>
+#include <sstream>
+#include <thread>
+#include <typeinfo>
+#include <unordered_set>
+#include <vector>
 
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
 #endif
 
-#ifdef __cplusplus
-    #include <cstdlib>
-    #include <cmath>
-    #include <cstdio>
-    #include <cstring>
-#else
-    #include <stdlib.h>
-    #include <math.h>
-    #include <stdio.h>
-#endif
+// C Standard Library (wrapped)
+#include <cerrno>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
+// System-specific headers
 #include <sys/stat.h>
-
-// system includes - third-party libraries
 #if defined(_WIN32)
 #define _UNICODE
 #define UNICODE
@@ -101,8 +96,15 @@ enum class PlayerState {
 #include <lm.h>
 #include <shlobj.h>
 #include <SDL_syswm.h>
+#elif defined(__linux__)
+#include <sys/prctl.h>
+#elif defined(__FreeBSD__)
+#include <pthread.h>
+#include <pthread_np.h>
 #endif
-#if defined(__APPLE__) 
+
+// Third-party library headers
+#if defined(__APPLE__)
 #include <SDL/SDL.h>
 #include <SDL/SDL_ttf.h>
 #include <SDL/SDL_thread.h>
@@ -120,9 +122,22 @@ enum class PlayerState {
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
 
-// local includes
+// Local project headers (in dependency order where possible)
 #include "exceptions.h"
+#include "rect.h"
+#include "surface.h"
+#include "display.h"
+#include "truetype.h"
+#include "font.h"
+#include "Widget.h"
+#include "Label.h"
+#include "ToastNotification.h"
+#include "FadingWidget.h"
+#include "utility.h"
 #include "system.h"
+#include "IOHandler.h"
+#include "FileIOHandler.h"
+#include "URI.h"
 #include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
@@ -130,8 +145,6 @@ enum class PlayerState {
 #include "wav.h"
 #include "flac.h"
 #include "ChainedStream.h"
-#include "URI.h"
-#include "IOHandler.h"
 #include "nullstream.h"
 #include "mediafile.h"
 #include "fft.h"
@@ -143,16 +156,6 @@ enum class PlayerState {
 #include "song.h"
 #include "scrobble.h"
 #include "playlist.h"
-#include "rect.h"
-#include "surface.h"
-#include "display.h"
-#include "truetype.h"
-#include "font.h"
-#include "Widget.h"
-#include "Label.h"
-#include "ToastNotification.h"
-#include "FadingWidget.h"
-#include "utility.h"
 #include "player.h"
 
 #ifdef DEBUG

@@ -34,5 +34,5 @@ psymp3_SOURCES = \
  fft_draw.cpp flac.cpp font.cpp FadingWidget.cpp IOHandler.cpp Label.cpp \
  libmpg123.cpp main.cpp mediafile.cpp opus.cpp player.cpp playlist.cpp \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
- ToastNotification.cpp track.cpp truetype.cpp utility.cpp vorbis.cpp wav.cpp \
- Widget.cpp persistentstorage.cpp
+ ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
+ vorbis.cpp wav.cpp Widget.cpp persistentstorage.cpp FileIOHandler.cpp

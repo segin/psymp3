@@ -27,11 +27,11 @@
 class IOHandler
 {
 public:
-    virtual ~IOHandler() = default;
-    virtual size_t read(void* buffer, size_t size, size_t count) = 0;
-    virtual int seek(long offset, int whence) = 0;
-    virtual long tell() = 0;
-    virtual int close() = 0;
+    virtual ~IOHandler();
+    virtual size_t read(void* buffer, size_t size, size_t count);
+    virtual int seek(long offset, int whence);
+    virtual long tell();
+    virtual int close();
 };
 
 #endif // IOHANDLER_H

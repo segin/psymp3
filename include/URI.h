@@ -32,6 +32,9 @@ public:
     TagLib::String scheme() const;
     TagLib::String path() const;
 
+private:
+    TagLib::String m_scheme;
+    TagLib::String m_path;
 };
 
 #endif // URI_H

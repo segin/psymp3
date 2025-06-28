@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-OpusFile::OpusFile(TagLib::String name) : Stream(name), m_file_handle(nullptr), m_session(nullptr)
+OpusFile::OpusFile(TagLib::String name) : Stream(name), m_session(nullptr)
 {
     m_eof = false;
     open(name);
@@ -31,11 +31,8 @@ OpusFile::OpusFile(TagLib::String name) : Stream(name), m_file_handle(nullptr), 
 
 OpusFile::~OpusFile()
 {
-    // op_free will call our close callback, which closes the file handle.
-    // This is just a safeguard in case op_free was not called or failed.
-    if (m_file_handle) {
-        fclose(m_file_handle);
-    }
+    // op_free will call the close callback, which is handled by our IOHandler.
+    // The m_handler unique_ptr will then be destroyed, ensuring resources are freed.
     if (m_session) {
         op_free(m_session);
         m_session = nullptr;
@@ -44,40 +41,38 @@ OpusFile::~OpusFile()
 
 void OpusFile::open(TagLib::String name)
 {
-    int error;
-
-#ifdef _WIN32
-    m_file_handle = _wfopen(name.toCWString(), L"rb");
-#else
-    m_file_handle = fopen(name.toCString(true), "rb");
-#endif
-
-    if (!m_file_handle) {
-        throw BadFormatException("OpusFile: Could not open file handle for " + name);
+    // Use the new URI and IOHandler abstraction layer.
+    URI uri(name);
+    if (uri.scheme() == "file") {
+        m_handler = std::make_unique<FileIOHandler>(uri.path());
+    } else {
+        // In the future, a factory could create other IOHandlers here.
+        throw InvalidMediaException("Unsupported URI scheme for Opus: " + uri.scheme());
     }
 
+    int error;
     OpusFileCallbacks callbacks = {
-        // read
+        /* read_func */
         [](void *_stream, unsigned char *_ptr, int _nbytes) -> int {
-            return fread(_ptr, 1, _nbytes, static_cast<FILE*>(_stream));
+            return static_cast<IOHandler*>(_stream)->read(_ptr, 1, _nbytes);
         },
-        // seek
+        /* seek_func */
         [](void *_stream, opus_int64 _offset, int _whence) -> int {
-            return fseek(static_cast<FILE*>(_stream), _offset, _whence);
+            return static_cast<IOHandler*>(_stream)->seek(static_cast<long>(_offset), _whence);
         },
-        // tell
+        /* tell_func */
         [](void *_stream) -> opus_int64 {
-            return ftell(static_cast<FILE*>(_stream));
+            return static_cast<IOHandler*>(_stream)->tell();
         },
-        // close
+        /* close_func */
         [](void *_stream) -> int {
-            return fclose(static_cast<FILE*>(_stream));
+            // The IOHandler is managed by unique_ptr, so its destructor will handle closing.
+            return static_cast<IOHandler*>(_stream)->close();
         }
     };
 
-    m_session = op_open_callbacks(m_file_handle, &callbacks, nullptr, 0, &error);
+    m_session = op_open_callbacks(m_handler.get(), &callbacks, nullptr, 0, &error);
     if(!m_session) {
-        m_file_handle = nullptr; // op_open_callbacks calls close on failure.
         // Provide a more informative exception, including the library's error string.
         throw InvalidMediaException("Failed to open Opus file '" + name + "': " + opus_strerror(error));
     }

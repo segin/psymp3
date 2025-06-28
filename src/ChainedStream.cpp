@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "ChainedStream.h"
 
 /**
  * @brief Constructs a ChainedStream from a vector of file paths.
