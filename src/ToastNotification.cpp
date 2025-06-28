@@ -28,18 +28,21 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
 {
     const int PADDING = 8;
 
+    SDL_Color text_color = {230, 230, 230, 255}; // Light grey text
     // Create the label as a child of this widget
-    auto label = std::make_unique<Label>(font, message, Rect(PADDING, PADDING, 0, 0));
-    label->setColor({230, 230, 230, 255}); // Light grey text
+    auto label = std::make_unique<Label>(font, Rect(PADDING, PADDING, 0, 0), TagLib::String(message, TagLib::String::UTF8), text_color);
 
     // Set the size of this ToastNotification widget to fit the label plus padding
-    m_pos.w = label->getPos().w + (PADDING * 2);
-    m_pos.h = label->getPos().h + (PADDING * 2);
+    m_pos.width(label->getPos().width() + (PADDING * 2));
+    m_pos.height(label->getPos().height() + (PADDING * 2));
 
     // The background surface for the rounded box
-    m_surface = std::make_unique<Surface>(m_pos.w, m_pos.h);
-    m_surface->SetAlpha(SDL_SRCALPHA, 255); // Enable alpha blending for the surface
-    m_surface->roundedBoxRGBA(0, 0, m_pos.w - 1, m_pos.h - 1, 8, 50, 50, 50, 210);
+    m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, m_pos.width(), m_pos.height(), 32, 0, 0, 0, 0));
+    if (!m_handle) {
+        throw SDLException("Could not create surface for ToastNotification");
+    }
+    this->SetAlpha(SDL_SRCALPHA, 255); // Enable alpha blending for the surface
+    this->roundedBoxRGBA(0, 0, m_pos.width() - 1, m_pos.height() - 1, 8, 50, 50, 50, 210);
 
     // Add the label as a child so it gets drawn relative to this widget
     addChild(std::move(label));

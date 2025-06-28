@@ -39,13 +39,14 @@ class Widget : public Surface
         Widget(Surface&& other, const Rect& position); // Take ownership by moving a Surface
         void BlitTo(Surface& target);
         // Removed operator=(const Surface& rhs) as it's not copy-assignable.
-        void updatePosition(const Rect& position);
+        void setPos(const Rect& position);
+        const Rect& getPos() const { return m_pos; }
         void addChild(std::unique_ptr<Widget> child);
     protected:
-    private:
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);
         Rect m_pos;
         std::vector<std::unique_ptr<Widget>> m_children;
+    private:
 };
 
 #endif // WIDGET_H

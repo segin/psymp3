@@ -78,7 +78,7 @@ void Widget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
     }
 }
 
-void Widget::updatePosition(const Rect& position)
+void Widget::setPos(const Rect& position)
 {
     m_pos = position;
 }

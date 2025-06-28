@@ -527,8 +527,8 @@ bool Player::updateGUI()
             // Center the toast in the graph area
             const Rect& current_pos = m_toast->getPos();
             Rect new_pos = current_pos; // Make a copy to modify
-            new_pos.setX((graph->width() - current_pos.width()) / 2);
-            new_pos.setY((graph->height() - current_pos.height()) / 2);
+            new_pos.x((graph->width() - current_pos.width()) / 2);
+            new_pos.y((graph->height() - current_pos.height()) / 2);
             m_toast->setPos(new_pos);
             m_toast->BlitTo(*screen);
         }
