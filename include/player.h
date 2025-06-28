@@ -92,6 +92,7 @@ class Player
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
         bool handleUserEvent(const SDL_UserEvent& event);
         void handleKeyUp(const SDL_keysym& keysym);
+        void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
 
         uint8_t m_seek_direction = 0;

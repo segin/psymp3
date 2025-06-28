@@ -617,6 +617,7 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 default:                 next_mode = FFTMode::Original;  break; // Should not happen
             }
             fft->setFFTMode(next_mode);
+            showToast("FFT Mode: " + fft->getFFTModeName());
             updateInfo();
             break;
         }
@@ -627,6 +628,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
     }
 
     return false; // Do not exit
+}
+
+void Player::showToast(const std::string& message, Uint32 duration_ms)
+{
+    m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
 }
 
 void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
@@ -821,7 +827,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             if (playlist) {
                 TagLib::String save_path = System::getStoragePath() + "/playlist.m3u";
                 playlist->savePlaylist(save_path);
-                m_toast = std::make_unique<ToastNotification>(font.get(), "Current playlist saved!", 2000);
+                showToast("Current playlist saved!");
             }
             break;
         }
