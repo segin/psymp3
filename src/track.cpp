@@ -49,7 +49,15 @@ track::track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef) : m_FilePath
 void track::loadTags() { 
     if (!m_FileRef) {
         try {
-            m_FileRef = std::make_unique<TagLib::FileRef>(m_FilePath.toCString(true));
+            #ifdef _WIN32
+                // On Windows, TagLib prefers native paths with backslashes.
+                // We convert to a wide string and replace slashes before creating the FileRef.
+                std::wstring wpath = m_FilePath.toWString();
+                std::replace(wpath.begin(), wpath.end(), L'/', L'\\');
+                m_FileRef = std::make_unique<TagLib::FileRef>(wpath.c_str());
+            #else
+                m_FileRef = std::make_unique<TagLib::FileRef>(m_FilePath.toCString(true));
+            #endif
         } catch (std::exception& e) {
             std::cerr << "track::track(): Exception: " << e.what() << std::endl;
             m_FileRef = nullptr;
