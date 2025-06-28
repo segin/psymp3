@@ -570,30 +570,30 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             m_loading_track = false; // Loading complete
 
-            // If an audio device exists, lock it before we swap streams.
+            // If an audio device exists, we need to handle the transition carefully
+            // to avoid race conditions with the audio decoder thread.
             if (audio) {
-                audio->lock();
+                // Check if we need to recreate the audio device because the format changed,
+                // or if the new stream failed to load (new_stream is null).
+                bool recreate_audio = (!new_stream || audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels());
+                if (recreate_audio) {
+                    // Destroy the old audio object *before* we change the stream.
+                    // This stops its thread, which might be using the old stream.
+                    audio.reset();
+                }
             }
 
+            // Now it's safe to update the stream pointer, which destroys the old stream.
             {
                 std::lock_guard<std::mutex> lock(*mutex);
                 stream.reset(new_stream);
                 ATdata.stream = stream.get();
             }
+
             if (stream) {
+                // If audio was destroyed or never existed, create it now.
                 if (!audio) {
-                    // First track loaded, create the audio device.
                     audio = std::make_unique<Audio>(&ATdata);
-                } else {
-                    // Audio device exists, check if we need to re-open it for the new format.
-                    if ((audio->getRate() != stream->getRate()) || (audio->getChannels() != stream->getChannels())) {
-                        pause(); // Pause to avoid race condition during audio device re-open
-                        audio->unlock(); // Unlock before deleting/recreating Audio
-                        audio = std::make_unique<Audio>(&ATdata);
-                    } else {
-                        // Format is the same, just unlock.
-                        audio->unlock();
-                    }
                 }
 
                 // Render text surfaces and store them in the map.
@@ -606,6 +606,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 info["fft_mode"] = font->Render("FFT Mode: " + fft->getFFTModeName());
                 play();
             } else {
+                // If the new stream is null, audio would have been reset above.
                 // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
                 state = PlayerState::Stopped;
                 screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error loading track ]:-", "PsyMP3 " PSYMP3_VERSION);
