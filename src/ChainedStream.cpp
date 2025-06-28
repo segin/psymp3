@@ -101,3 +101,81 @@ bool ChainedStream::openNextTrack()
         return false;
     }
 }
+
+void ChainedStream::open(TagLib::String name)
+{
+    // This is a no-op for ChainedStream as it's initialized with a list of paths.
+    // The name parameter is ignored.
+}
+
+size_t ChainedStream::getData(size_t len, void *buf)
+{
+    char *current_buf = static_cast<char *>(buf);
+    size_t bytes_remaining = len;
+    size_t total_bytes_read = 0;
+
+    while (bytes_remaining > 0) {
+        if (!m_current_stream) {
+            // No current stream, we've reached the end of the chain.
+            break;
+        }
+
+        size_t bytes_read_this_call = m_current_stream->getData(bytes_remaining, current_buf);
+        total_bytes_read += bytes_read_this_call;
+        current_buf += bytes_read_this_call;
+        bytes_remaining -= bytes_read_this_call;
+
+        if (m_current_stream->eof()) {
+            // Current track finished, try to open the next one.
+            if (!openNextTrack()) {
+                // No more tracks in the chain, we are done.
+                break;
+            }
+        }
+
+        // If getData returned less than requested but we are not at EOF (e.g. buffer underrun),
+        // we should break to avoid a tight loop. The caller will call again.
+        if (bytes_read_this_call == 0 && !m_current_stream->eof()) {
+            break;
+        }
+    }
+
+    // Update the base class position members for compatibility, using the aggregated position.
+    m_sposition = getSPosition();
+    if (m_rate > 0) {
+        m_position = (m_sposition * 1000) / m_rate;
+    }
+
+    return total_bytes_read;
+}
+
+bool ChainedStream::eof()
+{
+    // The chain is at its end if there is no current stream to play from.
+    // This happens when the last track finishes and openNextTrack() fails.
+    return !m_current_stream;
+}
+
+// The following methods provide aggregated values for the entire chain.
+unsigned int ChainedStream::getLength() { return m_total_length_ms; }
+unsigned long long ChainedStream::getSLength() { return m_total_samples; }
+
+unsigned int ChainedStream::getPosition()
+{
+    if (m_rate > 0) return (getSPosition() * 1000) / m_rate;
+    return 0;
+}
+
+unsigned long long ChainedStream::getSPosition()
+{
+    if (!m_current_stream) return m_total_samples;
+    return m_samples_played_in_previous_tracks + m_current_stream->getSPosition();
+}
+
+void ChainedStream::seekTo(unsigned long pos)
+{
+    // Seeking in a ChainedStream is complex. A full implementation would require
+    // finding which track the position 'pos' falls into, opening that track,
+    // and seeking within it. For now, this is a no-op.
+    // TODO: Implement proper seeking for ChainedStream.
+}
