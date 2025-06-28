@@ -61,8 +61,10 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
     // Set the color key. Any pixel with this color will be invisible.
     SDL_SetColorKey(m_handle.get(), SDL_SRCCOLORKEY, color_key);
 
-    // Draw the opaque rounded box onto our surface
-    this->roundedBoxRGBA(0, 0, m_pos.width() - 1, m_pos.height() - 1, 8, 50, 50, 50, 255);
+    // Draw the lighter grey border first.
+    this->roundedBoxRGBA(0, 0, m_pos.width() - 1, m_pos.height() - 1, 8, 100, 100, 100, 255);
+    // Draw the darker background on top, inset by 1px.
+    this->roundedBoxRGBA(1, 1, m_pos.width() - 2, m_pos.height() - 2, 7, 50, 50, 50, 255);
 
     // Blit the rendered text onto our surface, creating a single flattened image
     Rect text_dest_rect(PADDING, PADDING, 0, 0);
