@@ -47,13 +47,19 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
     m_pos.width(text_sfc.width() + (PADDING * 2));
     m_pos.height(text_sfc.height() + (PADDING * 2));
 
-    // Create this widget's main surface, making it fully transparent initially
-    m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, m_pos.width(), m_pos.height(), 32, 0, 0, 0, 0));
+    // Create this widget's main surface *without* a per-pixel alpha channel.
+    // This allows the color key to function correctly.
+    m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE, m_pos.width(), m_pos.height(), 32, 0, 0, 0, 0));
     if (!m_handle) {
         throw SDLException("Could not create surface for ToastNotification");
     }
-    // Fill the surface with a fully transparent color to start with a clean slate.
-    this->FillRect(this->MapRGBA(0, 0, 0, 0));
+
+    // Use a "magic pink" color for transparency.
+    Uint32 color_key = this->MapRGB(255, 0, 255);
+    // Fill the surface with the magic color.
+    this->FillRect(color_key);
+    // Set the color key. Any pixel with this color will be invisible.
+    SDL_SetColorKey(m_handle.get(), SDL_SRCCOLORKEY, color_key);
 
     // Draw the opaque rounded box onto our surface
     this->roundedBoxRGBA(0, 0, m_pos.width() - 1, m_pos.height() - 1, 8, 50, 50, 50, 255);
@@ -72,8 +78,8 @@ bool ToastNotification::isExpired() const
 void ToastNotification::BlitTo(Surface& target)
 {
     Uint32 now = SDL_GetTicks();
-    const Uint8 MAX_ALPHA = 210;
-    Uint8 alpha = 0;
+    const float MAX_ALPHA = 180.0f; // Set base translucency here
+    float alpha_f = 0.0f;
 
     // Update state machine
     if (m_state == State::FadingIn && now >= m_creation_time + m_fade_duration) m_state = State::Visible;
@@ -83,23 +89,27 @@ void ToastNotification::BlitTo(Surface& target)
     // Calculate alpha based on state
     if (m_state == State::FadingIn) {
         if (m_fade_duration > 0) {
-            alpha = static_cast<Uint8>((static_cast<float>(now - m_creation_time) / m_fade_duration) * MAX_ALPHA);
+            // Clamp the progress to prevent over/undershooting due to timing fluctuations.
+            float progress = std::clamp(static_cast<float>(now - m_creation_time) / m_fade_duration, 0.0f, 1.0f);
+            alpha_f = progress * MAX_ALPHA;
         } else {
-            alpha = MAX_ALPHA;
+            alpha_f = MAX_ALPHA;
         }
     } else if (m_state == State::Visible) {
-        alpha = MAX_ALPHA;
+        alpha_f = MAX_ALPHA;
     } else if (m_state == State::FadingOut) {
         if (m_fade_duration > 0) {
-            alpha = static_cast<Uint8>((1.0f - (static_cast<float>(now - m_expiration_time) / m_fade_duration)) * MAX_ALPHA);
+            float progress = std::clamp(static_cast<float>(now - m_expiration_time) / m_fade_duration, 0.0f, 1.0f);
+            alpha_f = (1.0f - progress) * MAX_ALPHA;
         } else {
-            alpha = 0;
+            alpha_f = 0;
         }
     } else { // Expired
         return;
     }
 
-    // Apply calculated alpha and blit
-    this->SetAlpha(SDL_SRCALPHA, alpha);
+    // Apply calculated alpha and blit.
+    // On a surface *without* per-pixel alpha, this enables global alpha blending for the blit operation.
+    this->SetAlpha(SDL_SRCALPHA, static_cast<Uint8>(alpha_f));
     Widget::BlitTo(target); // Call base class blit
 }
