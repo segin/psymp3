@@ -120,14 +120,7 @@ class Player
 
         // UI Widget tree
         std::unique_ptr<Widget> m_ui_root;
-        Label* m_artist_label = nullptr; // Non-owning pointers for quick access
-        Label* m_title_label = nullptr;
-        Label* m_album_label = nullptr;
-        Label* m_playlist_label = nullptr;
-        Label* m_position_label = nullptr;
-        Label* m_scale_label = nullptr;
-        Label* m_decay_label = nullptr;
-        Label* m_fft_mode_label = nullptr;
+        std::map<std::string, Label*> m_labels; // Non-owning pointers for quick access
 
         // Asynchronous loader thread members
         std::thread m_loader_thread;

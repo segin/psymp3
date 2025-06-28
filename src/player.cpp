@@ -844,22 +844,20 @@ void Player::Run(std::vector<std::string> args) {
     // Initialize the UI widget tree
     m_ui_root = std::make_unique<Widget>();
     // Helper lambda to reduce boilerplate when creating and adding labels
-    auto add_label = [&](Label*& label_ptr, const Rect& pos) {
-        // The raw pointer is stored for quick access, but the unique_ptr in the
-        // m_ui_root's children vector manages the object's lifetime.
+    auto add_label = [&](const std::string& key, const Rect& pos) {
         auto label = std::make_unique<Label>(font.get(), pos);
-        label_ptr = label.get();
-        m_ui_root->addChild(std::move(label));
+        m_labels[key] = label.get(); // Store non-owning pointer in map
+        m_ui_root->addChild(std::move(label)); // Transfer ownership to UI tree
     };
 
-    add_label(m_artist_label,   Rect(1, 354, 0, 0));
-    add_label(m_title_label,    Rect(1, 369, 0, 0));
-    add_label(m_album_label,    Rect(1, 384, 0, 0));
-    add_label(m_playlist_label, Rect(270, 354, 0, 0));
-    add_label(m_position_label, Rect(400, 353, 0, 0));
-    add_label(m_scale_label,    Rect(550, 0, 0, 0));
-    add_label(m_decay_label,    Rect(550, 15, 0, 0));
-    add_label(m_fft_mode_label, Rect(550, 30, 0, 0));
+    add_label("artist",   Rect(1, 354, 0, 0));
+    add_label("title",    Rect(1, 369, 0, 0));
+    add_label("album",    Rect(1, 384, 0, 0));
+    add_label("playlist", Rect(270, 354, 0, 0));
+    add_label("position", Rect(400, 353, 0, 0));
+    add_label("scale",    Rect(550, 0, 0, 0));
+    add_label("decay",    Rect(550, 15, 0, 0));
+    add_label("fft_mode", Rect(550, 30, 0, 0));
 
     // Create an empty playlist. It will be populated in the background.
     playlist = std::make_unique<Playlist>();
