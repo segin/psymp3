@@ -35,12 +35,11 @@ class track
         // Enable default move constructor and move assignment
         track(track&&) = default;
         track& operator=(track&&) = default;
-        track(TagLib::String a_FilePath, TagLib::FileRef *a_FileRef);
         TagLib::String GetArtist() const { return m_Artist; }
         TagLib::String GetTitle() const { return m_Title; }
         TagLib::String GetAlbum() const { return m_Album; }
         TagLib::String GetFilePath() const { return m_FilePath; }
-        track(TagLib::String a_FilePath, TagLib::String extinf_artist, TagLib::String extinf_title, long extinf_duration);
+        explicit track(const TagLib::String& a_FilePath, const TagLib::String& extinf_artist = "", const TagLib::String& extinf_title = "", long extinf_duration = 0);
         void SetFilePath(TagLib::String val) { m_FilePath = val; }
         unsigned int GetLen() const { return m_Len; }
         void SetLen(unsigned int val) { m_Len = val; }

@@ -32,19 +32,14 @@ Playlist::~Playlist()
 bool Playlist::addFile(TagLib::String path)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    TagLib::FileRef *fileref;
-    track *ntrk;
     try {
-        std::cout << "Attempting open of " << path << std::endl;
-        fileref = new TagLib::FileRef(path.toCString(true));
-    } catch (const std::exception& e) { // Revert to catching std::exception, as TagLib::FileRef::NotAFile is not a standard TagLib exception.
-        std::cerr << "Playlist::addFile(): Cannot add file " << path << ": " << e.what() << std::endl;
-	    return false;
+        // Construct track directly in the vector. The track constructor will handle tag loading.
+        tracks.emplace_back(path);
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "Playlist::addFile(): Could not create track for " << path << ": " << e.what() << std::endl;
+        return false;
     }
-    // Construct track directly in the vector, passing the raw pointer.
-    // The track constructor will take ownership of 'fileref' via unique_ptr.
-    tracks.emplace_back(path, fileref);
-    return true;
 }
 
 bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::String title, long duration)

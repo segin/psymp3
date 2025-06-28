@@ -43,6 +43,7 @@ class Vorbis : public Stream
         virtual bool eof();
     protected:
     private:
+        OggVorbis_File m_vorbis_file;
         int m_session;
         vorbis_info *m_vi;
 };

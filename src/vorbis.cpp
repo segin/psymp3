@@ -25,16 +25,15 @@
 
 Vorbis::Vorbis(TagLib::String name) : Stream(name)
 {
-    m_handle = new OggVorbis_File;
     m_session = 0;
+    // Point the base class handle to our specific handle struct for consistency.
+    m_handle = &m_vorbis_file;
     open(name);
 }
 
 Vorbis::~Vorbis()
 {
-    ov_clear(static_cast<OggVorbis_File *>(m_handle));
-    delete static_cast<OggVorbis_File *>(m_handle);
-    m_handle = nullptr;
+    ov_clear(&m_vorbis_file);
 }
 
 void Vorbis::open(TagLib::String name)
@@ -46,7 +45,7 @@ void Vorbis::open(TagLib::String name)
 # endif
     if (!fd) 
         throw BadFormatException("Bad file: " + name);
-    auto ret = ov_open_callbacks(fd, static_cast<OggVorbis_File *>(m_handle), nullptr, 0, { 
+    auto ret = ov_open_callbacks(fd, &m_vorbis_file, nullptr, 0, { 
         [](void *ptr, size_t size, size_t nmemb, void *fd) -> size_t {
             return fread(ptr, size, nmemb, static_cast<FILE *>(fd));
         },
@@ -61,7 +60,7 @@ void Vorbis::open(TagLib::String name)
         }
     }); 
 #if 0
-    auto ret = ov_fopen((char *) name.toCString(true), static_cast<OggVorbis_File *>(m_handle));
+    auto ret = ov_fopen((char *) name.toCString(true), &m_vorbis_file);
 #endif
     switch (ret) {
     case OV_ENOTVORBIS:
@@ -75,7 +74,7 @@ void Vorbis::open(TagLib::String name)
         //throw;
         break;
     default: // returned 0 for success
-        m_vi = ov_info(static_cast<OggVorbis_File *>(m_handle), -1);
+        m_vi = ov_info(&m_vorbis_file, -1);
         m_eof = false;
         switch(m_vi->channels) {
         case 1:
@@ -83,8 +82,8 @@ void Vorbis::open(TagLib::String name)
             m_rate = m_vi->rate;
             m_channels = m_vi->channels;
             m_bitrate = m_vi->bitrate_nominal;
-            m_length = ov_time_total(static_cast<OggVorbis_File *>(m_handle), -1) * 1000;
-            m_slength = ov_pcm_total(static_cast<OggVorbis_File *>(m_handle), -1);
+            m_length = ov_time_total(&m_vorbis_file, -1) * 1000;
+            m_slength = ov_pcm_total(&m_vorbis_file, -1);
             break;
         default:
             // throw
@@ -96,9 +95,9 @@ void Vorbis::open(TagLib::String name)
 
 void Vorbis::seekTo(unsigned long pos)
 {
-    ov_time_seek(static_cast<OggVorbis_File *>(m_handle), (double) pos / 1000.0);
-    m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
-    m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
+    ov_time_seek(&m_vorbis_file, (double) pos / 1000.0);
+    m_sposition = ov_pcm_tell(&m_vorbis_file);
+    m_position = ov_time_tell(&m_vorbis_file) * 1000;
 }
 
 size_t Vorbis::getData(size_t len, void *buf)
@@ -108,7 +107,7 @@ size_t Vorbis::getData(size_t len, void *buf)
     size_t total_bytes_read = 0;
 
     while (bytes_left > 0) {
-        long bytes_read_this_call = ov_read(static_cast<OggVorbis_File *>(m_handle), current_buf, bytes_left, 0, 2, 1, &m_session);
+        long bytes_read_this_call = ov_read(&m_vorbis_file, current_buf, bytes_left, 0, 2, 1, &m_session);
 
         if (bytes_read_this_call < 0) { // Error
             // Any negative value from ov_read is a fatal error.
@@ -122,8 +121,8 @@ size_t Vorbis::getData(size_t len, void *buf)
         current_buf += bytes_read_this_call;
         bytes_left -= bytes_read_this_call;
     }
-    m_sposition = ov_pcm_tell(static_cast<OggVorbis_File *>(m_handle));
-    m_position = ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
+    m_sposition = ov_pcm_tell(&m_vorbis_file);
+    m_position = ov_time_tell(&m_vorbis_file) * 1000;
     return total_bytes_read;
 }
 
@@ -134,8 +133,7 @@ unsigned int Vorbis::getLength()
 
 unsigned int Vorbis::getPosition()
 {
-    if (!m_handle) return 0;
-    return ov_time_tell(static_cast<OggVorbis_File *>(m_handle)) * 1000;
+    return ov_time_tell(&m_vorbis_file) * 1000;
 }
 
 unsigned long long Vorbis::getSLength()
