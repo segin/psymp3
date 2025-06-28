@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include <cwctype> // For iswalnum in percentEncodeW
 
 #if defined(__linux__)
 #include <sys/prctl.h>
@@ -49,6 +50,28 @@ typedef struct tagTHREADNAME_INFO
 #include <sys/stat.h>
 #include <cerrno>
 #endif
+
+/**
+ * @brief Percent-encodes a wide string.
+ *
+ * This function is used for the KVIrc IPC interface, which expects file paths
+ * to be percent-encoded. It preserves unreserved characters (alphanumeric, '-', '.', '_', '~')
+ * and encodes all others according to RFC 3986.
+ *
+ * @param input The wide string to encode.
+ * @return The percent-encoded wide string.
+ */
+static std::wstring percentEncodeW(const std::wstring& input) {
+    std::wstringstream encoded;
+    for (wchar_t wc : input) {
+        if (iswalnum(wc) || wc == L'-' || wc == L'.' || wc == L'_' || wc == L'~') {
+            encoded << wc;
+        } else {
+            encoded << L'%' << std::hex << std::uppercase << std::setw(2) << std::setfill(L'0') << static_cast<unsigned int>(wc);
+        }
+    }
+    return encoded.str();
+}
 
 System::System()
 {
