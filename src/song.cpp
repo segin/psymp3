@@ -23,11 +23,18 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Default constructor for the Song class.
+ * @note This class is currently a placeholder for future architectural enhancements.
+ */
 Song::Song()
 {
     //ctor
 }
 
+/**
+ * @brief Destructor for the Song class.
+ */
 Song::~Song()
 {
     //dtor
