@@ -43,7 +43,12 @@ Libmpg123::~Libmpg123()
 void Libmpg123::open(TagLib::String name)
 {
     int ret;
+#ifdef _WIN32
+    // Use the wide-character version on Windows for better Unicode path support.
+    ret = mpg123_open_w(static_cast<mpg123_handle *>(m_handle), name.toCWString());
+#else
     ret = mpg123_open(static_cast<mpg123_handle *>(m_handle), name.toCString(true));
+#endif
     if (ret != MPG123_OK) {
         throw BadFormatException("mpg123_open() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
     }
