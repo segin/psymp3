@@ -820,7 +820,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             if (playlist) {
                 TagLib::String save_path = System::getStoragePath() + "/playlist.m3u";
                 playlist->savePlaylist(save_path);
-                m_toast = std::make_unique<ToastNotification>(font.get(), "Current playlist saved!", 3000);
+                m_toast = std::make_unique<ToastNotification>(font.get(), "Current playlist saved!", 2000);
             }
             break;
         }

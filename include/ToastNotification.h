@@ -27,11 +27,24 @@
 class ToastNotification : public Widget
 {
 public:
-    ToastNotification(Font* font, const std::string& message, Uint32 duration_ms);
+    ToastNotification(Font* font, const std::string& message, Uint32 visible_duration_ms, Uint32 fade_duration_ms = 350);
     bool isExpired() const;
+    void BlitTo(Surface& target);
 
 private:
+    enum class State {
+        FadingIn,
+        Visible,
+        FadingOut,
+        Expired
+    };
+
+    State m_state;
+    Uint32 m_creation_time;
     Uint32 m_expiration_time;
+    Uint32 m_fade_duration;
+    Uint32 m_visible_duration;
+
 };
 
 #endif // TOASTNOTIFICATION_H
