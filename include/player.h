@@ -88,7 +88,6 @@ class Player
         std::unique_ptr<FastFourier> fft;
         std::unique_ptr<std::mutex> mutex;
         std::unique_ptr<System> system;
-        std::map<std::string, Surface> info;
         struct atdata ATdata;
         int scalefactor = 2;
         float decayfactor = 1.0f;
@@ -98,6 +97,17 @@ class Player
         Uint32 m_drag_start_time = 0;
         Uint16 m_drag_start_x = 0;
         unsigned long m_drag_position_ms = 0;
+
+        // UI Widget tree
+        std::unique_ptr<Widget> m_ui_root;
+        Label* m_artist_label = nullptr; // Non-owning pointers for quick access
+        Label* m_title_label = nullptr;
+        Label* m_album_label = nullptr;
+        Label* m_playlist_label = nullptr;
+        Label* m_position_label = nullptr;
+        Label* m_scale_label = nullptr;
+        Label* m_decay_label = nullptr;
+        Label* m_fft_mode_label = nullptr;
 
         // Asynchronous loader thread members
         std::thread m_loader_thread;
