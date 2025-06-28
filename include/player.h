@@ -82,6 +82,7 @@ class Player
         static bool guiRunning; 
     protected:
         PlayerState state;
+        PlayerState m_state_before_seek;
         void renderSpectrum(Surface *graph);
         void precomputeSpectrumColors();
     private:

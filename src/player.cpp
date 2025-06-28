@@ -544,17 +544,13 @@ bool Player::updateGUI()
         unsigned long new_pos_ms = current_pos_ms;
 
         if (m_seek_direction == 1) { // backwards
-            // Perform math with signed types to prevent unsigned underflow issues.
-            std::cout << "SEEK_BWD: current_pos_ms=" << current_pos_ms;
             long long signed_pos = current_pos_ms;
             signed_pos -= seek_increment_ms;
-            std::cout << ", signed_pos=" << signed_pos;
             if (signed_pos < 0) {
                 new_pos_ms = 0;
             } else {
                 new_pos_ms = static_cast<unsigned long>(signed_pos);
             }
-            std::cout << ", new_pos_ms=" << new_pos_ms << std::endl;
         } else if (m_seek_direction == 2) { // forwards
             new_pos_ms = current_pos_ms + seek_increment_ms;
             if (total_len_ms > 0 && new_pos_ms > total_len_ms) {
@@ -645,6 +641,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_c: decayfactor = 2.0f; updateInfo(); break;
 
         case SDLK_LEFT:
+            // On the initial key press, pause the audio pump to prevent race conditions.
+            if (m_seek_direction == 0) {
+                m_state_before_seek = state;
+                if (state == PlayerState::Playing) audio->play(false);
+            }
             m_seek_direction = 1;
             if (!m_seek_left_indicator) {
                 auto sfc = std::make_unique<Surface>(11, 7);
@@ -659,6 +660,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
 
         case SDLK_RIGHT:
+            // On the initial key press, pause the audio pump to prevent race conditions.
+            if (m_seek_direction == 0) {
+                m_state_before_seek = state;
+                if (state == PlayerState::Playing) audio->play(false);
+            }
             m_seek_direction = 2;
             if (!m_seek_right_indicator) {
                 auto sfc = std::make_unique<Surface>(11, 7);
@@ -763,13 +769,20 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
             if (m_seek_left_indicator) {
                 m_seek_left_indicator->fadeOut();
             }
-            m_seek_direction = 0;
+            // Only act if we are releasing the key that started the seek.
+            if (m_seek_direction == 1) {
+                if (m_state_before_seek == PlayerState::Playing) audio->play(true);
+                m_seek_direction = 0;
+            }
             break;
         case SDLK_RIGHT:
             if (m_seek_right_indicator) {
                 m_seek_right_indicator->fadeOut();
             }
-            m_seek_direction = 0;
+            if (m_seek_direction == 2) {
+                if (m_state_before_seek == PlayerState::Playing) audio->play(true);
+                m_seek_direction = 0;
+            }
             break;
         default:
             break;
