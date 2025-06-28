@@ -350,37 +350,37 @@ void Player::renderSpectrum(Surface *graph) {
 void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
 {
     if (is_loading) {
-        m_artist_label->setText("Artist: Loading...");
-        m_title_label->setText("Title: Loading...");
-        m_album_label->setText("Album: Loading...");
-        m_position_label->setText("Position: --:--.-- / --:--.--");
+        m_labels.at("artist")->setText("Artist: Loading...");
+        m_labels.at("title")->setText("Title: Loading...");
+        m_labels.at("album")->setText("Album: Loading...");
+        m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
         screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ]:-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
     } else if (!error_msg.isEmpty()) {
-        m_artist_label->setText("Artist: N/A");
-        m_title_label->setText("Title: Error: " + error_msg);
-        m_album_label->setText("Album: N/A");
-        m_playlist_label->setText("Playlist: N/A");
-        m_position_label->setText("Position: --:--.-- / --:--.--");
+        m_labels.at("artist")->setText("Artist: N/A");
+        m_labels.at("title")->setText("Title: Error: " + error_msg);
+        m_labels.at("album")->setText("Album: N/A");
+        m_labels.at("playlist")->setText("Playlist: N/A");
+        m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
     } else if (stream) {
-        m_artist_label->setText("Artist: " + stream->getArtist());
-        m_title_label->setText("Title: " + stream->getTitle());
-        m_album_label->setText("Album: " + stream->getAlbum());
-        m_playlist_label->setText("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
+        m_labels.at("artist")->setText("Artist: " + stream->getArtist());
+        m_labels.at("title")->setText("Title: " + stream->getTitle());
+        m_labels.at("album")->setText("Album: " + stream->getAlbum());
+        m_labels.at("playlist")->setText("Playlist: " + convertInt(playlist->getPosition() + 1) + "/" + convertInt(playlist->entries()));
     } else {
         // Default empty state
-        m_artist_label->setText("Artist: ");
-        m_title_label->setText("Title: ");
-        m_album_label->setText("Album: ");
-        m_playlist_label->setText("Playlist: 0/0");
-        m_position_label->setText("Position: --:--.-- / --:--.--");
+        m_labels.at("artist")->setText("Artist: ");
+        m_labels.at("title")->setText("Title: ");
+        m_labels.at("album")->setText("Album: ");
+        m_labels.at("playlist")->setText("Playlist: 0/0");
+        m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
     }
 
     // These are always updated based on player settings, not track info
-    m_scale_label->setText("log scale = " + std::to_string(scalefactor));
-    m_decay_label->setText("decay = " + std::to_string(decayfactor));
-    m_fft_mode_label->setText("FFT Mode: " + fft->getFFTModeName());
+    m_labels.at("scale")->setText("log scale = " + std::to_string(scalefactor));
+    m_labels.at("decay")->setText("decay = " + std::to_string(decayfactor));
+    m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
 }
 
 bool Player::updateGUI()
@@ -420,7 +420,7 @@ bool Player::updateGUI()
 
     // Now use the copied data for rendering, outside the lock.
     if(stream) {
-        m_position_label->setText("Position: " + convertInt(current_pos_ms / 60000)
+        m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
                                 + ":" + convertInt2((current_pos_ms / 1000) % 60)
                                 + "." + convertInt2((current_pos_ms / 10) % 100)
                                 + "/" + convertInt(total_len_ms / 60000)
@@ -430,7 +430,7 @@ bool Player::updateGUI()
                         (std::string) " -:[ " + artist.to8Bit(true) + " ]:- -- -:[ " +
                         title.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
     } else {
-        m_position_label->setText("Position: -:--.-- / -:--.--");
+        m_labels.at("position")->setText("Position: -:--.-- / -:--.--");
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
     }
     
