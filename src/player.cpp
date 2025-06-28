@@ -674,7 +674,6 @@ void Player::Run(std::vector<std::string> args) {
 #endif /* _WIN32 */
 
     TrueType::Init();
-    Libmpg123::init();
     // FastFourier::init();
 
     // Initialize UI and essential components first to show the window quickly.

@@ -113,14 +113,3 @@ bool Libmpg123::eof()
 {
     return m_eof;
 }
-
-void Libmpg123::init()
-{
-    mpg123_init();
-    atexit(fini);
-}
-
-void Libmpg123::fini()
-{
-    mpg123_exit();
-}

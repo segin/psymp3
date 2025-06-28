@@ -23,6 +23,26 @@
 
 #include "psymp3.h"
 
+// RAII wrapper for libmpg123 initialization and cleanup.
+// A single static instance of this class ensures that mpg123_init() is called
+// once at program startup and mpg123_exit() is called once at program termination.
+class Mpg123LifecycleManager {
+public:
+    Mpg123LifecycleManager() {
+        if (mpg123_init() != MPG123_OK) {
+            // Throwing an exception is a clear way to signal a fatal startup error.
+            throw std::runtime_error("Failed to initialize libmpg123.");
+        }
+    }
+    ~Mpg123LifecycleManager() {
+        mpg123_exit();
+    }
+};
+
+// The global static instance that manages the library's lifetime.
+// Its constructor is called before main(), and its destructor is called after main() exits.
+static Mpg123LifecycleManager mpg123_manager;
+
 #ifdef _WIN32
 
 std::string WideCharToUTF8(const wchar_t* wideStr) {

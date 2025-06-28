@@ -39,8 +39,6 @@ class Libmpg123 : public Stream
         virtual size_t getData(size_t len, void *buf);
         virtual void seekTo(unsigned long pos);
         virtual bool eof();
-        static void init();
-        static void fini();
     protected:
     private:
 
