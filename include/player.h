@@ -46,15 +46,32 @@ class Player
         /* state management */
 
         // Data structure for asynchronous track loading results
+        enum class LoadRequestType {
+            PlayNow,        // Standard load and play
+            Preload,        // Load but don't play
+            PreloadChained  // Load a chain but don't play
+        };
+
+        struct TrackLoadRequest {
+            LoadRequestType type;
+            TagLib::String path; // For PlayNow and Preload
+            std::vector<TagLib::String> paths; // For PreloadChained
+        };
+
         struct TrackLoadResult {
+            LoadRequestType request_type; // What kind of request was this?
             Stream* stream;
             TagLib::String error_message;
+            size_t num_chained_tracks; // How many tracks are in this stream (for playlist advancement)
         };
+
         // Asynchronous track loading
         void requestTrackLoad(TagLib::String path);
+        void requestTrackPreload(const TagLib::String& path);
+        void requestChainedStreamLoad(const std::vector<TagLib::String>& paths);
         void loaderThreadLoop();
 
-        bool nextTrack(void);
+        bool nextTrack(size_t advance_count = 1);
         bool prevTrack(void);
         bool stop(void);
         bool pause(void);
@@ -84,6 +101,9 @@ class Player
         std::unique_ptr<Font> font;
         std::unique_ptr<Stream> stream;
         std::unique_ptr<Stream> m_next_stream; // Slot for the pre-loaded next track
+        size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
+        size_t m_num_tracks_in_current_stream = 0; // How many playlist entries the current stream represents
+
         std::unique_ptr<Audio> audio;
         std::unique_ptr<FastFourier> fft;
         std::unique_ptr<std::mutex> mutex;
@@ -113,9 +133,10 @@ class Player
         std::thread m_loader_thread;
         std::mutex m_loader_queue_mutex;
         std::condition_variable m_loader_queue_cv;
-        std::queue<TagLib::String> m_loader_queue; // Queue of paths to load
+        std::queue<TrackLoadRequest> m_loader_queue; // Queue of load requests
         std::atomic<bool> m_loader_active;
         std::atomic<bool> m_loading_track; // Flag to prevent multiple simultaneous loads
+        std::atomic<bool> m_preloading_track; // Flag to prevent multiple preloads
 
         // New thread for populating playlist from command line
         std::thread m_playlist_populator_thread;

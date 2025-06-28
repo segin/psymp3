@@ -46,6 +46,7 @@ Player::Player() {
 
     m_loader_active = true;
     m_loading_track = false;
+    m_preloading_track = false;
     m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
 }
 
@@ -107,13 +108,36 @@ void Player::requestTrackLoad(TagLib::String path) {
         return; // Or queue it, depending on desired behavior
     }
     m_loading_track = true;
+    m_preloading_track = false; // A "play now" request cancels any pending preload
+    m_next_stream.reset(); // Clear any existing preloaded stream
+
     // Update UI to show "loading" state
     updateInfo(true);
     
     // Push request to queue and notify loader thread
     {
         std::lock_guard<std::mutex> lock(m_loader_queue_mutex);
-        m_loader_queue.push(path);
+        m_loader_queue.push({LoadRequestType::PlayNow, path, {}});
+    }
+    m_loader_queue_cv.notify_one();
+}
+
+void Player::requestTrackPreload(const TagLib::String& path) {
+    if (m_loading_track || m_preloading_track || m_next_stream) return;
+    m_preloading_track = true;
+    {
+        std::lock_guard<std::mutex> lock(m_loader_queue_mutex);
+        m_loader_queue.push({LoadRequestType::Preload, path, {}});
+    }
+    m_loader_queue_cv.notify_one();
+}
+
+void Player::requestChainedStreamLoad(const std::vector<TagLib::String>& paths) {
+    if (m_loading_track || m_preloading_track || m_next_stream) return;
+    m_preloading_track = true;
+    {
+        std::lock_guard<std::mutex> lock(m_loader_queue_mutex);
+        m_loader_queue.push({LoadRequestType::PreloadChained, "", paths});
     }
     m_loader_queue_cv.notify_one();
 }
@@ -121,32 +145,49 @@ void Player::requestTrackLoad(TagLib::String path) {
 void Player::loaderThreadLoop() {
     System::setThisThreadName("track-loader");
     while (m_loader_active) {
-        TagLib::String path_to_load;
+        TrackLoadRequest request;
         {
             std::unique_lock<std::mutex> lock(m_loader_queue_mutex);
             m_loader_queue_cv.wait(lock, [this]{
                 return !m_loader_queue.empty() || !m_loader_active;
             });
             if (!m_loader_active) break; // Exit condition
-            path_to_load = m_loader_queue.front();
+            request = m_loader_queue.front();
             m_loader_queue.pop();
         } // Unlock mutex before blocking I/O
 
         Stream* new_stream = nullptr;
         TagLib::String error_msg;
+        size_t num_chained = 1;
+
         try {
-            new_stream = MediaFile::open(path_to_load);
+            switch (request.type) {
+                case LoadRequestType::PlayNow:
+                case LoadRequestType::Preload:
+                    new_stream = MediaFile::open(request.path);
+                    num_chained = 1;
+                    break;
+                case LoadRequestType::PreloadChained:
+                    new_stream = new ChainedStream(request.paths);
+                    num_chained = request.paths.size();
+                    break;
+            }
         } catch (const std::exception& e) {
             error_msg = e.what();
             new_stream = nullptr; // Ensure null if exception
         }
 
         // Synthesize event back to main thread
-        TrackLoadResult* result = new TrackLoadResult(); // Allocated on heap, freed by main thread
+        auto* result = new TrackLoadResult(); // Allocated on heap, freed by main thread
+        result->request_type = request.type;
         result->stream = new_stream;
         result->error_message = error_msg;
-        
-        synthesizeUserEvent(new_stream ? TRACK_LOAD_SUCCESS : TRACK_LOAD_FAILURE, result, nullptr);
+        result->num_chained_tracks = num_chained;
+
+        int success_event = (request.type == LoadRequestType::PlayNow) ? TRACK_LOAD_SUCCESS : TRACK_PRELOAD_SUCCESS;
+        int failure_event = (request.type == LoadRequestType::PlayNow) ? TRACK_LOAD_FAILURE : TRACK_PRELOAD_FAILURE;
+
+        synthesizeUserEvent(new_stream ? success_event : failure_event, result, nullptr);
     }
 }
 
@@ -184,9 +225,14 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
 }
 
 /* Player control functions */
-bool Player::nextTrack(void) {
-    TagLib::String nextfile = playlist->next();
-    if (nextfile == "") {
+bool Player::nextTrack(size_t advance_count) {
+    if (advance_count == 0) advance_count = 1; // Must advance at least once.
+
+    TagLib::String nextfile;
+    for(size_t i = 0; i < advance_count; ++i) {
+        nextfile = playlist->next();
+    }
+    if (nextfile.isEmpty()) {
         return false;
     } else {
         requestTrackLoad(nextfile);
@@ -388,6 +434,49 @@ bool Player::updateGUI()
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
     }
     
+    // --- Pre-loading logic ---
+    const Uint32 PRELOAD_THRESHOLD_MS = 5000; // 5 seconds
+    if (stream && total_len_ms > 0 && !m_next_stream && !m_loading_track && !m_preloading_track &&
+        (total_len_ms - current_pos_ms < PRELOAD_THRESHOLD_MS))
+    {
+        long playlist_size = playlist->entries();
+        if (playlist_size > 0) {
+            long next_pos_idx = (playlist->getPosition() + 1) % playlist_size;
+            const track* next_track_info = playlist->getTrackInfo(next_pos_idx);
+
+            if (next_track_info) {
+                // Check for "hidden track" sequences (short tracks <= 5s)
+                if (next_track_info->GetLen() > 0 && next_track_info->GetLen() <= 5) {
+                    std::vector<TagLib::String> track_chain;
+                    long total_chain_duration_sec = 0;
+                    long lookahead_idx = next_pos_idx;
+
+                    // Scan forward for a chain of short tracks, but don't wrap around the playlist.
+                    while (lookahead_idx < playlist_size && total_chain_duration_sec < 120) {
+                        const track* current_lookahead_track = playlist->getTrackInfo(lookahead_idx);
+                        if (current_lookahead_track && current_lookahead_track->GetLen() > 0 && current_lookahead_track->GetLen() <= 5) {
+                            track_chain.push_back(current_lookahead_track->GetFilePath());
+                            total_chain_duration_sec += current_lookahead_track->GetLen();
+                            lookahead_idx++;
+                        } else {
+                            break; // The chain of short tracks ends here.
+                        }
+                    }
+                    
+                    if (!track_chain.empty()) {
+                        requestChainedStreamLoad(track_chain);
+                    }
+                } else {
+                    // It's a normal track, use the standard preload.
+                    TagLib::String next_path = playlist->peekNext();
+                    if (!next_path.isEmpty()) {
+                        requestTrackPreload(next_path);
+                    }
+                }
+            }
+        }
+    }
+
     // draw progress bar on the graph surface
     graph->vline(399, 370, 385, 0xFFFFFFFF);
     graph->vline(621, 370, 385, 0xFFFFFFFF);
@@ -441,7 +530,7 @@ bool Player::updateGUI()
 bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
     switch (keysym.sym) {
-        case SDLK_ESCAPE:
+        case SDLK_ESCAPE: // NOLINT(bugprone-branch-clone)
         case SDLK_q:
             return true; // Signal to exit
 
@@ -584,7 +673,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         }
         case DO_NEXT_TRACK:
         {
-            return !nextTrack();
+            return !nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
         }
         case DO_PREV_TRACK:
         {
@@ -595,6 +684,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         {
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             Stream* new_stream = result->stream;
+            m_num_tracks_in_current_stream = result->num_chained_tracks;
             delete result; // Free the result struct
 
             m_loading_track = false; // Loading complete
@@ -649,10 +739,58 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             updateInfo(false, error_msg);
             break;
         }
+        case TRACK_PRELOAD_SUCCESS:
+        {
+            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
+            m_preloading_track = false;
+            // If a "play now" request started while we were preloading, discard this result.
+            if (m_loading_track) {
+                delete result->stream;
+            } else {
+                m_next_stream.reset(result->stream);
+                m_num_tracks_in_next_stream = result->num_chained_tracks;
+            }
+            delete result;
+            break;
+        }
+        case TRACK_PRELOAD_FAILURE:
+        {
+            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
+            m_preloading_track = false;
+            std::cerr << "Failed to preload track: " << result->error_message << std::endl;
+            delete result;
+            break;
+        }
         case RUN_GUI_ITERATION:
         {
             if (updateGUI()) {
-                return !nextTrack();
+                // Track ended. Check for a preloaded stream.
+                if (m_next_stream) {
+                    // Seamless swap logic
+                    bool recreate_audio = (!audio || audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels());
+                    if (recreate_audio) audio.reset();
+
+                    {
+                        std::lock_guard<std::mutex> lock(*mutex);
+                        // Advance playlist for the track(s) that just finished
+                        for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
+                            playlist->next();
+                        }
+                        stream = std::move(m_next_stream);
+                        m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
+                        m_num_tracks_in_next_stream = 0;
+                        ATdata.stream = stream.get();
+                    }
+
+                    if (!audio) {
+                        audio = std::make_unique<Audio>(&ATdata);
+                    }
+                    updateInfo();
+                    play();
+                } else {
+                    // No preloaded track, use the old method.
+                    return !nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
+                }
             }
             break;
         }
