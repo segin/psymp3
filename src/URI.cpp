@@ -26,15 +26,27 @@
 URI::URI(const TagLib::String& uri_string)
 {
     std::string s = uri_string.to8Bit(true);
-    size_t scheme_end = s.find("://");
 
-    if (scheme_end != std::string::npos) {
-        m_scheme = TagLib::String(s.substr(0, scheme_end), TagLib::String::UTF8);
-        m_path = TagLib::String(s.substr(scheme_end + 3), TagLib::String::UTF8);
-    } else {
-        // No scheme provided, assume it's a local file path.
+    // Handle the common "file:///" case, which indicates a local file path.
+    if (s.rfind("file:///", 0) == 0) {
         m_scheme = "file";
-        m_path = uri_string;
+        m_path = TagLib::String(s.substr(7), TagLib::String::UTF8);
+    }
+    // Handle the older "file:/" case, also for local files.
+    else if (s.rfind("file:/", 0) == 0) {
+        m_scheme = "file";
+        m_path = TagLib::String(s.substr(5), TagLib::String::UTF8);
+    } else {
+        // Fallback for other schemes (like http://) or plain file paths.
+        size_t scheme_end = s.find("://");
+        if (scheme_end != std::string::npos) {
+            m_scheme = TagLib::String(s.substr(0, scheme_end), TagLib::String::UTF8);
+            m_path = TagLib::String(s.substr(scheme_end + 3), TagLib::String::UTF8);
+        } else {
+            // No scheme provided, assume it's a local file path.
+            m_scheme = "file";
+            m_path = uri_string;
+        }
     }
 }
 
