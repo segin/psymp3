@@ -23,45 +23,83 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Default constructor for the Stream base class.
+ */
 Stream::Stream()
 {
     /* Not sure if I need this... */
 }
 
+/**
+ * @brief Constructs a Stream object associated with a file path.
+ * 
+ * This constructor initializes the stream with a file path and creates a
+ * TagLib::FileRef to begin reading metadata.
+ * @param name The file path of the media stream.
+ */
 Stream::Stream(TagLib::String name) : m_path(name)
 {
     m_tags = std::make_unique<TagLib::FileRef>(name.toCString(true));
 }
 
+/**
+ * @brief Destroys the Stream object.
+ * 
+ * The unique_ptr for tags is automatically handled.
+ */
 Stream::~Stream()
 {
     // No longer need to delete m_tags, std::unique_ptr handles it.
 }
 
+/**
+ * @brief Opens a media stream.
+ * 
+ * This is a virtual method intended to be overridden by derived classes.
+ * The base class implementation does nothing.
+ * @param name The file path of the media stream to open.
+ */
 void Stream::open(TagLib::String name)
 {
     // Base class - do nothing.
     return;
 }
 
+/**
+ * @brief Gets the artist metadata for the stream.
+ * @return A TagLib::String containing the artist name, or an empty string if not available.
+ */
 TagLib::String Stream::getArtist()
 {
     if(!m_tags) return track::nullstr;
     return m_tags->tag()->artist();
 }
 
+/**
+ * @brief Gets the title metadata for the stream.
+ * @return A TagLib::String containing the track title, or an empty string if not available.
+ */
 TagLib::String Stream::getTitle()
 {
     if(!m_tags) return track::nullstr;
     return m_tags->tag()->title();
 }
 
+/**
+ * @brief Gets the album metadata for the stream.
+ * @return A TagLib::String containing the album name, or an empty string if not available.
+ */
 TagLib::String Stream::getAlbum()
 {
     if(!m_tags) return track::nullstr;
     return m_tags->tag()->album();
 }
 
+/**
+ * @brief Gets the file path of the stream.
+ * @return A TagLib::String containing the full file path.
+ */
 TagLib::String Stream::getFilePath() const
 {
     return m_path;
@@ -71,6 +109,14 @@ TagLib::String Stream::getFilePath() const
  * Having all this generic functionality in TagLib as well as the children codec
  * classes is to make writing child codecs easier by providing generic, working
  * functionality until the codec version is fully implemented.
+ */
+/**
+ * @brief Gets the total length of the stream in milliseconds.
+ * 
+ * This base implementation falls back to using TagLib for the length, which may be
+ * inaccurate. Derived classes should override this to provide a precise length
+ * from the decoder library.
+ * @return The length of the stream in milliseconds.
  */
 unsigned int Stream::getLength()
 {
@@ -82,6 +128,14 @@ unsigned int Stream::getLength()
 /* As the data we're getting from TagLib is inaccurate but percise, we can
  * simply multiply it by the sample rate to get the approximate length in
  * samples.
+ */
+/**
+ * @brief Gets the total length of the stream in PCM samples.
+ * 
+ * This base implementation falls back to an approximation based on the TagLib
+ * duration and sample rate. Derived classes should override this to provide a
+ * precise sample count from the decoder library.
+ * @return The total number of samples in the stream.
  */
 unsigned long long Stream::getSLength()
 {
@@ -96,6 +150,12 @@ unsigned long long Stream::getSLength()
  * However, eventually, the codec class must override these classes if
  * possible. Best to get the data from the codec and decoder libraries.
  */
+/**
+ * @brief Gets the number of audio channels in the stream.
+ * 
+ * This base implementation falls back to using TagLib. Derived classes should override this.
+ * @return The number of channels (e.g., 1 for mono, 2 for stereo).
+ */
 unsigned int Stream::getChannels()
 {
     if(m_channels) return m_channels;
@@ -103,6 +163,12 @@ unsigned int Stream::getChannels()
     return m_tags->audioProperties()->channels();
 }
 
+/**
+ * @brief Gets the sample rate of the stream in Hz.
+ * 
+ * This base implementation falls back to using TagLib. Derived classes should override this.
+ * @return The sample rate (e.g., 44100, 48000).
+ */
 unsigned int Stream::getRate()
 {
     if(m_rate) return m_rate;
@@ -110,6 +176,12 @@ unsigned int Stream::getRate()
     return m_tags->audioProperties()->sampleRate();
 }
 
+/**
+ * @brief Gets the bitrate of the stream in kbps.
+ * 
+ * This base implementation falls back to using TagLib. Derived classes should override this.
+ * @return The bitrate of the stream.
+ */
 unsigned int Stream::getBitrate()
 {
     if(m_bitrate) return m_bitrate;
@@ -122,16 +194,33 @@ unsigned int Stream::getBitrate()
  * implemented solely as a stub. However, it may be needed in the future,
  * so for now, I leave it in place.
  */
+/**
+ * @brief Gets the sample encoding format.
+ * @note This is a stub for future use. Currently, all output is normalized to 16-bit signed integer.
+ * @return An integer representing the encoding format (currently always 0).
+ */
 unsigned int Stream::getEncoding()
 {
     return 0;
 }
 
+/**
+ * @brief Gets the current playback position in milliseconds.
+ * 
+ * This value is updated by the derived class's `getData` method.
+ * @return The current position in milliseconds.
+ */
 unsigned int Stream::getPosition()
 {
     return m_position;
 }
 
+/**
+ * @brief Gets the current playback position in PCM samples.
+ * 
+ * This value is updated by the derived class's `getData` method.
+ * @return The current position in samples.
+ */
 unsigned long long Stream::getSPosition()
 {
     return m_sposition;
