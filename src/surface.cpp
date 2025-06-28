@@ -259,6 +259,50 @@ void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uin
     vline(x, y1, y2, MapRGBA(r, g, b, a));
 }
 
+void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    if (!m_handle) return;
+    if (rad <= 0) return;
+
+    uint32_t color = MapRGBA(r, g, b, a);
+
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+
+    for (Sint16 dy = -rad; dy <= rad; dy++) {
+        // Using integer arithmetic for the circle equation to avoid floats
+        Sint16 dx = static_cast<Sint16>(sqrt(rad * rad - dy * dy));
+        hline_unlocked(x - dx, x + dx, y + dy, color);
+    }
+
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+}
+
+void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    if (!m_handle || rad < 0) return;
+    if (x1 > x2) std::swap(x1, x2);
+    if (y1 > y2) std::swap(y1, y2);
+
+    // Make sure radius is not too large for the box dimensions
+    if (rad > (x2 - x1) / 2) rad = (x2 - x1) / 2;
+    if (rad > (y2 - y1) / 2) rad = (y2 - y1) / 2;
+
+    if (rad == 0) {
+        box(x1, y1, x2, y2, r, g, b, a);
+        return;
+    }
+
+    // Draw the central rectangles that form the main body of the box
+    box(x1 + rad, y1, x2 - rad, y2, r, g, b, a);
+    box(x1, y1 + rad, x2, y2 - rad, r, g, b, a);
+
+    // Draw the four corner circles
+    filledCircleRGBA(x1 + rad, y1 + rad, rad, r, g, b, a);
+    filledCircleRGBA(x2 - rad, y1 + rad, rad, r, g, b, a);
+    filledCircleRGBA(x1 + rad, y2 - rad, rad, r, g, b, a);
+    filledCircleRGBA(x2 - rad, y2 - rad, rad, r, g, b, a);
+}
+    
 int16_t Surface::height()
 {
     if (!m_handle) return 0;
