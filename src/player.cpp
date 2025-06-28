@@ -416,6 +416,22 @@ bool Player::updateGUI()
         // Draw the spectrum analyzer on the graph surface
         this->renderSpectrum(graph.get());
     }
+
+    // --- Toast Notification Management and Rendering ---
+    // This must be done *after* rendering the spectrum but *before* blitting the graph to the screen.
+    if (m_toast) {
+        if (m_toast->isExpired()) {
+            m_toast.reset();
+        } else {
+            // Horizontally center and vertically align to the bottom of the FFT area
+            const Rect& current_pos = m_toast->getPos();
+            Rect new_pos = current_pos; // Make a copy to modify
+            new_pos.x((graph->width() - current_pos.width()) / 2);
+            new_pos.y(350 - current_pos.height() - 20); // 20px margin from the bottom of the 350px FFT area
+            m_toast->setPos(new_pos);
+            m_toast->BlitTo(*graph); // Blit to the graph surface for correct alpha blending
+        }
+    }
     // --- End of critical section ---
 
     // Now use the copied data for rendering, outside the lock.
@@ -518,21 +534,6 @@ bool Player::updateGUI()
     screen->Blit(*graph, Rect(0, 0, graph->width(), graph->height()));
     // 3. Blit the entire UI widget tree. This will render all the labels.
     m_ui_root->BlitTo(*screen);
-
-    // --- Toast Notification Management and Rendering ---
-    if (m_toast) {
-        if (m_toast->isExpired()) {
-            m_toast.reset();
-        } else {
-            // Center the toast in the graph area
-            const Rect& current_pos = m_toast->getPos();
-            Rect new_pos = current_pos; // Make a copy to modify
-            new_pos.x((graph->width() - current_pos.width()) / 2);
-            new_pos.y((graph->height() - current_pos.height()) / 2);
-            m_toast->setPos(new_pos);
-            m_toast->BlitTo(*screen);
-        }
-    }
 
     // finally, update the screen :)
     screen->Flip();

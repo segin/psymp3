@@ -48,10 +48,12 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
     m_pos.height(text_sfc.height() + (PADDING * 2));
 
     // Create this widget's main surface, making it fully transparent initially
-    m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, m_pos.width(), m_pos.height(), 32, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000));
+    m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, m_pos.width(), m_pos.height(), 32, 0, 0, 0, 0));
     if (!m_handle) {
         throw SDLException("Could not create surface for ToastNotification");
     }
+    // Fill the surface with a fully transparent color to start with a clean slate.
+    this->FillRect(this->MapRGBA(0, 0, 0, 0));
 
     // Draw the opaque rounded box onto our surface
     this->roundedBoxRGBA(0, 0, m_pos.width() - 1, m_pos.height() - 1, 8, 50, 50, 50, 255);
@@ -80,11 +82,19 @@ void ToastNotification::BlitTo(Surface& target)
 
     // Calculate alpha based on state
     if (m_state == State::FadingIn) {
-        alpha = static_cast<Uint8>((static_cast<float>(now - m_creation_time) / m_fade_duration) * MAX_ALPHA);
+        if (m_fade_duration > 0) {
+            alpha = static_cast<Uint8>((static_cast<float>(now - m_creation_time) / m_fade_duration) * MAX_ALPHA);
+        } else {
+            alpha = MAX_ALPHA;
+        }
     } else if (m_state == State::Visible) {
         alpha = MAX_ALPHA;
     } else if (m_state == State::FadingOut) {
-        alpha = static_cast<Uint8>((1.0f - (static_cast<float>(now - m_expiration_time) / m_fade_duration)) * MAX_ALPHA);
+        if (m_fade_duration > 0) {
+            alpha = static_cast<Uint8>((1.0f - (static_cast<float>(now - m_expiration_time) / m_fade_duration)) * MAX_ALPHA);
+        } else {
+            alpha = 0;
+        }
     } else { // Expired
         return;
     }
