@@ -338,6 +338,10 @@ bool Player::prevTrack(void) {
 bool Player::stop(void) {
     state = PlayerState::Stopped;
     m_pause_indicator.reset();
+    // Safely signal to the audio thread that the stream is gone before we destroy it.
+    if (audio) {
+        audio->setStream(nullptr);
+    }
     stream.reset();
 #ifdef _WIN32
     if (system) system->clearNowPlaying();

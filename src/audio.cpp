@@ -101,12 +101,17 @@ void Audio::play(bool go) {
  */
 void Audio::setStream(Stream* new_stream)
 {
+    // Before setting a new stream, clear any leftover data from the old one.
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        m_buffer.clear();
+    }
     {
         std::lock_guard<std::mutex> lock(m_stream_mutex);
         m_stream = new_stream;
     }
     // Notify the decoder thread that a new stream is available.
-    m_stream_cv.notify_one();
+    m_stream_cv.notify_one();sa
 }
 
 /**
