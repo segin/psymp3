@@ -130,6 +130,7 @@ class Player
         std::unique_ptr<Label> m_pause_indicator;
         std::unique_ptr<FadingWidget> m_seek_left_indicator;
         std::unique_ptr<FadingWidget> m_seek_right_indicator;
+        LoopMode m_loop_mode;
 
         int m_navigation_direction = 1; // 1 for fwd, -1 for back
         int m_skip_attempts = 0;

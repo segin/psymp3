@@ -873,7 +873,6 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 case LoopMode::All:  m_loop_mode = LoopMode::None; showToast("Loop: None"); break;
             }
             // Persist this setting for the next session
-            PersistentStorage::getInstance().setInt("player", "loop_mode", static_cast<int>(m_loop_mode));
             break;
         }
 
@@ -1250,7 +1249,7 @@ void Player::Run(std::vector<std::string> args) {
     add_label("scale",    Rect(550, 0, 0, 0));
     add_label("decay",    Rect(550, 15, 0, 0));
     add_label("fft_mode", Rect(550, 30, 0, 0));
-    m_loop_mode = static_cast<LoopMode>(PersistentStorage::getInstance().getInt("player", "loop_mode", static_cast<int>(LoopMode::None)));
+    m_loop_mode = LoopMode::None; // Default loop mode on startup
 
     // Create an empty playlist. It will be populated in the background.
     playlist = std::make_unique<Playlist>();
