@@ -57,6 +57,7 @@ Libmpg123::Libmpg123(TagLib::String name) : Stream(name), m_mpg_handle(nullptr)
     if (!m_mpg_handle) {
         throw std::runtime_error("mpg123_new() failed: " + std::string(mpg123_plain_strerror(err)));
     }
+    mpg123_param(m_mpg_handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0);
     open(name);
 }
 

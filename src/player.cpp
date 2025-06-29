@@ -767,7 +767,7 @@ bool Player::updateGUI()
     
     Player::guiRunning = false;
     // and if end of stream...
-    return stream ? stream->eof() : false;
+    return audio ? audio->isFinished() : false;
 }
 
 /**

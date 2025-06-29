@@ -115,6 +115,24 @@ void Audio::setStream(Stream* new_stream)
 }
 
 /**
+ * @brief Checks if the audio playback for the current stream is completely finished.
+ *
+ * This method is the definitive way to determine if a track has ended. It's considered
+ * finished only when the decoder has no more data to provide AND the internal playback
+ * buffer has been fully consumed by the audio device.
+ *
+ * @return `true` if the stream is decoded and the buffer is empty, `false` otherwise.
+ */
+bool Audio::isFinished() const
+{
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
+    // It's finished if the decoder is done with the stream (m_stream is null)
+    // AND the playback buffer is empty.
+    return m_stream == nullptr && m_buffer.empty();
+}
+
+/**
  * @brief Locks the audio device using the SDL_LockAudio function.
  * @deprecated This is a legacy function. Modern thread safety is handled by std::mutex.
  */

@@ -32,6 +32,7 @@ public:
     void play(bool go);
     void lock(void);
     void unlock(void);
+    bool isFinished() const;
     void setStream(Stream* new_stream);
 
     int getRate() const { return m_rate; }
@@ -46,8 +47,8 @@ private:
     void decoderThreadLoop();
     std::thread m_decoder_thread;
     std::vector<int16_t> m_buffer;
-    std::mutex m_buffer_mutex;
-    std::mutex m_stream_mutex;
+    mutable std::mutex m_buffer_mutex;
+    mutable std::mutex m_stream_mutex;
     std::condition_variable m_stream_cv;
     std::condition_variable m_buffer_cv;
     std::atomic<bool> m_active;
