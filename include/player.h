@@ -131,6 +131,8 @@ class Player
         std::unique_ptr<FadingWidget> m_seek_left_indicator;
         std::unique_ptr<FadingWidget> m_seek_right_indicator;
 
+        int m_navigation_direction = 1; // 1 for fwd, -1 for back
+        int m_skip_attempts = 0;
 
         // Asynchronous loader thread members
         std::thread m_loader_thread;

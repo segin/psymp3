@@ -307,6 +307,7 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
  * or the end was reached without wrapping.
  */
 bool Player::nextTrack(size_t advance_count) {
+    m_navigation_direction = 1; // Set direction to forward
     if (advance_count == 0) advance_count = 1; // Must advance at least once.
 
     TagLib::String nextfile;
@@ -326,6 +327,7 @@ bool Player::nextTrack(size_t advance_count) {
  * @return `true` always.
  */
 bool Player::prevTrack(void) {
+    m_navigation_direction = -1; // Set direction to backward
     requestTrackLoad(playlist->prev());
     return true;
 }
@@ -979,6 +981,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case TRACK_LOAD_SUCCESS:
         {
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
+            m_skip_attempts = 0; // Reset skip counter on a successful load.
             Stream* new_stream = result->stream;
             m_num_tracks_in_current_stream = result->num_chained_tracks;
             delete result; // Free the result struct
@@ -1030,10 +1033,20 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             m_loading_track = false; // Loading complete
 
-            std::cerr << "Failed to load track: " << error_msg << std::endl;
-            // Handle error: stop playback, display error message
-            stop(); // Stop current playback
-            updateInfo(false, error_msg);
+            std::cerr << "Player: Failed to load track: " << error_msg << std::endl;
+
+            // Auto-skip logic
+            m_skip_attempts++;
+            if (playlist && m_skip_attempts >= playlist->entries()) {
+                // We've tried every track and failed. Give up.
+                stop();
+                updateInfo(false, "All tracks in playlist are unplayable.");
+                m_skip_attempts = 0; // Reset for next time
+            } else {
+                // Try the next track in the current direction.
+                if (m_navigation_direction > 0) nextTrack();
+                else prevTrack();
+            }
             break;
         }
         case TRACK_PRELOAD_SUCCESS:
