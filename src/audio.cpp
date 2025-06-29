@@ -111,7 +111,7 @@ void Audio::setStream(Stream* new_stream)
         m_stream = new_stream;
     }
     // Notify the decoder thread that a new stream is available.
-    m_stream_cv.notify_one();sa
+    m_stream_cv.notify_one();
 }
 
 /**
