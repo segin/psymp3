@@ -307,7 +307,6 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
  * or the end was reached without wrapping.
  */
 bool Player::nextTrack(size_t advance_count) {
-    m_navigation_direction = 1; // Set direction to forward
     if (advance_count == 0) advance_count = 1; // Must advance at least once.
 
     TagLib::String nextfile;
@@ -327,7 +326,6 @@ bool Player::nextTrack(size_t advance_count) {
  * @return `true` always.
  */
 bool Player::prevTrack(void) {
-    m_navigation_direction = -1; // Set direction to backward
     requestTrackLoad(playlist->prev());
     return true;
 }
@@ -981,7 +979,6 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case TRACK_LOAD_SUCCESS:
         {
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
-            m_skip_attempts = 0; // Reset skip counter on a successful load.
             Stream* new_stream = result->stream;
             m_num_tracks_in_current_stream = result->num_chained_tracks;
             delete result; // Free the result struct
@@ -1195,6 +1192,7 @@ void Player::Run(std::vector<std::string> args) {
     add_label("scale",    Rect(550, 0, 0, 0));
     add_label("decay",    Rect(550, 15, 0, 0));
     add_label("fft_mode", Rect(550, 30, 0, 0));
+    m_loop_mode = static_cast<LoopMode>(PersistentStorage::getInstance().getInt("player", "loop_mode", static_cast<int>(LoopMode::None)));
 
     // Create an empty playlist. It will be populated in the background.
     playlist = std::make_unique<Playlist>();
