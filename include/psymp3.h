@@ -52,6 +52,12 @@ enum class PlayerState {
     Playing,
     Paused
 };
+
+enum class LoopMode {
+    None,
+    One,
+    All
+};
 //
 // C++ Standard Library
 #include <algorithm>

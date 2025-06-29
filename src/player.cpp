@@ -307,17 +307,30 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
  * or the end was reached without wrapping.
  */
 bool Player::nextTrack(size_t advance_count) {
-    if (advance_count == 0) advance_count = 1; // Must advance at least once.
-
-    TagLib::String nextfile;
-    for(size_t i = 0; i < advance_count; ++i) {
-        nextfile = playlist->next();
-    }
-    if (nextfile.isEmpty()) {
+    m_navigation_direction = 1;
+    if (advance_count == 0) advance_count = 1;
+    if (!playlist || playlist->entries() == 0) {
+        stop();
         return false;
-    } else {
-        requestTrackLoad(nextfile);
     }
+
+    long new_pos = playlist->getPosition();
+    for (size_t i = 0; i < advance_count; ++i) {
+        new_pos++;
+    }
+
+    if (new_pos >= playlist->entries()) { // Reached or passed the end
+        if (m_loop_mode == LoopMode::All) {
+            new_pos = 0; // Wrap
+        } else { // LoopMode::None
+            stop();
+            updateInfo();
+            return false; // Signal to exit if this was from a keypress
+        }
+    }
+
+    playlist->setPosition(new_pos);
+    requestTrackLoad(playlist->getTrack(new_pos));
     return true;
 }
 
@@ -326,7 +339,20 @@ bool Player::nextTrack(size_t advance_count) {
  * @return `true` always.
  */
 bool Player::prevTrack(void) {
-    requestTrackLoad(playlist->prev());
+    m_navigation_direction = -1;
+    long new_pos = playlist->getPosition() - 1;
+
+    if (new_pos < 0) {
+        if (m_loop_mode == LoopMode::All) {
+            new_pos = playlist->entries() - 1; // Wrap to end
+        } else { // LoopMode::None
+            seekTo(0); // Go to start of current track
+            return true;
+        }
+    }
+
+    playlist->setPosition(new_pos);
+    requestTrackLoad(playlist->getTrack(new_pos));
     return true;
 }
 
@@ -342,6 +368,7 @@ bool Player::stop(void) {
     if (audio) {
         audio->setStream(nullptr);
     }
+    audio.reset(); // Destroy the audio object when stopping.
     stream.reset();
 #ifdef _WIN32
     if (system) system->clearNowPlaying();
@@ -373,9 +400,18 @@ bool Player::pause(void) {
  * @return `true` always.
  */
 bool Player::play(void) {
-    m_pause_indicator.reset();
-    audio->play(true);
-    state = PlayerState::Playing;
+    // If we are stopped, we can't just play. A track must be loaded first.
+    // The track loading process will call play() again once it's ready.
+    if (state == PlayerState::Stopped) {
+        if (playlist && playlist->entries() > 0) {
+            // Request the current track. If it's the same, it will just restart.
+            requestTrackLoad(playlist->getTrack(playlist->getPosition()));
+        }
+    } else { // Paused or already Playing
+        m_pause_indicator.reset();
+        if (audio) audio->play(true);
+        state = PlayerState::Playing;
+    }
     return true;
 }
 
@@ -829,6 +865,18 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             this->seekTo(0);
             break;
 
+        case SDLK_e:
+        {
+            switch (m_loop_mode) {
+                case LoopMode::None: m_loop_mode = LoopMode::One; showToast("Loop: One"); break;
+                case LoopMode::One:  m_loop_mode = LoopMode::All; showToast("Loop: All"); break;
+                case LoopMode::All:  m_loop_mode = LoopMode::None; showToast("Loop: None"); break;
+            }
+            // Persist this setting for the next session
+            PersistentStorage::getInstance().setInt("player", "loop_mode", static_cast<int>(m_loop_mode));
+            break;
+        }
+
         case SDLK_f:
         {
             // Cycle through FFT modes
@@ -979,17 +1027,17 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case TRACK_LOAD_SUCCESS:
         {
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
+            m_skip_attempts = 0; // Reset skip counter on a successful load.
             Stream* new_stream = result->stream;
             m_num_tracks_in_current_stream = result->num_chained_tracks;
             delete result; // Free the result struct
 
             m_loading_track = false; // Loading complete
 
-            // If an audio device exists, we need to handle the transition carefully
-            bool recreate_audio = (!audio || (new_stream && (audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels())));
+            // If we were stopped, audio is null. If playing, check if format changed.
+            bool must_recreate_audio = !audio || (new_stream && (audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels()));
 
-            if (recreate_audio) {
-                // The format changed, so we must destroy and recreate the audio device.
+            if (must_recreate_audio) {
                 audio.reset();
             }
 
@@ -1001,7 +1049,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             }
 
             if (stream) {
-                if (recreate_audio) {
+                if (must_recreate_audio) {
                     // Create a new audio device for the new format.
                     audio = std::make_unique<Audio>(&ATdata);
                 } else {
@@ -1071,45 +1119,55 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case RUN_GUI_ITERATION:
         {
             if (updateGUI()) {
-                // Track ended. Check for a preloaded stream.
-                if (m_next_stream) {
-                    // Seamless swap logic
-                    bool recreate_audio = (!audio || (m_next_stream && (audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels())));
-
-                    if (recreate_audio) {
-                        audio.reset();
-                    }
-
-                    {
-                        std::lock_guard<std::mutex> lock(*mutex);
-                        // Advance playlist for the track(s) that just finished
-                        for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
-                            playlist->next();
-                        }
-                        // The old stream is destroyed when the unique_ptr is reset.
-                        stream = std::move(m_next_stream);
-                        m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
-                        m_num_tracks_in_next_stream = 0;
-                        ATdata.stream = stream.get();
-                    }
-
-                    if (!audio) {
-                        // Create new audio device if it was reset.
-                        audio = std::make_unique<Audio>(&ATdata);
-                    } else {
-                        // Otherwise, just set the new stream.
-                        audio->setStream(stream.get());
-                    }
-                    updateInfo();
-                    play();
-#ifdef _WIN32
-                    if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
-#endif
+                // Track has ended.
+                if (m_loop_mode == LoopMode::One) {
+                    // Loop current track by seeking to the beginning.
+                    seekTo(0);
+                    play(); // Ensure playback is active.
+                } else if (m_next_stream) {
+                    // A track was preloaded, perform seamless swap.
+                    synthesizeUserEvent(DO_SEAMLESS_SWAP, nullptr, nullptr);
                 } else {
                     // No preloaded track, use the old method.
                     return !nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
                 }
             }
+            break;
+        }
+        case DO_SEAMLESS_SWAP:
+        {
+            // This event is triggered when a track ends and a preloaded track is ready.
+            bool recreate_audio = (!audio || (m_next_stream && (audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels())));
+
+            if (recreate_audio) {
+                audio.reset();
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(*mutex);
+                // Advance playlist for the track(s) that just finished
+                for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
+                    playlist->next();
+                }
+                // The old stream is destroyed when the unique_ptr is reset.
+                stream = std::move(m_next_stream);
+                m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
+                m_num_tracks_in_next_stream = 0;
+                ATdata.stream = stream.get();
+            }
+
+            if (!audio) {
+                // Create new audio device if it was reset.
+                audio = std::make_unique<Audio>(&ATdata);
+            } else {
+                // Otherwise, just set the new stream.
+                audio->setStream(stream.get());
+            }
+            updateInfo();
+            play();
+#ifdef _WIN32
+            if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
+#endif
             break;
         }
         case DO_SAVE_PLAYLIST:
