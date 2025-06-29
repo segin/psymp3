@@ -1035,8 +1035,12 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             // If we were stopped, audio is null. If playing, check if format changed.
             bool must_recreate_audio = !audio || (new_stream && (audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels()));
 
-            if (must_recreate_audio) {
+            if (must_recreate_audio) { // Format changed, or we were stopped.
                 audio.reset();
+            } else {
+                // Format is the same. Park the audio thread before we delete the old stream.
+                // This prevents a use-after-free race condition.
+                audio->setStream(nullptr);
             }
 
             // Now it's safe to update the stream pointer, which destroys the old stream.
@@ -1050,7 +1054,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 if (must_recreate_audio) {
                     // Create a new audio device for the new format.
                     audio = std::make_unique<Audio>(&ATdata);
-                } else {
+                } else { // Format was the same, audio object was preserved.
                     // Format is the same, just set the new stream on the existing audio device.
                     audio->setStream(stream.get());
                 }
@@ -1144,6 +1148,11 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             if (recreate_audio) {
                 audio.reset();
+            } else {
+                // If we are preserving the audio device, we must first park the
+                // audio thread so it doesn't access the old stream while we delete it.
+                // This prevents a use-after-free race condition.
+                audio->setStream(nullptr);
             }
 
             {
