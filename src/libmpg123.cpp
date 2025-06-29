@@ -143,6 +143,7 @@ void Libmpg123::seekTo(unsigned long pos)
 {
     long long a = (long long) pos * m_rate / 1000;
     m_position = (long long) mpg123_seek(m_mpg_handle, a, SEEK_SET) * 1000 / m_rate;
+    m_eof = false; // A seek operation means we are no longer at the end of the file.
 }
 
 bool Libmpg123::eof()

@@ -107,6 +107,7 @@ void Vorbis::open(TagLib::String name)
 void Vorbis::seekTo(unsigned long pos)
 {
     ov_time_seek(&m_vorbis_file, (double) pos / 1000.0);
+    m_eof = false; // A seek operation means we are no longer at the end of the file.
     m_sposition = ov_pcm_tell(&m_vorbis_file);
     m_position = ov_time_tell(&m_vorbis_file) * 1000;
 }

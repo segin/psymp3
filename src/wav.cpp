@@ -111,6 +111,7 @@ WaveStream::WaveStream(const TagLib::String& path) : Stream(path) {
     }
 
     parseHeaders();
+    m_eof = false;
 }
 
 /**
@@ -205,25 +206,34 @@ void WaveStream::parseHeaders() {
  * @return The total number of bytes actually written into the buffer.
  */
 size_t WaveStream::getData(size_t len, void *buf) {
-    if (eof()) return 0;
+    if (m_eof) return 0;
 
     // If the source is already 16-bit, we can perform a direct, efficient read.
     if (m_encoding == WaveEncoding::PCM && m_bits_per_sample == 16) {
         size_t bytes_to_read = std::min(len, static_cast<size_t>(m_data_chunk_size - m_bytes_read_from_data));
         size_t bytes_read = m_handler->read(static_cast<char*>(buf), 1, bytes_to_read);
-
+        
+        if (bytes_read == 0) {
+            m_eof = true;
+            return 0;
+        }
+        
         m_bytes_read_from_data += bytes_read;
         m_sposition = m_bytes_read_from_data / (m_channels * m_bytes_per_sample);
         m_position = (m_sposition * 1000) / m_rate;
         return bytes_read;
     }
+    
 
     // For other formats, we must convert to 16-bit.
     // Calculate how many source bytes we need to read to fill the output buffer.
     size_t max_output_samples = len / 2; // Output buffer expects 16-bit (2-byte) samples.
     size_t source_bytes_to_read = max_output_samples * m_bytes_per_sample;
     source_bytes_to_read = std::min(source_bytes_to_read, static_cast<size_t>(m_data_chunk_size - m_bytes_read_from_data));
-    if (source_bytes_to_read == 0) return 0;
+    if (source_bytes_to_read == 0) {
+        m_eof = true;
+        return 0;
+    }
 
     // Read the raw source data into a temporary buffer.
     std::vector<char> source_buffer(source_bytes_to_read);
@@ -273,6 +283,10 @@ size_t WaveStream::getData(size_t len, void *buf) {
     m_sposition = m_bytes_read_from_data / (m_channels * m_bytes_per_sample);
     m_position = (m_sposition * 1000) / m_rate;
 
+    if (m_bytes_read_from_data >= m_data_chunk_size) {
+        m_eof = true;
+    }
+
     return bytes_written;
 }
 
@@ -295,6 +309,7 @@ void WaveStream::seekTo(unsigned long pos) {
     m_bytes_read_from_data = byte_pos;
     m_sposition = sample_pos;
     m_position = pos;
+    m_eof = false;
 }
 
 /**
@@ -302,5 +317,5 @@ void WaveStream::seekTo(unsigned long pos) {
  * @return `true` if all data from the 'data' chunk has been read, `false` otherwise.
  */
 bool WaveStream::eof() {
-    return m_bytes_read_from_data >= m_data_chunk_size;
+    return m_eof;
 }

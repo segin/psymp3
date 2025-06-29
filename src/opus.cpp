@@ -97,6 +97,7 @@ void OpusFile::seekTo(unsigned long pos)
     // Use 64-bit arithmetic to prevent potential overflow when calculating sample position from milliseconds.
     ogg_int64_t pcm_offset = (static_cast<ogg_int64_t>(pos) * m_rate) / 1000;
     op_pcm_seek(m_session, pcm_offset);
+    m_eof = false; // A seek operation means we are no longer at the end of the file.
     m_sposition = op_pcm_tell(m_session);
     if (m_rate > 0) {
         m_position = (m_sposition * 1000) / m_rate;
