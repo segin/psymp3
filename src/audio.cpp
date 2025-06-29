@@ -56,7 +56,8 @@ Audio::~Audio() {
     play(false);
     if (m_active) {
         m_active = false;
-        m_buffer_cv.notify_all(); // Wake up all waiting threads
+        m_stream_cv.notify_all(); // Wake up if waiting for a new stream
+        m_buffer_cv.notify_all(); // Wake up if waiting for buffer space
         if (m_decoder_thread.joinable()) {
             m_decoder_thread.join();
         }

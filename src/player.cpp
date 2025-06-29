@@ -767,6 +767,8 @@ bool Player::updateGUI()
     
     Player::guiRunning = false;
     // and if end of stream...
+    // Do not signal end-of-track if we are in the middle of loading a new one.
+    if (m_loading_track || m_preloading_track) return false;
     return audio ? audio->isFinished() : false;
 }
 
@@ -920,9 +922,6 @@ void Player::showToast(const std::string& message, Uint32 duration_ms)
 void Player::handleMouseButtonDown(const SDL_MouseButtonEvent& event)
 {
     if (event.button == SDL_BUTTON_LEFT) {
-        // Check if click is within progress bar area
-        // Progress bar X: 400 to 620 (width 220)
-        // Progress bar Y: 370 to 385
         if (event.x >= 400 && event.x <= 620 &&
             event.y >= 370 && event.y <= 385) {
             if (stream) {
@@ -1057,7 +1056,12 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 }
 
                 updateInfo();
-                play();
+                // Directly set the state to playing, do not call play()
+                // as play() has logic to re-request a load if stopped,
+                // which can cause a loop.
+                m_pause_indicator.reset();
+                if (audio) audio->play(true);
+                state = PlayerState::Playing;
 #ifdef _WIN32
                 if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
 #endif
