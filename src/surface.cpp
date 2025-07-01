@@ -38,13 +38,11 @@ Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Su
 Surface::Surface(int width, int height)
     : m_handle(nullptr, SDL_FreeSurface) // Initialize with null first
 {
-    std::cout << "Creating Surface with width: " << width << " and height: " << height << std::endl;
     SDL_Surface* sfc = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 0, 0, 0, 0);
     if (!sfc) {
         std::cerr << "SDL_CreateRGBSurface failed: " << SDL_GetError() << std::endl;
         throw SDLException("Could not create RGB surface");
     }
-    std::cout << "SDL_CreateRGBSurface successful." << std::endl;
     m_handle.reset(sfc);
 }
 
