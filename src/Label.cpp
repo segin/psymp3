@@ -53,6 +53,7 @@ void Label::setText(const TagLib::String& text)
         std::cerr << "Failed to render text surface for label." << std::endl;
         return;
     }
+    m_text_surface->SetAlpha(SDL_SRCALPHA, 255);
     std::cout << "Text surface rendered successfully." << std::endl;
     setSurface(std::move(m_text_surface));
     std::cout << "Label::setText finished." << std::endl;

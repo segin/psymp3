@@ -762,6 +762,7 @@ bool Player::updateGUI()
     // 1. Clear the main screen
     screen->FillRect(screen->MapRGB(0, 0, 0));
     // 2. Blit the entire dynamic buffer (graph) to the screen
+    graph->SetAlpha(SDL_SRCALPHA, 255);
     screen->Blit(*graph, Rect(0, 0, graph->width(), graph->height()));
     // 3. Blit the entire UI widget tree. This will render all the labels.
     m_ui_root->BlitTo(*screen);
