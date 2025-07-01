@@ -670,56 +670,12 @@ bool Player::updateGUI()
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ] :-", "PsyMP3 " PSYMP3_VERSION);
     }
     
-    // --- Pre-loading logic ---
-    const Uint32 PRELOAD_THRESHOLD_MS = 5000; // 5 seconds
-    if (current_stream && total_len_ms > 0 && !m_next_stream && !m_loading_track && !m_preloading_track &&
-        (total_len_ms - current_pos_ms < PRELOAD_THRESHOLD_MS))
-    {
-        long playlist_size = playlist->entries();
-        if (playlist_size > 0) {
-            long next_pos_idx = (playlist->getPosition() + 1) % playlist_size;
-            const track* next_track_info = playlist->getTrackInfo(next_pos_idx);
-
-            if (next_track_info) {
-                // Check for "hidden track" sequences (short tracks <= 5s)
-                if (next_track_info->GetLen() > 0 && next_track_info->GetLen() <= 5) {
-                    std::vector<TagLib::String> track_chain;
-                    long total_chain_duration_sec = 0;
-                    long lookahead_idx = next_pos_idx;
-
-                    // Scan forward for a chain of short tracks, but don't wrap around the playlist.
-                    while (lookahead_idx < playlist_size && total_chain_duration_sec < 120) {
-                        const track* current_lookahead_track = playlist->getTrackInfo(lookahead_idx);
-                        if (current_lookahead_track && current_lookahead_track->GetLen() > 0 && current_lookahead_track->GetLen() <= 5) {
-                            track_chain.push_back(current_lookahead_track->GetFilePath());
-                            total_chain_duration_sec += current_lookahead_track->GetLen();
-                            lookahead_idx++;
-                        } else {
-                            break; // The chain of short tracks ends here.
-                        }
-                    }
-                    
-                    if (!track_chain.empty()) {
-                        requestChainedStreamLoad(track_chain);
-                    }
-                } else {
-                    // It's a normal track, use the standard preload.
-                    TagLib::String next_path = playlist->peekNext();
-                    if (!next_path.isEmpty()) {
-                        requestTrackPreload(next_path);
-                    }
-                }
-            }
-        }
-    }
-
     // draw progress bar on the graph surface
-    graph->vline(399, 370, 385, 0xFFFFFFFF);
-    graph->vline(621, 370, 385, 0xFFFFFFFF);
-    graph->hline(399, 402, 370, 0xFFFFFFFF);
-    graph->hline(399, 402, 385, 0xFFFFFFFF);
-    graph->hline(618, 621, 370, 0xFFFFFFFF);
-    graph->hline(618, 621, 385, 0xFFFFFFFF);
+    // Draw the frame of the progress bar.
+    graph->vline(399, 370, 385, 0xFFFFFFFF); // Left edge
+    graph->vline(621, 370, 385, 0xFFFFFFFF); // Right edge
+    graph->hline(399, 621, 370, 0xFFFFFFFF); // Top edge
+    graph->hline(399, 621, 385, 0xFFFFFFFF); // Bottom edge
 
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
@@ -1042,39 +998,21 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             m_loading_track = false; // Loading complete
 
             // If we were stopped, audio is null. If playing, check if format changed.
-            bool must_recreate_audio = !audio || (new_stream && (audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels()));
-            std::cerr << "  must_recreate_audio: " << (must_recreate_audio ? "true" : "false") << std::endl;
+            // Per request, always re-initialize the audio object on a new track.
+            // This is simpler and more robust than trying to reuse it.
+            audio.reset();
 
-            if (must_recreate_audio) { // Format changed, or we were stopped.
-                std::cerr << "  Resetting audio object." << std::endl;
-                audio.reset();
-            } else {
-                // Format is the same. Park the audio thread before we delete the old stream.
-                // This prevents a use-after-free race condition.
-                std::cerr << "  Setting audio stream to nullptr." << std::endl;
-                audio->setStream(nullptr);
-            }
-
-            // Now it's safe to update the stream pointer, which destroys the old stream.
-            // We use std::unique_ptr to manage the lifetime of the stream.
+            // Take ownership of the new stream from the loader thread.
             std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
 
-            if (must_recreate_audio) { // Format changed, or we were stopped.
-                std::cerr << "  Creating new audio object with new stream." << std::endl;
-                // Pass the unique_ptr directly to the Audio constructor
-                audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
-            } else { // Format is the same, audio object was preserved.
-                std::cerr << "  Setting new stream on existing audio object." << std::endl;
-                // Pass the unique_ptr to setStream, which will take ownership
-                audio->setStream(std::move(owned_new_stream));
-            }
+            // Create a new audio object, which takes ownership of the stream.
+            audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
 
             // Update the player's current stream pointer to reflect the one now owned by Audio
             // This is a raw pointer, for read-only access by Player.
             stream = audio->getCurrentStream();
 
             updateInfo();
-            m_pause_indicator.reset();
             // Ensure audio is unpaused after everything is set up
             if (audio) audio->play(true);
             state = PlayerState::Playing;
@@ -1117,20 +1055,16 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         }
         case TRACK_PRELOAD_SUCCESS:
         {
+            // Seamless playback is disabled, so we just discard the preloaded data.
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_preloading_track = false;
-            // If a "play now" request started while we were preloading, discard this result.
-            if (m_loading_track) {
-                delete result->stream;
-            } else {
-                m_next_stream.reset(result->stream);
-                m_num_tracks_in_next_stream = result->num_chained_tracks;
-            }
+            delete result->stream; // Free the stream that was loaded
             delete result;
             break;
         }
         case TRACK_PRELOAD_FAILURE:
         {
+            // Seamless playback is disabled, nothing to do here but log and clean up.
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_preloading_track = false;
             std::cerr << "Failed to preload track: " << result->error_message << std::endl;
@@ -1144,55 +1078,11 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 if (m_loop_mode == LoopMode::One) {
                     // Loop current track by seeking to the beginning.
                     seekTo(0);
-                    play(); // Ensure playback is active.
-                } else if (m_next_stream) {
-                    // A track was preloaded, perform seamless swap.
-                    synthesizeUserEvent(DO_SEAMLESS_SWAP, nullptr, nullptr);
                 } else {
-                    // No preloaded track, use the old method.
+                    // Seamless playback is disabled. Just advance to the next track.
                     nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
                 }
             }
-            break;
-        }
-        case DO_SEAMLESS_SWAP:
-        {
-            // This event is triggered when a track ends and a preloaded track is ready.
-            // We need to transfer ownership of m_next_stream to the Audio object.
-            // First, advance the playlist for the track(s) that just finished.
-            {
-                std::lock_guard<std::mutex> lock(*mutex);
-                for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
-                    playlist->next();
-                }
-            }
-
-            // Check if audio device needs to be recreated (format change)
-            bool recreate_audio = (!audio || (m_next_stream && (audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels())));
-
-            if (recreate_audio) {
-                std::cerr << "  Seamless swap: Recreating audio object." << std::endl;
-                audio.reset(); // Destroy old audio object
-                // Create new audio object, transferring ownership of m_next_stream
-                audio = std::make_unique<Audio>(std::move(m_next_stream), fft.get(), mutex.get());
-            } else {
-                std::cerr << "  Seamless swap: Setting new stream on existing audio object." << std::endl;
-                // Set the new stream on the existing audio object, transferring ownership
-                audio->setStream(std::move(m_next_stream));
-            }
-
-            // Update player's raw stream pointer to the one now owned by Audio
-            stream = audio->getCurrentStream();
-            m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
-            m_num_tracks_in_next_stream = 0;
-
-            updateInfo();
-            m_pause_indicator.reset();
-            if (audio) audio->play(true);
-            state = PlayerState::Playing;
-#ifdef _WIN32
-            if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
-#endif
             break;
         }
         case DO_SAVE_PLAYLIST:
