@@ -762,7 +762,6 @@ bool Player::updateGUI()
     // 1. Clear the main screen
     screen->FillRect(screen->MapRGB(0, 0, 0));
     // 2. Blit the entire dynamic buffer (graph) to the screen
-    graph->SetAlpha(SDL_SRCALPHA, 255);
     screen->Blit(*graph, Rect(0, 0, graph->width(), graph->height()));
     // 3. Blit the entire UI widget tree. This will render all the labels.
     m_ui_root->BlitTo(*screen);
@@ -1313,6 +1312,9 @@ void Player::Run(std::vector<std::string> args) {
     m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     graph = std::make_unique<Surface>(640, 400);
+    // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
+    // destination for other alpha-blended surfaces (like the fade effect, toasts, etc.).
+    graph->SetAlpha(SDL_SRCALPHA, 255);
     precomputeSpectrumColors();
 
     // Initialize the UI widget tree
