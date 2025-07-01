@@ -96,7 +96,12 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
             for (unsigned int col = 0; col < slot->bitmap.width; ++col) {
                 unsigned char alpha = slot->bitmap.buffer[row * slot->bitmap.pitch + col];
                 if (alpha > 0) {
-                    sfc->pixel(x_pos + col, y_pos + row, r, g, b, alpha);
+                    // Use pre-multiplied alpha for correct blending.
+                    // The color components are scaled by the alpha value before being stored.
+                    uint8_t pre_r = (r * alpha) / 255;
+                    uint8_t pre_g = (g * alpha) / 255;
+                    uint8_t pre_b = (b * alpha) / 255;
+                    sfc->pixel(x_pos + col, y_pos + row, pre_r, pre_g, pre_b, alpha);
                 }
             }
         }
