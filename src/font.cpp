@@ -45,7 +45,6 @@ Font::~Font()
 
 std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b)
 {
-    std::cout << "Font::Render called for text: " << text.to8Bit(true) << std::endl;
     if (!m_face) {
         std::cerr << "Font::Render: m_face is null." << std::endl;
         return nullptr;
@@ -66,7 +65,6 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
         }
         width += m_face->glyph->advance.x >> 6;
     }
-    std::cout << "Calculated text dimensions: width=" << width << ", font_height=" << font_height << std::endl;
 
     if (width <= 0 || font_height <= 0) {
         // Return an empty but valid surface for empty strings to avoid crashes.
@@ -108,7 +106,6 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
 
         pen_x += slot->advance.x >> 6;
     }
-    std::cout << "Font::Render finished." << std::endl;
     return sfc;
 }
 
