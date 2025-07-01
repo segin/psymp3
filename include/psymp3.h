@@ -24,6 +24,8 @@
 #ifndef __PSYMP3_H__
 #define __PSYMP3_H__
 
+#include <cstdint>
+
 // defines
 #define PSYMP3_VERSION "2-CURRENT"
 #define PSYMP3_MAINTAINER "Kirn Gill II <segin2005@gmail.com>"
@@ -44,7 +46,9 @@ enum {
     TRACK_PRELOAD_SUCCESS, // Sent from loader thread for a preloaded track
     TRACK_PRELOAD_FAILURE, // Sent from loader thread for a failed preload
     DO_SEAMLESS_SWAP,    // Event to perform the actual track swap
-    DO_SAVE_PLAYLIST
+    DO_SAVE_PLAYLIST,
+    QUIT_APPLICATION,
+    AUTOMATED_SKIP_TRACK
 };
 
 enum class PlayerState {
@@ -58,6 +62,7 @@ enum class LoopMode {
     One,
     All
 };
+
 //
 // C++ Standard Library
 #include <algorithm>
@@ -117,7 +122,6 @@ enum class LoopMode {
 #include <SDL/SDL_mutex.h>
 #else
 #include <SDL.h>
-#include <SDL_ttf.h>
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #endif
@@ -134,7 +138,6 @@ enum class LoopMode {
 #include "surface.h"
 #include "display.h"
 #include "truetype.h"
-#include "font.h"
 #include "Widget.h"
 #include "Label.h"
 #include "ToastNotification.h"

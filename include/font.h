@@ -24,16 +24,19 @@
 #ifndef FONT_H
 #define FONT_H
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 class Font
 {
     public:
-        explicit Font(TagLib::String file, int ptsize = 12);
+        explicit Font(const TagLib::String& file, int ptsize = 12);
         virtual ~Font();
-        Surface Render(TagLib::String text, uint8_t r = 255, uint8_t g = 255, uint8_t b = 255);
+        std::unique_ptr<Surface> Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b);
         bool isValid();
     protected:
     private:
-        TTF_Font * m_font;
+        FT_Face m_face;
 };
 
 #endif // FONT_H

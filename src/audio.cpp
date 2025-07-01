@@ -30,17 +30,18 @@
  *             the mutex for thread-safe access to the stream.
  * This constructor initializes the audio system for the given stream and starts the background decoder thread.
  */
-Audio::Audio(struct atdata *data)
-    : m_stream(data->stream),
-      m_fft(data->fft),
-      m_player_mutex(data->mutex),
+Audio::Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex *player_mutex)
+    : m_owned_stream(std::move(stream_to_own)),
+      m_current_stream_raw_ptr(m_owned_stream.get()),
+      m_fft(fft),
+      m_player_mutex(player_mutex),
       m_active(true),
       m_playing(false)
 {
-    if (!m_stream) {
+    if (!m_owned_stream) {
         throw std::invalid_argument("Audio constructor called with a null stream.");
     }
-    std::cout << "Audio::Audio(): " << std::dec << m_stream->getRate() << "Hz, channels: " << std::dec << m_stream->getChannels() << std::endl;
+    std::cout << "Audio::Audio(): " << std::dec << m_owned_stream->getRate() << "Hz, channels: " << std::dec << m_owned_stream->getChannels() << std::endl;
     m_buffer.reserve(16384); // Reserve space for the buffer to avoid reallocations
     setup();
     m_decoder_thread = std::thread(&Audio::decoderThreadLoop, this);
@@ -73,10 +74,11 @@ Audio::~Audio() {
  */
 void Audio::setup() {
     SDL_AudioSpec fmt;
-    fmt.freq = m_rate = m_stream->getRate();
+    // Use m_current_stream_raw_ptr to get rate and channels
+    fmt.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
     fmt.format = AUDIO_S16; /* Always, I hope */
-    fmt.channels = m_channels = m_stream->getChannels();
-    std::cout << "Audio::setup: channels: " << m_stream->getChannels() << std::endl;
+    fmt.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
+    std::cout << "Audio::setup: channels: " << m_current_stream_raw_ptr.load()->getChannels() << std::endl;
     fmt.samples = 512 * fmt.channels; /* 512 samples for fft */
     fmt.callback = callback;
     fmt.userdata = this;
@@ -100,19 +102,18 @@ void Audio::play(bool go) {
  * This method is thread-safe and is used to seamlessly switch tracks.
  * @param new_stream A pointer to the new Stream object.
  */
-void Audio::setStream(Stream* new_stream)
+std::unique_ptr<Stream> Audio::setStream(std::unique_ptr<Stream> new_stream)
 {
-    // Before setting a new stream, clear any leftover data from the old one.
-    {
-        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-        m_buffer.clear();
-    }
-    {
-        std::lock_guard<std::mutex> lock(m_stream_mutex);
-        m_stream = new_stream;
-    }
+    std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+
+    m_buffer.clear();
+    m_owned_stream = std::move(new_stream);
+    m_current_stream_raw_ptr.store(m_owned_stream.get());
+
     // Notify the decoder thread that a new stream is available.
     m_stream_cv.notify_one();
+    return nullptr; // Ownership transferred, return null unique_ptr
 }
 
 /**
@@ -126,11 +127,11 @@ void Audio::setStream(Stream* new_stream)
  */
 bool Audio::isFinished() const
 {
-    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
     std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
     // It's finished if the decoder is done with the stream (m_stream is null)
     // AND the playback buffer is empty.
-    return m_stream == nullptr && m_buffer.empty();
+    return m_current_stream_raw_ptr.load() == nullptr && m_buffer.empty();
 }
 
 /**
@@ -168,22 +169,24 @@ void Audio::decoderThreadLoop() {
 
     while (m_active)
     {
-        // Wait until there is a valid stream to process.
+        Stream* local_stream = nullptr;
+        // Wait until there is a valid stream to process, and get a safe local copy.
         {
             std::unique_lock<std::mutex> lock(m_stream_mutex);
             m_stream_cv.wait(lock, [this] {
-                return m_stream != nullptr || !m_active;
+                return m_owned_stream != nullptr || !m_active;
             });
+            if (!m_active) break;
+            local_stream = m_owned_stream.get();
         }
 
-        if (!m_active) break;
-
         // Inner loop: Decode from the current stream until it ends.
-        while (m_stream && m_active) {
+        // Use the local_stream pointer to avoid race conditions.
+        while (local_stream && m_active) {
             {
                 std::unique_lock<std::mutex> lock(m_buffer_mutex);
                 m_buffer_cv.wait(lock, [this] {
-                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active;
+                    return m_buffer.size() < BUFFER_HIGH_WATER_MARK || !m_active || !m_playing;
                 });
             }
 
@@ -192,10 +195,16 @@ void Audio::decoderThreadLoop() {
             size_t bytes_read = 0;
             bool eof = false;
             {
+                // Lock the player mutex to synchronize with main thread operations like seeking.
                 std::lock_guard<std::mutex> lock(*m_player_mutex);
-                if (m_stream) {
-                    bytes_read = m_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
-                    eof = m_stream->eof();
+                // CRITICAL: Before using local_stream, verify it's still the active stream.
+                // If not, the main thread has changed it, and we must exit this inner loop.
+                if (local_stream == m_current_stream_raw_ptr.load()) {
+                    bytes_read = local_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
+                    eof = local_stream->eof();
+                } else {
+                    // Stream has changed. Break to re-evaluate in the outer loop.
+                    break;
                 }
             }
 
@@ -207,8 +216,13 @@ void Audio::decoderThreadLoop() {
             m_buffer_cv.notify_one();
 
             if (eof) {
+                // This stream is finished. Signal this by setting the shared pointer to null.
+                // This will cause isFinished() to return true (once the buffer is empty)
+                // and will make this thread wait for a new stream.
                 std::lock_guard<std::mutex> lock(m_stream_mutex);
-                m_stream = nullptr; // Signal that this stream is done.
+                m_owned_stream.reset(); // Release ownership
+                m_current_stream_raw_ptr.store(nullptr);
+                break; // Exit the inner decoding loop.
             }
         }
     }
@@ -243,7 +257,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         std::unique_lock<std::mutex> lock(self->m_buffer_mutex);
         // Wait for data to become available in the buffer
         self->m_buffer_cv.wait(lock, [self] {
-            return !self->m_buffer.empty() || !self->m_active;
+            return !self->m_buffer.empty() || !self->m_active || !self->m_playing;
         });
 
         size_t bytes_to_copy = len;

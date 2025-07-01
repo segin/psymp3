@@ -24,6 +24,10 @@
 #ifndef TOASTNOTIFICATION_H
 #define TOASTNOTIFICATION_H
 
+#include "font.h"
+
+#include "font.h"
+
 class ToastNotification : public Widget
 {
 public:
@@ -44,6 +48,7 @@ private:
     Uint32 m_expiration_time;
     Uint32 m_fade_duration;
     Uint32 m_visible_duration;
+    Font* m_font; // Non-owning pointer to the global font
 
 };
 

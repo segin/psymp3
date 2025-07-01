@@ -29,14 +29,18 @@ Label::Label(Font* font, const Rect& position, const TagLib::String& initial_tex
       m_text(), // Will be set by setText
       m_color(color)
 {
+    std::cout << "Label constructor called." << std::endl;
     // The initial render is done by calling setText.
     setText(initial_text);
+    std::cout << "Label constructor finished." << std::endl;
 }
 
 void Label::setText(const TagLib::String& text)
 {
+    std::cout << "Label::setText called with text: " << text.to8Bit(true) << std::endl;
     // Avoid re-rendering if the text hasn't changed.
     if (text == m_text) {
+        std::cout << "Text unchanged, skipping render." << std::endl;
         return;
     }
 
@@ -44,5 +48,12 @@ void Label::setText(const TagLib::String& text)
 
     // Render the new text onto a temporary surface and then move-assign it to our base Surface.
     // This updates the widget's visual representation.
-    *static_cast<Surface*>(this) = m_font->Render(m_text, m_color.r, m_color.g, m_color.b);
+    m_text_surface = m_font->Render(m_text, m_color.r, m_color.g, m_color.b);
+    if (!m_text_surface) {
+        std::cerr << "Failed to render text surface for label." << std::endl;
+        return;
+    }
+    std::cout << "Text surface rendered successfully." << std::endl;
+    setSurface(std::move(m_text_surface));
+    std::cout << "Label::setText finished." << std::endl;
 }

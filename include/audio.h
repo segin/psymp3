@@ -26,17 +26,18 @@
 
 class Audio {
 public:
-    Audio(struct atdata *data);
+    Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex *player_mutex);
     ~Audio();
 
     void play(bool go);
     void lock(void);
     void unlock(void);
     bool isFinished() const;
-    void setStream(Stream* new_stream);
+    std::unique_ptr<Stream> setStream(std::unique_ptr<Stream> new_stream);
 
     int getRate() const { return m_rate; }
     int getChannels() const { return m_channels; }
+    Stream* getCurrentStream() const { return m_current_stream_raw_ptr.load(); }
 
 private:
     void setup();
@@ -53,7 +54,8 @@ private:
     std::condition_variable m_buffer_cv;
     std::atomic<bool> m_active;
 
-    Stream *m_stream;
+    std::unique_ptr<Stream> m_owned_stream; // The stream currently owned by this Audio object
+    std::atomic<Stream*> m_current_stream_raw_ptr; // Raw pointer for atomic access by audio callback
     FastFourier *m_fft;
     std::mutex *m_player_mutex; // The mutex from the player for FFT data
     

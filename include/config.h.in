@@ -6,6 +6,9 @@
 /* define if the compiler supports basic C++17 syntax */
 #undef HAVE_CXX17
 
+/* Define to 1 if you have the DBus library */
+#undef HAVE_DBUS
+
 /* Define to 1 if you have the `getcwd' function. */
 #undef HAVE_GETCWD
 

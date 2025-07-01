@@ -22,72 +22,53 @@
  */
 
 #include "psymp3.h"
+#include "mpris.h"
+#include <getopt.h>
 
-/**
- * @brief A static helper function to convert a long integer to a string.
- * @param number The number to convert.
- * @return The string representation of the number.
- */
-bool Player::guiRunning;
+bool Player::guiRunning = false;
 
-/**
- * @brief A static helper function to convert a long integer to a string.
- * @param number The number to convert.
- * @return The string representation of the number.
- */
 static std::string convertInt(long number) {
    std::stringstream ss;
    ss << number;
    return ss.str();
 }
 
-/**
- * @brief A static helper function to convert a long integer to a two-digit, zero-padded string.
- * @param number The number to convert.
- * @return The zero-padded string representation (e.g., 7 becomes "07").
- */
 static std::string convertInt2(long number) {
     std::stringstream ss;
     ss << std::setw(2) << std::setfill('0') << number;
     return ss.str();
 }
 
-/**
- * @brief Constructs the Player object.
- * This initializes the player's state and starts the background track loader thread.
- * Most object initialization is deferred to the Run() method, as it depends on SDL.
- */
 Player::Player() {
-    //ctor - you'd think we'd initialize our object pointers here,
-    // but no, some depend on SDL, which is initialized in Run()
-    // -- but we will delete them in ~Player()
-    // So, instead, print a startup banner to the console.
     std::cout << "PsyMP3 version " << PSYMP3_VERSION << "." << std::endl;
 
     m_loader_active = true;
     m_loading_track = false;
     m_preloading_track = false;
+    m_automated_test_mode = false;
+    m_automated_test_track_count = 0;
     m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
+#ifdef HAVE_DBUS
+    mpris = new MPRIS(this);
+    mpris->init();
+#endif
 }
 
-/**
- * @brief Destroys the Player object.
- * This ensures a clean shutdown by signaling all background threads (loader, playlist populator)
- * to terminate and waiting for them to join before destroying shared resources.
- */
 Player::~Player() {
-    // Signal threads to stop and wait for them to finish *before*
-    // destroying any resources they might be using. This prevents use-after-free.
+#ifdef HAVE_DBUS
+    if (mpris) {
+        mpris->shutdown();
+        delete mpris;
+    }
+#endif
     if (m_loader_active) {
         m_loader_active = false;
-        m_loader_queue_cv.notify_one(); // Wake up loader thread to exit
+        m_loader_queue_cv.notify_one(); 
         if (m_loader_thread.joinable()) {
             m_loader_thread.join();
         }
     }
 
-    // Join the playlist populator thread.
-    // This thread might be accessing 'playlist', so we must join it before deleting.
     if (m_playlist_populator_thread.joinable()) {
         m_playlist_populator_thread.join();
     }
@@ -139,7 +120,7 @@ void Player::synthesizeUserEvent(int code, void *data1, void* data2) {
  */
 Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     if (!Player::guiRunning)
-        synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
+        Player::synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     else
         std::cout << "timer: skipped" << std::endl;
 
@@ -153,6 +134,7 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
  * @param path The file path of the track to load and play.
  */
 void Player::requestTrackLoad(TagLib::String path) {
+    std::cerr << "Player::requestTrackLoad(" << path.to8Bit(true) << ") called." << std::endl;
     if (m_loading_track) {
         std::cerr << "Already loading a track, ignoring new request: " << path << std::endl;
         return; // Or queue it, depending on desired behavior
@@ -270,10 +252,10 @@ void Player::loaderThreadLoop() {
 void Player::playlistPopulatorLoop(std::vector<std::string> args) {
     System::setThisThreadName("playlist-populator");
 
-    if (args.size() <= 1) return; // Nothing to do
+    if (args.empty()) return; // Nothing to do
 
     // Check if the first argument is a playlist file (M3U/M3U8)
-    TagLib::String first_arg(args[1], TagLib::String::UTF8);
+    TagLib::String first_arg(args[0], TagLib::String::UTF8);
     std::string first_arg_str = first_arg.to8Bit(true);
     size_t dot_pos = first_arg_str.find_last_of('.');
     if (dot_pos != std::string::npos) {
@@ -294,9 +276,13 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
     }
 
     // If not a playlist or loading failed, treat arguments as individual files
-    for (size_t i = 1; i < args.size(); ++i) {
-        playlist->addFile(TagLib::String(args[i], TagLib::String::UTF8));
-        if (i == 1) synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr); // Start first track
+    for (size_t i = 0; i < args.size(); ++i) {
+        try {
+            playlist->addFile(TagLib::String(args[i], TagLib::String::UTF8));
+            if (i == 0) synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr); // Start first track
+        } catch (const std::exception& e) {
+            std::cerr << "Player::playlistPopulatorLoop(): Failed to add file " << args[i] << ": " << e.what() << std::endl;
+        }
     }
 }
 
@@ -306,12 +292,12 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
  * @return `true` if a track was successfully loaded, `false` if the playlist is empty
  * or the end was reached without wrapping.
  */
-bool Player::nextTrack(size_t advance_count) {
+void Player::nextTrack(size_t advance_count) {
     m_navigation_direction = 1;
     if (advance_count == 0) advance_count = 1;
     if (!playlist || playlist->entries() == 0) {
         stop();
-        return false;
+        return;
     }
 
     long new_pos = playlist->getPosition();
@@ -325,20 +311,19 @@ bool Player::nextTrack(size_t advance_count) {
         } else { // LoopMode::None
             stop();
             updateInfo();
-            return false; // Signal to exit if this was from a keypress
+            return;
         }
     }
 
     playlist->setPosition(new_pos);
     requestTrackLoad(playlist->getTrack(new_pos));
-    return true;
 }
 
 /**
  * @brief Moves to the previous track in the playlist.
  * @return `true` always.
  */
-bool Player::prevTrack(void) {
+void Player::prevTrack(void) {
     m_navigation_direction = -1;
     long new_pos = playlist->getPosition() - 1;
 
@@ -347,13 +332,12 @@ bool Player::prevTrack(void) {
             new_pos = playlist->entries() - 1; // Wrap to end
         } else { // LoopMode::None
             seekTo(0); // Go to start of current track
-            return true;
+            return;
         }
     }
 
     playlist->setPosition(new_pos);
     requestTrackLoad(playlist->getTrack(new_pos));
-    return true;
 }
 
 /**
@@ -369,7 +353,11 @@ bool Player::stop(void) {
         audio->setStream(nullptr);
     }
     audio.reset(); // Destroy the audio object when stopping.
-    stream.reset();
+    stream = nullptr;
+
+#ifdef HAVE_DBUS
+    if (mpris) mpris->updatePlaybackStatus("Stopped");
+#endif
 #ifdef _WIN32
     if (system) system->clearNowPlaying();
 #endif
@@ -385,6 +373,9 @@ bool Player::pause(void) {
     if (state != PlayerState::Stopped) {
         audio->play(false);
         state = PlayerState::Paused;
+#ifdef HAVE_DBUS
+        if (mpris) mpris->updatePlaybackStatus("Paused");
+#endif
         if (!m_pause_indicator) {
             SDL_Color pause_color = {255, 255, 255, 180}; // Semi-transparent white
             m_pause_indicator = std::make_unique<Label>(m_large_font.get(), Rect(0,0,0,0), "PAUSED", pause_color);
@@ -411,6 +402,9 @@ bool Player::play(void) {
         m_pause_indicator.reset();
         if (audio) audio->play(true);
         state = PlayerState::Playing;
+#ifdef HAVE_DBUS
+        if (mpris) mpris->updatePlaybackStatus("Playing");
+#endif
     }
     return true;
 }
@@ -447,7 +441,12 @@ void Player::seekTo(unsigned long pos)
  * This is done once at startup to avoid expensive color calculations in the main render loop.
  */
 void Player::precomputeSpectrumColors() {
-    if (!graph) return;
+    std::cout << "precomputeSpectrumColors called." << std::endl;
+    if (!graph) {
+        std::cout << "graph is null!" << std::endl;
+        return;
+    }
+    std::cout << "graph is valid." << std::endl;
 
     m_spectrum_colors.resize(320);
     for (uint16_t x = 0; x < 320; ++x) {
@@ -465,8 +464,10 @@ void Player::precomputeSpectrumColors() {
             g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
             b = 255;
         }
+        // std::cout << "x: " << x << " r: " << (int)r << " g: " << (int)g << " b: " << (int)b << std::endl;
         m_spectrum_colors[x] = graph->MapRGBA(r, g, b, 255);
     }
+    std::cout << "precomputeSpectrumColors finished." << std::endl;
 }
 
 /**
@@ -526,14 +527,14 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
         m_labels.at("title")->setText("Title: Loading...");
         m_labels.at("album")->setText("Album: Loading...");
         m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
-        screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ]:-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
+        screen->SetCaption(TagLib::String("PsyMP3 ") + PSYMP3_VERSION + " -:[ Loading... ] :-", TagLib::String("PsyMP3 ") + PSYMP3_VERSION);
     } else if (!error_msg.isEmpty()) {
         m_labels.at("artist")->setText("Artist: N/A");
         m_labels.at("title")->setText("Title: Error: " + error_msg);
         m_labels.at("album")->setText("Album: N/A");
         m_labels.at("playlist")->setText("Playlist: N/A");
         m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ Error: " + error_msg.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
     } else if (stream) {
         m_labels.at("artist")->setText("Artist: " + stream->getArtist());
         m_labels.at("title")->setText("Title: " + stream->getTitle());
@@ -546,7 +547,7 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
         m_labels.at("album")->setText("Album: ");
         m_labels.at("playlist")->setText("Playlist: 0/0");
         m_labels.at("position")->setText("Position: --:--.-- / --:--.--");
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ] :-", "PsyMP3 " PSYMP3_VERSION);
     }
 
     // These are always updated based on player settings, not track info
@@ -568,7 +569,9 @@ bool Player::updateGUI()
     Player::guiRunning = true;
     unsigned long current_pos_ms = 0;
     unsigned long total_len_ms = 0;
-    TagLib::String artist, title;
+    TagLib::String artist = "";
+    TagLib::String title = "";
+    Stream* current_stream = nullptr; // Declare here
 
     // --- GUI Update Logic ---
     // --- Start of critical section ---
@@ -586,17 +589,18 @@ bool Player::updateGUI()
                     graph->MapRGB(0, 0, 0));
 
         // Copy data from stream object while locked
-        if (stream) {
+        if (audio && audio->getCurrentStream()) {
+            current_stream = audio->getCurrentStream(); // Assign here
             // During a keyboard seek, we use our manually-controlled position for
             // instant visual feedback. Otherwise, get the position from the stream.
             if (m_seek_direction != 0) {
                 current_pos_ms = m_seek_position_ms;
             } else {
-                current_pos_ms = stream->getPosition();
+                current_pos_ms = current_stream->getPosition();
             }
-            total_len_ms = stream->getLength();
-            artist = stream->getArtist();
-            title = stream->getTitle();
+            total_len_ms = current_stream->getLength();
+            artist = current_stream->getArtist();
+            title = current_stream->getTitle();
         }
 
         // Draw the spectrum analyzer on the graph surface
@@ -651,7 +655,7 @@ bool Player::updateGUI()
     // --- End of critical section ---
 
     // Now use the copied data for rendering, outside the lock.
-    if(stream) {
+    if(current_stream) {
         m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
                                 + ":" + convertInt2((current_pos_ms / 1000) % 60)
                                 + "." + convertInt2((current_pos_ms / 10) % 100)
@@ -659,16 +663,16 @@ bool Player::updateGUI()
                                 + ":" + convertInt2((total_len_ms / 1000) % 60)
                                 + "." + convertInt2((total_len_ms / 10) % 100));
         screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
-                        (std::string) " -:[ " + artist.to8Bit(true) + " ]:- -- -:[ " +
-                        title.to8Bit(true) + " ]:-", "PsyMP3 " PSYMP3_VERSION);
+                        (std::string) " -:[ " + artist.to8Bit(true) + " ] :-" + " -- -:[ " +
+                        title.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
     } else {
         m_labels.at("position")->setText("Position: -:--.-- / -:--.--");
-        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ]:-", "PsyMP3 " PSYMP3_VERSION);
+        screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ] :-", "PsyMP3 " PSYMP3_VERSION);
     }
     
     // --- Pre-loading logic ---
     const Uint32 PRELOAD_THRESHOLD_MS = 5000; // 5 seconds
-    if (stream && total_len_ms > 0 && !m_next_stream && !m_loading_track && !m_preloading_track &&
+    if (current_stream && total_len_ms > 0 && !m_next_stream && !m_loading_track && !m_preloading_track &&
         (total_len_ms - current_pos_ms < PRELOAD_THRESHOLD_MS))
     {
         long playlist_size = playlist->entries();
@@ -768,7 +772,9 @@ bool Player::updateGUI()
     Player::guiRunning = false;
     // and if end of stream...
     // Do not signal end-of-track if we are in the middle of loading a new one.
-    if (m_loading_track || m_preloading_track) return false;
+    if (m_loading_track || m_preloading_track) {
+        return false;
+    }
     return audio ? audio->isFinished() : false;
 }
 
@@ -786,7 +792,8 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             return true; // Signal to exit
 
         case SDLK_n:
-            return !nextTrack(); // Signal to exit if no next track
+            nextTrack();
+            break;
 
         case SDLK_p:
             prevTrack();
@@ -1006,24 +1013,26 @@ void Player::handleKeyUp(const SDL_keysym& keysym)
 bool Player::handleUserEvent(const SDL_UserEvent& event)
 {
     switch(event.code) {
-        case START_FIRST_TRACK:
+        case START_FIRST_TRACK: 
         {
             if (playlist->entries() > 0) {
                 requestTrackLoad(playlist->getTrack(0));
             }
             break;
         }
-        case DO_NEXT_TRACK:
+        case DO_NEXT_TRACK: 
         {
-            return !nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
+            nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
+            break;
         }
         case DO_PREV_TRACK:
         {
             prevTrack();
             break;
         }
-        case TRACK_LOAD_SUCCESS:
+        case TRACK_LOAD_SUCCESS: 
         {
+            std::cerr << "Player::handleUserEvent(TRACK_LOAD_SUCCESS) called." << std::endl;
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_skip_attempts = 0; // Reset skip counter on a successful load.
             Stream* new_stream = result->stream;
@@ -1034,47 +1043,52 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             // If we were stopped, audio is null. If playing, check if format changed.
             bool must_recreate_audio = !audio || (new_stream && (audio->getRate() != new_stream->getRate() || audio->getChannels() != new_stream->getChannels()));
+            std::cerr << "  must_recreate_audio: " << (must_recreate_audio ? "true" : "false") << std::endl;
 
             if (must_recreate_audio) { // Format changed, or we were stopped.
+                std::cerr << "  Resetting audio object." << std::endl;
                 audio.reset();
             } else {
                 // Format is the same. Park the audio thread before we delete the old stream.
                 // This prevents a use-after-free race condition.
+                std::cerr << "  Setting audio stream to nullptr." << std::endl;
                 audio->setStream(nullptr);
             }
 
             // Now it's safe to update the stream pointer, which destroys the old stream.
-            {
-                std::lock_guard<std::mutex> lock(*mutex);
-                stream.reset(new_stream); // This takes ownership and destroys the old stream
-                ATdata.stream = stream.get(); // Update the pointer for the audio thread data
+            // We use std::unique_ptr to manage the lifetime of the stream.
+            std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
+
+            if (must_recreate_audio) { // Format changed, or we were stopped.
+                std::cerr << "  Creating new audio object with new stream." << std::endl;
+                // Pass the unique_ptr directly to the Audio constructor
+                audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
+            } else { // Format is the same, audio object was preserved.
+                std::cerr << "  Setting new stream on existing audio object." << std::endl;
+                // Pass the unique_ptr to setStream, which will take ownership
+                audio->setStream(std::move(owned_new_stream));
             }
 
-            if (stream) {
-                if (must_recreate_audio) {
-                    // Create a new audio device for the new format.
-                    audio = std::make_unique<Audio>(&ATdata);
-                } else { // Format was the same, audio object was preserved.
-                    // Format is the same, just set the new stream on the existing audio device.
-                    audio->setStream(stream.get());
+            // Update the player's current stream pointer to reflect the one now owned by Audio
+            // This is a raw pointer, for read-only access by Player.
+            stream = audio->getCurrentStream();
+
+            updateInfo();
+            m_pause_indicator.reset();
+            // Ensure audio is unpaused after everything is set up
+            if (audio) audio->play(true);
+            state = PlayerState::Playing;
+#ifdef HAVE_DBUS
+            if (mpris) {
+                mpris->updatePlaybackStatus("Playing");
+                if (stream) {
+                    mpris->updateMetadata(stream->getArtist().to8Bit(true), stream->getTitle().to8Bit(true), stream->getAlbum().to8Bit(true));
                 }
-
-                updateInfo();
-                // Directly set the state to playing, do not call play()
-                // as play() has logic to re-request a load if stopped,
-                // which can cause a loop.
-                m_pause_indicator.reset();
-                if (audio) audio->play(true);
-                state = PlayerState::Playing;
-#ifdef _WIN32
-                if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
-#endif
-            } else {
-                // If the new stream is null, audio would have been reset above.
-                // If stream is null (e.g., MediaFile::open returned nullptr for some reason not caught by exception)
-                state = PlayerState::Stopped;
-                updateInfo(false, "Error loading track");
             }
+#endif
+#ifdef _WIN32
+            if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
+#endif
             break;
         }
         case TRACK_LOAD_FAILURE:
@@ -1136,7 +1150,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                     synthesizeUserEvent(DO_SEAMLESS_SWAP, nullptr, nullptr);
                 } else {
                     // No preloaded track, use the old method.
-                    return !nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
+                    nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
                 }
             }
             break;
@@ -1144,39 +1158,38 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case DO_SEAMLESS_SWAP:
         {
             // This event is triggered when a track ends and a preloaded track is ready.
-            bool recreate_audio = (!audio || (m_next_stream && (audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels())));
-
-            if (recreate_audio) {
-                audio.reset();
-            } else {
-                // If we are preserving the audio device, we must first park the
-                // audio thread so it doesn't access the old stream while we delete it.
-                // This prevents a use-after-free race condition.
-                audio->setStream(nullptr);
-            }
-
+            // We need to transfer ownership of m_next_stream to the Audio object.
+            // First, advance the playlist for the track(s) that just finished.
             {
                 std::lock_guard<std::mutex> lock(*mutex);
-                // Advance playlist for the track(s) that just finished
                 for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
                     playlist->next();
                 }
-                // The old stream is destroyed when the unique_ptr is reset.
-                stream = std::move(m_next_stream);
-                m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
-                m_num_tracks_in_next_stream = 0;
-                ATdata.stream = stream.get();
             }
 
-            if (!audio) {
-                // Create new audio device if it was reset.
-                audio = std::make_unique<Audio>(&ATdata);
+            // Check if audio device needs to be recreated (format change)
+            bool recreate_audio = (!audio || (m_next_stream && (audio->getRate() != m_next_stream->getRate() || audio->getChannels() != m_next_stream->getChannels())));
+
+            if (recreate_audio) {
+                std::cerr << "  Seamless swap: Recreating audio object." << std::endl;
+                audio.reset(); // Destroy old audio object
+                // Create new audio object, transferring ownership of m_next_stream
+                audio = std::make_unique<Audio>(std::move(m_next_stream), fft.get(), mutex.get());
             } else {
-                // Otherwise, just set the new stream.
-                audio->setStream(stream.get());
+                std::cerr << "  Seamless swap: Setting new stream on existing audio object." << std::endl;
+                // Set the new stream on the existing audio object, transferring ownership
+                audio->setStream(std::move(m_next_stream));
             }
+
+            // Update player's raw stream pointer to the one now owned by Audio
+            stream = audio->getCurrentStream();
+            m_num_tracks_in_current_stream = m_num_tracks_in_next_stream;
+            m_num_tracks_in_next_stream = 0;
+
             updateInfo();
-            play();
+            m_pause_indicator.reset();
+            if (audio) audio->play(true);
+            state = PlayerState::Playing;
 #ifdef _WIN32
             if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
 #endif
@@ -1203,9 +1216,65 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
  * @param args The vector of command-line arguments passed to the application.
  */
 void Player::Run(std::vector<std::string> args) {
-    if((args.size() > 1) && args[1] == "--version") {
-        about_console();
-        return;
+    int argc = args.size();
+    char **argv = new char *[argc];
+    for (int i = 0; i < argc; ++i) {
+        argv[i] = new char[args[i].size() + 1];
+        strcpy(argv[i], args[i].c_str());
+    }
+
+    static const struct option long_options[] = {
+        {"fft", required_argument, 0, 'f'},
+        {"scale", required_argument, 0, 's'},
+        {"delay", required_argument, 0, 'd'},
+        {"test", no_argument, 0, 't'},
+        {"version", no_argument, 0, 'v'},
+        {0, 0, 0, 0}
+    };
+
+    int opt;
+    while ((opt = getopt_long(argc, argv, "f:s:d:tv", long_options, nullptr)) != -1) {
+        switch (opt) {
+            case 'f':
+                if (strcmp(optarg, "mat-og") == 0) {
+                    fft->setFFTMode(FFTMode::Original);
+                } else if (strcmp(optarg, "vibe-1") == 0) {
+                    fft->setFFTMode(FFTMode::Optimized);
+                } else if (strcmp(optarg, "neomat-in") == 0) {
+                    fft->setFFTMode(FFTMode::NeomatIn);
+                } else if (strcmp(optarg, "neomat-out") == 0) {
+                    fft->setFFTMode(FFTMode::NeomatOut);
+                }
+                break;
+            case 's':
+                scalefactor = atoi(optarg);
+                break;
+            case 'd':
+                decayfactor = atof(optarg);
+                break;
+            case 't':
+                m_automated_test_mode = true;
+                break;
+            case 'v':
+                about_console();
+                return;
+        }
+    }
+
+    std::vector<std::string> files;
+    if (optind < argc) {
+        for (int i = optind; i < argc; ++i) {
+            files.push_back(argv[i]);
+        }
+    }
+
+    for (int i = 0; i < argc; ++i) {
+        delete[] argv[i];
+    }
+    delete[] argv;
+
+    if (m_automated_test_mode) {
+        std::cout << "Automated test mode enabled." << std::endl;
     }
 
     // initialize SDL video
@@ -1237,16 +1306,17 @@ void Player::Run(std::vector<std::string> args) {
 #if defined(_WIN32)
     font = std::make_unique<Font>("./vera.ttf");
 #else
-    font = std::make_unique<Font>(PSYMP3_DATADIR "/vera.ttf", 12);
+    font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 12);
 #endif // _WIN32
     // Create a larger font for status indicators like the pause message.
-    m_large_font = std::make_unique<Font>(PSYMP3_DATADIR "/vera.ttf", 36);
+    m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     graph = std::make_unique<Surface>(640, 400);
     precomputeSpectrumColors();
 
     // Initialize the UI widget tree
-    m_ui_root = std::make_unique<Widget>();
+    auto ui_surface = std::make_unique<Surface>(screen->width(), screen->height());
+    m_ui_root = std::make_unique<Widget>(std::move(*ui_surface));
     // Helper lambda to reduce boilerplate when creating and adding labels
     auto add_label = [&](const std::string& key, const Rect& pos) {
         auto label = std::make_unique<Label>(font.get(), pos);
@@ -1272,14 +1342,12 @@ void Player::Run(std::vector<std::string> args) {
 
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
-    ATdata.fft = fft.get();
-    ATdata.stream = stream.get();
-    ATdata.mutex = mutex.get();
+    
 
     // If command line arguments are provided, start populating the playlist
     // and load the first track in a background thread.
-    if (args.size() > 1) {
-        m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, args);
+    if (!files.empty()) {
+        m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, files);
         state = PlayerState::Stopped; // Will transition to playing when track loads
     } else {
         // No files, start with stopped state and an empty screen.
@@ -1290,7 +1358,10 @@ void Player::Run(std::vector<std::string> args) {
     }
     bool done = false;
     // if (system) system->progressState(TBPF_NORMAL);
-    SDL_TimerID timer = SDL_AddTimer(33, AppLoopTimer, nullptr);
+    SDL_TimerID timer = SDL_AddTimer(33, Player::AppLoopTimer, nullptr);
+    if (m_automated_test_mode) {
+        m_automated_test_timer_id = SDL_AddTimer(1000, Player::AutomatedTestTimer, this);
+    }
     while (!done) {
         bool sdone = false;
         // message processing loop
@@ -1330,7 +1401,13 @@ void Player::Run(std::vector<std::string> args) {
             }
             case SDL_USEREVENT:
             {
-                done = handleUserEvent(event.user);
+                if (event.user.code == AUTOMATED_SKIP_TRACK) {
+                    nextTrack();
+                } else if (event.user.code == QUIT_APPLICATION) {
+                    done = true;
+                } else {
+                    done = handleUserEvent(event.user);
+                }
                 break;
             }
             } // end switch (event.type)
@@ -1351,3 +1428,35 @@ void Player::Run(std::vector<std::string> args) {
     printf("Exited cleanly\n");
     return;
 }
+
+// Static member function definitions for automated testing
+Uint32 Player::AutomatedTestTimer(Uint32 interval, void* param) {
+    Player* player = static_cast<Player*>(param);
+    if (player) {
+        player->synthesizeUserEvent(AUTOMATED_SKIP_TRACK, nullptr, nullptr);
+        player->m_automated_test_track_count++;
+        if (player->m_automated_test_track_count >= 5) { // Skip 5 tracks then quit
+            SDL_RemoveTimer(player->m_automated_test_timer_id);
+            player->m_automated_test_timer_id = 0;
+            player->m_automated_quit_timer_id = SDL_AddTimer(1000, Player::AutomatedQuitTimer, player);
+        }
+    }
+    return interval;
+}
+
+Uint32 Player::AutomatedQuitTimer(Uint32 interval, void* param) {
+    Player* player = static_cast<Player*>(param);
+    if (player) {
+        player->synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
+    }
+    return interval;
+}
+
+/**
+ * @brief A static helper function to convert a long integer to a string.
+ * @param number The number to convert.
+ * @return The string representation of the number.
+ */
+
+
+// Static member function definitions for automated testing

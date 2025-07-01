@@ -38,14 +38,14 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
     SDL_Color text_color = {255, 255, 255, 255}; // Opaque white
 
     // Render the text to a temporary surface to get its dimensions
-    Surface text_sfc = font->Render(TagLib::String(message, TagLib::String::UTF8), text_color.r, text_color.g, text_color.b);
-    if (!text_sfc.isValid()) {
+    auto text_sfc = font->Render(TagLib::String(message, TagLib::String::UTF8), text_color.r, text_color.g, text_color.b);
+    if (!text_sfc || !text_sfc->isValid()) {
         throw std::runtime_error("Failed to render text for ToastNotification");
     }
 
     // Set the size of this widget to fit the text plus padding
-    m_pos.width(text_sfc.width() + (PADDING * 2));
-    m_pos.height(text_sfc.height() + (PADDING * 2));
+    m_pos.width(text_sfc->width() + (PADDING * 2));
+    m_pos.height(text_sfc->height() + (PADDING * 2));
 
     // Create this widget's main surface *without* a per-pixel alpha channel.
     // This allows the color key to function correctly.
@@ -68,7 +68,7 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
 
     // Blit the rendered text onto our surface, creating a single flattened image
     Rect text_dest_rect(PADDING, PADDING, 0, 0);
-    this->Blit(text_sfc, text_dest_rect);
+    this->Blit(*text_sfc, text_dest_rect);
 }
 
 bool ToastNotification::isExpired() const

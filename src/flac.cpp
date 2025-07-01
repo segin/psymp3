@@ -122,7 +122,26 @@ unsigned int Flac::getPosition()
     // Get the real-time sample position from the decoder thread
     // and convert it to milliseconds.
     if (m_rate > 0) {
-        return (m_handle.get_current_sample_position() * 1000) / m_rate;
+        // The decoder reports the position of the last *decoded* sample.
+        // To get the position of the currently *playing* sample, we must
+        // subtract the amount of audio that is still in the buffer.
+        uint64_t decoded_pos_samples = m_handle.get_current_sample_position();
+        size_t buffered_samples = 0;
+        {
+            // Lock to safely access the buffer size.
+            std::unique_lock<std::mutex> lock(m_handle.m_output_buffer_mutex);
+            // The buffer stores interleaved int16_t samples.
+            // The number of PCM frames (one sample per channel) is size / channels.
+            if (m_channels > 0) {
+                buffered_samples = m_handle.m_output_buffer.size() / m_channels;
+            }
+        }
+
+        // Ensure we don't underflow if the buffer has more samples than the reported position
+        // (which can happen briefly during state transitions).
+        uint64_t playing_pos_samples = (decoded_pos_samples > buffered_samples) ? (decoded_pos_samples - buffered_samples) : 0;
+
+        return (playing_pos_samples * 1000) / m_rate;
     }
     return 0;
 }

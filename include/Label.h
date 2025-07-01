@@ -24,6 +24,10 @@
 #ifndef LABEL_H
 #define LABEL_H
 
+#include "font.h"
+
+#include "font.h"
+
 class Label : public Widget
 {
     public:
@@ -36,6 +40,7 @@ class Label : public Widget
         Font* m_font; // Non-owning pointer to the global font
         TagLib::String m_text;
         SDL_Color m_color;
+        std::unique_ptr<Surface> m_text_surface;
 };
 
 #endif // LABEL_H

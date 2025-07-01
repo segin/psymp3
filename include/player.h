@@ -24,6 +24,12 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
+#include "font.h"
+
+#include "font.h"
+
+class MPRIS;
+
 struct atdata {
     Stream *stream;
     FastFourier *fft;
@@ -36,10 +42,13 @@ class Player
 {
     public:
         friend class System;
+        friend class MPRIS;
         Player();
         ~Player();
         void Run(std::vector<std::string> args);
         static Uint32 AppLoopTimer(Uint32 interval, void* param);
+        static Uint32 AutomatedTestTimer(Uint32 interval, void* param);
+        static Uint32 AutomatedQuitTimer(Uint32 interval, void* param);
         /* SDL event synthesis */
         static void synthesizeUserEvent(int uevent, void *data1, void *data2);
         static void synthesizeKeyEvent(SDLKey kpress);
@@ -71,8 +80,8 @@ class Player
         void requestChainedStreamLoad(const std::vector<TagLib::String>& paths);
         void loaderThreadLoop();
 
-        bool nextTrack(size_t advance_count = 1);
-        bool prevTrack(void);
+        void nextTrack(size_t advance_count = 1);
+        void prevTrack(void);
         bool stop(void);
         bool pause(void);
         bool play(void);
@@ -102,7 +111,8 @@ class Player
         std::unique_ptr<Playlist> playlist;
         std::unique_ptr<Font> font;
         std::unique_ptr<Font> m_large_font;
-        std::unique_ptr<Stream> stream;
+        
+        Stream* stream;
         std::unique_ptr<Stream> m_next_stream; // Slot for the pre-loaded next track
         size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
         size_t m_num_tracks_in_current_stream = 0; // How many playlist entries the current stream represents
@@ -111,6 +121,7 @@ class Player
         std::unique_ptr<FastFourier> fft;
         std::unique_ptr<std::mutex> mutex;
         std::unique_ptr<System> system;
+        MPRIS* mpris;
         struct atdata ATdata;
         int scalefactor = 2;
         float decayfactor = 1.0f;
@@ -143,6 +154,10 @@ class Player
         std::atomic<bool> m_loader_active;
         std::atomic<bool> m_loading_track; // Flag to prevent multiple simultaneous loads
         std::atomic<bool> m_preloading_track; // Flag to prevent multiple preloads
+        bool m_automated_test_mode;
+        int m_automated_test_track_count;
+        SDL_TimerID m_automated_test_timer_id = 0;
+        SDL_TimerID m_automated_quit_timer_id = 0;
 
         // New thread for populating playlist from command line
         std::thread m_playlist_populator_thread;

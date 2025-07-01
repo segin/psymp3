@@ -25,8 +25,8 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 datadir=$(prefix)/share/psymp3/data
 
-AM_CPPFLAGS = $(DEPENDS_CFLAGS) -DPSYMP3_DATADIR=\"$(datadir)\"
-psymp3_LDADD = $(DEPENDS_LIBS)
+AM_CPPFLAGS = $(DEPENDS_CFLAGS) $(FREETYPE_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"'
+psymp3_LDADD = $(DEPENDS_LIBS) $(FREETYPE_LIBS)
 
 bin_PROGRAMS = psymp3
 psymp3_SOURCES = \
