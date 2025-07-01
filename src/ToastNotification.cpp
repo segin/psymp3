@@ -33,42 +33,36 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
     // The expiration time now marks the *start* of the fade-out period.
     m_expiration_time = m_creation_time + m_fade_duration + m_visible_duration;
 
+    // Refactored to use proper alpha blending instead of color keying.
     const int PADDING = 8;
+    SDL_Color text_color = {255, 255, 255, 255}; // Opaque white for text
 
-    SDL_Color text_color = {255, 255, 255, 255}; // Opaque white
-
-    // Render the text to a temporary surface to get its dimensions
+    // 1. Render text to a temporary surface to get its dimensions.
     auto text_sfc = font->Render(TagLib::String(message, TagLib::String::UTF8), text_color.r, text_color.g, text_color.b);
     if (!text_sfc || !text_sfc->isValid()) {
         throw std::runtime_error("Failed to render text for ToastNotification");
     }
+    // Ensure the text surface itself is set up for alpha blending (for anti-aliasing).
+    text_sfc->SetAlpha(SDL_SRCALPHA, 255);
 
-    // Set the size of this widget to fit the text plus padding
-    m_pos.width(text_sfc->width() + (PADDING * 2));
-    m_pos.height(text_sfc->height() + (PADDING * 2));
-
-    // Create this widget's main surface *without* a per-pixel alpha channel.
-    // This allows the color key to function correctly.
-    m_handle.reset(SDL_CreateRGBSurface(SDL_SWSURFACE, m_pos.width(), m_pos.height(), 32, 0, 0, 0, 0));
-    if (!m_handle) {
+    // 2. Create the main widget surface with full alpha support.
+    int toast_width = text_sfc->width() + (PADDING * 2);
+    int toast_height = text_sfc->height() + (PADDING * 2);
+    auto toast_surface = std::make_unique<Surface>(toast_width, toast_height);
+    if (!toast_surface) {
         throw SDLException("Could not create surface for ToastNotification");
     }
 
-    // Use a "magic pink" color for transparency.
-    Uint32 color_key = this->MapRGB(255, 0, 255);
-    // Fill the surface with the magic color.
-    this->FillRect(color_key);
-    // Set the color key. Any pixel with this color will be invisible.
-    SDL_SetColorKey(m_handle.get(), SDL_SRCCOLORKEY, color_key);
+    // 3. Draw the background directly onto the new alpha-enabled surface.
+    toast_surface->roundedBoxRGBA(0, 0, toast_width - 1, toast_height - 1, 8, 100, 100, 100, 255);
+    toast_surface->roundedBoxRGBA(1, 1, toast_width - 2, toast_height - 2, 7, 50, 50, 50, 255);
 
-    // Draw the lighter grey border first.
-    this->roundedBoxRGBA(0, 0, m_pos.width() - 1, m_pos.height() - 1, 8, 100, 100, 100, 255);
-    // Draw the darker background on top, inset by 1px.
-    this->roundedBoxRGBA(1, 1, m_pos.width() - 2, m_pos.height() - 2, 7, 50, 50, 50, 255);
-
-    // Blit the rendered text onto our surface, creating a single flattened image
+    // 4. Blit the text onto the background.
     Rect text_dest_rect(PADDING, PADDING, 0, 0);
-    this->Blit(*text_sfc, text_dest_rect);
+    toast_surface->Blit(*text_sfc, text_dest_rect);
+
+    // 5. Set the final composed surface as the widget's surface.
+    setSurface(std::move(toast_surface));
 }
 
 bool ToastNotification::isExpired() const
