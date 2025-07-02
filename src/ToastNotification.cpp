@@ -106,6 +106,7 @@ void ToastNotification::BlitTo(Surface& target)
 
     // Apply calculated alpha and blit.
     // On a surface *without* per-pixel alpha, this enables global alpha blending for the blit operation.
-    this->SetAlpha(SDL_SRCALPHA, static_cast<Uint8>(alpha_f));
+    // Target the internal Surface object for alpha modification.
+    getSurface().SetAlpha(SDL_SRCALPHA, static_cast<Uint8>(alpha_f));
     Widget::BlitTo(target); // Call base class blit
 }

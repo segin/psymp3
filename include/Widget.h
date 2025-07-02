@@ -45,6 +45,7 @@ class Widget : public Surface
         void addChild(std::unique_ptr<Widget> child);
     protected:
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);
+        Surface& getSurface();
         Rect m_pos;
         std::vector<std::unique_ptr<Widget>> m_children;
     private:

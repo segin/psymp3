@@ -493,7 +493,8 @@ void Player::renderSpectrum(Surface *graph) {
     uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 4.0f)); // Even slower fade: divisor increased from 3.0 to 4.0
 
     // Fill the fade surface with black, using the calculated alpha
-    fade_surface.FillRect(fade_surface.MapRGB(0, 0, 0)); // Fill with opaque black
+    // Use MapRGBA to ensure the fill color is opaque on this 32-bit surface.
+    fade_surface.FillRect(fade_surface.MapRGBA(0, 0, 0, 255));
 
     // Set alpha blending for the fade surface (source surface for blitting)
     fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
@@ -586,7 +587,7 @@ bool Player::updateGUI()
         graph->box(bottom_clear_rect.x(), bottom_clear_rect.y(),
                     bottom_clear_rect.x() + bottom_clear_rect.width() - 1,
                     bottom_clear_rect.y() + bottom_clear_rect.height() - 1,
-                    graph->MapRGB(0, 0, 0));
+                    graph->MapRGBA(0, 0, 0, 255));
 
         // Copy data from stream object while locked
         if (audio && audio->getCurrentStream()) {
@@ -671,11 +672,12 @@ bool Player::updateGUI()
     }
     
     // draw progress bar on the graph surface
-    // Draw the frame of the progress bar.
-    graph->vline(399, 370, 385, 0xFFFFFFFF); // Left edge
-    graph->vline(621, 370, 385, 0xFFFFFFFF); // Right edge
-    graph->hline(399, 621, 370, 0xFFFFFFFF); // Top edge
-    graph->hline(399, 621, 385, 0xFFFFFFFF); // Bottom edge
+    graph->vline(399, 370, 385, 0xFFFFFFFF);
+    graph->vline(621, 370, 385, 0xFFFFFFFF);
+    graph->hline(399, 402, 370, 0xFFFFFFFF);
+    graph->hline(399, 402, 385, 0xFFFFFFFF);
+    graph->hline(618, 621, 370, 0xFFFFFFFF);
+    graph->hline(618, 621, 385, 0xFFFFFFFF);
 
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {

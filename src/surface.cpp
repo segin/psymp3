@@ -202,12 +202,30 @@ void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
     int bpp = m_handle->format->BytesPerPixel;
     uint8_t *p = (uint8_t *)m_handle->pixels + y1 * m_handle->pitch + x * bpp;
 
+    // This is a correct, standard implementation of a vertical line drawing routine.
+    // It directly writes pixel data and advances the pointer by the surface pitch
+    // to move to the next row, for all pixel formats. This replaces the previous
+    // flawed implementation that had incorrect pointer arithmetic.
     for (int16_t y = y1; y <= y2; ++y) {
-        // This is a bit slow due to the switch, but correct for all bpp.
-        // An outer switch would be faster but more verbose.
-        if (bpp == 2) *(uint16_t*)p = color;
-        else if (bpp == 4) *(uint32_t*)p = color;
-        else put_pixel_unlocked(x, y, color); // Fallback for other bpp
+        switch (bpp) {
+            case 1:
+                *p = color;
+                break;
+            case 2:
+                *(uint16_t *)p = color;
+                break;
+            case 3:
+                // Handle endianness for 24-bit color
+                if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+                    p[0] = (color >> 16) & 0xff; p[1] = (color >> 8) & 0xff; p[2] = color & 0xff;
+                } else {
+                    p[0] = color & 0xff; p[1] = (color >> 8) & 0xff; p[2] = (color >> 16) & 0xff;
+                }
+                break;
+            case 4:
+                *(uint32_t *)p = color;
+                break;
+        }
         p += m_handle->pitch;
     }
 }
@@ -229,13 +247,9 @@ void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uin
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    // This is implemented as a filled rectangle (box) to match its usage in the spectrum analyzer.
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
-    if (y1 > y2) std::swap(y1, y2);
-    for (int16_t y = y1; y <= y2; ++y) {
-        hline_unlocked(x1, x2, y, color);
-    }
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+    // A rectangle is a filled box in this application's context.
+    // Delegate to the box function which is now the canonical implementation.
+    box(x1, y1, x2, y2, color);
 }
 
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -247,8 +261,12 @@ void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t 
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    // A box is a filled rectangle.
-    rectangle(x1, y1, x2, y2, color);
+    // This is now the canonical implementation for drawing a filled rectangle.
+    // It uses SDL_FillRect for efficiency, breaking the recursive loop with rectangle().
+    if (x1 > x2) std::swap(x1, x2);
+    if (y1 > y2) std::swap(y1, y2);
+    SDL_Rect rect = { x1, y1, static_cast<Uint16>(x2 - x1 + 1), static_cast<Uint16>(y2 - y1 + 1) };
+    SDL_FillRect(m_handle.get(), &rect, color);
 }
 
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)

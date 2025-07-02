@@ -97,3 +97,8 @@ void Widget::addChild(std::unique_ptr<Widget> child)
 {
     m_children.push_back(std::move(child));
 }
+
+Surface& Widget::getSurface() {
+    // A Widget IS-A Surface, so it can return a reference to its Surface base.
+    return *this;
+}
