@@ -338,9 +338,21 @@ void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 
         return;
     }
 
-    // Draw the central rectangles that form the main body of the box
-    box(x1 + rad, y1, x2 - rad, y2, r, g, b, a);
-    box(x1, y1 + rad, x2, y2 - rad, r, g, b, a);
+    // Draw three non-overlapping rectangles that form the main body
+    // 1. Central horizontal rectangle
+    box(x1 + rad, y1 + rad, x2 - rad, y2 - rad, r, g, b, a);
+    
+    // 2. Top rectangle (excluding corners)
+    box(x1 + rad, y1, x2 - rad, y1 + rad - 1, r, g, b, a);
+    
+    // 3. Bottom rectangle (excluding corners)
+    box(x1 + rad, y2 - rad + 1, x2 - rad, y2, r, g, b, a);
+    
+    // 4. Left rectangle (excluding corners)
+    box(x1, y1 + rad, x1 + rad - 1, y2 - rad, r, g, b, a);
+    
+    // 5. Right rectangle (excluding corners)
+    box(x2 - rad + 1, y1 + rad, x2, y2 - rad, r, g, b, a);
 
     // Draw the four corner circles
     filledCircleRGBA(x1 + rad, y1 + rad, rad, r, g, b, a);
