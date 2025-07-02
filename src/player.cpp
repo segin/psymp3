@@ -1151,6 +1151,12 @@ void Player::Run(const PlayerOptions& options) {
     graph->SetAlpha(SDL_SRCALPHA, 255);
     precomputeSpectrumColors();
 
+    // Create an empty playlist. It will be populated in the background.
+    playlist = std::make_unique<Playlist>();
+
+    fft = std::make_unique<FastFourier>();
+    mutex = std::make_unique<std::mutex>();
+
     // Set FFT mode after FFT object is created
     fft->setFFTMode(options.fft_mode);
 
@@ -1173,12 +1179,6 @@ void Player::Run(const PlayerOptions& options) {
     add_label("decay",    Rect(550, 15, 0, 0));
     add_label("fft_mode", Rect(550, 30, 0, 0));
     m_loop_mode = LoopMode::None; // Default loop mode on startup
-
-    // Create an empty playlist. It will be populated in the background.
-    playlist = std::make_unique<Playlist>();
-
-    fft = std::make_unique<FastFourier>();
-    mutex = std::make_unique<std::mutex>();
 
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
