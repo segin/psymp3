@@ -1105,67 +1105,11 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
  * starts the main event loop, and handles cleanup on exit.
  * @param args The vector of command-line arguments passed to the application.
  */
-void Player::Run(std::vector<std::string> args) {
-    int argc = args.size();
-    char **argv = new char *[argc];
-    for (int i = 0; i < argc; ++i) {
-        argv[i] = new char[args[i].size() + 1];
-        strcpy(argv[i], args[i].c_str());
-    }
-
-    static const struct option long_options[] = {
-        {"fft", required_argument, 0, 'f'},
-        {"scale", required_argument, 0, 's'},
-        {"delay", required_argument, 0, 'd'},
-        {"test", no_argument, 0, 't'},
-        {"version", no_argument, 0, 'v'},
-        {0, 0, 0, 0}
-    };
-
-    int opt;
-    while ((opt = getopt_long(argc, argv, "f:s:d:tv", long_options, nullptr)) != -1) {
-        switch (opt) {
-            case 'f':
-                if (strcmp(optarg, "mat-og") == 0) {
-                    fft->setFFTMode(FFTMode::Original);
-                } else if (strcmp(optarg, "vibe-1") == 0) {
-                    fft->setFFTMode(FFTMode::Optimized);
-                } else if (strcmp(optarg, "neomat-in") == 0) {
-                    fft->setFFTMode(FFTMode::NeomatIn);
-                } else if (strcmp(optarg, "neomat-out") == 0) {
-                    fft->setFFTMode(FFTMode::NeomatOut);
-                }
-                break;
-            case 's':
-                scalefactor = atoi(optarg);
-                break;
-            case 'd':
-                decayfactor = atof(optarg);
-                break;
-            case 't':
-                m_automated_test_mode = true;
-                break;
-            case 'v':
-                about_console();
-                return;
-        }
-    }
-
-    std::vector<std::string> files;
-    if (optind < argc) {
-        for (int i = optind; i < argc; ++i) {
-            files.push_back(argv[i]);
-        }
-    }
-
-    for (int i = 0; i < argc; ++i) {
-        delete[] argv[i];
-    }
-    delete[] argv;
-
-    if (m_automated_test_mode) {
-        std::cout << "Automated test mode enabled." << std::endl;
-    }
+void Player::Run(const PlayerOptions& options) {
+    // Apply settings from the parsed options.
+    scalefactor = options.scalefactor;
+    decayfactor = options.decayfactor;
+    m_automated_test_mode = options.automated_test_mode;
 
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
@@ -1207,6 +1151,9 @@ void Player::Run(std::vector<std::string> args) {
     graph->SetAlpha(SDL_SRCALPHA, 255);
     precomputeSpectrumColors();
 
+    // Set FFT mode after FFT object is created
+    fft->setFFTMode(options.fft_mode);
+
     // Initialize the UI widget tree
     // The root widget is just a container and doesn't need its own surface.
     m_ui_root = std::make_unique<Widget>();
@@ -1239,8 +1186,8 @@ void Player::Run(std::vector<std::string> args) {
 
     // If command line arguments are provided, start populating the playlist
     // and load the first track in a background thread.
-    if (!files.empty()) {
-        m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, files);
+    if (!options.files.empty()) {
+        m_playlist_populator_thread = std::thread(&Player::playlistPopulatorLoop, this, options.files);
         state = PlayerState::Stopped; // Will transition to playing when track loads
     } else {
         // No files, start with stopped state and an empty screen.
@@ -1251,6 +1198,9 @@ void Player::Run(std::vector<std::string> args) {
     }
     bool done = false;
     // if (system) system->progressState(TBPF_NORMAL);
+    if (m_automated_test_mode) {
+        std::cout << "Automated test mode enabled." << std::endl;
+    }
     SDL_TimerID timer = SDL_AddTimer(33, Player::AppLoopTimer, nullptr);
     if (m_automated_test_mode) {
         m_automated_test_timer_id = SDL_AddTimer(1000, Player::AutomatedTestTimer, this);
@@ -1320,6 +1270,12 @@ void Player::Run(std::vector<std::string> args) {
     // all is well ;)
     printf("Exited cleanly\n");
     return;
+}
+
+void Player::about_console() {
+    std::cout << "PsyMP3 version " << PSYMP3_VERSION << std::endl;
+    std::cout << "Copyright © 2011-2025 Kirn Gill II <segin2005@gmail.com>" << std::endl;
+    std::cout << "PsyMP3 is free software, licensed under the ISC license." << std::endl;
 }
 
 // Static member function definitions for automated testing

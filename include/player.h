@@ -30,6 +30,16 @@
 
 class MPRIS;
 
+// A struct to hold options parsed from the command line.
+// This provides a clean way to pass configuration into the Player class.
+struct PlayerOptions {
+    int scalefactor = 2;
+    float decayfactor = 1.0f;
+    FFTMode fft_mode = FFTMode::Original;
+    bool automated_test_mode = false;
+    std::vector<std::string> files;
+};
+
 struct atdata {
     Stream *stream;
     FastFourier *fft;
@@ -45,7 +55,8 @@ class Player
         friend class MPRIS;
         Player();
         ~Player();
-        void Run(std::vector<std::string> args);
+        void Run(const PlayerOptions& options);
+        static void about_console();
         static Uint32 AppLoopTimer(Uint32 interval, void* param);
         static Uint32 AutomatedTestTimer(Uint32 interval, void* param);
         static Uint32 AutomatedQuitTimer(Uint32 interval, void* param);
