@@ -672,12 +672,13 @@ bool Player::updateGUI()
     }
     
     // draw progress bar on the graph surface
-    graph->vline(399, 370, 385, 0xFFFFFFFF);
-    graph->vline(621, 370, 385, 0xFFFFFFFF);
-    graph->hline(399, 402, 370, 0xFFFFFFFF);
-    graph->hline(399, 402, 385, 0xFFFFFFFF);
-    graph->hline(618, 621, 370, 0xFFFFFFFF);
-    graph->hline(618, 621, 385, 0xFFFFFFFF);
+    uint32_t white = graph->MapRGBA(255, 255, 255, 255);
+    graph->vline(399, 370, 385, white);
+    graph->vline(621, 370, 385, white);
+    graph->hline(399, 402, 370, white);
+    graph->hline(399, 402, 385, white);
+    graph->hline(618, 621, 370, white);
+    graph->hline(618, 621, 385, white);
 
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
@@ -1210,8 +1211,8 @@ void Player::Run(std::vector<std::string> args) {
     precomputeSpectrumColors();
 
     // Initialize the UI widget tree
-    auto ui_surface = std::make_unique<Surface>(screen->width(), screen->height());
-    m_ui_root = std::make_unique<Widget>(std::move(*ui_surface));
+    // The root widget is just a container and doesn't need its own surface.
+    m_ui_root = std::make_unique<Widget>();
     // Helper lambda to reduce boilerplate when creating and adding labels
     auto add_label = [&](const std::string& key, const Rect& pos) {
         auto label = std::make_unique<Label>(font.get(), pos);
@@ -1346,12 +1347,3 @@ Uint32 Player::AutomatedQuitTimer(Uint32 interval, void* param) {
     }
     return interval;
 }
-
-/**
- * @brief A static helper function to convert a long integer to a string.
- * @param number The number to convert.
- * @return The string representation of the number.
- */
-
-
-// Static member function definitions for automated testing

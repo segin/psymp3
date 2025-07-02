@@ -36,14 +36,11 @@ Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Su
 }
 
 Surface::Surface(int width, int height)
-    : m_handle(nullptr, SDL_FreeSurface) // Initialize with null first
+    : m_handle(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
 {
-    SDL_Surface* sfc = SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 0, 0, 0, 0);
-    if (!sfc) {
-        std::cerr << "SDL_CreateRGBSurface failed: " << SDL_GetError() << std::endl;
+    if (!m_handle) {
         throw SDLException("Could not create RGB surface");
     }
-    m_handle.reset(sfc);
 }
 
 std::unique_ptr<Surface> Surface::FromBMP(std::string a_file)
@@ -53,12 +50,11 @@ std::unique_ptr<Surface> Surface::FromBMP(std::string a_file)
 
 std::unique_ptr<Surface> Surface::FromBMP(const char *a_file)
 {
-    auto surface = std::make_unique<Surface>(); // Create an empty surface
-    surface->m_handle.reset(SDL_LoadBMP(a_file)); // Load BMP and assign to the unique_ptr
-    if (!surface->m_handle) {
+    auto sfc_handle = SDL_LoadBMP(a_file);
+    if (!sfc_handle) {
         throw SDLException("Could not load BMP");
     }
-    return surface;
+    return std::make_unique<Surface>(sfc_handle);
 }
 
 void Surface::SetAlpha(uint32_t flags, uint8_t alpha)
@@ -173,12 +169,12 @@ void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 
     // Optimize for common cases
     if (bpp == 2) {
-        uint16_t *p = (uint16_t*)row_start;
+        auto *p = (uint16_t*)row_start;
         for (int16_t x = x1; x <= x2; ++x) {
             *p++ = color;
         }
     } else if (bpp == 4) {
-        uint32_t *p = (uint32_t*)row_start;
+        auto *p = (uint32_t*)row_start;
         for (int16_t x = x1; x <= x2; ++x) {
             *p++ = color;
         }
@@ -202,30 +198,12 @@ void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
     int bpp = m_handle->format->BytesPerPixel;
     uint8_t *p = (uint8_t *)m_handle->pixels + y1 * m_handle->pitch + x * bpp;
 
-    // This is a correct, standard implementation of a vertical line drawing routine.
-    // It directly writes pixel data and advances the pointer by the surface pitch
-    // to move to the next row, for all pixel formats. This replaces the previous
-    // flawed implementation that had incorrect pointer arithmetic.
     for (int16_t y = y1; y <= y2; ++y) {
-        switch (bpp) {
-            case 1:
-                *p = color;
-                break;
-            case 2:
-                *(uint16_t *)p = color;
-                break;
-            case 3:
-                // Handle endianness for 24-bit color
-                if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
-                    p[0] = (color >> 16) & 0xff; p[1] = (color >> 8) & 0xff; p[2] = color & 0xff;
-                } else {
-                    p[0] = color & 0xff; p[1] = (color >> 8) & 0xff; p[2] = (color >> 16) & 0xff;
-                }
-                break;
-            case 4:
-                *(uint32_t *)p = color;
-                break;
-        }
+        // This is a bit slow due to the switch, but correct for all bpp.
+        // An outer switch would be faster but more verbose.
+        if (bpp == 2) *(uint16_t*)p = color;
+        else if (bpp == 4) *(uint32_t*)p = color;
+        else put_pixel_unlocked(x, y, color); // Fallback for other bpp
         p += m_handle->pitch;
     }
 }
@@ -247,9 +225,13 @@ void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uin
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    // A rectangle is a filled box in this application's context.
-    // Delegate to the box function which is now the canonical implementation.
-    box(x1, y1, x2, y2, color);
+    // This is implemented as a filled rectangle (box) to match its usage in the spectrum analyzer.
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    if (y1 > y2) std::swap(y1, y2);
+    for (int16_t y = y1; y <= y2; ++y) {
+        hline_unlocked(x1, x2, y, color);
+    }
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
