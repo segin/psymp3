@@ -76,7 +76,6 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
         std::cerr << "Failed to create surface for text rendering." << std::endl;
         return nullptr;
     }
-    sfc->FillRect(sfc->MapRGBA(0, 0, 0, 0)); // Transparent background
 
     int pen_x = 0;
     for (const char* p = text_utf8.c_str(); *p; p++) {
