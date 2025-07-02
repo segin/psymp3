@@ -53,6 +53,11 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
         throw SDLException("Could not create surface for ToastNotification");
     }
 
+    // Instead of FillRect, draw a transparent rectangle over the entire surface.
+    // This ensures that all pixels are fully transparent before drawing the box.
+    toast_surface->box(0, 0, toast_width - 1, toast_height - 1, 0, 0, 0, 0);
+
+
     // 3. Draw the background directly onto the new alpha-enabled surface.
     toast_surface->roundedBoxRGBA(0, 0, toast_width - 1, toast_height - 1, 8, 100, 100, 100, 255);
     toast_surface->roundedBoxRGBA(1, 1, toast_width - 2, toast_height - 2, 7, 50, 50, 50, 255);
@@ -63,6 +68,14 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
 
     // 5. Set the final composed surface as the widget's surface.
     setSurface(std::move(toast_surface));
+
+    // The widget's internal Rect (m_pos) is not sized automatically upon
+    // surface creation. We must explicitly set its dimensions here. This is
+    // crucial for the centering calculation in Player::updateGUI to work correctly.
+    Rect p = getPos();
+    p.width(toast_width);
+    p.height(toast_height);
+    setPos(p);
 }
 
 bool ToastNotification::isExpired() const

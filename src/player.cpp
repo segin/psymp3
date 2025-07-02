@@ -611,11 +611,11 @@ bool Player::updateGUI()
         if (m_toast->isExpired()) {
             m_toast.reset();
         } else {
-            // Horizontally and vertically center the toast in the FFT area.
+            // Horizontally center and vertically align to the bottom of the FFT area.
             const Rect& current_pos = m_toast->getPos();
             Rect new_pos = current_pos; // Make a copy to modify
             new_pos.x((graph->width() - current_pos.width()) / 2);
-            new_pos.y((350 - current_pos.height()) / 2); // Center in the 350px FFT area
+            new_pos.y(350 - current_pos.height() - 50); // 50px margin from the bottom of the FFT area
             m_toast->setPos(new_pos);
             m_toast->BlitTo(*graph); // Blit to the graph surface for correct alpha blending
         }
