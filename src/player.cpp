@@ -480,21 +480,18 @@ void Player::renderSpectrum(Surface *graph) {
     float *spectrum = fft->getFFT();
 
     // --- Fade effect implementation ---
-    // Create a temporary surface for the fade effect.
-    // It's crucial that this surface supports alpha (e.g., 32-bit).
-    // Using 'static' to avoid repeated allocation/deallocation per frame.
     static std::unique_ptr<Surface> fade_surface_ptr; // Declared static to persist across calls
+    // The fade surface is created once and reused. It's filled with opaque black
+    // only upon creation, avoiding a FillRect call on every frame.
     if (!fade_surface_ptr || fade_surface_ptr->width() != 640 || fade_surface_ptr->height() != 350) {
         fade_surface_ptr = std::make_unique<Surface>(640, 350); // Creates a 32-bit surface for FFT area only
+        // Fill the surface with opaque black. This only needs to be done once.
+        fade_surface_ptr->FillRect(fade_surface_ptr->MapRGBA(0, 0, 0, 255));
     }
     Surface& fade_surface = *fade_surface_ptr;
 
     // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
     uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 4.0f)); // Even slower fade: divisor increased from 3.0 to 4.0
-
-    // Fill the fade surface with black, using the calculated alpha
-    // Use MapRGBA to ensure the fill color is opaque on this 32-bit surface.
-    fade_surface.FillRect(fade_surface.MapRGBA(0, 0, 0, 255));
 
     // Set alpha blending for the fade surface (source surface for blitting)
     fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
