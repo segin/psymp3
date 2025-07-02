@@ -56,7 +56,6 @@ class Player
         Player();
         ~Player();
         void Run(const PlayerOptions& options);
-        static void about_console();
         static Uint32 AppLoopTimer(Uint32 interval, void* param);
         static Uint32 AutomatedTestTimer(Uint32 interval, void* param);
         static Uint32 AutomatedQuitTimer(Uint32 interval, void* param);

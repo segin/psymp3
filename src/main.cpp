@@ -23,6 +23,7 @@
 
 #include "psymp3.h"
 #include <getopt.h>
+#include "about.h"
 
 // RAII wrapper for libmpg123 initialization and cleanup.
 // A single static instance of this class ensures that mpg123_init() is called
@@ -80,7 +81,7 @@ int main(int argc, char *argv[]) {
                 options.automated_test_mode = true;
                 break;
             case 'v':
-                Player::about_console();
+                about_console();
                 should_run = false;
                 break;
             case '?': // Invalid option

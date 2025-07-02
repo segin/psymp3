@@ -1272,12 +1272,6 @@ void Player::Run(const PlayerOptions& options) {
     return;
 }
 
-void Player::about_console() {
-    std::cout << "PsyMP3 version " << PSYMP3_VERSION << std::endl;
-    std::cout << "Copyright © 2011-2025 Kirn Gill II <segin2005@gmail.com>" << std::endl;
-    std::cout << "PsyMP3 is free software, licensed under the ISC license." << std::endl;
-}
-
 // Static member function definitions for automated testing
 Uint32 Player::AutomatedTestTimer(Uint32 interval, void* param) {
     Player* player = static_cast<Player*>(param);
