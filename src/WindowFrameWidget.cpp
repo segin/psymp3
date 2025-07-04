@@ -612,6 +612,10 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     surface.hline(icon_base_x, icon_base_x + 12, icon_base_y + 2, 128, 128, 128, 255); // Horizontal shadow line
     surface.vline(icon_base_x + 12, icon_base_y, icon_base_y + 2, 128, 128, 128, 255); // Vertical shadow line
     
+    // Draw 1px black vertical separator line between control menu and titlebar proper
+    surface.vline(control_menu_bounds.x() + CONTROL_MENU_SIZE, control_menu_bounds.y(), 
+                 control_menu_bounds.y() + CONTROL_MENU_SIZE - 1, 0, 0, 0, 255);
+    
     // Draw minimize button if minimizable
     if (m_minimizable) {
         Rect minimize_bounds = getMinimizeButtonBounds();
