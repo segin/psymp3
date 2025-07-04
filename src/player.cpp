@@ -972,8 +972,8 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
  */
 void Player::showToast(const std::string& message, Uint32 duration_ms)
 {
-    if (m_toast && !m_toast->isExpired()) {
-        // There's an active toast - start fade-out and queue the new one
+    if (m_toast) {
+        // There's ANY toast - force immediate fade-out and queue the new one
         m_toast->startFadeOut();
         
         // Add to queue, but limit queue size to prevent memory issues
