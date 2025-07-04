@@ -462,10 +462,10 @@ void WindowFrameWidget::updateLayout()
         int effective_resize_width = getEffectiveResizeBorderWidth();
         int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
         int content_x = content_border + 1;  // Inside the black border
-        int content_y = content_border + 1 + TITLEBAR_HEIGHT;  // After titlebar
+        int content_y = content_border + 1 + TITLEBAR_HEIGHT + 1;  // After titlebar + 1px black border
         
         Rect client_pos(content_x,        // X: after all borders and black frame
-                       content_y,        // Y: after borders, black frame, and titlebar
+                       content_y,        // Y: after borders, black frame, titlebar, and 1px border
                        m_client_width,   // Width: client area width
                        m_client_height); // Height: client area height
         m_client_area->setPos(client_pos);
