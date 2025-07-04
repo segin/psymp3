@@ -25,3 +25,4 @@ conftest.err
 depcomp
 INSTALL
 install-sh
+package-lock.json
