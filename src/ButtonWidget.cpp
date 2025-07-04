@@ -168,9 +168,9 @@ void ButtonWidget::drawButtonBackground(Surface& surface, bool pressed)
         surface.vline(1, 1, height - 2, 128, 128, 128, 255); // (2,2)-(2,17)
     } else {
         // Normal button - standard 3D bevel (light on top/left, dark on bottom/right)
-        // Top and left highlight (white/light) - with 45-degree corner cut
-        surface.hline(1, width - 2, 0, 255, 255, 255, 255); // Top line: start at (2,1) in one-indexed
-        surface.vline(0, 1, height - 2, 255, 255, 255, 255); // Left line: start at (1,2) in one-indexed
+        // Top and left highlight (white/light) - covering the full corner
+        surface.hline(0, width - 2, 0, 255, 255, 255, 255); // Top line: start at (1,1) in one-indexed
+        surface.vline(0, 0, height - 2, 255, 255, 255, 255); // Left line: start at (1,1) in one-indexed
         
         // Bottom and right shadow (dark gray) - exact coordinates as specified
         // Outer shading lines: (1,18)-(18,18) and (18,1)-(18,18)

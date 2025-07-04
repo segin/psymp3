@@ -433,9 +433,9 @@ void WindowFrameWidget::rebuildSurface()
     // 4. Content area coordinates (inside the black border)
     int content_x = content_border + 1;
     int content_y = content_border + 1;
-    // Reserve space for resize frame on right and bottom, with extra 1px offset
-    int content_width = total_width - (content_border + 1) * 2 - 1;  // Extra 1px on right
-    int content_height = total_height - (content_border + 1) * 2 - 1; // Extra 1px on bottom
+    // Content area should fit exactly within the frame with 1px border gap
+    int content_width = total_width - (content_border + 1) * 2;
+    int content_height = total_height - (content_border + 1) * 2;
     
     // 5. Blue titlebar area (18px high, directly against black border)
     frame_surface->box(content_x, content_y, 
@@ -551,7 +551,10 @@ Rect WindowFrameWidget::getMinimizeButtonBounds() const
     int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
     int content_x = content_border + 1;
     int content_y = content_border + 1;
-    int content_width = m_client_width;
+    // Use same calculation as rebuildSurface for consistency with expanded frame
+    Rect window_pos = getPos();
+    int total_width = window_pos.width();
+    int content_width = total_width - (content_border + 1) * 2;
     
     // Button positioning depends on what buttons are visible
     int buttons_width = 0;
@@ -572,7 +575,10 @@ Rect WindowFrameWidget::getMaximizeButtonBounds() const
     int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
     int content_x = content_border + 1;
     int content_y = content_border + 1;
-    int content_width = m_client_width;
+    // Use same calculation as rebuildSurface for consistency with expanded frame
+    Rect window_pos = getPos();
+    int total_width = window_pos.width();
+    int content_width = total_width - (content_border + 1) * 2;
     
     int button_x = content_x + content_width - BUTTON_SIZE;
     int button_y = content_y; // At top of titlebar area
@@ -723,9 +729,14 @@ void WindowFrameWidget::drawSystemMenu(Surface& surface) const
 
 int WindowFrameWidget::getResizeEdge(int x, int y) const
 {
-    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
-    int total_width = m_client_width + (total_border_width * 2);
-    int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (total_border_width * 2);
+    // Use same calculation as other methods for consistency with expanded frame
+    // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
+    int horizontal_border_total = 8;
+    // Vertical: 27px total (titlebar + borders + resize frames)
+    int vertical_border_total = 27;
+    // Add asymmetric expansion: +3px right, +1px down
+    int total_width = m_client_width + horizontal_border_total + 3;
+    int total_height = m_client_height + vertical_border_total + 1;
     int corner_size = 6; // Match the corner size used in rebuildSurface
     
     int edge = 0;
@@ -746,10 +757,11 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
     
     // Check for edge areas with expanded hit zones for right and bottom
     // Include outer pixel border in hit detection (start from 0)
-    int left_hit_area = total_border_width;       // Left: 3 pixels from edge
-    int top_hit_area = total_border_width;        // Top: 3 pixels from edge  
-    int right_hit_area = total_border_width + 3;  // Right: +3 pixels (was +2, now +3 for outer border)
-    int bottom_hit_area = total_border_width + 2; // Bottom: +2 pixels (was +1, now +2 for outer border)
+    int base_border_width = 3; // 1px outer + 2px resize frame
+    int left_hit_area = base_border_width;       // Left: 3 pixels from edge
+    int top_hit_area = base_border_width;        // Top: 3 pixels from edge  
+    int right_hit_area = base_border_width + 3;  // Right: +3 pixels (was +2, now +3 for outer border)
+    int bottom_hit_area = base_border_width + 2; // Bottom: +2 pixels (was +1, now +2 for outer border)
     
     if (x < left_hit_area) {
         edge |= 1; // Left edge (includes outer border)
@@ -816,9 +828,9 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
         surface.vline(x + 1, y + 1, y + height - 2, 128, 128, 128, 255); // (2,2)-(2,17)
     } else {
         // Normal button - standard 3D bevel (light on top/left, dark on bottom/right)
-        // Top and left highlight (white/light) - with 45-degree corner cut
-        surface.hline(x + 1, x + width - 2, y, 255, 255, 255, 255); // Top line: start at (2,1) in one-indexed
-        surface.vline(x, y + 1, y + height - 2, 255, 255, 255, 255); // Left line: start at (1,2) in one-indexed
+        // Top and left highlight (white/light) - covering the full corner
+        surface.hline(x, x + width - 2, y, 255, 255, 255, 255); // Top line: start at (1,1) in one-indexed
+        surface.vline(x, y, y + height - 2, 255, 255, 255, 255); // Left line: start at (1,1) in one-indexed
         
         // Bottom and right shadow (dark gray) - exact coordinates as specified
         // Outer shading lines: (1,18)-(18,18) and (18,1)-(18,18)
