@@ -50,10 +50,13 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     , m_maximizable(true)
 {
     // Calculate total window size (client area + decorations)
-    int effective_resize_width = getEffectiveResizeBorderWidth();
-    int border_width = OUTER_BORDER_WIDTH + effective_resize_width;
-    int total_width = client_width + (border_width * 2);
-    int total_height = client_height + TITLEBAR_TOTAL_HEIGHT + (border_width * 2);
+    // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
+    int horizontal_border_total = 8;
+    // Vertical: 27px total (titlebar + borders + resize frames)
+    int vertical_border_total = 27;
+    // Add asymmetric expansion: +3px right, +1px down
+    int total_width = client_width + horizontal_border_total + 3;
+    int total_height = client_height + vertical_border_total + 1;
     
     // Set initial position and size
     Rect pos(100, 100, total_width, total_height);
@@ -267,10 +270,13 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             m_client_height = new_height;
             
             // Update window total size based on new client size
-            int effective_resize_width = getEffectiveResizeBorderWidth();
-            int border_width = OUTER_BORDER_WIDTH + effective_resize_width;
-            int total_width = m_client_width + (border_width * 2);
-            int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (border_width * 2);
+            // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
+            int horizontal_border_total = 8;
+            // Vertical: 27px total (titlebar + borders + resize frames)
+            int vertical_border_total = 27;
+            // Add asymmetric expansion: +3px right, +1px down
+            int total_width = m_client_width + horizontal_border_total + 3;
+            int total_height = m_client_height + vertical_border_total + 1;
             
             // Calculate new window position - adjust for top/left edge resizing
             // Use original window position when resize started to avoid accumulating errors
@@ -388,10 +394,13 @@ void WindowFrameWidget::rebuildSurface()
     }
     
     // Calculate total window size based on window properties
-    int effective_resize_width = getEffectiveResizeBorderWidth();
-    int total_border_width = OUTER_BORDER_WIDTH + effective_resize_width;
-    int total_width = m_client_width + (total_border_width * 2);
-    int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (total_border_width * 2);
+    // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
+    int horizontal_border_total = 8;
+    // Vertical: 27px total (titlebar + borders + resize frames)
+    int vertical_border_total = 27;
+    // Add asymmetric expansion: +3px right, +1px down
+    int total_width = m_client_width + horizontal_border_total + 3;
+    int total_height = m_client_height + vertical_border_total + 1;
     
     // Create the window frame surface
     auto frame_surface = std::make_unique<Surface>(total_width, total_height, true);
@@ -760,10 +769,13 @@ void WindowFrameWidget::setResizable(bool resizable)
         m_resizable = resizable;
         
         // Recalculate window size based on new border requirements
-        int effective_resize_width = getEffectiveResizeBorderWidth();
-        int border_width = OUTER_BORDER_WIDTH + effective_resize_width;
-        int total_width = m_client_width + (border_width * 2);
-        int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (border_width * 2);
+        // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
+        int horizontal_border_total = 8;
+        // Vertical: 27px total (titlebar + borders + resize frames)
+        int vertical_border_total = 27;
+        // Add asymmetric expansion: +3px right, +1px down
+        int total_width = m_client_width + horizontal_border_total + 3;
+        int total_height = m_client_height + vertical_border_total + 1;
         
         // Update window size
         Rect current_pos = getPos();
