@@ -665,12 +665,9 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
         surface.vline(x + width - 1, y + 2, y + height - 1, 255, 255, 255, 255);
         
         // Additional darker shading row 1px inside from top and left (same color as main shadow)  
-        surface.hline(x + 1, x + width - 2, y + 1, 128, 128, 128, 255);
-        surface.vline(x + 1, y + 1, y + height - 2, 128, 128, 128, 255);
-        
-        // Top-right and bottom-left corner pixels should be white for pressed state
-        surface.pixel(x + width - 1, y, 255, 255, 255, 255); // Top-right
-        surface.pixel(x, y + height - 1, 255, 255, 255, 255); // Bottom-left
+        // Extend these lines to the corners for pressed state as well
+        surface.hline(x + 1, x + width - 1, y + 1, 128, 128, 128, 255); // Extended to corner
+        surface.vline(x + 1, y + 1, y + height - 1, 128, 128, 128, 255); // Extended to corner
     } else {
         // Normal button - standard 3D bevel (light on top/left, dark on bottom/right)
         // Top and left highlight (white/light)
@@ -682,37 +679,38 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
         surface.vline(x + width - 1, y + 2, y + height - 1, 128, 128, 128, 255);
         
         // Additional shading row 1px above bottom and 1px beside right (same color as main shadow)
-        surface.hline(x + 1, x + width - 2, y + height - 2, 128, 128, 128, 255);
-        surface.vline(x + width - 2, y + 1, y + height - 2, 128, 128, 128, 255);
-        
-        // Top-right and bottom-left corner pixels should be dark grey
-        surface.pixel(x + width - 1, y, 128, 128, 128, 255); // Top-right
-        surface.pixel(x, y + height - 1, 128, 128, 128, 255); // Bottom-left
+        // Extend these lines to the very corners to fix light grey pixels at (2, 18) and (18, 2)
+        surface.hline(x + 1, x + width - 1, y + height - 2, 128, 128, 128, 255); // Extended to corner
+        surface.vline(x + width - 2, y + 1, y + height - 1, 128, 128, 128, 255); // Extended to corner
     }
 }
 
 void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int center_y, int size)
 {
-    // Triangle points for downward arrow ▼
-    Sint16 x1 = center_x - size;
-    Sint16 y1 = center_y - 1;
-    Sint16 x2 = center_x + size;
-    Sint16 y2 = center_y - 1;
-    Sint16 x3 = center_x;
-    Sint16 y3 = center_y + 2;
+    // Minimize triangle using one-indexed coordinates within button:
+    // Top-left at (6, 8) in one-indexed = (5, 7) in zero-indexed
+    // Convert center coordinates to button-relative coordinates
+    Sint16 x1 = center_x - 4;  // Left point
+    Sint16 y1 = center_y - 1;  // Top edge
+    Sint16 x2 = center_x + 2;  // Right point  
+    Sint16 y2 = center_y - 1;  // Top edge
+    Sint16 x3 = center_x - 1;  // Bottom point
+    Sint16 y3 = center_y + 2;  // Bottom edge
     
     surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
 }
 
 void WindowFrameWidget::drawUpTriangle(Surface& surface, int center_x, int center_y, int size)
 {
-    // Triangle points for upward arrow ▲
-    Sint16 x1 = center_x - size;
-    Sint16 y1 = center_y + 1;
-    Sint16 x2 = center_x + size;
-    Sint16 y2 = center_y + 1;
-    Sint16 x3 = center_x;
-    Sint16 y3 = center_y - 2;
+    // Maximize triangle using one-indexed coordinates within button:
+    // Control points (9, 6), (12, 10), (6, 10) in one-indexed
+    // Convert to zero-indexed and adjust relative to center
+    Sint16 x1 = center_x;      // Top point (9, 6)
+    Sint16 y1 = center_y - 3;  
+    Sint16 x2 = center_x + 3;  // Bottom-right point (12, 10)
+    Sint16 y2 = center_y + 1;  
+    Sint16 x3 = center_x - 3;  // Bottom-left point (6, 10)
+    Sint16 y3 = center_y + 1;  
     
     surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
 }
@@ -745,16 +743,25 @@ void WindowFrameWidget::drawRightTriangle(Surface& surface, int center_x, int ce
 
 void WindowFrameWidget::drawRestoreSymbol(Surface& surface, int center_x, int center_y, int size)
 {
-    // Draw two overlapping rectangles to represent restore window symbol
-    int rect_size = size - 1;
+    // Draw restore symbol using specified coordinates:
+    // Maximize arrow bottom-left at (6, 8) in one-indexed
+    // Minimize arrow top-left at (6, 11) in one-indexed
     
-    // Back rectangle (offset up and right)
-    surface.rectangle(center_x - rect_size + 1, center_y - rect_size - 1, 
-                     center_x + rect_size, center_y + rect_size - 2, 
-                     0, 0, 0, 255);
+    // Draw maximize triangle (bottom-left at (6, 8))
+    Sint16 max_x1 = center_x - 3;      // Top point 
+    Sint16 max_y1 = center_y - 1;      
+    Sint16 max_x2 = center_x;          // Bottom-right point
+    Sint16 max_y2 = center_y + 2;      
+    Sint16 max_x3 = center_x - 6;      // Bottom-left point
+    Sint16 max_y3 = center_y + 2;      
+    surface.filledTriangle(max_x1, max_y1, max_x2, max_y2, max_x3, max_y3, 0, 0, 0, 255);
     
-    // Front rectangle (offset down and left)
-    surface.rectangle(center_x - rect_size - 1, center_y - rect_size + 1, 
-                     center_x + rect_size - 2, center_y + rect_size, 
-                     0, 0, 0, 255);
+    // Draw minimize triangle (top-left at (6, 11))  
+    Sint16 min_x1 = center_x - 6;      // Left point
+    Sint16 min_y1 = center_y + 2;      // Top edge
+    Sint16 min_x2 = center_x;          // Right point
+    Sint16 min_y2 = center_y + 2;      // Top edge
+    Sint16 min_x3 = center_x - 3;      // Bottom point
+    Sint16 min_y3 = center_y + 5;      // Bottom edge
+    surface.filledTriangle(min_x1, min_y1, min_x2, min_y2, min_x3, min_y3, 0, 0, 0, 255);
 }
