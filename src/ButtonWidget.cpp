@@ -50,6 +50,9 @@ bool ButtonWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relati
     if (relative_x >= 0 && relative_x < pos.width() && 
         relative_y >= 0 && relative_y < pos.height()) {
         m_pressed = true;
+        
+        // Global mouse tracking enabled (SDL 1.2 doesn't have mouse capture)
+        
         rebuildSurface();
         return true;
     }
@@ -65,6 +68,8 @@ bool ButtonWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative
     
     if (m_pressed) {
         m_pressed = false;
+        
+        // Global mouse tracking disabled (SDL 1.2 doesn't have mouse capture)
         
         // Check if mouse is still over button for click
         Rect pos = getPos();

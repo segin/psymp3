@@ -137,10 +137,9 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             
             // Check for click in draggable area (start dragging, no double-click close)
             if (isInDraggableArea(relative_x, relative_y)) {
-                // Start dragging immediately 
+                // Start dragging immediately with absolute coordinates
                 m_is_dragging = true;
-                m_last_mouse_x = event.x;
-                m_last_mouse_y = event.y;
+                SDL_GetMouseState(&m_last_mouse_x, &m_last_mouse_y);
                 
                 if (m_on_drag_start) {
                     m_on_drag_start();
