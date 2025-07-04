@@ -627,8 +627,8 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
         drawButton(surface, minimize_bounds.x(), minimize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
         
         // Draw minimize symbol (downward pointing triangle ▼)
-        int min_center_x = minimize_bounds.x() + BUTTON_SIZE / 2;
-        int min_center_y = minimize_bounds.y() + BUTTON_SIZE / 2;
+        int min_center_x = minimize_bounds.x() + BUTTON_SIZE / 2 - 1; // Shift left 1px
+        int min_center_y = minimize_bounds.y() + BUTTON_SIZE / 2 - 1; // Shift up 1px
         drawDownTriangle(surface, min_center_x, min_center_y, 3);
     }
     
@@ -640,8 +640,8 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
         drawButton(surface, maximize_bounds.x(), maximize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
         
         // Draw maximize symbol (upward pointing triangle ▲)
-        int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2;
-        int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2;
+        int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2 - 1; // Shift left 1px
+        int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2 - 1; // Shift up 1px
         drawUpTriangle(surface, max_center_x, max_center_y, 3);
     }
     
