@@ -328,81 +328,73 @@ void WindowFrameWidget::rebuildSurface()
     uint32_t bg_color = frame_surface->MapRGB(192, 192, 192);
     frame_surface->FillRect(bg_color);
     
-    // Draw Windows 3.1 proper border structure
-    // 1. Outer 1px frame around everything (dark gray)
-    frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 64, 64, 64, 255);
+    // Draw proper Windows 3.1 border structure with consistent layering
+    // Structure: [1px black outer] [2px light grey resize frame] [1px black inner] [content]
     
-    // 2. Inner resize frame (light gray - same as button background)
-    int resize_inner = OUTER_BORDER_WIDTH;
-    // Fill resize frame area with light gray
-    frame_surface->box(resize_inner, resize_inner, 
-                      total_width - resize_inner - 1, total_height - resize_inner - 1, 
+    // 1. Outer 1px black frame around everything
+    frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 0, 0, 0, 255);
+    
+    // 2. Resize frame (2px light gray)
+    int resize_start = OUTER_BORDER_WIDTH;
+    frame_surface->box(resize_start, resize_start, 
+                      total_width - resize_start - 1, total_height - resize_start - 1, 
                       192, 192, 192, 255);
     
-    // Draw 1px black border around client/titlebar area 
-    int content_outer = resize_inner + RESIZE_BORDER_WIDTH - 1;
-    frame_surface->rectangle(content_outer, content_outer, 
-                           total_width - content_outer - 1, total_height - content_outer - 1, 
+    // 3. Inner 1px black border around content area
+    int content_border = resize_start + RESIZE_BORDER_WIDTH;
+    frame_surface->rectangle(content_border, content_border, 
+                           total_width - content_border - 1, total_height - content_border - 1, 
                            0, 0, 0, 255);
     
-    // 3. Draw titlebar area - shares border with resize frame
-    int titlebar_x = resize_inner + RESIZE_BORDER_WIDTH;
-    int titlebar_y = resize_inner + RESIZE_BORDER_WIDTH;
-    int titlebar_width = total_width - (resize_inner + RESIZE_BORDER_WIDTH) * 2;
-    int titlebar_height = TITLEBAR_TOTAL_HEIGHT;
+    // 4. Content area coordinates (inside the black border)
+    int content_x = content_border + 1;
+    int content_y = content_border + 1;
+    int content_width = total_width - (content_border + 1) * 2;
+    int content_height = total_height - (content_border + 1) * 2;
     
-    // Titlebar background (light gray)
-    frame_surface->box(titlebar_x, titlebar_y, 
-                      titlebar_x + titlebar_width - 1, titlebar_y + titlebar_height - 1, 
+    // 5. Titlebar area (light gray background)
+    int titlebar_height = TITLEBAR_TOTAL_HEIGHT;
+    frame_surface->box(content_x, content_y, 
+                      content_x + content_width - 1, content_y + titlebar_height - 1, 
                       192, 192, 192, 255);
     
-    // Titlebar borders (shared with resize frame on top/left/right)
-    frame_surface->hline(titlebar_x, titlebar_x + titlebar_width - 1, titlebar_y, 64, 64, 64, 255); // Top
-    frame_surface->vline(titlebar_x, titlebar_y, titlebar_y + titlebar_height - 1, 64, 64, 64, 255); // Left
-    frame_surface->vline(titlebar_x + titlebar_width - 1, titlebar_y, titlebar_y + titlebar_height - 1, 64, 64, 64, 255); // Right
-    frame_surface->hline(titlebar_x, titlebar_x + titlebar_width - 1, titlebar_y + titlebar_height - 1, 64, 64, 64, 255); // Bottom
-    
-    // Blue titlebar area (18px high, inside the 1px border)
-    frame_surface->box(titlebar_x + 1, titlebar_y + 1, 
-                      titlebar_x + titlebar_width - 2, titlebar_y + TITLEBAR_HEIGHT, 
+    // 6. Blue titlebar area (18px high, with 1px borders top and bottom)
+    frame_surface->box(content_x, content_y + 1, 
+                      content_x + content_width - 1, content_y + TITLEBAR_HEIGHT, 
                       0, 0, 128, 255); // Classic Windows 3.1 blue
     
-    // 4. Draw client area border (shares border with resize frame and titlebar)
-    int client_x = titlebar_x;
-    int client_y = titlebar_y + titlebar_height;
-    int client_width = titlebar_width;
-    int client_height = m_client_height;
+    // 7. Client area (white background)
+    int client_y = content_y + titlebar_height;
+    int client_height = content_height - titlebar_height;
+    frame_surface->box(content_x, client_y, 
+                      content_x + content_width - 1, client_y + client_height - 1, 
+                      255, 255, 255, 255);
     
-    // Client area borders (shared with resize frame on left/right/bottom, shared with titlebar on top)
-    frame_surface->vline(client_x, client_y, client_y + client_height - 1, 64, 64, 64, 255); // Left
-    frame_surface->vline(client_x + client_width - 1, client_y, client_y + client_height - 1, 64, 64, 64, 255); // Right  
-    frame_surface->hline(client_x, client_x + client_width - 1, client_y + client_height - 1, 64, 64, 64, 255); // Bottom
-    
-    // 5. Draw corner separators aligned with minimize/maximize separator (black)
+    // 8. Draw corner separators aligned with minimize/maximize separator (black)
     // Calculate exact position to align with separator between minimize and maximize buttons
     Rect minimize_bounds_temp = getMinimizeButtonBounds();
     int corner_separator_x = minimize_bounds_temp.x() + BUTTON_SIZE; // Right edge of minimize button
     
     // Top-left corner notch (vertical separator aligned with button separator)
-    frame_surface->vline(corner_separator_x, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
+    frame_surface->vline(corner_separator_x, resize_start, resize_start + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
     // Top-left corner notch (horizontal separator aligned with titlebar bottom)
-    int titlebar_bottom_y = titlebar_y + TITLEBAR_TOTAL_HEIGHT - 1;
-    frame_surface->hline(resize_inner, corner_separator_x, titlebar_bottom_y, 0, 0, 0, 255);
+    int titlebar_bottom_y = content_y + titlebar_height - 1;
+    frame_surface->hline(resize_start, corner_separator_x, titlebar_bottom_y, 0, 0, 0, 255);
     
     // Top-right corner notch (vertical separator aligned with button separator, mirrored)
-    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
+    frame_surface->vline(total_width - (corner_separator_x - resize_start) - 1, resize_start, resize_start + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
     // Top-right corner notch (horizontal separator aligned with titlebar bottom)
-    frame_surface->hline(total_width - (corner_separator_x - resize_inner) - 1, total_width - resize_inner - 1, titlebar_bottom_y, 0, 0, 0, 255);
+    frame_surface->hline(total_width - (corner_separator_x - resize_start) - 1, total_width - resize_start - 1, titlebar_bottom_y, 0, 0, 0, 255);
     
     // Bottom-left corner notch (vertical separator aligned with button separator)
-    frame_surface->vline(corner_separator_x, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255);
+    frame_surface->vline(corner_separator_x, total_height - resize_start - RESIZE_BORDER_WIDTH, total_height - resize_start - 1, 0, 0, 0, 255);
     // Bottom-left corner notch (horizontal separator aligned with titlebar bottom mirrored)
-    frame_surface->hline(resize_inner, corner_separator_x, total_height - resize_inner - 1, 0, 0, 0, 255);
+    frame_surface->hline(resize_start, corner_separator_x, total_height - resize_start - 1, 0, 0, 0, 255);
     
     // Bottom-right corner notch (vertical separator aligned with button separator, mirrored)
-    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255);
+    frame_surface->vline(total_width - (corner_separator_x - resize_start) - 1, total_height - resize_start - RESIZE_BORDER_WIDTH, total_height - resize_start - 1, 0, 0, 0, 255);
     // Bottom-right corner notch (horizontal separator aligned with titlebar bottom mirrored)
-    frame_surface->hline(total_width - (corner_separator_x - resize_inner) - 1, total_width - resize_inner - 1, total_height - resize_inner - 1, 0, 0, 0, 255);
+    frame_surface->hline(total_width - (corner_separator_x - resize_start) - 1, total_width - resize_start - 1, total_height - resize_start - 1, 0, 0, 0, 255);
     
     // TODO: Add title text rendering when font access is available
     
@@ -422,22 +414,28 @@ void WindowFrameWidget::updateLayout()
 {
     // Position client area within the frame (account for borders and titlebar)
     if (m_client_area) {
-        int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
-        Rect client_pos(total_border_width,                           // X: after borders
-                       total_border_width + TITLEBAR_TOTAL_HEIGHT,   // Y: after borders and titlebar
-                       m_client_width,                               // Width: client area width
-                       m_client_height);                             // Height: client area height
+        int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+        int content_x = content_border + 1;  // Inside the black border
+        int content_y = content_border + 1 + TITLEBAR_TOTAL_HEIGHT;  // After titlebar
+        
+        Rect client_pos(content_x,        // X: after all borders and black frame
+                       content_y,        // Y: after borders, black frame, and titlebar
+                       m_client_width,   // Width: client area width
+                       m_client_height); // Height: client area height
         m_client_area->setPos(client_pos);
     }
 }
 
 bool WindowFrameWidget::isInTitlebar(int x, int y) const
 {
-    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
-    return (x >= total_border_width && 
-            x < m_client_width + total_border_width &&
-            y >= total_border_width && 
-            y < total_border_width + TITLEBAR_TOTAL_HEIGHT);
+    int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int content_x = content_border + 1;
+    int content_y = content_border + 1;
+    
+    return (x >= content_x && 
+            x < content_x + m_client_width &&
+            y >= content_y && 
+            y < content_y + TITLEBAR_TOTAL_HEIGHT);
 }
 
 bool WindowFrameWidget::isInDraggableArea(int x, int y) const
@@ -462,32 +460,38 @@ bool WindowFrameWidget::isInDraggableArea(int x, int y) const
 
 Rect WindowFrameWidget::getMinimizeButtonBounds() const
 {
-    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
-    int total_width = m_client_width + (total_border_width * 2);
+    int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int content_x = content_border + 1;
+    int content_y = content_border + 1;
+    int content_width = m_client_width;
+    
     // Account for separator: minimize button is (BUTTON_SIZE * 2 + 1) from right edge  
-    int button_x = total_width - total_border_width - (BUTTON_SIZE * 2) - 1;
-    int button_y = total_border_width + 1; // Inside titlebar border
+    int button_x = content_x + content_width - (BUTTON_SIZE * 2) - 1;
+    int button_y = content_y + 1; // Inside titlebar blue area
     
     return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
 
 Rect WindowFrameWidget::getMaximizeButtonBounds() const
 {
-    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
-    int total_width = m_client_width + (total_border_width * 2);
-    int button_x = total_width - total_border_width - BUTTON_SIZE;
-    int button_y = total_border_width + 1; // Inside titlebar border
+    int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int content_x = content_border + 1;
+    int content_y = content_border + 1;
+    int content_width = m_client_width;
+    
+    int button_x = content_x + content_width - BUTTON_SIZE;
+    int button_y = content_y + 1; // Inside titlebar blue area
     
     return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
 
 Rect WindowFrameWidget::getControlMenuBounds() const
 {
-    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
-    int menu_x = total_border_width + 1; // Inside titlebar border
-    int menu_y = total_border_width + 1; // Inside titlebar border
+    int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int content_x = content_border + 1;
+    int content_y = content_border + 1;
     
-    return Rect(menu_x, menu_y, CONTROL_MENU_SIZE, CONTROL_MENU_SIZE);
+    return Rect(content_x, content_y + 1, CONTROL_MENU_SIZE, CONTROL_MENU_SIZE);
 }
 
 void WindowFrameWidget::drawWindowControls(Surface& surface) const
