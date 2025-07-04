@@ -141,6 +141,7 @@ enum class LoopMode {
 #include "truetype.h"
 #include "Widget.h"
 #include "Label.h"
+#include "ButtonWidget.h"
 #include "PlayerProgressBarWidget.h"
 #include "TitlebarWidget.h"
 #include "WindowFrameWidget.h"

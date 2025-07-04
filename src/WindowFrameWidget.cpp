@@ -396,6 +396,7 @@ void WindowFrameWidget::rebuildSurface()
     // 4. Content area coordinates (inside the black border)
     int content_x = content_border + 1;
     int content_y = content_border + 1;
+    // Reserve space for resize frame on right and bottom
     int content_width = total_width - (content_border + 1) * 2;
     int content_height = total_height - (content_border + 1) * 2;
     
