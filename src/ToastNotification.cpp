@@ -79,6 +79,15 @@ bool ToastNotification::isExpired() const
     return m_state == State::Expired;
 }
 
+void ToastNotification::startFadeOut()
+{
+    // Force immediate transition to fade-out state for smooth replacement
+    if (m_state != State::FadingOut && m_state != State::Expired) {
+        m_state = State::FadingOut;
+        m_expiration_time = SDL_GetTicks(); // Start fade-out immediately
+    }
+}
+
 void ToastNotification::BlitTo(Surface& target)
 {
     Uint32 now = SDL_GetTicks();

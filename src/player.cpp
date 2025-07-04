@@ -678,6 +678,11 @@ bool Player::updateGUI()
     if (m_toast) {
         if (m_toast->isExpired()) {
             m_toast.reset();
+            // Check if there's a pending toast to show immediately after fade-out
+            if (m_pending_toast) {
+                m_toast = std::make_unique<ToastNotification>(font.get(), m_pending_toast->message, m_pending_toast->duration_ms);
+                m_pending_toast.reset();
+            }
         } else {
             // Horizontally center and vertically align to the bottom of the FFT area.
             const Rect& current_pos = m_toast->getPos();
@@ -937,12 +942,21 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
 /**
  * @brief Displays a short-lived "toast" notification on the screen.
+ * Handles smooth fade transitions when replacing an existing toast.
  * @param message The text message to display.
  * @param duration_ms The duration in milliseconds for the toast to be visible.
  */
 void Player::showToast(const std::string& message, Uint32 duration_ms)
 {
-    m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
+    if (m_toast && !m_toast->isExpired()) {
+        // There's an active toast - start fade-out and queue the new one
+        m_toast->startFadeOut();
+        m_pending_toast = PendingToast{message, duration_ms};
+    } else {
+        // No active toast - show immediately
+        m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
+        m_pending_toast.reset(); // Clear any pending toast
+    }
 }
 
 /**

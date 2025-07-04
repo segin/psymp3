@@ -25,6 +25,7 @@
 #define PLAYER_H
 
 #include "font.h"
+#include <optional>
 
 #include "font.h"
 
@@ -152,6 +153,12 @@ class Player
 
         // Overlay widgets
         std::unique_ptr<ToastNotification> m_toast;
+        // Pending toast for smooth replacement transitions
+        struct PendingToast {
+            std::string message;
+            Uint32 duration_ms;
+        };
+        std::optional<PendingToast> m_pending_toast;
         std::unique_ptr<Label> m_pause_indicator;
         std::unique_ptr<FadingWidget> m_seek_left_indicator;
         std::unique_ptr<FadingWidget> m_seek_right_indicator;

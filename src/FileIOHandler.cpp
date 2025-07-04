@@ -35,10 +35,12 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) {
 #ifdef _WIN32
     m_file_handle = _wfopen(path.toCWString(), L"rb");
 #else
-    m_file_handle = fopen(path.toCString(true), "rb");
+    // Use the raw C string without UTF-8 conversion to handle non-UTF-8 filenames
+    // This preserves the original filesystem encoding
+    m_file_handle = fopen(path.toCString(false), "rb");
 #endif
     if (!m_file_handle) {
-        throw InvalidMediaException("FileIOHandler: Could not open file: " + path.to8Bit(true));
+        throw InvalidMediaException("FileIOHandler: Could not open file: " + path.to8Bit(false));
     }
 }
 

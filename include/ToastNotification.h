@@ -34,6 +34,7 @@ public:
     ToastNotification(Font* font, const std::string& message, Uint32 visible_duration_ms, Uint32 fade_duration_ms = 350);
     bool isExpired() const;
     void BlitTo(Surface& target);
+    void startFadeOut(); // Force immediate fade-out for smooth replacement
 
 private:
     enum class State {

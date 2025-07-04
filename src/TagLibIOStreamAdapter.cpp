@@ -31,7 +31,7 @@ TagLibIOStreamAdapter::TagLibIOStreamAdapter(std::unique_ptr<IOHandler> handler,
                                            bool read_only)
     : m_io_handler(std::move(handler))
     , m_name(name)
-    , m_name_cstr(name.to8Bit(true)) // Convert to UTF-8 C string
+    , m_name_cstr(name.to8Bit(false)) // Use raw filesystem encoding
     , m_read_only(read_only)
     , m_length(0)
     , m_length_cached(false)
