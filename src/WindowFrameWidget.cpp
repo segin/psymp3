@@ -227,8 +227,12 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
     }
     
     if (m_is_resizing) {
-        int dx = event.x - m_resize_start_x;
-        int dy = event.y - m_resize_start_y;
+        // Use absolute mouse coordinates for resize tracking
+        int mouse_x, mouse_y;
+        SDL_GetMouseState(&mouse_x, &mouse_y);
+        
+        int dx = mouse_x - m_resize_start_x;
+        int dy = mouse_y - m_resize_start_y;
         
         int new_width = m_resize_start_width;
         int new_height = m_resize_start_height;
