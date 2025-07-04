@@ -47,8 +47,8 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     , m_system_menu_y(0)
 {
     // Calculate total window size (client area + decorations)
-    int total_width = client_width + (BORDER_WIDTH * 2);
-    int total_height = client_height + TITLEBAR_HEIGHT + (BORDER_WIDTH * 2);
+    int total_width = client_width + (RESIZE_BORDER_WIDTH * 2);
+    int total_height = client_height + TITLEBAR_HEIGHT + (RESIZE_BORDER_WIDTH * 2);
     
     // Set initial position and size
     Rect pos(100, 100, total_width, total_height);
@@ -321,8 +321,15 @@ std::unique_ptr<Widget> WindowFrameWidget::createDefaultClientArea()
 
 void WindowFrameWidget::rebuildSurface()
 {
+    // Validate client dimensions to prevent crashes
+    if (m_client_width <= 0 || m_client_height <= 0 || m_client_width > 10000 || m_client_height > 10000) {
+        // Use safe default values
+        m_client_width = 300;
+        m_client_height = 200;
+    }
+    
     // Calculate total window size (increase border for resize handles)
-    int resize_border = 4; // Windows 3.1 resize border width
+    int resize_border = RESIZE_BORDER_WIDTH;
     int total_width = m_client_width + (resize_border * 2);
     int total_height = m_client_height + TITLEBAR_HEIGHT + (resize_border * 2);
     
@@ -334,7 +341,7 @@ void WindowFrameWidget::rebuildSurface()
     frame_surface->FillRect(bg_color);
     
     // Draw Windows 3.1 style resize border with corner sections and gaps
-    int corner_size = 12; // Size of corner resize handles
+    int corner_size = 8; // Size of corner resize handles (smaller for 2px border)
     
     // Outer border (dark gray frame)
     frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 64, 64, 64, 255);
@@ -401,7 +408,7 @@ void WindowFrameWidget::updateLayout()
 {
     // Position client area within the frame (account for resize border)
     if (m_client_area) {
-        int resize_border = 4; // Match the resize border size
+        int resize_border = RESIZE_BORDER_WIDTH;
         Rect client_pos(resize_border,                    // X: after left resize border
                        resize_border + TITLEBAR_HEIGHT,  // Y: after top border and titlebar
                        m_client_width,                    // Width: client area width
@@ -412,7 +419,7 @@ void WindowFrameWidget::updateLayout()
 
 bool WindowFrameWidget::isInTitlebar(int x, int y) const
 {
-    int resize_border = 4; // Match the resize border size
+    int resize_border = RESIZE_BORDER_WIDTH;
     return (x >= resize_border && 
             x < m_client_width + resize_border &&
             y >= resize_border && 
@@ -441,7 +448,7 @@ bool WindowFrameWidget::isInDraggableArea(int x, int y) const
 
 Rect WindowFrameWidget::getMinimizeButtonBounds() const
 {
-    int resize_border = 4; // Match the resize border size
+    int resize_border = RESIZE_BORDER_WIDTH;
     int total_width = m_client_width + (resize_border * 2);
     int button_x = total_width - resize_border - (BUTTON_SIZE * 2);
     int button_y = resize_border;
@@ -451,7 +458,7 @@ Rect WindowFrameWidget::getMinimizeButtonBounds() const
 
 Rect WindowFrameWidget::getMaximizeButtonBounds() const
 {
-    int resize_border = 4; // Match the resize border size
+    int resize_border = RESIZE_BORDER_WIDTH;
     int total_width = m_client_width + (resize_border * 2);
     int button_x = total_width - resize_border - BUTTON_SIZE;
     int button_y = resize_border;
@@ -461,7 +468,7 @@ Rect WindowFrameWidget::getMaximizeButtonBounds() const
 
 Rect WindowFrameWidget::getControlMenuBounds() const
 {
-    int resize_border = 4; // Match the resize border size
+    int resize_border = RESIZE_BORDER_WIDTH;
     int menu_x = resize_border;
     int menu_y = resize_border;
     
@@ -609,10 +616,10 @@ void WindowFrameWidget::drawSystemMenu(Surface& surface) const
 
 int WindowFrameWidget::getResizeEdge(int x, int y) const
 {
-    int resize_border = 4;
+    int resize_border = RESIZE_BORDER_WIDTH;
     int total_width = m_client_width + (resize_border * 2);
     int total_height = m_client_height + TITLEBAR_HEIGHT + (resize_border * 2);
-    int corner_size = 12;
+    int corner_size = 8; // Match the corner size used in rebuildSurface
     
     int edge = 0;
     

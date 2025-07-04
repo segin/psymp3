@@ -155,10 +155,11 @@ public:
     void setOnResize(std::function<void(int new_width, int new_height)> callback) { m_on_resize = callback; }
 
 private:
-    static constexpr int TITLEBAR_HEIGHT = 24;
+    static constexpr int TITLEBAR_HEIGHT = 18;  // Windows 3.x standard
     static constexpr int BORDER_WIDTH = 2;
-    static constexpr int BUTTON_SIZE = 24;  // Square buttons, same as titlebar height
-    static constexpr int CONTROL_MENU_SIZE = 24;  // Same as titlebar height
+    static constexpr int RESIZE_BORDER_WIDTH = 2;  // Interior resize bar width
+    static constexpr int BUTTON_SIZE = 18;  // Square buttons, same as titlebar height
+    static constexpr int CONTROL_MENU_SIZE = 18;  // Same as titlebar height
     
     std::string m_title;
     int m_client_width;
