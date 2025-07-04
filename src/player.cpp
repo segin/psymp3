@@ -316,6 +316,7 @@ void Player::nextTrack(size_t advance_count) {
     }
 
     playlist->setPosition(new_pos);
+    m_skip_attempts = 0; // Reset skip counter for new navigation
     requestTrackLoad(playlist->getTrack(new_pos));
 }
 
@@ -337,6 +338,7 @@ void Player::prevTrack(void) {
     }
 
     playlist->setPosition(new_pos);
+    m_skip_attempts = 0; // Reset skip counter for new navigation
     requestTrackLoad(playlist->getTrack(new_pos));
 }
 
@@ -984,7 +986,12 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         case START_FIRST_TRACK: 
         {
             if (playlist->entries() > 0) {
-                requestTrackLoad(playlist->getTrack(0));
+                // Use findFirstPlayableTrack to locate the first playable track
+                if (!findFirstPlayableTrack()) {
+                    // No playable tracks found
+                    stop();
+                    updateInfo(false, "No playable tracks found in playlist.");
+                }
             }
             break;
         }
@@ -1051,17 +1058,11 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             std::cerr << "Player: Failed to load track: " << error_msg << std::endl;
 
-            // Auto-skip logic
-            m_skip_attempts++;
-            if (playlist && m_skip_attempts >= playlist->entries()) {
-                // We've tried every track and failed. Give up.
+            // Robust playlist handling: skip unplayable tracks
+            if (!handleUnplayableTrack()) {
+                // All tracks exhausted or stopping due to end of playlist
                 stop();
                 updateInfo(false, "All tracks in playlist are unplayable.");
-                m_skip_attempts = 0; // Reset for next time
-            } else {
-                // Try the next track in the current direction.
-                if (m_navigation_direction > 0) nextTrack();
-                else prevTrack();
             }
             break;
         }
@@ -1340,4 +1341,81 @@ Uint32 Player::AutomatedQuitTimer(Uint32 interval, void* param) {
         player->synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
     }
     return interval;
+}
+
+bool Player::handleUnplayableTrack() {
+    if (!playlist || playlist->entries() == 0) {
+        return false; // No playlist
+    }
+
+    m_skip_attempts++;
+    if (m_skip_attempts >= playlist->entries()) {
+        // We've tried every track and failed. Give up.
+        m_skip_attempts = 0; // Reset for next time
+        return false;
+    }
+
+    // Try the next track in the current direction
+    if (m_navigation_direction > 0) {
+        // Moving forward
+        long new_pos = playlist->getPosition() + 1;
+        if (new_pos >= playlist->entries()) {
+            // Reached end of playlist
+            if (m_loop_mode == LoopMode::All) {
+                new_pos = 0; // Wrap to beginning
+            } else {
+                // End of playlist in LoopMode::None - stop
+                m_skip_attempts = 0;
+                return false;
+            }
+        }
+        playlist->setPosition(new_pos);
+        requestTrackLoad(playlist->getTrack(new_pos));
+    } else {
+        // Moving backward
+        long new_pos = playlist->getPosition() - 1;
+        if (new_pos < 0) {
+            // Reached beginning of playlist
+            if (m_loop_mode == LoopMode::All) {
+                new_pos = playlist->entries() - 1; // Wrap to end
+            } else {
+                // Beginning of playlist in LoopMode::None - stop
+                m_skip_attempts = 0;
+                return false;
+            }
+        }
+        playlist->setPosition(new_pos);
+        requestTrackLoad(playlist->getTrack(new_pos));
+    }
+
+    return true; // Continue trying
+}
+
+bool Player::findFirstPlayableTrack() {
+    if (!playlist || playlist->entries() == 0) {
+        return false; // No playlist
+    }
+
+    // Try to find the first playable track starting from position 0
+    for (size_t i = 0; i < playlist->entries(); ++i) {
+        playlist->setPosition(i);
+        TagLib::String track_path = playlist->getTrack(i);
+        
+        // Try to create a stream for this track using MediaFile::open
+        try {
+            Stream* test_stream = MediaFile::open(track_path);
+            if (test_stream) {
+                // Found a playable track
+                delete test_stream;
+                m_skip_attempts = 0;
+                requestTrackLoad(track_path);
+                return true;
+            }
+        } catch (...) {
+            // Track failed to load, continue to next
+        }
+    }
+
+    // No playable tracks found
+    return false;
 }

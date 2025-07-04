@@ -98,7 +98,11 @@ class Player
         bool playPause(void);
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
-        static bool guiRunning; 
+        static bool guiRunning;
+        
+        // Robust playlist handling
+        bool handleUnplayableTrack();
+        bool findFirstPlayableTrack(); 
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
