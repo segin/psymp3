@@ -334,54 +334,59 @@ void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g,
     if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
-void Surface::filledTriangle(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+void Surface::filledPolygon(const Sint16* vx, const Sint16* vy, int n, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
-    if (!m_handle) return;
+    if (!m_handle || n < 3) return;
     
     uint32_t color = MapRGBA(r, g, b, a);
     
-    // Sort vertices by y-coordinate (bubble sort for simplicity)
-    if (y1 > y2) { std::swap(x1, x2); std::swap(y1, y2); }
-    if (y2 > y3) { std::swap(x2, x3); std::swap(y2, y3); }
-    if (y1 > y2) { std::swap(x1, x2); std::swap(y1, y2); }
+    // Find bounding box
+    Sint16 min_y = vy[0], max_y = vy[0];
+    for (int i = 1; i < n; i++) {
+        if (vy[i] < min_y) min_y = vy[i];
+        if (vy[i] > max_y) max_y = vy[i];
+    }
     
     if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
     
     // Scanline fill algorithm
-    for (Sint16 y = y1; y <= y3; y++) {
-        Sint16 x_left, x_right;
+    for (Sint16 y = min_y; y <= max_y; y++) {
+        std::vector<Sint16> intersections;
         
-        if (y <= y2) {
-            // Top half of triangle
-            if (y2 == y1) {
-                x_left = std::min(x1, x2);
-                x_right = std::max(x1, x2);
-            } else {
-                x_left = x1 + (x2 - x1) * (y - y1) / (y2 - y1);
-            }
+        // Find intersections with all edges
+        for (int i = 0; i < n; i++) {
+            int j = (i + 1) % n;
             
-            if (y3 == y1) {
-                x_right = x3;
-            } else {
-                x_right = x1 + (x3 - x1) * (y - y1) / (y3 - y1);
-            }
-        } else {
-            // Bottom half of triangle
-            if (y3 == y2) {
-                x_left = std::min(x2, x3);
-                x_right = std::max(x2, x3);
-            } else {
-                x_left = x2 + (x3 - x2) * (y - y2) / (y3 - y2);
-            }
+            if (vy[i] == vy[j]) continue; // Skip horizontal edges
             
-            x_right = x1 + (x3 - x1) * (y - y1) / (y3 - y1);
+            // Check if scanline intersects this edge
+            if ((vy[i] <= y && y < vy[j]) || (vy[j] <= y && y < vy[i])) {
+                // Calculate intersection x-coordinate
+                Sint16 x = vx[i] + (vx[j] - vx[i]) * (y - vy[i]) / (vy[j] - vy[i]);
+                intersections.push_back(x);
+            }
         }
         
-        if (x_left > x_right) std::swap(x_left, x_right);
-        hline_unlocked(x_left, x_right, y, color);
+        // Sort intersections
+        std::sort(intersections.begin(), intersections.end());
+        
+        // Fill between pairs of intersections
+        for (size_t i = 0; i < intersections.size(); i += 2) {
+            if (i + 1 < intersections.size()) {
+                hline_unlocked(intersections[i], intersections[i + 1], y, color);
+            }
+        }
     }
     
     if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+}
+
+void Surface::filledTriangle(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    // Use the general polygon algorithm for triangles
+    Sint16 vx[3] = {x1, x2, x3};
+    Sint16 vy[3] = {y1, y2, y3};
+    filledPolygon(vx, vy, 3, r, g, b, a);
 }
 
 void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)

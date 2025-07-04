@@ -188,6 +188,11 @@ private:
     int m_resize_start_width;
     int m_resize_start_height;
     
+    // System menu state
+    bool m_system_menu_open;
+    int m_system_menu_x;
+    int m_system_menu_y;
+    
     // Drag callbacks
     std::function<void(int dx, int dy)> m_on_drag;
     std::function<void()> m_on_drag_start;
@@ -254,6 +259,12 @@ private:
      * @param surface Surface to draw on
      */
     void drawWindowControls(Surface& surface) const;
+    
+    /**
+     * @brief Draws the system menu with Windows 3.1 styling.
+     * @param surface Surface to draw on
+     */
+    void drawSystemMenu(Surface& surface) const;
     
     /**
      * @brief Determines which resize edge/corner the mouse is over.

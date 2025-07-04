@@ -42,6 +42,9 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     , m_resize_start_y(0)
     , m_resize_start_width(0)
     , m_resize_start_height(0)
+    , m_system_menu_open(false)
+    , m_system_menu_x(0)
+    , m_system_menu_y(0)
 {
     // Calculate total window size (client area + decorations)
     int total_width = client_width + (BORDER_WIDTH * 2);
@@ -74,10 +77,38 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             Rect control_menu_bounds = getControlMenuBounds();
             if (relative_x >= control_menu_bounds.x() && relative_x < control_menu_bounds.x() + control_menu_bounds.width() &&
                 relative_y >= control_menu_bounds.y() && relative_y < control_menu_bounds.y() + control_menu_bounds.height()) {
-                if (m_on_control_menu) {
-                    m_on_control_menu();
+                
+                Uint32 current_time = SDL_GetTicks();
+                
+                // Check for double-click (close window)
+                if (m_double_click_pending && (current_time - m_last_click_time) < 500) {
+                    // Double-click detected - close window
+                    if (m_on_close) {
+                        m_on_close();
+                    }
+                    m_double_click_pending = false;
+                    m_system_menu_open = false;
+                    rebuildSurface();
+                    return true;
+                } else {
+                    // Single click - toggle system menu
+                    m_last_click_time = current_time;
+                    m_double_click_pending = true;
+                    
+                    m_system_menu_open = !m_system_menu_open;
+                    if (m_system_menu_open) {
+                        m_system_menu_x = control_menu_bounds.x();
+                        m_system_menu_y = control_menu_bounds.y() + control_menu_bounds.height();
+                    }
+                    
+                    // Rebuild surface to show/hide menu
+                    rebuildSurface();
+                    
+                    if (m_on_control_menu) {
+                        m_on_control_menu();
+                    }
+                    return true;
                 }
-                return true;
             }
             
             // Check for minimize button click
@@ -103,7 +134,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             // Check for double-click in draggable area (for close)
             if (isInDraggableArea(relative_x, relative_y)) {
                 Uint32 current_time = SDL_GetTicks();
-                if (m_double_click_pending && (current_time - m_last_click_time) < 300) {
+                if (m_double_click_pending && (current_time - m_last_click_time) < 500) {
                     // Double-click detected
                     if (m_on_close) {
                         m_on_close();
@@ -153,6 +184,12 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 return true;
             }
         }
+    }
+    
+    // Close system menu if clicking anywhere else
+    if (m_system_menu_open) {
+        m_system_menu_open = false;
+        rebuildSurface();
     }
     
     return false;
@@ -351,6 +388,11 @@ void WindowFrameWidget::rebuildSurface()
     // Draw window control buttons
     drawWindowControls(*frame_surface);
     
+    // Draw system menu if open
+    if (m_system_menu_open) {
+        drawSystemMenu(*frame_surface);
+    }
+    
     // Set the surface
     setSurface(std::move(frame_surface));
 }
@@ -507,6 +549,62 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     Sint16 max_y3 = max_center_y - triangle_size / 2;
     
     surface.filledTriangle(max_x1, max_y1, max_x2, max_y2, max_x3, max_y3, 0, 0, 0, 255);
+}
+
+void WindowFrameWidget::drawSystemMenu(Surface& surface) const
+{
+    // Windows 3.1 system menu dimensions and styling
+    const int menu_width = 120;
+    const int menu_height = 140;
+    const int shadow_offset = 2;
+    
+    // Draw dark grey drop shadow first
+    surface.box(m_system_menu_x + shadow_offset, m_system_menu_y + shadow_offset,
+               m_system_menu_x + menu_width + shadow_offset - 1, 
+               m_system_menu_y + menu_height + shadow_offset - 1,
+               64, 64, 64, 255);
+    
+    // Draw main menu background (light grey)
+    surface.box(m_system_menu_x, m_system_menu_y,
+               m_system_menu_x + menu_width - 1, m_system_menu_y + menu_height - 1,
+               192, 192, 192, 255);
+    
+    // Draw black border around menu
+    surface.rectangle(m_system_menu_x, m_system_menu_y,
+                     m_system_menu_x + menu_width - 1, m_system_menu_y + menu_height - 1,
+                     0, 0, 0, 255);
+    
+    // Menu item dimensions
+    const int item_height = 16;
+    const int separator_height = 4;
+    int current_y = m_system_menu_y + 4;
+    
+    // Define menu items with their text and separators
+    const char* menu_items[] = {
+        "Restore",
+        "Move",
+        "Size",
+        "Minimize",
+        "Maximize",
+        "",  // Separator
+        "Close    Alt+F4"
+    };
+    
+    // Draw menu items
+    for (size_t i = 0; i < sizeof(menu_items) / sizeof(menu_items[0]); i++) {
+        if (strlen(menu_items[i]) == 0) {
+            // Draw separator line (white bar in black border)
+            int sep_y = current_y + separator_height / 2;
+            surface.hline(m_system_menu_x + 8, m_system_menu_x + menu_width - 8, sep_y - 1, 0, 0, 0, 255);
+            surface.hline(m_system_menu_x + 8, m_system_menu_x + menu_width - 8, sep_y, 255, 255, 255, 255);
+            surface.hline(m_system_menu_x + 8, m_system_menu_x + menu_width - 8, sep_y + 1, 0, 0, 0, 255);
+            current_y += separator_height;
+        } else {
+            // Menu item area (could be highlighted if selected)
+            // For now, just reserve the space - text rendering would go here
+            current_y += item_height;
+        }
+    }
 }
 
 int WindowFrameWidget::getResizeEdge(int x, int y) const
