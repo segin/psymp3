@@ -446,12 +446,12 @@ void WindowFrameWidget::rebuildSurface()
         
         // Top-left corner notch (1px away from corner)
         frame_surface->vline(corner_separator_x - 1, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(resize_start, resize_start + notch_offset - 2, content_y + TITLEBAR_HEIGHT - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
+        frame_surface->hline(resize_start, resize_start + notch_offset - 2, content_y + TITLEBAR_HEIGHT, 0, 0, 0, 255); // Horizontal moved down 1px to avoid titlebar border overlap
         
         // Top-right corner notch (1px away from corner)
         int right_separator_x = total_width - notch_offset;
         frame_surface->vline(right_separator_x, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(total_width - notch_offset + 1, total_width - resize_start - 1, content_y + TITLEBAR_HEIGHT - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
+        frame_surface->hline(total_width - notch_offset + 1, total_width - resize_start - 1, content_y + TITLEBAR_HEIGHT, 0, 0, 0, 255); // Horizontal moved down 1px to avoid titlebar border overlap
         
         // Bottom-left corner notch (1px away from corner, aligned to 19px above)
         int bottom_notch_y = total_height - 19; // 19px from bottom
