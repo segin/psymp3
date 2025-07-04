@@ -502,3 +502,48 @@ void System::setThisThreadName(const std::string& name)
     (void)name;
 #endif
 }
+
+// TagLib::String overloads for std::to_string
+namespace std {
+    TagLib::String to_string(int value) {
+        return TagLib::String::number(value);
+    }
+    
+    TagLib::String to_string(long value) {
+        return TagLib::String::number(value);
+    }
+    
+    TagLib::String to_string(long long value) {
+        return TagLib::String::number(static_cast<long>(value));
+    }
+    
+    TagLib::String to_string(unsigned value) {
+        return TagLib::String::number(static_cast<int>(value));
+    }
+    
+    TagLib::String to_string(unsigned long value) {
+        return TagLib::String::number(static_cast<long>(value));
+    }
+    
+    TagLib::String to_string(unsigned long long value) {
+        return TagLib::String::number(static_cast<long>(value));
+    }
+    
+    TagLib::String to_string(float value) {
+        std::ostringstream oss;
+        oss << value;
+        return TagLib::String(oss.str());
+    }
+    
+    TagLib::String to_string(double value) {
+        std::ostringstream oss;
+        oss << value;
+        return TagLib::String(oss.str());
+    }
+    
+    TagLib::String to_string(long double value) {
+        std::ostringstream oss;
+        oss << value;
+        return TagLib::String(oss.str());
+    }
+}
