@@ -71,13 +71,14 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
         return std::make_unique<Surface>(1, 1);
     }
 
-    auto sfc = std::make_unique<Surface>(width, font_height);
+    auto sfc = std::make_unique<Surface>(width, font_height, true);
     if (!sfc) {
         std::cerr << "Failed to create surface for text rendering." << std::endl;
         return nullptr;
     }
 
-    
+    // Initialize surface with transparent background
+    sfc->FillRect(sfc->MapRGBA(0, 0, 0, 0));
 
     int pen_x = 0;
     for (const char* p = text_utf8.c_str(); *p; p++) {
@@ -95,9 +96,7 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
             for (unsigned int col = 0; col < slot->bitmap.width; ++col) {
                 unsigned char alpha = slot->bitmap.buffer[row * slot->bitmap.pitch + col];
                 if (alpha > 0) {
-                    // The glyph bitmap from FreeType is an alpha mask. We just need to
-                    // draw the requested text color with the alpha from the mask.
-                    // Pre-multiplication is not needed for standard SDL alpha blending.
+                    // Use the FreeType alpha mask to render the text color with proper alpha
                     sfc->pixel(x_pos + col, y_pos + row, r, g, b, alpha);
                 }
             }

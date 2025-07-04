@@ -48,7 +48,7 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
     // 2. Create the main widget surface with full alpha support.
     int toast_width = text_sfc->width() + (PADDING * 2);
     int toast_height = text_sfc->height() + (PADDING * 2);
-    auto toast_surface = std::make_unique<Surface>(toast_width, toast_height);
+    auto toast_surface = std::make_unique<Surface>(toast_width, toast_height, true);
     if (!toast_surface) {
         throw SDLException("Could not create surface for ToastNotification");
     }

@@ -35,6 +35,8 @@ class Surface
         Surface(); 
         // Constructor for creating a new, owned surface
         Surface(int width, int height);
+        // Constructor for creating a text surface with explicit RGBA format
+        Surface(int width, int height, bool for_text);
         // Constructor for wrapping a non-owned surface (e.g., the main screen)
         explicit Surface(SDL_Surface *non_owned_sfc);
 
