@@ -1543,7 +1543,7 @@ bool Player::findFirstPlayableTrack() {
 void Player::renderWindows()
 {
     // Sort windows by z-order (lowest to highest)
-    std::vector<WindowWidget*> sorted_windows;
+    std::vector<WindowFrameWidget*> sorted_windows;
     
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
@@ -1554,7 +1554,7 @@ void Player::renderWindows()
     }
     
     std::sort(sorted_windows.begin(), sorted_windows.end(),
-              [](const WindowWidget* a, const WindowWidget* b) {
+              [](const WindowFrameWidget* a, const WindowFrameWidget* b) {
                   return a->getZOrder() < b->getZOrder();
               });
     
@@ -1571,7 +1571,7 @@ void Player::renderWindows()
 void Player::handleWindowMouseEvents(const SDL_Event& event)
 {
     // Create list of windows sorted by z-order (highest first for event handling)
-    std::vector<WindowWidget*> sorted_windows;
+    std::vector<WindowFrameWidget*> sorted_windows;
     
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
@@ -1582,7 +1582,7 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
     }
     
     std::sort(sorted_windows.begin(), sorted_windows.end(),
-              [](const WindowWidget* a, const WindowWidget* b) {
+              [](const WindowFrameWidget* a, const WindowFrameWidget* b) {
                   return a->getZOrder() > b->getZOrder();
               });
     
@@ -1638,9 +1638,22 @@ void Player::toggleTestWindowH()
         m_test_window_h.reset();
         showToast("Test Window H: Closed");
     } else {
-        // Open the window
-        m_test_window_h = std::make_unique<WindowWidget>(160, 120, "Test Window H");
-        m_test_window_h->setPos(Rect(150, 150, 160, 120));
+        // Open the window (client area is 160x120)
+        m_test_window_h = std::make_unique<WindowFrameWidget>(160, 120, "Test Window H");
+        m_test_window_h->setPos(Rect(150, 150, 164, 146)); // Frame size includes borders
+        
+        // Set up drag callbacks
+        m_test_window_h->setOnDrag([this](int dx, int dy) {
+            Rect current_pos = m_test_window_h->getPos();
+            current_pos.x(current_pos.x() + dx);
+            current_pos.y(current_pos.y() + dy);
+            m_test_window_h->setPos(current_pos);
+        });
+        
+        m_test_window_h->setOnDragStart([this]() {
+            m_test_window_h->bringToFront();
+        });
+        
         showToast("Test Window H: Opened");
     }
 }
@@ -1655,9 +1668,22 @@ void Player::toggleTestWindowB()
         m_test_window_b.reset();
         showToast("Test Window B: Closed");
     } else {
-        // Open the window
-        m_test_window_b = std::make_unique<WindowWidget>(160, 60, "Test Window B");
-        m_test_window_b->setPos(Rect(200, 200, 160, 60));
+        // Open the window (client area is 160x60)
+        m_test_window_b = std::make_unique<WindowFrameWidget>(160, 60, "Test Window B");
+        m_test_window_b->setPos(Rect(200, 200, 164, 86)); // Frame size includes borders
+        
+        // Set up drag callbacks
+        m_test_window_b->setOnDrag([this](int dx, int dy) {
+            Rect current_pos = m_test_window_b->getPos();
+            current_pos.x(current_pos.x() + dx);
+            current_pos.y(current_pos.y() + dy);
+            m_test_window_b->setPos(current_pos);
+        });
+        
+        m_test_window_b->setOnDragStart([this]() {
+            m_test_window_b->bringToFront();
+        });
+        
         showToast("Test Window B: Opened");
     }
 }

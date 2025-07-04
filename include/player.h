@@ -173,9 +173,9 @@ class Player
         std::unique_ptr<FadingWidget> m_seek_right_indicator;
         
         // Window management
-        std::vector<std::unique_ptr<WindowWidget>> m_windows;
-        std::unique_ptr<WindowWidget> m_test_window_h;
-        std::unique_ptr<WindowWidget> m_test_window_b;
+        std::vector<std::unique_ptr<WindowFrameWidget>> m_windows;
+        std::unique_ptr<WindowFrameWidget> m_test_window_h;
+        std::unique_ptr<WindowFrameWidget> m_test_window_b;
         
         LoopMode m_loop_mode;
 

@@ -101,9 +101,9 @@ void TitlebarWidget::rebuildSurface()
     // Create the titlebar surface
     auto titlebar_surface = std::make_unique<Surface>(m_width, m_height, true);
     
-    // Fill with titlebar color (medium gray)
-    uint32_t gray_color = titlebar_surface->MapRGB(128, 128, 128);
-    titlebar_surface->FillRect(gray_color);
+    // Fill with titlebar color (blue)
+    uint32_t blue_color = titlebar_surface->MapRGB(64, 128, 255);
+    titlebar_surface->FillRect(blue_color);
     
     // Add a border effect (darker gray outline)
     titlebar_surface->box(0, 0, m_width - 1, m_height - 1, 64, 64, 64, 255);

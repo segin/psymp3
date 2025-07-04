@@ -1,5 +1,5 @@
 /*
- * WindowWidget.h - Floating window widget with modular titlebar and body
+ * WindowFrameWidget.h - Classic window frame with titlebar and client area
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,44 +21,37 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef WINDOWWIDGET_H
-#define WINDOWWIDGET_H
+#ifndef WINDOWFRAMEWIDGET_H
+#define WINDOWFRAMEWIDGET_H
 
 #include "Widget.h"
-#include "TitlebarWidget.h"
 #include <string>
 #include <memory>
-#include <vector>
+#include <functional>
 
 /**
- * @brief A floating window widget composed of titlebar and body widgets.
+ * @brief A classic window frame widget with titlebar and resize border.
  * 
- * WindowWidget is a container that manages a titlebar widget and a body widget,
- * providing window decorations and drag functionality through composition.
+ * This widget provides the window decorations (titlebar, borders) and wraps
+ * a client area widget. The client area is positioned within the frame.
  */
-class WindowWidget : public Widget {
+class WindowFrameWidget : public Widget {
 public:
     /**
-     * @brief Constructor for WindowWidget.
-     * @param width Total window width including borders
-     * @param height Total window height including titlebar and borders
+     * @brief Constructor for WindowFrameWidget.
+     * @param client_width Width of the client area
+     * @param client_height Height of the client area
      * @param title Window title displayed in the titlebar
      */
-    WindowWidget(int width, int height, const std::string& title = "");
+    WindowFrameWidget(int client_width, int client_height, const std::string& title = "");
     
     /**
      * @brief Virtual destructor.
      */
-    virtual ~WindowWidget() = default;
+    virtual ~WindowFrameWidget() = default;
     
     /**
-     * @brief Renders the window and all child widgets to the target surface.
-     * @param target The surface to render to
-     */
-    virtual void BlitTo(Surface& target) override;
-    
-    /**
-     * @brief Handles mouse button down events and forwards to child widgets.
+     * @brief Handles mouse button down events.
      * @param event The mouse button event
      * @param relative_x X coordinate relative to this widget
      * @param relative_y Y coordinate relative to this widget
@@ -67,7 +60,7 @@ public:
     virtual bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
     
     /**
-     * @brief Handles mouse motion events and forwards to child widgets.
+     * @brief Handles mouse motion events.
      * @param event The mouse motion event
      * @param relative_x X coordinate relative to this widget
      * @param relative_y Y coordinate relative to this widget
@@ -76,7 +69,7 @@ public:
     virtual bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y);
     
     /**
-     * @brief Handles mouse button up events and forwards to child widgets.
+     * @brief Handles mouse button up events.
      * @param event The mouse button event
      * @param relative_x X coordinate relative to this widget
      * @param relative_y Y coordinate relative to this widget
@@ -88,7 +81,7 @@ public:
      * @brief Gets the window title.
      * @return The window title string
      */
-    const std::string& getTitle() const;
+    const std::string& getTitle() const { return m_title; }
     
     /**
      * @brief Sets the window title.
@@ -97,16 +90,16 @@ public:
     void setTitle(const std::string& title);
     
     /**
-     * @brief Gets the body widget for custom content.
-     * @return Pointer to the body widget
+     * @brief Gets the client area widget.
+     * @return Pointer to the client area widget
      */
-    Widget* getBodyWidget() const { return m_body_raw; }
+    Widget* getClientArea() const { return m_client_area; }
     
     /**
-     * @brief Sets a custom body widget.
-     * @param body_widget The new body widget (window takes ownership)
+     * @brief Sets a custom client area widget.
+     * @param client_widget The new client area widget (window takes ownership)
      */
-    void setBodyWidget(std::unique_ptr<Widget> body_widget);
+    void setClientArea(std::unique_ptr<Widget> client_widget);
     
     /**
      * @brief Brings this window to the front (for z-order management).
@@ -120,47 +113,64 @@ public:
     int getZOrder() const { return m_z_order; }
     
     /**
-     * @brief Sets the z-order level of this window.
-     * @param z_order New z-order level
+     * @brief Sets drag callback for window movement.
+     * @param callback Function to call when window is dragged
      */
-    void setZOrder(int z_order) { m_z_order = z_order; }
-
-protected:
+    void setOnDrag(std::function<void(int dx, int dy)> callback) { m_on_drag = callback; }
+    
     /**
-     * @brief Updates the layout of child widgets.
+     * @brief Sets drag start callback.
+     * @param callback Function to call when dragging starts
      */
-    void updateLayout();
+    void setOnDragStart(std::function<void()> callback) { m_on_drag_start = callback; }
 
 private:
     static constexpr int TITLEBAR_HEIGHT = 24;
-    static constexpr int BORDER_WIDTH = 1;
+    static constexpr int BORDER_WIDTH = 2;
     
-    int m_window_width;
-    int m_window_height;
+    std::string m_title;
+    int m_client_width;
+    int m_client_height;
     
-    // Child widgets (ownership transferred to Widget base class)
-    std::unique_ptr<TitlebarWidget> m_titlebar_widget;
-    std::unique_ptr<Widget> m_body_widget;
-    
-    // Raw pointers for access after ownership transfer
-    TitlebarWidget* m_titlebar_raw;
-    Widget* m_body_raw;
+    // Client area widget (positioned within the frame)
+    Widget* m_client_area;
     
     // Z-order for window layering
     int m_z_order;
     static int s_next_z_order;
     
-    /**
-     * @brief Creates a default white body widget.
-     * @return Default body widget
-     */
-    std::unique_ptr<Widget> createDefaultBodyWidget();
+    // Drag state
+    bool m_is_dragging;
+    int m_last_mouse_x;
+    int m_last_mouse_y;
+    
+    // Drag callbacks
+    std::function<void(int dx, int dy)> m_on_drag;
+    std::function<void()> m_on_drag_start;
     
     /**
-     * @brief Creates the window border surface.
-     * @return Window border surface
+     * @brief Creates a default white client area widget.
+     * @return Default client area widget
      */
-    std::unique_ptr<Surface> createBorderSurface();
+    std::unique_ptr<Widget> createDefaultClientArea();
+    
+    /**
+     * @brief Rebuilds the window frame surface.
+     */
+    void rebuildSurface();
+    
+    /**
+     * @brief Updates the layout of the client area.
+     */
+    void updateLayout();
+    
+    /**
+     * @brief Checks if a point is in the titlebar area.
+     * @param x X coordinate relative to this widget
+     * @param y Y coordinate relative to this widget
+     * @return true if point is in titlebar
+     */
+    bool isInTitlebar(int x, int y) const;
 };
 
-#endif // WINDOWWIDGET_H
+#endif // WINDOWFRAMEWIDGET_H

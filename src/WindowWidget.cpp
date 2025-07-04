@@ -58,41 +58,46 @@ WindowWidget::WindowWidget(int width, int height, const std::string& title)
     // Update layout
     updateLayout();
     
+    // Add child widgets to the standard Widget system
+    // Keep raw pointers for access while transferring ownership
+    TitlebarWidget* titlebar_ptr = m_titlebar_widget.get();
+    Widget* body_ptr = m_body_widget.get();
+    
+    addChild(std::move(m_titlebar_widget));
+    addChild(std::move(m_body_widget));
+    
+    // Reset unique_ptrs and use raw pointers for access
+    m_titlebar_widget.reset();
+    m_body_widget.reset();
+    m_titlebar_raw = titlebar_ptr;
+    m_body_raw = body_ptr;
+    
     // Create border surface
     setSurface(createBorderSurface());
 }
 
 void WindowWidget::BlitTo(Surface& target)
 {
-    // First render the window border/background
+    // Use the standard Widget BlitTo method which handles coordinate translation properly
     Widget::BlitTo(target);
-    
-    // Then render child widgets on top
-    if (m_titlebar_widget) {
-        m_titlebar_widget->BlitTo(target);
-    }
-    
-    if (m_body_widget) {
-        m_body_widget->BlitTo(target);
-    }
 }
 
 bool WindowWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     // Check titlebar first
-    if (m_titlebar_widget) {
-        Rect titlebar_pos = m_titlebar_widget->getPos();
+    if (m_titlebar_raw) {
+        Rect titlebar_pos = m_titlebar_raw->getPos();
         if (relative_x >= titlebar_pos.x() && relative_x < titlebar_pos.x() + titlebar_pos.width() &&
             relative_y >= titlebar_pos.y() && relative_y < titlebar_pos.y() + titlebar_pos.height()) {
             
-            return m_titlebar_widget->handleMouseDown(event, 
+            return m_titlebar_raw->handleMouseDown(event, 
                 relative_x - titlebar_pos.x(), relative_y - titlebar_pos.y());
         }
     }
     
     // Check body widget
-    if (m_body_widget) {
-        Rect body_pos = m_body_widget->getPos();
+    if (m_body_raw) {
+        Rect body_pos = m_body_raw->getPos();
         if (relative_x >= body_pos.x() && relative_x < body_pos.x() + body_pos.width() &&
             relative_y >= body_pos.y() && relative_y < body_pos.y() + body_pos.height()) {
             
@@ -108,7 +113,7 @@ bool WindowWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relati
 bool WindowWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
     // Forward to titlebar (it handles its own bounds checking during drag)
-    if (m_titlebar_widget && m_titlebar_widget->handleMouseMotion(event, relative_x, relative_y)) {
+    if (m_titlebar_raw && m_titlebar_raw->handleMouseMotion(event, relative_x, relative_y)) {
         return true;
     }
     
@@ -118,7 +123,7 @@ bool WindowWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int rela
 bool WindowWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     // Forward to titlebar
-    if (m_titlebar_widget && m_titlebar_widget->handleMouseUp(event, relative_x, relative_y)) {
+    if (m_titlebar_raw && m_titlebar_raw->handleMouseUp(event, relative_x, relative_y)) {
         return true;
     }
     
@@ -127,8 +132,8 @@ bool WindowWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative
 
 const std::string& WindowWidget::getTitle() const
 {
-    if (m_titlebar_widget) {
-        return m_titlebar_widget->getTitle();
+    if (m_titlebar_raw) {
+        return m_titlebar_raw->getTitle();
     }
     static const std::string empty_title;
     return empty_title;
@@ -136,8 +141,8 @@ const std::string& WindowWidget::getTitle() const
 
 void WindowWidget::setTitle(const std::string& title)
 {
-    if (m_titlebar_widget) {
-        m_titlebar_widget->setTitle(title);
+    if (m_titlebar_raw) {
+        m_titlebar_raw->setTitle(title);
     }
 }
 
@@ -154,21 +159,21 @@ void WindowWidget::bringToFront()
 
 void WindowWidget::updateLayout()
 {
-    Rect window_pos = getPos();
+    // Position child widgets relative to the window (not absolute screen coordinates)
     
-    // Position titlebar
+    // Position titlebar at the top of the window
     if (m_titlebar_widget) {
-        Rect titlebar_pos(window_pos.x() + BORDER_WIDTH, 
-                         window_pos.y() + BORDER_WIDTH,
+        Rect titlebar_pos(BORDER_WIDTH,  // Relative X within window
+                         BORDER_WIDTH,   // Relative Y within window
                          m_window_width - (BORDER_WIDTH * 2), 
                          TITLEBAR_HEIGHT);
         m_titlebar_widget->setPos(titlebar_pos);
     }
     
-    // Position body widget
+    // Position body widget below the titlebar
     if (m_body_widget) {
-        Rect body_pos(window_pos.x() + BORDER_WIDTH,
-                     window_pos.y() + BORDER_WIDTH + TITLEBAR_HEIGHT,
+        Rect body_pos(BORDER_WIDTH,  // Relative X within window
+                     BORDER_WIDTH + TITLEBAR_HEIGHT,  // Relative Y within window
                      m_window_width - (BORDER_WIDTH * 2),
                      m_window_height - TITLEBAR_HEIGHT - (BORDER_WIDTH * 2));
         m_body_widget->setPos(body_pos);
