@@ -143,6 +143,8 @@ enum class LoopMode {
 #include "Label.h"
 #include "ButtonWidget.h"
 #include "DrawableWidget.h"
+#include "SpectrumAnalyzerWidget.h"
+#include "MainUIWidget.h"
 #include "ApplicationWidget.h"
 #include "PlayerProgressBarWidget.h"
 #include "TitlebarWidget.h"
