@@ -43,6 +43,11 @@ class Widget : public Surface
         const Rect& getPos() const { return m_pos; }
         void setSurface(std::unique_ptr<Surface> surface);
         void addChild(std::unique_ptr<Widget> child);
+        
+        // Generic mouse event handling (propagates to children)
+        virtual bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
+        virtual bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y);
+        virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
     protected:
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);
         Surface& getSurface();

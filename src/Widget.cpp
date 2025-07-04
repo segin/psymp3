@@ -102,3 +102,81 @@ Surface& Widget::getSurface() {
     // A Widget IS-A Surface, so it can return a reference to its Surface base.
     return *this;
 }
+
+bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
+{
+    // Forward to children in reverse order (front to back for event handling)
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
+        const auto& child = *it;
+        Rect child_pos = child->getPos();
+        
+        // Check if mouse is within child bounds
+        if (relative_x >= child_pos.x() && relative_x < child_pos.x() + child_pos.width() &&
+            relative_y >= child_pos.y() && relative_y < child_pos.y() + child_pos.height()) {
+            
+            // Calculate relative coordinates for child
+            int child_relative_x = relative_x - child_pos.x();
+            int child_relative_y = relative_y - child_pos.y();
+            
+            // Forward event to child
+            if (child->handleMouseDown(event, child_relative_x, child_relative_y)) {
+                return true; // Event was handled by child
+            }
+        }
+    }
+    
+    // Event not handled by any child
+    return false;
+}
+
+bool Widget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
+{
+    // Forward to children in reverse order (front to back for event handling)
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
+        const auto& child = *it;
+        Rect child_pos = child->getPos();
+        
+        // Check if mouse is within child bounds
+        if (relative_x >= child_pos.x() && relative_x < child_pos.x() + child_pos.width() &&
+            relative_y >= child_pos.y() && relative_y < child_pos.y() + child_pos.height()) {
+            
+            // Calculate relative coordinates for child
+            int child_relative_x = relative_x - child_pos.x();
+            int child_relative_y = relative_y - child_pos.y();
+            
+            // Forward event to child
+            if (child->handleMouseMotion(event, child_relative_x, child_relative_y)) {
+                return true; // Event was handled by child
+            }
+        }
+    }
+    
+    // Event not handled by any child
+    return false;
+}
+
+bool Widget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
+{
+    // Forward to children in reverse order (front to back for event handling)
+    for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
+        const auto& child = *it;
+        Rect child_pos = child->getPos();
+        
+        // Check if mouse is within child bounds
+        if (relative_x >= child_pos.x() && relative_x < child_pos.x() + child_pos.width() &&
+            relative_y >= child_pos.y() && relative_y < child_pos.y() + child_pos.height()) {
+            
+            // Calculate relative coordinates for child
+            int child_relative_x = relative_x - child_pos.x();
+            int child_relative_y = relative_y - child_pos.y();
+            
+            // Forward event to child
+            if (child->handleMouseUp(event, child_relative_x, child_relative_y)) {
+                return true; // Event was handled by child
+            }
+        }
+    }
+    
+    // Event not handled by any child
+    return false;
+}

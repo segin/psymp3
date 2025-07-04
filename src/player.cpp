@@ -1654,6 +1654,20 @@ void Player::toggleTestWindowH()
             m_test_window_h->bringToFront();
         });
         
+        // Set up window control callbacks
+        m_test_window_h->setOnClose([this]() {
+            m_test_window_h.reset();
+            showToast("Test Window H: Closed");
+        });
+        
+        m_test_window_h->setOnMinimize([this]() {
+            showToast("Test Window H: Minimized");
+        });
+        
+        m_test_window_h->setOnMaximize([this]() {
+            showToast("Test Window H: Maximized");
+        });
+        
         showToast("Test Window H: Opened");
     }
 }
@@ -1682,6 +1696,20 @@ void Player::toggleTestWindowB()
         
         m_test_window_b->setOnDragStart([this]() {
             m_test_window_b->bringToFront();
+        });
+        
+        // Set up window control callbacks
+        m_test_window_b->setOnClose([this]() {
+            m_test_window_b.reset();
+            showToast("Test Window B: Closed");
+        });
+        
+        m_test_window_b->setOnMinimize([this]() {
+            showToast("Test Window B: Minimized");
+        });
+        
+        m_test_window_b->setOnMaximize([this]() {
+            showToast("Test Window B: Maximized");
         });
         
         showToast("Test Window B: Opened");

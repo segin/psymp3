@@ -34,6 +34,8 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     , m_is_dragging(false)
     , m_last_mouse_x(0)
     , m_last_mouse_y(0)
+    , m_last_click_time(0)
+    , m_double_click_pending(false)
 {
     // Calculate total window size (client area + decorations)
     int total_width = client_width + (BORDER_WIDTH * 2);
@@ -60,17 +62,54 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
 bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
     if (event.button == SDL_BUTTON_LEFT) {
-        // Check if click is in titlebar for dragging
+        // Check if click is in titlebar
         if (isInTitlebar(relative_x, relative_y)) {
-            m_is_dragging = true;
-            m_last_mouse_x = event.x;
-            m_last_mouse_y = event.y;
-            
-            if (m_on_drag_start) {
-                m_on_drag_start();
+            // Check for minimize button click
+            Rect minimize_bounds = getMinimizeButtonBounds();
+            if (relative_x >= minimize_bounds.x() && relative_x < minimize_bounds.x() + minimize_bounds.width() &&
+                relative_y >= minimize_bounds.y() && relative_y < minimize_bounds.y() + minimize_bounds.height()) {
+                if (m_on_minimize) {
+                    m_on_minimize();
+                }
+                return true;
             }
             
-            return true;
+            // Check for maximize button click
+            Rect maximize_bounds = getMaximizeButtonBounds();
+            if (relative_x >= maximize_bounds.x() && relative_x < maximize_bounds.x() + maximize_bounds.width() &&
+                relative_y >= maximize_bounds.y() && relative_y < maximize_bounds.y() + maximize_bounds.height()) {
+                if (m_on_maximize) {
+                    m_on_maximize();
+                }
+                return true;
+            }
+            
+            // Check for double-click in draggable area (for close)
+            if (isInDraggableArea(relative_x, relative_y)) {
+                Uint32 current_time = SDL_GetTicks();
+                if (m_double_click_pending && (current_time - m_last_click_time) < 300) {
+                    // Double-click detected
+                    if (m_on_close) {
+                        m_on_close();
+                    }
+                    m_double_click_pending = false;
+                    return true;
+                } else {
+                    // First click - start dragging and set up double-click detection
+                    m_last_click_time = current_time;
+                    m_double_click_pending = true;
+                    
+                    m_is_dragging = true;
+                    m_last_mouse_x = event.x;
+                    m_last_mouse_y = event.y;
+                    
+                    if (m_on_drag_start) {
+                        m_on_drag_start();
+                    }
+                    
+                    return true;
+                }
+            }
         }
         
         // Otherwise, bring window to front and forward to client area
@@ -195,6 +234,9 @@ void WindowFrameWidget::rebuildSurface()
     
     // TODO: Add title text rendering when font access is available
     
+    // Draw window control buttons
+    drawWindowControls(*frame_surface);
+    
     // Set the surface
     setSurface(std::move(frame_surface));
 }
@@ -217,4 +259,109 @@ bool WindowFrameWidget::isInTitlebar(int x, int y) const
             x < m_client_width + BORDER_WIDTH &&
             y >= BORDER_WIDTH && 
             y < BORDER_WIDTH + TITLEBAR_HEIGHT);
+}
+
+bool WindowFrameWidget::isInDraggableArea(int x, int y) const
+{
+    if (!isInTitlebar(x, y)) return false;
+    
+    // Exclude button areas from draggable area
+    Rect minimize_bounds = getMinimizeButtonBounds();
+    Rect maximize_bounds = getMaximizeButtonBounds();
+    
+    // Check if click is not in any button
+    bool in_minimize = (x >= minimize_bounds.x() && x < minimize_bounds.x() + minimize_bounds.width() &&
+                       y >= minimize_bounds.y() && y < minimize_bounds.y() + minimize_bounds.height());
+    bool in_maximize = (x >= maximize_bounds.x() && x < maximize_bounds.x() + maximize_bounds.width() &&
+                       y >= maximize_bounds.y() && y < maximize_bounds.y() + maximize_bounds.height());
+    
+    return !in_minimize && !in_maximize;
+}
+
+Rect WindowFrameWidget::getMinimizeButtonBounds() const
+{
+    int total_width = m_client_width + (BORDER_WIDTH * 2);
+    int button_x = total_width - BORDER_WIDTH - (BUTTON_WIDTH * 2) - BUTTON_SPACING;
+    int button_y = BORDER_WIDTH + (TITLEBAR_HEIGHT - BUTTON_HEIGHT) / 2;
+    
+    return Rect(button_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT);
+}
+
+Rect WindowFrameWidget::getMaximizeButtonBounds() const
+{
+    int total_width = m_client_width + (BORDER_WIDTH * 2);
+    int button_x = total_width - BORDER_WIDTH - BUTTON_WIDTH;
+    int button_y = BORDER_WIDTH + (TITLEBAR_HEIGHT - BUTTON_HEIGHT) / 2;
+    
+    return Rect(button_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT);
+}
+
+void WindowFrameWidget::drawWindowControls(Surface& surface) const
+{
+    // Draw minimize button (downward arrow: ▼)
+    Rect minimize_bounds = getMinimizeButtonBounds();
+    
+    // Button background (light gray)
+    surface.box(minimize_bounds.x(), minimize_bounds.y(), 
+               minimize_bounds.x() + minimize_bounds.width() - 1, 
+               minimize_bounds.y() + minimize_bounds.height() - 1, 
+               192, 192, 192, 255);
+    
+    // Button border (3D effect)
+    // Top and left highlight
+    surface.rectangle(minimize_bounds.x(), minimize_bounds.y(), 
+                     minimize_bounds.x() + minimize_bounds.width() - 1, 
+                     minimize_bounds.y(), 255, 255, 255, 255);
+    surface.rectangle(minimize_bounds.x(), minimize_bounds.y(), 
+                     minimize_bounds.x(), 
+                     minimize_bounds.y() + minimize_bounds.height() - 1, 255, 255, 255, 255);
+    
+    // Bottom and right shadow
+    surface.rectangle(minimize_bounds.x(), 
+                     minimize_bounds.y() + minimize_bounds.height() - 1, 
+                     minimize_bounds.x() + minimize_bounds.width() - 1, 
+                     minimize_bounds.y() + minimize_bounds.height() - 1, 128, 128, 128, 255);
+    surface.rectangle(minimize_bounds.x() + minimize_bounds.width() - 1, 
+                     minimize_bounds.y(), 
+                     minimize_bounds.x() + minimize_bounds.width() - 1, 
+                     minimize_bounds.y() + minimize_bounds.height() - 1, 128, 128, 128, 255);
+    
+    // Draw minimize symbol (horizontal line at bottom)
+    int symbol_x = minimize_bounds.x() + 3;
+    int symbol_y = minimize_bounds.y() + minimize_bounds.height() - 4;
+    surface.rectangle(symbol_x, symbol_y, symbol_x + 8, symbol_y, 0, 0, 0, 255);
+    
+    // Draw maximize button (upward arrow: ▲)
+    Rect maximize_bounds = getMaximizeButtonBounds();
+    
+    // Button background (light gray)
+    surface.box(maximize_bounds.x(), maximize_bounds.y(), 
+               maximize_bounds.x() + maximize_bounds.width() - 1, 
+               maximize_bounds.y() + maximize_bounds.height() - 1, 
+               192, 192, 192, 255);
+    
+    // Button border (3D effect)
+    // Top and left highlight
+    surface.rectangle(maximize_bounds.x(), maximize_bounds.y(), 
+                     maximize_bounds.x() + maximize_bounds.width() - 1, 
+                     maximize_bounds.y(), 255, 255, 255, 255);
+    surface.rectangle(maximize_bounds.x(), maximize_bounds.y(), 
+                     maximize_bounds.x(), 
+                     maximize_bounds.y() + maximize_bounds.height() - 1, 255, 255, 255, 255);
+    
+    // Bottom and right shadow
+    surface.rectangle(maximize_bounds.x(), 
+                     maximize_bounds.y() + maximize_bounds.height() - 1, 
+                     maximize_bounds.x() + maximize_bounds.width() - 1, 
+                     maximize_bounds.y() + maximize_bounds.height() - 1, 128, 128, 128, 255);
+    surface.rectangle(maximize_bounds.x() + maximize_bounds.width() - 1, 
+                     maximize_bounds.y(), 
+                     maximize_bounds.x() + maximize_bounds.width() - 1, 
+                     maximize_bounds.y() + maximize_bounds.height() - 1, 128, 128, 128, 255);
+    
+    // Draw maximize symbol (small rectangle)
+    int max_symbol_x = maximize_bounds.x() + 3;
+    int max_symbol_y = maximize_bounds.y() + 3;
+    surface.rectangle(max_symbol_x, max_symbol_y, max_symbol_x + 8, max_symbol_y + 6, 0, 0, 0, 255);
+    surface.rectangle(max_symbol_x + 1, max_symbol_y + 1, max_symbol_x + 7, max_symbol_y + 2, 0, 0, 0, 255);
 }

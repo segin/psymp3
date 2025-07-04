@@ -123,10 +123,31 @@ public:
      * @param callback Function to call when dragging starts
      */
     void setOnDragStart(std::function<void()> callback) { m_on_drag_start = callback; }
+    
+    /**
+     * @brief Sets close callback for double-click.
+     * @param callback Function to call when window should close
+     */
+    void setOnClose(std::function<void()> callback) { m_on_close = callback; }
+    
+    /**
+     * @brief Sets minimize button callback.
+     * @param callback Function to call when minimize button is clicked
+     */
+    void setOnMinimize(std::function<void()> callback) { m_on_minimize = callback; }
+    
+    /**
+     * @brief Sets maximize button callback.
+     * @param callback Function to call when maximize button is clicked
+     */
+    void setOnMaximize(std::function<void()> callback) { m_on_maximize = callback; }
 
 private:
     static constexpr int TITLEBAR_HEIGHT = 24;
     static constexpr int BORDER_WIDTH = 2;
+    static constexpr int BUTTON_WIDTH = 16;
+    static constexpr int BUTTON_HEIGHT = 14;
+    static constexpr int BUTTON_SPACING = 2;
     
     std::string m_title;
     int m_client_width;
@@ -144,9 +165,18 @@ private:
     int m_last_mouse_x;
     int m_last_mouse_y;
     
+    // Double-click detection for close
+    Uint32 m_last_click_time;
+    bool m_double_click_pending;
+    
     // Drag callbacks
     std::function<void(int dx, int dy)> m_on_drag;
     std::function<void()> m_on_drag_start;
+    
+    // Window control callbacks
+    std::function<void()> m_on_close;
+    std::function<void()> m_on_minimize;
+    std::function<void()> m_on_maximize;
     
     /**
      * @brief Creates a default white client area widget.
@@ -171,6 +201,32 @@ private:
      * @return true if point is in titlebar
      */
     bool isInTitlebar(int x, int y) const;
+    
+    /**
+     * @brief Checks if a point is in the draggable area of titlebar.
+     * @param x X coordinate relative to this widget
+     * @param y Y coordinate relative to this widget
+     * @return true if point is in draggable titlebar area
+     */
+    bool isInDraggableArea(int x, int y) const;
+    
+    /**
+     * @brief Gets the bounds of the minimize button.
+     * @return Rectangle of minimize button
+     */
+    Rect getMinimizeButtonBounds() const;
+    
+    /**
+     * @brief Gets the bounds of the maximize button.
+     * @return Rectangle of maximize button
+     */
+    Rect getMaximizeButtonBounds() const;
+    
+    /**
+     * @brief Draws window control buttons on the surface.
+     * @param surface Surface to draw on
+     */
+    void drawWindowControls(Surface& surface) const;
 };
 
 #endif // WINDOWFRAMEWIDGET_H
