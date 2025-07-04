@@ -334,6 +334,56 @@ void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g,
     if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
+void Surface::filledTriangle(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    if (!m_handle) return;
+    
+    uint32_t color = MapRGBA(r, g, b, a);
+    
+    // Sort vertices by y-coordinate (bubble sort for simplicity)
+    if (y1 > y2) { std::swap(x1, x2); std::swap(y1, y2); }
+    if (y2 > y3) { std::swap(x2, x3); std::swap(y2, y3); }
+    if (y1 > y2) { std::swap(x1, x2); std::swap(y1, y2); }
+    
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    
+    // Scanline fill algorithm
+    for (Sint16 y = y1; y <= y3; y++) {
+        Sint16 x_left, x_right;
+        
+        if (y <= y2) {
+            // Top half of triangle
+            if (y2 == y1) {
+                x_left = std::min(x1, x2);
+                x_right = std::max(x1, x2);
+            } else {
+                x_left = x1 + (x2 - x1) * (y - y1) / (y2 - y1);
+            }
+            
+            if (y3 == y1) {
+                x_right = x3;
+            } else {
+                x_right = x1 + (x3 - x1) * (y - y1) / (y3 - y1);
+            }
+        } else {
+            // Bottom half of triangle
+            if (y3 == y2) {
+                x_left = std::min(x2, x3);
+                x_right = std::max(x2, x3);
+            } else {
+                x_left = x2 + (x3 - x2) * (y - y2) / (y3 - y2);
+            }
+            
+            x_right = x1 + (x3 - x1) * (y - y1) / (y3 - y1);
+        }
+        
+        if (x_left > x_right) std::swap(x_left, x_right);
+        hline_unlocked(x_left, x_right, y, color);
+    }
+    
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+}
+
 void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle) return;

@@ -157,10 +157,8 @@ public:
 private:
     static constexpr int TITLEBAR_HEIGHT = 24;
     static constexpr int BORDER_WIDTH = 2;
-    static constexpr int BUTTON_WIDTH = 16;
-    static constexpr int BUTTON_HEIGHT = 14;
-    static constexpr int BUTTON_SPACING = 2;
-    static constexpr int CONTROL_MENU_SIZE = 16;
+    static constexpr int BUTTON_SIZE = 24;  // Square buttons, same as titlebar height
+    static constexpr int CONTROL_MENU_SIZE = 24;  // Same as titlebar height
     
     std::string m_title;
     int m_client_width;

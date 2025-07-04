@@ -401,55 +401,55 @@ Rect WindowFrameWidget::getMinimizeButtonBounds() const
 {
     int resize_border = 4; // Match the resize border size
     int total_width = m_client_width + (resize_border * 2);
-    int button_x = total_width - resize_border - (BUTTON_WIDTH * 2) - BUTTON_SPACING;
-    int button_y = resize_border + (TITLEBAR_HEIGHT - BUTTON_HEIGHT) / 2;
+    int button_x = total_width - resize_border - (BUTTON_SIZE * 2);
+    int button_y = resize_border;
     
-    return Rect(button_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT);
+    return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
 
 Rect WindowFrameWidget::getMaximizeButtonBounds() const
 {
     int resize_border = 4; // Match the resize border size
     int total_width = m_client_width + (resize_border * 2);
-    int button_x = total_width - resize_border - BUTTON_WIDTH;
-    int button_y = resize_border + (TITLEBAR_HEIGHT - BUTTON_HEIGHT) / 2;
+    int button_x = total_width - resize_border - BUTTON_SIZE;
+    int button_y = resize_border;
     
-    return Rect(button_x, button_y, BUTTON_WIDTH, BUTTON_HEIGHT);
+    return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
 
 Rect WindowFrameWidget::getControlMenuBounds() const
 {
     int resize_border = 4; // Match the resize border size
-    int menu_x = resize_border + 2;
-    int menu_y = resize_border + (TITLEBAR_HEIGHT - CONTROL_MENU_SIZE) / 2;
+    int menu_x = resize_border;
+    int menu_y = resize_border;
     
     return Rect(menu_x, menu_y, CONTROL_MENU_SIZE, CONTROL_MENU_SIZE);
 }
 
 void WindowFrameWidget::drawWindowControls(Surface& surface) const
 {
-    // Draw control menu box (small square on left)
+    // Draw control menu box (full height square on left)
     Rect control_menu_bounds = getControlMenuBounds();
     
-    // Control menu background (same as titlebar)
+    // Control menu background (light gray)
     surface.box(control_menu_bounds.x(), control_menu_bounds.y(), 
                control_menu_bounds.x() + control_menu_bounds.width() - 1, 
                control_menu_bounds.y() + control_menu_bounds.height() - 1, 
                192, 192, 192, 255);
     
-    // Control menu border (simple raised look)
+    // Control menu border (simple black outline)
     surface.rectangle(control_menu_bounds.x(), control_menu_bounds.y(), 
                      control_menu_bounds.x() + control_menu_bounds.width() - 1, 
                      control_menu_bounds.y() + control_menu_bounds.height() - 1, 
-                     128, 128, 128, 255);
+                     0, 0, 0, 255);
     
-    // Control menu inner border (white highlight)
-    surface.rectangle(control_menu_bounds.x() + 1, control_menu_bounds.y() + 1, 
-                     control_menu_bounds.x() + control_menu_bounds.width() - 2, 
-                     control_menu_bounds.y() + control_menu_bounds.height() - 2, 
-                     255, 255, 255, 255);
+    // Draw a simple window icon representation (small rectangle in center)
+    int icon_size = 8;
+    int icon_x = control_menu_bounds.x() + (control_menu_bounds.width() - icon_size) / 2;
+    int icon_y = control_menu_bounds.y() + (control_menu_bounds.height() - icon_size) / 2;
+    surface.rectangle(icon_x, icon_y, icon_x + icon_size - 1, icon_y + icon_size - 1, 0, 0, 0, 255);
     
-    // Draw minimize button (simple raised rectangle)
+    // Draw minimize button (full height square)
     Rect minimize_bounds = getMinimizeButtonBounds();
     
     // Button background (light gray)
@@ -458,22 +458,28 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
                minimize_bounds.y() + minimize_bounds.height() - 1, 
                192, 192, 192, 255);
     
-    // Simple button border (just outline)
+    // Button border (black outline)
     surface.rectangle(minimize_bounds.x(), minimize_bounds.y(), 
                      minimize_bounds.x() + minimize_bounds.width() - 1, 
                      minimize_bounds.y() + minimize_bounds.height() - 1, 
                      0, 0, 0, 255);
     
-    // Minimize symbol (simple downward triangle/arrow)
+    // Minimize symbol (downward pointing triangle ▼)
     int min_center_x = minimize_bounds.x() + minimize_bounds.width() / 2;
     int min_center_y = minimize_bounds.y() + minimize_bounds.height() / 2;
+    int triangle_size = 6;
     
-    // Draw downward pointing triangle (▼)
-    for (int i = 0; i < 5; i++) {
-        surface.hline(min_center_x - i, min_center_x + i, min_center_y + i - 2, 0, 0, 0, 255);
-    }
+    // Triangle points for downward arrow
+    Sint16 min_x1 = min_center_x - triangle_size;
+    Sint16 min_y1 = min_center_y - triangle_size / 2;
+    Sint16 min_x2 = min_center_x + triangle_size;
+    Sint16 min_y2 = min_center_y - triangle_size / 2;
+    Sint16 min_x3 = min_center_x;
+    Sint16 min_y3 = min_center_y + triangle_size / 2;
     
-    // Draw maximize button (simple raised rectangle)
+    surface.filledTriangle(min_x1, min_y1, min_x2, min_y2, min_x3, min_y3, 0, 0, 0, 255);
+    
+    // Draw maximize button (full height square)
     Rect maximize_bounds = getMaximizeButtonBounds();
     
     // Button background (light gray)
@@ -482,20 +488,25 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
                maximize_bounds.y() + maximize_bounds.height() - 1, 
                192, 192, 192, 255);
     
-    // Simple button border (just outline)
+    // Button border (black outline)
     surface.rectangle(maximize_bounds.x(), maximize_bounds.y(), 
                      maximize_bounds.x() + maximize_bounds.width() - 1, 
                      maximize_bounds.y() + maximize_bounds.height() - 1, 
                      0, 0, 0, 255);
     
-    // Maximize symbol (simple upward triangle/arrow)
+    // Maximize symbol (upward pointing triangle ▲)
     int max_center_x = maximize_bounds.x() + maximize_bounds.width() / 2;
     int max_center_y = maximize_bounds.y() + maximize_bounds.height() / 2;
     
-    // Draw upward pointing triangle (▲)
-    for (int i = 0; i < 5; i++) {
-        surface.hline(max_center_x - i, max_center_x + i, max_center_y - i + 2, 0, 0, 0, 255);
-    }
+    // Triangle points for upward arrow
+    Sint16 max_x1 = max_center_x - triangle_size;
+    Sint16 max_y1 = max_center_y + triangle_size / 2;
+    Sint16 max_x2 = max_center_x + triangle_size;
+    Sint16 max_y2 = max_center_y + triangle_size / 2;
+    Sint16 max_x3 = max_center_x;
+    Sint16 max_y3 = max_center_y - triangle_size / 2;
+    
+    surface.filledTriangle(max_x1, max_y1, max_x2, max_y2, max_x3, max_y3, 0, 0, 0, 255);
 }
 
 int WindowFrameWidget::getResizeEdge(int x, int y) const
