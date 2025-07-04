@@ -130,31 +130,18 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 return true;
             }
             
-            // Check for double-click in draggable area (for close)
+            // Check for click in draggable area (start dragging, no double-click close)
             if (isInDraggableArea(relative_x, relative_y)) {
-                Uint32 current_time = SDL_GetTicks();
-                if (m_double_click_pending && (current_time - m_last_click_time) < 500) {
-                    // Double-click detected
-                    if (m_on_close) {
-                        m_on_close();
-                    }
-                    m_double_click_pending = false;
-                    return true;
-                } else {
-                    // First click - start dragging and set up double-click detection
-                    m_last_click_time = current_time;
-                    m_double_click_pending = true;
-                    
-                    m_is_dragging = true;
-                    m_last_mouse_x = event.x;
-                    m_last_mouse_y = event.y;
-                    
-                    if (m_on_drag_start) {
-                        m_on_drag_start();
-                    }
-                    
-                    return true;
+                // Start dragging immediately 
+                m_is_dragging = true;
+                m_last_mouse_x = event.x;
+                m_last_mouse_y = event.y;
+                
+                if (m_on_drag_start) {
+                    m_on_drag_start();
                 }
+                
+                return true;
             }
         }
         
@@ -345,11 +332,18 @@ void WindowFrameWidget::rebuildSurface()
     // 1. Outer 1px frame around everything (dark gray)
     frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 64, 64, 64, 255);
     
-    // 2. Inner resize frame (light gray - same as button background) - this is the actual resize border
+    // 2. Inner resize frame (light gray - same as button background)
     int resize_inner = OUTER_BORDER_WIDTH;
-    frame_surface->rectangle(resize_inner, resize_inner, 
-                           total_width - resize_inner - 1, total_height - resize_inner - 1, 
-                           192, 192, 192, 255);
+    // Fill resize frame area with light gray
+    frame_surface->box(resize_inner, resize_inner, 
+                      total_width - resize_inner - 1, total_height - resize_inner - 1, 
+                      192, 192, 192, 255);
+    
+    // Draw 1px black border around client/titlebar area 
+    int content_outer = resize_inner + RESIZE_BORDER_WIDTH - 1;
+    frame_surface->rectangle(content_outer, content_outer, 
+                           total_width - content_outer - 1, total_height - content_outer - 1, 
+                           0, 0, 0, 255);
     
     // 3. Draw titlebar area - shares border with resize frame
     int titlebar_x = resize_inner + RESIZE_BORDER_WIDTH;
@@ -389,22 +383,26 @@ void WindowFrameWidget::rebuildSurface()
     Rect minimize_bounds_temp = getMinimizeButtonBounds();
     int corner_separator_x = minimize_bounds_temp.x() + BUTTON_SIZE; // Right edge of minimize button
     
-    // Top separators (black, aligned with button separator)
-    frame_surface->vline(corner_separator_x, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255); // Top-left vertical (black)
-    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255); // Top-right vertical (black)
-    
-    // Bottom separators (black, aligned with button separator)
-    frame_surface->vline(corner_separator_x, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255); // Bottom-left vertical (black)
-    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255); // Bottom-right vertical (black)
-    
-    // Left separators (black, aligned with titlebar bottom)
+    // Top-left corner notch (vertical separator aligned with button separator)
+    frame_surface->vline(corner_separator_x, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
+    // Top-left corner notch (horizontal separator aligned with titlebar bottom)
     int titlebar_bottom_y = titlebar_y + TITLEBAR_TOTAL_HEIGHT - 1;
-    frame_surface->hline(resize_inner, corner_separator_x, titlebar_bottom_y, 0, 0, 0, 255); // Left-top horizontal (black) - align with titlebar bottom
-    frame_surface->hline(resize_inner, corner_separator_x, total_height - resize_inner - 1, 0, 0, 0, 255); // Left-bottom horizontal (black)
+    frame_surface->hline(resize_inner, corner_separator_x, titlebar_bottom_y, 0, 0, 0, 255);
     
-    // Right separators (black, aligned with titlebar bottom)
-    frame_surface->hline(total_width - resize_inner - RESIZE_BORDER_WIDTH, total_width - (corner_separator_x - resize_inner) - 1, titlebar_bottom_y, 0, 0, 0, 255); // Right-top horizontal (black) - align with titlebar bottom
-    frame_surface->hline(total_width - resize_inner - RESIZE_BORDER_WIDTH, total_width - (corner_separator_x - resize_inner) - 1, total_height - resize_inner - 1, 0, 0, 0, 255); // Right-bottom horizontal (black)
+    // Top-right corner notch (vertical separator aligned with button separator, mirrored)
+    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
+    // Top-right corner notch (horizontal separator aligned with titlebar bottom)
+    frame_surface->hline(total_width - (corner_separator_x - resize_inner) - 1, total_width - resize_inner - 1, titlebar_bottom_y, 0, 0, 0, 255);
+    
+    // Bottom-left corner notch (vertical separator aligned with button separator)
+    frame_surface->vline(corner_separator_x, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255);
+    // Bottom-left corner notch (horizontal separator aligned with titlebar bottom mirrored)
+    frame_surface->hline(resize_inner, corner_separator_x, total_height - resize_inner - 1, 0, 0, 0, 255);
+    
+    // Bottom-right corner notch (vertical separator aligned with button separator, mirrored)
+    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255);
+    // Bottom-right corner notch (horizontal separator aligned with titlebar bottom mirrored)
+    frame_surface->hline(total_width - (corner_separator_x - resize_inner) - 1, total_width - resize_inner - 1, total_height - resize_inner - 1, 0, 0, 0, 255);
     
     // TODO: Add title text rendering when font access is available
     
@@ -503,17 +501,28 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
                control_menu_bounds.y() + CONTROL_MENU_SIZE - 1, 
                192, 192, 192, 255);
     
-    // Control menu border (simple black outline)
-    surface.rectangle(control_menu_bounds.x(), control_menu_bounds.y(), 
-                     control_menu_bounds.x() + CONTROL_MENU_SIZE - 1, 
-                     control_menu_bounds.y() + CONTROL_MENU_SIZE - 1, 
-                     0, 0, 0, 255);
+    // Control menu has no border (as per user requirements)
     
-    // Draw a simple window icon representation (small filled rectangle in center)
-    int icon_size = 6;
-    int icon_x = control_menu_bounds.x() + (control_menu_bounds.width() - icon_size) / 2;
-    int icon_y = control_menu_bounds.y() + (control_menu_bounds.height() - icon_size) / 2;
-    surface.box(icon_x, icon_y, icon_x + icon_size - 1, icon_y + icon_size - 1, 64, 64, 64, 255);
+    // Draw the specific Windows 3.1 control menu icon:
+    // 1x11px white line starting from (4, 9) inside the control, proceeding to (14, 9)
+    // with 1px black border around this line
+    // and grey drop shadow starting at (4, 11), proceeding to (16, 11), then turning 90 degrees upward to end at (16, 9)
+    
+    int icon_base_x = control_menu_bounds.x() + 4;
+    int icon_base_y = control_menu_bounds.y() + 9;
+    
+    // Draw the white line from (4, 9) to (14, 9)
+    surface.hline(icon_base_x, icon_base_x + 10, icon_base_y, 255, 255, 255, 255);
+    
+    // Draw 1px black border around the white line
+    surface.hline(icon_base_x - 1, icon_base_x + 11, icon_base_y - 1, 0, 0, 0, 255); // Top border
+    surface.hline(icon_base_x - 1, icon_base_x + 11, icon_base_y + 1, 0, 0, 0, 255); // Bottom border
+    surface.pixel(icon_base_x - 1, icon_base_y, 0, 0, 0, 255); // Left border
+    surface.pixel(icon_base_x + 11, icon_base_y, 0, 0, 0, 255); // Right border
+    
+    // Draw grey drop shadow starting at (4, 11), proceeding to (16, 11), then turning 90 degrees upward to end at (16, 9)
+    surface.hline(icon_base_x, icon_base_x + 12, icon_base_y + 2, 128, 128, 128, 255); // Horizontal shadow line
+    surface.vline(icon_base_x + 12, icon_base_y, icon_base_y + 2, 128, 128, 128, 255); // Vertical shadow line
     
     // Draw minimize button using reusable components
     Rect minimize_bounds = getMinimizeButtonBounds();

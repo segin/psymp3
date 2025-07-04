@@ -158,7 +158,7 @@ private:
     static constexpr int TITLEBAR_HEIGHT = 18;  // Windows 3.x blue area
     static constexpr int TITLEBAR_TOTAL_HEIGHT = 20;  // Blue area + 1px top + 1px bottom border
     static constexpr int OUTER_BORDER_WIDTH = 1;  // Outer frame around everything
-    static constexpr int RESIZE_BORDER_WIDTH = 3;  // Resize frame thickness (thicker border)
+    static constexpr int RESIZE_BORDER_WIDTH = 2;  // Resize frame interior thickness
     static constexpr int BUTTON_SIZE = 18;  // Square buttons, same as titlebar blue height
     static constexpr int CONTROL_MENU_SIZE = 18;  // Same as titlebar blue height
     
