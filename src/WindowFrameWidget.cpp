@@ -660,28 +660,28 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
         surface.hline(x, x + width - 2, y, 128, 128, 128, 255);
         surface.vline(x, y, y + height - 2, 128, 128, 128, 255);
         
-        // Bottom and right highlight (white/light)
-        surface.hline(x + 2, x + width - 1, y + height - 1, 255, 255, 255, 255);
-        surface.vline(x + width - 1, y + 2, y + height - 1, 255, 255, 255, 255);
+        // Bottom and right highlight (white/light) - proper 3D bevel for pressed state
+        surface.hline(x, x + width - 1, y + height - 1, 255, 255, 255, 255); // Start from left edge
+        surface.vline(x + width - 1, y, y + height - 1, 255, 255, 255, 255); // Start from top edge
         
         // Additional darker shading row 1px inside from top and left (same color as main shadow)  
-        // Extend these lines to the corners for pressed state as well
-        surface.hline(x + 1, x + width - 1, y + 1, 128, 128, 128, 255); // Extended to corner
-        surface.vline(x + 1, y + 1, y + height - 1, 128, 128, 128, 255); // Extended to corner
+        // Start from edges for proper 3D bevel appearance in pressed state
+        surface.hline(x, x + width - 2, y + 1, 128, 128, 128, 255); // Start from left edge
+        surface.vline(x + 1, y, y + height - 2, 128, 128, 128, 255); // Start from top edge
     } else {
         // Normal button - standard 3D bevel (light on top/left, dark on bottom/right)
         // Top and left highlight (white/light)
         surface.hline(x, x + width - 2, y, 255, 255, 255, 255);
         surface.vline(x, y, y + height - 2, 255, 255, 255, 255);
         
-        // Bottom and right shadow (dark gray) - extend 1px further
-        surface.hline(x + 2, x + width - 1, y + height - 1, 128, 128, 128, 255);
-        surface.vline(x + width - 1, y + 2, y + height - 1, 128, 128, 128, 255);
+        // Bottom and right shadow (dark gray) - proper 3D bevel extending to edges
+        surface.hline(x, x + width - 1, y + height - 1, 128, 128, 128, 255); // Start from left edge
+        surface.vline(x + width - 1, y, y + height - 1, 128, 128, 128, 255); // Start from top edge
         
         // Additional shading row 1px above bottom and 1px beside right (same color as main shadow)
-        // Extend these lines to the very corners to fix light grey pixels at (2, 18) and (18, 2)
-        surface.hline(x + 1, x + width - 1, y + height - 2, 128, 128, 128, 255); // Extended to corner
-        surface.vline(x + width - 2, y + 1, y + height - 1, 128, 128, 128, 255); // Extended to corner
+        // Start from the very edges for proper 3D bevel appearance
+        surface.hline(x, x + width - 2, y + height - 2, 128, 128, 128, 255); // Start from left edge
+        surface.vline(x + width - 2, y, y + height - 2, 128, 128, 128, 255); // Start from top edge
     }
 }
 
