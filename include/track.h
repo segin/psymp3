@@ -51,6 +51,7 @@ class track
         TagLib::String m_Album;
         TagLib::String m_FilePath;
         std::unique_ptr<TagLib::FileRef> m_FileRef;
+        std::unique_ptr<TagLibIOStreamAdapter> m_TagLibStream; // Keeps stream alive for FileRef
         unsigned int m_Len;
     private:
 };

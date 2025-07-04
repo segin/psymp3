@@ -599,6 +599,18 @@ bool Player::updateGUI()
             total_len_ms = current_stream->getLength();
             artist = current_stream->getArtist();
             title = current_stream->getTitle();
+
+            // Trigger preloading when near the end of the track (last 10 seconds)
+            if (!m_next_stream && !m_preloading_track && total_len_ms > 0 && 
+                (total_len_ms - current_pos_ms) < 10000 && playlist && 
+                playlist->getPosition() < playlist->entries() - 1) {
+                
+                TagLib::String next_path = playlist->peekNext();
+                if (!next_path.isEmpty()) {
+                    std::cout << "Preloading next track for seamless transition: " << next_path.to8Bit(true) << std::endl;
+                    requestTrackPreload(next_path);
+                }
+            }
         }
 
         // Draw the spectrum analyzer on the graph surface
@@ -1055,16 +1067,17 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         }
         case TRACK_PRELOAD_SUCCESS:
         {
-            // Seamless playback is disabled, so we just discard the preloaded data.
+            // Store the preloaded stream for seamless transition
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_preloading_track = false;
-            delete result->stream; // Free the stream that was loaded
-            delete result;
+            m_next_stream.reset(result->stream); // Take ownership of the preloaded stream
+            std::cout << "Track preloaded successfully for seamless transition." << std::endl;
+            delete result; // Free the result struct but keep the stream
             break;
         }
         case TRACK_PRELOAD_FAILURE:
         {
-            // Seamless playback is disabled, nothing to do here but log and clean up.
+            // Handle preload failure - no seamless transition possible
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_preloading_track = false;
             std::cerr << "Failed to preload track: " << result->error_message << std::endl;
@@ -1078,11 +1091,45 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 if (m_loop_mode == LoopMode::One) {
                     // Loop current track by seeking to the beginning.
                     seekTo(0);
+                } else if (m_next_stream) {
+                    // A track was preloaded, perform seamless swap.
+                    synthesizeUserEvent(TRACK_SEAMLESS_SWAP, nullptr, nullptr);
                 } else {
-                    // Seamless playback is disabled. Just advance to the next track.
+                    // No preloaded track, use the old method.
                     nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
                 }
             }
+            break;
+        }
+        case TRACK_SEAMLESS_SWAP:
+        {
+            // This event is triggered when a track ends and a preloaded track is ready.
+            // Check if we need to recreate the Audio object or can reuse it
+            bool recreate_audio = (!audio || (m_next_stream && 
+                (audio->getRate() != m_next_stream->getRate() || 
+                 audio->getChannels() != m_next_stream->getChannels())));
+
+            if (recreate_audio) {
+                // Different audio format, need to recreate Audio object
+                std::cout << "Audio format changed, recreating Audio object for seamless transition." << std::endl;
+                audio.reset();
+                auto owned_stream = std::move(m_next_stream);
+                audio = std::make_unique<Audio>(std::move(owned_stream), fft.get(), mutex.get());
+            } else {
+                // Same audio format, can seamlessly switch streams
+                std::cout << "Performing seamless stream transition." << std::endl;
+                auto owned_stream = std::move(m_next_stream);
+                audio->setStream(std::move(owned_stream));
+            }
+
+            // Advance the playlist for the track(s) that just finished
+            for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
+                playlist->next();
+            }
+            m_num_tracks_in_current_stream = 0;
+
+            // Update GUI
+            updateInfo(false, "");
             break;
         }
         case DO_SAVE_PLAYLIST:

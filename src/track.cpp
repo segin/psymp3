@@ -40,18 +40,19 @@ track::track(const TagLib::String& a_FilePath, const TagLib::String& extinf_arti
 void track::loadTags() { 
     if (!m_FileRef) {
         try {
-            #ifdef _WIN32
-                // On Windows, TagLib prefers native paths with backslashes.
-                // We convert to a wide string and replace slashes before creating the FileRef.
-                std::wstring wpath = m_FilePath.toWString();
-                std::replace(wpath.begin(), wpath.end(), L'/', L'\\');
-                m_FileRef = std::make_unique<TagLib::FileRef>(wpath.c_str());
-            #else
-                m_FileRef = std::make_unique<TagLib::FileRef>(m_FilePath.toCString(true));
-            #endif
+            // Create IOHandler-based stream for TagLib
+            // This solves Unicode filename issues and provides unified I/O
+            auto io_handler = std::make_unique<FileIOHandler>(m_FilePath);
+            m_TagLibStream = std::make_unique<TagLibIOStreamAdapter>(
+                std::move(io_handler), m_FilePath, true);
+            
+            // Use custom stream with TagLib
+            m_FileRef = std::make_unique<TagLib::FileRef>(m_TagLibStream.get());
+            
         } catch (std::exception& e) {
-            std::cerr << "track::track(): Exception: " << e.what() << std::endl;
+            std::cerr << "track::loadTags(): Exception: " << e.what() << std::endl;
             m_FileRef = nullptr;
+            m_TagLibStream = nullptr;
         }
     }
     if (m_FileRef && m_FileRef->tag() && m_FileRef->audioProperties()) {
