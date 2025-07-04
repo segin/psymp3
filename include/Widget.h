@@ -53,6 +53,12 @@ class Widget : public Surface
         Surface& getSurface();
         Rect m_pos;
         std::vector<std::unique_ptr<Widget>> m_children;
+        
+        // Mouse capture system
+        static Widget* s_mouse_captured_widget;
+        void captureMouse();
+        void releaseMouse();
+        bool hasMouseCapture() const;
     private:
 };
 

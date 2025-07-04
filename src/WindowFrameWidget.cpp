@@ -140,6 +140,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 // Start dragging immediately with absolute coordinates
                 m_is_dragging = true;
                 SDL_GetMouseState(&m_last_mouse_x, &m_last_mouse_y);
+                captureMouse(); // Capture mouse for global tracking
                 
                 if (m_on_drag_start) {
                     m_on_drag_start();
@@ -158,6 +159,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 SDL_GetMouseState(&m_resize_start_x, &m_resize_start_y);
                 m_resize_start_width = m_client_width;
                 m_resize_start_height = m_client_height;
+                captureMouse(); // Capture mouse for global tracking
                 return true;
             }
         }
@@ -299,12 +301,14 @@ bool WindowFrameWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
     if (event.button == SDL_BUTTON_LEFT) {
         if (m_is_dragging) {
             m_is_dragging = false;
+            releaseMouse(); // Release mouse capture
             return true;
         }
         
         if (m_is_resizing) {
             m_is_resizing = false;
             m_resize_edge = 0;
+            releaseMouse(); // Release mouse capture
             return true;
         }
     }

@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+// Static mouse capture widget
+Widget* Widget::s_mouse_captured_widget = nullptr;
+
 Widget::Widget()
 {
     //ctor
@@ -105,6 +108,11 @@ Surface& Widget::getSurface() {
 
 bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
+    // If a widget has mouse capture, forward directly to it
+    if (s_mouse_captured_widget && s_mouse_captured_widget != this) {
+        return false; // Let the captured widget handle it
+    }
+    
     // Forward to children in reverse order (front to back for event handling)
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         const auto& child = *it;
@@ -131,7 +139,30 @@ bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, 
 
 bool Widget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
-    // Forward to children in reverse order (front to back for event handling)
+    // If a widget has mouse capture, forward directly to it regardless of position
+    if (s_mouse_captured_widget) {
+        // Find the captured widget and forward the event
+        if (s_mouse_captured_widget == this) {
+            // This widget has capture, handle the event
+            return true; // Will be handled by the specific widget's override
+        }
+        
+        // Check if captured widget is one of our children
+        for (const auto& child : m_children) {
+            if (child.get() == s_mouse_captured_widget) {
+                // Calculate relative coordinates for captured child
+                Rect child_pos = child->getPos();
+                int child_relative_x = relative_x - child_pos.x();
+                int child_relative_y = relative_y - child_pos.y();
+                return child->handleMouseMotion(event, child_relative_x, child_relative_y);
+            }
+        }
+        
+        // Not our captured widget, don't handle
+        return false;
+    }
+    
+    // Normal processing - forward to children in reverse order
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         const auto& child = *it;
         Rect child_pos = child->getPos();
@@ -157,7 +188,30 @@ bool Widget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x
 
 bool Widget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    // Forward to children in reverse order (front to back for event handling)
+    // If a widget has mouse capture, forward directly to it regardless of position
+    if (s_mouse_captured_widget) {
+        // Find the captured widget and forward the event
+        if (s_mouse_captured_widget == this) {
+            // This widget has capture, handle the event
+            return true; // Will be handled by the specific widget's override
+        }
+        
+        // Check if captured widget is one of our children
+        for (const auto& child : m_children) {
+            if (child.get() == s_mouse_captured_widget) {
+                // Calculate relative coordinates for captured child
+                Rect child_pos = child->getPos();
+                int child_relative_x = relative_x - child_pos.x();
+                int child_relative_y = relative_y - child_pos.y();
+                return child->handleMouseUp(event, child_relative_x, child_relative_y);
+            }
+        }
+        
+        // Not our captured widget, don't handle
+        return false;
+    }
+    
+    // Normal processing - forward to children in reverse order
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         const auto& child = *it;
         Rect child_pos = child->getPos();
@@ -179,4 +233,20 @@ bool Widget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, in
     
     // Event not handled by any child
     return false;
+}
+void Widget::captureMouse()
+{
+    s_mouse_captured_widget = this;
+}
+
+void Widget::releaseMouse()
+{
+    if (s_mouse_captured_widget == this) {
+        s_mouse_captured_widget = nullptr;
+    }
+}
+
+bool Widget::hasMouseCapture() const
+{
+    return s_mouse_captured_widget == this;
 }
