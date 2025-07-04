@@ -68,4 +68,16 @@ class WrongFormatException : public std::exception
         TagLib::String m_why;
 };
 
+// General I/O exception for file operations (lyrics, configs, etc.)
+class IOException : public std::exception
+{
+    public:
+        IOException(const std::string& why);
+        ~IOException() noexcept override = default;
+        const char *what() const noexcept override;
+    protected:
+    private:
+        std::string m_why;
+};
+
 #endif // EXCEPTIONS_H

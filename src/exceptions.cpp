@@ -87,3 +87,25 @@ const char *WrongFormatException::what() const noexcept
 {
     return m_why.toCString(true); // Return UTF-8 C-string representation
 }
+
+/**
+ * @brief Constructs an IOException.
+ * 
+ * This exception is used for general file I/O operations that don't fit the
+ * media-specific exception categories, such as lyrics file loading, configuration
+ * file access, or other auxiliary file operations.
+ * @param why A string describing the I/O error.
+ */
+IOException::IOException(const std::string& why) : std::exception(), m_why(why)
+{
+    //ctor
+}
+
+/**
+ * @brief Returns the exception's explanatory string.
+ * @return A C-style string detailing the I/O error.
+ */
+const char *IOException::what() const noexcept
+{
+    return m_why.c_str();
+}
