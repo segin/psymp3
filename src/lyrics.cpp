@@ -21,61 +21,94 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "lyrics.h"
-#include <fstream>
-#include <sstream>
-#include <regex>
-#include <algorithm>
-#include <iostream>
-#include <filesystem>
+#include "psymp3.h"
 
 bool LyricsFile::loadFromFile(const std::string& file_path) {
     clear();
     
-    std::ifstream file(file_path);
-    if (!file.is_open()) {
-        return false;
-    }
-    
-    // Read entire file into string
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    std::string content = buffer.str();
-    file.close();
-    
-    if (content.empty()) {
-        return false;
-    }
-    
-    // Determine file format and parse accordingly
-    std::string extension = file_path.substr(file_path.find_last_of(".") + 1);
-    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-    
-    bool success = false;
-    if (extension == "lrc") {
-        success = parseLRC(content);
-    } else if (extension == "txt") {
-        success = parsePlainText(content);
-    } else {
-        // Try LRC format first, then fall back to plain text
-        success = parseLRC(content);
-        if (!success) {
+    try {
+        // Use IOHandler to read the file - this may throw InvalidMediaException
+        auto io_handler = std::make_unique<FileIOHandler>(TagLib::String(file_path, TagLib::String::UTF8));
+        
+        // Get file size using seek/tell
+        io_handler->seek(0, SEEK_END);
+        long file_size = io_handler->tell();
+        io_handler->seek(0, SEEK_SET);
+        
+        if (file_size <= 0 || file_size > 10 * 1024 * 1024) {  // Sanity check: max 10MB for lyrics
+            return false;
+        }
+        
+        // Read entire file into buffer
+        std::vector<char> buffer(static_cast<size_t>(file_size));
+        size_t bytes_read = io_handler->read(buffer.data(), 1, static_cast<size_t>(file_size));
+        
+        if (bytes_read == 0) {
+            throw IOException("Failed to read any data from lyrics file");
+        }
+        
+        if (bytes_read != static_cast<size_t>(file_size)) {
+            // Partial read - could be I/O error, but we'll try to continue
+            std::cerr << "Warning: Only read " << bytes_read << " of " << file_size 
+                      << " bytes from lyrics file '" << file_path << "'" << std::endl;
+        }
+        
+        // Convert to string (handle partial reads)
+        std::string content(buffer.data(), bytes_read);
+        
+        if (content.empty()) {
+            return false;
+        }
+        
+        // Determine file format and parse accordingly
+        std::string extension = file_path.substr(file_path.find_last_of(".") + 1);
+        std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+        
+        bool success = false;
+        if (extension == "lrc") {
+            success = parseLRC(content);
+        } else if (extension == "txt") {
             success = parsePlainText(content);
+        } else {
+            // Try LRC format first, then fall back to plain text
+            success = parseLRC(content);
+            if (!success) {
+                success = parsePlainText(content);
+            }
         }
-    }
-    
-    if (success && !m_lines.empty()) {
-        // Sort lines by timestamp for synced lyrics
-        if (m_has_timing) {
-            std::sort(m_lines.begin(), m_lines.end(), 
-                     [](const LyricLine& a, const LyricLine& b) {
-                         return a.timestamp_ms < b.timestamp_ms;
-                     });
+        
+        if (success && !m_lines.empty()) {
+            // Sort lines by timestamp for synced lyrics
+            if (m_has_timing) {
+                std::sort(m_lines.begin(), m_lines.end(), 
+                         [](const LyricLine& a, const LyricLine& b) {
+                             return a.timestamp_ms < b.timestamp_ms;
+                         });
+            }
+            return true;
         }
-        return true;
+        
+        return false;
+        
+    } catch (const InvalidMediaException& e) {
+        // File doesn't exist, permission denied, etc. from FileIOHandler - this is expected
+        return false;
+    } catch (const IOException& e) {
+        // General I/O errors during lyrics processing
+        std::cerr << "I/O error loading lyrics file '" << file_path << "': " << e.what() << std::endl;
+        clear();
+        return false;
+    } catch (const std::exception& e) {
+        // Catch any other exceptions, parsing errors, etc.
+        std::cerr << "Error loading lyrics file '" << file_path << "': " << e.what() << std::endl;
+        clear(); // Ensure we're in a clean state
+        return false;
+    } catch (...) {
+        // Catch any other unexpected exceptions
+        std::cerr << "Unknown error loading lyrics file '" << file_path << "'" << std::endl;
+        clear();
+        return false;
     }
-    
-    return false;
 }
 
 bool LyricsFile::parseLRC(const std::string& content) {
@@ -233,49 +266,76 @@ void LyricsFile::clear() {
 namespace LyricsUtils {
 
 std::string findLyricsFile(const std::string& audio_file_path) {
-    // Extract base name without extension
-    size_t last_dot = audio_file_path.find_last_of(".");
-    size_t last_slash = audio_file_path.find_last_of("/\\");
-    
-    std::string base_path;
-    if (last_dot != std::string::npos && (last_slash == std::string::npos || last_dot > last_slash)) {
-        base_path = audio_file_path.substr(0, last_dot);
-    } else {
-        base_path = audio_file_path;
-    }
-    
-    // Try different lyrics file extensions
-    std::vector<std::string> extensions = {".lrc", ".LRC", ".srt", ".SRT", ".txt", ".TXT"};
-    
-    for (const auto& ext : extensions) {
-        std::string lyrics_path = base_path + ext;
-        std::ifstream file(lyrics_path);
-        if (file.good()) {
-            file.close();
-            return lyrics_path;
-        }
-    }
-    
-    // Try lyrics subdirectory
-    if (last_slash != std::string::npos) {
-        std::string dir = audio_file_path.substr(0, last_slash + 1);
-        std::string filename = audio_file_path.substr(last_slash + 1);
+    try {
+        // Extract base name without extension
+        size_t last_dot = audio_file_path.find_last_of(".");
+        size_t last_slash = audio_file_path.find_last_of("/\\");
         
-        if (last_dot != std::string::npos && last_dot > last_slash) {
-            filename = filename.substr(0, last_dot - last_slash - 1);
+        std::string base_path;
+        if (last_dot != std::string::npos && (last_slash == std::string::npos || last_dot > last_slash)) {
+            base_path = audio_file_path.substr(0, last_dot);
+        } else {
+            base_path = audio_file_path;
         }
+        
+        // Try different lyrics file extensions
+        std::vector<std::string> extensions = {".lrc", ".LRC", ".srt", ".SRT", ".txt", ".TXT"};
         
         for (const auto& ext : extensions) {
-            std::string lyrics_path = dir + "lyrics/" + filename + ext;
-            std::ifstream file(lyrics_path);
-            if (file.good()) {
-                file.close();
-                return lyrics_path;
+            try {
+                std::string lyrics_path = base_path + ext;
+                auto test_handler = std::make_unique<FileIOHandler>(TagLib::String(lyrics_path, TagLib::String::UTF8));
+                if (test_handler) {
+                    // Check if file has content by seeking to end
+                    test_handler->seek(0, SEEK_END);
+                    long size = test_handler->tell();
+                    if (size > 0) {
+                        return lyrics_path;
+                    }
+                }
+            } catch (...) {
+                // Ignore errors for individual file checks (ENOENT, EPERM, etc.)
+                continue;
             }
         }
+        
+        // Try lyrics subdirectory
+        if (last_slash != std::string::npos) {
+            std::string dir = audio_file_path.substr(0, last_slash + 1);
+            std::string filename = audio_file_path.substr(last_slash + 1);
+            
+            if (last_dot != std::string::npos && last_dot > last_slash) {
+                filename = filename.substr(0, last_dot - last_slash - 1);
+            }
+            
+            for (const auto& ext : extensions) {
+                try {
+                    std::string lyrics_path = dir + "lyrics/" + filename + ext;
+                    auto test_handler = std::make_unique<FileIOHandler>(TagLib::String(lyrics_path, TagLib::String::UTF8));
+                    if (test_handler) {
+                        // Check if file has content by seeking to end
+                        test_handler->seek(0, SEEK_END);
+                        long size = test_handler->tell();
+                        if (size > 0) {
+                            return lyrics_path;
+                        }
+                    }
+                } catch (...) {
+                    // Ignore errors for individual file checks (ENOENT, EPERM, etc.)
+                    continue;
+                }
+            }
+        }
+        
+        return "";
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Error searching for lyrics file for '" << audio_file_path << "': " << e.what() << std::endl;
+        return "";
+    } catch (...) {
+        std::cerr << "Unknown error searching for lyrics file for '" << audio_file_path << "'" << std::endl;
+        return "";
     }
-    
-    return "";
 }
 
 bool isLyricsFile(const std::string& file_path) {

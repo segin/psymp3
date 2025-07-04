@@ -41,6 +41,7 @@ Stream::Stream()
 Stream::Stream(TagLib::String name) : m_path(name)
 {
     m_tags = std::make_unique<TagLib::FileRef>(name.toCString(true));
+    loadLyrics(); // Load lyrics file if available
 }
 
 /**
@@ -224,4 +225,45 @@ unsigned int Stream::getPosition()
 unsigned long long Stream::getSPosition()
 {
     return m_sposition;
+}
+
+/**
+ * @brief Gets the lyrics file associated with this stream.
+ * @return Shared pointer to the lyrics file, or nullptr if no lyrics available.
+ */
+std::shared_ptr<LyricsFile> Stream::getLyrics() const
+{
+    return m_lyrics;
+}
+
+/**
+ * @brief Checks if this stream has lyrics available.
+ * @return true if lyrics are loaded and available.
+ */
+bool Stream::hasLyrics() const
+{
+    return m_lyrics && m_lyrics->hasLyrics();
+}
+
+/**
+ * @brief Loads lyrics for this stream from a file with the same base name.
+ * This method is called automatically when the stream is opened.
+ */
+void Stream::loadLyrics()
+{
+    if (m_path.isEmpty()) {
+        return;
+    }
+    
+    // Convert TagLib::String to std::string for lyrics utilities
+    std::string file_path = m_path.to8Bit(true);
+    std::string lyrics_path = LyricsUtils::findLyricsFile(file_path);
+    
+    if (!lyrics_path.empty()) {
+        m_lyrics = std::make_shared<LyricsFile>();
+        if (!m_lyrics->loadFromFile(lyrics_path)) {
+            // Failed to load lyrics, clear the pointer
+            m_lyrics.reset();
+        }
+    }
 }

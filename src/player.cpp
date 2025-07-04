@@ -1296,6 +1296,9 @@ void Player::Run(const PlayerOptions& options) {
     add_label("fft_mode", Rect(550, 30, 0, 0));
     m_loop_mode = LoopMode::None; // Default loop mode on startup
 
+    // Initialize lyrics widget
+    m_lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
+
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
     

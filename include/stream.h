@@ -25,6 +25,9 @@
 #ifndef STREAM_H
 #define STREAM_H
 
+#include "lyrics.h"
+#include <memory>
+
 class Stream
 {
     public:
@@ -37,6 +40,11 @@ class Stream
         TagLib::String getTitle();
         TagLib::String getAlbum();
         TagLib::String getFilePath() const;
+        
+        // Lyrics support
+        std::shared_ptr<LyricsFile> getLyrics() const;
+        bool hasLyrics() const;
+        
         virtual unsigned int getLength(); // in msec!
         virtual unsigned long long getSLength(); // in samples!
         virtual unsigned int getChannels();
@@ -62,8 +70,15 @@ class Stream
         long long       m_sposition; // in samples; needs to be at least 64bit.
         int             m_encoding;  // value ??? - for later use
         bool            m_eof;
+        
+        // Lyrics support
+        std::shared_ptr<LyricsFile> m_lyrics;
+        
     private:
         std::unique_ptr<TagLib::FileRef> m_tags;
+        
+        // Helper method to load lyrics for this stream
+        void loadLyrics();
 };
 
 #endif // STREAM_H

@@ -25,6 +25,7 @@
 #define PLAYER_H
 
 #include "font.h"
+#include "LyricsWidget.h"
 #include <optional>
 
 #include "font.h"
@@ -159,6 +160,7 @@ class Player
             Uint32 duration_ms;
         };
         std::optional<PendingToast> m_pending_toast;
+        std::unique_ptr<LyricsWidget> m_lyrics_widget;
         std::unique_ptr<Label> m_pause_indicator;
         std::unique_ptr<FadingWidget> m_seek_left_indicator;
         std::unique_ptr<FadingWidget> m_seek_right_indicator;

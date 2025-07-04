@@ -27,6 +27,7 @@
 #include <vector>
 #include <string>
 #include <memory>
+#include "IOHandler.h"
 
 /**
  * @brief Represents a single line of lyrics with optional timing information.
