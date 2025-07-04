@@ -352,15 +352,17 @@ void WindowFrameWidget::rebuildSurface()
     int content_width = total_width - (content_border + 1) * 2;
     int content_height = total_height - (content_border + 1) * 2;
     
-    // 5. Titlebar area (light gray background)
+    // 5. Titlebar area (light gray background for controls, blue for title area)
     int titlebar_height = TITLEBAR_TOTAL_HEIGHT;
+    
+    // Fill entire titlebar area with light gray first (for controls)
     frame_surface->box(content_x, content_y, 
                       content_x + content_width - 1, content_y + titlebar_height - 1, 
                       192, 192, 192, 255);
     
-    // 6. Blue titlebar area (18px high, with 1px borders top and bottom)
-    frame_surface->box(content_x, content_y + 1, 
-                      content_x + content_width - 1, content_y + TITLEBAR_HEIGHT, 
+    // 6. Blue titlebar area (18px high, directly against black border)
+    frame_surface->box(content_x, content_y, 
+                      content_x + content_width - 1, content_y + TITLEBAR_HEIGHT - 1, 
                       0, 0, 128, 255); // Classic Windows 3.1 blue
     
     // 7. Client area (white background)
@@ -374,27 +376,24 @@ void WindowFrameWidget::rebuildSurface()
     // Calculate exact position to align with separator between minimize and maximize buttons
     Rect minimize_bounds_temp = getMinimizeButtonBounds();
     int corner_separator_x = minimize_bounds_temp.x() + BUTTON_SIZE; // Right edge of minimize button
+    int notch_offset = corner_separator_x - resize_start; // Distance from resize frame edge
     
-    // Top-left corner notch (vertical separator aligned with button separator)
-    frame_surface->vline(corner_separator_x, resize_start, resize_start + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
-    // Top-left corner notch (horizontal separator aligned with titlebar bottom)
-    int titlebar_bottom_y = content_y + titlebar_height - 1;
-    frame_surface->hline(resize_start, corner_separator_x, titlebar_bottom_y, 0, 0, 0, 255);
+    // Top-left corner notch 
+    frame_surface->vline(corner_separator_x, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
+    frame_surface->hline(resize_start, resize_start + notch_offset - 1, content_y + titlebar_height - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
     
-    // Top-right corner notch (vertical separator aligned with button separator, mirrored)
-    frame_surface->vline(total_width - (corner_separator_x - resize_start) - 1, resize_start, resize_start + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255);
-    // Top-right corner notch (horizontal separator aligned with titlebar bottom)
-    frame_surface->hline(total_width - (corner_separator_x - resize_start) - 1, total_width - resize_start - 1, titlebar_bottom_y, 0, 0, 0, 255);
+    // Top-right corner notch (mirrored)
+    int right_separator_x = total_width - notch_offset - 1;
+    frame_surface->vline(right_separator_x, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
+    frame_surface->hline(total_width - notch_offset, total_width - resize_start - 1, content_y + titlebar_height - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
     
-    // Bottom-left corner notch (vertical separator aligned with button separator)
-    frame_surface->vline(corner_separator_x, total_height - resize_start - RESIZE_BORDER_WIDTH, total_height - resize_start - 1, 0, 0, 0, 255);
-    // Bottom-left corner notch (horizontal separator aligned with titlebar bottom mirrored)
-    frame_surface->hline(resize_start, corner_separator_x, total_height - resize_start - 1, 0, 0, 0, 255);
+    // Bottom-left corner notch (mirrored from top)
+    frame_surface->vline(corner_separator_x, content_border + content_height, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
+    frame_surface->hline(resize_start, resize_start + notch_offset - 1, content_border + content_height, 0, 0, 0, 255); // Horizontal at client bottom
     
-    // Bottom-right corner notch (vertical separator aligned with button separator, mirrored)
-    frame_surface->vline(total_width - (corner_separator_x - resize_start) - 1, total_height - resize_start - RESIZE_BORDER_WIDTH, total_height - resize_start - 1, 0, 0, 0, 255);
-    // Bottom-right corner notch (horizontal separator aligned with titlebar bottom mirrored)
-    frame_surface->hline(total_width - (corner_separator_x - resize_start) - 1, total_width - resize_start - 1, total_height - resize_start - 1, 0, 0, 0, 255);
+    // Bottom-right corner notch (mirrored from top-left)
+    frame_surface->vline(right_separator_x, content_border + content_height, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
+    frame_surface->hline(total_width - notch_offset, total_width - resize_start - 1, content_border + content_height, 0, 0, 0, 255); // Horizontal at client bottom
     
     // TODO: Add title text rendering when font access is available
     
@@ -467,7 +466,7 @@ Rect WindowFrameWidget::getMinimizeButtonBounds() const
     
     // Account for separator: minimize button is (BUTTON_SIZE * 2 + 1) from right edge  
     int button_x = content_x + content_width - (BUTTON_SIZE * 2) - 1;
-    int button_y = content_y + 1; // Inside titlebar blue area
+    int button_y = content_y; // At top of titlebar area
     
     return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
@@ -480,7 +479,7 @@ Rect WindowFrameWidget::getMaximizeButtonBounds() const
     int content_width = m_client_width;
     
     int button_x = content_x + content_width - BUTTON_SIZE;
-    int button_y = content_y + 1; // Inside titlebar blue area
+    int button_y = content_y; // At top of titlebar area
     
     return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
@@ -491,7 +490,7 @@ Rect WindowFrameWidget::getControlMenuBounds() const
     int content_x = content_border + 1;
     int content_y = content_border + 1;
     
-    return Rect(content_x, content_y + 1, CONTROL_MENU_SIZE, CONTROL_MENU_SIZE);
+    return Rect(content_x, content_y, CONTROL_MENU_SIZE, CONTROL_MENU_SIZE);
 }
 
 void WindowFrameWidget::drawWindowControls(Surface& surface) const
@@ -691,14 +690,14 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
 
 void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int center_y, int size)
 {
-    // Minimize triangle using one-indexed coordinates within button:
-    // Top-left at (6, 8) in one-indexed = (5, 7) in zero-indexed
-    // Convert center coordinates to button-relative coordinates
-    Sint16 x1 = center_x - 4;  // Left point
+    // Minimize triangle - downward pointing
+    // Top-left at (6, 8) in one-indexed button coordinates
+    // Create a simple downward triangle
+    Sint16 x1 = center_x - 3;  // Left point
     Sint16 y1 = center_y - 1;  // Top edge
-    Sint16 x2 = center_x + 2;  // Right point  
+    Sint16 x2 = center_x + 3;  // Right point  
     Sint16 y2 = center_y - 1;  // Top edge
-    Sint16 x3 = center_x - 1;  // Bottom point
+    Sint16 x3 = center_x;      // Bottom point (center)
     Sint16 y3 = center_y + 2;  // Bottom edge
     
     surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
@@ -706,15 +705,15 @@ void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int cen
 
 void WindowFrameWidget::drawUpTriangle(Surface& surface, int center_x, int center_y, int size)
 {
-    // Maximize triangle using one-indexed coordinates within button:
-    // Control points (9, 6), (12, 10), (6, 10) in one-indexed
-    // Convert to zero-indexed and adjust relative to center
-    Sint16 x1 = center_x;      // Top point (9, 6)
-    Sint16 y1 = center_y - 3;  
-    Sint16 x2 = center_x + 3;  // Bottom-right point (12, 10)
-    Sint16 y2 = center_y + 1;  
-    Sint16 x3 = center_x - 3;  // Bottom-left point (6, 10)
-    Sint16 y3 = center_y + 1;  
+    // Maximize triangle - upward pointing  
+    // Control points (9, 6), (12, 10), (6, 10) in one-indexed button coordinates
+    // Create an upward triangle
+    Sint16 x1 = center_x;      // Top point (center)
+    Sint16 y1 = center_y - 2;  // Top point
+    Sint16 x2 = center_x + 3;  // Bottom-right point
+    Sint16 y2 = center_y + 1;  // Bottom edge
+    Sint16 x3 = center_x - 3;  // Bottom-left point
+    Sint16 y3 = center_y + 1;  // Bottom edge
     
     surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
 }
