@@ -141,6 +141,18 @@ public:
      * @param callback Function to call when maximize button is clicked
      */
     void setOnMaximize(std::function<void()> callback) { m_on_maximize = callback; }
+    
+    /**
+     * @brief Sets control menu callback.
+     * @param callback Function to call when control menu is clicked
+     */
+    void setOnControlMenu(std::function<void()> callback) { m_on_control_menu = callback; }
+    
+    /**
+     * @brief Sets resize callback.
+     * @param callback Function to call when window is resized (new_width, new_height)
+     */
+    void setOnResize(std::function<void(int new_width, int new_height)> callback) { m_on_resize = callback; }
 
 private:
     static constexpr int TITLEBAR_HEIGHT = 24;
@@ -148,6 +160,7 @@ private:
     static constexpr int BUTTON_WIDTH = 16;
     static constexpr int BUTTON_HEIGHT = 14;
     static constexpr int BUTTON_SPACING = 2;
+    static constexpr int CONTROL_MENU_SIZE = 16;
     
     std::string m_title;
     int m_client_width;
@@ -169,6 +182,14 @@ private:
     Uint32 m_last_click_time;
     bool m_double_click_pending;
     
+    // Resize state
+    bool m_is_resizing;
+    int m_resize_edge; // 0=none, 1=left, 2=right, 4=top, 8=bottom, combinations for corners
+    int m_resize_start_x;
+    int m_resize_start_y;
+    int m_resize_start_width;
+    int m_resize_start_height;
+    
     // Drag callbacks
     std::function<void(int dx, int dy)> m_on_drag;
     std::function<void()> m_on_drag_start;
@@ -177,6 +198,8 @@ private:
     std::function<void()> m_on_close;
     std::function<void()> m_on_minimize;
     std::function<void()> m_on_maximize;
+    std::function<void()> m_on_control_menu;
+    std::function<void(int new_width, int new_height)> m_on_resize;
     
     /**
      * @brief Creates a default white client area widget.
@@ -223,10 +246,24 @@ private:
     Rect getMaximizeButtonBounds() const;
     
     /**
+     * @brief Gets the bounds of the control menu box.
+     * @return Rectangle of control menu box
+     */
+    Rect getControlMenuBounds() const;
+    
+    /**
      * @brief Draws window control buttons on the surface.
      * @param surface Surface to draw on
      */
     void drawWindowControls(Surface& surface) const;
+    
+    /**
+     * @brief Determines which resize edge/corner the mouse is over.
+     * @param x X coordinate relative to this widget
+     * @param y Y coordinate relative to this widget
+     * @return Resize edge flags (1=left, 2=right, 4=top, 8=bottom)
+     */
+    int getResizeEdge(int x, int y) const;
 };
 
 #endif // WINDOWFRAMEWIDGET_H

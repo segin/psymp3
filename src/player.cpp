@@ -1668,6 +1668,14 @@ void Player::toggleTestWindowH()
             showToast("Test Window H: Maximized");
         });
         
+        m_test_window_h->setOnControlMenu([this]() {
+            showToast("Test Window H: Control Menu");
+        });
+        
+        m_test_window_h->setOnResize([this](int new_width, int new_height) {
+            showToast("Test Window H: Resized to " + std::to_string(new_width) + "x" + std::to_string(new_height));
+        });
+        
         showToast("Test Window H: Opened");
     }
 }
@@ -1710,6 +1718,14 @@ void Player::toggleTestWindowB()
         
         m_test_window_b->setOnMaximize([this]() {
             showToast("Test Window B: Maximized");
+        });
+        
+        m_test_window_b->setOnControlMenu([this]() {
+            showToast("Test Window B: Control Menu");
+        });
+        
+        m_test_window_b->setOnResize([this](int new_width, int new_height) {
+            showToast("Test Window B: Resized to " + std::to_string(new_width) + "x" + std::to_string(new_height));
         });
         
         showToast("Test Window B: Opened");
