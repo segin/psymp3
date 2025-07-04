@@ -405,6 +405,9 @@ void WindowFrameWidget::rebuildSurface()
     // Create the window frame surface
     auto frame_surface = std::make_unique<Surface>(total_width, total_height, true);
     
+    // Calculate effective resize width for drawing frame structure
+    int effective_resize_width = getEffectiveResizeBorderWidth();
+    
     // Fill with window background color (light gray)
     uint32_t bg_color = frame_surface->MapRGB(192, 192, 192);
     frame_surface->FillRect(bg_color);
