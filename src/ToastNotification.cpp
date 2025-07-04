@@ -85,6 +85,9 @@ void ToastNotification::startFadeOut()
     if (m_state != State::FadingOut && m_state != State::Expired) {
         m_state = State::FadingOut;
         m_expiration_time = SDL_GetTicks(); // Start fade-out immediately
+        
+        // Use a much shorter fade duration for forced fade-outs (100ms instead of 350ms)
+        m_fade_duration = 100;
     }
 }
 
