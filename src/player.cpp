@@ -729,6 +729,10 @@ bool Player::updateGUI()
             m_seek_right_indicator->BlitTo(*graph);
         }
     }
+    
+    // --- Window Rendering ---
+    // Render floating windows on top of everything else
+    renderWindows();
 
 
     // --- End of critical section ---
@@ -937,6 +941,18 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             fft->setFFTMode(next_mode);
             showToast("FFT Mode: " + fft->getFFTModeName());
             updateInfo();
+            break;
+        }
+        
+        case SDLK_h:
+        {
+            toggleTestWindowH();
+            break;
+        }
+        
+        case SDLK_b:
+        {
+            toggleTestWindowB();
             break;
         }
 
@@ -1371,16 +1387,19 @@ void Player::Run(const PlayerOptions& options) {
             }
             case SDL_MOUSEBUTTONDOWN:
             {
+                handleWindowMouseEvents(event);
                 handleMouseButtonDown(event.button);
                 break;
             }
             case SDL_MOUSEMOTION:
             {
+                handleWindowMouseEvents(event);
                 handleMouseMotion(event.motion);
                 break;
             }
             case SDL_MOUSEBUTTONUP:
             {
+                handleWindowMouseEvents(event);
                 handleMouseButtonUp(event.button);
                 break;
             }
@@ -1517,4 +1536,129 @@ bool Player::findFirstPlayableTrack() {
 
     // No playable tracks found
     return false;
+}
+
+/**
+ * @brief Renders all floating windows in z-order.
+ */
+void Player::renderWindows()
+{
+    // Sort windows by z-order (lowest to highest)
+    std::vector<WindowWidget*> sorted_windows;
+    
+    if (m_test_window_h) {
+        sorted_windows.push_back(m_test_window_h.get());
+    }
+    
+    if (m_test_window_b) {
+        sorted_windows.push_back(m_test_window_b.get());
+    }
+    
+    std::sort(sorted_windows.begin(), sorted_windows.end(),
+              [](const WindowWidget* a, const WindowWidget* b) {
+                  return a->getZOrder() < b->getZOrder();
+              });
+    
+    // Render windows in z-order
+    for (auto* window : sorted_windows) {
+        window->BlitTo(*graph);
+    }
+}
+
+/**
+ * @brief Handles mouse events for windows.
+ * @param event The SDL event to handle
+ */
+void Player::handleWindowMouseEvents(const SDL_Event& event)
+{
+    // Create list of windows sorted by z-order (highest first for event handling)
+    std::vector<WindowWidget*> sorted_windows;
+    
+    if (m_test_window_h) {
+        sorted_windows.push_back(m_test_window_h.get());
+    }
+    
+    if (m_test_window_b) {
+        sorted_windows.push_back(m_test_window_b.get());
+    }
+    
+    std::sort(sorted_windows.begin(), sorted_windows.end(),
+              [](const WindowWidget* a, const WindowWidget* b) {
+                  return a->getZOrder() > b->getZOrder();
+              });
+    
+    // Handle events for windows (front to back)
+    for (auto* window : sorted_windows) {
+        if (!window) continue;
+        
+        Rect window_rect = window->getPos();
+        int mouse_x = 0, mouse_y = 0;
+        
+        // Get mouse coordinates based on event type
+        if (event.type == SDL_MOUSEBUTTONDOWN || event.type == SDL_MOUSEBUTTONUP) {
+            mouse_x = event.button.x;
+            mouse_y = event.button.y;
+        } else if (event.type == SDL_MOUSEMOTION) {
+            mouse_x = event.motion.x;
+            mouse_y = event.motion.y;
+        } else {
+            continue;
+        }
+        
+        // Check if mouse is within window bounds
+        if (mouse_x >= window_rect.x() && mouse_x < window_rect.x() + window_rect.width() &&
+            mouse_y >= window_rect.y() && mouse_y < window_rect.y() + window_rect.height()) {
+            
+            int relative_x = mouse_x - window_rect.x();
+            int relative_y = mouse_y - window_rect.y();
+            
+            bool handled = false;
+            
+            if (event.type == SDL_MOUSEBUTTONDOWN) {
+                handled = window->handleMouseDown(event.button, relative_x, relative_y);
+            } else if (event.type == SDL_MOUSEMOTION) {
+                handled = window->handleMouseMotion(event.motion, relative_x, relative_y);
+            } else if (event.type == SDL_MOUSEBUTTONUP) {
+                handled = window->handleMouseUp(event.button, relative_x, relative_y);
+            }
+            
+            if (handled) {
+                break; // Event consumed by this window
+            }
+        }
+    }
+}
+
+/**
+ * @brief Toggles the test window H (160x120 white window).
+ */
+void Player::toggleTestWindowH()
+{
+    if (m_test_window_h) {
+        // Close the window
+        m_test_window_h.reset();
+        showToast("Test Window H: Closed");
+    } else {
+        // Open the window
+        m_test_window_h = std::make_unique<WindowWidget>(160, 120, "Test Window H");
+        m_test_window_h->setPos(Rect(150, 150, 160, 120));
+        showToast("Test Window H: Opened");
+    }
+}
+
+/**
+ * @brief Toggles the test window B (160x60 window).
+ */
+void Player::toggleTestWindowB()
+{
+    if (m_test_window_b) {
+        // Close the window
+        m_test_window_b.reset();
+        showToast("Test Window B: Closed");
+    } else {
+        // Open the window
+        m_test_window_b = std::make_unique<WindowWidget>(160, 60, "Test Window B");
+        m_test_window_b->setPos(Rect(200, 200, 160, 60));
+        showToast("Test Window B: Opened");
+    }
 }

@@ -120,6 +120,12 @@ class Player
         void handleKeyUp(const SDL_keysym& keysym);
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
+        
+        // Window management methods
+        void renderWindows();
+        void handleWindowMouseEvents(const SDL_Event& event);
+        void toggleTestWindowH();
+        void toggleTestWindowB();
 
         uint8_t m_seek_direction = 0;
         std::unique_ptr<Display> screen;
@@ -165,6 +171,12 @@ class Player
         std::unique_ptr<Label> m_pause_indicator;
         std::unique_ptr<FadingWidget> m_seek_left_indicator;
         std::unique_ptr<FadingWidget> m_seek_right_indicator;
+        
+        // Window management
+        std::vector<std::unique_ptr<WindowWidget>> m_windows;
+        std::unique_ptr<WindowWidget> m_test_window_h;
+        std::unique_ptr<WindowWidget> m_test_window_b;
+        
         LoopMode m_loop_mode;
 
         int m_navigation_direction = 1; // 1 for fwd, -1 for back
