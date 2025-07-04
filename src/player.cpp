@@ -1692,6 +1692,7 @@ void Player::toggleTestWindowB()
     } else {
         // Open the window (client area is 160x60)
         m_test_window_b = std::make_unique<WindowFrameWidget>(160, 60, "Test Window B");
+        m_test_window_b->setResizable(false); // Make window B non-resizable
         m_test_window_b->setPos(Rect(200, 200, 164, 86)); // Frame size includes borders
         
         // Set up drag callbacks

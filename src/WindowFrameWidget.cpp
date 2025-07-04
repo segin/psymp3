@@ -234,9 +234,27 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             m_client_width = new_width;
             m_client_height = new_height;
             
+            // Update window total size based on new client size
+            int effective_resize_width = getEffectiveResizeBorderWidth();
+            int border_width = OUTER_BORDER_WIDTH + effective_resize_width;
+            int total_width = m_client_width + (border_width * 2);
+            int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (border_width * 2);
+            
+            // Update window size
+            Rect current_pos = getPos();
+            setPos(Rect(current_pos.x(), current_pos.y(), total_width, total_height));
+            
             // Update layout and rebuild surface
             updateLayout();
             rebuildSurface();
+            
+            // Force client area to repaint by rebuilding its surface if it exists
+            if (m_client_area) {
+                auto client_surface = std::make_unique<Surface>(m_client_width, m_client_height, true);
+                uint32_t white_color = client_surface->MapRGB(255, 255, 255);
+                client_surface->FillRect(white_color);
+                m_client_area->setSurface(std::move(client_surface));
+            }
             
             // Notify callback
             if (m_on_resize) {
@@ -670,6 +688,27 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
     }
     
     return edge;
+}
+
+void WindowFrameWidget::setResizable(bool resizable)
+{
+    if (m_resizable != resizable) {
+        m_resizable = resizable;
+        
+        // Recalculate window size based on new border requirements
+        int effective_resize_width = getEffectiveResizeBorderWidth();
+        int border_width = OUTER_BORDER_WIDTH + effective_resize_width;
+        int total_width = m_client_width + (border_width * 2);
+        int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (border_width * 2);
+        
+        // Update window size
+        Rect current_pos = getPos();
+        setPos(Rect(current_pos.x(), current_pos.y(), total_width, total_height));
+        
+        // Rebuild surface and update layout
+        updateLayout();
+        rebuildSurface();
+    }
 }
 
 int WindowFrameWidget::getEffectiveResizeBorderWidth() const

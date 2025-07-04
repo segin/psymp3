@@ -49,7 +49,7 @@ public:
      * @brief Sets whether the window is resizable.
      * @param resizable If false, reduces resize frame to just 1px border
      */
-    void setResizable(bool resizable) { m_resizable = resizable; rebuildSurface(); }
+    void setResizable(bool resizable);
     
     /**
      * @brief Sets whether the window can be minimized.
