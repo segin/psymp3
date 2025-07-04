@@ -421,9 +421,9 @@ void WindowFrameWidget::rebuildSurface()
     // 4. Content area coordinates (inside the black border)
     int content_x = content_border + 1;
     int content_y = content_border + 1;
-    // Reserve space for resize frame on right and bottom
-    int content_width = total_width - (content_border + 1) * 2;
-    int content_height = total_height - (content_border + 1) * 2;
+    // Reserve space for resize frame on right and bottom, with extra 1px offset
+    int content_width = total_width - (content_border + 1) * 2 - 1;  // Extra 1px on right
+    int content_height = total_height - (content_border + 1) * 2 - 1; // Extra 1px on bottom
     
     // 5. Blue titlebar area (18px high, directly against black border)
     frame_surface->box(content_x, content_y, 
@@ -729,17 +729,20 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
     }
     
     // Check for edge areas with expanded hit zones for right and bottom
-    int right_hit_area = total_border_width + 2;  // +2 pixels on right
-    int bottom_hit_area = total_border_width + 1; // +1 pixel on bottom
+    // Include outer pixel border in hit detection (start from 0)
+    int left_hit_area = total_border_width;       // Left: 3 pixels from edge
+    int top_hit_area = total_border_width;        // Top: 3 pixels from edge  
+    int right_hit_area = total_border_width + 3;  // Right: +3 pixels (was +2, now +3 for outer border)
+    int bottom_hit_area = total_border_width + 2; // Bottom: +2 pixels (was +1, now +2 for outer border)
     
-    if (x < total_border_width) {
-        edge |= 1; // Left edge
+    if (x < left_hit_area) {
+        edge |= 1; // Left edge (includes outer border)
     } else if (x >= total_width - right_hit_area) {
         edge |= 2; // Right edge (expanded hit area)
     }
     
-    if (y < total_border_width) {
-        edge |= 4; // Top edge
+    if (y < top_hit_area) {
+        edge |= 4; // Top edge (includes outer border)  
     } else if (y >= total_height - bottom_hit_area) {
         edge |= 8; // Bottom edge (expanded hit area)
     }
