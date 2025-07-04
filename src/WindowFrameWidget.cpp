@@ -156,8 +156,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             if (resize_edge != 0) {
                 m_is_resizing = true;
                 m_resize_edge = resize_edge;
-                m_resize_start_x = event.x;
-                m_resize_start_y = event.y;
+                SDL_GetMouseState(&m_resize_start_x, &m_resize_start_y);
                 m_resize_start_width = m_client_width;
                 m_resize_start_height = m_client_height;
                 return true;
@@ -190,6 +189,30 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
 
 bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
+    // Set appropriate cursor based on location
+    if (!m_is_dragging && !m_is_resizing && m_resizable) {
+        int resize_edge = getResizeEdge(relative_x, relative_y);
+        if (resize_edge != 0) {
+            // Set resize cursor based on edge
+            if ((resize_edge & 1) && (resize_edge & 4)) { // Top-left corner
+                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northwest-southeast cursor
+            } else if ((resize_edge & 2) && (resize_edge & 4)) { // Top-right corner
+                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+            } else if ((resize_edge & 1) && (resize_edge & 8)) { // Bottom-left corner
+                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+            } else if ((resize_edge & 2) && (resize_edge & 8)) { // Bottom-right corner
+                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northwest-southeast cursor
+            } else if (resize_edge & 3) { // Left or right edge
+                SDL_SetCursor(SDL_GetCursor()); // TODO: Set east-west cursor
+            } else if (resize_edge & 12) { // Top or bottom edge
+                SDL_SetCursor(SDL_GetCursor()); // TODO: Set north-south cursor
+            }
+        } else {
+            // Reset to default cursor
+            SDL_SetCursor(SDL_GetCursor());
+        }
+    }
+    
     if (m_is_dragging) {
         int dx = event.x - m_last_mouse_x;
         int dy = event.y - m_last_mouse_y;
@@ -381,36 +404,41 @@ void WindowFrameWidget::rebuildSurface()
                       content_x + content_width - 1, content_y + TITLEBAR_HEIGHT - 1, 
                       0, 0, 128, 255); // Classic Windows 3.1 blue
     
-    // 6. Client area (white background)
+    // 6. 1px black border between titlebar and client area
     int client_y = content_y + TITLEBAR_HEIGHT;
-    int client_height = content_height - TITLEBAR_HEIGHT;
-    frame_surface->box(content_x, client_y, 
-                      content_x + content_width - 1, client_y + client_height - 1, 
+    frame_surface->hline(content_x, content_x + content_width - 1, client_y, 0, 0, 0, 255);
+    
+    // 7. Client area (white background, starting after the 1px black border)
+    int client_area_y = client_y + 1;
+    int client_height = content_height - TITLEBAR_HEIGHT - 1; // Account for 1px black border
+    frame_surface->box(content_x, client_area_y, 
+                      content_x + content_width - 1, client_area_y + client_height - 1, 
                       255, 255, 255, 255);
     
-    // 7. Draw corner separators for resizable windows only
+    // 8. Draw corner separators for resizable windows only
     if (m_resizable && effective_resize_width > 1) {
         // Calculate exact position to align with separator between minimize and maximize buttons
         Rect minimize_bounds_temp = getMinimizeButtonBounds();
         int corner_separator_x = minimize_bounds_temp.x() + BUTTON_SIZE; // Right edge of minimize button
         int notch_offset = corner_separator_x - resize_start; // Distance from resize frame edge
         
-        // Top-left corner notch 
-        frame_surface->vline(corner_separator_x, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(resize_start, resize_start + notch_offset - 1, content_y + TITLEBAR_HEIGHT - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
+        // Top-left corner notch (1px away from corner)
+        frame_surface->vline(corner_separator_x - 1, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
+        frame_surface->hline(resize_start, resize_start + notch_offset - 2, content_y + TITLEBAR_HEIGHT - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
         
-        // Top-right corner notch (mirrored)
-        int right_separator_x = total_width - notch_offset - 1;
+        // Top-right corner notch (1px away from corner)
+        int right_separator_x = total_width - notch_offset;
         frame_surface->vline(right_separator_x, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(total_width - notch_offset, total_width - resize_start - 1, content_y + TITLEBAR_HEIGHT - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
+        frame_surface->hline(total_width - notch_offset + 1, total_width - resize_start - 1, content_y + TITLEBAR_HEIGHT - 1, 0, 0, 0, 255); // Horizontal at titlebar bottom
         
-        // Bottom-left corner notch (mirrored from top)
-        frame_surface->vline(corner_separator_x, content_border + content_height, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(resize_start, resize_start + notch_offset - 1, content_border + content_height, 0, 0, 0, 255); // Horizontal at client bottom
+        // Bottom-left corner notch (1px away from corner, aligned to 19px above)
+        int bottom_notch_y = total_height - 19; // 19px from bottom
+        frame_surface->vline(corner_separator_x - 1, bottom_notch_y, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
+        frame_surface->hline(resize_start, resize_start + notch_offset - 2, bottom_notch_y, 0, 0, 0, 255); // Horizontal at proper height
         
-        // Bottom-right corner notch (mirrored from top-left)
-        frame_surface->vline(right_separator_x, content_border + content_height, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(total_width - notch_offset, total_width - resize_start - 1, content_border + content_height, 0, 0, 0, 255); // Horizontal at client bottom
+        // Bottom-right corner notch (1px away from corner, aligned to 19px above)
+        frame_surface->vline(right_separator_x, bottom_notch_y, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
+        frame_surface->hline(total_width - notch_offset + 1, total_width - resize_start - 1, bottom_notch_y, 0, 0, 0, 255); // Horizontal at proper height
     }
     
     // TODO: Add title text rendering when font access is available
