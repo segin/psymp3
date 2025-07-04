@@ -155,11 +155,12 @@ public:
     void setOnResize(std::function<void(int new_width, int new_height)> callback) { m_on_resize = callback; }
 
 private:
-    static constexpr int TITLEBAR_HEIGHT = 18;  // Windows 3.x standard
-    static constexpr int BORDER_WIDTH = 2;
-    static constexpr int RESIZE_BORDER_WIDTH = 2;  // Interior resize bar width
-    static constexpr int BUTTON_SIZE = 18;  // Square buttons, same as titlebar height
-    static constexpr int CONTROL_MENU_SIZE = 18;  // Same as titlebar height
+    static constexpr int TITLEBAR_HEIGHT = 18;  // Windows 3.x blue area
+    static constexpr int TITLEBAR_TOTAL_HEIGHT = 20;  // Blue area + 1px top + 1px bottom border
+    static constexpr int OUTER_BORDER_WIDTH = 1;  // Outer frame around everything
+    static constexpr int RESIZE_BORDER_WIDTH = 3;  // Resize frame thickness (thicker border)
+    static constexpr int BUTTON_SIZE = 18;  // Square buttons, same as titlebar blue height
+    static constexpr int CONTROL_MENU_SIZE = 18;  // Same as titlebar blue height
     
     std::string m_title;
     int m_client_width;
@@ -266,6 +267,62 @@ private:
      * @param surface Surface to draw on
      */
     void drawSystemMenu(Surface& surface) const;
+    
+    /**
+     * @brief Draws a Windows 3.1 style button with 3D bevel effects.
+     * @param surface Surface to draw on
+     * @param x Button x position
+     * @param y Button y position
+     * @param width Button width
+     * @param height Button height
+     * @param pressed Whether button appears pressed (inverted bevel)
+     */
+    static void drawButton(Surface& surface, int x, int y, int width, int height, bool pressed = false);
+    
+    /**
+     * @brief Draws a downward pointing triangle (minimize symbol).
+     * @param surface Surface to draw on
+     * @param center_x Triangle center x coordinate
+     * @param center_y Triangle center y coordinate
+     * @param size Triangle size
+     */
+    static void drawDownTriangle(Surface& surface, int center_x, int center_y, int size);
+    
+    /**
+     * @brief Draws an upward pointing triangle (maximize symbol).
+     * @param surface Surface to draw on
+     * @param center_x Triangle center x coordinate
+     * @param center_y Triangle center y coordinate
+     * @param size Triangle size
+     */
+    static void drawUpTriangle(Surface& surface, int center_x, int center_y, int size);
+    
+    /**
+     * @brief Draws a left pointing triangle (scrollbar left/up button).
+     * @param surface Surface to draw on
+     * @param center_x Triangle center x coordinate
+     * @param center_y Triangle center y coordinate
+     * @param size Triangle size
+     */
+    static void drawLeftTriangle(Surface& surface, int center_x, int center_y, int size);
+    
+    /**
+     * @brief Draws a right pointing triangle (scrollbar right/down button).
+     * @param surface Surface to draw on
+     * @param center_x Triangle center x coordinate
+     * @param center_y Triangle center y coordinate
+     * @param size Triangle size
+     */
+    static void drawRightTriangle(Surface& surface, int center_x, int center_y, int size);
+    
+    /**
+     * @brief Draws a restore window symbol (two overlapping rectangles).
+     * @param surface Surface to draw on
+     * @param center_x Symbol center x coordinate
+     * @param center_y Symbol center y coordinate
+     * @param size Symbol size
+     */
+    static void drawRestoreSymbol(Surface& surface, int center_x, int center_y, int size);
     
     /**
      * @brief Determines which resize edge/corner the mouse is over.

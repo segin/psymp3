@@ -327,10 +327,12 @@ void WindowFrameWidget::rebuildSurface()
         m_client_height = 200;
     }
     
-    // Calculate total window size (increase border for resize handles)
-    int resize_border = RESIZE_BORDER_WIDTH;
-    int total_width = m_client_width + (resize_border * 2);
-    int total_height = m_client_height + TITLEBAR_HEIGHT + (resize_border * 2);
+    // Calculate total window size with proper Windows 3.1 structure:
+    // Total = outer_border + resize_border + client_area + resize_border + outer_border
+    // Titlebar = outer_border + resize_border + titlebar_total_height
+    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int total_width = m_client_width + (total_border_width * 2);
+    int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (total_border_width * 2);
     
     // Create the window frame surface
     auto frame_surface = std::make_unique<Surface>(total_width, total_height, true);
@@ -339,59 +341,70 @@ void WindowFrameWidget::rebuildSurface()
     uint32_t bg_color = frame_surface->MapRGB(192, 192, 192);
     frame_surface->FillRect(bg_color);
     
-    // Draw Windows 3.1 style resize border with corner sections and gaps
-    int corner_size = 8; // Size of corner resize handles (smaller for 2px border)
-    
-    // Outer border (dark gray frame)
+    // Draw Windows 3.1 proper border structure
+    // 1. Outer 1px frame around everything (dark gray)
     frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 64, 64, 64, 255);
     
-    // Inner border  
-    frame_surface->rectangle(resize_border - 1, resize_border - 1, 
-                           total_width - resize_border, total_height - resize_border, 
-                           128, 128, 128, 255);
+    // 2. Inner resize frame (light gray - same as button background) - this is the actual resize border
+    int resize_inner = OUTER_BORDER_WIDTH;
+    frame_surface->rectangle(resize_inner, resize_inner, 
+                           total_width - resize_inner - 1, total_height - resize_inner - 1, 
+                           192, 192, 192, 255);
     
-    // Draw resize border sections with gaps (characteristic of Windows 3.1)
-    // Top border sections (with gaps for corners)
-    frame_surface->box(corner_size, 1, total_width - corner_size - 1, resize_border - 1, 192, 192, 192, 255);
+    // 3. Draw titlebar area - shares border with resize frame
+    int titlebar_x = resize_inner + RESIZE_BORDER_WIDTH;
+    int titlebar_y = resize_inner + RESIZE_BORDER_WIDTH;
+    int titlebar_width = total_width - (resize_inner + RESIZE_BORDER_WIDTH) * 2;
+    int titlebar_height = TITLEBAR_TOTAL_HEIGHT;
     
-    // Bottom border sections (with gaps for corners)
-    frame_surface->box(corner_size, total_height - resize_border, 
-                      total_width - corner_size - 1, total_height - 2, 192, 192, 192, 255);
+    // Titlebar background (light gray)
+    frame_surface->box(titlebar_x, titlebar_y, 
+                      titlebar_x + titlebar_width - 1, titlebar_y + titlebar_height - 1, 
+                      192, 192, 192, 255);
     
-    // Left border sections (with gaps for corners)
-    frame_surface->box(1, corner_size, resize_border - 1, total_height - corner_size - 1, 192, 192, 192, 255);
+    // Titlebar borders (shared with resize frame on top/left/right)
+    frame_surface->hline(titlebar_x, titlebar_x + titlebar_width - 1, titlebar_y, 64, 64, 64, 255); // Top
+    frame_surface->vline(titlebar_x, titlebar_y, titlebar_y + titlebar_height - 1, 64, 64, 64, 255); // Left
+    frame_surface->vline(titlebar_x + titlebar_width - 1, titlebar_y, titlebar_y + titlebar_height - 1, 64, 64, 64, 255); // Right
+    frame_surface->hline(titlebar_x, titlebar_x + titlebar_width - 1, titlebar_y + titlebar_height - 1, 64, 64, 64, 255); // Bottom
     
-    // Right border sections (with gaps for corners)
-    frame_surface->box(total_width - resize_border, corner_size, 
-                      total_width - 2, total_height - corner_size - 1, 192, 192, 192, 255);
-    
-    // Draw corner resize handles
-    // Top-left corner
-    frame_surface->box(1, 1, corner_size - 1, corner_size - 1, 160, 160, 160, 255);
-    
-    // Top-right corner
-    frame_surface->box(total_width - corner_size, 1, total_width - 2, corner_size - 1, 160, 160, 160, 255);
-    
-    // Bottom-left corner
-    frame_surface->box(1, total_height - corner_size, corner_size - 1, total_height - 2, 160, 160, 160, 255);
-    
-    // Bottom-right corner
-    frame_surface->box(total_width - corner_size, total_height - corner_size, 
-                      total_width - 2, total_height - 2, 160, 160, 160, 255);
-    
-    // Draw titlebar area (blue) - exactly 18px high
-    frame_surface->box(resize_border, resize_border, 
-                      total_width - resize_border - 1, resize_border + TITLEBAR_HEIGHT - 1, 
+    // Blue titlebar area (18px high, inside the 1px border)
+    frame_surface->box(titlebar_x + 1, titlebar_y + 1, 
+                      titlebar_x + titlebar_width - 2, titlebar_y + TITLEBAR_HEIGHT, 
                       0, 0, 128, 255); // Classic Windows 3.1 blue
     
-    // Draw titlebar top and side borders only (not bottom, to preserve 18px height)
-    frame_surface->hline(resize_border, total_width - resize_border - 1, resize_border, 0, 0, 64, 255); // Top border
-    frame_surface->vline(resize_border, resize_border, resize_border + TITLEBAR_HEIGHT - 1, 0, 0, 64, 255); // Left border  
-    frame_surface->vline(total_width - resize_border - 1, resize_border, resize_border + TITLEBAR_HEIGHT - 1, 0, 0, 64, 255); // Right border
+    // 4. Draw client area border (shares border with resize frame and titlebar)
+    int client_x = titlebar_x;
+    int client_y = titlebar_y + titlebar_height;
+    int client_width = titlebar_width;
+    int client_height = m_client_height;
     
-    // Draw 1px black separator between titlebar and client area
-    int titlebar_bottom = resize_border + TITLEBAR_HEIGHT;
-    frame_surface->hline(resize_border, total_width - resize_border - 1, titlebar_bottom, 0, 0, 0, 255);
+    // Client area borders (shared with resize frame on left/right/bottom, shared with titlebar on top)
+    frame_surface->vline(client_x, client_y, client_y + client_height - 1, 64, 64, 64, 255); // Left
+    frame_surface->vline(client_x + client_width - 1, client_y, client_y + client_height - 1, 64, 64, 64, 255); // Right  
+    frame_surface->hline(client_x, client_x + client_width - 1, client_y + client_height - 1, 64, 64, 64, 255); // Bottom
+    
+    // 5. Draw corner separators aligned with minimize/maximize separator (black)
+    // Calculate exact position to align with separator between minimize and maximize buttons
+    Rect minimize_bounds_temp = getMinimizeButtonBounds();
+    int corner_separator_x = minimize_bounds_temp.x() + BUTTON_SIZE; // Right edge of minimize button
+    
+    // Top separators (black, aligned with button separator)
+    frame_surface->vline(corner_separator_x, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255); // Top-left vertical (black)
+    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, resize_inner, resize_inner + RESIZE_BORDER_WIDTH - 1, 0, 0, 0, 255); // Top-right vertical (black)
+    
+    // Bottom separators (black, aligned with button separator)
+    frame_surface->vline(corner_separator_x, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255); // Bottom-left vertical (black)
+    frame_surface->vline(total_width - (corner_separator_x - resize_inner) - 1, total_height - resize_inner - RESIZE_BORDER_WIDTH, total_height - resize_inner - 1, 0, 0, 0, 255); // Bottom-right vertical (black)
+    
+    // Left separators (black, aligned with titlebar bottom)
+    int titlebar_bottom_y = titlebar_y + TITLEBAR_TOTAL_HEIGHT - 1;
+    frame_surface->hline(resize_inner, corner_separator_x, titlebar_bottom_y, 0, 0, 0, 255); // Left-top horizontal (black) - align with titlebar bottom
+    frame_surface->hline(resize_inner, corner_separator_x, total_height - resize_inner - 1, 0, 0, 0, 255); // Left-bottom horizontal (black)
+    
+    // Right separators (black, aligned with titlebar bottom)
+    frame_surface->hline(total_width - resize_inner - RESIZE_BORDER_WIDTH, total_width - (corner_separator_x - resize_inner) - 1, titlebar_bottom_y, 0, 0, 0, 255); // Right-top horizontal (black) - align with titlebar bottom
+    frame_surface->hline(total_width - resize_inner - RESIZE_BORDER_WIDTH, total_width - (corner_separator_x - resize_inner) - 1, total_height - resize_inner - 1, 0, 0, 0, 255); // Right-bottom horizontal (black)
     
     // TODO: Add title text rendering when font access is available
     
@@ -409,24 +422,24 @@ void WindowFrameWidget::rebuildSurface()
 
 void WindowFrameWidget::updateLayout()
 {
-    // Position client area within the frame (account for resize border)
+    // Position client area within the frame (account for borders and titlebar)
     if (m_client_area) {
-        int resize_border = RESIZE_BORDER_WIDTH;
-        Rect client_pos(resize_border,                    // X: after left resize border
-                       resize_border + TITLEBAR_HEIGHT,  // Y: after top border and titlebar
-                       m_client_width,                    // Width: client area width
-                       m_client_height);                  // Height: client area height
+        int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+        Rect client_pos(total_border_width,                           // X: after borders
+                       total_border_width + TITLEBAR_TOTAL_HEIGHT,   // Y: after borders and titlebar
+                       m_client_width,                               // Width: client area width
+                       m_client_height);                             // Height: client area height
         m_client_area->setPos(client_pos);
     }
 }
 
 bool WindowFrameWidget::isInTitlebar(int x, int y) const
 {
-    int resize_border = RESIZE_BORDER_WIDTH;
-    return (x >= resize_border && 
-            x < m_client_width + resize_border &&
-            y >= resize_border && 
-            y < resize_border + TITLEBAR_HEIGHT);
+    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    return (x >= total_border_width && 
+            x < m_client_width + total_border_width &&
+            y >= total_border_width && 
+            y < total_border_width + TITLEBAR_TOTAL_HEIGHT);
 }
 
 bool WindowFrameWidget::isInDraggableArea(int x, int y) const
@@ -451,30 +464,30 @@ bool WindowFrameWidget::isInDraggableArea(int x, int y) const
 
 Rect WindowFrameWidget::getMinimizeButtonBounds() const
 {
-    int resize_border = RESIZE_BORDER_WIDTH;
-    int total_width = m_client_width + (resize_border * 2);
+    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int total_width = m_client_width + (total_border_width * 2);
     // Account for separator: minimize button is (BUTTON_SIZE * 2 + 1) from right edge  
-    int button_x = total_width - resize_border - (BUTTON_SIZE * 2) - 1;
-    int button_y = resize_border;
+    int button_x = total_width - total_border_width - (BUTTON_SIZE * 2) - 1;
+    int button_y = total_border_width + 1; // Inside titlebar border
     
     return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
 
 Rect WindowFrameWidget::getMaximizeButtonBounds() const
 {
-    int resize_border = RESIZE_BORDER_WIDTH;
-    int total_width = m_client_width + (resize_border * 2);
-    int button_x = total_width - resize_border - BUTTON_SIZE;
-    int button_y = resize_border;
+    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int total_width = m_client_width + (total_border_width * 2);
+    int button_x = total_width - total_border_width - BUTTON_SIZE;
+    int button_y = total_border_width + 1; // Inside titlebar border
     
     return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
 }
 
 Rect WindowFrameWidget::getControlMenuBounds() const
 {
-    int resize_border = RESIZE_BORDER_WIDTH;
-    int menu_x = resize_border;
-    int menu_y = resize_border;
+    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int menu_x = total_border_width + 1; // Inside titlebar border
+    int menu_y = total_border_width + 1; // Inside titlebar border
     
     return Rect(menu_x, menu_y, CONTROL_MENU_SIZE, CONTROL_MENU_SIZE);
 }
@@ -502,81 +515,30 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     int icon_y = control_menu_bounds.y() + (control_menu_bounds.height() - icon_size) / 2;
     surface.box(icon_x, icon_y, icon_x + icon_size - 1, icon_y + icon_size - 1, 64, 64, 64, 255);
     
-    // Draw minimize button (full height square with 3D effect)
+    // Draw minimize button using reusable components
     Rect minimize_bounds = getMinimizeButtonBounds();
     
-    // Button background (light gray) - fill the entire 18x18 area
-    surface.box(minimize_bounds.x(), minimize_bounds.y(), 
-               minimize_bounds.x() + BUTTON_SIZE - 1, 
-               minimize_bounds.y() + BUTTON_SIZE - 1, 
-               192, 192, 192, 255);
+    // Draw 1px border between titlebar blue area and minimize button
+    surface.vline(minimize_bounds.x() - 1, minimize_bounds.y(), minimize_bounds.y() + BUTTON_SIZE - 1, 64, 64, 64, 255);
     
-    // 3D bevel effect - Windows 3.1 style (drawn on top, within the 18x18 area)
-    // Top and left highlight (white/light)
-    surface.hline(minimize_bounds.x(), minimize_bounds.x() + BUTTON_SIZE - 2, 
-                 minimize_bounds.y(), 255, 255, 255, 255);
-    surface.vline(minimize_bounds.x(), minimize_bounds.y(), 
-                 minimize_bounds.y() + BUTTON_SIZE - 2, 255, 255, 255, 255);
+    // Draw button background and 3D bevel
+    drawButton(surface, minimize_bounds.x(), minimize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
     
-    // Bottom and right shadow (dark gray)
-    surface.hline(minimize_bounds.x() + 1, minimize_bounds.x() + BUTTON_SIZE - 1, 
-                 minimize_bounds.y() + BUTTON_SIZE - 1, 128, 128, 128, 255);
-    surface.vline(minimize_bounds.x() + BUTTON_SIZE - 1, 
-                 minimize_bounds.y() + 1, minimize_bounds.y() + BUTTON_SIZE - 1, 
-                 128, 128, 128, 255);
+    // Draw minimize symbol (downward pointing triangle ▼)
+    int min_center_x = minimize_bounds.x() + BUTTON_SIZE / 2;
+    int min_center_y = minimize_bounds.y() + BUTTON_SIZE / 2;
+    drawDownTriangle(surface, min_center_x, min_center_y, 3);
     
-    // Minimize symbol (downward pointing triangle ▼)
-    int min_center_x = minimize_bounds.x() + minimize_bounds.width() / 2;
-    int min_center_y = minimize_bounds.y() + minimize_bounds.height() / 2;
-    int triangle_size = 2; // Much smaller for Windows 3.1 authenticity
-    
-    // Triangle points for downward arrow - smaller and more precise
-    Sint16 min_x1 = min_center_x - triangle_size;
-    Sint16 min_y1 = min_center_y - 1;
-    Sint16 min_x2 = min_center_x + triangle_size;
-    Sint16 min_y2 = min_center_y - 1;
-    Sint16 min_x3 = min_center_x;
-    Sint16 min_y3 = min_center_y + 1;
-    
-    surface.filledTriangle(min_x1, min_y1, min_x2, min_y2, min_x3, min_y3, 0, 0, 0, 255);
-    
-    // Draw maximize button (full height square with 3D effect)
+    // Draw maximize button using reusable components
     Rect maximize_bounds = getMaximizeButtonBounds();
     
-    // Button background (light gray) - fill the entire 18x18 area
-    surface.box(maximize_bounds.x(), maximize_bounds.y(), 
-               maximize_bounds.x() + BUTTON_SIZE - 1, 
-               maximize_bounds.y() + BUTTON_SIZE - 1, 
-               192, 192, 192, 255);
+    // Draw button background and 3D bevel
+    drawButton(surface, maximize_bounds.x(), maximize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
     
-    // 3D bevel effect - Windows 3.1 style (drawn on top, within the 18x18 area)
-    // Top and left highlight (white/light)
-    surface.hline(maximize_bounds.x(), maximize_bounds.x() + BUTTON_SIZE - 2, 
-                 maximize_bounds.y(), 255, 255, 255, 255);
-    surface.vline(maximize_bounds.x(), maximize_bounds.y(), 
-                 maximize_bounds.y() + BUTTON_SIZE - 2, 255, 255, 255, 255);
-    
-    // Bottom and right shadow (dark gray)
-    surface.hline(maximize_bounds.x() + 1, maximize_bounds.x() + BUTTON_SIZE - 1, 
-                 maximize_bounds.y() + BUTTON_SIZE - 1, 128, 128, 128, 255);
-    surface.vline(maximize_bounds.x() + BUTTON_SIZE - 1, 
-                 maximize_bounds.y() + 1, maximize_bounds.y() + BUTTON_SIZE - 1, 
-                 128, 128, 128, 255);
-    
-    // Maximize symbol (upward pointing triangle ▲)
-    int max_center_x = maximize_bounds.x() + maximize_bounds.width() / 2;
-    int max_center_y = maximize_bounds.y() + maximize_bounds.height() / 2;
-    int max_triangle_size = 2; // Same as minimize button
-    
-    // Triangle points for upward arrow - smaller and more precise
-    Sint16 max_x1 = max_center_x - max_triangle_size;
-    Sint16 max_y1 = max_center_y + 1;
-    Sint16 max_x2 = max_center_x + max_triangle_size;
-    Sint16 max_y2 = max_center_y + 1;
-    Sint16 max_x3 = max_center_x;
-    Sint16 max_y3 = max_center_y - 1;
-    
-    surface.filledTriangle(max_x1, max_y1, max_x2, max_y2, max_x3, max_y3, 0, 0, 0, 255);
+    // Draw maximize symbol (upward pointing triangle ▲)
+    int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2;
+    int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2;
+    drawUpTriangle(surface, max_center_x, max_center_y, 3);
     
     // Draw 1px black separator between minimize and maximize buttons
     int separator_x = minimize_bounds.x() + minimize_bounds.width();
@@ -641,10 +603,10 @@ void WindowFrameWidget::drawSystemMenu(Surface& surface) const
 
 int WindowFrameWidget::getResizeEdge(int x, int y) const
 {
-    int resize_border = RESIZE_BORDER_WIDTH;
-    int total_width = m_client_width + (resize_border * 2);
-    int total_height = m_client_height + TITLEBAR_HEIGHT + (resize_border * 2);
-    int corner_size = 8; // Match the corner size used in rebuildSurface
+    int total_border_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+    int total_width = m_client_width + (total_border_width * 2);
+    int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (total_border_width * 2);
+    int corner_size = 6; // Match the corner size used in rebuildSurface
     
     int edge = 0;
     
@@ -663,17 +625,127 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
     }
     
     // Check for edge areas
-    if (x < resize_border) {
+    if (x < total_border_width) {
         edge |= 1; // Left edge
-    } else if (x >= total_width - resize_border) {
+    } else if (x >= total_width - total_border_width) {
         edge |= 2; // Right edge
     }
     
-    if (y < resize_border) {
+    if (y < total_border_width) {
         edge |= 4; // Top edge
-    } else if (y >= total_height - resize_border) {
+    } else if (y >= total_height - total_border_width) {
         edge |= 8; // Bottom edge
     }
     
     return edge;
+}
+
+void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, int height, bool pressed)
+{
+    // Button background (light gray)
+    surface.box(x, y, x + width - 1, y + height - 1, 192, 192, 192, 255);
+    
+    if (pressed) {
+        // Pressed button - inverted bevel (dark on top/left, light on bottom/right)
+        // Top and left shadow (dark gray)
+        surface.hline(x, x + width - 2, y, 128, 128, 128, 255);
+        surface.vline(x, y, y + height - 2, 128, 128, 128, 255);
+        
+        // Bottom and right highlight (white/light)
+        surface.hline(x + 2, x + width - 1, y + height - 1, 255, 255, 255, 255);
+        surface.vline(x + width - 1, y + 2, y + height - 1, 255, 255, 255, 255);
+        
+        // Additional darker shading row 1px inside from top and left (same color as main shadow)  
+        surface.hline(x + 1, x + width - 2, y + 1, 128, 128, 128, 255);
+        surface.vline(x + 1, y + 1, y + height - 2, 128, 128, 128, 255);
+        
+        // Top-right and bottom-left corner pixels should be white for pressed state
+        surface.pixel(x + width - 1, y, 255, 255, 255, 255); // Top-right
+        surface.pixel(x, y + height - 1, 255, 255, 255, 255); // Bottom-left
+    } else {
+        // Normal button - standard 3D bevel (light on top/left, dark on bottom/right)
+        // Top and left highlight (white/light)
+        surface.hline(x, x + width - 2, y, 255, 255, 255, 255);
+        surface.vline(x, y, y + height - 2, 255, 255, 255, 255);
+        
+        // Bottom and right shadow (dark gray) - extend 1px further
+        surface.hline(x + 2, x + width - 1, y + height - 1, 128, 128, 128, 255);
+        surface.vline(x + width - 1, y + 2, y + height - 1, 128, 128, 128, 255);
+        
+        // Additional shading row 1px above bottom and 1px beside right (same color as main shadow)
+        surface.hline(x + 1, x + width - 2, y + height - 2, 128, 128, 128, 255);
+        surface.vline(x + width - 2, y + 1, y + height - 2, 128, 128, 128, 255);
+        
+        // Top-right and bottom-left corner pixels should be dark grey
+        surface.pixel(x + width - 1, y, 128, 128, 128, 255); // Top-right
+        surface.pixel(x, y + height - 1, 128, 128, 128, 255); // Bottom-left
+    }
+}
+
+void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int center_y, int size)
+{
+    // Triangle points for downward arrow ▼
+    Sint16 x1 = center_x - size;
+    Sint16 y1 = center_y - 1;
+    Sint16 x2 = center_x + size;
+    Sint16 y2 = center_y - 1;
+    Sint16 x3 = center_x;
+    Sint16 y3 = center_y + 2;
+    
+    surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
+}
+
+void WindowFrameWidget::drawUpTriangle(Surface& surface, int center_x, int center_y, int size)
+{
+    // Triangle points for upward arrow ▲
+    Sint16 x1 = center_x - size;
+    Sint16 y1 = center_y + 1;
+    Sint16 x2 = center_x + size;
+    Sint16 y2 = center_y + 1;
+    Sint16 x3 = center_x;
+    Sint16 y3 = center_y - 2;
+    
+    surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
+}
+
+void WindowFrameWidget::drawLeftTriangle(Surface& surface, int center_x, int center_y, int size)
+{
+    // Triangle points for left pointing arrow ◀
+    Sint16 x1 = center_x + 1;
+    Sint16 y1 = center_y - size;
+    Sint16 x2 = center_x + 1;
+    Sint16 y2 = center_y + size;
+    Sint16 x3 = center_x - 2;
+    Sint16 y3 = center_y;
+    
+    surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
+}
+
+void WindowFrameWidget::drawRightTriangle(Surface& surface, int center_x, int center_y, int size)
+{
+    // Triangle points for right pointing arrow ▶
+    Sint16 x1 = center_x - 1;
+    Sint16 y1 = center_y - size;
+    Sint16 x2 = center_x - 1;
+    Sint16 y2 = center_y + size;
+    Sint16 x3 = center_x + 2;
+    Sint16 y3 = center_y;
+    
+    surface.filledTriangle(x1, y1, x2, y2, x3, y3, 0, 0, 0, 255);
+}
+
+void WindowFrameWidget::drawRestoreSymbol(Surface& surface, int center_x, int center_y, int size)
+{
+    // Draw two overlapping rectangles to represent restore window symbol
+    int rect_size = size - 1;
+    
+    // Back rectangle (offset up and right)
+    surface.rectangle(center_x - rect_size + 1, center_y - rect_size - 1, 
+                     center_x + rect_size, center_y + rect_size - 2, 
+                     0, 0, 0, 255);
+    
+    // Front rectangle (offset down and left)
+    surface.rectangle(center_x - rect_size - 1, center_y - rect_size + 1, 
+                     center_x + rect_size - 2, center_y + rect_size, 
+                     0, 0, 0, 255);
 }
