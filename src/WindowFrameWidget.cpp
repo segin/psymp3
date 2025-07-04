@@ -824,13 +824,12 @@ void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int cen
 void WindowFrameWidget::drawUpTriangle(Surface& surface, int center_x, int center_y, int size)
 {
     // Maximize triangle - upward pointing  
-    // Use odd-length lines for proper centering
-    int y = center_y - 1;  // Top point
-    surface.pixel(center_x, y, 0, 0, 0, 255);                       // Top point: 1 pixel
-    y++;
-    surface.hline(center_x - 1, center_x + 1, y, 0, 0, 0, 255);     // Second line: 3 pixels wide
-    y++;
-    surface.hline(center_x - 2, center_x + 2, y, 0, 0, 0, 255);     // Bottom line: 5 pixels wide
+    // Using exact one-indexed coordinates from source material
+    // Convert one-indexed to zero-indexed by subtracting 1 from both coordinates
+    surface.pixel(8, 6, 0, 0, 0, 255);                          // point(9, 7) in one-indexed
+    surface.hline(7, 9, 7, 0, 0, 0, 255);                       // line(8, 8)-(10, 8) in one-indexed  
+    surface.hline(6, 10, 8, 0, 0, 0, 255);                      // line(7, 9)-(11, 9) in one-indexed
+    surface.hline(5, 11, 9, 0, 0, 0, 255);                      // line(6, 10)-(12, 10) in one-indexed
 }
 
 void WindowFrameWidget::drawLeftTriangle(Surface& surface, int center_x, int center_y, int size)
