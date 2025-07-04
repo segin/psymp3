@@ -99,7 +99,7 @@ void FFT::neomat_fft_init_twiddle_factors() {
     // So, we need size n-1 to cover indices 0 to n-2.
     m_neomat_twiddle_factors.resize(size - 1);
 
-    for (size_t i = 1; i < size; i <<= 1) {
+    for (size_t i = 1; i < static_cast<size_t>(size); i <<= 1) {
         for (size_t k = 0; k < i; ++k) {
             // C99: cexp(-2 * M_PI * I * k / (i << 1));
             // C++: std::exp(std::complex<float>(-2.0f * M_PI_F * k / (static_cast<float>(i) * 2.0f), 0.0f) * I_f);
@@ -231,8 +231,8 @@ void FFT::neomat_in_place_fft_impl(float *output, const float *input) { // neoma
     }
 
     // 2. Iterative butterfly stages
-    for (size_t i = 1; i < size; i <<= 1) {
-        for (size_t j = 0; j < size; j += (i << 1)) {
+    for (size_t i = 1; i < static_cast<size_t>(size); i <<= 1) {
+        for (size_t j = 0; j < static_cast<size_t>(size); j += (i << 1)) {
             for (size_t k = 0; k < i; ++k) {
                 std::complex<float> tmp = m_neomat_twiddle_factors[i - 1 + k] * m_complex_buffer[j + k + i];
                 m_complex_buffer[j + k + i] = m_complex_buffer[j + k] - tmp;
@@ -265,8 +265,8 @@ void FFT::neomat_out_of_place_fft_impl(float *output, const float *input) { // n
     }
 
     // 2. Iterative butterfly stages
-    for (size_t i = 1; i < size; i <<= 1) {
-        for (size_t j = 0; j < size; j += (i << 1)) {
+    for (size_t i = 1; i < static_cast<size_t>(size); i <<= 1) {
+        for (size_t j = 0; j < static_cast<size_t>(size); j += (i << 1)) {
             for (size_t k = 0; k < i; ++k) {
                 std::complex<float> tmp = m_neomat_twiddle_factors[i - 1 + k] * m_complex_output_buffer[j + k + i];
                 m_complex_output_buffer[j + k + i] = m_complex_output_buffer[j + k] - tmp;

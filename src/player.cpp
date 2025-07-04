@@ -673,15 +673,23 @@ bool Player::updateGUI()
         this->renderSpectrum(graph.get());
     }
 
+    // --- Lyrics Widget Rendering ---
+    // Render lyrics at the top of the screen with current playback position
+    if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
+        m_lyrics_widget->updatePosition(current_pos_ms);
+        m_lyrics_widget->BlitTo(*graph);
+    }
+
     // --- Toast Notification Management and Rendering ---
     // This must be done *after* rendering the spectrum but *before* blitting the graph to the screen.
     if (m_toast) {
         if (m_toast->isExpired()) {
             m_toast.reset();
-            // Check if there's a pending toast to show immediately after fade-out
-            if (m_pending_toast) {
-                m_toast = std::make_unique<ToastNotification>(font.get(), m_pending_toast->message, m_pending_toast->duration_ms);
-                m_pending_toast.reset();
+            // Check if there's a queued toast to show immediately after fade-out
+            if (!m_toast_queue.empty()) {
+                const PendingToast& next_toast = m_toast_queue.front();
+                m_toast = std::make_unique<ToastNotification>(font.get(), next_toast.message, next_toast.duration_ms);
+                m_toast_queue.pop();
             }
         } else {
             // Horizontally center and vertically align to the bottom of the FFT area.
@@ -951,11 +959,18 @@ void Player::showToast(const std::string& message, Uint32 duration_ms)
     if (m_toast && !m_toast->isExpired()) {
         // There's an active toast - start fade-out and queue the new one
         m_toast->startFadeOut();
-        m_pending_toast = PendingToast{message, duration_ms};
+        
+        // Add to queue, but limit queue size to prevent memory issues
+        if (m_toast_queue.size() < MAX_TOAST_QUEUE_SIZE) {
+            m_toast_queue.push(PendingToast{message, duration_ms});
+        }
     } else {
         // No active toast - show immediately
         m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
-        m_pending_toast.reset(); // Clear any pending toast
+        // Clear any pending toasts since we're showing one now
+        while (!m_toast_queue.empty()) {
+            m_toast_queue.pop();
+        }
     }
 }
 
@@ -1097,6 +1112,17 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             // Update the player's current stream pointer to reflect the one now owned by Audio
             // This is a raw pointer, for read-only access by Player.
+            
+            // Update lyrics widget with new track's lyrics
+            if (m_lyrics_widget && new_stream) {
+                auto lyrics = new_stream->getLyrics();
+                if (lyrics && lyrics->hasLyrics()) {
+                    std::cout << "Player: Setting lyrics widget with " << lyrics->getLines().size() << " lyric lines" << std::endl;
+                } else {
+                    std::cout << "Player: No lyrics available for current track" << std::endl;
+                }
+                m_lyrics_widget->setLyrics(lyrics);
+            }
             stream = audio->getCurrentStream();
 
             updateInfo();
@@ -1175,8 +1201,8 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             // This event is triggered when a track ends and a preloaded track is ready.
             // Check if we need to recreate the Audio object or can reuse it
             bool recreate_audio = (!audio || (m_next_stream && 
-                (audio->getRate() != m_next_stream->getRate() || 
-                 audio->getChannels() != m_next_stream->getChannels())));
+                (static_cast<unsigned int>(audio->getRate()) != m_next_stream->getRate() || 
+                 static_cast<unsigned int>(audio->getChannels()) != m_next_stream->getChannels())));
 
             if (recreate_audio) {
                 // Different audio format, need to recreate Audio object
@@ -1197,8 +1223,11 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             }
             m_num_tracks_in_current_stream = 0;
 
-            // Update GUI
+            // Update GUI and clear lyrics
             updateInfo(false, "");
+            if (m_lyrics_widget) {
+                m_lyrics_widget->clearLyrics();
+            }
             break;
         }
         case DO_SAVE_PLAYLIST:
@@ -1325,7 +1354,6 @@ void Player::Run(const PlayerOptions& options) {
         m_automated_test_timer_id = SDL_AddTimer(1000, Player::AutomatedTestTimer, this);
     }
     while (!done) {
-        bool sdone = false;
         // message processing loop
         SDL_Event event;
         while (SDL_WaitEvent(&event)) {
@@ -1468,7 +1496,7 @@ bool Player::findFirstPlayableTrack() {
     }
 
     // Try to find the first playable track starting from position 0
-    for (size_t i = 0; i < playlist->entries(); ++i) {
+    for (size_t i = 0; i < static_cast<size_t>(playlist->entries()); ++i) {
         playlist->setPosition(i);
         TagLib::String track_path = playlist->getTrack(i);
         

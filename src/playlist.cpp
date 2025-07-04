@@ -108,7 +108,7 @@ long Playlist::entries(void)
 bool Playlist::setPosition(long position)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if(position >= 0 && position < tracks.size()) {
+    if(position >= 0 && static_cast<size_t>(position) < tracks.size()) {
         m_position = position;
         return true;
     } else {
@@ -136,7 +136,7 @@ TagLib::String Playlist::setPositionAndJump(long position)
 TagLib::String Playlist::getTrack(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if(position >= 0 && position < tracks.size()) {
+    if(position >= 0 && static_cast<size_t>(position) < tracks.size()) {
         return tracks[position].GetFilePath();
     } else {
         return "";
@@ -154,7 +154,7 @@ TagLib::String Playlist::next()
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (tracks.empty()) return "";
     m_position++;
-    if (m_position >= tracks.size()) {
+    if (static_cast<size_t>(m_position) >= tracks.size()) {
         m_position = 0; // Wrap around to the beginning
     }
     return getTrack(m_position);
@@ -192,7 +192,7 @@ TagLib::String Playlist::peekNext() const
     }
 
     long next_pos = m_position + 1;
-    if (next_pos >= tracks.size()) {
+    if (static_cast<size_t>(next_pos) >= tracks.size()) {
         next_pos = 0; // Wrap around
     }
     
@@ -209,7 +209,7 @@ TagLib::String Playlist::peekNext() const
 const track* Playlist::getTrackInfo(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if (position >= 0 && position < tracks.size()) {
+    if (position >= 0 && static_cast<size_t>(position) < tracks.size()) {
         return &tracks[position];
     }
     return nullptr;

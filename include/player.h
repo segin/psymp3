@@ -154,12 +154,13 @@ class Player
 
         // Overlay widgets
         std::unique_ptr<ToastNotification> m_toast;
-        // Pending toast for smooth replacement transitions
+        // Toast queue for smooth replacement transitions
         struct PendingToast {
             std::string message;
             Uint32 duration_ms;
         };
-        std::optional<PendingToast> m_pending_toast;
+        std::queue<PendingToast> m_toast_queue;
+        static constexpr size_t MAX_TOAST_QUEUE_SIZE = 10;
         std::unique_ptr<LyricsWidget> m_lyrics_widget;
         std::unique_ptr<Label> m_pause_indicator;
         std::unique_ptr<FadingWidget> m_seek_left_indicator;

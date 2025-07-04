@@ -63,7 +63,7 @@ ChainedStream::ChainedStream(std::vector<TagLib::String> paths)
                 first_channels = temp_stream->getChannels();
             } else {
                 // Ensure all subsequent tracks have the same format.
-                if (temp_stream->getRate() != first_rate || temp_stream->getChannels() != first_channels) {
+                if (temp_stream->getRate() != static_cast<unsigned int>(first_rate) || temp_stream->getChannels() != static_cast<unsigned int>(first_channels)) {
                     throw InvalidMediaException("ChainedStream tracks must have the same sample rate and channel count.");
                 }
             }

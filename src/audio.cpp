@@ -31,11 +31,11 @@
  * This constructor initializes the audio system for the given stream and starts the background decoder thread.
  */
 Audio::Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex *player_mutex)
-    : m_owned_stream(std::move(stream_to_own)),
+    : m_active(true),
+      m_owned_stream(std::move(stream_to_own)),
       m_current_stream_raw_ptr(m_owned_stream.get()),
       m_fft(fft),
       m_player_mutex(player_mutex),
-      m_active(true),
       m_playing(false)
 {
     if (!m_owned_stream) {
@@ -273,7 +273,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     self->m_buffer_cv.notify_one(); // Notify decoder thread that there is space
 
     // Fill remaining buffer with silence if we couldn't provide enough data
-    if (bytes_copied < len) {
+    if (bytes_copied < static_cast<size_t>(len)) {
         SDL_memset(buf + bytes_copied, 0, len - bytes_copied);
     }
 

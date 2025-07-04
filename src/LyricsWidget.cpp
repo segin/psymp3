@@ -133,7 +133,7 @@ void LyricsWidget::rebuildSurface()
         pos.width(getSurface().width());
         pos.height(getSurface().height());
         pos.x((m_widget_width - pos.width()) / 2); // Center horizontally
-        pos.y(20); // Position near top of screen
+        pos.y(50); // Position 50px from top of screen
         setPos(pos);
     }
 }

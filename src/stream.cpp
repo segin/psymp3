@@ -252,18 +252,27 @@ bool Stream::hasLyrics() const
 void Stream::loadLyrics()
 {
     if (m_path.isEmpty()) {
+        std::cout << "Stream::loadLyrics: No path set, skipping lyrics loading" << std::endl;
         return;
     }
     
     // Convert TagLib::String to std::string for lyrics utilities
     std::string file_path = m_path.to8Bit(true);
+    std::cout << "Stream::loadLyrics: Looking for lyrics for: " << file_path << std::endl;
+    
     std::string lyrics_path = LyricsUtils::findLyricsFile(file_path);
     
     if (!lyrics_path.empty()) {
+        std::cout << "Stream::loadLyrics: Found lyrics file: " << lyrics_path << std::endl;
         m_lyrics = std::make_shared<LyricsFile>();
-        if (!m_lyrics->loadFromFile(lyrics_path)) {
+        if (m_lyrics->loadFromFile(lyrics_path)) {
+            std::cout << "Stream::loadLyrics: Successfully loaded " << m_lyrics->getLines().size() << " lyric lines" << std::endl;
+        } else {
+            std::cout << "Stream::loadLyrics: Failed to parse lyrics file" << std::endl;
             // Failed to load lyrics, clear the pointer
             m_lyrics.reset();
         }
+    } else {
+        std::cout << "Stream::loadLyrics: No lyrics file found" << std::endl;
     }
 }
