@@ -966,27 +966,18 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
 /**
  * @brief Displays a short-lived "toast" notification on the screen.
- * Handles smooth fade transitions when replacing an existing toast.
+ * Immediately replaces any existing toast notification.
  * @param message The text message to display.
  * @param duration_ms The duration in milliseconds for the toast to be visible.
  */
 void Player::showToast(const std::string& message, Uint32 duration_ms)
 {
-    if (m_toast) {
-        // There's ANY toast - force immediate fade-out and queue the new one
-        m_toast->startFadeOut();
-        
-        // Add to queue, but limit queue size to prevent memory issues
-        if (m_toast_queue.size() < MAX_TOAST_QUEUE_SIZE) {
-            m_toast_queue.push(PendingToast{message, duration_ms});
-        }
-    } else {
-        // No active toast - show immediately
-        m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
-        // Clear any pending toasts since we're showing one now
-        while (!m_toast_queue.empty()) {
-            m_toast_queue.pop();
-        }
+    // Always immediately replace any existing toast - no queueing, no fade transitions
+    m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
+    
+    // Clear any queued toasts since we're showing a new one immediately
+    while (!m_toast_queue.empty()) {
+        m_toast_queue.pop();
     }
 }
 
