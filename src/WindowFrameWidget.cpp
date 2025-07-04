@@ -812,23 +812,22 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
 void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int center_y, int size)
 {
     // Minimize triangle - downward pointing
-    // Using exact one-indexed coordinates, working inversely from widest line
-    // Convert one-indexed to zero-indexed by subtracting 1 from both coordinates
-    surface.hline(5, 11, 7, 0, 0, 0, 255);                      // line(6, 8)-(12, 8) in one-indexed - widest
-    surface.hline(6, 10, 8, 0, 0, 0, 255);                      // line(7, 9)-(11, 9) in one-indexed
-    surface.hline(7, 9, 9, 0, 0, 0, 255);                       // line(8, 10)-(10, 10) in one-indexed  
-    surface.pixel(8, 10, 0, 0, 0, 255);                         // point(9, 11) in one-indexed - tip
+    // Draw relative to center position, using source material pattern
+    // Working inversely from widest line as specified
+    surface.hline(center_x - 3, center_x + 3, center_y - 1, 0, 0, 0, 255);  // 7 pixels wide - widest
+    surface.hline(center_x - 2, center_x + 2, center_y, 0, 0, 0, 255);      // 5 pixels wide
+    surface.hline(center_x - 1, center_x + 1, center_y + 1, 0, 0, 0, 255);  // 3 pixels wide  
+    surface.pixel(center_x, center_y + 2, 0, 0, 0, 255);                    // 1 pixel - tip
 }
 
 void WindowFrameWidget::drawUpTriangle(Surface& surface, int center_x, int center_y, int size)
 {
     // Maximize triangle - upward pointing  
-    // Using exact one-indexed coordinates from source material
-    // Convert one-indexed to zero-indexed by subtracting 1 from both coordinates
-    surface.pixel(8, 6, 0, 0, 0, 255);                          // point(9, 7) in one-indexed
-    surface.hline(7, 9, 7, 0, 0, 0, 255);                       // line(8, 8)-(10, 8) in one-indexed  
-    surface.hline(6, 10, 8, 0, 0, 0, 255);                      // line(7, 9)-(11, 9) in one-indexed
-    surface.hline(5, 11, 9, 0, 0, 0, 255);                      // line(6, 10)-(12, 10) in one-indexed
+    // Draw relative to center position, using source material pattern
+    surface.pixel(center_x, center_y - 2, 0, 0, 0, 255);                    // 1 pixel - tip
+    surface.hline(center_x - 1, center_x + 1, center_y - 1, 0, 0, 0, 255);  // 3 pixels wide  
+    surface.hline(center_x - 2, center_x + 2, center_y, 0, 0, 0, 255);      // 5 pixels wide
+    surface.hline(center_x - 3, center_x + 3, center_y + 1, 0, 0, 0, 255);  // 7 pixels wide - widest
 }
 
 void WindowFrameWidget::drawLeftTriangle(Surface& surface, int center_x, int center_y, int size)
