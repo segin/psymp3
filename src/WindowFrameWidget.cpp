@@ -268,9 +268,23 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             int total_width = m_client_width + (border_width * 2);
             int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (border_width * 2);
             
-            // Update window size
+            // Calculate new window position - adjust for top/left edge resizing
             Rect current_pos = getPos();
-            setPos(Rect(current_pos.x(), current_pos.y(), total_width, total_height));
+            int new_x = current_pos.x();
+            int new_y = current_pos.y();
+            
+            // When resizing from left edge, move window right by width difference
+            if (m_resize_edge & 1) { // Left edge
+                new_x += (m_resize_start_width - new_width);
+            }
+            
+            // When resizing from top edge, move window down by height difference  
+            if (m_resize_edge & 4) { // Top edge
+                new_y += (m_resize_start_height - new_height);
+            }
+            
+            // Update window size and position
+            setPos(Rect(new_x, new_y, total_width, total_height));
             
             // Update layout and rebuild surface
             updateLayout();

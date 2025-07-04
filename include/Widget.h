@@ -48,17 +48,19 @@ class Widget : public Surface
         virtual bool handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
         virtual bool handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y);
         virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y);
+        
+        // Mouse capture system
+        void captureMouse();
+        void releaseMouse();
+        bool hasMouseCapture() const;
+        static Widget* getMouseCapturedWidget();
     protected:
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);
         Surface& getSurface();
         Rect m_pos;
         std::vector<std::unique_ptr<Widget>> m_children;
         
-        // Mouse capture system
         static Widget* s_mouse_captured_widget;
-        void captureMouse();
-        void releaseMouse();
-        bool hasMouseCapture() const;
     private:
 };
 

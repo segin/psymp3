@@ -250,3 +250,8 @@ bool Widget::hasMouseCapture() const
 {
     return s_mouse_captured_widget == this;
 }
+
+Widget* Widget::getMouseCapturedWidget()
+{
+    return s_mouse_captured_widget;
+}

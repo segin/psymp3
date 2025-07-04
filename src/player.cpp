@@ -730,6 +730,10 @@ bool Player::updateGUI()
         }
     }
     
+    // --- UI Widget Tree Rendering ---
+    // Render UI widget tree (labels) to graph surface as background layer
+    m_ui_root->BlitTo(*graph);
+    
     // --- Window Rendering ---
     // Render floating windows on top of everything else
     renderWindows();
@@ -804,8 +808,6 @@ bool Player::updateGUI()
     screen->FillRect(screen->MapRGB(0, 0, 0));
     // 2. Blit the entire dynamic buffer (graph) to the screen
     screen->Blit(*graph, Rect(0, 0, graph->width(), graph->height()));
-    // 3. Blit the entire UI widget tree. This will render all the labels.
-    m_ui_root->BlitTo(*screen);
 
     // finally, update the screen :)
     screen->Flip();
@@ -1604,10 +1606,12 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
             continue;
         }
         
-        // Check if mouse is within window bounds
-        if (mouse_x >= window_rect.x() && mouse_x < window_rect.x() + window_rect.width() &&
-            mouse_y >= window_rect.y() && mouse_y < window_rect.y() + window_rect.height()) {
-            
+        // Check if this window has mouse capture or if mouse is within window bounds
+        bool has_capture = (Widget::getMouseCapturedWidget() == window);
+        bool in_bounds = (mouse_x >= window_rect.x() && mouse_x < window_rect.x() + window_rect.width() &&
+                         mouse_y >= window_rect.y() && mouse_y < window_rect.y() + window_rect.height());
+        
+        if (has_capture || in_bounds) {
             int relative_x = mouse_x - window_rect.x();
             int relative_y = mouse_y - window_rect.y();
             
