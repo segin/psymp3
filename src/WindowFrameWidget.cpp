@@ -812,14 +812,11 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
 void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int center_y, int size)
 {
     // Minimize triangle - downward pointing
-    // Original pixel-exact coordinates from source material
-    // Draw using horizontal lines for reliable fill
+    // Use odd-length lines for proper centering
     int y = center_y - 1;  // Top edge
-    surface.hline(center_x - 3, center_x + 3, y, 0, 0, 0, 255);     // Top line: 6 pixels wide
+    surface.hline(center_x - 2, center_x + 2, y, 0, 0, 0, 255);     // Top line: 5 pixels wide
     y++;
-    surface.hline(center_x - 2, center_x + 2, y, 0, 0, 0, 255);     // Second line: 4 pixels wide  
-    y++;
-    surface.hline(center_x - 1, center_x + 1, y, 0, 0, 0, 255);     // Third line: 2 pixels wide
+    surface.hline(center_x - 1, center_x + 1, y, 0, 0, 0, 255);     // Second line: 3 pixels wide  
     y++;
     surface.pixel(center_x, y, 0, 0, 0, 255);                       // Bottom point: 1 pixel
 }
@@ -827,16 +824,13 @@ void WindowFrameWidget::drawDownTriangle(Surface& surface, int center_x, int cen
 void WindowFrameWidget::drawUpTriangle(Surface& surface, int center_x, int center_y, int size)
 {
     // Maximize triangle - upward pointing  
-    // Original pixel-exact coordinates from source material
-    // Draw using horizontal lines for reliable fill
-    int y = center_y - 2;  // Top point
+    // Use odd-length lines for proper centering
+    int y = center_y - 1;  // Top point
     surface.pixel(center_x, y, 0, 0, 0, 255);                       // Top point: 1 pixel
     y++;
-    surface.hline(center_x - 1, center_x + 1, y, 0, 0, 0, 255);     // Second line: 2 pixels wide
+    surface.hline(center_x - 1, center_x + 1, y, 0, 0, 0, 255);     // Second line: 3 pixels wide
     y++;
-    surface.hline(center_x - 2, center_x + 2, y, 0, 0, 0, 255);     // Third line: 4 pixels wide
-    y++;
-    surface.hline(center_x - 3, center_x + 3, y, 0, 0, 0, 255);     // Bottom line: 6 pixels wide
+    surface.hline(center_x - 2, center_x + 2, y, 0, 0, 0, 255);     // Bottom line: 5 pixels wide
 }
 
 void WindowFrameWidget::drawLeftTriangle(Surface& surface, int center_x, int center_y, int size)
