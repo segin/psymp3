@@ -504,14 +504,14 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     // Control menu has no border (as per user requirements)
     
     // Draw the specific Windows 3.1 control menu icon:
-    // 1x11px white line starting from (4, 9) inside the control, proceeding to (14, 9)
+    // 1x11px white line starting from (3, 8) inside the control, proceeding to (13, 8)
     // with 1px black border around this line
-    // and grey drop shadow starting at (4, 11), proceeding to (16, 11), then turning 90 degrees upward to end at (16, 9)
+    // and grey drop shadow starting at (3, 10), proceeding to (15, 10), then turning 90 degrees upward to end at (15, 8)
     
-    int icon_base_x = control_menu_bounds.x() + 4;
-    int icon_base_y = control_menu_bounds.y() + 9;
+    int icon_base_x = control_menu_bounds.x() + 3;
+    int icon_base_y = control_menu_bounds.y() + 8;
     
-    // Draw the white line from (4, 9) to (14, 9)
+    // Draw the white line from (3, 8) to (13, 8)
     surface.hline(icon_base_x, icon_base_x + 10, icon_base_y, 255, 255, 255, 255);
     
     // Draw 1px black border around the white line
@@ -520,7 +520,7 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     surface.pixel(icon_base_x - 1, icon_base_y, 0, 0, 0, 255); // Left border
     surface.pixel(icon_base_x + 11, icon_base_y, 0, 0, 0, 255); // Right border
     
-    // Draw grey drop shadow starting at (4, 11), proceeding to (16, 11), then turning 90 degrees upward to end at (16, 9)
+    // Draw grey drop shadow starting at (3, 10), proceeding to (15, 10), then turning 90 degrees upward to end at (15, 8)
     surface.hline(icon_base_x, icon_base_x + 12, icon_base_y + 2, 128, 128, 128, 255); // Horizontal shadow line
     surface.vline(icon_base_x + 12, icon_base_y, icon_base_y + 2, 128, 128, 128, 255); // Vertical shadow line
     
