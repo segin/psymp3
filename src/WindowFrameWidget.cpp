@@ -751,32 +751,32 @@ void WindowFrameWidget::drawButton(Surface& surface, int x, int y, int width, in
     
     if (pressed) {
         // Pressed button - inverted bevel (dark on top/left, light on bottom/right)
-        // Top and left shadow (dark gray)
-        surface.hline(x, x + width - 2, y, 128, 128, 128, 255);
-        surface.vline(x, y, y + height - 2, 128, 128, 128, 255);
+        // Top and left shadow (dark gray) - with 45-degree corner cut
+        surface.hline(x + 1, x + width - 2, y, 128, 128, 128, 255); // Top line: start at (2,1) in one-indexed
+        surface.vline(x, y + 1, y + height - 2, 128, 128, 128, 255); // Left line: start at (1,2) in one-indexed
         
         // Bottom and right highlight (white/light) - proper 3D bevel for pressed state
-        surface.hline(x, x + width - 1, y + height - 1, 255, 255, 255, 255); // Start from left edge
-        surface.vline(x + width - 1, y, y + height - 1, 255, 255, 255, 255); // Start from top edge
+        surface.hline(x + 1, x + width - 1, y + height - 1, 255, 255, 255, 255); // Bottom line: start at (2,18) in one-indexed
+        surface.vline(x + width - 1, y + 1, y + height - 1, 255, 255, 255, 255); // Right line: start at (18,2) in one-indexed
         
         // Additional darker shading row 1px inside from top and left (same color as main shadow)  
         // Start from edges for proper 3D bevel appearance in pressed state
-        surface.hline(x, x + width - 2, y + 1, 128, 128, 128, 255); // Start from left edge
-        surface.vline(x + 1, y, y + height - 2, 128, 128, 128, 255); // Start from top edge
+        surface.hline(x + 1, x + width - 2, y + 1, 128, 128, 128, 255); // Start from second pixel
+        surface.vline(x + 1, y + 1, y + height - 2, 128, 128, 128, 255); // Start from second pixel
     } else {
         // Normal button - standard 3D bevel (light on top/left, dark on bottom/right)
-        // Top and left highlight (white/light)
-        surface.hline(x, x + width - 2, y, 255, 255, 255, 255);
-        surface.vline(x, y, y + height - 2, 255, 255, 255, 255);
+        // Top and left highlight (white/light) - with 45-degree corner cut
+        surface.hline(x + 1, x + width - 2, y, 255, 255, 255, 255); // Top line: start at (2,1) in one-indexed
+        surface.vline(x, y + 1, y + height - 2, 255, 255, 255, 255); // Left line: start at (1,2) in one-indexed
         
         // Bottom and right shadow (dark gray) - proper 3D bevel extending to edges
-        surface.hline(x, x + width - 1, y + height - 1, 128, 128, 128, 255); // Start from left edge
-        surface.vline(x + width - 1, y, y + height - 1, 128, 128, 128, 255); // Start from top edge
+        surface.hline(x + 1, x + width - 1, y + height - 1, 128, 128, 128, 255); // Bottom line: start at (2,18) in one-indexed
+        surface.vline(x + width - 1, y + 1, y + height - 1, 128, 128, 128, 255); // Right line: start at (18,2) in one-indexed
         
         // Additional shading row 1px above bottom and 1px beside right (same color as main shadow)
         // Start from the very edges for proper 3D bevel appearance
-        surface.hline(x, x + width - 2, y + height - 2, 128, 128, 128, 255); // Start from left edge
-        surface.vline(x + width - 2, y, y + height - 2, 128, 128, 128, 255); // Start from top edge
+        surface.hline(x + 1, x + width - 2, y + height - 2, 128, 128, 128, 255); // Start from second pixel
+        surface.vline(x + width - 2, y + 1, y + height - 2, 128, 128, 128, 255); // Start from second pixel
     }
 }
 
