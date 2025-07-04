@@ -222,6 +222,8 @@ private:
     int m_resize_start_y;
     int m_resize_start_width;
     int m_resize_start_height;
+    int m_resize_start_window_x;
+    int m_resize_start_window_y;
     
     // System menu state
     bool m_system_menu_open;

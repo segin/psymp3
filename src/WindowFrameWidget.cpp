@@ -159,6 +159,10 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 SDL_GetMouseState(&m_resize_start_x, &m_resize_start_y);
                 m_resize_start_width = m_client_width;
                 m_resize_start_height = m_client_height;
+                // Store original window position when resize starts
+                Rect current_pos = getPos();
+                m_resize_start_window_x = current_pos.x();
+                m_resize_start_window_y = current_pos.y();
                 captureMouse(); // Capture mouse for global tracking
                 return true;
             }
@@ -269,16 +273,16 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             int total_height = m_client_height + TITLEBAR_TOTAL_HEIGHT + (border_width * 2);
             
             // Calculate new window position - adjust for top/left edge resizing
-            Rect current_pos = getPos();
-            int new_x = current_pos.x();
-            int new_y = current_pos.y();
+            // Use original window position when resize started to avoid accumulating errors
+            int new_x = m_resize_start_window_x;
+            int new_y = m_resize_start_window_y;
             
-            // When resizing from left edge, move window right by width difference
+            // When resizing from left edge, adjust position to keep right edge fixed
             if (m_resize_edge & 1) { // Left edge
                 new_x += (m_resize_start_width - new_width);
             }
             
-            // When resizing from top edge, move window down by height difference  
+            // When resizing from top edge, adjust position to keep bottom edge fixed  
             if (m_resize_edge & 4) { // Top edge
                 new_y += (m_resize_start_height - new_height);
             }
@@ -724,17 +728,20 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
         return 2 | 8; // Bottom-right corner
     }
     
-    // Check for edge areas
+    // Check for edge areas with expanded hit zones for right and bottom
+    int right_hit_area = total_border_width + 2;  // +2 pixels on right
+    int bottom_hit_area = total_border_width + 1; // +1 pixel on bottom
+    
     if (x < total_border_width) {
         edge |= 1; // Left edge
-    } else if (x >= total_width - total_border_width) {
-        edge |= 2; // Right edge
+    } else if (x >= total_width - right_hit_area) {
+        edge |= 2; // Right edge (expanded hit area)
     }
     
     if (y < total_border_width) {
         edge |= 4; // Top edge
-    } else if (y >= total_height - total_border_width) {
-        edge |= 8; // Bottom edge
+    } else if (y >= total_height - bottom_hit_area) {
+        edge |= 8; // Bottom edge (expanded hit area)
     }
     
     return edge;
