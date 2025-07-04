@@ -46,6 +46,39 @@ public:
     WindowFrameWidget(int client_width, int client_height, const std::string& title = "");
     
     /**
+     * @brief Sets whether the window is resizable.
+     * @param resizable If false, reduces resize frame to just 1px border
+     */
+    void setResizable(bool resizable) { m_resizable = resizable; rebuildSurface(); }
+    
+    /**
+     * @brief Sets whether the window can be minimized.
+     * @param minimizable If false, hides minimize button
+     */
+    void setMinimizable(bool minimizable) { m_minimizable = minimizable; rebuildSurface(); }
+    
+    /**
+     * @brief Sets whether the window can be maximized.
+     * @param maximizable If false, hides maximize button
+     */
+    void setMaximizable(bool maximizable) { m_maximizable = maximizable; rebuildSurface(); }
+    
+    /**
+     * @brief Gets whether the window is resizable.
+     */
+    bool isResizable() const { return m_resizable; }
+    
+    /**
+     * @brief Gets whether the window can be minimized.
+     */
+    bool isMinimizable() const { return m_minimizable; }
+    
+    /**
+     * @brief Gets whether the window can be maximized.
+     */
+    bool isMaximizable() const { return m_maximizable; }
+    
+    /**
      * @brief Virtual destructor.
      */
     virtual ~WindowFrameWidget() = default;
@@ -195,6 +228,11 @@ private:
     int m_system_menu_x;
     int m_system_menu_y;
     
+    // Window properties
+    bool m_resizable;
+    bool m_minimizable;
+    bool m_maximizable;
+    
     // Drag callbacks
     std::function<void(int dx, int dy)> m_on_drag;
     std::function<void()> m_on_drag_start;
@@ -331,6 +369,12 @@ private:
      * @return Resize edge flags (1=left, 2=right, 4=top, 8=bottom)
      */
     int getResizeEdge(int x, int y) const;
+    
+    /**
+     * @brief Gets the effective resize border width based on window properties.
+     * @return 1 if not resizable, RESIZE_BORDER_WIDTH if resizable
+     */
+    int getEffectiveResizeBorderWidth() const;
 };
 
 #endif // WINDOWFRAMEWIDGET_H
