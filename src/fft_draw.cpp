@@ -26,13 +26,15 @@
 /**
  * @brief Constructs a FastFourier object.
  *
- * This constructor initializes the underlying FFT processing engine with a fixed
- * size of 512 samples and allocates buffers for time-domain and frequency-domain data.
+ * This constructor initializes the underlying FFT processing engine with the specified
+ * size (defaulting to 512 samples) and allocates buffers for time-domain and frequency-domain data.
+ * @param fft_size The size of the FFT (must be a power of 2), defaults to 512 for backward compatibility.
  */
-FastFourier::FastFourier() :
-    fft(std::make_unique<FFT>(512)),
-    m_samples(512), // Match FFT size
-    m_fft(512)      // Match FFT size
+FastFourier::FastFourier(int fft_size) :
+    fft(std::make_unique<FFT>(fft_size)),
+    m_samples(fft_size), // Match FFT size
+    m_fft(fft_size),     // Match FFT size
+    m_fft_size(fft_size) // Store the size
 {
 }
 

@@ -29,7 +29,7 @@
 class FastFourier
 {
     public:
-		FastFourier();
+		FastFourier(int fft_size = 512); // Allow configurable FFT size with backward compatibility
 		~FastFourier();
 		float *getFFT() { return m_fft.data(); }
 		float *getTimeDom() { return m_samples.data(); }
@@ -37,11 +37,13 @@ class FastFourier
 		void setFFTMode(FFTMode mode);
 		FFTMode getFFTMode() const;
 		std::string getFFTModeName() const;
+		int getFFTSize() const { return m_fft_size; }
     protected:
 	private:
 		std::unique_ptr<FFT> fft;
 		std::vector<float> m_samples;
 		std::vector<float> m_fft;
+		int m_fft_size; // Store the FFT size
 };
 
 #endif // FFT_DRAW_H

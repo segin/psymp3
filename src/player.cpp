@@ -483,33 +483,46 @@ void Player::renderSpectrum(Surface *graph) {
 
     // --- Fade effect implementation ---
     static std::unique_ptr<Surface> fade_surface_ptr; // Declared static to persist across calls
+    static uint8_t cached_fade_alpha = 255; // Cache the last alpha value to avoid redundant SetAlpha calls
+    
     // The fade surface is created once and reused. It's filled with opaque black
     // only upon creation, avoiding a FillRect call on every frame.
     if (!fade_surface_ptr || fade_surface_ptr->width() != 640 || fade_surface_ptr->height() != 350) {
         fade_surface_ptr = std::make_unique<Surface>(640, 350); // Creates a 32-bit surface for FFT area only
         // Fill the surface with opaque black. This only needs to be done once.
         fade_surface_ptr->FillRect(fade_surface_ptr->MapRGBA(0, 0, 0, 255));
+        cached_fade_alpha = 255; // Reset cache when surface is recreated
     }
     Surface& fade_surface = *fade_surface_ptr;
 
     // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
     uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 4.0f)); // Even slower fade: divisor increased from 3.0 to 4.0
 
-    // Set alpha blending for the fade surface (source surface for blitting)
-    fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
+    // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
+    if (fade_alpha != cached_fade_alpha) {
+        fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
+        cached_fade_alpha = fade_alpha;
+    }
     
-    // Blit the semi-transparent black fade_surface onto the graph surface at (0,0)
-    Rect blit_dest_rect(0, 0, 640, 350); // Blit only to the FFT area
+    // Use static rect to avoid repeated object construction
+    static const Rect blit_dest_rect(0, 0, 640, 350); // Blit only to the FFT area
     graph->Blit(fade_surface, blit_dest_rect); // This will blend if SDL_SRCALPHA is set on src
 
     // --- End Fade effect implementation ---
 
-    // float *spectrum = fft->getFFT(); // Removed redundant declaration
-    for(uint16_t x=0; x < 320; x++) {
-        // Calculate the bar's height
-        int16_t y_start = static_cast<int16_t>(350 - (Util::logarithmicScale(scalefactor, spectrum[x]) * 350.0f));
-        // Draw the rectangle using the precomputed color
-        graph->rectangle(x * 2, y_start, (x * 2) + 1, 350, m_spectrum_colors[x]);
+    // Cache constants to reduce repeated calculations
+    constexpr int16_t spectrum_height = 350;
+    constexpr int16_t spectrum_bottom = 350;
+    constexpr uint16_t spectrum_bins = 320;
+    
+    for(uint16_t x = 0; x < spectrum_bins; x++) {
+        // Calculate the bar's height with fewer intermediate calculations
+        const float scaled_amplitude = Util::logarithmicScale(scalefactor, spectrum[x]);
+        const int16_t y_start = static_cast<int16_t>(spectrum_bottom - scaled_amplitude * spectrum_height);
+        const int16_t x_pos = x * 2;
+        
+        // Use box() instead of rectangle() for better performance (SDL_FillRect vs hline loop)
+        graph->box(x_pos, y_start, x_pos + 1, spectrum_bottom, m_spectrum_colors[x]);
     };
 }
 
@@ -607,10 +620,51 @@ bool Player::updateGUI()
                 (total_len_ms - current_pos_ms) < 10000 && playlist && 
                 playlist->getPosition() < playlist->entries() - 1) {
                 
-                TagLib::String next_path = playlist->peekNext();
-                if (!next_path.isEmpty()) {
-                    std::cout << "Preloading next track for seamless transition: " << next_path.to8Bit(true) << std::endl;
-                    requestTrackPreload(next_path);
+                // Look ahead for sequences of short tracks and automatically chain them
+                std::vector<TagLib::String> short_track_chain;
+                long current_playlist_pos = playlist->getPosition();
+                long look_ahead_pos = current_playlist_pos + 1;
+                
+                // Scan ahead for consecutive short tracks (< 10 seconds each)
+                while (look_ahead_pos < playlist->entries()) {
+                    TagLib::String candidate_path = playlist->getTrack(look_ahead_pos);
+                    if (candidate_path.isEmpty()) break;
+                    
+                    try {
+                        // Quick metadata scan to check track length
+                        std::unique_ptr<Stream> temp_stream(MediaFile::open(candidate_path));
+                        if (temp_stream && temp_stream->getLength() < 10000) {
+                            // Track is short, add to chain
+                            short_track_chain.push_back(candidate_path);
+                            look_ahead_pos++;
+                        } else if (temp_stream) {
+                            // Found a normal-length track - include it to complete the transition
+                            short_track_chain.push_back(candidate_path);
+                            break;
+                        } else {
+                            // Failed to open track, stop scanning
+                            break;
+                        }
+                    } catch (const std::exception& e) {
+                        std::cerr << "Failed to scan track for chaining: " << candidate_path.to8Bit(true) 
+                                  << " - " << e.what() << std::endl;
+                        break;
+                    }
+                }
+                
+                if (short_track_chain.size() >= 2) {
+                    // Use ChainedStream for sequences of 2+ tracks
+                    std::cout << "Detected sequence of " << short_track_chain.size() 
+                              << " tracks for chaining, starting with: " 
+                              << short_track_chain[0].to8Bit(true) << std::endl;
+                    requestChainedStreamLoad(short_track_chain);
+                } else {
+                    // Single track or no short tracks found, use normal preloading
+                    TagLib::String next_path = playlist->peekNext();
+                    if (!next_path.isEmpty()) {
+                        std::cout << "Preloading next track for seamless transition: " << next_path.to8Bit(true) << std::endl;
+                        requestTrackPreload(next_path);
+                    }
                 }
             }
         }
