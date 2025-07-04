@@ -83,12 +83,11 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 // Check for double-click (close window)
                 if (m_double_click_pending && (current_time - m_last_click_time) < 500) {
                     // Double-click detected - close window
+                    m_double_click_pending = false;
+                    m_system_menu_open = false;
                     if (m_on_close) {
                         m_on_close();
                     }
-                    m_double_click_pending = false;
-                    m_system_menu_open = false;
-                    rebuildSurface();
                     return true;
                 } else {
                     // Single click - toggle system menu
@@ -380,15 +379,19 @@ void WindowFrameWidget::rebuildSurface()
     frame_surface->box(total_width - corner_size, total_height - corner_size, 
                       total_width - 2, total_height - 2, 160, 160, 160, 255);
     
-    // Draw titlebar area (blue)
+    // Draw titlebar area (blue) - exactly 18px high
     frame_surface->box(resize_border, resize_border, 
                       total_width - resize_border - 1, resize_border + TITLEBAR_HEIGHT - 1, 
                       0, 0, 128, 255); // Classic Windows 3.1 blue
     
-    // Draw titlebar border
-    frame_surface->rectangle(resize_border, resize_border, 
-                           total_width - resize_border - 1, resize_border + TITLEBAR_HEIGHT - 1, 
-                           0, 0, 64, 255);
+    // Draw titlebar top and side borders only (not bottom, to preserve 18px height)
+    frame_surface->hline(resize_border, total_width - resize_border - 1, resize_border, 0, 0, 64, 255); // Top border
+    frame_surface->vline(resize_border, resize_border, resize_border + TITLEBAR_HEIGHT - 1, 0, 0, 64, 255); // Left border  
+    frame_surface->vline(total_width - resize_border - 1, resize_border, resize_border + TITLEBAR_HEIGHT - 1, 0, 0, 64, 255); // Right border
+    
+    // Draw 1px black separator between titlebar and client area
+    int titlebar_bottom = resize_border + TITLEBAR_HEIGHT;
+    frame_surface->hline(resize_border, total_width - resize_border - 1, titlebar_bottom, 0, 0, 0, 255);
     
     // TODO: Add title text rendering when font access is available
     
@@ -450,7 +453,8 @@ Rect WindowFrameWidget::getMinimizeButtonBounds() const
 {
     int resize_border = RESIZE_BORDER_WIDTH;
     int total_width = m_client_width + (resize_border * 2);
-    int button_x = total_width - resize_border - (BUTTON_SIZE * 2);
+    // Account for separator: minimize button is (BUTTON_SIZE * 2 + 1) from right edge  
+    int button_x = total_width - resize_border - (BUTTON_SIZE * 2) - 1;
     int button_y = resize_border;
     
     return Rect(button_x, button_y, BUTTON_SIZE, BUTTON_SIZE);
@@ -480,82 +484,103 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     // Draw control menu box (full height square on left)
     Rect control_menu_bounds = getControlMenuBounds();
     
-    // Control menu background (light gray)
+    // Control menu background (light gray) - fill the entire 18x18 area
     surface.box(control_menu_bounds.x(), control_menu_bounds.y(), 
-               control_menu_bounds.x() + control_menu_bounds.width() - 1, 
-               control_menu_bounds.y() + control_menu_bounds.height() - 1, 
+               control_menu_bounds.x() + CONTROL_MENU_SIZE - 1, 
+               control_menu_bounds.y() + CONTROL_MENU_SIZE - 1, 
                192, 192, 192, 255);
     
     // Control menu border (simple black outline)
     surface.rectangle(control_menu_bounds.x(), control_menu_bounds.y(), 
-                     control_menu_bounds.x() + control_menu_bounds.width() - 1, 
-                     control_menu_bounds.y() + control_menu_bounds.height() - 1, 
+                     control_menu_bounds.x() + CONTROL_MENU_SIZE - 1, 
+                     control_menu_bounds.y() + CONTROL_MENU_SIZE - 1, 
                      0, 0, 0, 255);
     
-    // Draw a simple window icon representation (small rectangle in center)
-    int icon_size = 8;
+    // Draw a simple window icon representation (small filled rectangle in center)
+    int icon_size = 6;
     int icon_x = control_menu_bounds.x() + (control_menu_bounds.width() - icon_size) / 2;
     int icon_y = control_menu_bounds.y() + (control_menu_bounds.height() - icon_size) / 2;
-    surface.rectangle(icon_x, icon_y, icon_x + icon_size - 1, icon_y + icon_size - 1, 0, 0, 0, 255);
+    surface.box(icon_x, icon_y, icon_x + icon_size - 1, icon_y + icon_size - 1, 64, 64, 64, 255);
     
-    // Draw minimize button (full height square)
+    // Draw minimize button (full height square with 3D effect)
     Rect minimize_bounds = getMinimizeButtonBounds();
     
-    // Button background (light gray)
+    // Button background (light gray) - fill the entire 18x18 area
     surface.box(minimize_bounds.x(), minimize_bounds.y(), 
-               minimize_bounds.x() + minimize_bounds.width() - 1, 
-               minimize_bounds.y() + minimize_bounds.height() - 1, 
+               minimize_bounds.x() + BUTTON_SIZE - 1, 
+               minimize_bounds.y() + BUTTON_SIZE - 1, 
                192, 192, 192, 255);
     
-    // Button border (black outline)
-    surface.rectangle(minimize_bounds.x(), minimize_bounds.y(), 
-                     minimize_bounds.x() + minimize_bounds.width() - 1, 
-                     minimize_bounds.y() + minimize_bounds.height() - 1, 
-                     0, 0, 0, 255);
+    // 3D bevel effect - Windows 3.1 style (drawn on top, within the 18x18 area)
+    // Top and left highlight (white/light)
+    surface.hline(minimize_bounds.x(), minimize_bounds.x() + BUTTON_SIZE - 2, 
+                 minimize_bounds.y(), 255, 255, 255, 255);
+    surface.vline(minimize_bounds.x(), minimize_bounds.y(), 
+                 minimize_bounds.y() + BUTTON_SIZE - 2, 255, 255, 255, 255);
+    
+    // Bottom and right shadow (dark gray)
+    surface.hline(minimize_bounds.x() + 1, minimize_bounds.x() + BUTTON_SIZE - 1, 
+                 minimize_bounds.y() + BUTTON_SIZE - 1, 128, 128, 128, 255);
+    surface.vline(minimize_bounds.x() + BUTTON_SIZE - 1, 
+                 minimize_bounds.y() + 1, minimize_bounds.y() + BUTTON_SIZE - 1, 
+                 128, 128, 128, 255);
     
     // Minimize symbol (downward pointing triangle ▼)
     int min_center_x = minimize_bounds.x() + minimize_bounds.width() / 2;
     int min_center_y = minimize_bounds.y() + minimize_bounds.height() / 2;
-    int triangle_size = 6;
+    int triangle_size = 2; // Much smaller for Windows 3.1 authenticity
     
-    // Triangle points for downward arrow
+    // Triangle points for downward arrow - smaller and more precise
     Sint16 min_x1 = min_center_x - triangle_size;
-    Sint16 min_y1 = min_center_y - triangle_size / 2;
+    Sint16 min_y1 = min_center_y - 1;
     Sint16 min_x2 = min_center_x + triangle_size;
-    Sint16 min_y2 = min_center_y - triangle_size / 2;
+    Sint16 min_y2 = min_center_y - 1;
     Sint16 min_x3 = min_center_x;
-    Sint16 min_y3 = min_center_y + triangle_size / 2;
+    Sint16 min_y3 = min_center_y + 1;
     
     surface.filledTriangle(min_x1, min_y1, min_x2, min_y2, min_x3, min_y3, 0, 0, 0, 255);
     
-    // Draw maximize button (full height square)
+    // Draw maximize button (full height square with 3D effect)
     Rect maximize_bounds = getMaximizeButtonBounds();
     
-    // Button background (light gray)
+    // Button background (light gray) - fill the entire 18x18 area
     surface.box(maximize_bounds.x(), maximize_bounds.y(), 
-               maximize_bounds.x() + maximize_bounds.width() - 1, 
-               maximize_bounds.y() + maximize_bounds.height() - 1, 
+               maximize_bounds.x() + BUTTON_SIZE - 1, 
+               maximize_bounds.y() + BUTTON_SIZE - 1, 
                192, 192, 192, 255);
     
-    // Button border (black outline)
-    surface.rectangle(maximize_bounds.x(), maximize_bounds.y(), 
-                     maximize_bounds.x() + maximize_bounds.width() - 1, 
-                     maximize_bounds.y() + maximize_bounds.height() - 1, 
-                     0, 0, 0, 255);
+    // 3D bevel effect - Windows 3.1 style (drawn on top, within the 18x18 area)
+    // Top and left highlight (white/light)
+    surface.hline(maximize_bounds.x(), maximize_bounds.x() + BUTTON_SIZE - 2, 
+                 maximize_bounds.y(), 255, 255, 255, 255);
+    surface.vline(maximize_bounds.x(), maximize_bounds.y(), 
+                 maximize_bounds.y() + BUTTON_SIZE - 2, 255, 255, 255, 255);
+    
+    // Bottom and right shadow (dark gray)
+    surface.hline(maximize_bounds.x() + 1, maximize_bounds.x() + BUTTON_SIZE - 1, 
+                 maximize_bounds.y() + BUTTON_SIZE - 1, 128, 128, 128, 255);
+    surface.vline(maximize_bounds.x() + BUTTON_SIZE - 1, 
+                 maximize_bounds.y() + 1, maximize_bounds.y() + BUTTON_SIZE - 1, 
+                 128, 128, 128, 255);
     
     // Maximize symbol (upward pointing triangle ▲)
     int max_center_x = maximize_bounds.x() + maximize_bounds.width() / 2;
     int max_center_y = maximize_bounds.y() + maximize_bounds.height() / 2;
+    int max_triangle_size = 2; // Same as minimize button
     
-    // Triangle points for upward arrow
-    Sint16 max_x1 = max_center_x - triangle_size;
-    Sint16 max_y1 = max_center_y + triangle_size / 2;
-    Sint16 max_x2 = max_center_x + triangle_size;
-    Sint16 max_y2 = max_center_y + triangle_size / 2;
+    // Triangle points for upward arrow - smaller and more precise
+    Sint16 max_x1 = max_center_x - max_triangle_size;
+    Sint16 max_y1 = max_center_y + 1;
+    Sint16 max_x2 = max_center_x + max_triangle_size;
+    Sint16 max_y2 = max_center_y + 1;
     Sint16 max_x3 = max_center_x;
-    Sint16 max_y3 = max_center_y - triangle_size / 2;
+    Sint16 max_y3 = max_center_y - 1;
     
     surface.filledTriangle(max_x1, max_y1, max_x2, max_y2, max_x3, max_y3, 0, 0, 0, 255);
+    
+    // Draw 1px black separator between minimize and maximize buttons
+    int separator_x = minimize_bounds.x() + minimize_bounds.width();
+    surface.vline(separator_x, minimize_bounds.y(), minimize_bounds.y() + minimize_bounds.height() - 1, 0, 0, 0, 255);
 }
 
 void WindowFrameWidget::drawSystemMenu(Surface& surface) const
