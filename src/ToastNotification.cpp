@@ -53,9 +53,9 @@ ToastNotification::ToastNotification(Font* font, const std::string& message, Uin
         throw SDLException("Could not create surface for ToastNotification");
     }
 
-    // 3. Draw the background directly onto the new alpha-enabled surface.
-    toast_surface->roundedBoxRGBA(0, 0, toast_width - 1, toast_height - 1, 8, 100, 100, 100, 255);
-    toast_surface->roundedBoxRGBA(1, 1, toast_width - 2, toast_height - 2, 7, 50, 50, 50, 255);
+    // 3. Draw the background directly onto the new alpha-enabled surface with 20% transparency.
+    toast_surface->roundedBoxRGBA(0, 0, toast_width - 1, toast_height - 1, 8, 100, 100, 100, 204);
+    toast_surface->roundedBoxRGBA(1, 1, toast_width - 2, toast_height - 2, 7, 50, 50, 50, 204);
 
     // 4. Blit the text onto the background.
     Rect text_dest_rect(PADDING, PADDING, 0, 0);
