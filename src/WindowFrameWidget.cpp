@@ -455,28 +455,40 @@ void WindowFrameWidget::rebuildSurface()
     
     // 8. Draw corner separators for resizable windows only
     if (m_resizable && effective_resize_width > 1) {
-        // Calculate exact position to align with separator between minimize and maximize buttons
-        Rect minimize_bounds_temp = getMinimizeButtonBounds();
-        int corner_separator_x = minimize_bounds_temp.x() + BUTTON_SIZE; // Right edge of minimize button
-        int notch_offset = corner_separator_x - resize_start; // Distance from resize frame edge
+        // Following the web canvas example: notches connect outer and inner borders
+        // Outer border coordinates
+        int outer_x1 = 0;
+        int outer_y1 = 0; 
+        int outer_x2 = total_width - 1;
+        int outer_y2 = total_height - 1;
         
-        // Top-left corner notch (1px away from corner)
-        frame_surface->vline(corner_separator_x - 1, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(resize_start, resize_start + notch_offset - 2, content_y + TITLEBAR_HEIGHT, 0, 0, 0, 255); // Horizontal moved down 1px to avoid titlebar border overlap
+        // Inner border coordinates  
+        int inner_x1 = content_border;
+        int inner_y1 = content_border;
+        int inner_x2 = total_width - content_border - 1;
+        int inner_y2 = total_height - content_border - 1;
         
-        // Top-right corner notch (1px away from corner)
-        int right_separator_x = total_width - notch_offset;
-        frame_surface->vline(right_separator_x, resize_start, content_border - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(total_width - notch_offset + 1, total_width - resize_start - 1, content_y + TITLEBAR_HEIGHT, 0, 0, 0, 255); // Horizontal moved down 1px to avoid titlebar border overlap
+        // Notch positions: 19px from inner border edges
+        int left_notch_x = inner_x1 + 19;
+        int right_notch_x = inner_x2 - 19;
+        int top_notch_y = inner_y1 + 19;
+        int bottom_notch_y = inner_y2 - 19;
         
-        // Bottom-left corner notch (1px away from corner, aligned to 19px above)
-        int bottom_notch_y = total_height - 19; // 19px from bottom
-        frame_surface->vline(corner_separator_x - 1, bottom_notch_y, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(resize_start, resize_start + notch_offset - 2, bottom_notch_y, 0, 0, 0, 255); // Horizontal at proper height
+        // Top notches (vertical) - connect outer to inner border
+        frame_surface->vline(left_notch_x, outer_y1, inner_y1, 0, 0, 0, 255);
+        frame_surface->vline(right_notch_x, outer_y1, inner_y1, 0, 0, 0, 255);
         
-        // Bottom-right corner notch (1px away from corner, aligned to 19px above)
-        frame_surface->vline(right_separator_x, bottom_notch_y, total_height - resize_start - 1, 0, 0, 0, 255); // Vertical in resize frame
-        frame_surface->hline(total_width - notch_offset + 1, total_width - resize_start - 1, bottom_notch_y, 0, 0, 0, 255); // Horizontal at proper height
+        // Bottom notches (vertical) - connect inner to outer border
+        frame_surface->vline(left_notch_x, inner_y2, outer_y2, 0, 0, 0, 255);
+        frame_surface->vline(right_notch_x, inner_y2, outer_y2, 0, 0, 0, 255);
+        
+        // Left notches (horizontal) - connect outer to inner border
+        frame_surface->hline(outer_x1, inner_x1, top_notch_y, 0, 0, 0, 255);
+        frame_surface->hline(outer_x1, inner_x1, bottom_notch_y, 0, 0, 0, 255);
+        
+        // Right notches (horizontal) - connect inner to outer border
+        frame_surface->hline(inner_x2, outer_x2, top_notch_y, 0, 0, 0, 255);
+        frame_surface->hline(inner_x2, outer_x2, bottom_notch_y, 0, 0, 0, 255);
     }
     
     // TODO: Add title text rendering when font access is available
@@ -729,19 +741,18 @@ void WindowFrameWidget::drawSystemMenu(Surface& surface) const
 
 int WindowFrameWidget::getResizeEdge(int x, int y) const
 {
-    // Use same calculation as other methods for consistency with expanded frame
-    // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
-    int horizontal_border_total = 8;
-    // Vertical: 27px total (titlebar + borders + resize frames)
-    int vertical_border_total = 27;
-    // Add asymmetric expansion: +3px right, +1px down
-    int total_width = m_client_width + horizontal_border_total + 3;
-    int total_height = m_client_height + vertical_border_total + 1;
-    int corner_size = 6; // Match the corner size used in rebuildSurface
+    Rect window_pos = getPos();
+    int total_width = window_pos.width();
+    int total_height = window_pos.height();
+    int corner_size = 6;
+    
+    // Resize area includes: 1px outer + 2px resize frame + 1px inner border = 4px total
+    int effective_resize_width = getEffectiveResizeBorderWidth();
+    int resize_area_width = OUTER_BORDER_WIDTH + effective_resize_width + 1; // Include inner border
     
     int edge = 0;
     
-    // Check for corner areas first (larger hit areas)
+    // Check for corner areas first (larger hit areas for easier grabbing)
     if (x < corner_size && y < corner_size) {
         return 1 | 4; // Top-left corner
     }
@@ -755,24 +766,17 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
         return 2 | 8; // Bottom-right corner
     }
     
-    // Check for edge areas with expanded hit zones for right and bottom
-    // Include outer pixel border in hit detection (start from 0)
-    int base_border_width = 3; // 1px outer + 2px resize frame
-    int left_hit_area = base_border_width;       // Left: 3 pixels from edge
-    int top_hit_area = base_border_width;        // Top: 3 pixels from edge  
-    int right_hit_area = base_border_width + 3;  // Right: +3 pixels (was +2, now +3 for outer border)
-    int bottom_hit_area = base_border_width + 2; // Bottom: +2 pixels (was +1, now +2 for outer border)
-    
-    if (x < left_hit_area) {
-        edge |= 1; // Left edge (includes outer border)
-    } else if (x >= total_width - right_hit_area) {
-        edge |= 2; // Right edge (expanded hit area)
+    // Check for edge areas (includes inner border for grabbing)
+    if (x < resize_area_width) {
+        edge |= 1; // Left edge
+    } else if (x >= total_width - resize_area_width) {
+        edge |= 2; // Right edge
     }
     
-    if (y < top_hit_area) {
-        edge |= 4; // Top edge (includes outer border)  
-    } else if (y >= total_height - bottom_hit_area) {
-        edge |= 8; // Bottom edge (expanded hit area)
+    if (y < resize_area_width) {
+        edge |= 4; // Top edge
+    } else if (y >= total_height - resize_area_width) {
+        edge |= 8; // Bottom edge
     }
     
     return edge;
