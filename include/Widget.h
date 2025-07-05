@@ -148,6 +148,22 @@ class Widget : public Surface
         void addChild(std::unique_ptr<Widget> child);
         
         /**
+         * @brief Marks this widget as needing a repaint and notifies parent.
+         * 
+         * This method marks the widget as dirty and requests its parent to
+         * repaint the area where this widget is located. The parent is responsible
+         * for clearing the background and repainting all affected children.
+         */
+        void invalidate();
+        
+        /**
+         * @brief Marks a specific area of this widget as needing repaint.
+         * 
+         * @param area Rectangle defining the area that needs repainting
+         */
+        void invalidateArea(const Rect& area);
+        
+        /**
          * @brief Handles mouse button down events.
          * 
          * This method implements hierarchical event delegation. It first forwards
@@ -244,17 +260,19 @@ class Widget : public Surface
          * @return true if the widget is mouse-transparent, false otherwise
          */
         bool isMouseTransparent() const;
-    protected:
+        
         /**
          * @brief Recursively renders this widget and its children with absolute positioning.
          * 
-         * This is an internal method used by BlitTo to handle coordinate transformation
-         * for nested widget hierarchies.
+         * This method handles coordinate transformation for nested widget hierarchies.
+         * Made public to allow container widgets like ApplicationWidget to properly
+         * render their children with correct positioning.
          * 
          * @param target The surface to render to
          * @param parent_absolute_pos The absolute position of the parent widget
          */
-        void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);
+        virtual void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);
+    protected:
         
         /**
          * @brief Gets a reference to this widget's surface.
@@ -282,6 +300,14 @@ class Widget : public Surface
          * appear in this vector.
          */
         std::vector<std::unique_ptr<Widget>> m_children;
+        
+        /**
+         * @brief Pointer to the parent widget (non-owning).
+         * 
+         * Used for notifying parent of invalidation requests.
+         * Null for root widgets.
+         */
+        Widget* m_parent;
         
         /**
          * @brief Flag indicating if this widget is transparent to mouse events.

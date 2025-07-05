@@ -22,12 +22,38 @@
  */
 
 #include "psymp3.h"
+#include <typeinfo>
+#include <cstring>
 
 // Static mouse capture widget
 Widget* Widget::s_mouse_captured_widget = nullptr;
 
+// Helper function to get a clean widget type name for debugging
+static std::string getWidgetTypeName(const Widget* widget) {
+    const char* mangled_name = typeid(*widget).name();
+    
+    // On most compilers, the mangled name starts with a digit followed by the class name
+    // Try to extract a readable class name
+    const char* class_name = mangled_name;
+    
+    // Skip leading digits and length prefixes (common in GCC mangling)
+    while (*class_name && std::isdigit(*class_name)) {
+        class_name++;
+    }
+    
+    // For most widget classes, extract just the class name part
+    std::string result(class_name);
+    
+    // If it's still mangled or empty, fall back to the full mangled name
+    if (result.empty()) {
+        result = mangled_name;
+    }
+    
+    return result;
+}
+
 Widget::Widget()
-    : m_mouse_transparent(false)
+    : m_parent(nullptr), m_mouse_transparent(false)
 {
     //ctor
 }
@@ -41,6 +67,7 @@ Widget::~Widget()
 Widget::Widget(Surface&& other) :
     Surface(std::move(other)), // Move the base Surface part
     m_pos(0, 0),
+    m_parent(nullptr),
     m_mouse_transparent(false)
 {
 }
@@ -49,29 +76,40 @@ Widget::Widget(Surface&& other) :
 Widget::Widget(Surface&& other, const Rect& position) :
     Surface(std::move(other)), // Move the base Surface part
     m_pos(position),
+    m_parent(nullptr),
     m_mouse_transparent(false)
 {
 }
 
 void Widget::BlitTo(Surface& target)
 {
+    std::string type_name = getWidgetTypeName(this);
+    std::cout << "Widget::BlitTo [" << type_name << "] - pos(" << m_pos.x() << "," << m_pos.y() << ") size(" << m_pos.width() << "x" << m_pos.height() << ") valid=" << this->isValid() << std::endl;
+    
     // Blit this widget's own surface content first (if it has any)
     if (this->isValid()) {
+        std::cout << "  Blitting widget surface to target" << std::endl;
         target.Blit(*this, m_pos);
     }
 
     // Then, recursively blit all children, passing this widget's position as the parent offset.
     for (const auto& child : m_children) {
+        std::string child_type = getWidgetTypeName(child.get());
+        std::cout << "  Recursively blitting child [" << child_type << "]" << std::endl;
         child->recursiveBlitTo(target, m_pos);
     }
 }
 
 void Widget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
 {
+    std::string type_name = getWidgetTypeName(this);
+    
     // Calculate the child's absolute on-screen position by adding its relative position to the parent's absolute position.
     Rect absolute_pos(parent_absolute_pos.x() + m_pos.x(),
                       parent_absolute_pos.y() + m_pos.y(),
                       m_pos.width(), m_pos.height());
+
+    std::cout << "  recursiveBlitTo [" << type_name << "] - abs_pos(" << absolute_pos.x() << "," << absolute_pos.y() << ") size(" << absolute_pos.width() << "x" << absolute_pos.height() << ") valid=" << this->isValid() << std::endl;
 
     // Blit the child's own surface content.
     if (this->isValid()) {
@@ -101,7 +139,10 @@ void Widget::setSurface(std::unique_ptr<Surface> surface)
 
 void Widget::addChild(std::unique_ptr<Widget> child)
 {
-    m_children.push_back(std::move(child));
+    if (child) {
+        child->m_parent = this; // Set parent pointer before taking ownership
+        m_children.push_back(std::move(child));
+    }
 }
 
 Surface& Widget::getSurface() {
@@ -285,4 +326,26 @@ void Widget::setMouseTransparent(bool transparent)
 bool Widget::isMouseTransparent() const
 {
     return m_mouse_transparent;
+}
+
+void Widget::invalidate()
+{
+    // If we have a parent, notify it that we need repainting
+    if (m_parent) {
+        m_parent->invalidateArea(m_pos);
+    }
+    // For root widgets (like ApplicationWidget), mark as needing full repaint
+    // This will be handled at the application level
+}
+
+void Widget::invalidateArea(const Rect& area)
+{
+    // If we have a parent, propagate the invalidation upward
+    if (m_parent) {
+        // Transform area coordinates to parent's coordinate system
+        Rect parent_area(m_pos.x() + area.x(), m_pos.y() + area.y(), 
+                        area.width(), area.height());
+        m_parent->invalidateArea(parent_area);
+    }
+    // For root widgets, this would trigger a repaint of the specified area
 }

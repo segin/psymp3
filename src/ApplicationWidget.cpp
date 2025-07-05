@@ -167,10 +167,33 @@ bool ApplicationWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
     return Widget::handleMouseUp(event, relative_x, relative_y);
 }
 
-void ApplicationWidget::addWindow(std::unique_ptr<Widget> window)
+void ApplicationWidget::addWindow(std::unique_ptr<Widget> window, int z_order)
 {
     if (window) {
+        // Set Z-order if the window supports it
+        if (auto* transparent_window = dynamic_cast<TransparentWindowWidget*>(window.get())) {
+            transparent_window->setZOrder(z_order);
+        }
+        
         m_windows.push_back(std::move(window));
+        
+        // Sort windows by Z-order (stable sort to maintain order for equal Z-order values)
+        std::stable_sort(m_windows.begin(), m_windows.end(),
+            [](const std::unique_ptr<Widget>& a, const std::unique_ptr<Widget>& b) {
+                // Get Z-order from TransparentWindowWidget, default to 50 for other widgets
+                int z_a = 50;
+                int z_b = 50;
+                
+                if (auto* trans_a = dynamic_cast<const TransparentWindowWidget*>(a.get())) {
+                    z_a = trans_a->getZOrder();
+                }
+                if (auto* trans_b = dynamic_cast<const TransparentWindowWidget*>(b.get())) {
+                    z_b = trans_b->getZOrder();
+                }
+                
+                return z_a < z_b; // Lower Z-order values render first (behind)
+            });
+        
         rebuildSurface();
     }
 }
@@ -217,30 +240,50 @@ Widget* ApplicationWidget::findWindowAt(int x, int y) const
     return nullptr;
 }
 
+void ApplicationWidget::BlitTo(Surface& target)
+{
+    // ApplicationWidget acts as the desktop - render all child widgets first
+    // This includes spectrum analyzer, progress bar, labels, etc.
+    Widget::BlitTo(target); // This will render all child widgets in the hierarchy
+    
+    // Then render floating windows on top
+    for (const auto& window : m_windows) {
+        window->BlitTo(target);
+    }
+}
+
+void ApplicationWidget::updateWindows()
+{
+    // Check for toasts that need to be dismissed
+    auto it = m_windows.begin();
+    while (it != m_windows.end()) {
+        if (auto* toast = dynamic_cast<ToastWidget*>(it->get())) {
+            if (toast->shouldDismiss()) {
+                toast->dismiss(); // Call dismiss callback
+                it = m_windows.erase(it); // Remove from window list
+                continue;
+            }
+        }
+        ++it;
+    }
+}
+
+void ApplicationWidget::removeAllToasts()
+{
+    // Remove all existing toasts immediately
+    auto it = m_windows.begin();
+    while (it != m_windows.end()) {
+        if (dynamic_cast<ToastWidget*>(it->get())) {
+            it = m_windows.erase(it);
+        } else {
+            ++it;
+        }
+    }
+}
+
 void ApplicationWidget::rebuildSurface()
 {
-    Rect screen_rect = getPos();
-    auto surface = std::make_unique<Surface>(screen_rect.width(), screen_rect.height(), true);
-    
-    // Fill with default background color (could be customizable)
-    uint32_t bg_color = surface->MapRGB(64, 64, 64); // Dark gray background
-    surface->FillRect(bg_color);
-    
-    // Render child widgets (desktop elements) in z-order (bottom to top)
-    for (const auto& child : m_children) {
-        if (child->isValid()) {
-            Rect child_pos = child->getPos();
-            surface->Blit(*child, child_pos);
-        }
-    }
-    
-    // Render all windows on top of desktop elements
-    for (const auto& window : m_windows) {
-        if (window->isValid()) {
-            Rect window_pos = window->getPos();
-            surface->Blit(*window, window_pos);
-        }
-    }
-    
-    setSurface(std::move(surface));
+    // ApplicationWidget doesn't need its own surface - it just acts as a transparent container
+    // The background is handled by the display/graph surface itself
+    // Child widgets and windows will be rendered directly during BlitTo()
 }

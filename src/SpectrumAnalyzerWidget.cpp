@@ -36,10 +36,23 @@ void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_
 {
     if (spectrum_data && num_bands > 0) {
         m_spectrum_data.resize(num_bands);
+        float max_val = 0.0f;
+        bool data_changed = false;
+        
         for (int i = 0; i < num_bands; ++i) {
-            m_spectrum_data[i] = std::max(0.0f, std::min(1.0f, spectrum_data[i]));
+            float new_val = std::max(0.0f, std::min(1.0f, spectrum_data[i]));
+            if (std::abs(new_val - m_spectrum_data[i]) > 0.001f) {
+                data_changed = true;
+            }
+            m_spectrum_data[i] = new_val;
+            max_val = std::max(max_val, m_spectrum_data[i]);
         }
-        invalidate(); // Trigger redraw
+        
+        // Only redraw if data actually changed
+        if (data_changed) {
+            std::cout << "SpectrumAnalyzerWidget: Data changed, max_val=" << max_val << ", bands=" << num_bands << std::endl;
+            invalidate(); // Trigger redraw
+        }
     }
 }
 
@@ -86,6 +99,7 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
     int height = pos.height();
     
     if (m_spectrum_data.empty() || width <= 0 || height <= 0) {
+        std::cout << "SpectrumAnalyzerWidget::drawBars: No data or invalid size" << std::endl;
         return;
     }
     
@@ -93,18 +107,24 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
     int bar_width = std::max(1, width / num_bands);
     int spacing = std::max(0, (width - (bar_width * num_bands)) / (num_bands + 1));
     
+    // Find max value for debug
+    float max_val = 0.0f;
+    for (const float& val : m_spectrum_data) {
+        max_val = std::max(max_val, val);
+    }
+    
+    std::cout << "SpectrumAnalyzerWidget::drawBars: " << num_bands << " bands, max_val=" << max_val << std::endl;
+    
     for (int i = 0; i < num_bands; ++i) {
         float value = m_spectrum_data[i];
-        int bar_height = static_cast<int>(value * height);
+        int bar_height = std::max(1, static_cast<int>(value * height)); // Always at least 1 pixel
         
-        if (bar_height > 0) {
-            int x = spacing + i * (bar_width + spacing);
-            int y = height - bar_height;
-            
-            uint32_t color = getSpectrumColor(value, i, surface);
-            surface.box(x, y, x + bar_width - 1, height - 1, 
-                       (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, 255);
-        }
+        int x = spacing + i * (bar_width + spacing);
+        int y = height - bar_height;
+        
+        uint32_t color = getSpectrumColor(std::max(0.01f, value), i, surface); // Always get a color
+        surface.box(x, y, x + bar_width - 1, height - 1, 
+                   (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, 255);
     }
 }
 

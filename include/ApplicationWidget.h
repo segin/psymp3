@@ -38,14 +38,23 @@
  * - Window widgets (which appear on top of the background)
  * - Global mouse and keyboard event routing
  * - Z-order management for windows
+ * 
+ * This is a singleton class - only one ApplicationWidget can exist at a time.
  */
 class ApplicationWidget : public Widget {
 public:
     /**
-     * @brief Constructor that creates an application widget covering the entire display.
+     * @brief Gets the singleton instance of ApplicationWidget.
      * @param display Reference to the display object for getting screen dimensions
+     * @return Reference to the singleton ApplicationWidget instance
      */
-    ApplicationWidget(Display& display);
+    static ApplicationWidget& getInstance(Display& display);
+    
+    /**
+     * @brief Gets the singleton instance of ApplicationWidget (must be initialized first).
+     * @return Reference to the singleton ApplicationWidget instance
+     */
+    static ApplicationWidget& getInstance();
     
     /**
      * @brief Virtual destructor.
@@ -80,10 +89,12 @@ public:
     virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
     
     /**
-     * @brief Adds a window widget that should appear on top of the background.
+     * @brief Adds a window widget that should appear on top of the desktop.
+     * Windows are separate from the desktop child widgets and always render on top.
      * @param window Window widget to add (takes ownership)
+     * @param z_order Z-order level for the window (see ZOrder namespace)
      */
-    void addWindow(std::unique_ptr<Widget> window);
+    void addWindow(std::unique_ptr<Widget> window, int z_order = 50);
     
     /**
      * @brief Removes a window widget from the application.
@@ -92,21 +103,40 @@ public:
     void removeWindow(Widget* window);
     
     /**
-     * @brief Sets the background/desktop widget (spectrum analyzer, controls, etc.).
-     * @param background Background widget (takes ownership)
-     */
-    void setBackground(std::unique_ptr<Widget> background);
-    
-    /**
      * @brief Brings a window to the front (top of z-order).
      * @param window Pointer to the window widget to bring to front
      */
     void bringWindowToFront(Widget* window);
+    
+    /**
+     * @brief Updates all windows (handles auto-dismiss for toasts, animations, etc.).
+     * Call this regularly from the main loop.
+     */
+    void updateWindows();
+    
+    /**
+     * @brief Removes all toast windows immediately.
+     * Used when showing a new toast to replace existing ones.
+     */
+    void removeAllToasts();
+    
+    /**
+     * @brief Renders child widgets and windows to the target surface.
+     * @param target The surface to render to
+     */
+    virtual void BlitTo(Surface& target) override;
 
 private:
+    /**
+     * @brief Private constructor for singleton pattern.
+     * @param display Reference to the display object for getting screen dimensions
+     */
+    ApplicationWidget(Display& display);
+    
     Display& m_display;
-    std::unique_ptr<Widget> m_background;
     std::vector<std::unique_ptr<Widget>> m_windows;
+    
+    static std::unique_ptr<ApplicationWidget> s_instance;
     
     /**
      * @brief Finds the topmost window at the given coordinates.

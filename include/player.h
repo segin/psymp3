@@ -155,13 +155,13 @@ class Player
         unsigned long m_seek_position_ms = 0; // For keyboard seeking
 
         // UI Widget tree
-        std::unique_ptr<Widget> m_ui_root;
-        std::map<std::string, Label*> m_labels; // Non-owning pointers for quick access
+        Widget* m_ui_root; // Reference to ApplicationWidget singleton
+        std::map<std::string, Label*> m_labels; // Non-owning pointers for quick access (owned by ApplicationWidget)
         
-        // Spectrum analyzer widget (non-owning pointer - owned by widget tree)
+        // Spectrum analyzer widget (non-owning pointer - owned by ApplicationWidget)
         SpectrumAnalyzerWidget* m_spectrum_widget;
         
-        // Progress bar widget (non-owning pointer - owned by widget tree)
+        // Progress bar widget (non-owning pointer - owned by progress frame widget which is owned by ApplicationWidget)
         PlayerProgressBarWidget* m_progress_widget;
 
         // Overlay widgets

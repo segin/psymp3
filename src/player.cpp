@@ -592,14 +592,7 @@ bool Player::updateGUI()
     {
         std::lock_guard<std::mutex> lock(*mutex);
 
-        // The fade effect in renderSpectrum handles clearing the spectrum area.
-        // We only need to manually clear the bottom part of the graph surface
-        // where the progress bar and other info will be drawn.
-        Rect bottom_clear_rect(0, 351, graph->width(), graph->height() - 351);
-        graph->box(bottom_clear_rect.x(), bottom_clear_rect.y(),
-                    bottom_clear_rect.x() + bottom_clear_rect.width() - 1,
-                    bottom_clear_rect.y() + bottom_clear_rect.height() - 1,
-                    graph->MapRGBA(0, 0, 0, 255));
+        // Don't clear the graph surface - widgets will draw their own backgrounds
 
         // Copy data from stream object while locked
         if (audio && audio->getCurrentStream()) {
@@ -677,14 +670,19 @@ bool Player::updateGUI()
     }
 
     // --- Lyrics Widget Rendering ---
-    // Render lyrics at the top of the screen with current playback position
+    // NOTE: Temporarily disabled - will be converted to transparent window system
+    // TODO: Convert LyricsWidget to use TransparentWindowWidget with ZOrder::UI
+    /*
     if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
         m_lyrics_widget->updatePosition(current_pos_ms);
         m_lyrics_widget->BlitTo(*graph);
     }
+    */
 
     // --- Toast Notification Management and Rendering ---
-    // This must be done *after* rendering the spectrum but *before* blitting the graph to the screen.
+    // NOTE: Temporarily disabled - will be converted to transparent window system  
+    // TODO: Convert ToastNotification to use ToastWidget with ZOrder::MAX
+    /*
     if (m_toast) {
         if (m_toast->isExpired()) {
             m_toast.reset();
@@ -704,6 +702,7 @@ bool Player::updateGUI()
             m_toast->BlitTo(*graph); // Blit to the graph surface for correct alpha blending
         }
     }
+    */
 
     // --- Pause Indicator Rendering ---
     // This should be drawn after the toast so it appears on top if both are active.
@@ -734,12 +733,21 @@ bool Player::updateGUI()
     }
     
     // --- UI Widget Tree Rendering ---
+    // Clear areas where UI widgets will render to prevent ghosting
+    // Note: Don't clear spectrum area (0,0,640,350) - SpectrumAnalyzerWidget handles its own background
+    // Bottom area for track info labels (below spectrum area)
+    graph->box(0, 350, 640, 400, 0, 0, 0, 255);
+    // Top-right area for debug labels (over spectrum area)  
+    graph->box(545, 0, 640, 48, 0, 0, 0, 255);
+    
     // Render ApplicationWidget hierarchy (background + windows)
     if (m_ui_root) {
         m_ui_root->BlitTo(*graph);
     }
     
     // --- Window Rendering ---
+    // Update windows (handle auto-dismiss for toasts, etc.)
+    ApplicationWidget::getInstance().updateWindows();
     // Render floating windows on top of everything else
     renderWindows();
 
@@ -970,21 +978,20 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
  */
 void Player::showToast(const std::string& message, Uint32 duration_ms)
 {
-    // Always clear any existing queue first to handle rapid-fire replacement
-    while (!m_toast_queue.empty()) {
-        m_toast_queue.pop();
-    }
+    // Remove all existing toasts first (like Android behavior)
+    ApplicationWidget::getInstance().removeAllToasts();
     
-    if (m_toast && !m_toast->isExpired()) {
-        // Force the current toast to immediately start fading out
-        m_toast->startFadeOut();
-        
-        // Queue the new toast - it will appear as soon as fade-out completes
-        m_toast_queue.push(PendingToast{message, duration_ms});
-    } else {
-        // No active toast, show immediately
-        m_toast = std::make_unique<ToastNotification>(font.get(), message, duration_ms);
-    }
+    // Convert to new ToastWidget system
+    auto toast = std::make_unique<ToastWidget>(message, font.get(), static_cast<int>(duration_ms));
+    
+    // Position toast at center-bottom of screen
+    Rect toast_pos = toast->getPos();
+    toast_pos.x((640 - toast_pos.width()) / 2);  // Center horizontally
+    toast_pos.y(350 - toast_pos.height() - 40);   // 40px above bottom of FFT area
+    toast->setPos(toast_pos);
+    
+    // Add to ApplicationWidget with maximum Z-order (always on top)
+    ApplicationWidget::getInstance().addWindow(std::move(toast), ZOrder::MAX);
 }
 
 /**
@@ -1325,16 +1332,17 @@ void Player::Run(const PlayerOptions& options) {
     
     // Add UI elements directly to ApplicationWidget (acts as the desktop/background)
     
-    // Create a spectrum analyzer widget and add to ApplicationWidget
+    // Create a spectrum analyzer widget and add it to ApplicationWidget
     auto spectrum_widget = std::make_unique<SpectrumAnalyzerWidget>(640, 350);
     spectrum_widget->setPos(Rect(0, 0, 640, 350));
-    m_spectrum_widget = spectrum_widget.get(); // Keep non-owning pointer for access
-    app_widget.addChild(std::move(spectrum_widget));
+    m_spectrum_widget = spectrum_widget.get(); // Keep raw pointer for updates
+    app_widget.addChild(std::move(spectrum_widget)); // ApplicationWidget takes ownership
     
-    // Create progress bar frame widget with hierarchical structure
+    // Create progress bar frame widget with hierarchical structure and add to ApplicationWidget
     auto progress_frame_widget = std::make_unique<ProgressBarFrameWidget>();
     progress_frame_widget->setPos(Rect(399, 370, 222, 16)); // Original frame position
     m_progress_widget = progress_frame_widget->getProgressBar(); // Get nested progress bar
+    app_widget.addChild(std::move(progress_frame_widget)); // ApplicationWidget takes ownership
     
     // Set up progress bar callbacks for seeking
     m_progress_widget->setOnSeekStart([this](double progress) {
@@ -1358,13 +1366,11 @@ void Player::Run(const PlayerOptions& options) {
         m_is_dragging = false;
     });
     
-    app_widget.addChild(std::move(progress_frame_widget));
-    
-    // Helper lambda to reduce boilerplate when creating and adding labels to ApplicationWidget
+    // Helper lambda to reduce boilerplate when creating labels and adding them to ApplicationWidget
     auto add_label = [&](const std::string& key, const Rect& pos) {
         auto label = std::make_unique<Label>(font.get(), pos);
         m_labels[key] = label.get(); // Store non-owning pointer in map
-        app_widget.addChild(std::move(label)); // Transfer ownership to ApplicationWidget
+        app_widget.addChild(std::move(label)); // ApplicationWidget takes ownership
     };
 
     add_label("artist",   Rect(1, 354, 200, 16));
@@ -1372,9 +1378,9 @@ void Player::Run(const PlayerOptions& options) {
     add_label("album",    Rect(1, 384, 200, 16));
     add_label("playlist", Rect(270, 354, 120, 16));
     add_label("position", Rect(400, 353, 150, 16));
-    add_label("scale",    Rect(550, 0, 90, 16));
-    add_label("decay",    Rect(550, 15, 90, 16));
-    add_label("fft_mode", Rect(550, 30, 90, 16));
+    add_label("scale",    Rect(545, 0, 95, 16));
+    add_label("decay",    Rect(545, 15, 95, 16));
+    add_label("fft_mode", Rect(545, 30, 95, 16));
     m_loop_mode = LoopMode::None; // Default loop mode on startup
 
     // Initialize lyrics widget
