@@ -734,8 +734,10 @@ bool Player::updateGUI()
     }
     
     // --- UI Widget Tree Rendering ---
-    // Render UI widget tree (labels) to graph surface as background layer
-    m_ui_root->BlitTo(*graph);
+    // Render ApplicationWidget hierarchy (background + windows)
+    if (m_ui_root) {
+        m_ui_root->BlitTo(*graph);
+    }
     
     // --- Window Rendering ---
     // Render floating windows on top of everything else
@@ -1317,15 +1319,17 @@ void Player::Run(const PlayerOptions& options) {
     // Set FFT mode after FFT object is created
     fft->setFFTMode(options.fft_mode);
 
-    // Initialize the UI widget tree
-    // The root widget is just a container and doesn't need its own surface.
-    m_ui_root = std::make_unique<Widget>();
+    // Initialize the ApplicationWidget as the root of the widget tree
+    ApplicationWidget& app_widget = ApplicationWidget::getInstance(*screen);
+    m_ui_root = &app_widget; // Reference to singleton - not owned
     
-    // Create a spectrum analyzer widget to gradually replace direct drawing
+    // Add UI elements directly to ApplicationWidget (acts as the desktop/background)
+    
+    // Create a spectrum analyzer widget and add to ApplicationWidget
     auto spectrum_widget = std::make_unique<SpectrumAnalyzerWidget>(640, 350);
     spectrum_widget->setPos(Rect(0, 0, 640, 350));
     m_spectrum_widget = spectrum_widget.get(); // Keep non-owning pointer for access
-    m_ui_root->addChild(std::move(spectrum_widget));
+    app_widget.addChild(std::move(spectrum_widget));
     
     // Create progress bar frame widget with hierarchical structure
     auto progress_frame_widget = std::make_unique<ProgressBarFrameWidget>();
@@ -1354,12 +1358,13 @@ void Player::Run(const PlayerOptions& options) {
         m_is_dragging = false;
     });
     
-    m_ui_root->addChild(std::move(progress_frame_widget));
-    // Helper lambda to reduce boilerplate when creating and adding labels
+    app_widget.addChild(std::move(progress_frame_widget));
+    
+    // Helper lambda to reduce boilerplate when creating and adding labels to ApplicationWidget
     auto add_label = [&](const std::string& key, const Rect& pos) {
         auto label = std::make_unique<Label>(font.get(), pos);
         m_labels[key] = label.get(); // Store non-owning pointer in map
-        m_ui_root->addChild(std::move(label)); // Transfer ownership to UI tree
+        app_widget.addChild(std::move(label)); // Transfer ownership to ApplicationWidget
     };
 
     add_label("artist",   Rect(1, 354, 200, 16));

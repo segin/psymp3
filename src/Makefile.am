@@ -35,5 +35,5 @@ psymp3_SOURCES = \
  libmpg123.cpp lyrics.cpp LyricsWidget.cpp main.cpp mediafile.cpp opus.cpp player.cpp playlist.cpp \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
  TagLibIOStreamAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
- vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp persistentstorage.cpp FileIOHandler.cpp
+ vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp persistentstorage.cpp FileIOHandler.cpp
 

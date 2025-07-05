@@ -23,12 +23,31 @@
 
 #include "psymp3.h"
 
+// Static instance for singleton
+std::unique_ptr<ApplicationWidget> ApplicationWidget::s_instance = nullptr;
+
+ApplicationWidget& ApplicationWidget::getInstance(Display& display)
+{
+    if (!s_instance) {
+        s_instance = std::unique_ptr<ApplicationWidget>(new ApplicationWidget(display));
+    }
+    return *s_instance;
+}
+
+ApplicationWidget& ApplicationWidget::getInstance()
+{
+    if (!s_instance) {
+        throw std::runtime_error("ApplicationWidget not initialized. Call getInstance(Display&) first.");
+    }
+    return *s_instance;
+}
+
 ApplicationWidget::ApplicationWidget(Display& display)
     : Widget()
     , m_display(display)
 {
     // Set position to cover entire screen
-    Rect screen_rect(0, 0, display.getWidth(), display.getHeight());
+    Rect screen_rect(0, 0, display.width(), display.height());
     setPos(screen_rect);
     
     // Create a surface for the entire application
@@ -60,12 +79,8 @@ bool ApplicationWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
         }
     }
     
-    // If no window handled it, forward to background
-    if (m_background) {
-        return m_background->handleMouseDown(event, relative_x, relative_y);
-    }
-    
-    return false;
+    // If no window handled it, delegate to child widgets (desktop elements)
+    return Widget::handleMouseDown(event, relative_x, relative_y);
 }
 
 bool ApplicationWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
@@ -82,9 +97,8 @@ bool ApplicationWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             }
         }
         
-        if (m_background.get() == s_mouse_captured_widget) {
-            return m_background->handleMouseMotion(event, relative_x, relative_y);
-        }
+        // Check if captured widget is in our child widgets (desktop elements)
+        return Widget::handleMouseMotion(event, relative_x, relative_y);
     }
     
     // Normal processing - check windows first (top to bottom)
@@ -107,12 +121,8 @@ bool ApplicationWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
         }
     }
     
-    // If no window handled it, forward to background
-    if (m_background) {
-        return m_background->handleMouseMotion(event, relative_x, relative_y);
-    }
-    
-    return false;
+    // If no window handled it, delegate to child widgets (desktop elements)
+    return Widget::handleMouseMotion(event, relative_x, relative_y);
 }
 
 bool ApplicationWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
@@ -129,9 +139,8 @@ bool ApplicationWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
             }
         }
         
-        if (m_background.get() == s_mouse_captured_widget) {
-            return m_background->handleMouseUp(event, relative_x, relative_y);
-        }
+        // Check if captured widget is in our child widgets (desktop elements)
+        return Widget::handleMouseUp(event, relative_x, relative_y);
     }
     
     // Normal processing - check windows first (top to bottom)
@@ -154,12 +163,8 @@ bool ApplicationWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
         }
     }
     
-    // If no window handled it, forward to background
-    if (m_background) {
-        return m_background->handleMouseUp(event, relative_x, relative_y);
-    }
-    
-    return false;
+    // If no window handled it, delegate to child widgets (desktop elements)
+    return Widget::handleMouseUp(event, relative_x, relative_y);
 }
 
 void ApplicationWidget::addWindow(std::unique_ptr<Widget> window)
@@ -181,11 +186,6 @@ void ApplicationWidget::removeWindow(Widget* window)
     }
 }
 
-void ApplicationWidget::setBackground(std::unique_ptr<Widget> background)
-{
-    m_background = std::move(background);
-    rebuildSurface();
-}
 
 void ApplicationWidget::bringWindowToFront(Widget* window)
 {
@@ -226,13 +226,15 @@ void ApplicationWidget::rebuildSurface()
     uint32_t bg_color = surface->MapRGB(64, 64, 64); // Dark gray background
     surface->FillRect(bg_color);
     
-    // Render background widget if present
-    if (m_background && m_background->isValid()) {
-        Rect bg_pos = m_background->getPos();
-        surface->Blit(*m_background, bg_pos);
+    // Render child widgets (desktop elements) in z-order (bottom to top)
+    for (const auto& child : m_children) {
+        if (child->isValid()) {
+            Rect child_pos = child->getPos();
+            surface->Blit(*child, child_pos);
+        }
     }
     
-    // Render all windows in z-order (bottom to top)
+    // Render all windows on top of desktop elements
     for (const auto& window : m_windows) {
         if (window->isValid()) {
             Rect window_pos = window->getPos();
