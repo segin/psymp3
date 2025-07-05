@@ -157,6 +157,12 @@ class Player
         // UI Widget tree
         std::unique_ptr<Widget> m_ui_root;
         std::map<std::string, Label*> m_labels; // Non-owning pointers for quick access
+        
+        // Spectrum analyzer widget (non-owning pointer - owned by widget tree)
+        SpectrumAnalyzerWidget* m_spectrum_widget;
+        
+        // Progress bar widget (non-owning pointer - owned by widget tree)
+        PlayerProgressBarWidget* m_progress_widget;
 
         // Overlay widgets
         std::unique_ptr<ToastNotification> m_toast;

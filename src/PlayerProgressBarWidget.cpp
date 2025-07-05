@@ -155,10 +155,9 @@ void PlayerProgressBarWidget::rebuildSurface()
     uint32_t transparent = progress_surface->MapRGBA(0, 0, 0, 0);
     progress_surface->FillRect(transparent);
     
-    // Draw the frame (six lines)
-    drawFrame(*progress_surface);
+    // Frame is drawn by main rendering loop, not by widget
     
-    // Draw the rainbow fill
+    // Draw the rainbow fill inside the frame
     double display_progress = m_is_dragging ? m_drag_progress : m_progress;
     drawRainbowFill(*progress_surface, display_progress);
     
@@ -170,72 +169,62 @@ void PlayerProgressBarWidget::drawFrame(Surface& surface) const
 {
     uint32_t white = surface.MapRGBA(255, 255, 255, 255);
     
-    // Based on original code: six lines total (3 on each side)
-    // Left side frame (3 lines)
-    surface.vline(0, 0, m_height - 1, white);                    // Left vertical line
-    surface.hline(0, 2, 0, white);                               // Left top horizontal line
-    surface.hline(0, 2, m_height - 1, white);                    // Left bottom horizontal line
+    // Match original frame exactly (relative to widget coordinates)
+    // Original was: vline(399,370,385) vline(621,370,385) hline(399,402,370) hline(399,402,385) hline(618,621,370) hline(618,621,385)
+    // Widget is positioned at (400,373) with size (220,10), so we need to translate:
+    // Left side: x=399 becomes x=-1, x=402 becomes x=2
+    // Right side: x=618 becomes x=218, x=621 becomes x=221
+    // Y coords: y=370 becomes y=-3, y=385 becomes y=12
     
-    // Right side frame (3 lines)
-    surface.vline(m_width - 1, 0, m_height - 1, white);          // Right vertical line
-    surface.hline(m_width - 3, m_width - 1, 0, white);           // Right top horizontal line
-    surface.hline(m_width - 3, m_width - 1, m_height - 1, white); // Right bottom horizontal line
+    // But we need to draw within our widget bounds, so adjust:
+    surface.vline(0, 0, m_height - 1, white);                    // Left vertical (x=-1 -> x=0)
+    surface.vline(m_width - 1, 0, m_height - 1, white);          // Right vertical (x=221 -> x=219)
+    surface.hline(0, 3, 0, white);                               // Left top horizontal (399->402 = 3 pixels wide)
+    surface.hline(0, 3, m_height - 1, white);                    // Left bottom horizontal  
+    surface.hline(m_width - 4, m_width - 1, 0, white);           // Right top horizontal (618->621 = 3 pixels wide)
+    surface.hline(m_width - 4, m_width - 1, m_height - 1, white); // Right bottom horizontal
 }
 
 void PlayerProgressBarWidget::drawRainbowFill(Surface& surface, double progress) const
 {
-    // Calculate fill width (minus frame areas)
-    int fill_area_width = m_width - 6; // 3 pixels frame on each side
-    double fill_width = progress * fill_area_width;
+    // Widget is positioned at x=400, y=373 within the original frame
+    // Original frame inner area is x=400 to x=620 (220 pixels), y=371 to y=384 
+    // Widget fills the inner area perfectly: 220x10 at y=373
+    double fill_width = progress * m_width; // Fill based on widget width (220 pixels)
     
-    // Based on original rainbow algorithm
+    // Draw rainbow fill from left edge of widget
     for (int x = 0; x < static_cast<int>(fill_width); x++) {
-        int screen_x = x + 3; // Offset by left frame width
-        
-        // Y coordinates for the fill area (inner area between frame lines)
-        int fill_start_y = 3;
-        int fill_end_y = m_height - 4;
-        
-        // Rainbow color calculation (adapted from original)
+        // Rainbow color calculation (exact original algorithm)
         uint8_t r, g, b;
         
-        if (x > (fill_area_width * 2 / 3)) {
-            // Zone 3: Blue to Magenta transition
-            int zone_progress = x - (fill_area_width * 2 / 3);
-            int zone_width = fill_area_width / 3;
-            r = static_cast<uint8_t>((zone_progress * 255) / zone_width);
+        if (x > 146) {
+            // Zone 3: x > 146
+            r = static_cast<uint8_t>((x - 146) * 3.5);
             g = 0;
             b = 255;
-        } else if (x < (fill_area_width / 3)) {
-            // Zone 1: Cyan to Green transition
-            int zone_progress = x;
-            int zone_width = fill_area_width / 3;
+        } else if (x < 73) {
+            // Zone 1: x < 73  
             r = 128;
             g = 255;
-            b = static_cast<uint8_t>(255 - (zone_progress * 255) / zone_width);
+            b = static_cast<uint8_t>(x * 3.5);
         } else {
-            // Zone 2: Green to Blue transition
-            int zone_progress = x - (fill_area_width / 3);
-            int zone_width = fill_area_width / 3;
-            r = static_cast<uint8_t>(128 - (zone_progress * 128) / zone_width);
-            g = static_cast<uint8_t>(255 - (zone_progress * 255) / zone_width);
+            // Zone 2: 73 <= x <= 146
+            r = static_cast<uint8_t>(128 - ((x - 73) * 1.75));
+            g = static_cast<uint8_t>(255 - ((x - 73) * 3.5));
             b = 255;
         }
         
-        // Draw vertical line for this x position
-        surface.vline(screen_x, fill_start_y, fill_end_y, r, g, b, 255);
+        // Draw vertical line for this x position across full widget height
+        surface.vline(x, 0, m_height - 1, r, g, b, 255);
     }
 }
 
 double PlayerProgressBarWidget::coordinateToProgress(int x) const
 {
     // Convert x coordinate to progress (0.0 to 1.0)
-    // Account for frame areas (3 pixels on each side)
-    int fill_area_width = m_width - 6;
-    int relative_x = x - 3; // Subtract left frame width
+    // Use full 220-pixel width like original
+    if (x < 0) return 0.0;
+    if (x >= 220) return 1.0;
     
-    if (relative_x < 0) return 0.0;
-    if (relative_x >= fill_area_width) return 1.0;
-    
-    return static_cast<double>(relative_x) / static_cast<double>(fill_area_width);
+    return static_cast<double>(x) / 220.0;
 }

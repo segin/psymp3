@@ -61,6 +61,12 @@ public:
      * This calls the draw() method and updates the surface.
      */
     void redraw();
+    
+    /**
+     * @brief Overrides Widget::BlitTo to ensure surface is updated when needed.
+     * @param target The target surface to blit to
+     */
+    virtual void BlitTo(Surface& target) override;
 
 protected:
     /**

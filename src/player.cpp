@@ -669,8 +669,11 @@ bool Player::updateGUI()
             }
         }
 
-        // Draw the spectrum analyzer on the graph surface
-        this->renderSpectrum(graph.get());
+        // Update spectrum data in the widget - it will render itself via the widget tree
+        float *spectrum = fft->getFFT();
+        if (m_spectrum_widget) {
+            m_spectrum_widget->updateSpectrum(spectrum, 256); // Assuming 256 bands for now
+        }
     }
 
     // --- Lyrics Widget Rendering ---
@@ -757,14 +760,7 @@ bool Player::updateGUI()
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ] :-", "PsyMP3 " PSYMP3_VERSION);
     }
     
-    // draw progress bar on the graph surface
-    uint32_t white = graph->MapRGBA(255, 255, 255, 255);
-    graph->vline(399, 370, 385, white);
-    graph->vline(621, 370, 385, white);
-    graph->hline(399, 402, 370, white);
-    graph->hline(399, 402, 385, white);
-    graph->hline(618, 621, 370, white);
-    graph->hline(618, 621, 385, white);
+    // Progress bar frame and fill are now handled by ProgressBarFrameWidget hierarchy
 
     // --- Continuous Keyboard Seeking ---
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
@@ -785,23 +781,21 @@ bool Player::updateGUI()
         current_pos_ms = m_seek_position_ms; // Update local var for instant visual feedback
     }
 
-    // If dragging, use the drag position; otherwise, use the actual stream position
-    unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : current_pos_ms;
-    double t;
-    if(total_len_ms > 0)
-        t = ((double) display_position_ms / (double) total_len_ms) * 220;
-    else   
-        t = 0.0f;
-    // Draw progress bar fill on graph surface
-    for(double x = 0; x < t; x++) {
-        if (x > 146) {
-            graph->vline(x + 400, 373, 382, (uint8_t) ((x - 146) * 3.5), 0, 255, 255);
-        } else if (x < 73) {
-            graph->vline(x + 400, 373, 382, 128, 255, (uint8_t) (x * 3.5), 255);
+    // Update progress bar widget
+    if (m_progress_widget) {
+        if (total_len_ms > 0) {
+            unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : current_pos_ms;
+            double progress = static_cast<double>(display_position_ms) / static_cast<double>(total_len_ms);
+            if (m_is_dragging) {
+                m_progress_widget->setDragProgress(progress);
+            } else {
+                m_progress_widget->setProgress(progress);
+            }
         } else {
-            graph->vline(x + 400, 373, 382, (uint8_t) (128-((x-73)*1.75)), (uint8_t) (255-((x-73)*3.5)), 255, 255);
+            // No track loaded, set progress to 0
+            m_progress_widget->setProgress(0.0);
         }
-    };
+    }
 
     // --- Final Scene Composition ---
     // 1. Clear the main screen
@@ -1307,6 +1301,7 @@ void Player::Run(const PlayerOptions& options) {
     // Create a larger font for status indicators like the pause message.
     m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
+    
     graph = std::make_unique<Surface>(640, 400);
     // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
     // destination for other alpha-blended surfaces (like the fade effect, toasts, etc.).
@@ -1325,6 +1320,41 @@ void Player::Run(const PlayerOptions& options) {
     // Initialize the UI widget tree
     // The root widget is just a container and doesn't need its own surface.
     m_ui_root = std::make_unique<Widget>();
+    
+    // Create a spectrum analyzer widget to gradually replace direct drawing
+    auto spectrum_widget = std::make_unique<SpectrumAnalyzerWidget>(640, 350);
+    spectrum_widget->setPos(Rect(0, 0, 640, 350));
+    m_spectrum_widget = spectrum_widget.get(); // Keep non-owning pointer for access
+    m_ui_root->addChild(std::move(spectrum_widget));
+    
+    // Create progress bar frame widget with hierarchical structure
+    auto progress_frame_widget = std::make_unique<ProgressBarFrameWidget>();
+    progress_frame_widget->setPos(Rect(399, 370, 222, 16)); // Original frame position
+    m_progress_widget = progress_frame_widget->getProgressBar(); // Get nested progress bar
+    
+    // Set up progress bar callbacks for seeking
+    m_progress_widget->setOnSeekStart([this](double progress) {
+        m_is_dragging = true;
+        if (stream) {
+            m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress);
+        }
+    });
+    
+    m_progress_widget->setOnSeekUpdate([this](double progress) {
+        if (stream && m_is_dragging) {
+            m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress);
+        }
+    });
+    
+    m_progress_widget->setOnSeekEnd([this](double progress) {
+        if (stream && m_is_dragging) {
+            m_drag_position_ms = static_cast<unsigned long>(stream->getLength() * progress);
+            seekTo(m_drag_position_ms);
+        }
+        m_is_dragging = false;
+    });
+    
+    m_ui_root->addChild(std::move(progress_frame_widget));
     // Helper lambda to reduce boilerplate when creating and adding labels
     auto add_label = [&](const std::string& key, const Rect& pos) {
         auto label = std::make_unique<Label>(font.get(), pos);
@@ -1332,14 +1362,14 @@ void Player::Run(const PlayerOptions& options) {
         m_ui_root->addChild(std::move(label)); // Transfer ownership to UI tree
     };
 
-    add_label("artist",   Rect(1, 354, 0, 0));
-    add_label("title",    Rect(1, 369, 0, 0));
-    add_label("album",    Rect(1, 384, 0, 0));
-    add_label("playlist", Rect(270, 354, 0, 0));
-    add_label("position", Rect(400, 353, 0, 0));
-    add_label("scale",    Rect(550, 0, 0, 0));
-    add_label("decay",    Rect(550, 15, 0, 0));
-    add_label("fft_mode", Rect(550, 30, 0, 0));
+    add_label("artist",   Rect(1, 354, 200, 16));
+    add_label("title",    Rect(1, 369, 200, 16));
+    add_label("album",    Rect(1, 384, 200, 16));
+    add_label("playlist", Rect(270, 354, 120, 16));
+    add_label("position", Rect(400, 353, 150, 16));
+    add_label("scale",    Rect(550, 0, 90, 16));
+    add_label("decay",    Rect(550, 15, 90, 16));
+    add_label("fft_mode", Rect(550, 30, 90, 16));
     m_loop_mode = LoopMode::None; // Default loop mode on startup
 
     // Initialize lyrics widget
@@ -1389,19 +1419,49 @@ void Player::Run(const PlayerOptions& options) {
             case SDL_MOUSEBUTTONDOWN:
             {
                 handleWindowMouseEvents(event);
-                handleMouseButtonDown(event.button);
+                
+                // Try widget tree first
+                bool handled = false;
+                if (m_ui_root) {
+                    handled = m_ui_root->handleMouseDown(event.button, event.button.x, event.button.y);
+                }
+                
+                // Fall back to old handler if widget tree didn't handle it
+                if (!handled) {
+                    handleMouseButtonDown(event.button);
+                }
                 break;
             }
             case SDL_MOUSEMOTION:
             {
                 handleWindowMouseEvents(event);
-                handleMouseMotion(event.motion);
+                
+                // Try widget tree first
+                bool handled = false;
+                if (m_ui_root) {
+                    handled = m_ui_root->handleMouseMotion(event.motion, event.motion.x, event.motion.y);
+                }
+                
+                // Fall back to old handler if widget tree didn't handle it
+                if (!handled) {
+                    handleMouseMotion(event.motion);
+                }
                 break;
             }
             case SDL_MOUSEBUTTONUP:
             {
                 handleWindowMouseEvents(event);
-                handleMouseButtonUp(event.button);
+                
+                // Try widget tree first
+                bool handled = false;
+                if (m_ui_root) {
+                    handled = m_ui_root->handleMouseUp(event.button, event.button.x, event.button.y);
+                }
+                
+                // Fall back to old handler if widget tree didn't handle it
+                if (!handled) {
+                    handleMouseButtonUp(event.button);
+                }
                 break;
             }
             case SDL_KEYUP:

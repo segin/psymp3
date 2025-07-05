@@ -31,8 +31,9 @@ DrawableWidget::DrawableWidget(int width, int height)
     Rect widget_rect(0, 0, width, height);
     setPos(widget_rect);
     
-    // Create initial surface
-    updateSurface();
+    // Note: Don't call updateSurface() here as it calls pure virtual draw()
+    // and derived class isn't fully constructed yet. updateSurface() will be
+    // called automatically on first BlitTo() when m_needs_redraw is true.
 }
 
 void DrawableWidget::invalidate()
@@ -55,6 +56,15 @@ void DrawableWidget::onResize(int new_width, int new_height)
     // Mark for redraw since size changed
     invalidate();
     updateSurface();
+}
+
+void DrawableWidget::BlitTo(Surface& target)
+{
+    // Ensure surface is up-to-date before blitting
+    updateSurface();
+    
+    // Call parent implementation to do the actual blitting
+    Widget::BlitTo(target);
 }
 
 void DrawableWidget::updateSurface()

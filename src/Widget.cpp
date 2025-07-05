@@ -27,6 +27,7 @@
 Widget* Widget::s_mouse_captured_widget = nullptr;
 
 Widget::Widget()
+    : m_mouse_transparent(false)
 {
     //ctor
 }
@@ -39,14 +40,16 @@ Widget::~Widget()
 // Move constructor: takes ownership of the Surface's internal SDL_Surface*
 Widget::Widget(Surface&& other) :
     Surface(std::move(other)), // Move the base Surface part
-    m_pos(0, 0)
+    m_pos(0, 0),
+    m_mouse_transparent(false)
 {
 }
 
 // Move constructor with position: takes ownership of the Surface and sets position
 Widget::Widget(Surface&& other, const Rect& position) :
     Surface(std::move(other)), // Move the base Surface part
-    m_pos(position)
+    m_pos(position),
+    m_mouse_transparent(false)
 {
 }
 
@@ -116,6 +119,12 @@ bool Widget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, 
     // Forward to children in reverse order (front to back for event handling)
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         const auto& child = *it;
+        
+        // Skip mouse-transparent widgets for hit testing
+        if (child->isMouseTransparent()) {
+            continue;
+        }
+        
         Rect child_pos = child->getPos();
         
         // Check if mouse is within child bounds
@@ -165,6 +174,12 @@ bool Widget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x
     // Normal processing - forward to children in reverse order
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         const auto& child = *it;
+        
+        // Skip mouse-transparent widgets for hit testing
+        if (child->isMouseTransparent()) {
+            continue;
+        }
+        
         Rect child_pos = child->getPos();
         
         // Check if mouse is within child bounds
@@ -214,6 +229,12 @@ bool Widget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, in
     // Normal processing - forward to children in reverse order
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         const auto& child = *it;
+        
+        // Skip mouse-transparent widgets for hit testing
+        if (child->isMouseTransparent()) {
+            continue;
+        }
+        
         Rect child_pos = child->getPos();
         
         // Check if mouse is within child bounds
@@ -254,4 +275,14 @@ bool Widget::hasMouseCapture() const
 Widget* Widget::getMouseCapturedWidget()
 {
     return s_mouse_captured_widget;
+}
+
+void Widget::setMouseTransparent(bool transparent)
+{
+    m_mouse_transparent = transparent;
+}
+
+bool Widget::isMouseTransparent() const
+{
+    return m_mouse_transparent;
 }
