@@ -1312,12 +1312,25 @@ void Player::Run(const PlayerOptions& options) {
     system->InitializeIPC(this);
 #endif
 #if defined(_WIN32)
+    // Try multiple paths on Windows: current directory first, then res/ subdirectory
     font = std::make_unique<Font>("./vera.ttf");
+    if (!font->isValid()) {
+        font = std::make_unique<Font>("./res/vera.ttf");
+    }
 #else
     font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 12);
 #endif // _WIN32
+    
     // Create a larger font for status indicators like the pause message.
+#if defined(_WIN32)
+    // Try multiple paths on Windows for large font too
+    m_large_font = std::make_unique<Font>("./vera.ttf", 36);
+    if (!m_large_font->isValid()) {
+        m_large_font = std::make_unique<Font>("./res/vera.ttf", 36);
+    }
+#else
     m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
+#endif // _WIN32
     std::cout << "font->isValid(): " << font->isValid() << std::endl;
     
     graph = std::make_unique<Surface>(640, 400);
