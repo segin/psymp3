@@ -31,7 +31,29 @@ PKG_CHECK_MODULES([VORBIS], [vorbis])
 PKG_CHECK_MODULES([OPUS], [opus])
 PKG_CHECK_MODULES([OGG], [ogg])
 
-PKG_CHECK_MODULES([DBUS], [dbus-1], [AC_DEFINE([HAVE_DBUS], [1], [Define to 1 if you have the DBus library])], [])
+# MPRIS support (requires D-Bus)
+AC_ARG_ENABLE([mpris],
+  [AS_HELP_STRING([--enable-mpris], [Enable MPRIS media player remote interface support (requires D-Bus) @<:@default=auto@:>@])],
+  [enable_mpris=$enableval],
+  [enable_mpris=auto])
+
+if test "x$enable_mpris" != "xno"; then
+  PKG_CHECK_MODULES([DBUS], [dbus-1], 
+    [
+      AC_DEFINE([HAVE_DBUS], [1], [Define to 1 if you have the DBus library])
+      have_dbus=yes
+    ], 
+    [
+      have_dbus=no
+      if test "x$enable_mpris" = "xyes"; then
+        AC_MSG_ERROR([MPRIS support was requested but D-Bus library not found])
+      fi
+    ])
+else
+  have_dbus=no
+fi
+
+AM_CONDITIONAL([HAVE_DBUS], [test "x$have_dbus" = "xyes"])
 
 PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 flac++ >= 1.2 opusfile >= 0.9 vorbis opus ogg])
 

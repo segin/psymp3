@@ -28,6 +28,11 @@ datadir=$(prefix)/share/psymp3/data
 AM_CPPFLAGS = $(DEPENDS_CFLAGS) $(FREETYPE_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
 psymp3_LDADD = $(DEPENDS_LIBS) $(FREETYPE_LIBS)
 
+if HAVE_DBUS
+AM_CPPFLAGS += $(DBUS_CFLAGS)
+psymp3_LDADD += $(DBUS_LIBS)
+endif
+
 bin_PROGRAMS = psymp3
 psymp3_SOURCES = \
  about.cpp audio.cpp ChainedStream.cpp display.cpp exceptions.cpp fft.cpp \
@@ -36,4 +41,8 @@ psymp3_SOURCES = \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
  TagLibIOStreamAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
  vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp
+
+if HAVE_DBUS
+psymp3_SOURCES += mpris.cpp
+endif
 
