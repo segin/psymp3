@@ -31,7 +31,6 @@ TagLibIOStreamAdapter::TagLibIOStreamAdapter(std::unique_ptr<IOHandler> handler,
                                            bool read_only)
     : m_io_handler(std::move(handler))
     , m_name(name)
-    , m_name_cstr(name.to8Bit(false)) // Use raw filesystem encoding
     , m_read_only(read_only)
     , m_length(0)
     , m_length_cached(false)
@@ -48,9 +47,9 @@ TagLibIOStreamAdapter::~TagLibIOStreamAdapter()
     }
 }
 
-const char* TagLibIOStreamAdapter::name() const
+TagLibFileName TagLibIOStreamAdapter::name() const
 {
-    return m_name_cstr.c_str();
+    return m_name.toCString(true);
 }
 
 TagLib::ByteVector TagLibIOStreamAdapter::readBlock(size_t length)
@@ -86,7 +85,7 @@ void TagLibIOStreamAdapter::writeBlock(const TagLib::ByteVector& data)
     // m_io_handler->write(data.data(), 1, data.size());
 }
 
-void TagLibIOStreamAdapter::seek(long offset, Position p)
+void TagLibIOStreamAdapter::seek(TagLibOffset offset, Position p)
 {
     if (!m_io_handler) {
         return;
@@ -96,7 +95,7 @@ void TagLibIOStreamAdapter::seek(long offset, Position p)
     m_io_handler->seek(offset, whence);
 }
 
-long TagLibIOStreamAdapter::tell() const
+TagLibOffset TagLibIOStreamAdapter::tell() const
 {
     if (!m_io_handler) {
         return 0;
@@ -106,7 +105,7 @@ long TagLibIOStreamAdapter::tell() const
     return pos >= 0 ? pos : 0;
 }
 
-long TagLibIOStreamAdapter::length()
+TagLibOffset TagLibIOStreamAdapter::length()
 {
     if (!m_length_cached) {
         calculateLength();
@@ -114,7 +113,7 @@ long TagLibIOStreamAdapter::length()
     return m_length;
 }
 
-void TagLibIOStreamAdapter::truncate(long length)
+void TagLibIOStreamAdapter::truncate(TagLibOffset length)
 {
     // Not supported by our read-only IOHandler
     // This would require extending IOHandler with truncate support
@@ -132,13 +131,13 @@ bool TagLibIOStreamAdapter::isOpen() const
     return m_io_handler && !m_io_handler->eof();
 }
 
-void TagLibIOStreamAdapter::insert(const TagLib::ByteVector& data, unsigned long start, unsigned long replace)
+void TagLibIOStreamAdapter::insert(const TagLib::ByteVector &data, TagLibSize start, TagLibSize replace)
 {
     // Not supported by our read-only IOHandler
     // This is a complex operation that would require write support
 }
 
-void TagLibIOStreamAdapter::removeBlock(unsigned long start, unsigned long length)
+void TagLibIOStreamAdapter::removeBlock(TagLibSize start, TagLibSize length)
 {
     // Not supported by our read-only IOHandler
     // This is a complex operation that would require write support

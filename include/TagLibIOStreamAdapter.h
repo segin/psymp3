@@ -29,6 +29,26 @@
 #include <taglib/tstring.h>
 #include <memory>
 
+// Type compatibility for different TagLib versions
+#ifdef TAGLIB_MAJOR_VERSION
+  #if TAGLIB_MAJOR_VERSION >= 2
+    // TagLib 2.x uses offset_t and proper namespacing
+    using TagLibOffset = TagLib::offset_t;
+    using TagLibFileName = TagLib::FileName;
+    using TagLibSize = size_t;
+  #else
+    // TagLib 1.x uses long and unsigned long
+    using TagLibOffset = long;
+    using TagLibFileName = TagLib::FileName;
+    using TagLibSize = unsigned long;
+  #endif
+#else
+  // Fallback for older TagLib without version macros
+  using TagLibOffset = long;
+  using TagLibFileName = TagLib::FileName;
+  using TagLibSize = unsigned long;
+#endif
+
 /**
  * @brief Adapter class that allows TagLib to use our IOHandler system.
  * 
@@ -56,24 +76,23 @@ public:
     ~TagLibIOStreamAdapter() override;
 
     // TagLib::IOStream interface implementation
-    const char* name() const override;
+    TagLibFileName name() const override;
     TagLib::ByteVector readBlock(size_t length) override;
     void writeBlock(const TagLib::ByteVector& data) override;
-    void seek(long offset, Position p) override;
-    long tell() const override;
-    long length() override;
-    void truncate(long length) override;
+    void seek(TagLibOffset offset, Position p) override;
+    TagLibOffset tell() const override;
+    TagLibOffset length() override;
+    void truncate(TagLibOffset length) override;
     bool readOnly() const override;
     bool isOpen() const override;
-    void insert(const TagLib::ByteVector& data, unsigned long start = 0, unsigned long replace = 0) override;
-    void removeBlock(unsigned long start, unsigned long length) override;
+    void insert(const TagLib::ByteVector &data, TagLibSize start = 0, TagLibSize replace = 0) override;
+    void removeBlock(TagLibSize start = 0, TagLibSize length = 0) override;
 
 private:
     std::unique_ptr<IOHandler> m_io_handler;
     TagLib::String m_name;
-    std::string m_name_cstr; // C string version for name() method
     bool m_read_only;
-    long m_length;
+    TagLibOffset m_length;
     bool m_length_cached;
 
     /**
