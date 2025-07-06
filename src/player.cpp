@@ -509,7 +509,7 @@ void Player::renderSpectrum(Surface *graph) {
     Surface& fade_surface = *fade_surface_ptr;
 
     // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
-    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 4.0f)); // Even slower fade: divisor increased from 3.0 to 4.0
+    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 8.0f)); // Reduced fade strength: divisor increased from 4.0 to 8.0
 
     // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
     if (fade_alpha != cached_fade_alpha) {
@@ -525,18 +525,21 @@ void Player::renderSpectrum(Surface *graph) {
 
     // Cache constants to reduce repeated calculations
     constexpr int16_t spectrum_height = 350;
-    constexpr int16_t spectrum_bottom = 350;
+    constexpr int16_t spectrum_bottom = 349; // Bottom of the FFT area (0-349 for 350 pixels)
     constexpr uint16_t spectrum_bins = 320;
     
     for(uint16_t x = 0; x < spectrum_bins; x++) {
         // Calculate the bar's height with fewer intermediate calculations
-        const float scaled_amplitude = Util::logarithmicScale(scalefactor, spectrum[x]);
+        // Apply gain to amplify weak signals before logarithmic scaling
+        const float gained_amplitude = spectrum[x] * 5.0f; // Amplify by 5x
+        const float scaled_amplitude = Util::logarithmicScale(scalefactor, gained_amplitude);
         const int16_t y_start = static_cast<int16_t>(spectrum_bottom - scaled_amplitude * spectrum_height);
         const int16_t x_pos = x * 2;
         
         // DEBUG: Print some bar calculations
         if (debug_counter % 60 == 1 && x < 5) { // Different frame to avoid overlap, first 5 bars
             std::cout << "DEBUG bar " << x << ": raw=" << spectrum[x] 
+                      << " gained=" << gained_amplitude
                       << " scaled=" << scaled_amplitude 
                       << " y_start=" << y_start << std::endl;
         }
