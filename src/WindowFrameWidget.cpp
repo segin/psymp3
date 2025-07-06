@@ -78,11 +78,8 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     // Add client area as child widget
     addChild(std::move(client_area));
     
-    // Update layout
-    updateLayout();
-    
-    // Create window frame surface
-    rebuildSurface();
+    // Force a complete refresh to ensure consistent initialization
+    refresh();
 }
 
 bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
@@ -546,6 +543,47 @@ void WindowFrameWidget::rebuildSurface()
     setSurface(std::move(frame_surface));
 }
 
+void WindowFrameWidget::refresh()
+{
+    // Force complete recalculation of window dimensions and layout
+    // This replicates what happens during resize to ensure consistent state
+    
+    // Recalculate total window size based on current properties
+    int horizontal_border_total, vertical_border_total;
+    
+    if (m_resizable) {
+        // Resizable: (1px outer + 2px resize + 1px inner) * 2 sides = 8px
+        horizontal_border_total = (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2;
+        // Resizable: titlebar + borders + resize frames = 27px
+        vertical_border_total = TITLEBAR_HEIGHT + (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2 + 1;
+    } else {
+        // Non-resizable: simple 1px border on all sides = 2px
+        horizontal_border_total = 2;
+        // Non-resizable: titlebar + simple borders = 21px
+        vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
+    }
+    
+    // Calculate final window size
+    int total_width = m_client_width + horizontal_border_total;
+    int total_height = m_client_height + vertical_border_total;
+    
+    // Update window size (keep current position)
+    Rect current_pos = getPos();
+    setPos(Rect(current_pos.x(), current_pos.y(), total_width, total_height));
+    
+    // Update layout and rebuild surface (same order as resize)
+    updateLayout();
+    rebuildSurface();
+    
+    // Force client area to repaint by rebuilding its surface if it exists
+    if (m_client_area) {
+        auto client_surface = std::make_unique<Surface>(m_client_width, m_client_height, true);
+        uint32_t white_color = client_surface->MapRGB(255, 255, 255);
+        client_surface->FillRect(white_color);
+        m_client_area->setSurface(std::move(client_surface));
+    }
+}
+
 void WindowFrameWidget::updateLayout()
 {
     // Position client area within the frame (account for borders and titlebar)
@@ -862,31 +900,8 @@ void WindowFrameWidget::setResizable(bool resizable)
     if (m_resizable != resizable) {
         m_resizable = resizable;
         
-        // Recalculate window size based on new border requirements
-        int horizontal_border_total, vertical_border_total;
-        
-        if (m_resizable) {
-            // Resizable: (1px outer + 2px resize + 1px inner) * 2 sides = 8px
-            horizontal_border_total = (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2;
-            // Resizable: titlebar + borders + resize frames = 27px
-            vertical_border_total = TITLEBAR_HEIGHT + (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2 + 1;
-        } else {
-            // Non-resizable: simple 1px border on all sides = 2px
-            horizontal_border_total = 2;
-            // Non-resizable: titlebar + simple borders = 21px
-            vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
-        }
-        // Calculate final window size
-        int total_width = m_client_width + horizontal_border_total;
-        int total_height = m_client_height + vertical_border_total;
-        
-        // Update window size
-        Rect current_pos = getPos();
-        setPos(Rect(current_pos.x(), current_pos.y(), total_width, total_height));
-        
-        // Rebuild surface and update layout
-        updateLayout();
-        rebuildSurface();
+        // Force complete refresh to ensure consistent state after property change
+        refresh();
     }
 }
 

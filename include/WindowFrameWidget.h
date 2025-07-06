@@ -186,6 +186,12 @@ public:
      * @param callback Function to call when window is resized (new_width, new_height)
      */
     void setOnResize(std::function<void(int new_width, int new_height)> callback) { m_on_resize = callback; }
+    
+    /**
+     * @brief Forces a complete refresh of the window layout and surface.
+     * This replicates what happens during a resize to ensure consistent state.
+     */
+    void refresh();
 
 private:
     static constexpr int TITLEBAR_HEIGHT = 18;  // Windows 3.x blue area
