@@ -1734,7 +1734,10 @@ void Player::toggleTestWindowH()
     } else {
         // Open the window (client area is 160x120)
         m_test_window_h = std::make_unique<WindowFrameWidget>(160, 120, "Test Window H");
-        m_test_window_h->setPos(Rect(150, 150, 164, 146)); // Frame size includes borders
+        
+        // Only set position, keep the calculated size from constructor
+        Rect calculated_size = m_test_window_h->getPos();
+        m_test_window_h->setPos(Rect(150, 150, calculated_size.width(), calculated_size.height()));
         
         // Set up drag callbacks
         m_test_window_h->setOnDrag([this](int dx, int dy) {
@@ -1786,8 +1789,11 @@ void Player::toggleTestWindowB()
     } else {
         // Open the window (client area is 160x60)
         m_test_window_b = std::make_unique<WindowFrameWidget>(160, 60, "Test Window B");
-        m_test_window_b->setResizable(false); // Make window B non-resizable
-        m_test_window_b->setPos(Rect(200, 200, 164, 86)); // Frame size includes borders
+        m_test_window_b->setResizable(false); // Make window B non-resizable (triggers refresh)
+        
+        // Only set position, keep the calculated size from setResizable(false)
+        Rect calculated_size = m_test_window_b->getPos();
+        m_test_window_b->setPos(Rect(200, 200, calculated_size.width(), calculated_size.height()));
         
         // Set up drag callbacks
         m_test_window_b->setOnDrag([this](int dx, int dy) {
