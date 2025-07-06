@@ -52,8 +52,10 @@ public:
      * @brief Updates the spectrum data and triggers a redraw.
      * @param spectrum_data Array of spectrum values (0.0 to 1.0)
      * @param num_bands Number of frequency bands in the spectrum data
+     * @param scale_factor Scale factor for logarithmic scaling
+     * @param decay_factor Decay factor for fade effect
      */
-    void updateSpectrum(const float* spectrum_data, int num_bands);
+    void updateSpectrum(const float* spectrum_data, int num_bands, int scale_factor, float decay_factor);
     
     /**
      * @brief Sets the visualization mode.
@@ -66,6 +68,12 @@ public:
      * @param color_scheme Color scheme index
      */
     void setColorScheme(int color_scheme);
+    
+    /**
+     * @brief Sets the decay factor for the fade effect.
+     * @param decay_factor Decay factor (default 1.0, where 1.0 = 63 alpha)
+     */
+    void setDecayFactor(float decay_factor);
 
 protected:
     /**
@@ -78,6 +86,8 @@ private:
     std::vector<float> m_spectrum_data;
     int m_visualization_mode;
     int m_color_scheme;
+    float m_decay_factor;
+    int m_scale_factor;
     
     /**
      * @brief Draws spectrum bars visualization.

@@ -27,30 +27,39 @@ SpectrumAnalyzerWidget::SpectrumAnalyzerWidget(int width, int height)
     : DrawableWidget(width, height)
     , m_visualization_mode(0)
     , m_color_scheme(0)
+    , m_decay_factor(1.0f) // Default decay factor where 1.0 = 63 alpha
+    , m_scale_factor(2) // Default scale factor
 {
     // Initialize with empty spectrum data
     m_spectrum_data.resize(64, 0.0f); // Default to 64 bands
 }
 
-void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_bands)
+void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_bands, int scale_factor, float decay_factor)
 {
     if (spectrum_data && num_bands > 0) {
+        // Update live values from Player
+        m_scale_factor = scale_factor;
+        m_decay_factor = decay_factor;
+        
         m_spectrum_data.resize(num_bands);
         float max_val = 0.0f;
         bool data_changed = false;
         
         for (int i = 0; i < num_bands; ++i) {
-            float new_val = std::max(0.0f, std::min(1.0f, spectrum_data[i]));
-            if (std::abs(new_val - m_spectrum_data[i]) > 0.001f) {
+            // Apply gain and logarithmic scaling exactly like the original renderSpectrum
+            float gained_amplitude = spectrum_data[i] * 5.0f; // Same 5x gain as original
+            // Use the actual Util::logarithmicScale function with live scale_factor
+            float scaled_amplitude = Util::logarithmicScale(m_scale_factor, gained_amplitude);
+            
+            if (std::abs(scaled_amplitude - m_spectrum_data[i]) > 0.001f) {
                 data_changed = true;
             }
-            m_spectrum_data[i] = new_val;
+            m_spectrum_data[i] = scaled_amplitude;
             max_val = std::max(max_val, m_spectrum_data[i]);
         }
         
         // Only redraw if data actually changed
         if (data_changed) {
-            std::cout << "SpectrumAnalyzerWidget: Data changed, max_val=" << max_val << ", bands=" << num_bands << std::endl;
             invalidate(); // Trigger redraw
         }
     }
@@ -72,24 +81,66 @@ void SpectrumAnalyzerWidget::setColorScheme(int color_scheme)
     }
 }
 
+void SpectrumAnalyzerWidget::setDecayFactor(float decay_factor)
+{
+    m_decay_factor = decay_factor;
+}
+
 void SpectrumAnalyzerWidget::draw(Surface& surface)
 {
-    // Clear background
-    uint32_t bg_color = surface.MapRGB(0, 0, 0); // Black background
-    surface.FillRect(bg_color);
+    // Maintain a persistent spectrum surface that accumulates frames over time
+    static std::unique_ptr<Surface> spectrum_surface_ptr; // Persistent across calls
+    static std::unique_ptr<Surface> fade_surface_ptr; // For fade effect
+    static uint8_t cached_fade_alpha = 255; // Cache to avoid redundant SetAlpha calls
     
-    // Draw based on visualization mode
+    Rect pos = getPos();
+    int width = pos.width();
+    int height = pos.height();
+    
+    // Create persistent spectrum surface once and reuse
+    if (!spectrum_surface_ptr || spectrum_surface_ptr->width() != width || spectrum_surface_ptr->height() != height) {
+        spectrum_surface_ptr = std::make_unique<Surface>(width, height);
+        spectrum_surface_ptr->FillRect(spectrum_surface_ptr->MapRGB(0, 0, 0)); // Start with black
+    }
+    Surface& spectrum_surface = *spectrum_surface_ptr;
+    
+    // Create fade surface once and reuse (matches original algorithm)
+    if (!fade_surface_ptr || fade_surface_ptr->width() != width || fade_surface_ptr->height() != height) {
+        fade_surface_ptr = std::make_unique<Surface>(width, height);
+        fade_surface_ptr->FillRect(fade_surface_ptr->MapRGB(0, 0, 0));
+        cached_fade_alpha = 255; // Reset cache when surface is recreated
+    }
+    Surface& fade_surface = *fade_surface_ptr;
+    
+    // Calculate alpha for fade (0-255). Original: decayfactor from 0.5 to 2.0
+    // Original formula: (255 * (decayfactor / 4.0f))  where decayfactor=1.0 gives 63 alpha
+    uint8_t fade_alpha = static_cast<uint8_t>(255 * (m_decay_factor / 4.0f));
+    
+    // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
+    if (fade_alpha != cached_fade_alpha) {
+        fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
+        cached_fade_alpha = fade_alpha;
+    }
+    
+    // Apply fade effect to the persistent spectrum surface (darkens previous content)
+    Rect blit_rect(0, 0, width, height);
+    spectrum_surface.Blit(fade_surface, blit_rect);
+    
+    // Draw new spectrum bars directly onto the persistent spectrum surface
     switch (m_visualization_mode) {
         case 0:
-            drawBars(surface);
+            drawBars(spectrum_surface);
             break;
         case 1:
-            drawOscilloscope(surface);
+            drawOscilloscope(spectrum_surface);
             break;
         default:
-            drawBars(surface);
+            drawBars(spectrum_surface);
             break;
     }
+    
+    // Copy the persistent spectrum surface to the output surface
+    surface.Blit(spectrum_surface, blit_rect);
 }
 
 void SpectrumAnalyzerWidget::drawBars(Surface& surface)
@@ -99,7 +150,6 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
     int height = pos.height();
     
     if (m_spectrum_data.empty() || width <= 0 || height <= 0) {
-        std::cout << "SpectrumAnalyzerWidget::drawBars: No data or invalid size" << std::endl;
         return;
     }
     
@@ -113,18 +163,36 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
         max_val = std::max(max_val, val);
     }
     
-    std::cout << "SpectrumAnalyzerWidget::drawBars: " << num_bands << " bands, max_val=" << max_val << std::endl;
     
     for (int i = 0; i < num_bands; ++i) {
         float value = m_spectrum_data[i];
-        int bar_height = std::max(1, static_cast<int>(value * height)); // Always at least 1 pixel
+        // Calculate y position like the original: from amplitude down to bottom
+        int y_start = static_cast<int>(height - (value * height));
+        y_start = std::max(0, std::min(height - 1, y_start)); // Clamp to valid range
         
         int x = spacing + i * (bar_width + spacing);
-        int y = height - bar_height;
         
-        uint32_t color = getSpectrumColor(std::max(0.01f, value), i, surface); // Always get a color
-        surface.box(x, y, x + bar_width - 1, height - 1, 
-                   (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, 255);
+        // Get color components directly (like the old code did)
+        uint8_t r, g, b;
+        if (i > 213) {
+            // Zone 3: x > 213
+            r = static_cast<uint8_t>((i - 214) * 2.4);
+            g = 0;
+            b = 255;
+        } else if (i < 106) {
+            // Zone 1: x < 106
+            r = 128;
+            g = 255;
+            b = static_cast<uint8_t>(i * 2.398);
+        } else {
+            // Zone 2: 106 <= x <= 213
+            r = static_cast<uint8_t>(128 - ((i - 106) * 1.1962615));
+            g = static_cast<uint8_t>(255 - ((i - 106) * 2.383177));
+            b = 255;
+        }
+        
+        // Draw rectangle from y_start down to bottom (like original rectangle call)
+        surface.box(x, y_start, x + bar_width - 1, height - 1, r, g, b, 255);
     }
 }
 
@@ -157,7 +225,7 @@ void SpectrumAnalyzerWidget::drawOscilloscope(Surface& surface)
         y1 = std::max(0, std::min(height - 1, y1));
         y2 = std::max(0, std::min(height - 1, y2));
         
-        uint32_t color = getSpectrumColor(std::abs(value1), x, surface);
+        uint32_t color = getSpectrumColor(value1, x, surface); // Color based on position, not amplitude
         surface.line(x1, y1, x2, y2, 
                     (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, 255);
     }
@@ -165,24 +233,45 @@ void SpectrumAnalyzerWidget::drawOscilloscope(Surface& surface)
 
 uint32_t SpectrumAnalyzerWidget::getSpectrumColor(float value, int position, Surface& surface)
 {
+    // FIXED: Color should be based on POSITION (frequency), not amplitude value
+    // This matches the original renderSpectrum behavior with precomputed colors
+    
     switch (m_color_scheme) {
-        case 0: // Classic green
+        case 0: // Original spectrum colors (exact old renderSpectrum algorithm)
             {
-                uint8_t intensity = static_cast<uint8_t>(value * 255);
-                return surface.MapRGB(0, intensity, 0);
+                // Use position directly (should be 0-319 for 320 bands)
+                int x = position;
+                uint8_t r, g, b;
+                
+                if (x > 213) {
+                    // Zone 3: x > 213
+                    r = static_cast<uint8_t>((x - 214) * 2.4);
+                    g = 0;
+                    b = 255;
+                } else if (x < 106) {
+                    // Zone 1: x < 106
+                    r = 128;
+                    g = 255;
+                    b = static_cast<uint8_t>(x * 2.398);
+                } else {
+                    // Zone 2: 106 <= x <= 213
+                    r = static_cast<uint8_t>(128 - ((x - 106) * 1.1962615));
+                    g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
+                    b = 255;
+                }
+                return surface.MapRGB(r, g, b);
             }
-        case 1: // Rainbow gradient
+        case 1: // Simple position-based rainbow (not amplitude-based)
             {
-                // Create rainbow based on position and intensity
                 float hue = static_cast<float>(position) / m_spectrum_data.size() * 6.0f;
                 int h = static_cast<int>(hue) % 6;
                 float f = hue - h;
-                float intensity = value;
                 
-                uint8_t v = static_cast<uint8_t>(intensity * 255);
+                // Full intensity colors (not based on amplitude)
+                uint8_t v = 255;
                 uint8_t p = 0;
-                uint8_t q = static_cast<uint8_t>((1.0f - f) * intensity * 255);
-                uint8_t t = static_cast<uint8_t>(f * intensity * 255);
+                uint8_t q = static_cast<uint8_t>((1.0f - f) * 255);
+                uint8_t t = static_cast<uint8_t>(f * 255);
                 
                 switch (h) {
                     case 0: return surface.MapRGB(v, t, p);
@@ -194,18 +283,9 @@ uint32_t SpectrumAnalyzerWidget::getSpectrumColor(float value, int position, Sur
                     default: return surface.MapRGB(v, v, v);
                 }
             }
-        case 2: // Fire gradient (red/yellow)
-            {
-                uint8_t intensity = static_cast<uint8_t>(value * 255);
-                if (value < 0.5f) {
-                    return surface.MapRGB(intensity * 2, 0, 0);
-                } else {
-                    return surface.MapRGB(255, (intensity - 128) * 2, 0);
-                }
-            }
+        case 2: // Solid green (classic spectrum analyzer)
+            return surface.MapRGB(0, 255, 0);
         default:
-            return surface.MapRGB(static_cast<uint8_t>(value * 255), 
-                                static_cast<uint8_t>(value * 255), 
-                                static_cast<uint8_t>(value * 255));
+            return surface.MapRGB(255, 255, 255); // White
     }
 }

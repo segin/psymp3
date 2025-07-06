@@ -278,7 +278,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     }
 
     // Perform FFT on the data we are sending to the sound card
-    if (bytes_copied > 0 && !Player::guiRunning) {
+    if (bytes_copied > 0) { // FIXED: Always compute FFT, regardless of GUI state
         std::lock_guard<std::mutex> lock(*self->m_player_mutex);
         toFloat(self->m_channels, (int16_t *)buf, self->m_fft->getTimeDom());
         self->m_fft->doFFT();

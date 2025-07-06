@@ -33,8 +33,8 @@ ToastWidget::ToastWidget(const std::string& message, Font* font, int duration_ms
     // Set Z-order to maximum (always on top)
     setZOrder(ZOrder::MAX);
     
-    // Set dark background color (will be made semi-transparent by opacity)
-    setBackgroundColor(48, 48, 48);  // Slightly lighter dark gray
+    // Set dark background color to match original ToastNotification (ignore alpha, focus on RGB)
+    setBackgroundColor(50, 50, 50);  // Original inner background color
     
     // Enable rounded corners
     setCornerRadius(DEFAULT_CORNER_RADIUS);
@@ -98,12 +98,12 @@ void ToastWidget::draw(Surface& surface)
     
     const int corner_radius = 8;
     
-    // Step 4: Draw light grey border background with rounded corners
-    drawSimpleRoundedRect(surface, 0, 0, window_width, window_height, corner_radius, 192, 192, 192, 255);
+    // Step 4: Draw outer border background with original ToastNotification colors
+    drawSimpleRoundedRect(surface, 0, 0, window_width, window_height, corner_radius, 100, 100, 100, 255);
     
-    // Step 5: Draw inner dark grey area (2px smaller, offset by 1px)
+    // Step 5: Draw inner background area (2px smaller, offset by 1px) with original colors
     if (window_width > 4 && window_height > 4) { // Ensure we have space for inner rect
-        drawSimpleRoundedRect(surface, 1, 1, window_width - 2, window_height - 2, corner_radius - 1, 128, 128, 128, 255);
+        drawSimpleRoundedRect(surface, 1, 1, window_width - 2, window_height - 2, corner_radius - 1, 50, 50, 50, 255);
     }
     
     // Step 6: Apply 85% opacity while preserving transparent areas

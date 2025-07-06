@@ -688,7 +688,9 @@ bool Player::updateGUI()
         // Update spectrum data in the widget - it will render itself via the widget tree
         float *spectrum = fft->getFFT();
         if (m_spectrum_widget) {
-            m_spectrum_widget->updateSpectrum(spectrum, 256); // Assuming 256 bands for now
+            // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
+            // Pass live scalefactor and decayfactor values so keypress changes propagate
+            m_spectrum_widget->updateSpectrum(spectrum, 320, scalefactor, decayfactor);
         }
     }
 
