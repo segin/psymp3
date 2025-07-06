@@ -29,12 +29,12 @@ constexpr uint32_t WAVE_ID = 0x45564157; // "WAVE"
 constexpr uint32_t FMT_ID  = 0x20746d66; // "fmt "
 constexpr uint32_t DATA_ID = 0x61746164; // "data"
 
-// WAVE format tags
-constexpr uint16_t WAVE_FORMAT_PCM = 0x0001;
-constexpr uint16_t WAVE_FORMAT_MPEGLAYER3 = 0x0055;
-constexpr uint16_t WAVE_FORMAT_IEEE_FLOAT = 0x0003;
-constexpr uint16_t WAVE_FORMAT_ALAW = 0x0006;
-constexpr uint16_t WAVE_FORMAT_MULAW = 0x0007;
+// WAVE format tags (prefixed to avoid Windows header conflicts)
+constexpr uint16_t PSYMP3_WAVE_FORMAT_PCM = 0x0001;
+constexpr uint16_t PSYMP3_WAVE_FORMAT_MPEGLAYER3 = 0x0055;
+constexpr uint16_t PSYMP3_WAVE_FORMAT_IEEE_FLOAT = 0x0003;
+constexpr uint16_t PSYMP3_WAVE_FORMAT_ALAW = 0x0006;
+constexpr uint16_t PSYMP3_WAVE_FORMAT_MULAW = 0x0007;
 
 /**
  * @brief Helper function to read a little-endian value from the file stream.
@@ -146,11 +146,11 @@ void WaveStream::parseHeaders() {
 
         if (chunk_id == FMT_ID) {
             uint16_t format_tag = read_le<uint16_t>(m_handler.get());
-            if (format_tag == WAVE_FORMAT_PCM) m_encoding = WaveEncoding::PCM;
-            else if (format_tag == WAVE_FORMAT_IEEE_FLOAT) m_encoding = WaveEncoding::IEEE_FLOAT;
-            else if (format_tag == WAVE_FORMAT_ALAW) m_encoding = WaveEncoding::ALAW;
-            else if (format_tag == WAVE_FORMAT_MULAW) m_encoding = WaveEncoding::MULAW;
-            else if (format_tag == WAVE_FORMAT_MPEGLAYER3) throw BadFormatException("MP3 in WAVE container is not yet supported.");
+            if (format_tag == PSYMP3_WAVE_FORMAT_PCM) m_encoding = WaveEncoding::PCM;
+            else if (format_tag == PSYMP3_WAVE_FORMAT_IEEE_FLOAT) m_encoding = WaveEncoding::IEEE_FLOAT;
+            else if (format_tag == PSYMP3_WAVE_FORMAT_ALAW) m_encoding = WaveEncoding::ALAW;
+            else if (format_tag == PSYMP3_WAVE_FORMAT_MULAW) m_encoding = WaveEncoding::MULAW;
+            else if (format_tag == PSYMP3_WAVE_FORMAT_MPEGLAYER3) throw BadFormatException("MP3 in WAVE container is not yet supported.");
             // For any other format, we throw WrongFormatException to allow other decoders to try.
             else throw WrongFormatException("Unsupported WAVE format tag: " + std::to_string(format_tag));
 
