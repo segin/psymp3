@@ -483,6 +483,16 @@ void Player::precomputeSpectrumColors() {
  */
 void Player::renderSpectrum(Surface *graph) {
     float *spectrum = fft->getFFT();
+    
+    // DEBUG: Print some spectrum values to understand the data range
+    static int debug_counter = 0;
+    if (debug_counter++ % 60 == 0) { // Print every 60 frames (~1 second at 60fps)
+        std::cout << "DEBUG: Spectrum values [0-9]: ";
+        for (int i = 0; i < 10; i++) {
+            std::cout << spectrum[i] << " ";
+        }
+        std::cout << "| scale=" << scalefactor << std::endl;
+    }
 
     // --- Fade effect implementation ---
     static std::unique_ptr<Surface> fade_surface_ptr; // Declared static to persist across calls
@@ -523,6 +533,13 @@ void Player::renderSpectrum(Surface *graph) {
         const float scaled_amplitude = Util::logarithmicScale(scalefactor, spectrum[x]);
         const int16_t y_start = static_cast<int16_t>(spectrum_bottom - scaled_amplitude * spectrum_height);
         const int16_t x_pos = x * 2;
+        
+        // DEBUG: Print some bar calculations
+        if (debug_counter % 60 == 1 && x < 5) { // Different frame to avoid overlap, first 5 bars
+            std::cout << "DEBUG bar " << x << ": raw=" << spectrum[x] 
+                      << " scaled=" << scaled_amplitude 
+                      << " y_start=" << y_start << std::endl;
+        }
         
         // Use box() instead of rectangle() for better performance (SDL_FillRect vs hline loop)
         graph->box(x_pos, y_start, x_pos + 1, spectrum_bottom, m_spectrum_colors[x]);
