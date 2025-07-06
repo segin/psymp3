@@ -89,22 +89,24 @@ void ToastWidget::draw(Surface& surface)
         }
     }
     
-    // Step 2: Add 16 to both axes of label size for window size
-    int window_width = label_width + 16;
-    int window_height = label_height + 16;
+    // Step 2: Use actual surface dimensions (should match calculateSize result)
+    int window_width = surface.width();
+    int window_height = surface.height();
     
-    // Step 3: Create undecorated window consisting of fully transparent pixels
-    surface.FillRect(surface.MapRGBA(0, 0, 0, 0)); // Fully transparent
+    // Step 3: Clear surface to fully transparent
+    surface.FillRect(surface.MapRGBA(0, 0, 0, 0));
     
     const int corner_radius = 8;
     
-    // Step 4: Draw light grey, fully opaque rectangles with rounded corners
-    drawRoundedRectRGBA(surface, 0, 0, window_width, window_height, corner_radius, 192, 192, 192, 255);
+    // Step 4: Draw light grey border background with rounded corners
+    drawSimpleRoundedRect(surface, 0, 0, window_width, window_height, corner_radius, 192, 192, 192, 255);
     
-    // Step 5: Draw regular grey rounded corners rectangle 2px smaller, offset by 1px
-    drawRoundedRectRGBA(surface, 1, 1, window_width - 2, window_height - 2, corner_radius - 1, 128, 128, 128, 255);
+    // Step 5: Draw inner dark grey area (2px smaller, offset by 1px)
+    if (window_width > 4 && window_height > 4) { // Ensure we have space for inner rect
+        drawSimpleRoundedRect(surface, 1, 1, window_width - 2, window_height - 2, corner_radius - 1, 128, 128, 128, 255);
+    }
     
-    // Step 6: Make every pixel 85% opaque/15% transparent (preserving 0% areas at 0%)
+    // Step 6: Apply 85% opacity while preserving transparent areas
     applyRelativeOpacity(surface, 0.85f);
     
     // Step 7: Render the Label at (8, 8)
@@ -169,19 +171,67 @@ void ToastWidget::drawRoundedRect(Surface& surface, int x, int y, int width, int
 
 void ToastWidget::drawRoundedRectRGBA(Surface& surface, int x, int y, int width, int height, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
-    // Draw the main rectangle body (excluding corners)
-    if (height > 2 * radius) {
-        surface.box(x + radius, y, x + width - radius - 1, y + height - 1, r, g, b, a);
-    }
-    if (width > 2 * radius) {
-        surface.box(x, y + radius, x + width - 1, y + height - radius - 1, r, g, b, a);
+    // Use the simple version for now
+    drawSimpleRoundedRect(surface, x, y, width, height, radius, r, g, b, a);
+}
+
+void ToastWidget::drawSimpleRoundedRect(Surface& surface, int x, int y, int width, int height, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
+{
+    // Clamp radius to prevent artifacts
+    int max_radius = std::min(width / 2, height / 2);
+    radius = std::min(radius, max_radius);
+    
+    if (radius <= 0) {
+        // Just draw a regular rectangle
+        surface.box(x, y, x + width - 1, y + height - 1, r, g, b, a);
+        return;
     }
     
-    // Draw the four rounded corners using circle drawing algorithm
-    drawFilledCircleQuadrant(surface, x + radius, y + radius, radius, r, g, b, a, 2); // Top-left
-    drawFilledCircleQuadrant(surface, x + width - radius - 1, y + radius, radius, r, g, b, a, 1); // Top-right
-    drawFilledCircleQuadrant(surface, x + radius, y + height - radius - 1, radius, r, g, b, a, 3); // Bottom-left
-    drawFilledCircleQuadrant(surface, x + width - radius - 1, y + height - radius - 1, radius, r, g, b, a, 0); // Bottom-right
+    // Draw the main rectangle body (center area)
+    if (height > 2 * radius && width > 2 * radius) {
+        surface.box(x + radius, y, x + width - radius - 1, y + height - 1, r, g, b, a); // Horizontal center
+        surface.box(x, y + radius, x + radius - 1, y + height - radius - 1, r, g, b, a); // Left vertical
+        surface.box(x + width - radius, y + radius, x + width - 1, y + height - radius - 1, r, g, b, a); // Right vertical
+    }
+    
+    // Draw rounded corners using simpler algorithm
+    drawRoundedCorner(surface, x + radius, y + radius, radius, r, g, b, a, 0); // Top-left
+    drawRoundedCorner(surface, x + width - radius - 1, y + radius, radius, r, g, b, a, 1); // Top-right  
+    drawRoundedCorner(surface, x + radius, y + height - radius - 1, radius, r, g, b, a, 2); // Bottom-left
+    drawRoundedCorner(surface, x + width - radius - 1, y + height - radius - 1, radius, r, g, b, a, 3); // Bottom-right
+}
+
+void ToastWidget::drawRoundedCorner(Surface& surface, int cx, int cy, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a, int corner)
+{
+    // Draw filled circle quadrant for each corner
+    for (int dy = -radius; dy <= radius; dy++) {
+        for (int dx = -radius; dx <= radius; dx++) {
+            if (dx * dx + dy * dy <= radius * radius) {
+                int px = cx, py = cy;
+                bool draw = false;
+                
+                // Map to correct quadrant based on corner
+                switch (corner) {
+                    case 0: // Top-left
+                        if (dx <= 0 && dy <= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                        break;
+                    case 1: // Top-right
+                        if (dx >= 0 && dy <= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                        break;
+                    case 2: // Bottom-left
+                        if (dx <= 0 && dy >= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                        break;
+                    case 3: // Bottom-right
+                        if (dx >= 0 && dy >= 0) { px = cx + dx; py = cy + dy; draw = true; }
+                        break;
+                }
+                
+                if (draw && px >= 0 && px < surface.width() && py >= 0 && py < surface.height()) {
+                    surface.pixel(px, py, r, g, b, a);
+                }
+            }
+        }
+    }
 }
 
 void ToastWidget::drawFilledCircleQuadrant(Surface& surface, int cx, int cy, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a, int quadrant)

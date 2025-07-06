@@ -126,6 +126,7 @@ class Player
         void handleWindowMouseEvents(const SDL_Event& event);
         void toggleTestWindowH();
         void toggleTestWindowB();
+        void createRandomWindows();
 
         uint8_t m_seek_direction = 0;
         std::unique_ptr<Display> screen;
@@ -182,6 +183,8 @@ class Player
         std::vector<std::unique_ptr<WindowFrameWidget>> m_windows;
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
+        WindowFrameWidget* m_test_window_h_ptr = nullptr; // Raw pointer for ApplicationWidget managed window
+        int m_random_window_counter = 0;
         
         LoopMode m_loop_mode;
 

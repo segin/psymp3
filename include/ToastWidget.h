@@ -169,6 +169,35 @@ private:
     void drawRoundedRectRGBA(Surface& surface, int x, int y, int width, int height, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
     
     /**
+     * @brief Simpler rounded rectangle implementation to avoid artifacts.
+     * @param surface Surface to draw on
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @param width Rectangle width
+     * @param height Rectangle height
+     * @param radius Corner radius
+     * @param r Red component (0-255)
+     * @param g Green component (0-255)
+     * @param b Blue component (0-255)
+     * @param a Alpha component (0-255)
+     */
+    void drawSimpleRoundedRect(Surface& surface, int x, int y, int width, int height, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+    
+    /**
+     * @brief Draws a single rounded corner.
+     * @param surface Surface to draw on
+     * @param cx Center X coordinate
+     * @param cy Center Y coordinate
+     * @param radius Corner radius
+     * @param r Red component (0-255)
+     * @param g Green component (0-255)
+     * @param b Blue component (0-255)
+     * @param a Alpha component (0-255)
+     * @param corner Corner position (0=top-left, 1=top-right, 2=bottom-left, 3=bottom-right)
+     */
+    void drawRoundedCorner(Surface& surface, int cx, int cy, int radius, uint8_t r, uint8_t g, uint8_t b, uint8_t a, int corner);
+    
+    /**
      * @brief Draws a filled circle quadrant using circle drawing algorithm.
      * @param surface Surface to draw on
      * @param cx Center X coordinate
