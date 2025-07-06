@@ -121,6 +121,19 @@ public:
     void removeAllToasts();
     
     /**
+     * @brief Schedules a window for removal on the next update cycle.
+     * This prevents use-after-free when windows close themselves.
+     * @param window Pointer to the window to remove
+     */
+    void scheduleWindowRemoval(Widget* window);
+    
+    /**
+     * @brief Notifies all windows that the application is shutting down.
+     * Each window receives a SHUTDOWN event and can clean up accordingly.
+     */
+    void notifyShutdown();
+    
+    /**
      * @brief Renders child widgets and windows to the target surface.
      * @param target The surface to render to
      */
@@ -135,6 +148,7 @@ private:
     
     Display& m_display;
     std::vector<std::unique_ptr<Widget>> m_windows;
+    std::vector<Widget*> m_windows_to_remove; // Windows scheduled for removal
     
     static std::unique_ptr<ApplicationWidget> s_instance;
     

@@ -146,16 +146,33 @@ Rect ToastWidget::calculateSize(const std::string& message, Font* font, int padd
 
 void ToastWidget::updateSize()
 {
-    Rect required_size = calculateSize(m_message, m_font, DEFAULT_PADDING);
+    // Calculate size based on actual label dimensions + 16px padding
+    int label_width = 0, label_height = 0;
+    
+    if (m_font && !m_message.empty()) {
+        auto label_surface = m_font->Render(m_message, 255, 255, 255);
+        if (label_surface && label_surface->isValid()) {
+            label_width = label_surface->width();
+            label_height = label_surface->height();
+        }
+    }
+    
+    // Add 16px to both axes as specified
+    int window_width = label_width + 16;
+    int window_height = label_height + 16;
+    
+    // Ensure minimum size
+    window_width = std::max(window_width, 50);
+    window_height = std::max(window_height, 30);
     
     // Update our position to maintain the new size
     Rect current_pos = getPos();
-    current_pos.width(required_size.width());
-    current_pos.height(required_size.height());
+    current_pos.width(window_width);
+    current_pos.height(window_height);
     setPos(current_pos);
     
     // Trigger a redraw since size changed
-    onResize(required_size.width(), required_size.height());
+    onResize(window_width, window_height);
 }
 
 void ToastWidget::drawRoundedRect(Surface& surface, int x, int y, int width, int height, int radius, uint32_t color)

@@ -55,6 +55,9 @@ Player::Player() {
 }
 
 Player::~Player() {
+    // Notify all windows that the application is shutting down
+    ApplicationWidget::getInstance().notifyShutdown();
+    
 #ifdef HAVE_DBUS
     if (mpris) {
         mpris->shutdown();
@@ -1632,6 +1635,11 @@ void Player::renderWindows()
         sorted_windows.push_back(m_test_window_b.get());
     }
     
+    // Add all random windows
+    for (const auto& window : m_random_windows) {
+        sorted_windows.push_back(window.get());
+    }
+    
     std::sort(sorted_windows.begin(), sorted_windows.end(),
               [](const WindowFrameWidget* a, const WindowFrameWidget* b) {
                   return a->getZOrder() < b->getZOrder();
@@ -1658,6 +1666,11 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
     
     if (m_test_window_b) {
         sorted_windows.push_back(m_test_window_b.get());
+    }
+    
+    // Add all random windows
+    for (const auto& window : m_random_windows) {
+        sorted_windows.push_back(window.get());
     }
     
     std::sort(sorted_windows.begin(), sorted_windows.end(),
@@ -1714,10 +1727,9 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
  */
 void Player::toggleTestWindowH()
 {
-    if (m_test_window_h_ptr) {
-        // Close the window - ApplicationWidget will handle removal
-        ApplicationWidget::getInstance().removeWindow(m_test_window_h_ptr);
-        m_test_window_h_ptr = nullptr;
+    if (m_test_window_h) {
+        // Close the window
+        m_test_window_h.reset();
         showToast("Test Window H: Closed");
     } else {
         // Open the window (client area is 160x120)
@@ -1738,8 +1750,7 @@ void Player::toggleTestWindowH()
         
         // Set up window control callbacks
         m_test_window_h->setOnClose([this]() {
-            // ApplicationWidget will handle removal automatically
-            m_test_window_h_ptr = nullptr;
+            m_test_window_h.reset();
             showToast("Test Window H: Closed");
         });
         
@@ -1758,15 +1769,6 @@ void Player::toggleTestWindowH()
         m_test_window_h->setOnResize([this](int new_width, int new_height) {
             showToast("Test Window H: Resized to " + std::to_string(new_width) + "x" + std::to_string(new_height));
         });
-        
-        // Get raw pointer before transferring ownership
-        auto* window_ptr = m_test_window_h.get();
-        
-        // Add to ApplicationWidget's window management system
-        ApplicationWidget::getInstance().addWindow(std::move(m_test_window_h), ZOrder::NORMAL);
-        
-        // Store raw pointer for future reference
-        m_test_window_h_ptr = window_ptr;
         
         showToast("Test Window H: Opened");
     }
@@ -1829,40 +1831,42 @@ void Player::createRandomWindows()
 {
     // Create 5 random windows each time J is pressed
     for (int i = 0; i < 5; i++) {
-        // Generate random window properties
-        int width = 100 + (rand() % 200);  // 100-300px wide
-        int height = 80 + (rand() % 150);  // 80-230px tall
-        int x = rand() % 400;              // Random X position
-        int y = rand() % 300;              // Random Y position
+        // Generate random window properties for client area
+        int client_width = 100 + (rand() % 200);   // 100-300px wide client area
+        int client_height = 80 + (rand() % 150);   // 80-230px tall client area
+        int x = rand() % 400;                      // Random X position
+        int y = rand() % 300;                      // Random Y position
         
-        // Create window with random properties
+        // Create WindowFrameWidget directly like H and B windows
         std::string title = "Random Window " + std::to_string(++m_random_window_counter);
-        auto window = std::make_unique<WindowFrameWidget>(width, height, title);
-        window->setPos(Rect(x, y, width + 4, height + 26)); // Include frame borders
+        auto window = std::make_unique<WindowFrameWidget>(client_width, client_height, title);
+        window->setPos(Rect(x, y, client_width + 8, client_height + 27)); // Include frame borders
         
-        // Set up basic window callbacks
-        auto* window_ptr = window.get(); // Get raw pointer before moving
-        
-        window->setOnClose([this, window_ptr]() {
-            // ApplicationWidget will handle actual removal
-            m_random_window_counter--; // Just decrement counter for display
-            showToast("Random window closed");
+        // Set up callbacks using the WindowFrameWidget system like H/B windows
+        window->setOnClose([this, window_ptr = window.get()]() {
+            // Remove from our vector and decrement counter
+            auto it = std::find_if(m_random_windows.begin(), m_random_windows.end(),
+                                  [window_ptr](const auto& w) { return w.get() == window_ptr; });
+            if (it != m_random_windows.end()) {
+                m_random_windows.erase(it);
+            }
+            m_random_window_counter--;
+            showToast("Random window closed (Total: " + std::to_string(m_random_window_counter) + ")");
         });
         
-        window->setOnDrag([window_ptr](int dx, int dy) {
+        window->setOnDrag([window_ptr = window.get()](int dx, int dy) {
             Rect current_pos = window_ptr->getPos();
             current_pos.x(current_pos.x() + dx);
             current_pos.y(current_pos.y() + dy);
             window_ptr->setPos(current_pos);
         });
         
-        window->setOnDragStart([window_ptr]() {
+        window->setOnDragStart([window_ptr = window.get()]() {
             window_ptr->bringToFront();
         });
         
-        // Add to ApplicationWidget with random Z-order
-        int z_order = ZOrder::NORMAL + (rand() % 20); // NORMAL to HIGH range
-        ApplicationWidget::getInstance().addWindow(std::move(window), z_order);
+        // Add to our random windows vector (managed by Player like H/B windows)
+        m_random_windows.push_back(std::move(window));
     }
     
     showToast("Created 5 random windows (Total: " + std::to_string(m_random_window_counter) + ")");

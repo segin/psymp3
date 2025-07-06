@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include <algorithm>
 
 // Static instance for singleton
 std::unique_ptr<ApplicationWidget> ApplicationWidget::s_instance = nullptr;
@@ -254,6 +255,12 @@ void ApplicationWidget::BlitTo(Surface& target)
 
 void ApplicationWidget::updateWindows()
 {
+    // Process scheduled window removals first
+    for (Widget* window_to_remove : m_windows_to_remove) {
+        removeWindow(window_to_remove);
+    }
+    m_windows_to_remove.clear();
+    
     // Check for toasts that need to be dismissed
     auto it = m_windows.begin();
     while (it != m_windows.end()) {
@@ -277,6 +284,25 @@ void ApplicationWidget::removeAllToasts()
             it = m_windows.erase(it);
         } else {
             ++it;
+        }
+    }
+}
+
+void ApplicationWidget::scheduleWindowRemoval(Widget* window)
+{
+    // Add to removal list if not already scheduled
+    if (std::find(m_windows_to_remove.begin(), m_windows_to_remove.end(), window) == m_windows_to_remove.end()) {
+        m_windows_to_remove.push_back(window);
+    }
+}
+
+void ApplicationWidget::notifyShutdown()
+{
+    // Notify all windows that the application is shutting down
+    for (const auto& window : m_windows) {
+        // Check if it's a WindowWidget and call shutdown
+        if (auto* window_widget = dynamic_cast<WindowWidget*>(window.get())) {
+            window_widget->shutdown();
         }
     }
 }

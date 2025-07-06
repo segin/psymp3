@@ -25,55 +25,89 @@
 
 int WindowWidget::s_next_z_order = 1;
 
-WindowWidget::WindowWidget(int width, int height, const std::string& title)
+WindowWidget::WindowWidget(int client_width, int client_height, const std::string& title)
     : Widget()
-    , m_window_width(width)
-    , m_window_height(height)
+    , m_client_width(client_width)
+    , m_client_height(client_height)
     , m_z_order(s_next_z_order++)
 {
-    // Set initial position and size
-    Rect pos(100, 100, width, height); // Default position
-    setPos(pos);
+    // Create WindowFrameWidget that will handle all the system decorations
+    m_frame_widget_owned = std::make_unique<WindowFrameWidget>(client_width, client_height, title);
+    m_frame_widget = m_frame_widget_owned.get();
     
-    // Create titlebar widget
-    m_titlebar_widget = std::make_unique<TitlebarWidget>(
-        width - (BORDER_WIDTH * 2), TITLEBAR_HEIGHT, title);
-    
-    // Set up titlebar drag callbacks
-    m_titlebar_widget->setOnDrag([this](int dx, int dy) {
+    // Set up frame widget callbacks to forward events to our event handlers
+    m_frame_widget->setOnDrag([this](int dx, int dy) {
+        // Move the entire window
         Rect current_pos = getPos();
         current_pos.x(current_pos.x() + dx);
         current_pos.y(current_pos.y() + dy);
         setPos(current_pos);
-        updateLayout(); // Update child widget positions when window moves
+        
+        // Trigger drag event
+        WindowEventData drag_event{};
+        drag_event.type = WindowEvent::DRAG_MOVE;
+        drag_event.x = dx;
+        drag_event.y = dy;
+        if (!triggerEvent(drag_event) && m_on_drag_move) {
+            m_on_drag_move(this, dx, dy);
+        }
     });
     
-    m_titlebar_widget->setOnDragStart([this](int x, int y) {
+    m_frame_widget->setOnDragStart([this]() {
         bringToFront();
+        
+        // Trigger drag start event
+        WindowEventData drag_event{};
+        drag_event.type = WindowEvent::DRAG_START;
+        if (!triggerEvent(drag_event) && m_on_drag_start) {
+            m_on_drag_start(this, 0, 0); // Window-level drag, coordinates not meaningful
+        }
     });
     
-    // Create default body widget
-    m_body_widget = createDefaultBodyWidget();
+    m_frame_widget->setOnClose([this]() {
+        close();
+    });
     
-    // Update layout
+    m_frame_widget->setOnMinimize([this]() {
+        WindowEventData event_data{};
+        event_data.type = WindowEvent::MINIMIZE;
+        if (!triggerEvent(event_data) && m_on_minimize) {
+            m_on_minimize(this);
+        }
+    });
+    
+    m_frame_widget->setOnMaximize([this]() {
+        WindowEventData event_data{};
+        event_data.type = WindowEvent::MAXIMIZE;
+        if (!triggerEvent(event_data) && m_on_maximize) {
+            m_on_maximize(this);
+        }
+    });
+    
+    m_frame_widget->setOnResize([this](int new_width, int new_height) {
+        // Update our client area size
+        m_client_width = new_width;
+        m_client_height = new_height;
+        
+        // Update our own size to match the frame
+        Rect frame_pos = m_frame_widget->getPos();
+        setPos(frame_pos);
+        
+        // Trigger resize event
+        WindowEventData event_data{};
+        event_data.type = WindowEvent::RESIZE;
+        event_data.width = new_width;
+        event_data.height = new_height;
+        if (!triggerEvent(event_data) && m_on_resize) {
+            m_on_resize(this, new_width, new_height);
+        }
+    });
+    
+    // Add the frame widget as our child first
+    addChild(std::move(m_frame_widget_owned));
+    
+    // Update layout to set our size to match the frame
     updateLayout();
-    
-    // Add child widgets to the standard Widget system
-    // Keep raw pointers for access while transferring ownership
-    TitlebarWidget* titlebar_ptr = m_titlebar_widget.get();
-    Widget* body_ptr = m_body_widget.get();
-    
-    addChild(std::move(m_titlebar_widget));
-    addChild(std::move(m_body_widget));
-    
-    // Reset unique_ptrs and use raw pointers for access
-    m_titlebar_widget.reset();
-    m_body_widget.reset();
-    m_titlebar_raw = titlebar_ptr;
-    m_body_raw = body_ptr;
-    
-    // Create border surface
-    setSurface(createBorderSurface());
 }
 
 void WindowWidget::BlitTo(Surface& target)
@@ -84,56 +118,67 @@ void WindowWidget::BlitTo(Surface& target)
 
 bool WindowWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    // Check titlebar first
-    if (m_titlebar_raw) {
-        Rect titlebar_pos = m_titlebar_raw->getPos();
-        if (relative_x >= titlebar_pos.x() && relative_x < titlebar_pos.x() + titlebar_pos.width() &&
-            relative_y >= titlebar_pos.y() && relative_y < titlebar_pos.y() + titlebar_pos.height()) {
-            
-            return m_titlebar_raw->handleMouseDown(event, 
-                relative_x - titlebar_pos.x(), relative_y - titlebar_pos.y());
+    // Check for double-click (within 500ms and close proximity)
+    uint32_t current_time = SDL_GetTicks();
+    bool is_double_click = false;
+    
+    if (current_time - m_last_click_time < 500 && 
+        abs(relative_x - m_last_click_x) < 5 && 
+        abs(relative_y - m_last_click_y) < 5) {
+        is_double_click = true;
+    }
+    
+    m_last_click_time = current_time;
+    m_last_click_x = relative_x;
+    m_last_click_y = relative_y;
+    
+    // Convert SDL button to our convention (1=left, 2=middle, 3=right)
+    int button = event.button;
+    
+    // Trigger click events
+    WindowEventData event_data{};
+    event_data.type = is_double_click ? WindowEvent::DOUBLE_CLICK : WindowEvent::CLICK;
+    event_data.x = relative_x;
+    event_data.y = relative_y;
+    event_data.button = button;
+    
+    // Call generic handler first - if set, it overrides specific handlers
+    bool handled = triggerEvent(event_data);
+    
+    // If no generic handler, use specific handlers
+    if (!m_on_event) {
+        if (is_double_click && m_on_double_click) {
+            m_on_double_click(this, relative_x, relative_y, button);
+        } else if (!is_double_click && m_on_click) {
+            m_on_click(this, relative_x, relative_y, button);
         }
     }
     
-    // Check body widget
-    if (m_body_raw) {
-        Rect body_pos = m_body_raw->getPos();
-        if (relative_x >= body_pos.x() && relative_x < body_pos.x() + body_pos.width() &&
-            relative_y >= body_pos.y() && relative_y < body_pos.y() + body_pos.height()) {
-            
-            // Body widget clicked, bring window to front
-            bringToFront();
-            return true;
-        }
-    }
+    // Bring window to front on any click
+    bringToFront();
     
-    return false;
+    // Forward to child widgets (especially the WindowFrameWidget) - this handles all frame interactions
+    bool child_handled = Widget::handleMouseDown(event, relative_x, relative_y);
+    
+    return child_handled || handled;
 }
 
 bool WindowWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int relative_x, int relative_y)
 {
-    // Forward to titlebar (it handles its own bounds checking during drag)
-    if (m_titlebar_raw && m_titlebar_raw->handleMouseMotion(event, relative_x, relative_y)) {
-        return true;
-    }
-    
-    return false;
+    // Forward to frame widget and child widgets
+    return Widget::handleMouseMotion(event, relative_x, relative_y);
 }
 
 bool WindowWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
 {
-    // Forward to titlebar
-    if (m_titlebar_raw && m_titlebar_raw->handleMouseUp(event, relative_x, relative_y)) {
-        return true;
-    }
-    
-    return false;
+    // Forward to frame widget and child widgets
+    return Widget::handleMouseUp(event, relative_x, relative_y);
 }
 
 const std::string& WindowWidget::getTitle() const
 {
-    if (m_titlebar_raw) {
-        return m_titlebar_raw->getTitle();
+    if (m_frame_widget) {
+        return m_frame_widget->getTitle();
     }
     static const std::string empty_title;
     return empty_title;
@@ -141,15 +186,24 @@ const std::string& WindowWidget::getTitle() const
 
 void WindowWidget::setTitle(const std::string& title)
 {
-    if (m_titlebar_raw) {
-        m_titlebar_raw->setTitle(title);
+    if (m_frame_widget) {
+        m_frame_widget->setTitle(title);
     }
 }
 
-void WindowWidget::setBodyWidget(std::unique_ptr<Widget> body_widget)
+Widget* WindowWidget::getClientArea() const
 {
-    m_body_widget = std::move(body_widget);
-    updateLayout();
+    if (m_frame_widget) {
+        return m_frame_widget->getClientArea();
+    }
+    return nullptr;
+}
+
+void WindowWidget::setClientArea(std::unique_ptr<Widget> client_widget)
+{
+    if (m_frame_widget) {
+        m_frame_widget->setClientArea(std::move(client_widget));
+    }
 }
 
 void WindowWidget::bringToFront()
@@ -159,58 +213,83 @@ void WindowWidget::bringToFront()
 
 void WindowWidget::updateLayout()
 {
-    // Position child widgets relative to the window (not absolute screen coordinates)
-    
-    // Position titlebar at the top of the window
-    if (m_titlebar_widget) {
-        Rect titlebar_pos(BORDER_WIDTH,  // Relative X within window
-                         BORDER_WIDTH,   // Relative Y within window
-                         m_window_width - (BORDER_WIDTH * 2), 
-                         TITLEBAR_HEIGHT);
-        m_titlebar_widget->setPos(titlebar_pos);
-    }
-    
-    // Position body widget below the titlebar
-    if (m_body_widget) {
-        Rect body_pos(BORDER_WIDTH,  // Relative X within window
-                     BORDER_WIDTH + TITLEBAR_HEIGHT,  // Relative Y within window
-                     m_window_width - (BORDER_WIDTH * 2),
-                     m_window_height - TITLEBAR_HEIGHT - (BORDER_WIDTH * 2));
-        m_body_widget->setPos(body_pos);
+    if (m_frame_widget) {
+        // Get current frame position and size
+        Rect frame_pos = m_frame_widget->getPos();
+        
+        // Set our size and position to match the frame initially
+        setPos(frame_pos);
+        
+        // Position the frame widget at (0,0) relative to us
+        m_frame_widget->setPos(Rect(0, 0, frame_pos.width(), frame_pos.height()));
     }
 }
 
-std::unique_ptr<Widget> WindowWidget::createDefaultBodyWidget()
+
+// ========== EVENT SYSTEM IMPLEMENTATION ==========
+
+void WindowWidget::close()
 {
-    auto body_widget = std::make_unique<Widget>();
+    // Trigger close event
+    WindowEventData event_data{};
+    event_data.type = WindowEvent::CLOSE;
     
-    // Create white content surface
-    int content_width = m_window_width - (BORDER_WIDTH * 2);
-    int content_height = m_window_height - TITLEBAR_HEIGHT - (BORDER_WIDTH * 2);
+    // Generic handler overrides specific handlers
+    bool handled = triggerEvent(event_data);
     
-    auto content_surface = std::make_unique<Surface>(content_width, content_height, true);
-    uint32_t white_color = content_surface->MapRGB(255, 255, 255);
-    content_surface->FillRect(white_color);
+    // Call specific handler if no generic handler
+    if (!handled && !m_on_event && m_on_close) {
+        m_on_close(this);
+    }
     
-    body_widget->setSurface(std::move(content_surface));
-    
-    // Set size
-    Rect body_rect(0, 0, content_width, content_height);
-    body_widget->setPos(body_rect);
-    
-    return body_widget;
+    // Schedule removal from ApplicationWidget on next frame to avoid use-after-free
+    ApplicationWidget::getInstance().scheduleWindowRemoval(this);
 }
 
-std::unique_ptr<Surface> WindowWidget::createBorderSurface()
+void WindowWidget::shutdown()
 {
-    auto border_surface = std::make_unique<Surface>(m_window_width, m_window_height, true);
+    // Trigger shutdown event
+    WindowEventData event_data{};
+    event_data.type = WindowEvent::SHUTDOWN;
     
-    // Start with transparent surface
-    uint32_t transparent = border_surface->MapRGBA(0, 0, 0, 0);
-    border_surface->FillRect(transparent);
+    // Generic handler overrides specific handlers
+    bool handled = triggerEvent(event_data);
     
-    // Draw window border outline only (dark gray)
-    border_surface->rectangle(0, 0, m_window_width - 1, m_window_height - 1, 64, 64, 64, 255);
+    // If no specific shutdown handler, default to calling close handler/event
+    if (!handled && !m_on_event) {
+        if (m_on_shutdown) {
+            m_on_shutdown(this);
+        } else {
+            // Default behavior: fall back to close handler if no shutdown handler
+            if (m_on_close) {
+                m_on_close(this);
+            } else {
+                // If no close handler either, trigger a close event through generic system
+                WindowEventData close_event{};
+                close_event.type = WindowEvent::CLOSE;
+                triggerEvent(close_event);
+            }
+        }
+    }
     
-    return border_surface;
+    // Note: We don't schedule removal here - shutdown is notification only
+    // The window can decide whether to close or just clean up
+}
+
+void WindowWidget::triggerCustomEvent(void* custom_data)
+{
+    WindowEventData event_data{};
+    event_data.type = WindowEvent::CUSTOM;
+    event_data.custom_data = custom_data;
+    
+    triggerEvent(event_data);
+}
+
+bool WindowWidget::triggerEvent(const WindowEventData& event_data)
+{
+    // Call generic event handler if set
+    if (m_on_event) {
+        return m_on_event(this, event_data);
+    }
+    return false;
 }

@@ -50,10 +50,19 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     , m_maximizable(true)
 {
     // Calculate total window size (client area + decorations)
-    // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
-    int horizontal_border_total = 8;
-    // Vertical: 27px total (titlebar + borders + resize frames)
-    int vertical_border_total = 27;
+    int horizontal_border_total, vertical_border_total;
+    
+    if (m_resizable) {
+        // Resizable: (1px outer + 2px resize + 1px inner) * 2 sides = 8px
+        horizontal_border_total = (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2;
+        // Resizable: titlebar + borders + resize frames = 27px
+        vertical_border_total = TITLEBAR_HEIGHT + (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2 + 1;
+    } else {
+        // Non-resizable: simple 1px border on all sides = 2px
+        horizontal_border_total = 2;
+        // Non-resizable: titlebar + simple borders = 21px
+        vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
+    }
     // Add asymmetric expansion: +3px right, +1px down
     int total_width = client_width + horizontal_border_total + 3;
     int total_height = client_height + vertical_border_total + 1;
@@ -270,10 +279,19 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             m_client_height = new_height;
             
             // Update window total size based on new client size
-            // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
-            int horizontal_border_total = 8;
-            // Vertical: 27px total (titlebar + borders + resize frames)
-            int vertical_border_total = 27;
+            int horizontal_border_total, vertical_border_total;
+            
+            if (m_resizable) {
+                // Resizable: (1px outer + 2px resize + 1px inner) * 2 sides = 8px
+                horizontal_border_total = (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2;
+                // Resizable: titlebar + borders + resize frames = 27px
+                vertical_border_total = TITLEBAR_HEIGHT + (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2 + 1;
+            } else {
+                // Non-resizable: simple 1px border on all sides = 2px
+                horizontal_border_total = 2;
+                // Non-resizable: titlebar + simple borders = 21px
+                vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
+            }
             // Add asymmetric expansion: +3px right, +1px down
             int total_width = m_client_width + horizontal_border_total + 3;
             int total_height = m_client_height + vertical_border_total + 1;
@@ -394,10 +412,19 @@ void WindowFrameWidget::rebuildSurface()
     }
     
     // Calculate total window size based on window properties
-    // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
-    int horizontal_border_total = 8;
-    // Vertical: 27px total (titlebar + borders + resize frames)
-    int vertical_border_total = 27;
+    int horizontal_border_total, vertical_border_total;
+    
+    if (m_resizable) {
+        // Resizable: (1px outer + 2px resize + 1px inner) * 2 sides = 8px
+        horizontal_border_total = (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2;
+        // Resizable: titlebar + borders + resize frames = 27px
+        vertical_border_total = TITLEBAR_HEIGHT + (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2 + 1;
+    } else {
+        // Non-resizable: simple 1px border on all sides = 2px
+        horizontal_border_total = 2;
+        // Non-resizable: titlebar + simple borders = 21px
+        vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
+    }
     // Add asymmetric expansion: +3px right, +1px down
     int total_width = m_client_width + horizontal_border_total + 3;
     int total_height = m_client_height + vertical_border_total + 1;
@@ -405,56 +432,69 @@ void WindowFrameWidget::rebuildSurface()
     // Create the window frame surface
     auto frame_surface = std::make_unique<Surface>(total_width, total_height, true);
     
-    // Calculate effective resize width for drawing frame structure
-    int effective_resize_width = getEffectiveResizeBorderWidth();
+    // effective_resize_width already calculated above
     
     // Fill with window background color (light gray)
     uint32_t bg_color = frame_surface->MapRGB(192, 192, 192);
     frame_surface->FillRect(bg_color);
     
-    // Draw proper Windows 3.1 border structure with consistent layering
-    // Structure: [1px black outer] [2px light grey resize frame] [1px black inner] [content]
+    // Draw border structure based on window type
+    int content_x, content_y, content_width, content_height;
     
-    // 1. Outer 1px black frame around everything
-    frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 0, 0, 0, 255);
+    if (m_resizable) {
+        // Resizable window: complex border structure
+        // Structure: [1px black outer] [2px light grey resize frame] [1px black inner] [content]
+        
+        // 1. Outer 1px black frame around everything
+        frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 0, 0, 0, 255);
+        
+        // 2. Resize frame
+        int resize_start = OUTER_BORDER_WIDTH;
+        frame_surface->box(resize_start, resize_start, 
+                          total_width - resize_start - 1, total_height - resize_start - 1, 
+                          192, 192, 192, 255);
+        
+        // 3. Inner 1px black border around content area
+        int content_border = resize_start + RESIZE_BORDER_WIDTH;
+        frame_surface->rectangle(content_border, content_border, 
+                               total_width - content_border - 1, total_height - content_border - 1, 
+                               0, 0, 0, 255);
+        
+        // 4. Content area coordinates (inside the black border)
+        content_x = content_border + 1;
+        content_y = content_border + 1;
+        content_width = total_width - (content_border + 1) * 2;
+        content_height = total_height - (content_border + 1) * 2;
+    } else {
+        // Non-resizable window: simple 1px black border
+        frame_surface->rectangle(0, 0, total_width - 1, total_height - 1, 0, 0, 0, 255);
+        
+        // Content area coordinates (directly inside the 1px border)
+        content_x = 1;
+        content_y = 1;
+        content_width = total_width - 2;
+        content_height = total_height - 2;
+    }
     
-    // 2. Resize frame (effective width based on resizable property)
-    int resize_start = OUTER_BORDER_WIDTH;
-    frame_surface->box(resize_start, resize_start, 
-                      total_width - resize_start - 1, total_height - resize_start - 1, 
-                      192, 192, 192, 255);
-    
-    // 3. Inner 1px black border around content area
-    int content_border = resize_start + effective_resize_width;
-    frame_surface->rectangle(content_border, content_border, 
-                           total_width - content_border - 1, total_height - content_border - 1, 
-                           0, 0, 0, 255);
-    
-    // 4. Content area coordinates (inside the black border)
-    int content_x = content_border + 1;
-    int content_y = content_border + 1;
-    // Content area should fit exactly within the frame with 1px border gap
-    int content_width = total_width - (content_border + 1) * 2;
-    int content_height = total_height - (content_border + 1) * 2;
-    
-    // 5. Blue titlebar area (18px high, directly against black border)
+    // Draw titlebar and client area
+    // Blue titlebar area (18px high)
     frame_surface->box(content_x, content_y, 
                       content_x + content_width - 1, content_y + TITLEBAR_HEIGHT - 1, 
                       0, 0, 128, 255); // Classic Windows 3.1 blue
     
-    // 6. 1px black border between titlebar and client area
+    // 1px black border between titlebar and client area
     int client_y = content_y + TITLEBAR_HEIGHT;
     frame_surface->hline(content_x, content_x + content_width - 1, client_y, 0, 0, 0, 255);
     
-    // 7. Client area (white background, starting after the 1px black border)
+    // Client area (white background, starting after the 1px black border)
     int client_area_y = client_y + 1;
     int client_height = content_height - TITLEBAR_HEIGHT - 1; // Account for 1px black border
     frame_surface->box(content_x, client_area_y, 
                       content_x + content_width - 1, client_area_y + client_height - 1, 
                       255, 255, 255, 255);
     
-    // 8. Draw corner separators for resizable windows only
-    if (m_resizable && effective_resize_width > 1) {
+    // Draw corner separators for resizable windows only
+    if (m_resizable) {
         // Following the web canvas example: notches connect outer and inner borders
         // Outer border coordinates
         int outer_x1 = 0;
@@ -463,6 +503,7 @@ void WindowFrameWidget::rebuildSurface()
         int outer_y2 = total_height - 1;
         
         // Inner border coordinates  
+        int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
         int inner_x1 = content_border;
         int inner_y1 = content_border;
         int inner_x2 = total_width - content_border - 1;
@@ -509,13 +550,21 @@ void WindowFrameWidget::updateLayout()
 {
     // Position client area within the frame (account for borders and titlebar)
     if (m_client_area) {
-        int effective_resize_width = getEffectiveResizeBorderWidth();
-        int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
-        int content_x = content_border + 1;  // Inside the black border
-        int content_y = content_border + 1 + TITLEBAR_HEIGHT + 1;  // After titlebar + 1px black border
+        int content_x, content_y;
         
-        Rect client_pos(content_x,        // X: after all borders and black frame
-                       content_y,        // Y: after borders, black frame, titlebar, and 1px border
+        if (m_resizable) {
+            // Resizable window: complex border structure
+            int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+            content_x = content_border + 1;  // Inside the black border
+            content_y = content_border + 1 + TITLEBAR_HEIGHT + 1;  // After titlebar + 1px black border
+        } else {
+            // Non-resizable window: simple 1px border
+            content_x = 1;  // Inside the 1px border
+            content_y = 1 + TITLEBAR_HEIGHT + 1;  // After titlebar + 1px black border
+        }
+        
+        Rect client_pos(content_x,        // X: after borders and frame
+                       content_y,        // Y: after borders, titlebar, and separator
                        m_client_width,   // Width: client area width
                        m_client_height); // Height: client area height
         m_client_area->setPos(client_pos);
@@ -524,10 +573,16 @@ void WindowFrameWidget::updateLayout()
 
 bool WindowFrameWidget::isInTitlebar(int x, int y) const
 {
-    int effective_resize_width = getEffectiveResizeBorderWidth();
-    int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
-    int content_x = content_border + 1;
-    int content_y = content_border + 1;
+    int content_x, content_y;
+    
+    if (m_resizable) {
+        int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+        content_x = content_border + 1;
+        content_y = content_border + 1;
+    } else {
+        content_x = 1;
+        content_y = 1;
+    }
     
     return (x >= content_x && 
             x < content_x + m_client_width &&
@@ -559,14 +614,20 @@ Rect WindowFrameWidget::getMinimizeButtonBounds() const
 {
     if (!m_minimizable) return Rect(0, 0, 0, 0);
     
-    int effective_resize_width = getEffectiveResizeBorderWidth();
-    int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
-    int content_x = content_border + 1;
-    int content_y = content_border + 1;
-    // Use same calculation as rebuildSurface for consistency with expanded frame
+    int content_x, content_y, content_width;
     Rect window_pos = getPos();
     int total_width = window_pos.width();
-    int content_width = total_width - (content_border + 1) * 2;
+    
+    if (m_resizable) {
+        int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+        content_x = content_border + 1;
+        content_y = content_border + 1;
+        content_width = total_width - (content_border + 1) * 2;
+    } else {
+        content_x = 1;
+        content_y = 1;
+        content_width = total_width - 2;
+    }
     
     // Button positioning depends on what buttons are visible
     int buttons_width = 0;
@@ -583,14 +644,20 @@ Rect WindowFrameWidget::getMaximizeButtonBounds() const
 {
     if (!m_maximizable) return Rect(0, 0, 0, 0);
     
-    int effective_resize_width = getEffectiveResizeBorderWidth();
-    int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
-    int content_x = content_border + 1;
-    int content_y = content_border + 1;
-    // Use same calculation as rebuildSurface for consistency with expanded frame
+    int content_x, content_y, content_width;
     Rect window_pos = getPos();
     int total_width = window_pos.width();
-    int content_width = total_width - (content_border + 1) * 2;
+    
+    if (m_resizable) {
+        int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+        content_x = content_border + 1;
+        content_y = content_border + 1;
+        content_width = total_width - (content_border + 1) * 2;
+    } else {
+        content_x = 1;
+        content_y = 1;
+        content_width = total_width - 2;
+    }
     
     int button_x = content_x + content_width - BUTTON_SIZE;
     int button_y = content_y; // At top of titlebar area
@@ -600,10 +667,16 @@ Rect WindowFrameWidget::getMaximizeButtonBounds() const
 
 Rect WindowFrameWidget::getControlMenuBounds() const
 {
-    int effective_resize_width = getEffectiveResizeBorderWidth();
-    int content_border = OUTER_BORDER_WIDTH + effective_resize_width;
-    int content_x = content_border + 1;
-    int content_y = content_border + 1;
+    int content_x, content_y;
+    
+    if (m_resizable) {
+        int content_border = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH;
+        content_x = content_border + 1;
+        content_y = content_border + 1;
+    } else {
+        content_x = 1;
+        content_y = 1;
+    }
     
     return Rect(content_x, content_y, CONTROL_MENU_SIZE, CONTROL_MENU_SIZE);
 }
@@ -741,14 +814,16 @@ void WindowFrameWidget::drawSystemMenu(Surface& surface) const
 
 int WindowFrameWidget::getResizeEdge(int x, int y) const
 {
+    // Non-resizable windows can't be resized
+    if (!m_resizable) return 0;
+    
     Rect window_pos = getPos();
     int total_width = window_pos.width();
     int total_height = window_pos.height();
     int corner_size = 6;
     
     // Resize area includes: 1px outer + 2px resize frame + 1px inner border = 4px total
-    int effective_resize_width = getEffectiveResizeBorderWidth();
-    int resize_area_width = OUTER_BORDER_WIDTH + effective_resize_width + 1; // Include inner border
+    int resize_area_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1; // Include inner border
     
     int edge = 0;
     
@@ -788,10 +863,19 @@ void WindowFrameWidget::setResizable(bool resizable)
         m_resizable = resizable;
         
         // Recalculate window size based on new border requirements
-        // Horizontal: 8px total (4px each side: 1px outer + 2px resize + 1px inner)
-        int horizontal_border_total = 8;
-        // Vertical: 27px total (titlebar + borders + resize frames)
-        int vertical_border_total = 27;
+        int horizontal_border_total, vertical_border_total;
+        
+        if (m_resizable) {
+            // Resizable: (1px outer + 2px resize + 1px inner) * 2 sides = 8px
+            horizontal_border_total = (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2;
+            // Resizable: titlebar + borders + resize frames = 27px
+            vertical_border_total = TITLEBAR_HEIGHT + (OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1) * 2 + 1;
+        } else {
+            // Non-resizable: simple 1px border on all sides = 2px
+            horizontal_border_total = 2;
+            // Non-resizable: titlebar + simple borders = 21px
+            vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
+        }
         // Add asymmetric expansion: +3px right, +1px down
         int total_width = m_client_width + horizontal_border_total + 3;
         int total_height = m_client_height + vertical_border_total + 1;
