@@ -60,11 +60,24 @@ void DrawableWidget::onResize(int new_width, int new_height)
 
 void DrawableWidget::BlitTo(Surface& target)
 {
+    std::cout << "DrawableWidget::BlitTo - updating surface first" << std::endl;
+    
     // Ensure surface is up-to-date before blitting
     updateSurface();
     
+    std::cout << "DrawableWidget::BlitTo - calling parent Widget::BlitTo" << std::endl;
+    
     // Call parent implementation to do the actual blitting
     Widget::BlitTo(target);
+}
+
+void DrawableWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    // Ensure surface is up-to-date before blitting
+    updateSurface();
+    
+    // Call parent implementation to do the actual blitting with proper coordinates
+    Widget::recursiveBlitTo(target, parent_absolute_pos);
 }
 
 void DrawableWidget::updateSurface()

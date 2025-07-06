@@ -26,8 +26,6 @@
 
 #include "font.h"
 
-#include "font.h"
-
 class Label : public Widget
 {
     public:

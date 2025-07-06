@@ -67,6 +67,13 @@ public:
      * @param target The target surface to blit to
      */
     virtual void BlitTo(Surface& target) override;
+    
+    /**
+     * @brief Overrides Widget::recursiveBlitTo to ensure surface is updated when needed.
+     * @param target The target surface to blit to
+     * @param parent_absolute_pos The absolute position of the parent widget
+     */
+    virtual void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
 
 protected:
     /**
