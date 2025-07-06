@@ -39,7 +39,7 @@ class WindowWidget;
  */
 enum class WindowEvent {
     CLICK,          // Mouse click (any button)
-    DOUBLE_CLICK,   // Double click
+    DOUBLE_CLICK_EVENT,   // Double click
     DRAG_START,     // Drag operation started
     DRAG_MOVE,      // Drag operation in progress
     DRAG_END,       // Drag operation ended

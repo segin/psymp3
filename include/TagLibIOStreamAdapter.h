@@ -65,8 +65,8 @@ public:
     void truncate(long length) override;
     bool readOnly() const override;
     bool isOpen() const override;
-    void insert(const TagLib::ByteVector& data, ulong start = 0, ulong replace = 0) override;
-    void removeBlock(ulong start, ulong length) override;
+    void insert(const TagLib::ByteVector& data, unsigned long start = 0, unsigned long replace = 0) override;
+    void removeBlock(unsigned long start, unsigned long length) override;
 
 private:
     std::unique_ptr<IOHandler> m_io_handler;

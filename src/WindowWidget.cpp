@@ -137,7 +137,7 @@ bool WindowWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relati
     
     // Trigger click events
     WindowEventData event_data{};
-    event_data.type = is_double_click ? WindowEvent::DOUBLE_CLICK : WindowEvent::CLICK;
+    event_data.type = is_double_click ? WindowEvent::DOUBLE_CLICK_EVENT : WindowEvent::CLICK;
     event_data.x = relative_x;
     event_data.y = relative_y;
     event_data.button = button;
