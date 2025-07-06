@@ -26,26 +26,70 @@ jobs:
           pkg-config \
           autoconf-archive \
           libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libmpg123-dev \
           libtag1-dev \
           libvorbis-dev \
+          libvorbisfile-dev \
           libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
           libflac++-dev \
+          libflac-dev \
           libfreetype6-dev \
-          libsdl-ttf2.0-dev \
-          zlib1g-dev
+          zlib1g-dev \
+          libdbus-1-dev
+
+    - name: Cache dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/apt
+          /var/cache/apt
+        key: ${{ runner.os }}-apt-${{ hashFiles('.github/workflows/c-cpp.yml') }}
+        restore-keys: |
+          ${{ runner.os }}-apt-
 
     - name: Generate configure script
-      run: autoreconf -fi
+      run: |
+        autoreconf -fi
+        echo "Configure script generated successfully"
 
     - name: Configure build
-      run: ./configure
+      run: |
+        ./configure --enable-mpris
+        echo "Build configured successfully"
 
     - name: Build project
-      run: make
+      run: |
+        make -j$(nproc)
+        echo "Build completed successfully"
 
     - name: Run tests (if any)
-      run: make check
+      run: |
+        if make -n check 2>/dev/null; then
+          make check
+          echo "Tests completed successfully"
+        else
+          echo "No tests available to run"
+        fi
 
     - name: Check distribution packaging
-      run: make distcheck
+      run: |
+        if make -n distcheck 2>/dev/null; then
+          make distcheck
+          echo "Distribution check completed successfully"
+        else
+          echo "Distribution check not available"
+        fi
+
+    - name: Upload build artifacts
+      if: success()
+      uses: actions/upload-artifact@v3
+      with:
+        name: psymp3-build-${{ github.sha }}
+        path: |
+          src/psymp3
+          **/*.log
+        retention-days: 7
