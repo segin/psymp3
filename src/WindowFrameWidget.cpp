@@ -63,9 +63,9 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
         // Non-resizable: titlebar + simple borders = 21px
         vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
     }
-    // Add asymmetric expansion: +3px right, +1px down
-    int total_width = client_width + horizontal_border_total + 3;
-    int total_height = client_height + vertical_border_total + 1;
+    // Calculate final window size
+    int total_width = client_width + horizontal_border_total;
+    int total_height = client_height + vertical_border_total;
     
     // Set initial position and size
     Rect pos(100, 100, total_width, total_height);
@@ -292,9 +292,9 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
                 // Non-resizable: titlebar + simple borders = 21px
                 vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
             }
-            // Add asymmetric expansion: +3px right, +1px down
-            int total_width = m_client_width + horizontal_border_total + 3;
-            int total_height = m_client_height + vertical_border_total + 1;
+            // Calculate final window size
+            int total_width = m_client_width + horizontal_border_total;
+            int total_height = m_client_height + vertical_border_total;
             
             // Calculate new window position - adjust for top/left edge resizing
             // Use original window position when resize started to avoid accumulating errors
@@ -425,9 +425,9 @@ void WindowFrameWidget::rebuildSurface()
         // Non-resizable: titlebar + simple borders = 21px
         vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
     }
-    // Add asymmetric expansion: +3px right, +1px down
-    int total_width = m_client_width + horizontal_border_total + 3;
-    int total_height = m_client_height + vertical_border_total + 1;
+    // Calculate final window size
+    int total_width = m_client_width + horizontal_border_total;
+    int total_height = m_client_height + vertical_border_total;
     
     // Create the window frame surface
     auto frame_surface = std::make_unique<Surface>(total_width, total_height, true);
@@ -876,9 +876,9 @@ void WindowFrameWidget::setResizable(bool resizable)
             // Non-resizable: titlebar + simple borders = 21px
             vertical_border_total = TITLEBAR_HEIGHT + 2 + 1; // +1 for titlebar separator
         }
-        // Add asymmetric expansion: +3px right, +1px down
-        int total_width = m_client_width + horizontal_border_total + 3;
-        int total_height = m_client_height + vertical_border_total + 1;
+        // Calculate final window size
+        int total_width = m_client_width + horizontal_border_total;
+        int total_height = m_client_height + vertical_border_total;
         
         // Update window size
         Rect current_pos = getPos();
