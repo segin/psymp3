@@ -32,21 +32,30 @@
 // Type compatibility for different TagLib versions
 #ifdef TAGLIB_MAJOR_VERSION
   #if TAGLIB_MAJOR_VERSION >= 2
-    // TagLib 2.x uses offset_t and proper namespacing
+    // TagLib 2.x: insert(data, offset_t start, size_t replace), removeBlock(offset_t start, size_t length)
     using TagLibOffset = TagLib::offset_t;
     using TagLibFileName = TagLib::FileName;
-    using TagLibSize = size_t;
+    using TagLibInsertStart = TagLib::offset_t;
+    using TagLibInsertReplace = size_t;
+    using TagLibRemoveStart = TagLib::offset_t;
+    using TagLibRemoveLength = size_t;
   #else
-    // TagLib 1.x uses long and unsigned long
+    // TagLib 1.x: insert(data, unsigned long start, unsigned long replace), removeBlock(unsigned long start, unsigned long length)
     using TagLibOffset = long;
     using TagLibFileName = TagLib::FileName;
-    using TagLibSize = unsigned long;
+    using TagLibInsertStart = unsigned long;
+    using TagLibInsertReplace = unsigned long;
+    using TagLibRemoveStart = unsigned long;
+    using TagLibRemoveLength = unsigned long;
   #endif
 #else
   // Fallback for older TagLib without version macros
   using TagLibOffset = long;
   using TagLibFileName = TagLib::FileName;
-  using TagLibSize = unsigned long;
+  using TagLibInsertStart = unsigned long;
+  using TagLibInsertReplace = unsigned long;
+  using TagLibRemoveStart = unsigned long;
+  using TagLibRemoveLength = unsigned long;
 #endif
 
 /**
@@ -85,8 +94,8 @@ public:
     void truncate(TagLibOffset length) override;
     bool readOnly() const override;
     bool isOpen() const override;
-    void insert(const TagLib::ByteVector &data, TagLibSize start = 0, TagLibSize replace = 0) override;
-    void removeBlock(TagLibSize start = 0, TagLibSize length = 0) override;
+    void insert(const TagLib::ByteVector &data, TagLibInsertStart start = 0, TagLibInsertReplace replace = 0) override;
+    void removeBlock(TagLibRemoveStart start = 0, TagLibRemoveLength length = 0) override;
 
 private:
     std::unique_ptr<IOHandler> m_io_handler;

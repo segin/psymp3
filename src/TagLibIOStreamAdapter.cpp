@@ -131,13 +131,13 @@ bool TagLibIOStreamAdapter::isOpen() const
     return m_io_handler && !m_io_handler->eof();
 }
 
-void TagLibIOStreamAdapter::insert(const TagLib::ByteVector &data, TagLibSize start, TagLibSize replace)
+void TagLibIOStreamAdapter::insert(const TagLib::ByteVector &data, TagLibInsertStart start, TagLibInsertReplace replace)
 {
     // Not supported by our read-only IOHandler
     // This is a complex operation that would require write support
 }
 
-void TagLibIOStreamAdapter::removeBlock(TagLibSize start, TagLibSize length)
+void TagLibIOStreamAdapter::removeBlock(TagLibRemoveStart start, TagLibRemoveLength length)
 {
     // Not supported by our read-only IOHandler
     // This is a complex operation that would require write support
