@@ -48,6 +48,12 @@ Player::Player() {
     m_automated_test_mode = false;
     m_automated_test_track_count = 0;
     m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
+    
+    // Initialize Last.fm scrobbling
+    m_lastfm = std::make_unique<LastFM>();
+    m_track_start_time = 0;
+    m_track_scrobbled = false;
+    
 #ifdef HAVE_DBUS
     mpris = new MPRIS(this);
     mpris->init();
@@ -630,6 +636,11 @@ bool Player::updateGUI()
             total_len_ms = current_stream->getLength();
             artist = current_stream->getArtist();
             title = current_stream->getTitle();
+            
+            // Check if we should scrobble this track
+            if (state == PlayerState::Playing) {
+                checkScrobbling();
+            }
 
             // Trigger preloading when near the end of the track (last 10 seconds)
             if (!m_next_stream && !m_preloading_track && total_len_ms > 0 && 
@@ -1180,6 +1191,10 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             // Ensure audio is unpaused after everything is set up
             if (audio) audio->play(true);
             state = PlayerState::Playing;
+            
+            // Start scrobbling for the new track
+            startTrackScrobbling();
+            
 #ifdef HAVE_DBUS
             if (mpris) {
                 mpris->updatePlaybackStatus("Playing");
@@ -1273,6 +1288,10 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 playlist->next();
             }
             m_num_tracks_in_current_stream = 0;
+            
+            // Update stream pointer and start scrobbling for new track
+            stream = audio->getCurrentStream();
+            startTrackScrobbling();
 
             // Update GUI and clear lyrics
             updateInfo(false, "");
@@ -1911,4 +1930,53 @@ void Player::createRandomWindows()
     }
     
     showToast("Created 5 random windows (Total: " + std::to_string(m_random_window_counter) + ")");
+}
+
+void Player::checkScrobbling()
+{
+    if (!stream || !m_lastfm || m_track_scrobbled || m_track_start_time == 0) {
+        return;
+    }
+    
+    Uint32 current_time = SDL_GetTicks();
+    Uint32 elapsed_ms = current_time - m_track_start_time;
+    
+    // Scrobble criteria: track played >50% OR >4 minutes (240000ms)
+    unsigned long track_length_ms = stream->getLength();
+    unsigned long required_time = std::min(track_length_ms / 2, 240000UL);
+    
+    if (elapsed_ms >= required_time && track_length_ms > 30000) { // Only scrobble tracks >30 seconds
+        // Create track object from stream data for scrobbling
+        // Use a dummy path since we're creating this for metadata only
+        track scrobble_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
+        scrobble_track.SetLen(static_cast<unsigned int>(track_length_ms / 1000)); // Convert to seconds
+        
+        if (m_lastfm->scrobbleTrack(scrobble_track)) {
+            m_track_scrobbled = true;
+            std::cout << "Player: Scrobbled track: " << stream->getArtist() << " - " << stream->getTitle() << std::endl;
+        }
+    }
+}
+
+void Player::startTrackScrobbling()
+{
+    m_track_start_time = SDL_GetTicks();
+    m_track_scrobbled = false;
+    
+    // Submit "Now Playing" status
+    submitNowPlaying();
+}
+
+void Player::submitNowPlaying()
+{
+    if (!stream || !m_lastfm) {
+        return;
+    }
+    
+    // Create track object from stream data
+    // Use a dummy path since we're creating this for metadata only
+    track now_playing_track(TagLib::String(""), stream->getArtist(), stream->getTitle());
+    now_playing_track.SetLen(static_cast<unsigned int>(stream->getLength() / 1000)); // Convert to seconds
+    
+    m_lastfm->setNowPlaying(now_playing_track);
 }

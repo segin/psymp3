@@ -104,7 +104,12 @@ class Player
         
         // Robust playlist handling
         bool handleUnplayableTrack();
-        bool findFirstPlayableTrack(); 
+        bool findFirstPlayableTrack();
+        
+        // Last.fm scrobbling helpers
+        void checkScrobbling();
+        void startTrackScrobbling();
+        void submitNowPlaying(); 
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
@@ -148,6 +153,11 @@ class Player
         struct atdata ATdata;
         int scalefactor = 2;
         float decayfactor = 1.0f;
+        
+        // Last.fm scrobbling
+        std::unique_ptr<LastFM> m_lastfm;
+        Uint32 m_track_start_time = 0;  // SDL ticks when current track started
+        bool m_track_scrobbled = false; // Flag to ensure we only scrobble once per track
         // For progress bar dragging
         bool m_is_dragging = false;
         Uint32 m_drag_start_time = 0;
