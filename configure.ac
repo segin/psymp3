@@ -55,6 +55,33 @@ fi
 
 AM_CONDITIONAL([HAVE_DBUS], [test "x$have_dbus" = "xyes"])
 
+# Release build optimization
+AC_ARG_ENABLE([release],
+  [AS_HELP_STRING([--enable-release], [Enable release build optimizations (no debug symbols) @<:@default=no@:>@])],
+  [enable_release=$enableval],
+  [enable_release=no])
+
+if test "x$enable_release" = "xyes"; then
+  AC_DEFINE([RELEASE_BUILD], [1], [Define to 1 for release builds])
+  CXXFLAGS="$CXXFLAGS -O3 -DNDEBUG -fomit-frame-pointer -s"
+  CFLAGS="$CFLAGS -O3 -DNDEBUG -fomit-frame-pointer -s"
+  LDFLAGS="$LDFLAGS -s"
+fi
+
+AM_CONDITIONAL([RELEASE_BUILD], [test "x$enable_release" = "xyes"])
+
+# Final build (single compilation unit)
+AC_ARG_ENABLE([final],
+  [AS_HELP_STRING([--enable-final], [Enable final build (single compilation unit like KDE3) @<:@default=no@:>@])],
+  [enable_final=$enableval],
+  [enable_final=no])
+
+if test "x$enable_final" = "xyes"; then
+  AC_DEFINE([FINAL_BUILD], [1], [Define to 1 for final builds])
+fi
+
+AM_CONDITIONAL([FINAL_BUILD], [test "x$enable_final" = "xyes"])
+
 PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 flac++ >= 1.2 opusfile >= 0.9 vorbis opus ogg])
 
 AC_CONFIG_SRCDIR([src])

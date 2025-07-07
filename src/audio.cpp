@@ -199,9 +199,16 @@ void Audio::decoderThreadLoop() {
                 std::lock_guard<std::mutex> lock(*m_player_mutex);
                 // CRITICAL: Before using local_stream, verify it's still the active stream.
                 // If not, the main thread has changed it, and we must exit this inner loop.
-                if (local_stream == m_current_stream_raw_ptr.load()) {
-                    bytes_read = local_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
-                    eof = local_stream->eof();
+                Stream* current_stream = m_current_stream_raw_ptr.load();
+                if (local_stream == current_stream && current_stream != nullptr) {
+                    // Double-check the stream is still valid by verifying it matches our owned stream
+                    if (m_owned_stream.get() == current_stream) {
+                        bytes_read = local_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
+                        eof = local_stream->eof();
+                    } else {
+                        // Stream ownership has changed, break to re-evaluate
+                        break;
+                    }
                 } else {
                     // Stream has changed. Break to re-evaluate in the outer loop.
                     break;

@@ -34,15 +34,22 @@ psymp3_LDADD += $(DBUS_LIBS)
 endif
 
 bin_PROGRAMS = psymp3
+
+if FINAL_BUILD
+# Final build mode - single compilation unit
+psymp3_SOURCES = psymp3.final.cpp
+else
+# Regular build mode - individual source files
 psymp3_SOURCES = \
  about.cpp audio.cpp ChainedStream.cpp display.cpp exceptions.cpp fft.cpp \
  fft_draw.cpp flac.cpp font.cpp FadingWidget.cpp IOHandler.cpp Label.cpp \
  libmpg123.cpp lyrics.cpp LyricsWidget.cpp main.cpp mediafile.cpp opus.cpp player.cpp playlist.cpp \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
  TagLibIOStreamAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
- vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp
+ vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp MainUIWidget.cpp ButtonWidget.cpp
 
 if HAVE_DBUS
 psymp3_SOURCES += mpris.cpp
+endif
 endif
 
