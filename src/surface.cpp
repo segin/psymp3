@@ -461,3 +461,112 @@ SDL_Surface * Surface::getHandle()
 {
     return m_handle.get();
 }
+
+uint32_t Surface::get_pixel_unlocked(int16_t x, int16_t y)
+{
+    if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
+        return 0;
+    }
+    
+    int bpp = m_handle->format->BytesPerPixel;
+    uint8_t *p = (uint8_t *)m_handle->pixels + y * m_handle->pitch + x * bpp;
+
+    switch (bpp) {
+    case 1:
+        return *p;
+    case 2:
+        return *(uint16_t *)p;
+    case 3:
+        if (SDL_BYTEORDER == SDL_BIG_ENDIAN) {
+            return (p[0] << 16) | (p[1] << 8) | p[2];
+        } else {
+            return p[0] | (p[1] << 8) | (p[2] << 16);
+        }
+    case 4:
+        return *(uint32_t *)p;
+    }
+    return 0;
+}
+
+void Surface::floodFill(Sint16 x, Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
+        return;
+    }
+    
+    uint32_t new_color = MapRGBA(r, g, b, a);
+    
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    
+    uint32_t original_color = get_pixel_unlocked(x, y);
+    
+    // Don't fill if the color is already the target color
+    if (original_color == new_color) {
+        if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+        return;
+    }
+    
+    // Stack-based flood fill to avoid recursion stack overflow
+    std::vector<std::pair<Sint16, Sint16>> stack;
+    stack.push_back({x, y});
+    
+    while (!stack.empty()) {
+        auto [cx, cy] = stack.back();
+        stack.pop_back();
+        
+        if (cx < 0 || cx >= m_handle->w || cy < 0 || cy >= m_handle->h) {
+            continue;
+        }
+        
+        if (get_pixel_unlocked(cx, cy) != original_color) {
+            continue;
+        }
+        
+        put_pixel_unlocked(cx, cy, new_color);
+        
+        // Add neighboring pixels to stack
+        stack.push_back({cx + 1, cy});
+        stack.push_back({cx - 1, cy});
+        stack.push_back({cx, cy + 1});
+        stack.push_back({cx, cy - 1});
+    }
+    
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+}
+
+void Surface::bezierCurve(const std::vector<std::pair<double, double>>& points, Uint8 r, Uint8 g, Uint8 b, Uint8 a, double step)
+{
+    if (!m_handle || points.size() < 2) return;
+    
+    uint32_t color = MapRGBA(r, g, b, a);
+    int order = points.size() - 1;
+    
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    
+    // Bezier curve computation using De Casteljau's algorithm
+    for (double t = 0.0; t <= 1.0; t += step) {
+        // Create working copy of points for this t value
+        std::vector<std::vector<std::pair<double, double>>> levels(order + 1);
+        levels[0] = points;
+        
+        // Compute intermediate points at each level
+        for (int level = 1; level <= order; level++) {
+            levels[level].resize(order + 1 - level);
+            for (int i = 0; i < order + 1 - level; i++) {
+                double x = levels[level - 1][i].first * (1.0 - t) + levels[level - 1][i + 1].first * t;
+                double y = levels[level - 1][i].second * (1.0 - t) + levels[level - 1][i + 1].second * t;
+                levels[level][i] = {x, y};
+            }
+        }
+        
+        // The final point is our curve point
+        int16_t px = static_cast<int16_t>(levels[order][0].first);
+        int16_t py = static_cast<int16_t>(levels[order][0].second);
+        
+        if (px >= 0 && px < m_handle->w && py >= 0 && py < m_handle->h) {
+            put_pixel_unlocked(px, py, color);
+        }
+    }
+    
+    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+}

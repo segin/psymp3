@@ -71,6 +71,8 @@ class Surface
         void filledTriangle(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
         void filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
         void roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+        void floodFill(Sint16 x, Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a);
+        void bezierCurve(const std::vector<std::pair<double, double>>& points, Uint8 r, Uint8 g, Uint8 b, Uint8 a, double step = 0.01);
         int16_t height();
         int16_t width();
         SDL_Surface * getHandle();
@@ -81,6 +83,7 @@ class Surface
         std::unique_ptr<SDL_Surface, void (*)(SDL_Surface*)> m_handle;
     private:
         void put_pixel_unlocked(int16_t x, int16_t y, uint32_t color);
+        uint32_t get_pixel_unlocked(int16_t x, int16_t y);
         void hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color);
         void vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color);
 };
