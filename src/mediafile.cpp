@@ -1,7 +1,7 @@
 /*
- * mediafile.cpp - format abstraction :)
+ * mediafile.cpp - Modern media file factory implementation
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -30,14 +30,10 @@ bool MediaFile::exists(const TagLib::String& file) {
 #else
         file.to8Bit(true);
 #endif
-    /* std::ifstream filestream;
-    filestream.open(filestring);
-    return filestream.good(); */
-    return true;  
+    return true; // Simplified for now
 }
 
-std::vector<std::string> &MediaFile::split(const std::string &s, char delim, std::vector<std::string> &elems)
-{
+std::vector<std::string> &MediaFile::split(const std::string &s, char delim, std::vector<std::string> &elems) {
     std::stringstream ss(s);
     std::string item;
     while(std::getline(ss, item, delim)) {
@@ -46,95 +42,94 @@ std::vector<std::string> &MediaFile::split(const std::string &s, char delim, std
     return elems;
 }
 
-std::vector<std::string> MediaFile::split(const std::string &s, char delim)
-{
+std::vector<std::string> MediaFile::split(const std::string &s, char delim) {
     std::vector<std::string> elems;
     split(s, delim, elems);
     return elems;
 }
 
-// Define a type for our creation functions for clarity
-using StreamCreator = std::function<Stream*(const TagLib::String&)>;
-
-// Format definition with multiple extensions
-struct FormatInfo {
-    std::vector<TagLib::String> extensions;
-    StreamCreator creator;
-};
-
-// Create format registry with multiple extensions per format
-static const std::vector<FormatInfo> format_registry = {
-    // Playlists
-    {{"M3U", "M3U8"}, [](const TagLib::String& name) { return new NullStream(name); }},
-    
-    // MPEG Audio (Layer-II and Layer-III use same decoder)
-    {{"MP3", "MP2", "MPA"}, [](const TagLib::String& name) { return new Libmpg123(name); }},
-    
-    // Ogg containers (Vorbis primary, but could contain FLAC/Opus)
-    {{"OGG", "OGA"}, [](const TagLib::String& name) { return new Vorbis(name); }},
-    
-    // Opus (usually in Ogg, but can be standalone)
-    {{"OPUS"}, [](const TagLib::String& name) { return new OpusFile(name); }},
-    
-    // FLAC
-    {{"FLAC", "FLA"}, [](const TagLib::String& name) { return new Flac(name); }},
-    
-    // RIFF/WAVE and variants
-    {{"WAV", "WAVE", "BWF"}, [](const TagLib::String& name) { return new WaveStream(name); }},
-    
-    // A-law variants
-    {{"AL", "ALAW"}, [](const TagLib::String& name) { return new WaveStream(name); }},
-    
-    // μ-law variants  
-    {{"UL", "ULAW", "MULAW", "AU", "SND"}, [](const TagLib::String& name) { return new WaveStream(name); }},
-    
-    // Apple AIFF variants
-    {{"AIF", "AIFF", "AIFC"}, [](const TagLib::String& name) { return new WaveStream(name); }},
-    
-    // Raw PCM variants
-    {{"PCM", "RAW"}, [](const TagLib::String& name) { return new WaveStream(name); }}
-};
-
-// Build reverse lookup map for fast extension->creator resolution
-static std::map<TagLib::String, StreamCreator> buildExtensionMap() {
-    std::map<TagLib::String, StreamCreator> ext_map;
-    for (const auto& format : format_registry) {
-        for (const auto& ext : format.extensions) {
-            ext_map[ext] = format.creator;
-        }
+Stream *MediaFile::open(TagLib::String name) {
+    try {
+        std::string uri = name.to8Bit(true);
+        auto stream = MediaFactory::createStream(uri);
+        
+        // The MediaFactory returns unique_ptr, but MediaFile API expects raw pointer
+        // This is for backward compatibility with existing code
+        return stream.release();
+        
+    } catch (const UnsupportedMediaException& e) {
+        throw InvalidMediaException(e.what());
+    } catch (const ContentDetectionException& e) {
+        throw InvalidMediaException(e.what());
+    } catch (const std::exception& e) {
+        throw InvalidMediaException("Failed to open media file: " + std::string(e.what()));
     }
-    return ext_map;
 }
 
-static const std::map<TagLib::String, StreamCreator> stream_factory = buildExtensionMap();
-
-Stream *MediaFile::open(TagLib::String name)
-{
-    /*
-    // For future expansion: Magic-based detection is more robust than extensions.
-    // This block shows how it could be implemented.
+Stream *MediaFile::openByMimeType(TagLib::String name, const std::string& mime_type) {
     try {
-        // The WaveStream constructor checks the file header.
-        return new WaveStream(name);
-    } catch (const WrongFormatException &e) {
-        // It's not a WAVE file, so fall through to the extension-based factory.
+        std::string uri = name.to8Bit(true);
+        auto stream = MediaFactory::createStreamWithMimeType(uri, mime_type);
+        
+        return stream.release();
+        
+    } catch (const UnsupportedMediaException& e) {
+        throw InvalidMediaException(e.what());
+    } catch (const ContentDetectionException& e) {
+        throw InvalidMediaException(e.what());
+    } catch (const std::exception& e) {
+        throw InvalidMediaException("Failed to open media file: " + std::string(e.what()));
     }
-    */
+}
 
-#ifdef _RISCOS
-    std::vector<std::string> tokens = split(name.to8Bit(true), '/');
-#else
-    std::vector<std::string> tokens = split(name.to8Bit(true), '.');
-#endif
-    TagLib::String ext(TagLib::String(tokens[tokens.size() - 1]).upper());
-#ifdef DEBUG
-    std::cout << "MediaFile::open(): " << ext << std::endl;
-#endif
+std::string MediaFile::detectMimeType(TagLib::String name) {
+    try {
+        std::string uri = name.to8Bit(true);
+        ContentInfo info = MediaFactory::analyzeContent(uri);
+        return info.mime_type;
+    } catch (const std::exception&) {
+        return "";
+    }
+}
+
+std::string MediaFile::extensionToMimeType(const std::string& extension) {
+    return MediaFactory::extensionToMimeType(extension);
+}
+
+std::string MediaFile::mimeTypeToExtension(const std::string& mime_type) {
+    return MediaFactory::mimeTypeToExtension(mime_type);
+}
+
+bool MediaFile::supportsExtension(const std::string& extension) {
+    return MediaFactory::supportsExtension(extension);
+}
+
+bool MediaFile::supportsMimeType(const std::string& mime_type) {
+    return MediaFactory::supportsMimeType(mime_type);
+}
+
+std::vector<std::string> MediaFile::getSupportedExtensions() {
+    std::vector<std::string> all_extensions;
+    auto formats = MediaFactory::getSupportedFormats();
     
-    auto it = stream_factory.find(ext);
-    if (it != stream_factory.end()) {
-        return it->second(name); // Call the creation function
+    for (const auto& format : formats) {
+        all_extensions.insert(all_extensions.end(), 
+                            format.extensions.begin(), 
+                            format.extensions.end());
     }
+    
+    return all_extensions;
+}
 
-    throw InvalidMediaException("Unsupported format: " + ext);
+std::vector<std::string> MediaFile::getSupportedMimeTypes() {
+    std::vector<std::string> all_mime_types;
+    auto formats = MediaFactory::getSupportedFormats();
+    
+    for (const auto& format : formats) {
+        all_mime_types.insert(all_mime_types.end(), 
+                            format.mime_types.begin(), 
+                            format.mime_types.end());
+    }
+    
+    return all_mime_types;
 }

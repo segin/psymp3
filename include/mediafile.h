@@ -25,10 +25,25 @@
 #define MEDIAFILE_H
 
 namespace MediaFile {
+    // Primary factory methods
     Stream *open(TagLib::String name);
+    Stream *openByMimeType(TagLib::String name, const std::string& mime_type);
+    
+    // MIME type detection and mapping
+    std::string detectMimeType(TagLib::String name);
+    std::string extensionToMimeType(const std::string& extension);
+    std::string mimeTypeToExtension(const std::string& mime_type);
+    
+    // Utility functions
     std::vector<std::string> &split(const std::string &s, char delim, std::vector<std::string> &elems);
     std::vector<std::string> split(const std::string &s, char delim);
     bool exists(const TagLib::String& file);
+    
+    // Format support queries
+    bool supportsExtension(const std::string& extension);
+    bool supportsMimeType(const std::string& mime_type);
+    std::vector<std::string> getSupportedExtensions();
+    std::vector<std::string> getSupportedMimeTypes();
 }
 
 #endif // MEDIAFILE_H

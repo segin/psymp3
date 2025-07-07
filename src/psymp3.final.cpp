@@ -65,3 +65,5 @@
 #include "OggDemuxer.cpp"
 #include "OggCodecs.cpp"
 #include "ISODemuxer.cpp"
+#include "ModernStream.cpp"
+#include "MediaFactory.cpp"

@@ -172,6 +172,8 @@ enum class LoopMode {
 #include "OggDemuxer.h"
 #include "OggCodecs.h"
 #include "ISODemuxer.h"
+#include "ModernStream.h"
+#include "MediaFactory.h"
 #include "FadingWidget.h"
 #include "utility.h"
 #include "system.h"
