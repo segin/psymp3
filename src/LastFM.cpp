@@ -13,11 +13,16 @@ LastFM::LastFM() :
     m_config_file(System::getStoragePath().to8Bit(true) + "/lastfm.conf"),
     m_cache_file(System::getStoragePath().to8Bit(true) + "/scrobble_cache.xml")
 {
+    Debug::runtime("LastFM: Initializing Last.fm scrobbler");
+    Debug::runtime("LastFM: Config file: ", m_config_file);
+    Debug::runtime("LastFM: Cache file: ", m_cache_file);
+    
     readConfig();
     loadScrobbles();
     
     // Start background submission thread
     m_submission_thread = std::thread(&LastFM::submissionThreadLoop, this);
+    Debug::runtime("LastFM: Background submission thread started");
 }
 
 LastFM::~LastFM()
@@ -37,8 +42,10 @@ LastFM::~LastFM()
 
 void LastFM::readConfig()
 {
+    Debug::runtime("LastFM: Reading configuration from ", m_config_file);
     std::ifstream config(m_config_file);
     if (!config.is_open()) {
+        Debug::runtime("LastFM: Config file not found - Last.fm not configured");
         return;
     }
     
@@ -54,11 +61,20 @@ void LastFM::readConfig()
         
         if (key == "username") {
             m_username = value;
+            Debug::runtime("LastFM: Username loaded: ", m_username);
         } else if (key == "password") {
             m_password = value;
+            Debug::runtime("LastFM: Password loaded (", m_password.length(), " characters)");
         } else if (key == "session_key") {
             m_session_key = value;
+            Debug::runtime("LastFM: Session key loaded: ", m_session_key.substr(0, 8), "...");
         }
+    }
+    
+    if (isConfigured()) {
+        Debug::runtime("LastFM: Configuration complete - scrobbling enabled");
+    } else {
+        Debug::runtime("LastFM: Missing username or password - scrobbling disabled");
     }
 }
 
@@ -346,17 +362,19 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
 bool LastFM::setNowPlaying(const track& track)
 {
     if (!isConfigured()) {
+        Debug::runtime("LastFM: Cannot set now playing - not configured");
         return false;
     }
     
+    Debug::runtime("LastFM: Setting now playing: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
     // TODO: Implement now playing submission
-    std::cout << "LastFM: Would set now playing: " << track.GetArtist() << " - " << track.GetTitle() << std::endl;
     return true;
 }
 
 bool LastFM::scrobbleTrack(const track& track)
 {
     if (!isConfigured()) {
+        Debug::runtime("LastFM: Cannot scrobble - not configured");
         return false;
     }
     
@@ -366,7 +384,8 @@ bool LastFM::scrobbleTrack(const track& track)
     std::lock_guard<std::mutex> lock(m_scrobble_mutex);
     m_scrobbles.push(scrobble);
     
-    std::cout << "LastFM: Added scrobble to queue: " << track.GetArtist() << " - " << track.GetTitle() << std::endl;
+    Debug::runtime("LastFM: Added scrobble to queue: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+    Debug::runtime("LastFM: Queue size: ", m_scrobbles.size());
     
     // Notify submission thread
     m_submission_cv.notify_one();
