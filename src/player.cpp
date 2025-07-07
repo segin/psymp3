@@ -224,7 +224,7 @@ void Player::loaderThreadLoop() {
             switch (request.type) {
                 case LoadRequestType::PlayNow:
                 case LoadRequestType::Preload:
-                    new_stream = MediaFile::open(request.path);
+                    new_stream = MediaFile::open(request.path).release();
                     num_chained = 1;
                     break;
                 case LoadRequestType::PreloadChained:
@@ -1004,6 +1004,18 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
         }
 
+        case SDLK_m:
+        {
+            // Toggle between widget-based and legacy mouse handling
+            m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
+            if (m_use_widget_mouse_handling) {
+                showToast("Mouse: Widget-based handling");
+            } else {
+                showToast("Mouse: Legacy handling");
+            }
+            break;
+        }
+
         default:
             // No action for other keys
             break;
@@ -1494,14 +1506,19 @@ void Player::Run(const PlayerOptions& options) {
             {
                 handleWindowMouseEvents(event);
                 
-                // Try widget tree first
-                bool handled = false;
-                if (m_ui_root) {
-                    handled = m_ui_root->handleMouseDown(event.button, event.button.x, event.button.y);
-                }
-                
-                // Fall back to old handler if widget tree didn't handle it
-                if (!handled) {
+                if (m_use_widget_mouse_handling) {
+                    // Try widget tree first
+                    bool handled = false;
+                    if (m_ui_root) {
+                        handled = m_ui_root->handleMouseDown(event.button, event.button.x, event.button.y);
+                    }
+                    
+                    // Fall back to old handler if widget tree didn't handle it
+                    if (!handled) {
+                        handleMouseButtonDown(event.button);
+                    }
+                } else {
+                    // Legacy mode: use only old handlers
                     handleMouseButtonDown(event.button);
                 }
                 break;
@@ -1510,14 +1527,19 @@ void Player::Run(const PlayerOptions& options) {
             {
                 handleWindowMouseEvents(event);
                 
-                // Try widget tree first
-                bool handled = false;
-                if (m_ui_root) {
-                    handled = m_ui_root->handleMouseMotion(event.motion, event.motion.x, event.motion.y);
-                }
-                
-                // Fall back to old handler if widget tree didn't handle it
-                if (!handled) {
+                if (m_use_widget_mouse_handling) {
+                    // Try widget tree first
+                    bool handled = false;
+                    if (m_ui_root) {
+                        handled = m_ui_root->handleMouseMotion(event.motion, event.motion.x, event.motion.y);
+                    }
+                    
+                    // Fall back to old handler if widget tree didn't handle it
+                    if (!handled) {
+                        handleMouseMotion(event.motion);
+                    }
+                } else {
+                    // Legacy mode: use only old handlers
                     handleMouseMotion(event.motion);
                 }
                 break;
@@ -1526,14 +1548,19 @@ void Player::Run(const PlayerOptions& options) {
             {
                 handleWindowMouseEvents(event);
                 
-                // Try widget tree first
-                bool handled = false;
-                if (m_ui_root) {
-                    handled = m_ui_root->handleMouseUp(event.button, event.button.x, event.button.y);
-                }
-                
-                // Fall back to old handler if widget tree didn't handle it
-                if (!handled) {
+                if (m_use_widget_mouse_handling) {
+                    // Try widget tree first
+                    bool handled = false;
+                    if (m_ui_root) {
+                        handled = m_ui_root->handleMouseUp(event.button, event.button.x, event.button.y);
+                    }
+                    
+                    // Fall back to old handler if widget tree didn't handle it
+                    if (!handled) {
+                        handleMouseButtonUp(event.button);
+                    }
+                } else {
+                    // Legacy mode: use only old handlers
                     handleMouseButtonUp(event.button);
                 }
                 break;
@@ -1656,10 +1683,9 @@ bool Player::findFirstPlayableTrack() {
         
         // Try to create a stream for this track using MediaFile::open
         try {
-            Stream* test_stream = MediaFile::open(track_path);
+            auto test_stream = MediaFile::open(track_path);
             if (test_stream) {
-                // Found a playable track
-                delete test_stream;
+                // Found a playable track - unique_ptr handles cleanup automatically
                 m_skip_attempts = 0;
                 requestTrackLoad(track_path);
                 return true;

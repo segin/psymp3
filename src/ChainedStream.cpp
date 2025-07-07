@@ -113,7 +113,7 @@ bool ChainedStream::openNextTrack()
     }
 
     try {
-        m_current_stream.reset(MediaFile::open(m_paths[m_current_track_index]));
+        m_current_stream = MediaFile::open(m_paths[m_current_track_index]);
         m_current_track_index++;
         return m_current_stream != nullptr;
     } catch (const std::exception& e) {
@@ -272,7 +272,7 @@ void ChainedStream::seekTo(unsigned long pos)
 
     // 3. Open the target track. This replaces the current stream.
     try {
-        m_current_stream.reset(MediaFile::open(m_paths[target_track_index]));
+        m_current_stream = MediaFile::open(m_paths[target_track_index]);
     } catch (const std::exception& e) {
         std::cerr << "ChainedStream::seekTo: Failed to open track " << m_paths[target_track_index] << ": " << e.what() << std::endl;
         m_current_stream.reset();

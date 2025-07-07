@@ -24,6 +24,8 @@
 
 #include "psymp3.h"
 
+Playlist::Playlist() { }
+
 /**
  * @brief Destroys the Playlist object.
  *
@@ -374,3 +376,4 @@ void Playlist::savePlaylist(TagLib::String path)
     file.close();
     std::cout << "Playlist saved to " << path.to8Bit(true) << std::endl;
 }
+

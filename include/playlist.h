@@ -32,7 +32,7 @@ class Playlist
         // Move operations are implicitly deleted due to std::recursive_mutex
         // Playlist(Playlist&&) = default; // Removed: Cannot be defaulted due to non-movable member
         // Playlist& operator=(Playlist&&) = default; // Removed: Cannot be defaulted due to non-movable member
-        Playlist() { }
+        Playlist();
         bool addFile(TagLib::String path, TagLib::String artist, TagLib::String title, long duration);
         ~Playlist();
         bool addFile(TagLib::String path);

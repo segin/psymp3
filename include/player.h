@@ -220,6 +220,9 @@ class Player
 
         // Precomputed colors for spectrum analyzer
         std::vector<uint32_t> m_spectrum_colors;
+        
+        // Mouse event handling mode
+        bool m_use_widget_mouse_handling = true; // Default to new widget-based handling
 };
 
 #endif // PLAYER_H

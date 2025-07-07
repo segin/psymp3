@@ -24,8 +24,6 @@
 #ifndef TRACK_H
 #define TRACK_H
 
-#include <memory> // For std::unique_ptr
-
 class track
 {
     public:
