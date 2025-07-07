@@ -411,7 +411,13 @@ TagLib::String System::getStoragePath()
         spath += L"\\PsyMP3";
         return spath;
     #else
-        return getHome() + (std::string) "/.psymp3";
+        // Use XDG config directory for unified storage
+        const char* xdg_config = getenv("XDG_CONFIG_HOME");
+        if (xdg_config && strlen(xdg_config) > 0) {
+            return TagLib::String(xdg_config) + "/psymp3";
+        } else {
+            return getHome() + "/.config/psymp3";
+        }
     #endif
 }
 

@@ -5,7 +5,7 @@ PsyMP3 includes built-in Last.fm scrobbling support to automatically track your 
 ## Quick Setup
 
 ### 1. Create Configuration File
-Create the file `~/.local/share/psymp3/lastfm.conf` with your Last.fm credentials:
+Create the file `~/.config/psymp3/lastfm.conf` with your Last.fm credentials:
 
 ```
 # Last.fm configuration
@@ -24,8 +24,8 @@ Once configured, PsyMP3 will automatically:
 ## Configuration Details
 
 ### Configuration File Location
-- **Linux/Unix**: `~/.local/share/psymp3/lastfm.conf`
-- **Windows**: `%LOCALAPPDATA%\psymp3\lastfm.conf`
+- **Linux/Unix**: `~/.config/psymp3/lastfm.conf`
+- **Windows**: `%APPDATA%\PsyMP3\lastfm.conf`
 
 ### Configuration Format
 ```ini
@@ -72,7 +72,7 @@ LastFM: Successfully submitted 1 scrobbles
 ### Offline Support
 - Scrobbles are cached locally if Last.fm is unavailable
 - Cached scrobbles are automatically submitted when connection is restored
-- Cache location: `~/.local/share/psymp3/scrobble_cache.xml`
+- Cache location: `~/.config/psymp3/scrobble_cache.xml`
 
 ### Network Settings
 - Uses multiple Last.fm API endpoints for redundancy:
