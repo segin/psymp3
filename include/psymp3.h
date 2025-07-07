@@ -165,7 +165,7 @@ enum class LoopMode {
 // New demuxer/codec architecture
 #include "Demuxer.h"
 #include "AudioCodec.h"
-#include "RIFFDemuxer.h"
+#include "ChunkDemuxer.h"
 #include "PCMCodecs.h"
 #include "DemuxedStream.h"
 #include "RawAudioDemuxer.h"

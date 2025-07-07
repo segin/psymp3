@@ -34,8 +34,8 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     // Probe the format for container-based formats
     std::string format = probeFormat(handler.get());
     
-    if (format == "riff") {
-        return std::make_unique<RIFFDemuxer>(std::move(handler));
+    if (format == "riff" || format == "aiff") {
+        return std::make_unique<ChunkDemuxer>(std::move(handler));
     } else if (format == "ogg") {
         return std::make_unique<OggDemuxer>(std::move(handler));
     } else if (format == "mp4") {
@@ -69,6 +69,11 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
     uint32_t riff_magic = *reinterpret_cast<uint32_t*>(header);
     if (riff_magic == 0x46464952) { // "RIFF"
         return "riff";
+    }
+    
+    // Check for FORM/AIFF format (big-endian)
+    if (riff_magic == 0x4D524F46) { // "FORM"
+        return "aiff";
     }
     
     // Check for Ogg format
