@@ -124,32 +124,36 @@ void LastFM::loadScrobbles()
         return;
     }
     
-    std::string line;
-    std::string current_scrobble;
-    bool in_scrobble = false;
+    // Read entire file content
+    std::string content((std::istreambuf_iterator<char>(cache)),
+                        std::istreambuf_iterator<char>());
     
-    while (std::getline(cache, line)) {
-        if (line.find("<scrobble>") != std::string::npos) {
-            in_scrobble = true;
-            current_scrobble = line + "\n";
-        } else if (line.find("</scrobble>") != std::string::npos) {
-            current_scrobble += line;
-            in_scrobble = false;
+    if (content.empty()) {
+        return;
+    }
+    
+    try {
+        XMLUtil::Element root = XMLUtil::parseXML(content);
+        
+        // Find all scrobble elements
+        auto scrobbleElements = XMLUtil::findChildren(root, "scrobble");
+        
+        for (const XMLUtil::Element* scrobbleElement : scrobbleElements) {
+            std::string scrobbleXML = XMLUtil::generateXML(*scrobbleElement);
             
             try {
-                Scrobble scrobble = Scrobble::fromXML(current_scrobble);
+                Scrobble scrobble = Scrobble::fromXML(scrobbleXML);
                 m_scrobbles.push(scrobble);
             } catch (const std::exception& e) {
                 std::cerr << "LastFM: Failed to parse cached scrobble: " << e.what() << std::endl;
             }
-            
-            current_scrobble.clear();
-        } else if (in_scrobble) {
-            current_scrobble += line + "\n";
         }
+        
+        std::cout << "LastFM: Loaded " << m_scrobbles.size() << " cached scrobbles" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "LastFM: Failed to parse scrobble cache XML: " << e.what() << std::endl;
     }
-    
-    std::cout << "LastFM: Loaded " << m_scrobbles.size() << " cached scrobbles" << std::endl;
 }
 
 void LastFM::saveScrobbles()
@@ -167,17 +171,26 @@ void LastFM::saveScrobbles()
         return;
     }
     
-    cache << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    cache << "<scrobbles>\n";
+    // Create root element for scrobbles collection
+    XMLUtil::Element root("scrobbles");
     
     // Create a copy of the queue to iterate through
     std::queue<Scrobble> temp_queue = m_scrobbles;
     while (!temp_queue.empty()) {
-        cache << "  " << temp_queue.front().toXML() << "\n";
+        // Parse the scrobble's XML and add it as a child element
+        std::string scrobbleXML = temp_queue.front().toXML();
+        try {
+            XMLUtil::Element scrobbleElement = XMLUtil::parseXML(scrobbleXML);
+            root.children.push_back(scrobbleElement);
+        } catch (const std::exception& e) {
+            std::cerr << "LastFM: Failed to serialize scrobble: " << e.what() << std::endl;
+        }
         temp_queue.pop();
     }
     
-    cache << "</scrobbles>\n";
+    // Write XML with declaration
+    cache << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    cache << XMLUtil::generateXML(root) << "\n";
     
     std::cout << "LastFM: Saved " << m_scrobbles.size() << " scrobbles to cache" << std::endl;
 }

@@ -50,60 +50,37 @@ Scrobble::~Scrobble()
 
 std::string Scrobble::toXML() const
 {
-    std::ostringstream xml;
-    xml << "<scrobble>"
-        << "<artist>" << m_artist << "</artist>"
-        << "<title>" << m_title << "</title>"
-        << "<album>" << m_album << "</album>"
-        << "<length>" << m_length << "</length>"
-        << "<timestamp>" << m_timestamp << "</timestamp>"
-        << "</scrobble>";
-    return xml.str();
+    XMLUtil::Element scrobbleElement("scrobble");
+    
+    scrobbleElement.children.emplace_back("artist", m_artist);
+    scrobbleElement.children.emplace_back("title", m_title);
+    scrobbleElement.children.emplace_back("album", m_album);
+    scrobbleElement.children.emplace_back("length", std::to_string(m_length));
+    scrobbleElement.children.emplace_back("timestamp", std::to_string(m_timestamp));
+    
+    return XMLUtil::generateXML(scrobbleElement);
 }
 
 Scrobble Scrobble::fromXML(const std::string& xml)
 {
-    // Simple XML parsing for scrobble data
-    std::string artist, title, album;
-    int length = 0;
-    time_t timestamp = 0;
-    
-    // Extract artist
-    size_t start = xml.find("<artist>") + 8;
-    size_t end = xml.find("</artist>");
-    if (start != std::string::npos && end != std::string::npos) {
-        artist = xml.substr(start, end - start);
+    try {
+        XMLUtil::Element scrobbleElement = XMLUtil::parseXML(xml);
+        
+        std::string artist = XMLUtil::getChildText(scrobbleElement, "artist");
+        std::string title = XMLUtil::getChildText(scrobbleElement, "title");
+        std::string album = XMLUtil::getChildText(scrobbleElement, "album");
+        
+        std::string lengthStr = XMLUtil::getChildText(scrobbleElement, "length");
+        std::string timestampStr = XMLUtil::getChildText(scrobbleElement, "timestamp");
+        
+        int length = lengthStr.empty() ? 0 : std::stoi(lengthStr);
+        time_t timestamp = timestampStr.empty() ? 0 : std::stoll(timestampStr);
+        
+        return Scrobble(artist, title, album, length, timestamp);
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to parse scrobble XML: " << e.what() << std::endl;
+        return Scrobble("", "", "", 0, 0);
     }
-    
-    // Extract title
-    start = xml.find("<title>") + 7;
-    end = xml.find("</title>");
-    if (start != std::string::npos && end != std::string::npos) {
-        title = xml.substr(start, end - start);
-    }
-    
-    // Extract album
-    start = xml.find("<album>") + 7;
-    end = xml.find("</album>");
-    if (start != std::string::npos && end != std::string::npos) {
-        album = xml.substr(start, end - start);
-    }
-    
-    // Extract length
-    start = xml.find("<length>") + 8;
-    end = xml.find("</length>");
-    if (start != std::string::npos && end != std::string::npos) {
-        length = std::stoi(xml.substr(start, end - start));
-    }
-    
-    // Extract timestamp
-    start = xml.find("<timestamp>") + 11;
-    end = xml.find("</timestamp>");
-    if (start != std::string::npos && end != std::string::npos) {
-        timestamp = std::stoll(xml.substr(start, end - start));
-    }
-    
-    return Scrobble(artist, title, album, length, timestamp);
 }
 
 bool Scrobble::operator==(const Scrobble& other) const

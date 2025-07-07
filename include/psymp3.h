@@ -197,6 +197,7 @@ enum class LoopMode {
 #include "persistentstorage.h"
 #include "track.h"
 #include "song.h"
+#include "XMLUtil.h"
 #include "scrobble.h"
 #include "LastFM.h"
 #include "playlist.h"
