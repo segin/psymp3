@@ -16,8 +16,10 @@
 #include "FileIOHandler.cpp"
 #include "flac.cpp"
 #include "font.cpp"
+#include "HTTPClient.cpp"
 #include "IOHandler.cpp"
 #include "Label.cpp"
+#include "LastFM.cpp"
 #include "LayoutWidget.cpp"
 #include "libmpg123.cpp"
 #include "lyrics.cpp"
@@ -54,6 +56,7 @@
 #include "Widget.cpp"
 #include "WindowFrameWidget.cpp"
 #include "WindowWidget.cpp"
+#include "XMLUtil.cpp"
 
 // New demuxer/codec architecture
 #include "Demuxer.cpp"

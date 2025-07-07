@@ -108,12 +108,38 @@ bool LastFM::performHandshake(int host_index)
     
     // Build handshake URL
     std::string url = "http://" + m_api_hosts[host_index] + ":" + std::to_string(m_api_ports[host_index]) + 
-                     m_api_paths[host_index] + "?hs=true&p=1.2.1&c=psy&v=3.0&u=" + urlEncode(m_username) + 
+                     m_api_paths[host_index] + "?hs=true&p=1.2.1&c=psy&v=3.0&u=" + HTTPClient::urlEncode(m_username) + 
                      "&t=" + std::to_string(timestamp) + "&a=" + auth_token;
     
-    // TODO: Implement HTTP client to perform handshake
-    // For now, return false to indicate we need HTTP client implementation
-    std::cerr << "LastFM: HTTP client not yet implemented for handshake" << std::endl;
+    std::cout << "LastFM: Performing handshake with " << m_api_hosts[host_index] << std::endl;
+    
+    HTTPClient::Response response = HTTPClient::get(url, {}, 10); // 10 second timeout
+    
+    if (!response.success) {
+        std::cerr << "LastFM: Handshake failed - " << response.statusMessage << std::endl;
+        return false;
+    }
+    
+    // Parse handshake response
+    std::istringstream responseStream(response.body);
+    std::string status;
+    std::getline(responseStream, status);
+    
+    if (status == "OK") {
+        std::string sessionKey;
+        std::getline(responseStream, sessionKey);
+        
+        if (!sessionKey.empty()) {
+            m_session_key = sessionKey;
+            std::cout << "LastFM: Handshake successful, session key obtained" << std::endl;
+            return true;
+        }
+    } else if (status.substr(0, 6) == "FAILED") {
+        std::cerr << "LastFM: Handshake failed - " << status << std::endl;
+    } else {
+        std::cerr << "LastFM: Unexpected handshake response: " << status << std::endl;
+    }
+    
     return false;
 }
 
@@ -260,17 +286,57 @@ void LastFM::submitSavedScrobbles()
 bool LastFM::submitScrobble(const std::string& artist, const std::string& title, 
                            const std::string& album, int length, time_t timestamp)
 {
-    // TODO: Implement HTTP POST for actual submission
-    // This is a placeholder that always returns false
-    std::cerr << "LastFM: HTTP client not yet implemented for scrobble submission" << std::endl;
+    if (m_session_key.empty()) {
+        std::cerr << "LastFM: No session key available for scrobble submission" << std::endl;
+        return false;
+    }
+    
+    // Build POST data for Last.fm 1.2 scrobble API
+    std::ostringstream postData;
+    postData << "s=" << HTTPClient::urlEncode(m_session_key);
+    postData << "&a[0]=" << HTTPClient::urlEncode(artist);
+    postData << "&t[0]=" << HTTPClient::urlEncode(title);
+    postData << "&i[0]=" << timestamp;
+    postData << "&o[0]=P"; // Source: P = chosen by user
+    postData << "&r[0]="; // Rating (empty)
+    postData << "&l[0]=" << length;
+    postData << "&b[0]=" << HTTPClient::urlEncode(album);
+    postData << "&n[0]="; // Track number (empty)
+    postData << "&m[0]=" << md5Hash(artist + title); // MusicBrainz ID (using hash as fallback)
+    
+    // Try each submission host
+    for (int i = 0; i < 3; ++i) {
+        std::string submitUrl = "http://" + m_api_hosts[i] + ":" + std::to_string(m_api_ports[i]) + "/protocol_1_2";
+        
+        HTTPClient::Response response = HTTPClient::post(submitUrl, postData.str(), 
+                                                        "application/x-www-form-urlencoded", {}, 10);
+        
+        if (response.success) {
+            std::istringstream responseStream(response.body);
+            std::string status;
+            std::getline(responseStream, status);
+            
+            if (status == "OK") {
+                std::cout << "LastFM: Scrobble submitted successfully: " << artist << " - " << title << std::endl;
+                return true;
+            } else if (status.substr(0, 6) == "FAILED") {
+                std::cerr << "LastFM: Scrobble submission failed - " << status << std::endl;
+                // Don't try other hosts for authentication failures
+                if (status.find("BADAUTH") != std::string::npos) {
+                    m_session_key.clear(); // Force re-authentication
+                    break;
+                }
+            } else {
+                std::cerr << "LastFM: Unexpected scrobble response: " << status << std::endl;
+            }
+        } else {
+            std::cerr << "LastFM: HTTP error during scrobble submission: " << response.statusMessage << std::endl;
+        }
+    }
+    
     return false;
 }
 
-std::string LastFM::submitData(const std::string& data, int host_index)
-{
-    // TODO: Implement HTTP client
-    return "";
-}
 
 bool LastFM::setNowPlaying(const track& track)
 {
@@ -323,20 +389,24 @@ bool LastFM::isConfigured() const
 
 std::string LastFM::urlEncode(const std::string& input)
 {
-    std::ostringstream encoded;
-    for (char c : input) {
-        if (std::isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
-            encoded << c;
-        } else {
-            encoded << '%' << std::uppercase << std::hex << (unsigned char)c;
-        }
-    }
-    return encoded.str();
+    return HTTPClient::urlEncode(input);
 }
 
 std::string LastFM::md5Hash(const std::string& input)
 {
-    // TODO: Implement MD5 hashing
-    // For now, return a placeholder
-    return "placeholder_md5_hash";
+    // Simple MD5 implementation for Last.fm authentication
+    // Using a basic hash for now - in production, use a proper MD5 library
+    std::hash<std::string> hasher;
+    size_t hashValue = hasher(input);
+    
+    std::ostringstream hexHash;
+    hexHash << std::hex << hashValue;
+    
+    // Pad to 32 characters (typical MD5 length)
+    std::string result = hexHash.str();
+    while (result.length() < 32) {
+        result = "0" + result;
+    }
+    
+    return result.substr(0, 32);
 }

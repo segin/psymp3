@@ -69,7 +69,6 @@ private:
     void saveScrobbles();
     
     // Network operations
-    std::string submitData(const std::string& data, int host_index);
     bool submitScrobble(const std::string& artist, const std::string& title, 
                        const std::string& album, int length, time_t timestamp);
     
