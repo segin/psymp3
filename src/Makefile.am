@@ -46,7 +46,8 @@ psymp3_SOURCES = \
  libmpg123.cpp lyrics.cpp LyricsWidget.cpp main.cpp mediafile.cpp opus.cpp player.cpp playlist.cpp \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
  TagLibIOStreamAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
- vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp MainUIWidget.cpp ButtonWidget.cpp
+ vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp MainUIWidget.cpp ButtonWidget.cpp \
+ Demuxer.cpp AudioCodec.cpp RIFFDemuxer.cpp PCMCodecs.cpp DemuxedStream.cpp RawAudioDemuxer.cpp
 
 if HAVE_DBUS
 psymp3_SOURCES += mpris.cpp

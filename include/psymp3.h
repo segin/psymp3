@@ -157,6 +157,14 @@ enum class LoopMode {
 #include "TransparentWindowWidget.h"
 #include "ToastWidget.h"
 #include "ToastNotification.h"
+
+// New demuxer/codec architecture
+#include "Demuxer.h"
+#include "AudioCodec.h"
+#include "RIFFDemuxer.h"
+#include "PCMCodecs.h"
+#include "DemuxedStream.h"
+#include "RawAudioDemuxer.h"
 #include "FadingWidget.h"
 #include "utility.h"
 #include "system.h"

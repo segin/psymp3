@@ -54,3 +54,11 @@
 #include "Widget.cpp"
 #include "WindowFrameWidget.cpp"
 #include "WindowWidget.cpp"
+
+// New demuxer/codec architecture
+#include "Demuxer.cpp"
+#include "AudioCodec.cpp"
+#include "RIFFDemuxer.cpp"
+#include "PCMCodecs.cpp"
+#include "DemuxedStream.cpp"
+#include "RawAudioDemuxer.cpp"
