@@ -24,10 +24,13 @@
 #ifndef HTTPCLIENT_H
 #define HTTPCLIENT_H
 
+#include <chrono>
+#include <mutex>
+
 /**
- * @brief Simple HTTP client for basic GET/POST operations
+ * @brief Simple HTTP client with Keep-Alive support for basic GET/POST operations
  * 
- * Lightweight HTTP client designed specifically for Last.fm API communication.
+ * Lightweight HTTP client with HTTP/1.1 Keep-Alive connection pooling.
  * Uses system sockets for cross-platform compatibility without external dependencies.
  */
 class HTTPClient {
@@ -41,6 +44,30 @@ public:
         std::map<std::string, std::string> headers;
         std::string body;
         bool success = false;
+        bool connection_reused = false;
+    };
+    
+    /**
+     * @brief Persistent HTTP connection for Keep-Alive
+     */
+    struct Connection {
+        int socket = -1;
+        std::string host;
+        int port = 0;
+        std::chrono::steady_clock::time_point last_used;
+        bool keep_alive = false;
+        int max_requests = 100;
+        int requests_made = 0;
+        
+        bool isValid() const {
+            return socket >= 0 && keep_alive && requests_made < max_requests;
+        }
+        
+        bool isExpired(std::chrono::seconds timeout = std::chrono::seconds(30)) const {
+            return std::chrono::steady_clock::now() - last_used > timeout;
+        }
+        
+        void close();  // Moved to implementation to avoid header dependencies
     };
     
     /**
@@ -70,6 +97,32 @@ public:
                         int timeoutSeconds = 30);
     
     /**
+     * @brief Perform HTTP HEAD request to get headers without body
+     * @param url The complete URL to request
+     * @param headers Optional additional headers
+     * @param timeoutSeconds Request timeout in seconds (default: 30)
+     * @return HTTP response structure (body will be empty)
+     */
+    static Response head(const std::string& url, 
+                        const std::map<std::string, std::string>& headers = {},
+                        int timeoutSeconds = 30);
+    
+    /**
+     * @brief Perform HTTP GET request with range header for partial content
+     * @param url The complete URL to request
+     * @param start_byte Start byte position for range request
+     * @param end_byte End byte position for range request (optional, -1 for end of file)
+     * @param headers Optional additional headers
+     * @param timeoutSeconds Request timeout in seconds (default: 30)
+     * @return HTTP response structure
+     */
+    static Response getRange(const std::string& url,
+                            long start_byte,
+                            long end_byte = -1,
+                            const std::map<std::string, std::string>& headers = {},
+                            int timeoutSeconds = 30);
+    
+    /**
      * @brief URL encode a string for safe transmission
      * @param input The string to encode
      * @return URL-encoded string
@@ -87,6 +140,23 @@ public:
      */
     static bool parseURL(const std::string& url, std::string& host, int& port, 
                         std::string& path, bool& isHttps);
+    
+    /**
+     * @brief Close all keep-alive connections and clear connection pool
+     */
+    static void closeAllConnections();
+    
+    /**
+     * @brief Set connection pool timeout (default: 30 seconds)
+     * @param timeout_seconds Timeout in seconds for idle connections
+     */
+    static void setConnectionTimeout(int timeout_seconds);
+    
+    /**
+     * @brief Get current connection pool statistics
+     * @return Map with pool statistics (active_connections, total_requests, etc.)
+     */
+    static std::map<std::string, int> getConnectionPoolStats();
 
 private:
     /**
@@ -121,13 +191,67 @@ private:
      * @param host Host header value
      * @param headers Additional headers
      * @param body Request body (for POST)
+     * @param keep_alive Whether to request Keep-Alive
      * @return Complete HTTP request string
      */
     static std::string buildRequest(const std::string& method,
                                    const std::string& path,
                                    const std::string& host,
                                    const std::map<std::string, std::string>& headers,
-                                   const std::string& body = "");
+                                   const std::string& body = "",
+                                   bool keep_alive = true);
+    
+    // Connection pool management
+    static std::map<std::string, Connection> s_connection_pool;
+    static std::mutex s_pool_mutex;
+    static std::chrono::seconds s_connection_timeout;
+    static int s_total_requests;
+    static int s_reused_connections;
+    
+    /**
+     * @brief Get connection key for connection pooling
+     * @param host The hostname
+     * @param port The port number
+     * @return Connection key string
+     */
+    static std::string getConnectionKey(const std::string& host, int port);
+    
+    /**
+     * @brief Get or create a connection for the given host/port
+     * @param host The hostname
+     * @param port The port number
+     * @param timeout_seconds Connection timeout
+     * @return Connection object (may be reused or new)
+     */
+    static Connection getConnection(const std::string& host, int port, int timeout_seconds);
+    
+    /**
+     * @brief Return a connection to the pool or close it
+     * @param conn Connection to return
+     * @param keep_alive Whether the connection supports keep-alive
+     */
+    static void returnConnection(Connection& conn, bool keep_alive);
+    
+    /**
+     * @brief Clean up expired connections from the pool
+     */
+    static void cleanupExpiredConnections();
+    
+    /**
+     * @brief Send request and receive response using connection
+     * @param conn Connection to use
+     * @param request The complete HTTP request string
+     * @param timeout_seconds Read timeout
+     * @return Raw HTTP response
+     */
+    static std::string sendRequestOnConnection(Connection& conn, const std::string& request, int timeout_seconds);
+    
+    /**
+     * @brief Check if response indicates connection should be kept alive
+     * @param headers Response headers
+     * @return true if connection should be kept alive
+     */
+    static bool shouldKeepAlive(const std::map<std::string, std::string>& headers);
 };
 
 #endif // HTTPCLIENT_H

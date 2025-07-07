@@ -46,7 +46,7 @@ psymp3_SOURCES = \
  LastFM.cpp libmpg123.cpp lyrics.cpp LyricsWidget.cpp main.cpp mediafile.cpp opus.cpp player.cpp playlist.cpp \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
  TagLibIOStreamAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
- vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp MainUIWidget.cpp ButtonWidget.cpp XMLUtil.cpp HTTPClient.cpp \
+ vorbis.cpp wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp HTTPIOHandler.cpp MainUIWidget.cpp ButtonWidget.cpp XMLUtil.cpp HTTPClient.cpp \
  Demuxer.cpp AudioCodec.cpp ChunkDemuxer.cpp PCMCodecs.cpp DemuxedStream.cpp RawAudioDemuxer.cpp OggDemuxer.cpp OggCodecs.cpp ISODemuxer.cpp ModernStream.cpp MediaFactory.cpp
 
 if HAVE_DBUS

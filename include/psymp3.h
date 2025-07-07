@@ -179,6 +179,7 @@ enum class LoopMode {
 #include "system.h"
 #include "IOHandler.h"
 #include "FileIOHandler.h"
+#include "HTTPIOHandler.h"
 #include "TagLibIOStreamAdapter.h"
 #include "URI.h"
 #include "stream.h"

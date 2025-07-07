@@ -516,8 +516,7 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
 
 std::unique_ptr<IOHandler> MediaFactory::createIOHandler(const std::string& uri) {
     if (isHttpUri(uri)) {
-        // TODO: Implement HTTPIOHandler for streaming
-        throw UnsupportedMediaException("HTTP streaming not yet implemented");
+        return std::make_unique<HTTPIOHandler>(uri);
     } else {
         return std::make_unique<FileIOHandler>(uri);
     }

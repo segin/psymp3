@@ -17,6 +17,7 @@
 #include "flac.cpp"
 #include "font.cpp"
 #include "HTTPClient.cpp"
+#include "HTTPIOHandler.cpp"
 #include "IOHandler.cpp"
 #include "Label.cpp"
 #include "LastFM.cpp"
