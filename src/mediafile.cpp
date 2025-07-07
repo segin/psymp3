@@ -56,17 +56,57 @@ std::vector<std::string> MediaFile::split(const std::string &s, char delim)
 // Define a type for our creation functions for clarity
 using StreamCreator = std::function<Stream*(const TagLib::String&)>;
 
-// Create a static map to hold the extension-to-creator mappings.
-// This makes adding new formats much cleaner.
-static const std::map<TagLib::String, StreamCreator> stream_factory = {
-    // Add M3U/M3U8 as a playlist type (using NullStream as a placeholder)
-    {"M3U",  [](const TagLib::String& name) { return new NullStream(name); }},
-    {"MP3",  [](const TagLib::String& name) { return new Libmpg123(name); }},
-    {"OGG",  [](const TagLib::String& name) { return new Vorbis(name); }},
-    {"OPUS", [](const TagLib::String& name) { return new OpusFile(name); }},
-    {"FLAC", [](const TagLib::String& name) { return new Flac(name); }},
-    {"WAV",  [](const TagLib::String& name) { return new WaveStream(name); }}
+// Format definition with multiple extensions
+struct FormatInfo {
+    std::vector<TagLib::String> extensions;
+    StreamCreator creator;
 };
+
+// Create format registry with multiple extensions per format
+static const std::vector<FormatInfo> format_registry = {
+    // Playlists
+    {{"M3U", "M3U8"}, [](const TagLib::String& name) { return new NullStream(name); }},
+    
+    // MPEG Audio (Layer-II and Layer-III use same decoder)
+    {{"MP3", "MP2", "MPA"}, [](const TagLib::String& name) { return new Libmpg123(name); }},
+    
+    // Ogg containers (Vorbis primary, but could contain FLAC/Opus)
+    {{"OGG", "OGA"}, [](const TagLib::String& name) { return new Vorbis(name); }},
+    
+    // Opus (usually in Ogg, but can be standalone)
+    {{"OPUS"}, [](const TagLib::String& name) { return new OpusFile(name); }},
+    
+    // FLAC
+    {{"FLAC", "FLA"}, [](const TagLib::String& name) { return new Flac(name); }},
+    
+    // RIFF/WAVE and variants
+    {{"WAV", "WAVE", "BWF"}, [](const TagLib::String& name) { return new WaveStream(name); }},
+    
+    // A-law variants
+    {{"AL", "ALAW"}, [](const TagLib::String& name) { return new WaveStream(name); }},
+    
+    // μ-law variants  
+    {{"UL", "ULAW", "MULAW", "AU", "SND"}, [](const TagLib::String& name) { return new WaveStream(name); }},
+    
+    // Apple AIFF variants
+    {{"AIF", "AIFF", "AIFC"}, [](const TagLib::String& name) { return new WaveStream(name); }},
+    
+    // Raw PCM variants
+    {{"PCM", "RAW"}, [](const TagLib::String& name) { return new WaveStream(name); }}
+};
+
+// Build reverse lookup map for fast extension->creator resolution
+static std::map<TagLib::String, StreamCreator> buildExtensionMap() {
+    std::map<TagLib::String, StreamCreator> ext_map;
+    for (const auto& format : format_registry) {
+        for (const auto& ext : format.extensions) {
+            ext_map[ext] = format.creator;
+        }
+    }
+    return ext_map;
+}
+
+static const std::map<TagLib::String, StreamCreator> stream_factory = buildExtensionMap();
 
 Stream *MediaFile::open(TagLib::String name)
 {
@@ -90,16 +130,11 @@ Stream *MediaFile::open(TagLib::String name)
 #ifdef DEBUG
     std::cout << "MediaFile::open(): " << ext << std::endl;
 #endif
-    // Check for M3U8 extension as well
-    auto it = stream_factory.find(ext == "M3U8" ? "M3U" : ext);
-
-    // If it's an M3U playlist, load it and return a NullStream
-    if (ext == "M3U" || ext == "M3U8") {
-        return it->second(name);
-    }
-
-    if (it != stream_factory.end())
+    
+    auto it = stream_factory.find(ext);
+    if (it != stream_factory.end()) {
         return it->second(name); // Call the creation function
+    }
 
     throw InvalidMediaException("Unsupported format: " + ext);
 }
