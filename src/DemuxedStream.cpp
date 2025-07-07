@@ -7,13 +7,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include "DemuxedStream.h"
-#include "Demuxer.h"
-#include "AudioCodec.h"
-#include "FileIOHandler.h"
-#include "URI.h"
-#include "exceptions.h"
-#include <algorithm>
+#include "psymp3.h"
 
 DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id) 
     : Stream(path), m_current_stream_id(preferred_stream_id) {
@@ -29,7 +23,7 @@ bool DemuxedStream::initialize() {
         URI uri(m_path);
         std::unique_ptr<IOHandler> handler;
         
-        if (uri.scheme() == "file" || uri.scheme().empty()) {
+        if (uri.scheme() == "file" || uri.scheme().isEmpty()) {
             handler = std::make_unique<FileIOHandler>(uri.path());
         } else {
             // Could add support for other schemes later
@@ -37,7 +31,7 @@ bool DemuxedStream::initialize() {
         }
         
         // Create demuxer with file path hint for raw format detection
-        m_demuxer = DemuxerFactory::createDemuxer(std::move(handler), uri.path());
+        m_demuxer = DemuxerFactory::createDemuxer(std::move(handler), uri.path().to8Bit(true));
         if (!m_demuxer) {
             return false;
         }

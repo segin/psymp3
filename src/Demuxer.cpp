@@ -7,11 +7,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include "Demuxer.h"
-#include "RIFFDemuxer.h"
-#include "RawAudioDemuxer.h"
-#include "exceptions.h"
-#include <algorithm>
+#include "psymp3.h"
 
 Demuxer::Demuxer(std::unique_ptr<IOHandler> handler) 
     : m_handler(std::move(handler)) {
@@ -40,14 +36,11 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     
     if (format == "riff") {
         return std::make_unique<RIFFDemuxer>(std::move(handler));
+    } else if (format == "ogg") {
+        return std::make_unique<OggDemuxer>(std::move(handler));
+    } else if (format == "mp4") {
+        return std::make_unique<ISODemuxer>(std::move(handler));
     }
-    // Future demuxers will be added here:
-    // else if (format == "ogg") {
-    //     return std::make_unique<OggDemuxer>(std::move(handler));
-    // }
-    // else if (format == "mp4") {
-    //     return std::make_unique<ISODemuxer>(std::move(handler));
-    // }
     
     return nullptr;
 }
@@ -87,7 +80,6 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
     
     // Check for MP4/M4A format (ftyp box)
     if (bytes_read >= 8) {
-        uint32_t box_size = __builtin_bswap32(*reinterpret_cast<uint32_t*>(header));
         uint32_t box_type = *reinterpret_cast<uint32_t*>(header + 4);
         if (box_type == 0x70797466) { // "ftyp"
             return "mp4";

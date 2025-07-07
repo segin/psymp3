@@ -7,10 +7,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include "PCMCodecs.h"
-#include "libmpg123w.h" // For MP3PassthroughCodec
-#include <algorithm>
-#include <cstring>
+#include "psymp3.h"
 
 // PCMCodec implementation
 PCMCodec::PCMCodec(const StreamInfo& stream_info) 

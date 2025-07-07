@@ -122,7 +122,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class MP3Stream* m_mp3_stream = nullptr;  // Forward declaration
+    class Libmpg123* m_mp3_stream = nullptr;  // Forward declaration
     std::vector<uint8_t> m_buffer;            // Accumulated data buffer
     bool m_header_written = false;
 };

@@ -91,15 +91,6 @@ public:
      */
     const RawAudioConfig& getConfig() const { return m_config; }
     
-    /**
-     * @brief Check if a file extension indicates a raw audio format
-     */
-    static bool isRawAudioExtension(const std::string& file_path);
-    
-    /**
-     * @brief Detect raw audio configuration from file extension
-     */
-    static RawAudioConfig detectFromExtension(const std::string& file_path);
     
 private:
     RawAudioConfig m_config;
@@ -138,6 +129,16 @@ public:
      */
     static std::optional<RawAudioConfig> detectRawAudio(const std::string& file_path, 
                                                         IOHandler* handler = nullptr);
+    
+    /**
+     * @brief Check if a file extension indicates a raw audio format
+     */
+    static bool isRawAudioExtension(const std::string& file_path);
+    
+    /**
+     * @brief Detect raw audio configuration from file extension
+     */
+    static RawAudioConfig detectFromExtension(const std::string& file_path);
     
 private:
     /**

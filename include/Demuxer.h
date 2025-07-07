@@ -25,10 +25,6 @@
 #define DEMUXER_H
 
 #include "IOHandler.h"
-#include <memory>
-#include <vector>
-#include <string>
-#include <map>
 
 /**
  * @brief Information about a media stream within a container

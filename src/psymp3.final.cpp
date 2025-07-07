@@ -62,3 +62,6 @@
 #include "PCMCodecs.cpp"
 #include "DemuxedStream.cpp"
 #include "RawAudioDemuxer.cpp"
+#include "OggDemuxer.cpp"
+#include "OggCodecs.cpp"
+#include "ISODemuxer.cpp"

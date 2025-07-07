@@ -85,6 +85,7 @@ enum class LoopMode {
 #include <typeinfo>
 #include <unordered_set>
 #include <vector>
+#include <optional>
 
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
@@ -93,6 +94,8 @@ enum class LoopMode {
 // C Standard Library (wrapped)
 #include <cerrno>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -132,6 +135,7 @@ enum class LoopMode {
 #include <opus/opusfile.h>
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
+#include <taglib/tstring.h>
 
 // Local project headers (in dependency order where possible)
 #include "exceptions.h"
@@ -165,6 +169,9 @@ enum class LoopMode {
 #include "PCMCodecs.h"
 #include "DemuxedStream.h"
 #include "RawAudioDemuxer.h"
+#include "OggDemuxer.h"
+#include "OggCodecs.h"
+#include "ISODemuxer.h"
 #include "FadingWidget.h"
 #include "utility.h"
 #include "system.h"

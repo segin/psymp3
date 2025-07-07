@@ -7,9 +7,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include "RIFFDemuxer.h"
-#include "exceptions.h"
-#include <algorithm>
+#include "psymp3.h"
 
 RIFFDemuxer::RIFFDemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)) {
@@ -220,7 +218,7 @@ bool RIFFDemuxer::parseWaveFormat(const RIFFChunk& chunk) {
     // Read extra data if present
     if (chunk.size > 16) {
         uint16_t extra_size = readLE<uint16_t>();
-        if (extra_size > 0 && chunk.size >= 18 + extra_size) {
+        if (extra_size > 0 && chunk.size >= 18 + static_cast<uint32_t>(extra_size)) {
             stream_data.extra_data.resize(extra_size);
             m_handler->read(stream_data.extra_data.data(), 1, extra_size);
         }

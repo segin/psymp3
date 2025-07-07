@@ -7,9 +7,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include "AudioCodec.h"
-#include "PCMCodecs.h"
-#include <functional>
+#include "psymp3.h"
 
 // Static codec factory registry
 std::map<std::string, AudioCodecFactory::CodecFactoryFunc> AudioCodecFactory::s_codec_factories;
@@ -46,6 +44,26 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+    } else if (stream_info.codec_name == "vorbis") {
+        auto codec = std::make_unique<VorbisPassthroughCodec>(stream_info);
+        if (codec->canDecode(stream_info)) {
+            return std::move(codec);
+        }
+    } else if (stream_info.codec_name == "flac" && stream_info.codec_tag == 0) { // Ogg FLAC
+        auto codec = std::make_unique<OggFLACPassthroughCodec>(stream_info);
+        if (codec->canDecode(stream_info)) {
+            return std::move(codec);
+        }
+    } else if (stream_info.codec_name == "opus") {
+        auto codec = std::make_unique<OpusPassthroughCodec>(stream_info);
+        if (codec->canDecode(stream_info)) {
+            return std::move(codec);
+        }
+    } else if (stream_info.codec_name == "speex") {
+        auto codec = std::make_unique<SpeexCodec>(stream_info);
+        if (codec->canDecode(stream_info)) {
+            return std::move(codec);
+        }
     }
     
     return nullptr;
@@ -79,7 +97,7 @@ AudioFrame SimplePCMCodec::decode(const MediaChunk& chunk) {
     frame.timestamp_ms = chunk.timestamp_ms;
     
     // Convert samples
-    size_t samples_converted = convertSamples(chunk.data, frame.samples);
+    convertSamples(chunk.data, frame.samples);
     
     return frame;
 }

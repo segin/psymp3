@@ -7,9 +7,7 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include "RawAudioDemuxer.h"
-#include <algorithm>
-#include <optional>
+#include "psymp3.h"
 
 // Extension to configuration mapping
 const std::map<std::string, RawAudioConfig> RawAudioDetector::s_extension_map = {
@@ -40,7 +38,7 @@ RawAudioDemuxer::RawAudioDemuxer(std::unique_ptr<IOHandler> handler, const std::
     : Demuxer(std::move(handler)), m_file_path(file_path) {
     
     // Auto-detect format from extension
-    m_config = detectFromExtension(file_path);
+    m_config = RawAudioDetector::detectFromExtension(file_path);
 }
 
 RawAudioDemuxer::RawAudioDemuxer(std::unique_ptr<IOHandler> handler, const RawAudioConfig& config)
@@ -190,7 +188,7 @@ uint64_t RawAudioDemuxer::getPosition() const {
     return m_position_ms;
 }
 
-bool RawAudioDemuxer::isRawAudioExtension(const std::string& file_path) {
+bool RawAudioDetector::isRawAudioExtension(const std::string& file_path) {
     size_t dot_pos = file_path.find_last_of('.');
     if (dot_pos == std::string::npos) {
         return false;
@@ -202,7 +200,7 @@ bool RawAudioDemuxer::isRawAudioExtension(const std::string& file_path) {
     return s_extension_map.find(ext) != s_extension_map.end();
 }
 
-RawAudioConfig RawAudioDemuxer::detectFromExtension(const std::string& file_path) {
+RawAudioConfig RawAudioDetector::detectFromExtension(const std::string& file_path) {
     size_t dot_pos = file_path.find_last_of('.');
     if (dot_pos == std::string::npos) {
         return RawAudioConfig(); // Default mu-law config
@@ -250,8 +248,8 @@ uint64_t RawAudioDemuxer::msToByteOffset(uint64_t timestamp_ms) const {
 std::optional<RawAudioConfig> RawAudioDetector::detectRawAudio(const std::string& file_path, 
                                                                IOHandler* handler) {
     // First try extension-based detection
-    if (RawAudioDemuxer::isRawAudioExtension(file_path)) {
-        return RawAudioDemuxer::detectFromExtension(file_path);
+    if (RawAudioDetector::isRawAudioExtension(file_path)) {
+        return RawAudioDetector::detectFromExtension(file_path);
     }
     
     // Could add content-based detection here if needed
