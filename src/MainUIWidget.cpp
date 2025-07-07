@@ -49,14 +49,6 @@ MainUIWidget::MainUIWidget(int width, int height)
     rebuildSurface();
 }
 
-void MainUIWidget::updateSpectrum(const float* spectrum_data, int num_bands, int scale_factor, float decay_factor)
-{
-    if (m_spectrum_analyzer) {
-        // Pass through the live runtime configuration values
-        m_spectrum_analyzer->updateSpectrum(spectrum_data, num_bands, scale_factor, decay_factor);
-    }
-}
-
 void MainUIWidget::updateProgress(float position)
 {
     if (m_progress_bar) {

@@ -52,15 +52,6 @@ public:
     virtual ~MainUIWidget() = default;
     
     /**
-     * @brief Updates the spectrum analyzer with new audio data.
-     * @param spectrum_data Array of spectrum values (0.0 to 1.0)
-     * @param num_bands Number of frequency bands in the spectrum data
-     * @param scale_factor Scale factor for logarithmic scaling
-     * @param decay_factor Decay factor for fade effect
-     */
-    void updateSpectrum(const float* spectrum_data, int num_bands, int scale_factor, float decay_factor);
-    
-    /**
      * @brief Updates the progress bar with current playback position.
      * @param position Current position (0.0 to 1.0)
      */
