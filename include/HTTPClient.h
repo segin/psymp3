@@ -24,8 +24,8 @@
 #ifndef HTTPCLIENT_H
 #define HTTPCLIENT_H
 
-#include <chrono>
-#include <mutex>
+// All external headers included via psymp3.h
+// Forward declarations handled in psymp3.h
 
 /**
  * @brief Simple HTTP client with Keep-Alive support for basic GET/POST operations
@@ -52,8 +52,10 @@ public:
      */
     struct Connection {
         int socket = -1;
+        SSL* ssl = nullptr;
         std::string host;
         int port = 0;
+        bool is_https = false;
         std::chrono::steady_clock::time_point last_used;
         bool keep_alive = false;
         int max_requests = 100;
@@ -157,6 +159,16 @@ public:
      * @return Map with pool statistics (active_connections, total_requests, etc.)
      */
     static std::map<std::string, int> getConnectionPoolStats();
+    
+    /**
+     * @brief Initialize OpenSSL library (called automatically)
+     */
+    static void initializeSSL();
+    
+    /**
+     * @brief Cleanup OpenSSL library
+     */
+    static void cleanupSSL();
 
 private:
     /**
@@ -176,6 +188,15 @@ private:
      * @return Raw HTTP response
      */
     static std::string sendRequest(int socket, const std::string& request, int timeoutSeconds);
+    
+    /**
+     * @brief Send HTTPS request and receive response
+     * @param ssl The SSL connection
+     * @param request The complete HTTP request string
+     * @param timeoutSeconds Read timeout
+     * @return Raw HTTP response
+     */
+    static std::string sendSSLRequest(SSL* ssl, const std::string& request, int timeoutSeconds);
     
     /**
      * @brief Parse raw HTTP response into Response structure

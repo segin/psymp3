@@ -8,13 +8,6 @@
  */
 
 #include "psymp3.h"
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <poll.h>
 
 // Static member initialization
 std::map<std::string, HTTPClient::Connection> HTTPClient::s_connection_pool;
@@ -23,7 +16,17 @@ std::chrono::seconds HTTPClient::s_connection_timeout{30};
 int HTTPClient::s_total_requests = 0;
 int HTTPClient::s_reused_connections = 0;
 
+// OpenSSL initialization
+static SSL_CTX* s_ssl_ctx = nullptr;
+static std::mutex s_ssl_mutex;
+static bool s_ssl_initialized = false;
+
 void HTTPClient::Connection::close() {
+    if (ssl) {
+        SSL_shutdown(ssl);
+        SSL_free(ssl);
+        ssl = nullptr;
+    }
     if (socket >= 0) {
         ::close(socket);
         socket = -1;
@@ -43,11 +46,7 @@ HTTPClient::Response HTTPClient::get(const std::string& url,
         return response;
     }
     
-    if (isHttps) {
-        Response response;
-        response.statusMessage = "HTTPS not supported";
-        return response;
-    }
+    // HTTPS is now supported via OpenSSL
     
     Connection conn = getConnection(host, port, timeoutSeconds);
     if (conn.socket < 0) {
@@ -96,11 +95,7 @@ HTTPClient::Response HTTPClient::post(const std::string& url,
         return response;
     }
     
-    if (isHttps) {
-        Response response;
-        response.statusMessage = "HTTPS not supported";
-        return response;
-    }
+    // HTTPS is now supported via OpenSSL
     
     int socket = connectToHost(host, port, timeoutSeconds);
     if (socket < 0) {
@@ -291,6 +286,62 @@ std::string HTTPClient::sendRequest(int socket, const std::string& request, int 
     return response;
 }
 
+std::string HTTPClient::sendSSLRequest(SSL* ssl, const std::string& request, int timeout_seconds) {
+    // Send request
+    int sent = SSL_write(ssl, request.c_str(), request.length());
+    if (sent <= 0) {
+        return "";
+    }
+    
+    // Receive response
+    std::string response;
+    char buffer[4096];
+    
+    while (true) {
+        int received = SSL_read(ssl, buffer, sizeof(buffer) - 1);
+        if (received <= 0) {
+            int ssl_error = SSL_get_error(ssl, received);
+            if (ssl_error == SSL_ERROR_WANT_READ || ssl_error == SSL_ERROR_WANT_WRITE) {
+                continue; // Try again
+            }
+            break; // Connection closed or error
+        }
+        
+        buffer[received] = '\0';
+        response += buffer;
+        
+        // Check if we have complete headers
+        if (response.find("\r\n\r\n") != std::string::npos) {
+            // Parse content length if present
+            size_t headerEnd = response.find("\r\n\r\n");
+            std::string headers = response.substr(0, headerEnd);
+            
+            size_t contentLengthPos = headers.find("Content-Length:");
+            if (contentLengthPos != std::string::npos) {
+                size_t valueStart = headers.find(':', contentLengthPos) + 1;
+                size_t valueEnd = headers.find('\r', valueStart);
+                
+                try {
+                    int contentLength = std::stoi(headers.substr(valueStart, valueEnd - valueStart));
+                    size_t bodyStart = headerEnd + 4;
+                    int currentBodyLength = response.length() - bodyStart;
+                    
+                    if (currentBodyLength >= contentLength) {
+                        break; // Body complete
+                    }
+                } catch (const std::exception&) {
+                    // Invalid content length, continue reading
+                }
+            } else {
+                // No content length, assume response is complete after headers
+                break;
+            }
+        }
+    }
+    
+    return response;
+}
+
 HTTPClient::Response HTTPClient::parseResponse(const std::string& rawResponse) {
     Response response;
     
@@ -395,11 +446,7 @@ HTTPClient::Response HTTPClient::head(const std::string& url,
         return response;
     }
     
-    if (isHttps) {
-        Response response;
-        response.statusMessage = "HTTPS not supported";
-        return response;
-    }
+    // HTTPS is now supported via OpenSSL
     
     int socket = connectToHost(host, port, timeoutSeconds);
     if (socket < 0) {
@@ -430,11 +477,7 @@ HTTPClient::Response HTTPClient::getRange(const std::string& url,
         return response;
     }
     
-    if (isHttps) {
-        Response response;
-        response.statusMessage = "HTTPS not supported";
-        return response;
-    }
+    // HTTPS is now supported via OpenSSL
     
     int socket = connectToHost(host, port, timeoutSeconds);
     if (socket < 0) {
@@ -484,10 +527,30 @@ HTTPClient::Connection HTTPClient::getConnection(const std::string& host, int po
     Connection conn;
     conn.host = host;
     conn.port = port;
+    conn.is_https = (port == 443);
     conn.socket = connectToHost(host, port, timeout_seconds);
     conn.last_used = std::chrono::steady_clock::now();
     conn.keep_alive = false; // Will be determined from response
     conn.requests_made = 0;
+    conn.ssl = nullptr;
+    
+    // Initialize SSL if needed
+    if (conn.is_https && conn.socket >= 0) {
+        initializeSSL();
+        if (s_ssl_initialized && s_ssl_ctx) {
+            conn.ssl = SSL_new(s_ssl_ctx);
+            if (conn.ssl) {
+                SSL_set_fd(conn.ssl, conn.socket);
+                if (SSL_connect(conn.ssl) <= 0) {
+                    ERR_print_errors_fp(stderr);
+                    SSL_free(conn.ssl);
+                    conn.ssl = nullptr;
+                    ::close(conn.socket);
+                    conn.socket = -1;
+                }
+            }
+        }
+    }
     
     return conn;
 }
@@ -522,7 +585,11 @@ void HTTPClient::cleanupExpiredConnections() {
 }
 
 std::string HTTPClient::sendRequestOnConnection(Connection& conn, const std::string& request, int timeout_seconds) {
-    return sendRequest(conn.socket, request, timeout_seconds);
+    if (conn.ssl) {
+        return sendSSLRequest(conn.ssl, request, timeout_seconds);
+    } else {
+        return sendRequest(conn.socket, request, timeout_seconds);
+    }
 }
 
 bool HTTPClient::shouldKeepAlive(const std::map<std::string, std::string>& headers) {
@@ -560,4 +627,44 @@ std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
     stats["connection_reuse_rate"] = s_total_requests > 0 ? (s_reused_connections * 100 / s_total_requests) : 0;
     
     return stats;
+}
+
+void HTTPClient::initializeSSL() {
+    std::lock_guard<std::mutex> lock(s_ssl_mutex);
+    
+    if (s_ssl_initialized) return;
+    
+    // Initialize OpenSSL
+    SSL_library_init();
+    SSL_load_error_strings();
+    OpenSSL_add_all_algorithms();
+    
+    // Create SSL context
+    s_ssl_ctx = SSL_CTX_new(TLS_client_method());
+    if (!s_ssl_ctx) {
+        ERR_print_errors_fp(stderr);
+        return;
+    }
+    
+    // Set verification options
+    SSL_CTX_set_verify(s_ssl_ctx, SSL_VERIFY_PEER, nullptr);
+    SSL_CTX_set_default_verify_paths(s_ssl_ctx);
+    
+    s_ssl_initialized = true;
+}
+
+void HTTPClient::cleanupSSL() {
+    std::lock_guard<std::mutex> lock(s_ssl_mutex);
+    
+    if (!s_ssl_initialized) return;
+    
+    if (s_ssl_ctx) {
+        SSL_CTX_free(s_ssl_ctx);
+        s_ssl_ctx = nullptr;
+    }
+    
+    EVP_cleanup();
+    ERR_free_strings();
+    
+    s_ssl_initialized = false;
 }

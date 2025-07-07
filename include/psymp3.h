@@ -86,6 +86,8 @@ enum class LoopMode {
 #include <unordered_set>
 #include <vector>
 #include <optional>
+#include <chrono>
+#include <mutex>
 
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
@@ -102,6 +104,13 @@ enum class LoopMode {
 
 // System-specific headers
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <poll.h>
 #if defined(_WIN32)
 #define _UNICODE
 #define UNICODE
@@ -117,6 +126,22 @@ enum class LoopMode {
 #include <pthread.h>
 #include <pthread_np.h>
 #endif
+
+// OpenSSL headers
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/crypto.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/pem.h>
+#include <openssl/rand.h>
+#include <openssl/bio.h>
+
+// OpenSSL forward declarations and typedefs
+typedef struct ssl_st SSL;
+typedef struct ssl_ctx_st SSL_CTX;
+typedef struct ssl_method_st SSL_METHOD;
+typedef struct bio_st BIO;
 
 // Third-party library headers
 #if defined(__APPLE__)

@@ -43,7 +43,7 @@ URI::URI(const TagLib::String& uri_string)
         m_scheme = "file";
         m_path = TagLib::String(s.substr(5), TagLib::String::UTF8);
     } else {
-        // Fallback for other schemes (like http://) or plain file paths.
+        // Fallback for other schemes (like http://, https://) or plain file paths.
         size_t scheme_end = s.find("://");
         if (scheme_end != std::string::npos) {
             m_scheme = TagLib::String(s.substr(0, scheme_end), TagLib::String::UTF8);

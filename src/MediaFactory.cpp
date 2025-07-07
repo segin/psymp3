@@ -271,6 +271,7 @@ std::string MediaFactory::extractExtension(const std::string& uri) {
 }
 
 bool MediaFactory::isHttpUri(const std::string& uri) {
+    // Support both HTTP and HTTPS
     return uri.substr(0, 7) == "http://" || uri.substr(0, 8) == "https://";
 }
 
