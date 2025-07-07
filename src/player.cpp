@@ -637,9 +637,14 @@ bool Player::updateGUI()
             artist = current_stream->getArtist();
             title = current_stream->getTitle();
             
-            // Check if we should scrobble this track
+            // Check if we should scrobble this track (only check every 30 seconds to avoid spam)
             if (state == PlayerState::Playing) {
-                checkScrobbling();
+                static Uint32 last_scrobble_check = 0;
+                Uint32 current_time = SDL_GetTicks();
+                if (current_time - last_scrobble_check > 30000) { // Check every 30 seconds
+                    checkScrobbling();
+                    last_scrobble_check = current_time;
+                }
             }
 
             // Trigger preloading when near the end of the track (last 10 seconds)

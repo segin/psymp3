@@ -29,10 +29,8 @@ Label::Label(Font* font, const Rect& position, const TagLib::String& initial_tex
       m_text(), // Will be set by setText
       m_color(color)
 {
-    std::cout << "Label constructor called." << std::endl;
     // The initial render is done by calling setText.
     setText(initial_text);
-    std::cout << "Label constructor finished." << std::endl;
 }
 
 void Label::setText(const TagLib::String& text)

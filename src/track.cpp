@@ -38,6 +38,11 @@ track::track(const TagLib::String& a_FilePath, const TagLib::String& extinf_arti
 }
 
 void track::loadTags() { 
+    // Skip tag loading if no file path provided (e.g., scrobbling metadata-only tracks)
+    if (m_FilePath.isEmpty()) {
+        return;
+    }
+    
     if (!m_FileRef) {
         try {
             // Create IOHandler-based stream for TagLib
