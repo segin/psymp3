@@ -26,8 +26,8 @@
 
 namespace MediaFile {
     // Primary factory methods
-    Stream *open(TagLib::String name);
-    Stream *openByMimeType(TagLib::String name, const std::string& mime_type);
+    std::unique_ptr<Stream> open(TagLib::String name);
+    std::unique_ptr<Stream> openByMimeType(TagLib::String name, const std::string& mime_type);
     
     // MIME type detection and mapping
     std::string detectMimeType(TagLib::String name);

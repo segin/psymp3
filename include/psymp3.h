@@ -136,6 +136,8 @@ enum class LoopMode {
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/bio.h>
+#include <openssl/md5.h>
+#include <openssl/evp.h>
 
 // OpenSSL forward declarations and typedefs
 typedef struct ssl_st SSL;

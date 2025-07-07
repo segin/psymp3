@@ -168,15 +168,22 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
 }
 
 int HTTPClient::connectToHost(const std::string& host, int port, int timeoutSeconds) {
-    // Resolve hostname
-    struct hostent* hostEntry = gethostbyname(host.c_str());
-    if (!hostEntry) {
+    // Resolve hostname using thread-safe getaddrinfo (replaces deprecated gethostbyname)
+    struct addrinfo hints, *result;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;      // IPv4
+    hints.ai_socktype = SOCK_STREAM; // TCP
+    
+    std::string port_str = std::to_string(port);
+    int status = getaddrinfo(host.c_str(), port_str.c_str(), &hints, &result);
+    if (status != 0) {
         return -1;
     }
     
     // Create socket
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) {
+        freeaddrinfo(result);
         return -1;
     }
     
@@ -184,22 +191,21 @@ int HTTPClient::connectToHost(const std::string& host, int port, int timeoutSeco
     int flags = fcntl(sock, F_GETFL, 0);
     fcntl(sock, F_SETFL, flags | O_NONBLOCK);
     
-    // Setup address structure
+    // Setup address structure from getaddrinfo result
     struct sockaddr_in address;
-    address.sin_family = AF_INET;
-    address.sin_port = htons(port);
-    memcpy(&address.sin_addr, hostEntry->h_addr_list[0], hostEntry->h_length);
+    memcpy(&address, result->ai_addr, result->ai_addrlen);
+    freeaddrinfo(result);
     
     // Attempt connection
-    int result = connect(sock, (struct sockaddr*)&address, sizeof(address));
+    int connect_result = connect(sock, (struct sockaddr*)&address, sizeof(address));
     
-    if (result < 0 && errno != EINPROGRESS) {
+    if (connect_result < 0 && errno != EINPROGRESS) {
         close(sock);
         return -1;
     }
     
     // Wait for connection with timeout
-    if (result < 0) {
+    if (connect_result < 0) {
         struct pollfd pfd;
         pfd.fd = sock;
         pfd.events = POLLOUT;
@@ -646,9 +652,8 @@ void HTTPClient::initializeSSL() {
         return;
     }
     
-    // Set verification options
-    SSL_CTX_set_verify(s_ssl_ctx, SSL_VERIFY_PEER, nullptr);
-    SSL_CTX_set_default_verify_paths(s_ssl_ctx);
+    // Disable certificate verification - we don't care about invalid certificates
+    SSL_CTX_set_verify(s_ssl_ctx, SSL_VERIFY_NONE, nullptr);
     
     s_ssl_initialized = true;
 }

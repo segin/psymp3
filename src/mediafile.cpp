@@ -48,14 +48,10 @@ std::vector<std::string> MediaFile::split(const std::string &s, char delim) {
     return elems;
 }
 
-Stream *MediaFile::open(TagLib::String name) {
+std::unique_ptr<Stream> MediaFile::open(TagLib::String name) {
     try {
         std::string uri = name.to8Bit(true);
-        auto stream = MediaFactory::createStream(uri);
-        
-        // The MediaFactory returns unique_ptr, but MediaFile API expects raw pointer
-        // This is for backward compatibility with existing code
-        return stream.release();
+        return MediaFactory::createStream(uri);
         
     } catch (const UnsupportedMediaException& e) {
         throw InvalidMediaException(e.what());
@@ -66,12 +62,10 @@ Stream *MediaFile::open(TagLib::String name) {
     }
 }
 
-Stream *MediaFile::openByMimeType(TagLib::String name, const std::string& mime_type) {
+std::unique_ptr<Stream> MediaFile::openByMimeType(TagLib::String name, const std::string& mime_type) {
     try {
         std::string uri = name.to8Bit(true);
-        auto stream = MediaFactory::createStreamWithMimeType(uri, mime_type);
-        
-        return stream.release();
+        return MediaFactory::createStreamWithMimeType(uri, mime_type);
         
     } catch (const UnsupportedMediaException& e) {
         throw InvalidMediaException(e.what());

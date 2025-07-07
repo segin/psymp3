@@ -399,19 +399,26 @@ std::string LastFM::urlEncode(const std::string& input)
 
 std::string LastFM::md5Hash(const std::string& input)
 {
-    // Simple MD5 implementation for Last.fm authentication
-    // Using a basic hash for now - in production, use a proper MD5 library
-    std::hash<std::string> hasher;
-    size_t hashValue = hasher(input);
+    // Proper MD5 implementation using modern OpenSSL EVP interface
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (!ctx) return "";
     
-    std::ostringstream hexHash;
-    hexHash << std::hex << hashValue;
+    unsigned char hash[EVP_MAX_MD_SIZE];
+    unsigned int hash_len = 0;
     
-    // Pad to 32 characters (typical MD5 length)
-    std::string result = hexHash.str();
-    while (result.length() < 32) {
-        result = "0" + result;
+    if (EVP_DigestInit_ex(ctx, EVP_md5(), nullptr) &&
+        EVP_DigestUpdate(ctx, input.c_str(), input.length()) &&
+        EVP_DigestFinal_ex(ctx, hash, &hash_len)) {
+        
+        std::ostringstream hexHash;
+        for (unsigned int i = 0; i < hash_len; i++) {
+            hexHash << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned int>(hash[i]);
+        }
+        
+        EVP_MD_CTX_free(ctx);
+        return hexHash.str();
     }
     
-    return result.substr(0, 32);
+    EVP_MD_CTX_free(ctx);
+    return "";
 }

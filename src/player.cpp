@@ -657,24 +657,24 @@ bool Player::updateGUI()
                     TagLib::String candidate_path = playlist->getTrack(look_ahead_pos);
                     if (candidate_path.isEmpty()) break;
                     
-                    try {
-                        // Quick metadata scan to check track length
-                        std::unique_ptr<Stream> temp_stream(MediaFile::open(candidate_path));
-                        if (temp_stream && temp_stream->getLength() < 10000) {
+                    // Use cached track metadata instead of blocking MediaFile::open()
+                    const track* track_info = playlist->getTrackInfo(look_ahead_pos);
+                    if (track_info) {
+                        long track_length = track_info->GetLen() * 1000; // Convert seconds to milliseconds
+                        if (track_length > 0 && track_length < 10000) {
                             // Track is short, add to chain
                             short_track_chain.push_back(candidate_path);
                             look_ahead_pos++;
-                        } else if (temp_stream) {
+                        } else if (track_length > 0) {
                             // Found a normal-length track - include it to complete the transition
                             short_track_chain.push_back(candidate_path);
                             break;
                         } else {
-                            // Failed to open track, stop scanning
+                            // Unknown length (cached metadata may be unavailable), stop scanning to be safe
                             break;
                         }
-                    } catch (const std::exception& e) {
-                        std::cerr << "Failed to scan track for chaining: " << candidate_path.to8Bit(true) 
-                                  << " - " << e.what() << std::endl;
+                    } else {
+                        // No track info available, stop scanning
                         break;
                     }
                 }

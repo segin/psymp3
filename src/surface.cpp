@@ -254,13 +254,11 @@ void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uin
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    // This is implemented as a filled rectangle (box) to match its usage in the spectrum analyzer.
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    // Optimized implementation using SDL_FillRect instead of line-by-line drawing
+    if (x1 > x2) std::swap(x1, x2);
     if (y1 > y2) std::swap(y1, y2);
-    for (int16_t y = y1; y <= y2; ++y) {
-        hline_unlocked(x1, x2, y, color);
-    }
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+    SDL_Rect rect = { x1, y1, static_cast<Uint16>(x2 - x1 + 1), static_cast<Uint16>(y2 - y1 + 1) };
+    SDL_FillRect(m_handle.get(), &rect, color);
 }
 
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)

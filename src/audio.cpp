@@ -261,21 +261,22 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     size_t bytes_copied = 0;
 
     {
-        std::unique_lock<std::mutex> lock(self->m_buffer_mutex);
-        // Wait for data to become available in the buffer
-        self->m_buffer_cv.wait(lock, [self] {
-            return !self->m_buffer.empty() || !self->m_active || !self->m_playing;
-        });
+        std::lock_guard<std::mutex> lock(self->m_buffer_mutex);
+        // Non-blocking: take whatever data is available immediately
+        // Never block in the audio callback - causes stuttering
+        
+        if (!self->m_buffer.empty() && self->m_active && self->m_playing) {
+            size_t bytes_to_copy = len;
+            size_t bytes_available = self->m_buffer.size() * sizeof(int16_t);
+            bytes_copied = std::min(bytes_to_copy, bytes_available);
 
-        size_t bytes_to_copy = len;
-        size_t bytes_available = self->m_buffer.size() * sizeof(int16_t);
-        bytes_copied = std::min(bytes_to_copy, bytes_available);
-
-        if (bytes_copied > 0) {
-            memcpy(buf, self->m_buffer.data(), bytes_copied);
-            size_t samples_copied = bytes_copied / sizeof(int16_t);
-            self->m_buffer.erase(self->m_buffer.begin(), self->m_buffer.begin() + samples_copied);
+            if (bytes_copied > 0) {
+                memcpy(buf, self->m_buffer.data(), bytes_copied);
+                size_t samples_copied = bytes_copied / sizeof(int16_t);
+                self->m_buffer.erase(self->m_buffer.begin(), self->m_buffer.begin() + samples_copied);
+            }
         }
+        // If no data available, bytes_copied remains 0, and we'll fill with silence below
     }
     self->m_buffer_cv.notify_one(); // Notify decoder thread that there is space
 
