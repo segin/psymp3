@@ -102,13 +102,14 @@ bool LastFM::performHandshake(int host_index)
         return false;
     }
     
-    // Generate timestamp and auth token
+    // Generate timestamp and auth token (double MD5 as per API spec)
     time_t timestamp = time(nullptr);
-    std::string auth_token = md5Hash(m_password + std::to_string(timestamp));
+    std::string password_hash = md5Hash(m_password);
+    std::string auth_token = md5Hash(password_hash + std::to_string(timestamp));
     
-    // Build handshake URL
+    // Build handshake URL (use root path as per API spec)
     std::string url = "http://" + m_api_hosts[host_index] + ":" + std::to_string(m_api_ports[host_index]) + 
-                     m_api_paths[host_index] + "?hs=true&p=1.2.1&c=psy&v=3.0&u=" + HTTPClient::urlEncode(m_username) + 
+                     "/?hs=true&p=1.2.1&c=psy&v=3.0&u=" + HTTPClient::urlEncode(m_username) + 
                      "&t=" + std::to_string(timestamp) + "&a=" + auth_token;
     
     std::cout << "LastFM: Performing handshake with " << m_api_hosts[host_index] << std::endl;
@@ -126,12 +127,16 @@ bool LastFM::performHandshake(int host_index)
     std::getline(responseStream, status);
     
     if (status == "OK") {
-        std::string sessionKey;
+        std::string sessionKey, nowPlayingUrl, submissionUrl;
         std::getline(responseStream, sessionKey);
+        std::getline(responseStream, nowPlayingUrl);
+        std::getline(responseStream, submissionUrl);
         
-        if (!sessionKey.empty()) {
+        if (!sessionKey.empty() && !submissionUrl.empty()) {
             m_session_key = sessionKey;
-            std::cout << "LastFM: Handshake successful, session key obtained" << std::endl;
+            m_nowplaying_url = nowPlayingUrl;
+            m_submission_url = submissionUrl;
+            std::cout << "LastFM: Handshake successful, session key and URLs obtained" << std::endl;
             return true;
         }
     } else if (status.substr(0, 6) == "FAILED") {
@@ -247,12 +252,13 @@ void LastFM::submissionThreadLoop()
 
 void LastFM::submitSavedScrobbles()
 {
-    if (m_session_key.empty() && getSessionKey().empty()) {
-        std::cerr << "LastFM: Cannot submit scrobbles without valid session key" << std::endl;
+    if ((m_session_key.empty() || m_submission_url.empty()) && getSessionKey().empty()) {
+        std::cerr << "LastFM: Cannot submit scrobbles without valid session key and submission URL" << std::endl;
         return;
     }
     
-    // Submit scrobbles in batches (max 5 per request as requested)
+    // Submit scrobbles in batches (limited to 5 per request as per user requirement)
+    // API spec allows up to 50, but user requested max 5
     const int batch_size = 5;
     int submitted = 0;
     
@@ -260,13 +266,10 @@ void LastFM::submitSavedScrobbles()
     while (!m_scrobbles.empty() && submitted < batch_size) {
         const Scrobble& scrobble = m_scrobbles.front();
         
-        // Try submitting to each host until successful
-        bool success = false;
-        for (int i = 0; i < 3 && !success; ++i) {
-            success = submitScrobble(scrobble.getArtistStr(), scrobble.getTitleStr(), 
-                                   scrobble.getAlbumStr(), scrobble.GetLen(), 
-                                   scrobble.getTimestamp());
-        }
+        // Submit scrobble using current session URL
+        bool success = submitScrobble(scrobble.getArtistStr(), scrobble.getTitleStr(), 
+                                     scrobble.getAlbumStr(), scrobble.GetLen(), 
+                                     scrobble.getTimestamp());
         
         if (success) {
             m_scrobbles.pop();
@@ -304,34 +307,36 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     postData << "&n[0]="; // Track number (empty)
     postData << "&m[0]=" << md5Hash(artist + title); // MusicBrainz ID (using hash as fallback)
     
-    // Try each submission host
-    for (int i = 0; i < 3; ++i) {
-        std::string submitUrl = "http://" + m_api_hosts[i] + ":" + std::to_string(m_api_ports[i]) + "/protocol_1_2";
+    // Use submission URL from handshake response
+    if (m_submission_url.empty()) {
+        std::cerr << "LastFM: No submission URL available" << std::endl;
+        return false;
+    }
+    
+    HTTPClient::Response response = HTTPClient::post(m_submission_url, postData.str(), 
+                                                    "application/x-www-form-urlencoded", {}, 10);
         
-        HTTPClient::Response response = HTTPClient::post(submitUrl, postData.str(), 
-                                                        "application/x-www-form-urlencoded", {}, 10);
+    if (response.success) {
+        std::istringstream responseStream(response.body);
+        std::string status;
+        std::getline(responseStream, status);
         
-        if (response.success) {
-            std::istringstream responseStream(response.body);
-            std::string status;
-            std::getline(responseStream, status);
-            
-            if (status == "OK") {
-                std::cout << "LastFM: Scrobble submitted successfully: " << artist << " - " << title << std::endl;
-                return true;
-            } else if (status.substr(0, 6) == "FAILED") {
-                std::cerr << "LastFM: Scrobble submission failed - " << status << std::endl;
-                // Don't try other hosts for authentication failures
-                if (status.find("BADAUTH") != std::string::npos) {
-                    m_session_key.clear(); // Force re-authentication
-                    break;
-                }
-            } else {
-                std::cerr << "LastFM: Unexpected scrobble response: " << status << std::endl;
+        if (status == "OK") {
+            std::cout << "LastFM: Scrobble submitted successfully: " << artist << " - " << title << std::endl;
+            return true;
+        } else if (status.substr(0, 6) == "FAILED") {
+            std::cerr << "LastFM: Scrobble submission failed - " << status << std::endl;
+            // Clear session for authentication failures
+            if (status.find("BADAUTH") != std::string::npos) {
+                m_session_key.clear(); // Force re-authentication
+                m_submission_url.clear();
+                m_nowplaying_url.clear();
             }
         } else {
-            std::cerr << "LastFM: HTTP error during scrobble submission: " << response.statusMessage << std::endl;
+            std::cerr << "LastFM: Unexpected scrobble response: " << status << std::endl;
         }
+    } else {
+        std::cerr << "LastFM: HTTP error during scrobble submission: " << response.statusMessage << std::endl;
     }
     
     return false;

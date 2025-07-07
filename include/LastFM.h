@@ -48,11 +48,10 @@ private:
         "submissions.last.fm"
     };
     std::array<int, 3> m_api_ports = {80, 80, 80};
-    std::array<std::string, 3> m_api_paths = {
-        "/protocol_1_2",
-        "/protocol_1_2",
-        "/protocol_1_2"
-    };
+    
+    // Submission URLs (obtained from handshake response)
+    std::string m_submission_url;
+    std::string m_nowplaying_url;
     
     // Background submission thread
     std::thread m_submission_thread;
