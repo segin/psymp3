@@ -83,6 +83,10 @@ fi
 
 AM_CONDITIONAL([FINAL_BUILD], [test "x$enable_final" = "xyes"])
 
+# Check for windres (Windows Resource Compiler) for cross-compilation
+AC_CHECK_TOOL([WINDRES], [windres], [no])
+AM_CONDITIONAL([HAVE_WINDRES], [test "x$WINDRES" != "xno"])
+
 PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 flac++ >= 1.2 opusfile >= 0.9 vorbis opus ogg openssl >= 1.0])
 
 AC_CONFIG_SRCDIR([src])
