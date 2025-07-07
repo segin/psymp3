@@ -198,6 +198,7 @@ enum class LoopMode {
 #include "track.h"
 #include "song.h"
 #include "scrobble.h"
+#include "LastFM.h"
 #include "playlist.h"
 #include "player.h"
 

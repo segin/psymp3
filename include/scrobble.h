@@ -24,13 +24,51 @@
 #ifndef SCROBBLE_H
 #define SCROBBLE_H
 
-class Scrobble : public track
+class Scrobble
 {
-    public:
-        explicit Scrobble(const track& rhs);
-        virtual ~Scrobble();
-    protected:
-    private:
+public:
+    explicit Scrobble(const track& rhs);
+    Scrobble(const std::string& artist, const std::string& title, const std::string& album, int length, time_t timestamp);
+    virtual ~Scrobble();
+    
+    // Copy constructor and assignment operator (needed for queue operations)
+    Scrobble(const Scrobble& other) = default;
+    Scrobble& operator=(const Scrobble& other) = default;
+    
+    // Move constructor and assignment operator
+    Scrobble(Scrobble&& other) noexcept = default;
+    Scrobble& operator=(Scrobble&& other) noexcept = default;
+    
+    // Accessors for track data
+    std::string getArtist() const { return m_artist; }
+    std::string getTitle() const { return m_title; }
+    std::string getAlbum() const { return m_album; }
+    int getLength() const { return m_length; }
+    
+    // Accessors for scrobble-specific data
+    time_t getTimestamp() const { return m_timestamp; }
+    void setTimestamp(time_t timestamp) { m_timestamp = timestamp; }
+    
+    // Helper methods for compatibility with existing code
+    std::string getArtistStr() const { return m_artist; }
+    std::string getTitleStr() const { return m_title; }
+    std::string getAlbumStr() const { return m_album; }
+    int GetLen() const { return m_length; } // For compatibility
+    
+    // Serialization for XML cache
+    std::string toXML() const;
+    static Scrobble fromXML(const std::string& xml);
+    
+    // Comparison operators
+    bool operator==(const Scrobble& other) const;
+    bool operator!=(const Scrobble& other) const;
+    
+private:
+    std::string m_artist;
+    std::string m_title;
+    std::string m_album;
+    int m_length;
+    time_t m_timestamp;  // When the track was played (for scrobbling)
 };
 
 #endif // SCROBBLE_H
