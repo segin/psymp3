@@ -1016,6 +1016,18 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             break;
         }
 
+        case SDLK_d:
+        {
+            // Toggle widget blitting debug output
+            Debug::setWidgetBlittingDebug(!Debug::widget_blitting_enabled);
+            if (Debug::widget_blitting_enabled) {
+                showToast("Debug: Widget blitting enabled");
+            } else {
+                showToast("Debug: Widget blitting disabled");
+            }
+            break;
+        }
+
         default:
             // No action for other keys
             break;

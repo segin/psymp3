@@ -58,12 +58,14 @@ int main(int argc, char *argv[]) {
         {"decay", required_argument, 0, 'd'},
         {"test", no_argument, 0, 't'},
         {"version", no_argument, 0, 'v'},
+        {"debug-widgets", no_argument, 0, 'w'},
+        {"debug-runtime", no_argument, 0, 'r'},
         {0, 0, 0, 0}
     };
 
     int opt;
     // Use getopt_long directly on the original argc and argv.
-    while ((opt = getopt_long(argc, argv, "f:s:d:tv", long_options, nullptr)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:s:d:tvwr", long_options, nullptr)) != -1) {
         switch (opt) {
             case 'f':
                 if (strcmp(optarg, "mat-og") == 0) options.fft_mode = FFTMode::Original;
@@ -83,6 +85,12 @@ int main(int argc, char *argv[]) {
             case 'v':
                 about_console();
                 should_run = false;
+                break;
+            case 'w':
+                Debug::setWidgetBlittingDebug(true);
+                break;
+            case 'r':
+                Debug::setRuntimeDebug(true);
                 break;
             case '?': // Invalid option
                 return 1; // getopt_long already prints an error message.
