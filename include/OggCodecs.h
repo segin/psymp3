@@ -45,7 +45,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class VorbisStream* m_vorbis_stream = nullptr;  // Forward declaration
+    class Vorbis* m_vorbis_stream = nullptr;  // Forward declaration
     std::vector<uint8_t> m_buffer;                  // Accumulated data buffer
     bool m_headers_written = false;
 };
@@ -69,7 +69,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class FLACStream* m_flac_stream = nullptr;      // Forward declaration
+    class FlacDecoder* m_flac_stream = nullptr;      // Forward declaration
     std::vector<uint8_t> m_buffer;                  // Accumulated data buffer
     bool m_headers_written = false;
 };
@@ -93,7 +93,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class OpusStream* m_opus_stream = nullptr;      // Forward declaration
+    class OpusFile* m_opus_stream = nullptr;      // Forward declaration
     std::vector<uint8_t> m_buffer;                  // Accumulated data buffer
     bool m_headers_written = false;
 };

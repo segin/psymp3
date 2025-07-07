@@ -233,6 +233,7 @@ bool ISODemuxer::parseFtypBox(const ISOBox& box) {
     // Read major brand
     uint32_t major_brand = readBE<uint32_t>();
     uint32_t minor_version = readBE<uint32_t>();
+    (void)major_brand; (void)minor_version;
     
     // Skip compatible brands for now
     skipBox(box);
@@ -292,6 +293,7 @@ bool ISODemuxer::parseTrakBox(const ISOBox& box, ISOTrack& track) {
 bool ISODemuxer::parseTkhdBox(const ISOBox& box, ISOTrack& track) {
     uint8_t version = readLE<uint8_t>();
     uint32_t flags = readBE<uint32_t>() >> 8; // Skip version, read 24-bit flags
+    (void)flags;
     
     if (version == 1) {
         // 64-bit version
@@ -300,6 +302,7 @@ bool ISODemuxer::parseTkhdBox(const ISOBox& box, ISOTrack& track) {
         track.track_id = readBE<uint32_t>();
         uint32_t reserved = readBE<uint32_t>();
         track.duration = readBE<uint64_t>();
+        (void)creation_time; (void)modification_time; (void)reserved;
     } else {
         // 32-bit version
         uint32_t creation_time = readBE<uint32_t>();
@@ -307,6 +310,7 @@ bool ISODemuxer::parseTkhdBox(const ISOBox& box, ISOTrack& track) {
         track.track_id = readBE<uint32_t>();
         uint32_t reserved = readBE<uint32_t>();
         track.duration = readBE<uint32_t>();
+        (void)creation_time; (void)modification_time; (void)reserved;
     }
     
     skipBox(box);
@@ -359,17 +363,20 @@ bool ISODemuxer::parseMdiaBox(const ISOBox& box, ISOTrack& track) {
 bool ISODemuxer::parseMdhdBox(const ISOBox& box, ISOTrack& track) {
     uint8_t version = readLE<uint8_t>();
     uint32_t flags = readBE<uint32_t>() >> 8;
+    (void)flags;
     
     if (version == 1) {
         uint64_t creation_time = readBE<uint64_t>();
         uint64_t modification_time = readBE<uint64_t>();
         track.timescale = readBE<uint32_t>();
         track.duration = readBE<uint64_t>();
+        (void)creation_time; (void)modification_time;
     } else {
         uint32_t creation_time = readBE<uint32_t>();
         uint32_t modification_time = readBE<uint32_t>();
         track.timescale = readBE<uint32_t>();
         track.duration = readBE<uint32_t>();
+        (void)creation_time; (void)modification_time;
     }
     
     skipBox(box);
@@ -380,6 +387,7 @@ bool ISODemuxer::parseHdlrBox(const ISOBox& box, ISOTrack& track) {
     uint8_t version = readLE<uint8_t>();
     uint32_t flags = readBE<uint32_t>() >> 8;
     uint32_t pre_defined = readBE<uint32_t>();
+    (void)version; (void)flags; (void)pre_defined;
     
     uint32_t handler_type = readBE<uint32_t>();
     track.handler_type = fourCCToString(handler_type);
@@ -427,6 +435,7 @@ bool ISODemuxer::parseStsdBox(const ISOBox& box, ISOTrack& track) {
     uint8_t version = readLE<uint8_t>();
     uint32_t flags = readBE<uint32_t>() >> 8;
     uint32_t entry_count = readBE<uint32_t>();
+    (void)version; (void)flags;
     
     for (uint32_t i = 0; i < entry_count; ++i) {
         SampleDescription desc;
@@ -447,6 +456,7 @@ bool ISODemuxer::parseStsdBox(const ISOBox& box, ISOTrack& track) {
             uint16_t compression_id = readBE<uint16_t>();
             uint16_t packet_size = readBE<uint16_t>();
             desc.sample_rate = readBE<uint32_t>(); // 16.16 fixed point
+            (void)version; (void)revision_level; (void)vendor; (void)compression_id; (void)packet_size;
             
             // Read any additional data
             size_t bytes_read = 8 + 20; // Box header + audio description
@@ -472,6 +482,7 @@ bool ISODemuxer::parseSttsBox(const ISOBox& box, ISOTrack& track) {
     uint8_t version = readLE<uint8_t>();
     uint32_t flags = readBE<uint32_t>() >> 8;
     uint32_t entry_count = readBE<uint32_t>();
+    (void)version; (void)flags;
     
     uint64_t current_time = 0;
     
@@ -492,11 +503,13 @@ bool ISODemuxer::parseStscBox(const ISOBox& box, ISOTrack& track) {
     uint8_t version = readLE<uint8_t>();
     uint32_t flags = readBE<uint32_t>() >> 8;
     uint32_t entry_count = readBE<uint32_t>();
+    (void)version; (void)flags;
     
     for (uint32_t i = 0; i < entry_count; ++i) {
         uint32_t first_chunk = readBE<uint32_t>();
         uint32_t samples_per_chunk = readBE<uint32_t>();
         uint32_t sample_description_index = readBE<uint32_t>();
+        (void)first_chunk; (void)sample_description_index;
         
         // Store samples per chunk (will need to expand this later)
         track.samples_per_chunk.push_back(samples_per_chunk);
@@ -510,6 +523,7 @@ bool ISODemuxer::parseStszBox(const ISOBox& box, ISOTrack& track) {
     uint32_t flags = readBE<uint32_t>() >> 8;
     uint32_t sample_size = readBE<uint32_t>();
     uint32_t sample_count = readBE<uint32_t>();
+    (void)version; (void)flags;
     
     if (sample_size != 0) {
         // All samples have the same size
@@ -529,6 +543,7 @@ bool ISODemuxer::parseStcoBox(const ISOBox& box, ISOTrack& track) {
     uint8_t version = readLE<uint8_t>();
     uint32_t flags = readBE<uint32_t>() >> 8;
     uint32_t entry_count = readBE<uint32_t>();
+    (void)version; (void)flags;
     
     track.chunk_offsets.resize(entry_count);
     
