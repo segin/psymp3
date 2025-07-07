@@ -1,5 +1,8 @@
 /* include/config.h.in.  Generated from configure.ac by autoheader.  */
 
+/* Define to 1 for final builds */
+#undef FINAL_BUILD
+
 /* Define to 1 if you have the `atexit' function. */
 #undef HAVE_ATEXIT
 
@@ -72,6 +75,9 @@
 
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
+
+/* Define to 1 for release builds */
+#undef RELEASE_BUILD
 
 /* Define to 1 if all of the C90 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for

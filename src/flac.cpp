@@ -171,6 +171,8 @@ FlacDecoder::FlacDecoder(TagLib::String path)
     : FLAC::Decoder::Stream(), m_path(path),
       m_decoding_active(false), m_seek_request(false)
 {
+    // Initialize stream_info to zero to prevent garbage data
+    memset(&m_stream_info, 0, sizeof(m_stream_info));
     // High-water mark for the decoded buffer to prevent it from growing too large.
     // Pre-allocate to avoid reallocations in the audio/decoder threads.
     m_output_buffer.reserve(48000 * 2 * 4); // ~4 seconds of 48kHz stereo audio

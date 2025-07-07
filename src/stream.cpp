@@ -73,7 +73,7 @@ void Stream::open(TagLib::String name)
  */
 TagLib::String Stream::getArtist()
 {
-    if(!m_tags) return track::nullstr;
+    if(!m_tags || m_tags->isNull() || !m_tags->tag()) return track::nullstr;
     return m_tags->tag()->artist();
 }
 
@@ -83,7 +83,7 @@ TagLib::String Stream::getArtist()
  */
 TagLib::String Stream::getTitle()
 {
-    if(!m_tags) return track::nullstr;
+    if(!m_tags || m_tags->isNull() || !m_tags->tag()) return track::nullstr;
     return m_tags->tag()->title();
 }
 
@@ -93,7 +93,7 @@ TagLib::String Stream::getTitle()
  */
 TagLib::String Stream::getAlbum()
 {
-    if(!m_tags) return track::nullstr;
+    if(!m_tags || m_tags->isNull() || !m_tags->tag()) return track::nullstr;
     return m_tags->tag()->album();
 }
 
