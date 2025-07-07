@@ -311,7 +311,7 @@ void MediaFactory::initializeDefaultFormats() {
     flac_format.description = "Free Lossless Audio Codec";
     
     registerFormat(flac_format, [](const std::string& uri, const ContentInfo& info) {
-        return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+        return std::make_unique<Flac>(TagLib::String(uri.c_str()));
     });
     
     // Ogg container formats

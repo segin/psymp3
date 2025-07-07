@@ -140,7 +140,7 @@ class Player
         std::unique_ptr<Font> font;
         std::unique_ptr<Font> m_large_font;
         
-        Stream* stream;
+        Stream* stream = nullptr;
         std::unique_ptr<Stream> m_next_stream; // Slot for the pre-loaded next track
         size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
         size_t m_num_tracks_in_current_stream = 0; // How many playlist entries the current stream represents

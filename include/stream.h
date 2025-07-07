@@ -35,6 +35,14 @@ class Stream
         Stream(TagLib::String name);
         /** Default destructor */
         virtual ~Stream();
+        
+        // Disable copy constructor and copy assignment operator
+        Stream(const Stream&) = delete;
+        Stream& operator=(const Stream&) = delete;
+        
+        // Enable move constructor and move assignment operator
+        Stream(Stream&&) = default;
+        Stream& operator=(Stream&&) = default;
         virtual void open(TagLib::String name);
         TagLib::String getArtist();
         TagLib::String getTitle();
