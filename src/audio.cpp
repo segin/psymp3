@@ -22,6 +22,9 @@
  */
 
 #include "psymp3.h"
+#ifdef __SSE2__
+#include <emmintrin.h>
+#endif
 
 /**
  * @brief Constructs an Audio object.
@@ -305,10 +308,86 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
  * @param out A pointer to the destination buffer for the converted float samples.
  */
 void Audio::toFloat(int channels, int16_t *in, float *out) {
-    if(channels == 1)
-        for(int x = 0; x < 512; x++)
-            out[x] = in[x] / 32768.0f;
-    else if (channels == 2)
-        for(int x = 0; x < 512; x++)
-            out[x] = ((long long) in[x * 2] + in[(x * 2) + 1]) / 65536.0f;
+    const float scale_mono = 1.0f / 32768.0f;
+    const float scale_stereo = 1.0f / 65536.0f;
+    
+    if (channels == 1) {
+        // SIMD optimization for mono conversion
+        #ifdef __SSE2__
+        constexpr int simd_batch = 8; // Process 8 samples at once with SSE2
+        int simd_end = (512 / simd_batch) * simd_batch;
+        
+        __m128 scale_vec = _mm_set1_ps(scale_mono);
+        
+        for (int x = 0; x < simd_end; x += simd_batch) {
+            // Load 8 int16_t values (128 bits)
+            __m128i int16_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x]));
+            
+            // Convert to two sets of 4 int32_t values
+            __m128i int32_lo = _mm_unpacklo_epi16(int16_vec, _mm_srai_epi16(int16_vec, 15));
+            __m128i int32_hi = _mm_unpackhi_epi16(int16_vec, _mm_srai_epi16(int16_vec, 15));
+            
+            // Convert to float and scale
+            __m128 float_lo = _mm_mul_ps(_mm_cvtepi32_ps(int32_lo), scale_vec);
+            __m128 float_hi = _mm_mul_ps(_mm_cvtepi32_ps(int32_hi), scale_vec);
+            
+            // Store results
+            _mm_storeu_ps(&out[x], float_lo);
+            _mm_storeu_ps(&out[x + 4], float_hi);
+        }
+        
+        // Handle remaining samples with scalar code
+        for (int x = simd_end; x < 512; x++) {
+            out[x] = in[x] * scale_mono;
+        }
+        #else
+        // Fallback scalar implementation
+        for (int x = 0; x < 512; x++) {
+            out[x] = in[x] * scale_mono;
+        }
+        #endif
+    } else if (channels == 2) {
+        // SIMD optimization for stereo to mono conversion
+        #ifdef __SSE2__
+        constexpr int simd_batch = 4; // Process 4 stereo pairs at once
+        int simd_end = (512 / simd_batch) * simd_batch;
+        
+        __m128 scale_vec = _mm_set1_ps(scale_stereo);
+        
+        for (int x = 0; x < simd_end; x += simd_batch) {
+            // Load 8 int16_t values (4 stereo pairs, 128 bits)
+            __m128i stereo_vec = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&in[x * 2]));
+            
+            // Convert to int32_t with sign extension
+            __m128i int32_lo = _mm_unpacklo_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
+            __m128i int32_hi = _mm_unpackhi_epi16(stereo_vec, _mm_srai_epi16(stereo_vec, 15));
+            
+            // Convert to float
+            __m128 float_lo = _mm_cvtepi32_ps(int32_lo);
+            __m128 float_hi = _mm_cvtepi32_ps(int32_hi);
+            
+            // Manually add pairs: (L+R, L+R, L+R, L+R) since _mm_hadd_ps requires SSE3
+            // Shuffle to get L and R values adjacent for addition
+            __m128 lo_shuffled = _mm_shuffle_ps(float_lo, float_lo, _MM_SHUFFLE(3, 1, 2, 0)); // L0, R0, L1, R1
+            __m128 hi_shuffled = _mm_shuffle_ps(float_hi, float_hi, _MM_SHUFFLE(3, 1, 2, 0)); // L2, R2, L3, R3
+            __m128 sum_lo = _mm_add_ps(lo_shuffled, _mm_shuffle_ps(lo_shuffled, lo_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
+            __m128 sum_hi = _mm_add_ps(hi_shuffled, _mm_shuffle_ps(hi_shuffled, hi_shuffled, _MM_SHUFFLE(2, 3, 0, 1)));
+            __m128 sum = _mm_shuffle_ps(sum_lo, sum_hi, _MM_SHUFFLE(2, 0, 2, 0));
+            
+            // Scale and store
+            __m128 result = _mm_mul_ps(sum, scale_vec);
+            _mm_storeu_ps(&out[x], result);
+        }
+        
+        // Handle remaining samples with scalar code
+        for (int x = simd_end; x < 512; x++) {
+            out[x] = (static_cast<int32_t>(in[x * 2]) + in[(x * 2) + 1]) * scale_stereo;
+        }
+        #else
+        // Fallback scalar implementation
+        for (int x = 0; x < 512; x++) {
+            out[x] = (static_cast<int32_t>(in[x * 2]) + in[(x * 2) + 1]) * scale_stereo;
+        }
+        #endif
+    }
 }

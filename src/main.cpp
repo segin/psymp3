@@ -41,6 +41,23 @@ public:
     }
 };
 
+// RAII wrapper for Windows Winsock initialization and cleanup
+#ifdef _WIN32
+class WinsockLifecycleManager {
+public:
+    WinsockLifecycleManager() {
+        WSADATA wsaData;
+        if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+            throw std::runtime_error("Failed to initialize Winsock.");
+        }
+    }
+    ~WinsockLifecycleManager() {
+        WSACleanup();
+    }
+};
+static WinsockLifecycleManager winsock_manager;
+#endif
+
 // The global static instance that manages the library's lifetime.
 // Its constructor is called before main(), and its destructor is called after main() exits.
 static Mpg123LifecycleManager mpg123_manager;

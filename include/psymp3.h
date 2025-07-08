@@ -104,6 +104,32 @@ enum class LoopMode {
 
 // System-specific headers
 #include <sys/stat.h>
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#include <io.h>
+// Windows socket compatibility macros
+#define close(s) closesocket(s)
+#define poll WSAPoll
+#define POLLIN POLLIN
+#define POLLOUT POLLOUT
+#define socklen_t int
+#define ssize_t int
+#define EINPROGRESS WSAEWOULDBLOCK
+#define O_NONBLOCK 0
+#define errno WSAGetLastError()
+// Windows doesn't have fcntl, we'll handle non-blocking sockets differently
+inline int fcntl(int fd, int cmd, int flags = 0) {
+    if (cmd == F_GETFL) return 0;
+    if (cmd == F_SETFL && (flags & O_NONBLOCK)) {
+        u_long mode = 1;
+        return ioctlsocket(fd, FIONBIO, &mode);
+    }
+    return 0;
+}
+#define F_GETFL 1
+#define F_SETFL 2
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -111,6 +137,7 @@ enum class LoopMode {
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
+#endif
 #if defined(_WIN32)
 #define _UNICODE
 #define UNICODE

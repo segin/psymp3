@@ -68,7 +68,7 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     int total_height = client_height + vertical_border_total;
     
     // Set initial position and size
-    Rect pos(100, 100, total_width, total_height);
+    Rect pos(DEFAULT_WINDOW_X, DEFAULT_WINDOW_Y, total_width, total_height);
     setPos(pos);
     
     // Create default client area
@@ -95,7 +95,7 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
                 Uint32 current_time = SDL_GetTicks();
                 
                 // Check for double-click (close window)
-                if (m_double_click_pending && (current_time - m_last_click_time) < 500) {
+                if (m_double_click_pending && (current_time - m_last_click_time) < DOUBLE_CLICK_TIME_MS) {
                     // Double-click detected - close window
                     m_double_click_pending = false;
                     m_system_menu_open = false;
@@ -267,8 +267,8 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
         }
         
         // Enforce minimum size
-        if (new_width < 100) new_width = 100;
-        if (new_height < 50) new_height = 50;
+        if (new_width < MIN_CLIENT_WIDTH) new_width = MIN_CLIENT_WIDTH;
+        if (new_height < MIN_CLIENT_HEIGHT) new_height = MIN_CLIENT_HEIGHT;
         
         // Only resize if size actually changed
         if (new_width != m_client_width || new_height != m_client_height) {
@@ -402,10 +402,10 @@ std::unique_ptr<Widget> WindowFrameWidget::createDefaultClientArea()
 void WindowFrameWidget::rebuildSurface()
 {
     // Validate client dimensions to prevent crashes
-    if (m_client_width <= 0 || m_client_height <= 0 || m_client_width > 10000 || m_client_height > 10000) {
+    if (m_client_width <= 0 || m_client_height <= 0 || m_client_width > MAX_CLIENT_DIMENSION || m_client_height > MAX_CLIENT_DIMENSION) {
         // Use safe default values
-        m_client_width = 300;
-        m_client_height = 200;
+        m_client_width = DEFAULT_CLIENT_WIDTH;
+        m_client_height = DEFAULT_CLIENT_HEIGHT;
     }
     
     // Calculate total window size based on window properties
@@ -506,11 +506,11 @@ void WindowFrameWidget::rebuildSurface()
         int inner_x2 = total_width - content_border - 1;
         int inner_y2 = total_height - content_border - 1;
         
-        // Notch positions: 19px from inner border edges
-        int left_notch_x = inner_x1 + 19;
-        int right_notch_x = inner_x2 - 19;
-        int top_notch_y = inner_y1 + 19;
-        int bottom_notch_y = inner_y2 - 19;
+        // Notch positions: offset from inner border edges
+        int left_notch_x = inner_x1 + NOTCH_OFFSET;
+        int right_notch_x = inner_x2 - NOTCH_OFFSET;
+        int top_notch_y = inner_y1 + NOTCH_OFFSET;
+        int bottom_notch_y = inner_y2 - NOTCH_OFFSET;
         
         // Top notches (vertical) - connect outer to inner border
         frame_surface->vline(left_notch_x, outer_y1, inner_y1, 0, 0, 0, 255);
@@ -737,21 +737,21 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
     // with 1px black border around this line
     // and grey drop shadow starting at (3, 10), proceeding to (15, 10), then turning 90 degrees upward to end at (15, 8)
     
-    int icon_base_x = control_menu_bounds.x() + 3;
-    int icon_base_y = control_menu_bounds.y() + 8;
+    int icon_base_x = control_menu_bounds.x() + CONTROL_ICON_X_OFFSET;
+    int icon_base_y = control_menu_bounds.y() + CONTROL_ICON_Y_OFFSET;
     
-    // Draw the white line from (3, 8) to (13, 8)
-    surface.hline(icon_base_x, icon_base_x + 10, icon_base_y, 255, 255, 255, 255);
+    // Draw the white line from offset position
+    surface.hline(icon_base_x, icon_base_x + CONTROL_ICON_WIDTH, icon_base_y, 255, 255, 255, 255);
     
     // Draw 1px black border around the white line
-    surface.hline(icon_base_x - 1, icon_base_x + 11, icon_base_y - 1, 0, 0, 0, 255); // Top border
-    surface.hline(icon_base_x - 1, icon_base_x + 11, icon_base_y + 1, 0, 0, 0, 255); // Bottom border
+    surface.hline(icon_base_x - 1, icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y - 1, 0, 0, 0, 255); // Top border
+    surface.hline(icon_base_x - 1, icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y + 1, 0, 0, 0, 255); // Bottom border
     surface.pixel(icon_base_x - 1, icon_base_y, 0, 0, 0, 255); // Left border
-    surface.pixel(icon_base_x + 11, icon_base_y, 0, 0, 0, 255); // Right border
+    surface.pixel(icon_base_x + CONTROL_ICON_WIDTH + 1, icon_base_y, 0, 0, 0, 255); // Right border
     
-    // Draw grey drop shadow starting at (3, 10), proceeding to (15, 10), then turning 90 degrees upward to end at (15, 8)
-    surface.hline(icon_base_x, icon_base_x + 12, icon_base_y + 2, 128, 128, 128, 255); // Horizontal shadow line
-    surface.vline(icon_base_x + 12, icon_base_y, icon_base_y + 2, 128, 128, 128, 255); // Vertical shadow line
+    // Draw grey drop shadow
+    surface.hline(icon_base_x, icon_base_x + CONTROL_SHADOW_WIDTH, icon_base_y + CONTROL_SHADOW_Y_OFFSET - CONTROL_ICON_Y_OFFSET, 128, 128, 128, 255); // Horizontal shadow line
+    surface.vline(icon_base_x + CONTROL_SHADOW_WIDTH, icon_base_y, icon_base_y + CONTROL_SHADOW_Y_OFFSET - CONTROL_ICON_Y_OFFSET, 128, 128, 128, 255); // Vertical shadow line
     
     // Draw 1px black vertical separator line between control menu and titlebar proper
     surface.vline(control_menu_bounds.x() + CONTROL_MENU_SIZE, control_menu_bounds.y(), 
@@ -768,9 +768,9 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
         drawButton(surface, minimize_bounds.x(), minimize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
         
         // Draw minimize symbol (downward pointing triangle ▼)
-        int min_center_x = minimize_bounds.x() + BUTTON_SIZE / 2 - 1; // Shift left 1px
-        int min_center_y = minimize_bounds.y() + BUTTON_SIZE / 2 - 1; // Shift up 1px
-        drawDownTriangle(surface, min_center_x, min_center_y, 3);
+        int min_center_x = minimize_bounds.x() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
+        int min_center_y = minimize_bounds.y() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
+        drawDownTriangle(surface, min_center_x, min_center_y, TRIANGLE_SIZE);
     }
     
     // Draw maximize button if maximizable
@@ -781,9 +781,9 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
         drawButton(surface, maximize_bounds.x(), maximize_bounds.y(), BUTTON_SIZE, BUTTON_SIZE, false);
         
         // Draw maximize symbol (upward pointing triangle ▲)
-        int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2 - 1; // Shift left 1px
-        int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2 - 1; // Shift up 1px
-        drawUpTriangle(surface, max_center_x, max_center_y, 3);
+        int max_center_x = maximize_bounds.x() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
+        int max_center_y = maximize_bounds.y() + BUTTON_SIZE / 2 - TRIANGLE_CENTER_OFFSET;
+        drawUpTriangle(surface, max_center_x, max_center_y, TRIANGLE_SIZE);
     }
     
     // Draw separator between buttons only if both are visible
@@ -796,31 +796,25 @@ void WindowFrameWidget::drawWindowControls(Surface& surface) const
 
 void WindowFrameWidget::drawSystemMenu(Surface& surface) const
 {
-    // Windows 3.1 system menu dimensions and styling
-    const int menu_width = 120;
-    const int menu_height = 140;
-    const int shadow_offset = 2;
     
     // Draw dark grey drop shadow first
-    surface.box(m_system_menu_x + shadow_offset, m_system_menu_y + shadow_offset,
-               m_system_menu_x + menu_width + shadow_offset - 1, 
-               m_system_menu_y + menu_height + shadow_offset - 1,
+    surface.box(m_system_menu_x + SYSTEM_MENU_SHADOW_OFFSET, m_system_menu_y + SYSTEM_MENU_SHADOW_OFFSET,
+               m_system_menu_x + SYSTEM_MENU_WIDTH + SYSTEM_MENU_SHADOW_OFFSET - 1, 
+               m_system_menu_y + SYSTEM_MENU_HEIGHT + SYSTEM_MENU_SHADOW_OFFSET - 1,
                64, 64, 64, 255);
     
     // Draw main menu background (light grey)
     surface.box(m_system_menu_x, m_system_menu_y,
-               m_system_menu_x + menu_width - 1, m_system_menu_y + menu_height - 1,
+               m_system_menu_x + SYSTEM_MENU_WIDTH - 1, m_system_menu_y + SYSTEM_MENU_HEIGHT - 1,
                192, 192, 192, 255);
     
     // Draw black border around menu
     surface.rectangle(m_system_menu_x, m_system_menu_y,
-                     m_system_menu_x + menu_width - 1, m_system_menu_y + menu_height - 1,
+                     m_system_menu_x + SYSTEM_MENU_WIDTH - 1, m_system_menu_y + SYSTEM_MENU_HEIGHT - 1,
                      0, 0, 0, 255);
     
-    // Menu item dimensions
-    const int item_height = 16;
-    const int separator_height = 4;
-    int current_y = m_system_menu_y + 4;
+    // Menu item positioning
+    int current_y = m_system_menu_y + SYSTEM_MENU_TOP_MARGIN;
     
     // Define menu items with their text and separators
     const char* menu_items[] = {
@@ -837,15 +831,15 @@ void WindowFrameWidget::drawSystemMenu(Surface& surface) const
     for (size_t i = 0; i < sizeof(menu_items) / sizeof(menu_items[0]); i++) {
         if (strlen(menu_items[i]) == 0) {
             // Draw separator line (white bar in black border)
-            int sep_y = current_y + separator_height / 2;
-            surface.hline(m_system_menu_x + 8, m_system_menu_x + menu_width - 8, sep_y - 1, 0, 0, 0, 255);
-            surface.hline(m_system_menu_x + 8, m_system_menu_x + menu_width - 8, sep_y, 255, 255, 255, 255);
-            surface.hline(m_system_menu_x + 8, m_system_menu_x + menu_width - 8, sep_y + 1, 0, 0, 0, 255);
-            current_y += separator_height;
+            int sep_y = current_y + SYSTEM_MENU_SEPARATOR_HEIGHT / 2;
+            surface.hline(m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN, m_system_menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y - 1, 0, 0, 0, 255);
+            surface.hline(m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN, m_system_menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y, 255, 255, 255, 255);
+            surface.hline(m_system_menu_x + SYSTEM_MENU_BORDER_MARGIN, m_system_menu_x + SYSTEM_MENU_WIDTH - SYSTEM_MENU_BORDER_MARGIN, sep_y + 1, 0, 0, 0, 255);
+            current_y += SYSTEM_MENU_SEPARATOR_HEIGHT;
         } else {
             // Menu item area (could be highlighted if selected)
             // For now, just reserve the space - text rendering would go here
-            current_y += item_height;
+            current_y += SYSTEM_MENU_ITEM_HEIGHT;
         }
     }
 }
@@ -858,7 +852,7 @@ int WindowFrameWidget::getResizeEdge(int x, int y) const
     Rect window_pos = getPos();
     int total_width = window_pos.width();
     int total_height = window_pos.height();
-    int corner_size = 6;
+    int corner_size = CORNER_RESIZE_SIZE;
     
     // Resize area includes: 1px outer + 2px resize frame + 1px inner border = 4px total
     int resize_area_width = OUTER_BORDER_WIDTH + RESIZE_BORDER_WIDTH + 1; // Include inner border

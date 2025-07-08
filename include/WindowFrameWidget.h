@@ -201,6 +201,44 @@ private:
     static constexpr int BUTTON_SIZE = 18;  // Square buttons, same as titlebar blue height
     static constexpr int CONTROL_MENU_SIZE = 18;  // Same as titlebar blue height
     
+    // Window sizing and positioning constants
+    static constexpr int DEFAULT_WINDOW_X = 100;
+    static constexpr int DEFAULT_WINDOW_Y = 100;
+    static constexpr int MIN_CLIENT_WIDTH = 100;
+    static constexpr int MIN_CLIENT_HEIGHT = 50;
+    static constexpr int DEFAULT_CLIENT_WIDTH = 300;
+    static constexpr int DEFAULT_CLIENT_HEIGHT = 200;
+    static constexpr int MAX_CLIENT_DIMENSION = 10000;
+    
+    // System menu constants
+    static constexpr int SYSTEM_MENU_WIDTH = 120;
+    static constexpr int SYSTEM_MENU_HEIGHT = 140;
+    static constexpr int SYSTEM_MENU_SHADOW_OFFSET = 2;
+    static constexpr int SYSTEM_MENU_BORDER_MARGIN = 8;
+    static constexpr int SYSTEM_MENU_ITEM_HEIGHT = 16;
+    static constexpr int SYSTEM_MENU_SEPARATOR_HEIGHT = 4;
+    static constexpr int SYSTEM_MENU_TOP_MARGIN = 4;
+    
+    // Double-click timing
+    static constexpr Uint32 DOUBLE_CLICK_TIME_MS = 500;
+    
+    // Resize edge detection
+    static constexpr int CORNER_RESIZE_SIZE = 6;
+    
+    // Notch positioning
+    static constexpr int NOTCH_OFFSET = 19;
+    
+    // Control menu icon offsets
+    static constexpr int CONTROL_ICON_X_OFFSET = 3;
+    static constexpr int CONTROL_ICON_Y_OFFSET = 8;
+    static constexpr int CONTROL_ICON_WIDTH = 10;
+    static constexpr int CONTROL_SHADOW_Y_OFFSET = 10;
+    static constexpr int CONTROL_SHADOW_WIDTH = 12;
+    
+    // Triangle drawing offsets
+    static constexpr int TRIANGLE_CENTER_OFFSET = 1;
+    static constexpr int TRIANGLE_SIZE = 3;
+    
     std::string m_title;
     int m_client_width;
     int m_client_height;
