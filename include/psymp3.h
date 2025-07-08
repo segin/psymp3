@@ -111,13 +111,27 @@ enum class LoopMode {
 // Windows socket compatibility macros
 #define close(s) closesocket(s)
 #define poll WSAPoll
-#define POLLIN POLLIN
-#define POLLOUT POLLOUT
+#ifndef POLLIN
+#define POLLIN POLLRDNORM
+#endif
+#ifndef POLLOUT  
+#define POLLOUT POLLWRNORM
+#endif
 #define socklen_t int
 #define ssize_t int
+#ifndef EINPROGRESS
 #define EINPROGRESS WSAEWOULDBLOCK
+#endif
+#ifndef O_NONBLOCK
 #define O_NONBLOCK 0
-#define errno WSAGetLastError()
+#endif
+// Define fcntl constants before the function
+#ifndef F_GETFL
+#define F_GETFL 1
+#endif
+#ifndef F_SETFL
+#define F_SETFL 2
+#endif
 // Windows doesn't have fcntl, we'll handle non-blocking sockets differently
 inline int fcntl(int fd, int cmd, int flags = 0) {
     if (cmd == F_GETFL) return 0;
@@ -127,8 +141,16 @@ inline int fcntl(int fd, int cmd, int flags = 0) {
     }
     return 0;
 }
-#define F_GETFL 1
-#define F_SETFL 2
+
+// Helper function to get socket error on Windows
+inline int getSocketError() {
+    return WSAGetLastError();
+}
+
+// Helper function to check if error is EINPROGRESS equivalent
+inline bool isSocketInProgress(int error) {
+    return error == WSAEWOULDBLOCK;
+}
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -137,6 +159,15 @@ inline int fcntl(int fd, int cmd, int flags = 0) {
 #include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
+
+// Unix socket error helpers for consistency
+inline int getSocketError() {
+    return errno;
+}
+
+inline bool isSocketInProgress(int error) {
+    return error == EINPROGRESS;
+}
 #endif
 #if defined(_WIN32)
 #define _UNICODE

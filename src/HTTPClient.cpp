@@ -199,7 +199,7 @@ int HTTPClient::connectToHost(const std::string& host, int port, int timeoutSeco
     // Attempt connection
     int connect_result = connect(sock, (struct sockaddr*)&address, sizeof(address));
     
-    if (connect_result < 0 && errno != EINPROGRESS) {
+    if (connect_result < 0 && !isSocketInProgress(getSocketError())) {
         close(sock);
         return -1;
     }

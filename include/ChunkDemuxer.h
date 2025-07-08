@@ -104,7 +104,9 @@ private:
     static constexpr uint32_t SSND_FOURCC = 0x53534E44; // "SSND"
     
     // WAVE format tags
+#ifndef WAVE_FORMAT_PCM
     static constexpr uint16_t WAVE_FORMAT_PCM = 0x0001;
+#endif
     static constexpr uint16_t WAVE_FORMAT_MPEGLAYER3 = 0x0055;
     static constexpr uint16_t WAVE_FORMAT_IEEE_FLOAT = 0x0003;
     static constexpr uint16_t WAVE_FORMAT_ALAW = 0x0006;
