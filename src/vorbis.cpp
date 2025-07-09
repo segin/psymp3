@@ -26,6 +26,8 @@
 Vorbis::Vorbis(TagLib::String name) : Stream(name)
 {
     m_session = 0; // Initialize session
+    memset(&m_vorbis_file, 0, sizeof(m_vorbis_file)); // Zero-initialize Vorbis file structure
+    m_vi = nullptr; // Initialize vorbis_info pointer
     open(name); // open() will handle handler creation and callbacks
 }
 
@@ -86,6 +88,9 @@ void Vorbis::open(TagLib::String name)
         break;
     default: // returned 0 for success
         m_vi = ov_info(&m_vorbis_file, -1);
+        if (!m_vi) {
+            throw BadFormatException("Failed to get Vorbis stream info: " + name);
+        }
         m_eof = false;
         switch(m_vi->channels) {
         case 1:
@@ -97,7 +102,7 @@ void Vorbis::open(TagLib::String name)
             m_slength = ov_pcm_total(&m_vorbis_file, -1);
             break;
         default:
-            // throw
+            throw BadFormatException("Unsupported channel count in Vorbis file: " + std::to_string(m_vi->channels));
             break;
         };
         break;
