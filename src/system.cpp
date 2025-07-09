@@ -134,7 +134,7 @@ void System::broadcastMsnMessage(const std::wstring& message)
     HWND msgr_hwnd = NULL;
     // Loop through all top-level windows to find all messenger instances.
     do {
-        msgr_hwnd = FindWindowEx(NULL, msgr_hwnd, L"MsnMsgrUIManager", NULL);
+        msgr_hwnd = FindWindowExW(NULL, msgr_hwnd, L"MsnMsgrUIManager", NULL);
         if (msgr_hwnd) {
             // Using SendMessage for synchronous delivery.
             SendMessage(msgr_hwnd, WM_COPYDATA, (WPARAM)getHwnd(), (LPARAM)&cds);
