@@ -219,7 +219,7 @@ int HTTPClient::connectToHost(const std::string& host, int port, int timeoutSeco
         // Check for connection errors
         int error;
         socklen_t len = sizeof(error);
-        if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
+        if (getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)&error, (int*)&len) < 0 || error != 0) {
             closeSocket(sock);
             return -1;
         }
