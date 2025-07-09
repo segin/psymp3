@@ -57,6 +57,5 @@ endif
 # Windows resource file support
 if HAVE_WINDRES
 psymp3_LDADD += ../res/psymp3.res
-psymp3_DEPENDENCIES = ../res/psymp3.res
 endif
 
