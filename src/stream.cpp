@@ -27,8 +27,20 @@
  * @brief Default constructor for the Stream base class.
  */
 Stream::Stream()
+    : m_handle(nullptr),
+      m_buffer(nullptr),
+      m_buflen(0),
+      m_rate(0),
+      m_bitrate(0),
+      m_channels(0),
+      m_length(0),
+      m_slength(0),
+      m_position(0),
+      m_sposition(0),
+      m_encoding(0),
+      m_eof(false)
 {
-    /* Not sure if I need this... */
+    /* Initialize all member variables to prevent garbage values */
 }
 
 /**
@@ -38,7 +50,20 @@ Stream::Stream()
  * TagLib::FileRef to begin reading metadata.
  * @param name The file path of the media stream.
  */
-Stream::Stream(TagLib::String name) : m_path(name)
+Stream::Stream(TagLib::String name) 
+    : m_handle(nullptr),
+      m_buffer(nullptr),
+      m_buflen(0),
+      m_path(name),
+      m_rate(0),
+      m_bitrate(0),
+      m_channels(0),
+      m_length(0),
+      m_slength(0),
+      m_position(0),
+      m_sposition(0),
+      m_encoding(0),
+      m_eof(false)
 {
     m_tags = std::make_unique<TagLib::FileRef>(name.toCString(true));
     loadLyrics(); // Load lyrics file if available
