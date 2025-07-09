@@ -89,7 +89,7 @@ void System::InitializeIPC(Player* player)
     WNDCLASSEXW wcx = {0};
     wcx.cbSize = sizeof(WNDCLASSEXW);
     wcx.lpfnWndProc = System::ipcWndProc;
-    wcx.hInstance = GetModuleHandle(NULL);
+    wcx.hInstance = GetModuleHandleW(NULL);
     wcx.lpszClassName = L"Winamp v1.x";
 
     if (!RegisterClassExW(&wcx)) {
@@ -108,7 +108,7 @@ void System::InitializeIPC(Player* player)
         0, 0, 0, 0,                     // Position and size (hidden)
         NULL,                           // Parent window
         NULL,                           // Menu
-        GetModuleHandle(NULL),          // Instance handle
+        GetModuleHandleW(NULL),          // Instance handle
         player                          // Additional application data (the Player pointer)
     );
 
@@ -343,7 +343,7 @@ TagLib::String System::getUser()
 #ifdef _WIN32
     WCHAR user[48];
     DWORD bufsize = 48;
-    GetUserName(user, &bufsize);
+    GetUserNameW(user, &bufsize);
     return user;
 #else
     return getenv("USER");
@@ -406,7 +406,7 @@ TagLib::String System::getStoragePath()
     #ifdef _WIN32
         TagLib::String spath;
         WCHAR env[1024];
-        GetEnvironmentVariable(L"APPDATA", env, 1024);
+        GetEnvironmentVariableW(L"APPDATA", env, 1024);
         spath = env; // Changed this line, it was not returning from the right spot.
         spath += L"\\PsyMP3";
         return spath;
@@ -480,7 +480,7 @@ void System::setThisThreadName(const std::string& name)
     // The SetThreadDescription API is available on Windows 10 1607+
     // We dynamically load it to maintain compatibility with older systems.
     using SetThreadDescription_t = HRESULT(WINAPI*)(HANDLE, PCWSTR);
-    auto pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(GetModuleHandle(L"kernel32.dll"), "SetThreadDescription");
+    auto pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription");
 
     if (pSetThreadDescription) {
         // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API

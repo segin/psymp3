@@ -109,7 +109,8 @@ enum class LoopMode {
 #include <ws2tcpip.h>
 #include <io.h>
 // Windows socket compatibility macros
-#define close(s) closesocket(s)
+// Note: We can't use a simple macro for close() because it conflicts with file streams
+// Instead, we'll handle socket closing in the socket-specific code
 #define poll WSAPoll
 #ifndef POLLIN
 #define POLLIN POLLRDNORM
@@ -151,6 +152,11 @@ inline int getSocketError() {
 inline bool isSocketInProgress(int error) {
     return error == WSAEWOULDBLOCK;
 }
+
+// Helper function to close sockets on Windows
+inline int closeSocket(int sock) {
+    return closesocket(sock);
+}
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -167,6 +173,11 @@ inline int getSocketError() {
 
 inline bool isSocketInProgress(int error) {
     return error == EINPROGRESS;
+}
+
+// Helper function to close sockets on Unix (same as regular close)
+inline int closeSocket(int sock) {
+    return close(sock);
 }
 #endif
 #if defined(_WIN32)

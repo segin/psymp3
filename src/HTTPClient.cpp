@@ -28,7 +28,7 @@ void HTTPClient::Connection::close() {
         ssl = nullptr;
     }
     if (socket >= 0) {
-        ::close(socket);
+        closeSocket(socket);
         socket = -1;
     }
 }
@@ -110,7 +110,7 @@ HTTPClient::Response HTTPClient::post(const std::string& url,
     
     std::string request = buildRequest("POST", path, host, postHeaders, data, false);
     std::string rawResponse = sendRequest(socket, request, timeoutSeconds);
-    close(socket);
+    closeSocket(socket);
     
     return parseResponse(rawResponse);
 }
@@ -200,7 +200,7 @@ int HTTPClient::connectToHost(const std::string& host, int port, int timeoutSeco
     int connect_result = connect(sock, (struct sockaddr*)&address, sizeof(address));
     
     if (connect_result < 0 && !isSocketInProgress(getSocketError())) {
-        close(sock);
+        closeSocket(sock);
         return -1;
     }
     
@@ -212,7 +212,7 @@ int HTTPClient::connectToHost(const std::string& host, int port, int timeoutSeco
         
         int pollResult = poll(&pfd, 1, timeoutSeconds * 1000);
         if (pollResult <= 0) {
-            close(sock);
+            closeSocket(sock);
             return -1;
         }
         
@@ -220,7 +220,7 @@ int HTTPClient::connectToHost(const std::string& host, int port, int timeoutSeco
         int error;
         socklen_t len = sizeof(error);
         if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &error, &len) < 0 || error != 0) {
-            close(sock);
+            closeSocket(sock);
             return -1;
         }
     }
@@ -463,7 +463,7 @@ HTTPClient::Response HTTPClient::head(const std::string& url,
     
     std::string request = buildRequest("HEAD", path, host, headers, "", false);
     std::string rawResponse = sendRequest(socket, request, timeoutSeconds);
-    close(socket);
+    closeSocket(socket);
     
     return parseResponse(rawResponse);
 }
@@ -502,7 +502,7 @@ HTTPClient::Response HTTPClient::getRange(const std::string& url,
     
     std::string request = buildRequest("GET", path, host, range_headers, "", false);
     std::string rawResponse = sendRequest(socket, request, timeoutSeconds);
-    close(socket);
+    closeSocket(socket);
     
     return parseResponse(rawResponse);
 }
@@ -551,7 +551,7 @@ HTTPClient::Connection HTTPClient::getConnection(const std::string& host, int po
                     ERR_print_errors_fp(stderr);
                     SSL_free(conn.ssl);
                     conn.ssl = nullptr;
-                    ::close(conn.socket);
+                    closeSocket(conn.socket);
                     conn.socket = -1;
                 }
             }
