@@ -3,11 +3,9 @@ data_DATA = vera.ttf
 
 # Windows resource files
 if HAVE_WINDRES
-    WIN_RES = psymp3.res
-    psymp3.res: psymp3.rc psymp3.ico music.ico xpmanifest.xml
+noinst_DATA = psymp3.res
+psymp3.res: psymp3.rc psymp3.ico music.ico xpmanifest.xml
 	$(WINDRES) $(srcdir)/psymp3.rc -O coff -o psymp3.res
-else
-    WIN_RES =
 endif
 
 EXTRA_DIST = psymp3.rc psymp3.ico music.ico xpmanifest.xml \
@@ -21,4 +19,6 @@ EXTRA_DIST = psymp3.rc psymp3.ico music.ico xpmanifest.xml \
              psymp3_icon3_nobg_96x96.png
 
 # Clean up build artifacts
-CLEANFILES = $(WIN_RES)
+if HAVE_WINDRES
+CLEANFILES = psymp3.res
+endif
