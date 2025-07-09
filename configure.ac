@@ -87,6 +87,18 @@ AM_CONDITIONAL([FINAL_BUILD], [test "x$enable_final" = "xyes"])
 AC_CHECK_TOOL([WINDRES], [windres], [no])
 AM_CONDITIONAL([HAVE_WINDRES], [test "x$WINDRES" != "xno"])
 
+# Windows socket libraries
+case "$host_os" in
+  *mingw*|*cygwin*|*msys*)
+    WINSOCK_LIBS="-lws2_32 -lmswsock"
+    AC_SUBST([WINSOCK_LIBS])
+    ;;
+  *)
+    WINSOCK_LIBS=""
+    AC_SUBST([WINSOCK_LIBS])
+    ;;
+esac
+
 PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 flac++ >= 1.2 opusfile >= 0.9 vorbis opus ogg openssl >= 1.0])
 
 AC_CONFIG_SRCDIR([src])
