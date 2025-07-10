@@ -98,8 +98,23 @@ void Stream::open(TagLib::String name)
  */
 TagLib::String Stream::getArtist()
 {
-    if(!m_tags || m_tags->isNull() || !m_tags->tag()) return track::nullstr;
-    return m_tags->tag()->artist();
+    if(!m_tags) {
+        Debug::runtime("Stream::getArtist: m_tags is null for file: ", getFilePath());
+        return track::nullstr;
+    }
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getArtist: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return track::nullstr;
+    }
+    if(!m_tags->tag()) {
+        Debug::runtime("Stream::getArtist: No tag data found in file: ", getFilePath());
+        return track::nullstr;
+    }
+    TagLib::String artist = m_tags->tag()->artist();
+    if(artist.isEmpty()) {
+        Debug::runtime("Stream::getArtist: Artist tag is empty for file: ", getFilePath());
+    }
+    return artist;
 }
 
 /**
@@ -108,8 +123,23 @@ TagLib::String Stream::getArtist()
  */
 TagLib::String Stream::getTitle()
 {
-    if(!m_tags || m_tags->isNull() || !m_tags->tag()) return track::nullstr;
-    return m_tags->tag()->title();
+    if(!m_tags) {
+        Debug::runtime("Stream::getTitle: m_tags is null for file: ", getFilePath());
+        return track::nullstr;
+    }
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getTitle: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return track::nullstr;
+    }
+    if(!m_tags->tag()) {
+        Debug::runtime("Stream::getTitle: No tag data found in file: ", getFilePath());
+        return track::nullstr;
+    }
+    TagLib::String title = m_tags->tag()->title();
+    if(title.isEmpty()) {
+        Debug::runtime("Stream::getTitle: Title tag is empty for file: ", getFilePath());
+    }
+    return title;
 }
 
 /**
@@ -118,8 +148,23 @@ TagLib::String Stream::getTitle()
  */
 TagLib::String Stream::getAlbum()
 {
-    if(!m_tags || m_tags->isNull() || !m_tags->tag()) return track::nullstr;
-    return m_tags->tag()->album();
+    if(!m_tags) {
+        Debug::runtime("Stream::getAlbum: m_tags is null for file: ", getFilePath());
+        return track::nullstr;
+    }
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getAlbum: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return track::nullstr;
+    }
+    if(!m_tags->tag()) {
+        Debug::runtime("Stream::getAlbum: No tag data found in file: ", getFilePath());
+        return track::nullstr;
+    }
+    TagLib::String album = m_tags->tag()->album();
+    if(album.isEmpty()) {
+        Debug::runtime("Stream::getAlbum: Album tag is empty for file: ", getFilePath());
+    }
+    return album;
 }
 
 /**
