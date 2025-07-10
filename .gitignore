@@ -26,3 +26,4 @@ depcomp
 INSTALL
 install-sh
 package-lock.json
+tmp/

@@ -207,6 +207,14 @@ unsigned int Stream::getLength()
 {
     if(m_length) return m_length;
     if(!m_tags) return 0;
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getLength: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return 0;
+    }
+    if(!m_tags->audioProperties()) {
+        Debug::runtime("Stream::getLength: No audio properties found in file: ", getFilePath());
+        return 0;
+    }
     return m_tags->audioProperties()->lengthInMilliseconds(); // * 1000 to make msec
 }
 
@@ -226,6 +234,14 @@ unsigned long long Stream::getSLength()
 {
     if(m_slength) return m_slength;
     if(!m_tags) return 0;
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getSLength: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return 0;
+    }
+    if(!m_tags->audioProperties()) {
+        Debug::runtime("Stream::getSLength: No audio properties found in file: ", getFilePath());
+        return 0;
+    }
     return static_cast<unsigned long long>(m_tags->audioProperties()->lengthInSeconds()) * m_tags->audioProperties()->sampleRate();
 }
 
@@ -245,6 +261,14 @@ unsigned int Stream::getChannels()
 {
     if(m_channels) return m_channels;
     if(!m_tags) return 0;
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getChannels: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return 0;
+    }
+    if(!m_tags->audioProperties()) {
+        Debug::runtime("Stream::getChannels: No audio properties found in file: ", getFilePath());
+        return 0;
+    }
     return m_tags->audioProperties()->channels();
 }
 
@@ -258,6 +282,14 @@ unsigned int Stream::getRate()
 {
     if(m_rate) return m_rate;
     if(!m_tags) return 0;
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getRate: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return 0;
+    }
+    if(!m_tags->audioProperties()) {
+        Debug::runtime("Stream::getRate: No audio properties found in file: ", getFilePath());
+        return 0;
+    }
     return m_tags->audioProperties()->sampleRate();
 }
 
@@ -271,6 +303,14 @@ unsigned int Stream::getBitrate()
 {
     if(m_bitrate) return m_bitrate;
     if(!m_tags) return 0;
+    if(m_tags->isNull()) {
+        Debug::runtime("Stream::getBitrate: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        return 0;
+    }
+    if(!m_tags->audioProperties()) {
+        Debug::runtime("Stream::getBitrate: No audio properties found in file: ", getFilePath());
+        return 0;
+    }
     return m_tags->audioProperties()->bitrate();
 }
 

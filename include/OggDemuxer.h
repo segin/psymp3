@@ -81,13 +81,15 @@ struct OggStream {
     
     // State tracking
     bool headers_complete = false;
+    bool headers_sent = false;  // Track whether header packets have been sent to codec
+    size_t next_header_index = 0;  // Index of next header packet to send
     std::vector<uint8_t> partial_packet_data;  // For packets split across pages
     uint64_t last_granule = 0;
     uint32_t last_page_sequence = 0;
 };
 
 /**
- * @brief Ogg container demuxer
+ * @brief Ogg container demuxer using libogg
  * 
  * The Ogg demuxer handles the Ogg container format, which can contain:
  * - Vorbis audio (.ogg)
@@ -98,10 +100,12 @@ struct OggStream {
  * - And other codecs
  * 
  * This demuxer focuses on audio streams but can be extended for video.
+ * Uses libogg for proper Ogg packet parsing.
  */
 class OggDemuxer : public Demuxer {
 public:
     explicit OggDemuxer(std::unique_ptr<IOHandler> handler);
+    ~OggDemuxer();
     
     bool parseContainer() override;
     std::vector<StreamInfo> getStreams() const override;
@@ -117,30 +121,27 @@ private:
     std::map<uint32_t, OggStream> m_streams;
     std::queue<OggPacket> m_packet_queue;
     uint64_t m_file_size = 0;
-    uint64_t m_current_offset = 0;
     bool m_eof = false;
     
-    /**
-     * @brief Read an Ogg page header
-     */
-    bool readPageHeader(OggPageHeader& header);
+    // libogg structures
+    ogg_sync_state m_sync_state;
+    std::map<uint32_t, ogg_stream_state> m_ogg_streams;
     
     /**
-     * @brief Read segment table and page data
+     * @brief Read data into libogg sync buffer
      */
-    bool readPageData(const OggPageHeader& header, std::vector<uint8_t>& page_data);
+    bool readIntoSyncBuffer(size_t bytes);
     
     /**
-     * @brief Parse packets from page data
+     * @brief Process pages using libogg
      */
-    std::vector<OggPacket> parsePackets(const OggPageHeader& header, 
-                                       const std::vector<uint8_t>& page_data,
-                                       const std::vector<uint8_t>& segment_table);
+    bool processPages();
     
     /**
      * @brief Identify codec from packet data
      */
     std::string identifyCodec(const std::vector<uint8_t>& packet_data);
+    
     
     /**
      * @brief Parse Vorbis identification header

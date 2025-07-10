@@ -125,6 +125,7 @@ AudioFrame VorbisCodec::decode(const MediaChunk& chunk)
         return frame;
     }
     
+    
     // Create Ogg packet structure
     ogg_packet packet;
     packet.packet = const_cast<unsigned char*>(chunk.data.data());
@@ -135,10 +136,14 @@ AudioFrame VorbisCodec::decode(const MediaChunk& chunk)
     packet.packetno = m_header_packets_received + 1; // Packet number
     
     // Decode the packet
-    if (vorbis_synthesis(&m_vorbis_block, &packet) == 0) {
-        if (vorbis_synthesis_blockin(&m_vorbis_dsp, &m_vorbis_block) == 0) {
+    int synthesis_result = vorbis_synthesis(&m_vorbis_block, &packet);
+    if (synthesis_result == 0) {
+        int blockin_result = vorbis_synthesis_blockin(&m_vorbis_dsp, &m_vorbis_block);
+        if (blockin_result == 0) {
             processSynthesis();
+        } else {
         }
+    } else {
     }
     
     // Return accumulated samples
@@ -148,6 +153,7 @@ AudioFrame VorbisCodec::decode(const MediaChunk& chunk)
         frame.samples = std::move(m_output_buffer);
         frame.timestamp_samples = chunk.timestamp_samples;
         m_output_buffer.clear();
+    } else {
     }
     
     return frame;
@@ -192,7 +198,8 @@ void VorbisCodec::reset()
 
 bool VorbisCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
 {
-    // Create Ogg packet structure for header
+    // Since OggDemuxer now provides properly parsed packets from libogg,
+    // we need to create ogg_packet structures with correct metadata
     ogg_packet packet;
     packet.packet = const_cast<unsigned char*>(packet_data.data());
     packet.bytes = static_cast<long>(packet_data.size());
@@ -205,7 +212,9 @@ bool VorbisCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
     int result = vorbis_synthesis_headerin(&m_vorbis_info, &m_vorbis_comment, &packet);
     
     if (result < 0) {
-        throw BadFormatException("Invalid Vorbis header packet");
+        
+        // Return false instead of throwing - let the caller handle it
+        return false;
     }
     
     return true;
