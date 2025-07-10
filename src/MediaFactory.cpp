@@ -344,8 +344,8 @@ void MediaFactory::initializeDefaultFormats() {
     ogg_format.description = "Ogg container (Vorbis/FLAC)";
     
     registerFormat(ogg_format, [](const std::string& uri, const ContentInfo& info) {
-        // Most Ogg files are Vorbis - route directly to working implementation
-        return std::make_unique<Vorbis>(TagLib::String(uri.c_str()));
+        // Route all Ogg files through OggDemuxer for proper container parsing
+        return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
     });
     
     // RIFF/WAVE formats
