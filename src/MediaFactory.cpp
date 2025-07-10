@@ -295,7 +295,7 @@ void MediaFactory::initializeDefaultFormats() {
     mp3_format.description = "MPEG-1/2 Audio Layer II/III";
     
     registerFormat(mp3_format, [](const std::string& uri, const ContentInfo& info) {
-        return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+        return std::make_unique<Libmpg123>(TagLib::String(uri.c_str()));
     });
     
     // FLAC format
@@ -328,7 +328,18 @@ void MediaFactory::initializeDefaultFormats() {
     ogg_format.description = "Ogg container (Vorbis/FLAC/Opus)";
     
     registerFormat(ogg_format, [](const std::string& uri, const ContentInfo& info) {
-        return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
+        // Ogg is a container format - detect content type and route appropriately
+        TagLib::String path(uri.c_str());
+        TagLib::FileRef fileRef(path.toCString(true));
+        
+        if (fileRef.isNull() || !fileRef.audioProperties()) {
+            // Fallback to Vorbis if we can't detect the content
+            return std::make_unique<Vorbis>(path);
+        }
+        
+        // For now, default to Vorbis since it handles most Ogg files
+        // TODO: Add proper Opus detection when Opus files are encountered
+        return std::make_unique<Vorbis>(path);
     });
     
     // RIFF/WAVE formats
