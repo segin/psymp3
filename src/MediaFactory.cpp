@@ -314,32 +314,38 @@ void MediaFactory::initializeDefaultFormats() {
         return std::make_unique<Flac>(TagLib::String(uri.c_str()));
     });
     
-    // Ogg container formats
+    // Standalone Opus format (for .opus files that might not be in Ogg containers)
+    MediaFormat opus_format;
+    opus_format.format_id = "opus";
+    opus_format.display_name = "Opus";
+    opus_format.extensions = {"OPUS"};
+    opus_format.mime_types = {"audio/opus"};
+    opus_format.magic_signatures = {"OggS"}; // Opus files are typically in Ogg containers
+    opus_format.priority = 15; // Higher priority than generic Ogg to catch .opus files first
+    opus_format.supports_streaming = true;
+    opus_format.supports_seeking = true;
+    opus_format.description = "Opus Audio Codec";
+    
+    registerFormat(opus_format, [](const std::string& uri, const ContentInfo& info) {
+        return std::make_unique<OpusFile>(TagLib::String(uri.c_str()));
+    });
+    
+    // Ogg container formats (Vorbis, FLAC-in-Ogg)
     MediaFormat ogg_format;
     ogg_format.format_id = "ogg";
     ogg_format.display_name = "Ogg";
-    ogg_format.extensions = {"OGG", "OGA", "OPUS"};
-    ogg_format.mime_types = {"application/ogg", "audio/ogg", "audio/vorbis", "audio/opus"};
+    ogg_format.extensions = {"OGG", "OGA"};
+    ogg_format.mime_types = {"application/ogg", "audio/ogg", "audio/vorbis"};
     ogg_format.magic_signatures = {"OggS"};
     ogg_format.priority = 10;
     ogg_format.supports_streaming = true;
     ogg_format.supports_seeking = true;
     ogg_format.is_container = true;
-    ogg_format.description = "Ogg container (Vorbis/FLAC/Opus)";
+    ogg_format.description = "Ogg container (Vorbis/FLAC)";
     
     registerFormat(ogg_format, [](const std::string& uri, const ContentInfo& info) {
-        // Ogg is a container format - detect content type and route appropriately
-        TagLib::String path(uri.c_str());
-        TagLib::FileRef fileRef(path.toCString(true));
-        
-        if (fileRef.isNull() || !fileRef.audioProperties()) {
-            // Fallback to Vorbis if we can't detect the content
-            return std::make_unique<Vorbis>(path);
-        }
-        
-        // For now, default to Vorbis since it handles most Ogg files
-        // TODO: Add proper Opus detection when Opus files are encountered
-        return std::make_unique<Vorbis>(path);
+        // Most Ogg files are Vorbis - route directly to working implementation
+        return std::make_unique<Vorbis>(TagLib::String(uri.c_str()));
     });
     
     // RIFF/WAVE formats
