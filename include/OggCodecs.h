@@ -75,7 +75,7 @@ private:
 /**
  * @brief Opus passthrough codec
  * 
- * This forwards Opus data to the existing opus decoder.
+ * This redirects to the new OpusCodec for proper libopus-based decoding.
  * Used when Opus streams are found inside Ogg containers.
  */
 class OpusPassthroughCodec : public AudioCodec {
@@ -91,9 +91,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class OpusFile* m_opus_stream = nullptr;      // Forward declaration
-    std::vector<uint8_t> m_buffer;                  // Accumulated data buffer
-    bool m_headers_written = false;
+    std::unique_ptr<class OpusCodec> m_opus_codec;  // Forward declaration
 };
 
 /**

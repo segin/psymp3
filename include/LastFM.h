@@ -92,6 +92,13 @@ public:
     bool setNowPlaying(const track& track);
     
     /**
+     * @brief Clear the now playing status on Last.fm
+     * Used when pausing or stopping playback
+     * @return true if successful, false otherwise
+     */
+    bool unsetNowPlaying();
+    
+    /**
      * @brief Add a track to the scrobble queue
      * @param track The track to scrobble
      * @return true if added successfully, false otherwise

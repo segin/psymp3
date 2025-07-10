@@ -367,8 +367,110 @@ bool LastFM::setNowPlaying(const track& track)
     }
     
     Debug::runtime("LastFM: Setting now playing: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
-    // TODO: Implement now playing submission
-    return true;
+    
+    // Ensure we have valid session and now playing URL
+    if ((m_session_key.empty() || m_nowplaying_url.empty()) && getSessionKey().empty()) {
+        Debug::runtime("LastFM: Cannot set now playing without valid session key and now playing URL");
+        return false;
+    }
+    
+    // Build POST data for Last.fm 1.2 now playing API
+    std::ostringstream postData;
+    postData << "s=" << HTTPClient::urlEncode(m_session_key);
+    postData << "&a=" << HTTPClient::urlEncode(track.GetArtist().to8Bit(true));
+    postData << "&t=" << HTTPClient::urlEncode(track.GetTitle().to8Bit(true));
+    postData << "&b=" << HTTPClient::urlEncode(track.GetAlbum().to8Bit(true));
+    postData << "&l=" << track.GetLen();
+    postData << "&n="; // Track number (empty - not available in track class)
+    postData << "&m=" << md5Hash(track.GetArtist().to8Bit(true) + track.GetTitle().to8Bit(true)); // MusicBrainz ID fallback
+    
+    // Use now playing URL from handshake response
+    if (m_nowplaying_url.empty()) {
+        Debug::runtime("LastFM: No now playing URL available");
+        return false;
+    }
+    
+    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData.str(), 
+                                                    "application/x-www-form-urlencoded", {}, 10);
+        
+    if (response.success) {
+        std::istringstream responseStream(response.body);
+        std::string status;
+        std::getline(responseStream, status);
+        
+        if (status == "OK") {
+            Debug::runtime("LastFM: Now playing submitted successfully: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+            return true;
+        } else if (status.substr(0, 6) == "FAILED") {
+            Debug::runtime("LastFM: Now playing submission failed - ", status);
+            // Clear session for authentication failures
+            if (status.find("BADAUTH") != std::string::npos) {
+                m_session_key.clear(); // Force re-authentication
+                m_submission_url.clear();
+                m_nowplaying_url.clear();
+            }
+        } else {
+            Debug::runtime("LastFM: Unexpected now playing response: ", status);
+        }
+    } else {
+        Debug::runtime("LastFM: HTTP error during now playing submission: ", response.statusMessage);
+    }
+    
+    return false;
+}
+
+bool LastFM::unsetNowPlaying()
+{
+    if (!isConfigured()) {
+        Debug::runtime("LastFM: Cannot unset now playing - not configured");
+        return false;
+    }
+    
+    Debug::runtime("LastFM: Clearing now playing status");
+    
+    // Ensure we have valid session and now playing URL
+    if ((m_session_key.empty() || m_nowplaying_url.empty()) && getSessionKey().empty()) {
+        Debug::runtime("LastFM: Cannot unset now playing without valid session key and now playing URL");
+        return false;
+    }
+    
+    // Build POST data with only session key (empty now playing)
+    std::ostringstream postData;
+    postData << "s=" << HTTPClient::urlEncode(m_session_key);
+    
+    // Use now playing URL from handshake response
+    if (m_nowplaying_url.empty()) {
+        Debug::runtime("LastFM: No now playing URL available");
+        return false;
+    }
+    
+    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData.str(), 
+                                                    "application/x-www-form-urlencoded", {}, 10);
+        
+    if (response.success) {
+        std::istringstream responseStream(response.body);
+        std::string status;
+        std::getline(responseStream, status);
+        
+        if (status == "OK") {
+            Debug::runtime("LastFM: Now playing status cleared successfully");
+            return true;
+        } else if (status.substr(0, 6) == "FAILED") {
+            Debug::runtime("LastFM: Failed to clear now playing status - ", status);
+            // Clear session for authentication failures
+            if (status.find("BADAUTH") != std::string::npos) {
+                m_session_key.clear(); // Force re-authentication
+                m_submission_url.clear();
+                m_nowplaying_url.clear();
+            }
+        } else {
+            Debug::runtime("LastFM: Unexpected response when clearing now playing: ", status);
+        }
+    } else {
+        Debug::runtime("LastFM: HTTP error when clearing now playing: ", response.statusMessage);
+    }
+    
+    return false;
 }
 
 bool LastFM::scrobbleTrack(const track& track)

@@ -101,61 +101,32 @@ bool OggFLACPassthroughCodec::canDecode(const StreamInfo& stream_info) const {
     return stream_info.codec_name == "flac";
 }
 
-// OpusPassthroughCodec implementation
+// OpusPassthroughCodec implementation - now redirects to OpusCodec
 OpusPassthroughCodec::OpusPassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
+    // Create the actual OpusCodec
+    m_opus_codec = std::make_unique<OpusCodec>(stream_info);
 }
 
 OpusPassthroughCodec::~OpusPassthroughCodec() {
-    delete m_opus_stream;
+    // Unique pointer handles cleanup
 }
 
 bool OpusPassthroughCodec::initialize() {
-    // We'll create the OpusStream when we get the first chunk
-    m_initialized = true;
-    return true;
+    m_initialized = m_opus_codec->initialize();
+    return m_initialized;
 }
 
 AudioFrame OpusPassthroughCodec::decode(const MediaChunk& chunk) {
-    AudioFrame frame;
-    
-    if (chunk.data.empty()) {
-        return frame;
-    }
-    
-    // Accumulate data in buffer
-    m_buffer.insert(m_buffer.end(), chunk.data.begin(), chunk.data.end());
-    
-    // Create OpusStream if we haven't yet
-    if (!m_opus_stream && m_buffer.size() >= 4) {
-        // Try to create from buffered data
-        // Note: Similar challenges - existing OpusStream expects file interface
-        
-        // For now, return empty frame
-        return frame;
-    }
-    
-    // TODO: Implement proper Opus passthrough
-    // This would require either:
-    // 1. Modifying OpusStream to accept Ogg packets directly
-    // 2. Using libopus directly instead of going through OpusStream
-    // 3. Creating a temporary Ogg file structure
-    
-    return frame;
+    return m_opus_codec->decode(chunk);
 }
 
 AudioFrame OpusPassthroughCodec::flush() {
-    return AudioFrame{};
+    return m_opus_codec->flush();
 }
 
 void OpusPassthroughCodec::reset() {
-    m_buffer.clear();
-    m_headers_written = false;
-    
-    if (m_opus_stream) {
-        delete m_opus_stream;
-        m_opus_stream = nullptr;
-    }
+    m_opus_codec->reset();
 }
 
 bool OpusPassthroughCodec::canDecode(const StreamInfo& stream_info) const {

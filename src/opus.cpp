@@ -1,5 +1,5 @@
 /*
- * opus.cpp - Extends the Stream base class to decode Ogg Opus.
+ * opus.cpp - Opus decoder using generic demuxer architecture and libopus directly
  * This file is part of PsyMP3.
  * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -23,159 +23,196 @@
 
 #include "psymp3.h"
 
-OpusFile::OpusFile(TagLib::String name) : Stream(name), m_session(nullptr)
+// ========== OpusFile Stream Class ==========
+
+OpusFile::OpusFile(TagLib::String name) : Stream(name)
 {
-    m_eof = false;
-    open(name);
+    // Create a DemuxedStream to handle the actual decoding
+    m_demuxed_stream = std::make_unique<DemuxedStream>(name);
+    
+    // Copy properties from the demuxed stream
+    m_rate = m_demuxed_stream->getRate();
+    m_channels = m_demuxed_stream->getChannels();
+    m_bitrate = m_demuxed_stream->getBitrate();
+    m_length = m_demuxed_stream->getLength();
+    m_slength = m_demuxed_stream->getSLength();
 }
 
 OpusFile::~OpusFile()
 {
-    // op_free will call the close callback, which is handled by our IOHandler.
-    // The m_handler unique_ptr will then be destroyed, ensuring resources are freed.
-    if (m_session) {
-        op_free(m_session);
-        m_session = nullptr;
-    }
-}
-
-void OpusFile::open(TagLib::String name)
-{
-    // Use the new URI and IOHandler abstraction layer.
-    URI uri(name);
-    if (uri.scheme() == "file") {
-        m_handler = std::make_unique<FileIOHandler>(uri.path());
-    } else {
-        // In the future, a factory could create other IOHandlers here.
-        throw InvalidMediaException("Unsupported URI scheme for Opus: " + uri.scheme());
-    }
-
-    int error;
-    OpusFileCallbacks callbacks = {
-        /* read_func */
-        [](void *_stream, unsigned char *_ptr, int _nbytes) -> int {
-            return static_cast<IOHandler*>(_stream)->read(_ptr, 1, _nbytes);
-        },
-        /* seek_func */
-        [](void *_stream, opus_int64 _offset, int _whence) -> int {
-            return static_cast<IOHandler*>(_stream)->seek(static_cast<long>(_offset), _whence);
-        },
-        /* tell_func */
-        [](void *_stream) -> opus_int64 {
-            return static_cast<IOHandler*>(_stream)->tell();
-        },
-        /* close_func */
-        [](void *_stream) -> int {
-            // The IOHandler is managed by unique_ptr, so its destructor will handle closing.
-            return static_cast<IOHandler*>(_stream)->close();
-        }
-    };
-
-    m_session = op_open_callbacks(m_handler.get(), &callbacks, nullptr, 0, &error);
-    if(!m_session) {
-        // Provide a more informative exception, including the library's error string.
-        throw InvalidMediaException("Failed to open Opus file '" + name + "': " + opus_strerror(error));
-    }
-
-    // As per the opusfile manual, output is always 48kHz.
-    // Since op_read_stereo() is used, output is always 2 channels.
-    m_channels = 2;
-    m_rate = 48000;
-    m_bitrate = 0;
-    m_slength = op_pcm_total(m_session, -1);
-    // Explicitly calculate length in milliseconds from samples and rate.
-    if (m_rate > 0) {
-        m_length = (m_slength * 1000) / m_rate;
-    } else {
-        m_length = 0;
-    }
-}
-
-void OpusFile::seekTo(unsigned long pos)
-{
-    if (!m_session) return;
-    // Use 64-bit arithmetic to prevent potential overflow when calculating sample position from milliseconds.
-    ogg_int64_t pcm_offset = (static_cast<ogg_int64_t>(pos) * m_rate) / 1000;
-    op_pcm_seek(m_session, pcm_offset);
-    m_eof = false; // A seek operation means we are no longer at the end of the file.
-    m_sposition = op_pcm_tell(m_session);
-    if (m_rate > 0) {
-        m_position = (m_sposition * 1000) / m_rate;
-    }
+    // Unique pointer handles cleanup
 }
 
 size_t OpusFile::getData(size_t len, void *buf)
 {
-    if (!m_session) return 0;
-
-    char *current_ptr = static_cast<char *>(buf);
-    size_t bytes_left = len;
-    size_t total_bytes_read = 0;
-
-    while (bytes_left > 0) {
-        // op_read_stereo wants the total number of opus_int16 values the buffer can hold.
-        int buffer_capacity_in_samples = bytes_left / sizeof(opus_int16);
-        if (buffer_capacity_in_samples == 0) break;
-
-        int samples_read_per_channel = op_read_stereo(m_session, reinterpret_cast<opus_int16 *>(current_ptr), buffer_capacity_in_samples);
-
-        if (samples_read_per_channel < 0) { // Error
-            throw BadFormatException("Failed to read Opus file, error: " + std::to_string(samples_read_per_channel));
-        } else if (samples_read_per_channel == 0) { // End of file
-            m_eof = true;
-            break;
-        }
-
-        size_t bytes_read_this_call = samples_read_per_channel * m_channels * sizeof(opus_int16);
-        total_bytes_read += bytes_read_this_call;
-        current_ptr += bytes_read_this_call;
-        bytes_left -= bytes_read_this_call;
-    }
-
-    m_sposition = op_pcm_tell(m_session);
-    if (m_rate > 0) {
-        m_position = (m_sposition * 1000) / m_rate;
-    }
-    return total_bytes_read;
+    return m_demuxed_stream->getData(len, buf);
 }
 
-unsigned int OpusFile::getLength()
+void OpusFile::seekTo(unsigned long pos)
 {
-    return m_length;
-}
-
-unsigned long long OpusFile::getSLength()
-{
-    return m_slength;
-}
-
-unsigned long long OpusFile::getSPosition()
-{
-    if (!m_session) return 0;
-    return op_pcm_tell(m_session);
-}
-
-unsigned int OpusFile::getChannels()
-{
-    return m_channels;
-}
-
-unsigned int OpusFile::getRate()
-{
-    return m_rate;
-}
-
-unsigned int OpusFile::getEncoding()
-{
-    return 0;
-}
-
-unsigned int OpusFile::getBitrate()
-{
-    return m_bitrate;
+    m_demuxed_stream->seekTo(pos);
 }
 
 bool OpusFile::eof()
 {
-    return m_eof;
+    return m_demuxed_stream->eof();
+}
+
+// ========== Opus Codec Class ==========
+
+OpusCodec::OpusCodec(const StreamInfo& stream_info) : AudioCodec(stream_info)
+{
+    // Opus always outputs at 48kHz
+    m_sample_rate = 48000;
+}
+
+OpusCodec::~OpusCodec()
+{
+    if (m_opus_decoder) {
+        opus_decoder_destroy(m_opus_decoder);
+        m_opus_decoder = nullptr;
+    }
+}
+
+bool OpusCodec::initialize()
+{
+    m_header_packets_received = 0;
+    m_decoder_initialized = false;
+    m_output_buffer.clear();
+    m_initialized = true;
+    return true;
+}
+
+bool OpusCodec::canDecode(const StreamInfo& stream_info) const
+{
+    return stream_info.codec_name == "opus";
+}
+
+AudioFrame OpusCodec::decode(const MediaChunk& chunk)
+{
+    AudioFrame frame;
+    
+    if (chunk.data.empty()) {
+        return frame;
+    }
+    
+    // First packet is OpusHead (identification), second is OpusTags (comment)
+    if (m_header_packets_received < 2) {
+        if (processHeaderPacket(chunk.data)) {
+            m_header_packets_received++;
+            
+            // After OpusHead packet, initialize decoder
+            if (m_header_packets_received == 1 && m_channels > 0) {
+                int error;
+                m_opus_decoder = opus_decoder_create(m_sample_rate, m_channels, &error);
+                if (!m_opus_decoder || error != OPUS_OK) {
+                    throw BadFormatException("Failed to initialize Opus decoder: " + std::string(opus_strerror(error)));
+                }
+                m_decoder_initialized = true;
+            }
+        }
+        return frame; // Headers don't produce audio
+    }
+    
+    // Process audio packet
+    if (!m_decoder_initialized || !m_opus_decoder) {
+        return frame;
+    }
+    
+    // Decode the packet (Opus packets can vary in size)
+    // Maximum frame size for Opus is 5760 samples per channel at 48kHz
+    constexpr int MAX_FRAME_SIZE = 5760;
+    std::vector<opus_int16> decode_buffer(MAX_FRAME_SIZE * m_channels);
+    
+    int samples_decoded = opus_decode(m_opus_decoder, 
+                                     chunk.data.data(), 
+                                     static_cast<opus_int32>(chunk.data.size()),
+                                     decode_buffer.data(), 
+                                     MAX_FRAME_SIZE, 
+                                     0); // 0 = normal decode, 1 = FEC decode
+    
+    if (samples_decoded < 0) {
+        // Decoding error - return empty frame but don't throw
+        return frame;
+    }
+    
+    if (samples_decoded > 0) {
+        // Copy decoded samples to output buffer
+        size_t total_samples = samples_decoded * m_channels;
+        m_output_buffer.resize(total_samples);
+        
+        for (size_t i = 0; i < total_samples; i++) {
+            m_output_buffer[i] = static_cast<int16_t>(decode_buffer[i]);
+        }
+        
+        // Create frame
+        frame.sample_rate = m_sample_rate;
+        frame.channels = m_channels;
+        frame.samples = std::move(m_output_buffer);
+        frame.timestamp_samples = chunk.timestamp_samples;
+        frame.timestamp_ms = chunk.timestamp_ms;
+        m_output_buffer.clear();
+    }
+    
+    return frame;
+}
+
+AudioFrame OpusCodec::flush()
+{
+    AudioFrame frame;
+    
+    if (m_decoder_initialized && m_opus_decoder) {
+        // Opus doesn't have buffered data to flush like Vorbis
+        // Return empty frame
+    }
+    
+    return frame;
+}
+
+void OpusCodec::reset()
+{
+    if (m_opus_decoder) {
+        opus_decoder_destroy(m_opus_decoder);
+        m_opus_decoder = nullptr;
+    }
+    
+    m_header_packets_received = 0;
+    m_decoder_initialized = false;
+    m_output_buffer.clear();
+    m_channels = 0;
+}
+
+bool OpusCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
+{
+    if (m_header_packets_received == 0) {
+        // OpusHead packet
+        if (packet_data.size() >= 19 && 
+            std::memcmp(packet_data.data(), "OpusHead", 8) == 0) {
+            
+            // Parse OpusHead packet
+            // Byte 8: version (should be 1)
+            // Byte 9: channel count
+            // Bytes 10-11: pre-skip (little endian)
+            // Bytes 12-15: input sample rate (little endian, informational only)
+            // Bytes 16-17: output gain (little endian, in Q7.8 format)
+            // Byte 18: channel mapping family
+            
+            m_channels = packet_data[9];
+            
+            if (m_channels < 1 || m_channels > 8) {
+                throw BadFormatException("Invalid Opus channel count: " + std::to_string(m_channels));
+            }
+            
+            return true;
+        }
+    } else if (m_header_packets_received == 1) {
+        // OpusTags packet (comment header)
+        if (packet_data.size() >= 8 && 
+            std::memcmp(packet_data.data(), "OpusTags", 8) == 0) {
+            // We don't need to parse the comment data
+            return true;
+        }
+    }
+    
+    return false;
 }

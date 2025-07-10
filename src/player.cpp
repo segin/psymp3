@@ -372,6 +372,10 @@ bool Player::stop(void) {
 #ifdef _WIN32
     if (system) system->clearNowPlaying();
 #endif
+    // Clear Last.fm now playing status when stopping
+    if (m_lastfm) {
+        m_lastfm->unsetNowPlaying();
+    }
     return true;
 }
 
@@ -387,6 +391,10 @@ bool Player::pause(void) {
 #ifdef HAVE_DBUS
         if (mpris) mpris->updatePlaybackStatus("Paused");
 #endif
+        // Clear Last.fm now playing status when pausing
+        if (m_lastfm) {
+            m_lastfm->unsetNowPlaying();
+        }
         if (!m_pause_indicator) {
             SDL_Color pause_color = {255, 255, 255, 180}; // Semi-transparent white
             m_pause_indicator = std::make_unique<Label>(m_large_font.get(), Rect(0,0,0,0), "PAUSED", pause_color);
@@ -410,12 +418,17 @@ bool Player::play(void) {
             requestTrackLoad(playlist->getTrack(playlist->getPosition()));
         }
     } else { // Paused or already Playing
+        PlayerState previous_state = state;
         m_pause_indicator.reset();
         if (audio) audio->play(true);
         state = PlayerState::Playing;
 #ifdef HAVE_DBUS
         if (mpris) mpris->updatePlaybackStatus("Playing");
 #endif
+        // Re-set Last.fm now playing status when resuming from pause
+        if (previous_state == PlayerState::Paused && m_lastfm) {
+            submitNowPlaying();
+        }
     }
     return true;
 }
