@@ -1,5 +1,5 @@
 /*
- * vorbisw.h - Ogg Vorbis decoder class header
+ * vorbisw.h - Ogg Vorbis decoder class header using OggDemuxer and libvorbis
  * This file is part of PsyMP3.
  * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -24,29 +24,59 @@
 #ifndef VORBISW_H
 #define VORBISW_H
 
+/**
+ * @brief Vorbis decoder class using DemuxedStream with OggDemuxer
+ * 
+ * This class replaces the old vorbisfile-based implementation with a cleaner
+ * approach that delegates to DemuxedStream which uses OggDemuxer for container
+ * parsing and VorbisCodec for audio decoding.
+ */
 class Vorbis : public Stream
 {
-    public:
-        Vorbis(TagLib::String name);
-        virtual ~Vorbis();
-        void open(TagLib::String name);
-        virtual unsigned int getLength();
-        virtual unsigned int getPosition();
-        virtual unsigned long long getSLength();
-        virtual unsigned long long getSPosition();
-        virtual unsigned int getChannels();
-        virtual unsigned int getRate();
-        virtual unsigned int getBitrate();
-        virtual unsigned int getEncoding(); // returns undefined
-        virtual size_t getData(size_t len, void *buf);
-        virtual void seekTo(unsigned long pos);
-        virtual bool eof();
-    protected:
-    private:
-        std::unique_ptr<IOHandler> m_handler;
-        OggVorbis_File m_vorbis_file;
-        int m_session;
-        vorbis_info *m_vi;
+public:
+    Vorbis(TagLib::String name);
+    virtual ~Vorbis();
+    
+    // Stream interface implementation
+    virtual size_t getData(size_t len, void *buf) override;
+    virtual void seekTo(unsigned long pos) override;
+    virtual bool eof() override;
+    
+private:
+    std::unique_ptr<DemuxedStream> m_demuxed_stream;
+};
+
+/**
+ * @brief Direct Vorbis codec using libvorbis
+ * 
+ * This codec processes Vorbis packets directly from OggDemuxer using
+ * the low-level libvorbis API instead of vorbisfile.
+ */
+class VorbisCodec : public AudioCodec
+{
+public:
+    explicit VorbisCodec(const StreamInfo& stream_info);
+    ~VorbisCodec() override;
+    
+    bool initialize() override;
+    AudioFrame decode(const MediaChunk& chunk) override;
+    AudioFrame flush() override;
+    void reset() override;
+    std::string getCodecName() const override { return "vorbis"; }
+    bool canDecode(const StreamInfo& stream_info) const override;
+    
+private:
+    vorbis_info m_vorbis_info;
+    vorbis_comment m_vorbis_comment;
+    vorbis_dsp_state m_vorbis_dsp;
+    vorbis_block m_vorbis_block;
+    
+    int m_header_packets_received = 0;
+    bool m_synthesis_initialized = false;
+    std::vector<int16_t> m_output_buffer;
+    
+    bool processHeaderPacket(const std::vector<uint8_t>& packet_data);
+    bool processSynthesis();
 };
 
 #endif // VORBISW_H

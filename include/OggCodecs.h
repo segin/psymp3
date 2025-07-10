@@ -29,7 +29,7 @@
 /**
  * @brief Vorbis passthrough codec
  * 
- * This forwards Vorbis data to the existing vorbis decoder.
+ * This redirects to the new VorbisCodec for proper libvorbis-based decoding.
  * Used when Vorbis streams are found inside Ogg containers.
  */
 class VorbisPassthroughCodec : public AudioCodec {
@@ -45,9 +45,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class Vorbis* m_vorbis_stream = nullptr;  // Forward declaration
-    std::vector<uint8_t> m_buffer;                  // Accumulated data buffer
-    bool m_headers_written = false;
+    std::unique_ptr<class VorbisCodec> m_vorbis_codec;  // Forward declaration
 };
 
 /**

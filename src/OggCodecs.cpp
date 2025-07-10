@@ -9,63 +9,32 @@
 
 #include "psymp3.h"
 
-// VorbisPassthroughCodec implementation
+// VorbisPassthroughCodec implementation - now redirects to VorbisCodec
 VorbisPassthroughCodec::VorbisPassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
+    // Create the actual VorbisCodec
+    m_vorbis_codec = std::make_unique<VorbisCodec>(stream_info);
 }
 
 VorbisPassthroughCodec::~VorbisPassthroughCodec() {
-    delete m_vorbis_stream;
+    // Unique pointer handles cleanup
 }
 
 bool VorbisPassthroughCodec::initialize() {
-    // We'll create the VorbisStream when we get the first chunk
-    m_initialized = true;
-    return true;
+    m_initialized = m_vorbis_codec->initialize();
+    return m_initialized;
 }
 
 AudioFrame VorbisPassthroughCodec::decode(const MediaChunk& chunk) {
-    AudioFrame frame;
-    
-    if (chunk.data.empty()) {
-        return frame;
-    }
-    
-    // Accumulate data in buffer
-    m_buffer.insert(m_buffer.end(), chunk.data.begin(), chunk.data.end());
-    
-    // Create VorbisStream if we haven't yet
-    if (!m_vorbis_stream && m_buffer.size() >= 4) {
-        // Try to create from buffered data
-        // Note: This is a simplified approach - in practice, we might need
-        // to write the data to a temporary file or implement a memory-based stream
-        
-        // For now, return empty frame - full implementation would require
-        // significant changes to the existing VorbisStream class
-        return frame;
-    }
-    
-    // TODO: Implement proper Vorbis passthrough
-    // This would require either:
-    // 1. Modifying VorbisStream to accept memory buffers or Ogg packets
-    // 2. Creating a temporary file with proper Ogg structure
-    // 3. Implementing a memory-based IOHandler that constructs valid Ogg pages
-    
-    return frame;
+    return m_vorbis_codec->decode(chunk);
 }
 
 AudioFrame VorbisPassthroughCodec::flush() {
-    return AudioFrame{};
+    return m_vorbis_codec->flush();
 }
 
 void VorbisPassthroughCodec::reset() {
-    m_buffer.clear();
-    m_headers_written = false;
-    
-    if (m_vorbis_stream) {
-        delete m_vorbis_stream;
-        m_vorbis_stream = nullptr;
-    }
+    m_vorbis_codec->reset();
 }
 
 bool VorbisPassthroughCodec::canDecode(const StreamInfo& stream_info) const {

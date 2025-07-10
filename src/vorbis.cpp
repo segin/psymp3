@@ -1,5 +1,5 @@
 /*
- * vorbis.cpp - Extends the Stream base class to decode Ogg Vorbis.
+ * vorbis.cpp - Ogg Vorbis decoder using OggDemuxer and libvorbis directly
  * This file is part of PsyMP3.
  * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -23,167 +23,220 @@
 
 #include "psymp3.h"
 
+// ========== Vorbis Stream Class ==========
+
 Vorbis::Vorbis(TagLib::String name) : Stream(name)
 {
-    m_session = 0; // Initialize session
-    memset(&m_vorbis_file, 0, sizeof(m_vorbis_file)); // Zero-initialize Vorbis file structure
-    m_vi = nullptr; // Initialize vorbis_info pointer
-    open(name); // open() will handle handler creation and callbacks
+    // Create a DemuxedStream to handle the actual decoding
+    m_demuxed_stream = std::make_unique<DemuxedStream>(name);
+    
+    // Copy properties from the demuxed stream
+    m_rate = m_demuxed_stream->getRate();
+    m_channels = m_demuxed_stream->getChannels();
+    m_bitrate = m_demuxed_stream->getBitrate();
+    m_length = m_demuxed_stream->getLength();
+    m_slength = m_demuxed_stream->getSLength();
 }
 
 Vorbis::~Vorbis()
 {
-    // ov_clear will call the close callback, which is handled by our IOHandler.
-    // The m_handler unique_ptr will then be destroyed, ensuring resources are freed.
-    ov_clear(&m_vorbis_file);
-}
-
-void Vorbis::open(TagLib::String name)
-{
-    // Use the new URI and IOHandler abstraction layer.
-    URI uri(name);
-    if (uri.scheme() == "file") {
-        m_handler = std::make_unique<FileIOHandler>(uri.path());
-    } else {
-        // In the future, a factory could create other IOHandlers here (e.g., HttpIOHandler).
-        throw InvalidMediaException("Unsupported URI scheme for Vorbis: " + uri.scheme());
-    }
-
-    // These callbacks now forward to the generic IOHandler interface.
-    ov_callbacks callbacks = {
-        /* read_func */
-        [](void *ptr, size_t size, size_t nmemb, void *datasource) -> size_t {
-            return static_cast<IOHandler*>(datasource)->read(ptr, size, nmemb);
-        },
-        /* seek_func */
-        [](void *datasource, ogg_int64_t offset, int whence) -> int {
-            return static_cast<IOHandler*>(datasource)->seek(offset, whence);
-        },
-        /* close_func */
-        [](void *datasource) -> int {
-            // The IOHandler is managed by the Vorbis class's unique_ptr,
-            // so its destructor will handle the actual closing. We can return 0 here.
-            // Alternatively, for handlers that need explicit closing:
-            return static_cast<IOHandler*>(datasource)->close();
-        },
-        /* tell_func */
-        [](void *datasource) -> long {
-            return static_cast<IOHandler*>(datasource)->tell();
-        }
-    };
-
-    // Pass the raw pointer to our IOHandler as the datasource.
-    auto ret = ov_open_callbacks(m_handler.get(), &m_vorbis_file, nullptr, 0, callbacks);
-
-    switch (ret) {
-    case OV_ENOTVORBIS:
-        throw WrongFormatException("Not a Vorbis file: " + name);
-        break;
-    case OV_EREAD:
-    case OV_EVERSION:
-    case OV_EBADHEADER:
-    case OV_EFAULT:
-        throw BadFormatException("Bad file: " + name);
-        //throw;
-        break;
-    default: // returned 0 for success
-        m_vi = ov_info(&m_vorbis_file, -1);
-        if (!m_vi) {
-            throw BadFormatException("Failed to get Vorbis stream info: " + name);
-        }
-        m_eof = false;
-        switch(m_vi->channels) {
-        case 1:
-        case 2:
-            m_rate = m_vi->rate;
-            m_channels = m_vi->channels;
-            m_bitrate = m_vi->bitrate_nominal;
-            m_length = ov_time_total(&m_vorbis_file, -1) * 1000;
-            m_slength = ov_pcm_total(&m_vorbis_file, -1);
-            break;
-        default:
-            throw BadFormatException("Unsupported channel count in Vorbis file: " + std::to_string(m_vi->channels));
-            break;
-        };
-        break;
-    };
-}
-
-void Vorbis::seekTo(unsigned long pos)
-{
-    ov_time_seek(&m_vorbis_file, (double) pos / 1000.0);
-    m_eof = false; // A seek operation means we are no longer at the end of the file.
-    m_sposition = ov_pcm_tell(&m_vorbis_file);
-    m_position = ov_time_tell(&m_vorbis_file) * 1000;
+    // Unique pointer handles cleanup
 }
 
 size_t Vorbis::getData(size_t len, void *buf)
 {
-    char *current_buf = static_cast<char *>(buf);
-    size_t bytes_left = len;
-    size_t total_bytes_read = 0;
-
-    while (bytes_left > 0) {
-        long bytes_read_this_call = ov_read(&m_vorbis_file, current_buf, bytes_left, 0, 2, 1, &m_session);
-
-        if (bytes_read_this_call < 0) { // Error
-            // Any negative value from ov_read is a fatal error.
-            throw BadFormatException("Failed to read Vorbis file, error code: " + std::to_string(bytes_read_this_call));
-        } else if (bytes_read_this_call == 0) { // End of file
-            m_eof = true;
-            break;
-        }
-
-        total_bytes_read += bytes_read_this_call;
-        current_buf += bytes_read_this_call;
-        bytes_left -= bytes_read_this_call;
-    }
-    m_sposition = ov_pcm_tell(&m_vorbis_file);
-    m_position = ov_time_tell(&m_vorbis_file) * 1000;
-    return total_bytes_read;
+    return m_demuxed_stream->getData(len, buf);
 }
 
-unsigned int Vorbis::getLength()
+void Vorbis::seekTo(unsigned long pos)
 {
-    return m_length;
-}
-
-unsigned int Vorbis::getPosition()
-{
-    return ov_time_tell(&m_vorbis_file) * 1000;
-}
-
-unsigned long long Vorbis::getSLength()
-{
-    return m_slength;
-}
-
-unsigned long long Vorbis::getSPosition()
-{
-    return m_sposition;
-}
-
-unsigned int Vorbis::getChannels()
-{
-    return m_channels;
-}
-
-unsigned int Vorbis::getRate()
-{
-    return m_rate;
-}
-
-unsigned int Vorbis::getEncoding()
-{
-    return 0;
-}
-
-unsigned int Vorbis::getBitrate()
-{
-    return m_bitrate;
+    m_demuxed_stream->seekTo(pos);
 }
 
 bool Vorbis::eof()
 {
-    return m_eof;
+    return m_demuxed_stream->eof();
+}
+
+// ========== Vorbis Codec Class ==========
+
+VorbisCodec::VorbisCodec(const StreamInfo& stream_info) : AudioCodec(stream_info)
+{
+    // Initialize Vorbis structures
+    vorbis_info_init(&m_vorbis_info);
+    vorbis_comment_init(&m_vorbis_comment);
+}
+
+VorbisCodec::~VorbisCodec()
+{
+    // Clean up in reverse order of initialization
+    if (m_synthesis_initialized) {
+        vorbis_block_clear(&m_vorbis_block);
+        vorbis_dsp_clear(&m_vorbis_dsp);
+    }
+    vorbis_comment_clear(&m_vorbis_comment);
+    vorbis_info_clear(&m_vorbis_info);
+}
+
+bool VorbisCodec::initialize()
+{
+    m_header_packets_received = 0;
+    m_synthesis_initialized = false;
+    m_output_buffer.clear();
+    m_initialized = true;
+    return true;
+}
+
+bool VorbisCodec::canDecode(const StreamInfo& stream_info) const
+{
+    return stream_info.codec_name == "vorbis";
+}
+
+AudioFrame VorbisCodec::decode(const MediaChunk& chunk)
+{
+    AudioFrame frame;
+    
+    if (chunk.data.empty()) {
+        return frame;
+    }
+    
+    // First 3 packets are headers (identification, comment, setup)
+    if (m_header_packets_received < 3) {
+        if (processHeaderPacket(chunk.data)) {
+            m_header_packets_received++;
+            
+            // After all 3 headers, initialize synthesis
+            if (m_header_packets_received == 3) {
+                if (vorbis_synthesis_init(&m_vorbis_dsp, &m_vorbis_info) != 0) {
+                    throw BadFormatException("Failed to initialize Vorbis synthesis");
+                }
+                if (vorbis_block_init(&m_vorbis_dsp, &m_vorbis_block) != 0) {
+                    vorbis_dsp_clear(&m_vorbis_dsp);
+                    throw BadFormatException("Failed to initialize Vorbis block");
+                }
+                m_synthesis_initialized = true;
+            }
+        }
+        return frame; // Headers don't produce audio
+    }
+    
+    // Process audio packet
+    if (!m_synthesis_initialized) {
+        return frame;
+    }
+    
+    // Create Ogg packet structure
+    ogg_packet packet;
+    packet.packet = const_cast<unsigned char*>(chunk.data.data());
+    packet.bytes = static_cast<long>(chunk.data.size());
+    packet.b_o_s = 0; // Not beginning of stream
+    packet.e_o_s = 0; // Not end of stream (we'd need to detect this)
+    packet.granulepos = chunk.timestamp_samples;
+    packet.packetno = m_header_packets_received + 1; // Packet number
+    
+    // Decode the packet
+    if (vorbis_synthesis(&m_vorbis_block, &packet) == 0) {
+        if (vorbis_synthesis_blockin(&m_vorbis_dsp, &m_vorbis_block) == 0) {
+            processSynthesis();
+        }
+    }
+    
+    // Return accumulated samples
+    if (!m_output_buffer.empty()) {
+        frame.sample_rate = m_stream_info.sample_rate;
+        frame.channels = m_stream_info.channels;
+        frame.samples = std::move(m_output_buffer);
+        frame.timestamp_samples = chunk.timestamp_samples;
+        m_output_buffer.clear();
+    }
+    
+    return frame;
+}
+
+AudioFrame VorbisCodec::flush()
+{
+    AudioFrame frame;
+    
+    if (m_synthesis_initialized) {
+        // Process any remaining samples
+        processSynthesis();
+        
+        if (!m_output_buffer.empty()) {
+            frame.sample_rate = m_stream_info.sample_rate;
+            frame.channels = m_stream_info.channels;
+            frame.samples = std::move(m_output_buffer);
+            m_output_buffer.clear();
+        }
+    }
+    
+    return frame;
+}
+
+void VorbisCodec::reset()
+{
+    if (m_synthesis_initialized) {
+        vorbis_block_clear(&m_vorbis_block);
+        vorbis_dsp_clear(&m_vorbis_dsp);
+        m_synthesis_initialized = false;
+    }
+    
+    vorbis_comment_clear(&m_vorbis_comment);
+    vorbis_info_clear(&m_vorbis_info);
+    
+    vorbis_info_init(&m_vorbis_info);
+    vorbis_comment_init(&m_vorbis_comment);
+    
+    m_header_packets_received = 0;
+    m_output_buffer.clear();
+}
+
+bool VorbisCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
+{
+    // Create Ogg packet structure for header
+    ogg_packet packet;
+    packet.packet = const_cast<unsigned char*>(packet_data.data());
+    packet.bytes = static_cast<long>(packet_data.size());
+    packet.b_o_s = (m_header_packets_received == 0) ? 1 : 0; // First packet is BOS
+    packet.e_o_s = 0;
+    packet.granulepos = -1; // Headers don't have granule positions
+    packet.packetno = m_header_packets_received;
+    
+    // Process the header packet
+    int result = vorbis_synthesis_headerin(&m_vorbis_info, &m_vorbis_comment, &packet);
+    
+    if (result < 0) {
+        throw BadFormatException("Invalid Vorbis header packet");
+    }
+    
+    return true;
+}
+
+bool VorbisCodec::processSynthesis()
+{
+    float **pcm_channels;
+    int samples_available;
+    
+    // Get available PCM samples
+    while ((samples_available = vorbis_synthesis_pcmout(&m_vorbis_dsp, &pcm_channels)) > 0) {
+        int channels = m_vorbis_info.channels;
+        
+        // Convert float samples to 16-bit integers
+        for (int i = 0; i < samples_available; i++) {
+            for (int channel = 0; channel < channels; channel++) {
+                float sample = pcm_channels[channel][i];
+                
+                // Clamp and convert to 16-bit
+                if (sample > 1.0f) sample = 1.0f;
+                if (sample < -1.0f) sample = -1.0f;
+                
+                int16_t sample_16 = static_cast<int16_t>(sample * 32767.0f);
+                m_output_buffer.push_back(sample_16);
+            }
+        }
+        
+        // Tell libvorbis we consumed these samples
+        vorbis_synthesis_read(&m_vorbis_dsp, samples_available);
+    }
+    
+    return !m_output_buffer.empty();
 }

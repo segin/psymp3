@@ -23,7 +23,6 @@ AC_CHECK_FUNCS([atexit getcwd memset])
 PKG_CHECK_MODULES([SDL], [sdl >= 1.2])
 PKG_CHECK_MODULES([LIBMPG123], [libmpg123 >= 1.8])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
-PKG_CHECK_MODULES([VORBISFILE], [vorbisfile >= 1.3])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])
 PKG_CHECK_MODULES([FLACMM], [flac++ >= 1.2])
 PKG_CHECK_MODULES([OPUSFILE], [opusfile >= 0.9])
@@ -99,7 +98,7 @@ case "$host_os" in
     ;;
 esac
 
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 vorbisfile >= 1.3 flac++ >= 1.2 opusfile >= 0.9 vorbis opus ogg openssl >= 1.0])
+PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 flac++ >= 1.2 opusfile >= 0.9 vorbis opus ogg openssl >= 1.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
