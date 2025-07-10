@@ -258,6 +258,16 @@ typedef struct bio_st BIO;
 #include "ToastWidget.h"
 #include "ToastNotification.h"
 
+// I/O and utility components (needed by other components)
+#include "utility.h"
+#include "system.h"
+#include "IOHandler.h"
+#include "FileIOHandler.h"
+#include "HTTPIOHandler.h"
+#include "TagLibIOHandlerAdapter.h"
+#include "URI.h"
+#include "stream.h"
+
 // New demuxer/codec architecture
 #include "Demuxer.h"
 #include "AudioCodec.h"
@@ -271,14 +281,6 @@ typedef struct bio_st BIO;
 #include "ModernStream.h"
 #include "MediaFactory.h"
 #include "FadingWidget.h"
-#include "utility.h"
-#include "system.h"
-#include "IOHandler.h"
-#include "FileIOHandler.h"
-#include "HTTPIOHandler.h"
-#include "TagLibIOStreamAdapter.h"
-#include "URI.h"
-#include "stream.h"
 #include "libmpg123w.h"
 #include "vorbisw.h"
 #include "opusw.h"

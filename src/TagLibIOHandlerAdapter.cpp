@@ -22,11 +22,11 @@
  */
 
 #include "psymp3.h"
-#include "TagLibIOStreamAdapter.h"
+#include "TagLibIOHandlerAdapter.h"
 #include <cstdio>
 #include <algorithm>
 
-TagLibIOStreamAdapter::TagLibIOStreamAdapter(std::unique_ptr<IOHandler> handler, 
+TagLibIOHandlerAdapter::TagLibIOHandlerAdapter(std::unique_ptr<IOHandler> handler, 
                                            const TagLib::String& name, 
                                            bool read_only)
     : m_io_handler(std::move(handler))
@@ -36,23 +36,23 @@ TagLibIOStreamAdapter::TagLibIOStreamAdapter(std::unique_ptr<IOHandler> handler,
     , m_length_cached(false)
 {
     if (!m_io_handler) {
-        throw std::invalid_argument("TagLibIOStreamAdapter: IOHandler cannot be null");
+        throw std::invalid_argument("TagLibIOHandlerAdapter: IOHandler cannot be null");
     }
 }
 
-TagLibIOStreamAdapter::~TagLibIOStreamAdapter()
+TagLibIOHandlerAdapter::~TagLibIOHandlerAdapter()
 {
     if (m_io_handler) {
         m_io_handler->close();
     }
 }
 
-TagLibFileName TagLibIOStreamAdapter::name() const
+TagLibFileName TagLibIOHandlerAdapter::name() const
 {
     return m_name.toCString(true);
 }
 
-TagLib::ByteVector TagLibIOStreamAdapter::readBlock(size_t length)
+TagLib::ByteVector TagLibIOHandlerAdapter::readBlock(size_t length)
 {
     if (!m_io_handler || length == 0) {
         return TagLib::ByteVector();
@@ -72,7 +72,7 @@ TagLib::ByteVector TagLibIOStreamAdapter::readBlock(size_t length)
     return TagLib::ByteVector(buffer.data(), static_cast<unsigned int>(bytes_read));
 }
 
-void TagLibIOStreamAdapter::writeBlock(const TagLib::ByteVector& data)
+void TagLibIOHandlerAdapter::writeBlock(const TagLib::ByteVector& data)
 {
     // Our IOHandler is currently read-only
     // This could be extended if write support is needed
@@ -85,7 +85,7 @@ void TagLibIOStreamAdapter::writeBlock(const TagLib::ByteVector& data)
     // m_io_handler->write(data.data(), 1, data.size());
 }
 
-void TagLibIOStreamAdapter::seek(TagLibOffset offset, Position p)
+void TagLibIOHandlerAdapter::seek(TagLibOffset offset, Position p)
 {
     if (!m_io_handler) {
         return;
@@ -95,7 +95,7 @@ void TagLibIOStreamAdapter::seek(TagLibOffset offset, Position p)
     m_io_handler->seek(offset, whence);
 }
 
-TagLibOffset TagLibIOStreamAdapter::tell() const
+TagLibOffset TagLibIOHandlerAdapter::tell() const
 {
     if (!m_io_handler) {
         return 0;
@@ -105,7 +105,7 @@ TagLibOffset TagLibIOStreamAdapter::tell() const
     return pos >= 0 ? pos : 0;
 }
 
-TagLibOffset TagLibIOStreamAdapter::length()
+TagLibOffset TagLibIOHandlerAdapter::length()
 {
     if (!m_length_cached) {
         calculateLength();
@@ -113,37 +113,37 @@ TagLibOffset TagLibIOStreamAdapter::length()
     return m_length;
 }
 
-void TagLibIOStreamAdapter::truncate(TagLibOffset length)
+void TagLibIOHandlerAdapter::truncate(TagLibOffset length)
 {
     // Not supported by our read-only IOHandler
     // This would require extending IOHandler with truncate support
 }
 
-bool TagLibIOStreamAdapter::readOnly() const
+bool TagLibIOHandlerAdapter::readOnly() const
 {
     return m_read_only;
 }
 
-bool TagLibIOStreamAdapter::isOpen() const
+bool TagLibIOHandlerAdapter::isOpen() const
 {
     // Our IOHandler doesn't have an explicit "isOpen" check
     // We assume it's open if the handler exists and hasn't reached EOF
     return m_io_handler && !m_io_handler->eof();
 }
 
-void TagLibIOStreamAdapter::insert(const TagLib::ByteVector &data, TagLibInsertStart start, TagLibInsertReplace replace)
+void TagLibIOHandlerAdapter::insert(const TagLib::ByteVector &data, TagLibInsertStart start, TagLibInsertReplace replace)
 {
     // Not supported by our read-only IOHandler
     // This is a complex operation that would require write support
 }
 
-void TagLibIOStreamAdapter::removeBlock(TagLibRemoveStart start, TagLibRemoveLength length)
+void TagLibIOHandlerAdapter::removeBlock(TagLibRemoveStart start, TagLibRemoveLength length)
 {
     // Not supported by our read-only IOHandler
     // This is a complex operation that would require write support
 }
 
-void TagLibIOStreamAdapter::calculateLength()
+void TagLibIOHandlerAdapter::calculateLength()
 {
     if (!m_io_handler) {
         m_length = 0;
@@ -177,7 +177,7 @@ void TagLibIOStreamAdapter::calculateLength()
     m_length_cached = true;
 }
 
-int TagLibIOStreamAdapter::convertSeekPosition(Position p) const
+int TagLibIOHandlerAdapter::convertSeekPosition(Position p) const
 {
     switch (p) {
         case Beginning:

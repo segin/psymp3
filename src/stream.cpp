@@ -65,7 +65,21 @@ Stream::Stream(TagLib::String name)
       m_encoding(0),
       m_eof(false)
 {
-    m_tags = std::make_unique<TagLib::FileRef>(name.toCString(true));
+    try {
+        // Create IOHandler-based stream for TagLib to ensure consistent file access
+        auto io_handler = std::make_unique<FileIOHandler>(name);
+        m_taglib_stream = std::make_unique<TagLibIOHandlerAdapter>(
+            std::move(io_handler), name, true);
+        
+        // Use custom stream with TagLib
+        m_tags = std::make_unique<TagLib::FileRef>(m_taglib_stream.get());
+        
+    } catch (std::exception& e) {
+        Debug::runtime("Stream constructor: Failed to create TagLib stream: ", e.what());
+        m_tags = nullptr;
+        m_taglib_stream = nullptr;
+    }
+    
     loadLyrics(); // Load lyrics file if available
 }
 

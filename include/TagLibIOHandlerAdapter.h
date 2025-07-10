@@ -21,8 +21,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef TAGLIBIOSTREAMADAPTER_H
-#define TAGLIBIOSTREAMADAPTER_H
+#ifndef TAGLIBIOHANDLERADAPTER_H
+#define TAGLIBIOHANDLERADAPTER_H
 
 #include "IOHandler.h"
 #include <taglib/tiostream.h>
@@ -66,7 +66,7 @@
  * and metadata reading, solving Unicode filename issues and eliminating
  * the need for multiple file handles to the same file.
  */
-class TagLibIOStreamAdapter : public TagLib::IOStream
+class TagLibIOHandlerAdapter : public TagLib::IOStream
 {
 public:
     /**
@@ -75,14 +75,14 @@ public:
      * @param name The stream name for TagLib
      * @param read_only Whether the stream is read-only
      */
-    explicit TagLibIOStreamAdapter(std::unique_ptr<IOHandler> handler, 
+    explicit TagLibIOHandlerAdapter(std::unique_ptr<IOHandler> handler, 
                                   const TagLib::String& name, 
                                   bool read_only = true);
 
     /**
      * @brief Destructor - ensures proper cleanup of IOHandler.
      */
-    ~TagLibIOStreamAdapter() override;
+    ~TagLibIOHandlerAdapter() override;
 
     // TagLib::IOStream interface implementation
     TagLibFileName name() const override;
@@ -117,4 +117,4 @@ private:
     int convertSeekPosition(Position p) const;
 };
 
-#endif // TAGLIBIOSTREAMADAPTER_H
+#endif // TAGLIBIOHANDLERADAPTER_H

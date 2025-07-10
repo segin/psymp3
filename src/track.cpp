@@ -48,7 +48,7 @@ void track::loadTags() {
             // Create IOHandler-based stream for TagLib
             // This solves Unicode filename issues and provides unified I/O
             auto io_handler = std::make_unique<FileIOHandler>(m_FilePath);
-            m_TagLibStream = std::make_unique<TagLibIOStreamAdapter>(
+            m_TagLibStream = std::make_unique<TagLibIOHandlerAdapter>(
                 std::move(io_handler), m_FilePath, true);
             
             // Use custom stream with TagLib

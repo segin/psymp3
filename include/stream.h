@@ -26,7 +26,6 @@
 #define STREAM_H
 
 #include "lyrics.h"
-#include <memory>
 
 class Stream
 {
@@ -84,6 +83,7 @@ class Stream
         
     private:
         std::unique_ptr<TagLib::FileRef> m_tags;
+        std::unique_ptr<TagLibIOHandlerAdapter> m_taglib_stream;
         
         // Helper method to load lyrics for this stream
         void loadLyrics();
