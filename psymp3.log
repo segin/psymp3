@@ -12,7 +12,7 @@ System::getUser: segin
 System::getHome: /home/segin
 TrueType::Init() called.
 TrueType::Init() successful.
-Display::Display() got 0x7f7ed78ca820
+Display::Display() got 0x7f39683d4820
 Font constructor called for file: /usr/local/share/psymp3/data/vera.ttf, ptsize: c
 FT_New_Face successful.
 FT_Set_Pixel_Sizes successful.
@@ -27,10 +27,10 @@ timer: skipped
 timer: skipped
 timer: skipped
 timer: skipped
-timer: skipped
 Stream::loadLyrics: Looking for lyrics for: /mnt/8TB-3/music/AJR/OK ORCHESTRA/01 AJR - OK Overture.opus
 Stream::loadLyrics: Found lyrics file: /mnt/8TB-3/music/AJR/OK ORCHESTRA/01 AJR - OK Overture.lrc
 Stream::loadLyrics: Successfully loaded 3c lyric lines
+OggDemuxer: Processing packet for stream ed580032, codec=opus, packet_size=13, headers_complete=0
 OggDemuxer: parseOpusHeaders called, packet_size=13, first 16 bytes: 'OpusHead\x1\x28\x1D\x172\x0\x0'
 OggDemuxer: OpusHead header found, channels=2, packet_size=13
 OggDemuxer: parseOpusHeaders returned 1 for packet size 13
@@ -39,12 +39,12 @@ OggDemuxer: Could not determine duration, using fallback
 Stream::loadLyrics: Looking for lyrics for: /mnt/8TB-3/music/AJR/OK ORCHESTRA/01 AJR - OK Overture.opus
 Stream::loadLyrics: Found lyrics file: /mnt/8TB-3/music/AJR/OK ORCHESTRA/01 AJR - OK Overture.lrc
 Stream::loadLyrics: Successfully loaded 3c lyric lines
+OggDemuxer: Processing packet for stream ed580032, codec=opus, packet_size=13, headers_complete=0
 OggDemuxer: parseOpusHeaders called, packet_size=13, first 16 bytes: 'OpusHead\x1\x28\x1D\x172\x0\x0'
 OggDemuxer: OpusHead header found, channels=2, packet_size=13
 OggDemuxer: parseOpusHeaders returned 1 for packet size 13
 OggDemuxer: Added header packet 1 for stream ed580032, codec=opus
 OggDemuxer: Could not determine duration, using fallback
-timer: skipped
 Audio::Audio(): 48000Hz, channels: 2
 Audio::setup: channels: 2
 Player: Setting lyrics widget with 60 lyric lines
@@ -55,7 +55,6 @@ OpusCodec::decode called - chunk.data.size=763467, timestamp=0ms
 OpusCodec: Processing header packet 1
 OpusCodec: processHeaderPacket called, packet_size=763467
 OpusCodec: First 8 bytes: 'OpusTags'
-timer: skipped
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
@@ -2832,7 +2831,8 @@ OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
 OggDemuxer: Packet granule=296640, page_granule=1665600, effective_granule=296640, timestamp_ms=6180, packet_size=1276
-DemuxedStream: Decoding chunk timestamp=6180ms, size=1276 bytes
+timer: skippedDemuxedStream: Decoding chunk timestamp=
+6180ms, size=1276 bytes
 OpusCodec::decode called - chunk.data.size=1276, timestamp=6180ms
 OpusCodec: Processing header packet 1
 OpusCodec: processHeaderPacket called, packet_size=1276
@@ -2891,7 +2891,6 @@ OpusCodec::decode called - chunk.data.size=822, timestamp=35400ms
 OpusCodec: Processing header packet 1
 OpusCodec: processHeaderPacket called, packet_size=822
 OpusCodec: First 8 bytes: '\x-4\x-43\x-33O:\x-124\x-17\x-86'
-timer: skipped
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
@@ -4479,7 +4478,6 @@ OpusCodec: First 8 bytes: '\x-4\x-58\x-8\x-44\x-22\x-48\x-85\x-39'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=472320, page_granule=2650560, effective_granule=472320, timestamp_ms=9840, packet_size=1276
 DemuxedStream: Decoding chunk timestamp=9840ms, size=1276 bytes
 OpusCodec::decode called - chunk.data.size=1276, timestamp=9840ms
@@ -5173,6 +5171,7 @@ OpusCodec: First 8 bytes: '\x-4\x-43Tv\x-42f\x-109#'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=3054720, effective_granule=3054720, timestamp_ms=63640, packet_size=1276
 DemuxedStream: Decoding chunk timestamp=63640ms, size=1276 bytes
 OpusCodec::decode called - chunk.data.size=1276, timestamp=63640ms
@@ -5848,7 +5847,6 @@ OpusCodec: First 8 bytes: '\x-4\x-112\x-38\x100W`\x-115'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=3461760, effective_granule=3461760, timestamp_ms=72120, packet_size=1166
 DemuxedStream: Decoding chunk timestamp=72120ms, size=1166 bytes
 OpusCodec::decode called - chunk.data.size=1166, timestamp=72120ms
@@ -6803,6 +6801,7 @@ OpusCodec: First 8 bytes: '\x-4\x-82\x-43\x-23\x15p\x22^'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=4025280, effective_granule=4025280, timestamp_ms=83860, packet_size=741
 DemuxedStream: Decoding chunk timestamp=83860ms, size=741 bytes
 OpusCodec::decode called - chunk.data.size=741, timestamp=83860ms
@@ -6875,7 +6874,6 @@ OpusCodec: First 8 bytes: '\x-4/nl\x-91\x-121\x-2\x27'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=4069440, effective_granule=4069440, timestamp_ms=84780, packet_size=744
 DemuxedStream: Decoding chunk timestamp=84780ms, size=744 bytes
 OpusCodec::decode called - chunk.data.size=744, timestamp=84780ms
@@ -7659,7 +7657,6 @@ OpusCodec: First 8 bytes: '\x-4M&\x-42\x-93\x-37\x0@'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=4548480, effective_granule=4548480, timestamp_ms=94760, packet_size=742
 DemuxedStream: Decoding chunk timestamp=94760ms, size=742 bytes
 OpusCodec::decode called - chunk.data.size=742, timestamp=94760ms
@@ -8146,6 +8143,7 @@ OpusCodec: First 8 bytes: '\x-4\x-18\x-84;\x-43#\x11\x-15'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=863040, page_granule=4836480, effective_granule=863040, timestamp_ms=17980, packet_size=848
 DemuxedStream: Decoding chunk timestamp=17980ms, size=848 bytes
 OpusCodec::decode called - chunk.data.size=848, timestamp=17980ms
@@ -8451,7 +8449,6 @@ OpusCodec: processHeaderPacket called, packet_size=743
 OpusCodec: First 8 bytes: '\x-4\x-15\x22\x-54\x-25S\x-100g'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
-timer: skipped
 DemuxedStream: Codec returned empty frame
 OggDemuxer: Packet granule=-1, page_granule=5018880, effective_granule=5018880, timestamp_ms=104560, packet_size=744
 DemuxedStream: Decoding chunk timestamp=104560ms, size=744 bytes
@@ -9110,6 +9107,7 @@ OpusCodec: First 8 bytes: '\x-4\x-43\x-5:\x-74\x-114\x5\x-117'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=5416320, effective_granule=5416320, timestamp_ms=112840, packet_size=750
 DemuxedStream: Decoding chunk timestamp=112840ms, size=750 bytes
 OpusCodec::decode called - chunk.data.size=750, timestamp=112840ms
@@ -9182,7 +9180,6 @@ OpusCodec: First 8 bytes: '\x-4\x9\x-125,]-QO'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=5461440, effective_granule=5461440, timestamp_ms=113780, packet_size=746
 DemuxedStream: Decoding chunk timestamp=113780ms, size=746 bytes
 OpusCodec::decode called - chunk.data.size=746, timestamp=113780ms
@@ -9975,6 +9972,7 @@ OpusCodec: First 8 bytes: '\x-4\x-18\x-52\x23\x20\x15E|'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=5940480, effective_granule=5940480, timestamp_ms=123760, packet_size=766
 DemuxedStream: Decoding chunk timestamp=123760ms, size=766 bytes
 OpusCodec::decode called - chunk.data.size=766, timestamp=123760ms
@@ -10011,7 +10009,6 @@ OpusCodec: First 8 bytes: '\x-4\x-39i\x-88\x-18\x-1045k'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=5963520, effective_granule=5963520, timestamp_ms=124240, packet_size=953
 DemuxedStream: Decoding chunk timestamp=124240ms, size=953 bytes
 OpusCodec::decode called - chunk.data.size=953, timestamp=124240ms
@@ -10813,7 +10810,6 @@ OpusCodec: First 8 bytes: '\x-41\x-114m\x-8 \x-41('
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=1147200, page_granule=6458880, effective_granule=1147200, timestamp_ms=23900, packet_size=746
 DemuxedStream: Decoding chunk timestamp=23900ms, size=746 bytes
 OpusCodec::decode called - chunk.data.size=746, timestamp=23900ms
@@ -10823,6 +10819,7 @@ OpusCodec: First 8 bytes: '\x-41\x13\x-67\x-98\x-89\x-36\x-60'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=6463680, effective_granule=6463680, timestamp_ms=134660, packet_size=720
 DemuxedStream: Decoding chunk timestamp=134660ms, size=720 bytes
 OpusCodec::decode called - chunk.data.size=720, timestamp=134660ms
@@ -11552,7 +11549,6 @@ OpusCodec: First 8 bytes: '\x-4L\x-80\x-8\x-4\x-63\x-59\x-28'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=6912960, effective_granule=6912960, timestamp_ms=144020, packet_size=743
 DemuxedStream: Decoding chunk timestamp=144020ms, size=743 bytes
 OpusCodec::decode called - chunk.data.size=743, timestamp=144020ms
@@ -11661,6 +11657,7 @@ OpusCodec: First 8 bytes: '\x-4.\x3\x-35WO\x-71\x-39'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=6979200, effective_granule=6979200, timestamp_ms=145400, packet_size=1276
 DemuxedStream: Decoding chunk timestamp=145400ms, size=1276 bytes
 OpusCodec::decode called - chunk.data.size=1276, timestamp=145400ms
@@ -12039,7 +12036,6 @@ OpusCodec: First 8 bytes: '\x-4\x-82\x-116\x-57\x-104}\x-82`'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=1277760, page_granule=7212480, effective_granule=1277760, timestamp_ms=26620, packet_size=1276
 DemuxedStream: Decoding chunk timestamp=26620ms, size=1276 bytes
 OpusCodec::decode called - chunk.data.size=1276, timestamp=26620ms
@@ -12409,6 +12405,7 @@ OpusCodec: First 8 bytes: '\x-4|\x-84\x-39\x-71\x-68\x-110\x-72'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=7429440, effective_granule=7429440, timestamp_ms=154780, packet_size=741
 DemuxedStream: Decoding chunk timestamp=154780ms, size=741 bytes
 OpusCodec::decode called - chunk.data.size=741, timestamp=154780ms
@@ -12526,7 +12523,6 @@ OpusCodec: First 8 bytes: '\x-46\x-78\x-27\x-41z\x21\x-115'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=7497600, effective_granule=7497600, timestamp_ms=156200, packet_size=749
 DemuxedStream: Decoding chunk timestamp=156200ms, size=749 bytes
 OpusCodec::decode called - chunk.data.size=749, timestamp=156200ms
@@ -12995,7 +12991,6 @@ OpusCodec: First 8 bytes: '\x-4\x-40\x-116\x31B\x9\x-79\x-98'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=7775040, effective_granule=7775040, timestamp_ms=161980, packet_size=747
 DemuxedStream: Decoding chunk timestamp=161980ms, size=747 bytes
 OpusCodec::decode called - chunk.data.size=747, timestamp=161980ms
@@ -13176,6 +13171,7 @@ OpusCodec: First 8 bytes: '\x-4\x-15\x15\x-78\x6\x-22lQ'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=7883520, effective_granule=7883520, timestamp_ms=164240, packet_size=788
 DemuxedStream: Decoding chunk timestamp=164240ms, size=788 bytes
 OpusCodec::decode called - chunk.data.size=788, timestamp=164240ms
@@ -13572,7 +13568,6 @@ OpusCodec: First 8 bytes: '\x-4'\x-26\x-93\x-79L\x-120\x-87'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=8126400, effective_granule=8126400, timestamp_ms=169300, packet_size=814
 DemuxedStream: Decoding chunk timestamp=169300ms, size=814 bytes
 OpusCodec::decode called - chunk.data.size=814, timestamp=169300ms
@@ -13870,6 +13865,7 @@ OpusCodec: First 8 bytes: '\x-4\x-39m/T\x-116\x-3\x-66'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=8309760, effective_granule=8309760, timestamp_ms=173120, packet_size=770
 DemuxedStream: Decoding chunk timestamp=173120ms, size=770 bytes
 OpusCodec::decode called - chunk.data.size=770, timestamp=173120ms
@@ -14185,7 +14181,6 @@ OpusCodec: First 8 bytes: '\x-4\x-54a\x-34\x-32\x28\x-70\x-97'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=8510400, effective_granule=8510400, timestamp_ms=177300, packet_size=732
 DemuxedStream: Decoding chunk timestamp=177300ms, size=732 bytes
 OpusCodec::decode called - chunk.data.size=732, timestamp=177300ms
@@ -14546,6 +14541,7 @@ OpusCodec: First 8 bytes: '\x-4\x-43Uu\x10\x-55\x-112'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=8734080, effective_granule=8734080, timestamp_ms=181960, packet_size=751
 DemuxedStream: Decoding chunk timestamp=181960ms, size=751 bytes
 OpusCodec::decode called - chunk.data.size=751, timestamp=181960ms
@@ -14735,7 +14731,6 @@ OpusCodec: First 8 bytes: '\x-4L\x-67\x13\x-5\x-19\x-36y'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=8846400, effective_granule=8846400, timestamp_ms=184300, packet_size=751
 DemuxedStream: Decoding chunk timestamp=184300ms, size=751 bytes
 OpusCodec::decode called - chunk.data.size=751, timestamp=184300ms
@@ -15240,6 +15235,7 @@ OpusCodec: First 8 bytes: '\x-4\x-79\x13\x-49\x-74\x13\x-8\x-38'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=9103680, effective_granule=9103680, timestamp_ms=189660, packet_size=796
 DemuxedStream: Decoding chunk timestamp=189660ms, size=796 bytes
 OpusCodec::decode called - chunk.data.size=796, timestamp=189660ms
@@ -15303,7 +15299,6 @@ OpusCodec: First 8 bytes: '\x-4\x-16\x-32\x-116^\x-13\x-106`'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=9135360, effective_granule=9135360, timestamp_ms=190320, packet_size=792
 DemuxedStream: Decoding chunk timestamp=190320ms, size=792 bytes
 OpusCodec::decode called - chunk.data.size=792, timestamp=190320ms
@@ -16358,7 +16353,6 @@ OpusCodec: First 8 bytes: '\x-4N8\x-116mE\x-22\x13'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=9699840, effective_granule=9699840, timestamp_ms=202080, packet_size=765
 DemuxedStream: Decoding chunk timestamp=202080ms, size=765 bytes
 OpusCodec::decode called - chunk.data.size=765, timestamp=202080ms
@@ -16386,6 +16380,7 @@ OpusCodec: First 8 bytes: '\x-4\x-939C\x-127\x31\x-123\x-44'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=9714240, effective_granule=9714240, timestamp_ms=202380, packet_size=772
 DemuxedStream: Decoding chunk timestamp=202380ms, size=772 bytes
 OpusCodec::decode called - chunk.data.size=772, timestamp=202380ms
@@ -16890,7 +16885,6 @@ OpusCodec: First 8 bytes: '\x-4X\x-60Yl\x-100\x29\x-15'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=1794240, page_granule=9990720, effective_granule=1794240, timestamp_ms=37380, packet_size=1276
 DemuxedStream: Decoding chunk timestamp=37380ms, size=1276 bytes
 OpusCodec::decode called - chunk.data.size=1276, timestamp=37380ms
@@ -16963,6 +16957,7 @@ OpusCodec: First 8 bytes: '\x-4L\x-86\x-103z\x-19\x28\x-40'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=10030080, effective_granule=10030080, timestamp_ms=208960, packet_size=751
 DemuxedStream: Decoding chunk timestamp=208960ms, size=751 bytes
 OpusCodec::decode called - chunk.data.size=751, timestamp=208960ms
@@ -17284,9 +17279,8 @@ OpusCodec::decode called - chunk.data.size=778, timestamp=212640ms
 OpusCodec: Processing header packet 1
 OpusCodec: processHeaderPacket called, packet_size=778
 OpusCodec: First 8 bytes: '\x-4Msx\x-2E\x-59\x-29'
-timer: skippedOpusCodec: Header packet not recognized, returning false
+OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
-
 DemuxedStream: Codec returned empty frame
 OggDemuxer: Packet granule=-1, page_granule=10212480, effective_granule=10212480, timestamp_ms=212760, packet_size=804
 DemuxedStream: Decoding chunk timestamp=212760ms, size=804 bytes
@@ -17459,6 +17453,7 @@ OpusCodec: First 8 bytes: '\x-4\x-107\x-1161DV\x-37\x-107'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=10319040, effective_granule=10319040, timestamp_ms=214980, packet_size=774
 DemuxedStream: Decoding chunk timestamp=214980ms, size=774 bytes
 OpusCodec::decode called - chunk.data.size=774, timestamp=214980ms
@@ -17648,7 +17643,6 @@ OpusCodec: First 8 bytes: '\x-4\x-70\x-61\x-85SA\x-43\x-122'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=10427520, effective_granule=10427520, timestamp_ms=217240, packet_size=872
 DemuxedStream: Decoding chunk timestamp=217240ms, size=872 bytes
 OpusCodec::decode called - chunk.data.size=872, timestamp=217240ms
@@ -17928,6 +17922,7 @@ OpusCodec: First 8 bytes: '\x-4MWbK\x-81\x18'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=10587840, effective_granule=10587840, timestamp_ms=220580, packet_size=763
 DemuxedStream: Decoding chunk timestamp=220580ms, size=763 bytes
 OpusCodec::decode called - chunk.data.size=763, timestamp=220580ms
@@ -18162,7 +18157,6 @@ OpusCodec: First 8 bytes: '\x-4\x-79\x135m\x28\x-34\x-53'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=1929600, page_granule=10728000, effective_granule=1929600, timestamp_ms=40200, packet_size=800
 DemuxedStream: Decoding chunk timestamp=40200ms, size=800 bytes
 OpusCodec::decode called - chunk.data.size=800, timestamp=40200ms
@@ -18406,6 +18400,7 @@ OpusCodec: First 8 bytes: '\x-44\x-3\x-652]|\x-97'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=10868160, effective_granule=10868160, timestamp_ms=226420, packet_size=797
 DemuxedStream: Decoding chunk timestamp=226420ms, size=797 bytes
 OpusCodec::decode called - chunk.data.size=797, timestamp=226420ms
@@ -18649,7 +18644,6 @@ OpusCodec: First 8 bytes: '\x-4L\x-83\x-49\x-70\x2\x127\x-31'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=1981440, page_granule=11011200, effective_granule=1981440, timestamp_ms=41280, packet_size=766
 DemuxedStream: Decoding chunk timestamp=41280ms, size=766 bytes
 OpusCodec::decode called - chunk.data.size=766, timestamp=41280ms
@@ -18911,6 +18905,7 @@ OpusCodec: First 8 bytes: '\x-41\x18\x-2\x16\x-97\x28\x19'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=11162880, effective_granule=11162880, timestamp_ms=232560, packet_size=777
 DemuxedStream: Decoding chunk timestamp=232560ms, size=777 bytes
 OpusCodec::decode called - chunk.data.size=777, timestamp=232560ms
@@ -19010,7 +19005,6 @@ OpusCodec: First 8 bytes: '\x-4\x-60\x19\x-61\x-66\x-116\x-96b'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=11223360, effective_granule=11223360, timestamp_ms=233820, packet_size=779
 DemuxedStream: Decoding chunk timestamp=233820ms, size=779 bytes
 OpusCodec::decode called - chunk.data.size=779, timestamp=233820ms
@@ -19209,6 +19203,7 @@ OpusCodec: First 8 bytes: '\x-4X\x-67\x-79\x4\x18Z\x-87'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=2040960, page_granule=11344320, effective_granule=2040960, timestamp_ms=42520, packet_size=1276
 DemuxedStream: Decoding chunk timestamp=42520ms, size=1276 bytes
 OpusCodec::decode called - chunk.data.size=1276, timestamp=42520ms
@@ -19443,7 +19438,6 @@ OpusCodec: First 8 bytes: '\x-4\x-101\x-73\x-50\x16\x28)\x-18'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=11488320, effective_granule=11488320, timestamp_ms=239340, packet_size=755
 DemuxedStream: Decoding chunk timestamp=239340ms, size=755 bytes
 OpusCodec::decode called - chunk.data.size=755, timestamp=239340ms
@@ -19714,6 +19708,7 @@ OpusCodec: First 8 bytes: '\x-4L\x-41\x21\x-24\x-11\x29\x11'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=11661120, effective_granule=11661120, timestamp_ms=242940, packet_size=787
 DemuxedStream: Decoding chunk timestamp=242940ms, size=787 bytes
 OpusCodec::decode called - chunk.data.size=787, timestamp=242940ms
@@ -19894,7 +19889,6 @@ OpusCodec: First 8 bytes: '\x-4I\x-33\x-1182K\x-21T'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=2113920, page_granule=11768640, effective_granule=2113920, timestamp_ms=44040, packet_size=786
 DemuxedStream: Decoding chunk timestamp=44040ms, size=786 bytes
 OpusCodec::decode called - chunk.data.size=786, timestamp=44040ms
@@ -20138,6 +20132,7 @@ OpusCodec: First 8 bytes: '\x-4\x-58lP\x-55\x-102[\x-5'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=11919360, effective_granule=11919360, timestamp_ms=248320, packet_size=760
 DemuxedStream: Decoding chunk timestamp=248320ms, size=760 bytes
 OpusCodec::decode called - chunk.data.size=760, timestamp=248320ms
@@ -20377,7 +20372,6 @@ DemuxedStream: Decoding chunk timestamp=251420ms, size=758 bytes
 OpusCodec::decode called - chunk.data.size=758, timestamp=251420ms
 OpusCodec: Processing header packet 1
 OpusCodec: processHeaderPacket called, packet_size=758
-timer: skipped
 OpusCodec: First 8 bytes: '\x-4\x-88\x-122\x-25Tz\x-15\x-62'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
@@ -20526,6 +20520,7 @@ OpusCodec: First 8 bytes: '\x-46\x-117\x-97\x15D|\x-64'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=12166080, effective_granule=12166080, timestamp_ms=253460, packet_size=765
 DemuxedStream: Decoding chunk timestamp=253460ms, size=765 bytes
 OpusCodec::decode called - chunk.data.size=765, timestamp=253460ms
@@ -20778,7 +20773,6 @@ OpusCodec: First 8 bytes: '\x-4\x-67\x-17}\x-29"\x-65>'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=12325440, effective_granule=12325440, timestamp_ms=256780, packet_size=1244
 DemuxedStream: Decoding chunk timestamp=256780ms, size=1244 bytes
 OpusCodec::decode called - chunk.data.size=1244, timestamp=256780ms
@@ -20959,6 +20953,7 @@ OpusCodec: First 8 bytes: '\x-4\x-113\x-29\x0?\x14=\x-37'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=12440640, effective_granule=12440640, timestamp_ms=259180, packet_size=769
 DemuxedStream: Decoding chunk timestamp=259180ms, size=769 bytes
 OpusCodec::decode called - chunk.data.size=769, timestamp=259180ms
@@ -21180,10 +21175,9 @@ DemuxedStream: Decoding chunk timestamp=262040ms, size=962 bytes
 OpusCodec::decode called - chunk.data.size=962, timestamp=262040ms
 OpusCodec: Processing header packet 1
 OpusCodec: processHeaderPacket called, packet_size=962
-timer: skippedOpusCodec: First 8 bytes: '\x-4\x-1033\x-119\x-50\x-76A\x-19'
+OpusCodec: First 8 bytes: '\x-4\x-1033\x-119\x-50\x-76A\x-19'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
-
 DemuxedStream: Codec returned empty frame
 OggDemuxer: Packet granule=-1, page_granule=12583680, effective_granule=12583680, timestamp_ms=262160, packet_size=954
 DemuxedStream: Decoding chunk timestamp=262160ms, size=954 bytes
@@ -21374,6 +21368,7 @@ OpusCodec: First 8 bytes: '\x-4\x-58l\x-112\x-78E\x-13\x-94'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=12702720, effective_granule=12702720, timestamp_ms=264640, packet_size=779
 DemuxedStream: Decoding chunk timestamp=264640ms, size=779 bytes
 OpusCodec::decode called - chunk.data.size=779, timestamp=264640ms
@@ -21626,7 +21621,6 @@ OpusCodec: First 8 bytes: '\x-4\x-79\x171\x-75\x-91\x-25g'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
-timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=12853440, effective_granule=12853440, timestamp_ms=267780, packet_size=784
 DemuxedStream: Decoding chunk timestamp=267780ms, size=784 bytes
 OpusCodec::decode called - chunk.data.size=784, timestamp=267780ms
@@ -21825,6 +21819,7 @@ OpusCodec: First 8 bytes: '\x-4\x-79\x21\x-51\x9\x-128\x-82E'
 OpusCodec: Header packet not recognized, returning false
 OpusCodec: Header packet 1 processing failed
 DemuxedStream: Codec returned empty frame
+timer: skipped
 OggDemuxer: Packet granule=-1, page_granule=12974400, effective_granule=12974400, timestamp_ms=270300, packet_size=943
 DemuxedStream: Decoding chunk timestamp=270300ms, size=943 bytes
 OpusCodec::decode called - chunk.data.size=943, timestamp=270300ms
@@ -21946,7 +21941,6 @@ OggDemuxer: Failed to read data. bytes_read=0, current_pos=11951351, file_size=1
 OggDemuxer: Reached EOF at position 271680ms out of 300000ms total duration
 DemuxedStream: Got empty chunk, breaking
 Player: User visible position=0ms, total_len=271880ms
-timer: skipped
 LastFM: Cannot unset now playing - not configured
 timer: skipped
 timer: skipped

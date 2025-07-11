@@ -144,6 +144,11 @@ bool OggDemuxer::processPages() {
                 ogg_packet.is_first_packet = packet.b_o_s;
                 ogg_packet.is_last_packet = packet.e_o_s;
                 
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("OggDemuxer: Processing packet for stream ", stream_id, ", codec=", stream.codec_name, 
+                                   ", packet_size=", packet.bytes, ", headers_complete=", stream.headers_complete);
+                }
+                
                 bool is_header_packet = false;
                 if (stream.codec_name == "vorbis") {
                     is_header_packet = parseVorbisHeaders(stream, ogg_packet);
@@ -321,6 +326,70 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
         m_packet_queue.pop();
         
         if (packet.stream_id == stream_id) {
+            // Check if this queued packet is actually a header packet that was missed
+            auto stream_it = m_streams.find(stream_id);
+            if (stream_it != m_streams.end()) {
+                OggStream& stream = stream_it->second;
+                
+                // For Opus, check if this is a missed OpusTags header
+                if (stream.codec_name == "opus" && !stream.headers_complete) {
+                    if (packet.data.size() >= 8 && std::memcmp(packet.data.data(), "OpusTags", 8) == 0) {
+                        if (Debug::runtime_debug_enabled) {
+                            Debug::runtime("OggDemuxer: Found missed OpusTags header in queue, processing as header");
+                        }
+                        
+                        // Process as header packet
+                        if (parseOpusHeaders(stream, packet)) {
+                            stream.header_packets.push_back(packet);
+                            if (stream.header_packets.size() >= 2) {
+                                stream.headers_complete = true;
+                                stream.headers_sent = false;
+                                stream.next_header_index = 0;
+                                if (Debug::runtime_debug_enabled) {
+                                    Debug::runtime("OggDemuxer: Opus headers now complete, will deliver headers first");
+                                }
+                            }
+                        }
+                        
+                        // Try to return the first header packet instead
+                        if (!stream.headers_sent && stream.headers_complete) {
+                            if (stream.next_header_index < stream.header_packets.size()) {
+                                const OggPacket& header_packet = stream.header_packets[stream.next_header_index];
+                                stream.next_header_index++;
+                                
+                                MediaChunk chunk;
+                                chunk.stream_id = stream_id;
+                                chunk.data = header_packet.data;
+                                chunk.timestamp_samples = header_packet.granule_position;
+                                chunk.timestamp_ms = granuleToMs(header_packet.granule_position, stream_id);
+                                chunk.is_keyframe = true;
+                                
+                                if (Debug::runtime_debug_enabled) {
+                                    std::string header_type = "unknown";
+                                    if (chunk.data.size() >= 8) {
+                                        if (std::memcmp(chunk.data.data(), "OpusHead", 8) == 0) {
+                                            header_type = "OpusHead";
+                                        } else if (std::memcmp(chunk.data.data(), "OpusTags", 8) == 0) {
+                                            header_type = "OpusTags";
+                                        }
+                                    }
+                                    Debug::runtime("OggDemuxer: Delivering header packet ", stream.next_header_index, "/", stream.header_packets.size(), 
+                                                   ", type=", header_type, ", size=", chunk.data.size(), " bytes");
+                                }
+                                
+                                if (stream.next_header_index >= stream.header_packets.size()) {
+                                    stream.headers_sent = true;
+                                }
+                                
+                                return chunk;
+                            }
+                        }
+                        
+                        continue; // Skip this packet since it was processed as header
+                    }
+                }
+            }
+            
             MediaChunk chunk;
             chunk.stream_id = stream_id;
             chunk.data = std::move(packet.data);
