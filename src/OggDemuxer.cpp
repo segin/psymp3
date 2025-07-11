@@ -171,25 +171,35 @@ bool OggDemuxer::processPages() {
                     // If this packet wasn't a header but we haven't completed headers yet,
                     // this might be an audio packet that came before we finished parsing headers.
                     // Queue it for later processing after headers are complete.
-                    OggPacket audio_packet;
-                    audio_packet.stream_id = stream_id;
-                    audio_packet.data.assign(packet.packet, packet.packet + packet.bytes);
-                    audio_packet.granule_position = packet.granulepos;
-                    audio_packet.is_first_packet = packet.b_o_s;
-                    audio_packet.is_last_packet = packet.e_o_s;
                     
-                    m_packet_queue.push(audio_packet);
+                    // Limit packet queue size to prevent memory bloat
+                    constexpr size_t MAX_PACKET_QUEUE_SIZE = 200;
+                    if (m_packet_queue.size() < MAX_PACKET_QUEUE_SIZE) {
+                        OggPacket audio_packet;
+                        audio_packet.stream_id = stream_id;
+                        audio_packet.data.assign(packet.packet, packet.packet + packet.bytes);
+                        audio_packet.granule_position = packet.granulepos;
+                        audio_packet.is_first_packet = packet.b_o_s;
+                        audio_packet.is_last_packet = packet.e_o_s;
+                        
+                        m_packet_queue.push(audio_packet);
+                    }
                 }
             } else {
                 // Queue audio packets for later consumption
-                OggPacket ogg_packet;
-                ogg_packet.stream_id = stream_id;
-                ogg_packet.data.assign(packet.packet, packet.packet + packet.bytes);
-                ogg_packet.granule_position = packet.granulepos;
-                ogg_packet.is_first_packet = packet.b_o_s;
-                ogg_packet.is_last_packet = packet.e_o_s;
                 
-                m_packet_queue.push(ogg_packet);
+                // Limit packet queue size to prevent memory bloat
+                constexpr size_t MAX_PACKET_QUEUE_SIZE = 200;
+                if (m_packet_queue.size() < MAX_PACKET_QUEUE_SIZE) {
+                    OggPacket ogg_packet;
+                    ogg_packet.stream_id = stream_id;
+                    ogg_packet.data.assign(packet.packet, packet.packet + packet.bytes);
+                    ogg_packet.granule_position = packet.granulepos;
+                    ogg_packet.is_first_packet = packet.b_o_s;
+                    ogg_packet.is_last_packet = packet.e_o_s;
+                    
+                    m_packet_queue.push(ogg_packet);
+                }
             }
         }
     }
@@ -279,7 +289,6 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
         m_packet_queue.pop();
         
         if (packet.stream_id == stream_id) {
-            
             MediaChunk chunk;
             chunk.stream_id = stream_id;
             chunk.data = std::move(packet.data);
@@ -287,7 +296,16 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
             chunk.timestamp_ms = granuleToMs(packet.granule_position, stream_id);
             chunk.is_keyframe = true;
             
-            m_position_ms = chunk.timestamp_ms;
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: Queued packet granule=", packet.granule_position, 
+                               ", timestamp_ms=", chunk.timestamp_ms, 
+                               ", packet_size=", chunk.data.size());
+            }
+            
+            // Only update position if we have a valid, increasing timestamp
+            if (chunk.timestamp_ms > 0 && chunk.timestamp_ms >= m_position_ms) {
+                m_position_ms = chunk.timestamp_ms;
+            }
             return chunk;
         }
     }
@@ -312,6 +330,9 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 continue;
             }
             
+            // Get page granule position for interpolation
+            uint64_t page_granule = ogg_page_granulepos(&page);
+            
             // Extract packets
             ogg_packet packet;
             while (ogg_stream_packetout(&m_ogg_streams[page_stream_id], &packet) == 1) {
@@ -319,11 +340,34 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                     MediaChunk chunk;
                     chunk.stream_id = stream_id;
                     chunk.data.assign(packet.packet, packet.packet + packet.bytes);
-                    chunk.timestamp_samples = packet.granulepos;
-                    chunk.timestamp_ms = granuleToMs(packet.granulepos, stream_id);
+                    
+                    // Use packet granule position if available, otherwise interpolate
+                    uint64_t effective_granule = packet.granulepos;
+                    if (effective_granule == static_cast<uint64_t>(-1)) {
+                        // Use page granule position but only if it's from our stream
+                        if (page_granule != static_cast<uint64_t>(-1)) {
+                            effective_granule = page_granule;
+                        } else {
+                            effective_granule = 0;
+                        }
+                    }
+                    
+                    chunk.timestamp_samples = effective_granule;
+                    chunk.timestamp_ms = granuleToMs(effective_granule, stream_id);
                     chunk.is_keyframe = true;
                     
-                    m_position_ms = chunk.timestamp_ms;
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: Packet granule=", packet.granulepos, 
+                                       ", page_granule=", page_granule,
+                                       ", effective_granule=", effective_granule,
+                                       ", timestamp_ms=", chunk.timestamp_ms, 
+                                       ", packet_size=", packet.bytes);
+                    }
+                    
+                    // Only update position if we have a valid, increasing timestamp
+                    if (chunk.timestamp_ms > 0 && chunk.timestamp_ms >= m_position_ms) {
+                        m_position_ms = chunk.timestamp_ms;
+                    }
                     return chunk;
                 }
             }
@@ -340,19 +384,31 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
         m_packet_queue.pop();
     }
     
-    // For simplicity, seek to beginning for now
-    // A full implementation would do bisection search
-    m_handler->seek(0, SEEK_SET);
-    ogg_sync_reset(&m_sync_state);
-    
-    for (auto& [stream_id, ogg_stream] : m_ogg_streams) {
-        ogg_stream_reset(&ogg_stream);
+    // If seeking to beginning, do it directly
+    if (timestamp_ms == 0) {
+        m_handler->seek(0, SEEK_SET);
+        ogg_sync_reset(&m_sync_state);
+        
+        for (auto& [stream_id, ogg_stream] : m_ogg_streams) {
+            ogg_stream_reset(&ogg_stream);
+        }
+        
+        m_position_ms = 0;
+        m_eof = false;
+        return true;
     }
     
-    m_position_ms = 0;
-    m_eof = false;
+    // Find the best audio stream to use for seeking
+    uint32_t stream_id = findBestAudioStream();
+    if (stream_id == 0) {
+        return false;
+    }
     
-    return true;
+    // Convert timestamp to granule position for seeking
+    uint64_t target_granule = msToGranule(timestamp_ms, stream_id);
+    
+    // Use bisection search to find the target position
+    return seekToPage(target_granule, stream_id);
 }
 
 bool OggDemuxer::isEOF() const {
@@ -485,11 +541,22 @@ void OggDemuxer::calculateDuration() {
         }
     }
     
-    // If we couldn't determine duration from container, try fallback methods
+    // If we couldn't determine duration from container, try reading last page
     if (m_duration_ms == 0) {
-        // For now, set a reasonable default to prevent division by zero
-        // TODO: Implement proper end-of-stream granule position reading
-        Debug::runtime("OggDemuxer: Could not determine duration from headers, using fallback");
+        uint64_t last_granule = getLastGranulePosition();
+        if (last_granule > 0) {
+            // Use the first audio stream for duration calculation
+            uint32_t stream_id = findBestAudioStream();
+            if (stream_id != 0) {
+                m_duration_ms = granuleToMs(last_granule, stream_id);
+                Debug::runtime("OggDemuxer: Duration from last granule: ", m_duration_ms, "ms");
+            }
+        }
+    }
+    
+    // Final fallback - use a reasonable default
+    if (m_duration_ms == 0) {
+        Debug::runtime("OggDemuxer: Could not determine duration, using fallback");
         m_duration_ms = 300000; // 5 minutes default
     }
 }
@@ -502,6 +569,11 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     
     // Check for invalid granule positions
     if (granule == static_cast<uint64_t>(-1) || granule > 0x7FFFFFFFFFFFFFFFULL) {
+        return 0;
+    }
+    
+    // Special case for page granule position -1 (no position)
+    if (granule == 0) {
         return 0;
     }
     
@@ -528,7 +600,141 @@ uint32_t OggDemuxer::findBestAudioStream() const {
     return 0; // No audio streams found
 }
 
+uint64_t OggDemuxer::getLastGranulePosition() {
+    if (m_file_size == 0) {
+        return 0;
+    }
+    
+    // Save current position
+    long current_pos = m_handler->tell();
+    
+    // Read from the end of file to find the last page
+    const size_t SEARCH_SIZE = 65536; // 64KB should be enough to find last page
+    long search_start = std::max(0L, static_cast<long>(m_file_size) - static_cast<long>(SEARCH_SIZE));
+    
+    m_handler->seek(search_start, SEEK_SET);
+    
+    ogg_sync_state temp_sync;
+    ogg_sync_init(&temp_sync);
+    
+    uint64_t last_granule = 0;
+    
+    // Read data into temp sync buffer
+    char* buffer = ogg_sync_buffer(&temp_sync, SEARCH_SIZE);
+    if (buffer) {
+        long bytes_read = m_handler->read(buffer, 1, SEARCH_SIZE);
+        if (bytes_read > 0 && ogg_sync_wrote(&temp_sync, bytes_read) == 0) {
+            // Find the last page by reading all pages in this chunk
+            ogg_page page;
+            while (ogg_sync_pageout(&temp_sync, &page) == 1) {
+                uint64_t granule = ogg_page_granulepos(&page);
+                if (granule != static_cast<uint64_t>(-1) && granule > last_granule) {
+                    last_granule = granule;
+                }
+            }
+        }
+    }
+    
+    ogg_sync_clear(&temp_sync);
+    
+    // Restore original position
+    m_handler->seek(current_pos, SEEK_SET);
+    
+    return last_granule;
+}
+
 bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id) {
-    // Simplified seeking - a full implementation would use bisection search
-    return seekTo(granuleToMs(target_granule, stream_id));
+    if (m_file_size == 0 || target_granule == 0) {
+        return seekTo(0);
+    }
+    
+    // Bisection search to find the page containing target_granule
+    long left = 0;
+    long right = m_file_size;
+    long best_pos = 0;
+    uint64_t best_granule = 0;
+    
+    constexpr int MAX_ITERATIONS = 32; // Limit iterations to prevent infinite loops
+    int iterations = 0;
+    
+    while (left < right && iterations++ < MAX_ITERATIONS) {
+        long mid = left + (right - left) / 2;
+        
+        // Seek to midpoint and find next page
+        m_handler->seek(mid, SEEK_SET);
+        ogg_sync_reset(&m_sync_state);
+        
+        // Read data to find a valid page
+        if (!readIntoSyncBuffer(8192)) {
+            break;
+        }
+        
+        ogg_page page;
+        bool found_page = false;
+        uint64_t page_granule = 0;
+        uint32_t page_stream_id = 0;
+        
+        // Look for a page from our target stream
+        while (ogg_sync_pageout(&m_sync_state, &page) == 1) {
+            page_stream_id = ogg_page_serialno(&page);
+            page_granule = ogg_page_granulepos(&page);
+            
+            // Found a page from our target stream with valid granule
+            if (page_stream_id == stream_id && page_granule != static_cast<uint64_t>(-1)) {
+                found_page = true;
+                break;
+            }
+        }
+        
+        if (!found_page) {
+            // No valid page found, try moving right
+            left = mid + 1;
+            continue;
+        }
+        
+        if (page_granule < target_granule) {
+            // Page is before target, search right half
+            left = mid + 1;
+            best_pos = m_handler->tell() - 8192; // Approximate page position
+            best_granule = page_granule;
+        } else if (page_granule > target_granule) {
+            // Page is after target, search left half
+            right = mid;
+        } else {
+            // Exact match found
+            best_pos = m_handler->tell() - 8192;
+            best_granule = page_granule;
+            break;
+        }
+    }
+    
+    // Seek to the best position found
+    if (best_pos > 0) {
+        m_handler->seek(best_pos, SEEK_SET);
+        ogg_sync_reset(&m_sync_state);
+        
+        // Reset all stream states
+        for (auto& [sid, ogg_stream] : m_ogg_streams) {
+            ogg_stream_reset(&ogg_stream);
+        }
+        
+        m_position_ms = granuleToMs(best_granule, stream_id);
+        m_eof = false;
+        
+        // Clear packet queue since we've changed position
+        while (!m_packet_queue.empty()) {
+            m_packet_queue.pop();
+        }
+        
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: Bisection seek to granule=", target_granule, 
+                           ", found granule=", best_granule, 
+                           ", position=", m_position_ms, "ms");
+        }
+        
+        return true;
+    }
+    
+    // Fallback to beginning if seeking failed
+    return seekTo(0);
 }

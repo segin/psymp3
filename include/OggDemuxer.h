@@ -194,6 +194,11 @@ private:
     void fillPacketQueue(uint32_t target_stream_id);
     
     /**
+     * @brief Get the last granule position in the file for duration calculation
+     */
+    uint64_t getLastGranulePosition();
+    
+    /**
      * @brief Check if packet data starts with given signature
      */
     static bool hasSignature(const std::vector<uint8_t>& data, const char* signature);

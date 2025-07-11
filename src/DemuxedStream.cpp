@@ -167,7 +167,7 @@ AudioFrame DemuxedStream::getNextFrame() {
 }
 
 void DemuxedStream::fillFrameBuffer() {
-    constexpr size_t MAX_BUFFER_FRAMES = 10; // Limit buffering
+    constexpr size_t MAX_BUFFER_FRAMES = 50; // Buffer ~0.5-1 second of audio
     
     while (m_frame_buffer.size() < MAX_BUFFER_FRAMES && !m_demuxer->isEOF()) {
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
@@ -182,11 +182,15 @@ void DemuxedStream::fillFrameBuffer() {
         }
     }
     
-    // Try to flush codec if demuxer is at EOF
+    // When demuxer is at EOF, keep flushing codec until it's truly empty
     if (m_demuxer->isEOF()) {
-        AudioFrame frame = m_codec->flush();
-        if (!frame.samples.empty()) {
-            m_frame_buffer.push(frame);
+        while (m_frame_buffer.size() < MAX_BUFFER_FRAMES) {
+            AudioFrame frame = m_codec->flush();
+            if (!frame.samples.empty()) {
+                m_frame_buffer.push(frame);
+            } else {
+                break; // Codec is fully drained
+            }
         }
     }
 }
