@@ -225,9 +225,29 @@ bool VorbisCodec::processSynthesis()
     float **pcm_channels;
     int samples_available;
     
+    // Prevent buffer from growing too large (memory leak protection)
+    constexpr size_t MAX_BUFFER_SIZE = 48000 * 2 * 2; // 2 seconds of stereo at 48kHz
+    if (m_output_buffer.size() > MAX_BUFFER_SIZE) {
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("VorbisCodec: Buffer too large (", m_output_buffer.size(), "), clearing to prevent memory leak");
+        }
+        m_output_buffer.clear();
+    }
+    
     // Get available PCM samples
     while ((samples_available = vorbis_synthesis_pcmout(&m_vorbis_dsp, &pcm_channels)) > 0) {
         int channels = m_vorbis_info.channels;
+        
+        // Prevent excessive accumulation
+        if (m_output_buffer.size() + (samples_available * channels) > MAX_BUFFER_SIZE) {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("VorbisCodec: Would exceed buffer limit, processing partial samples");
+            }
+            samples_available = (MAX_BUFFER_SIZE - m_output_buffer.size()) / channels;
+            if (samples_available <= 0) {
+                break; // Buffer is full enough
+            }
+        }
         
         // Convert float samples to 16-bit integers
         for (int i = 0; i < samples_available; i++) {

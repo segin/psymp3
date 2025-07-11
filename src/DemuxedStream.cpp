@@ -10,9 +10,19 @@
 #include "psymp3.h"
 
 DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id) 
-    : Stream(path), m_current_stream_id(preferred_stream_id) {
+    : Stream(), m_current_stream_id(preferred_stream_id) {
+    m_path = path;
     
     if (!initialize()) {
+        throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
+    }
+}
+
+DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id) 
+    : Stream(), m_current_stream_id(preferred_stream_id) {
+    m_path = path;
+    
+    if (!initializeWithHandler(std::move(handler))) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
     }
 }
@@ -113,7 +123,12 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
     uint8_t* output_buf = static_cast<uint8_t*>(buf);
     size_t bytes_written = 0;
     
-    while (bytes_written < len && !m_eof_reached) {
+    size_t iterations = 0;
+    constexpr size_t MAX_ITERATIONS = 1000; // Prevent infinite loops
+    
+    while (bytes_written < len && !m_eof_reached && iterations < MAX_ITERATIONS) {
+        iterations++;
+        
         // If we have a current frame with remaining data, use it
         if (m_current_frame_offset < m_current_frame.getByteCount()) {
             size_t bytes_copied = copyFrameData(m_current_frame, m_current_frame_offset,
@@ -124,7 +139,7 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         }
         
         // Need a new frame
-        m_current_frame = getNextFrame();
+        m_current_frame = std::move(getNextFrame());
         m_current_frame_offset = 0;
         
         if (m_current_frame.samples.empty()) {
@@ -133,6 +148,15 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
             m_eof = true;
             break;
         }
+    }
+    
+    if (iterations >= MAX_ITERATIONS) {
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("DemuxedStream::getData: Hit iteration limit, possible infinite loop");
+        }
+        // Force EOF to prevent further issues
+        m_eof_reached = true;
+        m_eof = true;
     }
     
     // Update position based on bytes consumed
@@ -148,7 +172,7 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
 AudioFrame DemuxedStream::getNextFrame() {
     // Check if we have buffered frames
     if (!m_frame_buffer.empty()) {
-        AudioFrame frame = m_frame_buffer.front();
+        AudioFrame frame = std::move(m_frame_buffer.front());
         m_frame_buffer.pop();
         return frame;
     }
@@ -158,16 +182,24 @@ AudioFrame DemuxedStream::getNextFrame() {
     
     // Try again
     if (!m_frame_buffer.empty()) {
-        AudioFrame frame = m_frame_buffer.front();
+        AudioFrame frame = std::move(m_frame_buffer.front());
         m_frame_buffer.pop();
         return frame;
+    }
+    
+    // If we reach here and demuxer is at EOF, flush codec
+    if (m_demuxer->isEOF() && m_codec) {
+        AudioFrame frame = m_codec->flush();
+        if (!frame.samples.empty()) {
+            return frame;
+        }
     }
     
     return AudioFrame{}; // Empty frame
 }
 
 void DemuxedStream::fillFrameBuffer() {
-    constexpr size_t MAX_BUFFER_FRAMES = 50; // Buffer ~0.5-1 second of audio
+    constexpr size_t MAX_BUFFER_FRAMES = 5; // Buffer only a few frames to reduce memory pressure
     
     while (m_frame_buffer.size() < MAX_BUFFER_FRAMES && !m_demuxer->isEOF()) {
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
@@ -185,10 +217,10 @@ void DemuxedStream::fillFrameBuffer() {
         
         AudioFrame frame = m_codec->decode(chunk);
         if (!frame.samples.empty()) {
-            m_frame_buffer.push(frame);
             if (Debug::runtime_debug_enabled) {
                 Debug::runtime("DemuxedStream: Decoded frame with ", frame.samples.size(), " samples");
             }
+            m_frame_buffer.push(std::move(frame));
         } else {
             if (Debug::runtime_debug_enabled) {
                 Debug::runtime("DemuxedStream: Codec returned empty frame");
@@ -201,7 +233,7 @@ void DemuxedStream::fillFrameBuffer() {
         while (m_frame_buffer.size() < MAX_BUFFER_FRAMES) {
             AudioFrame frame = m_codec->flush();
             if (!frame.samples.empty()) {
-                m_frame_buffer.push(frame);
+                m_frame_buffer.push(std::move(frame));
             } else {
                 break; // Codec is fully drained
             }
@@ -295,6 +327,46 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
     return true;
 }
 
+bool DemuxedStream::initializeWithHandler(std::unique_ptr<IOHandler> handler) {
+    try {
+        // Reset handler to beginning for audio processing
+        handler->seek(0, SEEK_SET);
+        
+        // Create demuxer with shared handler
+        m_demuxer = DemuxerFactory::createDemuxer(std::move(handler), m_path.to8Bit(true));
+        if (!m_demuxer) {
+            return false;
+        }
+        
+        // Parse container
+        if (!m_demuxer->parseContainer()) {
+            return false;
+        }
+        
+        // Select audio stream
+        if (m_current_stream_id == 0) {
+            m_current_stream_id = selectBestAudioStream();
+        }
+        
+        if (m_current_stream_id == 0) {
+            return false; // No suitable audio stream found
+        }
+        
+        // Setup codec
+        if (!setupCodec()) {
+            return false;
+        }
+        
+        // Update stream properties
+        updateStreamProperties();
+        
+        return true;
+        
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
 StreamInfo DemuxedStream::getCurrentStreamInfo() const {
     if (!m_demuxer) {
         return StreamInfo{};
@@ -313,4 +385,49 @@ std::string DemuxedStream::getCodecType() const {
         return "unknown";
     }
     return m_codec->getCodecName();
+}
+
+TagLib::String DemuxedStream::getArtist() {
+    if (!m_demuxer) {
+        return TagLib::String();
+    }
+    
+    // Try to get metadata from the demuxer (for Ogg files)
+    StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+    if (!stream_info.artist.empty()) {
+        return TagLib::String(stream_info.artist, TagLib::String::UTF8);
+    }
+    
+    // Fall back to base class implementation (TagLib)
+    return Stream::getArtist();
+}
+
+TagLib::String DemuxedStream::getTitle() {
+    if (!m_demuxer) {
+        return TagLib::String();
+    }
+    
+    // Try to get metadata from the demuxer (for Ogg files)
+    StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+    if (!stream_info.title.empty()) {
+        return TagLib::String(stream_info.title, TagLib::String::UTF8);
+    }
+    
+    // Fall back to base class implementation (TagLib)
+    return Stream::getTitle();
+}
+
+TagLib::String DemuxedStream::getAlbum() {
+    if (!m_demuxer) {
+        return TagLib::String();
+    }
+    
+    // Try to get metadata from the demuxer (for Ogg files)
+    StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+    if (!stream_info.album.empty()) {
+        return TagLib::String(stream_info.album, TagLib::String::UTF8);
+    }
+    
+    // Fall back to base class implementation (TagLib)
+    return Stream::getAlbum();
 }

@@ -47,6 +47,11 @@ struct StreamInfo {
     // Timing information
     uint64_t duration_samples = 0;
     uint64_t duration_ms = 0;
+    
+    // Metadata
+    std::string artist;
+    std::string title;
+    std::string album;
 };
 
 /**

@@ -25,9 +25,11 @@
 
 // ========== OpusFile Stream Class ==========
 
-OpusFile::OpusFile(TagLib::String name) : Stream(name)
+OpusFile::OpusFile(TagLib::String name) : Stream()
 {
-    // Create a DemuxedStream to handle the actual decoding
+    m_path = name; // Set path manually to avoid TagLib FileRef creation
+    
+    // Create a DemuxedStream to handle all parsing (container + metadata)
     m_demuxed_stream = std::make_unique<DemuxedStream>(name);
     
     // Copy properties from the demuxed stream
@@ -56,6 +58,21 @@ void OpusFile::seekTo(unsigned long pos)
 bool OpusFile::eof()
 {
     return m_demuxed_stream->eof();
+}
+
+TagLib::String OpusFile::getArtist()
+{
+    return m_demuxed_stream->getArtist();
+}
+
+TagLib::String OpusFile::getTitle()
+{
+    return m_demuxed_stream->getTitle();
+}
+
+TagLib::String OpusFile::getAlbum()
+{
+    return m_demuxed_stream->getAlbum();
 }
 
 // ========== Opus Codec Class ==========

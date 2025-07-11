@@ -34,6 +34,9 @@ bool OggDemuxer::parseContainer() {
         // Get file size
         m_handler->seek(0, SEEK_END);
         m_file_size = m_handler->tell();
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: File size determined as ", m_file_size, " bytes");
+        }
         m_handler->seek(0, SEEK_SET);
         
         // Read initial data to parse headers
@@ -205,6 +208,10 @@ bool OggDemuxer::processPages() {
                             Debug::runtime("OggDemuxer: Opus headers complete for stream ", stream_id);
                         }
                     }
+                    
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: Stream ", stream_id, " now has ", stream.header_packets.size(), " header packets, codec=", stream.codec_name, ", headers_complete=", stream.headers_complete);
+                    }
                 } else {
                     // If this packet wasn't a header but we haven't completed headers yet,
                     // this might be an audio packet that came before we finished parsing headers.
@@ -262,6 +269,11 @@ std::vector<StreamInfo> OggDemuxer::getStreams() const {
             info.sample_rate = stream.sample_rate;
             info.channels = stream.channels;
             info.bitrate = stream.bitrate;
+            info.artist = stream.artist;
+            info.title = stream.title;
+            info.album = stream.album;
+            info.duration_ms = m_duration_ms;
+            info.duration_samples = stream.total_samples;
             streams.push_back(info);
         }
     }
@@ -280,6 +292,11 @@ StreamInfo OggDemuxer::getStreamInfo(uint32_t stream_id) const {
         info.sample_rate = stream.sample_rate;
         info.channels = stream.channels;
         info.bitrate = stream.bitrate;
+        info.artist = stream.artist;
+        info.title = stream.title;
+        info.album = stream.album;
+        info.duration_ms = m_duration_ms;
+        info.duration_samples = stream.total_samples;
         return info;
     }
     
@@ -457,6 +474,25 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
             
             // Get page granule position for interpolation
             uint64_t page_granule = ogg_page_granulepos(&page);
+            
+            // Track the maximum granule position seen for duration calculation
+            if (page_granule != static_cast<uint64_t>(-1)) {
+                m_max_granule_seen = std::max(m_max_granule_seen, page_granule);
+                
+                // Update duration estimate when we see a new maximum granule position
+                if (m_max_granule_seen > 0) {
+                    uint32_t stream_id = findBestAudioStream();
+                    if (stream_id != 0) {
+                        uint64_t estimated_duration = granuleToMs(m_max_granule_seen, stream_id);
+                        if (estimated_duration > m_duration_ms) {
+                            m_duration_ms = estimated_duration;
+                            if (Debug::runtime_debug_enabled) {
+                                Debug::runtime("OggDemuxer: Updated duration estimate to ", m_duration_ms, "ms based on granule ", m_max_granule_seen);
+                            }
+                        }
+                    }
+                }
+            }
             
             // Extract packets
             ogg_packet packet;
@@ -664,6 +700,9 @@ bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
         if (Debug::runtime_debug_enabled) {
             Debug::runtime("OggDemuxer: OpusTags header found, packet_size=", packet.data.size());
         }
+        
+        // Parse OpusTags metadata (follows Vorbis comment format)
+        parseOpusTags(stream, packet);
         return true;
     }
     
@@ -687,27 +726,140 @@ bool OggDemuxer::parseSpeexHeaders(OggStream& stream, const OggPacket& packet) {
     return false;
 }
 
+void OggDemuxer::parseOpusTags(OggStream& stream, const OggPacket& packet) {
+    // OpusTags format follows Vorbis comment structure:
+    // 8 bytes: "OpusTags"
+    // 4 bytes: vendor_length (little-endian)
+    // vendor_length bytes: vendor string
+    // 4 bytes: user_comment_list_length (little-endian)
+    // For each comment:
+    //   4 bytes: length (little-endian)
+    //   length bytes: comment in UTF-8 format "FIELD=value"
+    
+    if (packet.data.size() < 16) {
+        return; // Too small to contain valid OpusTags
+    }
+    
+    size_t offset = 8; // Skip "OpusTags"
+    
+    // Read vendor string length
+    uint32_t vendor_length = readLE<uint32_t>(packet.data, offset);
+    offset += 4;
+    
+    if (offset + vendor_length > packet.data.size()) {
+        return; // Invalid vendor length
+    }
+    
+    offset += vendor_length; // Skip vendor string
+    
+    if (offset + 4 > packet.data.size()) {
+        return; // No room for comment count
+    }
+    
+    // Read number of user comments
+    uint32_t comment_count = readLE<uint32_t>(packet.data, offset);
+    offset += 4;
+    
+    // Parse each comment
+    for (uint32_t i = 0; i < comment_count && offset < packet.data.size(); i++) {
+        if (offset + 4 > packet.data.size()) {
+            break;
+        }
+        
+        uint32_t comment_length = readLE<uint32_t>(packet.data, offset);
+        offset += 4;
+        
+        if (offset + comment_length > packet.data.size()) {
+            break;
+        }
+        
+        // Extract comment string
+        std::string comment(reinterpret_cast<const char*>(packet.data.data() + offset), comment_length);
+        offset += comment_length;
+        
+        // Parse FIELD=value format
+        size_t equals_pos = comment.find('=');
+        if (equals_pos != std::string::npos) {
+            std::string field = comment.substr(0, equals_pos);
+            std::string value = comment.substr(equals_pos + 1);
+            
+            // Convert field to uppercase for case-insensitive comparison
+            std::transform(field.begin(), field.end(), field.begin(), ::toupper);
+            
+            if (field == "ARTIST") {
+                stream.artist = value;
+            } else if (field == "TITLE") {
+                stream.title = value;
+            } else if (field == "ALBUM") {
+                stream.album = value;
+            }
+            
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: OpusTags - ", field, "=", value);
+            }
+        }
+    }
+}
+
 void OggDemuxer::calculateDuration() {
+    if (Debug::runtime_debug_enabled) {
+        Debug::runtime("OggDemuxer: calculateDuration() called");
+    }
     m_duration_ms = 0;
     
     for (const auto& [stream_id, stream] : m_streams) {
         if (stream.codec_type == "audio" && stream.sample_rate > 0) {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: Stream ", stream_id, " has total_samples=", stream.total_samples, ", sample_rate=", stream.sample_rate);
+            }
             if (stream.total_samples > 0) {
                 uint64_t stream_duration = (stream.total_samples * 1000ULL) / stream.sample_rate;
                 m_duration_ms = std::max(m_duration_ms, stream_duration);
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("OggDemuxer: Calculated duration from samples: ", stream_duration, "ms");
+                }
             }
         }
     }
     
-    // If we couldn't determine duration from container, try reading last page
+    // If we couldn't determine duration from container, try using tracked max granule
     if (m_duration_ms == 0) {
-        uint64_t last_granule = getLastGranulePosition();
-        if (last_granule > 0) {
-            // Use the first audio stream for duration calculation
+        if (m_max_granule_seen > 0) {
+            // Use the tracked maximum granule position
             uint32_t stream_id = findBestAudioStream();
             if (stream_id != 0) {
-                m_duration_ms = granuleToMs(last_granule, stream_id);
-                Debug::runtime("OggDemuxer: Duration from last granule: ", m_duration_ms, "ms");
+                m_duration_ms = granuleToMs(m_max_granule_seen, stream_id);
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("OggDemuxer: Duration from tracked max granule: ", m_max_granule_seen, " -> ", m_duration_ms, "ms");
+                }
+            } else {
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("OggDemuxer: No audio stream found for duration calculation");
+                }
+            }
+        } else {
+            // Fall back to reading last page
+            uint64_t last_granule = getLastGranulePosition();
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: getLastGranulePosition returned: ", last_granule);
+            }
+            if (last_granule > 0) {
+                // Use the first audio stream for duration calculation
+                uint32_t stream_id = findBestAudioStream();
+                if (stream_id != 0) {
+                    m_duration_ms = granuleToMs(last_granule, stream_id);
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: Duration from last granule: ", m_duration_ms, "ms");
+                    }
+                } else {
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: No audio stream found for duration calculation");
+                    }
+                }
+            } else {
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("OggDemuxer: No valid granule position found");
+                }
             }
         }
     }
@@ -758,45 +910,74 @@ uint32_t OggDemuxer::findBestAudioStream() const {
 
 uint64_t OggDemuxer::getLastGranulePosition() {
     if (m_file_size == 0) {
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: getLastGranulePosition - file_size is 0");
+        }
         return 0;
+    }
+    
+    if (Debug::runtime_debug_enabled) {
+        Debug::runtime("OggDemuxer: getLastGranulePosition - file_size=", m_file_size);
     }
     
     // Save current position
     long current_pos = m_handler->tell();
     
-    // Read from the end of file to find the last page
-    const size_t SEARCH_SIZE = 65536; // 64KB should be enough to find last page
-    long search_start = std::max(0L, static_cast<long>(m_file_size) - static_cast<long>(SEARCH_SIZE));
+    // Alternative approach: scan for OggS signatures manually
+    // This handles cases where the buffer doesn't start at a page boundary
+    const size_t SCAN_SIZE = 1048576; // 1MB
+    size_t scan_size = std::min(SCAN_SIZE, m_file_size);
+    long scan_start = std::max(0L, static_cast<long>(m_file_size) - static_cast<long>(scan_size));
     
-    m_handler->seek(search_start, SEEK_SET);
+    m_handler->seek(scan_start, SEEK_SET);
     
-    ogg_sync_state temp_sync;
-    ogg_sync_init(&temp_sync);
+    std::vector<uint8_t> scan_buffer(scan_size);
+    long bytes_read = m_handler->read(scan_buffer.data(), 1, scan_size);
     
-    uint64_t last_granule = 0;
-    
-    // Read data into temp sync buffer
-    char* buffer = ogg_sync_buffer(&temp_sync, SEARCH_SIZE);
-    if (buffer) {
-        long bytes_read = m_handler->read(buffer, 1, SEARCH_SIZE);
-        if (bytes_read > 0 && ogg_sync_wrote(&temp_sync, bytes_read) == 0) {
-            // Find the last page by reading all pages in this chunk
-            ogg_page page;
-            while (ogg_sync_pageout(&temp_sync, &page) == 1) {
-                uint64_t granule = ogg_page_granulepos(&page);
-                if (granule != static_cast<uint64_t>(-1) && granule > last_granule) {
-                    last_granule = granule;
+    if (bytes_read > 0) {
+        uint64_t last_granule = 0;
+        size_t pages_found = 0;
+        
+        // Scan for "OggS" signatures
+        for (size_t i = 0; i <= static_cast<size_t>(bytes_read) - 4; i++) {
+            if (scan_buffer[i] == 'O' && scan_buffer[i+1] == 'g' && 
+                scan_buffer[i+2] == 'g' && scan_buffer[i+3] == 'S') {
+                
+                // Found potential OGG page - check if we can parse the granule position
+                if (i + 14 <= static_cast<size_t>(bytes_read)) {
+                    // Granule position is at offset 6-13 in OGG page header
+                    uint64_t granule = 0;
+                    std::memcpy(&granule, &scan_buffer[i + 6], 8);
+                    
+                    if (granule != static_cast<uint64_t>(-1) && granule > last_granule) {
+                        last_granule = granule;
+                        pages_found++;
+                        
+                        // Found a page with valid granule position
+                    }
                 }
             }
         }
+        
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: getLastGranulePosition - manual scan found ", pages_found, " pages, last_granule=", last_granule);
+        }
+        
+        if (pages_found > 0) {
+            // Restore original position
+            m_handler->seek(current_pos, SEEK_SET);
+            return last_granule;
+        }
     }
-    
-    ogg_sync_clear(&temp_sync);
     
     // Restore original position
     m_handler->seek(current_pos, SEEK_SET);
     
-    return last_granule;
+    if (Debug::runtime_debug_enabled) {
+        Debug::runtime("OggDemuxer: getLastGranulePosition - failed to find any pages with all search sizes");
+    }
+    
+    return 0;
 }
 
 bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id) {

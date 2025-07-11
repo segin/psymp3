@@ -43,6 +43,11 @@ public:
     virtual void seekTo(unsigned long pos) override;
     virtual bool eof() override;
     
+    // Override metadata methods to use Ogg container metadata
+    virtual TagLib::String getArtist() override;
+    virtual TagLib::String getTitle() override;
+    virtual TagLib::String getAlbum() override;
+    
 private:
     std::unique_ptr<DemuxedStream> m_demuxed_stream;
 };

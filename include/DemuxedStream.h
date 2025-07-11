@@ -48,6 +48,14 @@ public:
     explicit DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id = 0);
     
     /**
+     * @brief Constructor for DemuxedStream with shared IOHandler
+     * @param handler Shared IOHandler (will be reset to beginning)
+     * @param path File path for reference
+     * @param preferred_stream_id Preferred audio stream ID (0 = auto-select first audio stream)
+     */
+    explicit DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id = 0);
+    
+    /**
      * @brief Destructor
      */
     ~DemuxedStream() override = default;
@@ -84,6 +92,11 @@ public:
      */
     std::string getCodecType() const;
     
+    // Override metadata methods to use container metadata when available
+    virtual TagLib::String getArtist() override;
+    virtual TagLib::String getTitle() override;
+    virtual TagLib::String getAlbum() override;
+    
 private:
     std::unique_ptr<Demuxer> m_demuxer;
     std::unique_ptr<AudioCodec> m_codec;
@@ -100,6 +113,11 @@ private:
      * @brief Initialize demuxer and codec
      */
     bool initialize();
+    
+    /**
+     * @brief Initialize demuxer and codec with shared IOHandler
+     */
+    bool initializeWithHandler(std::unique_ptr<IOHandler> handler);
     
     /**
      * @brief Select the best audio stream from available streams

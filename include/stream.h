@@ -43,9 +43,9 @@ class Stream
         Stream(Stream&&) = default;
         Stream& operator=(Stream&&) = default;
         virtual void open(TagLib::String name);
-        TagLib::String getArtist();
-        TagLib::String getTitle();
-        TagLib::String getAlbum();
+        virtual TagLib::String getArtist();
+        virtual TagLib::String getTitle();
+        virtual TagLib::String getAlbum();
         TagLib::String getFilePath() const;
         
         // Lyrics support

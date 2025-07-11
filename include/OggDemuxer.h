@@ -79,6 +79,11 @@ struct OggStream {
     uint32_t bitrate = 0;
     uint64_t total_samples = 0;
     
+    // Metadata (filled from comment headers like OpusTags)
+    std::string artist;
+    std::string title;
+    std::string album;
+    
     // State tracking
     bool headers_complete = false;
     bool headers_sent = false;  // Track whether header packets have been sent to codec
@@ -122,6 +127,7 @@ private:
     std::queue<OggPacket> m_packet_queue;
     uint64_t m_file_size = 0;
     bool m_eof = false;
+    uint64_t m_max_granule_seen = 0;
     
     // libogg structures
     ogg_sync_state m_sync_state;
@@ -157,6 +163,11 @@ private:
      * @brief Parse Opus identification header
      */
     bool parseOpusHeaders(OggStream& stream, const OggPacket& packet);
+    
+    /**
+     * @brief Parse OpusTags metadata from Opus comment header
+     */
+    void parseOpusTags(OggStream& stream, const OggPacket& packet);
     
     /**
      * @brief Parse Speex identification header
