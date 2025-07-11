@@ -43,24 +43,45 @@ bool OggDemuxer::parseContainer() {
         
         // Parse headers using libogg
         bool all_headers_complete = false;
-        int max_pages = 100; // Prevent infinite loops
+        int max_pages = 500; // Increased limit to find all headers
+        int consecutive_no_progress = 0;
         
         while (!all_headers_complete && max_pages-- > 0) {
-            if (!processPages()) {
+            bool made_progress = processPages();
+            
+            if (!made_progress) {
                 // Need more data
                 if (!readIntoSyncBuffer(4096)) {
-                    break;
+                    consecutive_no_progress++;
+                    if (consecutive_no_progress > 10) {
+                        if (Debug::runtime_debug_enabled) {
+                            Debug::runtime("OggDemuxer: No progress for 10 iterations, stopping header parsing");
+                        }
+                        break;
+                    }
+                } else {
+                    consecutive_no_progress = 0;
                 }
                 continue;
             }
+            
+            consecutive_no_progress = 0;
             
             // Check if all audio streams have complete headers
             all_headers_complete = true;
             for (const auto& [id, stream] : m_streams) {
                 if (stream.codec_type == "audio" && !stream.headers_complete) {
                     all_headers_complete = false;
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: Stream ", id, " codec=", stream.codec_name, 
+                                       " headers not complete, header_count=", stream.header_packets.size());
+                    }
                     break;
                 }
+            }
+            
+            if (all_headers_complete && Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: All headers complete, stopping header parsing");
             }
         }
         
@@ -104,8 +125,10 @@ bool OggDemuxer::readIntoSyncBuffer(size_t bytes) {
 
 bool OggDemuxer::processPages() {
     ogg_page page;
+    bool processed_any_pages = false;
     
     while (ogg_sync_pageout(&m_sync_state, &page) == 1) {
+        processed_any_pages = true;
         uint32_t stream_id = ogg_page_serialno(&page);
         
         // Initialize stream if it's new
@@ -224,7 +247,7 @@ bool OggDemuxer::processPages() {
         }
     }
     
-    return true;
+    return processed_any_pages;
 }
 
 std::vector<StreamInfo> OggDemuxer::getStreams() const {
@@ -404,7 +427,8 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
             }
             
             // Only update position if we have a valid, increasing timestamp
-            if (chunk.timestamp_ms > 0 && chunk.timestamp_ms >= m_position_ms) {
+            // For Opus, timestamp 0 is valid (start of stream)
+            if (chunk.timestamp_ms >= m_position_ms) {
                 m_position_ms = chunk.timestamp_ms;
             }
             return chunk;
@@ -466,7 +490,8 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                     }
                     
                     // Only update position if we have a valid, increasing timestamp
-                    if (chunk.timestamp_ms > 0 && chunk.timestamp_ms >= m_position_ms) {
+                    // For Opus, timestamp 0 is valid (start of stream)
+                    if (chunk.timestamp_ms >= m_position_ms) {
                         m_position_ms = chunk.timestamp_ms;
                     }
                     return chunk;
@@ -492,6 +517,14 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
         
         for (auto& [stream_id, ogg_stream] : m_ogg_streams) {
             ogg_stream_reset(&ogg_stream);
+        }
+        
+        // When seeking to beginning, headers need to be resent
+        for (auto& [stream_id, stream] : m_streams) {
+            if (stream.headers_complete) {
+                stream.headers_sent = false;
+                stream.next_header_index = 0;
+            }
         }
         
         m_position_ms = 0;
@@ -697,10 +730,8 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
         return 0;
     }
     
-    // Special case for page granule position -1 (no position)
-    if (granule == 0) {
-        return 0;
-    }
+    // For Opus, granule position 0 is valid (start of stream)
+    // Don't return 0 for granule position 0 unless it's actually invalid
     
     return (granule * 1000ULL) / it->second.sample_rate;
 }
@@ -841,6 +872,13 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id) {
         // Reset all stream states
         for (auto& [sid, ogg_stream] : m_ogg_streams) {
             ogg_stream_reset(&ogg_stream);
+        }
+        
+        // For non-zero seeks, ensure headers are not resent since codec is already initialized
+        for (auto& [sid, stream] : m_streams) {
+            if (stream.headers_complete) {
+                stream.headers_sent = true;  // Mark headers as already sent
+            }
         }
         
         m_position_ms = granuleToMs(best_granule, stream_id);
