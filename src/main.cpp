@@ -77,12 +77,13 @@ int main(int argc, char *argv[]) {
         {"version", no_argument, 0, 'v'},
         {"debug-widgets", no_argument, 0, 'w'},
         {"debug-runtime", no_argument, 0, 'r'},
+        {"logfile", required_argument, 0, 'l'},
         {0, 0, 0, 0}
     };
 
     int opt;
     // Use getopt_long directly on the original argc and argv.
-    while ((opt = getopt_long(argc, argv, "f:s:d:tvwr", long_options, nullptr)) != -1) {
+    while ((opt = getopt_long(argc, argv, "f:s:d:tvwrl:", long_options, nullptr)) != -1) {
         switch (opt) {
             case 'f':
                 if (strcmp(optarg, "mat-og") == 0) options.fft_mode = FFTMode::Original;
@@ -108,6 +109,13 @@ int main(int argc, char *argv[]) {
                 break;
             case 'r':
                 Debug::setRuntimeDebug(true);
+                break;
+            case 'l':
+                // Redirect stdout and stderr to logfile
+                if (freopen(optarg, "w", stdout) == nullptr || freopen(optarg, "w", stderr) == nullptr) {
+                    std::cerr << "Error: Could not redirect output to logfile: " << optarg << std::endl;
+                    return 1;
+                }
                 break;
             case '?': // Invalid option
                 return 1; // getopt_long already prints an error message.

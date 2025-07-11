@@ -173,12 +173,26 @@ void DemuxedStream::fillFrameBuffer() {
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
         
         if (chunk.data.empty()) {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("DemuxedStream: Got empty chunk, breaking");
+            }
             break; // No more data
+        }
+        
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("DemuxedStream: Decoding chunk timestamp=", chunk.timestamp_ms, "ms, size=", chunk.data.size(), " bytes");
         }
         
         AudioFrame frame = m_codec->decode(chunk);
         if (!frame.samples.empty()) {
             m_frame_buffer.push(frame);
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("DemuxedStream: Decoded frame with ", frame.samples.size(), " samples");
+            }
+        } else {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("DemuxedStream: Codec returned empty frame");
+            }
         }
     }
     

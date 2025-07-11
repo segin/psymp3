@@ -645,6 +645,9 @@ bool Player::updateGUI()
                 current_pos_ms = m_seek_position_ms;
             } else {
                 current_pos_ms = current_stream->getPosition();
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("Player: User visible position=", current_pos_ms, "ms, total_len=", current_stream->getLength(), "ms");
+                }
             }
             total_len_ms = current_stream->getLength();
             artist = current_stream->getArtist();

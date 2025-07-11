@@ -151,6 +151,9 @@ bool OggDemuxer::processPages() {
                     is_header_packet = parseFLACHeaders(stream, ogg_packet);
                 } else if (stream.codec_name == "opus") {
                     is_header_packet = parseOpusHeaders(stream, ogg_packet);
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: parseOpusHeaders returned ", is_header_packet, " for packet size ", ogg_packet.data.size());
+                    }
                 } else if (stream.codec_name == "speex") {
                     is_header_packet = parseSpeexHeaders(stream, ogg_packet);
                 }
@@ -159,6 +162,10 @@ bool OggDemuxer::processPages() {
                 if (is_header_packet) {
                     stream.header_packets.push_back(ogg_packet);
                     
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: Added header packet ", stream.header_packets.size(), " for stream ", stream_id, ", codec=", stream.codec_name);
+                    }
+                    
                     // Check if headers are complete (codec-specific logic)
                     if (stream.codec_name == "vorbis" && stream.header_packets.size() >= 3) {
                         stream.headers_complete = true;
@@ -166,11 +173,19 @@ bool OggDemuxer::processPages() {
                         stream.headers_complete = true;
                     } else if (stream.codec_name == "opus" && stream.header_packets.size() >= 2) {
                         stream.headers_complete = true;
+                        if (Debug::runtime_debug_enabled) {
+                            Debug::runtime("OggDemuxer: Opus headers complete for stream ", stream_id);
+                        }
                     }
                 } else {
                     // If this packet wasn't a header but we haven't completed headers yet,
                     // this might be an audio packet that came before we finished parsing headers.
                     // Queue it for later processing after headers are complete.
+                    
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: Non-header packet during header parsing, stream_id=", stream_id, 
+                                       ", packet_size=", packet.bytes, ", header_packets_count=", stream.header_packets.size());
+                    }
                     
                     // Limit packet queue size to prevent memory bloat
                     constexpr size_t MAX_PACKET_QUEUE_SIZE = 200;
@@ -265,7 +280,6 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 const OggPacket& header_packet = stream.header_packets[stream.next_header_index];
                 stream.next_header_index++;
                 
-                
                 MediaChunk chunk;
                 chunk.stream_id = stream_id;
                 chunk.data = header_packet.data;
@@ -273,9 +287,27 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 chunk.timestamp_ms = granuleToMs(header_packet.granule_position, stream_id);
                 chunk.is_keyframe = true;
                 
+                if (Debug::runtime_debug_enabled) {
+                    std::string header_type = "unknown";
+                    if (stream.codec_name == "opus") {
+                        if (chunk.data.size() >= 8) {
+                            if (std::memcmp(chunk.data.data(), "OpusHead", 8) == 0) {
+                                header_type = "OpusHead";
+                            } else if (std::memcmp(chunk.data.data(), "OpusTags", 8) == 0) {
+                                header_type = "OpusTags";
+                            }
+                        }
+                    }
+                    Debug::runtime("OggDemuxer: Sending header packet ", stream.next_header_index, "/", stream.header_packets.size(), 
+                                   ", type=", header_type, ", size=", chunk.data.size(), " bytes");
+                }
+                
                 // Mark headers as sent when all have been delivered
                 if (stream.next_header_index >= stream.header_packets.size()) {
                     stream.headers_sent = true;
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("OggDemuxer: All headers sent for stream ", stream_id);
+                    }
                 }
                 
                 return chunk;
@@ -500,17 +532,41 @@ bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
 }
 
 bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
+    if (Debug::runtime_debug_enabled) {
+        std::string first_bytes;
+        for (size_t i = 0; i < std::min(size_t(16), packet.data.size()); i++) {
+            char c = packet.data[i];
+            if (c >= 32 && c <= 126) {
+                first_bytes += c;
+            } else {
+                first_bytes += "\\x" + std::to_string(static_cast<unsigned char>(c));
+            }
+        }
+        Debug::runtime("OggDemuxer: parseOpusHeaders called, packet_size=", packet.data.size(), ", first 16 bytes: '", first_bytes, "'");
+    }
+    
     if (OggDemuxer::hasSignature(packet.data, "OpusHead")) {
-        // Opus identification header
+        // Opus identification header - must be first
         if (packet.data.size() >= 19) {
             stream.channels = OggDemuxer::readLE<uint8_t>(packet.data, 9);
             // Note: Opus always runs at 48kHz internally, but can be presented at other rates
             stream.sample_rate = 48000;
+            
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: OpusHead header found, channels=", stream.channels, ", packet_size=", packet.data.size());
+            }
         }
         return true;
     } else if (OggDemuxer::hasSignature(packet.data, "OpusTags")) {
-        // Opus comment header
+        // Opus comment header - must be second
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: OpusTags header found, packet_size=", packet.data.size());
+        }
         return true;
+    }
+    
+    if (Debug::runtime_debug_enabled) {
+        Debug::runtime("OggDemuxer: Unknown Opus packet, size=", packet.data.size());
     }
     
     return false;
