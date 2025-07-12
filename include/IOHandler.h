@@ -30,9 +30,10 @@ public:
     virtual ~IOHandler();
     virtual size_t read(void* buffer, size_t size, size_t count);
     virtual int seek(long offset, int whence);
-    virtual long tell();
+    virtual off_t tell();
     virtual int close();
     virtual bool eof();
+    virtual off_t getFileSize();
 };
 
 #endif // IOHANDLER_H

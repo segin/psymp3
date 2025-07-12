@@ -34,9 +34,10 @@ public:
 
     size_t read(void* buffer, size_t size, size_t count) override;
     int seek(long offset, int whence) override;
-    long tell() override;
+    off_t tell() override;
     int close() override;
     bool eof() override;
+    off_t getFileSize() override;
 
 private:
     FILE* m_file_handle;

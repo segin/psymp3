@@ -143,7 +143,7 @@ int HTTPIOHandler::seek(long offset, int whence) {
     return 0;
 }
 
-long HTTPIOHandler::tell() {
+off_t HTTPIOHandler::tell() {
     return m_current_position;
 }
 
@@ -156,6 +156,10 @@ int HTTPIOHandler::close() {
 
 bool HTTPIOHandler::eof() {
     return m_eof;
+}
+
+off_t HTTPIOHandler::getFileSize() {
+    return m_content_length;
 }
 
 bool HTTPIOHandler::fillBuffer(long position, size_t min_size) {

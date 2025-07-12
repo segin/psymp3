@@ -208,12 +208,42 @@ void Audio::decoderThreadLoop() {
                     if (m_owned_stream.get() == current_stream) {
                         bytes_read = local_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
                         eof = local_stream->eof();
+                        
+                        size_t buffer_size = 0;
+                        {
+                            std::lock_guard<std::mutex> buf_lock(m_buffer_mutex);
+                            buffer_size = m_buffer.size();
+                        }
+                        
+                        if (Debug::runtime_debug_enabled) {
+                            Debug::runtime("Audio decoder thread: getData returned ", bytes_read, " bytes, eof=", eof, 
+                                           ", buffer_size=", buffer_size, " samples");
+                        }
+                        
+                        // Check if we got 0 bytes - this could indicate various issues
+                        if (bytes_read == 0) {
+                            if (Debug::runtime_debug_enabled) {
+                                Debug::runtime("Audio decoder thread: Got 0 bytes from stream, eof=", eof, 
+                                               ", buffer_size=", buffer_size, " samples");
+                            }
+                            if (eof) {
+                                if (Debug::runtime_debug_enabled) {
+                                    Debug::runtime("Audio decoder thread: EOF detected, final buffer size=", buffer_size, " samples");
+                                }
+                            }
+                        }
                     } else {
                         // Stream ownership has changed, break to re-evaluate
+                        if (Debug::runtime_debug_enabled) {
+                            Debug::runtime("Audio decoder thread: Stream ownership changed, breaking");
+                        }
                         break;
                     }
                 } else {
                     // Stream has changed. Break to re-evaluate in the outer loop.
+                    if (Debug::runtime_debug_enabled) {
+                        Debug::runtime("Audio decoder thread: Stream changed, breaking to re-evaluate");
+                    }
                     break;
                 }
             }
@@ -222,6 +252,12 @@ void Audio::decoderThreadLoop() {
                 std::lock_guard<std::mutex> lock(m_buffer_mutex);
                 size_t samples_read = bytes_read / sizeof(int16_t);
                 m_buffer.insert(m_buffer.end(), decode_chunk.begin(), decode_chunk.begin() + samples_read);
+                
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("Audio decoder thread: Added ", samples_read, " samples to buffer, new buffer size=", m_buffer.size());
+                }
+            } else if (Debug::runtime_debug_enabled) {
+                Debug::runtime("Audio decoder thread: Got 0 bytes from stream, eof=", eof);
             }
             m_buffer_cv.notify_one();
 
@@ -229,6 +265,14 @@ void Audio::decoderThreadLoop() {
                 // This stream is finished. Signal this by setting the shared pointer to null.
                 // This will cause isFinished() to return true (once the buffer is empty)
                 // and will make this thread wait for a new stream.
+                if (Debug::runtime_debug_enabled) {
+                    size_t final_buffer_size = 0;
+                    {
+                        std::lock_guard<std::mutex> buf_lock(m_buffer_mutex);
+                        final_buffer_size = m_buffer.size();
+                    }
+                    Debug::runtime("Audio decoder thread: EOF detected, final buffer size=", final_buffer_size, " samples");
+                }
                 std::lock_guard<std::mutex> lock(m_stream_mutex);
                 m_owned_stream.reset(); // Release ownership
                 m_current_stream_raw_ptr.store(nullptr);
@@ -277,6 +321,20 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
                 memcpy(buf, self->m_buffer.data(), bytes_copied);
                 size_t samples_copied = bytes_copied / sizeof(int16_t);
                 self->m_buffer.erase(self->m_buffer.begin(), self->m_buffer.begin() + samples_copied);
+                
+                // Only log occasionally to avoid spam, but increase around problem area
+                thread_local int callback_counter = 0;
+                if (Debug::runtime_debug_enabled && (++callback_counter % 100 == 0)) {
+                    Debug::runtime("Audio callback: Copied ", bytes_copied, " bytes, buffer size now=", self->m_buffer.size(), " samples");
+                }
+            }
+        } else {
+            // Log buffer underruns and inactive states
+            if (Debug::runtime_debug_enabled && self->m_active && self->m_playing) {
+                thread_local int underrun_counter = 0;
+                if (++underrun_counter % 50 == 0) {  // Log every 50th underrun to avoid spam
+                    Debug::runtime("Audio callback: Buffer underrun, buffer_size=", self->m_buffer.size(), " samples, active=", self->m_active, ", playing=", self->m_playing);
+                }
             }
         }
         // If no data available, bytes_copied remains 0, and we'll fill with silence below

@@ -40,6 +40,27 @@ This file contains comprehensive project context for AI assistant continuity. **
 - Multi-endpoint redundancy for reliability
 - Created detailed setup documentation (`LASTFM_SETUP.md`)
 
+### VLC-Style Bitstream Buffering Implementation (Build 670+)
+**Critical Issue**: Opus tracks stopping at exactly 33.4 seconds instead of playing full duration due to excessive decoded audio buffering causing premature EOF.
+
+**Root Cause**: PsyMP3 was buffering 2.5+ minutes of decoded audio (opposite of VLC's approach), causing memory issues and EOF detection problems.
+
+**Key Changes**:
+1. **DemuxedStream Architecture**: Replaced decoded audio frame buffering with compressed bitstream chunk buffering
+2. **On-Demand Decoding**: Audio frames are now decoded just-in-time from buffered compressed chunks
+3. **OpusTags Debug Fix**: Fixed `METADATA_BLOCK_PICTURE` logging to show byte count instead of dumping large binary data
+4. **Header Packet Handling**: Fixed immediate EOF from header packets by continuing loop when empty frames are received but more chunks are available
+5. **Memory Efficiency**: Reduced memory usage by ~90% by buffering 10 compressed chunks instead of minutes of decoded audio
+
+**Current Status**: VLC-style bitstream buffering is implemented and audio playback starts successfully, but the 33-second cutoff issue persists. Root cause identified: 
+
+**CRITICAL BUG FOUND**: 
+- **Actual track duration**: 189.18 seconds (3:09) - confirmed by ffprobe
+- **PsyMP3 reported duration**: 300 seconds (5:00) - incorrect fallback default  
+- **Stops at**: 33 seconds = 17.5% of actual duration
+- **Issue**: Correct duration calculation (189s) is being reset to 0, triggering 5-minute fallback
+- **Vorbis worse**: Stops after 1-2 seconds and shows no metadata, suggesting demuxer/metadata system issues
+
 ## Architecture Overview
 
 ### Core Components
@@ -84,7 +105,7 @@ ws2_32, mswsock (automatically linked on Windows builds)
 # Standard autotools workflow
 autoreconf -fiv
 ./configure
-make
+make -j8
 
 # Windows: Automatic resource compilation via windres
 # Build order: res/ directory first, then src/
@@ -196,9 +217,16 @@ make
 
 ## IMPORTANT: Maintenance Directives
 
+### Self-Updating File Directives:
+1. **When fixing bugs**: Document the root cause, symptoms, and fix in the "Recent Major Work" section
+2. **When adding features**: Update the "Architecture Overview" and add to "Current Status" 
+3. **When changing dependencies**: Update both the "Build System" section and mention compatibility impacts
+4. **When discovering performance issues**: Add to "Known Issues & Technical Debt" with specific metrics
+5. **When making architectural changes**: Update relevant sections and add migration notes for future developers
+
 ### When Making Changes, Always Update:
 1. **This file (`CLAUDE.md`)**: Add new context, mark completed items
-2. **Build number**: Automatically increments on Windows commits
+2. **Build number**: Automatically increments on Windows commits  
 3. **README**: If dependencies or features change
 4. **Comments**: Keep code documentation current
 

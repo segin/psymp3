@@ -102,11 +102,13 @@ private:
     std::unique_ptr<AudioCodec> m_codec;
     uint32_t m_current_stream_id = 0;
     
-    // Audio frame buffering
-    std::queue<AudioFrame> m_frame_buffer;
+    // Bitstream chunk buffering (VLC-style)
+    std::queue<MediaChunk> m_chunk_buffer;
     AudioFrame m_current_frame;
     size_t m_current_frame_offset = 0;  // Byte offset within current frame
     
+    // Position tracking based on audio consumption, not packet timestamps
+    uint64_t m_samples_consumed = 0;
     bool m_eof_reached = false;
     
     /**
@@ -130,12 +132,12 @@ private:
     bool setupCodec();
     
     /**
-     * @brief Fill the frame buffer by reading and decoding data
+     * @brief Fill the chunk buffer by reading compressed bitstream data
      */
-    void fillFrameBuffer();
+    void fillChunkBuffer();
     
     /**
-     * @brief Get next frame from buffer, filling if necessary
+     * @brief Get next frame by decoding from buffered chunks on-demand
      */
     AudioFrame getNextFrame();
     

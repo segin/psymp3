@@ -72,7 +72,7 @@ int IOHandler::seek(long offset, int whence)
  * Derived classes should override this for seekable sources.
  * @return The current position in bytes, or -1 on error.
  */
-long IOHandler::tell()
+off_t IOHandler::tell()
 {
     // Default behavior: indicate an error.
     return -1;
@@ -102,4 +102,17 @@ bool IOHandler::eof()
 {
     // Default behavior: always at end of file.
     return true;
+}
+
+/**
+ * @brief Gets the file size from the I/O source.
+ *
+ * The default implementation returns -1 to indicate unknown size.
+ * Derived classes should override this for sources with known sizes.
+ * @return The file size in bytes, or -1 if unknown.
+ */
+off_t IOHandler::getFileSize()
+{
+    // Default behavior: unknown size.
+    return -1;
 }

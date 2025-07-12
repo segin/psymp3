@@ -22,6 +22,13 @@
  */
 
 #include "psymp3.h"
+#ifdef _WIN32
+#include <io.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#else
+#include <sys/stat.h>
+#endif
 
 /**
  * @brief Constructs a FileIOHandler for a given local file path.
@@ -41,6 +48,15 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) {
 #endif
     if (!m_file_handle) {
         throw InvalidMediaException("FileIOHandler: Could not open file: " + path.to8Bit(false));
+    }
+    
+    // Debug: check file size immediately after opening
+    if (Debug::runtime_debug_enabled) {
+        struct stat st;
+        int fd = fileno(m_file_handle);
+        if (fstat(fd, &st) == 0) {
+            Debug::runtime("FileIOHandler::FileIOHandler() - opened file, fstat size=", st.st_size);
+        }
     }
 }
 
@@ -70,25 +86,36 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
 /**
  * @brief Seeks to a new position in the file.
  *
- * This is a direct wrapper around the standard C `fseek` function.
+ * This uses 64-bit file operations (fseeko) to support large files.
  * @param offset The offset from the position specified by `whence`.
  * @param whence The reference position (e.g., SEEK_SET, SEEK_CUR, SEEK_END).
  * @return 0 on success, or a non-zero value on failure.
  */
 int FileIOHandler::seek(long offset, int whence) {
     if (!m_file_handle) return -1;
-    return fseek(m_file_handle, offset, whence);
+    return fseeko(m_file_handle, offset, whence);
 }
 
 /**
  * @brief Gets the current position in the file.
  *
- * This is a direct wrapper around the standard C `ftell` function.
+ * This uses 64-bit file operations (ftello) to support large files.
  * @return The current position in bytes, or -1 on error.
  */
-long FileIOHandler::tell() {
+off_t FileIOHandler::tell() {
     if (!m_file_handle) return -1;
-    return ftell(m_file_handle);
+    off_t pos = ftello(m_file_handle);
+    if (Debug::runtime_debug_enabled && pos > 800000) {
+        Debug::runtime("FileIOHandler::tell() - ftello returned pos=", pos, " (hex=", pos, ")");
+        
+        // Also check with fstat for comparison
+        struct stat st;
+        int fd = fileno(m_file_handle);
+        if (fstat(fd, &st) == 0) {
+            Debug::runtime("FileIOHandler::tell() - fstat says file size is=", st.st_size);
+        }
+    }
+    return pos;
 }
 
 /**
@@ -114,4 +141,25 @@ int FileIOHandler::close() {
 bool FileIOHandler::eof() {
     if (!m_file_handle) return true;
     return feof(m_file_handle) != 0;
+}
+
+off_t FileIOHandler::getFileSize() {
+    if (!m_file_handle) return -1;
+    
+    // Use fstat on the file descriptor to get the size
+#ifdef _WIN32
+    struct _stat64 file_stat;
+    int fd = _fileno(m_file_handle);
+    if (_fstat64(fd, &file_stat) != 0) {
+        return -1;
+    }
+#else
+    struct stat file_stat;
+    int fd = fileno(m_file_handle);
+    if (fstat(fd, &file_stat) != 0) {
+        return -1;
+    }
+#endif
+    
+    return file_stat.st_size;
 }
