@@ -78,6 +78,7 @@ struct OggStream {
     uint16_t channels = 0;
     uint32_t bitrate = 0;
     uint64_t total_samples = 0;
+    uint64_t pre_skip = 0;
     
     // Metadata (filled from comment headers like OpusTags)
     std::string artist;

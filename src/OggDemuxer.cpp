@@ -653,9 +653,10 @@ bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
             stream.channels = OggDemuxer::readLE<uint8_t>(packet.data, 9);
             // Note: Opus always runs at 48kHz internally, but can be presented at other rates
             stream.sample_rate = 48000;
+            stream.pre_skip = OggDemuxer::readLE<uint16_t>(packet.data, 10); // Read pre-skip
             
             if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: OpusHead header found, channels=", stream.channels, ", packet_size=", packet.data.size());
+                Debug::runtime("OggDemuxer: OpusHead header found, channels=", stream.channels, ", pre_skip=", stream.pre_skip, ", packet_size=", packet.data.size());
             }
         }
         return true;
@@ -857,7 +858,14 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     // as it already accounts for the proper sample count
     if (it->second.codec_name == "opus") {
         // Opus always uses 48kHz for granule positions regardless of output rate
-        return (granule * 1000ULL) / 48000ULL;
+        // Granule position includes pre-skip, so subtract it for actual duration
+        uint64_t effective_granule = granule;
+        if (granule > it->second.pre_skip) {
+            effective_granule = granule - it->second.pre_skip;
+        } else {
+            effective_granule = 0;
+        }
+        return (effective_granule * 1000ULL) / 48000ULL;
     }
     
     return (granule * 1000ULL) / it->second.sample_rate;
