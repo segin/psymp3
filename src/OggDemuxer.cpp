@@ -40,6 +40,8 @@ bool OggDemuxer::parseContainer() {
         if (Debug::runtime_debug_enabled) {
             Debug::runtime("OggDemuxer: File size detection using getFileSize() - file_size=", m_file_size, " (hex=0x", std::hex, m_file_size, std::dec, ")");
         }
+        // Log the actual file position and bytes read when the problem occurs
+        Debug::runtime("OggDemuxer: Initial m_file_size in parseContainer: ", m_file_size);
         
         // Read initial data to parse headers
         if (!readIntoSyncBuffer(8192)) {
