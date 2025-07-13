@@ -327,6 +327,13 @@ bool DemuxedStream::eof() {
     return m_eof_reached;
 }
 
+unsigned int DemuxedStream::getLength() {
+    if (m_demuxer) {
+        return static_cast<unsigned int>(m_demuxer->getDuration());
+    }
+    return 0;
+}
+
 std::vector<StreamInfo> DemuxedStream::getAvailableStreams() const {
     if (!m_demuxer) {
         return {};

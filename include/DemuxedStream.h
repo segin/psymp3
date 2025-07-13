@@ -64,6 +64,7 @@ public:
     size_t getData(size_t len, void *buf) override;
     void seekTo(unsigned long pos) override;
     bool eof() override;
+    unsigned int getLength() override;
     
     /**
      * @brief Get information about all available streams
