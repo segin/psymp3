@@ -479,7 +479,7 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                     
                     chunk.timestamp_samples = effective_granule;
                     chunk.timestamp_ms = granuleToMs(effective_granule, stream_id);
-                    chunk.is_keyframe = true;
+                    chunk.is_keyframe = false; // Audio data packets are not keyframes
                     
                     if (Debug::runtime_debug_enabled) {
                         Debug::runtime("OggDemuxer: Packet granule=", packet.granulepos, 
