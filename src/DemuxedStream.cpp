@@ -211,6 +211,15 @@ AudioFrame DemuxedStream::getNextFrame() {
         MediaChunk chunk = std::move(m_chunk_buffer.front());
         m_chunk_buffer.pop();
         
+        // Special handling for Opus: if codec is initialized, and we get a header chunk,
+        // it means it's a redundant header from seeking or re-initialization. Skip it.
+        if (m_codec && m_codec->getCodecName() == "opus" && m_codec->isInitialized() && chunk.is_keyframe) {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("DemuxedStream: Skipping redundant Opus header chunk (size=", chunk.data.size(), ")");
+            }
+            return AudioFrame{}; // Return empty frame, effectively discarding this chunk
+        }
+        
         if (Debug::runtime_debug_enabled) {
             Debug::runtime("DemuxedStream: On-demand decoding chunk size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
         }
