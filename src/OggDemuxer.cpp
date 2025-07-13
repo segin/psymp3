@@ -38,7 +38,7 @@ bool OggDemuxer::parseContainer() {
         }
         
         if (Debug::runtime_debug_enabled) {
-            Debug::runtime("OggDemuxer: File size detection using getFileSize() - file_size=", m_file_size);
+            Debug::runtime("OggDemuxer: File size detection using getFileSize() - file_size=", m_file_size, " (hex=0x", std::hex, m_file_size, std::dec, ")");
         }
         
         // Read initial data to parse headers
@@ -135,36 +135,32 @@ bool OggDemuxer::readIntoSyncBuffer(size_t bytes) {
     
     // CRITICAL: Only treat as EOF if we actually can't read any data AND we're at end of file
     if (bytes_read <= 0) {
-        // Check if this is actually EOF or just a temporary read issue
+        // Don't immediately assume EOF - check if we're actually at the end
         off_t current_pos = m_handler->tell();
-        m_handler->seek(0, SEEK_END);
-        off_t file_size = m_handler->tell();
-        m_handler->seek(current_pos, SEEK_SET);
         
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("OggDemuxer: readIntoSyncBuffer got bytes_read=", bytes_read, 
-                           ", pos_before=", current_pos_before, ", pos_after=", current_pos, 
-                           ", file_size=", file_size, ", m_file_size=", m_file_size);
-        }
-        
-        // Only consider it EOF if we're actually at the end of the file
-        // Use the freshly detected file_size, not the potentially incorrect m_file_size
-        if (current_pos >= file_size) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: Confirmed EOF - reached end of file (pos=", current_pos, ", size=", file_size, ")");
-            }
+        // For Opus files specifically, we should trust the file size we got initially
+        // rather than seeking to check each time
+        if (m_file_size > 0 && current_pos >= static_cast<off_t>(m_file_size)) {
             m_eof = true;
             return false;
-        } else {
-            // We're not at EOF but got a short read - this might be a temporary issue
-            // Don't treat this as fatal, just return false to signal no data available right now
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: Short read but not at EOF - pos=", current_pos, 
-                               " of ", file_size, ", trying again later");
-            }
-            // Don't set m_eof = true here! This allows the caller to retry
-            return false;
         }
+        
+        // If we don't have a reliable file size, only then do the seek check
+        if (m_file_size == 0) {
+            off_t saved_pos = current_pos;
+            m_handler->seek(0, SEEK_END);
+            off_t actual_file_size = m_handler->tell();
+            m_handler->seek(saved_pos, SEEK_SET);
+            
+            if (current_pos >= actual_file_size) {
+                m_eof = true;
+                return false;
+            }
+        }
+        
+        // Not at EOF, but got no data - this might be temporary
+        // Return false but don't set m_eof
+        return false;
     }
     
     if (ogg_sync_wrote(&m_sync_state, bytes_read) != 0) {
