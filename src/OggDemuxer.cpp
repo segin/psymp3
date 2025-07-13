@@ -780,13 +780,13 @@ void OggDemuxer::calculateDuration() {
     for (const auto& [stream_id, stream] : m_streams) {
         if (stream.codec_type == "audio" && stream.sample_rate > 0) {
             if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: Stream ", stream_id, " has total_samples=", stream.total_samples, ", sample_rate=", stream.sample_rate);
+                Debug::runtime("OggDemuxer: calculateDuration - Stream ", stream_id, " (", stream.codec_name, ") has total_samples=", stream.total_samples, ", sample_rate=", stream.sample_rate);
             }
             if (stream.total_samples > 0) {
                 uint64_t stream_duration = (stream.total_samples * 1000ULL) / stream.sample_rate;
                 m_duration_ms = std::max(m_duration_ms, stream_duration);
                 if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("OggDemuxer: Calculated duration from samples: ", stream_duration, "ms");
+                    Debug::runtime("OggDemuxer: calculateDuration - Calculated duration from samples: ", stream_duration, "ms");
                 }
             }
         }
@@ -795,23 +795,29 @@ void OggDemuxer::calculateDuration() {
     // If we couldn't determine duration from container, try using tracked max granule
     if (m_duration_ms == 0) {
         if (m_max_granule_seen > 0) {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: calculateDuration - Using tracked max granule: ", m_max_granule_seen);
+            }
             // Use the tracked maximum granule position
             uint32_t stream_id = findBestAudioStream();
             if (stream_id != 0) {
                 m_duration_ms = granuleToMs(m_max_granule_seen, stream_id);
                 if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("OggDemuxer: Duration from tracked max granule: ", m_max_granule_seen, " -> ", m_duration_ms, "ms");
+                    Debug::runtime("OggDemuxer: calculateDuration - Duration from tracked max granule: ", m_max_granule_seen, " -> ", m_duration_ms, "ms");
                 }
             } else {
                 if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("OggDemuxer: No audio stream found for duration calculation");
+                    Debug::runtime("OggDemuxer: calculateDuration - No audio stream found for duration calculation from max granule");
                 }
             }
         } else {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: calculateDuration - Falling back to reading last page.");
+            }
             // Fall back to reading last page
             uint64_t last_granule = getLastGranulePosition();
             if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: getLastGranulePosition returned: ", last_granule);
+                Debug::runtime("OggDemuxer: calculateDuration - getLastGranulePosition returned: ", last_granule);
             }
             if (last_granule > 0) {
                 // Use the first audio stream for duration calculation
@@ -819,16 +825,16 @@ void OggDemuxer::calculateDuration() {
                 if (stream_id != 0) {
                     m_duration_ms = granuleToMs(last_granule, stream_id);
                     if (Debug::runtime_debug_enabled) {
-                        Debug::runtime("OggDemuxer: Duration from last granule: ", m_duration_ms, "ms");
+                        Debug::runtime("OggDemuxer: calculateDuration - Duration from last granule: ", m_duration_ms, "ms");
                     }
                 } else {
                     if (Debug::runtime_debug_enabled) {
-                        Debug::runtime("OggDemuxer: No audio stream found for duration calculation");
+                        Debug::runtime("OggDemuxer: calculateDuration - No audio stream found for duration calculation from last granule");
                     }
                 }
             } else {
                 if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("OggDemuxer: No valid granule position found");
+                    Debug::runtime("OggDemuxer: calculateDuration - No valid granule position found after fallback");
                 }
             }
         }
@@ -836,7 +842,7 @@ void OggDemuxer::calculateDuration() {
     
     // Final fallback - use a reasonable default
     if (m_duration_ms == 0) {
-        Debug::runtime("OggDemuxer: Could not determine duration - no fallback used");
+        Debug::runtime("OggDemuxer: calculateDuration - Could not determine duration - no fallback used");
         // No fallback - leave as 0 if duration cannot be determined
     }
 }
@@ -844,12 +850,22 @@ void OggDemuxer::calculateDuration() {
 uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     auto it = m_streams.find(stream_id);
     if (it == m_streams.end() || it->second.sample_rate == 0) {
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: granuleToMs - Invalid stream_id or sample_rate is 0. stream_id=", stream_id);
+        }
         return 0;
     }
     
     // Check for invalid granule positions
     if (granule == static_cast<uint64_t>(-1) || granule > 0x7FFFFFFFFFFFFFFFULL) {
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: granuleToMs - Invalid granule position: ", granule);
+        }
         return 0;
+    }
+    
+    if (Debug::runtime_debug_enabled) {
+        Debug::runtime("OggDemuxer: granuleToMs - Input granule=", granule, ", stream_id=", stream_id, ", codec=", it->second.codec_name, ", sample_rate=", it->second.sample_rate, ", pre_skip=", it->second.pre_skip);
     }
     
     // For Opus streams, granule positions are in 48kHz sample units
@@ -865,10 +881,17 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
         } else {
             effective_granule = 0;
         }
+        if (Debug::runtime_debug_enabled) {
+            Debug::runtime("OggDemuxer: granuleToMs (Opus) - effective_granule=", effective_granule, ", result=", (effective_granule * 1000ULL) / 48000ULL);
+        }
         return (effective_granule * 1000ULL) / 48000ULL;
     }
     
-    return (granule * 1000ULL) / it->second.sample_rate;
+    uint64_t result = (granule * 1000ULL) / it->second.sample_rate;
+    if (Debug::runtime_debug_enabled) {
+        Debug::runtime("OggDemuxer: granuleToMs (Non-Opus) - result=", result);
+    }
+    return result;
 }
 
 uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const {
