@@ -405,9 +405,15 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     // Need to read more pages to get packets
     while (!m_eof) {
         if (!readIntoSyncBuffer(4096)) {
-            Debug::runtime("OggDemuxer: Reached EOF at position ", m_position_ms, "ms out of ", m_duration_ms, "ms total duration");
-            m_eof = true;
-            break;
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: readChunk - readIntoSyncBuffer returned false. Current pos: ", m_position_ms, "ms, EOF: ", m_eof);
+            }
+            if (m_eof) { // If readIntoSyncBuffer set m_eof, then we are truly at EOF
+                Debug::runtime("OggDemuxer: Reached EOF at position ", m_position_ms, "ms out of ", m_duration_ms, "ms total duration");
+                break;
+            }
+            // If not EOF, it means a temporary read issue, so we continue trying
+            continue;
         }
         
         ogg_page page;
