@@ -27,3 +27,13 @@ INSTALL
 install-sh
 package-lock.json
 tmp/
+**/*.log
+**/*.opus
+**/*.ogg
+**/*.wav
+**/*.mp3
+**/*.flac
+**/*.m4a
+**/*.aac
+**/*.wma
+**/*.aiff
