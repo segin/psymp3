@@ -436,7 +436,7 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 uint64_t page_timestamp = granuleToMs(page_granule, page_stream_id);
                 long current_file_pos = m_handler->tell();
                 Debug::runtime("OggDemuxer: Found page with granule=", page_granule, ", timestamp=", page_timestamp, 
-                               "ms, file_pos=", current_file_pos, ", current_position=", m_position_ms, "ms");
+                               ", ms, file_pos=", current_file_pos, ", current_position=", m_position_ms, "ms");
             }
             
             // Track the maximum granule position seen for duration calculation
@@ -445,9 +445,9 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 
                 // Update duration estimate when we see a new maximum granule position
                 if (m_max_granule_seen > 0) {
-                    uint32_t stream_id = findBestAudioStream();
-                    if (stream_id != 0) {
-                        uint64_t estimated_duration = granuleToMs(m_max_granule_seen, stream_id);
+                    uint32_t stream_id_for_duration = findBestAudioStream(); // Use a different variable name to avoid conflict
+                    if (stream_id_for_duration != 0) {
+                        uint64_t estimated_duration = granuleToMs(m_max_granule_seen, stream_id_for_duration);
                         if (estimated_duration > m_duration_ms) {
                             m_duration_ms = estimated_duration;
                             if (Debug::runtime_debug_enabled) {
