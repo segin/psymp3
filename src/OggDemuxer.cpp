@@ -487,31 +487,6 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                     }
                     
                     chunk.timestamp_samples = effective_granule;
-                    // If headers have already been sent, and this is a beginning-of-stream packet,
-                    // it's a redundant header re-emitted by libogg after a seek/reset. Discard it.
-                    if (stream.headers_sent && packet.b_o_s) {
-                        if (Debug::runtime_debug_enabled) {
-                            Debug::runtime("OggDemuxer: Discarding redundant BOS packet (likely header re-emission) for stream ", stream_id);
-                        }
-                        continue; // Skip this packet
-                    }
-
-                    MediaChunk chunk;
-                    chunk.stream_id = stream_id;
-                    chunk.data.assign(packet.packet, packet.packet + packet.bytes);
-                    
-                    // Use packet granule position if available, otherwise use page granule (RFC-compliant)
-                    uint64_t effective_granule = packet.granulepos;
-                    if (effective_granule == static_cast<uint64_t>(-1)) {
-                        // Use page granule position but only if it's from our stream
-                        if (page_granule != static_cast<uint64_t>(-1)) {
-                            effective_granule = page_granule;
-                        } else {
-                            effective_granule = 0;
-                        }
-                    }
-                    
-                    chunk.timestamp_samples = effective_granule;
                     chunk.timestamp_ms = granuleToMs(effective_granule, stream_id);
                     chunk.is_keyframe = false; // Audio data packets are not keyframes
                     
@@ -839,7 +814,8 @@ void OggDemuxer::calculateDuration() {
                 if (Debug::runtime_debug_enabled) {
                     Debug::runtime("OggDemuxer: calculateDuration - Duration from tracked max granule: ", m_max_granule_seen, " -> ", m_duration_ms, "ms");
                 }
-            } else {
+            }
+            else {
                 if (Debug::runtime_debug_enabled) {
                     Debug::runtime("OggDemuxer: calculateDuration - No audio stream found for duration calculation from max granule");
                 }
@@ -861,12 +837,14 @@ void OggDemuxer::calculateDuration() {
                     if (Debug::runtime_debug_enabled) {
                         Debug::runtime("OggDemuxer: calculateDuration - Duration from last granule: ", m_duration_ms, "ms");
                     }
-                } else {
+                }
+                else {
                     if (Debug::runtime_debug_enabled) {
                         Debug::runtime("OggDemuxer: calculateDuration - No audio stream found for duration calculation from last granule");
                     }
                 }
-            } else {
+            }
+            else {
                 if (Debug::runtime_debug_enabled) {
                     Debug::runtime("OggDemuxer: calculateDuration - No valid granule position found after fallback");
                 }
