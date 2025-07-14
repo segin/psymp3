@@ -462,6 +462,15 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
             ogg_packet packet;
             while (ogg_stream_packetout(&m_ogg_streams[page_stream_id], &packet) == 1) {
                 if (page_stream_id == stream_id) {
+                    // If headers have already been sent, and this is a beginning-of-stream packet,
+                    // it's a redundant header re-emitted by libogg after a seek/reset. Discard it.
+                    if (stream.headers_sent && packet.b_o_s) {
+                        if (Debug::runtime_debug_enabled) {
+                            Debug::runtime("OggDemuxer: Discarding redundant BOS packet (likely header re-emission) for stream ", stream_id);
+                        }
+                        continue; // Skip this packet
+                    }
+
                     MediaChunk chunk;
                     chunk.stream_id = stream_id;
                     chunk.data.assign(packet.packet, packet.packet + packet.bytes);
