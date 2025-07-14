@@ -814,8 +814,7 @@ void OggDemuxer::calculateDuration() {
                 if (Debug::runtime_debug_enabled) {
                     Debug::runtime("OggDemuxer: calculateDuration - Duration from tracked max granule: ", m_max_granule_seen, " -> ", m_duration_ms, "ms");
                 }
-            }
-            else {
+            } else {
                 if (Debug::runtime_debug_enabled) {
                     Debug::runtime("OggDemuxer: calculateDuration - No audio stream found for duration calculation from max granule");
                 }
@@ -838,13 +837,7 @@ void OggDemuxer::calculateDuration() {
                         Debug::runtime("OggDemuxer: calculateDuration - Duration from last granule: ", m_duration_ms, "ms");
                     }
                 }
-                else {
-                    if (Debug::runtime_debug_enabled) {
-                        Debug::runtime("OggDemuxer: calculateDuration - No audio stream found for duration calculation from last granule");
-                    }
-                }
-            }
-            else {
+            } else {
                 if (Debug::runtime_debug_enabled) {
                     Debug::runtime("OggDemuxer: calculateDuration - No valid granule position found after fallback");
                 }
