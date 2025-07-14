@@ -379,15 +379,21 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     }
     
     // Need to read more pages to get packets
-    while (true) {
-        // Attempt to read data into sync buffer
-        bool read_success = readIntoSyncBuffer(4096);
-
-        // Process pages from sync buffer
+    while (!m_eof) {
+        if (!readIntoSyncBuffer(4096)) {
+            if (Debug::runtime_debug_enabled) {
+                Debug::runtime("OggDemuxer: readChunk - readIntoSyncBuffer returned false. Current pos: ", m_position_ms, "ms, EOF: ", m_eof);
+            }
+            if (m_eof) { // If readIntoSyncBuffer set m_eof, then we are truly at EOF
+                Debug::runtime("OggDemuxer: Reached EOF at position ", m_position_ms, "ms out of ", m_duration_ms, "ms total duration");
+                break;
+            }
+            // If not EOF, it means a temporary read issue, so we continue trying
+            continue;
+        }
+        
         ogg_page page;
-        bool page_found = false;
         while (ogg_sync_pageout(&m_sync_state, &page) == 1) {
-            page_found = true;
             uint32_t page_stream_id = ogg_page_serialno(&page);
             
             if (m_ogg_streams.find(page_stream_id) == m_ogg_streams.end()) {
@@ -476,16 +482,6 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                     return chunk;
                 }
             }
-        }
-
-        // If no data was read from IOHandler and no pages were found in libogg buffer,
-        // then we have reached the true end of the file.
-        if (!read_success && !page_found) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: True EOF reached - no more data from IOHandler and no more pages in libogg buffer.");
-            }
-            m_eof = true;
-            return MediaChunk{};
         }
     }
     
