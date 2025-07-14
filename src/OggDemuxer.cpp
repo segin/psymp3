@@ -137,23 +137,9 @@ bool OggDemuxer::readIntoSyncBuffer(size_t bytes) {
     
     // CRITICAL: Only treat as EOF if we actually can't read any data AND we're at end of file
     if (bytes_read <= 0) {
-        off_t current_pos = m_handler->tell();
-        
-        // Use the pre-calculated m_file_size for EOF check
-        if (m_file_size > 0 && current_pos >= static_cast<off_t>(m_file_size)) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: Confirmed EOF - reached end of file (pos=", current_pos, ", size=", m_file_size, ")");
-            }
-            m_eof = true;
-            return false;
-        } else {
-            // Not at EOF but got a short read - this might be a temporary issue
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: Short read but not at EOF - pos=", current_pos, 
-                               " of ", m_file_size, ", trying again later");
-            }
-            return false;
-        }
+        // Not at EOF, but got no data - this might be temporary
+        // Return false but don't set m_eof
+        return false;
     }
     
     if (ogg_sync_wrote(&m_sync_state, bytes_read) != 0) {
@@ -394,17 +380,21 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     }
     
     // Need to read more pages to get packets
-    while (!m_eof) {
+    while (true) {
         if (!readIntoSyncBuffer(4096)) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OggDemuxer: readChunk - readIntoSyncBuffer returned false. Current pos: ", m_position_ms, "ms, EOF: ", m_eof);
+            // If readIntoSyncBuffer returns false, it means no more data from IOHandler.
+            // Check if there are any remaining pages in libogg's buffer.
+            ogg_page page;
+            if (ogg_sync_pageout(&m_sync_state, &page) != 1) {
+                // No more data from IOHandler and no more pages in libogg buffer, so truly EOF
+                if (Debug::runtime_debug_enabled) {
+                    Debug::runtime("OggDemuxer: Reached EOF at position ", m_position_ms, "ms out of ", m_duration_ms, "ms total duration");
+                }
+                m_eof = true;
+                return MediaChunk{};
             }
-            if (m_eof) { // If readIntoSyncBuffer set m_eof, then we are truly at EOF
-                Debug::runtime("OggDemuxer: Reached EOF at position ", m_position_ms, "ms out of ", m_duration_ms, "ms total duration");
-                break;
-            }
-            // If not EOF, it means a temporary read issue, so we continue trying
-            continue;
+            // If there are still pages, process them
+            ogg_sync_pagein(&m_ogg_streams[page_stream_id], &page); // Re-add the page to stream
         }
         
         ogg_page page;
