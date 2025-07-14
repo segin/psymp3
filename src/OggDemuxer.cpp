@@ -464,7 +464,7 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 if (page_stream_id == stream_id) {
                     // If headers have already been sent, and this is a beginning-of-stream packet,
                     // it's a redundant header re-emitted by libogg after a seek/reset. Discard it.
-                    if (stream.headers_sent && packet.b_o_s) {
+                    if (stream_it->second.headers_sent && packet.b_o_s) {
                         if (Debug::runtime_debug_enabled) {
                             Debug::runtime("OggDemuxer: Discarding redundant BOS packet (likely header re-emission) for stream ", stream_id);
                         }
@@ -814,10 +814,6 @@ void OggDemuxer::calculateDuration() {
                 if (Debug::runtime_debug_enabled) {
                     Debug::runtime("OggDemuxer: calculateDuration - Duration from tracked max granule: ", m_max_granule_seen, " -> ", m_duration_ms, "ms");
                 }
-            } else {
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("OggDemuxer: calculateDuration - No audio stream found for duration calculation from max granule");
-                }
             }
         } else {
             if (Debug::runtime_debug_enabled) {
@@ -836,10 +832,6 @@ void OggDemuxer::calculateDuration() {
                     if (Debug::runtime_debug_enabled) {
                         Debug::runtime("OggDemuxer: calculateDuration - Duration from last granule: ", m_duration_ms, "ms");
                     }
-                }
-            } else {
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("OggDemuxer: calculateDuration - No valid granule position found after fallback");
                 }
             }
         }
@@ -862,7 +854,7 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     }
     
     // Check for invalid granule positions
-    if (granule == static_cast<uint64_t>(-1) || granule > 0x7FFFFFFFFFFFFFFFULL) {
+    if (granule == static_cast<uint64_t>(-1) || granule > 0x7FFFFFFFFFFFFFFULL) {
         if (Debug::runtime_debug_enabled) {
             Debug::runtime("OggDemuxer: granuleToMs - Invalid granule position: ", granule);
         }
