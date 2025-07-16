@@ -331,12 +331,15 @@ public:
         }
     }
     
+    static void runtime(const std::string& message);
+
     template<typename... Args>
     static inline void runtime(Args&&... args) {
         // Branch prediction hint: debugging is usually disabled
         if (UNLIKELY(runtime_debug_enabled)) {
-            ((std::cout << args), ...);
-            std::cout << std::endl;
+            std::stringstream ss;
+            (ss << ... << args);
+            runtime(ss.str());
         }
     }
 };
