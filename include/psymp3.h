@@ -333,6 +333,11 @@ public:
     
     static void runtime(const std::string& message);
 
+    // Overload for rvalue strings to break recursive template instantiation
+    static inline void runtime(std::string&& message) {
+        runtime(static_cast<const std::string&>(message));
+    }
+
     static inline void runtime(const char* message) {
         if (UNLIKELY(runtime_debug_enabled)) {
             runtime(std::string(message));
