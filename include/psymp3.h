@@ -333,6 +333,12 @@ public:
     
     static void runtime(const std::string& message);
 
+    static inline void runtime(const char* message) {
+        if (UNLIKELY(runtime_debug_enabled)) {
+            runtime(std::string(message));
+        }
+    }
+
     template<typename... Args>
     static inline void runtime(Args&&... args) {
         // Branch prediction hint: debugging is usually disabled
