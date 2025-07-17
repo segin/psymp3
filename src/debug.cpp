@@ -25,7 +25,7 @@ void Debug::runtime(const std::string& message)
         auto timer = std::chrono::system_clock::to_time_t(now);
         std::tm bt = *std::localtime(&timer);
 
-        std::cout << std::put_time(&bt, "%H:%M:%S") << '.' << std::setfill('0') << std::setw(6) << us.count()
+        std::cout << std::put_time(&bt, "%H:%M:%S") << '.' << std::dec << std::setfill('0') << std::setw(6) << us.count()
                   << ": " << message << std::endl;
     }
 }
