@@ -21,11 +21,11 @@ void Debug::runtime(const std::string& message)
 {
     if (runtime_debug_enabled) {
         auto now = std::chrono::system_clock::now();
-        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+        auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
         auto timer = std::chrono::system_clock::to_time_t(now);
         std::tm bt = *std::localtime(&timer);
 
-        std::cout << std::put_time(&bt, "%H:%M:%S") << '.' << std::setfill('0') << std::setw(3) << ms.count()
+        std::cout << std::put_time(&bt, "%H:%M:%S") << '.' << std::setfill('0') << std::setw(6) << us.count()
                   << ": " << message << std::endl;
     }
 }
