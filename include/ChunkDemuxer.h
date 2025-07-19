@@ -148,6 +148,7 @@ private:
     bool m_big_endian = false;                   // Endianness of the format
     std::map<uint32_t, AudioStreamData> m_audio_streams;
     uint32_t m_current_stream_id = 0;
+    uint64_t m_current_sample = 0;
     bool m_eof = false;
     
     /**

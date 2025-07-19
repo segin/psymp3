@@ -323,7 +323,6 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
             chunk.stream_id = stream_id;
             chunk.data = header_packet.data;
             chunk.timestamp_samples = 0;
-            chunk.timestamp_ms = 0;
             chunk.is_keyframe = true;
             
             if (stream.next_header_index >= stream.header_packets.size()) {
@@ -354,22 +353,16 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     MediaChunk chunk;
     chunk.stream_id = stream_id;
     chunk.data = ogg_packet.data;
-
-    // Timestamp calculation
-    if (ogg_packet.granule_position != static_cast<uint64_t>(-1)) {
-        stream.total_samples_processed = ogg_packet.granule_position;
-    }
-    chunk.timestamp_samples = stream.total_samples_processed;
-    chunk.timestamp_ms = granuleToMs(chunk.timestamp_samples, stream_id);
-    
-    if (stream.codec_name == "opus") {
-        stream.total_samples_processed += getOpusPacketSampleCount(ogg_packet);
-    }
+    chunk.granule_position = ogg_packet.granule_position;
 
     stream.m_packet_queue.pop_front();
     
-    if (chunk.timestamp_ms >= m_position_ms) {
-        m_position_ms = chunk.timestamp_ms;
+    // Update our internal position tracker for getPosition()
+    if (chunk.granule_position != static_cast<uint64_t>(-1)) {
+        uint64_t current_ms = granuleToMs(chunk.granule_position, stream_id);
+        if (current_ms > m_position_ms) {
+            m_position_ms = current_ms;
+        }
     }
 
     return chunk;
@@ -474,7 +467,8 @@ bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) 
         }
         return true;
     } else if (packet_type == 3 && OggDemuxer::hasSignature(packet.data, "\x03vorbis")) {
-        // Comment header - skip for now
+        // Comment header
+        parseVorbisComments(stream, packet);
         return true;
     } else if (packet_type == 5 && OggDemuxer::hasSignature(packet.data, "\x05vorbis")) {
         // Setup header
@@ -632,6 +626,84 @@ void OggDemuxer::parseOpusTags(OggStream& stream, const OggPacket& packet) {
                 Debug::log("ogg", "OggDemuxer: OpusTags - ", field, "=<", value.size(), " bytes of binary data>");
             } else {
                 Debug::log("ogg", "OggDemuxer: OpusTags - ", field, "=", value);
+            }
+        }
+    }
+}
+
+void OggDemuxer::parseVorbisComments(OggStream& stream, const OggPacket& packet)
+{
+    // Vorbis comment header format:
+    // 7 bytes: "\x03vorbis"
+    // 4 bytes: vendor_length (little-endian)
+    // vendor_length bytes: vendor string
+    // 4 bytes: user_comment_list_length (little-endian)
+    // For each comment:
+    //   4 bytes: length (little-endian)
+    //   length bytes: comment in UTF-8 format "FIELD=value"
+
+    if (packet.data.size() < 15) { // 7 + 4 + 4
+        return; // Too small
+    }
+
+    size_t offset = 7; // Skip "\x03vorbis"
+
+    // Read vendor string length
+    uint32_t vendor_length = readLE<uint32_t>(packet.data, offset);
+    offset += 4;
+
+    if (offset + vendor_length > packet.data.size()) {
+        return; // Invalid vendor length
+    }
+
+    offset += vendor_length; // Skip vendor string
+
+    if (offset + 4 > packet.data.size()) {
+        return; // No room for comment count
+    }
+
+    // Read number of user comments
+    uint32_t comment_count = readLE<uint32_t>(packet.data, offset);
+    offset += 4;
+
+    // Parse each comment
+    for (uint32_t i = 0; i < comment_count && offset < packet.data.size(); i++) {
+        if (offset + 4 > packet.data.size()) {
+            break;
+        }
+
+        uint32_t comment_length = readLE<uint32_t>(packet.data, offset);
+        offset += 4;
+
+        if (offset + comment_length > packet.data.size()) {
+            break;
+        }
+
+        // Extract comment string
+        std::string comment(reinterpret_cast<const char*>(packet.data.data() + offset), comment_length);
+        offset += comment_length;
+
+        // Parse FIELD=value format
+        size_t equals_pos = comment.find('=');
+        if (equals_pos != std::string::npos) {
+            std::string field = comment.substr(0, equals_pos);
+            std::string value = comment.substr(equals_pos + 1);
+
+            // Convert field to uppercase for case-insensitive comparison
+            std::transform(field.begin(), field.end(), field.begin(), ::toupper);
+
+            if (field == "ARTIST") {
+                stream.artist = value;
+            } else if (field == "TITLE") {
+                stream.title = value;
+            } else if (field == "ALBUM") {
+                stream.album = value;
+            }
+
+            if (field == "METADATA_BLOCK_PICTURE") {
+                Debug::log("ogg", "OggDemuxer: Vorbis Comments - ", field, "=<", value.size(), " bytes of binary data>");
+            } else {
+                Debug::log("ogg", "OggDemuxer: Vorbis Comments - ", field, "=", value);
             }
         }
     }
@@ -848,102 +920,120 @@ int OggDemuxer::getOpusPacketSampleCount(const OggPacket& packet) {
 }
 
 bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id) {
-    if (m_file_size == 0 || target_granule == 0) {
+    if (m_file_size == 0) {
+        return false;
+    }
+    if (target_granule == 0) {
         return seekTo(0);
     }
-    
-    // Bisection search to find the page containing target_granule
+
     long left = 0;
     long right = m_file_size;
-    long best_pos = 0;
+    long best_pos = -1;
     uint64_t best_granule = 0;
-    
-    constexpr int MAX_ITERATIONS = 32; // Limit iterations to prevent infinite loops
+
+    constexpr int MAX_ITERATIONS = 32;
     int iterations = 0;
-    
-    while (left < right && iterations++ < MAX_ITERATIONS) {
+
+    while (left <= right && iterations++ < MAX_ITERATIONS) {
         long mid = left + (right - left) / 2;
-        
-        // Seek to midpoint and find next page
-        m_handler->seek(mid, SEEK_SET);
-        ogg_sync_reset(&m_sync_state);
-        
-        // Read data to find a valid page
-        if (!readIntoSyncBuffer(8192)) {
-            break;
-        }
-        
-        ogg_page page;
-        bool found_page = false;
-        uint64_t page_granule = 0;
-        uint32_t page_stream_id = 0;
-        
-        // Look for a page from our target stream
-        while (ogg_sync_pageout(&m_sync_state, &page) == 1) {
-            page_stream_id = ogg_page_serialno(&page);
-            page_granule = ogg_page_granulepos(&page);
-            
-            // Found a page from our target stream with valid granule
-            if (page_stream_id == stream_id && page_granule != static_cast<uint64_t>(-1)) {
-                found_page = true;
-                break;
-            }
-        }
-        
-        if (!found_page) {
-            // No valid page found, try moving right
-            left = mid + 1;
+        if (mid >= static_cast<long>(m_file_size)) {
+            right = m_file_size - 1;
             continue;
         }
+
+        m_handler->seek(mid, SEEK_SET);
         
-        if (page_granule < target_granule) {
-            // Page is before target, search right half
-            left = mid + 1;
-            best_pos = m_handler->tell() - 8192; // Approximate page position
-            best_granule = page_granule;
-        } else if (page_granule > target_granule) {
-            // Page is after target, search left half
-            right = mid;
+        ogg_page page;
+        if (findAndReadNextPage(page, stream_id)) {
+            uint64_t page_granule = ogg_page_granulepos(&page);
+
+            if (page_granule != static_cast<uint64_t>(-1)) {
+                if (page_granule < target_granule) {
+                    best_pos = m_handler->tell();
+                    best_granule = page_granule;
+                    left = mid + 1;
+                } else {
+                    right = mid - 1;
+                }
+            } else {
+                // Page has no granule, search earlier
+                right = mid - 1;
+            }
         } else {
-            // Exact match found
-            best_pos = m_handler->tell() - 8192;
-            best_granule = page_granule;
-            break;
+            // Couldn't find a page, search earlier
+            right = mid - 1;
         }
     }
-    
-    // Seek to the best position found
-    if (best_pos > 0) {
+
+    if (best_pos != -1) {
         m_handler->seek(best_pos, SEEK_SET);
         ogg_sync_reset(&m_sync_state);
         
-        // Reset all stream states
         for (auto& [sid, ogg_stream] : m_ogg_streams) {
             ogg_stream_reset(&ogg_stream);
         }
         
-        // For non-zero seeks, ensure headers are not resent since codec is already initialized
+        // After seeking, some codecs need headers again, others don't.
         for (auto& [sid, stream] : m_streams) {
-            if (stream.headers_complete) {
-                stream.headers_sent = true;  // Mark headers as already sent
+            // Opus needs headers again because its reset function destroys the decoder.
+            // Vorbis does not, because vorbis_synthesis_restart preserves header info.
+            if (stream.codec_name == "opus") {
+                stream.headers_sent = false;
+                stream.next_header_index = 0;
             }
+            stream.m_packet_queue.clear();
         }
         
         m_position_ms = granuleToMs(best_granule, stream_id);
         m_eof = false;
         
-        // Clear all stream packet queues since we've changed position
-        for (auto& [sid, s] : m_streams) {
-            s.m_packet_queue.clear();
-        }
-        
-        Debug::log("ogg", "OggDemuxer: Bisection seek to granule=", target_granule, 
-                       ", found granule=", best_granule, 
-                       ", position=", m_position_ms, "ms");
+        Debug::log("ogg", "OggDemuxer: Bisection seek successful. Target granule=", target_granule, 
+                       ", found granule=", best_granule, ", position=", m_position_ms, "ms");
         
         return true;
     }
-    
-    // Fallback to beginning if seeking failed
-    return seekTo(0);
+
+    return false; // Seek failed
+}
+
+bool OggDemuxer::findAndReadNextPage(ogg_page& page, uint32_t target_stream_id) {
+    long current_pos = m_handler->tell();
+    long search_start_pos = current_pos;
+    constexpr size_t SCAN_BUFFER_SIZE = 8192;
+    std::vector<uint8_t> buffer(SCAN_BUFFER_SIZE);
+
+    while (true) {
+        long bytes_read = m_handler->read(buffer.data(), 1, SCAN_BUFFER_SIZE);
+        if (bytes_read <= 4) {
+            return false; // End of file or not enough data for a page
+        }
+
+        for (long i = 0; i < bytes_read - 4; ++i) {
+            if (buffer[i] == 'O' && buffer[i+1] == 'g' && buffer[i+2] == 'g' && buffer[i+3] == 'S') {
+                // Found a potential page, reset sync state and feed it data
+                ogg_sync_reset(&m_sync_state);
+                char* sync_buffer = ogg_sync_buffer(&m_sync_state, bytes_read - i);
+                if (sync_buffer) {
+                    memcpy(sync_buffer, buffer.data() + i, bytes_read - i);
+                    ogg_sync_wrote(&m_sync_state, bytes_read - i);
+
+                    // Try to extract a page
+                    if (ogg_sync_pageout(&m_sync_state, &page) == 1) {
+                        // Successfully got a page. Check if it's the one we want.
+                        if (target_stream_id == 0 || static_cast<uint32_t>(ogg_page_serialno(&page)) == target_stream_id) {
+                            // Found a valid page. Reposition the handler to the start of this page.
+                            m_handler->seek(search_start_pos + i, SEEK_SET);
+                            return true;
+                        }
+                        // It's a valid page, but not for our target stream. Continue scanning.
+                    }
+                }
+            }
+        }
+        // No signature found in this buffer, advance our search position
+        search_start_pos += bytes_read - 4;
+        m_handler->seek(search_start_pos, SEEK_SET);
+    }
+    return false;
 }

@@ -11,6 +11,9 @@
 
 ChunkDemuxer::ChunkDemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)) {
+    m_current_stream_id = 0;
+    m_current_sample = 0;
+    m_eof = false;
 }
 
 bool ChunkDemuxer::parseContainer() {
@@ -174,13 +177,13 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
     
     // Calculate timestamps
     if (stream_data.bytes_per_frame > 0) {
-        chunk.timestamp_samples = stream_data.current_offset / stream_data.bytes_per_frame;
-        chunk.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / stream_data.sample_rate;
+        chunk.timestamp_samples = m_current_sample;
+        
+        // Advance sample counter
+        m_current_sample += chunk.data.size() / stream_data.block_align;
     }
     
-    // Update current position
-    stream_data.current_offset += bytes_read;
-    m_position_ms = chunk.timestamp_ms;
+    m_position_ms = (m_current_sample * 1000ULL) / m_streams[0].sample_rate;
     
     return chunk;
 }
@@ -200,6 +203,7 @@ bool ChunkDemuxer::seekTo(uint64_t timestamp_ms) {
     
     stream_data.current_offset = byte_offset;
     m_position_ms = timestamp_ms;
+    m_current_sample = (timestamp_ms * stream_data.sample_rate) / 1000;
     m_eof = (byte_offset >= stream_data.data_size);
     
     return true;

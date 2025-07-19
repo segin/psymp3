@@ -94,7 +94,6 @@ AudioFrame SimplePCMCodec::decode(const MediaChunk& chunk) {
     frame.sample_rate = m_stream_info.sample_rate;
     frame.channels = m_stream_info.channels;
     frame.timestamp_samples = chunk.timestamp_samples;
-    frame.timestamp_ms = chunk.timestamp_ms;
     
     // Convert samples
     convertSamples(chunk.data, frame.samples);

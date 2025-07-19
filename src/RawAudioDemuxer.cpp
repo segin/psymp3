@@ -144,16 +144,13 @@ MediaChunk RawAudioDemuxer::readChunk(uint32_t stream_id) {
     }
     
     // Calculate timestamps
-    chunk.timestamp_samples = m_current_offset / m_bytes_per_frame;
-    chunk.timestamp_ms = byteOffsetToMs(m_current_offset);
+    size_t bytes_per_sample = m_streams[0].bits_per_sample / 8;
+    if (bytes_per_sample == 0) bytes_per_sample = 1; // Avoid division by zero
+    chunk.timestamp_samples = m_current_offset / bytes_per_sample;
     
     // Update position
     m_current_offset += bytes_read;
-    m_position_ms = chunk.timestamp_ms;
-    
-    if (m_current_offset >= m_file_size) {
-        m_eof = true;
-    }
+    m_position_ms = byteOffsetToMs(m_current_offset);
     
     return chunk;
 }

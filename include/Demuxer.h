@@ -60,8 +60,8 @@ struct StreamInfo {
 struct MediaChunk {
     uint32_t stream_id;
     std::vector<uint8_t> data;
-    uint64_t timestamp_samples = 0;    // Timestamp in sample units
-    uint64_t timestamp_ms = 0;         // Timestamp in milliseconds
+    uint64_t granule_position = 0;     // For Ogg-based formats
+    uint64_t timestamp_samples = 0;    // For other formats
     bool is_keyframe = true;           // For audio, usually always true
     uint64_t file_offset = 0;          // Original offset in file (for seeking)
 };

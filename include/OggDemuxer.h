@@ -170,6 +170,11 @@ private:
      * @brief Parse OpusTags metadata from Opus comment header
      */
     void parseOpusTags(OggStream& stream, const OggPacket& packet);
+
+    /**
+     * @brief Parse Vorbis comments from Vorbis comment header
+     */
+    void parseVorbisComments(OggStream& stream, const OggPacket& packet);
     
     /**
      * @brief Parse Speex identification header
@@ -202,6 +207,11 @@ private:
     bool seekToPage(uint64_t target_granule, uint32_t stream_id);
     
     /**
+     * @brief Robustly find and read the next Ogg page from the current file position.
+     */
+    bool findAndReadNextPage(ogg_page& page, uint32_t target_stream_id = 0);
+    
+    /**
      * @brief Read and queue packets until we have data for the requested stream
      */
     void fillPacketQueue(uint32_t target_stream_id);
@@ -220,6 +230,11 @@ private:
      * @brief Get the number of samples in an Opus packet
      */
     int getOpusPacketSampleCount(const OggPacket& packet);
+
+    /**
+     * @brief Get the number of samples in a Vorbis packet
+     */
+    int getVorbisPacketSampleCount(const OggPacket& packet);
 
     /**
      * @brief Read little-endian values from packet data

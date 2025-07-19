@@ -202,14 +202,21 @@ AudioFrame DemuxedStream::getNextFrame() {
             return AudioFrame{}; // Return empty frame, effectively discarding this chunk
         }
         
-        Debug::log("demux", "DemuxedStream: On-demand decoding chunk size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
-        
         AudioFrame frame = m_codec->decode(chunk);
         if (!frame.samples.empty()) {
-            Debug::log("demux", "DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples");
+            // Correct timestamp calculation for Ogg
+            if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
+                frame.timestamp_samples = chunk.granule_position - frame.getSampleFrameCount();
+            } else {
+                // Fallback for non-Ogg or header packets
+                frame.timestamp_samples = m_samples_consumed;
+            }
+            frame.timestamp_ms = (frame.timestamp_samples * 1000) / m_rate;
+            
+            Debug::log("demux", "DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples. Timestamp: ", frame.timestamp_ms, "ms");
             return frame;
         } else {
-            Debug::log("demux", "DemuxedStream: Codec returned empty frame for chunk size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
+            Debug::log("demux", "DemuxedStream: Codec returned empty frame for chunk size=", chunk.data.size());
         }
     } else {
         Debug::log("demux", "DemuxedStream: No chunks available in buffer");

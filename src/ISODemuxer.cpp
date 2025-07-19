@@ -153,9 +153,9 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
     // Update position
     if (track.current_sample < track.sample_times.size()) {
         uint64_t sample_time = track.sample_times[track.current_sample];
-        chunk.timestamp_ms = track.trackTimeToMs(sample_time);
-        chunk.timestamp_samples = sample_time; // In track timescale
-        m_position_ms = chunk.timestamp_ms;
+        uint64_t timestamp_ms = track.trackTimeToMs(sample_time);
+        chunk.timestamp_samples = (timestamp_ms * track.timescale) / 1000;
+        m_position_ms = timestamp_ms;
     }
     
     track.current_sample++;

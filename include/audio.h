@@ -41,6 +41,7 @@ public:
     uint64_t getBufferLatencyMs() const;
     void resetBuffer();
     uint64_t getSamplesPlayed() const;
+    void setSamplesPlayed(uint64_t samples);
 
 private:
     void setup();

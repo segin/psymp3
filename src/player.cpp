@@ -462,6 +462,7 @@ void Player::seekTo(unsigned long pos)
     if (stream) {
         if (audio) {
             audio->resetBuffer();
+            audio->setSamplesPlayed((pos * audio->getRate()) / 1000);
         }
         stream->seekTo(pos);
     }

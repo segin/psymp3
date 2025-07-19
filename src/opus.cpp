@@ -107,7 +107,7 @@ bool OpusCodec::canDecode(const StreamInfo& stream_info) const
 
 AudioFrame OpusCodec::decode(const MediaChunk& chunk)
 {
-    Debug::log("opus", "OpusCodec::decode called - chunk.data.size=", chunk.data.size(), ", timestamp=", chunk.timestamp_ms, "ms");
+    Debug::log("opus", "OpusCodec::decode called - chunk.data.size=", chunk.data.size());
     
     AudioFrame frame;
     
@@ -145,7 +145,7 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         return frame;
     }
     
-    Debug::log("opus", "Decoding packet size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
+    Debug::log("opus", "Decoding packet size=", chunk.data.size(), " bytes");
     
     // Decode the packet (Opus packets can vary in size)
     // Maximum frame size for Opus is 5760 samples per channel at 48kHz
@@ -180,8 +180,7 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         frame.sample_rate = m_sample_rate;
         frame.channels = m_channels;
         frame.samples = std::move(m_output_buffer);
-        frame.timestamp_samples = chunk.timestamp_samples;
-        frame.timestamp_ms = chunk.timestamp_ms;
+        // Timestamp is now calculated in DemuxedStream
         m_output_buffer.clear();
     }
     

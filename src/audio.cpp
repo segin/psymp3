@@ -162,6 +162,10 @@ uint64_t Audio::getSamplesPlayed() const {
     return m_samples_played.load();
 }
 
+void Audio::setSamplesPlayed(uint64_t samples) {
+    m_samples_played.store(samples);
+}
+
 uint64_t Audio::getBufferLatencyMs() const {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     if (m_rate == 0) {

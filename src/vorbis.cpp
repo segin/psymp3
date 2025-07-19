@@ -180,19 +180,13 @@ AudioFrame VorbisCodec::flush()
 
 void VorbisCodec::reset()
 {
+    // For seeking, we just need to restart the synthesis engine.
+    // We do not re-initialize the vorbis_info struct, as the headers
+    // are not sent again by the demuxer for Vorbis streams.
     if (m_synthesis_initialized) {
-        vorbis_block_clear(&m_vorbis_block);
-        vorbis_dsp_clear(&m_vorbis_dsp);
-        m_synthesis_initialized = false;
+        vorbis_synthesis_restart(&m_vorbis_dsp);
     }
-    
-    vorbis_comment_clear(&m_vorbis_comment);
-    vorbis_info_clear(&m_vorbis_info);
-    
-    vorbis_info_init(&m_vorbis_info);
-    vorbis_comment_init(&m_vorbis_comment);
-    
-    m_header_packets_received = 0;
+    // We also clear our internal PCM buffer.
     m_output_buffer.clear();
 }
 
@@ -212,9 +206,7 @@ bool VorbisCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
     int result = vorbis_synthesis_headerin(&m_vorbis_info, &m_vorbis_comment, &packet);
     
     if (result < 0) {
-        
-        // Return false instead of throwing - let the caller handle it
-        return false;
+        throw BadFormatException("Failed to process Vorbis header");
     }
     
     return true;

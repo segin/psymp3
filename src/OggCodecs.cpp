@@ -160,10 +160,9 @@ AudioFrame SpeexCodec::decode(const MediaChunk& chunk) {
     // TODO: Implement actual Speex decoding
     // For now, return silence as a placeholder
     
+    frame.timestamp_samples = chunk.timestamp_samples;
     frame.sample_rate = m_stream_info.sample_rate;
     frame.channels = m_stream_info.channels;
-    frame.timestamp_samples = chunk.timestamp_samples;
-    frame.timestamp_ms = chunk.timestamp_ms;
     
     // Generate silence frames (placeholder)
     size_t samples_per_frame = m_frame_size * frame.channels;

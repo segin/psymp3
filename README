@@ -60,6 +60,10 @@ Keys and what they do:
   * N: Seek to the next track.
   * P: Seek to the previous track.
 
+Command-line Options:
+  --debug             Enable debug logging to the console.
+  --logfile <file>    Write debug logs to the specified file.
+
 Last.fm Scrobbling:
 
 PsyMP3 includes built-in Last.fm scrobbling support to automatically track your music listening history.
@@ -96,4 +100,4 @@ font file containing the Unicode glpyhs you desire. Advanced text layout is not 
 
 5. LAST UPDATED
 
-This README was last updated on January 9, 2025.
+This README was last updated on July 18, 2025.
