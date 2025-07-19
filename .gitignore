@@ -37,3 +37,7 @@ tmp/
 **/*.aac
 **/*.wma
 **/*.aiff
+**/*.log
+include/config.h.in
+libs/util/Makefile
+res/vera.ttf
