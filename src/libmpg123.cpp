@@ -127,7 +127,7 @@ size_t Libmpg123::getData(size_t len, void *buf)
 {
     size_t actual;
     int cond;
-    //std::cout << "Libmpg123::getData(): len = " << (int) len << ", buf =" << std::hex << buf << std::endl;
+    Debug::log("mp3", "Libmpg123::getData(): len = ", (int) len, ", buf =", std::hex, buf);
     cond = mpg123_read(m_mpg_handle, static_cast<unsigned char *>(buf), len, &actual);
     if (cond == MPG123_DONE) {
         m_eof = true;
@@ -135,7 +135,7 @@ size_t Libmpg123::getData(size_t len, void *buf)
         throw BadFormatException("mpg123_read() failed: " + TagLib::String(mpg123_plain_strerror(cond)));
     }
     m_position = (long long) mpg123_tell(m_mpg_handle) * 1000 / m_rate;
-    //std::cout << "Libmpg123::getData(): actual = " << (int) actual << std::endl;
+    Debug::log("mp3", "Libmpg123::getData(): actual = ", (int) actual);
     return actual;
 }
 

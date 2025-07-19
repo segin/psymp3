@@ -26,6 +26,7 @@ HTTPIOHandler::~HTTPIOHandler() {
 void HTTPIOHandler::initialize() {
     if (m_initialized) return;
     
+    Debug::log("http", "HTTPIOHandler: Initializing for URL: ", m_url);
     // Perform HEAD request to get metadata
     auto response = HTTPClient::head(m_url);
     
@@ -38,6 +39,7 @@ void HTTPIOHandler::initialize() {
     if (it != response.headers.end()) {
         try {
             m_content_length = std::stol(it->second);
+            Debug::log("http", "HTTPIOHandler: Content-Length: ", m_content_length);
         } catch (const std::exception&) {
             m_content_length = -1;
         }
@@ -52,12 +54,14 @@ void HTTPIOHandler::initialize() {
         if (semicolon != std::string::npos) {
             m_mime_type = m_mime_type.substr(0, semicolon);
         }
+        Debug::log("http", "HTTPIOHandler: Content-Type: ", m_mime_type);
     }
     
     // Check for range support
     it = response.headers.find("accept-ranges");
     if (it != response.headers.end()) {
         m_supports_ranges = (it->second.find("bytes") != std::string::npos);
+        Debug::log("http", "HTTPIOHandler: Server supports range requests: ", m_supports_ranges);
     }
     
     m_initialized = true;
@@ -183,13 +187,16 @@ bool HTTPIOHandler::fillBuffer(long position, size_t min_size) {
         if (m_content_length > 0) {
             end_byte = std::min(end_byte, m_content_length - 1);
         }
+        Debug::log("http", "HTTPIOHandler: Requesting range: ", position, "-", end_byte);
         response = HTTPClient::getRange(m_url, position, end_byte);
     } else {
         // Use regular GET request (for servers that don't support ranges)
+        Debug::log("http", "HTTPIOHandler: Requesting full content from beginning");
         response = HTTPClient::get(m_url);
     }
     
     if (!response.success) {
+        Debug::log("http", "HTTPIOHandler: Request failed: ", response.statusMessage);
         return false;
     }
     
@@ -197,6 +204,7 @@ bool HTTPIOHandler::fillBuffer(long position, size_t min_size) {
     m_buffer.assign(response.body.begin(), response.body.end());
     m_buffer_offset = 0;
     m_buffer_start_position = position;
+    Debug::log("http", "HTTPIOHandler: Filled buffer with ", m_buffer.size(), " bytes from position ", position);
     
     // If we got less data than expected, we might have hit EOF
     if (response.body.size() < range_size && m_content_length < 0) {

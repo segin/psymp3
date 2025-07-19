@@ -84,7 +84,7 @@ size_t Flac::getData(size_t len, void *buf)
 
         // If the state is an error state, throw an exception.
         if (state > FLAC__STREAM_DECODER_END_OF_STREAM) {
-            throw BadFormatException("FLAC decoder error: " + TagLib::String(FLAC__StreamDecoderStateString[state]));
+            throw BadFormatException("FLAC decoder error: " + std::string(FLAC__StreamDecoderStateString[state]));
         }
 
         // If the buffer is empty and we're at the end, there's nothing more to do.
@@ -340,7 +340,7 @@ void FlacDecoder::metadata_callback(const ::FLAC__StreamMetadata *metadata) {
 }
 
 void FlacDecoder::error_callback(::FLAC__StreamDecoderErrorStatus status) {
-    std::cerr << "FLAC Decoder Error: " << FLAC__StreamDecoderErrorStatusString[status] << std::endl;
+    Debug::log("flac", "FLAC Decoder Error: ", FLAC__StreamDecoderErrorStatusString[status]);
     // An error occurred, which changes the decoder's internal state.
     // We just need to wake up the consumer thread in case it's waiting for data.
     // It will then check the new state and handle the error.

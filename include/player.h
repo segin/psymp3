@@ -39,6 +39,7 @@ struct PlayerOptions {
     float decayfactor = 1.0f;
     FFTMode fft_mode = FFTMode::Original;
     bool automated_test_mode = false;
+    bool unattended_quit = false;
     std::vector<std::string> files;
 };
 
@@ -91,6 +92,7 @@ class Player
         void requestTrackPreload(const TagLib::String& path);
         void requestChainedStreamLoad(const std::vector<TagLib::String>& paths);
         void loaderThreadLoop();
+        void playlistPopulatorLoop(std::vector<std::string> args);
 
         void nextTrack(size_t advance_count = 1);
         void prevTrack(void);
@@ -133,7 +135,6 @@ class Player
         void toggleTestWindowB();
         void createRandomWindows();
 
-        uint8_t m_seek_direction = 0;
         std::unique_ptr<Display> screen;
         std::unique_ptr<Surface> graph;
         std::unique_ptr<Playlist> playlist;
@@ -158,12 +159,16 @@ class Player
         std::unique_ptr<LastFM> m_lastfm;
         Uint32 m_track_start_time = 0;  // SDL ticks when current track started
         bool m_track_scrobbled = false; // Flag to ensure we only scrobble once per track
+        
         // For progress bar dragging
         bool m_is_dragging = false;
         Uint32 m_drag_start_time = 0;
         Uint16 m_drag_start_x = 0;
         unsigned long m_drag_position_ms = 0;
-        unsigned long m_seek_position_ms = 0; // For keyboard seeking
+        
+        // For keyboard seeking
+        uint8_t m_seek_direction = 0;
+        unsigned long m_seek_position_ms = 0;
 
         // UI Widget tree
         Widget* m_ui_root; // Reference to ApplicationWidget singleton
@@ -186,43 +191,36 @@ class Player
         static constexpr size_t MAX_TOAST_QUEUE_SIZE = 10;
         std::unique_ptr<LyricsWidget> m_lyrics_widget;
         std::unique_ptr<Label> m_pause_indicator;
-        std::unique_ptr<FadingWidget> m_seek_left_indicator;
-        std::unique_ptr<FadingWidget> m_seek_right_indicator;
+        FadingWidget* m_seek_left_indicator = nullptr;
+        FadingWidget* m_seek_right_indicator = nullptr;
+
+        // Loader thread members
+        std::thread m_loader_thread;
+        bool m_loader_active;
+        std::queue<TrackLoadRequest> m_loader_queue;
+        std::mutex m_loader_queue_mutex;
+        std::condition_variable m_loader_queue_cv;
+        bool m_loading_track;
+        bool m_preloading_track;
+        std::thread m_playlist_populator_thread;
+        int m_navigation_direction = 1;
+        int m_skip_attempts = 0;
+        LoopMode m_loop_mode;
+        std::vector<Uint32> m_spectrum_colors;
+        bool m_use_widget_mouse_handling = true;
+
+        // Automated testing members
+        bool m_automated_test_mode;
+        bool m_unattended_quit;
+        int m_automated_test_track_count;
+        SDL_TimerID m_automated_test_timer_id = 0;
+        SDL_TimerID m_automated_quit_timer_id = 0;
         
-        // Window management
-        std::vector<std::unique_ptr<WindowFrameWidget>> m_windows;
+        // Test windows
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
         int m_random_window_counter = 0;
-        
-        LoopMode m_loop_mode;
-
-        int m_navigation_direction = 1; // 1 for fwd, -1 for back
-        int m_skip_attempts = 0;
-
-        // Asynchronous loader thread members
-        std::thread m_loader_thread;
-        std::mutex m_loader_queue_mutex;
-        std::condition_variable m_loader_queue_cv;
-        std::queue<TrackLoadRequest> m_loader_queue; // Queue of load requests
-        std::atomic<bool> m_loader_active;
-        std::atomic<bool> m_loading_track; // Flag to prevent multiple simultaneous loads
-        std::atomic<bool> m_preloading_track; // Flag to prevent multiple preloads
-        bool m_automated_test_mode;
-        int m_automated_test_track_count;
-        SDL_TimerID m_automated_test_timer_id = 0;
-        SDL_TimerID m_automated_quit_timer_id = 0;
-
-        // New thread for populating playlist from command line
-        std::thread m_playlist_populator_thread;
-        void playlistPopulatorLoop(std::vector<std::string> args);
-
-        // Precomputed colors for spectrum analyzer
-        std::vector<uint32_t> m_spectrum_colors;
-        
-        // Mouse event handling mode
-        bool m_use_widget_mouse_handling = true; // Default to new widget-based handling
 };
 
 #endif // PLAYER_H

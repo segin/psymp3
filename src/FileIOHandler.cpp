@@ -51,12 +51,10 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) {
     }
     
     // Debug: check file size immediately after opening
-    if (Debug::runtime_debug_enabled) {
-        struct stat st;
-        int fd = fileno(m_file_handle);
-        if (fstat(fd, &st) == 0) {
-            Debug::runtime("FileIOHandler::FileIOHandler() - opened file, fstat size=", st.st_size);
-        }
+    struct stat st;
+    int fd = fileno(m_file_handle);
+    if (fstat(fd, &st) == 0) {
+        Debug::log("io", "FileIOHandler::FileIOHandler() - opened file, fstat size=", st.st_size, " (hex=0x", std::hex, st.st_size, std::dec, ")");
     }
 }
 
@@ -105,14 +103,14 @@ int FileIOHandler::seek(long offset, int whence) {
 off_t FileIOHandler::tell() {
     if (!m_file_handle) return -1;
     off_t pos = ftello(m_file_handle);
-    if (Debug::runtime_debug_enabled && pos > 800000) {
-        Debug::runtime("FileIOHandler::tell() - ftello returned pos=", pos, " (hex=", pos, ")");
+    if (pos > 800000) {
+        Debug::log("io", "FileIOHandler::tell() - ftello returned pos=", pos, " (hex=0x", std::hex, pos, std::dec, ")");
         
         // Also check with fstat for comparison
         struct stat st;
         int fd = fileno(m_file_handle);
         if (fstat(fd, &st) == 0) {
-            Debug::runtime("FileIOHandler::tell() - fstat says file size is=", st.st_size);
+            Debug::log("io", "FileIOHandler::tell() - fstat says file size is=", st.st_size, " (hex=0x", std::hex, st.st_size, std::dec, ")");
         }
     }
     return pos;
@@ -160,6 +158,8 @@ off_t FileIOHandler::getFileSize() {
         return -1;
     }
 #endif
+    
+    Debug::log("io", "FileIOHandler::getFileSize() - fstat returned size=", file_stat.st_size, " (hex=0x", std::hex, file_stat.st_size, std::dec, ")");
     
     return file_stat.st_size;
 }

@@ -72,6 +72,7 @@ struct OggStream {
     // Stream-specific data
     std::vector<uint8_t> codec_setup_data;  // Codec-specific setup headers
     std::vector<OggPacket> header_packets;  // Codec header packets
+    std::deque<OggPacket> m_packet_queue;    // Queued data packets for processing
     
     // Audio properties (filled from codec headers)
     uint32_t sample_rate = 0;
@@ -89,6 +90,7 @@ struct OggStream {
     bool headers_complete = false;
     bool headers_sent = false;  // Track whether header packets have been sent to codec
     size_t next_header_index = 0;  // Index of next header packet to send
+    uint64_t total_samples_processed = 0; // Running total of samples for timestamp generation
     std::vector<uint8_t> partial_packet_data;  // For packets split across pages
     uint64_t last_granule = 0;
     uint32_t last_page_sequence = 0;
@@ -125,7 +127,6 @@ public:
     
 private:
     std::map<uint32_t, OggStream> m_streams;
-    std::queue<OggPacket> m_packet_queue;
     uint64_t m_file_size = 0;
     bool m_eof = false;
     uint64_t m_max_granule_seen = 0;
@@ -215,6 +216,11 @@ private:
      */
     static bool hasSignature(const std::vector<uint8_t>& data, const char* signature);
     
+    /**
+     * @brief Get the number of samples in an Opus packet
+     */
+    int getOpusPacketSampleCount(const OggPacket& packet);
+
     /**
      * @brief Read little-endian values from packet data
      */

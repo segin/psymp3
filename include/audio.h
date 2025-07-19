@@ -38,6 +38,9 @@ public:
     int getRate() const { return m_rate; }
     int getChannels() const { return m_channels; }
     Stream* getCurrentStream() const { return m_current_stream_raw_ptr.load(); }
+    uint64_t getBufferLatencyMs() const;
+    void resetBuffer();
+    uint64_t getSamplesPlayed() const;
 
 private:
     void setup();
@@ -62,6 +65,8 @@ private:
     int m_rate;
     int m_channels;
     bool m_playing;
+    std::atomic<uint64_t> m_samples_played{0};
+    std::atomic<bool> m_stream_eof{false};
 };
 
 #endif // AUDIO_H

@@ -59,6 +59,8 @@ private:
     std::condition_variable m_submission_cv;
     std::atomic<bool> m_shutdown = false;
     std::atomic<bool> m_submission_active = false;
+    int m_handshake_attempts = 0;
+    bool m_handshake_permanently_failed = false;
     
     // Configuration and cache management
     void readConfig();

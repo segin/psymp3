@@ -122,6 +122,9 @@ public:
 protected:
     StreamInfo m_stream_info;
     bool m_initialized = false;
+
+public:
+    bool isInitialized() const { return m_initialized; }
 };
 
 /**

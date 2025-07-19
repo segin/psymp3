@@ -108,9 +108,7 @@ void DemuxedStream::updateStreamProperties() {
     m_rate = stream_info.sample_rate;
     m_channels = stream_info.channels;
     m_bitrate = stream_info.bitrate;
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("DemuxedStream::updateStreamProperties: duration_ms from demuxer=", stream_info.duration_ms);
-    }
+    Debug::log("demux", "DemuxedStream::updateStreamProperties: duration_ms from demuxer=", stream_info.duration_ms);
     m_length = static_cast<int>(stream_info.duration_ms);
     m_slength = stream_info.duration_samples;
     m_position = 0;
@@ -148,37 +146,27 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         if (m_current_frame.samples.empty()) {
             // Empty frame could be from header processing or actual EOF
             // Check if we have more chunks to process before declaring EOF
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("DemuxedStream::getData: Empty frame - chunk_buffer.size()=", m_chunk_buffer.size(), 
+            Debug::log("demux", "DemuxedStream::getData: Empty frame - chunk_buffer.size()=", m_chunk_buffer.size(), 
                                ", demuxer.isEOF()=", m_demuxer ? m_demuxer->isEOF() : true);
-            }
             
             if (m_chunk_buffer.empty() && m_demuxer && m_demuxer->isEOF()) {
                 // Truly at EOF - no more chunks and demuxer is done
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("DemuxedStream::getData: Natural EOF reached after consuming ", 
+                Debug::log("demux", "DemuxedStream::getData: Natural EOF reached after consuming ", 
                                    m_samples_consumed, " samples (", 
                                    (m_samples_consumed * 1000) / m_rate, "ms)");
-                }
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("DemuxedStream::getData: Setting EOF - consumed_samples=", m_samples_consumed, 
+                Debug::log("demux", "DemuxedStream::getData: Setting EOF - consumed_samples=", m_samples_consumed, 
                                    ", time=", (m_samples_consumed * 1000) / m_rate, "ms");
-                }
                 m_eof_reached = true;
                 m_eof = true;
                 break;
             } else if (m_chunk_buffer.empty() && m_demuxer && !m_demuxer->isEOF()) {
                 // No chunks buffered but demuxer has more data - this shouldn't happen in normal operation
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("DemuxedStream::getData: Buffer empty but demuxer has more data - unexpected condition");
-                }
+                Debug::log("demux", "DemuxedStream::getData: Buffer empty but demuxer has more data - unexpected condition");
                 continue;
             } else {
                 // Empty frame but more data might be available (could be header processing)
                 // Continue the loop to try getting more chunks
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("DemuxedStream::getData: Got empty frame, but more chunks available - continuing");
-                }
+                Debug::log("demux", "DemuxedStream::getData: Got empty frame, but more chunks available - continuing");
                 continue;
             }
         }
@@ -197,14 +185,10 @@ AudioFrame DemuxedStream::getNextFrame() {
     // Ensure we have buffered chunks to decode from
     fillChunkBuffer();
     
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("DemuxedStream::getNextFrame: After fillChunkBuffer, buffer size=", m_chunk_buffer.size());
-    }
+    Debug::log("demux", "DemuxedStream::getNextFrame: After fillChunkBuffer, buffer size=", m_chunk_buffer.size());
     
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("DemuxedStream::getNextFrame: chunk_buffer size=", m_chunk_buffer.size(), 
-                       ", demuxer EOF=", m_demuxer ? m_demuxer->isEOF() : true);
-    }
+    Debug::log("demux", "DemuxedStream::getNextFrame: chunk_buffer size=", m_chunk_buffer.size(), 
+                   ", demuxer EOF=", m_demuxer ? m_demuxer->isEOF() : true);
     
     // If we have chunks, decode one on-demand
     if (!m_chunk_buffer.empty()) {
@@ -214,50 +198,34 @@ AudioFrame DemuxedStream::getNextFrame() {
         // Special handling for Opus: if codec is initialized, and we get a header chunk,
         // it means it's a redundant header from seeking or re-initialization. Skip it.
         if (m_codec && m_codec->getCodecName() == "opus" && m_codec->isInitialized() && chunk.is_keyframe) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("DemuxedStream: Skipping redundant Opus header chunk (size=", chunk.data.size(), ")");
-            }
+            Debug::log("demux", "DemuxedStream: Skipping redundant Opus header chunk (size=", chunk.data.size(), ")");
             return AudioFrame{}; // Return empty frame, effectively discarding this chunk
         }
         
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("DemuxedStream: On-demand decoding chunk size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
-        }
+        Debug::log("demux", "DemuxedStream: On-demand decoding chunk size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
         
         AudioFrame frame = m_codec->decode(chunk);
         if (!frame.samples.empty()) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples");
-            }
+            Debug::log("demux", "DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples");
             return frame;
         } else {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("DemuxedStream: Codec returned empty frame for chunk size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
-            }
+            Debug::log("demux", "DemuxedStream: Codec returned empty frame for chunk size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
         }
     } else {
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("DemuxedStream: No chunks available in buffer");
-        }
+        Debug::log("demux", "DemuxedStream: No chunks available in buffer");
     }
     
     // If we reach here and demuxer is at EOF, flush codec
     if (m_demuxer && m_demuxer->isEOF() && m_codec) {
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("DemuxedStream: Attempting to flush codec");
-        }
+        Debug::log("demux", "DemuxedStream: Attempting to flush codec");
         AudioFrame frame = m_codec->flush();
         if (!frame.samples.empty()) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("DemuxedStream: Flushed frame with ", frame.samples.size(), " samples");
-            }
+            Debug::log("demux", "DemuxedStream: Flushed frame with ", frame.samples.size(), " samples");
             return frame;
         }
     }
     
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("DemuxedStream: Returning empty frame");
-    }
+    Debug::log("demux", "DemuxedStream: Returning empty frame");
     return AudioFrame{}; // Empty frame
 }
 
@@ -269,15 +237,11 @@ void DemuxedStream::fillChunkBuffer() {
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
         
         if (chunk.data.empty()) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("DemuxedStream: Got empty chunk, stopping chunk buffering");
-            }
+            Debug::log("demux", "DemuxedStream: Got empty chunk, stopping chunk buffering");
             break; // No more data
         }
         
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("DemuxedStream: Buffering chunk size=", chunk.data.size(), " bytes (buffer size=", m_chunk_buffer.size() + 1, ")");
-        }
+        Debug::log("demux", "DemuxedStream: Buffering chunk size=", chunk.data.size(), " bytes (buffer size=", m_chunk_buffer.size() + 1, ")");
         
         // Buffer the compressed chunk - no decoding yet!
         m_chunk_buffer.push(std::move(chunk));
@@ -329,8 +293,8 @@ void DemuxedStream::seekTo(unsigned long pos) {
 }
 
 bool DemuxedStream::eof() {
-    if (Debug::runtime_debug_enabled && m_eof_reached) {
-        Debug::runtime("DemuxedStream::eof() returning true - consumed_samples=", m_samples_consumed, 
+    if (m_eof_reached) {
+        Debug::log("demux", "DemuxedStream::eof() returning true - consumed_samples=", m_samples_consumed, 
                        ", time=", (m_samples_consumed * 1000) / m_rate, "ms");
     }
     return m_eof_reached;

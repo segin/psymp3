@@ -84,18 +84,18 @@ Widget::Widget(Surface&& other, const Rect& position) :
 void Widget::BlitTo(Surface& target)
 {
     std::string type_name = getWidgetTypeName(this);
-    Debug::widgetBlit("Widget::BlitTo [", type_name, "] - pos(", m_pos.x(), ",", m_pos.y(), ") size(", m_pos.width(), "x", m_pos.height(), ") valid=", this->isValid());
+    Debug::log("widget", "Widget::BlitTo [", type_name, "] - pos(", m_pos.x(), ",", m_pos.y(), ") size(", m_pos.width(), "x", m_pos.height(), ") valid=", this->isValid());
     
     // Blit this widget's own surface content first (if it has any)
     if (this->isValid()) {
-        Debug::widgetBlit("  Blitting widget surface to target");
+        Debug::log("widget", "  Blitting widget surface to target");
         target.Blit(*this, m_pos);
     }
 
     // Then, recursively blit all children, passing this widget's position as the parent offset.
     for (const auto& child : m_children) {
         std::string child_type = getWidgetTypeName(child.get());
-        Debug::widgetBlit("  Recursively blitting child [", child_type, "]");
+        Debug::log("widget", "  Recursively blitting child [", child_type, "]");
         child->recursiveBlitTo(target, m_pos);
     }
 }
@@ -109,7 +109,7 @@ void Widget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
                       parent_absolute_pos.y() + m_pos.y(),
                       m_pos.width(), m_pos.height());
 
-    Debug::widgetBlit("  recursiveBlitTo [", type_name, "] - abs_pos(", absolute_pos.x(), ",", absolute_pos.y(), ") size(", absolute_pos.width(), "x", absolute_pos.height(), ") valid=", this->isValid());
+    Debug::log("widget", "  recursiveBlitTo [", type_name, "] - abs_pos(", absolute_pos.x(), ",", absolute_pos.y(), ") size(", absolute_pos.width(), "x", absolute_pos.height(), ") valid=", this->isValid());
 
     // Blit the child's own surface content.
     if (this->isValid()) {

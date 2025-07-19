@@ -234,6 +234,7 @@ typedef struct bio_st BIO;
 #include <taglib/tstring.h>
 
 // Local project headers (in dependency order where possible)
+#include "debug.h"
 #include "exceptions.h"
 #include "rect.h"
 #include "surface.h"
@@ -304,56 +305,6 @@ typedef struct bio_st BIO;
 #include "player.h"
 
 // Portable branch prediction macros
-#ifdef __GNUC__
-    #define LIKELY(x)   __builtin_expect(!!(x), 1)
-    #define UNLIKELY(x) __builtin_expect(!!(x), 0)
-#else
-    #define LIKELY(x)   (x)
-    #define UNLIKELY(x) (x)
-#endif
-
-// Zero-overhead debug output system for old hardware
-class Debug {
-public:
-    static bool widget_blitting_enabled;
-    static bool runtime_debug_enabled;
-    
-    static void setWidgetBlittingDebug(bool enabled) { widget_blitting_enabled = enabled; }
-    static void setRuntimeDebug(bool enabled) { runtime_debug_enabled = enabled; }
-    
-    // Optimized debug functions that avoid parameter evaluation when disabled
-    template<typename... Args>
-    static inline void widgetBlit(Args&&... args) {
-        // Branch prediction hint: debugging is usually disabled
-        if (UNLIKELY(widget_blitting_enabled)) {
-            ((std::cout << args), ...);
-            std::cout << std::endl;
-        }
-    }
-    
-    static void runtime(const std::string& message);
-
-    // Overload for rvalue strings to break recursive template instantiation
-    static inline void runtime(std::string&& message) {
-        runtime(static_cast<const std::string&>(message));
-    }
-
-    static inline void runtime(const char* message) {
-        if (UNLIKELY(runtime_debug_enabled)) {
-            runtime(std::string(message));
-        }
-    }
-
-    template<typename... Args>
-    static inline void runtime(Args&&... args) {
-        // Branch prediction hint: debugging is usually disabled
-        if (UNLIKELY(runtime_debug_enabled)) {
-            std::stringstream ss;
-            (ss << ... << args);
-            runtime(ss.str());
-        }
-    }
-};
 
 #ifdef DEBUG
 #define PSYMP3_DATADIR "/usr/local/share/psymp3/data"

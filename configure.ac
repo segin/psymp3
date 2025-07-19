@@ -24,14 +24,14 @@ PKG_CHECK_MODULES([SDL], [sdl >= 1.2])
 PKG_CHECK_MODULES([LIBMPG123], [libmpg123 >= 1.8])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])
-PKG_CHECK_MODULES([FLACMM], [flac++ >= 1.2])
-PKG_CHECK_MODULES([VORBIS], [vorbis])
-PKG_CHECK_MODULES([OPUS], [opus])
+PKG_CHECK_MODULES([FLAC], [flac++])
+PKG_CHECK_MODULES([VORBIS], [vorbisfile])
+PKG_CHECK_MODULES([OPUS], [opusfile])
 PKG_CHECK_MODULES([OGG], [ogg])
-PKG_CHECK_MODULES([OPENSSL], [openssl >= 1.0])
+PKG_CHECK_MODULES([OPENSSL], [openssl])
+PKG_CHECK_MODULES([CURL], [libcurl])
 
-# MPRIS support (requires D-Bus)
-AC_ARG_ENABLE([mpris],
+AC_ARG_ENABLE(mpris,
   [AS_HELP_STRING([--enable-mpris], [Enable MPRIS media player remote interface support (requires D-Bus) @<:@default=auto@:>@])],
   [enable_mpris=$enableval],
   [enable_mpris=auto])

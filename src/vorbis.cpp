@@ -228,9 +228,7 @@ bool VorbisCodec::processSynthesis()
     // Prevent buffer from growing too large (memory leak protection)
     constexpr size_t MAX_BUFFER_SIZE = 48000 * 2 * 2; // 2 seconds of stereo at 48kHz
     if (m_output_buffer.size() > MAX_BUFFER_SIZE) {
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("VorbisCodec: Buffer too large (", m_output_buffer.size(), "), clearing to prevent memory leak");
-        }
+        Debug::log("vorbis", "VorbisCodec: Buffer too large (", m_output_buffer.size(), "), clearing to prevent memory leak");
         m_output_buffer.clear();
     }
     
@@ -240,9 +238,7 @@ bool VorbisCodec::processSynthesis()
         
         // Prevent excessive accumulation
         if (m_output_buffer.size() + (samples_available * channels) > MAX_BUFFER_SIZE) {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("VorbisCodec: Would exceed buffer limit, processing partial samples");
-            }
+            Debug::log("vorbis", "VorbisCodec: Would exceed buffer limit, processing partial samples");
             samples_available = (MAX_BUFFER_SIZE - m_output_buffer.size()) / channels;
             if (samples_available <= 0) {
                 break; // Buffer is full enough

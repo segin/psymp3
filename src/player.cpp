@@ -40,7 +40,7 @@ static std::string convertInt2(long number) {
 }
 
 Player::Player() {
-    std::cout << "PsyMP3 version " << PSYMP3_VERSION << "." << std::endl;
+    Debug::log("player", "PsyMP3 version ", PSYMP3_VERSION, ".");
 
     m_loader_active = true;
     m_loading_track = false;
@@ -131,7 +131,7 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
     if (!Player::guiRunning)
         Player::synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     else
-        std::cout << "timer: skipped" << std::endl;
+        Debug::log("timer", "skipped");
 
     return interval;
 }
@@ -143,9 +143,9 @@ Uint32 Player::AppLoopTimer(Uint32 interval, void* param) {
  * @param path The file path of the track to load and play.
  */
 void Player::requestTrackLoad(TagLib::String path) {
-    std::cerr << "Player::requestTrackLoad(" << path.to8Bit(true) << ") called." << std::endl;
+    Debug::log("loader", "Player::requestTrackLoad(", path.to8Bit(true), ") called.");
     if (m_loading_track) {
-        std::cerr << "Already loading a track, ignoring new request: " << path << std::endl;
+        Debug::log("loader", "Already loading a track, ignoring new request: ", path.to8Bit(true));
         return; // Or queue it, depending on desired behavior
     }
     m_loading_track = true;
@@ -279,7 +279,7 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
                 synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr);
                 return; // We've handled the playlist, so exit
             } else {
-                std::cerr << "Failed to load or empty playlist: " << first_arg << std::endl;
+                Debug::log("playlist", "Failed to load or empty playlist: ", first_arg.to8Bit(true));
             }
         }
     }
@@ -290,7 +290,7 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
             playlist->addFile(TagLib::String(args[i], TagLib::String::UTF8));
             if (i == 0) synthesizeUserEvent(START_FIRST_TRACK, nullptr, nullptr); // Start first track
         } catch (const std::exception& e) {
-            std::cerr << "Player::playlistPopulatorLoop(): Failed to add file " << args[i] << ": " << e.what() << std::endl;
+            Debug::log("playlist", "Player::playlistPopulatorLoop(): Failed to add file ", args[i], ": ", e.what());
         }
     }
 }
@@ -318,6 +318,10 @@ void Player::nextTrack(size_t advance_count) {
         if (m_loop_mode == LoopMode::All) {
             new_pos = 0; // Wrap
         } else { // LoopMode::None
+            if (m_unattended_quit) {
+                synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
+                return;
+            }
             stop();
             updateInfo();
             return;
@@ -456,6 +460,9 @@ void Player::seekTo(unsigned long pos)
 {
     std::lock_guard<std::mutex> lock(*mutex);
     if (stream) {
+        if (audio) {
+            audio->resetBuffer();
+        }
         stream->seekTo(pos);
     }
 }
@@ -465,12 +472,12 @@ void Player::seekTo(unsigned long pos)
  * This is done once at startup to avoid expensive color calculations in the main render loop.
  */
 void Player::precomputeSpectrumColors() {
-    std::cout << "precomputeSpectrumColors called." << std::endl;
+    Debug::log("player", "precomputeSpectrumColors called.");
     if (!graph) {
-        std::cout << "graph is null!" << std::endl;
+        Debug::log("player", "graph is null!");
         return;
     }
-    std::cout << "graph is valid." << std::endl;
+    Debug::log("player", "graph is valid.");
 
     m_spectrum_colors.resize(320);
     for (uint16_t x = 0; x < 320; ++x) {
@@ -488,10 +495,10 @@ void Player::precomputeSpectrumColors() {
             g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
             b = 255;
         }
-        // std::cout << "x: " << x << " r: " << (int)r << " g: " << (int)g << " b: " << (int)b << std::endl;
+        // Debug::log("player", "x: ", x, " r: ", (int)r, " g: ", (int)g, " b: ", (int)b);
         m_spectrum_colors[x] = graph->MapRGBA(r, g, b, 255);
     }
-    std::cout << "precomputeSpectrumColors finished." << std::endl;
+    Debug::log("player", "precomputeSpectrumColors finished.");
 }
 
 /**
@@ -506,11 +513,13 @@ void Player::renderSpectrum(Surface *graph) {
     // DEBUG: Print some spectrum values to understand the data range
     static int debug_counter = 0;
     if (debug_counter++ % 60 == 0) { // Print every 60 frames (~1 second at 60fps)
-        std::cout << "DEBUG: Spectrum values [0-9]: ";
+        std::stringstream ss;
+        ss << "DEBUG: Spectrum values [0-9]: ";
         for (int i = 0; i < 10; i++) {
-            std::cout << spectrum[i] << " ";
+            ss << spectrum[i] << " ";
         }
-        std::cout << "| scale=" << scalefactor << std::endl;
+        ss << "| scale=" << scalefactor;
+        Debug::log("spectrum", ss.str());
     }
 
     // --- Fade effect implementation ---
@@ -557,10 +566,10 @@ void Player::renderSpectrum(Surface *graph) {
         
         // DEBUG: Print some bar calculations
         if (debug_counter % 60 == 1 && x < 5) { // Different frame to avoid overlap, first 5 bars
-            std::cout << "DEBUG bar " << x << ": raw=" << spectrum[x] 
-                      << " gained=" << gained_amplitude
-                      << " scaled=" << scaled_amplitude 
-                      << " y_start=" << y_start << std::endl;
+            Debug::log("spectrum", "DEBUG bar ", x, ": raw=", spectrum[x], 
+                      " gained=", gained_amplitude,
+                      " scaled=", scaled_amplitude, 
+                      " y_start=", y_start);
         }
         
         // Use box() instead of rectangle() for better performance (SDL_FillRect vs hline loop)
@@ -644,10 +653,12 @@ bool Player::updateGUI()
             if (m_seek_direction != 0) {
                 current_pos_ms = m_seek_position_ms;
             } else {
-                current_pos_ms = current_stream->getPosition();
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("Player: User visible position=", current_pos_ms, "ms, total_len=", current_stream->getLength(), "ms");
+                if (audio) {
+                    current_pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
+                } else {
+                    current_pos_ms = 0;
                 }
+                Debug::log("player", "Player: User visible position=", current_pos_ms, "ms, total_len=", current_stream->getLength(), "ms");
             }
             total_len_ms = current_stream->getLength();
             artist = current_stream->getArtist();
@@ -702,15 +713,15 @@ bool Player::updateGUI()
                 
                 if (short_track_chain.size() >= 2) {
                     // Use ChainedStream for sequences of 2+ tracks
-                    std::cout << "Detected sequence of " << short_track_chain.size() 
-                              << " tracks for chaining, starting with: " 
-                              << short_track_chain[0].to8Bit(true) << std::endl;
+                    Debug::log("playlist", "Detected sequence of ", short_track_chain.size(), 
+                              " tracks for chaining, starting with: ", 
+                              short_track_chain[0].to8Bit(true));
                     requestChainedStreamLoad(short_track_chain);
                 } else {
                     // Single track or no short tracks found, use normal preloading
                     TagLib::String next_path = playlist->peekNext();
                     if (!next_path.isEmpty()) {
-                        std::cout << "Preloading next track for seamless transition: " << next_path.to8Bit(true) << std::endl;
+                        Debug::log("loader", "Preloading next track for seamless transition: ", next_path.to8Bit(true));
                         requestTrackPreload(next_path);
                     }
                 }
@@ -773,22 +784,6 @@ bool Player::updateGUI()
         m_pause_indicator->BlitTo(*graph);
     }
 
-    // --- Seek Indicator Rendering ---
-    if (m_seek_left_indicator) {
-        if (m_seek_left_indicator->isHidden()) {
-            m_seek_left_indicator.reset();
-        } else {
-            m_seek_left_indicator->BlitTo(*graph);
-        }
-    }
-    if (m_seek_right_indicator) {
-        if (m_seek_right_indicator->isHidden()) {
-            m_seek_right_indicator.reset();
-        } else {
-            m_seek_right_indicator->BlitTo(*graph);
-        }
-    }
-    
     // --- UI Widget Tree Rendering ---
     // Clear areas where UI widgets will render to prevent ghosting
     // Note: Don't clear spectrum area (0,0,640,350) - SpectrumAnalyzerWidget handles its own background
@@ -945,9 +940,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 sfc->line(0, 3, 10, 3, 255, 0, 0, 255); // shaft
                 sfc->line(0, 3, 3, 0, 255, 0, 0, 255); // top arrowhead
                 sfc->line(0, 3, 3, 6, 255, 0, 0, 255); // bottom arrowhead
-                m_seek_left_indicator = std::make_unique<FadingWidget>();
-                m_seek_left_indicator->setSurface(std::move(sfc));
-                m_seek_left_indicator->setPos(Rect(380, 374, 11, 7));
+                auto fading_widget = std::make_unique<FadingWidget>();
+                m_seek_left_indicator = fading_widget.get();
+                fading_widget->setSurface(std::move(sfc));
+                fading_widget->setPos(Rect(380, 374, 11, 7));
+                ApplicationWidget::getInstance().addWindow(std::move(fading_widget), ZOrder::UI);
             }
             m_seek_left_indicator->fadeIn();
             break;
@@ -963,9 +960,11 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
                 sfc->line(0, 3, 10, 3, 0, 255, 0, 255); // shaft
                 sfc->line(10, 3, 7, 0, 0, 255, 0, 255); // top arrowhead
                 sfc->line(10, 3, 7, 6, 0, 255, 0, 255); // bottom arrowhead
-                m_seek_right_indicator = std::make_unique<FadingWidget>();
-                m_seek_right_indicator->setSurface(std::move(sfc));
-                m_seek_right_indicator->setPos(Rect(628, 374, 11, 7));
+                auto fading_widget = std::make_unique<FadingWidget>();
+                m_seek_right_indicator = fading_widget.get();
+                fading_widget->setSurface(std::move(sfc));
+                fading_widget->setPos(Rect(628, 374, 11, 7));
+                ApplicationWidget::getInstance().addWindow(std::move(fading_widget), ZOrder::UI);
             }
             m_seek_right_indicator->fadeIn();
             break;
@@ -1040,12 +1039,17 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
         case SDLK_d:
         {
             // Toggle widget blitting debug output
-            Debug::setWidgetBlittingDebug(!Debug::widget_blitting_enabled);
-            if (Debug::widget_blitting_enabled) {
+            // This is a temporary mechanism. A proper debug console or UI will replace this.
+            static bool widget_debug_on = false;
+            widget_debug_on = !widget_debug_on;
+            std::vector<std::string> channels;
+            if (widget_debug_on) {
+                channels.push_back("widget");
                 showToast("Debug: Widget blitting enabled");
             } else {
                 showToast("Debug: Widget blitting disabled");
             }
+            Debug::init("", channels); // Re-init to update channels
             break;
         }
 
@@ -1197,7 +1201,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
         }
         case TRACK_LOAD_SUCCESS: 
         {
-            std::cerr << "Player::handleUserEvent(TRACK_LOAD_SUCCESS) called." << std::endl;
+            Debug::log("loader", "Player::handleUserEvent(TRACK_LOAD_SUCCESS) called.");
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_skip_attempts = 0; // Reset skip counter on a successful load.
             Stream* new_stream = result->stream;
@@ -1224,9 +1228,9 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             if (m_lyrics_widget && new_stream) {
                 auto lyrics = new_stream->getLyrics();
                 if (lyrics && lyrics->hasLyrics()) {
-                    std::cout << "Player: Setting lyrics widget with " << lyrics->getLines().size() << " lyric lines" << std::endl;
+                    Debug::log("lyrics", "Player: Setting lyrics widget with ", lyrics->getLines().size(), " lyric lines");
                 } else {
-                    std::cout << "Player: No lyrics available for current track" << std::endl;
+                    Debug::log("lyrics", "Player: No lyrics available for current track");
                 }
                 m_lyrics_widget->setLyrics(lyrics);
             }
@@ -1261,7 +1265,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             m_loading_track = false; // Loading complete
 
-            std::cerr << "Player: Failed to load track: " << error_msg << std::endl;
+            Debug::log("loader", "Player: Failed to load track: ", error_msg.to8Bit(true));
 
             // Robust playlist handling: skip unplayable tracks
             if (!handleUnplayableTrack()) {
@@ -1277,7 +1281,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_preloading_track = false;
             m_next_stream.reset(result->stream); // Take ownership of the preloaded stream
-            std::cout << "Track preloaded successfully for seamless transition." << std::endl;
+            Debug::log("loader", "Track preloaded successfully for seamless transition.");
             delete result; // Free the result struct but keep the stream
             break;
         }
@@ -1286,7 +1290,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             // Handle preload failure - no seamless transition possible
             TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
             m_preloading_track = false;
-            std::cerr << "Failed to preload track: " << result->error_message << std::endl;
+            Debug::log("loader", "Failed to preload track: ", result->error_message.to8Bit(true));
             delete result;
             break;
         }
@@ -1317,13 +1321,13 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             if (recreate_audio) {
                 // Different audio format, need to recreate Audio object
-                std::cout << "Audio format changed, recreating Audio object for seamless transition." << std::endl;
+                Debug::log("audio", "Audio format changed, recreating Audio object for seamless transition.");
                 audio.reset();
                 auto owned_stream = std::move(m_next_stream);
                 audio = std::make_unique<Audio>(std::move(owned_stream), fft.get(), mutex.get());
             } else {
                 // Same audio format, can seamlessly switch streams
-                std::cout << "Performing seamless stream transition." << std::endl;
+                Debug::log("audio", "Performing seamless stream transition.");
                 auto owned_stream = std::move(m_next_stream);
                 audio->setStream(std::move(owned_stream));
             }
@@ -1370,6 +1374,7 @@ void Player::Run(const PlayerOptions& options) {
     scalefactor = options.scalefactor;
     decayfactor = options.decayfactor;
     m_automated_test_mode = options.automated_test_mode;
+    m_unattended_quit = options.unattended_quit;
 
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
@@ -1378,14 +1383,15 @@ void Player::Run(const PlayerOptions& options) {
         return;
     }
 
+
     // make sure SDL cleans up before exit
     atexit(SDL_Quit);
 
-    std::cout << "System::getStoragePath: " << System::getStoragePath().to8Bit(true) << std::endl;
-    std::cout << "System::getUser: " << System::getUser().to8Bit(true) << std::endl;
-    std::cout << "System::getHome: " << System::getHome().to8Bit(true) << std::endl;
+    Debug::log("system", "System::getStoragePath: ", System::getStoragePath().to8Bit(true));
+    Debug::log("system", "System::getUser: ", System::getUser().to8Bit(true));
+    Debug::log("system", "System::getHome: ", System::getHome().to8Bit(true));
 #ifdef _WIN32
-    std::cout << "System::getHwnd: " << std::hex << System::getHwnd() << std::endl;
+    Debug::log("system", "System::getHwnd: ", std::hex, System::getHwnd());
 #endif /* _WIN32 */
 
     TrueType::Init();
@@ -1417,7 +1423,7 @@ void Player::Run(const PlayerOptions& options) {
 #else
     m_large_font = std::make_unique<Font>(TagLib::String(PSYMP3_DATADIR "/vera.ttf"), 36);
 #endif // _WIN32
-    std::cout << "font->isValid(): " << font->isValid() << std::endl;
+    Debug::log("font", "font->isValid(): ", font->isValid());
     
     graph = std::make_unique<Surface>(640, 400);
     // Enable alpha blending for the graph surface itself. This is crucial for it to be a valid
@@ -1513,7 +1519,7 @@ void Player::Run(const PlayerOptions& options) {
     bool done = false;
     // if (system) system->progressState(TBPF_NORMAL);
     if (m_automated_test_mode) {
-        std::cout << "Automated test mode enabled." << std::endl;
+        Debug::log("test", "Automated test mode enabled.");
     }
     SDL_TimerID timer = SDL_AddTimer(33, Player::AppLoopTimer, nullptr);
     if (m_automated_test_mode) {
@@ -1629,7 +1635,7 @@ void Player::Run(const PlayerOptions& options) {
     if (audio) audio->play(false);
 
     // all is well ;)
-    printf("Exited cleanly\n");
+    Debug::log("player", "Exited cleanly");
     return;
 }
 

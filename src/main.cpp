@@ -64,63 +64,63 @@ static Mpg123LifecycleManager mpg123_manager;
 
 int main(int argc, char *argv[]) {
     // --- Argument Parsing ---
-    // Arguments are parsed here in main, before the Player object is created.
-    // This separates command-line interface logic from application logic.
     PlayerOptions options;
+    std::string logfile;
+    std::vector<std::string> debug_channels;
     bool should_run = true;
 
     static const struct option long_options[] = {
-        {"fft", required_argument, 0, 'f'},
-        {"scale", required_argument, 0, 's'},
-        {"decay", required_argument, 0, 'd'},
-        {"test", no_argument, 0, 't'},
+        {"fft", required_argument, 0, 0},
+        {"scale", required_argument, 0, 0},
+        {"decay", required_argument, 0, 0},
+        {"test", no_argument, 0, 0},
         {"version", no_argument, 0, 'v'},
-        {"debug-widgets", no_argument, 0, 'w'},
-        {"debug-runtime", no_argument, 0, 'r'},
-        {"logfile", required_argument, 0, 'l'},
+        {"debug", required_argument, 0, 0},
+        {"logfile", required_argument, 0, 0},
+        {"unattended-quit", no_argument, 0, 0},
         {0, 0, 0, 0}
     };
 
     int opt;
-    // Use getopt_long directly on the original argc and argv.
-    while ((opt = getopt_long(argc, argv, "f:s:d:tvwrl:", long_options, nullptr)) != -1) {
-        switch (opt) {
-            case 'f':
+    int option_index = 0;
+    while ((opt = getopt_long(argc, argv, "v", long_options, &option_index)) != -1) {
+        if (opt == 0) {
+            std::string option_name = long_options[option_index].name;
+            if (option_name == "fft") {
                 if (strcmp(optarg, "mat-og") == 0) options.fft_mode = FFTMode::Original;
                 else if (strcmp(optarg, "vibe-1") == 0) options.fft_mode = FFTMode::Optimized;
                 else if (strcmp(optarg, "neomat-in") == 0) options.fft_mode = FFTMode::NeomatIn;
                 else if (strcmp(optarg, "neomat-out") == 0) options.fft_mode = FFTMode::NeomatOut;
-                break;
-            case 's':
+            } else if (option_name == "scale") {
                 options.scalefactor = atoi(optarg);
-                break;
-            case 'd':
+            } else if (option_name == "decay") {
                 options.decayfactor = atof(optarg);
-                break;
-            case 't':
+            } else if (option_name == "test") {
                 options.automated_test_mode = true;
-                break;
-            case 'v':
-                about_console();
-                should_run = false;
-                break;
-            case 'w':
-                Debug::setWidgetBlittingDebug(true);
-                break;
-            case 'r':
-                Debug::setRuntimeDebug(true);
-                break;
-            case 'l':
-                // Redirect stdout and stderr to logfile
-                if (freopen(optarg, "w", stdout) == nullptr || freopen(optarg, "w", stderr) == nullptr) {
-                    std::cerr << "Error: Could not redirect output to logfile: " << optarg << std::endl;
-                    return 1;
+            } else if (option_name == "debug") {
+                if (strcmp(optarg, "all") == 0) {
+                    debug_channels.push_back("all");
+                } else {
+                    debug_channels.push_back(optarg);
                 }
-                break;
-            case '?': // Invalid option
-                return 1; // getopt_long already prints an error message.
+            } else if (option_name == "logfile") {
+                logfile = optarg;
+            } else if (option_name == "unattended-quit") {
+                options.unattended_quit = true;
+            }
+        } else {
+            switch (opt) {
+                case 'v':
+                    about_console();
+                    should_run = false;
+                    break;
+                case '?': // Invalid option
+                    return 1;
+            }
         }
     }
+
+    Debug::init(logfile, debug_channels);
 
     // Collect non-option arguments as file paths.
     if (optind < argc) {
@@ -134,5 +134,6 @@ int main(int argc, char *argv[]) {
         psymp3_player.Run(options);
     }
 
+    Debug::shutdown();
     return 0;
 }

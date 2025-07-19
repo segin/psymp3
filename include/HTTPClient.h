@@ -171,108 +171,11 @@ public:
     static void cleanupSSL();
 
 private:
-    /**
-     * @brief Connect to a host via TCP socket
-     * @param host The hostname to connect to
-     * @param port The port number
-     * @param timeoutSeconds Connection timeout
-     * @return Socket file descriptor, or -1 on failure
-     */
-    static int connectToHost(const std::string& host, int port, int timeoutSeconds);
-    
-    /**
-     * @brief Send HTTP request and receive response
-     * @param socket The connected socket
-     * @param request The complete HTTP request string
-     * @param timeoutSeconds Read timeout
-     * @return Raw HTTP response
-     */
-    static std::string sendRequest(int socket, const std::string& request, int timeoutSeconds);
-    
-    /**
-     * @brief Send HTTPS request and receive response
-     * @param ssl The SSL connection
-     * @param request The complete HTTP request string
-     * @param timeoutSeconds Read timeout
-     * @return Raw HTTP response
-     */
-    static std::string sendSSLRequest(SSL* ssl, const std::string& request, int timeoutSeconds);
-    
-    /**
-     * @brief Parse raw HTTP response into Response structure
-     * @param rawResponse The raw HTTP response string
-     * @return Parsed Response structure
-     */
-    static Response parseResponse(const std::string& rawResponse);
-    
-    /**
-     * @brief Build HTTP request string
-     * @param method HTTP method (GET, POST, etc.)
-     * @param path Request path
-     * @param host Host header value
-     * @param headers Additional headers
-     * @param body Request body (for POST)
-     * @param keep_alive Whether to request Keep-Alive
-     * @return Complete HTTP request string
-     */
-    static std::string buildRequest(const std::string& method,
-                                   const std::string& path,
-                                   const std::string& host,
+    static Response performRequest(const std::string& method,
+                                   const std::string& url,
+                                   const std::string& postData,
                                    const std::map<std::string, std::string>& headers,
-                                   const std::string& body = "",
-                                   bool keep_alive = true);
-    
-    // Connection pool management
-    static std::map<std::string, Connection> s_connection_pool;
-    static std::mutex s_pool_mutex;
-    static std::chrono::seconds s_connection_timeout;
-    static int s_total_requests;
-    static int s_reused_connections;
-    
-    /**
-     * @brief Get connection key for connection pooling
-     * @param host The hostname
-     * @param port The port number
-     * @return Connection key string
-     */
-    static std::string getConnectionKey(const std::string& host, int port);
-    
-    /**
-     * @brief Get or create a connection for the given host/port
-     * @param host The hostname
-     * @param port The port number
-     * @param timeout_seconds Connection timeout
-     * @return Connection object (may be reused or new)
-     */
-    static Connection getConnection(const std::string& host, int port, int timeout_seconds);
-    
-    /**
-     * @brief Return a connection to the pool or close it
-     * @param conn Connection to return
-     * @param keep_alive Whether the connection supports keep-alive
-     */
-    static void returnConnection(Connection& conn, bool keep_alive);
-    
-    /**
-     * @brief Clean up expired connections from the pool
-     */
-    static void cleanupExpiredConnections();
-    
-    /**
-     * @brief Send request and receive response using connection
-     * @param conn Connection to use
-     * @param request The complete HTTP request string
-     * @param timeout_seconds Read timeout
-     * @return Raw HTTP response
-     */
-    static std::string sendRequestOnConnection(Connection& conn, const std::string& request, int timeout_seconds);
-    
-    /**
-     * @brief Check if response indicates connection should be kept alive
-     * @param headers Response headers
-     * @return true if connection should be kept alive
-     */
-    static bool shouldKeepAlive(const std::map<std::string, std::string>& headers);
+                                   int timeoutSeconds);
 };
 
 #endif // HTTPCLIENT_H

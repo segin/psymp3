@@ -107,29 +107,21 @@ bool OpusCodec::canDecode(const StreamInfo& stream_info) const
 
 AudioFrame OpusCodec::decode(const MediaChunk& chunk)
 {
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("OpusCodec::decode called - chunk.data.size=", chunk.data.size(), ", timestamp=", chunk.timestamp_ms, "ms");
-    }
+    Debug::log("opus", "OpusCodec::decode called - chunk.data.size=", chunk.data.size(), ", timestamp=", chunk.timestamp_ms, "ms");
     
     AudioFrame frame;
     
     if (chunk.data.empty()) {
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("OpusCodec: Empty chunk, returning empty frame");
-        }
+        Debug::log("opus", "Empty chunk, returning empty frame");
         return frame;
     }
     
     // First packet is OpusHead (identification), second is OpusTags (comment)
     if (m_header_packets_received < 2) {
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("OpusCodec: Processing header packet ", m_header_packets_received + 1);
-        }
+        Debug::log("opus", "Processing header packet ", m_header_packets_received + 1);
         if (processHeaderPacket(chunk.data)) {
             m_header_packets_received++;
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OpusCodec: Header packet ", m_header_packets_received, " processed successfully");
-            }
+            Debug::log("opus", "Header packet ", m_header_packets_received, " processed successfully");
             
             // After OpusHead packet, initialize decoder
             if (m_header_packets_received == 1 && m_channels > 0) {
@@ -139,29 +131,21 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
                     throw BadFormatException("Failed to initialize Opus decoder: " + std::string(opus_strerror(error)));
                 }
                 m_decoder_initialized = true;
-                if (Debug::runtime_debug_enabled) {
-                    Debug::runtime("OpusCodec: Decoder initialized successfully - sample_rate=", m_sample_rate, ", channels=", m_channels);
-                }
+                Debug::log("opus", "Decoder initialized successfully - sample_rate=", m_sample_rate, ", channels=", m_channels);
             }
         } else {
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OpusCodec: Header packet ", m_header_packets_received + 1, " processing failed");
-            }
+            Debug::log("opus", "Header packet ", m_header_packets_received + 1, " processing failed");
         }
         return frame; // Headers don't produce audio
     }
     
     // Process audio packet
     if (!m_decoder_initialized || !m_opus_decoder) {
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("OpusCodec: Decoder not initialized, decoder_init=", m_decoder_initialized, ", opus_decoder=", (void*)m_opus_decoder);
-        }
+        Debug::log("opus", "Decoder not initialized, decoder_init=", m_decoder_initialized, ", opus_decoder=", (void*)m_opus_decoder);
         return frame;
     }
     
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("OpusCodec: Decoding packet size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
-    }
+    Debug::log("opus", "Decoding packet size=", chunk.data.size(), " bytes, timestamp=", chunk.timestamp_ms, "ms");
     
     // Decode the packet (Opus packets can vary in size)
     // Maximum frame size for Opus is 5760 samples per channel at 48kHz
@@ -177,9 +161,7 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
     
     if (samples_decoded < 0) {
         // Decoding error - return empty frame but don't throw
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("OpusCodec: Decode error: ", opus_strerror(samples_decoded));
-        }
+        Debug::log("opus", "Decode error: ", opus_strerror(samples_decoded));
         return frame;
     }
     
@@ -192,9 +174,7 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
             m_output_buffer[i] = static_cast<int16_t>(decode_buffer[i]);
         }
         
-        if (Debug::runtime_debug_enabled) {
-            Debug::runtime("OpusCodec: Successfully decoded ", samples_decoded, " samples, total_samples=", total_samples);
-        }
+        Debug::log("opus", "Successfully decoded ", samples_decoded, " samples, total_samples=", total_samples);
         
         // Create frame
         frame.sample_rate = m_sample_rate;
@@ -205,9 +185,7 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         m_output_buffer.clear();
     }
     
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("OpusCodec: Returning frame with ", frame.samples.size(), " samples");
-    }
+    Debug::log("opus", "Returning frame with ", frame.samples.size(), " samples");
     
     return frame;
 }
@@ -239,28 +217,26 @@ void OpusCodec::reset()
 
 bool OpusCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
 {
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("OpusCodec: processHeaderPacket called, packet_size=", packet_data.size());
-        if (packet_data.size() >= 8) {
-            std::string header_str;
-            for (size_t i = 0; i < std::min(size_t(8), packet_data.size()); i++) {
-                char c = packet_data[i];
-                if (c >= 32 && c <= 126) {
-                    header_str += c;
-                } else {
-                    header_str += "\\x" + std::to_string(c);
-                }
+    Debug::log("opus", "OpusCodec: processHeaderPacket called, packet_size=", packet_data.size());
+    if (packet_data.size() >= 8) {
+        std::string header_str;
+        for (size_t i = 0; i < std::min(size_t(8), packet_data.size()); i++) {
+            char c = packet_data[i];
+            if (c >= 32 && c <= 126) {
+                header_str += c;
+            } else {
+                header_str += "\\x" + std::to_string(c);
             }
-            Debug::runtime("OpusCodec: First 8 bytes: '", header_str, "'");
         }
-        
-        // Check if OpusHead is anywhere in the packet
-        if (packet_data.size() >= 19) {
-            for (size_t i = 0; i <= packet_data.size() - 8; i++) {
-                if (std::memcmp(packet_data.data() + i, "OpusHead", 8) == 0) {
-                    Debug::runtime("OpusCodec: Found OpusHead at offset ", i);
-                    break;
-                }
+        Debug::log("opus", "First 8 bytes: '", header_str, "'");
+    }
+    
+    // Check if OpusHead is anywhere in the packet
+    if (packet_data.size() >= 19) {
+        for (size_t i = 0; i <= packet_data.size() - 8; i++) {
+            if (std::memcmp(packet_data.data() + i, "OpusHead", 8) == 0) {
+                Debug::log("opus", "Found OpusHead at offset ", i);
+                break;
             }
         }
     }
@@ -291,15 +267,11 @@ bool OpusCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
         if (packet_data.size() >= 8 && 
             std::memcmp(packet_data.data(), "OpusTags", 8) == 0) {
             // We don't need to parse the comment data
-            if (Debug::runtime_debug_enabled) {
-                Debug::runtime("OpusCodec: OpusTags header found and processed");
-            }
+            Debug::log("opus", "OpusTags header found and processed");
             return true;
         }
     }
     
-    if (Debug::runtime_debug_enabled) {
-        Debug::runtime("OpusCodec: Header packet not recognized, returning false");
-    }
+    Debug::log("opus", "Header packet not recognized, returning false");
     return false;
 }

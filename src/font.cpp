@@ -27,26 +27,26 @@
 
 Font::Font(const TagLib::String& file, int ptsize)
 {
-    std::cout << "Font constructor called for file: " << file.to8Bit(true) << ", ptsize: " << ptsize << std::endl;
+    Debug::log("font", "Font constructor called for file: ", file.to8Bit(true), ", ptsize: ", ptsize);
     if (FT_New_Face(TrueType::getLibrary(), file.toCString(), 0, &m_face)) {
-        std::cerr << "FT_New_Face failed for font: " << file.to8Bit(true) << std::endl;
+        Debug::log("font", "FT_New_Face failed for font: ", file.to8Bit(true));
         throw std::runtime_error("Failed to load font: " + file.to8Bit(true));
     }
-    std::cout << "FT_New_Face successful." << std::endl;
+    Debug::log("font", "FT_New_Face successful.");
     FT_Set_Pixel_Sizes(m_face, 0, ptsize);
-    std::cout << "FT_Set_Pixel_Sizes successful." << std::endl;
+    Debug::log("font", "FT_Set_Pixel_Sizes successful.");
 }
 
 Font::~Font()
 {
-    std::cout << "Font destructor called." << std::endl;
+    Debug::log("font", "Font destructor called.");
     FT_Done_Face(m_face);
 }
 
 std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b)
 {
     if (!m_face) {
-        std::cerr << "Font::Render: m_face is null." << std::endl;
+        Debug::log("font", "Font::Render: m_face is null.");
         return nullptr;
     }
 
@@ -60,7 +60,7 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     std::string text_utf8 = text.to8Bit(true);
     for (const char* p = text_utf8.c_str(); *p; p++) {
         if (FT_Load_Char(m_face, *p, FT_LOAD_RENDER)) {
-            std::cerr << "FT_Load_Char failed for character: " << *p << std::endl;
+            Debug::log("font", "FT_Load_Char failed for character: ", *p);
             continue;
         }
         width += m_face->glyph->advance.x >> 6;
@@ -73,7 +73,7 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
 
     auto sfc = std::make_unique<Surface>(width, font_height, true);
     if (!sfc) {
-        std::cerr << "Failed to create surface for text rendering." << std::endl;
+        Debug::log("font", "Failed to create surface for text rendering.");
         return nullptr;
     }
 

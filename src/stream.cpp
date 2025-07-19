@@ -75,7 +75,7 @@ Stream::Stream(TagLib::String name)
         m_tags = std::make_unique<TagLib::FileRef>(m_taglib_stream.get());
         
     } catch (std::exception& e) {
-        Debug::runtime("Stream constructor: Failed to create TagLib stream: ", e.what());
+        Debug::log("stream", "Stream constructor: Failed to create TagLib stream: ", e.what());
         m_tags = nullptr;
         m_taglib_stream = nullptr;
     }
@@ -113,20 +113,20 @@ void Stream::open(TagLib::String name)
 TagLib::String Stream::getArtist()
 {
     if(!m_tags) {
-        Debug::runtime("Stream::getArtist: m_tags is null for file: ", getFilePath());
+        Debug::log("stream", "Stream::getArtist: m_tags is null for file: ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getArtist: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getArtist: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     if(!m_tags->tag()) {
-        Debug::runtime("Stream::getArtist: No tag data found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getArtist: No tag data found in file: ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     TagLib::String artist = m_tags->tag()->artist();
     if(artist.isEmpty()) {
-        Debug::runtime("Stream::getArtist: Artist tag is empty for file: ", getFilePath());
+        Debug::log("stream", "Stream::getArtist: Artist tag is empty for file: ", getFilePath().to8Bit(true));
     }
     return artist;
 }
@@ -138,20 +138,20 @@ TagLib::String Stream::getArtist()
 TagLib::String Stream::getTitle()
 {
     if(!m_tags) {
-        Debug::runtime("Stream::getTitle: m_tags is null for file: ", getFilePath());
+        Debug::log("stream", "Stream::getTitle: m_tags is null for file: ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getTitle: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getTitle: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     if(!m_tags->tag()) {
-        Debug::runtime("Stream::getTitle: No tag data found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getTitle: No tag data found in file: ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     TagLib::String title = m_tags->tag()->title();
     if(title.isEmpty()) {
-        Debug::runtime("Stream::getTitle: Title tag is empty for file: ", getFilePath());
+        Debug::log("stream", "Stream::getTitle: Title tag is empty for file: ", getFilePath().to8Bit(true));
     }
     return title;
 }
@@ -163,20 +163,20 @@ TagLib::String Stream::getTitle()
 TagLib::String Stream::getAlbum()
 {
     if(!m_tags) {
-        Debug::runtime("Stream::getAlbum: m_tags is null for file: ", getFilePath());
+        Debug::log("stream", "Stream::getAlbum: m_tags is null for file: ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getAlbum: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getAlbum: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     if(!m_tags->tag()) {
-        Debug::runtime("Stream::getAlbum: No tag data found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getAlbum: No tag data found in file: ", getFilePath().to8Bit(true));
         return track::nullstr;
     }
     TagLib::String album = m_tags->tag()->album();
     if(album.isEmpty()) {
-        Debug::runtime("Stream::getAlbum: Album tag is empty for file: ", getFilePath());
+        Debug::log("stream", "Stream::getAlbum: Album tag is empty for file: ", getFilePath().to8Bit(true));
     }
     return album;
 }
@@ -208,11 +208,11 @@ unsigned int Stream::getLength()
     if(m_length) return m_length;
     if(!m_tags) return 0;
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getLength: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getLength: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return 0;
     }
     if(!m_tags->audioProperties()) {
-        Debug::runtime("Stream::getLength: No audio properties found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getLength: No audio properties found in file: ", getFilePath().to8Bit(true));
         return 0;
     }
     return m_tags->audioProperties()->lengthInMilliseconds(); // * 1000 to make msec
@@ -235,11 +235,11 @@ unsigned long long Stream::getSLength()
     if(m_slength) return m_slength;
     if(!m_tags) return 0;
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getSLength: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getSLength: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return 0;
     }
     if(!m_tags->audioProperties()) {
-        Debug::runtime("Stream::getSLength: No audio properties found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getSLength: No audio properties found in file: ", getFilePath().to8Bit(true));
         return 0;
     }
     return static_cast<unsigned long long>(m_tags->audioProperties()->lengthInSeconds()) * m_tags->audioProperties()->sampleRate();
@@ -262,11 +262,11 @@ unsigned int Stream::getChannels()
     if(m_channels) return m_channels;
     if(!m_tags) return 0;
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getChannels: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getChannels: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return 0;
     }
     if(!m_tags->audioProperties()) {
-        Debug::runtime("Stream::getChannels: No audio properties found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getChannels: No audio properties found in file: ", getFilePath().to8Bit(true));
         return 0;
     }
     return m_tags->audioProperties()->channels();
@@ -283,11 +283,11 @@ unsigned int Stream::getRate()
     if(m_rate) return m_rate;
     if(!m_tags) return 0;
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getRate: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getRate: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return 0;
     }
     if(!m_tags->audioProperties()) {
-        Debug::runtime("Stream::getRate: No audio properties found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getRate: No audio properties found in file: ", getFilePath().to8Bit(true));
         return 0;
     }
     return m_tags->audioProperties()->sampleRate();
@@ -304,11 +304,11 @@ unsigned int Stream::getBitrate()
     if(m_bitrate) return m_bitrate;
     if(!m_tags) return 0;
     if(m_tags->isNull()) {
-        Debug::runtime("Stream::getBitrate: TagLib::FileRef is null (couldn't open file): ", getFilePath());
+        Debug::log("stream", "Stream::getBitrate: TagLib::FileRef is null (couldn't open file): ", getFilePath().to8Bit(true));
         return 0;
     }
     if(!m_tags->audioProperties()) {
-        Debug::runtime("Stream::getBitrate: No audio properties found in file: ", getFilePath());
+        Debug::log("stream", "Stream::getBitrate: No audio properties found in file: ", getFilePath().to8Bit(true));
         return 0;
     }
     return m_tags->audioProperties()->bitrate();
@@ -376,27 +376,27 @@ bool Stream::hasLyrics() const
 void Stream::loadLyrics()
 {
     if (m_path.isEmpty()) {
-        std::cout << "Stream::loadLyrics: No path set, skipping lyrics loading" << std::endl;
+        Debug::log("lyrics", "Stream::loadLyrics: No path set, skipping lyrics loading");
         return;
     }
     
     // Convert TagLib::String to std::string for lyrics utilities
     std::string file_path = m_path.to8Bit(true);
-    std::cout << "Stream::loadLyrics: Looking for lyrics for: " << file_path << std::endl;
+    Debug::log("lyrics", "Stream::loadLyrics: Looking for lyrics for: ", file_path);
     
     std::string lyrics_path = LyricsUtils::findLyricsFile(file_path);
     
     if (!lyrics_path.empty()) {
-        std::cout << "Stream::loadLyrics: Found lyrics file: " << lyrics_path << std::endl;
+        Debug::log("lyrics", "Stream::loadLyrics: Found lyrics file: ", lyrics_path);
         m_lyrics = std::make_shared<LyricsFile>();
         if (m_lyrics->loadFromFile(lyrics_path)) {
-            std::cout << "Stream::loadLyrics: Successfully loaded " << m_lyrics->getLines().size() << " lyric lines" << std::endl;
+            Debug::log("lyrics", "Stream::loadLyrics: Successfully loaded ", m_lyrics->getLines().size(), " lyric lines");
         } else {
-            std::cout << "Stream::loadLyrics: Failed to parse lyrics file" << std::endl;
+            Debug::log("lyrics", "Stream::loadLyrics: Failed to parse lyrics file");
             // Failed to load lyrics, clear the pointer
             m_lyrics.reset();
         }
     } else {
-        std::cout << "Stream::loadLyrics: No lyrics file found" << std::endl;
+        Debug::log("lyrics", "Stream::loadLyrics: No lyrics file found");
     }
 }

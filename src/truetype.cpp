@@ -3,13 +3,13 @@
 FT_Library TrueType::m_library;
 
 void TrueType::Init() {
-    std::cout << "TrueType::Init() called." << std::endl;
+    Debug::log("font", "TrueType::Init() called.");
     FT_Error error = FT_Init_FreeType(&m_library);
     if (error) {
-        std::cerr << "TrueType::Init() failed: FT_Init_FreeType returned error code " << error << std::endl;
+        Debug::log("font", "TrueType::Init() failed: FT_Init_FreeType returned error code ", error);
         throw std::runtime_error("Failed to initialize FreeType2");
     }
-    std::cout << "TrueType::Init() successful." << std::endl;
+    Debug::log("font", "TrueType::Init() successful.");
 }
 
 void TrueType::Done() {
