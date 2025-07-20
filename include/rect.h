@@ -61,6 +61,13 @@ class Rect
         uint32_t area() const;
         bool isEmpty() const;
         bool isValid() const;
+        
+        // Geometric operation methods
+        bool contains(int16_t x, int16_t y) const;
+        bool contains(const Rect& other) const;
+        bool intersects(const Rect& other) const;
+        Rect intersection(const Rect& other) const;
+        Rect united(const Rect& other) const;
     protected:
     private:
         int16_t m_x;

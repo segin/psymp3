@@ -25,20 +25,20 @@
     - Implement `isValid()` for comprehensive rectangle validation
     - _Requirements: 2.5, 2.6, 7.1_
 
-- [-] 3. Implement geometric operation methods
-  - [ ] 3.1 Add point and rectangle containment methods
+- [x] 3. Implement geometric operation methods
+  - [x] 3.1 Add point and rectangle containment methods
     - Implement `contains(int16_t x, int16_t y)` for point-in-rectangle testing
     - Implement `contains(const Rect& other)` for rectangle containment
     - Handle edge cases for empty rectangles and boundary conditions
     - _Requirements: 1.1_
 
-  - [ ] 3.2 Add rectangle intersection methods
+  - [x] 3.2 Add rectangle intersection methods
     - Implement `intersects(const Rect& other)` for overlap detection
     - Implement `intersection(const Rect& other)` returning intersection rectangle
     - Handle non-overlapping rectangles by returning empty Rect(0, 0, 0, 0)
     - _Requirements: 1.2, 1.3_
 
-  - [ ] 3.3 Add rectangle union method
+  - [x] 3.3 Add rectangle union method
     - Implement `united(const Rect& other)` for bounding box calculation
     - Handle empty rectangles in union operations
     - Ensure proper coordinate overflow handling

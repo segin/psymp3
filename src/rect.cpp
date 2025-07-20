@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include <algorithm> // For std::max and std::min
 
 Rect::Rect()
 {
@@ -211,4 +212,127 @@ bool Rect::isEmpty() const
 bool Rect::isValid() const
 {
     return m_width > 0 && m_height > 0;
+}
+
+// Geometric operation methods
+
+/**
+ * @brief Check if a point is contained within the rectangle
+ * @param x The x coordinate of the point
+ * @param y The y coordinate of the point
+ * @return True if the point is inside the rectangle (inclusive of edges), false otherwise
+ */
+bool Rect::contains(int16_t x, int16_t y) const
+{
+    // Empty rectangles contain no points
+    if (isEmpty()) {
+        return false;
+    }
+    
+    // Check if point is within bounds (inclusive)
+    return x >= m_x && x < m_x + m_width &&
+           y >= m_y && y < m_y + m_height;
+}
+
+/**
+ * @brief Check if another rectangle is completely contained within this rectangle
+ * @param other The rectangle to check for containment
+ * @return True if the other rectangle is completely inside this rectangle, false otherwise
+ */
+bool Rect::contains(const Rect& other) const
+{
+    // Empty rectangles cannot contain anything, and nothing can contain empty rectangles
+    if (isEmpty() || other.isEmpty()) {
+        return false;
+    }
+    
+    // Check if all corners of the other rectangle are within this rectangle
+    return other.m_x >= m_x &&
+           other.m_y >= m_y &&
+           other.m_x + other.m_width <= m_x + m_width &&
+           other.m_y + other.m_height <= m_y + m_height;
+}
+
+/**
+ * @brief Check if this rectangle intersects with another rectangle
+ * @param other The rectangle to check for intersection
+ * @return True if the rectangles overlap, false otherwise
+ */
+bool Rect::intersects(const Rect& other) const
+{
+    // Empty rectangles don't intersect with anything
+    if (isEmpty() || other.isEmpty()) {
+        return false;
+    }
+    
+    // Check if rectangles are separated on any axis
+    // If separated on x-axis: this.right <= other.left OR other.right <= this.left
+    // If separated on y-axis: this.bottom <= other.top OR other.bottom <= this.top
+    return !(m_x + m_width <= other.m_x ||           // this is left of other
+             other.m_x + other.m_width <= m_x ||     // other is left of this
+             m_y + m_height <= other.m_y ||          // this is above other
+             other.m_y + other.m_height <= m_y);     // other is above this
+}
+
+/**
+ * @brief Calculate the intersection rectangle of this rectangle with another
+ * @param other The rectangle to intersect with
+ * @return The intersection rectangle, or Rect(0, 0, 0, 0) if no intersection
+ */
+Rect Rect::intersection(const Rect& other) const
+{
+    // If rectangles don't intersect, return empty rectangle
+    if (!intersects(other)) {
+        return Rect(0, 0, 0, 0);
+    }
+    
+    // Calculate intersection bounds
+    int16_t left = std::max(m_x, other.m_x);
+    int16_t top = std::max(m_y, other.m_y);
+    int16_t right = std::min(m_x + m_width, other.m_x + other.m_width);
+    int16_t bottom = std::min(m_y + m_height, other.m_y + other.m_height);
+    
+    // Calculate width and height
+    uint16_t width = static_cast<uint16_t>(right - left);
+    uint16_t height = static_cast<uint16_t>(bottom - top);
+    
+    return Rect(left, top, width, height);
+}
+
+/**
+ * @brief Calculate the union (bounding box) of this rectangle with another
+ * @param other The rectangle to unite with
+ * @return The smallest rectangle that contains both rectangles
+ */
+Rect Rect::united(const Rect& other) const
+{
+    // Handle empty rectangles - union with empty rectangle returns the non-empty one
+    if (isEmpty() && other.isEmpty()) {
+        return Rect(0, 0, 0, 0);  // Both empty, return empty
+    }
+    if (isEmpty()) {
+        return other;  // This is empty, return other
+    }
+    if (other.isEmpty()) {
+        return *this;  // Other is empty, return this
+    }
+    
+    // Calculate bounding box using int32_t to avoid overflow
+    int16_t left = std::min(m_x, other.m_x);
+    int16_t top = std::min(m_y, other.m_y);
+    int32_t right = std::max(static_cast<int32_t>(m_x) + static_cast<int32_t>(m_width), 
+                            static_cast<int32_t>(other.m_x) + static_cast<int32_t>(other.m_width));
+    int32_t bottom = std::max(static_cast<int32_t>(m_y) + static_cast<int32_t>(m_height), 
+                             static_cast<int32_t>(other.m_y) + static_cast<int32_t>(other.m_height));
+    
+    // Handle potential coordinate overflow
+    // Check if the calculated dimensions would exceed uint16_t limits
+    int32_t width_calc = right - left;
+    int32_t height_calc = bottom - top;
+    
+    // Clamp to maximum uint16_t values if overflow would occur
+    uint16_t width = (width_calc > 65535) ? 65535 : static_cast<uint16_t>(width_calc);
+    uint16_t height = (height_calc > 65535) ? 65535 : static_cast<uint16_t>(height_calc);
+    
+    return Rect(left, top, width, height);
 }
