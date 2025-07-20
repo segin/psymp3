@@ -65,7 +65,7 @@
   - Add support for various audio codecs within chunk containers
   - _Requirements: 3.4, 3.5, 3.6, 3.10_
 
-- [x] 3.3 Finalize ISODemuxer Implementation
+- [ ] 3.3 Finalize ISODemuxer Implementation
   - Complete MP4/M4A container parsing with full box hierarchy support
   - Implement sample table processing for accurate seeking
   - Add support for multiple tracks and codec detection
