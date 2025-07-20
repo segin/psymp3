@@ -44,7 +44,7 @@
   - Add proper resource management and cleanup for failed creations
   - _Requirements: 7.4, 7.5, 7.6, 7.7, 7.8_
 
-- [ ] 3. Enhance Existing Demuxer Implementations
+- [-] 3. Enhance Existing Demuxer Implementations
   - Update OggDemuxer to fully comply with new interface requirements
   - Enhance ChunkDemuxer with improved RIFF/AIFF support
   - Complete ISODemuxer implementation for MP4/M4A files
