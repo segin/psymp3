@@ -307,3 +307,296 @@ private:
 - **IEEE 80-bit Float**: Sample rate stored as extended precision float
 - **Compression Types**: Support for 'NONE', 'sowt', 'fl32', 'fl64', 'alaw', 'ulaw'
 - **Data Offset**: Handle SSND chunk offset and block size fields
+#
+## **3. PCMCodec Component**
+
+**Purpose**: Container-agnostic PCM audio decoding for all PCM variants
+
+**Key Methods**:
+- `bool initialize()`: Configure PCM format from StreamInfo
+- `AudioFrame decode(const MediaChunk& chunk)`: Convert PCM data to 16-bit output
+- `PCMFormat determinePCMFormat()`: Detect PCM variant from parameters
+- `size_t convertXXXToPCM()`: Format-specific conversion functions
+- `bool canDecode()`: Check if codec supports the PCM variant
+
+**PCM Format Detection Logic**:
+```cpp
+PCMFormat determinePCMFormat(const StreamInfo& stream_info) {
+    uint16_t bits = stream_info.bits_per_sample;
+    uint32_t codec_tag = stream_info.codec_tag;
+    bool is_float = (codec_tag == WAVE_FORMAT_IEEE_FLOAT);
+    bool is_alaw = (codec_tag == WAVE_FORMAT_ALAW);
+    bool is_mulaw = (codec_tag == WAVE_FORMAT_MULAW);
+    
+    // Determine endianness from container type
+    bool big_endian = (stream_info.codec_data.size() > 0 && 
+                      stream_info.codec_data[0] == 'A'); // AIFF marker
+    
+    if (is_alaw) return PCMFormat::PCM_ALAW;
+    if (is_mulaw) return PCMFormat::PCM_MULAW;
+    if (is_float && bits == 32) return big_endian ? PCMFormat::PCM_F32_BE : PCMFormat::PCM_F32_LE;
+    if (is_float && bits == 64) return big_endian ? PCMFormat::PCM_F64_BE : PCMFormat::PCM_F64_LE;
+    
+    // Integer PCM format detection
+    bool is_unsigned = (bits == 8); // 8-bit is typically unsigned
+    if (bits == 8) return is_unsigned ? PCMFormat::PCM_U8 : PCMFormat::PCM_S8;
+    if (bits == 16) return big_endian ? PCMFormat::PCM_S16_BE : PCMFormat::PCM_S16_LE;
+    if (bits == 24) return big_endian ? PCMFormat::PCM_S24_BE : PCMFormat::PCM_S24_LE;
+    if (bits == 32) return big_endian ? PCMFormat::PCM_S32_BE : PCMFormat::PCM_S32_LE;
+    
+    return PCMFormat::PCM_S16_LE; // Default fallback
+}
+```
+
+**Conversion Strategies**:
+- **8-bit to 16-bit**: Scale and apply offset for unsigned variants
+- **16-bit**: Direct copy with endian conversion if needed
+- **24-bit to 16-bit**: Downscale with optional dithering
+- **32-bit to 16-bit**: Downscale with proper range mapping
+- **Float to 16-bit**: Convert with clipping protection
+- **A-law/μ-law**: Use lookup tables for efficient expansion
+
+### **4. Format Detection and Integration Component**
+
+**Purpose**: Integrate RIFF/PCM architecture with DemuxerFactory and AudioCodecFactory
+
+**DemuxerFactory Integration**:
+```cpp
+// In DemuxerFactory::createDemuxerForFormat()
+if (format_id == "riff") {
+    return std::make_unique<RIFFDemuxer>(std::move(handler));
+} else if (format_id == "aiff") {
+    return std::make_unique<AIFFDemuxer>(std::move(handler));
+}
+```
+
+**AudioCodecFactory Integration**:
+```cpp
+// Register PCM codec factory
+AudioCodecFactory::registerCodec("pcm", [](const StreamInfo& info) {
+    return std::make_unique<PCMCodec>(info);
+});
+```
+
+**Format Signatures**:
+```cpp
+// RIFF format detection
+{FormatSignature("riff", {'R','I','F','F'}, 0, 100, "RIFF Container")},
+{FormatSignature("riff", {'W','A','V','E'}, 8, 90, "WAVE Audio")},
+
+// AIFF format detection  
+{FormatSignature("aiff", {'F','O','R','M'}, 0, 100, "AIFF Container")},
+{FormatSignature("aiff", {'A','I','F','F'}, 8, 90, "AIFF Audio")},
+{FormatSignature("aiff", {'A','I','F','C'}, 8, 90, "AIFF-C Audio")},
+```
+
+## **Data Models**
+
+### **RIFF Structure Definitions**
+
+```cpp
+// RIFF chunk identifiers
+constexpr uint32_t RIFF_RIFF = FOURCC('R','I','F','F');
+constexpr uint32_t RIFF_WAVE = FOURCC('W','A','V','E');
+constexpr uint32_t RIFF_FMT  = FOURCC('f','m','t',' ');
+constexpr uint32_t RIFF_DATA = FOURCC('d','a','t','a');
+constexpr uint32_t RIFF_FACT = FOURCC('f','a','c','t');
+constexpr uint32_t RIFF_INFO = FOURCC('I','N','F','O');
+constexpr uint32_t RIFF_ID3  = FOURCC('i','d','3',' ');
+
+// WAVE format tags
+constexpr uint16_t WAVE_FORMAT_PCM        = 0x0001;
+constexpr uint16_t WAVE_FORMAT_IEEE_FLOAT = 0x0003;
+constexpr uint16_t WAVE_FORMAT_ALAW       = 0x0006;
+constexpr uint16_t WAVE_FORMAT_MULAW      = 0x0007;
+constexpr uint16_t WAVE_FORMAT_EXTENSIBLE = 0xFFFE;
+```
+
+### **AIFF Structure Definitions**
+
+```cpp
+// AIFF chunk identifiers (big-endian)
+constexpr uint32_t AIFF_FORM = FOURCC('F','O','R','M');
+constexpr uint32_t AIFF_AIFF = FOURCC('A','I','F','F');
+constexpr uint32_t AIFF_AIFC = FOURCC('A','I','F','C');
+constexpr uint32_t AIFF_COMM = FOURCC('C','O','M','M');
+constexpr uint32_t AIFF_SSND = FOURCC('S','S','N','D');
+constexpr uint32_t AIFF_NAME = FOURCC('N','A','M','E');
+constexpr uint32_t AIFF_ANNO = FOURCC('A','N','N','O');
+constexpr uint32_t AIFF_AUTH = FOURCC('A','U','T','H');
+constexpr uint32_t AIFF_COPY = FOURCC('(','c',')',' ');
+
+// AIFF compression types
+constexpr uint32_t AIFF_NONE = FOURCC('N','O','N','E');
+constexpr uint32_t AIFF_SOWT = FOURCC('s','o','w','t'); // Little-endian PCM
+constexpr uint32_t AIFF_FL32 = FOURCC('f','l','3','2'); // 32-bit float
+constexpr uint32_t AIFF_FL64 = FOURCC('f','l','6','4'); // 64-bit float
+constexpr uint32_t AIFF_ALAW = FOURCC('a','l','a','w'); // A-law
+constexpr uint32_t AIFF_ULAW = FOURCC('u','l','a','w'); // μ-law
+```
+
+### **PCM Processing Pipeline**
+
+```
+MediaChunk → Format Detection → Sample Conversion → Channel Interleaving → AudioFrame
+     ↓              ↓                    ↓                    ↓              ↓
+Raw PCM Data → PCMFormat Enum → 16-bit Samples → Proper Layout → Output Buffer
+```
+
+## **Error Handling**
+
+### **Container Parsing Errors**
+
+**RIFF Error Handling**:
+- **Invalid Signature**: Reject non-RIFF files immediately
+- **Truncated Headers**: Handle incomplete chunk headers gracefully
+- **Missing fmt Chunk**: Reject files without format information
+- **Invalid Format**: Validate format parameters and reject unsupported variants
+- **Corrupted Data**: Skip corrupted chunks, continue with valid data
+
+**AIFF Error Handling**:
+- **Invalid FORM**: Reject non-AIFF files immediately
+- **Big-Endian Issues**: Handle byte order conversion errors
+- **Missing COMM**: Reject files without Common chunk
+- **IEEE Float Conversion**: Handle invalid sample rate values
+- **SSND Offset Issues**: Validate and correct data offset calculations
+
+### **PCM Decoding Errors**
+
+**Format Detection Errors**:
+- **Unsupported Format**: Report specific unsupported PCM variant
+- **Invalid Parameters**: Validate bit depth, sample rate, channel count
+- **Inconsistent Data**: Handle mismatched format parameters
+
+**Conversion Errors**:
+- **Buffer Overflow**: Ensure adequate output buffer sizing
+- **Invalid Input**: Handle corrupted or truncated PCM data
+- **Range Errors**: Clamp values during bit depth conversion
+- **Endian Issues**: Handle byte order conversion failures
+
+### **Recovery Strategies**
+
+```cpp
+class PCMErrorRecovery {
+public:
+    // Attempt to repair invalid format parameters
+    static bool repairFormatParameters(StreamInfo& stream_info);
+    
+    // Infer missing format information from data analysis
+    static bool inferPCMFormat(const std::vector<uint8_t>& sample_data, 
+                              StreamInfo& stream_info);
+    
+    // Handle partial or corrupted PCM data
+    static AudioFrame handleCorruptedData(const MediaChunk& chunk, 
+                                         const StreamInfo& stream_info);
+    
+private:
+    static constexpr size_t MIN_SAMPLE_SIZE = 64;  // Minimum samples for analysis
+    static constexpr double SILENCE_THRESHOLD = 0.001; // For detecting silence
+};
+```
+
+## **Performance Considerations**
+
+### **Memory Efficiency**
+
+**Streaming Approach**:
+- **No Full File Loading**: Process audio data in chunks
+- **Minimal Buffering**: Use small, fixed-size buffers for conversion
+- **Efficient Metadata**: Store only essential metadata in memory
+- **Lazy Loading**: Load format information only when needed
+
+**Buffer Management**:
+- **Reusable Buffers**: Reuse conversion buffers across chunks
+- **Optimal Sizing**: Size buffers based on typical chunk sizes
+- **Memory Pooling**: Consider buffer pooling for high-frequency operations
+
+### **CPU Optimization**
+
+**Conversion Efficiency**:
+- **Lookup Tables**: Use precomputed tables for A-law/μ-law
+- **SIMD Opportunities**: Vectorize conversion loops where possible
+- **Branch Prediction**: Optimize format detection branches
+- **Cache Efficiency**: Minimize memory access patterns
+
+**Seeking Performance**:
+- **Direct Calculation**: Calculate seek positions without file scanning
+- **Minimal I/O**: Single seek operation for position changes
+- **Boundary Alignment**: Ensure sample frame alignment for efficiency
+
+### **I/O Optimization**
+
+**Sequential Access**:
+- **Forward Reading**: Optimize for sequential playback
+- **Chunk Sizing**: Use optimal chunk sizes for I/O efficiency
+- **Prefetching**: Consider read-ahead for streaming scenarios
+
+**Seeking Efficiency**:
+- **Position Caching**: Cache frequently accessed positions
+- **Minimal Seeks**: Reduce file system seek operations
+- **Boundary Handling**: Efficient handling of data boundaries
+
+## **Integration Points**
+
+### **With DemuxerFactory**
+
+**Format Detection Integration**:
+```cpp
+// Enhanced format detection with priority handling
+static const std::vector<FormatSignature> s_format_signatures = {
+    // RIFF formats
+    FormatSignature("riff", {'R','I','F','F'}, 0, 100, "RIFF Container"),
+    FormatSignature("riff", {'W','A','V','E'}, 8, 90, "WAVE Audio"),
+    
+    // AIFF formats
+    FormatSignature("aiff", {'F','O','R','M'}, 0, 100, "AIFF Container"),
+    FormatSignature("aiff", {'A','I','F','F'}, 8, 90, "AIFF Audio"),
+    FormatSignature("aiff", {'A','I','F','C'}, 8, 85, "AIFF-C Audio"),
+};
+```
+
+### **With AudioCodecFactory**
+
+**PCM Codec Registration**:
+```cpp
+// Register PCM codec with capability detection
+AudioCodecFactory::registerCodec("pcm", [](const StreamInfo& info) -> std::unique_ptr<AudioCodec> {
+    if (info.codec_name == "pcm" || info.codec_name == "wav" || info.codec_name == "aiff") {
+        return std::make_unique<PCMCodec>(info);
+    }
+    return nullptr;
+});
+```
+
+### **With Existing Architecture**
+
+**Backward Compatibility**:
+- **Stream Interface**: Maintain existing stream interface compatibility
+- **Metadata Format**: Preserve existing metadata field names and formats
+- **Error Handling**: Consistent error reporting with existing codecs
+- **Performance**: Match or exceed existing WAV/AIFF performance
+
+**DemuxedStream Integration**:
+- **Bridge Compatibility**: Work seamlessly with DemuxedStream bridge
+- **Seeking Behavior**: Maintain consistent seeking behavior
+- **Chunk Format**: Produce MediaChunks compatible with existing codecs
+
+## **Testing Strategy**
+
+### **Unit Testing Focus**
+
+1. **Container Parsing**: Test RIFF and AIFF parsing with various file structures
+2. **PCM Conversion**: Verify accuracy of all PCM format conversions
+3. **Metadata Extraction**: Test metadata parsing from various sources
+4. **Error Handling**: Test graceful handling of corrupted files
+5. **Seeking Accuracy**: Verify sample-accurate seeking across formats
+
+### **Integration Testing**
+
+1. **Real-world Files**: Test with files from various encoders and sources
+2. **Format Variants**: Test all supported PCM variants and bit depths
+3. **Large Files**: Test performance and memory usage with large files
+4. **Edge Cases**: Test boundary conditions and unusual file structures
+5. **Compatibility**: Verify backward compatibility with existing files
+
+This design provides a robust, efficient RIFF/PCM architecture that cleanly separates container parsing from audio decoding while maintaining full compatibility with existing functionality and providing a foundation for future PCM format extensions.
