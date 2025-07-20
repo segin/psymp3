@@ -92,6 +92,10 @@ class Rect
         // Combined adjustment methods
         void adjust(int16_t dx, int16_t dy, int16_t dw, int16_t dh);
         Rect adjusted(int16_t dx, int16_t dy, int16_t dw, int16_t dh) const;
+        
+        // Centering operations
+        void centerIn(const Rect& container);
+        Rect centeredIn(const Rect& container) const;
     protected:
     private:
         int16_t m_x;

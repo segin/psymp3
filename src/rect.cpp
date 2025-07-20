@@ -607,3 +607,54 @@ Rect Rect::adjusted(int16_t dx, int16_t dy, int16_t dw, int16_t dh) const
     result.adjust(dx, dy, dw, dh);
     return result;
 }
+
+// Centering operations
+
+/**
+ * @brief Center this rectangle within the specified container rectangle
+ * @param container The container rectangle to center within
+ * 
+ * This method positions the rectangle so that its center point aligns with
+ * the center point of the container. If the rectangle is larger than the
+ * container in any dimension, it will be positioned so that it extends
+ * equally beyond both sides of the container in that dimension.
+ */
+void Rect::centerIn(const Rect& container)
+{
+    // Calculate the center point of the container
+    int16_t container_center_x = container.centerX();
+    int16_t container_center_y = container.centerY();
+    
+    // Calculate the new position to center this rectangle
+    // Position = container_center - (our_size / 2)
+    int32_t new_x = static_cast<int32_t>(container_center_x) - static_cast<int32_t>(m_width) / 2;
+    int32_t new_y = static_cast<int32_t>(container_center_y) - static_cast<int32_t>(m_height) / 2;
+    
+    // Handle coordinate overflow/underflow
+    if (new_x < -32768) new_x = -32768;
+    if (new_x > 32767) new_x = 32767;
+    if (new_y < -32768) new_y = -32768;
+    if (new_y > 32767) new_y = 32767;
+    
+    // Update position
+    m_x = static_cast<int16_t>(new_x);
+    m_y = static_cast<int16_t>(new_y);
+}
+
+/**
+ * @brief Return a new rectangle centered within the specified container rectangle
+ * @param container The container rectangle to center within
+ * @return A new rectangle positioned at the center of the container
+ * 
+ * This method returns a new rectangle with the same dimensions as this one,
+ * but positioned so that its center point aligns with the center point of
+ * the container. If the rectangle is larger than the container in any
+ * dimension, it will be positioned so that it extends equally beyond both
+ * sides of the container in that dimension.
+ */
+Rect Rect::centeredIn(const Rect& container) const
+{
+    Rect result(*this);
+    result.centerIn(container);
+    return result;
+}

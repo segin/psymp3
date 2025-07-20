@@ -78,8 +78,8 @@
     - Handle coordinate and dimension overflow conditions
     - _Requirements: 3.4_
 
-- [ ] 6. Implement centering operations
-  - [ ] 6.1 Add rectangle centering methods
+- [x] 6. Implement centering operations
+  - [x] 6.1 Add rectangle centering methods
     - Implement `centerIn(const Rect& container)` for in-place centering
     - Implement `centeredIn(const Rect& container)` returning centered rectangle
     - Handle cases where rectangle is larger than container

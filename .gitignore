@@ -45,3 +45,6 @@ tests/test_rect_intersection
 tests/test_rect_union
 tests/test_rect_area_validation
 tests/test_rect_transformation
+tests/test_rect_centering
+tests/test_rect_centering_overflow
+test_centering_simple
