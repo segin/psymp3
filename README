@@ -39,6 +39,7 @@ You can reach me at <segin2005@gmail.com>.
      libFLAC
      FreeType 2.4 or later
      OpenSSL 1.0 or later
+     libcurl 7.20.0 or later
      D-Bus 1.0 or later (optional, for MPRIS support)
      
    macOS:
@@ -100,4 +101,4 @@ font file containing the Unicode glpyhs you desire. Advanced text layout is not 
 
 5. LAST UPDATED
 
-This README was last updated on July 18, 2025.
+This README was last updated on July 20, 2025.
