@@ -40,3 +40,146 @@ Rect::~Rect()
 {
     //dtor
 }
+
+// Accessor methods
+
+/**
+ * @brief Get the x coordinate of the rectangle
+ * @return The x coordinate
+ */
+int16_t Rect::x() const
+{
+    return m_x;
+}
+
+/**
+ * @brief Get the y coordinate of the rectangle
+ * @return The y coordinate
+ */
+int16_t Rect::y() const
+{
+    return m_y;
+}
+
+/**
+ * @brief Get the width of the rectangle
+ * @return The width
+ */
+uint16_t Rect::width() const
+{
+    return m_width;
+}
+
+/**
+ * @brief Get the height of the rectangle
+ * @return The height
+ */
+uint16_t Rect::height() const
+{
+    return m_height;
+}
+
+// Mutator methods
+
+/**
+ * @brief Set the x coordinate of the rectangle
+ * @param val The new x coordinate
+ */
+void Rect::x(int16_t val)
+{
+    m_x = val;
+}
+
+/**
+ * @brief Set the y coordinate of the rectangle
+ * @param val The new y coordinate
+ */
+void Rect::y(int16_t val)
+{
+    m_y = val;
+}
+
+/**
+ * @brief Set the width of the rectangle
+ * @param a The new width
+ */
+void Rect::width(uint16_t a)
+{
+    m_width = a;
+}
+
+/**
+ * @brief Set the height of the rectangle
+ * @param a The new height
+ */
+void Rect::height(uint16_t a)
+{
+    m_height = a;
+}
+
+// Edge coordinate methods
+
+/**
+ * @brief Get the left edge coordinate (alias to x())
+ * @return The left edge coordinate
+ */
+int16_t Rect::left() const
+{
+    return m_x;
+}
+
+/**
+ * @brief Get the top edge coordinate (alias to y())
+ * @return The top edge coordinate
+ */
+int16_t Rect::top() const
+{
+    return m_y;
+}
+
+/**
+ * @brief Get the right edge coordinate
+ * @return The right edge coordinate (x + width)
+ */
+int16_t Rect::right() const
+{
+    return m_x + m_width;
+}
+
+/**
+ * @brief Get the bottom edge coordinate
+ * @return The bottom edge coordinate (y + height)
+ */
+int16_t Rect::bottom() const
+{
+    return m_y + m_height;
+}
+
+// Center point calculation methods
+
+/**
+ * @brief Calculate the center X coordinate of the rectangle
+ * @return The center X coordinate (x + width / 2)
+ */
+int16_t Rect::centerX() const
+{
+    return m_x + m_width / 2;
+}
+
+/**
+ * @brief Calculate the center Y coordinate of the rectangle
+ * @return The center Y coordinate (y + height / 2)
+ */
+int16_t Rect::centerY() const
+{
+    return m_y + m_height / 2;
+}
+
+/**
+ * @brief Calculate the center point of the rectangle
+ * @return A pair containing the center coordinates (centerX, centerY)
+ */
+std::pair<int16_t, int16_t> Rect::center() const
+{
+    return std::make_pair(centerX(), centerY());
+}

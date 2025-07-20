@@ -34,25 +34,28 @@ class Rect
         Rect(int16_t x, int16_t y, uint16_t w, uint16_t h); // New constructor for full rect
         Rect(uint16_t w, uint16_t h); // Existing constructor, now for width/height only (assumes x=0, y=0)
         ~Rect();
-        int16_t x() const { return m_x; };
-        int16_t y() const { return m_y; };
-        uint16_t width() const { return m_width; };
-        uint16_t height() const { return m_height; };
-        void x(int16_t val) { m_x = val; };
-        void y(int16_t val) { m_y = val; };
-        void width(uint16_t a) { m_width = a; };
-        void height(uint16_t a) { m_height = a; };
+        // Accessor methods
+        int16_t x() const;
+        int16_t y() const;
+        uint16_t width() const;
+        uint16_t height() const;
+        
+        // Mutator methods
+        void x(int16_t val);
+        void y(int16_t val);
+        void width(uint16_t a);
+        void height(uint16_t a);
         
         // Edge coordinate methods
-        int16_t left() const { return m_x; };     // Alias to x()
-        int16_t top() const { return m_y; };      // Alias to y()
-        int16_t right() const { return m_x + m_width; };   // x() + width()
-        int16_t bottom() const { return m_y + m_height; }; // y() + height()
+        int16_t left() const;
+        int16_t top() const;
+        int16_t right() const;
+        int16_t bottom() const;
         
         // Center point calculation methods
-        int16_t centerX() const { return m_x + m_width / 2; };
-        int16_t centerY() const { return m_y + m_height / 2; };
-        std::pair<int16_t, int16_t> center() const { return std::make_pair(centerX(), centerY()); };
+        int16_t centerX() const;
+        int16_t centerY() const;
+        std::pair<int16_t, int16_t> center() const;
     protected:
     private:
         int16_t m_x;
