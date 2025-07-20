@@ -27,85 +27,218 @@
 #include "Demuxer.h"
 #include <map>
 #include <vector>
+#include <memory>
+#include <stack>
+#include <variant>
 
 /**
- * @brief ISO base media file format box header
+ * @brief ISO box header structure
  */
-struct ISOBox {
-    uint32_t size;           // Box size (including header)
-    uint32_t type;           // Box type (FourCC)
-    uint64_t extended_size;  // Extended size (for size==1)
-    uint64_t data_offset;    // Offset to box data in file
+struct BoxHeader {
+    uint32_t type;
+    uint64_t size;
+    uint64_t dataOffset;
     
     bool isExtendedSize() const { return size == 1; }
-    uint64_t getContentSize() const {
-        if (size == 1) {
-            return extended_size - (8 + 8); // Header + extended size field
-        } else {
-            return size - 8; // Header size
-        }
-    }
 };
 
 /**
- * @brief Sample description entry
+ * @brief Audio track information
  */
-struct SampleDescription {
-    uint32_t format;         // Sample format (FourCC)
-    uint16_t data_ref_index;
-    std::vector<uint8_t> specific_data;  // Format-specific data
+struct AudioTrackInfo {
+    uint32_t trackId;
+    std::string codecType;        // "aac", "alac", "ulaw", "alaw", "lpcm"
+    uint32_t sampleRate;
+    uint16_t channelCount;
+    uint16_t bitsPerSample;
+    uint32_t avgBitrate;
     
-    // Audio-specific fields
-    uint16_t channels = 0;
-    uint16_t sample_size = 0;
-    uint32_t sample_rate = 0;
-};
-
-/**
- * @brief Track information
- */
-struct ISOTrack {
-    uint32_t track_id;
-    std::string handler_type;        // "soun", "vide", "text", etc.
-    uint64_t duration = 0;           // In track timescale units
-    uint32_t timescale = 1000;       // Units per second
+    // Codec-specific configuration
+    std::vector<uint8_t> codecConfig;  // AAC: AudioSpecificConfig, ALAC: magic cookie
     
-    // Sample table information
-    std::vector<uint64_t> chunk_offsets;     // stco/co64
-    std::vector<uint32_t> samples_per_chunk; // stsc
-    std::vector<uint32_t> sample_sizes;      // stsz
-    std::vector<uint64_t> sample_times;      // stts (decoded to absolute times)
-    std::vector<SampleDescription> sample_descriptions; // stsd
+    // Track timing
+    uint64_t duration;           // in track timescale units
+    uint32_t timescale;          // samples per second for timing
     
     // Current playback state
-    uint32_t current_sample = 0;
-    uint32_t current_chunk = 0;
-    uint32_t samples_in_current_chunk = 0;
+    uint64_t currentSampleIndex = 0;
+};
+
+/**
+ * @brief Sample table information structure
+ */
+struct SampleTableInfo {
+    std::vector<uint64_t> chunkOffsets;     // stco/co64
+    std::vector<uint32_t> samplesPerChunk;  // stsc
+    std::vector<uint32_t> sampleSizes;      // stsz
+    std::vector<uint64_t> sampleTimes;      // stts (decoded to absolute times)
+    std::vector<uint64_t> syncSamples;      // stss (keyframes)
+};
+
+// ISO box type constants
+constexpr uint32_t BOX_FTYP = 0x66747970; // "ftyp"
+constexpr uint32_t BOX_MOOV = 0x6D6F6F76; // "moov"
+constexpr uint32_t BOX_MDAT = 0x6D646174; // "mdat"
+constexpr uint32_t BOX_TRAK = 0x7472616B; // "trak"
+constexpr uint32_t BOX_MDIA = 0x6D646961; // "mdia"
+constexpr uint32_t BOX_MINF = 0x6D696E66; // "minf"
+constexpr uint32_t BOX_STBL = 0x7374626C; // "stbl"
+constexpr uint32_t BOX_STSD = 0x73747364; // "stsd"
+constexpr uint32_t BOX_STTS = 0x73747473; // "stts"
+constexpr uint32_t BOX_STSC = 0x73747363; // "stsc"
+constexpr uint32_t BOX_STSZ = 0x7374737A; // "stsz"
+constexpr uint32_t BOX_STCO = 0x7374636F; // "stco"
+constexpr uint32_t BOX_CO64 = 0x636F3634; // "co64"
+
+// Audio codec types
+constexpr uint32_t CODEC_AAC  = 0x6D703461; // "mp4a"
+constexpr uint32_t CODEC_ALAC = 0x616C6163; // "alac"
+constexpr uint32_t CODEC_ULAW = 0x756C6177; // "ulaw"
+constexpr uint32_t CODEC_ALAW = 0x616C6177; // "alaw"
+constexpr uint32_t CODEC_LPCM = 0x6C70636D; // "lpcm"
+
+// Forward declarations
+class BoxParser;
+class SampleTableManager;
+class FragmentHandler;
+class MetadataExtractor;
+class StreamManager;
+class SeekingEngine;
+
+/**
+ * @brief Box parser component for recursive ISO box structure parsing
+ */
+class BoxParser {
+public:
+    explicit BoxParser(std::shared_ptr<IOHandler> io);
+    ~BoxParser() = default;
     
-    // Derived information
-    std::string codec_name;
-    uint32_t bitrate = 0;
+    bool ParseMovieBox(uint64_t offset, uint64_t size);
+    bool ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    bool ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
+    bool ParseFragmentBox(uint64_t offset, uint64_t size);
     
-    /**
-     * @brief Get duration in milliseconds
-     */
-    uint64_t getDurationMs() const {
-        return timescale > 0 ? (duration * 1000ULL) / timescale : 0;
-    }
+private:
+    std::shared_ptr<IOHandler> io;
+    std::stack<BoxHeader> boxStack;
     
-    /**
-     * @brief Convert track time to milliseconds
-     */
-    uint64_t trackTimeToMs(uint64_t track_time) const {
-        return timescale > 0 ? (track_time * 1000ULL) / timescale : 0;
-    }
+    BoxHeader ReadBoxHeader(uint64_t offset);
+    bool SkipUnknownBox(const BoxHeader& header);
+};
+
+/**
+ * @brief Sample table manager for efficient sample lookups
+ */
+class SampleTableManager {
+public:
+    struct SampleInfo {
+        uint64_t offset;
+        uint32_t size;
+        uint32_t duration;
+        bool isKeyframe;
+    };
     
-    /**
-     * @brief Convert milliseconds to track time
-     */
-    uint64_t msToTrackTime(uint64_t ms) const {
-        return (ms * timescale) / 1000ULL;
-    }
+    SampleTableManager() = default;
+    ~SampleTableManager() = default;
+    
+    bool BuildSampleTables(const SampleTableInfo& rawTables);
+    SampleInfo GetSampleInfo(uint64_t sampleIndex);
+    uint64_t TimeToSample(double timestamp);
+    double SampleToTime(uint64_t sampleIndex);
+    
+private:
+    // Compressed sample-to-chunk mapping
+    struct ChunkInfo {
+        uint64_t offset;
+        uint32_t sampleCount;
+        uint32_t firstSample;
+    };
+    std::vector<ChunkInfo> chunkTable;
+    
+    // Time-to-sample lookup with binary search
+    struct TimeToSampleEntry {
+        uint64_t sampleIndex;
+        uint64_t timestamp;
+        uint32_t duration;
+    };
+    std::vector<TimeToSampleEntry> timeTable;
+    
+    // Sample size table (compressed for fixed sizes)
+    std::variant<uint32_t, std::vector<uint32_t>> sampleSizes;
+    
+    // Sync sample table for keyframe seeking
+    std::vector<uint64_t> syncSamples;
+};
+
+/**
+ * @brief Fragment handler for fragmented MP4 support
+ */
+class FragmentHandler {
+public:
+    FragmentHandler() = default;
+    ~FragmentHandler() = default;
+    
+    bool ProcessMovieFragment(uint64_t moofOffset);
+    bool UpdateSampleTables(const SampleTableInfo& traf);
+    bool IsFragmented() const { return hasFragments; }
+    
+private:
+    bool hasFragments = false;
+    
+    struct FragmentInfo {
+        uint64_t moofOffset;
+        uint64_t mdatOffset;
+        uint32_t sampleCount;
+        std::vector<uint32_t> sampleSizes;
+        std::vector<uint32_t> sampleDurations;
+    };
+    
+    std::vector<FragmentInfo> fragments;
+    uint64_t currentFragmentIndex = 0;
+};
+
+/**
+ * @brief Metadata extractor for iTunes/ISO metadata parsing
+ */
+class MetadataExtractor {
+public:
+    MetadataExtractor() = default;
+    ~MetadataExtractor() = default;
+    
+    std::map<std::string, std::string> ExtractMetadata(uint64_t udtaOffset, uint64_t size);
+    
+private:
+    std::string ExtractTextMetadata(const std::vector<uint8_t>& data);
+};
+
+/**
+ * @brief Stream manager for audio track management
+ */
+class StreamManager {
+public:
+    StreamManager() = default;
+    ~StreamManager() = default;
+    
+    void AddAudioTrack(const AudioTrackInfo& track);
+    std::vector<StreamInfo> GetStreamInfos() const;
+    AudioTrackInfo* GetTrack(uint32_t trackId);
+    
+private:
+    std::vector<AudioTrackInfo> tracks;
+};
+
+/**
+ * @brief Seeking engine for sample-accurate positioning
+ */
+class SeekingEngine {
+public:
+    SeekingEngine() = default;
+    ~SeekingEngine() = default;
+    
+    bool SeekToTimestamp(double timestamp, AudioTrackInfo& track, SampleTableManager& sampleTables);
+    
+private:
+    uint64_t BinarySearchTimeToSample(double timestamp, const std::vector<SampleTableManager::SampleInfo>& samples);
 };
 
 /**
@@ -117,14 +250,15 @@ struct ISOTrack {
  * - 3GP files (.3gp)
  * - MOV files (.mov) - QuickTime variant
  * 
- * The format can contain various codecs:
- * - Audio: AAC, MP3, ALAC, AC-3, etc.
- * - Video: H.264, H.265, MPEG-4, etc.
+ * The format can contain various audio codecs:
+ * - AAC, ALAC, mulaw, alaw, PCM variants
  */
 class ISODemuxer : public Demuxer {
 public:
     explicit ISODemuxer(std::unique_ptr<IOHandler> handler);
+    virtual ~ISODemuxer();
     
+    // Demuxer interface implementation
     bool parseContainer() override;
     std::vector<StreamInfo> getStreams() const override;
     StreamInfo getStreamInfo(uint32_t stream_id) const override;
@@ -136,133 +270,31 @@ public:
     uint64_t getPosition() const override;
     
 private:
-    // Common box types (as uint32_t big-endian values)
-    static constexpr uint32_t FTYP_BOX = 0x66747970; // "ftyp"
-    static constexpr uint32_t MOOV_BOX = 0x6D6F6F76; // "moov"
-    static constexpr uint32_t MDAT_BOX = 0x6D646174; // "mdat"
-    static constexpr uint32_t TRAK_BOX = 0x7472616B; // "trak"
-    static constexpr uint32_t TKHD_BOX = 0x746B6864; // "tkhd"
-    static constexpr uint32_t MDIA_BOX = 0x6D646961; // "mdia"
-    static constexpr uint32_t MDHD_BOX = 0x6D646864; // "mdhd"
-    static constexpr uint32_t HDLR_BOX = 0x68646C72; // "hdlr"
-    static constexpr uint32_t MINF_BOX = 0x6D696E66; // "minf"
-    static constexpr uint32_t STBL_BOX = 0x7374626C; // "stbl"
-    static constexpr uint32_t STSD_BOX = 0x73747364; // "stsd"
-    static constexpr uint32_t STTS_BOX = 0x73747473; // "stts"
-    static constexpr uint32_t STSC_BOX = 0x73747363; // "stsc"
-    static constexpr uint32_t STSZ_BOX = 0x7374737A; // "stsz"
-    static constexpr uint32_t STCO_BOX = 0x7374636F; // "stco"
-    static constexpr uint32_t CO64_BOX = 0x636F3634; // "co64"
+    // Core components as per design
+    std::unique_ptr<BoxParser> boxParser;
+    std::unique_ptr<SampleTableManager> sampleTables;
+    std::unique_ptr<FragmentHandler> fragmentHandler;
+    std::unique_ptr<MetadataExtractor> metadataExtractor;
+    std::unique_ptr<StreamManager> streamManager;
+    std::unique_ptr<SeekingEngine> seekingEngine;
     
-    std::map<uint32_t, ISOTrack> m_tracks;
-    uint64_t m_file_size = 0;
+    // Audio track management
+    std::vector<AudioTrackInfo> audioTracks;
+    int selectedTrackIndex = -1;
+    uint64_t currentSampleIndex = 0;
+    
+    // State management
     bool m_eof = false;
     
     /**
-     * @brief Read a box header
+     * @brief Initialize core components
      */
-    bool readBoxHeader(ISOBox& box);
+    void initializeComponents();
     
     /**
-     * @brief Skip to the end of a box
+     * @brief Clean up resources
      */
-    void skipBox(const ISOBox& box);
-    
-    /**
-     * @brief Parse file type box (ftyp)
-     */
-    bool parseFtypBox(const ISOBox& box);
-    
-    /**
-     * @brief Parse movie box (moov)
-     */
-    bool parseMoovBox(const ISOBox& box);
-    
-    /**
-     * @brief Parse track box (trak)
-     */
-    bool parseTrakBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse track header box (tkhd)
-     */
-    bool parseTkhdBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse media box (mdia)
-     */
-    bool parseMdiaBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse media header box (mdhd)
-     */
-    bool parseMdhdBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse handler reference box (hdlr)
-     */
-    bool parseHdlrBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse sample table box (stbl)
-     */
-    bool parseStblBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse sample description box (stsd)
-     */
-    bool parseStsdBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse time-to-sample box (stts)
-     */
-    bool parseSttsBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse sample-to-chunk box (stsc)
-     */
-    bool parseStscBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse sample size box (stsz)
-     */
-    bool parseStszBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Parse chunk offset box (stco/co64)
-     */
-    bool parseStcoBox(const ISOBox& box, ISOTrack& track);
-    
-    /**
-     * @brief Convert sample format to codec name
-     */
-    std::string formatToCodecName(uint32_t format) const;
-    
-    /**
-     * @brief Find the best audio track
-     */
-    uint32_t findBestAudioTrack() const;
-    
-    /**
-     * @brief Get sample data for a specific sample in a track
-     */
-    bool getSampleData(uint32_t track_id, uint32_t sample_index, MediaChunk& chunk);
-    
-    /**
-     * @brief Calculate chunk and sample position for a track
-     */
-    void calculateSamplePosition(ISOTrack& track, uint32_t sample_index, 
-                                uint32_t& chunk_index, uint32_t& sample_in_chunk);
-    
-    /**
-     * @brief Seek to a specific sample in a track
-     */
-    bool seekToSample(uint32_t track_id, uint64_t target_time);
-    
-    /**
-     * @brief Helper to read FourCC as string
-     */
-    static std::string fourCCToString(uint32_t fourcc);
+    void cleanup();
 };
 
 #endif // ISODEMUXER_H

@@ -1,6 +1,6 @@
 # ISO Demuxer Implementation Plan
 
-- [ ] 1. Set up core ISO demuxer structure and interfaces
+- [x] 1. Set up core ISO demuxer structure and interfaces
   - Create ISODemuxer class inheriting from Demuxer base class
   - Implement basic constructor and destructor with proper cleanup
   - Add member variables for core components (BoxParser, SampleTableManager, etc.)
