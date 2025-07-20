@@ -48,7 +48,7 @@
   - Add alaw codec support with European telephony standard compliance
   - Create raw sample data extraction for companded audio formats
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
-
+-
 - [ ] 9. Implement metadata extraction from various atom types
   - Create MetadataExtractor class for iTunes-style metadata parsing
   - Add support for udta (user data) and meta boxes
