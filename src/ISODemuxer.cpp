@@ -7,7 +7,10 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include "psymp3.h"
+#include "ISODemuxer.h"
+#include <algorithm>
+#include <stdexcept>
+#include <cstring>
 
 ISODemuxer::ISODemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)), selectedTrackIndex(-1), currentSampleIndex(0), m_eof(false) {
@@ -41,7 +44,197 @@ void ISODemuxer::cleanup() {
 }
 
 // BoxParser implementation
-BoxParser::BoxParser(std::shared_ptr<IOHandler> io) : io(io) {
+BoxParser::BoxParser(std::shared_ptr<IOHandler> io) : io(io), fileSize(0) {
+    // Get file size for validation
+    if (io) {
+        io->seek(0, SEEK_END);
+        fileSize = static_cast<uint64_t>(io->tell());
+        io->seek(0, SEEK_SET);
+    }
+}
+
+BoxHeader BoxParser::ReadBoxHeader(uint64_t offset) {
+    BoxHeader header = {};
+    
+    if (!io || offset >= fileSize) {
+        return header;
+    }
+    
+    // Seek to box position
+    if (io->seek(static_cast<long>(offset), SEEK_SET) != 0) {
+        return header;
+    }
+    
+    // Read basic box header (8 bytes minimum)
+    if (offset + 8 > fileSize) {
+        return header;
+    }
+    
+    // Read size (4 bytes, big-endian)
+    uint32_t size32 = ReadUInt32BE(offset);
+    
+    // Read type (4 bytes, big-endian)
+    header.type = ReadUInt32BE(offset + 4);
+    
+    // Handle extended size
+    if (size32 == 1) {
+        // Extended size - read 8 more bytes
+        if (offset + 16 > fileSize) {
+            return header;
+        }
+        header.size = ReadUInt64BE(offset + 8);
+        header.dataOffset = offset + 16;
+    } else if (size32 == 0) {
+        // Size extends to end of file
+        header.size = fileSize - offset;
+        header.dataOffset = offset + 8;
+    } else {
+        // Normal size
+        header.size = size32;
+        header.dataOffset = offset + 8;
+    }
+    
+    return header;
+}
+
+bool BoxParser::ValidateBoxSize(const BoxHeader& header, uint64_t containerSize) {
+    // Check if box size is valid
+    if (header.size == 0) {
+        return false;
+    }
+    
+    // Check if box fits within container
+    if (header.size > containerSize) {
+        return false;
+    }
+    
+    // Check if box extends beyond file
+    uint64_t boxStart = header.dataOffset - (header.isExtendedSize() ? 16 : 8);
+    if (boxStart + header.size > fileSize) {
+        return false;
+    }
+    
+    // Check minimum header size
+    uint64_t headerSize = header.isExtendedSize() ? 16 : 8;
+    if (header.size < headerSize) {
+        return false;
+    }
+    
+    return true;
+}
+
+bool BoxParser::ParseBoxRecursively(uint64_t offset, uint64_t size, 
+                                   std::function<bool(const BoxHeader&, uint64_t)> handler) {
+    uint64_t currentOffset = offset;
+    uint64_t endOffset = offset + size;
+    
+    while (currentOffset < endOffset) {
+        // Read box header
+        BoxHeader header = ReadBoxHeader(currentOffset);
+        
+        if (header.type == 0 || header.size == 0) {
+            // Invalid box, skip remaining data
+            break;
+        }
+        
+        // Validate box size
+        if (!ValidateBoxSize(header, endOffset - currentOffset)) {
+            // Invalid box size, skip it
+            currentOffset += 8; // Skip at least the basic header
+            continue;
+        }
+        
+        // Call handler for this box
+        if (!handler(header, currentOffset)) {
+            // Handler failed, but continue parsing other boxes
+        }
+        
+        // Move to next box
+        currentOffset += header.size;
+        
+        // Prevent infinite loops
+        if (header.size < 8) {
+            break;
+        }
+    }
+    
+    return true;
+}
+
+bool BoxParser::IsContainerBox(uint32_t boxType) {
+    switch (boxType) {
+        case BOX_MOOV:
+        case BOX_TRAK:
+        case BOX_MDIA:
+        case BOX_MINF:
+        case BOX_STBL:
+        case BOX_EDTS:
+        case BOX_DINF:
+        case BOX_UDTA:
+        case BOX_META:
+        case BOX_ILST:
+        case BOX_MOOF:
+        case BOX_TRAF:
+        case BOX_MFRA:
+            return true;
+        default:
+            return false;
+    }
+}
+
+uint32_t BoxParser::ReadUInt32BE(uint64_t offset) {
+    if (!io || offset + 4 > fileSize) {
+        return 0;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    
+    uint8_t bytes[4];
+    if (io->read(bytes, 1, 4) != 4) {
+        return 0;
+    }
+    
+    return (static_cast<uint32_t>(bytes[0]) << 24) |
+           (static_cast<uint32_t>(bytes[1]) << 16) |
+           (static_cast<uint32_t>(bytes[2]) << 8) |
+           static_cast<uint32_t>(bytes[3]);
+}
+
+uint64_t BoxParser::ReadUInt64BE(uint64_t offset) {
+    if (!io || offset + 8 > fileSize) {
+        return 0;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    
+    uint8_t bytes[8];
+    if (io->read(bytes, 1, 8) != 8) {
+        return 0;
+    }
+    
+    return (static_cast<uint64_t>(bytes[0]) << 56) |
+           (static_cast<uint64_t>(bytes[1]) << 48) |
+           (static_cast<uint64_t>(bytes[2]) << 40) |
+           (static_cast<uint64_t>(bytes[3]) << 32) |
+           (static_cast<uint64_t>(bytes[4]) << 24) |
+           (static_cast<uint64_t>(bytes[5]) << 16) |
+           (static_cast<uint64_t>(bytes[6]) << 8) |
+           static_cast<uint64_t>(bytes[7]);
+}
+
+std::string BoxParser::BoxTypeToString(uint32_t boxType) {
+    std::string result(4, '\0');
+    result[0] = static_cast<char>((boxType >> 24) & 0xFF);
+    result[1] = static_cast<char>((boxType >> 16) & 0xFF);
+    result[2] = static_cast<char>((boxType >> 8) & 0xFF);
+    result[3] = static_cast<char>(boxType & 0xFF);
+    return result;
+}
+
+bool BoxParser::SkipUnknownBox(const BoxHeader& header) {
+    // For unknown boxes, we simply skip them by returning true
+    // The recursive parser will automatically move to the next box
+    return true;
 }
 
 bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
@@ -60,17 +253,6 @@ bool BoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableI
 }
 
 bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
-    // Basic implementation - will be expanded in later tasks
-    return true;
-}
-
-BoxHeader BoxParser::ReadBoxHeader(uint64_t offset) {
-    BoxHeader header = {};
-    // Basic implementation - will be expanded in later tasks
-    return header;
-}
-
-bool BoxParser::SkipUnknownBox(const BoxHeader& header) {
     // Basic implementation - will be expanded in later tasks
     return true;
 }

@@ -30,6 +30,7 @@
 #include <memory>
 #include <stack>
 #include <variant>
+#include <functional>
 
 /**
  * @brief ISO box header structure
@@ -75,27 +76,125 @@ struct SampleTableInfo {
     std::vector<uint64_t> syncSamples;      // stss (keyframes)
 };
 
-// ISO box type constants
-constexpr uint32_t BOX_FTYP = 0x66747970; // "ftyp"
-constexpr uint32_t BOX_MOOV = 0x6D6F6F76; // "moov"
-constexpr uint32_t BOX_MDAT = 0x6D646174; // "mdat"
-constexpr uint32_t BOX_TRAK = 0x7472616B; // "trak"
-constexpr uint32_t BOX_MDIA = 0x6D646961; // "mdia"
-constexpr uint32_t BOX_MINF = 0x6D696E66; // "minf"
-constexpr uint32_t BOX_STBL = 0x7374626C; // "stbl"
-constexpr uint32_t BOX_STSD = 0x73747364; // "stsd"
-constexpr uint32_t BOX_STTS = 0x73747473; // "stts"
-constexpr uint32_t BOX_STSC = 0x73747363; // "stsc"
-constexpr uint32_t BOX_STSZ = 0x7374737A; // "stsz"
-constexpr uint32_t BOX_STCO = 0x7374636F; // "stco"
-constexpr uint32_t BOX_CO64 = 0x636F3634; // "co64"
+// Helper macro for FOURCC constants
+#define FOURCC(a, b, c, d) ((uint32_t)(((uint8_t)(a) << 24) | ((uint8_t)(b) << 16) | ((uint8_t)(c) << 8) | (uint8_t)(d)))
+
+// ISO box type constants - Core structure
+constexpr uint32_t BOX_FTYP = FOURCC('f','t','y','p'); // File type box
+constexpr uint32_t BOX_MOOV = FOURCC('m','o','o','v'); // Movie box
+constexpr uint32_t BOX_MDAT = FOURCC('m','d','a','t'); // Media data box
+constexpr uint32_t BOX_FREE = FOURCC('f','r','e','e'); // Free space box
+constexpr uint32_t BOX_SKIP = FOURCC('s','k','i','p'); // Skip box
+constexpr uint32_t BOX_WIDE = FOURCC('w','i','d','e'); // Wide box
+constexpr uint32_t BOX_PNOT = FOURCC('p','n','o','t'); // Preview box
+
+// Movie box children
+constexpr uint32_t BOX_MVHD = FOURCC('m','v','h','d'); // Movie header
+constexpr uint32_t BOX_TRAK = FOURCC('t','r','a','k'); // Track box
+constexpr uint32_t BOX_UDTA = FOURCC('u','d','t','a'); // User data box
+constexpr uint32_t BOX_META = FOURCC('m','e','t','a'); // Metadata box
+constexpr uint32_t BOX_IODS = FOURCC('i','o','d','s'); // Initial object descriptor
+
+// Track box children
+constexpr uint32_t BOX_TKHD = FOURCC('t','k','h','d'); // Track header
+constexpr uint32_t BOX_TREF = FOURCC('t','r','e','f'); // Track reference
+constexpr uint32_t BOX_EDTS = FOURCC('e','d','t','s'); // Edit box
+constexpr uint32_t BOX_MDIA = FOURCC('m','d','i','a'); // Media box
+
+// Edit box children
+constexpr uint32_t BOX_ELST = FOURCC('e','l','s','t'); // Edit list
+
+// Media box children
+constexpr uint32_t BOX_MDHD = FOURCC('m','d','h','d'); // Media header
+constexpr uint32_t BOX_HDLR = FOURCC('h','d','l','r'); // Handler reference
+constexpr uint32_t BOX_MINF = FOURCC('m','i','n','f'); // Media information
+
+// Media information box children
+constexpr uint32_t BOX_VMHD = FOURCC('v','m','h','d'); // Video media header
+constexpr uint32_t BOX_SMHD = FOURCC('s','m','h','d'); // Sound media header
+constexpr uint32_t BOX_HMHD = FOURCC('h','m','h','d'); // Hint media header
+constexpr uint32_t BOX_NMHD = FOURCC('n','m','h','d'); // Null media header
+constexpr uint32_t BOX_DINF = FOURCC('d','i','n','f'); // Data information
+constexpr uint32_t BOX_STBL = FOURCC('s','t','b','l'); // Sample table
+
+// Data information box children
+constexpr uint32_t BOX_DREF = FOURCC('d','r','e','f'); // Data reference
+constexpr uint32_t BOX_URL  = FOURCC('u','r','l',' '); // Data entry URL
+constexpr uint32_t BOX_URN  = FOURCC('u','r','n',' '); // Data entry URN
+
+// Sample table box children
+constexpr uint32_t BOX_STSD = FOURCC('s','t','s','d'); // Sample description
+constexpr uint32_t BOX_STTS = FOURCC('s','t','t','s'); // Time-to-sample
+constexpr uint32_t BOX_CTTS = FOURCC('c','t','t','s'); // Composition time-to-sample
+constexpr uint32_t BOX_STSC = FOURCC('s','t','s','c'); // Sample-to-chunk
+constexpr uint32_t BOX_STSZ = FOURCC('s','t','s','z'); // Sample size
+constexpr uint32_t BOX_STZ2 = FOURCC('s','t','z','2'); // Compact sample size
+constexpr uint32_t BOX_STCO = FOURCC('s','t','c','o'); // Chunk offset (32-bit)
+constexpr uint32_t BOX_CO64 = FOURCC('c','o','6','4'); // Chunk offset (64-bit)
+constexpr uint32_t BOX_STSS = FOURCC('s','t','s','s'); // Sync sample (keyframes)
+constexpr uint32_t BOX_STSH = FOURCC('s','t','s','h'); // Shadow sync sample
+constexpr uint32_t BOX_PADB = FOURCC('p','a','d','b'); // Padding bits
+constexpr uint32_t BOX_STDP = FOURCC('s','t','d','p'); // Sample degradation priority
+
+// Fragmented MP4 boxes
+constexpr uint32_t BOX_MOOF = FOURCC('m','o','o','f'); // Movie fragment
+constexpr uint32_t BOX_MFHD = FOURCC('m','f','h','d'); // Movie fragment header
+constexpr uint32_t BOX_TRAF = FOURCC('t','r','a','f'); // Track fragment
+constexpr uint32_t BOX_TFHD = FOURCC('t','f','h','d'); // Track fragment header
+constexpr uint32_t BOX_TRUN = FOURCC('t','r','u','n'); // Track fragment run
+constexpr uint32_t BOX_TFDT = FOURCC('t','f','d','t'); // Track fragment decode time
+constexpr uint32_t BOX_MFRA = FOURCC('m','f','r','a'); // Movie fragment random access
+constexpr uint32_t BOX_TFRA = FOURCC('t','f','r','a'); // Track fragment random access
+constexpr uint32_t BOX_MFRO = FOURCC('m','f','r','o'); // Movie fragment random access offset
+constexpr uint32_t BOX_SIDX = FOURCC('s','i','d','x'); // Segment index
+
+// Metadata boxes
+constexpr uint32_t BOX_ILST = FOURCC('i','l','s','t'); // Item list
+constexpr uint32_t BOX_KEYS = FOURCC('k','e','y','s'); // Keys
+constexpr uint32_t BOX_DATA = FOURCC('d','a','t','a'); // Data
+constexpr uint32_t BOX_MEAN = FOURCC('m','e','a','n'); // Mean
+constexpr uint32_t BOX_NAME = FOURCC('n','a','m','e'); // Name
+
+// iTunes metadata atoms
+constexpr uint32_t BOX_TITLE = FOURCC(0xA9,'n','a','m'); // Title
+constexpr uint32_t BOX_ARTIST = FOURCC(0xA9,'A','R','T'); // Artist
+constexpr uint32_t BOX_ALBUM = FOURCC(0xA9,'a','l','b'); // Album
+constexpr uint32_t BOX_DATE = FOURCC(0xA9,'d','a','y'); // Date
+constexpr uint32_t BOX_GENRE = FOURCC(0xA9,'g','e','n'); // Genre
+constexpr uint32_t BOX_TRACK = FOURCC('t','r','k','n'); // Track number
+constexpr uint32_t BOX_DISK = FOURCC('d','i','s','k'); // Disk number
+constexpr uint32_t BOX_COVR = FOURCC('c','o','v','r'); // Cover art
 
 // Audio codec types
-constexpr uint32_t CODEC_AAC  = 0x6D703461; // "mp4a"
-constexpr uint32_t CODEC_ALAC = 0x616C6163; // "alac"
-constexpr uint32_t CODEC_ULAW = 0x756C6177; // "ulaw"
-constexpr uint32_t CODEC_ALAW = 0x616C6177; // "alaw"
-constexpr uint32_t CODEC_LPCM = 0x6C70636D; // "lpcm"
+constexpr uint32_t CODEC_AAC  = FOURCC('m','p','4','a'); // AAC audio
+constexpr uint32_t CODEC_ALAC = FOURCC('a','l','a','c'); // Apple Lossless
+constexpr uint32_t CODEC_ULAW = FOURCC('u','l','a','w'); // μ-law
+constexpr uint32_t CODEC_ALAW = FOURCC('a','l','a','w'); // A-law
+constexpr uint32_t CODEC_LPCM = FOURCC('l','p','c','m'); // Linear PCM
+constexpr uint32_t CODEC_SOWT = FOURCC('s','o','w','t'); // Little-endian PCM
+constexpr uint32_t CODEC_TWOS = FOURCC('t','w','o','s'); // Big-endian PCM
+constexpr uint32_t CODEC_FL32 = FOURCC('f','l','3','2'); // 32-bit float
+constexpr uint32_t CODEC_FL64 = FOURCC('f','l','6','4'); // 64-bit float
+constexpr uint32_t CODEC_IN24 = FOURCC('i','n','2','4'); // 24-bit integer
+constexpr uint32_t CODEC_IN32 = FOURCC('i','n','3','2'); // 32-bit integer
+
+// Handler types
+constexpr uint32_t HANDLER_SOUN = FOURCC('s','o','u','n'); // Sound handler
+constexpr uint32_t HANDLER_VIDE = FOURCC('v','i','d','e'); // Video handler
+constexpr uint32_t HANDLER_HINT = FOURCC('h','i','n','t'); // Hint handler
+constexpr uint32_t HANDLER_META = FOURCC('m','e','t','a'); // Metadata handler
+
+// File type brands
+constexpr uint32_t BRAND_ISOM = FOURCC('i','s','o','m'); // ISO Base Media
+constexpr uint32_t BRAND_MP41 = FOURCC('m','p','4','1'); // MP4 version 1
+constexpr uint32_t BRAND_MP42 = FOURCC('m','p','4','2'); // MP4 version 2
+constexpr uint32_t BRAND_M4A  = FOURCC('M','4','A',' '); // iTunes M4A
+constexpr uint32_t BRAND_M4V  = FOURCC('M','4','V',' '); // iTunes M4V
+constexpr uint32_t BRAND_QT   = FOURCC('q','t',' ',' '); // QuickTime
+constexpr uint32_t BRAND_3GP4 = FOURCC('3','g','p','4'); // 3GPP Release 4
+constexpr uint32_t BRAND_3GP5 = FOURCC('3','g','p','5'); // 3GPP Release 5
+constexpr uint32_t BRAND_3GP6 = FOURCC('3','g','p','6'); // 3GPP Release 6
+constexpr uint32_t BRAND_3G2A = FOURCC('3','g','2','a'); // 3GPP2
 
 // Forward declarations
 class BoxParser;
@@ -118,12 +217,22 @@ public:
     bool ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
     bool ParseFragmentBox(uint64_t offset, uint64_t size);
     
+    // Core box parsing functionality
+    BoxHeader ReadBoxHeader(uint64_t offset);
+    bool ValidateBoxSize(const BoxHeader& header, uint64_t containerSize);
+    bool ParseBoxRecursively(uint64_t offset, uint64_t size, 
+                            std::function<bool(const BoxHeader&, uint64_t)> handler);
+    
 private:
     std::shared_ptr<IOHandler> io;
     std::stack<BoxHeader> boxStack;
+    uint64_t fileSize;
     
-    BoxHeader ReadBoxHeader(uint64_t offset);
     bool SkipUnknownBox(const BoxHeader& header);
+    bool IsContainerBox(uint32_t boxType);
+    uint32_t ReadUInt32BE(uint64_t offset);
+    uint64_t ReadUInt64BE(uint64_t offset);
+    std::string BoxTypeToString(uint32_t boxType);
 };
 
 /**
