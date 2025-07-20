@@ -39,6 +39,12 @@ class Rect
         void y(int16_t val) { m_y = val; };
         void width(uint16_t a) { m_width = a; };
         void height(uint16_t a) { m_height = a; };
+        
+        // Edge coordinate methods
+        int16_t left() const { return m_x; };     // Alias to x()
+        int16_t top() const { return m_y; };      // Alias to y()
+        int16_t right() const { return m_x + m_width; };   // x() + width()
+        int16_t bottom() const { return m_y + m_height; }; // y() + height()
     protected:
     private:
         int16_t m_x;
