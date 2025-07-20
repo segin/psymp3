@@ -471,3 +471,139 @@ Rect Rect::shrunk(int16_t dx, int16_t dy) const
     result.shrink(dx, dy);
     return result;
 }
+
+// Translation methods
+
+/**
+ * @brief Move the rectangle by the specified offset
+ * @param dx The horizontal offset to move by
+ * @param dy The vertical offset to move by
+ */
+void Rect::translate(int16_t dx, int16_t dy)
+{
+    // Calculate new position using int32_t to detect overflow
+    int32_t new_x = static_cast<int32_t>(m_x) + static_cast<int32_t>(dx);
+    int32_t new_y = static_cast<int32_t>(m_y) + static_cast<int32_t>(dy);
+    
+    // Handle coordinate overflow/underflow
+    if (new_x < -32768) new_x = -32768;
+    if (new_x > 32767) new_x = 32767;
+    if (new_y < -32768) new_y = -32768;
+    if (new_y > 32767) new_y = 32767;
+    
+    // Update position
+    m_x = static_cast<int16_t>(new_x);
+    m_y = static_cast<int16_t>(new_y);
+}
+
+/**
+ * @brief Return a new rectangle moved by the specified offset
+ * @param dx The horizontal offset to move by
+ * @param dy The vertical offset to move by
+ * @return A new rectangle at the translated position
+ */
+Rect Rect::translated(int16_t dx, int16_t dy) const
+{
+    Rect result(*this);
+    result.translate(dx, dy);
+    return result;
+}
+
+/**
+ * @brief Move the rectangle to the specified absolute position
+ * @param x The new x coordinate
+ * @param y The new y coordinate
+ */
+void Rect::moveTo(int16_t x, int16_t y)
+{
+    m_x = x;
+    m_y = y;
+}
+
+/**
+ * @brief Return a new rectangle at the specified absolute position
+ * @param x The new x coordinate
+ * @param y The new y coordinate
+ * @return A new rectangle at the specified position
+ */
+Rect Rect::movedTo(int16_t x, int16_t y) const
+{
+    return Rect(x, y, m_width, m_height);
+}
+
+// Resizing methods
+
+/**
+ * @brief Resize the rectangle to the specified dimensions
+ * @param width The new width (must be non-negative)
+ * @param height The new height (must be non-negative)
+ */
+void Rect::resize(uint16_t width, uint16_t height)
+{
+    m_width = width;
+    m_height = height;
+}
+
+/**
+ * @brief Return a new rectangle with the specified dimensions
+ * @param width The new width (must be non-negative)
+ * @param height The new height (must be non-negative)
+ * @return A new rectangle with the same position but new dimensions
+ */
+Rect Rect::resized(uint16_t width, uint16_t height) const
+{
+    return Rect(m_x, m_y, width, height);
+}
+
+// Combined adjustment methods
+
+/**
+ * @brief Adjust the rectangle's position and size by the specified deltas
+ * @param dx The change in x coordinate
+ * @param dy The change in y coordinate
+ * @param dw The change in width (can be negative)
+ * @param dh The change in height (can be negative)
+ */
+void Rect::adjust(int16_t dx, int16_t dy, int16_t dw, int16_t dh)
+{
+    // Calculate new position using int32_t to detect overflow
+    int32_t new_x = static_cast<int32_t>(m_x) + static_cast<int32_t>(dx);
+    int32_t new_y = static_cast<int32_t>(m_y) + static_cast<int32_t>(dy);
+    
+    // Calculate new dimensions using int32_t to detect overflow/underflow
+    int32_t new_width = static_cast<int32_t>(m_width) + static_cast<int32_t>(dw);
+    int32_t new_height = static_cast<int32_t>(m_height) + static_cast<int32_t>(dh);
+    
+    // Handle coordinate overflow/underflow for position
+    if (new_x < -32768) new_x = -32768;
+    if (new_x > 32767) new_x = 32767;
+    if (new_y < -32768) new_y = -32768;
+    if (new_y > 32767) new_y = 32767;
+    
+    // Handle dimension underflow/overflow - ensure dimensions don't become negative
+    if (new_width < 0) new_width = 0;
+    if (new_width > 65535) new_width = 65535;
+    if (new_height < 0) new_height = 0;
+    if (new_height > 65535) new_height = 65535;
+    
+    // Update the rectangle
+    m_x = static_cast<int16_t>(new_x);
+    m_y = static_cast<int16_t>(new_y);
+    m_width = static_cast<uint16_t>(new_width);
+    m_height = static_cast<uint16_t>(new_height);
+}
+
+/**
+ * @brief Return a new rectangle with position and size adjusted by the specified deltas
+ * @param dx The change in x coordinate
+ * @param dy The change in y coordinate
+ * @param dw The change in width (can be negative)
+ * @param dh The change in height (can be negative)
+ * @return A new rectangle with adjusted position and dimensions
+ */
+Rect Rect::adjusted(int16_t dx, int16_t dy, int16_t dw, int16_t dh) const
+{
+    Rect result(*this);
+    result.adjust(dx, dy, dw, dh);
+    return result;
+}

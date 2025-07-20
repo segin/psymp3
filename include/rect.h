@@ -78,6 +78,20 @@ class Rect
         void shrink(int16_t dx, int16_t dy);
         Rect shrunk(int16_t margin) const;
         Rect shrunk(int16_t dx, int16_t dy) const;
+        
+        // Translation methods
+        void translate(int16_t dx, int16_t dy);
+        Rect translated(int16_t dx, int16_t dy) const;
+        void moveTo(int16_t x, int16_t y);
+        Rect movedTo(int16_t x, int16_t y) const;
+        
+        // Resizing methods
+        void resize(uint16_t width, uint16_t height);
+        Rect resized(uint16_t width, uint16_t height) const;
+        
+        // Combined adjustment methods
+        void adjust(int16_t dx, int16_t dy, int16_t dw, int16_t dh);
+        Rect adjusted(int16_t dx, int16_t dy, int16_t dw, int16_t dh) const;
     protected:
     private:
         int16_t m_x;

@@ -58,21 +58,21 @@
     - Handle cases where shrinking would create negative dimensions
     - _Requirements: 1.6_
 
-- [ ] 5. Implement transformation methods
-  - [ ] 5.1 Add translation methods
+- [x] 5. Implement transformation methods
+  - [x] 5.1 Add translation methods
     - Implement `translate(int16_t dx, int16_t dy)` for in-place movement
     - Implement `translated(int16_t dx, int16_t dy)` returning moved rectangle
     - Implement `moveTo(int16_t x, int16_t y)` for absolute positioning
     - Implement `movedTo(int16_t x, int16_t y)` returning repositioned rectangle
     - _Requirements: 3.1, 3.2_
 
-  - [ ] 5.2 Add resizing methods
+  - [x] 5.2 Add resizing methods
     - Implement `resize(uint16_t width, uint16_t height)` for in-place resizing
     - Implement `resized(uint16_t width, uint16_t height)` returning resized rectangle
     - Ensure width and height parameters are properly validated
     - _Requirements: 3.3_
 
-  - [ ] 5.3 Add combined adjustment methods
+  - [x] 5.3 Add combined adjustment methods
     - Implement `adjust(int16_t dx, int16_t dy, int16_t dw, int16_t dh)` for combined operations
     - Implement `adjusted()` const version returning adjusted rectangle
     - Handle coordinate and dimension overflow conditions
