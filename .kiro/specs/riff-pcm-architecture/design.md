@@ -291,11 +291,11 @@ private:
 - `bool parseCOMMChunk()`: Extract audio format parameters
 - `bool parseSSNDChunk()`: Locate audio data with offset/blocksize
 - `bool parseNAMEChunk()`: Extract title metadata
-- `bool parseANNOChunk()`: Extract)`: Convert AIFF sample rate format
+- `bool parseANNOChunk()`: Extract annotation metadata
+- `uint32_t convertIEEE80ToUint32()`: Convert AIFF sample rate format
 
 **AIFF Parsing Process**:
-1. **Header Validation**: Check "FORM" si annotation metadata
-- `uint32_t convertIEEE80ToUint3: Locate gnature and handle big-endian byte order
+1. **Header Validation**: Check "FORM" signature and handle big-endian byte order
 2. **Format Detection**: Verify "AIFF" or "AIFC" format type
 3. **COMM Processing**: Extract sample rate, channels, bit depth from Common chunk
 4. **SSND Processing**: Locate Sound Data chunk with proper offset handling
@@ -306,5 +306,4 @@ private:
 - **Big-Endian**: All multi-byte values in big-endian format
 - **IEEE 80-bit Float**: Sample rate stored as extended precision float
 - **Compression Types**: Support for 'NONE', 'sowt', 'fl32', 'fl64', 'alaw', 'ulaw'
-- **Data Offset**: Handle SSND chunk offset and block size fieldsaudio data nt for compressregion
-- `bool parseFactChunk()`: Extract sample cou
+- **Data Offset**: Handle SSND chunk offset and block size fields
