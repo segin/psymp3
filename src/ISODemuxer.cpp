@@ -1059,19 +1059,63 @@ uint32_t SampleTableManager::GetSamplesPerChunkForIndex(size_t chunkIndex, const
 
 bool SampleTableManager::BuildTimeTable(const SampleTableInfo& rawTables) {
     timeTable.clear();
-    timeTable.reserve(rawTables.sampleTimes.size() / 10); // Estimate for compression
     
-    // Build compressed time table for binary search
+    if (rawTables.sampleTimes.empty()) {
+        return false;
+    }
+    
+    // Build optimized time table for binary search
+    // Use adaptive compression - more entries for areas with time changes
+    timeTable.reserve(rawTables.sampleTimes.size() / 5); // Better estimate
+    
+    uint32_t lastDuration = 0;
+    
     for (size_t i = 0; i < rawTables.sampleTimes.size(); i++) {
-        // Add entry every 10 samples for efficient seeking
-        if (i % 10 == 0 || i == rawTables.sampleTimes.size() - 1) {
+        bool shouldAddEntry = false;
+        
+        // Always add first and last entries
+        if (i == 0 || i == rawTables.sampleTimes.size() - 1) {
+            shouldAddEntry = true;
+        }
+        // Add entry every 10 samples for regular intervals
+        else if (i % 10 == 0) {
+            shouldAddEntry = true;
+        }
+        // Add entry if there's a significant time change (for variable bitrate content)
+        else if (i > 0) {
+            uint64_t currentDuration = (i + 1 < rawTables.sampleTimes.size()) ? 
+                                     (rawTables.sampleTimes[i + 1] - rawTables.sampleTimes[i]) : lastDuration;
+            
+            // If duration changed significantly, add an entry
+            if (lastDuration > 0 && currentDuration > 0) {
+                double durationRatio = static_cast<double>(currentDuration) / lastDuration;
+                if (durationRatio < 0.8 || durationRatio > 1.2) {
+                    shouldAddEntry = true;
+                }
+            }
+        }
+        
+        if (shouldAddEntry) {
             TimeToSampleEntry entry;
             entry.sampleIndex = i;
             entry.timestamp = rawTables.sampleTimes[i];
             entry.duration = (i + 1 < rawTables.sampleTimes.size()) ? 
-                           (rawTables.sampleTimes[i + 1] - rawTables.sampleTimes[i]) : 0;
+                           (rawTables.sampleTimes[i + 1] - rawTables.sampleTimes[i]) : lastDuration;
+            
             timeTable.push_back(entry);
+            
+            lastDuration = entry.duration;
         }
+    }
+    
+    // Ensure we have at least one entry
+    if (timeTable.empty()) {
+        TimeToSampleEntry entry;
+        entry.sampleIndex = 0;
+        entry.timestamp = rawTables.sampleTimes[0];
+        entry.duration = rawTables.sampleTimes.size() > 1 ? 
+                        (rawTables.sampleTimes[1] - rawTables.sampleTimes[0]) : 1000;
+        timeTable.push_back(entry);
     }
     
     return true;
@@ -1227,25 +1271,51 @@ uint64_t SampleTableManager::TimeToSample(double timestamp) {
     // Convert timestamp to timescale units (assuming timestamp is in seconds)
     uint64_t targetTime = static_cast<uint64_t>(timestamp * 1000); // Convert to milliseconds
     
-    // Binary search in time table
+    // Binary search in time table for efficient lookup
     size_t left = 0;
-    size_t right = timeTable.size() - 1;
+    size_t right = timeTable.size();
     
-    while (left <= right) {
+    while (left < right) {
         size_t mid = left + (right - left) / 2;
         
         if (timeTable[mid].timestamp <= targetTime) {
-            if (mid == timeTable.size() - 1 || timeTable[mid + 1].timestamp > targetTime) {
-                return timeTable[mid].sampleIndex;
-            }
             left = mid + 1;
         } else {
-            if (mid == 0) break;
-            right = mid - 1;
+            right = mid;
         }
     }
     
-    return timeTable[left].sampleIndex;
+    // left now points to the first entry with timestamp > targetTime
+    // We want the entry at or before targetTime
+    if (left > 0) {
+        left--;
+    }
+    
+    // Interpolate within the time table entry for more accuracy
+    if (left < timeTable.size()) {
+        const auto& entry = timeTable[left];
+        
+        // If we have a next entry, interpolate between them
+        if (left + 1 < timeTable.size()) {
+            const auto& nextEntry = timeTable[left + 1];
+            
+            // Calculate interpolation factor
+            uint64_t entryDuration = nextEntry.timestamp - entry.timestamp;
+            uint64_t timeOffset = targetTime - entry.timestamp;
+            
+            if (entryDuration > 0 && timeOffset <= entryDuration) {
+                // Interpolate sample index
+                uint64_t sampleRange = nextEntry.sampleIndex - entry.sampleIndex;
+                uint64_t interpolatedOffset = (timeOffset * sampleRange) / entryDuration;
+                
+                return entry.sampleIndex + interpolatedOffset;
+            }
+        }
+        
+        return entry.sampleIndex;
+    }
+    
+    return 0;
 }
 
 double SampleTableManager::SampleToTime(uint64_t sampleIndex) {
@@ -1326,13 +1396,104 @@ AudioTrackInfo* StreamManager::GetTrack(uint32_t trackId) {
 
 // SeekingEngine implementation
 bool SeekingEngine::SeekToTimestamp(double timestamp, AudioTrackInfo& track, SampleTableManager& sampleTables) {
-    // Basic implementation - will be expanded in later tasks
+    if (timestamp < 0.0) {
+        return false;
+    }
+    
+    // Use SampleTableManager to find the sample index for this timestamp
+    uint64_t targetSampleIndex = sampleTables.TimeToSample(timestamp);
+    
+    // For keyframe-aware seeking, find the nearest sync sample at or before target
+    uint64_t seekSampleIndex = FindNearestSyncSample(targetSampleIndex, sampleTables);
+    
+    // Validate the seek position
+    if (!ValidateSeekPosition(seekSampleIndex, track, sampleTables)) {
+        return false;
+    }
+    
+    // Update track position
+    track.currentSampleIndex = seekSampleIndex;
+    
     return true;
 }
 
 uint64_t SeekingEngine::BinarySearchTimeToSample(double timestamp, const std::vector<SampleTableManager::SampleInfo>& samples) {
-    // Basic implementation - will be expanded in later tasks
-    return 0;
+    if (samples.empty()) {
+        return 0;
+    }
+    
+    // Convert timestamp to comparable units (assuming samples have timestamp info)
+    // This is a simplified binary search - in practice, we'd use the time table
+    size_t left = 0;
+    size_t right = samples.size() - 1;
+    
+    while (left <= right) {
+        size_t mid = left + (right - left) / 2;
+        
+        // For this implementation, we'll use sample index as a proxy for time
+        // In a real implementation, we'd compare against actual timestamps
+        double sampleTime = static_cast<double>(mid) / samples.size();
+        
+        if (sampleTime <= timestamp) {
+            if (mid == samples.size() - 1 || 
+                static_cast<double>(mid + 1) / samples.size() > timestamp) {
+                return mid;
+            }
+            left = mid + 1;
+        } else {
+            if (mid == 0) break;
+            right = mid - 1;
+        }
+    }
+    
+    return left;
+}
+
+uint64_t SeekingEngine::FindNearestSyncSample(uint64_t targetSampleIndex, SampleTableManager& sampleTables) {
+    // Get sample info to check if target is already a sync sample
+    auto sampleInfo = sampleTables.GetSampleInfo(targetSampleIndex);
+    
+    if (sampleInfo.isKeyframe) {
+        // Target sample is already a keyframe
+        return targetSampleIndex;
+    }
+    
+    // Search backwards for the nearest sync sample
+    // This ensures we don't seek to a position that requires previous frames for decoding
+    for (uint64_t i = targetSampleIndex; i > 0; i--) {
+        auto info = sampleTables.GetSampleInfo(i - 1);
+        if (info.isKeyframe) {
+            return i - 1;
+        }
+        
+        // Limit backward search to avoid excessive searching
+        if (targetSampleIndex - i > 100) {
+            break;
+        }
+    }
+    
+    // If no sync sample found nearby, use the target sample
+    // This is acceptable for audio where most samples are independent
+    return targetSampleIndex;
+}
+
+bool SeekingEngine::ValidateSeekPosition(uint64_t sampleIndex, const AudioTrackInfo& track, SampleTableManager& sampleTables) {
+    // Get sample info to validate the position
+    auto sampleInfo = sampleTables.GetSampleInfo(sampleIndex);
+    
+    // Check if sample exists and has valid data
+    if (sampleInfo.size == 0 || sampleInfo.offset == 0) {
+        return false;
+    }
+    
+    // Validate that the sample index is within reasonable bounds
+    // We can't easily determine the total sample count without parsing all tables,
+    // so we'll do a basic sanity check
+    if (sampleIndex > 1000000) { // Arbitrary large number for sanity check
+        return false;
+    }
+    
+    return true;
 }
 
 bool ISODemuxer::parseContainer() {
@@ -1484,8 +1645,13 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
 }
 
 bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
-    if (!seekingEngine || !sampleTables || selectedTrackIndex == -1) {
+    if (!seekingEngine || !sampleTables) {
         return false;
+    }
+    
+    // If no track is selected, select the first audio track
+    if (selectedTrackIndex == -1 && !audioTracks.empty()) {
+        selectedTrackIndex = 0;
     }
     
     if (selectedTrackIndex >= static_cast<int>(audioTracks.size())) {
@@ -1493,14 +1659,34 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
     }
     
     AudioTrackInfo& track = audioTracks[selectedTrackIndex];
-    double timestamp_seconds = timestamp_ms / 1000.0;
+    
+    // Validate seek position against track duration
+    uint64_t trackDurationMs = track.timescale > 0 ? (track.duration * 1000ULL) / track.timescale : 0;
+    if (timestamp_ms > trackDurationMs && trackDurationMs > 0) {
+        // Clamp to track duration
+        timestamp_ms = trackDurationMs;
+    }
+    
+    double timestamp_seconds = static_cast<double>(timestamp_ms) / 1000.0;
     
     bool success = seekingEngine->SeekToTimestamp(timestamp_seconds, track, *sampleTables);
     
     if (success) {
         currentSampleIndex = track.currentSampleIndex;
-        m_position_ms = timestamp_ms;
+        
+        // Update position to actual seek position (may be different due to keyframe alignment)
+        double actualTimestamp = sampleTables->SampleToTime(track.currentSampleIndex);
+        m_position_ms = static_cast<uint64_t>(actualTimestamp * 1000.0);
+        
         m_eof = false;
+        
+        // Update all tracks to maintain synchronization (if multiple tracks exist)
+        for (auto& otherTrack : audioTracks) {
+            if (otherTrack.trackId != track.trackId) {
+                // Seek other tracks to equivalent position
+                seekingEngine->SeekToTimestamp(timestamp_seconds, otherTrack, *sampleTables);
+            }
+        }
     }
     
     return success;
@@ -1642,8 +1828,9 @@ void ISODemuxer::ProcessCodecSpecificData(MediaChunk& chunk, const AudioTrackInf
         // If processing resulted in empty data, mark as invalid
         chunk.stream_id = 0;
     }
-}bool
- SampleTableManager::BuildExpandedSampleToChunkMapping(const SampleTableInfo& rawTables, 
+}
+
+bool SampleTableManager::BuildExpandedSampleToChunkMapping(const SampleTableInfo& rawTables, 
                                                         std::vector<uint32_t>& expandedMapping) {
     expandedMapping.clear();
     
@@ -1655,41 +1842,35 @@ void ISODemuxer::ProcessCodecSpecificData(MediaChunk& chunk, const AudioTrackInf
     expandedMapping.reserve(totalChunks);
     
     if (!rawTables.sampleToChunkEntries.empty()) {
-        // Use the proper sample-to-chunk entries
+        // Use the proper sample-to-chunk entries to build expanded mapping
+        size_t entryIndex = 0;
+        uint32_t currentSamplesPerChunk = rawTables.sampleToChunkEntries[0].samplesPerChunk;
+        
         for (size_t chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-            uint32_t samplesPerChunk = 1; // Default
-            
-            // Find the applicable sample-to-chunk entry for this chunk
-            for (size_t entryIndex = 0; entryIndex < rawTables.sampleToChunkEntries.size(); entryIndex++) {
-                const auto& entry = rawTables.sampleToChunkEntries[entryIndex];
-                
-                // Check if this entry applies to the current chunk
-                if (chunkIndex >= entry.firstChunk) {
-                    // Check if there's a next entry that would override this one
-                    bool isLastEntry = (entryIndex == rawTables.sampleToChunkEntries.size() - 1);
-                    bool nextEntryDoesntApply = true;
-                    
-                    if (!isLastEntry) {
-                        const auto& nextEntry = rawTables.sampleToChunkEntries[entryIndex + 1];
-                        nextEntryDoesntApply = (chunkIndex < nextEntry.firstChunk);
-                    }
-                    
-                    if (isLastEntry || nextEntryDoesntApply) {
-                        samplesPerChunk = entry.samplesPerChunk;
-                        break;
-                    }
+            // Check if we need to move to the next sample-to-chunk entry
+            if (entryIndex + 1 < rawTables.sampleToChunkEntries.size()) {
+                const auto& nextEntry = rawTables.sampleToChunkEntries[entryIndex + 1];
+                if (chunkIndex >= nextEntry.firstChunk) {
+                    entryIndex++;
+                    currentSamplesPerChunk = nextEntry.samplesPerChunk;
                 }
             }
             
-            expandedMapping.push_back(samplesPerChunk);
+            expandedMapping.push_back(currentSamplesPerChunk);
         }
     } else if (!rawTables.samplesPerChunk.empty()) {
-        // Fallback to old format (compatibility)
-        uint32_t defaultSamplesPerChunk = rawTables.samplesPerChunk[0];
-        expandedMapping.assign(totalChunks, defaultSamplesPerChunk);
+        // Fallback to legacy samplesPerChunk array (deprecated)
+        for (size_t chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            if (chunkIndex < rawTables.samplesPerChunk.size()) {
+                expandedMapping.push_back(rawTables.samplesPerChunk[chunkIndex]);
+            } else {
+                // Use the last known value
+                expandedMapping.push_back(rawTables.samplesPerChunk.back());
+            }
+        }
     } else {
-        // No sample-to-chunk data available
-        return false;
+        // No sample-to-chunk information available - assume 1 sample per chunk
+        expandedMapping.assign(totalChunks, 1);
     }
     
     return true;

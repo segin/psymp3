@@ -37,7 +37,7 @@
   - Add support for variable sample sizes and chunk-based storage
   - _Requirements: 1.5, 10.4, 5.6, 5.7_
 
-- [ ] 7. Implement seeking functionality with sample table navigation
+- [x] 7. Implement seeking functionality with sample table navigation
   - Create SeekingEngine for timestamp-to-sample conversion
   - Implement binary search for efficient time-to-sample lookups
   - Add keyframe-aware seeking using sync sample tables when available

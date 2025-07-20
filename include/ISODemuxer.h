@@ -394,6 +394,8 @@ public:
     
 private:
     uint64_t BinarySearchTimeToSample(double timestamp, const std::vector<SampleTableManager::SampleInfo>& samples);
+    uint64_t FindNearestSyncSample(uint64_t targetSampleIndex, SampleTableManager& sampleTables);
+    bool ValidateSeekPosition(uint64_t sampleIndex, const AudioTrackInfo& track, SampleTableManager& sampleTables);
 };
 
 /**
