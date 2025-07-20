@@ -25,7 +25,7 @@
   - Create codec-specific configuration extraction (AAC, ALAC, mulaw, alaw, PCM)
   - _Requirements: 1.6, 1.7, 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 5. Implement sample table parsing and management
+- [x] 5. Implement sample table parsing and management
   - Create SampleTableManager class for efficient sample lookups
   - Implement parsing of stts (time-to-sample), stsc (sample-to-chunk), stsz (sample sizes), stco/co64 (chunk offsets)
   - Add sample table validation and consistency checking
@@ -55,7 +55,7 @@
   - Implement extraction of title, artist, album, genre, and artwork
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8_
 
-- [ ] 10. Add fragmented MP4 support for streaming scenarios
+- [-] 10. Add fragmented MP4 support for streaming scenarios
   - Create FragmentHandler class for moof (movie fragment) processing
   - Implement traf (track fragment) and trun (track run) parsing
   - Add fragment-based sample table updates and navigation

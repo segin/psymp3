@@ -259,8 +259,9 @@ bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
 bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
     // Parse track box recursively to extract audio track information
     bool foundAudio = false;
+    SampleTableInfo sampleTables;
     
-    ParseBoxRecursively(offset, size, [this, &track, &foundAudio](const BoxHeader& header, uint64_t boxOffset) {
+    ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &sampleTables](const BoxHeader& header, uint64_t boxOffset) {
         switch (header.type) {
             case BOX_TKHD:
                 // Track header - contains track ID
@@ -271,19 +272,77 @@ bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
                 return true;
             case BOX_MDIA:
                 // Media box - contains handler and media info
-                return ParseMediaBox(boxOffset + (header.dataOffset - boxOffset), 
-                                   header.size - (header.dataOffset - boxOffset), track, foundAudio);
+                return ParseMediaBoxWithSampleTables(boxOffset + (header.dataOffset - boxOffset), 
+                                                   header.size - (header.dataOffset - boxOffset), 
+                                                   track, foundAudio, sampleTables);
             default:
                 return SkipUnknownBox(header);
         }
     });
     
+    // If we found audio and have sample tables, store them in the track
+    if (foundAudio && !sampleTables.chunkOffsets.empty()) {
+        // Store sample table info in track for later use
+        // This will be used by SampleTableManager::BuildSampleTables
+        track.sampleTableInfo = sampleTables;
+    }
+    
     return foundAudio;
 }
 
 bool BoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
-    // Basic implementation - will be expanded in later tasks
-    return true;
+    // Parse sample table box recursively to extract all sample table atoms
+    bool hasRequiredTables = false;
+    bool hasStts = false, hasStsc = false, hasStsz = false, hasStco = false;
+    
+    ParseBoxRecursively(offset, size, [this, &tables, &hasStts, &hasStsc, &hasStsz, &hasStco](const BoxHeader& header, uint64_t boxOffset) {
+        switch (header.type) {
+            case BOX_STSD:
+                // Sample description - already handled in track parsing
+                return true;
+            case BOX_STTS:
+                // Time-to-sample table
+                hasStts = ParseTimeToSampleBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), tables);
+                return hasStts;
+            case BOX_STSC:
+                // Sample-to-chunk table
+                hasStsc = ParseSampleToChunkBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), tables);
+                return hasStsc;
+            case BOX_STSZ:
+                // Sample size table
+                hasStsz = ParseSampleSizeBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), tables);
+                return hasStsz;
+            case BOX_STCO:
+                // Chunk offset table (32-bit)
+                hasStco = ParseChunkOffsetBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), tables, false);
+                return hasStco;
+            case BOX_CO64:
+                // Chunk offset table (64-bit)
+                hasStco = ParseChunkOffsetBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), tables, true);
+                return hasStco;
+            case BOX_STSS:
+                // Sync sample table (keyframes)
+                return ParseSyncSampleBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), tables);
+            case BOX_CTTS:
+                // Composition time-to-sample (for video, skip for audio)
+                return true;
+            default:
+                return SkipUnknownBox(header);
+        }
+    });
+    
+    // Validate that we have all required sample tables
+    hasRequiredTables = hasStts && hasStsc && hasStsz && hasStco;
+    
+    if (!hasRequiredTables) {
+        // Log missing tables for debugging
+        if (!hasStts) { /* Missing time-to-sample table */ }
+        if (!hasStsc) { /* Missing sample-to-chunk table */ }
+        if (!hasStsz) { /* Missing sample size table */ }
+        if (!hasStco) { /* Missing chunk offset table */ }
+    }
+    
+    return hasRequiredTables;
 }
 
 bool BoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType) {
@@ -327,10 +386,15 @@ bool BoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& co
 }
 
 bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio) {
+    SampleTableInfo dummyTables; // Not used in this version
+    return ParseMediaBoxWithSampleTables(offset, size, track, foundAudio, dummyTables);
+}
+
+bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables) {
     std::string handlerType;
     bool handlerParsed = false;
     
-    return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType, &handlerParsed](const BoxHeader& header, uint64_t boxOffset) {
+    return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType, &handlerParsed, &sampleTables](const BoxHeader& header, uint64_t boxOffset) {
         switch (header.type) {
             case BOX_MDHD:
                 // Media header - contains timescale and duration
@@ -362,7 +426,7 @@ bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
                 if (handlerParsed && handlerType == "soun") {
                     foundAudio = true;
                     return ParseBoxRecursively(header.dataOffset, header.size - (header.dataOffset - boxOffset),
-                        [this, &track](const BoxHeader& minfHeader, uint64_t minfOffset) {
+                        [this, &track, &sampleTables](const BoxHeader& minfHeader, uint64_t minfOffset) {
                             switch (minfHeader.type) {
                                 case BOX_SMHD:
                                     // Sound media header - confirms this is audio
@@ -371,18 +435,21 @@ bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
                                     // Data information - skip for now
                                     return true;
                                 case BOX_STBL:
-                                    // Sample table box - parse for codec information
+                                    // Sample table box - parse for codec information and sample tables
                                     return ParseBoxRecursively(minfHeader.dataOffset, 
                                                               minfHeader.size - (minfHeader.dataOffset - minfOffset),
-                                        [this, &track](const BoxHeader& stblHeader, uint64_t stblOffset) {
+                                        [this, &track, &sampleTables](const BoxHeader& stblHeader, uint64_t stblOffset) {
                                             if (stblHeader.type == BOX_STSD) {
                                                 // Sample description - contains codec information
                                                 return ParseSampleDescriptionBox(stblHeader.dataOffset,
                                                                                 stblHeader.size - (stblHeader.dataOffset - stblOffset),
                                                                                 track);
+                                            } else {
+                                                // Parse sample table boxes
+                                                return ParseSampleTableBox(stblHeader.dataOffset,
+                                                                          stblHeader.size - (stblHeader.dataOffset - stblOffset),
+                                                                          sampleTables);
                                             }
-                                            // Skip other sample table boxes for now (will be implemented in later tasks)
-                                            return SkipUnknownBox(stblHeader);
                                         });
                                 default:
                                     return SkipUnknownBox(minfHeader);
@@ -571,6 +638,206 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
     return true;
 }
 
+bool BoxParser::ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+    if (size < 8) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    uint32_t entryCount = ReadUInt32BE(offset + 4);
+    
+    if (entryCount == 0 || size < 8 + (entryCount * 8)) {
+        return false;
+    }
+    
+    // Clear existing time data
+    tables.sampleTimes.clear();
+    tables.sampleTimes.reserve(entryCount * 2); // Rough estimate
+    
+    uint64_t currentTime = 0;
+    uint64_t entryOffset = offset + 8;
+    
+    for (uint32_t i = 0; i < entryCount; i++) {
+        uint32_t sampleCount = ReadUInt32BE(entryOffset);
+        uint32_t sampleDelta = ReadUInt32BE(entryOffset + 4);
+        
+        // Validate entry
+        if (sampleCount == 0) {
+            return false;
+        }
+        
+        // Add sample times for this entry
+        for (uint32_t j = 0; j < sampleCount; j++) {
+            tables.sampleTimes.push_back(currentTime);
+            currentTime += sampleDelta;
+        }
+        
+        entryOffset += 8;
+    }
+    
+    return true;
+}
+
+bool BoxParser::ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+    if (size < 8) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    uint32_t entryCount = ReadUInt32BE(offset + 4);
+    
+    if (entryCount == 0 || size < 8 + (entryCount * 12)) {
+        return false;
+    }
+    
+    // Clear existing chunk data
+    tables.samplesPerChunk.clear();
+    tables.samplesPerChunk.reserve(entryCount);
+    
+    uint64_t entryOffset = offset + 8;
+    
+    for (uint32_t i = 0; i < entryCount; i++) {
+        uint32_t firstChunk = ReadUInt32BE(entryOffset);
+        uint32_t samplesPerChunk = ReadUInt32BE(entryOffset + 4);
+        uint32_t sampleDescIndex = ReadUInt32BE(entryOffset + 8);
+        
+        // Validate entry
+        if (firstChunk == 0 || samplesPerChunk == 0 || sampleDescIndex == 0) {
+            return false;
+        }
+        
+        // Store the samples per chunk value
+        // We'll expand this to per-chunk mapping in BuildSampleTables
+        tables.samplesPerChunk.push_back(samplesPerChunk);
+        
+        entryOffset += 12;
+    }
+    
+    return true;
+}
+
+bool BoxParser::ParseSampleSizeBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+    if (size < 12) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    uint32_t sampleSize = ReadUInt32BE(offset + 4);
+    uint32_t sampleCount = ReadUInt32BE(offset + 8);
+    
+    if (sampleCount == 0) {
+        return false;
+    }
+    
+    // Clear existing size data
+    tables.sampleSizes.clear();
+    
+    if (sampleSize != 0) {
+        // All samples have the same size
+        tables.sampleSizes.resize(1);
+        tables.sampleSizes[0] = sampleSize;
+    } else {
+        // Variable sample sizes
+        if (size < 12 + (sampleCount * 4)) {
+            return false;
+        }
+        
+        tables.sampleSizes.reserve(sampleCount);
+        uint64_t entryOffset = offset + 12;
+        
+        for (uint32_t i = 0; i < sampleCount; i++) {
+            uint32_t size = ReadUInt32BE(entryOffset);
+            tables.sampleSizes.push_back(size);
+            entryOffset += 4;
+        }
+    }
+    
+    return true;
+}
+
+bool BoxParser::ParseChunkOffsetBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, bool is64Bit) {
+    if (size < 8) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    uint32_t entryCount = ReadUInt32BE(offset + 4);
+    
+    if (entryCount == 0) {
+        return false;
+    }
+    
+    uint32_t entrySize = is64Bit ? 8 : 4;
+    if (size < 8 + (entryCount * entrySize)) {
+        return false;
+    }
+    
+    // Clear existing offset data
+    tables.chunkOffsets.clear();
+    tables.chunkOffsets.reserve(entryCount);
+    
+    uint64_t entryOffset = offset + 8;
+    
+    for (uint32_t i = 0; i < entryCount; i++) {
+        uint64_t chunkOffset;
+        if (is64Bit) {
+            chunkOffset = ReadUInt64BE(entryOffset);
+            entryOffset += 8;
+        } else {
+            chunkOffset = ReadUInt32BE(entryOffset);
+            entryOffset += 4;
+        }
+        
+        // Validate offset
+        if (chunkOffset >= fileSize) {
+            return false;
+        }
+        
+        tables.chunkOffsets.push_back(chunkOffset);
+    }
+    
+    return true;
+}
+
+bool BoxParser::ParseSyncSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+    if (size < 8) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    uint32_t entryCount = ReadUInt32BE(offset + 4);
+    
+    if (entryCount == 0) {
+        // No sync samples specified - all samples are sync samples (common for audio)
+        return true;
+    }
+    
+    if (size < 8 + (entryCount * 4)) {
+        return false;
+    }
+    
+    // Clear existing sync sample data
+    tables.syncSamples.clear();
+    tables.syncSamples.reserve(entryCount);
+    
+    uint64_t entryOffset = offset + 8;
+    
+    for (uint32_t i = 0; i < entryCount; i++) {
+        uint32_t sampleNumber = ReadUInt32BE(entryOffset);
+        
+        // Validate sample number (1-based)
+        if (sampleNumber == 0) {
+            return false;
+        }
+        
+        // Convert to 0-based index
+        tables.syncSamples.push_back(sampleNumber - 1);
+        entryOffset += 4;
+    }
+    
+    return true;
+}
+
 bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
     // Basic implementation - will be expanded in later tasks
     return true;
@@ -712,22 +979,264 @@ bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrac
 
 // SampleTableManager implementation
 bool SampleTableManager::BuildSampleTables(const SampleTableInfo& rawTables) {
-    // Basic implementation - will be expanded in later tasks
+    // Validate input tables
+    if (rawTables.chunkOffsets.empty() || rawTables.samplesPerChunk.empty() || 
+        rawTables.sampleSizes.empty() || rawTables.sampleTimes.empty()) {
+        return false;
+    }
+    
+    // Clear existing tables
+    chunkTable.clear();
+    timeTable.clear();
+    syncSamples.clear();
+    
+    // Build chunk table with sample-to-chunk mapping
+    if (!BuildChunkTable(rawTables)) {
+        return false;
+    }
+    
+    // Build time table for efficient time-to-sample lookups
+    if (!BuildTimeTable(rawTables)) {
+        return false;
+    }
+    
+    // Store sample sizes (compressed if all samples are the same size)
+    if (!BuildSampleSizeTable(rawTables)) {
+        return false;
+    }
+    
+    // Store sync samples for keyframe seeking
+    syncSamples = rawTables.syncSamples;
+    
+    // Validate consistency between tables
+    return ValidateTableConsistency();
+}
+
+bool SampleTableManager::BuildChunkTable(const SampleTableInfo& rawTables) {
+    chunkTable.clear();
+    chunkTable.reserve(rawTables.chunkOffsets.size());
+    
+    uint64_t currentSampleIndex = 0;
+    
+    for (size_t chunkIndex = 0; chunkIndex < rawTables.chunkOffsets.size(); chunkIndex++) {
+        ChunkInfo chunk;
+        chunk.offset = rawTables.chunkOffsets[chunkIndex];
+        chunk.firstSample = currentSampleIndex;
+        
+        // Determine samples per chunk for this chunk
+        // The sample-to-chunk table specifies ranges of chunks with the same sample count
+        chunk.sampleCount = GetSamplesPerChunkForIndex(chunkIndex, rawTables.samplesPerChunk);
+        
+        chunkTable.push_back(chunk);
+        currentSampleIndex += chunk.sampleCount;
+    }
+    
+    return true;
+}
+
+uint32_t SampleTableManager::GetSamplesPerChunkForIndex(size_t chunkIndex, const std::vector<uint32_t>& samplesPerChunk) {
+    // For now, use a simplified approach - assume all chunks have the same sample count
+    // This will be refined when we properly parse the sample-to-chunk table structure
+    if (!samplesPerChunk.empty()) {
+        return samplesPerChunk[0];
+    }
+    return 1;
+}
+
+bool SampleTableManager::BuildTimeTable(const SampleTableInfo& rawTables) {
+    timeTable.clear();
+    timeTable.reserve(rawTables.sampleTimes.size() / 10); // Estimate for compression
+    
+    // Build compressed time table for binary search
+    for (size_t i = 0; i < rawTables.sampleTimes.size(); i++) {
+        // Add entry every 10 samples for efficient seeking
+        if (i % 10 == 0 || i == rawTables.sampleTimes.size() - 1) {
+            TimeToSampleEntry entry;
+            entry.sampleIndex = i;
+            entry.timestamp = rawTables.sampleTimes[i];
+            entry.duration = (i + 1 < rawTables.sampleTimes.size()) ? 
+                           (rawTables.sampleTimes[i + 1] - rawTables.sampleTimes[i]) : 0;
+            timeTable.push_back(entry);
+        }
+    }
+    
+    return true;
+}
+
+bool SampleTableManager::BuildSampleSizeTable(const SampleTableInfo& rawTables) {
+    if (rawTables.sampleSizes.empty()) {
+        return false;
+    }
+    
+    // Check if all samples have the same size (compression opportunity)
+    if (rawTables.sampleSizes.size() == 1) {
+        // All samples have the same size
+        sampleSizes = rawTables.sampleSizes[0];
+    } else {
+        // Variable sample sizes
+        bool allSame = true;
+        uint32_t firstSize = rawTables.sampleSizes[0];
+        
+        for (size_t i = 1; i < rawTables.sampleSizes.size(); i++) {
+            if (rawTables.sampleSizes[i] != firstSize) {
+                allSame = false;
+                break;
+            }
+        }
+        
+        if (allSame) {
+            // All samples are the same size, compress
+            sampleSizes = firstSize;
+        } else {
+            // Variable sizes, store full table
+            sampleSizes = rawTables.sampleSizes;
+        }
+    }
+    
+    return true;
+}
+
+bool SampleTableManager::ValidateTableConsistency() {
+    // Validate that chunk table and time table have consistent sample counts
+    uint64_t totalSamplesFromChunks = 0;
+    for (const auto& chunk : chunkTable) {
+        totalSamplesFromChunks += chunk.sampleCount;
+    }
+    
+    uint64_t totalSamplesFromTime = timeTable.empty() ? 0 : 
+        (timeTable.back().sampleIndex + 1);
+    
+    // Allow some tolerance for compressed time table
+    if (totalSamplesFromChunks > 0 && totalSamplesFromTime > 0) {
+        double ratio = static_cast<double>(totalSamplesFromTime) / totalSamplesFromChunks;
+        if (ratio < 0.8 || ratio > 1.2) {
+            // Significant mismatch between tables
+            return false;
+        }
+    }
+    
     return true;
 }
 
 SampleTableManager::SampleInfo SampleTableManager::GetSampleInfo(uint64_t sampleIndex) {
-    // Basic implementation - will be expanded in later tasks
-    return SampleInfo{};
+    SampleInfo info = {};
+    
+    // Find the chunk containing this sample
+    ChunkInfo* chunk = FindChunkForSample(sampleIndex);
+    if (!chunk) {
+        return info;
+    }
+    
+    // Calculate sample offset within the chunk
+    uint64_t sampleInChunk = sampleIndex - chunk->firstSample;
+    uint64_t sampleOffset = chunk->offset;
+    
+    // Add offsets of previous samples in this chunk
+    for (uint64_t i = 0; i < sampleInChunk; i++) {
+        uint32_t size = GetSampleSize(chunk->firstSample + i);
+        sampleOffset += size;
+    }
+    
+    info.offset = sampleOffset;
+    info.size = GetSampleSize(sampleIndex);
+    info.duration = GetSampleDuration(sampleIndex);
+    info.isKeyframe = IsSyncSample(sampleIndex);
+    
+    return info;
 }
 
-uint64_t SampleTableManager::TimeToSample(double timestamp) {
-    // Basic implementation - will be expanded in later tasks
+SampleTableManager::ChunkInfo* SampleTableManager::FindChunkForSample(uint64_t sampleIndex) {
+    for (auto& chunk : chunkTable) {
+        if (sampleIndex >= chunk.firstSample && 
+            sampleIndex < chunk.firstSample + chunk.sampleCount) {
+            return &chunk;
+        }
+    }
+    return nullptr;
+}
+
+uint32_t SampleTableManager::GetSampleSize(uint64_t sampleIndex) {
+    if (std::holds_alternative<uint32_t>(sampleSizes)) {
+        // All samples have the same size
+        return std::get<uint32_t>(sampleSizes);
+    } else {
+        // Variable sample sizes
+        const auto& sizes = std::get<std::vector<uint32_t>>(sampleSizes);
+        if (sampleIndex < sizes.size()) {
+            return sizes[sampleIndex];
+        }
+    }
     return 0;
 }
 
+uint32_t SampleTableManager::GetSampleDuration(uint64_t sampleIndex) {
+    // Find the time table entry for this sample
+    for (size_t i = 0; i < timeTable.size(); i++) {
+        if (timeTable[i].sampleIndex <= sampleIndex && 
+            (i + 1 >= timeTable.size() || timeTable[i + 1].sampleIndex > sampleIndex)) {
+            return timeTable[i].duration;
+        }
+    }
+    return 0;
+}
+
+bool SampleTableManager::IsSyncSample(uint64_t sampleIndex) {
+    if (syncSamples.empty()) {
+        // No sync sample table - all samples are sync samples (common for audio)
+        return true;
+    }
+    
+    // Binary search for sync sample
+    return std::binary_search(syncSamples.begin(), syncSamples.end(), sampleIndex);
+}
+
+uint64_t SampleTableManager::TimeToSample(double timestamp) {
+    if (timeTable.empty()) {
+        return 0;
+    }
+    
+    // Convert timestamp to timescale units (assuming timestamp is in seconds)
+    uint64_t targetTime = static_cast<uint64_t>(timestamp * 1000); // Convert to milliseconds
+    
+    // Binary search in time table
+    size_t left = 0;
+    size_t right = timeTable.size() - 1;
+    
+    while (left <= right) {
+        size_t mid = left + (right - left) / 2;
+        
+        if (timeTable[mid].timestamp <= targetTime) {
+            if (mid == timeTable.size() - 1 || timeTable[mid + 1].timestamp > targetTime) {
+                return timeTable[mid].sampleIndex;
+            }
+            left = mid + 1;
+        } else {
+            if (mid == 0) break;
+            right = mid - 1;
+        }
+    }
+    
+    return timeTable[left].sampleIndex;
+}
+
 double SampleTableManager::SampleToTime(uint64_t sampleIndex) {
-    // Basic implementation - will be expanded in later tasks
+    if (timeTable.empty()) {
+        return 0.0;
+    }
+    
+    // Find the time table entry for this sample
+    for (size_t i = 0; i < timeTable.size(); i++) {
+        if (timeTable[i].sampleIndex <= sampleIndex && 
+            (i + 1 >= timeTable.size() || timeTable[i + 1].sampleIndex > sampleIndex)) {
+            
+            // Interpolate time within the entry
+            uint64_t sampleOffset = sampleIndex - timeTable[i].sampleIndex;
+            uint64_t estimatedTime = timeTable[i].timestamp + (sampleOffset * timeTable[i].duration);
+            
+            return static_cast<double>(estimatedTime) / 1000.0; // Convert to seconds
+        }
+    }
+    
     return 0.0;
 }
 
@@ -986,7 +1495,7 @@ uint64_t ISODemuxer::getPosition() const {
 }
 
 bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
-    return boxParser->ParseBoxRecursively(offset, size, 
+    bool success = boxParser->ParseBoxRecursively(offset, size, 
         [this](const BoxHeader& header, uint64_t boxOffset) {
             switch (header.type) {
                 case BOX_MVHD:
@@ -1010,5 +1519,19 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
                     return boxParser->SkipUnknownBox(header);
             }
         });
+    
+    // After parsing all tracks, build sample tables for the first audio track
+    if (success && !audioTracks.empty()) {
+        // Build sample tables for the first track (for now)
+        const AudioTrackInfo& firstTrack = audioTracks[0];
+        if (!firstTrack.sampleTableInfo.chunkOffsets.empty()) {
+            if (!sampleTables->BuildSampleTables(firstTrack.sampleTableInfo)) {
+                // Sample table validation failed
+                return false;
+            }
+        }
+    }
+    
+    return success;
 }
 

@@ -44,6 +44,17 @@ struct BoxHeader {
 };
 
 /**
+ * @brief Sample table information structure
+ */
+struct SampleTableInfo {
+    std::vector<uint64_t> chunkOffsets;     // stco/co64
+    std::vector<uint32_t> samplesPerChunk;  // stsc
+    std::vector<uint32_t> sampleSizes;      // stsz
+    std::vector<uint64_t> sampleTimes;      // stts (decoded to absolute times)
+    std::vector<uint64_t> syncSamples;      // stss (keyframes)
+};
+
+/**
  * @brief Audio track information
  */
 struct AudioTrackInfo {
@@ -63,17 +74,9 @@ struct AudioTrackInfo {
     
     // Current playback state
     uint64_t currentSampleIndex = 0;
-};
-
-/**
- * @brief Sample table information structure
- */
-struct SampleTableInfo {
-    std::vector<uint64_t> chunkOffsets;     // stco/co64
-    std::vector<uint32_t> samplesPerChunk;  // stsc
-    std::vector<uint32_t> sampleSizes;      // stsz
-    std::vector<uint64_t> sampleTimes;      // stts (decoded to absolute times)
-    std::vector<uint64_t> syncSamples;      // stss (keyframes)
+    
+    // Sample table information
+    SampleTableInfo sampleTableInfo;
 };
 
 // Helper macro for FOURCC constants
@@ -226,12 +229,20 @@ public:
     // Additional parsing methods for file type and movie box parsing
     bool ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType);
     bool ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio);
+    bool ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables);
     bool ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType);
     bool ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
     
     // Codec-specific configuration parsing
     bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
     bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    
+    // Sample table parsing methods
+    bool ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
+    bool ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
+    bool ParseSampleSizeBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
+    bool ParseChunkOffsetBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, bool is64Bit);
+    bool ParseSyncSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
     
     uint32_t ReadUInt32BE(uint64_t offset);
     uint64_t ReadUInt64BE(uint64_t offset);
@@ -288,6 +299,18 @@ private:
     
     // Sync sample table for keyframe seeking
     std::vector<uint64_t> syncSamples;
+    
+    // Private helper methods for building and managing sample tables
+    bool BuildChunkTable(const SampleTableInfo& rawTables);
+    bool BuildTimeTable(const SampleTableInfo& rawTables);
+    bool BuildSampleSizeTable(const SampleTableInfo& rawTables);
+    bool ValidateTableConsistency();
+    
+    uint32_t GetSamplesPerChunkForIndex(size_t chunkIndex, const std::vector<uint32_t>& samplesPerChunk);
+    ChunkInfo* FindChunkForSample(uint64_t sampleIndex);
+    uint32_t GetSampleSize(uint64_t sampleIndex);
+    uint32_t GetSampleDuration(uint64_t sampleIndex);
+    bool IsSyncSample(uint64_t sampleIndex);
 };
 
 /**
