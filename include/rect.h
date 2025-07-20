@@ -27,7 +27,26 @@
 #include <utility> // For std::pair
 #include <cstdint> // For int16_t and uint16_t
 #include <string>  // For std::string
+#include <limits>  // For numeric limits
 
+/**
+ * @class Rect
+ * @brief A rectangle class for geometric operations and UI positioning
+ * 
+ * COORDINATE SYSTEM LIMITATIONS:
+ * - Position coordinates (x, y) use int16_t: range -32,768 to 32,767
+ * - Dimension values (width, height) use uint16_t: range 0 to 65,535
+ * - Coordinate calculations may overflow; safe arithmetic methods are provided
+ * - Origin is at top-left (0, 0), X increases rightward, Y increases downward
+ * - Negative coordinates are supported for off-screen positioning
+ * - Maximum rectangle area is 65,535 × 65,535 = 4,294,836,225 pixels
+ * 
+ * PRECISION CONSIDERATIONS:
+ * - All coordinate arithmetic is performed using integer math
+ * - Division operations may result in truncation (e.g., center calculations)
+ * - Overflow detection is provided for safety-critical operations
+ * - For higher precision requirements, consider extending to int32_t/uint32_t
+ */
 class Rect
 {
     public:
@@ -104,12 +123,27 @@ class Rect
         
         // String representation and debugging support
         std::string toString() const;
+        
+        // Coordinate system validation and normalization methods
+        Rect normalized() const;
+        void normalize();
+        
     protected:
     private:
         int16_t m_x;
         int16_t m_y;
         uint16_t m_width;
         uint16_t m_height;
+        
+        // Safe arithmetic methods for internal use (overflow detection)
+        static bool wouldOverflow(int32_t value, int16_t min_val, int16_t max_val);
+        static bool wouldOverflow(uint32_t value, uint16_t max_val);
+        static int16_t safeAdd(int16_t a, int16_t b);
+        static int16_t safeSubtract(int16_t a, int16_t b);
+        static uint16_t safeAdd(uint16_t a, uint16_t b);
+        static uint16_t safeSubtract(uint16_t a, uint16_t b);
+        static int16_t clampToInt16(int32_t value);
+        static uint16_t clampToUInt16(uint32_t value);
 };
 
 #endif // RECT_H

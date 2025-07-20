@@ -141,40 +141,44 @@ int16_t Rect::top() const
 
 /**
  * @brief Get the right edge coordinate
- * @return The right edge coordinate (x + width)
+ * @return The right edge coordinate (x + width), clamped to int16_t range
  */
 int16_t Rect::right() const
 {
-    return m_x + m_width;
+    int32_t result = static_cast<int32_t>(m_x) + static_cast<int32_t>(m_width);
+    return clampToInt16(result);
 }
 
 /**
  * @brief Get the bottom edge coordinate
- * @return The bottom edge coordinate (y + height)
+ * @return The bottom edge coordinate (y + height), clamped to int16_t range
  */
 int16_t Rect::bottom() const
 {
-    return m_y + m_height;
+    int32_t result = static_cast<int32_t>(m_y) + static_cast<int32_t>(m_height);
+    return clampToInt16(result);
 }
 
 // Center point calculation methods
 
 /**
  * @brief Calculate the center X coordinate of the rectangle
- * @return The center X coordinate (x + width / 2)
+ * @return The center X coordinate (x + width / 2), with overflow protection
  */
 int16_t Rect::centerX() const
 {
-    return m_x + m_width / 2;
+    int32_t result = static_cast<int32_t>(m_x) + static_cast<int32_t>(m_width) / 2;
+    return clampToInt16(result);
 }
 
 /**
  * @brief Calculate the center Y coordinate of the rectangle
- * @return The center Y coordinate (y + height / 2)
+ * @return The center Y coordinate (y + height / 2), with overflow protection
  */
 int16_t Rect::centerY() const
 {
-    return m_y + m_height / 2;
+    int32_t result = static_cast<int32_t>(m_y) + static_cast<int32_t>(m_height) / 2;
+    return clampToInt16(result);
 }
 
 /**
@@ -706,4 +710,154 @@ std::string Rect::toString() const
     }
     
     return oss.str();
+}
+
+// Coordinate system validation and normalization methods
+
+/**
+ * @brief Return a normalized version of this rectangle with positive dimensions
+ * @return A new rectangle with positive width and height
+ * 
+ * This method handles rectangles that may have been created with negative
+ * width or height values by adjusting the position and making dimensions positive.
+ * For example, a rectangle at (10, 10) with width -5 and height -3 would become
+ * a rectangle at (5, 7) with width 5 and height 3.
+ */
+Rect Rect::normalized() const
+{
+    Rect result(*this);
+    result.normalize();
+    return result;
+}
+
+/**
+ * @brief Normalize this rectangle in-place to have positive dimensions
+ * 
+ * This method adjusts the rectangle's position and dimensions to ensure
+ * width and height are positive. If width or height are negative, the
+ * position is adjusted accordingly and the dimensions are made positive.
+ */
+void Rect::normalize()
+{
+    // Handle negative width
+    if (static_cast<int32_t>(m_width) < 0) {
+        // Convert to signed for calculation
+        int32_t signed_width = static_cast<int32_t>(m_width);
+        // Adjust position and make width positive
+        m_x = safeAdd(m_x, static_cast<int16_t>(signed_width));
+        m_width = static_cast<uint16_t>(-signed_width);
+    }
+    
+    // Handle negative height
+    if (static_cast<int32_t>(m_height) < 0) {
+        // Convert to signed for calculation
+        int32_t signed_height = static_cast<int32_t>(m_height);
+        // Adjust position and make height positive
+        m_y = safeAdd(m_y, static_cast<int16_t>(signed_height));
+        m_height = static_cast<uint16_t>(-signed_height);
+    }
+}
+
+// Safe arithmetic methods for internal use
+
+/**
+ * @brief Check if a 32-bit value would overflow when cast to int16_t
+ * @param value The value to check
+ * @param min_val The minimum allowed value (typically -32768)
+ * @param max_val The maximum allowed value (typically 32767)
+ * @return True if the value would overflow, false otherwise
+ */
+bool Rect::wouldOverflow(int32_t value, int16_t min_val, int16_t max_val)
+{
+    return value < static_cast<int32_t>(min_val) || value > static_cast<int32_t>(max_val);
+}
+
+/**
+ * @brief Check if a 32-bit unsigned value would overflow when cast to uint16_t
+ * @param value The value to check
+ * @param max_val The maximum allowed value (typically 65535)
+ * @return True if the value would overflow, false otherwise
+ */
+bool Rect::wouldOverflow(uint32_t value, uint16_t max_val)
+{
+    return value > static_cast<uint32_t>(max_val);
+}
+
+/**
+ * @brief Safely add two int16_t values with overflow protection
+ * @param a First value
+ * @param b Second value
+ * @return The sum, clamped to int16_t range if overflow would occur
+ */
+int16_t Rect::safeAdd(int16_t a, int16_t b)
+{
+    int32_t result = static_cast<int32_t>(a) + static_cast<int32_t>(b);
+    return clampToInt16(result);
+}
+
+/**
+ * @brief Safely subtract two int16_t values with overflow protection
+ * @param a First value (minuend)
+ * @param b Second value (subtrahend)
+ * @return The difference, clamped to int16_t range if overflow would occur
+ */
+int16_t Rect::safeSubtract(int16_t a, int16_t b)
+{
+    int32_t result = static_cast<int32_t>(a) - static_cast<int32_t>(b);
+    return clampToInt16(result);
+}
+
+/**
+ * @brief Safely add two uint16_t values with overflow protection
+ * @param a First value
+ * @param b Second value
+ * @return The sum, clamped to uint16_t range if overflow would occur
+ */
+uint16_t Rect::safeAdd(uint16_t a, uint16_t b)
+{
+    uint32_t result = static_cast<uint32_t>(a) + static_cast<uint32_t>(b);
+    return clampToUInt16(result);
+}
+
+/**
+ * @brief Safely subtract two uint16_t values with underflow protection
+ * @param a First value (minuend)
+ * @param b Second value (subtrahend)
+ * @return The difference, clamped to 0 if underflow would occur
+ */
+uint16_t Rect::safeSubtract(uint16_t a, uint16_t b)
+{
+    if (b > a) {
+        return 0;  // Prevent underflow
+    }
+    return a - b;
+}
+
+/**
+ * @brief Clamp a 32-bit signed value to int16_t range
+ * @param value The value to clamp
+ * @return The value clamped to [-32768, 32767] range
+ */
+int16_t Rect::clampToInt16(int32_t value)
+{
+    if (value < std::numeric_limits<int16_t>::min()) {
+        return std::numeric_limits<int16_t>::min();
+    }
+    if (value > std::numeric_limits<int16_t>::max()) {
+        return std::numeric_limits<int16_t>::max();
+    }
+    return static_cast<int16_t>(value);
+}
+
+/**
+ * @brief Clamp a 32-bit unsigned value to uint16_t range
+ * @param value The value to clamp
+ * @return The value clamped to [0, 65535] range
+ */
+uint16_t Rect::clampToUInt16(uint32_t value)
+{
+    if (value > std::numeric_limits<uint16_t>::max()) {
+        return std::numeric_limits<uint16_t>::max();
+    }
+    return static_cast<uint16_t>(value);
 }
