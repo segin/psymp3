@@ -68,6 +68,16 @@ class Rect
         bool intersects(const Rect& other) const;
         Rect intersection(const Rect& other) const;
         Rect united(const Rect& other) const;
+        
+        // Expansion and contraction methods
+        void expand(int16_t margin);
+        void expand(int16_t dx, int16_t dy);
+        Rect expanded(int16_t margin) const;
+        Rect expanded(int16_t dx, int16_t dy) const;
+        void shrink(int16_t margin);
+        void shrink(int16_t dx, int16_t dy);
+        Rect shrunk(int16_t margin) const;
+        Rect shrunk(int16_t dx, int16_t dy) const;
     protected:
     private:
         int16_t m_x;

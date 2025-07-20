@@ -336,3 +336,138 @@ Rect Rect::united(const Rect& other) const
     
     return Rect(left, top, width, height);
 }
+// Expansion methods
+
+/**
+ * @brief Expand the rectangle uniformly by a margin in all directions
+ * @param margin The margin to expand by (positive values expand, negative values shrink)
+ */
+void Rect::expand(int16_t margin)
+{
+    expand(margin, margin);
+}
+
+/**
+ * @brief Expand the rectangle by specified amounts in x and y directions
+ * @param dx The amount to expand horizontally (added to both left and right)
+ * @param dy The amount to expand vertically (added to both top and bottom)
+ */
+void Rect::expand(int16_t dx, int16_t dy)
+{
+    // Calculate new position (move left/up by the expansion amount)
+    int32_t new_x = static_cast<int32_t>(m_x) - static_cast<int32_t>(dx);
+    int32_t new_y = static_cast<int32_t>(m_y) - static_cast<int32_t>(dy);
+    
+    // Calculate new dimensions (expand by 2x the amount since we expand in both directions)
+    int32_t new_width = static_cast<int32_t>(m_width) + 2 * static_cast<int32_t>(dx);
+    int32_t new_height = static_cast<int32_t>(m_height) + 2 * static_cast<int32_t>(dy);
+    
+    // Handle coordinate overflow/underflow for position
+    if (new_x < -32768) new_x = -32768;
+    if (new_x > 32767) new_x = 32767;
+    if (new_y < -32768) new_y = -32768;
+    if (new_y > 32767) new_y = 32767;
+    
+    // Handle dimension underflow/overflow
+    if (new_width < 0) new_width = 0;
+    if (new_width > 65535) new_width = 65535;
+    if (new_height < 0) new_height = 0;
+    if (new_height > 65535) new_height = 65535;
+    
+    // Update the rectangle
+    m_x = static_cast<int16_t>(new_x);
+    m_y = static_cast<int16_t>(new_y);
+    m_width = static_cast<uint16_t>(new_width);
+    m_height = static_cast<uint16_t>(new_height);
+}
+
+/**
+ * @brief Return a new rectangle expanded uniformly by a margin in all directions
+ * @param margin The margin to expand by (positive values expand, negative values shrink)
+ * @return A new expanded rectangle
+ */
+Rect Rect::expanded(int16_t margin) const
+{
+    return expanded(margin, margin);
+}
+
+/**
+ * @brief Return a new rectangle expanded by specified amounts in x and y directions
+ * @param dx The amount to expand horizontally (added to both left and right)
+ * @param dy The amount to expand vertically (added to both top and bottom)
+ * @return A new expanded rectangle
+ */
+Rect Rect::expanded(int16_t dx, int16_t dy) const
+{
+    Rect result(*this);
+    result.expand(dx, dy);
+    return result;
+}
+
+// Shrinking methods
+
+/**
+ * @brief Shrink the rectangle uniformly by a margin in all directions
+ * @param margin The margin to shrink by (positive values shrink, negative values expand)
+ */
+void Rect::shrink(int16_t margin)
+{
+    shrink(margin, margin);
+}
+
+/**
+ * @brief Shrink the rectangle by specified amounts in x and y directions
+ * @param dx The amount to shrink horizontally (removed from both left and right)
+ * @param dy The amount to shrink vertically (removed from both top and bottom)
+ */
+void Rect::shrink(int16_t dx, int16_t dy)
+{
+    // Calculate new position (move right/down by the shrinking amount)
+    int32_t new_x = static_cast<int32_t>(m_x) + static_cast<int32_t>(dx);
+    int32_t new_y = static_cast<int32_t>(m_y) + static_cast<int32_t>(dy);
+    
+    // Calculate new dimensions (shrink by 2x the amount since we shrink from both sides)
+    int32_t new_width = static_cast<int32_t>(m_width) - 2 * static_cast<int32_t>(dx);
+    int32_t new_height = static_cast<int32_t>(m_height) - 2 * static_cast<int32_t>(dy);
+    
+    // Handle coordinate overflow/underflow for position
+    if (new_x < -32768) new_x = -32768;
+    if (new_x > 32767) new_x = 32767;
+    if (new_y < -32768) new_y = -32768;
+    if (new_y > 32767) new_y = 32767;
+    
+    // Handle dimension underflow/overflow - ensure dimensions don't become negative
+    if (new_width < 0) new_width = 0;
+    if (new_width > 65535) new_width = 65535;
+    if (new_height < 0) new_height = 0;
+    if (new_height > 65535) new_height = 65535;
+    
+    // Update the rectangle
+    m_x = static_cast<int16_t>(new_x);
+    m_y = static_cast<int16_t>(new_y);
+    m_width = static_cast<uint16_t>(new_width);
+    m_height = static_cast<uint16_t>(new_height);
+}
+
+/**
+ * @brief Return a new rectangle shrunk uniformly by a margin in all directions
+ * @param margin The margin to shrink by (positive values shrink, negative values expand)
+ * @return A new shrunk rectangle
+ */
+Rect Rect::shrunk(int16_t margin) const
+{
+    return shrunk(margin, margin);
+}
+
+/**
+ * @brief Return a new rectangle shrunk by specified amounts in x and y directions
+ * @param dx The amount to shrink horizontally (removed from both left and right)
+ * @param dy The amount to shrink vertically (removed from both top and bottom)
+ * @return A new shrunk rectangle
+ */
+Rect Rect::shrunk(int16_t dx, int16_t dy) const
+{
+    Rect result(*this);
+    result.shrink(dx, dy);
+    return result;
+}

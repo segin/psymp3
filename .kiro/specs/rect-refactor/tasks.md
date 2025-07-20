@@ -44,14 +44,14 @@
     - Ensure proper coordinate overflow handling
     - _Requirements: 1.4_
 
-- [ ] 4. Implement expansion and contraction methods
-  - [ ] 4.1 Add expansion methods with margin parameters
+- [x] 4. Implement expansion and contraction methods
+  - [x] 4.1 Add expansion methods with margin parameters
     - Implement `expand(int16_t margin)` for uniform expansion
     - Implement `expand(int16_t dx, int16_t dy)` for directional expansion
     - Implement const versions `expanded()` that return new rectangles
     - _Requirements: 1.5_
 
-  - [ ] 4.2 Add shrinking methods with margin parameters
+  - [x] 4.2 Add shrinking methods with margin parameters
     - Implement `shrink(int16_t margin)` for uniform shrinking
     - Implement `shrink(int16_t dx, int16_t dy)` for directional shrinking
     - Implement const versions `shrunk()` that return new rectangles
