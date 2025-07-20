@@ -97,7 +97,7 @@ case "$host_os" in
     ;;
 esac
 
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 flac++ >= 1.2 vorbis opus ogg openssl >= 1.0])
+PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 flac++ >= 1.2 vorbis opus ogg openssl >= 1.0 libcurl >= 7.20.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
