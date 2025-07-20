@@ -24,7 +24,7 @@ AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS)
 # Test harness executable
 if BUILD_TEST_HARNESS
 bin_PROGRAMS = test-harness
-test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
+test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_framework.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 endif
