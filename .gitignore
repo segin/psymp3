@@ -40,3 +40,4 @@ tmp/
 **/*.log
 include/config.h.in
 libs/util/Makefile
+tests/test_rect_containment
