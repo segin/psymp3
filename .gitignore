@@ -58,4 +58,4 @@ tests/.deps/**
 **/.deps/**
 **/*.Po
 **/*.a
-tests/test_rect_modern_cpp
+
