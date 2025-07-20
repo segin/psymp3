@@ -34,14 +34,19 @@ bool ChunkDemuxer::parseContainer() {
         } else if (container_chunk.fourcc == RIFF_FOURCC) {
             m_big_endian = false; // RIFF uses little-endian
         } else {
+            Debug::log("chunk", "ChunkDemuxer: Unknown container format: 0x", std::hex, container_chunk.fourcc);
             return false; // Unknown container format
         }
         
         // Read form type using detected endianness
         m_form_type = readChunkValue<uint32_t>();
         
-        // Support WAVE (RIFF) and AIFF (FORM) files
+        Debug::log("chunk", "ChunkDemuxer: Container=0x", std::hex, m_container_fourcc, 
+                   ", Form=0x", m_form_type, std::dec, ", BigEndian=", m_big_endian);
+        
+        // Support WAVE (RIFF), AIFF (FORM), and other IFF variants
         if (m_form_type != WAVE_FOURCC && m_form_type != AIFF_FOURCC) {
+            Debug::log("chunk", "ChunkDemuxer: Unsupported form type: 0x", std::hex, m_form_type);
             return false;
         }
         
@@ -49,30 +54,53 @@ bool ChunkDemuxer::parseContainer() {
         while (!m_handler->eof() && m_handler->tell() < static_cast<long>(container_chunk.data_offset + container_chunk.size)) {
             Chunk chunk = readChunkHeader();
             
+            Debug::log("chunk", "ChunkDemuxer: Found chunk 0x", std::hex, chunk.fourcc, std::dec, 
+                       " size=", chunk.size, " at offset=", chunk.data_offset);
+            
             if (m_form_type == WAVE_FOURCC) {
                 // RIFF/WAV chunks
                 if (chunk.fourcc == FMT_FOURCC) {
                     if (!parseWaveFormat(chunk)) {
+                        Debug::log("chunk", "ChunkDemuxer: Failed to parse WAV format chunk");
                         return false;
                     }
                 } else if (chunk.fourcc == DATA_FOURCC) {
                     if (!parseWaveData(chunk)) {
+                        Debug::log("chunk", "ChunkDemuxer: Failed to parse WAV data chunk");
                         return false;
                     }
+                } else if (chunk.fourcc == FACT_FOURCC) {
+                    // Parse fact chunk for compressed formats
+                    parseWaveFact(chunk);
+                } else if (chunk.fourcc == LIST_FOURCC) {
+                    // Parse LIST chunk for metadata
+                    parseWaveList(chunk);
                 } else {
+                    Debug::log("chunk", "ChunkDemuxer: Skipping unknown WAV chunk 0x", std::hex, chunk.fourcc);
                     skipChunk(chunk);
                 }
             } else if (m_form_type == AIFF_FOURCC) {
                 // FORM/AIFF chunks
                 if (chunk.fourcc == COMM_FOURCC) {
                     if (!parseAiffCommon(chunk)) {
+                        Debug::log("chunk", "ChunkDemuxer: Failed to parse AIFF common chunk");
                         return false;
                     }
                 } else if (chunk.fourcc == SSND_FOURCC) {
                     if (!parseAiffSoundData(chunk)) {
+                        Debug::log("chunk", "ChunkDemuxer: Failed to parse AIFF sound data chunk");
                         return false;
                     }
+                } else if (chunk.fourcc == 0x4E414D45) { // "NAME"
+                    parseAiffName(chunk);
+                } else if (chunk.fourcc == 0x41555448) { // "AUTH"
+                    parseAiffAuth(chunk);
+                } else if (chunk.fourcc == 0x28632920) { // "(c) "
+                    parseAiffCopyright(chunk);
+                } else if (chunk.fourcc == 0x414E4E4F) { // "ANNO"
+                    parseAiffAnnotation(chunk);
                 } else {
+                    Debug::log("chunk", "ChunkDemuxer: Skipping unknown AIFF chunk 0x", std::hex, chunk.fourcc);
                     skipChunk(chunk);
                 }
             } else {
@@ -82,13 +110,17 @@ bool ChunkDemuxer::parseContainer() {
         
         // Verify we found required chunks
         if (m_audio_streams.empty()) {
+            Debug::log("chunk", "ChunkDemuxer: No audio streams found in container");
             return false;
         }
+        
+        Debug::log("chunk", "ChunkDemuxer: Successfully parsed container with ", m_audio_streams.size(), " audio streams");
         
         m_parsed = true;
         return true;
         
-    } catch (const std::exception&) {
+    } catch (const std::exception& e) {
+        Debug::log("chunk", "ChunkDemuxer: Exception parsing container: ", e.what());
         return false;
     }
 }
@@ -108,8 +140,18 @@ std::vector<StreamInfo> ChunkDemuxer::getStreams() const {
         info.bitrate = audio_data.avg_bytes_per_sec * 8;
         info.codec_data = audio_data.extra_data;
         
+        // Add metadata
+        info.title = audio_data.title;
+        info.artist = audio_data.artist;
+        info.album = audio_data.album;
+        
         // Calculate duration
-        if (audio_data.bytes_per_frame > 0) {
+        if (audio_data.has_fact_chunk && audio_data.total_samples > 0) {
+            // Use fact chunk data for accurate duration
+            info.duration_samples = audio_data.total_samples;
+            info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
+        } else if (audio_data.bytes_per_frame > 0) {
+            // Calculate from data size
             info.duration_samples = audio_data.data_size / audio_data.bytes_per_frame;
             info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
         }
@@ -157,10 +199,25 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
         return MediaChunk{};
     }
     
-    // Read a reasonable chunk size (4KB by default)
-    constexpr size_t CHUNK_SIZE = 4096;
-    size_t bytes_to_read = std::min(CHUNK_SIZE, 
+    // Determine chunk size based on format
+    size_t chunk_size = 4096; // Default 4KB
+    
+    // For compressed formats, use block alignment if available
+    if (stream_data.block_align > 1 && stream_data.format_tag != WAVE_FORMAT_PCM) {
+        // For compressed formats, read in block-aligned chunks
+        chunk_size = std::max(static_cast<size_t>(stream_data.block_align * 64), chunk_size);
+    }
+    
+    size_t bytes_to_read = std::min(chunk_size, 
                                    static_cast<size_t>(stream_data.data_size - stream_data.current_offset));
+    
+    // Align to block boundary for compressed formats
+    if (stream_data.block_align > 1 && stream_data.format_tag != WAVE_FORMAT_PCM) {
+        bytes_to_read = (bytes_to_read / stream_data.block_align) * stream_data.block_align;
+        if (bytes_to_read == 0) {
+            bytes_to_read = stream_data.block_align;
+        }
+    }
     
     MediaChunk chunk;
     chunk.stream_id = stream_id;
@@ -168,22 +225,44 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
     chunk.file_offset = stream_data.data_offset + stream_data.current_offset;
     
     // Seek to the current position and read
-    m_handler->seek(chunk.file_offset, SEEK_SET);
+    if (m_handler->seek(chunk.file_offset, SEEK_SET) != 0) {
+        Debug::log("chunk", "ChunkDemuxer: Failed to seek to offset ", chunk.file_offset);
+        return MediaChunk{};
+    }
+    
     size_t bytes_read = m_handler->read(chunk.data.data(), 1, bytes_to_read);
     
     if (bytes_read != bytes_to_read) {
         chunk.data.resize(bytes_read);
+        if (bytes_read == 0) {
+            m_eof = true;
+            return MediaChunk{};
+        }
     }
     
     // Calculate timestamps
     if (stream_data.bytes_per_frame > 0) {
         chunk.timestamp_samples = m_current_sample;
         
-        // Advance sample counter
-        m_current_sample += chunk.data.size() / stream_data.block_align;
+        // Advance sample counter based on actual data read
+        if (stream_data.format_tag == WAVE_FORMAT_PCM || stream_data.format_tag == WAVE_FORMAT_IEEE_FLOAT) {
+            // For PCM, calculate samples directly from bytes
+            m_current_sample += chunk.data.size() / stream_data.bytes_per_frame;
+        } else {
+            // For compressed formats, estimate based on average bitrate
+            uint64_t bytes_per_ms = (stream_data.avg_bytes_per_sec + 999) / 1000; // Round up
+            if (bytes_per_ms > 0) {
+                uint64_t ms_increment = chunk.data.size() / bytes_per_ms;
+                m_current_sample += (ms_increment * stream_data.sample_rate) / 1000;
+            }
+        }
     }
     
-    m_position_ms = (m_current_sample * 1000ULL) / m_streams[0].sample_rate;
+    // Update current offset
+    stream_data.current_offset += bytes_read;
+    
+    // Update position
+    m_position_ms = (m_current_sample * 1000ULL) / stream_data.sample_rate;
     
     return chunk;
 }
@@ -223,9 +302,22 @@ uint64_t ChunkDemuxer::getPosition() const {
 
 Chunk ChunkDemuxer::readChunkHeader() {
     Chunk chunk;
-    chunk.fourcc = readBE<uint32_t>(); // FourCC is always big-endian by convention
-    chunk.size = readChunkValue<uint32_t>(); // Size uses format endianness
+    
+    // FourCC is always read as big-endian by convention
+    chunk.fourcc = readBE<uint32_t>();
+    
+    // Size uses format endianness
+    chunk.size = readChunkValue<uint32_t>();
+    
+    // Validate chunk size
+    if (chunk.size > 0x7FFFFFFF) {
+        Debug::log("chunk", "ChunkDemuxer: Suspicious chunk size: ", chunk.size, " for chunk 0x", std::hex, chunk.fourcc);
+        // Cap at reasonable size to prevent memory issues
+        chunk.size = std::min(chunk.size, static_cast<uint32_t>(0x10000000)); // 256MB max
+    }
+    
     chunk.data_offset = m_handler->tell();
+    
     return chunk;
 }
 
@@ -310,7 +402,25 @@ std::string ChunkDemuxer::formatTagToCodecName(uint16_t format_tag) const {
             return "mulaw";
         case WAVE_FORMAT_MPEGLAYER3:
             return "mp3";
+        case WAVE_FORMAT_EXTENSIBLE:
+            return "pcm"; // Usually PCM in extensible format
+        case 0x0050: // WAVE_FORMAT_MPEG
+            return "mp2";
+        case 0x0160: // WAVE_FORMAT_WMA1
+        case 0x0161: // WAVE_FORMAT_WMA2
+        case 0x0162: // WAVE_FORMAT_WMA3
+            return "wma";
+        case 0x0011: // WAVE_FORMAT_DVI_ADPCM
+        case 0x0002: // WAVE_FORMAT_ADPCM
+            return "adpcm";
+        case 0x0031: // WAVE_FORMAT_GSM610
+            return "gsm";
+        case 0x0040: // WAVE_FORMAT_G721_ADPCM
+            return "g721";
+        case 0x0042: // WAVE_FORMAT_G728_CELP
+            return "g728";
         default:
+            Debug::log("chunk", "ChunkDemuxer: Unknown WAV format tag: 0x", std::hex, format_tag);
             return "unknown";
     }
 }
@@ -328,7 +438,19 @@ std::string ChunkDemuxer::aiffCompressionToCodecName(uint32_t compression) const
             return "alaw";
         case AIFF_ULAW:
             return "mulaw";
+        case 0x696D6134: // "ima4" - IMA ADPCM
+            return "adpcm";
+        case 0x4D414320: // "MAC3" - MACE 3:1
+        case 0x4D414336: // "MAC6" - MACE 6:1
+            return "mace";
+        case 0x47534D20: // "GSM " - GSM
+            return "gsm";
+        case 0x64766361: // "dvca" - DV audio
+            return "dv";
+        case 0x51444D32: // "QDM2" - QDesign Music 2
+            return "qdm2";
         default:
+            Debug::log("chunk", "ChunkDemuxer: Unknown AIFF compression: 0x", std::hex, compression);
             return "unknown";
     }
 }
@@ -458,4 +580,124 @@ uint64_t ChunkDemuxer::msToByteOffset(uint64_t timestamp_ms, uint32_t stream_id)
     const auto& stream_data = it->second;
     uint64_t samples = (timestamp_ms * stream_data.sample_rate) / 1000ULL;
     return samples * stream_data.bytes_per_frame;
+}
+
+void ChunkDemuxer::parseWaveFact(const Chunk& chunk) {
+    if (m_audio_streams.empty()) {
+        skipChunk(chunk);
+        return;
+    }
+    
+    auto& stream_data = m_audio_streams.begin()->second;
+    
+    if (chunk.size >= 4) {
+        stream_data.total_samples = readLE<uint32_t>();
+        stream_data.has_fact_chunk = true;
+        
+        Debug::log("chunk", "ChunkDemuxer: WAV fact chunk - total_samples=", stream_data.total_samples);
+    }
+    
+    skipChunk(chunk);
+}
+
+void ChunkDemuxer::parseWaveList(const Chunk& chunk) {
+    if (m_audio_streams.empty()) {
+        skipChunk(chunk);
+        return;
+    }
+    
+    auto& stream_data = m_audio_streams.begin()->second;
+    
+    // Read LIST type
+    uint32_t list_type = readLE<uint32_t>();
+    
+    if (list_type == 0x4F464E49) { // "INFO"
+        // Parse INFO subchunks
+        uint64_t list_end = chunk.data_offset + chunk.size;
+        
+        while (m_handler->tell() < static_cast<long>(list_end - 8)) {
+            Chunk info_chunk = readChunkHeader();
+            
+            if (info_chunk.fourcc == 0x4D414E49) { // "INAM" - title
+                stream_data.title = readFixedString(info_chunk.size);
+                // Remove null terminator if present
+                if (!stream_data.title.empty() && stream_data.title.back() == '\0') {
+                    stream_data.title.pop_back();
+                }
+            } else if (info_chunk.fourcc == 0x54524149) { // "IART" - artist
+                stream_data.artist = readFixedString(info_chunk.size);
+                if (!stream_data.artist.empty() && stream_data.artist.back() == '\0') {
+                    stream_data.artist.pop_back();
+                }
+            } else if (info_chunk.fourcc == 0x4D544E49) { // "ICMT" - comment
+                stream_data.comment = readFixedString(info_chunk.size);
+                if (!stream_data.comment.empty() && stream_data.comment.back() == '\0') {
+                    stream_data.comment.pop_back();
+                }
+            } else if (info_chunk.fourcc == 0x44525049) { // "IPRD" - album
+                stream_data.album = readFixedString(info_chunk.size);
+                if (!stream_data.album.empty() && stream_data.album.back() == '\0') {
+                    stream_data.album.pop_back();
+                }
+            } else if (info_chunk.fourcc == 0x50595249) { // "ICOP" - copyright
+                stream_data.copyright = readFixedString(info_chunk.size);
+                if (!stream_data.copyright.empty() && stream_data.copyright.back() == '\0') {
+                    stream_data.copyright.pop_back();
+                }
+            } else {
+                // Skip unknown INFO chunk
+                skipChunk(info_chunk);
+            }
+        }
+    }
+    
+    skipChunk(chunk);
+}
+
+void ChunkDemuxer::parseAiffName(const Chunk& chunk) {
+    if (m_audio_streams.empty()) {
+        skipChunk(chunk);
+        return;
+    }
+    
+    auto& stream_data = m_audio_streams.begin()->second;
+    stream_data.title = readFixedString(chunk.size);
+    
+    Debug::log("chunk", "ChunkDemuxer: AIFF NAME - title=", stream_data.title);
+}
+
+void ChunkDemuxer::parseAiffAuth(const Chunk& chunk) {
+    if (m_audio_streams.empty()) {
+        skipChunk(chunk);
+        return;
+    }
+    
+    auto& stream_data = m_audio_streams.begin()->second;
+    stream_data.artist = readFixedString(chunk.size);
+    
+    Debug::log("chunk", "ChunkDemuxer: AIFF AUTH - artist=", stream_data.artist);
+}
+
+void ChunkDemuxer::parseAiffCopyright(const Chunk& chunk) {
+    if (m_audio_streams.empty()) {
+        skipChunk(chunk);
+        return;
+    }
+    
+    auto& stream_data = m_audio_streams.begin()->second;
+    stream_data.copyright = readFixedString(chunk.size);
+    
+    Debug::log("chunk", "ChunkDemuxer: AIFF (c) - copyright=", stream_data.copyright);
+}
+
+void ChunkDemuxer::parseAiffAnnotation(const Chunk& chunk) {
+    if (m_audio_streams.empty()) {
+        skipChunk(chunk);
+        return;
+    }
+    
+    auto& stream_data = m_audio_streams.begin()->second;
+    stream_data.comment = readFixedString(chunk.size);
+    
+    Debug::log("chunk", "ChunkDemuxer: AIFF ANNO - comment=", stream_data.comment);
 }

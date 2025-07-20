@@ -44,28 +44,28 @@
   - Add proper resource management and cleanup for failed creations
   - _Requirements: 7.4, 7.5, 7.6, 7.7, 7.8_
 
-- [-] 3. Enhance Existing Demuxer Implementations
+- [x] 3. Enhance Existing Demuxer Implementations
   - Update OggDemuxer to fully comply with new interface requirements
   - Enhance ChunkDemuxer with improved RIFF/AIFF support
   - Complete ISODemuxer implementation for MP4/M4A files
   - Improve RawAudioDemuxer with better format detection
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
 
-- [ ] 3.1 Complete OggDemuxer Integration
+- [x] 3.1 Complete OggDemuxer Integration
   - Ensure OggDemuxer implements all required Demuxer interface methods
   - Add proper StreamInfo population with Ogg-specific metadata
   - Implement MediaChunk creation with granule position information
   - Add comprehensive error handling and recovery mechanisms
   - _Requirements: 3.1, 3.2, 3.3, 3.10_
 
-- [ ] 3.2 Enhance ChunkDemuxer Capabilities
+- [x] 3.2 Enhance ChunkDemuxer Capabilities
   - Complete RIFF/WAV and AIFF format support in ChunkDemuxer
   - Add proper endianness handling for different chunk formats
   - Implement comprehensive metadata extraction from chunk headers
   - Add support for various audio codecs within chunk containers
   - _Requirements: 3.4, 3.5, 3.6, 3.10_
 
-- [ ] 3.3 Finalize ISODemuxer Implementation
+- [x] 3.3 Finalize ISODemuxer Implementation
   - Complete MP4/M4A container parsing with full box hierarchy support
   - Implement sample table processing for accurate seeking
   - Add support for multiple tracks and codec detection

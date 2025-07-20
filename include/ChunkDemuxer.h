@@ -141,6 +141,17 @@ private:
         // AIFF-specific
         uint32_t ssnd_offset = 0;      // SSND chunk offset field
         uint32_t ssnd_block_size = 0;  // SSND chunk block size field
+        
+        // Metadata fields
+        std::string title;         // Track title (NAME chunk in AIFF, INAM in WAV)
+        std::string artist;        // Artist name (AUTH chunk in AIFF, IART in WAV)
+        std::string album;         // Album name (from LIST INFO chunk in WAV)
+        std::string copyright;     // Copyright info
+        std::string comment;       // Comments/annotations
+        
+        // Additional format info
+        uint32_t total_samples = 0;    // Total number of sample frames (from fact chunk)
+        bool has_fact_chunk = false;   // Whether fact chunk was present
     };
     
     uint32_t m_container_fourcc = 0;             // FORM or RIFF
@@ -183,6 +194,36 @@ private:
      * @brief Parse AIFF sound data chunk (SSND)
      */
     bool parseAiffSoundData(const Chunk& chunk);
+    
+    /**
+     * @brief Parse WAV fact chunk
+     */
+    void parseWaveFact(const Chunk& chunk);
+    
+    /**
+     * @brief Parse WAV LIST chunk for metadata
+     */
+    void parseWaveList(const Chunk& chunk);
+    
+    /**
+     * @brief Parse AIFF NAME chunk
+     */
+    void parseAiffName(const Chunk& chunk);
+    
+    /**
+     * @brief Parse AIFF AUTH chunk
+     */
+    void parseAiffAuth(const Chunk& chunk);
+    
+    /**
+     * @brief Parse AIFF copyright chunk
+     */
+    void parseAiffCopyright(const Chunk& chunk);
+    
+    /**
+     * @brief Parse AIFF annotation chunk
+     */
+    void parseAiffAnnotation(const Chunk& chunk);
     
     /**
      * @brief Skip a chunk (seek past it)
