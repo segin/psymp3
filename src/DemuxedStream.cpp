@@ -276,7 +276,7 @@ void DemuxedStream::seekTo(unsigned long pos) {
         return;
     }
     
-    // Clear chunk buffer
+    // Clear chunk buffer and current frame
     while (!m_chunk_buffer.empty()) {
         m_chunk_buffer.pop();
     }
@@ -284,7 +284,10 @@ void DemuxedStream::seekTo(unsigned long pos) {
     m_current_frame_offset = 0;
     
     // Seek demuxer
-    m_demuxer->seekTo(pos);
+    if (!m_demuxer->seekTo(pos)) {
+        // Handle seek failure if necessary
+        return;
+    }
     
     // Reset codec state
     if (m_codec) {
@@ -293,8 +296,11 @@ void DemuxedStream::seekTo(unsigned long pos) {
     
     // Update position tracking
     m_position = static_cast<int>(pos);
-    m_sposition = (static_cast<long long>(pos) * m_rate) / 1000;
-    m_samples_consumed = m_sposition;  // Reset consumption tracking
+    m_sposition = (static_cast<uint64_t>(pos) * m_rate) / 1000;
+    
+    // CRITICAL: Sync sample counter with demuxer's granule position after seek
+    m_samples_consumed = m_demuxer->getGranulePosition(m_current_stream_id);
+    
     m_eof = false;
     m_eof_reached = false;
 }

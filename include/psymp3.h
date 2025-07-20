@@ -271,6 +271,7 @@ typedef struct bio_st BIO;
 
 // New demuxer/codec architecture
 #include "Demuxer.h"
+#include "DemuxerFactory.h"
 #include "AudioCodec.h"
 #include "ChunkDemuxer.h"
 #include "PCMCodecs.h"

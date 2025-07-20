@@ -95,7 +95,7 @@ struct StreamInfo {
     bool isSubtitle() const {
         return codec_type == "subtitle";
     }
-} __attribute__((packed));
+};
 
 /**
  * @brief A chunk of media data with metadata
@@ -158,7 +158,7 @@ struct MediaChunk {
         is_keyframe = true;
         file_offset = 0;
     }
-} __attribute__((packed));
+};
 
 /**
  * @brief Base class for all container demuxers
@@ -374,32 +374,6 @@ protected:
     }
 };
 
-/**
- * @brief Factory for creating appropriate demuxers based on file content
- */
-class DemuxerFactory {
-public:
-    /**
-     * @brief Create a demuxer for the given file
-     * @param handler IOHandler for the file (will be moved to the demuxer)
-     * @return Unique pointer to appropriate demuxer, or nullptr if format not supported
-     */
-    static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler);
-    
-    /**
-     * @brief Create a demuxer for the given file with path hint
-     * @param handler IOHandler for the file (will be moved to the demuxer)
-     * @param file_path Original file path (for extension-based raw format detection)
-     * @return Unique pointer to appropriate demuxer, or nullptr if format not supported
-     */
-    static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler, 
-                                                  const std::string& file_path);
-    
-private:
-    /**
-     * @brief Probe file format by examining magic bytes
-     */
-    static std::string probeFormat(IOHandler* handler);
-};
+// DemuxerFactory class moved to DemuxerFactory.h
 
 #endif // DEMUXER_H

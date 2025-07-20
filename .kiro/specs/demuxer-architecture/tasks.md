@@ -23,21 +23,21 @@
   - Add proper virtual destructor and resource management
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10_
 
-- [ ] 2. Implement DemuxerFactory System
+- [x] 2. Implement DemuxerFactory System
   - Create DemuxerFactory class with static factory methods
   - Implement probeFormat() method for magic byte detection
   - Add createDemuxer() methods with and without file path hints
   - Create format signature database for automatic detection
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 7.10_
 
-- [ ] 2.1 Add Format Detection Logic
+- [x] 2.1 Add Format Detection Logic
   - Implement magic byte detection for all supported container formats
   - Add format signature database with priority-based matching
   - Create probeFormat() method that examines file headers
   - Handle ambiguous cases and provide fallback detection methods
   - _Requirements: 7.1, 7.2, 7.3, 7.9, 7.10_
 
-- [ ] 2.2 Implement Demuxer Creation Logic
+- [x] 2.2 Implement Demuxer Creation Logic
   - Create factory methods that return appropriate demuxer instances
   - Add error handling for unsupported formats and initialization failures
   - Implement file path hint processing for raw audio format detection
