@@ -9,22 +9,22 @@
   - Update root Makefile.am to include tests subdirectory
   - _Requirements: 2.1, 2.5, 8.1, 8.2, 8.5_
 
-- [ ] 2. Create test framework core infrastructure
-- [ ] 2.1 Implement common test utilities and assertion framework
+- [x] 2. Create test framework core infrastructure
+- [x] 2.1 Implement common test utilities and assertion framework
   - Create tests/test_framework.h with TestCase and TestSuite classes
   - Implement standardized assertion macros (assert_true, assert_equals, assert_not_null)
   - Write test case lifecycle management with proper error handling
   - Create shared utilities for common test patterns
   - _Requirements: 6.1, 6.3, 6.7_
 
-- [ ] 2.2 Implement test discovery engine
+- [x] 2.2 Implement test discovery engine
   - Write TestDiscovery class to scan tests/ directory for test files
   - Implement test metadata parsing from source file comments
   - Create dependency resolution logic for test executables
   - Add support for configurable timeout values per test
   - _Requirements: 1.1, 1.2_
 
-- [ ] 2.3 Implement test execution engine
+- [x] 2.3 Implement test execution engine
   - Create TestExecutor class with process spawning capabilities
   - Implement timeout mechanism with SIGTERM/SIGKILL escalation
   - Add stdout/stderr capture functionality
