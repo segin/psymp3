@@ -124,6 +124,7 @@ public:
     bool isEOF() const override;
     uint64_t getDuration() const override;
     uint64_t getPosition() const override;
+    uint64_t getGranulePosition(uint32_t stream_id) const override;
     
 private:
     std::map<uint32_t, OggStream> m_streams;

@@ -690,9 +690,9 @@ bool BoxParser::ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTabl
         return false;
     }
     
-    // Clear existing chunk data
-    tables.samplesPerChunk.clear();
-    tables.samplesPerChunk.reserve(entryCount);
+    // Clear existing chunk data and store raw entries
+    tables.sampleToChunkEntries.clear();
+    tables.sampleToChunkEntries.reserve(entryCount);
     
     uint64_t entryOffset = offset + 8;
     
@@ -706,9 +706,13 @@ bool BoxParser::ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTabl
             return false;
         }
         
-        // Store the samples per chunk value
-        // We'll expand this to per-chunk mapping in BuildSampleTables
-        tables.samplesPerChunk.push_back(samplesPerChunk);
+        // Store the raw sample-to-chunk entry
+        SampleToChunkEntry entry;
+        entry.firstChunk = firstChunk - 1; // Convert to 0-based indexing
+        entry.samplesPerChunk = samplesPerChunk;
+        entry.sampleDescIndex = sampleDescIndex;
+        
+        tables.sampleToChunkEntries.push_back(entry);
         
         entryOffset += 12;
     }
@@ -1016,6 +1020,12 @@ bool SampleTableManager::BuildChunkTable(const SampleTableInfo& rawTables) {
     chunkTable.clear();
     chunkTable.reserve(rawTables.chunkOffsets.size());
     
+    // Build expanded sample-to-chunk mapping
+    std::vector<uint32_t> expandedSamplesPerChunk;
+    if (!BuildExpandedSampleToChunkMapping(rawTables, expandedSamplesPerChunk)) {
+        return false;
+    }
+    
     uint64_t currentSampleIndex = 0;
     
     for (size_t chunkIndex = 0; chunkIndex < rawTables.chunkOffsets.size(); chunkIndex++) {
@@ -1023,9 +1033,13 @@ bool SampleTableManager::BuildChunkTable(const SampleTableInfo& rawTables) {
         chunk.offset = rawTables.chunkOffsets[chunkIndex];
         chunk.firstSample = currentSampleIndex;
         
-        // Determine samples per chunk for this chunk
-        // The sample-to-chunk table specifies ranges of chunks with the same sample count
-        chunk.sampleCount = GetSamplesPerChunkForIndex(chunkIndex, rawTables.samplesPerChunk);
+        // Get samples per chunk for this specific chunk
+        if (chunkIndex < expandedSamplesPerChunk.size()) {
+            chunk.sampleCount = expandedSamplesPerChunk[chunkIndex];
+        } else {
+            // Fallback to first entry if we don't have enough data
+            chunk.sampleCount = !rawTables.samplesPerChunk.empty() ? rawTables.samplesPerChunk[0] : 1;
+        }
         
         chunkTable.push_back(chunk);
         currentSampleIndex += chunk.sampleCount;
@@ -1131,10 +1145,25 @@ SampleTableManager::SampleInfo SampleTableManager::GetSampleInfo(uint64_t sample
     uint64_t sampleInChunk = sampleIndex - chunk->firstSample;
     uint64_t sampleOffset = chunk->offset;
     
-    // Add offsets of previous samples in this chunk
-    for (uint64_t i = 0; i < sampleInChunk; i++) {
-        uint32_t size = GetSampleSize(chunk->firstSample + i);
-        sampleOffset += size;
+    // Handle variable sample sizes - accumulate offsets of previous samples in this chunk
+    if (std::holds_alternative<std::vector<uint32_t>>(sampleSizes)) {
+        // Variable sample sizes - calculate exact offset
+        const auto& sizes = std::get<std::vector<uint32_t>>(sampleSizes);
+        for (uint64_t i = 0; i < sampleInChunk; i++) {
+            uint64_t prevSampleIndex = chunk->firstSample + i;
+            if (prevSampleIndex < sizes.size()) {
+                sampleOffset += sizes[prevSampleIndex];
+            } else {
+                // Sample index out of range - use default size if available
+                if (!sizes.empty()) {
+                    sampleOffset += sizes[0];
+                }
+            }
+        }
+    } else {
+        // Fixed sample size - simple calculation
+        uint32_t fixedSize = std::get<uint32_t>(sampleSizes);
+        sampleOffset += sampleInChunk * fixedSize;
     }
     
     info.offset = sampleOffset;
@@ -1429,31 +1458,26 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
         return MediaChunk{};
     }
     
-    auto sampleInfo = sampleTables->GetSampleInfo(currentSampleIndex);
+    // Get sample information for current position
+    auto sampleInfo = sampleTables->GetSampleInfo(track->currentSampleIndex);
     if (sampleInfo.size == 0) {
         m_eof = true;
         return MediaChunk{};
     }
     
-    // Create MediaChunk with sample data
-    MediaChunk chunk;
-    chunk.stream_id = stream_id;
-    chunk.data.resize(sampleInfo.size);
-    chunk.timestamp_samples = currentSampleIndex;
-    chunk.is_keyframe = sampleInfo.isKeyframe;
-    chunk.file_offset = sampleInfo.offset;
+    // Extract sample data from mdat box using sample tables
+    MediaChunk chunk = ExtractSampleData(stream_id, *track, sampleInfo);
     
-    // Read sample data from file
-    m_handler->seek(sampleInfo.offset, SEEK_SET);
-    size_t bytes_read = m_handler->read(chunk.data.data(), 1, sampleInfo.size);
-    
-    if (bytes_read != sampleInfo.size) {
-        chunk.data.resize(bytes_read);
+    if (chunk.data.empty()) {
+        m_eof = true;
+        return MediaChunk{};
     }
     
-    // Update position
-    currentSampleIndex++;
-    double timestamp = sampleTables->SampleToTime(currentSampleIndex);
+    // Update track position
+    track->currentSampleIndex++;
+    
+    // Update global position based on track timing
+    double timestamp = sampleTables->SampleToTime(track->currentSampleIndex);
     m_position_ms = static_cast<uint64_t>(timestamp * 1000.0);
     
     return chunk;
@@ -1535,3 +1559,138 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
     return success;
 }
 
+MediaChunk ISODemuxer::ExtractSampleData(uint32_t stream_id, const AudioTrackInfo& track, 
+                                         const SampleTableManager::SampleInfo& sampleInfo) {
+    MediaChunk chunk;
+    chunk.stream_id = stream_id;
+    chunk.timestamp_samples = track.currentSampleIndex;
+    chunk.is_keyframe = sampleInfo.isKeyframe;
+    chunk.file_offset = sampleInfo.offset;
+    
+    // Validate sample information
+    if (sampleInfo.size == 0 || sampleInfo.offset == 0) {
+        return chunk; // Return empty chunk
+    }
+    
+    // Validate file offset is within bounds
+    m_handler->seek(0, SEEK_END);
+    off_t file_size = m_handler->tell();
+    
+    if (sampleInfo.offset >= static_cast<uint64_t>(file_size) || 
+        sampleInfo.offset + sampleInfo.size > static_cast<uint64_t>(file_size)) {
+        // Sample extends beyond file - corrupted or incomplete file
+        return chunk;
+    }
+    
+    // Allocate buffer for sample data
+    chunk.data.resize(sampleInfo.size);
+    
+    // Seek to sample location in mdat box
+    if (m_handler->seek(static_cast<long>(sampleInfo.offset), SEEK_SET) != 0) {
+        chunk.data.clear();
+        return chunk;
+    }
+    
+    // Read sample data from file
+    size_t bytes_read = m_handler->read(chunk.data.data(), 1, sampleInfo.size);
+    
+    if (bytes_read != sampleInfo.size) {
+        // Partial read - resize buffer to actual data read
+        chunk.data.resize(bytes_read);
+        
+        // If we read significantly less than expected, this might be an error
+        if (bytes_read < sampleInfo.size / 2) {
+            chunk.data.clear();
+            return chunk;
+        }
+    }
+    
+    // Apply codec-specific processing if needed
+    ProcessCodecSpecificData(chunk, track);
+    
+    return chunk;
+}
+
+void ISODemuxer::ProcessCodecSpecificData(MediaChunk& chunk, const AudioTrackInfo& track) {
+    // Apply codec-specific processing based on track codec type
+    if (chunk.data.empty()) {
+        return;
+    }
+    
+    if (track.codecType == "aac") {
+        // AAC samples are typically already properly formatted
+        // No additional processing needed for raw AAC frames
+        
+    } else if (track.codecType == "alac") {
+        // ALAC samples are already properly formatted
+        // No additional processing needed
+        
+    } else if (track.codecType == "ulaw" || track.codecType == "alaw") {
+        // Telephony codecs - samples are raw companded data
+        // Ensure proper sample alignment for 8-bit samples
+        // No additional processing needed as samples are already in correct format
+        
+    } else if (track.codecType == "pcm") {
+        // PCM samples may need endianness correction or padding
+        // For now, assume samples are correctly formatted in the container
+        // Future enhancement: handle different PCM variants (little/big endian, etc.)
+        
+    }
+    
+    // For all codecs, ensure we have valid data
+    if (chunk.data.empty()) {
+        // If processing resulted in empty data, mark as invalid
+        chunk.stream_id = 0;
+    }
+}bool
+ SampleTableManager::BuildExpandedSampleToChunkMapping(const SampleTableInfo& rawTables, 
+                                                        std::vector<uint32_t>& expandedMapping) {
+    expandedMapping.clear();
+    
+    if (rawTables.chunkOffsets.empty()) {
+        return false;
+    }
+    
+    size_t totalChunks = rawTables.chunkOffsets.size();
+    expandedMapping.reserve(totalChunks);
+    
+    if (!rawTables.sampleToChunkEntries.empty()) {
+        // Use the proper sample-to-chunk entries
+        for (size_t chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+            uint32_t samplesPerChunk = 1; // Default
+            
+            // Find the applicable sample-to-chunk entry for this chunk
+            for (size_t entryIndex = 0; entryIndex < rawTables.sampleToChunkEntries.size(); entryIndex++) {
+                const auto& entry = rawTables.sampleToChunkEntries[entryIndex];
+                
+                // Check if this entry applies to the current chunk
+                if (chunkIndex >= entry.firstChunk) {
+                    // Check if there's a next entry that would override this one
+                    bool isLastEntry = (entryIndex == rawTables.sampleToChunkEntries.size() - 1);
+                    bool nextEntryDoesntApply = true;
+                    
+                    if (!isLastEntry) {
+                        const auto& nextEntry = rawTables.sampleToChunkEntries[entryIndex + 1];
+                        nextEntryDoesntApply = (chunkIndex < nextEntry.firstChunk);
+                    }
+                    
+                    if (isLastEntry || nextEntryDoesntApply) {
+                        samplesPerChunk = entry.samplesPerChunk;
+                        break;
+                    }
+                }
+            }
+            
+            expandedMapping.push_back(samplesPerChunk);
+        }
+    } else if (!rawTables.samplesPerChunk.empty()) {
+        // Fallback to old format (compatibility)
+        uint32_t defaultSamplesPerChunk = rawTables.samplesPerChunk[0];
+        expandedMapping.assign(totalChunks, defaultSamplesPerChunk);
+    } else {
+        // No sample-to-chunk data available
+        return false;
+    }
+    
+    return true;
+}

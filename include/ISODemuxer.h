@@ -44,14 +44,24 @@ struct BoxHeader {
 };
 
 /**
+ * @brief Sample-to-chunk table entry
+ */
+struct SampleToChunkEntry {
+    uint32_t firstChunk;        // First chunk (0-based)
+    uint32_t samplesPerChunk;   // Samples per chunk
+    uint32_t sampleDescIndex;   // Sample description index
+};
+
+/**
  * @brief Sample table information structure
  */
 struct SampleTableInfo {
-    std::vector<uint64_t> chunkOffsets;     // stco/co64
-    std::vector<uint32_t> samplesPerChunk;  // stsc
-    std::vector<uint32_t> sampleSizes;      // stsz
-    std::vector<uint64_t> sampleTimes;      // stts (decoded to absolute times)
-    std::vector<uint64_t> syncSamples;      // stss (keyframes)
+    std::vector<uint64_t> chunkOffsets;           // stco/co64
+    std::vector<SampleToChunkEntry> sampleToChunkEntries; // stsc (raw entries)
+    std::vector<uint32_t> samplesPerChunk;        // stsc (deprecated - for compatibility)
+    std::vector<uint32_t> sampleSizes;            // stsz
+    std::vector<uint64_t> sampleTimes;            // stts (decoded to absolute times)
+    std::vector<uint64_t> syncSamples;            // stss (keyframes)
 };
 
 /**
@@ -306,6 +316,8 @@ private:
     bool BuildSampleSizeTable(const SampleTableInfo& rawTables);
     bool ValidateTableConsistency();
     
+    bool BuildExpandedSampleToChunkMapping(const SampleTableInfo& rawTables, 
+                                          std::vector<uint32_t>& expandedMapping);
     uint32_t GetSamplesPerChunkForIndex(size_t chunkIndex, const std::vector<uint32_t>& samplesPerChunk);
     ChunkInfo* FindChunkForSample(uint64_t sampleIndex);
     uint32_t GetSampleSize(uint64_t sampleIndex);
@@ -443,6 +455,23 @@ private:
      * @brief Parse movie box and extract audio tracks
      */
     bool ParseMovieBoxWithTracks(uint64_t offset, uint64_t size);
+    
+    /**
+     * @brief Extract sample data from mdat boxes using sample tables
+     * @param stream_id Stream identifier
+     * @param track Audio track information
+     * @param sampleInfo Sample location and size information
+     * @return MediaChunk with extracted sample data
+     */
+    MediaChunk ExtractSampleData(uint32_t stream_id, const AudioTrackInfo& track, 
+                                const SampleTableManager::SampleInfo& sampleInfo);
+    
+    /**
+     * @brief Apply codec-specific processing to extracted sample data
+     * @param chunk MediaChunk to process
+     * @param track Audio track information containing codec details
+     */
+    void ProcessCodecSpecificData(MediaChunk& chunk, const AudioTrackInfo& track);
 };
 
 #endif // ISODEMUXER_H

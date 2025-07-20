@@ -31,7 +31,7 @@
   - Add sample table validation and consistency checking
   - _Requirements: 1.4, 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 6. Create sample extraction and media chunk generation
+- [x] 6. Create sample extraction and media chunk generation
   - Implement sample data extraction from mdat boxes using sample tables
   - Create MediaChunk objects with proper timing and codec information
   - Add support for variable sample sizes and chunk-based storage

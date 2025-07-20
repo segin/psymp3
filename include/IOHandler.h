@@ -24,6 +24,9 @@
 #ifndef IOHANDLER_H
 #define IOHANDLER_H
 
+#include <cstddef>
+#include <unistd.h>
+
 class IOHandler
 {
 public:
