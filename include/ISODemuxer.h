@@ -223,16 +223,23 @@ public:
     bool ParseBoxRecursively(uint64_t offset, uint64_t size, 
                             std::function<bool(const BoxHeader&, uint64_t)> handler);
     
+    // Additional parsing methods for file type and movie box parsing
+    bool ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType);
+    bool ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio);
+    bool ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType);
+    bool ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    
+    uint32_t ReadUInt32BE(uint64_t offset);
+    uint64_t ReadUInt64BE(uint64_t offset);
+    std::string BoxTypeToString(uint32_t boxType);
+    bool SkipUnknownBox(const BoxHeader& header);
+    
 private:
     std::shared_ptr<IOHandler> io;
     std::stack<BoxHeader> boxStack;
     uint64_t fileSize;
     
-    bool SkipUnknownBox(const BoxHeader& header);
     bool IsContainerBox(uint32_t boxType);
-    uint32_t ReadUInt32BE(uint64_t offset);
-    uint64_t ReadUInt64BE(uint64_t offset);
-    std::string BoxTypeToString(uint32_t boxType);
 };
 
 /**
@@ -404,6 +411,11 @@ private:
      * @brief Clean up resources
      */
     void cleanup();
+    
+    /**
+     * @brief Parse movie box and extract audio tracks
+     */
+    bool ParseMovieBoxWithTracks(uint64_t offset, uint64_t size);
 };
 
 #endif // ISODEMUXER_H

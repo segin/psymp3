@@ -238,17 +238,263 @@ bool BoxParser::SkipUnknownBox(const BoxHeader& header) {
 }
 
 bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
-    // Basic implementation - will be expanded in later tasks
-    return true;
+    // Parse movie box recursively to find tracks
+    return ParseBoxRecursively(offset, size, [this](const BoxHeader& header, uint64_t boxOffset) {
+        switch (header.type) {
+            case BOX_MVHD:
+                // Movie header - contains duration and timescale
+                return true; // Skip for now, will implement in later tasks
+            case BOX_TRAK:
+                // Track box - parse for audio tracks
+                return true; // Will be implemented when ParseTrackBox is expanded
+            case BOX_UDTA:
+                // User data - metadata
+                return true; // Skip for now
+            default:
+                return SkipUnknownBox(header);
+        }
+    });
 }
 
 bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
-    // Basic implementation - will be expanded in later tasks
-    return true;
+    // Parse track box recursively to extract audio track information
+    bool foundAudio = false;
+    
+    ParseBoxRecursively(offset, size, [this, &track, &foundAudio](const BoxHeader& header, uint64_t boxOffset) {
+        switch (header.type) {
+            case BOX_TKHD:
+                // Track header - contains track ID
+                if (header.size >= 32) {
+                    // Skip version/flags (4 bytes) and creation/modification times (8 bytes each)
+                    track.trackId = ReadUInt32BE(header.dataOffset + 20);
+                }
+                return true;
+            case BOX_MDIA:
+                // Media box - contains handler and media info
+                return ParseMediaBox(boxOffset + (header.dataOffset - boxOffset), 
+                                   header.size - (header.dataOffset - boxOffset), track, foundAudio);
+            default:
+                return SkipUnknownBox(header);
+        }
+    });
+    
+    return foundAudio;
 }
 
 bool BoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
     // Basic implementation - will be expanded in later tasks
+    return true;
+}
+
+bool BoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType) {
+    if (size < 8) {
+        return false;
+    }
+    
+    // Read major brand (4 bytes)
+    uint32_t majorBrand = ReadUInt32BE(offset);
+    
+    // Identify container type based on major brand
+    switch (majorBrand) {
+        case BRAND_ISOM:
+            containerType = "MP4";
+            break;
+        case BRAND_MP41:
+        case BRAND_MP42:
+            containerType = "MP4";
+            break;
+        case BRAND_M4A:
+            containerType = "M4A";
+            break;
+        case BRAND_QT:
+            containerType = "MOV";
+            break;
+        case BRAND_3GP4:
+        case BRAND_3GP5:
+        case BRAND_3GP6:
+            containerType = "3GP";
+            break;
+        case BRAND_3G2A:
+            containerType = "3G2";
+            break;
+        default:
+            // Try to identify from compatible brands
+            containerType = "MP4"; // Default fallback
+            break;
+    }
+    
+    return true;
+}
+
+bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio) {
+    std::string handlerType;
+    
+    return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType](const BoxHeader& header, uint64_t boxOffset) {
+        switch (header.type) {
+            case BOX_MDHD:
+                // Media header - contains timescale and duration
+                if (header.size >= 32) {
+                    // Skip version/flags (4 bytes) and creation/modification times (8 bytes each)
+                    track.timescale = ReadUInt32BE(header.dataOffset + 20);
+                    track.duration = ReadUInt32BE(header.dataOffset + 24);
+                }
+                return true;
+            case BOX_HDLR:
+                // Handler reference - identifies track type
+                return ParseHandlerBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), handlerType);
+            case BOX_MINF:
+                // Media information - contains sample table for audio tracks
+                if (handlerType == "soun") {
+                    foundAudio = true;
+                    return ParseBoxRecursively(header.dataOffset, header.size - (header.dataOffset - boxOffset),
+                        [this, &track](const BoxHeader& minfHeader, uint64_t minfOffset) {
+                            if (minfHeader.type == BOX_STBL) {
+                                // Sample table box - parse for codec information
+                                return ParseBoxRecursively(minfHeader.dataOffset, 
+                                                          minfHeader.size - (minfHeader.dataOffset - minfOffset),
+                                    [this, &track](const BoxHeader& stblHeader, uint64_t stblOffset) {
+                                        if (stblHeader.type == BOX_STSD) {
+                                            // Sample description - contains codec information
+                                            return ParseSampleDescriptionBox(stblHeader.dataOffset,
+                                                                            stblHeader.size - (stblHeader.dataOffset - stblOffset),
+                                                                            track);
+                                        }
+                                        return SkipUnknownBox(stblHeader);
+                                    });
+                            }
+                            return SkipUnknownBox(minfHeader);
+                        });
+                }
+                return SkipUnknownBox(header);
+            default:
+                return SkipUnknownBox(header);
+        }
+    });
+}
+
+bool BoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType) {
+    if (size < 24) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes) and pre_defined (4 bytes)
+    uint32_t handler = ReadUInt32BE(offset + 8);
+    
+    switch (handler) {
+        case HANDLER_SOUN:
+            handlerType = "soun";
+            break;
+        case HANDLER_VIDE:
+            handlerType = "vide";
+            break;
+        case HANDLER_HINT:
+            handlerType = "hint";
+            break;
+        case HANDLER_META:
+            handlerType = "meta";
+            break;
+        default:
+            handlerType = "unknown";
+            break;
+    }
+    
+    return true;
+}
+
+bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+    if (size < 16) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes) and entry count (4 bytes)
+    uint64_t entryOffset = offset + 8;
+    uint32_t entryCount = ReadUInt32BE(offset + 4);
+    
+    if (entryCount == 0) {
+        return false;
+    }
+    
+    // Read first sample description entry
+    if (size >= 36) { // Minimum size for audio sample entry
+        uint32_t entrySize = ReadUInt32BE(entryOffset);
+        uint32_t codecType = ReadUInt32BE(entryOffset + 4);
+        
+        // Skip reserved fields (6 bytes) and data reference index (2 bytes)
+        uint64_t audioEntryOffset = entryOffset + 16;
+        
+        // Read audio sample entry fields (version 0)
+        if (entrySize >= 36) {
+            // Skip version (2 bytes) and revision level (2 bytes) and vendor (4 bytes)
+            uint16_t channelCount = (ReadUInt32BE(audioEntryOffset + 8) >> 16) & 0xFFFF;
+            uint16_t sampleSize = ReadUInt32BE(audioEntryOffset + 8) & 0xFFFF;
+            // Skip compression ID (2 bytes) and packet size (2 bytes)
+            uint32_t sampleRate = ReadUInt32BE(audioEntryOffset + 16) >> 16; // Fixed-point 16.16
+            
+            track.channelCount = channelCount;
+            track.bitsPerSample = sampleSize;
+            track.sampleRate = sampleRate;
+        }
+        
+        // Identify codec and set track information
+        switch (codecType) {
+            case CODEC_AAC:
+                track.codecType = "aac";
+                // Look for esds box for AAC configuration
+                if (entrySize > 36) {
+                    // Parse additional boxes within the sample entry
+                    ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
+                        [this, &track](const BoxHeader& header, uint64_t boxOffset) {
+                            if (header.type == FOURCC('e','s','d','s')) {
+                                // Elementary stream descriptor - contains AAC config
+                                // Will be implemented in codec-specific tasks
+                            }
+                            return true;
+                        });
+                }
+                break;
+            case CODEC_ALAC:
+                track.codecType = "alac";
+                // Look for alac box for ALAC magic cookie
+                if (entrySize > 36) {
+                    ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
+                        [this, &track](const BoxHeader& header, uint64_t boxOffset) {
+                            if (header.type == CODEC_ALAC) {
+                                // ALAC magic cookie - will be implemented in codec-specific tasks
+                            }
+                            return true;
+                        });
+                }
+                break;
+            case CODEC_ULAW:
+                track.codecType = "ulaw";
+                // Override defaults if not set
+                if (track.sampleRate == 0) track.sampleRate = 8000;
+                if (track.channelCount == 0) track.channelCount = 1;
+                if (track.bitsPerSample == 0) track.bitsPerSample = 8;
+                break;
+            case CODEC_ALAW:
+                track.codecType = "alaw";
+                // Override defaults if not set
+                if (track.sampleRate == 0) track.sampleRate = 8000;
+                if (track.channelCount == 0) track.channelCount = 1;
+                if (track.bitsPerSample == 0) track.bitsPerSample = 8;
+                break;
+            case CODEC_LPCM:
+            case CODEC_SOWT:
+            case CODEC_TWOS:
+            case CODEC_FL32:
+            case CODEC_FL64:
+            case CODEC_IN24:
+            case CODEC_IN32:
+                track.codecType = "pcm";
+                // PCM variants - sample rate, channels, and bit depth already parsed
+                break;
+            default:
+                track.codecType = "unknown";
+                return false;
+        }
+    }
+    
     return true;
 }
 
@@ -359,10 +605,49 @@ bool ISODemuxer::parseContainer() {
             return false;
         }
         
-        // Use BoxParser to parse the movie box
-        // For now, we'll do basic parsing until BoxParser is fully implemented
-        if (!boxParser->ParseMovieBox(0, static_cast<uint64_t>(file_size))) {
+        // Parse top-level boxes to find ftyp and moov
+        std::string containerType;
+        bool foundFileType = false;
+        bool foundMovie = false;
+        
+        boxParser->ParseBoxRecursively(0, static_cast<uint64_t>(file_size), 
+            [this, &containerType, &foundFileType, &foundMovie](const BoxHeader& header, uint64_t boxOffset) {
+                switch (header.type) {
+                    case BOX_FTYP:
+                        // File type box - identify container variant
+                        foundFileType = boxParser->ParseFileTypeBox(header.dataOffset, 
+                                                                   header.size - (header.dataOffset - boxOffset), 
+                                                                   containerType);
+                        return foundFileType;
+                    case BOX_MOOV:
+                        // Movie box - extract track information
+                        foundMovie = ParseMovieBoxWithTracks(header.dataOffset, 
+                                                           header.size - (header.dataOffset - boxOffset));
+                        return foundMovie;
+                    case BOX_MDAT:
+                        // Media data box - skip for now
+                        return true;
+                    case BOX_FREE:
+                    case BOX_SKIP:
+                        // Free space - skip
+                        return true;
+                    default:
+                        return boxParser->SkipUnknownBox(header);
+                }
+            });
+        
+        if (!foundFileType) {
+            // No ftyp box found, assume generic MP4
+            containerType = "MP4";
+        }
+        
+        if (!foundMovie) {
             return false;
+        }
+        
+        // Add tracks to stream manager
+        for (const auto& track : audioTracks) {
+            streamManager->AddAudioTrack(track);
         }
         
         // Calculate duration from audio tracks
@@ -491,5 +776,32 @@ uint64_t ISODemuxer::getDuration() const {
 
 uint64_t ISODemuxer::getPosition() const {
     return m_position_ms;
+}
+
+bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
+    return boxParser->ParseBoxRecursively(offset, size, 
+        [this](const BoxHeader& header, uint64_t boxOffset) {
+            switch (header.type) {
+                case BOX_MVHD:
+                    // Movie header - contains global timescale and duration
+                    return true; // Skip for now, will implement in later tasks
+                case BOX_TRAK:
+                    // Track box - parse for audio tracks
+                    {
+                        AudioTrackInfo track = {};
+                        if (boxParser->ParseTrackBox(header.dataOffset, 
+                                                   header.size - (header.dataOffset - boxOffset), 
+                                                   track)) {
+                            audioTracks.push_back(track);
+                        }
+                        return true;
+                    }
+                case BOX_UDTA:
+                    // User data - metadata (skip for now)
+                    return true;
+                default:
+                    return boxParser->SkipUnknownBox(header);
+            }
+        });
 }
 
