@@ -237,6 +237,9 @@ protected:
     uint64_t m_position_ms = 0;
     bool m_parsed = false;
     
+    // Additional state for concrete implementations
+    std::map<uint32_t, uint64_t> m_stream_positions; // Per-stream position tracking
+    
     /**
      * @brief Helper to read little-endian values
      */
@@ -288,6 +291,86 @@ protected:
      */
     uint32_t readFourCC() {
         return readLE<uint32_t>();
+    }
+    
+    /**
+     * @brief Helper to read a null-terminated string
+     * @param max_length Maximum length to read (safety limit)
+     */
+    std::string readString(size_t max_length = 256) {
+        std::string result;
+        result.reserve(max_length);
+        
+        char c;
+        while (result.length() < max_length && 
+               m_handler->read(&c, 1, 1) == 1 && c != '\0') {
+            result += c;
+        }
+        return result;
+    }
+    
+    /**
+     * @brief Helper to read a fixed-length string
+     * @param length Number of bytes to read
+     */
+    std::string readFixedString(size_t length) {
+        std::vector<char> buffer(length);
+        size_t bytes_read = m_handler->read(buffer.data(), 1, length);
+        return std::string(buffer.data(), bytes_read);
+    }
+    
+    /**
+     * @brief Helper to skip bytes in the stream
+     * @param count Number of bytes to skip
+     * @return true if successful
+     */
+    bool skipBytes(size_t count) {
+        return m_handler->seek(static_cast<long>(count), SEEK_CUR) == 0;
+    }
+    
+    /**
+     * @brief Helper to align to a specific boundary
+     * @param alignment Alignment boundary (e.g., 4 for 32-bit alignment)
+     * @return true if successful
+     */
+    bool alignTo(size_t alignment) {
+        off_t current_pos = m_handler->tell();
+        if (current_pos < 0) return false;
+        
+        size_t remainder = static_cast<size_t>(current_pos) % alignment;
+        if (remainder != 0) {
+            size_t padding = alignment - remainder;
+            return skipBytes(padding);
+        }
+        return true;
+    }
+    
+    /**
+     * @brief Helper to validate stream ID
+     * @param stream_id Stream ID to validate
+     * @return true if stream ID is valid
+     */
+    bool isValidStreamId(uint32_t stream_id) const {
+        for (const auto& stream : m_streams) {
+            if (stream.stream_id == stream_id) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * @brief Helper to find stream by ID
+     * @param stream_id Stream ID to find
+     * @return Pointer to StreamInfo or nullptr if not found
+     */
+    const StreamInfo* findStream(uint32_t stream_id) const {
+        for (const auto& stream : m_streams) {
+            if (stream.stream_id == stream_id) {
+                return &stream;
+            }
+        }
+        return nullptr;
     }
 };
 
