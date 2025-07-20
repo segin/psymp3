@@ -17,7 +17,7 @@ src/stderr.exe
 src/psymp3.exe
 src/psymp3
 
-vera.ttf
+/vera.ttf
 **/*~
 confdefs.h
 conftest.c
@@ -40,4 +40,3 @@ tmp/
 **/*.log
 include/config.h.in
 libs/util/Makefile
-res/vera.ttf
