@@ -6,20 +6,20 @@
   - Identify critical paths where Rect is used most frequently
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 2. Implement utility and edge access methods
-  - [ ] 2.1 Add edge coordinate methods (left, top, right, bottom)
+- [x] 2. Implement utility and edge access methods
+  - [x] 2.1 Add edge coordinate methods (left, top, right, bottom)
     - Implement `left()` and `top()` as aliases to existing `x()` and `y()`
     - Implement `right()` returning `x() + width()`
     - Implement `bottom()` returning `y() + height()`
     - _Requirements: 2.1, 2.2_
 
-  - [ ] 2.2 Add center point calculation methods
+  - [x] 2.2 Add center point calculation methods
     - Implement `centerX()` returning `x() + width() / 2`
     - Implement `centerY()` returning `y() + height() / 2`
     - Implement `center()` returning std::pair of center coordinates
     - _Requirements: 2.3_
 
-  - [ ] 2.3 Add area and validation methods
+  - [x] 2.3 Add area and validation methods
     - Implement `area()` returning `width() * height()`
     - Implement `isEmpty()` checking for zero width or height
     - Implement `isValid()` for comprehensive rectangle validation

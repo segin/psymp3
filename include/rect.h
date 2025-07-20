@@ -56,6 +56,11 @@ class Rect
         int16_t centerX() const;
         int16_t centerY() const;
         std::pair<int16_t, int16_t> center() const;
+        
+        // Area and validation methods
+        uint32_t area() const;
+        bool isEmpty() const;
+        bool isValid() const;
     protected:
     private:
         int16_t m_x;

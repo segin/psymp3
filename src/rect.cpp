@@ -183,3 +183,32 @@ std::pair<int16_t, int16_t> Rect::center() const
 {
     return std::make_pair(centerX(), centerY());
 }
+
+// Area and validation methods
+
+/**
+ * @brief Calculate the area of the rectangle
+ * @return The area (width * height)
+ */
+uint32_t Rect::area() const
+{
+    return static_cast<uint32_t>(m_width) * static_cast<uint32_t>(m_height);
+}
+
+/**
+ * @brief Check if the rectangle is empty (zero width or height)
+ * @return True if width or height is zero, false otherwise
+ */
+bool Rect::isEmpty() const
+{
+    return m_width == 0 || m_height == 0;
+}
+
+/**
+ * @brief Check if the rectangle is valid
+ * @return True if the rectangle has positive width and height, false otherwise
+ */
+bool Rect::isValid() const
+{
+    return m_width > 0 && m_height > 0;
+}
