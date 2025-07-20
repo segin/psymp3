@@ -2,21 +2,21 @@
 
 ## **Implementation Tasks**
 
-- [ ] 1. Create Base Demuxer Interface and Data Structures
+- [-] 1. Create Base Demuxer Interface and Data Structures
   - Implement Demuxer base class with pure virtual interface methods
   - Create StreamInfo and MediaChunk data structures with comprehensive fields
   - Add template helper methods for endianness handling (readLE, readBE, readFourCC)
   - Implement constructor accepting unique_ptr<IOHandler> parameter
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10_
 
-- [ ] 1.1 Define Core Data Structures
+- [x] 1.1 Define Core Data Structures
   - Create StreamInfo structure with all required fields for audio/video/subtitle streams
   - Implement MediaChunk structure with data, timing, and metadata fields
   - Add proper constructors, copy/move semantics, and validation methods
   - Ensure structures are efficiently copyable and memory-aligned
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10_
 
-- [ ] 1.2 Implement Base Demuxer Class
+- [-] 1.2 Implement Base Demuxer Class
   - Create Demuxer base class with pure virtual interface methods
   - Add protected member variables for common demuxer state
   - Implement template helper methods for endianness conversion
