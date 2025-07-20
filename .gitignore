@@ -44,3 +44,4 @@ tests/test_rect_containment
 tests/test_rect_intersection
 tests/test_rect_union
 tests/test_rect_area_validation
+tests/test_rect_transformation
