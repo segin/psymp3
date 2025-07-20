@@ -24,6 +24,9 @@
 #ifndef RECT_H
 #define RECT_H
 
+#include <utility> // For std::pair
+#include <cstdint> // For int16_t and uint16_t
+
 class Rect
 {
     public:
@@ -45,6 +48,11 @@ class Rect
         int16_t top() const { return m_y; };      // Alias to y()
         int16_t right() const { return m_x + m_width; };   // x() + width()
         int16_t bottom() const { return m_y + m_height; }; // y() + height()
+        
+        // Center point calculation methods
+        int16_t centerX() const { return m_x + m_width / 2; };
+        int16_t centerY() const { return m_y + m_height / 2; };
+        std::pair<int16_t, int16_t> center() const { return std::make_pair(centerX(), centerY()); };
     protected:
     private:
         int16_t m_x;
