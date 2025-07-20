@@ -85,14 +85,14 @@
     - Handle cases where rectangle is larger than container
     - _Requirements: 3.5_
 
-- [ ] 7. Implement modern C++ features
-  - [ ] 7.1 Add comparison operators
+- [x] 7. Implement modern C++ features
+  - [x] 7.1 Add comparison operators
     - Implement `operator==(const Rect& other)` comparing all member variables
     - Implement `operator!=(const Rect& other)` as negation of equality
     - Ensure operators follow standard C++ conventions
     - _Requirements: 5.2_
 
-  - [ ] 7.2 Add string representation and debugging support
+  - [x] 7.2 Add string representation and debugging support
     - Implement `toString()` method returning formatted string representation
     - Format as "Rect(x, y, width, height)" for clear debugging output
     - Include validation status in debug output when rectangle is invalid

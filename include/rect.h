@@ -26,6 +26,7 @@
 
 #include <utility> // For std::pair
 #include <cstdint> // For int16_t and uint16_t
+#include <string>  // For std::string
 
 class Rect
 {
@@ -96,6 +97,13 @@ class Rect
         // Centering operations
         void centerIn(const Rect& container);
         Rect centeredIn(const Rect& container) const;
+        
+        // Comparison operators
+        bool operator==(const Rect& other) const;
+        bool operator!=(const Rect& other) const;
+        
+        // String representation and debugging support
+        std::string toString() const;
     protected:
     private:
         int16_t m_x;

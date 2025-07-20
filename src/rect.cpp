@@ -23,6 +23,7 @@
 
 #include "psymp3.h"
 #include <algorithm> // For std::max and std::min
+#include <sstream>   // For std::ostringstream
 
 Rect::Rect()
 {
@@ -657,4 +658,52 @@ Rect Rect::centeredIn(const Rect& container) const
     Rect result(*this);
     result.centerIn(container);
     return result;
+}
+
+// Comparison operators
+
+/**
+ * @brief Compare two rectangles for equality
+ * @param other The rectangle to compare with
+ * @return True if all member variables are equal, false otherwise
+ */
+bool Rect::operator==(const Rect& other) const
+{
+    return m_x == other.m_x &&
+           m_y == other.m_y &&
+           m_width == other.m_width &&
+           m_height == other.m_height;
+}
+
+/**
+ * @brief Compare two rectangles for inequality
+ * @param other The rectangle to compare with
+ * @return True if any member variables are different, false otherwise
+ */
+bool Rect::operator!=(const Rect& other) const
+{
+    return !(*this == other);
+}
+
+// String representation and debugging support
+
+/**
+ * @brief Return a string representation of the rectangle
+ * @return A formatted string in the format "Rect(x, y, width, height)" with validation status
+ */
+std::string Rect::toString() const
+{
+    std::ostringstream oss;
+    oss << "Rect(" << m_x << ", " << m_y << ", " << m_width << ", " << m_height << ")";
+    
+    // Include validation status in debug output when rectangle is invalid
+    if (!isValid()) {
+        if (isEmpty()) {
+            oss << " [EMPTY]";
+        } else {
+            oss << " [INVALID]";
+        }
+    }
+    
+    return oss.str();
 }
