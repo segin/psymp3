@@ -70,8 +70,44 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::str
 }
 
 ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
+    if (!s_initialized) {
+        initializeDefaultFormats();
+    }
+    
+    ContentInfo best_match;
+    float best_confidence = 0.0f;
+    
+    // Start with extension-based detection (quick and often accurate)
+    auto ext_result = detectByExtension(uri);
+    if (ext_result.confidence > best_confidence) {
+        best_match = ext_result;
+        best_confidence = ext_result.confidence;
+    }
+    
+    // Try content analysis with IOHandler for more detailed detection
     auto handler = createIOHandler(uri);
-    return analyzeContent(handler);
+    auto content_result = analyzeContent(handler);
+    
+    // Combine results - prefer higher confidence, but merge metadata
+    if (content_result.confidence > best_confidence) {
+        best_match = content_result;
+        // Preserve extension info if we had it
+        if (!ext_result.file_extension.empty()) {
+            best_match.file_extension = ext_result.file_extension;
+        }
+    } else if (!best_match.detected_format.empty()) {
+        // Keep extension-based result but enhance with any metadata from content analysis
+        if (!content_result.mime_type.empty() && best_match.mime_type.empty()) {
+            best_match.mime_type = content_result.mime_type;
+        }
+        for (const auto& [key, value] : content_result.metadata) {
+            if (best_match.metadata.find(key) == best_match.metadata.end()) {
+                best_match.metadata[key] = value;
+            }
+        }
+    }
+    
+    return best_match;
 }
 
 ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
@@ -99,6 +135,15 @@ ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
         if (magic_result.confidence > best_confidence) {
             best_match = magic_result;
             best_confidence = magic_result.confidence;
+        }
+    }
+    
+    // Try advanced content analysis as fallback
+    if (best_confidence < 0.5f) {
+        auto content_result = detectByContentAnalysis(handler);
+        if (content_result.confidence > best_confidence) {
+            best_match = content_result;
+            best_confidence = content_result.confidence;
         }
     }
     
@@ -526,9 +571,108 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
 }
 
 ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& handler) {
-    // Placeholder for advanced content analysis
-    // This could include more sophisticated format detection
     ContentInfo info;
+    
+    if (!handler) return info;
+    
+    // Read a larger buffer for advanced analysis
+    uint8_t buffer[512];
+    long original_pos = handler->tell();
+    handler->seek(0, SEEK_SET);
+    size_t bytes_read = handler->read(buffer, 1, sizeof(buffer));
+    handler->seek(original_pos, SEEK_SET);
+    
+    if (bytes_read < 16) return info;
+    
+    // Advanced format detection based on content patterns
+    
+    // Check for ID3 tags (MP3 files)
+    if (bytes_read >= 10 && 
+        buffer[0] == 'I' && buffer[1] == 'D' && buffer[2] == '3') {
+        info.detected_format = "mpeg_audio";
+        info.confidence = 0.9f;
+        info.metadata["has_id3"] = "true";
+        return info;
+    }
+    
+    // Check for MPEG audio sync patterns
+    for (size_t i = 0; i < bytes_read - 1; i++) {
+        if ((buffer[i] == 0xFF) && ((buffer[i+1] & 0xE0) == 0xE0)) {
+            // Potential MPEG audio sync
+            info.detected_format = "mpeg_audio";
+            info.confidence = 0.7f;
+            info.metadata["sync_pattern_found"] = "true";
+            return info;
+        }
+    }
+    
+    // Check for Ogg stream patterns beyond just "OggS"
+    if (bytes_read >= 32) {
+        for (size_t i = 0; i < bytes_read - 4; i++) {
+            if (buffer[i] == 'O' && buffer[i+1] == 'g' && 
+                buffer[i+2] == 'g' && buffer[i+3] == 'S') {
+                // Look for codec signatures within Ogg
+                if (bytes_read >= i + 32) {
+                    // Check for Vorbis signature
+                    for (size_t j = i + 4; j < bytes_read - 6; j++) {
+                        if (buffer[j] == 'v' && buffer[j+1] == 'o' && buffer[j+2] == 'r' &&
+                            buffer[j+3] == 'b' && buffer[j+4] == 'i' && buffer[j+5] == 's') {
+                            info.detected_format = "ogg";
+                            info.confidence = 0.95f;
+                            info.metadata["ogg_codec"] = "vorbis";
+                            return info;
+                        }
+                        // Check for Opus signature
+                        if (buffer[j] == 'O' && buffer[j+1] == 'p' && buffer[j+2] == 'u' &&
+                            buffer[j+3] == 's' && buffer[j+4] == 'H' && buffer[j+5] == 'e' &&
+                            j + 7 < bytes_read && buffer[j+6] == 'a' && buffer[j+7] == 'd') {
+                            info.detected_format = "opus";
+                            info.confidence = 0.95f;
+                            info.metadata["ogg_codec"] = "opus";
+                            return info;
+                        }
+                    }
+                }
+                // Generic Ogg detection
+                info.detected_format = "ogg";
+                info.confidence = 0.8f;
+                return info;
+            }
+        }
+    }
+    
+    // Check for RIFF/WAVE with more detailed analysis
+    if (bytes_read >= 12 && 
+        buffer[0] == 'R' && buffer[1] == 'I' && buffer[2] == 'F' && buffer[3] == 'F' &&
+        buffer[8] == 'W' && buffer[9] == 'A' && buffer[10] == 'V' && buffer[11] == 'E') {
+        info.detected_format = "wave";
+        info.confidence = 0.95f;
+        info.metadata["container"] = "riff";
+        return info;
+    }
+    
+    // Check for AIFF with more detailed analysis
+    if (bytes_read >= 12 && 
+        buffer[0] == 'F' && buffer[1] == 'O' && buffer[2] == 'R' && buffer[3] == 'M' &&
+        buffer[8] == 'A' && buffer[9] == 'I' && buffer[10] == 'F' && buffer[11] == 'F') {
+        info.detected_format = "aiff";
+        info.confidence = 0.95f;
+        info.metadata["container"] = "iff";
+        return info;
+    }
+    
+    // Check for MP4/M4A with box analysis
+    if (bytes_read >= 8) {
+        for (size_t i = 0; i < bytes_read - 8; i++) {
+            if (buffer[i+4] == 'f' && buffer[i+5] == 't' && buffer[i+6] == 'y' && buffer[i+7] == 'p') {
+                info.detected_format = "mp4";
+                info.confidence = 0.9f;
+                info.metadata["container"] = "iso_base_media";
+                return info;
+            }
+        }
+    }
+    
     return info;
 }
 
