@@ -14,8 +14,8 @@ FB_PROGRAM_ICON ICON DISCARDABLE "psymp3.ico"
 FileIcon ICON DISCARDABLE "music.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 2,0,0,791
-PRODUCTVERSION 2,0,0,791
+FILEVERSION 2,0,0,792
+PRODUCTVERSION 2,0,0,792
 FILEOS 0x00040004
 FILETYPE 0x00000001
 BEGIN
@@ -26,7 +26,7 @@ BEGIN
       VALUE "Comments", "This is PsyMP3 version 2-CURRENT\0"
       VALUE "CompanyName", "Fuck corporations!\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
-      VALUE "FileVersion", "2, 0, 0, 791\0"
+      VALUE "FileVersion", "2, 0, 0, 792\0"
       VALUE "InternalName", "PsyMP3\0"
       VALUE "LegalCopyright", "GNU General Public License, version 2\0"
       VALUE "OriginalFilename", "psymp3.exe\0"
