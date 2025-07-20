@@ -4,47 +4,76 @@
  * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
  */
 
-#include "psymp3.h"
-#include <iostream>
-#include <cassert>
+/*
+ * @TEST_METADATA_BEGIN
+ * @TEST_NAME: Rectangle Modern C++ Features Tests
+ * @TEST_DESCRIPTION: Tests modern C++ features like operators and toString for Rect class
+ * @TEST_REQUIREMENTS: 6.1, 6.3, 6.6
+ * @TEST_AUTHOR: Kirn Gill <segin2005@gmail.com>
+ * @TEST_CREATED: 2025-01-19
+ * @TEST_TIMEOUT: 3000
+ * @TEST_PARALLEL_SAFE: true
+ * @TEST_DEPENDENCIES: rect.o
+ * @TEST_TAGS: rect, operators, toString, modern-cpp
+ * @TEST_METADATA_END
+ */
 
-int main()
-{
-    std::cout << "Testing Rect modern C++ features..." << std::endl;
-    
+#include "test_framework.h"
+#include "test_rect_utilities.h"
+#include "../include/rect.h"
+#include <iostream>
+#include <string>
+
+using namespace TestFramework;
+using namespace RectTestUtilities;
+
+void test_comparison_operators() {
     // Test comparison operators
-    Rect rect1(10, 20, 100, 200);
-    Rect rect2(10, 20, 100, 200);
+    Rect rect1 = TestRects::standard();
+    Rect rect2 = TestRects::standard();
     Rect rect3(15, 25, 100, 200);
     
     // Test equality operator
-    assert(rect1 == rect2);
-    assert(!(rect1 == rect3));
-    std::cout << "✓ Equality operator works correctly" << std::endl;
+    ASSERT_TRUE(rect1 == rect2, "Identical rectangles should be equal");
+    ASSERT_FALSE(rect1 == rect3, "Different rectangles should not be equal");
     
     // Test inequality operator
-    assert(!(rect1 != rect2));
-    assert(rect1 != rect3);
-    std::cout << "✓ Inequality operator works correctly" << std::endl;
-    
+    ASSERT_FALSE(rect1 != rect2, "Identical rectangles should not be unequal");
+    ASSERT_TRUE(rect1 != rect3, "Different rectangles should be unequal");
+}
+
+void test_toString_method() {
     // Test toString method
+    Rect rect1 = TestRects::standard();
     std::string str1 = rect1.toString();
-    std::string expected1 = "Rect(10, 20, 100, 200)";
-    assert(str1 == expected1);
-    std::cout << "✓ toString() for valid rectangle: " << str1 << std::endl;
+    std::string expected1 = "Rect(10, 20, 100, 50)";
+    ASSERT_EQUALS(str1, expected1, "toString() for valid rectangle");
     
     // Test toString with empty rectangle
-    Rect emptyRect(0, 0, 0, 100);
+    Rect emptyRect = TestRects::zeroWidth();
     std::string str2 = emptyRect.toString();
-    std::cout << "✓ toString() for empty rectangle: " << str2 << std::endl;
-    assert(str2.find("[EMPTY]") != std::string::npos);
+    ASSERT_TRUE(str2.find("[EMPTY]") != std::string::npos, "toString() should indicate empty rectangle");
     
     // Test toString with invalid rectangle (zero height)
-    Rect invalidRect(10, 10, 100, 0);
+    Rect invalidRect = TestRects::zeroHeight();
     std::string str3 = invalidRect.toString();
-    std::cout << "✓ toString() for invalid rectangle: " << str3 << std::endl;
-    assert(str3.find("[EMPTY]") != std::string::npos);
+    ASSERT_TRUE(str3.find("[EMPTY]") != std::string::npos, "toString() should indicate invalid rectangle");
+}
+
+int main() {
+    // Create test suite
+    TestSuite suite("Rectangle Modern C++ Features Tests");
     
-    std::cout << "All modern C++ feature tests passed!" << std::endl;
-    return 0;
+    // Add test functions
+    suite.addTest("Comparison Operators", test_comparison_operators);
+    suite.addTest("toString Method", test_toString_method);
+    
+    // Run all tests
+    auto results = suite.runAll();
+    
+    // Print comprehensive results
+    suite.printResults(results);
+    
+    // Return appropriate exit code
+    return (suite.getFailureCount(results) == 0) ? 0 : 1;
 }

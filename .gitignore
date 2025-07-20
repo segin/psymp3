@@ -13,7 +13,7 @@ Makefile
 Makefile.in
 missing
 src/stdout.txt
-src/stderr.exe
+src/stderr.txt
 src/psymp3.exe
 src/psymp3
 
@@ -49,8 +49,13 @@ tests/test_rect_centering
 tests/test_rect_centering_overflow
 test_centering_simple
 tests/test_rect_normalization
+tests/test_rect_expansion
+tests/test_rect_modern_cpp
 
 # Test harness build artifacts
 tests/test-harness
 tests/.deps/**
+**/.deps/**
 **/*.Po
+**/*.a
+tests/test_rect_modern_cpp

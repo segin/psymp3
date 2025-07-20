@@ -7,271 +7,167 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include <cassert>
-#include <iostream>
+/*
+ * @TEST_METADATA_BEGIN
+ * @TEST_NAME: Rectangle Union Tests
+ * @TEST_DESCRIPTION: Tests union calculation methods for Rect class
+ * @TEST_REQUIREMENTS: 6.1, 6.3, 6.6
+ * @TEST_AUTHOR: Kirn Gill <segin2005@gmail.com>
+ * @TEST_CREATED: 2025-01-19
+ * @TEST_TIMEOUT: 3000
+ * @TEST_PARALLEL_SAFE: true
+ * @TEST_DEPENDENCIES: rect.o
+ * @TEST_TAGS: rect, union, bounding, geometry
+ * @TEST_METADATA_END
+ */
+
+#include "test_framework.h"
+#include "test_rect_utilities.h"
 #include "../include/rect.h"
+#include <iostream>
+
+using namespace TestFramework;
+using namespace RectTestUtilities;
 
 void test_union_basic() {
-    std::cout << "Testing basic rectangle union..." << std::endl;
-    
     // Test union of overlapping rectangles
     Rect rect1(0, 0, 20, 20);
     Rect rect2(10, 10, 20, 20);
-    Rect result = rect1.united(rect2);
-    
-    assert(result.x() == 0);
-    assert(result.y() == 0);
-    assert(result.width() == 30);
-    assert(result.height() == 30);
-    
-    // Test symmetric union
-    Rect result2 = rect2.united(rect1);
-    assert(result.x() == result2.x());
-    assert(result.y() == result2.y());
-    assert(result.width() == result2.width());
-    assert(result.height() == result2.height());
+    Rect expected_union(0, 0, 30, 30);
+    testUnionPatterns(rect1, rect2, expected_union, "Overlapping rectangles union");
     
     // Test union of non-overlapping rectangles
     Rect rect3(0, 0, 10, 10);
     Rect rect4(20, 20, 10, 10);
-    Rect result3 = rect3.united(rect4);
-    
-    assert(result3.x() == 0);
-    assert(result3.y() == 0);
-    assert(result3.width() == 30);
-    assert(result3.height() == 30);
+    Rect expected_union2(0, 0, 30, 30);
+    testUnionPatterns(rect3, rect4, expected_union2, "Non-overlapping rectangles union");
     
     // Test union of identical rectangles
     Rect rect5(5, 5, 15, 15);
     Rect rect6(5, 5, 15, 15);
-    Rect result4 = rect5.united(rect6);
-    
-    assert(result4.x() == 5);
-    assert(result4.y() == 5);
-    assert(result4.width() == 15);
-    assert(result4.height() == 15);
-    
-    std::cout << "Basic union tests passed!" << std::endl;
+    testUnionPatterns(rect5, rect6, rect5, "Identical rectangles union");
 }
 
 void test_union_containment() {
-    std::cout << "Testing union with containment scenarios..." << std::endl;
-    
     // Test union where one rectangle contains the other
-    Rect outer(0, 0, 100, 100);
+    Rect outer = TestRects::container();
     Rect inner(10, 10, 20, 20);
     
-    Rect result1 = outer.united(inner);
-    assert(result1.x() == 0);
-    assert(result1.y() == 0);
-    assert(result1.width() == 100);
-    assert(result1.height() == 100);
-    
-    Rect result2 = inner.united(outer);
-    assert(result2.x() == 0);
-    assert(result2.y() == 0);
-    assert(result2.width() == 100);
-    assert(result2.height() == 100);
-    
-    std::cout << "Union containment tests passed!" << std::endl;
+    testUnionPatterns(outer, inner, outer, "Container union with inner rectangle");
 }
 
 void test_union_with_empty_rectangles() {
-    std::cout << "Testing union with empty rectangles..." << std::endl;
-    
-    Rect normal(10, 10, 20, 20);
-    Rect empty1(0, 10);     // Zero width
-    Rect empty2(10, 0);     // Zero height
-    Rect empty3(0, 0);      // Zero width and height
+    Rect normal = TestRects::standard();
+    Rect empty1 = TestRects::zeroWidth();
+    Rect empty2 = TestRects::zeroHeight();
+    Rect empty3 = TestRects::empty();
     
     // Union with empty rectangle should return the non-empty rectangle
-    Rect result1 = normal.united(empty1);
-    assert(result1.x() == normal.x());
-    assert(result1.y() == normal.y());
-    assert(result1.width() == normal.width());
-    assert(result1.height() == normal.height());
-    
-    Rect result2 = normal.united(empty2);
-    assert(result2.x() == normal.x());
-    assert(result2.y() == normal.y());
-    assert(result2.width() == normal.width());
-    assert(result2.height() == normal.height());
-    
-    Rect result3 = normal.united(empty3);
-    assert(result3.x() == normal.x());
-    assert(result3.y() == normal.y());
-    assert(result3.width() == normal.width());
-    assert(result3.height() == normal.height());
-    
-    // Symmetric test
-    Rect result4 = empty1.united(normal);
-    assert(result4.x() == normal.x());
-    assert(result4.y() == normal.y());
-    assert(result4.width() == normal.width());
-    assert(result4.height() == normal.height());
+    testUnionPatterns(normal, empty1, normal, "Normal union with zero width");
+    testUnionPatterns(normal, empty2, normal, "Normal union with zero height");
+    testUnionPatterns(normal, empty3, normal, "Normal union with empty");
     
     // Union of two empty rectangles should return empty
-    Rect result5 = empty1.united(empty2);
-    assert(result5.isEmpty());
-    
-    Rect result6 = empty3.united(empty3);
-    assert(result6.isEmpty());
-    
-    std::cout << "Empty rectangle union tests passed!" << std::endl;
+    testUnionPatterns(empty1, empty2, TestRects::empty(), "Zero width union with zero height");
+    testUnionPatterns(empty3, empty3, TestRects::empty(), "Empty union with empty");
 }
 
 void test_union_various_positions() {
-    std::cout << "Testing union with various rectangle positions..." << std::endl;
-    
     Rect base(10, 10, 10, 10);  // Rectangle from (10,10) to (20,20)
     
     // Union with rectangle to the left
     Rect left(0, 10, 10, 10);   // (0,10) to (10,20)
-    Rect left_result = base.united(left);
-    assert(left_result.x() == 0);
-    assert(left_result.y() == 10);
-    assert(left_result.width() == 20);
-    assert(left_result.height() == 10);
+    Rect expected_left(0, 10, 20, 10);
+    testUnionPatterns(base, left, expected_left, "Union with left rectangle");
     
     // Union with rectangle to the right
     Rect right(20, 10, 10, 10); // (20,10) to (30,20)
-    Rect right_result = base.united(right);
-    assert(right_result.x() == 10);
-    assert(right_result.y() == 10);
-    assert(right_result.width() == 20);
-    assert(right_result.height() == 10);
+    Rect expected_right(10, 10, 20, 10);
+    testUnionPatterns(base, right, expected_right, "Union with right rectangle");
     
     // Union with rectangle above
     Rect above(10, 0, 10, 10);  // (10,0) to (20,10)
-    Rect above_result = base.united(above);
-    assert(above_result.x() == 10);
-    assert(above_result.y() == 0);
-    assert(above_result.width() == 10);
-    assert(above_result.height() == 20);
+    Rect expected_above(10, 0, 10, 20);
+    testUnionPatterns(base, above, expected_above, "Union with above rectangle");
     
     // Union with rectangle below
     Rect below(10, 20, 10, 10); // (10,20) to (20,30)
-    Rect below_result = base.united(below);
-    assert(below_result.x() == 10);
-    assert(below_result.y() == 10);
-    assert(below_result.width() == 10);
-    assert(below_result.height() == 20);
+    Rect expected_below(10, 10, 10, 20);
+    testUnionPatterns(base, below, expected_below, "Union with below rectangle");
     
     // Union with diagonal rectangle
     Rect diagonal(0, 0, 5, 5);  // (0,0) to (5,5)
-    Rect diag_result = base.united(diagonal);
-    assert(diag_result.x() == 0);
-    assert(diag_result.y() == 0);
-    assert(diag_result.width() == 20);
-    assert(diag_result.height() == 20);
-    
-    std::cout << "Various position union tests passed!" << std::endl;
+    Rect expected_diagonal(0, 0, 20, 20);
+    testUnionPatterns(base, diagonal, expected_diagonal, "Union with diagonal rectangle");
 }
 
 void test_union_negative_coordinates() {
-    std::cout << "Testing union with negative coordinates..." << std::endl;
-    
     // Test union with negative coordinates
     Rect pos(10, 10, 10, 10);   // (10,10) to (20,20)
-    Rect neg(-10, -10, 10, 10); // (-10,-10) to (0,0)
+    Rect neg = TestRects::withNegativeCoords(); // (-10,-10) to (10,10)
     
-    Rect result = pos.united(neg);
-    assert(result.x() == -10);
-    assert(result.y() == -10);
-    assert(result.width() == 30);
-    assert(result.height() == 30);
+    Rect expected_result(-10, -10, 30, 30);
+    testUnionPatterns(pos, neg, expected_result, "Union with negative coordinates");
     
     // Test union spanning across zero
     Rect span1(-5, -5, 10, 10); // (-5,-5) to (5,5)
     Rect span2(5, 5, 10, 10);   // (5,5) to (15,15)
     
-    Rect span_result = span1.united(span2);
-    assert(span_result.x() == -5);
-    assert(span_result.y() == -5);
-    assert(span_result.width() == 20);
-    assert(span_result.height() == 20);
-    
-    std::cout << "Negative coordinate union tests passed!" << std::endl;
+    Rect expected_span(-5, -5, 20, 20);
+    testUnionPatterns(span1, span2, expected_span, "Union spanning across zero");
 }
 
 void test_union_overflow_handling() {
-    std::cout << "Testing union coordinate overflow handling..." << std::endl;
-    
     // Test potential overflow scenarios
-    // Create rectangles that when united might cause width/height overflow
-    Rect rect1(0, 0, 32767, 32767);        // Large rectangle from (0,0) to (32767,32767)
-    Rect rect2(32767, 32767, 32767, 32767); // Another large rectangle from (32767,32767) to (65534,65534)
+    Rect rect1(0, 0, 32767, 32767);        // Large rectangle
+    Rect rect2(32767, 32767, 32767, 32767); // Another large rectangle
     
-    Rect result = rect1.united(rect2);
+    Rect expected_result(0, 0, 65534, 65534);
+    testUnionPatterns(rect1, rect2, expected_result, "Union with potential overflow");
     
-    // The result should handle overflow gracefully
-    assert(result.x() == 0);
-    assert(result.y() == 0);
-    // The union spans from (0,0) to (65534,65534), so width and height should be 65534
-    assert(result.width() == 65534);
-    assert(result.height() == 65534);
+    // Test with maximum values that would cause overflow
+    Rect max1(-10000, -10000, 65535, 65535);
+    Rect max2(10000, 10000, 65535, 65535);
     
-    // Test with maximum uint16_t values that would cause overflow in calculation
-    // We need to be careful with uint16_t limits (0-65535)
-    Rect max1(-10000, -10000, 65535, 65535);  // Large rectangle at negative position
-    Rect max2(10000, 10000, 65535, 65535);    // Large rectangle at positive position
-    
-    Rect max_result = max1.united(max2);
-    assert(max_result.x() == -10000);
-    assert(max_result.y() == -10000);
-    // The calculation would be: right = max(55535, 75535) = 75535, left = -10000
-    // So width = 75535 - (-10000) = 85535, which should be clamped to 65535
-    assert(max_result.width() == 65535);  // Should be clamped due to overflow
-    assert(max_result.height() == 65535); // Should be clamped due to overflow
-    
-    std::cout << "Overflow handling tests passed!" << std::endl;
+    Rect expected_max(-10000, -10000, 65535, 65535);  // Should be clamped
+    testUnionPatterns(max1, max2, expected_max, "Union with overflow clamping");
 }
 
 void test_union_single_pixel() {
-    std::cout << "Testing union with single pixel rectangles..." << std::endl;
-    
     // Test union of single pixel rectangles
     Rect pixel1(10, 10, 1, 1);
     Rect pixel2(12, 12, 1, 1);
     
-    Rect result = pixel1.united(pixel2);
-    assert(result.x() == 10);
-    assert(result.y() == 10);
-    assert(result.width() == 3);
-    assert(result.height() == 3);
+    Rect expected_result(10, 10, 3, 3);
+    testUnionPatterns(pixel1, pixel2, expected_result, "Union of single pixels");
     
     // Test union of single pixel with larger rectangle
     Rect large(0, 0, 20, 20);
     Rect pixel(25, 25, 1, 1);
     
-    Rect result2 = large.united(pixel);
-    assert(result2.x() == 0);
-    assert(result2.y() == 0);
-    assert(result2.width() == 26);
-    assert(result2.height() == 26);
-    
-    std::cout << "Single pixel union tests passed!" << std::endl;
+    Rect expected_large(0, 0, 26, 26);
+    testUnionPatterns(large, pixel, expected_large, "Union of large rectangle with single pixel");
 }
 
 int main() {
-    std::cout << "Running Rect union method tests..." << std::endl;
+    // Create test suite
+    TestSuite suite("Rectangle Union Tests");
     
-    try {
-        test_union_basic();
-        test_union_containment();
-        test_union_with_empty_rectangles();
-        test_union_various_positions();
-        test_union_negative_coordinates();
-        test_union_overflow_handling();
-        test_union_single_pixel();
-        
-        std::cout << "All union tests passed successfully!" << std::endl;
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
-        std::cerr << "Test failed with unknown exception" << std::endl;
-        return 1;
-    }
+    // Add test functions
+    suite.addTest("Basic Union", test_union_basic);
+    suite.addTest("Union with Containment", test_union_containment);
+    suite.addTest("Union with Empty Rectangles", test_union_with_empty_rectangles);
+    suite.addTest("Union with Various Positions", test_union_various_positions);
+    suite.addTest("Union with Negative Coordinates", test_union_negative_coordinates);
+    suite.addTest("Union Overflow Handling", test_union_overflow_handling);
+    suite.addTest("Union with Single Pixel", test_union_single_pixel);
+    
+    // Run all tests
+    auto results = suite.runAll();
+    
+    // Print comprehensive results
+    suite.printResults(results);
+    
+    // Return appropriate exit code
+    return (suite.getFailureCount(results) == 0) ? 0 : 1;
 }

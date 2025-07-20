@@ -7,156 +7,162 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#include <cassert>
+/*
+ * @TEST_METADATA_BEGIN
+ * @TEST_NAME: Rectangle Area Validation Tests
+ * @TEST_DESCRIPTION: Tests area calculation, isEmpty, and isValid methods for Rect class
+ * @TEST_REQUIREMENTS: 6.1, 6.3, 6.6
+ * @TEST_AUTHOR: Kirn Gill <segin2005@gmail.com>
+ * @TEST_CREATED: 2025-01-19
+ * @TEST_TIMEOUT: 3000
+ * @TEST_PARALLEL_SAFE: true
+ * @TEST_DEPENDENCIES: rect.o
+ * @TEST_TAGS: rect, area, validation, basic
+ * @TEST_METADATA_END
+ */
+
+#include "test_framework.h"
+#include "test_rect_utilities.h"
+#include "../include/rect.h"
 #include <iostream>
 #include <limits>
-#include "../include/rect.h"
+
+using namespace TestFramework;
+using namespace RectTestUtilities;
 
 void test_area_calculation() {
-    std::cout << "Testing area calculation..." << std::endl;
-    
     // Test basic area calculation
     Rect rect1(10, 20);
-    assert(rect1.area() == 200);
+    assertRectArea(rect1, 200, "Basic area calculation");
     
     // Test area with position (position shouldn't affect area)
     Rect rect2(5, 5, 10, 20);
-    assert(rect2.area() == 200);
+    assertRectArea(rect2, 200, "Area calculation with position");
     
     // Test zero area cases
     Rect rect3(0, 10);
-    assert(rect3.area() == 0);
+    assertRectArea(rect3, 0, "Zero width area");
     
     Rect rect4(10, 0);
-    assert(rect4.area() == 0);
+    assertRectArea(rect4, 0, "Zero height area");
     
     Rect rect5(0, 0);
-    assert(rect5.area() == 0);
+    assertRectArea(rect5, 0, "Zero width and height area");
     
     // Test single pixel rectangle
     Rect rect6(1, 1);
-    assert(rect6.area() == 1);
+    assertRectArea(rect6, 1, "Single pixel area");
     
     // Test large area calculation (potential overflow handling)
     Rect rect7(65535, 65535);  // Max uint16_t values
     uint32_t expected_area = static_cast<uint32_t>(65535) * static_cast<uint32_t>(65535);
-    assert(rect7.area() == expected_area);
-    
-    std::cout << "Area calculation tests passed!" << std::endl;
+    assertRectArea(rect7, expected_area, "Large area calculation");
 }
 
 void test_isEmpty() {
-    std::cout << "Testing isEmpty method..." << std::endl;
-    
     // Test non-empty rectangle
     Rect rect1(10, 20);
-    assert(!rect1.isEmpty());
+    assertRectNotEmpty(rect1, "Non-empty rectangle");
     
     // Test rectangle with zero width
     Rect rect2(0, 20);
-    assert(rect2.isEmpty());
+    assertRectEmpty(rect2, "Zero width rectangle");
     
     // Test rectangle with zero height
     Rect rect3(10, 0);
-    assert(rect3.isEmpty());
+    assertRectEmpty(rect3, "Zero height rectangle");
     
     // Test rectangle with both zero
     Rect rect4(0, 0);
-    assert(rect4.isEmpty());
+    assertRectEmpty(rect4, "Zero width and height rectangle");
     
     // Test single pixel rectangle (not empty)
     Rect rect5(1, 1);
-    assert(!rect5.isEmpty());
+    assertRectNotEmpty(rect5, "Single pixel rectangle");
     
     // Test with position (position shouldn't affect emptiness)
     Rect rect6(-10, -10, 0, 20);
-    assert(rect6.isEmpty());
+    assertRectEmpty(rect6, "Zero width with negative position");
     
     Rect rect7(-10, -10, 20, 0);
-    assert(rect7.isEmpty());
+    assertRectEmpty(rect7, "Zero height with negative position");
     
     Rect rect8(-10, -10, 20, 20);
-    assert(!rect8.isEmpty());
-    
-    std::cout << "isEmpty tests passed!" << std::endl;
+    assertRectNotEmpty(rect8, "Non-empty with negative position");
 }
 
 void test_isValid() {
-    std::cout << "Testing isValid method..." << std::endl;
-    
     // Test valid rectangle
     Rect rect1(10, 20);
-    assert(rect1.isValid());
+    assertRectValid(rect1, "Valid rectangle");
     
     // Test invalid rectangle with zero width
     Rect rect2(0, 20);
-    assert(!rect2.isValid());
+    assertRectInvalid(rect2, "Invalid zero width rectangle");
     
     // Test invalid rectangle with zero height
     Rect rect3(10, 0);
-    assert(!rect3.isValid());
+    assertRectInvalid(rect3, "Invalid zero height rectangle");
     
     // Test invalid rectangle with both zero
     Rect rect4(0, 0);
-    assert(!rect4.isValid());
+    assertRectInvalid(rect4, "Invalid zero width and height rectangle");
     
     // Test single pixel rectangle (valid)
     Rect rect5(1, 1);
-    assert(rect5.isValid());
+    assertRectValid(rect5, "Valid single pixel rectangle");
     
     // Test with position (position shouldn't affect validity)
     Rect rect6(-10, -10, 0, 20);
-    assert(!rect6.isValid());
+    assertRectInvalid(rect6, "Invalid zero width with negative position");
     
     Rect rect7(-10, -10, 20, 0);
-    assert(!rect7.isValid());
+    assertRectInvalid(rect7, "Invalid zero height with negative position");
     
     Rect rect8(-10, -10, 20, 20);
-    assert(rect8.isValid());
+    assertRectValid(rect8, "Valid rectangle with negative position");
     
     // Test maximum valid rectangle
     Rect rect9(65535, 65535);
-    assert(rect9.isValid());
-    
-    std::cout << "isValid tests passed!" << std::endl;
+    assertRectValid(rect9, "Maximum valid rectangle");
 }
 
 void test_consistency_between_isEmpty_and_isValid() {
-    std::cout << "Testing consistency between isEmpty and isValid..." << std::endl;
-    
     // For rectangles with positive dimensions, isEmpty and isValid should be opposites
     Rect rect1(10, 20);
-    assert(!rect1.isEmpty() && rect1.isValid());
+    assertRectNotEmpty(rect1, "Positive dimensions should not be empty");
+    assertRectValid(rect1, "Positive dimensions should be valid");
     
     // For rectangles with zero width or height, both should indicate problems
     Rect rect2(0, 20);
-    assert(rect2.isEmpty() && !rect2.isValid());
+    assertRectEmpty(rect2, "Zero width should be empty");
+    assertRectInvalid(rect2, "Zero width should be invalid");
     
     Rect rect3(10, 0);
-    assert(rect3.isEmpty() && !rect3.isValid());
+    assertRectEmpty(rect3, "Zero height should be empty");
+    assertRectInvalid(rect3, "Zero height should be invalid");
     
     Rect rect4(0, 0);
-    assert(rect4.isEmpty() && !rect4.isValid());
-    
-    std::cout << "Consistency tests passed!" << std::endl;
+    assertRectEmpty(rect4, "Zero dimensions should be empty");
+    assertRectInvalid(rect4, "Zero dimensions should be invalid");
 }
 
 int main() {
-    std::cout << "Running Rect area and validation method tests..." << std::endl;
+    // Create test suite
+    TestSuite suite("Rectangle Area and Validation Tests");
     
-    try {
-        test_area_calculation();
-        test_isEmpty();
-        test_isValid();
-        test_consistency_between_isEmpty_and_isValid();
-        
-        std::cout << "All tests passed successfully!" << std::endl;
-        return 0;
-    } catch (const std::exception& e) {
-        std::cerr << "Test failed with exception: " << e.what() << std::endl;
-        return 1;
-    } catch (...) {
-        std::cerr << "Test failed with unknown exception" << std::endl;
-        return 1;
-    }
+    // Add test functions
+    suite.addTest("Area Calculation", test_area_calculation);
+    suite.addTest("isEmpty Method", test_isEmpty);
+    suite.addTest("isValid Method", test_isValid);
+    suite.addTest("isEmpty/isValid Consistency", test_consistency_between_isEmpty_and_isValid);
+    
+    // Run all tests
+    auto results = suite.runAll();
+    
+    // Print comprehensive results
+    suite.printResults(results);
+    
+    // Return appropriate exit code
+    return (suite.getFailureCount(results) == 0) ? 0 : 1;
 }

@@ -49,22 +49,22 @@
   - Implement performance metrics and timing collection
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 5.6, 7.1, 7.2_
 
-- [ ] 4. Refactor existing tests to use new framework
-- [ ] 4.1 Extract common test utilities from existing tests
+- [x] 4. Refactor existing tests to use new framework
+- [x] 4.1 Extract common test utilities from existing tests
   - Identify common patterns in current test files
   - Create shared helper functions for Rect testing
   - Standardize assertion patterns across all tests
   - Add test metadata annotations to existing test files
   - _Requirements: 6.2, 6.4, 6.6, 6.7_
 
-- [ ] 4.2 Refactor Rect test files to use new framework
+- [x] 4.2 Refactor Rect test files to use new framework
   - Update test_rect_area_validation.cpp to use TestFramework classes
   - Refactor test_rect_containment.cpp with standardized assertions
   - Update test_rect_intersection.cpp and test_rect_union.cpp
   - Ensure all refactored tests maintain existing coverage
   - _Requirements: 6.1, 6.3, 6.6_
 
-- [ ] 4.3 Update remaining test files
+- [x] 4.3 Update remaining test files
   - Refactor test_rect_centering.cpp and related overflow tests
   - Update test_rect_expansion.cpp and test_rect_transformation.cpp
   - Refactor test_rect_normalization.cpp and test_rect_modern_cpp.cpp

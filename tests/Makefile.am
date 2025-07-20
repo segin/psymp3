@@ -21,12 +21,17 @@ SUBDIRS = .
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS)
 AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS)
 
+# Common test utilities library
+noinst_LIBRARIES = libtest_utilities.a
+libtest_utilities_a_SOURCES = test_framework.cpp test_rect_utilities.cpp
+libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
+
 # Test harness executable
 if BUILD_TEST_HARNESS
 bin_PROGRAMS = test-harness
-test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_framework.cpp test_reporter.cpp
+test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
-test_harness_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 endif
 
 # Individual test executables
@@ -44,34 +49,34 @@ check_PROGRAMS = \
 
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
-test_rect_area_validation_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_containment_SOURCES = test_rect_containment.cpp
-test_rect_containment_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_containment_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_intersection_SOURCES = test_rect_intersection.cpp
-test_rect_intersection_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_intersection_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_union_SOURCES = test_rect_union.cpp
-test_rect_union_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_union_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_centering_SOURCES = test_rect_centering.cpp
-test_rect_centering_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_centering_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_centering_overflow_SOURCES = test_rect_centering_overflow.cpp
-test_rect_centering_overflow_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_centering_overflow_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_expansion_SOURCES = test_rect_expansion.cpp
-test_rect_expansion_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_expansion_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_transformation_SOURCES = test_rect_transformation.cpp
-test_rect_transformation_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_transformation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_normalization_SOURCES = test_rect_normalization.cpp
-test_rect_normalization_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_normalization_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_rect_modern_cpp_SOURCES = test_rect_modern_cpp.cpp
-test_rect_modern_cpp_LDADD = $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+test_rect_modern_cpp_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 # Test execution target
 check-local: $(check_PROGRAMS)
