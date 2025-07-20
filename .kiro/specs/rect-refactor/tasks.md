@@ -25,7 +25,7 @@
     - Implement `isValid()` for comprehensive rectangle validation
     - _Requirements: 2.5, 2.6, 7.1_
 
-- [ ] 3. Implement geometric operation methods
+- [-] 3. Implement geometric operation methods
   - [ ] 3.1 Add point and rectangle containment methods
     - Implement `contains(int16_t x, int16_t y)` for point-in-rectangle testing
     - Implement `contains(const Rect& other)` for rectangle containment
