@@ -21,12 +21,23 @@
 - `autogen.sh` exists as a symbolic link to `generate-configure.sh` for familiarity
 - Always run `./generate-configure.sh` after modifying `configure.ac` or `Makefile.am` files
 
+### Compilation Rules
+- **NEVER invoke `gcc` or `g++` directly** when rebuilding changed files in the `src/` directory
+- **Use Make**: Always use `make -C src File.o` to rebuild individual object files
+- If already in the `src/` directory, use `make File.o` (omit the `-C src` portion)
+- This ensures proper dependency tracking and build consistency
+
 ## Version Control
 
 ### Git Best Practices
 - **Build Artifacts**: Always put build artifacts in `.gitignore`
 - **CRITICAL**: NEVER USE `git add .` EVER! Always add files explicitly
 - Use specific file paths when adding to git to avoid accidentally committing unwanted files
+
+### Git Workflow for Tasks
+- **Task Completion**: Always perform a `git commit` and `git push` when done with each task or subtask
+- **Include Task Files**: Make sure to include the `tasks.md` file for whatever task list is being currently worked on
+- This ensures progress is tracked and shared consistently
 
 ## Testing
 
