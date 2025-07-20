@@ -229,6 +229,10 @@ public:
     bool ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType);
     bool ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
     
+    // Codec-specific configuration parsing
+    bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    
     uint32_t ReadUInt32BE(uint64_t offset);
     uint64_t ReadUInt64BE(uint64_t offset);
     std::string BoxTypeToString(uint32_t boxType);

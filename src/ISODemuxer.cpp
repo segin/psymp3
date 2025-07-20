@@ -328,44 +328,70 @@ bool BoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& co
 
 bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio) {
     std::string handlerType;
+    bool handlerParsed = false;
     
-    return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType](const BoxHeader& header, uint64_t boxOffset) {
+    return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType, &handlerParsed](const BoxHeader& header, uint64_t boxOffset) {
         switch (header.type) {
             case BOX_MDHD:
                 // Media header - contains timescale and duration
                 if (header.size >= 32) {
-                    // Skip version/flags (4 bytes) and creation/modification times (8 bytes each)
-                    track.timescale = ReadUInt32BE(header.dataOffset + 20);
-                    track.duration = ReadUInt32BE(header.dataOffset + 24);
+                    // Read version to determine header format
+                    uint8_t version = 0;
+                    io->seek(header.dataOffset, SEEK_SET);
+                    if (io->read(&version, 1, 1) == 1) {
+                        if (version == 1) {
+                            // Version 1 - 64-bit times
+                            if (header.size >= 44) {
+                                track.timescale = ReadUInt32BE(header.dataOffset + 28);
+                                track.duration = ReadUInt64BE(header.dataOffset + 32);
+                            }
+                        } else {
+                            // Version 0 - 32-bit times
+                            track.timescale = ReadUInt32BE(header.dataOffset + 20);
+                            track.duration = ReadUInt32BE(header.dataOffset + 24);
+                        }
+                    }
                 }
                 return true;
             case BOX_HDLR:
                 // Handler reference - identifies track type
-                return ParseHandlerBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), handlerType);
+                handlerParsed = ParseHandlerBox(header.dataOffset, header.size - (header.dataOffset - boxOffset), handlerType);
+                return handlerParsed;
             case BOX_MINF:
-                // Media information - contains sample table for audio tracks
-                if (handlerType == "soun") {
+                // Media information - only process if this is an audio track
+                if (handlerParsed && handlerType == "soun") {
                     foundAudio = true;
                     return ParseBoxRecursively(header.dataOffset, header.size - (header.dataOffset - boxOffset),
                         [this, &track](const BoxHeader& minfHeader, uint64_t minfOffset) {
-                            if (minfHeader.type == BOX_STBL) {
-                                // Sample table box - parse for codec information
-                                return ParseBoxRecursively(minfHeader.dataOffset, 
-                                                          minfHeader.size - (minfHeader.dataOffset - minfOffset),
-                                    [this, &track](const BoxHeader& stblHeader, uint64_t stblOffset) {
-                                        if (stblHeader.type == BOX_STSD) {
-                                            // Sample description - contains codec information
-                                            return ParseSampleDescriptionBox(stblHeader.dataOffset,
-                                                                            stblHeader.size - (stblHeader.dataOffset - stblOffset),
-                                                                            track);
-                                        }
-                                        return SkipUnknownBox(stblHeader);
-                                    });
+                            switch (minfHeader.type) {
+                                case BOX_SMHD:
+                                    // Sound media header - confirms this is audio
+                                    return true;
+                                case BOX_DINF:
+                                    // Data information - skip for now
+                                    return true;
+                                case BOX_STBL:
+                                    // Sample table box - parse for codec information
+                                    return ParseBoxRecursively(minfHeader.dataOffset, 
+                                                              minfHeader.size - (minfHeader.dataOffset - minfOffset),
+                                        [this, &track](const BoxHeader& stblHeader, uint64_t stblOffset) {
+                                            if (stblHeader.type == BOX_STSD) {
+                                                // Sample description - contains codec information
+                                                return ParseSampleDescriptionBox(stblHeader.dataOffset,
+                                                                                stblHeader.size - (stblHeader.dataOffset - stblOffset),
+                                                                                track);
+                                            }
+                                            // Skip other sample table boxes for now (will be implemented in later tasks)
+                                            return SkipUnknownBox(stblHeader);
+                                        });
+                                default:
+                                    return SkipUnknownBox(minfHeader);
                             }
-                            return SkipUnknownBox(minfHeader);
                         });
+                } else {
+                    // Not an audio track, skip
+                    return SkipUnknownBox(header);
                 }
-                return SkipUnknownBox(header);
             default:
                 return SkipUnknownBox(header);
         }
@@ -377,24 +403,48 @@ bool BoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::string& han
         return false;
     }
     
+    // Read version/flags to ensure proper parsing (currently not used but reserved for future)
+    // uint32_t versionFlags = ReadUInt32BE(offset);
+    // uint8_t version = (versionFlags >> 24) & 0xFF;
+    
     // Skip version/flags (4 bytes) and pre_defined (4 bytes)
     uint32_t handler = ReadUInt32BE(offset + 8);
     
+    // Identify handler type - this determines if track contains audio
     switch (handler) {
         case HANDLER_SOUN:
-            handlerType = "soun";
+            handlerType = "soun";  // Audio track
             break;
         case HANDLER_VIDE:
-            handlerType = "vide";
+            handlerType = "vide";  // Video track
             break;
         case HANDLER_HINT:
-            handlerType = "hint";
+            handlerType = "hint";  // Hint track
             break;
         case HANDLER_META:
-            handlerType = "meta";
+            handlerType = "meta";  // Metadata track
             break;
         default:
+            // Convert handler to string for debugging
             handlerType = "unknown";
+            char handlerStr[5] = {0};
+            handlerStr[0] = (handler >> 24) & 0xFF;
+            handlerStr[1] = (handler >> 16) & 0xFF;
+            handlerStr[2] = (handler >> 8) & 0xFF;
+            handlerStr[3] = handler & 0xFF;
+            
+            // Check if it's a valid ASCII string
+            bool isValidAscii = true;
+            for (int i = 0; i < 4; i++) {
+                if (handlerStr[i] < 32 || handlerStr[i] > 126) {
+                    isValidAscii = false;
+                    break;
+                }
+            }
+            
+            if (isValidAscii) {
+                handlerType = std::string(handlerStr);
+            }
             break;
     }
     
@@ -446,7 +496,9 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                         [this, &track](const BoxHeader& header, uint64_t boxOffset) {
                             if (header.type == FOURCC('e','s','d','s')) {
                                 // Elementary stream descriptor - contains AAC config
-                                // Will be implemented in codec-specific tasks
+                                return ParseAACConfiguration(header.dataOffset, 
+                                                           header.size - (header.dataOffset - boxOffset), 
+                                                           track);
                             }
                             return true;
                         });
@@ -459,7 +511,10 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
                         [this, &track](const BoxHeader& header, uint64_t boxOffset) {
                             if (header.type == CODEC_ALAC) {
-                                // ALAC magic cookie - will be implemented in codec-specific tasks
+                                // ALAC magic cookie
+                                return ParseALACConfiguration(header.dataOffset,
+                                                            header.size - (header.dataOffset - boxOffset),
+                                                            track);
                             }
                             return true;
                         });
@@ -467,17 +522,25 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 break;
             case CODEC_ULAW:
                 track.codecType = "ulaw";
-                // Override defaults if not set
+                // Configure telephony audio defaults
                 if (track.sampleRate == 0) track.sampleRate = 8000;
                 if (track.channelCount == 0) track.channelCount = 1;
                 if (track.bitsPerSample == 0) track.bitsPerSample = 8;
+                // Support both 8kHz and 16kHz for telephony
+                if (track.sampleRate != 8000 && track.sampleRate != 16000) {
+                    track.sampleRate = 8000; // Default to 8kHz
+                }
                 break;
             case CODEC_ALAW:
                 track.codecType = "alaw";
-                // Override defaults if not set
+                // Configure European telephony standard defaults
                 if (track.sampleRate == 0) track.sampleRate = 8000;
                 if (track.channelCount == 0) track.channelCount = 1;
                 if (track.bitsPerSample == 0) track.bitsPerSample = 8;
+                // Support both 8kHz and 16kHz for telephony
+                if (track.sampleRate != 8000 && track.sampleRate != 16000) {
+                    track.sampleRate = 8000; // Default to 8kHz
+                }
                 break;
             case CODEC_LPCM:
             case CODEC_SOWT:
@@ -488,6 +551,16 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
             case CODEC_IN32:
                 track.codecType = "pcm";
                 // PCM variants - sample rate, channels, and bit depth already parsed
+                // Set specific PCM subtype based on codec
+                if (codecType == CODEC_FL32) {
+                    track.bitsPerSample = 32;
+                } else if (codecType == CODEC_FL64) {
+                    track.bitsPerSample = 64;
+                } else if (codecType == CODEC_IN24) {
+                    track.bitsPerSample = 24;
+                } else if (codecType == CODEC_IN32) {
+                    track.bitsPerSample = 32;
+                }
                 break;
             default:
                 track.codecType = "unknown";
@@ -500,6 +573,140 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
 
 bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
     // Basic implementation - will be expanded in later tasks
+    return true;
+}
+
+bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+    if (size < 12) { // Minimum ESDS size
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    uint64_t currentOffset = offset + 4;
+    
+    // Parse ES descriptor
+    // This is a simplified parser for the most common AAC configuration
+    // Full ESDS parsing is complex due to variable-length descriptors
+    
+    // Look for decoder config descriptor (tag 0x04)
+    while (currentOffset < offset + size - 4) {
+        uint8_t tag = 0;
+        io->seek(currentOffset, SEEK_SET);
+        if (io->read(&tag, 1, 1) != 1) break;
+        
+        if (tag == 0x04) { // DecoderConfigDescriptor
+            // Skip tag and length encoding (variable)
+            currentOffset += 2; // Simplified - assume 1-byte length
+            
+            // Skip object type (1 byte) and stream type (1 byte)
+            currentOffset += 2;
+            
+            // Skip buffer size (3 bytes) and max bitrate (4 bytes) and avg bitrate (4 bytes)
+            currentOffset += 11;
+            
+            // Look for decoder specific info (tag 0x05)
+            io->seek(currentOffset, SEEK_SET);
+            uint8_t dsiTag = 0;
+            if (io->read(&dsiTag, 1, 1) == 1 && dsiTag == 0x05) {
+                currentOffset += 1;
+                
+                // Read length (simplified - assume 1 byte)
+                uint8_t dsiLength = 0;
+                if (io->read(&dsiLength, 1, 1) == 1 && dsiLength > 0 && dsiLength <= 64) {
+                    currentOffset += 1;
+                    
+                    // Read AudioSpecificConfig
+                    track.codecConfig.resize(dsiLength);
+                    if (io->read(track.codecConfig.data(), 1, dsiLength) == dsiLength) {
+                        // Parse basic AAC configuration from first 2 bytes
+                        if (dsiLength >= 2) {
+                            uint16_t config = (track.codecConfig[0] << 8) | track.codecConfig[1];
+                            
+                            // Extract audio object type (5 bits) - not used currently
+                            // uint8_t audioObjectType = (config >> 11) & 0x1F;
+                            
+                            // Extract sampling frequency index (4 bits)
+                            uint8_t samplingFreqIndex = (config >> 7) & 0x0F;
+                            
+                            // Extract channel configuration (4 bits)
+                            uint8_t channelConfig = (config >> 3) & 0x0F;
+                            
+                            // Map sampling frequency index to actual rate
+                            static const uint32_t aacSampleRates[] = {
+                                96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050,
+                                16000, 12000, 11025, 8000, 7350, 0, 0, 0
+                            };
+                            
+                            if (samplingFreqIndex < 16 && aacSampleRates[samplingFreqIndex] > 0) {
+                                track.sampleRate = aacSampleRates[samplingFreqIndex];
+                            }
+                            
+                            if (channelConfig > 0 && channelConfig <= 7) {
+                                track.channelCount = channelConfig;
+                            }
+                        }
+                        return true;
+                    }
+                }
+            }
+            break;
+        }
+        currentOffset++;
+    }
+    
+    return false;
+}
+
+bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+    if (size < 24) { // Minimum ALAC magic cookie size
+        return false;
+    }
+    
+    // ALAC magic cookie contains decoder configuration
+    track.codecConfig.resize(size);
+    
+    io->seek(offset, SEEK_SET);
+    if (io->read(track.codecConfig.data(), 1, size) != size) {
+        track.codecConfig.clear();
+        return false;
+    }
+    
+    // Parse ALAC configuration from magic cookie
+    if (size >= 24) {
+        // ALAC magic cookie format (simplified parsing)
+        // Bytes 0-3: frame length (big-endian)
+        // Bytes 4: compatible version
+        // Bytes 5: bit depth
+        // Bytes 6: pb (rice modifier)
+        // Bytes 7: mb (rice modifier)
+        // Bytes 8: kb (rice modifier)  
+        // Bytes 9: channels
+        // Bytes 10-11: max run (big-endian)
+        // Bytes 12-15: max frame bytes (big-endian)
+        // Bytes 16-19: avg bit rate (big-endian)
+        // Bytes 20-23: sample rate (big-endian)
+        
+        if (track.codecConfig.size() >= 24) {
+            // Extract bit depth
+            track.bitsPerSample = track.codecConfig[5];
+            
+            // Extract channel count
+            track.channelCount = track.codecConfig[9];
+            
+            // Extract sample rate (big-endian)
+            track.sampleRate = (static_cast<uint32_t>(track.codecConfig[20]) << 24) |
+                              (static_cast<uint32_t>(track.codecConfig[21]) << 16) |
+                              (static_cast<uint32_t>(track.codecConfig[22]) << 8) |
+                              static_cast<uint32_t>(track.codecConfig[23]);
+            
+            // Extract average bitrate (big-endian)
+            track.avgBitrate = (static_cast<uint32_t>(track.codecConfig[16]) << 24) |
+                              (static_cast<uint32_t>(track.codecConfig[17]) << 16) |
+                              (static_cast<uint32_t>(track.codecConfig[18]) << 8) |
+                              static_cast<uint32_t>(track.codecConfig[19]);
+        }
+    }
+    
     return true;
 }
 
