@@ -30,10 +30,10 @@
  * @brief Information about a media stream within a container
  */
 struct StreamInfo {
-    uint32_t stream_id;
+    uint32_t stream_id = 0;
     std::string codec_type;        // "audio", "video", "subtitle", etc.
     std::string codec_name;        // "pcm", "mp3", "aac", "flac", etc.
-    uint32_t codec_tag;            // Format-specific codec identifier
+    uint32_t codec_tag = 0;        // Format-specific codec identifier
     
     // Audio-specific properties
     uint32_t sample_rate = 0;
@@ -52,19 +52,113 @@ struct StreamInfo {
     std::string artist;
     std::string title;
     std::string album;
-};
+    
+    // Constructors
+    StreamInfo() = default;
+    
+    StreamInfo(uint32_t id, const std::string& type, const std::string& name)
+        : stream_id(id), codec_type(type), codec_name(name) {}
+    
+    // Copy constructor and assignment (default is fine for this structure)
+    StreamInfo(const StreamInfo&) = default;
+    StreamInfo& operator=(const StreamInfo&) = default;
+    
+    // Move constructor and assignment
+    StreamInfo(StreamInfo&&) = default;
+    StreamInfo& operator=(StreamInfo&&) = default;
+    
+    /**
+     * @brief Validate that the stream info contains required fields
+     * @return true if valid, false otherwise
+     */
+    bool isValid() const {
+        return stream_id != 0 && !codec_type.empty() && !codec_name.empty();
+    }
+    
+    /**
+     * @brief Check if this is an audio stream
+     */
+    bool isAudio() const {
+        return codec_type == "audio";
+    }
+    
+    /**
+     * @brief Check if this is a video stream
+     */
+    bool isVideo() const {
+        return codec_type == "video";
+    }
+    
+    /**
+     * @brief Check if this is a subtitle stream
+     */
+    bool isSubtitle() const {
+        return codec_type == "subtitle";
+    }
+} __attribute__((packed));
 
 /**
  * @brief A chunk of media data with metadata
  */
 struct MediaChunk {
-    uint32_t stream_id;
+    uint32_t stream_id = 0;
     std::vector<uint8_t> data;
     uint64_t granule_position = 0;     // For Ogg-based formats
     uint64_t timestamp_samples = 0;    // For other formats
     bool is_keyframe = true;           // For audio, usually always true
     uint64_t file_offset = 0;          // Original offset in file (for seeking)
-};
+    
+    // Constructors
+    MediaChunk() = default;
+    
+    MediaChunk(uint32_t id, std::vector<uint8_t>&& chunk_data)
+        : stream_id(id), data(std::move(chunk_data)) {}
+    
+    MediaChunk(uint32_t id, const std::vector<uint8_t>& chunk_data)
+        : stream_id(id), data(chunk_data) {}
+    
+    // Copy constructor and assignment (default is fine)
+    MediaChunk(const MediaChunk&) = default;
+    MediaChunk& operator=(const MediaChunk&) = default;
+    
+    // Move constructor and assignment
+    MediaChunk(MediaChunk&&) = default;
+    MediaChunk& operator=(MediaChunk&&) = default;
+    
+    /**
+     * @brief Check if this chunk contains valid data
+     * @return true if chunk has data and valid stream ID
+     */
+    bool isValid() const {
+        return stream_id != 0 && !data.empty();
+    }
+    
+    /**
+     * @brief Get the size of the data in bytes
+     */
+    size_t getDataSize() const {
+        return data.size();
+    }
+    
+    /**
+     * @brief Check if this chunk is empty
+     */
+    bool isEmpty() const {
+        return data.empty();
+    }
+    
+    /**
+     * @brief Clear the chunk data
+     */
+    void clear() {
+        data.clear();
+        stream_id = 0;
+        granule_position = 0;
+        timestamp_samples = 0;
+        is_keyframe = true;
+        file_offset = 0;
+    }
+} __attribute__((packed));
 
 /**
  * @brief Base class for all container demuxers
@@ -129,6 +223,13 @@ public:
      */
     virtual uint64_t getPosition() const = 0;
     
+    /**
+     * @brief Get the last known granule position for a stream
+     */
+    virtual uint64_t getGranulePosition(uint32_t stream_id) const {
+        return 0; // Default implementation for non-Ogg formats
+    }
+    
 protected:
     std::unique_ptr<IOHandler> m_handler;
     std::vector<StreamInfo> m_streams;
@@ -145,6 +246,17 @@ protected:
         if (m_handler->read(&value, sizeof(T), 1) != 1) {
             throw std::runtime_error("Unexpected end of file");
         }
+        
+        // Convert from little-endian to host byte order
+        #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+        if constexpr (sizeof(T) == 2) {
+            return __builtin_bswap16(value);
+        } else if constexpr (sizeof(T) == 4) {
+            return __builtin_bswap32(value);
+        } else if constexpr (sizeof(T) == 8) {
+            return __builtin_bswap64(value);
+        }
+        #endif
         return value;
     }
     
@@ -157,7 +269,9 @@ protected:
         if (m_handler->read(&value, sizeof(T), 1) != 1) {
             throw std::runtime_error("Unexpected end of file");
         }
+        
         // Convert from big-endian to host byte order
+        #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
         if constexpr (sizeof(T) == 2) {
             return __builtin_bswap16(value);
         } else if constexpr (sizeof(T) == 4) {
@@ -165,6 +279,7 @@ protected:
         } else if constexpr (sizeof(T) == 8) {
             return __builtin_bswap64(value);
         }
+        #endif
         return value;
     }
     
