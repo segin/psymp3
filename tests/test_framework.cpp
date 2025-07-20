@@ -23,8 +23,8 @@ namespace TestFramework {
         : m_name(name), m_passed(false) {
     }
     
-    TestInfo TestCase::run() {
-        TestInfo info(m_name);
+    TestCaseInfo TestCase::run() {
+        TestCaseInfo info(m_name);
         auto start_time = std::chrono::high_resolution_clock::now();
         
         try {
@@ -127,8 +127,8 @@ namespace TestFramework {
         addTest(std::move(test_case));
     }
     
-    std::vector<TestInfo> TestSuite::runAll() {
-        std::vector<TestInfo> results;
+    std::vector<TestCaseInfo> TestSuite::runAll() {
+        std::vector<TestCaseInfo> results;
         results.reserve(m_tests.size());
         
         std::cout << "Running test suite: " << m_name << std::endl;
@@ -138,7 +138,7 @@ namespace TestFramework {
             std::cout << "Running " << test->getName() << "... ";
             std::cout.flush();
             
-            TestInfo result = test->run();
+            TestCaseInfo result = test->run();
             results.push_back(result);
             
             // Print immediate result
@@ -163,7 +163,7 @@ namespace TestFramework {
         return results;
     }
     
-    TestInfo TestSuite::runTest(const std::string& test_name) {
+    TestCaseInfo TestSuite::runTest(const std::string& test_name) {
         for (auto& test : m_tests) {
             if (test->getName() == test_name) {
                 return test->run();
@@ -171,13 +171,13 @@ namespace TestFramework {
         }
         
         // Test not found
-        TestInfo not_found(test_name);
+        TestCaseInfo not_found(test_name);
         not_found.result = TestResult::ERROR;
         not_found.failure_message = "Test not found: " + test_name;
         return not_found;
     }
     
-    void TestSuite::printResults(const std::vector<TestInfo>& results) {
+    void TestSuite::printResults(const std::vector<TestCaseInfo>& results) {
         std::cout << std::endl;
         std::cout << "Test Results Summary" << std::endl;
         std::cout << "====================" << std::endl;
@@ -220,17 +220,17 @@ namespace TestFramework {
         }
     }
     
-    int TestSuite::getFailureCount(const std::vector<TestInfo>& results) {
+    int TestSuite::getFailureCount(const std::vector<TestCaseInfo>& results) {
         return std::count_if(results.begin(), results.end(), 
-            [](const TestInfo& info) { return info.result == TestResult::FAILED; });
+            [](const TestCaseInfo& info) { return info.result == TestResult::FAILED; });
     }
     
-    int TestSuite::getPassedCount(const std::vector<TestInfo>& results) {
+    int TestSuite::getPassedCount(const std::vector<TestCaseInfo>& results) {
         return std::count_if(results.begin(), results.end(), 
-            [](const TestInfo& info) { return info.result == TestResult::PASSED; });
+            [](const TestCaseInfo& info) { return info.result == TestResult::PASSED; });
     }
     
-    std::chrono::milliseconds TestSuite::getTotalTime(const std::vector<TestInfo>& results) {
+    std::chrono::milliseconds TestSuite::getTotalTime(const std::vector<TestCaseInfo>& results) {
         std::chrono::milliseconds total(0);
         for (const auto& result : results) {
             total += result.execution_time;

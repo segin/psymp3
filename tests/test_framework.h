@@ -19,6 +19,9 @@
 #include <chrono>
 #include <functional>
 
+// Forward declaration for Rect class - will be defined when rect.h is included
+class Rect;
+
 namespace TestFramework {
 
     // ========================================
@@ -166,13 +169,13 @@ namespace TestFramework {
     /**
      * @brief Detailed information about a test execution
      */
-    struct TestInfo {
+    struct TestCaseInfo {
         std::string name;                           ///< Test function name
         TestResult result;                          ///< Test result status
         std::string failure_message;                ///< Error message if failed
         std::chrono::milliseconds execution_time;   ///< Time taken to execute
         
-        TestInfo(const std::string& test_name) 
+        TestCaseInfo(const std::string& test_name) 
             : name(test_name), result(TestResult::PASSED), execution_time(0) {}
     };
 
@@ -201,9 +204,9 @@ namespace TestFramework {
         
         /**
          * @brief Execute the test case with full lifecycle management
-         * @return TestInfo containing execution results
+         * @return TestCaseInfo containing execution results
          */
-        TestInfo run();
+        TestCaseInfo run();
         
         /**
          * @brief Get the test case name
@@ -293,43 +296,43 @@ namespace TestFramework {
         
         /**
          * @brief Execute all tests in the suite
-         * @return Vector of TestInfo results for each test
+         * @return Vector of TestCaseInfo results for each test
          */
-        std::vector<TestInfo> runAll();
+        std::vector<TestCaseInfo> runAll();
         
         /**
          * @brief Execute a specific test by name
          * @param test_name Name of test to execute
-         * @return TestInfo result, or empty result if test not found
+         * @return TestCaseInfo result, or empty result if test not found
          */
-        TestInfo runTest(const std::string& test_name);
+        TestCaseInfo runTest(const std::string& test_name);
         
         /**
          * @brief Print comprehensive test results to stdout
          * @param results Vector of test results to print
          */
-        void printResults(const std::vector<TestInfo>& results);
+        void printResults(const std::vector<TestCaseInfo>& results);
         
         /**
          * @brief Get count of failed tests from results
          * @param results Vector of test results
          * @return Number of failed tests
          */
-        int getFailureCount(const std::vector<TestInfo>& results);
+        int getFailureCount(const std::vector<TestCaseInfo>& results);
         
         /**
          * @brief Get count of passed tests from results
          * @param results Vector of test results
          * @return Number of passed tests
          */
-        int getPassedCount(const std::vector<TestInfo>& results);
+        int getPassedCount(const std::vector<TestCaseInfo>& results);
         
         /**
          * @brief Get total execution time from results
          * @param results Vector of test results
          * @return Total execution time in milliseconds
          */
-        std::chrono::milliseconds getTotalTime(const std::vector<TestInfo>& results);
+        std::chrono::milliseconds getTotalTime(const std::vector<TestCaseInfo>& results);
         
         /**
          * @brief Get the suite name
@@ -394,8 +397,9 @@ namespace TestFramework {
          * @param height Height
          * @return Rect instance for testing
          */
-        class Rect; // Forward declaration
         // Note: This will be implemented in the .cpp file to avoid circular dependencies
+        
+
         
         /**
          * @brief Assert that two rectangles are equal
@@ -403,7 +407,7 @@ namespace TestFramework {
          * @param actual Actual rectangle
          * @param message Descriptive message for failure
          */
-        void assertRectsEqual(const class Rect& expected, const class Rect& actual, const std::string& message);
+        void assertRectsEqual(const Rect& expected, const Rect& actual, const std::string& message);
         
         /**
          * @brief Assert that a rectangle has expected properties
@@ -414,39 +418,39 @@ namespace TestFramework {
          * @param height Expected height
          * @param message Descriptive message for failure
          */
-        void assertRectProperties(const class Rect& rect, int16_t x, int16_t y, uint16_t width, uint16_t height, const std::string& message);
+        void assertRectProperties(const Rect& rect, int16_t x, int16_t y, uint16_t width, uint16_t height, const std::string& message);
         
         /**
          * @brief Assert that a rectangle is empty
          * @param rect Rectangle to test
          * @param message Descriptive message for failure
          */
-        void assertRectEmpty(const class Rect& rect, const std::string& message);
+        void assertRectEmpty(const Rect& rect, const std::string& message);
         
         /**
          * @brief Assert that a rectangle is not empty
          * @param rect Rectangle to test
          * @param message Descriptive message for failure
          */
-        void assertRectNotEmpty(const class Rect& rect, const std::string& message);
+        void assertRectNotEmpty(const Rect& rect, const std::string& message);
         
         /**
          * @brief Create a standard test rectangle for consistent testing
          * @return Standard test rectangle (10, 20, 100, 50)
          */
-        class Rect createStandardTestRect();
+        Rect createStandardTestRect();
         
         /**
          * @brief Create an empty test rectangle
          * @return Empty rectangle (0, 0, 0, 0)
          */
-        class Rect createEmptyTestRect();
+        Rect createEmptyTestRect();
         
         /**
          * @brief Create a single pixel test rectangle
          * @return Single pixel rectangle (5, 5, 1, 1)
          */
-        class Rect createSinglePixelTestRect();
+        Rect createSinglePixelTestRect();
     }
 
     // ========================================

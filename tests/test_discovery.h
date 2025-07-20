@@ -297,7 +297,13 @@ namespace TestFramework {
          */
         static TestMetadata parseFromComments(const std::vector<std::string>& comment_lines);
         
-    private:
+        /**
+         * @brief Check if line is a metadata comment
+         * @param line Line to check
+         * @return true if line contains metadata
+         */
+        static bool isMetadataComment(const std::string& line);
+        
         /**
          * @brief Extract metadata key-value pairs from comment
          * @param comment Single comment line
@@ -305,12 +311,7 @@ namespace TestFramework {
          */
         static std::pair<std::string, std::string> extractMetadata(const std::string& comment);
         
-        /**
-         * @brief Check if line is a metadata comment
-         * @param line Line to check
-         * @return true if line contains metadata
-         */
-        static bool isMetadataComment(const std::string& line);
+    private:
         
         /**
          * @brief Parse boolean value from string

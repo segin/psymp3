@@ -548,8 +548,7 @@ namespace TestFramework {
         std::vector<std::string> env_strings;
         
         // Copy current environment
-        extern char** environ;
-        for (char** env = environ; *env != nullptr; ++env) {
+        for (char** env = ::environ; *env != nullptr; ++env) {
             std::string env_str(*env);
             
             // Check if we have a custom value for this variable

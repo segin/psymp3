@@ -49,3 +49,8 @@ tests/test_rect_centering
 tests/test_rect_centering_overflow
 test_centering_simple
 tests/test_rect_normalization
+
+# Test harness build artifacts
+tests/test-harness
+tests/.deps/**
+**/*.Po
