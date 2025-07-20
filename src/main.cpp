@@ -25,6 +25,7 @@
 #include <getopt.h>
 #include "about.h"
 
+#ifdef HAVE_MP3
 // RAII wrapper for libmpg123 initialization and cleanup.
 // A single static instance of this class ensures that mpg123_init() is called
 // once at program startup and mpg123_exit() is called once at program termination.
@@ -40,6 +41,7 @@ public:
         mpg123_exit();
     }
 };
+#endif
 
 // RAII wrapper for Windows Winsock initialization and cleanup
 #ifdef _WIN32
@@ -58,9 +60,11 @@ public:
 static WinsockLifecycleManager winsock_manager;
 #endif
 
+#ifdef HAVE_MP3
 // The global static instance that manages the library's lifetime.
 // Its constructor is called before main(), and its destructor is called after main() exits.
 static Mpg123LifecycleManager mpg123_manager;
+#endif
 
 int main(int argc, char *argv[]) {
     // --- Argument Parsing ---

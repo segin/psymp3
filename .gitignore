@@ -1,5 +1,5 @@
 src/.deps/**
-src/*.o
+**/*.o
 .vscode/*
 autom4te.cache/*
 include/config.h

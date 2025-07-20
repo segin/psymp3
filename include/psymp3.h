@@ -225,10 +225,18 @@ typedef struct bio_st BIO;
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #endif
+#ifdef HAVE_FLAC
 #include <FLAC++/decoder.h>
+#endif
+#ifdef HAVE_MP3
 #include <mpg123.h>
+#endif
+#ifdef HAVE_VORBIS
 #include <vorbis/vorbisfile.h>
+#endif
+#ifdef HAVE_OPUS
 #include <opus/opusfile.h>
+#endif
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
 #include <taglib/tstring.h>
@@ -277,17 +285,27 @@ typedef struct bio_st BIO;
 #include "PCMCodecs.h"
 #include "DemuxedStream.h"
 #include "RawAudioDemuxer.h"
+#ifdef HAVE_VORBIS
 #include "OggDemuxer.h"
 #include "OggCodecs.h"
+#endif
 #include "ISODemuxer.h"
 #include "ModernStream.h"
 #include "MediaFactory.h"
 #include "FadingWidget.h"
+#ifdef HAVE_MP3
 #include "libmpg123w.h"
+#endif
+#ifdef HAVE_VORBIS
 #include "vorbisw.h"
+#endif
+#ifdef HAVE_OPUS
 #include "opusw.h"
+#endif
 #include "wav.h"
+#ifdef HAVE_FLAC
 #include "flac.h"
+#endif
 #include "ChainedStream.h"
 #include "nullstream.h"
 #include "mediafile.h"

@@ -327,6 +327,7 @@ bool MediaFactory::isLocalFile(const std::string& uri) {
 void MediaFactory::initializeDefaultFormats() {
     if (s_initialized) return;
     
+#ifdef HAVE_MP3
     // MPEG Audio formats
     MediaFormat mp3_format;
     mp3_format.format_id = "mpeg_audio";
@@ -342,7 +343,9 @@ void MediaFactory::initializeDefaultFormats() {
     registerFormat(mp3_format, [](const std::string& uri, const ContentInfo& info) {
         return std::make_unique<Libmpg123>(TagLib::String(uri.c_str()));
     });
+#endif
     
+#ifdef HAVE_FLAC
     // FLAC format
     MediaFormat flac_format;
     flac_format.format_id = "flac";
@@ -358,7 +361,9 @@ void MediaFactory::initializeDefaultFormats() {
     registerFormat(flac_format, [](const std::string& uri, const ContentInfo& info) {
         return std::make_unique<Flac>(TagLib::String(uri.c_str()));
     });
+#endif
     
+#ifdef HAVE_OPUS
     // Standalone Opus format (for .opus files that might not be in Ogg containers)
     MediaFormat opus_format;
     opus_format.format_id = "opus";
@@ -374,6 +379,7 @@ void MediaFactory::initializeDefaultFormats() {
     registerFormat(opus_format, [](const std::string& uri, const ContentInfo& info) {
         return std::make_unique<OpusFile>(TagLib::String(uri.c_str()));
     });
+#endif
     
     // Ogg container formats (Vorbis, FLAC-in-Ogg)
     MediaFormat ogg_format;

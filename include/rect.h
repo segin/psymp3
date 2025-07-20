@@ -191,49 +191,49 @@ class Rect
          * @brief Get X coordinate of top-left corner
          * @return X coordinate (can be negative for off-screen positioning)
          */
-        inline int16_t x() const { return m_x; }
+        int16_t x() const;
         
         /**
          * @brief Get Y coordinate of top-left corner
          * @return Y coordinate (can be negative for off-screen positioning)
          */
-        inline int16_t y() const { return m_y; }
+        int16_t y() const;
         
         /**
          * @brief Get width of rectangle
          * @return Width in pixels (always positive)
          */
-        inline uint16_t width() const { return m_width; }
+        uint16_t width() const;
         
         /**
          * @brief Get height of rectangle
          * @return Height in pixels (always positive)
          */
-        inline uint16_t height() const { return m_height; }
+        uint16_t height() const;
         
         /**
          * @brief Set X coordinate of top-left corner
          * @param val New X coordinate
          */
-        inline void x(int16_t val) { m_x = val; }
+        void x(int16_t val);
         
         /**
          * @brief Set Y coordinate of top-left corner
          * @param val New Y coordinate
          */
-        inline void y(int16_t val) { m_y = val; }
+        void y(int16_t val);
         
         /**
          * @brief Set width of rectangle
          * @param a New width (must be positive)
          */
-        inline void width(uint16_t a) { m_width = a; }
+        void width(uint16_t a);
         
         /**
          * @brief Set height of rectangle
          * @param a New height (must be positive)
          */
-        inline void height(uint16_t a) { m_height = a; }
+        void height(uint16_t a);
         
         // ========================================
         // UTILITY METHODS (Edge Access & Properties)
@@ -244,65 +244,63 @@ class Rect
          * @return Left edge X coordinate
          * Performance: Inlined for optimal speed
          */
-        inline int16_t left() const { return m_x; }
+        int16_t left() const;
         
         /**
          * @brief Get top edge coordinate (alias for y())
          * @return Top edge Y coordinate
          * Performance: Inlined for optimal speed
          */
-        inline int16_t top() const { return m_y; }
+        int16_t top() const;
         
         /**
          * @brief Get right edge coordinate
          * @return Right edge X coordinate (x + width)
          * Performance: Inlined, no overflow checking for speed
          */
-        inline int16_t right() const { return m_x + m_width; }
+        int16_t right() const;
         
         /**
          * @brief Get bottom edge coordinate
          * @return Bottom edge Y coordinate (y + height)
          * Performance: Inlined, no overflow checking for speed
          */
-        inline int16_t bottom() const { return m_y + m_height; }
+        int16_t bottom() const;
         
         /**
          * @brief Get center X coordinate
          * @return Center X coordinate (x + width/2)
          * Note: Integer division may truncate fractional parts
          */
-        inline int16_t centerX() const { return m_x + m_width / 2; }
+        int16_t centerX() const;
         
         /**
          * @brief Get center Y coordinate
          * @return Center Y coordinate (y + height/2)
          * Note: Integer division may truncate fractional parts
          */
-        inline int16_t centerY() const { return m_y + m_height / 2; }
+        int16_t centerY() const;
         
         /**
          * @brief Get center point as coordinate pair
          * @return std::pair containing (centerX, centerY)
          * Usage example: auto [cx, cy] = rect.center();
          */
-        inline std::pair<int16_t, int16_t> center() const { 
-            return std::make_pair(centerX(), centerY()); 
-        }
+        std::pair<int16_t, int16_t> center() const;
         
         /**
          * @brief Calculate rectangle area
          * @return Area in pixels (width * height)
          * Returns uint32_t to handle maximum possible area without overflow
          */
-        inline uint32_t area() const { return static_cast<uint32_t>(m_width) * m_height; }
+        uint32_t area() const;
         
         /**
          * @brief Check if rectangle is empty
          * @return true if width or height is zero
          * Performance: Inlined for frequent validation checks
          */
-        inline bool isEmpty() const { return m_width == 0 || m_height == 0; }
+        bool isEmpty() const;
         
         /**
          * @brief Comprehensive rectangle validation
@@ -720,19 +718,14 @@ class Rect
          * 
          * Performance: Inlined for optimal comparison speed
          */
-        inline bool operator==(const Rect& other) const {
-            return m_x == other.m_x && m_y == other.m_y && 
-                   m_width == other.m_width && m_height == other.m_height;
-        }
+        bool operator==(const Rect& other) const;
         
         /**
          * @brief Inequality comparison operator
          * @param other Rectangle to compare with
          * @return true if any coordinate or dimension differs
          */
-        inline bool operator!=(const Rect& other) const {
-            return !(*this == other);
-        }
+        bool operator!=(const Rect& other) const;
         
         /**
          * @brief Generate string representation for debugging

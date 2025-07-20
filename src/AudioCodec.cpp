@@ -39,11 +39,14 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+#ifdef HAVE_MP3
     } else if (stream_info.codec_name == "mp3") {
         auto codec = std::make_unique<MP3PassthroughCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+#endif
+#ifdef HAVE_VORBIS
     } else if (stream_info.codec_name == "vorbis") {
         auto codec = std::make_unique<VorbisPassthroughCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
@@ -54,6 +57,8 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+#endif
+#ifdef HAVE_OPUS
     } else if (stream_info.codec_name == "opus") {
         auto codec = std::make_unique<OpusPassthroughCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
@@ -64,6 +69,7 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+#endif
     }
     
     return nullptr;

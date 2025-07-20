@@ -20,16 +20,72 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 
 AC_CHECK_FUNCS([atexit getcwd memset])
 
+# Core mandatory dependencies
 PKG_CHECK_MODULES([SDL], [sdl >= 1.2])
-PKG_CHECK_MODULES([LIBMPG123], [libmpg123 >= 1.8])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])
-PKG_CHECK_MODULES([FLAC], [flac++])
-PKG_CHECK_MODULES([VORBIS], [vorbisfile])
-PKG_CHECK_MODULES([OPUS], [opusfile])
-PKG_CHECK_MODULES([OGG], [ogg])
 PKG_CHECK_MODULES([OPENSSL], [openssl])
 PKG_CHECK_MODULES([CURL], [libcurl])
+
+# Optional external codec support
+AC_ARG_ENABLE([flac],
+  [AS_HELP_STRING([--enable-flac], [Enable FLAC support @<:@default=yes@:>@])],
+  [enable_flac=$enableval], [enable_flac=yes])
+
+AC_ARG_ENABLE([mp3],
+  [AS_HELP_STRING([--enable-mp3], [Enable MP3 support @<:@default=yes@:>@])],
+  [enable_mp3=$enableval], [enable_mp3=yes])
+
+AC_ARG_ENABLE([vorbis],
+  [AS_HELP_STRING([--enable-vorbis], [Enable Vorbis support @<:@default=yes@:>@])],
+  [enable_vorbis=$enableval], [enable_vorbis=yes])
+
+AC_ARG_ENABLE([opus],
+  [AS_HELP_STRING([--enable-opus], [Enable Opus support @<:@default=yes@:>@])],
+  [enable_opus=$enableval], [enable_opus=yes])
+
+# Check for optional codec libraries
+have_flac=no
+have_mp3=no
+have_vorbis=no
+have_opus=no
+
+if test "x$enable_flac" = "xyes"; then
+  PKG_CHECK_MODULES([FLAC], [flac++], [have_flac=yes], [have_flac=no])
+  if test "x$have_flac" = "xyes"; then
+    AC_DEFINE([HAVE_FLAC], [1], [Define to 1 if FLAC support is enabled])
+  fi
+fi
+
+if test "x$enable_mp3" = "xyes"; then
+  PKG_CHECK_MODULES([LIBMPG123], [libmpg123 >= 1.8], [have_mp3=yes], [have_mp3=no])
+  if test "x$have_mp3" = "xyes"; then
+    AC_DEFINE([HAVE_MP3], [1], [Define to 1 if MP3 support is enabled])
+  fi
+fi
+
+if test "x$enable_vorbis" = "xyes"; then
+  PKG_CHECK_MODULES([VORBIS], [vorbis], [have_vorbis=yes], [have_vorbis=no])
+  PKG_CHECK_MODULES([OGG], [ogg], [have_ogg=yes], [have_ogg=no])
+  if test "x$have_vorbis" = "xyes" && test "x$have_ogg" = "xyes"; then
+    AC_DEFINE([HAVE_VORBIS], [1], [Define to 1 if Vorbis support is enabled])
+    have_vorbis=yes
+  else
+    have_vorbis=no
+  fi
+fi
+
+if test "x$enable_opus" = "xyes"; then
+  PKG_CHECK_MODULES([OPUS], [opus], [have_opus=yes], [have_opus=no])
+  if test "x$have_opus" = "xyes"; then
+    AC_DEFINE([HAVE_OPUS], [1], [Define to 1 if Opus support is enabled])
+  fi
+fi
+
+AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
+AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
+AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
+AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 
 AC_ARG_ENABLE(mpris,
   [AS_HELP_STRING([--enable-mpris], [Enable MPRIS media player remote interface support (requires D-Bus) @<:@default=auto@:>@])],
@@ -53,6 +109,14 @@ else
 fi
 
 AM_CONDITIONAL([HAVE_DBUS], [test "x$have_dbus" = "xyes"])
+
+# Test harness configuration
+AC_ARG_ENABLE([test-harness],
+  [AS_HELP_STRING([--enable-test-harness], [Build test harness @<:@default=yes@:>@])],
+  [enable_test_harness=$enableval],
+  [enable_test_harness=yes])
+
+AM_CONDITIONAL([BUILD_TEST_HARNESS], [test "x$enable_test_harness" = "xyes"])
 
 # Release build optimization
 AC_ARG_ENABLE([release],
@@ -97,10 +161,11 @@ case "$host_os" in
     ;;
 esac
 
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 libmpg123 >= 1.8 taglib >= 1.6 flac++ >= 1.2 vorbis opus ogg openssl >= 1.0 libcurl >= 7.20.0])
+# Core dependencies check for final validation
+PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
-AC_CONFIG_FILES([Makefile src/Makefile res/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile res/Makefile tests/Makefile])
 
 AC_OUTPUT

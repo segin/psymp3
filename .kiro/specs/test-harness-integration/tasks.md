@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Set up build system foundation and dependency cleanup
+- [-] 1. Set up build system foundation and dependency cleanup
   - Refactor configure.ac to remove unused dependencies (opusfile, vorbisfile)
   - Make external codec support optional (FLAC, MP3, Vorbis, Opus) with conditional compilation
   - Keep internal codec support (WAV, alaw/ulaw) as mandatory

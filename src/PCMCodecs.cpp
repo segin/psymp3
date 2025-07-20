@@ -192,6 +192,7 @@ int16_t MuLawCodec::mulaw2linear(uint8_t mulaw_sample) {
     return sign ? -sample : sample;
 }
 
+#ifdef HAVE_MP3
 // MP3PassthroughCodec implementation
 MP3PassthroughCodec::MP3PassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
@@ -254,3 +255,4 @@ void MP3PassthroughCodec::reset() {
 bool MP3PassthroughCodec::canDecode(const StreamInfo& stream_info) const {
     return stream_info.codec_name == "mp3";
 }
+#endif

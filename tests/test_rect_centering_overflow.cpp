@@ -37,35 +37,7 @@ class Rect
         uint16_t m_height;
 };
 
-// Implementation of centering methods
-void Rect::centerIn(const Rect& container)
-{
-    // Calculate the center point of the container
-    int16_t container_center_x = container.centerX();
-    int16_t container_center_y = container.centerY();
-    
-    // Calculate the new position to center this rectangle
-    // Position = container_center - (our_size / 2)
-    int32_t new_x = static_cast<int32_t>(container_center_x) - static_cast<int32_t>(m_width) / 2;
-    int32_t new_y = static_cast<int32_t>(container_center_y) - static_cast<int32_t>(m_height) / 2;
-    
-    // Handle coordinate overflow/underflow
-    if (new_x < -32768) new_x = -32768;
-    if (new_x > 32767) new_x = 32767;
-    if (new_y < -32768) new_y = -32768;
-    if (new_y > 32767) new_y = 32767;
-    
-    // Update position
-    m_x = static_cast<int16_t>(new_x);
-    m_y = static_cast<int16_t>(new_y);
-}
-
-Rect Rect::centeredIn(const Rect& container) const
-{
-    Rect result(*this);
-    result.centerIn(container);
-    return result;
-}
+// Implementation removed - now in rect.cpp
 
 void test_overflow_conditions()
 {

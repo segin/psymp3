@@ -297,14 +297,22 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxerForFormat(const std::strin
         if (format_id == "riff" || format_id == "aiff") {
             return std::make_unique<ChunkDemuxer>(std::move(handler));
         } else if (format_id == "ogg") {
+#ifdef HAVE_VORBIS
             return std::make_unique<OggDemuxer>(std::move(handler));
+#else
+            throw UnsupportedMediaException("Ogg format support is disabled");
+#endif
         } else if (format_id == "mp4") {
             return std::make_unique<ISODemuxer>(std::move(handler));
         } else if (format_id == "flac") {
             // For now, FLAC files are handled by a future FLACDemuxer
             // Fall back to trying Ogg demuxer for FLAC-in-Ogg files
             Debug::log("demuxer", "DemuxerFactory: FLAC demuxer not yet implemented, trying Ogg fallback");
+#ifdef HAVE_VORBIS
             return std::make_unique<OggDemuxer>(std::move(handler));
+#else
+            throw UnsupportedMediaException("FLAC-in-Ogg format support is disabled");
+#endif
         } else if (format_id == "raw_audio") {
             if (!file_path.empty()) {
                 return std::make_unique<RawAudioDemuxer>(std::move(handler), file_path);

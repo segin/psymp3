@@ -17,4 +17,4 @@
 
 datadir=$(prefix)/@PACKAGE@/data
 
-SUBDIRS = res src
+SUBDIRS = res src tests
