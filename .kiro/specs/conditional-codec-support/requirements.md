@@ -99,6 +99,18 @@ This feature implements conditional optional codec support for PsyMP3, allowing 
 
 ### Requirement 9
 
+**User Story:** As a developer, I want codec implementations refactored for proper conditional compilation so that disabled codecs are completely excluded from builds.
+
+#### Acceptance Criteria
+
+1. WHEN a codec is disabled THEN its class definitions SHALL be conditionally compiled out
+2. WHEN Vorbis is disabled THEN VorbisCodec and VorbisPassthroughCodec classes SHALL NOT be compiled
+3. WHEN Opus is disabled THEN OpusCodec and OpusPassthroughCodec classes SHALL NOT be compiled
+4. WHEN FLAC is disabled THEN FLACCodec class SHALL NOT be compiled
+5. WHEN refactoring codecs THEN conditional compilation guards SHALL be added around all codec-specific code
+
+### Requirement 18
+
 **User Story:** As a developer, I want existing codec specs updated for the new architecture so that all codecs work with the registry system.
 
 #### Acceptance Criteria
