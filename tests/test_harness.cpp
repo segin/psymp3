@@ -510,13 +510,20 @@ int main(int argc, char* argv[]) {
                 
                 auto highest_memory = current_metrics.getHighestMemoryTests(10);
                 if (!highest_memory.empty()) {
-                    std::cout << std::left << std::setw(30) << "Test Name" 
+                    // Calculate dynamic column width based on longest test name
+                    size_t max_name_length = 9; // Minimum width for "Test Name" header
+                    for (const auto& test : highest_memory) {
+                        max_name_length = std::max(max_name_length, test.test_name.length());
+                    }
+                    max_name_length += 2; // Add padding
+                    
+                    std::cout << std::left << std::setw(max_name_length) << "Test Name" 
                              << std::setw(15) << "Memory (KB)" 
                              << std::setw(15) << "Time (ms)" << "\n";
-                    std::cout << std::string(60, '-') << "\n";
+                    std::cout << std::string(max_name_length + 15 + 15, '-') << "\n";
                     
                     for (const auto& test : highest_memory) {
-                        std::cout << std::left << std::setw(30) << test.test_name
+                        std::cout << std::left << std::setw(max_name_length) << test.test_name
                                  << std::setw(15) << test.memory_usage
                                  << std::setw(15) << test.duration.count() << "\n";
                     }
@@ -541,14 +548,21 @@ int main(int argc, char* argv[]) {
                     std::cout << "Median execution time: " << stats.median_time.count() << "ms\n";
                     std::cout << "Outlier threshold: " << (stats.median_time.count() * args.outlier_threshold) << "ms\n\n";
                     
-                    std::cout << std::left << std::setw(30) << "Test Name" 
+                    // Calculate dynamic column width based on longest test name
+                    size_t max_name_length = 9; // Minimum width for "Test Name" header
+                    for (const auto& outlier : outliers) {
+                        max_name_length = std::max(max_name_length, outlier.test_name.length());
+                    }
+                    max_name_length += 2; // Add padding
+                    
+                    std::cout << std::left << std::setw(max_name_length) << "Test Name" 
                              << std::setw(15) << "Time (ms)"
                              << std::setw(15) << "Ratio" << "\n";
-                    std::cout << std::string(60, '-') << "\n";
+                    std::cout << std::string(max_name_length + 15 + 15, '-') << "\n";
                     
                     for (const auto& outlier : outliers) {
                         double ratio = static_cast<double>(outlier.duration.count()) / stats.median_time.count();
-                        std::cout << std::left << std::setw(30) << outlier.test_name
+                        std::cout << std::left << std::setw(max_name_length) << outlier.test_name
                                  << std::setw(15) << outlier.duration.count()
                                  << std::setw(15) << std::fixed << std::setprecision(1) << ratio << "x\n";
                     }
