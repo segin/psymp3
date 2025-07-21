@@ -27,7 +27,7 @@
 #include "Demuxer.h"
 
 // OggDemuxer is built if any Ogg-based codec is enabled
-#if defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)
+#ifdef HAVE_OGGDEMUXER
 
 /**
  * @brief Ogg page header structure
@@ -289,5 +289,5 @@ private:
     }
 };
 
-#endif // HAVE_VORBIS || HAVE_OPUS || HAVE_OGG_FLAC
+#endif // HAVE_OGGDEMUXER
 #endif // OGGDEMUXER_H

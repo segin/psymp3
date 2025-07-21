@@ -52,7 +52,10 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
 
 std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler> handler, 
                                                        const std::string& file_path) {
+    Debug::log("loader", "DemuxerFactory::createDemuxer called for file: ", file_path);
+    
     if (!handler || !validateIOHandler(handler.get())) {
+        Debug::log("loader", "DemuxerFactory: Invalid IOHandler provided");
         Debug::log("demuxer", "DemuxerFactory: Invalid IOHandler provided");
         return nullptr;
     }
@@ -61,23 +64,35 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     if (!file_path.empty()) {
         auto raw_config = RawAudioDetector::detectRawAudio(file_path);
         if (raw_config.has_value()) {
+            Debug::log("loader", "DemuxerFactory: Detected raw audio format from extension: ", file_path);
             Debug::log("demuxer", "DemuxerFactory: Detected raw audio format from extension: ", file_path);
             return std::make_unique<RawAudioDemuxer>(std::move(handler), raw_config.value());
         }
     }
     
     // Probe the format using magic bytes and content analysis
+    Debug::log("loader", "DemuxerFactory: Probing format for file: ", file_path);
     std::string format = probeFormat(handler.get(), file_path);
     
     if (format.empty()) {
+        Debug::log("loader", "DemuxerFactory: Could not detect format for file: ", file_path);
         Debug::log("demuxer", "DemuxerFactory: Could not detect format for file: ", file_path);
         return nullptr;
     }
     
+    Debug::log("loader", "DemuxerFactory: Detected format '", format, "' for file: ", file_path);
     Debug::log("demuxer", "DemuxerFactory: Detected format '", format, "' for file: ", file_path);
     
     // Create appropriate demuxer for the detected format
-    return createDemuxerForFormat(format, std::move(handler), file_path);
+    auto demuxer = createDemuxerForFormat(format, std::move(handler), file_path);
+    if (demuxer) {
+        Debug::log("loader", "DemuxerFactory: Successfully created demuxer for format: ", format);
+        Debug::log("demuxer", "DemuxerFactory: Successfully created demuxer for format: ", format);
+    } else {
+        Debug::log("loader", "DemuxerFactory: Failed to create demuxer for format: ", format);
+        Debug::log("demuxer", "DemuxerFactory: Failed to create demuxer for format: ", format);
+    }
+    return demuxer;
 }
 
 std::string DemuxerFactory::probeFormat(IOHandler* handler) {
@@ -85,19 +100,24 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
 }
 
 std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& file_path) {
+    Debug::log("loader", "DemuxerFactory::probeFormat called for file: ", file_path);
+    
     if (!handler || !validateIOHandler(handler)) {
+        Debug::log("loader", "DemuxerFactory: Invalid IOHandler for probing");
         return "";
     }
     
     // Save current position to restore later
     long original_pos = handler->tell();
     if (original_pos < 0) {
+        Debug::log("loader", "DemuxerFactory: Could not get current file position");
         Debug::log("demuxer", "DemuxerFactory: Could not get current file position");
         return "";
     }
     
     // Seek to beginning for format detection
     if (handler->seek(0, SEEK_SET) != 0) {
+        Debug::log("loader", "DemuxerFactory: Could not seek to beginning of file");
         Debug::log("demuxer", "DemuxerFactory: Could not seek to beginning of file");
         return "";
     }
@@ -111,11 +131,21 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& f
     handler->seek(original_pos, SEEK_SET);
     
     if (bytes_read < 4) {
+        Debug::log("loader", "DemuxerFactory: File too small for format detection (", bytes_read, " bytes)");
         Debug::log("demuxer", "DemuxerFactory: File too small for format detection (", bytes_read, " bytes)");
         return "";
     }
     
+    Debug::log("loader", "DemuxerFactory: Read ", bytes_read, " bytes for format detection");
     Debug::log("demuxer", "DemuxerFactory: Read ", bytes_read, " bytes for format detection");
+    
+    // Log first few bytes for debugging
+    std::stringstream hex_bytes;
+    for (size_t i = 0; i < std::min(bytes_read, size_t(16)); i++) {
+        hex_bytes << std::hex << std::setfill('0') << std::setw(2) 
+                 << static_cast<int>(header[i]) << " ";
+    }
+    Debug::log("loader", "DemuxerFactory: First 16 bytes: ", hex_bytes.str());
     
     // Try magic byte detection first
     std::string format = detectByMagicBytes(handler, header, bytes_read);
@@ -124,10 +154,12 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& f
     if (format.empty() && !file_path.empty()) {
         format = detectByExtension(file_path);
         if (!format.empty()) {
+            Debug::log("loader", "DemuxerFactory: Used extension-based detection: ", format);
             Debug::log("demuxer", "DemuxerFactory: Used extension-based detection: ", format);
         }
     }
     
+    Debug::log("loader", "DemuxerFactory::probeFormat result: ", format.empty() ? "unknown" : format);
     return format;
 }
 
@@ -161,27 +193,39 @@ std::string DemuxerFactory::getFormatDescription(const std::string& format_id) {
 }
 
 std::string DemuxerFactory::detectByMagicBytes(IOHandler* handler, const uint8_t* buffer, size_t buffer_size) {
+    Debug::log("loader", "DemuxerFactory::detectByMagicBytes checking signatures against buffer");
+    
     std::vector<std::pair<std::string, int>> candidates;
     
     // Check all format signatures
     for (const auto& sig : s_format_signatures) {
         if (matchesSignature(buffer, buffer_size, sig.signature, sig.offset)) {
             candidates.emplace_back(sig.format_id, sig.priority);
+            Debug::log("loader", "DemuxerFactory: Signature match for format '", sig.format_id, 
+                      "' (priority ", sig.priority, "): ", sig.description);
             Debug::log("demuxer", "DemuxerFactory: Signature match for format '", sig.format_id, 
                       "' (priority ", sig.priority, "): ", sig.description);
+            
+            // Special logging for Ogg format
+            if (sig.format_id == "ogg") {
+                Debug::log("ogg", "DemuxerFactory: Found Ogg signature match (OggS) at offset ", sig.offset);
+            }
         }
     }
     
     if (candidates.empty()) {
+        Debug::log("loader", "DemuxerFactory::detectByMagicBytes no signature matches found");
         return "";
     }
     
     // If only one candidate, return it
     if (candidates.size() == 1) {
+        Debug::log("loader", "DemuxerFactory::detectByMagicBytes single match: ", candidates[0].first);
         return candidates[0].first;
     }
     
     // Handle multiple candidates by priority
+    Debug::log("loader", "DemuxerFactory::detectByMagicBytes multiple matches, resolving by priority");
     return resolveAmbiguousFormat(candidates);
 }
 
@@ -250,7 +294,24 @@ bool DemuxerFactory::matchesSignature(const uint8_t* buffer, size_t buffer_size,
         return false;
     }
     
-    return std::memcmp(buffer + offset, signature.data(), signature.size()) == 0;
+    bool matches = std::memcmp(buffer + offset, signature.data(), signature.size()) == 0;
+    
+    // For debugging, log Ogg signature checks
+    if (signature.size() >= 4 && 
+        signature[0] == 'O' && signature[1] == 'g' && 
+        signature[2] == 'g' && signature[3] == 'S') {
+        
+        std::stringstream buffer_hex;
+        for (size_t i = 0; i < std::min(signature.size(), size_t(4)); i++) {
+            buffer_hex << std::hex << std::setfill('0') << std::setw(2) 
+                      << static_cast<int>(buffer[offset + i]) << " ";
+        }
+        
+        Debug::log("loader", "DemuxerFactory: Checking for Ogg signature at offset ", offset, 
+                  ", buffer bytes: ", buffer_hex.str(), ", match: ", matches ? "yes" : "no");
+    }
+    
+    return matches;
 }
 
 std::string DemuxerFactory::resolveAmbiguousFormat(const std::vector<std::pair<std::string, int>>& candidates,
@@ -294,12 +355,30 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxerForFormat(const std::strin
                                                                std::unique_ptr<IOHandler> handler,
                                                                const std::string& file_path) {
     try {
+        Debug::log("loader", "DemuxerFactory::createDemuxerForFormat called with format_id=", format_id);
+        Debug::log("demuxer", "DemuxerFactory::createDemuxerForFormat called with format_id=", format_id);
+        
         if (format_id == "riff" || format_id == "aiff") {
+            Debug::log("loader", "Creating ChunkDemuxer for format: ", format_id);
+            Debug::log("demuxer", "Creating ChunkDemuxer for format: ", format_id);
             return std::make_unique<ChunkDemuxer>(std::move(handler));
         } else if (format_id == "ogg") {
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
+            Debug::log("loader", "Creating OggDemuxer for format: ", format_id);
+            Debug::log("demuxer", "Creating OggDemuxer for format: ", format_id);
+            Debug::log("ogg", "Creating OggDemuxer for format: ", format_id);
+            
+            // Check if HAVE_OGGDEMUXER is actually defined at runtime
+            #if defined(HAVE_OGGDEMUXER)
+                Debug::log("loader", "HAVE_OGGDEMUXER is defined at compile time");
+            #else
+                Debug::log("loader", "HAVE_OGGDEMUXER is NOT defined at compile time");
+            #endif
+            
             return std::make_unique<OggDemuxer>(std::move(handler));
 #else
+            Debug::log("loader", "Ogg format support is disabled (HAVE_OGGDEMUXER not defined)");
+            Debug::log("demuxer", "Ogg format support is disabled (HAVE_OGGDEMUXER not defined)");
             throw UnsupportedMediaException("Ogg format support is disabled");
 #endif
         } else if (format_id == "mp4") {
@@ -308,7 +387,7 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxerForFormat(const std::strin
             // For now, FLAC files are handled by a future FLACDemuxer
             // Fall back to trying Ogg demuxer for FLAC-in-Ogg files
             Debug::log("demuxer", "DemuxerFactory: FLAC demuxer not yet implemented, trying Ogg fallback");
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
             return std::make_unique<OggDemuxer>(std::move(handler));
 #else
             throw UnsupportedMediaException("FLAC-in-Ogg format support is disabled");

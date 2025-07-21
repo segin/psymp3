@@ -24,7 +24,7 @@
 #ifndef VORBISW_H
 #define VORBISW_H
 
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
 
 /**
  * @brief Vorbis decoder class using DemuxedStream with OggDemuxer
@@ -81,6 +81,6 @@ private:
     bool processSynthesis();
 };
 
-#endif // HAVE_VORBIS
+#endif // HAVE_OGGDEMUXER
 
 #endif // VORBISW_H

@@ -9,13 +9,25 @@
 
 #include "psymp3.h"
 
-// OggDemuxer is built if any Ogg-based codec is enabled
+// OggDemuxer is built if HAVE_OGGDEMUXER is defined
 #ifdef HAVE_OGGDEMUXER
 
 OggDemuxer::OggDemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)) {
+    Debug::log("loader", "OggDemuxer constructor called - initializing libogg sync state");
+    Debug::log("ogg", "OggDemuxer constructor called - initializing libogg sync state");
+    Debug::log("demuxer", "OggDemuxer constructor called - initializing libogg sync state");
     // Initialize libogg sync state
-    ogg_sync_init(&m_sync_state);
+    int sync_result = ogg_sync_init(&m_sync_state);
+    if (sync_result != 0) {
+        Debug::log("loader", "OggDemuxer: ogg_sync_init failed with code: ", sync_result);
+        Debug::log("ogg", "OggDemuxer: ogg_sync_init failed with code: ", sync_result);
+        Debug::log("demuxer", "OggDemuxer: ogg_sync_init failed with code: ", sync_result);
+        throw std::runtime_error("Failed to initialize ogg sync state");
+    }
+    Debug::log("loader", "OggDemuxer constructor completed successfully");
+    Debug::log("ogg", "OggDemuxer constructor completed successfully");
+    Debug::log("demuxer", "OggDemuxer constructor completed successfully");
 }
 
 OggDemuxer::~OggDemuxer() {
@@ -29,7 +41,13 @@ OggDemuxer::~OggDemuxer() {
 }
 
 bool OggDemuxer::parseContainer() {
+    Debug::log("loader", "OggDemuxer::parseContainer called");
+    Debug::log("ogg", "OggDemuxer::parseContainer called");
+    Debug::log("demuxer", "OggDemuxer::parseContainer called");
+    
     if (m_parsed) {
+        Debug::log("loader", "OggDemuxer::parseContainer already parsed, returning true");
+        Debug::log("ogg", "OggDemuxer::parseContainer already parsed, returning true");
         return true;
     }
     
@@ -40,9 +58,14 @@ bool OggDemuxer::parseContainer() {
             m_file_size = 0;
         }
         
+        Debug::log("loader", "OggDemuxer: File size detection using getFileSize() - file_size=", m_file_size, " (hex=0x", std::hex, m_file_size, std::dec, ")");
         Debug::log("ogg", "OggDemuxer: File size detection using getFileSize() - file_size=", m_file_size, " (hex=0x", std::hex, m_file_size, std::dec, ")");
+        Debug::log("demuxer", "OggDemuxer: File size detection using getFileSize() - file_size=", m_file_size, " (hex=0x", std::hex, m_file_size, std::dec, ")");
+        
         // Log the actual file position and bytes read when the problem occurs
+        Debug::log("loader", "OggDemuxer: Initial m_file_size in parseContainer: ", m_file_size);
         Debug::log("ogg", "OggDemuxer: Initial m_file_size in parseContainer: ", m_file_size);
+        Debug::log("demuxer", "OggDemuxer: Initial m_file_size in parseContainer: ", m_file_size);
         
         // Read initial data to parse headers
         if (!readIntoSyncBuffer(8192)) {

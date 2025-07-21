@@ -105,7 +105,13 @@ int main(int argc, char *argv[]) {
                 if (strcmp(optarg, "all") == 0) {
                     debug_channels.push_back("all");
                 } else {
-                    debug_channels.push_back(optarg);
+                    // Split the comma-separated list of debug channels
+                    std::string channels_str(optarg);
+                    std::istringstream channels_stream(channels_str);
+                    std::string channel;
+                    while (std::getline(channels_stream, channel, ',')) {
+                        debug_channels.push_back(channel);
+                    }
                 }
             } else if (option_name == "logfile") {
                 logfile = optarg;

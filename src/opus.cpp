@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-#ifdef HAVE_OPUS
+#ifdef HAVE_OGGDEMUXER
 
 // ========== OpusFile Stream Class ==========
 
@@ -277,4 +277,4 @@ bool OpusCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
     return false;
 }
 
-#endif // HAVE_OPUS
+#endif // HAVE_OGGDEMUXER

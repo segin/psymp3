@@ -51,13 +51,34 @@ std::vector<std::string> MediaFile::split(const std::string &s, char delim) {
 std::unique_ptr<Stream> MediaFile::open(TagLib::String name) {
     try {
         std::string uri = name.to8Bit(true);
-        return MediaFactory::createStream(uri);
+        Debug::log("loader", "MediaFile::open called for file: ", uri);
+        Debug::log("demuxer", "MediaFile::open called for file: ", uri);
+        
+        // Check if the file has an .ogg extension
+        std::string ext;
+        size_t dot_pos = uri.find_last_of('.');
+        if (dot_pos != std::string::npos) {
+            ext = uri.substr(dot_pos + 1);
+            std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+            if (ext == "ogg" || ext == "oga") {
+                Debug::log("loader", "MediaFile::open detected Ogg file by extension: ", uri);
+                Debug::log("ogg", "MediaFile::open detected Ogg file by extension: ", uri);
+                Debug::log("demuxer", "MediaFile::open detected Ogg file by extension: ", uri);
+            }
+        }
+        
+        auto stream = MediaFactory::createStream(uri);
+        Debug::log("loader", "MediaFile::open successfully created stream for: ", uri);
+        return stream;
         
     } catch (const UnsupportedMediaException& e) {
+        Debug::log("demuxer", "MediaFile::open UnsupportedMediaException: ", e.what());
         throw InvalidMediaException(e.what());
     } catch (const ContentDetectionException& e) {
+        Debug::log("demuxer", "MediaFile::open ContentDetectionException: ", e.what());
         throw InvalidMediaException(e.what());
     } catch (const std::exception& e) {
+        Debug::log("demuxer", "MediaFile::open std::exception: ", e.what());
         throw InvalidMediaException("Failed to open media file: " + std::string(e.what()));
     }
 }

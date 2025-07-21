@@ -17,10 +17,16 @@ bool MediaFactory::s_initialized = false;
 
 std::unique_ptr<Stream> MediaFactory::createStream(const std::string& uri) {
     if (!s_initialized) {
+        Debug::log("loader", "MediaFactory::createStream initializing default formats");
         initializeDefaultFormats();
     }
     
+    Debug::log("loader", "MediaFactory::createStream analyzing content for: ", uri);
     ContentInfo info = analyzeContent(uri);
+    Debug::log("loader", "MediaFactory::createStream detected format: ", 
+               info.detected_format.empty() ? "unknown" : info.detected_format,
+               ", confidence: ", info.confidence);
+    
     return createStreamWithContentInfo(uri, info);
 }
 
@@ -50,27 +56,36 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string
 
 std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::string& uri, const ContentInfo& info) {
     if (!s_initialized) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo initializing default formats");
         initializeDefaultFormats();
     }
     
     if (info.detected_format.empty()) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo unable to determine format for: ", uri);
         throw UnsupportedMediaException("Unable to determine media format for: " + uri);
     }
     
+    Debug::log("loader", "MediaFactory::createStreamWithContentInfo looking for format handler: ", info.detected_format);
     auto it = s_formats.find(info.detected_format);
     if (it == s_formats.end()) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo unsupported format: ", info.detected_format);
         throw UnsupportedMediaException("Unsupported media format: " + info.detected_format);
     }
     
     try {
-        return it->second.factory(uri, info);
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo creating stream for format: ", info.detected_format);
+        auto stream = it->second.factory(uri, info);
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo successfully created stream for format: ", info.detected_format);
+        return stream;
     } catch (const std::exception& e) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo exception: ", e.what());
         throw UnsupportedMediaException("Failed to create stream for " + uri + ": " + e.what());
     }
 }
 
 ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
     if (!s_initialized) {
+        Debug::log("loader", "MediaFactory::analyzeContent initializing default formats");
         initializeDefaultFormats();
     }
     
@@ -78,13 +93,17 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
     float best_confidence = 0.0f;
     
     // Start with extension-based detection (quick and often accurate)
+    Debug::log("loader", "MediaFactory::analyzeContent trying extension-based detection for: ", uri);
     auto ext_result = detectByExtension(uri);
     if (ext_result.confidence > best_confidence) {
         best_match = ext_result;
         best_confidence = ext_result.confidence;
+        Debug::log("loader", "MediaFactory::analyzeContent extension detection found format: ", 
+                  ext_result.detected_format, ", confidence: ", ext_result.confidence);
     }
     
     // Try content analysis with IOHandler for more detailed detection
+    Debug::log("loader", "MediaFactory::analyzeContent trying content-based detection for: ", uri);
     auto handler = createIOHandler(uri);
     auto content_result = analyzeContent(handler);
     
@@ -293,15 +312,19 @@ std::string MediaFactory::extractExtension(const std::string& uri) {
     // Handle URLs and file paths
     std::string path = uri;
     
+    Debug::log("loader", "MediaFactory::extractExtension processing URI: ", uri);
+    
     // Remove query parameters and fragments
     size_t query_pos = path.find('?');
     if (query_pos != std::string::npos) {
         path = path.substr(0, query_pos);
+        Debug::log("loader", "MediaFactory::extractExtension removed query parameters: ", path);
     }
     
     size_t fragment_pos = path.find('#');
     if (fragment_pos != std::string::npos) {
         path = path.substr(0, fragment_pos);
+        Debug::log("loader", "MediaFactory::extractExtension removed fragment: ", path);
     }
     
     // Find last dot
@@ -309,9 +332,11 @@ std::string MediaFactory::extractExtension(const std::string& uri) {
     if (dot_pos != std::string::npos && dot_pos < path.length() - 1) {
         std::string ext = path.substr(dot_pos + 1);
         std::transform(ext.begin(), ext.end(), ext.begin(), ::toupper);
+        Debug::log("loader", "MediaFactory::extractExtension found extension: ", ext);
         return ext;
     }
     
+    Debug::log("loader", "MediaFactory::extractExtension no extension found");
     return "";
 }
 
@@ -325,7 +350,12 @@ bool MediaFactory::isLocalFile(const std::string& uri) {
 }
 
 void MediaFactory::initializeDefaultFormats() {
-    if (s_initialized) return;
+    if (s_initialized) {
+        Debug::log("loader", "MediaFactory::initializeDefaultFormats already initialized");
+        return;
+    }
+    
+    Debug::log("loader", "MediaFactory::initializeDefaultFormats initializing formats");
     
 #ifdef HAVE_MP3
     // MPEG Audio formats
@@ -363,7 +393,7 @@ void MediaFactory::initializeDefaultFormats() {
     });
 #endif
     
-#ifdef HAVE_OPUS
+#ifdef HAVE_OGGDEMUXER
     // Standalone Opus format (for .opus files that might not be in Ogg containers)
     MediaFormat opus_format;
     opus_format.format_id = "opus";
@@ -381,6 +411,9 @@ void MediaFactory::initializeDefaultFormats() {
     });
 #endif
     
+#ifdef HAVE_OGGDEMUXER
+    Debug::log("demuxer", "MediaFactory: Registering Ogg format (HAVE_OGGDEMUXER is defined)");
+    
     // Ogg container formats (Vorbis, FLAC-in-Ogg)
     MediaFormat ogg_format;
     ogg_format.format_id = "ogg";
@@ -395,9 +428,13 @@ void MediaFactory::initializeDefaultFormats() {
     ogg_format.description = "Ogg container (Vorbis/FLAC)";
     
     registerFormat(ogg_format, [](const std::string& uri, const ContentInfo& info) {
+        Debug::log("loader", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
+        Debug::log("demuxer", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
+        Debug::log("ogg", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
         // Route all Ogg files through OggDemuxer for proper container parsing
         return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
     });
+#endif
     
     // RIFF/WAVE formats
     MediaFormat wave_format;
@@ -485,6 +522,8 @@ void MediaFactory::initializeDefaultFormats() {
 }
 
 void MediaFactory::rebuildLookupTables() {
+    Debug::log("loader", "MediaFactory::rebuildLookupTables rebuilding lookup tables");
+    
     s_extension_to_format.clear();
     s_mime_to_format.clear();
     
@@ -492,11 +531,13 @@ void MediaFactory::rebuildLookupTables() {
         // Build extension lookup
         for (const auto& ext : registration.format.extensions) {
             s_extension_to_format[ext] = format_id;
+            Debug::log("loader", "MediaFactory::rebuildLookupTables registered extension ", ext, " -> ", format_id);
         }
         
         // Build MIME type lookup
         for (const auto& mime : registration.format.mime_types) {
             s_mime_to_format[mime] = format_id;
+            Debug::log("loader", "MediaFactory::rebuildLookupTables registered MIME type ", mime, " -> ", format_id);
         }
     }
 }
@@ -505,6 +546,8 @@ ContentInfo MediaFactory::detectByExtension(const std::string& uri) {
     ContentInfo info;
     std::string ext = extractExtension(uri);
     
+    Debug::log("loader", "MediaFactory::detectByExtension extracted extension: ", ext.empty() ? "none" : ext);
+    
     if (!ext.empty()) {
         auto it = s_extension_to_format.find(ext);
         if (it != s_extension_to_format.end()) {
@@ -512,11 +555,16 @@ ContentInfo MediaFactory::detectByExtension(const std::string& uri) {
             info.file_extension = ext;
             info.confidence = 0.7f; // Medium confidence for extension-based detection
             
+            Debug::log("loader", "MediaFactory::detectByExtension matched extension ", ext, " to format: ", it->second);
+            
             // Set MIME type if available
             auto format_it = s_formats.find(it->second);
             if (format_it != s_formats.end() && !format_it->second.format.mime_types.empty()) {
                 info.mime_type = format_it->second.format.mime_types[0];
+                Debug::log("loader", "MediaFactory::detectByExtension set MIME type: ", info.mime_type);
             }
+        } else {
+            Debug::log("loader", "MediaFactory::detectByExtension no format registered for extension: ", ext);
         }
     }
     

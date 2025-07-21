@@ -46,25 +46,37 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
             return std::move(codec);
         }
 #endif
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
     } else if (stream_info.codec_name == "vorbis") {
+        Debug::log("loader", "AudioCodecFactory: Creating VorbisPassthroughCodec for codec: vorbis");
         auto codec = std::make_unique<VorbisPassthroughCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
-    } else if (stream_info.codec_name == "flac" && stream_info.codec_tag == 0) { // Ogg FLAC
-        auto codec = std::make_unique<OggFLACPassthroughCodec>(stream_info);
-        if (codec->canDecode(stream_info)) {
-            return std::move(codec);
+    } else if (stream_info.codec_name == "flac") {
+        // Check if this is Ogg FLAC (from OggDemuxer) or native FLAC
+        if (stream_info.codec_tag == 0) { // Ogg FLAC
+            Debug::log("loader", "AudioCodecFactory: Creating OggFLACPassthroughCodec for codec: flac (Ogg container)");
+            auto codec = std::make_unique<OggFLACPassthroughCodec>(stream_info);
+            if (codec->canDecode(stream_info)) {
+                return std::move(codec);
+            }
+        }
+#ifdef HAVE_FLAC
+        else { // Native FLAC
+            Debug::log("loader", "AudioCodecFactory: Creating FLAC codec for native FLAC");
+            // Handle native FLAC separately
+            // This would be implemented elsewhere
         }
 #endif
-#ifdef HAVE_OPUS
     } else if (stream_info.codec_name == "opus") {
+        Debug::log("loader", "AudioCodecFactory: Creating OpusPassthroughCodec for codec: opus");
         auto codec = std::make_unique<OpusPassthroughCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
     } else if (stream_info.codec_name == "speex") {
+        Debug::log("loader", "AudioCodecFactory: Creating SpeexCodec for codec: speex");
         auto codec = std::make_unique<SpeexCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);

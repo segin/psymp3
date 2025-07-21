@@ -231,10 +231,10 @@ typedef struct bio_st BIO;
 #ifdef HAVE_MP3
 #include <mpg123.h>
 #endif
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
 #include <vorbis/vorbisfile.h>
 #endif
-#ifdef HAVE_OPUS
+#ifdef HAVE_OGGDEMUXER
 #include <opus/opusfile.h>
 #endif
 #include <taglib/tag.h>
@@ -285,7 +285,7 @@ typedef struct bio_st BIO;
 #include "PCMCodecs.h"
 #include "DemuxedStream.h"
 #include "RawAudioDemuxer.h"
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
 #include "OggDemuxer.h"
 #include "OggCodecs.h"
 #endif
@@ -296,10 +296,10 @@ typedef struct bio_st BIO;
 #ifdef HAVE_MP3
 #include "libmpg123w.h"
 #endif
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
 #include "vorbisw.h"
 #endif
-#ifdef HAVE_OPUS
+#ifdef HAVE_OGGDEMUXER
 #include "opusw.h"
 #endif
 #include "wav.h"

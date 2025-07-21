@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-#ifdef HAVE_VORBIS
+#ifdef HAVE_OGGDEMUXER
 
 // ========== Vorbis Stream Class ==========
 
@@ -260,4 +260,4 @@ bool VorbisCodec::processSynthesis()
     return !m_output_buffer.empty();
 }
 
-#endif // HAVE_VORBIS
+#endif // HAVE_OGGDEMUXER
