@@ -59,3 +59,5 @@ tests/.deps/**
 **/*.Po
 **/*.a
 
+tests/test_rect_expansion
+tests/test-harness
