@@ -281,6 +281,8 @@ typedef struct bio_st BIO;
 #include "Demuxer.h"
 #include "DemuxerFactory.h"
 #include "AudioCodec.h"
+#include "CodecRegistry.h"
+#include "DemuxerRegistry.h"
 #include "ChunkDemuxer.h"
 #include "PCMCodecs.h"
 #include "DemuxedStream.h"

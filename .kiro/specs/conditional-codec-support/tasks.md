@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Create registry infrastructure
+- [x] 1. Create registry infrastructure
   - Create CodecRegistry and DemuxerRegistry classes with static registration methods
   - Implement registry lookup and factory creation methods
   - Add error handling for unsupported codecs and formats
