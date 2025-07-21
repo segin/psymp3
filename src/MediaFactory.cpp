@@ -357,6 +357,10 @@ void MediaFactory::initializeDefaultFormats() {
     
     Debug::log("loader", "MediaFactory::initializeDefaultFormats initializing formats");
     
+    // Register all codecs and demuxers with their respective registries
+    registerAllCodecs();
+    registerAllDemuxers();
+    
 #ifdef HAVE_MP3
     // MPEG Audio formats
     MediaFormat mp3_format;

@@ -283,6 +283,7 @@ typedef struct bio_st BIO;
 #include "AudioCodec.h"
 #include "CodecRegistry.h"
 #include "DemuxerRegistry.h"
+#include "CodecRegistration.h"
 #include "ChunkDemuxer.h"
 #include "PCMCodecs.h"
 #include "DemuxedStream.h"
