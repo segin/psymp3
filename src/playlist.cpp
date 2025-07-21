@@ -47,11 +47,14 @@ Playlist::~Playlist()
 bool Playlist::addFile(TagLib::String path)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    Debug::log("playlist", "Playlist::addFile(): Attempting to add file: ", path.to8Bit(true));
     try {
         // Construct track directly in the vector. The track constructor will handle tag loading.
         tracks.emplace_back(path);
+        Debug::log("playlist", "Playlist::addFile(): Successfully added file: ", path.to8Bit(true));
         return true;
     } catch (const std::exception& e) {
+        Debug::log("playlist", "Playlist::addFile(): Failed to create track for ", path.to8Bit(true), ": ", e.what());
         std::cerr << "Playlist::addFile(): Could not create track for " << path << ": " << e.what() << std::endl;
         return false;
     }
