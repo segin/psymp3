@@ -460,8 +460,9 @@ namespace TestFramework {
         /**
          * @brief Save performance data to file for trend tracking
          * @param filename File to save performance data to
+         * @param include_timestamp Whether to include timestamp in data
          */
-        void saveToFile(const std::string& filename) const;
+        void saveToFile(const std::string& filename, bool include_timestamp = true) const;
         
         /**
          * @brief Load historical performance data from file
@@ -469,6 +470,13 @@ namespace TestFramework {
          * @return true if loaded successfully
          */
         bool loadFromFile(const std::string& filename);
+        
+        /**
+         * @brief Append current performance data to trend file
+         * @param filename Trend file to append to
+         * @param run_id Unique identifier for this test run
+         */
+        void appendToTrendFile(const std::string& filename, const std::string& run_id = "") const;
         
         /**
          * @brief Compare current performance with historical data
@@ -525,8 +533,69 @@ namespace TestFramework {
          */
         std::vector<TestPerformance> getHighestCpuTests(int count = 5) const;
         
+        /**
+         * @brief Generate performance trend analysis
+         * @param historical_files Vector of historical performance files
+         * @param output Output stream to write trend analysis to
+         */
+        void generateTrendAnalysis(const std::vector<std::string>& historical_files, std::ostream& output) const;
+        
+        /**
+         * @brief Detect performance regressions compared to baseline
+         * @param baseline_data Baseline performance data
+         * @param regression_threshold Percentage threshold for regression detection (default: 20%)
+         * @return Vector of tests with performance regressions
+         */
+        std::vector<PerformanceComparison> detectRegressions(const PerformanceMetrics& baseline_data, 
+                                                            double regression_threshold = 20.0) const;
+        
+        /**
+         * @brief Get performance improvement recommendations
+         * @return Vector of recommendations for slow tests
+         */
+        struct PerformanceRecommendation {
+            std::string test_name;
+            std::string issue_type;
+            std::string recommendation;
+            double severity_score;
+        };
+        
+        std::vector<PerformanceRecommendation> getPerformanceRecommendations() const;
+        
+        /**
+         * @brief Clear all performance data
+         */
+        void clear() { m_performance_data.clear(); }
+        
+        /**
+         * @brief Get number of tests with performance data
+         * @return Number of tests
+         */
+        size_t size() const { return m_performance_data.size(); }
+        
+        /**
+         * @brief Check if performance data is empty
+         * @return true if no data available
+         */
+        bool empty() const { return m_performance_data.empty(); }
+        
     private:
         std::vector<TestPerformance> m_performance_data; ///< Collected performance data
+        
+        /**
+         * @brief Parse performance data from CSV line
+         * @param line CSV line to parse
+         * @return TestPerformance data, or empty if parsing failed
+         */
+        TestPerformance parsePerformanceLine(const std::string& line) const;
+        
+        /**
+         * @brief Format performance data as CSV line
+         * @param perf Performance data to format
+         * @param include_timestamp Whether to include timestamp
+         * @return CSV formatted line
+         */
+        std::string formatPerformanceLine(const TestPerformance& perf, bool include_timestamp = true) const;
     };
 
     // ========================================
