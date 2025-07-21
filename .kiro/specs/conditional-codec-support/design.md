@@ -373,13 +373,40 @@ public:
 
 ## Implementation Notes
 
+### Codec Refactoring for Conditional Compilation
+
+Existing codec implementations need to be refactored to properly handle conditional compilation:
+
+```cpp
+// Example: VorbisCodec with conditional compilation
+#ifdef HAVE_VORBIS
+
+class VorbisCodec : public AudioCodec {
+    // Existing implementation
+};
+
+class VorbisPassthroughCodec : public AudioCodec {
+    // Existing implementation  
+};
+
+#endif // HAVE_VORBIS
+```
+
+#### Refactoring Requirements
+
+1. **Class Definition Guards**: All codec classes must be wrapped in appropriate `#ifdef` blocks
+2. **Header File Updates**: Codec headers must include conditional compilation guards
+3. **Implementation Files**: Codec .cpp files must be conditionally compiled via Makefile
+4. **Registry Integration**: Refactored codecs must work with the new registry system
+
 ### Migration Strategy
 
 1. **Phase 1**: Implement registry classes and registration functions
-2. **Phase 2**: Update MediaFactory to use registries
-3. **Phase 3**: Add conditional compilation to OggDemuxer
-4. **Phase 4**: Update existing codec specs for registry support
-5. **Phase 5**: Remove old conditional compilation from MediaFactory
+2. **Phase 2**: Refactor codec implementations for conditional compilation
+3. **Phase 3**: Update MediaFactory to use registries
+4. **Phase 4**: Add conditional compilation to OggDemuxer
+5. **Phase 5**: Update existing codec specs for registry support
+6. **Phase 6**: Optimize build system and remove old conditional compilation
 
 ### Backward Compatibility
 
