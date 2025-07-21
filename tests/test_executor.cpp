@@ -8,16 +8,24 @@
  */
 
 #include "test_executor.h"
-#include <unistd.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <sys/resource.h>
-#include <signal.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <cstring>
 #include <iostream>
 #include <sstream>
+
+#ifdef _WIN32
+    #include <windows.h>
+    #include <process.h>
+    #include <io.h>
+    #include <fcntl.h>
+#else
+    #include <unistd.h>
+    #include <sys/wait.h>
+    #include <sys/stat.h>
+    #include <sys/resource.h>
+    #include <signal.h>
+    #include <fcntl.h>
+    #include <errno.h>
+#endif
 #include <algorithm>
 #include <regex>
 #include <fstream>
