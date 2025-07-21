@@ -408,6 +408,85 @@ namespace TestFramework {
         size_t end = str.find_last_not_of(" \t\r\n");
         return str.substr(start, end - start + 1);
     }
+    
+    TestDiscovery::CompilationResult TestDiscovery::attemptCompilation(const TestInfo& test_info) {
+        CompilationResult result;
+        
+        // Check if source file exists
+        if (!fileExists(test_info.source_path)) {
+            result.error_output = "Source file does not exist: " + test_info.source_path;
+            return result;
+        }
+        
+        // Build compilation command similar to what make would use
+        std::ostringstream cmd;
+        cmd << "cd " << m_test_directory << " && ";
+        cmd << "g++ -DHAVE_CONFIG_H -I. -I../include ";
+        cmd << "-I../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT ";
+        cmd << "-I/usr/include/taglib -I/usr/include/freetype2 -I/usr/include/libpng16 ";
+        cmd << "-g -O2 -c -o " << test_info.name << ".o " << test_info.source_path;
+        cmd << " 2>&1"; // Redirect stderr to stdout for capture
+        
+        result.command_used = cmd.str();
+        
+        // Execute compilation command
+        FILE* pipe = popen(cmd.str().c_str(), "r");
+        if (!pipe) {
+            result.error_output = "Failed to execute compilation command";
+            return result;
+        }
+        
+        // Capture output
+        char buffer[256];
+        while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+            result.error_output += buffer;
+        }
+        
+        result.exit_code = pclose(pipe);
+        result.success = (result.exit_code == 0);
+        
+        return result;
+    }
+    
+    std::vector<TestDiscovery::DependencyInfo> TestDiscovery::checkDependencies(const TestInfo& test_info) {
+        std::vector<DependencyInfo> dependencies;
+        
+        // Check for rect.o dependency (common for most tests)
+        DependencyInfo rect_dep;
+        rect_dep.name = "rect.o";
+        rect_dep.available = fileExists("../src/rect.o");
+        if (!rect_dep.available) {
+            rect_dep.suggestion = "Run 'make -C ../src rect.o' to build the rect object file";
+        }
+        dependencies.push_back(rect_dep);
+        
+        // Check for test utilities library
+        DependencyInfo utils_dep;
+        utils_dep.name = "libtest_utilities.a";
+        utils_dep.available = fileExists("libtest_utilities.a");
+        if (!utils_dep.available) {
+            utils_dep.suggestion = "Run 'make libtest_utilities.a' to build the test utilities library";
+        }
+        dependencies.push_back(utils_dep);
+        
+        // Check for system dependencies based on includes
+        std::vector<std::string> includes = parseIncludes(test_info.source_path);
+        for (const std::string& include : includes) {
+            if (include.find("SDL") != std::string::npos) {
+                DependencyInfo sdl_dep;
+                sdl_dep.name = "SDL development headers";
+                // Simple check - this could be more sophisticated
+                sdl_dep.available = fileExists("/usr/include/SDL/SDL.h") || fileExists("/usr/include/SDL2/SDL.h");
+                if (!sdl_dep.available) {
+                    sdl_dep.suggestion = "Install SDL development package: sudo apt-get install libsdl1.2-dev";
+                }
+                dependencies.push_back(sdl_dep);
+                break;
+            }
+        }
+        
+        return dependencies;
+    }
 
     // ========================================
     // METADATA PARSER IMPLEMENTATION

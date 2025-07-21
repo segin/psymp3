@@ -20,6 +20,7 @@
 #include <cstdlib>
 #include <chrono>
 #include <iomanip>
+#include <fstream>
 
 using namespace TestFramework;
 
@@ -35,9 +36,16 @@ struct CommandLineArgs {
     bool stop_on_failure = false;
     std::string filter_pattern = "";
     std::string output_format = "console";
-    std::string test_directory = "tests";
+    std::string test_directory = ".";
     int max_parallel = 4;
     int timeout_seconds = 30;
+    bool track_performance = false;
+    std::string performance_file = "test_performance.csv";
+    bool show_performance_report = false;
+    bool show_detailed_performance = false;
+    bool show_memory_report = false;
+    bool show_outliers = false;
+    double outlier_threshold = 2.0;
     
     void printUsage(const char* program_name) {
         std::cout << "Usage: " << program_name << " [OPTIONS]\n\n";
@@ -50,9 +58,16 @@ struct CommandLineArgs {
         std::cout << "  -s, --stop-on-failure   Stop execution on first test failure\n";
         std::cout << "  -f, --filter PATTERN    Run only tests matching the pattern (glob-style)\n";
         std::cout << "  -o, --output FORMAT     Output format: console, xml, json (default: console)\n";
-        std::cout << "  -d, --directory DIR     Test directory to scan (default: tests)\n";
+        std::cout << "  -d, --directory DIR     Test directory to scan (default: .)\n";
         std::cout << "  -j, --jobs N            Maximum parallel processes (default: 4)\n";
         std::cout << "  -t, --timeout SECONDS   Test timeout in seconds (default: 30)\n";
+        std::cout << "  --track-performance     Enable performance tracking and trend analysis\n";
+        std::cout << "  --performance-file FILE Performance data file (default: test_performance.csv)\n";
+        std::cout << "  --show-performance      Show detailed performance report\n";
+        std::cout << "  --show-detailed-perf    Show detailed performance metrics with memory/CPU\n";
+        std::cout << "  --show-memory-report    Show memory usage analysis\n";
+        std::cout << "  --show-outliers         Show performance outliers\n";
+        std::cout << "  --outlier-threshold N   Outlier threshold multiplier (default: 2.0)\n";
         std::cout << "  -h, --help              Show this help message\n\n";
         std::cout << "EXAMPLES:\n";
         std::cout << "  " << program_name << "                    # Run all tests\n";
@@ -82,6 +97,13 @@ CommandLineArgs parseCommandLine(int argc, char* argv[]) {
         {"directory",       required_argument, 0, 'd'},
         {"jobs",            required_argument, 0, 'j'},
         {"timeout",         required_argument, 0, 't'},
+        {"track-performance", no_argument,     0, 1001},
+        {"performance-file", required_argument, 0, 1002},
+        {"show-performance", no_argument,      0, 1003},
+        {"show-detailed-perf", no_argument,    0, 1004},
+        {"show-memory-report", no_argument,    0, 1005},
+        {"show-outliers", no_argument,         0, 1006},
+        {"outlier-threshold", required_argument, 0, 1007},
         {"help",            no_argument,       0, 'h'},
         {0, 0, 0, 0}
     };
@@ -126,6 +148,31 @@ CommandLineArgs parseCommandLine(int argc, char* argv[]) {
                 args.timeout_seconds = std::atoi(optarg);
                 if (args.timeout_seconds <= 0) {
                     std::cerr << "Error: Invalid timeout value: " << optarg << std::endl;
+                    exit(1);
+                }
+                break;
+            case 1001:
+                args.track_performance = true;
+                break;
+            case 1002:
+                args.performance_file = optarg;
+                break;
+            case 1003:
+                args.show_performance_report = true;
+                break;
+            case 1004:
+                args.show_detailed_performance = true;
+                break;
+            case 1005:
+                args.show_memory_report = true;
+                break;
+            case 1006:
+                args.show_outliers = true;
+                break;
+            case 1007:
+                args.outlier_threshold = std::stod(optarg);
+                if (args.outlier_threshold <= 0.0) {
+                    std::cerr << "Error: Invalid outlier threshold: " << optarg << std::endl;
                     exit(1);
                 }
                 break;
@@ -381,6 +428,202 @@ int main(int argc, char* argv[]) {
         summary.calculateFromResults(results);
         
         reporter->reportSummary(summary);
+        
+        // Performance tracking and reporting
+        if (args.track_performance || args.show_performance_report || args.show_detailed_performance ||
+            args.show_memory_report || args.show_outliers) {
+            
+            PerformanceMetrics current_metrics;
+            for (const auto& result : results) {
+                current_metrics.addTestResult(result);
+            }
+            
+            // Basic performance report
+            if (args.show_performance_report) {
+                if (!args.quiet) {
+                    std::cout << "\n";
+                    std::cout << "============================================================\n";
+                    std::cout << "PERFORMANCE REPORT\n";
+                    std::cout << "============================================================\n";
+                }
+                current_metrics.generateReport(std::cout);
+            }
+            
+            // Detailed performance metrics
+            if (args.show_detailed_performance) {
+                if (!args.quiet) {
+                    std::cout << "\n";
+                    std::cout << "============================================================\n";
+                    std::cout << "DETAILED PERFORMANCE METRICS\n";
+                    std::cout << "============================================================\n";
+                }
+                
+                auto stats = current_metrics.getStatistics();
+                std::cout << "TIMING STATISTICS:\n";
+                std::cout << "  Minimum time: " << stats.min_time.count() << "ms\n";
+                std::cout << "  Maximum time: " << stats.max_time.count() << "ms\n";
+                std::cout << "  Median time: " << stats.median_time.count() << "ms\n";
+                std::cout << "  90th percentile: " << stats.p90_time.count() << "ms\n";
+                std::cout << "  95th percentile: " << stats.p95_time.count() << "ms\n\n";
+                
+                if (stats.tests_with_memory_data > 0) {
+                    std::cout << "MEMORY STATISTICS:\n";
+                    std::cout << "  Tests with memory data: " << stats.tests_with_memory_data << "\n";
+                    std::cout << "  Average memory usage: " << (stats.total_memory_kb / stats.tests_with_memory_data) << " KB\n";
+                    
+                    auto highest_memory = current_metrics.getHighestMemoryTests(5);
+                    if (!highest_memory.empty()) {
+                        std::cout << "  Highest memory usage:\n";
+                        for (const auto& test : highest_memory) {
+                            std::cout << "    " << test.test_name << ": " << test.memory_usage << " KB\n";
+                        }
+                    }
+                    std::cout << "\n";
+                }
+                
+                if (stats.tests_with_cpu_data > 0) {
+                    std::cout << "CPU STATISTICS:\n";
+                    std::cout << "  Tests with CPU data: " << stats.tests_with_cpu_data << "\n";
+                    std::cout << "  Average CPU time: " << std::fixed << std::setprecision(3) 
+                             << (stats.total_cpu_seconds / stats.tests_with_cpu_data) << "s\n";
+                    
+                    auto highest_cpu = current_metrics.getHighestCpuTests(5);
+                    if (!highest_cpu.empty()) {
+                        std::cout << "  Highest CPU usage:\n";
+                        for (const auto& test : highest_cpu) {
+                            std::cout << "    " << test.test_name << ": " << std::fixed << std::setprecision(3) 
+                                     << test.cpu_usage << "s\n";
+                        }
+                    }
+                    std::cout << "\n";
+                }
+            }
+            
+            // Memory usage report
+            if (args.show_memory_report) {
+                if (!args.quiet) {
+                    std::cout << "\n";
+                    std::cout << "============================================================\n";
+                    std::cout << "MEMORY USAGE REPORT\n";
+                    std::cout << "============================================================\n";
+                }
+                
+                auto highest_memory = current_metrics.getHighestMemoryTests(10);
+                if (!highest_memory.empty()) {
+                    std::cout << std::left << std::setw(30) << "Test Name" 
+                             << std::setw(15) << "Memory (KB)" 
+                             << std::setw(15) << "Time (ms)" << "\n";
+                    std::cout << std::string(60, '-') << "\n";
+                    
+                    for (const auto& test : highest_memory) {
+                        std::cout << std::left << std::setw(30) << test.test_name
+                                 << std::setw(15) << test.memory_usage
+                                 << std::setw(15) << test.duration.count() << "\n";
+                    }
+                } else {
+                    std::cout << "No memory usage data available.\n";
+                }
+            }
+            
+            // Performance outliers
+            if (args.show_outliers) {
+                if (!args.quiet) {
+                    std::cout << "\n";
+                    std::cout << "============================================================\n";
+                    std::cout << "PERFORMANCE OUTLIERS (>" << args.outlier_threshold << "x median)\n";
+                    std::cout << "============================================================\n";
+                }
+                
+                auto outliers = current_metrics.getOutliers(args.outlier_threshold);
+                if (!outliers.empty()) {
+                    auto stats = current_metrics.getStatistics();
+                    
+                    std::cout << "Median execution time: " << stats.median_time.count() << "ms\n";
+                    std::cout << "Outlier threshold: " << (stats.median_time.count() * args.outlier_threshold) << "ms\n\n";
+                    
+                    std::cout << std::left << std::setw(30) << "Test Name" 
+                             << std::setw(15) << "Time (ms)"
+                             << std::setw(15) << "Ratio" << "\n";
+                    std::cout << std::string(60, '-') << "\n";
+                    
+                    for (const auto& outlier : outliers) {
+                        double ratio = static_cast<double>(outlier.duration.count()) / stats.median_time.count();
+                        std::cout << std::left << std::setw(30) << outlier.test_name
+                                 << std::setw(15) << outlier.duration.count()
+                                 << std::setw(15) << std::fixed << std::setprecision(1) << ratio << "x\n";
+                    }
+                } else {
+                    std::cout << "No performance outliers detected.\n";
+                }
+            }
+            
+            // Performance trend tracking
+            if (args.track_performance) {
+                // Load historical data for comparison
+                PerformanceMetrics historical_metrics;
+                bool has_historical = historical_metrics.loadFromFile(args.performance_file);
+                
+                if (has_historical) {
+                    auto comparisons = current_metrics.compareWithHistorical(historical_metrics);
+                    
+                    if (!comparisons.empty() && !args.quiet) {
+                        std::cout << "\n";
+                        std::cout << "============================================================\n";
+                        std::cout << "PERFORMANCE TRENDS\n";
+                        std::cout << "============================================================\n";
+                        
+                        // Separate regressions and improvements
+                        std::vector<PerformanceMetrics::PerformanceComparison> regressions;
+                        std::vector<PerformanceMetrics::PerformanceComparison> improvements;
+                        std::vector<PerformanceMetrics::PerformanceComparison> stable;
+                        
+                        for (const auto& comp : comparisons) {
+                            if (comp.is_regression) {
+                                regressions.push_back(comp);
+                            } else if (comp.performance_change_percent < -5.0) {
+                                improvements.push_back(comp);
+                            } else {
+                                stable.push_back(comp);
+                            }
+                        }
+                        
+                        if (!regressions.empty()) {
+                            std::cout << "PERFORMANCE REGRESSIONS:\n";
+                            for (const auto& comp : regressions) {
+                                std::cout << "  " << comp.test_name << ": +" 
+                                         << std::fixed << std::setprecision(1) 
+                                         << comp.performance_change_percent << "% slower ("
+                                         << comp.current_time.count() << "ms vs " 
+                                         << comp.historical_time.count() << "ms)\n";
+                            }
+                            std::cout << "\n";
+                        }
+                        
+                        if (!improvements.empty()) {
+                            std::cout << "PERFORMANCE IMPROVEMENTS:\n";
+                            for (const auto& comp : improvements) {
+                                std::cout << "  " << comp.test_name << ": " 
+                                         << std::fixed << std::setprecision(1) 
+                                         << comp.performance_change_percent << "% faster ("
+                                         << comp.current_time.count() << "ms vs " 
+                                         << comp.historical_time.count() << "ms)\n";
+                            }
+                            std::cout << "\n";
+                        }
+                        
+                        std::cout << "Summary: " << regressions.size() << " regressions, " 
+                                 << improvements.size() << " improvements, " 
+                                 << stable.size() << " stable\n";
+                    }
+                }
+                
+                // Save current performance data
+                current_metrics.saveToFile(args.performance_file);
+                if (!args.quiet) {
+                    std::cout << "\nPerformance data saved to: " << args.performance_file << "\n";
+                }
+            }
+        }
         
         // Return appropriate exit code
         return summary.allTestsPassed() ? 0 : 1;

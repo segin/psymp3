@@ -19,6 +19,7 @@
 #include <sstream>
 #include <algorithm>
 #include <regex>
+#include <fstream>
 
 namespace TestFramework {
 
@@ -28,7 +29,8 @@ namespace TestFramework {
     
     TestExecutor::TestExecutor() 
         : m_global_timeout(30000), m_parallel_enabled(true), m_max_parallel(4),
-          m_working_directory("."), m_capture_output(true), m_shutdown_requested(false) {
+          m_working_directory("."), m_capture_output(true), m_shutdown_requested(false),
+          m_max_memory_mb(0), m_max_cpu_seconds(0) {
     }
     
     TestExecutor::~TestExecutor() {
@@ -159,6 +161,15 @@ namespace TestFramework {
         return names;
     }
     
+    void TestExecutor::setResourceLimits(size_t max_memory_mb, double max_cpu_seconds) {
+        m_max_memory_mb = max_memory_mb;
+        m_max_cpu_seconds = max_cpu_seconds;
+    }
+    
+    ResourceUsage TestExecutor::getLastResourceUsage() const {
+        return m_last_resource_usage;
+    }
+    
     // ========================================
     // PRIVATE IMPLEMENTATION METHODS
     // ========================================
@@ -171,6 +182,21 @@ namespace TestFramework {
         if (stat(test.executable_path.c_str(), &file_stat) != 0) {
             result.status = ExecutionStatus::BUILD_ERROR;
             result.error_message = "Test executable not found: " + test.executable_path;
+            
+            // Add detailed error information
+            result.detailed_errors.push_back("Executable file does not exist");
+            result.detailed_errors.push_back("Expected location: " + test.executable_path);
+            result.detailed_errors.push_back("Suggestion: Run 'make " + test.name + "' to build the test");
+            
+            // Check if source file exists
+            struct stat src_stat;
+            if (stat(test.source_path.c_str(), &src_stat) != 0) {
+                result.detailed_errors.push_back("Source file also missing: " + test.source_path);
+            } else {
+                result.detailed_errors.push_back("Source file exists: " + test.source_path);
+                result.detailed_errors.push_back("This suggests a compilation failure");
+            }
+            
             return result;
         }
         
@@ -178,6 +204,8 @@ namespace TestFramework {
         if (!(file_stat.st_mode & S_IXUSR)) {
             result.status = ExecutionStatus::BUILD_ERROR;
             result.error_message = "Test file is not executable: " + test.executable_path;
+            result.detailed_errors.push_back("File exists but lacks execute permissions");
+            result.detailed_errors.push_back("Suggestion: Run 'chmod +x " + test.executable_path + "'");
             return result;
         }
         
@@ -188,7 +216,7 @@ namespace TestFramework {
         }
         
         // Spawn the process
-        auto process = spawnProcess(test.executable_path, test.name, timeout);
+        ProcessInfo* process = spawnProcess(test.executable_path, test.name, timeout);
         if (!process) {
             result.status = ExecutionStatus::SYSTEM_ERROR;
             result.error_message = "Failed to spawn test process";
@@ -204,9 +232,9 @@ namespace TestFramework {
         return result;
     }
     
-    std::unique_ptr<ProcessInfo> TestExecutor::spawnProcess(const std::string& executable_path,
-                                                           const std::string& test_name,
-                                                           std::chrono::milliseconds timeout) {
+    ProcessInfo* TestExecutor::spawnProcess(const std::string& executable_path,
+                                           const std::string& test_name,
+                                           std::chrono::milliseconds timeout) {
         auto process = std::make_unique<ProcessInfo>();
         process->test_name = test_name;
         process->timeout = timeout;
@@ -299,12 +327,13 @@ namespace TestFramework {
         }
         
         // Add to running processes list
+        ProcessInfo* process_ptr = process.get();
         {
             std::lock_guard<std::mutex> lock(m_process_mutex);
             m_running_processes.push_back(std::move(process));
         }
         
-        return std::unique_ptr<ProcessInfo>(m_running_processes.back().get());
+        return process_ptr;
     }
     
     ExecutionResult TestExecutor::waitForProcess(ProcessInfo& process) {
@@ -374,6 +403,10 @@ namespace TestFramework {
         // Calculate execution time
         auto end_time = std::chrono::steady_clock::now();
         result.execution_time = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+        
+        // Collect resource usage information
+        collectResourceUsage(process.pid, m_last_resource_usage);
+        result.resource_usage = m_last_resource_usage;
         
         // Close pipe file descriptors
         if (process.stdout_fd != -1) {
@@ -602,6 +635,74 @@ namespace TestFramework {
                 std::lock_guard<std::mutex> lock(results_mutex);
                 results[test_index] = result;
             }
+        }
+    }
+    
+    void TestExecutor::collectResourceUsage(pid_t pid, ResourceUsage& usage) {
+        // Reset usage
+        usage = ResourceUsage();
+        
+        // Try to read from /proc/pid/status for memory information
+        std::ostringstream status_path;
+        status_path << "/proc/" << pid << "/status";
+        
+        std::ifstream status_file(status_path.str());
+        if (status_file.is_open()) {
+            std::string line;
+            while (std::getline(status_file, line)) {
+                if (line.find("VmPeak:") == 0) {
+                    std::istringstream iss(line);
+                    std::string label, value, unit;
+                    iss >> label >> value >> unit;
+                    usage.peak_memory_kb = std::stoul(value);
+                    break;
+                }
+            }
+        }
+        
+        // Try to read CPU time from /proc/pid/stat
+        std::ostringstream stat_path;
+        stat_path << "/proc/" << pid << "/stat";
+        
+        std::ifstream stat_file(stat_path.str());
+        if (stat_file.is_open()) {
+            std::string stat_line;
+            if (std::getline(stat_file, stat_line)) {
+                std::istringstream iss(stat_line);
+                std::string field;
+                
+                // Skip to fields 14 and 15 (utime and stime)
+                for (int i = 0; i < 13; ++i) {
+                    iss >> field;
+                }
+                
+                unsigned long utime, stime;
+                if (iss >> utime >> stime) {
+                    // Convert from clock ticks to seconds
+                    long clock_ticks_per_sec = sysconf(_SC_CLK_TCK);
+                    if (clock_ticks_per_sec > 0) {
+                        usage.cpu_time_seconds = (double)(utime + stime) / clock_ticks_per_sec;
+                    }
+                }
+            }
+        }
+        
+        // Check resource limits
+        if (m_max_memory_mb > 0 && usage.peak_memory_kb > m_max_memory_mb * 1024) {
+            usage.resource_limit_exceeded = true;
+            usage.limit_exceeded_reason = "Memory limit exceeded: " + 
+                std::to_string(usage.peak_memory_kb / 1024) + "MB > " + 
+                std::to_string(m_max_memory_mb) + "MB";
+        }
+        
+        if (m_max_cpu_seconds > 0 && usage.cpu_time_seconds > m_max_cpu_seconds) {
+            usage.resource_limit_exceeded = true;
+            if (!usage.limit_exceeded_reason.empty()) {
+                usage.limit_exceeded_reason += "; ";
+            }
+            usage.limit_exceeded_reason += "CPU time limit exceeded: " + 
+                std::to_string(usage.cpu_time_seconds) + "s > " + 
+                std::to_string(m_max_cpu_seconds) + "s";
         }
     }
 

@@ -1,0 +1,6 @@
+test_name,duration_ms,memory_kb,cpu_usage,context_switches
+test_rect_intersection,10,0,0,0
+test_rect_containment,10,0,0,0
+test_rect_centering,10,0,0,0
+test_rect_union,10,0,0,0
+test_rect_area_validation,10,0,0,0

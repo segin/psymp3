@@ -185,6 +185,36 @@ namespace TestFramework {
          */
         std::map<std::string, int> getStatistics();
         
+        /**
+         * @brief Compilation result structure
+         */
+        struct CompilationResult {
+            bool success = false;
+            std::string error_output;
+            std::string command_used;
+            int exit_code = -1;
+        };
+        
+        /**
+         * @brief Attempt to compile a test and detect compilation errors
+         * @param test_info TestInfo for test to compile
+         * @return Compilation result with error details
+         */
+        CompilationResult attemptCompilation(const TestInfo& test_info);
+        
+        /**
+         * @brief Check for missing dependencies and suggest solutions
+         * @param test_info TestInfo to check
+         * @return Vector of missing dependencies with suggestions
+         */
+        struct DependencyInfo {
+            std::string name;
+            bool available = false;
+            std::string suggestion;
+        };
+        
+        std::vector<DependencyInfo> checkDependencies(const TestInfo& test_info);
+        
     private:
         std::string m_test_directory;                           ///< Directory to scan
         std::chrono::milliseconds m_default_timeout;           ///< Default test timeout

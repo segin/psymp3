@@ -406,6 +406,20 @@ namespace TestFramework {
         void addTestResult(const ExecutionResult& result);
         
         /**
+         * @brief Add performance data with additional metrics
+         * @param test_name Name of the test
+         * @param duration Execution time
+         * @param memory_usage Peak memory usage in KB
+         * @param cpu_usage CPU usage percentage
+         * @param context_switches Number of context switches
+         */
+        void addTestPerformance(const std::string& test_name, 
+                               std::chrono::milliseconds duration,
+                               size_t memory_usage = 0,
+                               double cpu_usage = 0.0,
+                               int context_switches = 0);
+        
+        /**
          * @brief Get performance data for all tests
          * @return Vector of performance data
          */
@@ -442,6 +456,74 @@ namespace TestFramework {
          * @param output Output stream to write report to
          */
         void generateReport(std::ostream& output) const;
+        
+        /**
+         * @brief Save performance data to file for trend tracking
+         * @param filename File to save performance data to
+         */
+        void saveToFile(const std::string& filename) const;
+        
+        /**
+         * @brief Load historical performance data from file
+         * @param filename File to load performance data from
+         * @return true if loaded successfully
+         */
+        bool loadFromFile(const std::string& filename);
+        
+        /**
+         * @brief Compare current performance with historical data
+         * @param historical_data Previous performance data
+         * @return Performance comparison report
+         */
+        struct PerformanceComparison {
+            std::string test_name;
+            std::chrono::milliseconds current_time;
+            std::chrono::milliseconds historical_time;
+            double performance_change_percent;
+            bool is_regression;
+        };
+        
+        std::vector<PerformanceComparison> compareWithHistorical(const PerformanceMetrics& historical_data) const;
+        
+        /**
+         * @brief Get performance statistics summary
+         * @return Performance statistics
+         */
+        struct PerformanceStats {
+            std::chrono::milliseconds min_time{0};
+            std::chrono::milliseconds max_time{0};
+            std::chrono::milliseconds median_time{0};
+            std::chrono::milliseconds p90_time{0};
+            std::chrono::milliseconds p95_time{0};
+            size_t total_memory_kb = 0;
+            double total_cpu_seconds = 0.0;
+            int total_context_switches = 0;
+            size_t tests_with_memory_data = 0;
+            size_t tests_with_cpu_data = 0;
+        };
+        
+        PerformanceStats getStatistics() const;
+        
+        /**
+         * @brief Identify performance outliers
+         * @param threshold_multiplier Multiplier for median time to identify outliers
+         * @return Vector of outlier tests
+         */
+        std::vector<TestPerformance> getOutliers(double threshold_multiplier = 2.0) const;
+        
+        /**
+         * @brief Get tests with highest memory usage
+         * @param count Number of tests to return
+         * @return Vector of tests with highest memory usage
+         */
+        std::vector<TestPerformance> getHighestMemoryTests(int count = 5) const;
+        
+        /**
+         * @brief Get tests with highest CPU usage
+         * @param count Number of tests to return
+         * @return Vector of tests with highest CPU usage
+         */
+        std::vector<TestPerformance> getHighestCpuTests(int count = 5) const;
         
     private:
         std::vector<TestPerformance> m_performance_data; ///< Collected performance data

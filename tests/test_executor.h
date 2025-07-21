@@ -29,6 +29,17 @@ namespace TestFramework {
     // ========================================
     
     /**
+     * @brief Resource usage information
+     */
+    struct ResourceUsage {
+        size_t peak_memory_kb = 0;      ///< Peak memory usage in KB
+        double cpu_time_seconds = 0.0;  ///< CPU time used in seconds
+        int context_switches = 0;       ///< Number of context switches
+        bool resource_limit_exceeded = false; ///< Whether resource limits were exceeded
+        std::string limit_exceeded_reason;    ///< Reason for limit exceeded
+    };
+    
+    /**
      * @brief Enumeration of possible execution results
      */
     enum class ExecutionStatus {
@@ -53,6 +64,8 @@ namespace TestFramework {
         std::string stderr_output;                  ///< Captured stderr
         std::string error_message;                  ///< Human-readable error description
         bool timed_out;                             ///< Whether execution timed out
+        std::vector<std::string> detailed_errors;   ///< Detailed error messages
+        ResourceUsage resource_usage;               ///< Resource usage information
         
         ExecutionResult() : status(ExecutionStatus::SYSTEM_ERROR), exit_code(-1), 
                            signal_number(0), execution_time(0), timed_out(false) {}
@@ -197,6 +210,21 @@ namespace TestFramework {
          */
         std::vector<std::string> getRunningTestNames() const;
         
+
+        
+        /**
+         * @brief Set resource limits for test execution
+         * @param max_memory_mb Maximum memory usage in MB (0 = no limit)
+         * @param max_cpu_seconds Maximum CPU time in seconds (0 = no limit)
+         */
+        void setResourceLimits(size_t max_memory_mb, double max_cpu_seconds);
+        
+        /**
+         * @brief Get resource usage for last executed test
+         * @return ResourceUsage information
+         */
+        ResourceUsage getLastResourceUsage() const;
+        
     private:
         std::chrono::milliseconds m_global_timeout;     ///< Default timeout for all tests
         bool m_parallel_enabled;                        ///< Whether parallel execution is enabled
@@ -209,6 +237,11 @@ namespace TestFramework {
         mutable std::mutex m_process_mutex;             ///< Mutex for process list
         std::vector<std::unique_ptr<ProcessInfo>> m_running_processes; ///< Active processes
         std::atomic<bool> m_shutdown_requested;         ///< Whether shutdown is requested
+        
+        // Resource monitoring
+        size_t m_max_memory_mb;                         ///< Maximum memory limit in MB
+        double m_max_cpu_seconds;                       ///< Maximum CPU time limit in seconds
+        ResourceUsage m_last_resource_usage;            ///< Resource usage from last test
         
         /**
          * @brief Execute a single test process
@@ -224,9 +257,9 @@ namespace TestFramework {
          * @param timeout Maximum execution time
          * @return ProcessInfo for spawned process, or nullptr on failure
          */
-        std::unique_ptr<ProcessInfo> spawnProcess(const std::string& executable_path, 
-                                                 const std::string& test_name,
-                                                 std::chrono::milliseconds timeout);
+        ProcessInfo* spawnProcess(const std::string& executable_path, 
+                                 const std::string& test_name,
+                                 std::chrono::milliseconds timeout);
         
         /**
          * @brief Wait for process completion with timeout
@@ -320,6 +353,13 @@ namespace TestFramework {
                            size_t count,
                            std::vector<ExecutionResult>& results,
                            std::mutex& results_mutex);
+        
+        /**
+         * @brief Collect resource usage information for a process
+         * @param pid Process ID
+         * @param usage ResourceUsage structure to fill
+         */
+        void collectResourceUsage(pid_t pid, ResourceUsage& usage);
     };
 
     // ========================================

@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <ctime>
 #include <unistd.h>
+#include <fstream>
 
 namespace TestFramework {
 
@@ -554,7 +555,23 @@ namespace TestFramework {
     // ========================================
     
     void PerformanceMetrics::addTestResult(const ExecutionResult& result) {
-        m_performance_data.emplace_back(result.test_name, result.execution_time);
+        TestPerformance perf(result.test_name, result.execution_time);
+        perf.memory_usage = result.resource_usage.peak_memory_kb;
+        perf.cpu_usage = result.resource_usage.cpu_time_seconds;
+        perf.context_switches = result.resource_usage.context_switches;
+        m_performance_data.push_back(perf);
+    }
+    
+    void PerformanceMetrics::addTestPerformance(const std::string& test_name, 
+                                               std::chrono::milliseconds duration,
+                                               size_t memory_usage,
+                                               double cpu_usage,
+                                               int context_switches) {
+        TestPerformance perf(test_name, duration);
+        perf.memory_usage = memory_usage;
+        perf.cpu_usage = cpu_usage;
+        perf.context_switches = context_switches;
+        m_performance_data.push_back(perf);
     }
     
     std::vector<PerformanceMetrics::TestPerformance> PerformanceMetrics::getSlowestTests(int count) const {
@@ -603,29 +620,352 @@ namespace TestFramework {
     }
     
     void PerformanceMetrics::generateReport(std::ostream& output) const {
+        if (m_performance_data.empty()) {
+            output << "No performance data available.\n";
+            return;
+        }
+        
         output << "PERFORMANCE REPORT\n";
-        output << std::string(50, '=') << "\n";
+        output << std::string(60, '=') << "\n";
         
+        // Basic statistics
         output << "Total tests: " << m_performance_data.size() << "\n";
-        output << "Total time: " << getTotalExecutionTime().count() << "ms\n";
-        output << "Average time: " << getAverageExecutionTime().count() << "ms\n\n";
+        output << "Total execution time: " << getTotalExecutionTime().count() << "ms\n";
+        output << "Average execution time: " << getAverageExecutionTime().count() << "ms\n";
         
-        auto slowest = getSlowestTests(5);
+        // Calculate memory and CPU statistics
+        size_t total_memory = 0;
+        double total_cpu = 0.0;
+        int total_context_switches = 0;
+        size_t tests_with_memory = 0;
+        size_t tests_with_cpu = 0;
+        size_t tests_with_context = 0;
+        
+        for (const auto& perf : m_performance_data) {
+            if (perf.memory_usage > 0) {
+                total_memory += perf.memory_usage;
+                tests_with_memory++;
+            }
+            if (perf.cpu_usage > 0.0) {
+                total_cpu += perf.cpu_usage;
+                tests_with_cpu++;
+            }
+            if (perf.context_switches > 0) {
+                total_context_switches += perf.context_switches;
+                tests_with_context++;
+            }
+        }
+        
+        if (tests_with_memory > 0) {
+            output << "Average memory usage: " << (total_memory / tests_with_memory) << " KB\n";
+        }
+        if (tests_with_cpu > 0) {
+            output << "Average CPU time: " << std::fixed << std::setprecision(3) 
+                   << (total_cpu / tests_with_cpu) << "s\n";
+        }
+        if (tests_with_context > 0) {
+            output << "Average context switches: " << (total_context_switches / tests_with_context) << "\n";
+        }
+        
+        output << "\n";
+        
+        // Slowest tests with detailed metrics
+        auto slowest = getSlowestTests(10);
         if (!slowest.empty()) {
             output << "SLOWEST TESTS:\n";
+            output << std::left << std::setw(25) << "Test Name" 
+                   << std::setw(10) << "Time (ms)"
+                   << std::setw(12) << "Memory (KB)"
+                   << std::setw(12) << "CPU (s)"
+                   << std::setw(10) << "Context SW" << "\n";
+            output << std::string(69, '-') << "\n";
+            
             for (const auto& test : slowest) {
-                output << "  " << test.test_name << ": " << test.duration.count() << "ms\n";
+                output << std::left << std::setw(25) << test.test_name
+                       << std::setw(10) << test.duration.count();
+                
+                if (test.memory_usage > 0) {
+                    output << std::setw(12) << test.memory_usage;
+                } else {
+                    output << std::setw(12) << "N/A";
+                }
+                
+                if (test.cpu_usage > 0.0) {
+                    output << std::setw(12) << std::fixed << std::setprecision(3) << test.cpu_usage;
+                } else {
+                    output << std::setw(12) << "N/A";
+                }
+                
+                if (test.context_switches > 0) {
+                    output << std::setw(10) << test.context_switches;
+                } else {
+                    output << std::setw(10) << "N/A";
+                }
+                
+                output << "\n";
             }
             output << "\n";
         }
         
+        // Fastest tests
         auto fastest = getFastestTests(5);
         if (!fastest.empty()) {
             output << "FASTEST TESTS:\n";
             for (const auto& test : fastest) {
-                output << "  " << test.test_name << ": " << test.duration.count() << "ms\n";
+                output << "  " << std::left << std::setw(25) << test.test_name 
+                       << ": " << test.duration.count() << "ms";
+                if (test.memory_usage > 0) {
+                    output << " (" << test.memory_usage << " KB)";
+                }
+                output << "\n";
+            }
+            output << "\n";
+        }
+        
+        // Performance distribution analysis
+        if (m_performance_data.size() > 1) {
+            output << "PERFORMANCE DISTRIBUTION:\n";
+            
+            // Calculate percentiles
+            std::vector<std::chrono::milliseconds> durations;
+            for (const auto& perf : m_performance_data) {
+                durations.push_back(perf.duration);
+            }
+            std::sort(durations.begin(), durations.end());
+            
+            size_t p50_idx = durations.size() / 2;
+            size_t p90_idx = (durations.size() * 9) / 10;
+            size_t p95_idx = (durations.size() * 95) / 100;
+            
+            output << "  50th percentile (median): " << durations[p50_idx].count() << "ms\n";
+            output << "  90th percentile: " << durations[p90_idx].count() << "ms\n";
+            output << "  95th percentile: " << durations[p95_idx].count() << "ms\n";
+            
+            // Identify outliers (tests taking more than 2x the median)
+            auto median_time = durations[p50_idx];
+            auto outlier_threshold = median_time * 2;
+            
+            std::vector<TestPerformance> outliers;
+            for (const auto& perf : m_performance_data) {
+                if (perf.duration > outlier_threshold) {
+                    outliers.push_back(perf);
+                }
+            }
+            
+            if (!outliers.empty()) {
+                output << "\nPERFORMANCE OUTLIERS (>2x median):\n";
+                for (const auto& outlier : outliers) {
+                    double ratio = static_cast<double>(outlier.duration.count()) / median_time.count();
+                    output << "  " << outlier.test_name << ": " << outlier.duration.count() 
+                           << "ms (" << std::fixed << std::setprecision(1) << ratio << "x median)\n";
+                }
             }
         }
+    }
+    
+    void PerformanceMetrics::saveToFile(const std::string& filename) const {
+        std::ofstream file(filename);
+        if (!file.is_open()) {
+            return;
+        }
+        
+        // Write header
+        file << "test_name,duration_ms,memory_kb,cpu_usage,context_switches\n";
+        
+        // Write performance data
+        for (const auto& perf : m_performance_data) {
+            file << perf.test_name << ","
+                 << perf.duration.count() << ","
+                 << perf.memory_usage << ","
+                 << perf.cpu_usage << ","
+                 << perf.context_switches << "\n";
+        }
+    }
+    
+    bool PerformanceMetrics::loadFromFile(const std::string& filename) {
+        std::ifstream file(filename);
+        if (!file.is_open()) {
+            return false;
+        }
+        
+        m_performance_data.clear();
+        
+        std::string line;
+        // Skip header
+        if (!std::getline(file, line)) {
+            return false;
+        }
+        
+        // Read performance data
+        while (std::getline(file, line)) {
+            std::istringstream iss(line);
+            std::string test_name, duration_str, memory_str, cpu_str, context_str;
+            
+            if (std::getline(iss, test_name, ',') &&
+                std::getline(iss, duration_str, ',') &&
+                std::getline(iss, memory_str, ',') &&
+                std::getline(iss, cpu_str, ',') &&
+                std::getline(iss, context_str)) {
+                
+                TestPerformance perf;
+                perf.test_name = test_name;
+                perf.duration = std::chrono::milliseconds(std::stoll(duration_str));
+                perf.memory_usage = std::stoull(memory_str);
+                perf.cpu_usage = std::stod(cpu_str);
+                perf.context_switches = std::stoi(context_str);
+                
+                m_performance_data.push_back(perf);
+            }
+        }
+        
+        return true;
+    }
+    
+    PerformanceMetrics::PerformanceStats PerformanceMetrics::getStatistics() const {
+        PerformanceStats stats;
+        
+        if (m_performance_data.empty()) {
+            return stats;
+        }
+        
+        // Calculate timing statistics
+        std::vector<std::chrono::milliseconds> durations;
+        for (const auto& perf : m_performance_data) {
+            durations.push_back(perf.duration);
+        }
+        std::sort(durations.begin(), durations.end());
+        
+        stats.min_time = durations.front();
+        stats.max_time = durations.back();
+        stats.median_time = durations[durations.size() / 2];
+        stats.p90_time = durations[(durations.size() * 9) / 10];
+        stats.p95_time = durations[(durations.size() * 95) / 100];
+        
+        // Calculate resource usage statistics
+        for (const auto& perf : m_performance_data) {
+            if (perf.memory_usage > 0) {
+                stats.total_memory_kb += perf.memory_usage;
+                stats.tests_with_memory_data++;
+            }
+            if (perf.cpu_usage > 0.0) {
+                stats.total_cpu_seconds += perf.cpu_usage;
+                stats.tests_with_cpu_data++;
+            }
+            stats.total_context_switches += perf.context_switches;
+        }
+        
+        return stats;
+    }
+    
+    std::vector<PerformanceMetrics::TestPerformance> PerformanceMetrics::getOutliers(double threshold_multiplier) const {
+        std::vector<TestPerformance> outliers;
+        
+        if (m_performance_data.size() < 2) {
+            return outliers;
+        }
+        
+        auto stats = getStatistics();
+        auto threshold = std::chrono::milliseconds(
+            static_cast<long long>(stats.median_time.count() * threshold_multiplier)
+        );
+        
+        for (const auto& perf : m_performance_data) {
+            if (perf.duration > threshold) {
+                outliers.push_back(perf);
+            }
+        }
+        
+        // Sort by duration (slowest first)
+        std::sort(outliers.begin(), outliers.end(),
+                  [](const TestPerformance& a, const TestPerformance& b) {
+                      return a.duration > b.duration;
+                  });
+        
+        return outliers;
+    }
+    
+    std::vector<PerformanceMetrics::TestPerformance> PerformanceMetrics::getHighestMemoryTests(int count) const {
+        std::vector<TestPerformance> memory_tests;
+        
+        // Filter tests with memory data
+        for (const auto& perf : m_performance_data) {
+            if (perf.memory_usage > 0) {
+                memory_tests.push_back(perf);
+            }
+        }
+        
+        // Sort by memory usage (highest first)
+        std::sort(memory_tests.begin(), memory_tests.end(),
+                  [](const TestPerformance& a, const TestPerformance& b) {
+                      return a.memory_usage > b.memory_usage;
+                  });
+        
+        if (memory_tests.size() > static_cast<size_t>(count)) {
+            memory_tests.resize(count);
+        }
+        
+        return memory_tests;
+    }
+    
+    std::vector<PerformanceMetrics::TestPerformance> PerformanceMetrics::getHighestCpuTests(int count) const {
+        std::vector<TestPerformance> cpu_tests;
+        
+        // Filter tests with CPU data
+        for (const auto& perf : m_performance_data) {
+            if (perf.cpu_usage > 0.0) {
+                cpu_tests.push_back(perf);
+            }
+        }
+        
+        // Sort by CPU usage (highest first)
+        std::sort(cpu_tests.begin(), cpu_tests.end(),
+                  [](const TestPerformance& a, const TestPerformance& b) {
+                      return a.cpu_usage > b.cpu_usage;
+                  });
+        
+        if (cpu_tests.size() > static_cast<size_t>(count)) {
+            cpu_tests.resize(count);
+        }
+        
+        return cpu_tests;
+    }
+    
+    std::vector<PerformanceMetrics::PerformanceComparison> PerformanceMetrics::compareWithHistorical(const PerformanceMetrics& historical_data) const {
+        std::vector<PerformanceComparison> comparisons;
+        
+        // Create a map of historical data for quick lookup
+        std::map<std::string, TestPerformance> historical_map;
+        for (const auto& perf : historical_data.m_performance_data) {
+            historical_map[perf.test_name] = perf;
+        }
+        
+        // Compare current data with historical
+        for (const auto& current_perf : m_performance_data) {
+            auto historical_it = historical_map.find(current_perf.test_name);
+            if (historical_it != historical_map.end()) {
+                PerformanceComparison comparison;
+                comparison.test_name = current_perf.test_name;
+                comparison.current_time = current_perf.duration;
+                comparison.historical_time = historical_it->second.duration;
+                
+                if (historical_it->second.duration.count() > 0) {
+                    double current_ms = static_cast<double>(current_perf.duration.count());
+                    double historical_ms = static_cast<double>(historical_it->second.duration.count());
+                    comparison.performance_change_percent = 
+                        ((current_ms - historical_ms) / historical_ms) * 100.0;
+                    
+                    // Consider it a regression if performance degraded by more than 10%
+                    comparison.is_regression = comparison.performance_change_percent > 10.0;
+                } else {
+                    comparison.performance_change_percent = 0.0;
+                    comparison.is_regression = false;
+                }
+                
+                comparisons.push_back(comparison);
+            }
+        }
+        
+        return comparisons;
     }
 
     // ========================================

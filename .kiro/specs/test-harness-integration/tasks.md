@@ -72,21 +72,21 @@
   - _Requirements: 6.1, 6.3, 6.6_
 
 - [ ] 5. Integrate with build system and add error handling
-- [ ] 5.1 Complete autotools integration
+- [x] 5.1 Complete autotools integration
   - Ensure test harness builds correctly with make check
   - Add proper dependency tracking for test executables
   - Implement clean targets for test artifacts
   - Test autotools regeneration with ./generate-configure.sh
   - _Requirements: 2.2, 2.4, 2.6, 2.7_
 
-- [ ] 5.2 Implement comprehensive error handling
+- [x] 5.2 Implement comprehensive error handling
   - Add compilation failure detection and reporting
   - Implement resource monitoring and limits
   - Add detailed error messages for common failure scenarios
   - Create fallback mechanisms for missing dependencies
   - _Requirements: 4.4, 4.5_
 
-- [ ] 5.3 Add performance monitoring and optimization
+- [-] 5.3 Add performance monitoring and optimization
   - Implement execution time measurement for individual tests
   - Add memory usage tracking where available
   - Create performance trend tracking capabilities
