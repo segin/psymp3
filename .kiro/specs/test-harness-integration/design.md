@@ -230,8 +230,8 @@ struct TestSummary {
     std::chrono::milliseconds total_duration;
     std::vector<TestResult> results;
 };
-```## 
-Error Handling
+```
+## Error Handling
 
 ### Test Execution Errors
 
