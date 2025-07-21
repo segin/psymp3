@@ -211,6 +211,11 @@ private:
     bool seekToPage(uint64_t target_granule, uint32_t stream_id);
     
     /**
+     * @brief Find the granule position at a specific file offset
+     */
+    uint64_t findGranuleAtOffset(long file_offset, uint32_t stream_id);
+    
+    /**
      * @brief Robustly find and read the next Ogg page from the current file position.
      */
     bool findAndReadNextPage(ogg_page& page, uint32_t target_stream_id = 0);
@@ -229,6 +234,16 @@ private:
      * @brief Check if packet data starts with given signature
      */
     static bool hasSignature(const std::vector<uint8_t>& data, const char* signature);
+    
+    /**
+     * @brief Validate ogg_page structure before accessing its fields
+     */
+    static bool validateOggPage(const ogg_page* page);
+    
+    /**
+     * @brief Validate ogg_packet structure before accessing its fields
+     */
+    static bool validateOggPacket(const ogg_packet* packet, uint32_t stream_id);
     
     /**
      * @brief Get the number of samples in an Opus packet

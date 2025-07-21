@@ -2,28 +2,28 @@
 
 ## **Implementation Tasks**
 
-- [ ] 1. Fix Critical Seeking Issues
+- [-] 1. Fix Critical Seeking Issues
   - Fix segmentation fault in seekToPage function by properly validating ogg_page structures
   - Remove incorrect use of ogg_sync_pageseek and use ogg_sync_pageout exclusively
   - Implement proper bisection search algorithm with valid page detection
   - Add comprehensive error checking for all libogg API calls
   - _Requirements: 5.1, 5.2, 5.3, 5.7, 7.1, 7.2_
 
-- [ ] 1.1 Implement Safe Page Extraction
+- [x] 1.1 Implement Safe Page Extraction
   - Replace ogg_sync_pageseek usage with ogg_sync_pageout for reliable page extraction
   - Add validation that ogg_page structure is properly initialized before calling ogg_page_* functions
   - Implement proper buffer management for libogg sync state
   - Add bounds checking for all page access operations
   - _Requirements: 1.6, 1.7, 7.1, 7.4_
 
-- [ ] 1.2 Fix Bisection Search Algorithm
+- [x] 1.2 Fix Bisection Search Algorithm
   - Rewrite seekToPage to use only ogg_sync_pageout for page extraction
   - Implement proper file position tracking during bisection search
   - Add stream ID validation and granule position checking
   - Remove non-existent ogg_page_bytes function call and use alternative position calculation
   - _Requirements: 5.1, 5.2, 5.3, 5.8_
 
-- [ ] 1.3 Correct Header Handling After Seeks
+- [x] 1.3 Correct Header Handling After Seeks
   - Remove incorrect header resending logic after seek operations
   - Ensure decoder state is maintained across seeks (headers sent only once)
   - Update position tracking without reinitializing codec state

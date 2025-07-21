@@ -117,9 +117,15 @@ bool OggDemuxer::parseContainer() {
 
 bool OggDemuxer::readIntoSyncBuffer(size_t bytes) {
     try {
+        // Validate input parameters
+        if (bytes == 0 || bytes > 1048576) { // Limit to 1MB per read
+            Debug::log("ogg", "OggDemuxer: Invalid buffer size requested: ", bytes);
+            return false;
+        }
+        
         char* buffer = ogg_sync_buffer(&m_sync_state, static_cast<long>(bytes));
         if (!buffer) {
-            Debug::log("ogg", "OggDemuxer: ogg_sync_buffer failed - out of memory");
+            Debug::log("ogg", "OggDemuxer: ogg_sync_buffer failed - out of memory or invalid sync state");
             return false;
         }
         
@@ -134,19 +140,31 @@ bool OggDemuxer::readIntoSyncBuffer(size_t bytes) {
         Debug::log("ogg", "OggDemuxer: readIntoSyncBuffer at ", m_position_ms, "ms - pos_before=", current_pos_before, 
                        ", requested=", bytes, ", bytes_read=", bytes_read);
         
-        if (bytes_read <= 0) {
+        if (bytes_read < 0) {
+            Debug::log("ogg", "OggDemuxer: I/O error during read: ", bytes_read);
+            return false;
+        }
+        
+        if (bytes_read == 0) {
             // Check if we're at EOF or if this is an I/O error
             if (m_handler->eof()) {
                 Debug::log("ogg", "OggDemuxer: Reached end of file");
                 m_eof = true;
             } else {
-                Debug::log("ogg", "OggDemuxer: I/O error or temporary unavailability");
+                Debug::log("ogg", "OggDemuxer: No data available (temporary)");
             }
             return false;
         }
         
-        if (ogg_sync_wrote(&m_sync_state, bytes_read) != 0) {
-            Debug::log("ogg", "OggDemuxer: ogg_sync_wrote failed - sync state corrupted");
+        // Validate that bytes_read doesn't exceed what we requested
+        if (bytes_read > static_cast<long>(bytes)) {
+            Debug::log("ogg", "OggDemuxer: Read more bytes than requested - potential buffer overflow");
+            bytes_read = static_cast<long>(bytes);
+        }
+        
+        int sync_result = ogg_sync_wrote(&m_sync_state, bytes_read);
+        if (sync_result != 0) {
+            Debug::log("ogg", "OggDemuxer: ogg_sync_wrote failed with code: ", sync_result);
             // Try to recover by resetting sync state
             ogg_sync_reset(&m_sync_state);
             return false;
@@ -172,6 +190,13 @@ bool OggDemuxer::processPages() {
     try {
         while (ogg_sync_pageout(&m_sync_state, &page) == 1) {
             processed_any_pages = true;
+            
+            // Validate page structure before accessing any fields
+            if (!validateOggPage(&page)) {
+                Debug::log("ogg", "OggDemuxer: Invalid page structure, skipping page");
+                continue;
+            }
+            
             uint32_t stream_id = ogg_page_serialno(&page);
             
             // Validate stream ID
@@ -195,16 +220,18 @@ bool OggDemuxer::processPages() {
             }
             
             // Add page to stream with error handling
-            if (ogg_stream_pagein(&m_ogg_streams[stream_id], &page) != 0) {
-                Debug::log("ogg", "OggDemuxer: Failed to add page to stream ", stream_id, ", page may be corrupted");
+            int pagein_result = ogg_stream_pagein(&m_ogg_streams[stream_id], &page);
+            if (pagein_result != 0) {
+                Debug::log("ogg", "OggDemuxer: Failed to add page to stream ", stream_id, ", error code: ", pagein_result);
                 continue;
             }
         
             // Extract packets from this stream
             ogg_packet packet;
-            while (ogg_stream_packetout(&m_ogg_streams[stream_id], &packet) == 1) {
-                // Validate packet
-                if (packet.bytes <= 0 || packet.packet == nullptr) {
+            int packet_result;
+            while ((packet_result = ogg_stream_packetout(&m_ogg_streams[stream_id], &packet)) == 1) {
+                // Validate packet structure
+                if (!validateOggPacket(&packet, stream_id)) {
                     Debug::log("ogg", "OggDemuxer: Invalid packet from stream ", stream_id, ", skipping");
                     continue;
                 }
@@ -522,13 +549,10 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
             ogg_stream_reset(&ogg_stream);
         }
         
-        // When seeking to beginning, headers need to be resent
+        // Do NOT resend headers after seeking - decoder state should be maintained
+        // Headers are only sent once at the beginning of playback
         for (auto& [id, stream] : m_streams) {
-            if (stream.headers_complete) {
-                stream.headers_sent = false;
-                stream.next_header_index = 0;
-                stream.total_samples_processed = 0;
-            }
+            stream.total_samples_processed = 0;
         }
         
         m_position_ms = 0;
@@ -580,6 +604,91 @@ bool OggDemuxer::hasSignature(const std::vector<uint8_t>& data, const char* sign
     }
     
     return std::memcmp(data.data(), signature, sig_len) == 0;
+}
+
+bool OggDemuxer::validateOggPage(const ogg_page* page) {
+    if (!page) {
+        Debug::log("ogg", "OggDemuxer: validateOggPage - null page pointer");
+        return false;
+    }
+    
+    // Check if page header is accessible
+    if (!page->header || page->header_len < 27) {
+        Debug::log("ogg", "OggDemuxer: validateOggPage - invalid header pointer or length");
+        return false;
+    }
+    
+    // Validate OggS capture pattern
+    if (page->header[0] != 'O' || page->header[1] != 'g' || 
+        page->header[2] != 'g' || page->header[3] != 'S') {
+        Debug::log("ogg", "OggDemuxer: validateOggPage - invalid capture pattern");
+        return false;
+    }
+    
+    // Check version (should be 0)
+    if (page->header[4] != 0) {
+        Debug::log("ogg", "OggDemuxer: validateOggPage - unsupported version: ", static_cast<int>(page->header[4]));
+        return false;
+    }
+    
+    // Validate page body
+    if (page->body_len > 0 && !page->body) {
+        Debug::log("ogg", "OggDemuxer: validateOggPage - invalid body pointer with non-zero length");
+        return false;
+    }
+    
+    // Check segment count and validate against header length
+    uint8_t segments = page->header[26];
+    if (page->header_len != 27 + segments) {
+        Debug::log("ogg", "OggDemuxer: validateOggPage - header length mismatch: expected ", 27 + segments, ", got ", page->header_len);
+        return false;
+    }
+    
+    // Validate that body length matches sum of segment lengths
+    if (segments > 0) {
+        long expected_body_len = 0;
+        for (int i = 0; i < segments; i++) {
+            expected_body_len += page->header[27 + i];
+        }
+        if (expected_body_len != page->body_len) {
+            Debug::log("ogg", "OggDemuxer: validateOggPage - body length mismatch: expected ", expected_body_len, ", got ", page->body_len);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+bool OggDemuxer::validateOggPacket(const ogg_packet* packet, uint32_t stream_id) {
+    if (!packet) {
+        Debug::log("ogg", "OggDemuxer: validateOggPacket - null packet pointer for stream ", stream_id);
+        return false;
+    }
+    
+    // Check packet data pointer and size
+    if (packet->bytes <= 0) {
+        Debug::log("ogg", "OggDemuxer: validateOggPacket - invalid packet size: ", packet->bytes, " for stream ", stream_id);
+        return false;
+    }
+    
+    if (!packet->packet) {
+        Debug::log("ogg", "OggDemuxer: validateOggPacket - null packet data pointer for stream ", stream_id);
+        return false;
+    }
+    
+    // Reasonable size limit (10MB per packet should be more than enough for audio)
+    if (packet->bytes > 10485760) {
+        Debug::log("ogg", "OggDemuxer: validateOggPacket - packet too large: ", packet->bytes, " bytes for stream ", stream_id);
+        return false;
+    }
+    
+    // Validate granule position (should not be invalid unless it's a header packet)
+    if (packet->granulepos < -1) {
+        Debug::log("ogg", "OggDemuxer: validateOggPacket - invalid granule position: ", packet->granulepos, " for stream ", stream_id);
+        return false;
+    }
+    
+    return true;
 }
 
 std::string OggDemuxer::identifyCodec(const std::vector<uint8_t>& packet_data) {
@@ -1080,75 +1189,71 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id)
 
     Debug::log("ogg", "OggDemuxer: seekToPage - target_granule=", target_granule, ", stream_id=", stream_id, ", file_size=", m_file_size);
 
-    // Simple approach: estimate position based on target granule and file size
-    // This is less precise than bisection but more reliable
-    
-    // First, try to estimate where in the file this granule might be
-    // Get the total duration in granules for rough estimation
-    uint64_t total_granules = 0;
-    auto stream_it = m_streams.find(stream_id);
-    if (stream_it != m_streams.end() && stream_it->second.total_samples > 0) {
-        total_granules = stream_it->second.total_samples;
-    } else {
-        // Fallback: get last granule position
-        total_granules = getLastGranulePosition();
-    }
-    
-    long estimated_pos = 0;
-    if (total_granules > 0 && target_granule > 0) {
-        // Rough estimate: (target_granule / total_granules) * file_size
-        double ratio = static_cast<double>(target_granule) / static_cast<double>(total_granules);
-        estimated_pos = static_cast<long>(ratio * m_file_size);
-        // Don't seek too close to the end
-        estimated_pos = std::min(estimated_pos, static_cast<long>(m_file_size - 8192));
-    }
-    
-    Debug::log("ogg", "OggDemuxer: seekToPage - estimated_pos=", estimated_pos, " (ratio=", 
-               (total_granules > 0 ? static_cast<double>(target_granule) / total_granules : 0.0), ")");
-    
-    // Seek to estimated position and scan forward for a suitable page
-    m_handler->seek(estimated_pos, SEEK_SET);
-    ogg_sync_reset(&m_sync_state);
-    
-    // Read data and look for pages
-    if (!readIntoSyncBuffer(16384)) {
-        Debug::log("ogg", "OggDemuxer: seekToPage - failed to read data at estimated position");
-        m_handler->seek(0, SEEK_SET);
-        ogg_sync_reset(&m_sync_state);
-        return true; // Fallback to beginning
-    }
-    
-    // Scan for pages and find the best one
-    ogg_page page;
+    // Implement proper bisection search algorithm
+    long left = 0;
+    long right = static_cast<long>(m_file_size);
+    long best_pos = 0;
     uint64_t best_granule = 0;
-    bool found_any_page = false;
+    bool found_valid_page = false;
     
-    while (ogg_sync_pageout(&m_sync_state, &page) == 1) {
-        uint32_t page_stream_id = ogg_page_serialno(&page);
-        uint64_t page_granule = ogg_page_granulepos(&page);
+    // Maximum iterations to prevent infinite loops
+    const int max_iterations = 32;
+    int iterations = 0;
+    
+    while (left < right && iterations < max_iterations) {
+        iterations++;
+        long mid = left + (right - left) / 2;
         
-        if (page_stream_id == stream_id && page_granule != static_cast<uint64_t>(-1)) {
-            found_any_page = true;
-            best_granule = page_granule;
-            
-            Debug::log("ogg", "OggDemuxer: seekToPage - found page with granule=", page_granule, 
-                       ", target=", target_granule);
-            
-            // If this page is close enough to our target, use it
-            if (page_granule <= target_granule) {
-                // This is good - we're at or before our target
-                break;
-            } else if (page_granule > target_granule) {
-                // We've gone past our target, this is still usable
-                break;
-            }
+        Debug::log("ogg", "OggDemuxer: seekToPage bisection iteration ", iterations, " - left=", left, ", mid=", mid, ", right=", right);
+        
+        // Find granule position at this file offset
+        uint64_t granule_at_mid = findGranuleAtOffset(mid, stream_id);
+        
+        if (granule_at_mid == static_cast<uint64_t>(-1)) {
+            // No valid page found at this position, try moving right
+            left = mid + 1;
+            Debug::log("ogg", "OggDemuxer: seekToPage - no valid page at offset ", mid, ", moving right");
+            continue;
+        }
+        
+        Debug::log("ogg", "OggDemuxer: seekToPage - found granule ", granule_at_mid, " at offset ", mid, ", target=", target_granule);
+        
+        // Update best position if this is closer to our target
+        if (!found_valid_page || 
+            (granule_at_mid <= target_granule && granule_at_mid > best_granule) ||
+            (best_granule > target_granule && granule_at_mid < best_granule)) {
+            best_pos = mid;
+            best_granule = granule_at_mid;
+            found_valid_page = true;
+        }
+        
+        if (granule_at_mid < target_granule) {
+            // Need to search right half
+            left = mid + 1;
+        } else if (granule_at_mid > target_granule) {
+            // Need to search left half
+            right = mid - 1;
+        } else {
+            // Exact match found
+            best_pos = mid;
+            best_granule = granule_at_mid;
+            break;
         }
     }
     
-    if (!found_any_page) {
-        Debug::log("ogg", "OggDemuxer: seekToPage - no suitable pages found, seeking to beginning");
+    if (!found_valid_page) {
+        Debug::log("ogg", "OggDemuxer: seekToPage - no valid pages found during bisection, seeking to beginning");
         m_handler->seek(0, SEEK_SET);
+        ogg_sync_reset(&m_sync_state);
+        m_position_ms = 0;
+        m_eof = false;
+        return true;
     }
+    
+    Debug::log("ogg", "OggDemuxer: seekToPage - bisection completed after ", iterations, " iterations, best_pos=", best_pos, ", best_granule=", best_granule);
+    
+    // Seek to the best position found
+    m_handler->seek(best_pos, SEEK_SET);
     
     // Reset sync and stream states for clean reading
     ogg_sync_reset(&m_sync_state);
@@ -1162,6 +1267,75 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id)
     
     Debug::log("ogg", "OggDemuxer: seekToPage completed - final position=", m_position_ms, "ms");
     return true;
+}
+
+uint64_t OggDemuxer::findGranuleAtOffset(long file_offset, uint32_t stream_id) {
+    // Save current position
+    long original_pos = m_handler->tell();
+    
+    // Seek to the target offset
+    if (m_handler->seek(file_offset, SEEK_SET) != 0) {
+        Debug::log("ogg", "OggDemuxer: findGranuleAtOffset - failed to seek to offset ", file_offset);
+        m_handler->seek(original_pos, SEEK_SET);
+        return static_cast<uint64_t>(-1);
+    }
+    
+    // Create a temporary sync state for this search
+    ogg_sync_state temp_sync;
+    if (ogg_sync_init(&temp_sync) != 0) {
+        Debug::log("ogg", "OggDemuxer: findGranuleAtOffset - failed to initialize temp sync state");
+        m_handler->seek(original_pos, SEEK_SET);
+        return static_cast<uint64_t>(-1);
+    }
+    
+    uint64_t found_granule = static_cast<uint64_t>(-1);
+    
+    try {
+        // Read data into temporary sync buffer
+        const size_t read_size = 8192;
+        char* buffer = ogg_sync_buffer(&temp_sync, read_size);
+        if (!buffer) {
+            throw std::runtime_error("Failed to get sync buffer");
+        }
+        
+        long bytes_read = m_handler->read(buffer, 1, read_size);
+        if (bytes_read <= 0) {
+            throw std::runtime_error("Failed to read data");
+        }
+        
+        if (ogg_sync_wrote(&temp_sync, bytes_read) != 0) {
+            throw std::runtime_error("Failed to write to sync buffer");
+        }
+        
+        // Look for pages in the buffer
+        ogg_page page;
+        while (ogg_sync_pageout(&temp_sync, &page) == 1) {
+            // Validate page before accessing its fields
+            if (!validateOggPage(&page)) {
+                continue;
+            }
+            
+            uint32_t page_stream_id = ogg_page_serialno(&page);
+            uint64_t page_granule = ogg_page_granulepos(&page);
+            
+            if (page_stream_id == stream_id && page_granule != static_cast<uint64_t>(-1)) {
+                found_granule = page_granule;
+                Debug::log("ogg", "OggDemuxer: findGranuleAtOffset - found granule ", page_granule, " for stream ", stream_id, " at offset ", file_offset);
+                break;
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        Debug::log("ogg", "OggDemuxer: findGranuleAtOffset - exception: ", e.what());
+    }
+    
+    // Clean up temporary sync state
+    ogg_sync_clear(&temp_sync);
+    
+    // Restore original position
+    m_handler->seek(original_pos, SEEK_SET);
+    
+    return found_granule;
 }
 
 #endif // defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)
