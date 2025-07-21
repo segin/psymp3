@@ -29,7 +29,7 @@ libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 # Test harness executable
 if BUILD_TEST_HARNESS
 noinst_PROGRAMS = test-harness
-test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp test_performance.cpp
+test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 endif
@@ -45,7 +45,8 @@ check_PROGRAMS = \
 	test_rect_expansion \
 	test_rect_transformation \
 	test_rect_normalization \
-	test_rect_modern_cpp
+	test_rect_modern_cpp \
+	test_harness_integration
 
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
@@ -77,6 +78,9 @@ test_rect_normalization_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $
 
 test_rect_modern_cpp_SOURCES = test_rect_modern_cpp.cpp
 test_rect_modern_cpp_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+
+test_harness_integration_SOURCES = test_harness_integration.cpp
+test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 # Test execution target
 check-local: $(check_PROGRAMS)

@@ -10,7 +10,7 @@
 #include "psymp3.h"
 
 // OggDemuxer is built if any Ogg-based codec is enabled
-#if defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)
+#ifdef HAVE_OGGDEMUXER
 
 OggDemuxer::OggDemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)) {

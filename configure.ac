@@ -65,28 +65,61 @@ if test "x$enable_mp3" = "xyes"; then
   fi
 fi
 
+# Check for libogg first - required for Vorbis, Opus, and optionally FLAC
+PKG_CHECK_MODULES([OGG], [ogg], [have_ogg=yes], [have_ogg=no])
+
 if test "x$enable_vorbis" = "xyes"; then
-  PKG_CHECK_MODULES([VORBIS], [vorbis], [have_vorbis=yes], [have_vorbis=no])
-  PKG_CHECK_MODULES([OGG], [ogg], [have_ogg=yes], [have_ogg=no])
-  if test "x$have_vorbis" = "xyes" && test "x$have_ogg" = "xyes"; then
-    AC_DEFINE([HAVE_VORBIS], [1], [Define to 1 if Vorbis support is enabled])
-    have_vorbis=yes
+  if test "x$have_ogg" = "xyes"; then
+    PKG_CHECK_MODULES([VORBIS], [vorbis], [have_vorbis=yes], [have_vorbis=no])
+    if test "x$have_vorbis" = "xyes"; then
+      AC_DEFINE([HAVE_VORBIS], [1], [Define to 1 if Vorbis support is enabled])
+    fi
   else
     have_vorbis=no
+    AC_MSG_WARN([Vorbis support disabled: libogg not found])
   fi
+else
+  have_vorbis=no
 fi
 
 if test "x$enable_opus" = "xyes"; then
-  PKG_CHECK_MODULES([OPUS], [opus], [have_opus=yes], [have_opus=no])
-  if test "x$have_opus" = "xyes"; then
-    AC_DEFINE([HAVE_OPUS], [1], [Define to 1 if Opus support is enabled])
+  if test "x$have_ogg" = "xyes"; then
+    PKG_CHECK_MODULES([OPUS], [opus], [have_opus=yes], [have_opus=no])
+    if test "x$have_opus" = "xyes"; then
+      AC_DEFINE([HAVE_OPUS], [1], [Define to 1 if Opus support is enabled])
+    fi
+  else
+    have_opus=no
+    AC_MSG_WARN([Opus support disabled: libogg not found])
   fi
+else
+  have_opus=no
+fi
+
+# Determine if OggDemuxer should be built
+# OggDemuxer is built if:
+# - Both Vorbis and Opus are enabled, OR
+# - Only Vorbis is enabled, OR  
+# - Only Opus is enabled, OR
+# - FLAC is enabled and libogg is available (for Ogg FLAC support)
+have_oggdemuxer=no
+if test "x$have_vorbis" = "xyes" || test "x$have_opus" = "xyes"; then
+  have_oggdemuxer=yes
+elif test "x$have_flac" = "xyes" && test "x$have_ogg" = "xyes"; then
+  have_oggdemuxer=yes
+  AC_DEFINE([HAVE_OGG_FLAC], [1], [Define to 1 if Ogg FLAC support is enabled])
+fi
+
+if test "x$have_oggdemuxer" = "xyes"; then
+  AC_DEFINE([HAVE_OGGDEMUXER], [1], [Define to 1 if OggDemuxer should be built])
 fi
 
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
+AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
+AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
 
 AC_ARG_ENABLE(mpris,
   [AS_HELP_STRING([--enable-mpris], [Enable MPRIS media player remote interface support (requires D-Bus) @<:@default=auto@:>@])],

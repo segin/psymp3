@@ -49,6 +49,11 @@ AM_CPPFLAGS += $(OPUS_CFLAGS)
 psymp3_LDADD += $(OPUS_LIBS)
 endif
 
+if HAVE_OGG
+AM_CPPFLAGS += $(OGG_CFLAGS)
+psymp3_LDADD += $(OGG_LIBS)
+endif
+
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 psymp3_LDADD += $(DBUS_LIBS)
@@ -80,11 +85,15 @@ psymp3_SOURCES += libmpg123.cpp
 endif
 
 if HAVE_VORBIS
-psymp3_SOURCES += vorbis.cpp OggDemuxer.cpp OggCodecs.cpp
+psymp3_SOURCES += vorbis.cpp
 endif
 
 if HAVE_OPUS
 psymp3_SOURCES += opus.cpp
+endif
+
+if HAVE_OGGDEMUXER
+psymp3_SOURCES += OggDemuxer.cpp OggCodecs.cpp
 endif
 
 if HAVE_DBUS
