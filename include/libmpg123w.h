@@ -26,6 +26,8 @@
 
 #include "IOHandler.h"
 
+#ifdef HAVE_MP3
+
 class Libmpg123 : public Stream
 {
     public:
@@ -46,5 +48,7 @@ class Libmpg123 : public Stream
         std::unique_ptr<IOHandler> m_handler;
         mpg123_handle* m_mpg_handle = nullptr;
 };
+
+#endif // HAVE_MP3
 
 #endif // LIBMPG123_H

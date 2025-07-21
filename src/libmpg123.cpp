@@ -23,6 +23,10 @@
 
 #include "psymp3.h"
 
+#ifdef HAVE_MP3
+
+#ifdef HAVE_MP3
+
 // Callback functions for libmpg123 to read from our FILE* handle.
 // These must have C linkage and cannot be member functions.
 
@@ -150,3 +154,7 @@ bool Libmpg123::eof()
 {
     return m_eof;
 }
+
+#endif // HAVE_MP3
+
+#endif // HAVE_MP3

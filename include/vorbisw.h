@@ -24,6 +24,8 @@
 #ifndef VORBISW_H
 #define VORBISW_H
 
+#ifdef HAVE_VORBIS
+
 /**
  * @brief Vorbis decoder class using DemuxedStream with OggDemuxer
  * 
@@ -78,5 +80,7 @@ private:
     bool processHeaderPacket(const std::vector<uint8_t>& packet_data);
     bool processSynthesis();
 };
+
+#endif // HAVE_VORBIS
 
 #endif // VORBISW_H

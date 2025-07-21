@@ -26,6 +26,8 @@
 
 #include "IOHandler.h"
 
+#ifdef HAVE_FLAC
+
 class FlacDecoder: public FLAC::Decoder::Stream
 {
     public:
@@ -85,4 +87,5 @@ class Flac : public Stream
         FlacDecoder m_handle;
 };
 
+#endif // HAVE_FLAC
 #endif // FLAC_H

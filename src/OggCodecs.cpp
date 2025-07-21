@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+// OggCodecs are built if any Ogg-based codec is enabled
+#if defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)
+
 // VorbisPassthroughCodec implementation - now redirects to VorbisCodec
 VorbisPassthroughCodec::VorbisPassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
@@ -187,3 +190,5 @@ void SpeexCodec::reset() {
 bool SpeexCodec::canDecode(const StreamInfo& stream_info) const {
     return stream_info.codec_name == "speex";
 }
+
+#endif // defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)

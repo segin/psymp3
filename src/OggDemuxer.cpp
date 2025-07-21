@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+// OggDemuxer is built if any Ogg-based codec is enabled
+#if defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)
+
 OggDemuxer::OggDemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)) {
     // Initialize libogg sync state
@@ -1160,3 +1163,5 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id)
     Debug::log("ogg", "OggDemuxer: seekToPage completed - final position=", m_position_ms, "ms");
     return true;
 }
+
+#endif // defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)

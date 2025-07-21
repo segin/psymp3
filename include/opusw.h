@@ -24,6 +24,8 @@
 #ifndef OPUSW_H
 #define OPUSW_H
 
+#ifdef HAVE_OPUS
+
 /**
  * @brief Opus decoder class using DemuxedStream with generic demuxer support
  * 
@@ -84,5 +86,7 @@ private:
     
     bool processHeaderPacket(const std::vector<uint8_t>& packet_data);
 };
+
+#endif // HAVE_OPUS
 
 #endif // OPUSW_H

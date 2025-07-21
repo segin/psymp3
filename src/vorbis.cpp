@@ -23,6 +23,8 @@
 
 #include "psymp3.h"
 
+#ifdef HAVE_VORBIS
+
 // ========== Vorbis Stream Class ==========
 
 Vorbis::Vorbis(TagLib::String name) : Stream(name)
@@ -257,3 +259,5 @@ bool VorbisCodec::processSynthesis()
     
     return !m_output_buffer.empty();
 }
+
+#endif // HAVE_VORBIS

@@ -23,6 +23,8 @@
 
 #include "psymp3.h"
 
+#ifdef HAVE_FLAC
+
 Flac::Flac(TagLib::String name) : Stream(name), m_handle(name) // m_handle is FlacDecoder
 {
     open(name);
@@ -346,3 +348,5 @@ void FlacDecoder::error_callback(::FLAC__StreamDecoderErrorStatus status) {
     // It will then check the new state and handle the error.
     m_output_buffer_cv.notify_one();
 }
+
+#endif // HAVE_FLAC

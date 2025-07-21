@@ -23,6 +23,8 @@
 
 #include "psymp3.h"
 
+#ifdef HAVE_OPUS
+
 // ========== OpusFile Stream Class ==========
 
 OpusFile::OpusFile(TagLib::String name) : Stream()
@@ -274,3 +276,5 @@ bool OpusCodec::processHeaderPacket(const std::vector<uint8_t>& packet_data)
     Debug::log("opus", "Header packet not recognized, returning false");
     return false;
 }
+
+#endif // HAVE_OPUS
