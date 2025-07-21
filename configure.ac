@@ -202,4 +202,41 @@ AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
 AC_CONFIG_FILES([Makefile src/Makefile res/Makefile tests/Makefile])
 
+# Print configuration summary
+echo ""
+echo "=========================================="
+echo "PsyMP3 Configuration Summary"
+echo "=========================================="
+echo ""
+echo "Core Dependencies:"
+echo "  SDL:           yes"
+echo "  TagLib:        yes"
+echo "  FreeType:      yes"
+echo "  OpenSSL:       yes"
+echo "  libcurl:       yes"
+echo ""
+echo "Audio Codec Support:"
+echo "  MP3 (libmpg123):   $have_mp3"
+echo "  FLAC:              $have_flac"
+echo "  Vorbis:            $have_vorbis"
+echo "  Opus:              $have_opus"
+echo ""
+echo "Container Support:"
+echo "  Ogg (libogg):      $have_ogg"
+echo "  OggDemuxer:        $have_oggdemuxer"
+if test "x$have_flac" = "xyes" && test "x$have_ogg" = "xyes"; then
+echo "  Ogg FLAC:          yes"
+else
+echo "  Ogg FLAC:          no"
+fi
+echo ""
+echo "Optional Features:"
+echo "  MPRIS (D-Bus):     $have_dbus"
+echo "  Test Harness:      $enable_test_harness"
+echo "  Release Build:     $enable_release"
+echo "  Final Build:       $enable_final"
+echo ""
+echo "=========================================="
+echo ""
+
 AC_OUTPUT
