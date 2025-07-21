@@ -71,7 +71,7 @@
   - Verify all tests work with both individual execution and harness
   - _Requirements: 6.1, 6.3, 6.6_
 
-- [-] 5. Integrate with build system and add error handling
+- [x] 5. Integrate with build system and add error handling
 - [x] 5.1 Complete autotools integration
   - Ensure test harness builds correctly with make check
   - Add proper dependency tracking for test executables
@@ -86,7 +86,7 @@
   - Create fallback mechanisms for missing dependencies
   - _Requirements: 4.4, 4.5_
 
-- [ ] 5.3 Add performance monitoring and optimization
+- [x] 5.3 Add performance monitoring and optimization
   - Implement execution time measurement for individual tests
   - Add memory usage tracking where available
   - Create performance trend tracking capabilities

@@ -1,6 +1,9 @@
-test_name,duration_ms,memory_kb,cpu_usage,context_switches
-test_rect_intersection,10,0,0,0
-test_rect_containment,10,0,0,0
-test_rect_centering,10,0,0,0
-test_rect_union,10,0,0,0
-test_rect_area_validation,10,0,0,0
+test_name,duration_ms,memory_kb,cpu_seconds,context_switches,timestamp
+# This file tracks performance metrics for tests over time
+# Format: test_name,duration_ms,memory_kb,cpu_seconds,context_switches,timestamp
+# 
+# This file is automatically updated by the test harness when run with --track-performance
+# To analyze performance trends, use the --show-performance-report option
+#
+# Example:
+# test_rect_area_validation,15,2048,0.005,12,2025-07-20 10:15:30

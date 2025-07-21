@@ -642,6 +642,28 @@ namespace TestFramework {
         // Reset usage
         usage = ResourceUsage();
         
+        // Use getrusage for process resource usage if available
+        struct rusage ru;
+        if (getrusage(RUSAGE_CHILDREN, &ru) == 0) {
+            // Calculate CPU time (user + system)
+            usage.cpu_time_seconds = 
+                ru.ru_utime.tv_sec + ru.ru_stime.tv_sec + 
+                (ru.ru_utime.tv_usec + ru.ru_stime.tv_usec) / 1000000.0;
+            
+            // Get context switches (voluntary + involuntary)
+            usage.context_switches = ru.ru_nvcsw + ru.ru_nivcsw;
+            
+            // Get maximum resident set size (in KB)
+            // Note: on some systems ru_maxrss is in bytes, on others it's in KB
+            #ifdef __APPLE__
+            usage.peak_memory_kb = ru.ru_maxrss / 1024; // macOS reports in bytes
+            #else
+            usage.peak_memory_kb = ru.ru_maxrss; // Linux reports in KB
+            #endif
+        }
+        
+        // On Linux, we can get more detailed memory information from /proc
+        #ifdef __linux__
         // Try to read from /proc/pid/status for memory information
         std::ostringstream status_path;
         status_path << "/proc/" << pid << "/status";
@@ -650,42 +672,62 @@ namespace TestFramework {
         if (status_file.is_open()) {
             std::string line;
             while (std::getline(status_file, line)) {
+                // Look for VmPeak (peak virtual memory size)
                 if (line.find("VmPeak:") == 0) {
                     std::istringstream iss(line);
                     std::string label, value, unit;
                     iss >> label >> value >> unit;
-                    usage.peak_memory_kb = std::stoul(value);
-                    break;
+                    size_t vm_peak = std::stoul(value);
+                    // Use the larger of VmPeak and ru_maxrss
+                    usage.peak_memory_kb = std::max(usage.peak_memory_kb, vm_peak);
+                }
+                // Look for voluntary and involuntary context switches
+                else if (line.find("voluntary_ctxt_switches:") == 0) {
+                    std::istringstream iss(line);
+                    std::string label, value;
+                    iss >> label >> value;
+                    int vol_switches = std::stoi(value);
+                    usage.context_switches += vol_switches;
+                }
+                else if (line.find("nonvoluntary_ctxt_switches:") == 0) {
+                    std::istringstream iss(line);
+                    std::string label, value;
+                    iss >> label >> value;
+                    int invol_switches = std::stoi(value);
+                    usage.context_switches += invol_switches;
                 }
             }
         }
         
-        // Try to read CPU time from /proc/pid/stat
-        std::ostringstream stat_path;
-        stat_path << "/proc/" << pid << "/stat";
-        
-        std::ifstream stat_file(stat_path.str());
-        if (stat_file.is_open()) {
-            std::string stat_line;
-            if (std::getline(stat_file, stat_line)) {
-                std::istringstream iss(stat_line);
-                std::string field;
-                
-                // Skip to fields 14 and 15 (utime and stime)
-                for (int i = 0; i < 13; ++i) {
-                    iss >> field;
-                }
-                
-                unsigned long utime, stime;
-                if (iss >> utime >> stime) {
-                    // Convert from clock ticks to seconds
-                    long clock_ticks_per_sec = sysconf(_SC_CLK_TCK);
-                    if (clock_ticks_per_sec > 0) {
-                        usage.cpu_time_seconds = (double)(utime + stime) / clock_ticks_per_sec;
+        // Try to read CPU time from /proc/pid/stat if getrusage didn't provide it
+        if (usage.cpu_time_seconds == 0.0) {
+            std::ostringstream stat_path;
+            stat_path << "/proc/" << pid << "/stat";
+            
+            std::ifstream stat_file(stat_path.str());
+            if (stat_file.is_open()) {
+                std::string stat_line;
+                if (std::getline(stat_file, stat_line)) {
+                    std::istringstream iss(stat_line);
+                    std::string field;
+                    
+                    // Skip to fields 14 and 15 (utime and stime)
+                    for (int i = 0; i < 13; ++i) {
+                        iss >> field;
+                    }
+                    
+                    unsigned long utime, stime;
+                    if (iss >> utime >> stime) {
+                        // Convert from clock ticks to seconds
+                        long clock_ticks_per_sec = sysconf(_SC_CLK_TCK);
+                        if (clock_ticks_per_sec > 0) {
+                            usage.cpu_time_seconds = (double)(utime + stime) / clock_ticks_per_sec;
+                        }
                     }
                 }
             }
         }
+        #endif
         
         // Check resource limits
         if (m_max_memory_mb > 0 && usage.peak_memory_kb > m_max_memory_mb * 1024) {

@@ -29,7 +29,7 @@ libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 # Test harness executable
 if BUILD_TEST_HARNESS
 noinst_PROGRAMS = test-harness
-test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
+test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp test_performance.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 endif

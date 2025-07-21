@@ -46,6 +46,8 @@ struct CommandLineArgs {
     bool show_memory_report = false;
     bool show_outliers = false;
     double outlier_threshold = 2.0;
+    bool analyze_trends = false;
+    int trend_history = 5;
     
     void printUsage(const char* program_name) {
         std::cout << "Usage: " << program_name << " [OPTIONS]\n\n";
@@ -68,6 +70,8 @@ struct CommandLineArgs {
         std::cout << "  --show-memory-report    Show memory usage analysis\n";
         std::cout << "  --show-outliers         Show performance outliers\n";
         std::cout << "  --outlier-threshold N   Outlier threshold multiplier (default: 2.0)\n";
+        std::cout << "  --analyze-trends        Analyze performance trends over time\n";
+        std::cout << "  --trend-history N       Number of historical data points to analyze (default: 5)\n";
         std::cout << "  -h, --help              Show this help message\n\n";
         std::cout << "EXAMPLES:\n";
         std::cout << "  " << program_name << "                    # Run all tests\n";
@@ -104,6 +108,8 @@ CommandLineArgs parseCommandLine(int argc, char* argv[]) {
         {"show-memory-report", no_argument,    0, 1005},
         {"show-outliers", no_argument,         0, 1006},
         {"outlier-threshold", required_argument, 0, 1007},
+        {"analyze-trends", no_argument,        0, 1008},
+        {"trend-history", required_argument,   0, 1009},
         {"help",            no_argument,       0, 'h'},
         {0, 0, 0, 0}
     };
@@ -173,6 +179,16 @@ CommandLineArgs parseCommandLine(int argc, char* argv[]) {
                 args.outlier_threshold = std::stod(optarg);
                 if (args.outlier_threshold <= 0.0) {
                     std::cerr << "Error: Invalid outlier threshold: " << optarg << std::endl;
+                    exit(1);
+                }
+                break;
+            case 1008:
+                args.analyze_trends = true;
+                break;
+            case 1009:
+                args.trend_history = std::atoi(optarg);
+                if (args.trend_history <= 0) {
+                    std::cerr << "Error: Invalid trend history value: " << optarg << std::endl;
                     exit(1);
                 }
                 break;
@@ -631,10 +647,91 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 
+                // Rotate performance data files to keep history
+                // First, check if the main file exists
+                std::ifstream check_file(args.performance_file);
+                if (check_file.good()) {
+                    check_file.close();
+                    
+                    // Rotate existing backup files
+                    for (int i = args.trend_history - 1; i > 0; --i) {
+                        std::string old_file = args.performance_file + "." + std::to_string(i-1);
+                        std::string new_file = args.performance_file + "." + std::to_string(i);
+                        
+                        // Check if the source file exists
+                        std::ifstream src_file(old_file);
+                        if (src_file.good()) {
+                            src_file.close();
+                            // Remove destination if it exists
+                            std::remove(new_file.c_str());
+                            // Rename the file
+                            std::rename(old_file.c_str(), new_file.c_str());
+                        }
+                    }
+                    
+                    // Move the main file to .1
+                    std::string backup_file = args.performance_file + ".1";
+                    std::remove(backup_file.c_str());
+                    std::rename(args.performance_file.c_str(), backup_file.c_str());
+                }
+                
                 // Save current performance data
                 current_metrics.saveToFile(args.performance_file);
                 if (!args.quiet) {
                     std::cout << "\nPerformance data saved to: " << args.performance_file << "\n";
+                    std::cout << "Historical data preserved in backup files.\n";
+                }
+            }
+            
+            // Performance trend analysis
+            if (args.analyze_trends) {
+                if (!args.quiet) {
+                    std::cout << "\n";
+                    std::cout << "============================================================\n";
+                    std::cout << "PERFORMANCE TREND ANALYSIS\n";
+                    std::cout << "============================================================\n";
+                }
+                
+                // Create a list of historical performance files
+                std::vector<std::string> historical_files;
+                
+                // Check if the main performance file exists
+                std::ifstream main_file(args.performance_file);
+                if (main_file.good()) {
+                    historical_files.push_back(args.performance_file);
+                    main_file.close();
+                }
+                
+                // Look for backup performance files with timestamps
+                for (int i = 1; i < args.trend_history; ++i) {
+                    std::string backup_file = args.performance_file + "." + std::to_string(i);
+                    std::ifstream file(backup_file);
+                    if (file.good()) {
+                        historical_files.push_back(backup_file);
+                        file.close();
+                    }
+                }
+                
+                if (historical_files.empty()) {
+                    std::cout << "No historical performance data found.\n";
+                    std::cout << "Run with --track-performance to start collecting data.\n";
+                } else {
+                    // Generate trend analysis
+                    current_metrics.generateTrendAnalysis(historical_files, std::cout);
+                    
+                    // Generate performance recommendations
+                    auto recommendations = current_metrics.getPerformanceRecommendations();
+                    if (!recommendations.empty()) {
+                        std::cout << "\n";
+                        std::cout << "============================================================\n";
+                        std::cout << "PERFORMANCE RECOMMENDATIONS\n";
+                        std::cout << "============================================================\n";
+                        
+                        for (const auto& rec : recommendations) {
+                            std::cout << "Test: " << rec.test_name << " (" << rec.issue_type << ")\n";
+                            std::cout << "  " << rec.recommendation << "\n";
+                        }
+                    }
                 }
             }
         }
