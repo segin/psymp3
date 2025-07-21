@@ -1,209 +1,227 @@
-README FOR PSYMP3 2-CURRENT
-===========================
+# PsyMP3 2-CURRENT
 
- 1. Overview
- 2. System Requirements
- 3. Notes
+A simplistic audio media player with a flashy Fourier transform.
 
-===========================
+## Table of Contents
 
-1. OVERVIEW
+1. [Overview](#overview)
+2. [System Requirements](#system-requirements)
+3. [Building and Testing](#building-and-testing)
+4. [Usage](#usage)
+5. [Notes](#notes)
 
-PsyMP3 is a simplistic audio media player with a flashy Fourier transform.
-PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas
-1.x was written in FreeBASIC, 2.x is written in C++, and is portable!
+## Overview
 
-The "2-CURRENT" version tag represents the "bleeding edge" of development.
-End users shouldn't be using this; please use the last version tagged as
--RELEASE. -CURRENT means "This is what I am working on, in whatever state
-it happens to be in, complete or not."
+PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x was written in FreeBASIC, 2.x is written in C++, and is portable!
 
-You can reach me at <segin2005@gmail.com>.
+> **Note**: The "2-CURRENT" version tag represents the "bleeding edge" of development. End users shouldn't be using this; please use the last version tagged as -RELEASE. -CURRENT means "This is what I am working on, in whatever state it happens to be in, complete or not."
 
-2. SYSTEM REQUIREMENTS
+**Contact**: <segin2005@gmail.com>
 
-   Windows:
-   Windows 10 or later. Windows 7 through 8.1 might work, YMMV.
+## System Requirements
 
-   Linux, *BSD:
-   Core dependencies (always required):
-     SDL 1.2 or later
-     taglib 1.6 or later
-     FreeType 2.4 or later
-     OpenSSL 1.0 or later
-     libcurl 7.20.0 or later
+### Windows
+- Windows 10 or later
+- Windows 7 through 8.1 might work (YMMV)
 
-   Optional codec dependencies (can be disabled at build time):
-     libmpg123 1.8 or later (for MP3 support)
-     libvorbis (for Ogg Vorbis support)
-     libopus (for Opus support)
-     libogg (required for Vorbis, Opus, and Ogg FLAC)
-     libFLAC++ 1.2 or later (for FLAC support)
-     libFLAC (for FLAC support)
-     D-Bus 1.0 or later (optional, for MPRIS support)
-     
-   macOS:
-   Not officially supported, but building the dependencies for Linux/BSD with MacPorts might work.
+### Linux/BSD
+**Core dependencies** (always required):
+- SDL 1.2 or later
+- taglib 1.6 or later
+- FreeType 2.4 or later
+- OpenSSL 1.0 or later
+- libcurl 7.20.0 or later
 
-   Building from git requires autoconf-archive for the extended macros.
+**Optional codec dependencies** (can be disabled at build time):
+- libmpg123 1.8 or later (for MP3 support)
+- libvorbis (for Ogg Vorbis support)
+- libopus (for Opus support)
+- libogg (required for Vorbis, Opus, and Ogg FLAC)
+- libFLAC++ 1.2 or later (for FLAC support)
+- libFLAC (for FLAC support)
+- D-Bus 1.0 or later (optional, for MPRIS support)
 
-   Note: The build system now supports optional codec dependencies. If a codec library
-   is not found, that codec will be disabled but the build will continue. Use configure
-   options like --disable-flac, --disable-mp3, --disable-vorbis, or --disable-opus to
-   explicitly disable codec support.
+### macOS
+Not officially supported, but building the dependencies for Linux/BSD with MacPorts might work.
 
-3. BUILDING AND TESTING
+### Build Requirements
+Building from git requires `autoconf-archive` for the extended macros.
 
-Building PsyMP3:
+> **Note**: The build system now supports optional codec dependencies. If a codec library is not found, that codec will be disabled but the build will continue. Use configure options like `--disable-flac`, `--disable-mp3`, `--disable-vorbis`, or `--disable-opus` to explicitly disable codec support.
 
-   From a release tarball:
-   ./configure
-   make
+## Building and Testing
 
-   From git (requires autoconf-archive):
-   ./generate-configure.sh
-   ./configure
-   make
+### Building PsyMP3
 
-   Build Options:
-   --enable-flac         Enable FLAC support (default: yes)
-   --enable-mp3          Enable MP3 support (default: yes)  
-   --enable-vorbis       Enable Vorbis support (default: yes)
-   --enable-opus         Enable Opus support (default: yes)
-   --enable-test-harness Build test harness (default: yes)
-   --enable-release      Enable release optimizations (default: no)
+**From a release tarball:**
+```bash
+./configure
+make
+```
 
-Testing PsyMP3:
+**From git** (requires autoconf-archive):
+```bash
+./generate-configure.sh
+./configure
+make
+```
 
-   Run all tests with the unified test harness:
-   make check
+**Build Options:**
+- `--enable-flac` - Enable FLAC support (default: yes)
+- `--enable-mp3` - Enable MP3 support (default: yes)  
+- `--enable-vorbis` - Enable Vorbis support (default: yes)
+- `--enable-opus` - Enable Opus support (default: yes)
+- `--enable-test-harness` - Build test harness (default: yes)
+- `--enable-release` - Enable release optimizations (default: no)
 
-   This will build all test executables and run them through the test harness,
-   providing a comprehensive report of test results.
+### Testing PsyMP3
 
-   Test Harness Options:
-   
-   Basic Usage:
-   cd tests && ./test-harness                    # Run all tests
-   cd tests && ./test-harness -v                # Run with verbose output
-   cd tests && ./test-harness -l                # List available tests
-   cd tests && ./test-harness -q                # Quiet mode (summary only)
+**Run all tests with the unified test harness:**
+```bash
+make check
+```
 
-   Filtering and Selection:
-   cd tests && ./test-harness -f "*rect*"       # Run only rectangle tests
-   cd tests && ./test-harness -f "*containment*" # Run containment tests
-   cd tests && ./test-harness -s                # Stop on first failure
+This will build all test executables and run them through the test harness, providing a comprehensive report of test results.
 
-   Parallel Execution:
-   cd tests && ./test-harness -p                # Run tests in parallel
-   cd tests && ./test-harness -p -j 8           # Use 8 parallel processes
+#### Test Harness Options
 
-   Output Formats:
-   cd tests && ./test-harness -o xml > results.xml    # XML output for CI
-   cd tests && ./test-harness -o json > results.json  # JSON output
-   cd tests && ./test-harness -o console              # Console output (default)
+**Basic Usage:**
+```bash
+cd tests && ./test-harness                    # Run all tests
+cd tests && ./test-harness -v                # Run with verbose output
+cd tests && ./test-harness -l                # List available tests
+cd tests && ./test-harness -q                # Quiet mode (summary only)
+```
 
-   Performance Analysis:
-   cd tests && ./test-harness --track-performance     # Enable performance tracking
-   cd tests && ./test-harness --show-performance      # Show performance report
-   cd tests && ./test-harness --show-detailed-perf    # Detailed performance metrics
-   cd tests && ./test-harness --analyze-trends        # Analyze performance trends
+**Filtering and Selection:**
+```bash
+cd tests && ./test-harness -f "*rect*"       # Run only rectangle tests
+cd tests && ./test-harness -f "*containment*" # Run containment tests
+cd tests && ./test-harness -s                # Stop on first failure
+```
 
-   Advanced Options:
-   cd tests && ./test-harness -t 60               # Set 60-second timeout per test
-   cd tests && ./test-harness -d /path/to/tests   # Specify test directory
+**Parallel Execution:**
+```bash
+cd tests && ./test-harness -p                # Run tests in parallel
+cd tests && ./test-harness -p -j 8           # Use 8 parallel processes
+```
 
-   Running Individual Tests:
-   
-   If you prefer to run tests individually (legacy method):
-   cd tests
-   make test_rect_containment
-   ./test_rect_containment
+**Output Formats:**
+```bash
+cd tests && ./test-harness -o xml > results.xml    # XML output for CI
+cd tests && ./test-harness -o json > results.json  # JSON output
+cd tests && ./test-harness -o console              # Console output (default)
+```
 
-   Available individual test executables:
-   - test_rect_area_validation
-   - test_rect_containment  
-   - test_rect_intersection
-   - test_rect_union
-   - test_rect_centering
-   - test_rect_centering_overflow
-   - test_rect_expansion
-   - test_rect_transformation
-   - test_rect_normalization
-   - test_rect_modern_cpp
+**Performance Analysis:**
+```bash
+cd tests && ./test-harness --track-performance     # Enable performance tracking
+cd tests && ./test-harness --show-performance      # Show performance report
+cd tests && ./test-harness --show-detailed-perf    # Detailed performance metrics
+cd tests && ./test-harness --analyze-trends        # Analyze performance trends
+```
 
-   Migration from Old Testing Methods:
-   
-   If you were previously running tests manually or using custom scripts:
-   
-   Old way:
-   cd tests
-   gcc -o test_rect_containment test_rect_containment.cpp -I../include
-   ./test_rect_containment
-   
-   New way:
-   make check
-   
-   The new test harness provides:
-   - Automatic test discovery and execution
-   - Standardized reporting across all tests
-   - Performance tracking and analysis
-   - Multiple output formats for CI integration
-   - Parallel execution for faster testing
-   - Better error handling and timeout management
+**Advanced Options:**
+```bash
+cd tests && ./test-harness -t 60               # Set 60-second timeout per test
+cd tests && ./test-harness -d /path/to/tests   # Specify test directory
+```
 
-4. USAGE
+#### Running Individual Tests
 
-Pass the paths to the audio files to be played as program arguments.
-Supported formats include MP3, Ogg Vorbis, Opus, FLAC, and RIFF WAVE.
-Audio files will be played in the order they are passed on the command line.
+If you prefer to run tests individually (legacy method):
+```bash
+cd tests
+make test_rect_containment
+./test_rect_containment
+```
+
+**Available individual test executables:**
+- `test_rect_area_validation`
+- `test_rect_containment`
+- `test_rect_intersection`
+- `test_rect_union`
+- `test_rect_centering`
+- `test_rect_centering_overflow`
+- `test_rect_expansion`
+- `test_rect_transformation`
+- `test_rect_normalization`
+- `test_rect_modern_cpp`
+
+#### Migration from Old Testing Methods
+
+**Old way:**
+```bash
+cd tests
+gcc -o test_rect_containment test_rect_containment.cpp -I../include
+./test_rect_containment
+```
+
+**New way:**
+```bash
+make check
+```
+
+The new test harness provides:
+- Automatic test discovery and execution
+- Standardized reporting across all tests
+- Performance tracking and analysis
+- Multiple output formats for CI integration
+- Parallel execution for faster testing
+- Better error handling and timeout management
+
+## Usage
+
+Pass the paths to the audio files to be played as program arguments. Supported formats include MP3, Ogg Vorbis, Opus, FLAC, and RIFF WAVE. Audio files will be played in the order they are passed on the command line.
+
 All user interaction, aside from clicking the 'close' button for the window, is done via the keyboard.
 
-Keys and what they do:
-  * ESC and Q: Quit PsyMP3.
-  * Space: Pause (or resume) playback.
-  * R: Restart the current track from the beginning
-  * N: Seek to the next track.
-  * P: Seek to the previous track.
+### Keyboard Controls
 
-Command-line Options:
-  --debug             Enable debug logging to the console.
-  --logfile <file>    Write debug logs to the specified file.
+| Key | Action |
+|-----|--------|
+| `ESC`, `Q` | Quit PsyMP3 |
+| `Space` | Pause (or resume) playback |
+| `R` | Restart the current track from the beginning |
+| `N` | Seek to the next track |
+| `P` | Seek to the previous track |
 
-Last.fm Scrobbling:
+### Command-line Options
+
+- `--debug` - Enable debug logging to the console
+- `--logfile <file>` - Write debug logs to the specified file
+
+### Last.fm Scrobbling
 
 PsyMP3 includes built-in Last.fm scrobbling support to automatically track your music listening history.
 
-To enable Last.fm scrobbling, create a configuration file:
-  * Linux/Unix: ~/.config/psymp3/lastfm.conf
-  * Windows: %APPDATA%\PsyMP3\lastfm.conf
+**Configuration file locations:**
+- **Linux/Unix**: `~/.config/psymp3/lastfm.conf`
+- **Windows**: `%APPDATA%\PsyMP3\lastfm.conf`
 
-Configuration file format:
-  # Last.fm configuration
-  username=your_lastfm_username
-  password=your_lastfm_password
+**Configuration file format:**
+```ini
+# Last.fm configuration
+username=your_lastfm_username
+password=your_lastfm_password
+```
 
-Once configured, PsyMP3 will automatically:
-  * Submit "Now Playing" status when you start a track
-  * Scrobble tracks after you've listened to >50% or >4 minutes (whichever comes first)
-  * Only scrobble tracks longer than 30 seconds
-  * Cache scrobbles offline and submit when connection is restored
+**Features:**
+- Submit "Now Playing" status when you start a track
+- Scrobble tracks after you've listened to >50% or >4 minutes (whichever comes first)
+- Only scrobble tracks longer than 30 seconds
+- Cache scrobbles offline and submit when connection is restored
 
-For detailed Last.fm setup and troubleshooting, see the included LASTFM_SETUP.md file.
+For detailed Last.fm setup and troubleshooting, see the included `LASTFM_SETUP.md` file.
 
-4. NOTES
+## Notes
 
-At this time, PsyMP3 2.x is incomplete. There's very little UI code, and most
-features are missing at this time. If you are a developer, and are interested
-in helping me, please email me above.
+At this time, PsyMP3 2.x is incomplete. There's very little UI code, and most features are missing at this time. If you are a developer and are interested in helping, please email me above.
 
-If you are an end user and you don't like this program, feel free to use
-something else, and check back later for improvements
+If you are an end user and you don't like this program, feel free to use something else, and check back later for improvements.
 
-Unicode ID3 tags are supported. Please replace the included 'vera.ttf' with a different
-font file containing the Unicode glpyhs you desire. Advanced text layout is not supported
-(e.g. connected Arabic characters.)
+**Unicode Support**: Unicode ID3 tags are supported. Please replace the included `vera.ttf` with a different font file containing the Unicode glyphs you desire. Advanced text layout is not supported (e.g. connected Arabic characters).
 
-5. LAST UPDATED
+---
 
-This README was last updated on July 20, 2025.
+*This README was last updated on July 20, 2025.*
