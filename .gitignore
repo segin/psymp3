@@ -61,3 +61,4 @@ tests/.deps/**
 
 tests/test_rect_expansion
 tests/test-harness
+tests/test_harness_integration
