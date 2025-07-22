@@ -6,25 +6,27 @@
   - Add error handling for unsupported codecs and formats
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 2. Implement centralized registration functions
+- [x] 2. Implement centralized registration functions
   - Create registerAllCodecs() function with conditional compilation for each codec
   - Create registerAllDemuxers() function with conditional compilation for demuxers
   - Add OggDemuxer registration logic based on available Ogg codecs
   - Ensure FLAC codec and demuxer are always registered together
   - _Requirements: 1.1, 1.2, 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 3. Add conditional compilation blocks to OggDemuxer
+- [x] 3. Add conditional compilation blocks to OggDemuxer
   - Add #ifdef HAVE_VORBIS blocks around Vorbis-specific code in OggDemuxer
   - Add #ifdef HAVE_OPUS blocks around Opus-specific code in OggDemuxer
   - Add #ifdef HAVE_FLAC blocks around FLAC-specific code in OggDemuxer
   - Update identifyCodec() method to conditionally detect codecs
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5_
 
-- [ ] 4. Update MediaFactory to use registries
+- [x] 4. Update MediaFactory to use registries
   - Modify MediaFactory::initializeDefaultFormats() to call registration functions
   - Replace hardcoded codec creation with registry lookups
   - Update format detection to use enhanced priority-based resolution
   - Add standardized extension mappings for all container formats
+  - Add MP2 files as part of MP3 by simply including their extensions.
+  - Add the `.bit` and `.mpga` extensions for MP3 for historical reasons.
   - _Requirements: 2.1, 2.2, 2.3, 14.1, 14.2, 14.3, 15.1, 15.2, 15.3, 15.4, 15.5_
 
 - [ ] 5. Enhance format detection and routing
@@ -68,6 +70,9 @@
   - Update MediaFactory error messages to be more descriptive
   - Add graceful degradation when codecs are unavailable
   - _Requirements: 2.5, 14.4, 16.4_
+  - [x] 10.1. Update steering documents.
+    - Make sure project steering documents include information about the conditional compilation refactor so that future codecs adhere to this architecture and design.
+    - Ensure that in the future, all tasks must build cleanly before being considered complete. This is before `git commit` and `git ignore`.
 
 - [ ] 11. Create comprehensive test suite
   - Write unit tests for CodecRegistry and DemuxerRegistry functionality

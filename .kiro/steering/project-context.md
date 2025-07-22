@@ -12,9 +12,10 @@ PsyMP3 appears to be a multimedia player application with the following characte
 
 ### Architecture Patterns
 - **Widget System**: Custom UI framework with drawable widgets, layouts, and windowing
-- **Codec Architecture**: Pluggable audio codec system
+- **Codec Architecture**: Pluggable audio codec system with conditional compilation support
 - **Demuxer Pattern**: Factory-based demuxer selection for different container formats
 - **I/O Abstraction**: Handler-based system for different input sources
+- **Conditional Compilation**: Codec and demuxer support determined at build time based on available dependencies
 
 ### Key Libraries and Dependencies
 - SDL for low-level graphics and audio
@@ -28,3 +29,4 @@ PsyMP3 appears to be a multimedia player application with the following characte
 - Focus on maintaining consistency with existing architecture
 - Consider backward compatibility when making changes
 - The custom widget system suggests this predates modern UI frameworks
+- Recent refactoring introduced conditional compilation for codec and demuxer support to handle optional dependencies gracefully
