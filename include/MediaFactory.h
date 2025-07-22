@@ -135,6 +135,7 @@ private:
     static ContentInfo detectByMimeType(const std::string& mime_type);
     static ContentInfo detectByMagicBytes(std::unique_ptr<IOHandler>& handler);
     static ContentInfo detectByContentAnalysis(std::unique_ptr<IOHandler>& handler);
+    static std::string probeOggCodec(const uint8_t* buffer, size_t buffer_size);
     static std::unique_ptr<IOHandler> createIOHandler(const std::string& uri);
 };
 

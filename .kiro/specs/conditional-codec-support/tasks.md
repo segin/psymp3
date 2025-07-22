@@ -29,7 +29,7 @@
   - Add the `.bit` and `.mpga` extensions for MP3 for historical reasons.
   - _Requirements: 2.1, 2.2, 2.3, 14.1, 14.2, 14.3, 15.1, 15.2, 15.3, 15.4, 15.5_
 
-- [ ] 5. Enhance format detection and routing
+- [-] 5. Enhance format detection and routing
   - Implement improved magic byte detection with codec-specific probing for Ogg
   - Add comprehensive MIME type support for web-served files
   - Update extension mappings to include .opus for Ogg and complete MP3 extensions

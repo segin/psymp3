@@ -371,7 +371,8 @@ void MediaFactory::initializeDefaultFormats() {
     mp3_format.display_name = "MPEG Audio";
     // Enhanced extension mappings per requirements - add MP2, .bit, .mpga extensions
     mp3_format.extensions = {"MP3", "MP2", "MPA", "MPGA", "BIT", "M2A", "MP2A"};
-    mp3_format.mime_types = {"audio/mpeg", "audio/mp3", "audio/x-mp3"};
+    // Comprehensive MIME type support for MPEG audio
+    mp3_format.mime_types = {"audio/mpeg", "audio/mp3", "audio/x-mp3", "audio/mpeg3", "audio/x-mpeg", "audio/x-mpeg-3"};
     mp3_format.magic_signatures = {"ID3", "\xFF\xFB", "\xFF\xFA"};
     mp3_format.priority = 10;
     mp3_format.supports_streaming = true;
@@ -389,7 +390,8 @@ void MediaFactory::initializeDefaultFormats() {
     flac_format.format_id = "flac";
     flac_format.display_name = "FLAC";
     flac_format.extensions = {"FLAC"};
-    flac_format.mime_types = {"audio/flac", "audio/x-flac"};
+    // Comprehensive MIME type support for FLAC
+    flac_format.mime_types = {"audio/flac", "audio/x-flac", "application/x-flac"};
     flac_format.magic_signatures = {"fLaC"};
     flac_format.priority = 10;
     flac_format.supports_streaming = true;
@@ -410,7 +412,8 @@ void MediaFactory::initializeDefaultFormats() {
         ogg_format.format_id = "ogg";
         ogg_format.display_name = "Ogg";
         ogg_format.extensions = {"OGG", "OGA", "OPUS"}; // Added OPUS per requirements
-        ogg_format.mime_types = {"application/ogg", "audio/ogg", "audio/opus"};
+        // Comprehensive MIME type support for web-served files
+        ogg_format.mime_types = {"application/ogg", "audio/ogg", "audio/opus", "audio/vorbis", "audio/x-vorbis", "audio/x-ogg"};
         ogg_format.magic_signatures = {"OggS"};
         ogg_format.priority = 10;
         ogg_format.supports_streaming = true;
@@ -425,6 +428,42 @@ void MediaFactory::initializeDefaultFormats() {
             // Route all Ogg files through OggDemuxer for proper container parsing
             return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
         });
+        
+        // Register enhanced content detector for Ogg files
+        registerContentDetector("ogg", [](std::unique_ptr<IOHandler>& handler) -> std::optional<ContentInfo> {
+            if (!handler) return std::nullopt;
+            
+            uint8_t buffer[512];
+            long original_pos = handler->tell();
+            handler->seek(0, SEEK_SET);
+            size_t bytes_read = handler->read(buffer, 1, sizeof(buffer));
+            handler->seek(original_pos, SEEK_SET);
+            
+            if (bytes_read < 4) return std::nullopt;
+            
+            // Check for Ogg signature
+            if (buffer[0] == 'O' && buffer[1] == 'g' && buffer[2] == 'g' && buffer[3] == 'S') {
+                ContentInfo info;
+                info.detected_format = "ogg";
+                info.confidence = 0.95f;
+                
+                // Detect specific codec for better routing
+                std::string codec = probeOggCodec(buffer, bytes_read);
+                if (!codec.empty()) {
+                    info.metadata["ogg_codec"] = codec;
+                    info.confidence = 0.98f; // Higher confidence with codec detection
+                    
+                    if (codec == "opus") {
+                        info.metadata["routing_fix"] = "opus_to_ogg";
+                        Debug::log("loader", "MediaFactory: Ogg content detector fixed Opus routing");
+                    }
+                }
+                
+                return info;
+            }
+            
+            return std::nullopt;
+        });
     }
     
     // Register container formats using demuxer registry
@@ -434,7 +473,8 @@ void MediaFactory::initializeDefaultFormats() {
         wave_format.format_id = "wave";
         wave_format.display_name = "WAVE";
         wave_format.extensions = {"WAV", "WAVE", "BWF"};
-        wave_format.mime_types = {"audio/wav", "audio/wave", "audio/x-wav"};
+        // Comprehensive MIME type support for WAVE
+        wave_format.mime_types = {"audio/wav", "audio/wave", "audio/x-wav", "audio/vnd.wave", "audio/x-pn-wav"};
         wave_format.magic_signatures = {"RIFF"};
         wave_format.priority = 10;
         wave_format.supports_streaming = true;
@@ -453,7 +493,8 @@ void MediaFactory::initializeDefaultFormats() {
         aiff_format.format_id = "aiff";
         aiff_format.display_name = "AIFF";
         aiff_format.extensions = {"AIF", "AIFF", "AIFC"};
-        aiff_format.mime_types = {"audio/aiff", "audio/x-aiff"};
+        // Comprehensive MIME type support for AIFF
+        aiff_format.mime_types = {"audio/aiff", "audio/x-aiff", "audio/aif", "sound/aiff"};
         aiff_format.magic_signatures = {"FORM"};
         aiff_format.priority = 10;
         aiff_format.supports_streaming = true;
@@ -472,7 +513,8 @@ void MediaFactory::initializeDefaultFormats() {
         mp4_format.format_id = "mp4";
         mp4_format.display_name = "MP4";
         mp4_format.extensions = {"MOV", "MP4", "M4A", "3GP"}; // Standardized per requirements
-        mp4_format.mime_types = {"audio/mp4", "audio/m4a", "video/mp4", "video/quicktime"};
+        // Comprehensive MIME type support for ISO containers
+        mp4_format.mime_types = {"audio/mp4", "audio/m4a", "video/mp4", "video/quicktime", "audio/x-m4a", "video/x-mp4"};
         mp4_format.magic_signatures = {"ftyp"};
         mp4_format.priority = 10;
         mp4_format.supports_streaming = true;
@@ -584,13 +626,69 @@ ContentInfo MediaFactory::detectByMimeType(const std::string& mime_type) {
     return info;
 }
 
+std::string MediaFactory::probeOggCodec(const uint8_t* buffer, size_t buffer_size) {
+    // Enhanced Ogg codec probing with improved signature detection
+    if (buffer_size < 32) return "";
+    
+    // Look for Ogg pages and probe for codec signatures within them
+    for (size_t i = 0; i < buffer_size - 4; i++) {
+        if (buffer[i] == 'O' && buffer[i+1] == 'g' && 
+            buffer[i+2] == 'g' && buffer[i+3] == 'S') {
+            
+            // Found Ogg page, look for codec signatures in the payload
+            size_t search_end = std::min(i + 256, buffer_size); // Search within reasonable range
+            
+            // Check for Opus signature (OpusHead) - highest priority to fix routing issues
+            for (size_t j = i + 4; j < search_end - 7; j++) {
+                if (buffer[j] == 'O' && buffer[j+1] == 'p' && buffer[j+2] == 'u' &&
+                    buffer[j+3] == 's' && buffer[j+4] == 'H' && buffer[j+5] == 'e' &&
+                    buffer[j+6] == 'a' && buffer[j+7] == 'd') {
+                    Debug::log("loader", "MediaFactory::probeOggCodec detected Opus codec");
+                    return "opus";
+                }
+            }
+            
+            // Check for Vorbis signature (\x01vorbis)
+            for (size_t j = i + 4; j < search_end - 6; j++) {
+                if (buffer[j] == 0x01 && buffer[j+1] == 'v' && buffer[j+2] == 'o' &&
+                    buffer[j+3] == 'r' && buffer[j+4] == 'b' && buffer[j+5] == 'i' &&
+                    buffer[j+6] == 's') {
+                    Debug::log("loader", "MediaFactory::probeOggCodec detected Vorbis codec");
+                    return "vorbis";
+                }
+            }
+            
+            // Check for FLAC in Ogg signature (\x7FFLAC)
+            for (size_t j = i + 4; j < search_end - 4; j++) {
+                if (buffer[j] == 0x7F && buffer[j+1] == 'F' && 
+                    buffer[j+2] == 'L' && buffer[j+3] == 'A' && buffer[j+4] == 'C') {
+                    Debug::log("loader", "MediaFactory::probeOggCodec detected FLAC codec");
+                    return "flac";
+                }
+            }
+            
+            // Check for Speex signature (Speex   )
+            for (size_t j = i + 4; j < search_end - 7; j++) {
+                if (buffer[j] == 'S' && buffer[j+1] == 'p' && buffer[j+2] == 'e' &&
+                    buffer[j+3] == 'e' && buffer[j+4] == 'x' && buffer[j+5] == ' ' &&
+                    buffer[j+6] == ' ' && buffer[j+7] == ' ') {
+                    Debug::log("loader", "MediaFactory::probeOggCodec detected Speex codec");
+                    return "speex";
+                }
+            }
+        }
+    }
+    
+    return ""; // No codec detected
+}
+
 ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler) {
     ContentInfo info;
     
     if (!handler) return info;
     
-    // Read first 16 bytes for magic detection
-    uint8_t buffer[16];
+    // Read larger buffer for improved magic detection with codec-specific probing
+    uint8_t buffer[512];
     long original_pos = handler->tell();
     handler->seek(0, SEEK_SET);
     size_t bytes_read = handler->read(buffer, 1, sizeof(buffer));
@@ -598,12 +696,13 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     
     if (bytes_read < 4) return info;
     
-    // Enhanced priority-based resolution
+    // Enhanced priority-based resolution with codec-specific probing
     struct DetectionCandidate {
         std::string format_id;
         float confidence;
         int priority;
         std::string signature_matched;
+        std::string codec_detected;
     };
     
     std::vector<DetectionCandidate> candidates;
@@ -618,22 +717,34 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
                     candidate.priority = registration.format.priority;
                     candidate.signature_matched = signature;
                     
-                    // Calculate confidence based on priority and signature specificity
-                    if (registration.format.priority < 20) { // Highest priority formats
-                        candidate.confidence = 0.95f;
-                    } else if (registration.format.priority < 50) { // High priority formats
-                        candidate.confidence = 0.85f;
-                    } else if (registration.format.priority < 80) { // Medium priority formats
-                        candidate.confidence = 0.75f;
-                    } else { // Lower priority formats
-                        candidate.confidence = 0.65f;
-                    }
-                    
-                    // Boost confidence for longer, more specific signatures
-                    if (signature.length() >= 8) {
-                        candidate.confidence += 0.05f;
-                    } else if (signature.length() >= 4) {
-                        candidate.confidence += 0.02f;
+                    // Enhanced codec-specific probing for Ogg containers
+                    if (format_id == "ogg" && signature == "OggS") {
+                        candidate.codec_detected = probeOggCodec(buffer, bytes_read);
+                        if (!candidate.codec_detected.empty()) {
+                            // Boost confidence for successful codec detection
+                            candidate.confidence = 0.98f;
+                            Debug::log("loader", "MediaFactory::detectByMagicBytes Ogg codec detected: ", candidate.codec_detected);
+                        } else {
+                            candidate.confidence = 0.85f; // Lower confidence without codec detection
+                        }
+                    } else {
+                        // Calculate confidence based on priority and signature specificity
+                        if (registration.format.priority < 20) { // Highest priority formats
+                            candidate.confidence = 0.95f;
+                        } else if (registration.format.priority < 50) { // High priority formats
+                            candidate.confidence = 0.85f;
+                        } else if (registration.format.priority < 80) { // Medium priority formats
+                            candidate.confidence = 0.75f;
+                        } else { // Lower priority formats
+                            candidate.confidence = 0.65f;
+                        }
+                        
+                        // Boost confidence for longer, more specific signatures
+                        if (signature.length() >= 8) {
+                            candidate.confidence += 0.05f;
+                        } else if (signature.length() >= 4) {
+                            candidate.confidence += 0.02f;
+                        }
                     }
                     
                     candidates.push_back(candidate);
@@ -659,8 +770,17 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
         info.metadata["magic_signature"] = best.signature_matched;
         info.metadata["priority"] = std::to_string(best.priority);
         
+        // Add codec information for container formats
+        if (!best.codec_detected.empty()) {
+            info.metadata["detected_codec"] = best.codec_detected;
+        }
+        
         Debug::log("loader", "MediaFactory::detectByMagicBytes selected format: ", best.format_id, 
                   " (priority: ", best.priority, ", confidence: ", best.confidence, ")");
+        
+        if (!best.codec_detected.empty()) {
+            Debug::log("loader", "MediaFactory::detectByMagicBytes detected codec: ", best.codec_detected);
+        }
     }
     
     return info;
@@ -691,14 +811,36 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
         return info;
     }
     
-    // Check for MPEG audio sync patterns
-    for (size_t i = 0; i < bytes_read - 1; i++) {
-        if ((buffer[i] == 0xFF) && ((buffer[i+1] & 0xE0) == 0xE0)) {
-            // Potential MPEG audio sync
-            info.detected_format = "mpeg_audio";
-            info.confidence = 0.7f;
-            info.metadata["sync_pattern_found"] = "true";
-            return info;
+    // Check for MPEG audio sync patterns (but avoid false positives with Ogg)
+    bool found_ogg = false;
+    for (size_t i = 0; i < bytes_read - 4; i++) {
+        if (buffer[i] == 'O' && buffer[i+1] == 'g' && buffer[i+2] == 'g' && buffer[i+3] == 'S') {
+            found_ogg = true;
+            break;
+        }
+    }
+    
+    // Only check for MPEG sync if we haven't found Ogg signature
+    if (!found_ogg) {
+        for (size_t i = 0; i < bytes_read - 3; i++) {
+            if ((buffer[i] == 0xFF) && ((buffer[i+1] & 0xE0) == 0xE0)) {
+                // Additional validation to ensure it's really MPEG audio
+                uint8_t version = (buffer[i+1] >> 3) & 0x03;
+                uint8_t layer = (buffer[i+1] >> 1) & 0x03;
+                uint8_t bitrate = (buffer[i+2] >> 4) & 0x0F;
+                uint8_t samplerate = (buffer[i+2] >> 2) & 0x03;
+                
+                // Validate MPEG header fields
+                if (version != 0x01 && layer != 0x00 && bitrate != 0x00 && 
+                    bitrate != 0x0F && samplerate != 0x03) {
+                    info.detected_format = "mpeg_audio";
+                    info.confidence = 0.75f;
+                    info.metadata["sync_pattern_found"] = "true";
+                    info.metadata["mpeg_validation"] = "passed";
+                    Debug::log("loader", "MediaFactory::detectByContentAnalysis validated MPEG audio sync");
+                    return info;
+                }
+            }
         }
     }
     
@@ -707,50 +849,32 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
         for (size_t i = 0; i < bytes_read - 4; i++) {
             if (buffer[i] == 'O' && buffer[i+1] == 'g' && 
                 buffer[i+2] == 'g' && buffer[i+3] == 'S') {
-                // Look for codec signatures within Ogg container
-                if (bytes_read >= i + 32) {
-                    // Check for Opus signature (OpusHead)
-                    for (size_t j = i + 4; j < bytes_read - 8; j++) {
-                        if (buffer[j] == 'O' && buffer[j+1] == 'p' && buffer[j+2] == 'u' &&
-                            buffer[j+3] == 's' && buffer[j+4] == 'H' && buffer[j+5] == 'e' &&
-                            j + 7 < bytes_read && buffer[j+6] == 'a' && buffer[j+7] == 'd') {
-                            // Route Opus files to Ogg container, not as standalone format
-                            info.detected_format = "ogg";
-                            info.confidence = 0.95f;
-                            info.metadata["ogg_codec"] = "opus";
-                            info.metadata["routing_fix"] = "opus_to_ogg";
-                            Debug::log("loader", "MediaFactory::detectByContentAnalysis fixed Opus routing to Ogg container");
-                            return info;
-                        }
+                
+                // Use improved codec probing
+                std::string detected_codec = probeOggCodec(buffer, bytes_read);
+                
+                if (!detected_codec.empty()) {
+                    // Route all Ogg files with detected codecs to Ogg container
+                    info.detected_format = "ogg";
+                    info.confidence = 0.98f; // Very high confidence with codec detection
+                    info.metadata["ogg_codec"] = detected_codec;
+                    
+                    // Special handling for Opus routing fix
+                    if (detected_codec == "opus") {
+                        info.metadata["routing_fix"] = "opus_to_ogg";
+                        Debug::log("loader", "MediaFactory::detectByContentAnalysis fixed Opus routing to Ogg container");
                     }
                     
-                    // Check for Vorbis signature
-                    for (size_t j = i + 4; j < bytes_read - 6; j++) {
-                        if (buffer[j] == 'v' && buffer[j+1] == 'o' && buffer[j+2] == 'r' &&
-                            buffer[j+3] == 'b' && buffer[j+4] == 'i' && buffer[j+5] == 's') {
-                            info.detected_format = "ogg";
-                            info.confidence = 0.95f;
-                            info.metadata["ogg_codec"] = "vorbis";
-                            return info;
-                        }
-                    }
-                    
-                    // Check for FLAC in Ogg signature
-                    for (size_t j = i + 4; j < bytes_read - 4; j++) {
-                        if (buffer[j] == 0x7F && buffer[j+1] == 'F' && 
-                            buffer[j+2] == 'L' && buffer[j+3] == 'A' && buffer[j+4] == 'C') {
-                            info.detected_format = "ogg";
-                            info.confidence = 0.95f;
-                            info.metadata["ogg_codec"] = "flac";
-                            return info;
-                        }
-                    }
+                    Debug::log("loader", "MediaFactory::detectByContentAnalysis detected Ogg with codec: ", detected_codec);
+                    return info;
+                } else {
+                    // Generic Ogg detection without codec identification
+                    info.detected_format = "ogg";
+                    info.confidence = 0.8f;
+                    info.metadata["ogg_codec"] = "unknown";
+                    Debug::log("loader", "MediaFactory::detectByContentAnalysis detected generic Ogg container");
+                    return info;
                 }
-                // Generic Ogg detection - route to Ogg container
-                info.detected_format = "ogg";
-                info.confidence = 0.8f;
-                info.metadata["ogg_codec"] = "unknown";
-                return info;
             }
         }
     }
