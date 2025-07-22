@@ -46,7 +46,9 @@ check_PROGRAMS = \
 	test_rect_transformation \
 	test_rect_normalization \
 	test_rect_modern_cpp \
-	test_harness_integration
+	test_harness_integration \
+	test_fragment_handler \
+	test_iso_fragmented_mp4
 
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
@@ -81,6 +83,12 @@ test_rect_modern_cpp_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM
 
 test_harness_integration_SOURCES = test_harness_integration.cpp
 test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+
+test_fragment_handler_SOURCES = test_fragment_handler.cpp
+test_fragment_handler_LDADD = $(top_builddir)/src/FragmentHandler.o $(top_builddir)/src/ISODemuxer.o $(AM_LDFLAGS)
+
+test_iso_fragmented_mp4_SOURCES = test_iso_fragmented_mp4.cpp
+test_iso_fragmented_mp4_LDADD = $(top_builddir)/src/FragmentHandler.o $(top_builddir)/src/ISODemuxer.o $(AM_LDFLAGS)
 
 # Test execution target
 check-local: $(check_PROGRAMS)

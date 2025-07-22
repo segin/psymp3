@@ -43,7 +43,7 @@
   - Add keyframe-aware seeking using sync sample tables when available
   - _Requirements: 5.1, 5.2, 5.6, 5.7, 10.5_
 
-- [-] 8. Add telephony audio codec support (mulaw/alaw)
+- [x] 8. Add telephony audio codec support (mulaw/alaw)
   - Implement mulaw codec detection and configuration for 8kHz/16kHz sample rates
   - Add alaw codec support with European telephony standard compliance
   - Create raw sample data extraction for companded audio formats
@@ -55,13 +55,13 @@
   - Implement extraction of title, artist, album, genre, and artwork
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8_
 
-- [ ] 10. Add fragmented MP4 support for streaming scenarios
+- [x] 10. Add fragmented MP4 support for streaming scenarios
   - Create FragmentHandler class for moof (movie fragment) processing
   - Implement traf (track fragment) and trun (track run) parsing
   - Add fragment-based sample table updates and navigation
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
 
-- [ ] 11. Implement progressive download and streaming support
+- [-] 11. Implement progressive download and streaming support
   - Add support for incomplete files with movie box at end
   - Implement byte range request handling for streaming scenarios
   - Create buffering logic for samples not yet available

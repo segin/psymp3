@@ -834,8 +834,55 @@ bool BoxParser::ParseSyncSampleBox(uint64_t offset, uint64_t size, SampleTableIn
 }
 
 bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
-    // Basic implementation - will be expanded in later tasks
-    return true;
+    // Parse fragmented MP4 boxes (moof, mfra, sidx)
+    BoxHeader header = ReadBoxHeader(offset);
+    
+    switch (header.type) {
+        case BOX_MOOF:
+            // Movie fragment box - will be handled by FragmentHandler
+            return true;
+        case BOX_MFRA:
+            // Movie fragment random access box - for seeking in fragmented files
+            return true;
+        case BOX_SIDX:
+            // Segment index box - for streaming
+            return true;
+        default:
+            return SkipUnknownBox(header);
+    } return true;
+        case BOX_SIDX:
+            // Segment index box - for streaming optimization
+            return true;
+        case BOX_MFRA:
+            // Movie fragment random access box
+            return true;
+        default:
+            return SkipUnknownBox(header);
+    }
+}
+            return true;
+        case BOX_MFRA:
+            // Movie fragment random access box
+            return ParseBoxRecursively(header.dataOffset, 
+                                     header.size - (header.dataOffset - offset),
+                                     [this](const BoxHeader& childHeader, uint64_t childOffset) {
+                switch (childHeader.type) {
+                    case BOX_TFRA:
+                        // Track fragment random access - enables seeking within fragments
+                        return true; // Skip for now, will implement in seeking task
+                    case BOX_MFRO:
+                        // Movie fragment random access offset
+                        return true;
+                    default:
+                        return SkipUnknownBox(childHeader);
+                }
+            });
+        case BOX_SIDX:
+            // Segment index box - for segment-based navigation
+            return true; // Skip for now, will implement in streaming task
+        default:
+            return SkipUnknownBox(header);
+    }
 }
 
 bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
@@ -1402,14 +1449,648 @@ double SampleTableManager::SampleToTime(uint64_t sampleIndex) {
 }
 
 // FragmentHandler implementation
-bool FragmentHandler::ProcessMovieFragment(uint64_t moofOffset) {
-    // Basic implementation - will be expanded in later tasks
+bool FragmentHandler::ProcessMovieFragment(uint64_t moofOffset, std::shared_ptr<IOHandler> io) {
+    if (!io || moofOffset == 0) {
+        return false;
+    }
+    
+    MovieFragmentInfo fragment;
+    fragment.moofOffset = moofOffset;
+    
+    // Parse the movie fragment box
+    if (!ParseMovieFragmentBox(moofOffset, 0, io, fragment)) {
+        return false;
+    }
+    
+    // Find the associated media data box
+    fragment.mdatOffset = FindMediaDataBox(moofOffset, io);
+    if (fragment.mdatOffset == 0) {
+        return false;
+    }
+    
+    // Validate the fragment
+    if (!ValidateFragment(fragment)) {
+        return false;
+    }
+    
+    // Add fragment to our collection
+    hasFragments = true;
+    return AddFragment(fragment);
+}
+
+bool FragmentHandler::UpdateSampleTables(const TrackFragmentInfo& traf, AudioTrackInfo& track) {
+    if (traf.trackId != track.trackId) {
+        return false;
+    }
+    
+    // Update track's sample table information with fragment data
+    SampleTableInfo& tables = track.sampleTableInfo;
+    
+    // Calculate total samples in this fragment
+    uint32_t totalSamples = 0;
+    for (const auto& trun : traf.trackRuns) {
+        totalSamples += trun.sampleCount;
+    }
+    
+    if (totalSamples == 0) {
+        return true; // Empty fragment is valid
+    }
+    
+    // Reserve space for new samples
+    size_t currentSampleCount = tables.sampleTimes.size();
+    tables.sampleTimes.reserve(currentSampleCount + totalSamples);
+    tables.sampleSizes.reserve(currentSampleCount + totalSamples);
+    
+    // Process each track run
+    uint64_t currentTime = traf.tfdt; // Start from fragment decode time
+    uint64_t currentOffset = traf.baseDataOffset;
+    
+    for (const auto& trun : traf.trackRuns) {
+        // Apply data offset from track run
+        uint64_t runOffset = currentOffset + trun.dataOffset;
+        
+        for (uint32_t i = 0; i < trun.sampleCount; i++) {
+            // Get sample duration (use default if not specified)
+            uint32_t duration = traf.defaultSampleDuration;
+            if (i < trun.sampleDurations.size()) {
+                duration = trun.sampleDurations[i];
+            }
+            
+            // Get sample size (use default if not specified)
+            uint32_t size = traf.defaultSampleSize;
+            if (i < trun.sampleSizes.size()) {
+                size = trun.sampleSizes[i];
+            }
+            
+            // Add sample timing information
+            tables.sampleTimes.push_back(currentTime);
+            tables.sampleSizes.push_back(size);
+            
+            // Update for next sample
+            currentTime += duration;
+            runOffset += size;
+        }
+        
+        currentOffset = runOffset;
+    }
+    
     return true;
 }
 
-bool FragmentHandler::UpdateSampleTables(const SampleTableInfo& traf) {
-    // Basic implementation - will be expanded in later tasks
+bool FragmentHandler::SeekToFragment(uint32_t sequenceNumber) {
+    for (size_t i = 0; i < fragments.size(); i++) {
+        if (fragments[i].sequenceNumber == sequenceNumber) {
+            currentFragmentIndex = static_cast<uint32_t>(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+MovieFragmentInfo* FragmentHandler::GetCurrentFragment() {
+    if (currentFragmentIndex < fragments.size()) {
+        return &fragments[currentFragmentIndex];
+    }
+    return nullptr;
+}
+
+MovieFragmentInfo* FragmentHandler::GetFragment(uint32_t sequenceNumber) {
+    for (auto& fragment : fragments) {
+        if (fragment.sequenceNumber == sequenceNumber) {
+            return &fragment;
+        }
+    }
+    return nullptr;
+}
+
+bool FragmentHandler::AddFragment(const MovieFragmentInfo& fragment) {
+    // Check if fragment already exists
+    for (const auto& existing : fragments) {
+        if (existing.sequenceNumber == fragment.sequenceNumber) {
+            return false; // Duplicate fragment
+        }
+    }
+    
+    // Add fragment
+    fragments.push_back(fragment);
+    hasFragments = true; // Set the flag to indicate we have fragments
+    
+    // Reorder fragments by sequence number
+    return ReorderFragments();
+}
+
+bool FragmentHandler::ReorderFragments() {
+    if (fragments.empty()) {
+        return true;
+    }
+    
+    // Sort fragments by sequence number
+    std::sort(fragments.begin(), fragments.end(), CompareFragmentsBySequence);
+    
+    // Check for missing fragments and handle gaps
+    FillMissingFragmentGaps();
+    
     return true;
+}
+
+bool FragmentHandler::IsFragmentComplete(uint32_t sequenceNumber) const {
+    const MovieFragmentInfo* fragment = const_cast<FragmentHandler*>(this)->GetFragment(sequenceNumber);
+    return fragment && fragment->isComplete;
+}
+
+bool FragmentHandler::ExtractFragmentSample(uint32_t trackId, uint64_t sampleIndex, 
+                                           uint64_t& offset, uint32_t& size) {
+    MovieFragmentInfo* currentFragment = GetCurrentFragment();
+    if (!currentFragment) {
+        return false;
+    }
+    
+    // Find the track fragment for this track
+    TrackFragmentInfo* traf = nullptr;
+    for (auto& tf : currentFragment->trackFragments) {
+        if (tf.trackId == trackId) {
+            traf = &tf;
+            break;
+        }
+    }
+    
+    if (!traf) {
+        return false;
+    }
+    
+    // Calculate sample offset within fragment
+    uint64_t currentOffset = traf->baseDataOffset;
+    uint64_t currentSample = 0;
+    
+    for (const auto& trun : traf->trackRuns) {
+        if (currentSample + trun.sampleCount > sampleIndex) {
+            // Sample is in this track run
+            uint64_t sampleInRun = sampleIndex - currentSample;
+            uint64_t runOffset = currentOffset + trun.dataOffset;
+            
+            // Calculate offset to specific sample
+            for (uint64_t i = 0; i < sampleInRun; i++) {
+                uint32_t sampleSize = traf->defaultSampleSize;
+                if (i < trun.sampleSizes.size()) {
+                    sampleSize = trun.sampleSizes[i];
+                }
+                runOffset += sampleSize;
+            }
+            
+            // Get size of target sample
+            size = traf->defaultSampleSize;
+            if (sampleInRun < trun.sampleSizes.size()) {
+                size = trun.sampleSizes[sampleInRun];
+            }
+            
+            offset = runOffset;
+            return true;
+        }
+        
+        currentSample += trun.sampleCount;
+        
+        // Update offset for next track run
+        for (uint32_t i = 0; i < trun.sampleCount; i++) {
+            uint32_t sampleSize = traf->defaultSampleSize;
+            if (i < trun.sampleSizes.size()) {
+                sampleSize = trun.sampleSizes[i];
+            }
+            currentOffset += sampleSize;
+        }
+    }
+    
+    return false;
+}
+
+void FragmentHandler::SetDefaultValues(const AudioTrackInfo& movieHeaderDefaults) {
+    // Set default values from movie header for use when fragment headers are missing
+    defaults.defaultSampleDuration = static_cast<uint32_t>(movieHeaderDefaults.duration / 
+                                                           (movieHeaderDefaults.sampleTableInfo.sampleTimes.size() + 1));
+    defaults.defaultSampleSize = movieHeaderDefaults.sampleTableInfo.sampleSizes.empty() ? 0 : 
+                                movieHeaderDefaults.sampleTableInfo.sampleSizes[0];
+    defaults.defaultSampleFlags = 0; // Default to no special flags
+}
+
+bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io, 
+                                           MovieFragmentInfo& fragment) {
+    if (!io) {
+        return false;
+    }
+    
+    // Read movie fragment box header
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    uint32_t boxSize = ReadUInt32BE(io, offset);
+    uint32_t boxType = ReadUInt32BE(io, offset + 4);
+    
+    if (boxType != BOX_MOOF) {
+        return false;
+    }
+    
+    uint64_t actualSize = (boxSize == 1) ? ReadUInt64BE(io, offset + 8) : boxSize;
+    uint64_t dataOffset = (boxSize == 1) ? offset + 16 : offset + 8;
+    uint64_t endOffset = offset + actualSize;
+    
+    // Parse child boxes
+    uint64_t currentOffset = dataOffset;
+    while (currentOffset < endOffset) {
+        uint32_t childSize = ReadUInt32BE(io, currentOffset);
+        uint32_t childType = ReadUInt32BE(io, currentOffset + 4);
+        
+        if (childSize < 8) {
+            break;
+        }
+        
+        uint64_t childDataOffset = currentOffset + 8;
+        
+        switch (childType) {
+            case BOX_MFHD:
+                // Movie fragment header
+                if (!ParseMovieFragmentHeader(childDataOffset, childSize - 8, io, fragment)) {
+                    return false;
+                }
+                break;
+                
+            case BOX_TRAF:
+                // Track fragment
+                {
+                    TrackFragmentInfo traf;
+                    if (ParseTrackFragmentBox(childDataOffset, childSize - 8, io, traf)) {
+                        fragment.trackFragments.push_back(traf);
+                    }
+                }
+                break;
+                
+            default:
+                // Skip unknown boxes
+                break;
+        }
+        
+        currentOffset += childSize;
+    }
+    
+    fragment.isComplete = !fragment.trackFragments.empty();
+    return fragment.isComplete;
+}
+
+bool FragmentHandler::ParseMovieFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                              MovieFragmentInfo& fragment) {
+    if (!io || size < 8) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    fragment.sequenceNumber = ReadUInt32BE(io, offset + 4);
+    return true;
+}
+
+bool FragmentHandler::ParseTrackFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                           TrackFragmentInfo& traf) {
+    if (!io) {
+        return false;
+    }
+    
+    uint64_t endOffset = offset + size;
+    uint64_t currentOffset = offset;
+    
+    while (currentOffset < endOffset) {
+        uint32_t childSize = ReadUInt32BE(io, currentOffset);
+        uint32_t childType = ReadUInt32BE(io, currentOffset + 4);
+        
+        if (childSize < 8) {
+            break;
+        }
+        
+        uint64_t childDataOffset = currentOffset + 8;
+        
+        switch (childType) {
+            case BOX_TFHD:
+                // Track fragment header
+                if (!ParseTrackFragmentHeader(childDataOffset, childSize - 8, io, traf)) {
+                    return false;
+                }
+                break;
+                
+            case BOX_TRUN:
+                // Track fragment run
+                {
+                    TrackFragmentInfo::TrackRunInfo trun;
+                    if (ParseTrackFragmentRun(childDataOffset, childSize - 8, io, trun)) {
+                        traf.trackRuns.push_back(trun);
+                    }
+                }
+                break;
+                
+            case BOX_TFDT:
+                // Track fragment decode time
+                ParseTrackFragmentDecodeTime(childDataOffset, childSize - 8, io, traf);
+                break;
+                
+            default:
+                // Skip unknown boxes
+                break;
+        }
+        
+        currentOffset += childSize;
+    }
+    
+    return traf.trackId != 0;
+}
+
+bool FragmentHandler::ParseTrackFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                              TrackFragmentInfo& traf) {
+    if (!io || size < 8) {
+        return false;
+    }
+    
+    uint32_t versionFlags = ReadUInt32BE(io, offset);
+    uint32_t flags = versionFlags & 0xFFFFFF;
+    
+    uint64_t currentOffset = offset + 4;
+    
+    // Track ID is always present
+    traf.trackId = ReadUInt32BE(io, currentOffset);
+    currentOffset += 4;
+    
+    // Parse optional fields based on flags
+    if (flags & 0x000001) { // base-data-offset-present
+        traf.baseDataOffset = ReadUInt64BE(io, currentOffset);
+        currentOffset += 8;
+    }
+    
+    if (flags & 0x000002) { // sample-description-index-present
+        traf.sampleDescriptionIndex = ReadUInt32BE(io, currentOffset);
+        currentOffset += 4;
+    }
+    
+    if (flags & 0x000008) { // default-sample-duration-present
+        traf.defaultSampleDuration = ReadUInt32BE(io, currentOffset);
+        currentOffset += 4;
+    } else {
+        traf.defaultSampleDuration = defaults.defaultSampleDuration;
+    }
+    
+    if (flags & 0x000010) { // default-sample-size-present
+        traf.defaultSampleSize = ReadUInt32BE(io, currentOffset);
+        currentOffset += 4;
+    } else {
+        traf.defaultSampleSize = defaults.defaultSampleSize;
+    }
+    
+    if (flags & 0x000020) { // default-sample-flags-present
+        traf.defaultSampleFlags = ReadUInt32BE(io, currentOffset);
+        currentOffset += 4;
+    } else {
+        traf.defaultSampleFlags = defaults.defaultSampleFlags;
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::ParseTrackFragmentRun(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                           TrackFragmentInfo::TrackRunInfo& trun) {
+    if (!io || size < 8) {
+        return false;
+    }
+    
+    uint32_t versionFlags = ReadUInt32BE(io, offset);
+    uint8_t version = (versionFlags >> 24) & 0xFF;
+    uint32_t flags = versionFlags & 0xFFFFFF;
+    
+    uint64_t currentOffset = offset + 4;
+    
+    // Sample count is always present
+    trun.sampleCount = ReadUInt32BE(io, currentOffset);
+    currentOffset += 4;
+    
+    if (trun.sampleCount == 0) {
+        return true; // Empty run is valid
+    }
+    
+    // Parse optional fields based on flags
+    if (flags & 0x000001) { // data-offset-present
+        trun.dataOffset = ReadUInt32BE(io, currentOffset);
+        currentOffset += 4;
+    }
+    
+    if (flags & 0x000004) { // first-sample-flags-present
+        trun.firstSampleFlags = ReadUInt32BE(io, currentOffset);
+        currentOffset += 4;
+    }
+    
+    // Parse per-sample data
+    bool hasSampleDuration = (flags & 0x000100) != 0;
+    bool hasSampleSize = (flags & 0x000200) != 0;
+    bool hasSampleFlags = (flags & 0x000400) != 0;
+    bool hasSampleCompositionTimeOffset = (flags & 0x000800) != 0;
+    
+    if (hasSampleDuration) {
+        trun.sampleDurations.reserve(trun.sampleCount);
+    }
+    if (hasSampleSize) {
+        trun.sampleSizes.reserve(trun.sampleCount);
+    }
+    if (hasSampleFlags) {
+        trun.sampleFlags.reserve(trun.sampleCount);
+    }
+    if (hasSampleCompositionTimeOffset) {
+        trun.sampleCompositionTimeOffsets.reserve(trun.sampleCount);
+    }
+    
+    for (uint32_t i = 0; i < trun.sampleCount; i++) {
+        if (hasSampleDuration) {
+            trun.sampleDurations.push_back(ReadUInt32BE(io, currentOffset));
+            currentOffset += 4;
+        }
+        
+        if (hasSampleSize) {
+            trun.sampleSizes.push_back(ReadUInt32BE(io, currentOffset));
+            currentOffset += 4;
+        }
+        
+        if (hasSampleFlags) {
+            trun.sampleFlags.push_back(ReadUInt32BE(io, currentOffset));
+            currentOffset += 4;
+        }
+        
+        if (hasSampleCompositionTimeOffset) {
+            if (version == 0) {
+                trun.sampleCompositionTimeOffsets.push_back(ReadUInt32BE(io, currentOffset));
+            } else {
+                // Version 1 uses signed offsets
+                int32_t signedOffset = static_cast<int32_t>(ReadUInt32BE(io, currentOffset));
+                trun.sampleCompositionTimeOffsets.push_back(static_cast<uint32_t>(signedOffset));
+            }
+            currentOffset += 4;
+        }
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::ParseTrackFragmentDecodeTime(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                                  TrackFragmentInfo& traf) {
+    if (!io || size < 8) {
+        return false;
+    }
+    
+    uint32_t versionFlags = ReadUInt32BE(io, offset);
+    uint8_t version = (versionFlags >> 24) & 0xFF;
+    
+    if (version == 1) {
+        traf.tfdt = ReadUInt64BE(io, offset + 4);
+    } else {
+        traf.tfdt = ReadUInt32BE(io, offset + 4);
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::ValidateFragment(const MovieFragmentInfo& fragment) const {
+    if (fragment.trackFragments.empty()) {
+        return false;
+    }
+    
+    for (const auto& traf : fragment.trackFragments) {
+        if (!ValidateTrackFragment(traf)) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::ValidateTrackFragment(const TrackFragmentInfo& traf) const {
+    if (traf.trackId == 0) {
+        return false;
+    }
+    
+    // Validate track runs
+    for (const auto& trun : traf.trackRuns) {
+        if (trun.sampleCount == 0) {
+            continue; // Empty runs are allowed
+        }
+        
+        // Check consistency of per-sample data
+        if (!trun.sampleDurations.empty() && trun.sampleDurations.size() != trun.sampleCount) {
+            return false;
+        }
+        if (!trun.sampleSizes.empty() && trun.sampleSizes.size() != trun.sampleCount) {
+            return false;
+        }
+        if (!trun.sampleFlags.empty() && trun.sampleFlags.size() != trun.sampleCount) {
+            return false;
+        }
+        if (!trun.sampleCompositionTimeOffsets.empty() && 
+            trun.sampleCompositionTimeOffsets.size() != trun.sampleCount) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+uint32_t FragmentHandler::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+    if (!io) {
+        return 0;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    
+    uint8_t bytes[4];
+    if (io->read(bytes, 1, 4) != 4) {
+        return 0;
+    }
+    
+    return (static_cast<uint32_t>(bytes[0]) << 24) |
+           (static_cast<uint32_t>(bytes[1]) << 16) |
+           (static_cast<uint32_t>(bytes[2]) << 8) |
+           static_cast<uint32_t>(bytes[3]);
+}
+
+uint64_t FragmentHandler::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+    if (!io) {
+        return 0;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    
+    uint8_t bytes[8];
+    if (io->read(bytes, 1, 8) != 8) {
+        return 0;
+    }
+    
+    return (static_cast<uint64_t>(bytes[0]) << 56) |
+           (static_cast<uint64_t>(bytes[1]) << 48) |
+           (static_cast<uint64_t>(bytes[2]) << 40) |
+           (static_cast<uint64_t>(bytes[3]) << 32) |
+           (static_cast<uint64_t>(bytes[4]) << 24) |
+           (static_cast<uint64_t>(bytes[5]) << 16) |
+           (static_cast<uint64_t>(bytes[6]) << 8) |
+           static_cast<uint64_t>(bytes[7]);
+}
+
+uint64_t FragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<IOHandler> io) {
+    if (!io) {
+        return 0;
+    }
+    
+    // Media data box typically follows movie fragment box
+    // Read moof box size first
+    uint32_t moofSize = ReadUInt32BE(io, moofOffset);
+    if (moofSize == 1) {
+        // Extended size
+        moofSize = static_cast<uint32_t>(ReadUInt64BE(io, moofOffset + 8));
+    }
+    
+    uint64_t searchOffset = moofOffset + moofSize;
+    
+    // Look for mdat box within reasonable distance
+    const uint64_t maxSearchDistance = 1024 * 1024; // 1MB search limit
+    uint64_t endOffset = searchOffset + maxSearchDistance;
+    
+    while (searchOffset < endOffset) {
+        uint32_t boxSize = ReadUInt32BE(io, searchOffset);
+        uint32_t boxType = ReadUInt32BE(io, searchOffset + 4);
+        
+        if (boxType == BOX_MDAT) {
+            return searchOffset;
+        }
+        
+        if (boxSize < 8) {
+            break;
+        }
+        
+        searchOffset += boxSize;
+    }
+    
+    return 0;
+}
+
+bool FragmentHandler::CompareFragmentsBySequence(const MovieFragmentInfo& a, const MovieFragmentInfo& b) {
+    return a.sequenceNumber < b.sequenceNumber;
+}
+
+bool FragmentHandler::HasMissingFragments() const {
+    if (fragments.size() <= 1) {
+        return false;
+    }
+    
+    for (size_t i = 1; i < fragments.size(); i++) {
+        if (fragments[i].sequenceNumber != fragments[i-1].sequenceNumber + 1) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+void FragmentHandler::FillMissingFragmentGaps() {
+    // For now, we just log missing fragments
+    // In a full implementation, we might request missing fragments
+    // or handle graceful degradation
+    if (HasMissingFragments()) {
+        // Missing fragments detected - could implement recovery logic here
+    }
 }
 
 // MetadataExtractor implementation
@@ -1865,13 +2546,19 @@ bool ISODemuxer::parseContainer() {
             return false;
         }
         
-        // Parse top-level boxes to find ftyp and moov
+        // Parse top-level boxes to find ftyp, moov, and fragments
         std::string containerType;
         bool foundFileType = false;
         bool foundMovie = false;
+        bool hasFragments = false;
+        
+        // Create shared IOHandler for fragment processing
+        std::shared_ptr<IOHandler> sharedHandler(m_handler.get(), [](IOHandler*) {
+            // Custom deleter that does nothing - we don't want to delete the handler
+        });
         
         boxParser->ParseBoxRecursively(0, static_cast<uint64_t>(file_size), 
-            [this, &containerType, &foundFileType, &foundMovie](const BoxHeader& header, uint64_t boxOffset) {
+            [this, &containerType, &foundFileType, &foundMovie, &hasFragments, sharedHandler](const BoxHeader& header, uint64_t boxOffset) {
                 switch (header.type) {
                     case BOX_FTYP:
                         // File type box - identify container variant
@@ -1884,6 +2571,20 @@ bool ISODemuxer::parseContainer() {
                         foundMovie = ParseMovieBoxWithTracks(header.dataOffset, 
                                                            header.size - (header.dataOffset - boxOffset));
                         return foundMovie;
+                    case BOX_MOOF:
+                        // Movie fragment box - process with FragmentHandler
+                        if (fragmentHandler->ProcessMovieFragment(boxOffset, sharedHandler)) {
+                            hasFragments = true;
+                        }
+                        return true;
+                    case BOX_MFRA:
+                        // Movie fragment random access box
+                        boxParser->ParseFragmentBox(boxOffset, header.size);
+                        return true;
+                    case BOX_SIDX:
+                        // Segment index box
+                        boxParser->ParseFragmentBox(boxOffset, header.size);
+                        return true;
                     case BOX_MDAT:
                         // Media data box - skip for now
                         return true;
@@ -1903,6 +2604,28 @@ bool ISODemuxer::parseContainer() {
         
         if (!foundMovie) {
             return false;
+        }
+        
+        // Handle fragmented MP4 files
+        if (hasFragments && fragmentHandler->IsFragmented()) {
+            // Set default values from movie header for missing fragment headers
+            if (!audioTracks.empty()) {
+                fragmentHandler->SetDefaultValues(audioTracks[0]);
+            }
+            
+            // Update sample tables with fragment information
+            for (auto& track : audioTracks) {
+                // Get current fragment and update track sample tables
+                MovieFragmentInfo* currentFragment = fragmentHandler->GetCurrentFragment();
+                if (currentFragment) {
+                    for (const auto& traf : currentFragment->trackFragments) {
+                        if (traf.trackId == track.trackId) {
+                            fragmentHandler->UpdateSampleTables(traf, track);
+                            break;
+                        }
+                    }
+                }
+            }
         }
         
         // Validate telephony codec configurations before adding to stream manager
@@ -1993,7 +2716,43 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
         return MediaChunk{};
     }
     
-    // Use SampleTableManager to get sample info
+    // Check if this is a fragmented file
+    if (fragmentHandler && fragmentHandler->IsFragmented()) {
+        // Extract sample from current fragment
+        uint64_t sampleOffset;
+        uint32_t sampleSize;
+        
+        if (fragmentHandler->ExtractFragmentSample(stream_id, track->currentSampleIndex, 
+                                                  sampleOffset, sampleSize)) {
+            // Read sample data from fragment
+            MediaChunk chunk;
+            chunk.stream_id = stream_id;
+            chunk.data.resize(sampleSize);
+            
+            if (m_handler->seek(static_cast<long>(sampleOffset), SEEK_SET) == 0 &&
+                m_handler->read(chunk.data.data(), 1, sampleSize) == sampleSize) {
+                
+                // Set timing information
+                uint64_t timestamp_ms = CalculateTelephonyTiming(*track, track->currentSampleIndex);
+                chunk.timestamp_samples = (timestamp_ms * track->sampleRate) / 1000; // Convert to samples
+                
+                // Apply codec-specific processing
+                ProcessCodecSpecificData(chunk, *track);
+                
+                // Update track position
+                track->currentSampleIndex++;
+                m_position_ms = timestamp_ms;
+                
+                return chunk;
+            }
+        }
+        
+        // Fragment sample extraction failed
+        m_eof = true;
+        return MediaChunk{};
+    }
+    
+    // Use SampleTableManager for non-fragmented files
     if (!sampleTables) {
         return MediaChunk{};
     }
@@ -2024,10 +2783,6 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
 }
 
 bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
-    if (!seekingEngine || !sampleTables) {
-        return false;
-    }
-    
     // If no track is selected, select the first audio track
     if (selectedTrackIndex == -1 && !audioTracks.empty()) {
         selectedTrackIndex = 0;
@@ -2044,6 +2799,124 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
     if (timestamp_ms > trackDurationMs && trackDurationMs > 0) {
         // Clamp to track duration
         timestamp_ms = trackDurationMs;
+    }
+    
+    // Handle fragmented files
+    if (fragmentHandler && fragmentHandler->IsFragmented()) {
+        // For fragmented files, we need to find the appropriate fragment
+        // and seek within that fragment
+        
+        // Get all available fragments
+        uint32_t fragmentCount = fragmentHandler->GetFragmentCount();
+        if (fragmentCount == 0) {
+            return false;
+        }
+        
+        // Calculate target time in track timescale
+        uint64_t targetTime = 0;
+        if (track.timescale > 0) {
+            targetTime = (timestamp_ms * track.timescale) / 1000;
+        }
+        
+        // Find the fragment containing this timestamp
+        // Start with the first fragment and iterate until we find the right one
+        bool foundFragment = false;
+        for (uint32_t i = 1; i <= fragmentCount; i++) {
+            MovieFragmentInfo* fragment = fragmentHandler->GetFragment(i);
+            if (!fragment) {
+                continue;
+            }
+            
+            // Find the track fragment for this track
+            for (const auto& traf : fragment->trackFragments) {
+                if (traf.trackId == track.trackId) {
+                    // Check if this fragment contains our target time
+                    // We need to calculate the end time of this fragment
+                    uint64_t fragmentStartTime = traf.tfdt;
+                    uint64_t fragmentDuration = 0;
+                    
+                    // Calculate fragment duration by summing all sample durations
+                    for (const auto& trun : traf.trackRuns) {
+                        if (!trun.sampleDurations.empty()) {
+                            // Use per-sample durations
+                            for (uint32_t duration : trun.sampleDurations) {
+                                fragmentDuration += duration;
+                            }
+                        } else {
+                            // Use default duration
+                            fragmentDuration += trun.sampleCount * traf.defaultSampleDuration;
+                        }
+                    }
+                    
+                    uint64_t fragmentEndTime = fragmentStartTime + fragmentDuration;
+                    
+                    // Check if target time is within this fragment
+                    if (targetTime >= fragmentStartTime && targetTime < fragmentEndTime) {
+                        // Found the right fragment
+                        fragmentHandler->SeekToFragment(i);
+                        foundFragment = true;
+                        
+                        // Calculate sample index within fragment
+                        uint64_t timeOffset = targetTime - fragmentStartTime;
+                        uint64_t sampleIndex = 0;
+                        uint64_t accumulatedDuration = 0;
+                        
+                        // Find the sample containing our target time
+                        for (const auto& trun : traf.trackRuns) {
+                            for (uint32_t j = 0; j < trun.sampleCount; j++) {
+                                uint32_t sampleDuration = 0;
+                                
+                                if (j < trun.sampleDurations.size()) {
+                                    sampleDuration = trun.sampleDurations[j];
+                                } else {
+                                    sampleDuration = traf.defaultSampleDuration;
+                                }
+                                
+                                if (accumulatedDuration + sampleDuration > timeOffset) {
+                                    // Found the sample
+                                    track.currentSampleIndex = sampleIndex;
+                                    currentSampleIndex = sampleIndex;
+                                    m_position_ms = timestamp_ms;
+                                    m_eof = false;
+                                    return true;
+                                }
+                                
+                                accumulatedDuration += sampleDuration;
+                                sampleIndex++;
+                            }
+                        }
+                        
+                        // If we get here, use the first sample in the fragment
+                        track.currentSampleIndex = 0;
+                        currentSampleIndex = 0;
+                        m_position_ms = (fragmentStartTime * 1000ULL) / track.timescale;
+                        m_eof = false;
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // If we couldn't find the exact fragment, try to seek to the closest one
+        if (!foundFragment) {
+            // Find the last fragment
+            MovieFragmentInfo* lastFragment = fragmentHandler->GetFragment(fragmentCount);
+            if (lastFragment) {
+                fragmentHandler->SeekToFragment(fragmentCount);
+                track.currentSampleIndex = 0;
+                currentSampleIndex = 0;
+                m_position_ms = timestamp_ms;
+                m_eof = false;
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    // Handle non-fragmented files
+    if (!seekingEngine || !sampleTables) {
+        return false;
     }
     
     double timestamp_seconds = static_cast<double>(timestamp_ms) / 1000.0;
@@ -2376,4 +3249,809 @@ bool SampleTableManager::BuildExpandedSampleToChunkMapping(const SampleTableInfo
 
 std::map<std::string, std::string> ISODemuxer::getMetadata() const {
     return m_metadata;
+}
+/
+/ FragmentHandler implementation
+bool FragmentHandler::ProcessMovieFragment(uint64_t moofOffset, std::shared_ptr<IOHandler> io) {
+    if (!io) {
+        return false;
+    }
+    
+    // Create a new fragment info structure
+    MovieFragmentInfo fragment;
+    fragment.moofOffset = moofOffset;
+    
+    // Read the moof box header to get size
+    io->seek(static_cast<long>(moofOffset), SEEK_SET);
+    uint8_t headerBytes[8];
+    if (io->read(headerBytes, 1, 8) != 8) {
+        return false;
+    }
+    
+    uint32_t moofSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
+                        (static_cast<uint32_t>(headerBytes[1]) << 16) |
+                        (static_cast<uint32_t>(headerBytes[2]) << 8) |
+                        static_cast<uint32_t>(headerBytes[3]);
+    
+    uint32_t moofType = (static_cast<uint32_t>(headerBytes[4]) << 24) |
+                        (static_cast<uint32_t>(headerBytes[5]) << 16) |
+                        (static_cast<uint32_t>(headerBytes[6]) << 8) |
+                        static_cast<uint32_t>(headerBytes[7]);
+    
+    if (moofType != BOX_MOOF) {
+        return false;
+    }
+    
+    // Parse the movie fragment box
+    if (!ParseMovieFragmentBox(moofOffset + 8, moofSize - 8, io, fragment)) {
+        return false;
+    }
+    
+    // Find the corresponding mdat box
+    fragment.mdatOffset = FindMediaDataBox(moofOffset + moofSize, io);
+    if (fragment.mdatOffset == 0) {
+        return false;
+    }
+    
+    // Read mdat size
+    io->seek(static_cast<long>(fragment.mdatOffset), SEEK_SET);
+    if (io->read(headerBytes, 1, 8) != 8) {
+        return false;
+    }
+    
+    fragment.mdatSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
+                        (static_cast<uint32_t>(headerBytes[1]) << 16) |
+                        (static_cast<uint32_t>(headerBytes[2]) << 8) |
+                        static_cast<uint32_t>(headerBytes[3]);
+    
+    // Mark fragment as complete and add it
+    fragment.isComplete = true;
+    hasFragments = true;
+    
+    return AddFragment(fragment);
+}
+
+bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io, 
+                                           MovieFragmentInfo& fragment) {
+    uint64_t currentOffset = offset;
+    uint64_t endOffset = offset + size;
+    
+    while (currentOffset < endOffset) {
+        // Read box header
+        if (currentOffset + 8 > endOffset) {
+            break;
+        }
+        
+        io->seek(static_cast<long>(currentOffset), SEEK_SET);
+        uint8_t headerBytes[8];
+        if (io->read(headerBytes, 1, 8) != 8) {
+            break;
+        }
+        
+        uint32_t boxSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
+                           (static_cast<uint32_t>(headerBytes[1]) << 16) |
+                           (static_cast<uint32_t>(headerBytes[2]) << 8) |
+                           static_cast<uint32_t>(headerBytes[3]);
+        
+        uint32_t boxType = (static_cast<uint32_t>(headerBytes[4]) << 24) |
+                           (static_cast<uint32_t>(headerBytes[5]) << 16) |
+                           (static_cast<uint32_t>(headerBytes[6]) << 8) |
+                           static_cast<uint32_t>(headerBytes[7]);
+        
+        if (boxSize < 8 || currentOffset + boxSize > endOffset) {
+            break;
+        }
+        
+        switch (boxType) {
+            case BOX_MFHD:
+                // Movie fragment header
+                if (!ParseMovieFragmentHeader(currentOffset + 8, boxSize - 8, io, fragment)) {
+                    return false;
+                }
+                break;
+            case BOX_TRAF:
+                // Track fragment
+                {
+                    TrackFragmentInfo traf;
+                    if (ParseTrackFragmentBox(currentOffset + 8, boxSize - 8, io, traf)) {
+                        fragment.trackFragments.push_back(traf);
+                    }
+                }
+                break;
+            default:
+                // Skip unknown boxes
+                break;
+        }
+        
+        currentOffset += boxSize;
+    }
+    
+    return !fragment.trackFragments.empty();
+}
+
+bool FragmentHandler::ParseMovieFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                              MovieFragmentInfo& fragment) {
+    if (size < 8) {
+        return false;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    uint8_t data[8];
+    if (io->read(data, 1, 8) != 8) {
+        return false;
+    }
+    
+    // Skip version/flags (4 bytes)
+    fragment.sequenceNumber = (static_cast<uint32_t>(data[4]) << 24) |
+                              (static_cast<uint32_t>(data[5]) << 16) |
+                              (static_cast<uint32_t>(data[6]) << 8) |
+                              static_cast<uint32_t>(data[7]);
+    
+    return true;
+}
+
+bool FragmentHandler::ParseTrackFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                           TrackFragmentInfo& traf) {
+    uint64_t currentOffset = offset;
+    uint64_t endOffset = offset + size;
+    
+    while (currentOffset < endOffset) {
+        // Read box header
+        if (currentOffset + 8 > endOffset) {
+            break;
+        }
+        
+        io->seek(static_cast<long>(currentOffset), SEEK_SET);
+        uint8_t headerBytes[8];
+        if (io->read(headerBytes, 1, 8) != 8) {
+            break;
+        }
+        
+        uint32_t boxSize = (static_cast<uint32_t>(headerBytes[0]) << 24) |
+                           (static_cast<uint32_t>(headerBytes[1]) << 16) |
+                           (static_cast<uint32_t>(headerBytes[2]) << 8) |
+                           static_cast<uint32_t>(headerBytes[3]);
+        
+        uint32_t boxType = (static_cast<uint32_t>(headerBytes[4]) << 24) |
+                           (static_cast<uint32_t>(headerBytes[5]) << 16) |
+                           (static_cast<uint32_t>(headerBytes[6]) << 8) |
+                           static_cast<uint32_t>(headerBytes[7]);
+        
+        if (boxSize < 8 || currentOffset + boxSize > endOffset) {
+            break;
+        }
+        
+        switch (boxType) {
+            case BOX_TFHD:
+                // Track fragment header
+                if (!ParseTrackFragmentHeader(currentOffset + 8, boxSize - 8, io, traf)) {
+                    return false;
+                }
+                break;
+            case BOX_TRUN:
+                // Track fragment run
+                {
+                    TrackFragmentInfo::TrackRunInfo trun;
+                    if (ParseTrackFragmentRun(currentOffset + 8, boxSize - 8, io, trun)) {
+                        traf.trackRuns.push_back(trun);
+                    }
+                }
+                break;
+            case BOX_TFDT:
+                // Track fragment decode time
+                ParseTrackFragmentDecodeTime(currentOffset + 8, boxSize - 8, io, traf);
+                break;
+            default:
+                // Skip unknown boxes
+                break;
+        }
+        
+        currentOffset += boxSize;
+    }
+    
+    return traf.trackId != 0 && !traf.trackRuns.empty();
+}
+
+bool FragmentHandler::ParseTrackFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                              TrackFragmentInfo& traf) {
+    if (size < 8) {
+        return false;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    uint8_t data[32]; // Maximum size we might need
+    size_t readSize = std::min(size, static_cast<uint64_t>(32));
+    if (io->read(data, 1, readSize) != readSize) {
+        return false;
+    }
+    
+    // Read version/flags
+    uint32_t versionFlags = (static_cast<uint32_t>(data[0]) << 24) |
+                            (static_cast<uint32_t>(data[1]) << 16) |
+                            (static_cast<uint32_t>(data[2]) << 8) |
+                            static_cast<uint32_t>(data[3]);
+    
+    uint32_t flags = versionFlags & 0xFFFFFF;
+    
+    // Read track ID
+    traf.trackId = (static_cast<uint32_t>(data[4]) << 24) |
+                   (static_cast<uint32_t>(data[5]) << 16) |
+                   (static_cast<uint32_t>(data[6]) << 8) |
+                   static_cast<uint32_t>(data[7]);
+    
+    size_t dataOffset = 8;
+    
+    // Parse optional fields based on flags
+    if (flags & 0x000001) { // base-data-offset-present
+        if (dataOffset + 8 <= readSize) {
+            traf.baseDataOffset = (static_cast<uint64_t>(data[dataOffset]) << 56) |
+                                  (static_cast<uint64_t>(data[dataOffset + 1]) << 48) |
+                                  (static_cast<uint64_t>(data[dataOffset + 2]) << 40) |
+                                  (static_cast<uint64_t>(data[dataOffset + 3]) << 32) |
+                                  (static_cast<uint64_t>(data[dataOffset + 4]) << 24) |
+                                  (static_cast<uint64_t>(data[dataOffset + 5]) << 16) |
+                                  (static_cast<uint64_t>(data[dataOffset + 6]) << 8) |
+                                  static_cast<uint64_t>(data[dataOffset + 7]);
+            dataOffset += 8;
+        }
+    }
+    
+    if (flags & 0x000002) { // sample-description-index-present
+        if (dataOffset + 4 <= readSize) {
+            traf.sampleDescriptionIndex = (static_cast<uint32_t>(data[dataOffset]) << 24) |
+                                          (static_cast<uint32_t>(data[dataOffset + 1]) << 16) |
+                                          (static_cast<uint32_t>(data[dataOffset + 2]) << 8) |
+                                          static_cast<uint32_t>(data[dataOffset + 3]);
+            dataOffset += 4;
+        }
+    }
+    
+    if (flags & 0x000008) { // default-sample-duration-present
+        if (dataOffset + 4 <= readSize) {
+            traf.defaultSampleDuration = (static_cast<uint32_t>(data[dataOffset]) << 24) |
+                                         (static_cast<uint32_t>(data[dataOffset + 1]) << 16) |
+                                         (static_cast<uint32_t>(data[dataOffset + 2]) << 8) |
+                                         static_cast<uint32_t>(data[dataOffset + 3]);
+            dataOffset += 4;
+        }
+    }
+    
+    if (flags & 0x000010) { // default-sample-size-present
+        if (dataOffset + 4 <= readSize) {
+            traf.defaultSampleSize = (static_cast<uint32_t>(data[dataOffset]) << 24) |
+                                     (static_cast<uint32_t>(data[dataOffset + 1]) << 16) |
+                                     (static_cast<uint32_t>(data[dataOffset + 2]) << 8) |
+                                     static_cast<uint32_t>(data[dataOffset + 3]);
+            dataOffset += 4;
+        }
+    }
+    
+    if (flags & 0x000020) { // default-sample-flags-present
+        if (dataOffset + 4 <= readSize) {
+            traf.defaultSampleFlags = (static_cast<uint32_t>(data[dataOffset]) << 24) |
+                                      (static_cast<uint32_t>(data[dataOffset + 1]) << 16) |
+                                      (static_cast<uint32_t>(data[dataOffset + 2]) << 8) |
+                                      static_cast<uint32_t>(data[dataOffset + 3]);
+            dataOffset += 4;
+        }
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::ParseTrackFragmentRun(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                            TrackFragmentInfo::TrackRunInfo& trun) {
+    if (size < 8) {
+        return false;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    uint8_t header[8];
+    if (io->read(header, 1, 8) != 8) {
+        return false;
+    }
+    
+    // Read version/flags
+    uint32_t versionFlags = (static_cast<uint32_t>(header[0]) << 24) |
+                            (static_cast<uint32_t>(header[1]) << 16) |
+                            (static_cast<uint32_t>(header[2]) << 8) |
+                            static_cast<uint32_t>(header[3]);
+    
+    uint32_t flags = versionFlags & 0xFFFFFF;
+    
+    // Read sample count
+    trun.sampleCount = (static_cast<uint32_t>(header[4]) << 24) |
+                       (static_cast<uint32_t>(header[5]) << 16) |
+                       (static_cast<uint32_t>(header[6]) << 8) |
+                       static_cast<uint32_t>(header[7]);
+    
+    if (trun.sampleCount == 0) {
+        return false;
+    }
+    
+    size_t dataOffset = 8;
+    
+    // Read optional data offset
+    if (flags & 0x000001) { // data-offset-present
+        if (size < dataOffset + 4) {
+            return false;
+        }
+        uint8_t offsetBytes[4];
+        if (io->read(offsetBytes, 1, 4) != 4) {
+            return false;
+        }
+        trun.dataOffset = (static_cast<uint32_t>(offsetBytes[0]) << 24) |
+                          (static_cast<uint32_t>(offsetBytes[1]) << 16) |
+                          (static_cast<uint32_t>(offsetBytes[2]) << 8) |
+                          static_cast<uint32_t>(offsetBytes[3]);
+        dataOffset += 4;
+    }
+    
+    // Read optional first sample flags
+    if (flags & 0x000004) { // first-sample-flags-present
+        if (size < dataOffset + 4) {
+            return false;
+        }
+        uint8_t flagsBytes[4];
+        if (io->read(flagsBytes, 1, 4) != 4) {
+            return false;
+        }
+        trun.firstSampleFlags = (static_cast<uint32_t>(flagsBytes[0]) << 24) |
+                                (static_cast<uint32_t>(flagsBytes[1]) << 16) |
+                                (static_cast<uint32_t>(flagsBytes[2]) << 8) |
+                                static_cast<uint32_t>(flagsBytes[3]);
+        dataOffset += 4;
+    }
+    
+    // Calculate per-sample data size
+    size_t perSampleSize = 0;
+    if (flags & 0x000100) perSampleSize += 4; // sample-duration-present
+    if (flags & 0x000200) perSampleSize += 4; // sample-size-present
+    if (flags & 0x000400) perSampleSize += 4; // sample-flags-present
+    if (flags & 0x000800) perSampleSize += 4; // sample-composition-time-offsets-present
+    
+    if (size < dataOffset + (trun.sampleCount * perSampleSize)) {
+        return false;
+    }
+    
+    // Reserve space for sample data
+    if (flags & 0x000100) trun.sampleDurations.reserve(trun.sampleCount);
+    if (flags & 0x000200) trun.sampleSizes.reserve(trun.sampleCount);
+    if (flags & 0x000400) trun.sampleFlags.reserve(trun.sampleCount);
+    if (flags & 0x000800) trun.sampleCompositionTimeOffsets.reserve(trun.sampleCount);
+    
+    // Read per-sample data
+    for (uint32_t i = 0; i < trun.sampleCount; i++) {
+        if (flags & 0x000100) { // sample-duration-present
+            uint8_t durationBytes[4];
+            if (io->read(durationBytes, 1, 4) != 4) {
+                return false;
+            }
+            uint32_t duration = (static_cast<uint32_t>(durationBytes[0]) << 24) |
+                                (static_cast<uint32_t>(durationBytes[1]) << 16) |
+                                (static_cast<uint32_t>(durationBytes[2]) << 8) |
+                                static_cast<uint32_t>(durationBytes[3]);
+            trun.sampleDurations.push_back(duration);
+        }
+        
+        if (flags & 0x000200) { // sample-size-present
+            uint8_t sizeBytes[4];
+            if (io->read(sizeBytes, 1, 4) != 4) {
+                return false;
+            }
+            uint32_t sampleSize = (static_cast<uint32_t>(sizeBytes[0]) << 24) |
+                                  (static_cast<uint32_t>(sizeBytes[1]) << 16) |
+                                  (static_cast<uint32_t>(sizeBytes[2]) << 8) |
+                                  static_cast<uint32_t>(sizeBytes[3]);
+            trun.sampleSizes.push_back(sampleSize);
+        }
+        
+        if (flags & 0x000400) { // sample-flags-present
+            uint8_t flagsBytes[4];
+            if (io->read(flagsBytes, 1, 4) != 4) {
+                return false;
+            }
+            uint32_t sampleFlags = (static_cast<uint32_t>(flagsBytes[0]) << 24) |
+                                   (static_cast<uint32_t>(flagsBytes[1]) << 16) |
+                                   (static_cast<uint32_t>(flagsBytes[2]) << 8) |
+                                   static_cast<uint32_t>(flagsBytes[3]);
+            trun.sampleFlags.push_back(sampleFlags);
+        }
+        
+        if (flags & 0x000800) { // sample-composition-time-offsets-present
+            uint8_t offsetBytes[4];
+            if (io->read(offsetBytes, 1, 4) != 4) {
+                return false;
+            }
+            uint32_t offset = (static_cast<uint32_t>(offsetBytes[0]) << 24) |
+                              (static_cast<uint32_t>(offsetBytes[1]) << 16) |
+                              (static_cast<uint32_t>(offsetBytes[2]) << 8) |
+                              static_cast<uint32_t>(offsetBytes[3]);
+            trun.sampleCompositionTimeOffsets.push_back(offset);
+        }
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::ParseTrackFragmentDecodeTime(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+                                                   TrackFragmentInfo& traf) {
+    if (size < 8) {
+        return false;
+    }
+    
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    uint8_t data[16]; // Maximum size for version 1
+    size_t readSize = std::min(size, static_cast<uint64_t>(16));
+    if (io->read(data, 1, readSize) != readSize) {
+        return false;
+    }
+    
+    // Read version/flags
+    uint8_t version = data[0];
+    
+    if (version == 1) {
+        // Version 1 - 64-bit decode time
+        if (readSize >= 12) {
+            traf.tfdt = (static_cast<uint64_t>(data[4]) << 56) |
+                        (static_cast<uint64_t>(data[5]) << 48) |
+                        (static_cast<uint64_t>(data[6]) << 40) |
+                        (static_cast<uint64_t>(data[7]) << 32) |
+                        (static_cast<uint64_t>(data[8]) << 24) |
+                        (static_cast<uint64_t>(data[9]) << 16) |
+                        (static_cast<uint64_t>(data[10]) << 8) |
+                        static_cast<uint64_t>(data[11]);
+        }
+    } else {
+        // Version 0 - 32-bit decode time
+        if (readSize >= 8) {
+            traf.tfdt = (static_cast<uint32_t>(data[4]) << 24) |
+                        (static_cast<uint32_t>(data[5]) << 16) |
+                        (static_cast<uint32_t>(data[6]) << 8) |
+                        static_cast<uint32_t>(data[7]);
+        }
+    }
+    
+    return true;
+}
+
+uint64_t FragmentHandler::FindMediaDataBox(uint64_t startOffset, std::shared_ptr<IOHandler> io) {
+    // Look for mdat box after the moof box
+    uint64_t currentOffset = startOffset;
+    
+    // Search within a reasonable range (e.g., 64KB)
+    uint64_t maxSearchRange = startOffset + 65536;
+    
+    while (currentOffset < maxSearchRange) {
+        io->seek(static_cast<long>(currentOffset), SEEK_SET);
+        uint8_t header[8];
+        if (io->read(header, 1, 8) != 8) {
+            break;
+        }
+        
+        uint32_t boxSize = (static_cast<uint32_t>(header[0]) << 24) |
+                           (static_cast<uint32_t>(header[1]) << 16) |
+                           (static_cast<uint32_t>(header[2]) << 8) |
+                           static_cast<uint32_t>(header[3]);
+        
+        uint32_t boxType = (static_cast<uint32_t>(header[4]) << 24) |
+                           (static_cast<uint32_t>(header[5]) << 16) |
+                           (static_cast<uint32_t>(header[6]) << 8) |
+                           static_cast<uint32_t>(header[7]);
+        
+        if (boxType == BOX_MDAT) {
+            return currentOffset;
+        }
+        
+        if (boxSize < 8) {
+            break;
+        }
+        
+        currentOffset += boxSize;
+    }
+    
+    return 0; // Not found
+}
+
+bool FragmentHandler::UpdateSampleTables(const TrackFragmentInfo& traf, AudioTrackInfo& track) {
+    if (traf.trackRuns.empty()) {
+        return false;
+    }
+    
+    // Update sample table information with fragment data
+    for (const auto& trun : traf.trackRuns) {
+        // Add sample sizes
+        if (!trun.sampleSizes.empty()) {
+            track.sampleTableInfo.sampleSizes.insert(
+                track.sampleTableInfo.sampleSizes.end(),
+                trun.sampleSizes.begin(),
+                trun.sampleSizes.end()
+            );
+        } else if (traf.defaultSampleSize > 0) {
+            // Use default sample size for all samples in this run
+            for (uint32_t i = 0; i < trun.sampleCount; i++) {
+                track.sampleTableInfo.sampleSizes.push_back(traf.defaultSampleSize);
+            }
+        }
+        
+        // Add sample times based on durations
+        uint64_t currentTime = traf.tfdt;
+        if (!trun.sampleDurations.empty()) {
+            for (uint32_t duration : trun.sampleDurations) {
+                track.sampleTableInfo.sampleTimes.push_back(currentTime);
+                currentTime += duration;
+            }
+        } else if (traf.defaultSampleDuration > 0) {
+            // Use default sample duration for all samples in this run
+            for (uint32_t i = 0; i < trun.sampleCount; i++) {
+                track.sampleTableInfo.sampleTimes.push_back(currentTime);
+                currentTime += traf.defaultSampleDuration;
+            }
+        }
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::AddFragment(const MovieFragmentInfo& fragment) {
+    // Validate fragment
+    if (!ValidateFragment(fragment)) {
+        return false;
+    }
+    
+    // Add fragment to collection
+    fragments.push_back(fragment);
+    
+    // Reorder fragments by sequence number
+    return ReorderFragments();
+}
+
+bool FragmentHandler::ReorderFragments() {
+    // Sort fragments by sequence number
+    std::sort(fragments.begin(), fragments.end(), CompareFragmentsBySequence);
+    
+    // Check for missing fragments
+    if (HasMissingFragments()) {
+        FillMissingFragmentGaps();
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::CompareFragmentsBySequence(const MovieFragmentInfo& a, const MovieFragmentInfo& b) {
+    return a.sequenceNumber < b.sequenceNumber;
+}
+
+bool FragmentHandler::HasMissingFragments() const {
+    if (fragments.size() <= 1) {
+        return false;
+    }
+    
+    for (size_t i = 1; i < fragments.size(); i++) {
+        if (fragments[i].sequenceNumber != fragments[i-1].sequenceNumber + 1) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+void FragmentHandler::FillMissingFragmentGaps() {
+    // Create placeholder fragments for missing sequence numbers
+    // This is a simplified implementation - in practice, you might want to
+    // handle missing fragments differently (e.g., request them from server)
+    
+    std::vector<MovieFragmentInfo> completeFragments;
+    
+    if (!fragments.empty()) {
+        uint32_t expectedSequence = fragments[0].sequenceNumber;
+        
+        for (const auto& fragment : fragments) {
+            // Fill gaps with placeholder fragments
+            while (expectedSequence < fragment.sequenceNumber) {
+                MovieFragmentInfo placeholder;
+                placeholder.sequenceNumber = expectedSequence;
+                placeholder.isComplete = false;
+                completeFragments.push_back(placeholder);
+                expectedSequence++;
+            }
+            
+            completeFragments.push_back(fragment);
+            expectedSequence = fragment.sequenceNumber + 1;
+        }
+    }
+    
+    fragments = std::move(completeFragments);
+}
+
+bool FragmentHandler::ValidateFragment(const MovieFragmentInfo& fragment) const {
+    // Basic validation
+    if (fragment.trackFragments.empty()) {
+        return false;
+    }
+    
+    // Validate each track fragment
+    for (const auto& traf : fragment.trackFragments) {
+        if (!ValidateTrackFragment(traf)) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::ValidateTrackFragment(const TrackFragmentInfo& traf) const {
+    // Track ID must be valid
+    if (traf.trackId == 0) {
+        return false;
+    }
+    
+    // Must have at least one track run
+    if (traf.trackRuns.empty()) {
+        return false;
+    }
+    
+    // Validate each track run
+    for (const auto& trun : traf.trackRuns) {
+        if (trun.sampleCount == 0) {
+            return false;
+        }
+        
+        // If sample-specific data is present, it must match sample count
+        if (!trun.sampleSizes.empty() && trun.sampleSizes.size() != trun.sampleCount) {
+            return false;
+        }
+        if (!trun.sampleDurations.empty() && trun.sampleDurations.size() != trun.sampleCount) {
+            return false;
+        }
+        if (!trun.sampleFlags.empty() && trun.sampleFlags.size() != trun.sampleCount) {
+            return false;
+        }
+        if (!trun.sampleCompositionTimeOffsets.empty() && 
+            trun.sampleCompositionTimeOffsets.size() != trun.sampleCount) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+bool FragmentHandler::SeekToFragment(uint32_t sequenceNumber) {
+    for (size_t i = 0; i < fragments.size(); i++) {
+        if (fragments[i].sequenceNumber == sequenceNumber) {
+            currentFragmentIndex = static_cast<uint32_t>(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+MovieFragmentInfo* FragmentHandler::GetCurrentFragment() {
+    if (currentFragmentIndex < fragments.size()) {
+        return &fragments[currentFragmentIndex];
+    }
+    return nullptr;
+}
+
+MovieFragmentInfo* FragmentHandler::GetFragment(uint32_t sequenceNumber) {
+    for (auto& fragment : fragments) {
+        if (fragment.sequenceNumber == sequenceNumber) {
+            return &fragment;
+        }
+    }
+    return nullptr;
+}
+
+bool FragmentHandler::IsFragmentComplete(uint32_t sequenceNumber) const {
+    for (const auto& fragment : fragments) {
+        if (fragment.sequenceNumber == sequenceNumber) {
+            return fragment.isComplete;
+        }
+    }
+    return false;
+}
+
+bool FragmentHandler::ExtractFragmentSample(uint32_t trackId, uint64_t sampleIndex, 
+                                           uint64_t& offset, uint32_t& size) {
+    MovieFragmentInfo* currentFragment = GetCurrentFragment();
+    if (!currentFragment) {
+        return false;
+    }
+    
+    // Find the track fragment for the specified track ID
+    TrackFragmentInfo* traf = nullptr;
+    for (auto& tf : currentFragment->trackFragments) {
+        if (tf.trackId == trackId) {
+            traf = &tf;
+            break;
+        }
+    }
+    
+    if (!traf) {
+        return false;
+    }
+    
+    // Find the sample within the track runs
+    uint64_t currentSampleIndex = 0;
+    uint64_t currentDataOffset = currentFragment->mdatOffset + 8; // Skip mdat header
+    
+    for (const auto& trun : traf->trackRuns) {
+        if (sampleIndex >= currentSampleIndex && sampleIndex < currentSampleIndex + trun.sampleCount) {
+            // Sample is in this track run
+            uint64_t runSampleIndex = sampleIndex - currentSampleIndex;
+            
+            // Calculate offset within this run
+            uint64_t runOffset = currentDataOffset + trun.dataOffset;
+            for (uint64_t i = 0; i < runSampleIndex; i++) {
+                if (i < trun.sampleSizes.size()) {
+                    runOffset += trun.sampleSizes[i];
+                } else if (traf->defaultSampleSize > 0) {
+                    runOffset += traf->defaultSampleSize;
+                } else {
+                    return false; // No size information available
+                }
+            }
+            
+            // Get sample size
+            if (runSampleIndex < trun.sampleSizes.size()) {
+                size = trun.sampleSizes[runSampleIndex];
+            } else if (traf->defaultSampleSize > 0) {
+                size = traf->defaultSampleSize;
+            } else {
+                return false; // No size information available
+            }
+            
+            offset = runOffset;
+            return true;
+        }
+        
+        currentSampleIndex += trun.sampleCount;
+        
+        // Update data offset for next run
+        for (uint32_t i = 0; i < trun.sampleCount; i++) {
+            if (i < trun.sampleSizes.size()) {
+                currentDataOffset += trun.sampleSizes[i];
+            } else if (traf->defaultSampleSize > 0) {
+                currentDataOffset += traf->defaultSampleSize;
+            }
+        }
+    }
+    
+    return false; // Sample not found
+}
+
+void FragmentHandler::SetDefaultValues(const AudioTrackInfo& movieHeaderDefaults) {
+    defaults.defaultSampleDuration = static_cast<uint32_t>(movieHeaderDefaults.duration / 1000); // Rough estimate
+    defaults.defaultSampleSize = 1024; // Default for audio
+    defaults.defaultSampleFlags = 0;
+}
+
+uint32_t FragmentHandler::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    uint8_t bytes[4];
+    if (io->read(bytes, 1, 4) != 4) {
+        return 0;
+    }
+    
+    return (static_cast<uint32_t>(bytes[0]) << 24) |
+           (static_cast<uint32_t>(bytes[1]) << 16) |
+           (static_cast<uint32_t>(bytes[2]) << 8) |
+           static_cast<uint32_t>(bytes[3]);
+}
+
+uint64_t FragmentHandler::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    uint8_t bytes[8];
+    if (io->read(bytes, 1, 8) != 8) {
+        return 0;
+    }
+    
+    return (static_cast<uint64_t>(bytes[0]) << 56) |
+           (static_cast<uint64_t>(bytes[1]) << 48) |
+           (static_cast<uint64_t>(bytes[2]) << 40) |
+           (static_cast<uint64_t>(bytes[3]) << 32) |
+           (static_cast<uint64_t>(bytes[4]) << 24) |
+           (static_cast<uint64_t>(bytes[5]) << 16) |
+           (static_cast<uint64_t>(bytes[6]) << 8) |
+           static_cast<uint64_t>(bytes[7]);
 }

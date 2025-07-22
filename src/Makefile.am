@@ -73,7 +73,7 @@ psymp3_SOURCES = \
  rect.cpp scrobble.cpp song.cpp stream.cpp surface.cpp system.cpp \
  TagLibIOHandlerAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp track.cpp truetype.cpp URI.cpp utility.cpp \
  wav.cpp Widget.cpp DrawableWidget.cpp SpectrumAnalyzerWidget.cpp PlayerProgressBarWidget.cpp ProgressBarFrameWidget.cpp ProgressBarBracketWidget.cpp LayoutWidget.cpp WindowFrameWidget.cpp WindowWidget.cpp ApplicationWidget.cpp TransparentWindowWidget.cpp ToastWidget.cpp persistentstorage.cpp FileIOHandler.cpp HTTPIOHandler.cpp MainUIWidget.cpp ButtonWidget.cpp XMLUtil.cpp HTTPClient.cpp \
- Demuxer.cpp DemuxerFactory.cpp AudioCodec.cpp CodecRegistry.cpp DemuxerRegistry.cpp CodecRegistration.cpp ChunkDemuxer.cpp PCMCodecs.cpp DemuxedStream.cpp RawAudioDemuxer.cpp ISODemuxer.cpp ModernStream.cpp MediaFactory.cpp debug.cpp
+ Demuxer.cpp DemuxerFactory.cpp AudioCodec.cpp CodecRegistry.cpp DemuxerRegistry.cpp CodecRegistration.cpp ChunkDemuxer.cpp PCMCodecs.cpp DemuxedStream.cpp RawAudioDemuxer.cpp ISODemuxer.cpp FragmentHandler.cpp ModernStream.cpp MediaFactory.cpp debug.cpp
 
 # Optional codec sources
 if HAVE_FLAC
