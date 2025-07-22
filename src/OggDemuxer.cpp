@@ -293,14 +293,23 @@ bool OggDemuxer::processPages() {
                         
                         bool is_header_packet = false;
                         try {
+#ifdef HAVE_VORBIS
                             if (stream.codec_name == "vorbis") {
                                 is_header_packet = parseVorbisHeaders(stream, ogg_packet);
-                            } else if (stream.codec_name == "flac") {
+                            } else
+#endif
+#ifdef HAVE_FLAC
+                            if (stream.codec_name == "flac") {
                                 is_header_packet = parseFLACHeaders(stream, ogg_packet);
-                            } else if (stream.codec_name == "opus") {
+                            } else
+#endif
+#ifdef HAVE_OPUS
+                            if (stream.codec_name == "opus") {
                                 is_header_packet = parseOpusHeaders(stream, ogg_packet);
                                 Debug::log("ogg", "OggDemuxer: parseOpusHeaders returned ", is_header_packet, " for packet size ", ogg_packet.data.size());
-                            } else if (stream.codec_name == "speex") {
+                            } else
+#endif
+                            if (stream.codec_name == "speex") {
                                 is_header_packet = parseSpeexHeaders(stream, ogg_packet);
                             } else {
                                 Debug::log("ogg", "OggDemuxer: Unknown codec ", stream.codec_name, " for stream ", stream_id);
@@ -715,13 +724,26 @@ bool OggDemuxer::validateOggPacket(const ogg_packet* packet, uint32_t stream_id)
 }
 
 std::string OggDemuxer::identifyCodec(const std::vector<uint8_t>& packet_data) {
+#ifdef HAVE_VORBIS
     if (OggDemuxer::hasSignature(packet_data, "\x01vorbis")) {
         return "vorbis";
-    } else if (OggDemuxer::hasSignature(packet_data, "\x7f""FLAC")) {
+    }
+#endif
+
+#ifdef HAVE_FLAC
+    if (OggDemuxer::hasSignature(packet_data, "\x7f""FLAC")) {
         return "flac";
-    } else if (OggDemuxer::hasSignature(packet_data, "OpusHead")) {
+    }
+#endif
+
+#ifdef HAVE_OPUS
+    if (OggDemuxer::hasSignature(packet_data, "OpusHead")) {
         return "opus";
-    } else if (OggDemuxer::hasSignature(packet_data, "Speex   ")) {
+    }
+#endif
+
+    // Speex is not conditionally compiled in this implementation
+    if (OggDemuxer::hasSignature(packet_data, "Speex   ")) {
         return "speex";
     }
     
@@ -729,6 +751,7 @@ std::string OggDemuxer::identifyCodec(const std::vector<uint8_t>& packet_data) {
 }
 
 
+#ifdef HAVE_VORBIS
 bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) {
     if (packet.data.size() < 7) {
         return false;
@@ -756,7 +779,9 @@ bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) 
     
     return false;
 }
+#endif // HAVE_VORBIS
 
+#ifdef HAVE_VORBIS
 void OggDemuxer::parseVorbisComments(OggStream& stream, const OggPacket& packet)
 {
     // Vorbis comment header format:
@@ -834,7 +859,9 @@ void OggDemuxer::parseVorbisComments(OggStream& stream, const OggPacket& packet)
         }
     }
 }
+#endif // HAVE_VORBIS
 
+#ifdef HAVE_FLAC
 bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
     if (OggDemuxer::hasSignature(packet.data, "\x7f""FLAC")) {
         // Ogg FLAC identification header
@@ -858,7 +885,9 @@ bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
     
     return false;
 }
+#endif // HAVE_FLAC
 
+#ifdef HAVE_OPUS
 bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
     std::string first_bytes;
     for (size_t i = 0; i < std::min(size_t(16), packet.data.size()); i++) {
@@ -895,6 +924,7 @@ bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
     
     return false;
 }
+#endif // HAVE_OPUS
 
 bool OggDemuxer::parseSpeexHeaders(OggStream& stream, const OggPacket& packet) {
     if (OggDemuxer::hasSignature(packet.data, "Speex   ")) {
@@ -909,6 +939,7 @@ bool OggDemuxer::parseSpeexHeaders(OggStream& stream, const OggPacket& packet) {
     return false;
 }
 
+#ifdef HAVE_OPUS
 void OggDemuxer::parseOpusTags(OggStream& stream, const OggPacket& packet) {
     // OpusTags format follows Vorbis comment structure:
     // 8 bytes: "OpusTags"
@@ -986,6 +1017,7 @@ void OggDemuxer::parseOpusTags(OggStream& stream, const OggPacket& packet) {
         }
     }
 }
+#endif // HAVE_OPUS
 
 void OggDemuxer::calculateDuration() {
     Debug::log("ogg", "OggDemuxer: calculateDuration() called");
@@ -1361,4 +1393,35 @@ uint64_t OggDemuxer::findGranuleAtOffset(long file_offset, uint32_t stream_id) {
     return found_granule;
 }
 
-#endif // defined(HAVE_VORBIS) || defined(HAVE_OPUS) || defined(HAVE_OGG_FLAC)
+// Stub implementations for disabled codecs to prevent compilation errors
+
+#ifndef HAVE_VORBIS
+bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) {
+    Debug::log("ogg", "OggDemuxer: Vorbis support not compiled in");
+    return false;
+}
+
+void OggDemuxer::parseVorbisComments(OggStream& stream, const OggPacket& packet) {
+    Debug::log("ogg", "OggDemuxer: Vorbis support not compiled in");
+}
+#endif // !HAVE_VORBIS
+
+#ifndef HAVE_FLAC
+bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
+    Debug::log("ogg", "OggDemuxer: FLAC support not compiled in");
+    return false;
+}
+#endif // !HAVE_FLAC
+
+#ifndef HAVE_OPUS
+bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
+    Debug::log("ogg", "OggDemuxer: Opus support not compiled in");
+    return false;
+}
+
+void OggDemuxer::parseOpusTags(OggStream& stream, const OggPacket& packet) {
+    Debug::log("ogg", "OggDemuxer: Opus support not compiled in");
+}
+#endif // !HAVE_OPUS
+
+#endif // HAVE_OGGDEMUXER

@@ -161,6 +161,11 @@ private:
     bool parseVorbisHeaders(OggStream& stream, const OggPacket& packet);
     
     /**
+     * @brief Parse Vorbis comments from Vorbis comment header
+     */
+    void parseVorbisComments(OggStream& stream, const OggPacket& packet);
+    
+    /**
      * @brief Parse FLAC identification header
      */
     bool parseFLACHeaders(OggStream& stream, const OggPacket& packet);
@@ -174,11 +179,6 @@ private:
      * @brief Parse OpusTags metadata from Opus comment header
      */
     void parseOpusTags(OggStream& stream, const OggPacket& packet);
-
-    /**
-     * @brief Parse Vorbis comments from Vorbis comment header
-     */
-    void parseVorbisComments(OggStream& stream, const OggPacket& packet);
     
     /**
      * @brief Parse Speex identification header
