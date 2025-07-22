@@ -25,6 +25,8 @@
 #define ISODEMUXER_H
 
 #include "Demuxer.h"
+#include "ErrorRecovery.h"
+#include "StreamingManager.h"
 #include <map>
 #include <vector>
 #include <memory>
@@ -534,6 +536,8 @@ private:
     std::unique_ptr<MetadataExtractor> metadataExtractor;
     std::unique_ptr<StreamManager> streamManager;
     std::unique_ptr<SeekingEngine> seekingEngine;
+    std::unique_ptr<StreamingManager> streamingManager;
+    std::unique_ptr<ErrorRecovery> errorRecovery;
     
     // Audio track management
     std::vector<AudioTrackInfo> audioTracks;
@@ -592,6 +596,118 @@ private:
      * @return True if configuration is valid for telephony use
      */
     bool ValidateTelephonyCodecConfiguration(const AudioTrackInfo& track);
+    
+    /**
+     * @brief Handle progressive download with movie box at end
+     * @return true if movie box was found and parsed
+     */
+    bool HandleProgressiveDownload();
+    
+    /**
+     * @brief Check if sample data is available for streaming
+     * @param offset Sample data offset
+     * @param size Sample data size
+     * @return true if data is available or after waiting for it
+     */
+    bool EnsureSampleDataAvailable(uint64_t offset, size_t size);
+    
+    /**
+     * @brief Prefetch upcoming samples for streaming
+     * @param currentSample Current sample index
+     * @param track Current audio track
+     */
+    void PrefetchUpcomingSamples(uint64_t currentSample, const AudioTrackInfo& track);
+    
+    /**
+     * @brief Handle corrupted box structures with recovery
+     * @param header Potentially corrupted box header
+     * @param containerSize Size of the container box
+     * @return Recovered box header or empty header if unrecoverable
+     */
+    BoxHeader HandleCorruptedBox(const BoxHeader& header, uint64_t containerSize);
+    
+    /**
+     * @brief Validate and repair sample tables for consistency
+     * @param track Audio track with potentially inconsistent sample tables
+     * @return true if tables are valid or were successfully repaired
+     */
+    bool ValidateAndRepairSampleTables(AudioTrackInfo& track);
+    
+    /**
+     * @brief Handle missing codec configuration by inference
+     * @param track Audio track with missing configuration
+     * @param sampleData Sample data to analyze for inference
+     * @return true if configuration was successfully inferred or already present
+     */
+    bool HandleMissingCodecConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData);
+    
+    /**
+     * @brief Perform I/O operation with retry and error recovery
+     * @param operation Function to execute with retry logic
+     * @param errorContext Description of the operation for error reporting
+     * @return true if operation succeeded, false if all retries failed
+     */
+    bool PerformIOWithRetry(std::function<bool()> operation, const std::string& errorContext);
+    
+    /**
+     * @brief Handle memory allocation failures gracefully
+     * @param requestedSize Size of failed allocation
+     * @param context Description of what was being allocated
+     * @return true if recovery was possible, false if unrecoverable
+     */
+    bool HandleMemoryAllocationFailure(size_t requestedSize, const std::string& context);
+    
+    /**
+     * @brief Report error with context and statistics
+     * @param errorType Type of error for categorization
+     * @param message Detailed error message
+     * @param boxType Box type if applicable (0 if not applicable)
+     */
+    void ReportError(const std::string& errorType, const std::string& message, uint32_t boxType = 0);
+    
+    /**
+     * @brief Attempt to recover from corrupted box with comprehensive error handling
+     * @param header Potentially corrupted box header
+     * @param containerSize Size of the container box
+     * @return Recovered box header or empty header if unrecoverable
+     */
+    BoxHeader RecoverCorruptedBoxWithRetry(const BoxHeader& header, uint64_t containerSize);
+    
+    /**
+     * @brief Validate sample tables and attempt repair if inconsistent
+     * @param track Audio track with sample tables to validate
+     * @return true if tables are valid or successfully repaired
+     */
+    bool ValidateAndRepairSampleTablesWithRecovery(AudioTrackInfo& track);
+    
+    /**
+     * @brief Handle missing codec configuration with multiple inference strategies
+     * @param track Audio track with missing configuration
+     * @return true if configuration was successfully inferred or already present
+     */
+    bool HandleMissingCodecConfigWithInference(AudioTrackInfo& track);
+    
+    /**
+     * @brief Perform I/O operation with comprehensive retry and error recovery
+     * @param operation Function to execute with retry logic
+     * @param errorContext Description of the operation for error reporting
+     * @param maxRetries Maximum number of retry attempts
+     * @return true if operation succeeded, false if all retries failed
+     */
+    bool PerformIOWithComprehensiveRetry(std::function<bool()> operation, 
+                                        const std::string& errorContext, 
+                                        int maxRetries = 3);
+    
+    /**
+     * @brief Handle memory allocation failures with graceful degradation
+     * @param requestedSize Size of failed allocation
+     * @param context Description of what was being allocated
+     * @param fallbackStrategy Function to attempt alternative allocation strategy
+     * @return true if recovery was possible, false if unrecoverable
+     */
+    bool HandleMemoryAllocationFailureWithFallback(size_t requestedSize, 
+                                                   const std::string& context,
+                                                   std::function<bool()> fallbackStrategy = nullptr);
 };
 
 #endif // ISODEMUXER_H
