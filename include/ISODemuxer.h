@@ -247,6 +247,11 @@ public:
     bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
     bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
     
+    // Telephony codec configuration and validation
+    bool ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType);
+    bool ValidateTelephonyParameters(AudioTrackInfo& track);
+    void ApplyTelephonyDefaults(AudioTrackInfo& track, const std::string& codecType);
+    
     // Sample table parsing methods
     bool ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
     bool ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
@@ -489,6 +494,21 @@ private:
      * @param track Audio track information containing codec details
      */
     void ProcessCodecSpecificData(MediaChunk& chunk, const AudioTrackInfo& track);
+    
+    /**
+     * @brief Calculate accurate timing information for telephony codecs
+     * @param track Audio track information
+     * @param sampleIndex Current sample index
+     * @return Timestamp in milliseconds
+     */
+    uint64_t CalculateTelephonyTiming(const AudioTrackInfo& track, uint64_t sampleIndex);
+    
+    /**
+     * @brief Validate telephony codec configuration meets standards compliance
+     * @param track Audio track information to validate
+     * @return True if configuration is valid for telephony use
+     */
+    bool ValidateTelephonyCodecConfiguration(const AudioTrackInfo& track);
 };
 
 #endif // ISODEMUXER_H
