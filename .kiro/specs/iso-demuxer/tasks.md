@@ -49,13 +49,13 @@
   - Create raw sample data extraction for companded audio formats
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
 -
-- [ ] 9. Implement metadata extraction from various atom types
+- [-] 9. Implement metadata extraction from various atom types
   - Create MetadataExtractor class for iTunes-style metadata parsing
   - Add support for udta (user data) and meta boxes
   - Implement extraction of title, artist, album, genre, and artwork
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8_
 
-- [-] 10. Add fragmented MP4 support for streaming scenarios
+- [ ] 10. Add fragmented MP4 support for streaming scenarios
   - Create FragmentHandler class for moof (movie fragment) processing
   - Implement traf (track fragment) and trun (track run) parsing
   - Add fragment-based sample table updates and navigation

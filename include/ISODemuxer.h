@@ -360,10 +360,19 @@ public:
     MetadataExtractor() = default;
     ~MetadataExtractor() = default;
     
-    std::map<std::string, std::string> ExtractMetadata(uint64_t udtaOffset, uint64_t size);
+    std::map<std::string, std::string> ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size);
     
 private:
-    std::string ExtractTextMetadata(const std::vector<uint8_t>& data);
+    bool ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
+    bool ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
+    bool ParseIlstBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
+    bool ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, uint32_t atomType, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
+    
+    std::string ExtractTextMetadata(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size);
+    
+    // Helper methods for reading big-endian values
+    uint32_t ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset);
+    uint64_t ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset);
 };
 
 /**
@@ -426,6 +435,9 @@ public:
     uint64_t getDuration() const override;
     uint64_t getPosition() const override;
     
+    // Metadata extraction
+    std::map<std::string, std::string> getMetadata() const;
+    
 private:
     // Core components as per design
     std::unique_ptr<BoxParser> boxParser;
@@ -442,6 +454,9 @@ private:
     
     // State management
     bool m_eof = false;
+    
+    // Metadata storage
+    std::map<std::string, std::string> m_metadata;
     
     /**
      * @brief Initialize core components
