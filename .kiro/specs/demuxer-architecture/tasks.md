@@ -100,28 +100,28 @@
   - Add proper error handling and unsupported format reporting
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7_
 
-- [ ] 5. Implement DemuxedStream Bridge
+- [x] 5. Implement DemuxedStream Bridge
   - Create DemuxedStream class implementing legacy Stream interface
   - Add demuxer and codec integration for complete audio pipeline
   - Implement buffering system for efficient chunk-to-PCM conversion
   - Create position tracking and seeking coordination between components
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10_
 
-- [ ] 5.1 Implement Stream Interface Bridge
+- [x] 5.1 Implement Stream Interface Bridge
   - Create DemuxedStream class inheriting from Stream base class
   - Implement all required Stream interface methods (getData, seekTo, eof, getLength)
   - Add proper initialization with demuxer and codec creation
   - Ensure backward compatibility with existing Stream-based code
   - _Requirements: 9.1, 9.2, 9.9, 9.10_
 
-- [ ] 5.2 Add Demuxer-Codec Integration
+- [x] 5.2 Add Demuxer-Codec Integration
   - Implement automatic demuxer selection based on file format
   - Add codec selection and initialization based on stream information
   - Create MediaChunk to AudioFrame conversion pipeline
   - Handle multiple streams and stream switching capabilities
   - _Requirements: 9.3, 9.4, 9.5, 9.6_
 
-- [ ] 5.3 Implement Buffering and Position Tracking
+- [x] 5.3 Implement Buffering and Position Tracking
   - Create efficient buffering system for MediaChunk and AudioFrame data
   - Add position tracking based on consumed samples rather than packet timestamps
   - Implement seeking coordination between demuxer and codec components
