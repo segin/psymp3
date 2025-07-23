@@ -73,18 +73,25 @@
   - Create error recovery for missing codec configuration
   - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8_
 
-- [ ] 13. Optimize performance and memory usage
+- [x] 13. Optimize performance and memory usage
   - Implement lazy loading for large sample size tables
   - Add compressed sample-to-chunk mappings for memory efficiency
   - Optimize binary search structures for time-to-sample lookups  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8_
 
-- [ ] 14. Integrate with PsyMP3 demuxer architecture
+- [x] 14. Fix header inclusion policy compliance
+  - Replace individual header includes with master header psymp3.h
+  - Move ISODemuxer.h, algorithm, stdexcept, and cstring includes to psymp3.h
+  - Ensure ISODemuxer.cpp only includes psymp3.h as per project standards
+  - Remove duplicate function definitions that belong in separate component files
+  - _Requirements: Project header inclusion policy_
+
+- [ ] 15. Integrate with PsyMP3 demuxer architecture
   - Implement all required Demuxer interface methods
   - Add proper StreamInfo population with codec and format details
   - Integrate with PsyMP3 error reporting and logging systems
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [ ] 15. Add standards compliance validation and quality assurance
+- [ ] 16. Add standards compliance validation and quality assurance
   - Implement ISO/IEC 14496-12 specification compliance checking
   - Add support for both 32-bit and 64-bit box sizes
   - Validate timestamp handling and timescale configurations

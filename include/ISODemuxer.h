@@ -5,45 +5,12 @@
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
- *
- * Permission to use, copy, modify, and/or distribute this software for
- * any purpose with or without fee is hereby granted, provided that
- * the above copyright notice and this permission notice appear in all
- * copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
- * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
- * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
- * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
- * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
- * PERFORMANCE OF THIS SOFTWARE.
  */
 
 #ifndef ISODEMUXER_H
 #define ISODEMUXER_H
 
-#include "Demuxer.h"
-#include "ErrorRecovery.h"
-#include "StreamingManager.h"
-#include <map>
-#include <vector>
-#include <memory>
-#include <stack>
-#include <variant>
-#include <functional>
-
-/**
- * @brief ISO box header structure
- */
-struct BoxHeader {
-    uint32_t type;
-    uint64_t size;
-    uint64_t dataOffset;
-    
-    bool isExtendedSize() const { return size == 1; }
-};
+// All necessary headers are included via psymp3.h
 
 /**
  * @brief Sample-to-chunk table entry
@@ -211,292 +178,6 @@ constexpr uint32_t BRAND_3GP5 = FOURCC('3','g','p','5'); // 3GPP Release 5
 constexpr uint32_t BRAND_3GP6 = FOURCC('3','g','p','6'); // 3GPP Release 6
 constexpr uint32_t BRAND_3G2A = FOURCC('3','g','2','a'); // 3GPP2
 
-// Forward declarations
-class BoxParser;
-class SampleTableManager;
-class FragmentHandler;
-class MetadataExtractor;
-class StreamManager;
-class SeekingEngine;
-
-/**
- * @brief Box parser component for recursive ISO box structure parsing
- */
-class BoxParser {
-public:
-    explicit BoxParser(std::shared_ptr<IOHandler> io);
-    ~BoxParser() = default;
-    
-    bool ParseMovieBox(uint64_t offset, uint64_t size);
-    bool ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    bool ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
-    bool ParseFragmentBox(uint64_t offset, uint64_t size);
-    
-    // Core box parsing functionality
-    BoxHeader ReadBoxHeader(uint64_t offset);
-    bool ValidateBoxSize(const BoxHeader& header, uint64_t containerSize);
-    bool ParseBoxRecursively(uint64_t offset, uint64_t size, 
-                            std::function<bool(const BoxHeader&, uint64_t)> handler);
-    
-    // Additional parsing methods for file type and movie box parsing
-    bool ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType);
-    bool ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio);
-    bool ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables);
-    bool ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType);
-    bool ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    
-    // Codec-specific configuration parsing
-    bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    
-    // Telephony codec configuration and validation
-    bool ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType);
-    bool ValidateTelephonyParameters(AudioTrackInfo& track);
-    void ApplyTelephonyDefaults(AudioTrackInfo& track, const std::string& codecType);
-    
-    // Sample table parsing methods
-    bool ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
-    bool ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
-    bool ParseSampleSizeBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
-    bool ParseChunkOffsetBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, bool is64Bit);
-    bool ParseSyncSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
-    
-    uint32_t ReadUInt32BE(uint64_t offset);
-    uint64_t ReadUInt64BE(uint64_t offset);
-    std::string BoxTypeToString(uint32_t boxType);
-    bool SkipUnknownBox(const BoxHeader& header);
-    
-private:
-    std::shared_ptr<IOHandler> io;
-    std::stack<BoxHeader> boxStack;
-    uint64_t fileSize;
-    
-    bool IsContainerBox(uint32_t boxType);
-};
-
-/**
- * @brief Sample table manager for efficient sample lookups
- */
-class SampleTableManager {
-public:
-    struct SampleInfo {
-        uint64_t offset;
-        uint32_t size;
-        uint32_t duration;
-        bool isKeyframe;
-    };
-    
-    SampleTableManager() = default;
-    ~SampleTableManager() = default;
-    
-    bool BuildSampleTables(const SampleTableInfo& rawTables);
-    SampleInfo GetSampleInfo(uint64_t sampleIndex);
-    uint64_t TimeToSample(double timestamp);
-    double SampleToTime(uint64_t sampleIndex);
-    
-private:
-    // Compressed sample-to-chunk mapping
-    struct ChunkInfo {
-        uint64_t offset;
-        uint32_t sampleCount;
-        uint32_t firstSample;
-    };
-    std::vector<ChunkInfo> chunkTable;
-    
-    // Time-to-sample lookup with binary search
-    struct TimeToSampleEntry {
-        uint64_t sampleIndex;
-        uint64_t timestamp;
-        uint32_t duration;
-    };
-    std::vector<TimeToSampleEntry> timeTable;
-    
-    // Sample size table (compressed for fixed sizes)
-    std::variant<uint32_t, std::vector<uint32_t>> sampleSizes;
-    
-    // Sync sample table for keyframe seeking
-    std::vector<uint64_t> syncSamples;
-    
-    // Private helper methods for building and managing sample tables
-    bool BuildChunkTable(const SampleTableInfo& rawTables);
-    bool BuildTimeTable(const SampleTableInfo& rawTables);
-    bool BuildSampleSizeTable(const SampleTableInfo& rawTables);
-    bool ValidateTableConsistency();
-    
-    bool BuildExpandedSampleToChunkMapping(const SampleTableInfo& rawTables, 
-                                          std::vector<uint32_t>& expandedMapping);
-    uint32_t GetSamplesPerChunkForIndex(size_t chunkIndex, const std::vector<uint32_t>& samplesPerChunk);
-    ChunkInfo* FindChunkForSample(uint64_t sampleIndex);
-    uint32_t GetSampleSize(uint64_t sampleIndex);
-    uint32_t GetSampleDuration(uint64_t sampleIndex);
-    bool IsSyncSample(uint64_t sampleIndex);
-};
-
-/**
- * @brief Track fragment information structure
- */
-struct TrackFragmentInfo {
-    uint32_t trackId;
-    uint64_t baseDataOffset;
-    uint32_t sampleDescriptionIndex;
-    uint32_t defaultSampleDuration;
-    uint32_t defaultSampleSize;
-    uint32_t defaultSampleFlags;
-    
-    // Track run information
-    struct TrackRunInfo {
-        uint32_t sampleCount;
-        uint32_t dataOffset;
-        uint32_t firstSampleFlags;
-        std::vector<uint32_t> sampleDurations;
-        std::vector<uint32_t> sampleSizes;
-        std::vector<uint32_t> sampleFlags;
-        std::vector<uint32_t> sampleCompositionTimeOffsets;
-    };
-    
-    std::vector<TrackRunInfo> trackRuns;
-    uint64_t tfdt = 0; // Track fragment decode time
-};
-
-/**
- * @brief Movie fragment header information
- */
-struct MovieFragmentInfo {
-    uint32_t sequenceNumber;
-    uint64_t moofOffset;
-    uint64_t mdatOffset;
-    uint64_t mdatSize;
-    std::vector<TrackFragmentInfo> trackFragments;
-    bool isComplete = false;
-};
-
-/**
- * @brief Fragment handler for fragmented MP4 support
- */
-class FragmentHandler {
-public:
-    FragmentHandler() = default;
-    ~FragmentHandler() = default;
-    
-    // Core fragment processing
-    bool ProcessMovieFragment(uint64_t moofOffset, std::shared_ptr<IOHandler> io);
-    bool UpdateSampleTables(const TrackFragmentInfo& traf, AudioTrackInfo& track);
-    bool IsFragmented() const { return hasFragments; }
-    
-    // Fragment navigation and management
-    bool SeekToFragment(uint32_t sequenceNumber);
-    MovieFragmentInfo* GetCurrentFragment();
-    MovieFragmentInfo* GetFragment(uint32_t sequenceNumber);
-    uint32_t GetFragmentCount() const { return static_cast<uint32_t>(fragments.size()); }
-    
-    // Fragment ordering and buffering
-    bool AddFragment(const MovieFragmentInfo& fragment);
-    bool ReorderFragments();
-    bool IsFragmentComplete(uint32_t sequenceNumber) const;
-    
-    // Sample extraction from fragments
-    bool ExtractFragmentSample(uint32_t trackId, uint64_t sampleIndex, 
-                              uint64_t& offset, uint32_t& size);
-    
-    // Default value handling
-    void SetDefaultValues(const AudioTrackInfo& movieHeaderDefaults);
-    
-private:
-    bool hasFragments = false;
-    std::vector<MovieFragmentInfo> fragments;
-    uint32_t currentFragmentIndex = 0;
-    
-    // Default values from movie header for missing fragment headers
-    struct DefaultValues {
-        uint32_t defaultSampleDuration = 0;
-        uint32_t defaultSampleSize = 0;
-        uint32_t defaultSampleFlags = 0;
-    } defaults;
-    
-    // Fragment parsing methods
-    bool ParseMovieFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io, 
-                              MovieFragmentInfo& fragment);
-    bool ParseMovieFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
-                                 MovieFragmentInfo& fragment);
-    bool ParseTrackFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
-                              TrackFragmentInfo& traf);
-    bool ParseTrackFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
-                                 TrackFragmentInfo& traf);
-    bool ParseTrackFragmentRun(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
-                              TrackFragmentInfo::TrackRunInfo& trun);
-    bool ParseTrackFragmentDecodeTime(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
-                                     TrackFragmentInfo& traf);
-    
-    // Fragment validation and consistency checking
-    bool ValidateFragment(const MovieFragmentInfo& fragment) const;
-    bool ValidateTrackFragment(const TrackFragmentInfo& traf) const;
-    
-    // Helper methods
-    uint32_t ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset);
-    uint64_t ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset);
-    uint64_t FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<IOHandler> io);
-    
-    // Fragment ordering helpers
-    static bool CompareFragmentsBySequence(const MovieFragmentInfo& a, const MovieFragmentInfo& b);
-    bool HasMissingFragments() const;
-    void FillMissingFragmentGaps();
-};
-
-/**
- * @brief Metadata extractor for iTunes/ISO metadata parsing
- */
-class MetadataExtractor {
-public:
-    MetadataExtractor() = default;
-    ~MetadataExtractor() = default;
-    
-    std::map<std::string, std::string> ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size);
-    
-private:
-    bool ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
-    bool ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
-    bool ParseIlstBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
-    bool ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, uint32_t atomType, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
-    
-    std::string ExtractTextMetadata(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size);
-    
-    // Helper methods for reading big-endian values
-    uint32_t ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset);
-    uint64_t ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset);
-};
-
-/**
- * @brief Stream manager for audio track management
- */
-class StreamManager {
-public:
-    StreamManager() = default;
-    ~StreamManager() = default;
-    
-    void AddAudioTrack(const AudioTrackInfo& track);
-    std::vector<StreamInfo> GetStreamInfos() const;
-    AudioTrackInfo* GetTrack(uint32_t trackId);
-    
-private:
-    std::vector<AudioTrackInfo> tracks;
-};
-
-/**
- * @brief Seeking engine for sample-accurate positioning
- */
-class SeekingEngine {
-public:
-    SeekingEngine() = default;
-    ~SeekingEngine() = default;
-    
-    bool SeekToTimestamp(double timestamp, AudioTrackInfo& track, SampleTableManager& sampleTables);
-    
-private:
-    uint64_t BinarySearchTimeToSample(double timestamp, const std::vector<SampleTableManager::SampleInfo>& samples);
-    uint64_t FindNearestSyncSample(uint64_t targetSampleIndex, SampleTableManager& sampleTables);
-    bool ValidateSeekPosition(uint64_t sampleIndex, const AudioTrackInfo& track, SampleTableManager& sampleTables);
-};
-
 /**
  * @brief ISO Base Media File Format demuxer
  * 
@@ -530,14 +211,14 @@ public:
     
 private:
     // Core components as per design
-    std::unique_ptr<BoxParser> boxParser;
-    std::unique_ptr<SampleTableManager> sampleTables;
-    std::unique_ptr<FragmentHandler> fragmentHandler;
-    std::unique_ptr<MetadataExtractor> metadataExtractor;
-    std::unique_ptr<StreamManager> streamManager;
-    std::unique_ptr<SeekingEngine> seekingEngine;
+    std::unique_ptr<ISODemuxerBoxParser> boxParser;
+    std::unique_ptr<ISODemuxerSampleTableManager> sampleTables;
+    std::unique_ptr<ISODemuxerFragmentHandler> fragmentHandler;
+    std::unique_ptr<ISODemuxerMetadataExtractor> metadataExtractor;
+    std::unique_ptr<ISODemuxerStreamManager> streamManager;
+    std::unique_ptr<ISODemuxerSeekingEngine> seekingEngine;
     std::unique_ptr<StreamingManager> streamingManager;
-    std::unique_ptr<ErrorRecovery> errorRecovery;
+    std::unique_ptr<ISODemuxerErrorRecovery> errorRecovery;
     
     // Audio track management
     std::vector<AudioTrackInfo> audioTracks;
@@ -573,7 +254,7 @@ private:
      * @return MediaChunk with extracted sample data
      */
     MediaChunk ExtractSampleData(uint32_t stream_id, const AudioTrackInfo& track, 
-                                const SampleTableManager::SampleInfo& sampleInfo);
+                                const ISODemuxerSampleTableManager::SampleInfo& sampleInfo);
     
     /**
      * @brief Apply codec-specific processing to extracted sample data

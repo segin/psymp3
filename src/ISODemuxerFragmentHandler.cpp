@@ -14,7 +14,7 @@
 
 // FragmentHandler implementation
 
-bool FragmentHandler::ProcessMovieFragment(uint64_t moofOffset, std::shared_ptr<IOHandler> io) {
+bool ISODemuxerFragmentHandler::ProcessMovieFragment(uint64_t moofOffset, std::shared_ptr<IOHandler> io) {
     if (!io) {
         return false;
     }
@@ -50,7 +50,7 @@ bool FragmentHandler::ProcessMovieFragment(uint64_t moofOffset, std::shared_ptr<
     return true;
 }
 
-bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io, 
+bool ISODemuxerFragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io, 
                                            MovieFragmentInfo& fragment) {
     // Get file size for validation
     io->seek(0, SEEK_END);
@@ -189,7 +189,7 @@ bool FragmentHandler::ParseMovieFragmentBox(uint64_t offset, uint64_t size, std:
     return ValidateFragment(fragment);
 }
 
-bool FragmentHandler::ParseMovieFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+bool ISODemuxerFragmentHandler::ParseMovieFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
                                              MovieFragmentInfo& fragment) {
     if (size < 8) {
         return false;
@@ -207,7 +207,7 @@ bool FragmentHandler::ParseMovieFragmentHeader(uint64_t offset, uint64_t size, s
     return true;
 }
 
-bool FragmentHandler::ParseTrackFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+bool ISODemuxerFragmentHandler::ParseTrackFragmentBox(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
                                           TrackFragmentInfo& traf) {
     // Parse traf box children
     uint64_t currentOffset = offset;
@@ -297,7 +297,7 @@ bool FragmentHandler::ParseTrackFragmentBox(uint64_t offset, uint64_t size, std:
     return ValidateTrackFragment(traf);
 }
 
-bool FragmentHandler::ParseTrackFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+bool ISODemuxerFragmentHandler::ParseTrackFragmentHeader(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
                                              TrackFragmentInfo& traf) {
     if (size < 8) {
         return false;
@@ -378,7 +378,7 @@ bool FragmentHandler::ParseTrackFragmentHeader(uint64_t offset, uint64_t size, s
     return true;
 }
 
-bool FragmentHandler::ParseTrackFragmentRun(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+bool ISODemuxerFragmentHandler::ParseTrackFragmentRun(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
                                           TrackFragmentInfo::TrackRunInfo& trun) {
     if (size < 8) {
         return false;
@@ -488,7 +488,7 @@ bool FragmentHandler::ParseTrackFragmentRun(uint64_t offset, uint64_t size, std:
     return true;
 }
 
-bool FragmentHandler::ParseTrackFragmentDecodeTime(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
+bool ISODemuxerFragmentHandler::ParseTrackFragmentDecodeTime(uint64_t offset, uint64_t size, std::shared_ptr<IOHandler> io,
                                                  TrackFragmentInfo& traf) {
     if (size < 8) {
         return false;
@@ -513,7 +513,7 @@ bool FragmentHandler::ParseTrackFragmentDecodeTime(uint64_t offset, uint64_t siz
     return true;
 }
 
-bool FragmentHandler::UpdateSampleTables(const TrackFragmentInfo& traf, AudioTrackInfo& track) {
+bool ISODemuxerFragmentHandler::UpdateSampleTables(const TrackFragmentInfo& traf, AudioTrackInfo& track) {
     // Check if this track fragment matches our track
     if (traf.trackId != track.trackId) {
         return false;
@@ -604,7 +604,7 @@ bool FragmentHandler::UpdateSampleTables(const TrackFragmentInfo& traf, AudioTra
     return true;
 }
 
-bool FragmentHandler::AddFragment(const MovieFragmentInfo& fragment) {
+bool ISODemuxerFragmentHandler::AddFragment(const MovieFragmentInfo& fragment) {
     // Check if fragment already exists
     for (const auto& existingFragment : fragments) {
         if (existingFragment.sequenceNumber == fragment.sequenceNumber) {
@@ -622,17 +622,23 @@ bool FragmentHandler::AddFragment(const MovieFragmentInfo& fragment) {
     return true;
 }
 
-bool FragmentHandler::ReorderFragments() {
+bool ISODemuxerFragmentHandler::ReorderFragments() {
     // Sort fragments by sequence number
     std::sort(fragments.begin(), fragments.end(), CompareFragmentsBySequence);
+    
+    // Check for missing fragments
+    if (HasMissingFragments()) {
+        FillMissingFragmentGaps();
+    }
+    
     return true;
 }
 
-bool FragmentHandler::CompareFragmentsBySequence(const MovieFragmentInfo& a, const MovieFragmentInfo& b) {
+bool ISODemuxerFragmentHandler::CompareFragmentsBySequence(const MovieFragmentInfo& a, const MovieFragmentInfo& b) {
     return a.sequenceNumber < b.sequenceNumber;
 }
 
-bool FragmentHandler::SeekToFragment(uint32_t sequenceNumber) {
+bool ISODemuxerFragmentHandler::SeekToFragment(uint32_t sequenceNumber) {
     // Find fragment with matching sequence number
     for (size_t i = 0; i < fragments.size(); i++) {
         if (fragments[i].sequenceNumber == sequenceNumber) {
@@ -644,7 +650,7 @@ bool FragmentHandler::SeekToFragment(uint32_t sequenceNumber) {
     return false;
 }
 
-MovieFragmentInfo* FragmentHandler::GetCurrentFragment() {
+MovieFragmentInfo* ISODemuxerFragmentHandler::GetCurrentFragment() {
     if (fragments.empty() || currentFragmentIndex >= fragments.size()) {
         return nullptr;
     }
@@ -652,7 +658,7 @@ MovieFragmentInfo* FragmentHandler::GetCurrentFragment() {
     return &fragments[currentFragmentIndex];
 }
 
-MovieFragmentInfo* FragmentHandler::GetFragment(uint32_t sequenceNumber) {
+MovieFragmentInfo* ISODemuxerFragmentHandler::GetFragment(uint32_t sequenceNumber) {
     // Find fragment with matching sequence number
     for (auto& fragment : fragments) {
         if (fragment.sequenceNumber == sequenceNumber) {
@@ -663,7 +669,7 @@ MovieFragmentInfo* FragmentHandler::GetFragment(uint32_t sequenceNumber) {
     return nullptr;
 }
 
-bool FragmentHandler::IsFragmentComplete(uint32_t sequenceNumber) const {
+bool ISODemuxerFragmentHandler::IsFragmentComplete(uint32_t sequenceNumber) const {
     // Find fragment with matching sequence number
     for (const auto& fragment : fragments) {
         if (fragment.sequenceNumber == sequenceNumber) {
@@ -674,7 +680,7 @@ bool FragmentHandler::IsFragmentComplete(uint32_t sequenceNumber) const {
     return false;
 }
 
-bool FragmentHandler::ValidateFragment(const MovieFragmentInfo& fragment) const {
+bool ISODemuxerFragmentHandler::ValidateFragment(const MovieFragmentInfo& fragment) const {
     // Check if fragment has a valid sequence number
     if (fragment.sequenceNumber == 0) {
         return false;
@@ -695,7 +701,7 @@ bool FragmentHandler::ValidateFragment(const MovieFragmentInfo& fragment) const 
     return true;
 }
 
-bool FragmentHandler::ValidateTrackFragment(const TrackFragmentInfo& traf) const {
+bool ISODemuxerFragmentHandler::ValidateTrackFragment(const TrackFragmentInfo& traf) const {
     // Check if track fragment has a valid track ID
     if (traf.trackId == 0) {
         return false;
@@ -716,7 +722,7 @@ bool FragmentHandler::ValidateTrackFragment(const TrackFragmentInfo& traf) const
     return true;
 }
 
-bool FragmentHandler::ExtractFragmentSample(uint32_t trackId, uint64_t sampleIndex, 
+bool ISODemuxerFragmentHandler::ExtractFragmentSample(uint32_t trackId, uint64_t sampleIndex, 
                                           uint64_t& offset, uint32_t& size) {
     // Find the fragment containing this sample
     // This is a simplified implementation - in a real-world scenario,
@@ -783,7 +789,7 @@ bool FragmentHandler::ExtractFragmentSample(uint32_t trackId, uint64_t sampleInd
     return false;
 }
 
-void FragmentHandler::SetDefaultValues(const AudioTrackInfo& movieHeaderDefaults) {
+void ISODemuxerFragmentHandler::SetDefaultValues(const AudioTrackInfo& movieHeaderDefaults) {
     // Set default values from movie header
     defaults.defaultSampleDuration = 1024; // Default for audio
     defaults.defaultSampleSize = 0; // Variable size
@@ -826,7 +832,7 @@ void FragmentHandler::SetDefaultValues(const AudioTrackInfo& movieHeaderDefaults
     }
 }
 
-uint64_t FragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<IOHandler> io) {
+uint64_t ISODemuxerFragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<IOHandler> io) {
     // Get file size for validation
     io->seek(0, SEEK_END);
     uint64_t fileSize = static_cast<uint64_t>(io->tell());
@@ -927,7 +933,7 @@ uint64_t FragmentHandler::FindMediaDataBox(uint64_t moofOffset, std::shared_ptr<
     return 0;
 }
 
-uint32_t FragmentHandler::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+uint32_t ISODemuxerFragmentHandler::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
     io->seek(static_cast<long>(offset), SEEK_SET);
     
     uint8_t bytes[4];
@@ -941,7 +947,7 @@ uint32_t FragmentHandler::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t o
            static_cast<uint32_t>(bytes[3]);
 }
 
-uint64_t FragmentHandler::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+uint64_t ISODemuxerFragmentHandler::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
     io->seek(static_cast<long>(offset), SEEK_SET);
     
     uint8_t bytes[8];
@@ -957,4 +963,48 @@ uint64_t FragmentHandler::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t o
            (static_cast<uint64_t>(bytes[5]) << 16) |
            (static_cast<uint64_t>(bytes[6]) << 8) |
            static_cast<uint64_t>(bytes[7]);
+}
+
+bool ISODemuxerFragmentHandler::HasMissingFragments() const {
+    if (fragments.size() <= 1) {
+        return false;
+    }
+    
+    for (size_t i = 1; i < fragments.size(); i++) {
+        if (fragments[i].sequenceNumber != fragments[i-1].sequenceNumber + 1) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+void ISODemuxerFragmentHandler::FillMissingFragmentGaps() {
+    // Create placeholder fragments for missing sequence numbers
+    // This is a simplified implementation - in practice, you might want to
+    // handle missing fragments differently (e.g., request them from server)
+    std::vector<MovieFragmentInfo> completeFragments;
+    
+    if (!fragments.empty()) {
+        uint32_t expectedSequence = fragments[0].sequenceNumber;
+        
+        for (const auto& fragment : fragments) {
+            // Fill gaps with placeholder fragments
+            while (expectedSequence < fragment.sequenceNumber) {
+                MovieFragmentInfo placeholder;
+                placeholder.sequenceNumber = expectedSequence;
+                placeholder.moofOffset = 0;
+                placeholder.mdatOffset = 0;
+                placeholder.mdatSize = 0;
+                placeholder.isComplete = false;
+                completeFragments.push_back(placeholder);
+                expectedSequence++;
+            }
+            
+            completeFragments.push_back(fragment);
+            expectedSequence = fragment.sequenceNumber + 1;
+        }
+    }
+    
+    fragments = std::move(completeFragments);
 }

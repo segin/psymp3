@@ -12,12 +12,12 @@ The design emphasizes efficient parsing of complex nested box structures, sample
 
 ```
 ISODemuxer
-├── BoxParser          # Recursive box structure parsing
-├── SampleTableManager # Sample-to-chunk and timing lookups  
-├── FragmentHandler    # Fragmented MP4 support
-├── MetadataExtractor  # iTunes/ISO metadata parsing
-├── StreamManager      # Audio track management
-└── SeekingEngine      # Sample-accurate positioning
+├── ISODemuxerBoxParser          # Recursive box structure parsing
+├── ISODemuxerSampleTableManager # Sample-to-chunk and timing lookups  
+├── ISODemuxerFragmentHandler    # Fragmented MP4 support
+├── ISODemuxerMetadataExtractor  # iTunes/ISO metadata parsing
+├── ISODemuxerStreamManager      # Audio track management
+└── ISODemuxerSeekingEngine      # Sample-accurate positioning
 ```
 
 ### Box Parsing Strategy
@@ -52,22 +52,24 @@ public:
     std::map<std::string, std::string> GetMetadata() override;
     
 private:
-    std::unique_ptr<BoxParser> boxParser;
-    std::unique_ptr<SampleTableManager> sampleTables;
-    std::unique_ptr<FragmentHandler> fragmentHandler;
-    std::unique_ptr<MetadataExtractor> metadataExtractor;
+    std::unique_ptr<ISODemuxerBoxParser> boxParser;
+    std::unique_ptr<ISODemuxerSampleTableManager> sampleTables;
+    std::unique_ptr<ISODemuxerFragmentHandler> fragmentHandler;
+    std::unique_ptr<ISODemuxerMetadataExtractor> metadataExtractor;
+    std::unique_ptr<ISODemuxerStreamManager> streamManager;
+    std::unique_ptr<ISODemuxerSeekingEngine> seekingEngine;
     std::vector<AudioTrackInfo> audioTracks;
     int selectedTrackIndex = -1;
     uint64_t currentSampleIndex = 0;
 };
 ```
 
-### BoxParser Component
+### ISODemuxerBoxParser Component
 
 Handles recursive parsing of ISO box structures:
 
 ```cpp
-class BoxParser {
+class ISODemuxerBoxParser {
 public:
     struct BoxHeader {
         uint32_t type;
@@ -89,12 +91,12 @@ private:
 };
 ```
 
-### SampleTableManager Component
+### ISODemuxerSampleTableManager Component
 
 Manages efficient sample table lookups:
 
 ```cpp
-class SampleTableManager {
+class ISODemuxerSampleTableManager {
 public:
     struct SampleInfo {
         uint64_t offset;
@@ -123,12 +125,12 @@ private:
 };
 ```
 
-### FragmentHandler Component
+### ISODemuxerFragmentHandler Component
 
 Handles fragmented MP4 files and streaming:
 
 ```cpp
-class FragmentHandler {
+class ISODemuxerFragmentHandler {
 public:
     bool ProcessMovieFragment(uint64_t moofOffset);
     bool UpdateSampleTables(const TrackFragmentInfo& traf);
@@ -146,6 +148,56 @@ private:
         std::vector<uint32_t> sampleSizes;
         std::vector<uint32_t> sampleDurations;
     };
+};
+```
+
+### ISODemuxerMetadataExtractor Component
+
+Handles extraction of metadata from iTunes and ISO metadata boxes:
+
+```cpp
+class ISODemuxerMetadataExtractor {
+public:
+    std::map<std::string, std::string> ExtractMetadata(uint64_t metaBoxOffset, uint64_t size);
+    bool ParseiTunesMetadata(uint64_t ilstOffset, uint64_t size);
+    
+private:
+    std::map<std::string, std::string> metadata;
+    
+    std::string ParseMetadataValue(uint32_t atomType, const std::vector<uint8_t>& data);
+};
+```
+
+### ISODemuxerStreamManager Component
+
+Manages audio track information and stream selection:
+
+```cpp
+class ISODemuxerStreamManager {
+public:
+    void AddAudioTrack(const AudioTrackInfo& track);
+    std::vector<StreamInfo> GetStreamInfos() const;
+    AudioTrackInfo* GetTrack(uint32_t trackId);
+    
+private:
+    std::vector<AudioTrackInfo> audioTracks;
+    std::map<uint32_t, size_t> trackIdToIndex;
+};
+```
+
+### ISODemuxerSeekingEngine Component
+
+Provides sample-accurate seeking capabilities:
+
+```cpp
+class ISODemuxerSeekingEngine {
+public:
+    bool SeekToTime(uint64_t timestampMs, AudioTrackInfo& track);
+    bool SeekToSample(uint64_t sampleIndex, AudioTrackInfo& track);
+    
+private:
+    uint64_t FindNearestKeyframe(uint64_t targetSample, const AudioTrackInfo& track);
+    bool ValidateSeekPosition(uint64_t sampleIndex, const AudioTrackInfo& track);
 };
 ```
 
@@ -216,7 +268,7 @@ constexpr uint32_t CODEC_LPCM = FOURCC('l','p','c','m');
 ### Error Recovery Mechanisms
 
 ```cpp
-class ErrorRecovery {
+class ISODemuxerErrorRecovery {
 public:
     // Attempt to recover from corrupted sample tables
     bool RepairSampleTables(SampleTableInfo& tables);
@@ -238,9 +290,9 @@ private:
 
 ### Unit Testing Focus
 
-1. **Box Parser**: Test nested structure parsing, large boxes, unknown types
-2. **Sample Tables**: Verify lookup accuracy, memory efficiency, edge cases
-3. **Fragment Handling**: Test fragment ordering, incomplete fragments
+1. **ISODemuxerBoxParser**: Test nested structure parsing, large boxes, unknown types
+2. **ISODemuxerSampleTableManager**: Verify lookup accuracy, memory efficiency, edge cases
+3. **ISODemuxerFragmentHandler**: Test fragment ordering, incomplete fragments
 4. **Codec Support**: Verify configuration extraction for each supported codec
 5. **Error Recovery**: Test graceful handling of various corruption scenarios
 

@@ -1,5 +1,5 @@
 /*
- * ErrorRecovery.cpp - Error handling and recovery for ISO demuxer
+ * ISODemuxerErrorRecovery.cpp - Error handling and recovery for ISO demuxer
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -14,11 +14,11 @@
 #include <cstring>
 #include <sstream>
 
-ErrorRecovery::ErrorRecovery(std::shared_ptr<IOHandler> io) : io(io) {
+ISODemuxerErrorRecovery::ISODemuxerErrorRecovery(std::shared_ptr<IOHandler> io) : io(io) {
     ResetErrorStats();
 }
 
-BoxHeader ErrorRecovery::RecoverCorruptedBox(const BoxHeader& header, uint64_t containerSize, uint64_t fileSize) {
+BoxHeader ISODemuxerErrorRecovery::RecoverCorruptedBox(const BoxHeader& header, uint64_t containerSize, uint64_t fileSize) {
     BoxHeader recoveredHeader = header;
     
     // Log the error
@@ -74,7 +74,7 @@ BoxHeader ErrorRecovery::RecoverCorruptedBox(const BoxHeader& header, uint64_t c
     return recoveredHeader;
 }
 
-bool ErrorRecovery::RepairSampleTables(SampleTableInfo& tables) {
+bool ISODemuxerErrorRecovery::RepairSampleTables(SampleTableInfo& tables) {
     bool success = true;
     
     // Check if we have any sample tables to repair
@@ -114,7 +114,7 @@ bool ErrorRecovery::RepairSampleTables(SampleTableInfo& tables) {
     return success;
 }
 
-bool ErrorRecovery::RepairTimeToSampleTable(SampleTableInfo& tables) {
+bool ISODemuxerErrorRecovery::RepairTimeToSampleTable(SampleTableInfo& tables) {
     // Check if time-to-sample table is empty
     if (tables.sampleTimes.empty()) {
         // Try to create a time-to-sample table from other information
@@ -172,7 +172,7 @@ bool ErrorRecovery::RepairTimeToSampleTable(SampleTableInfo& tables) {
     return true;
 }
 
-bool ErrorRecovery::RepairSampleToChunkTable(SampleTableInfo& tables) {
+bool ISODemuxerErrorRecovery::RepairSampleToChunkTable(SampleTableInfo& tables) {
     // Check if sample-to-chunk table is empty
     if (tables.sampleToChunkEntries.empty()) {
         // Try to create a sample-to-chunk table from other information
@@ -221,7 +221,7 @@ bool ErrorRecovery::RepairSampleToChunkTable(SampleTableInfo& tables) {
     return true;
 }
 
-bool ErrorRecovery::RepairSampleSizeTable(SampleTableInfo& tables) {
+bool ISODemuxerErrorRecovery::RepairSampleSizeTable(SampleTableInfo& tables) {
     // Check if sample size table is empty
     if (tables.sampleSizes.empty()) {
         // Try to create a sample size table from other information
@@ -283,7 +283,7 @@ bool ErrorRecovery::RepairSampleSizeTable(SampleTableInfo& tables) {
     return true;
 }
 
-bool ErrorRecovery::RepairChunkOffsetTable(SampleTableInfo& tables) {
+bool ISODemuxerErrorRecovery::RepairChunkOffsetTable(SampleTableInfo& tables) {
     // Check if chunk offset table is empty
     if (tables.chunkOffsets.empty()) {
         // Can't repair chunk offset table without file information
@@ -342,7 +342,7 @@ bool ErrorRecovery::RepairChunkOffsetTable(SampleTableInfo& tables) {
     return true;
 }
 
-bool ErrorRecovery::ValidateTableConsistency(const SampleTableInfo& tables) {
+bool ISODemuxerErrorRecovery::ValidateTableConsistency(const SampleTableInfo& tables) {
     // Check if we have the minimum required tables
     if (tables.chunkOffsets.empty() || tables.sampleToChunkEntries.empty() || 
         tables.sampleSizes.empty() || tables.sampleTimes.empty()) {
@@ -397,7 +397,7 @@ bool ErrorRecovery::ValidateTableConsistency(const SampleTableInfo& tables) {
     return true;
 }
 
-bool ErrorRecovery::InferCodecConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
+bool ISODemuxerErrorRecovery::InferCodecConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
     // Check if we already have codec configuration
     if (!track.codecConfig.empty()) {
         return true;
@@ -436,7 +436,7 @@ bool ErrorRecovery::InferCodecConfig(AudioTrackInfo& track, const std::vector<ui
     return false;
 }
 
-bool ErrorRecovery::InferAACConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
+bool ISODemuxerErrorRecovery::InferAACConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
     // AAC requires AudioSpecificConfig
     // This is a simplified version that creates a basic AAC-LC configuration
     
@@ -491,7 +491,7 @@ bool ErrorRecovery::InferAACConfig(AudioTrackInfo& track, const std::vector<uint
     return true;
 }
 
-bool ErrorRecovery::InferALACConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
+bool ISODemuxerErrorRecovery::InferALACConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
     // ALAC requires a magic cookie
     // This is a simplified version that creates a basic ALAC configuration
     
@@ -539,7 +539,7 @@ bool ErrorRecovery::InferALACConfig(AudioTrackInfo& track, const std::vector<uin
     return true;
 }
 
-bool ErrorRecovery::InferPCMConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
+bool ISODemuxerErrorRecovery::InferPCMConfig(AudioTrackInfo& track, const std::vector<uint8_t>& sampleData) {
     // PCM doesn't need complex configuration
     // Just ensure we have sample rate, channel count, and bit depth
     
@@ -564,7 +564,7 @@ bool ErrorRecovery::InferPCMConfig(AudioTrackInfo& track, const std::vector<uint
     return true;
 }
 
-bool ErrorRecovery::RetryIOOperation(std::function<bool()> operation, int maxRetries) {
+bool ISODemuxerErrorRecovery::RetryIOOperation(std::function<bool()> operation, int maxRetries) {
     int attempts = 0;
     bool success = false;
     
@@ -592,7 +592,7 @@ bool ErrorRecovery::RetryIOOperation(std::function<bool()> operation, int maxRet
     return success;
 }
 
-void ErrorRecovery::LogError(const std::string& errorType, const std::string& message, uint32_t boxType) {
+void ISODemuxerErrorRecovery::LogError(const std::string& errorType, const std::string& message, uint32_t boxType) {
     // Increment error count for this type
     errorStats[errorType]++;
     
@@ -604,15 +604,15 @@ void ErrorRecovery::LogError(const std::string& errorType, const std::string& me
     //         boxType ? " (box: " : "", boxType ? BoxTypeToString(boxType).c_str() : "");
 }
 
-std::map<std::string, int> ErrorRecovery::GetErrorStats() const {
+std::map<std::string, int> ISODemuxerErrorRecovery::GetErrorStats() const {
     return errorStats;
 }
 
-void ErrorRecovery::ResetErrorStats() {
+void ISODemuxerErrorRecovery::ResetErrorStats() {
     errorStats.clear();
 }
 
-uint32_t ErrorRecovery::EstimateReasonableBoxSize(uint32_t boxType, uint64_t containerSize) {
+uint32_t ISODemuxerErrorRecovery::EstimateReasonableBoxSize(uint32_t boxType, uint64_t containerSize) {
     // Estimate a reasonable size for common box types
     switch (boxType) {
         case BOX_FTYP:
@@ -646,7 +646,7 @@ uint32_t ErrorRecovery::EstimateReasonableBoxSize(uint32_t boxType, uint64_t con
     }
 }
 
-bool ErrorRecovery::IsKnownBoxType(uint32_t boxType) {
+bool ISODemuxerErrorRecovery::IsKnownBoxType(uint32_t boxType) {
     // Check if this is a known box type
     switch (boxType) {
         // Core structure
@@ -753,7 +753,7 @@ bool ErrorRecovery::IsKnownBoxType(uint32_t boxType) {
     }
 }
 
-std::string ErrorRecovery::BoxTypeToString(uint32_t boxType) {
+std::string ISODemuxerErrorRecovery::BoxTypeToString(uint32_t boxType) {
     std::string result(4, ' ');
     result[0] = (boxType >> 24) & 0xFF;
     result[1] = (boxType >> 16) & 0xFF;

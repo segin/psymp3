@@ -1,5 +1,5 @@
 /*
- * ErrorRecovery.h - Error handling and recovery for ISO demuxer
+ * ISODemuxerErrorRecovery.h - Error handling and recovery for ISO demuxer
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,8 +21,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef ERROR_RECOVERY_H
-#define ERROR_RECOVERY_H
+#ifndef ISO_DEMUXER_ERROR_RECOVERY_H
+#define ISO_DEMUXER_ERROR_RECOVERY_H
 
 #include <memory>
 #include <vector>
@@ -46,10 +46,10 @@ struct BoxHeader;
  * - Missing codec configuration
  * - I/O errors
  */
-class ErrorRecovery {
+class ISODemuxerErrorRecovery {
 public:
-    ErrorRecovery(std::shared_ptr<IOHandler> io);
-    ~ErrorRecovery() = default;
+    ISODemuxerErrorRecovery(std::shared_ptr<IOHandler> io);
+    ~ISODemuxerErrorRecovery() = default;
     
     /**
      * @brief Attempt to recover from corrupted box structures
@@ -130,4 +130,4 @@ private:
     std::string BoxTypeToString(uint32_t boxType);
 };
 
-#endif // ERROR_RECOVERY_H
+#endif // ISO_DEMUXER_ERROR_RECOVERY_H

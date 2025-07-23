@@ -79,6 +79,7 @@ enum class LoopMode {
 #include <mutex>
 #include <queue>
 #include <regex>
+#include <stdexcept>
 #include <string>
 #include <sstream>
 #include <thread>
@@ -292,6 +293,14 @@ typedef struct bio_st BIO;
 #include "OggDemuxer.h"
 #include "OggCodecs.h"
 #endif
+#include "ISODemuxerErrorRecovery.h"
+#include "StreamingManager.h"
+#include "ISODemuxerBoxParser.h"
+#include "ISODemuxerSampleTableManager.h"
+#include "ISODemuxerFragmentHandler.h"
+#include "ISODemuxerMetadataExtractor.h"
+#include "ISODemuxerStreamManager.h"
+#include "ISODemuxerSeekingEngine.h"
 #include "ISODemuxer.h"
 #include "ModernStream.h"
 #include "MediaFactory.h"
