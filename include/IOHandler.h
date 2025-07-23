@@ -89,6 +89,45 @@ public:
 
 protected:
     /**
+     * @brief Cross-platform utility methods for consistent behavior
+     */
+    
+    /**
+     * @brief Normalize path separators for the current platform
+     * @param path The path to normalize
+     * @return Normalized path with platform-appropriate separators
+     */
+    static std::string normalizePath(const std::string& path);
+    
+    /**
+     * @brief Get platform-appropriate path separator
+     * @return Path separator character ('\\' on Windows, '/' on Unix)
+     */
+    static char getPathSeparator();
+    
+    /**
+     * @brief Convert error code to consistent error message across platforms
+     * @param error_code The error code to convert
+     * @param context Additional context for the error
+     * @return Descriptive error message
+     */
+    static std::string getErrorMessage(int error_code, const std::string& context = "");
+    
+    /**
+     * @brief Check if the given error code represents a temporary/recoverable error
+     * @param error_code The error code to check
+     * @return true if error is potentially recoverable, false otherwise
+     */
+    static bool isRecoverableError(int error_code);
+    
+    /**
+     * @brief Get maximum file size supported on current platform
+     * @return Maximum file size in bytes
+     */
+    static off_t getMaxFileSize();
+
+protected:
+    /**
      * @brief Common state tracking for derived classes
      */
     bool m_closed = false;   // Indicates if the handler is closed

@@ -43,7 +43,8 @@ void HTTPIOHandler::initialize() {
         HTTPClient::Response response = HTTPClient::head(m_url);
         
         if (!response.success) {
-            Debug::log("HTTPIOHandler", "HEAD request failed: ", response.statusMessage, " (status: ", response.statusCode, ")");
+            std::string errorMsg = getErrorMessage(-1, "HEAD request failed: " + response.statusMessage + " (status: " + std::to_string(response.statusCode) + ")");
+            Debug::log("HTTPIOHandler", errorMsg);
             m_error = -1;
             return;
         }
@@ -161,7 +162,8 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
         
         // Need to fill buffer
         if (!fillBuffer(m_current_position, bytes_requested)) {
-            Debug::log("HTTPIOHandler", "Failed to fill buffer for read operation");
+            std::string errorMsg = getErrorMessage(-1, "Failed to fill buffer for read operation");
+            Debug::log("HTTPIOHandler", errorMsg);
             m_error = -1;
             return 0;
         }
