@@ -300,6 +300,11 @@ typedef struct bio_st BIO;
 // I/O and utility components (needed by other components)
 #include "utility.h"
 #include "system.h"
+#include "BufferPool.h"
+#include "BoundedBuffer.h"
+#include "MemoryTracker.h"
+#include "MemoryOptimizer.h"
+#include "MemoryPoolManager.h"
 #include "IOHandler.h"
 #include "FileIOHandler.h"
 #include "HTTPIOHandler.h"

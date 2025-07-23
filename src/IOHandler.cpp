@@ -23,11 +23,38 @@
 
 #include "psymp3.h"
 
+// Static member initialization
+std::mutex IOHandler::s_memory_mutex;
+size_t IOHandler::s_total_memory_usage = 0;
+size_t IOHandler::s_max_total_memory = 64 * 1024 * 1024;  // 64MB default
+size_t IOHandler::s_max_per_handler_memory = 16 * 1024 * 1024;  // 16MB default
+size_t IOHandler::s_active_handlers = 0;
+std::chrono::steady_clock::time_point IOHandler::s_last_memory_warning = std::chrono::steady_clock::now();
+
 // IOHandler base class implementation
 
+IOHandler::IOHandler() {
+    // Initialize memory tracking for new handler
+    std::lock_guard<std::mutex> lock(s_memory_mutex);
+    s_active_handlers++;
+    m_memory_usage = 0;
+    
+    // Initialize memory pool manager if this is the first handler
+    if (s_active_handlers == 1) {
+        MemoryPoolManager::getInstance().initializePools();
+    }
+    
+    Debug::log("memory", "IOHandler::IOHandler() - Created new handler, active handlers: ", s_active_handlers);
+}
+
 IOHandler::~IOHandler() {
-    // Virtual destructor for proper polymorphic cleanup
-    // Derived classes should override this to clean up their specific resources
+    // Update global memory tracking
+    std::lock_guard<std::mutex> lock(s_memory_mutex);
+    s_total_memory_usage -= m_memory_usage;
+    s_active_handlers--;
+    
+    Debug::log("memory", "IOHandler::~IOHandler() - Released ", m_memory_usage, 
+              " bytes, total usage: ", s_total_memory_usage, ", active handlers: ", s_active_handlers);
 }
 
 size_t IOHandler::read(void* buffer, size_t size, size_t count) {
@@ -327,4 +354,191 @@ off_t IOHandler::getMaxFileSize() {
         return 0x7FFFFFFFL;           // Maximum signed 32-bit value
     }
 #endif
+}
+
+std::map<std::string, size_t> IOHandler::getMemoryStats() {
+    std::lock_guard<std::mutex> lock(s_memory_mutex);
+    
+    std::map<std::string, size_t> stats;
+    stats["total_memory_usage"] = s_total_memory_usage;
+    stats["max_total_memory"] = s_max_total_memory;
+    stats["max_per_handler_memory"] = s_max_per_handler_memory;
+    stats["active_handlers"] = s_active_handlers;
+    
+    if (s_max_total_memory > 0) {
+        stats["memory_usage_percent"] = (s_total_memory_usage * 100) / s_max_total_memory;
+    } else {
+        stats["memory_usage_percent"] = 0;
+    }
+    
+    // Get memory pool manager stats
+    auto pool_manager_stats = MemoryPoolManager::getInstance().getMemoryStats();
+    for (const auto& stat : pool_manager_stats) {
+        stats["memory_pool_" + stat.first] = stat.second;
+    }
+    
+    // Get legacy buffer pool stats
+    auto pool_stats = IOBufferPool::getInstance().getStats();
+    for (const auto& stat : pool_stats) {
+        stats["legacy_pool_" + stat.first] = stat.second;
+    }
+    
+    // Get memory tracker stats
+    auto tracker_stats = MemoryTracker::getInstance().getStats();
+    stats["system_total_memory"] = tracker_stats.total_physical_memory;
+    stats["system_available_memory"] = tracker_stats.available_physical_memory;
+    stats["process_memory_usage"] = tracker_stats.process_memory_usage;
+    stats["process_peak_memory"] = tracker_stats.peak_memory_usage;
+    
+    return stats;
+}
+
+void IOHandler::setMemoryLimits(size_t max_total_memory, size_t max_per_handler) {
+    std::lock_guard<std::mutex> lock(s_memory_mutex);
+    s_max_total_memory = max_total_memory;
+    s_max_per_handler_memory = max_per_handler;
+    
+    Debug::log("memory", "IOHandler::setMemoryLimits() - Set limits: total=", max_total_memory, 
+              ", per_handler=", max_per_handler);
+    
+    // Update memory pool manager limits
+    MemoryPoolManager::getInstance().setMemoryLimits(max_total_memory, max_total_memory / 2);
+    
+    // Update legacy buffer pool limits for backward compatibility
+    IOBufferPool::getInstance().setMaxPoolSize(max_total_memory / 4); // 25% of total for pool
+}
+
+void IOHandler::updateMemoryUsage(size_t new_usage) {
+    std::lock_guard<std::mutex> lock(s_memory_mutex);
+    
+    size_t old_usage = m_memory_usage;
+    m_memory_usage = new_usage;
+    
+    s_total_memory_usage = s_total_memory_usage - old_usage + new_usage;
+    
+    Debug::log("memory", "IOHandler::updateMemoryUsage() - Updated usage from ", old_usage, 
+              " to ", new_usage, ", total: ", s_total_memory_usage);
+}
+
+bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {
+    std::lock_guard<std::mutex> lock(s_memory_mutex);
+    
+    // Use MemoryPoolManager to check if allocation is safe
+    if (!MemoryPoolManager::getInstance().isSafeToAllocate(additional_bytes, "iohandler")) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - s_last_memory_warning).count();
+        
+        // Log warning at most once per 5 seconds to avoid log spam
+        if (elapsed >= 5) {
+            Debug::log("memory", "IOHandler::checkMemoryLimits() - Memory allocation of ", 
+                      additional_bytes, " bytes not safe according to MemoryPoolManager");
+            s_last_memory_warning = now;
+            
+            // Try to free some memory from buffer pools
+            MemoryPoolManager::getInstance().optimizeMemoryUsage();
+            IOBufferPool::getInstance().clear();
+        }
+        return false;
+    }
+    
+    // Legacy checks for backward compatibility
+    
+    // Check per-handler limit
+    if (m_memory_usage + additional_bytes > s_max_per_handler_memory) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - s_last_memory_warning).count();
+        
+        // Log warning at most once per 5 seconds to avoid log spam
+        if (elapsed >= 5) {
+            Debug::log("memory", "IOHandler::checkMemoryLimits() - Per-handler limit exceeded: ", 
+                      m_memory_usage + additional_bytes, " > ", s_max_per_handler_memory);
+            s_last_memory_warning = now;
+        }
+        return false;
+    }
+    
+    // Check total memory limit
+    if (s_total_memory_usage + additional_bytes > s_max_total_memory) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - s_last_memory_warning).count();
+        
+        // Log warning at most once per 5 seconds to avoid log spam
+        if (elapsed >= 5) {
+            Debug::log("memory", "IOHandler::checkMemoryLimits() - Total memory limit exceeded: ", 
+                      s_total_memory_usage + additional_bytes, " > ", s_max_total_memory);
+            s_last_memory_warning = now;
+        }
+        return false;
+    }
+    
+    // Check if we're approaching the limit (over 80% usage)
+    if (s_total_memory_usage + additional_bytes > s_max_total_memory * 0.8) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - s_last_memory_warning).count();
+        
+        // Log warning at most once per 30 seconds to avoid log spam
+        if (elapsed >= 30) {
+            Debug::log("memory", "IOHandler::checkMemoryLimits() - Approaching memory limit: ", 
+                      s_total_memory_usage + additional_bytes, " / ", s_max_total_memory, 
+                      " (", (s_total_memory_usage + additional_bytes) * 100 / s_max_total_memory, "%)");
+            s_last_memory_warning = now;
+        }
+        
+        // Still allow allocation but trigger memory optimization
+        MemoryPoolManager::getInstance().optimizeMemoryUsage();
+    }
+    
+    return true;
+}
+
+void IOHandler::performMemoryOptimization() {
+    std::lock_guard<std::mutex> lock(s_memory_mutex);
+    
+    Debug::log("memory", "IOHandler::performMemoryOptimization() - Starting global memory optimization");
+    
+    // Get current memory statistics
+    auto memory_stats = getMemoryStats();
+    size_t total_usage = memory_stats["total_memory_usage"];
+    size_t max_memory = memory_stats["max_total_memory"];
+    
+    if (max_memory == 0) {
+        return; // No limits set
+    }
+    
+    float usage_percent = static_cast<float>(total_usage) / static_cast<float>(max_memory) * 100.0f;
+    
+    Debug::log("memory", "IOHandler::performMemoryOptimization() - Memory usage: ", usage_percent, 
+              "% (", total_usage, " / ", max_memory, " bytes)");
+    
+    // Use the MemoryPoolManager for centralized memory optimization
+    MemoryPoolManager::getInstance().optimizeMemoryUsage();
+    
+    // Also optimize the legacy buffer pool for backward compatibility
+    if (usage_percent > 90.0f) {
+        // Critical memory pressure - aggressive optimization
+        IOBufferPool::getInstance().clear();
+        IOBufferPool::getInstance().setMaxPoolSize(max_memory / 8); // 12.5% of total
+        IOBufferPool::getInstance().setMaxBuffersPerSize(2); // Minimal buffering
+    } else if (usage_percent > 75.0f) {
+        // High memory pressure - moderate optimization
+        IOBufferPool::getInstance().optimizeAllocationPatterns();
+        IOBufferPool::getInstance().compactMemory();
+        IOBufferPool::getInstance().setMaxPoolSize(max_memory / 6); // ~16.7% of total
+        IOBufferPool::getInstance().setMaxBuffersPerSize(4); // Reduced buffering
+    } else if (usage_percent > 50.0f) {
+        // Moderate memory pressure - light optimization
+        IOBufferPool::getInstance().defragmentPools();
+        IOBufferPool::getInstance().optimizeAllocationPatterns();
+    } else {
+        // Low memory pressure - maintenance optimization
+        IOBufferPool::getInstance().defragmentPools();
+    }
+    
+    // Log final statistics
+    auto final_stats = getMemoryStats();
+    size_t final_usage = final_stats["total_memory_usage"];
+    float final_percent = static_cast<float>(final_usage) / static_cast<float>(max_memory) * 100.0f;
+    
+    Debug::log("memory", "IOHandler::performMemoryOptimization() - Optimization complete: ", 
+              usage_percent, "% -> ", final_percent, "% (saved ", total_usage - final_usage, " bytes)");
 }
