@@ -1,5 +1,5 @@
 /*
- * HTTPIOHandler.h - HTTP-based IOHandler for streaming media
+ * HTTPIOHandler.h - HTTP streaming I/O handler
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -27,97 +27,121 @@
 // No direct includes - all includes should be in psymp3.h
 
 /**
- * @brief IOHandler implementation for HTTP-based media streaming
+ * @brief HTTP streaming I/O handler with range request support
  * 
- * Provides streaming access to HTTP URLs using range requests for seeking.
- * Supports both seeking and sequential reading with efficient buffering.
+ * This class provides HTTP streaming capabilities with intelligent buffering
+ * and range request support for seeking. It handles HTTP metadata extraction,
+ * efficient buffering, and network error recovery.
  */
 class HTTPIOHandler : public IOHandler {
 public:
     /**
-     * @brief Constructor for HTTP URL
-     * @param url The HTTP URL to stream from
+     * @brief Constructor for HTTP streaming with URL
+     * @param url The HTTP/HTTPS URL to stream from
      */
     explicit HTTPIOHandler(const std::string& url);
     
     /**
-     * @brief Constructor with explicit content length
-     * @param url The HTTP URL to stream from
-     * @param content_length Known content length (avoids HEAD request)
+     * @brief Constructor for HTTP streaming with explicit content length
+     * @param url The HTTP/HTTPS URL to stream from
+     * @param content_length Known content length in bytes
      */
     HTTPIOHandler(const std::string& url, long content_length);
     
+    /**
+     * @brief Destructor - cleanup resources
+     */
     ~HTTPIOHandler() override;
-
+    
+    // IOHandler interface implementation
     size_t read(void* buffer, size_t size, size_t count) override;
-    int seek(long offset, int whence) override;
+    int seek(off_t offset, int whence) override;
     off_t tell() override;
     int close() override;
     bool eof() override;
     off_t getFileSize() override;
-
+    
+    // HTTP-specific methods
+    
     /**
-     * @brief Get the total content length if known
+     * @brief Get the content length from HTTP headers
      * @return Content length in bytes, or -1 if unknown
      */
     long getContentLength() const { return m_content_length; }
     
     /**
      * @brief Get the MIME type from HTTP headers
-     * @return MIME type string, or empty if unknown
+     * @return MIME type string, empty if not available
      */
     std::string getMimeType() const { return m_mime_type; }
     
     /**
-     * @brief Check if the server supports range requests
-     * @return true if range requests are supported
+     * @brief Check if server supports range requests
+     * @return true if range requests are supported, false otherwise
      */
     bool supportsRangeRequests() const { return m_supports_ranges; }
-
-private:
-    std::string m_url;
-    long m_content_length = -1;
-    long m_current_position = 0;
-    std::string m_mime_type;
-    bool m_supports_ranges = false;
-    bool m_initialized = false;
-    bool m_eof = false;
-    
-    // Buffer for read-ahead and partial reads
-    std::vector<uint8_t> m_buffer;
-    size_t m_buffer_offset = 0;
-    long m_buffer_start_position = 0;
-    
-    static constexpr size_t BUFFER_SIZE = 64 * 1024; // 64KB buffer
-    static constexpr size_t MIN_RANGE_SIZE = 8 * 1024; // 8KB minimum range request
     
     /**
-     * @brief Initialize by performing HEAD request to get metadata
+     * @brief Check if the handler has been initialized
+     * @return true if initialized, false otherwise
+     */
+    bool isInitialized() const { return m_initialized; }
+
+private:
+    // HTTP stream properties
+    std::string m_url;                    // The HTTP URL
+    long m_content_length = -1;           // Total content length (-1 if unknown)
+    off_t m_current_position = 0;         // Current logical position in stream
+    std::string m_mime_type;              // Content-Type from HTTP headers
+    bool m_supports_ranges = false;       // Server supports range requests
+    bool m_initialized = false;           // Initialization completed
+    
+    // Buffering system
+    std::vector<uint8_t> m_buffer;        // Data buffer
+    size_t m_buffer_offset = 0;           // Current offset within buffer
+    off_t m_buffer_start_position = 0;    // Stream position of buffer start
+    
+    // Buffer configuration
+    static constexpr size_t BUFFER_SIZE = 64 * 1024;      // Default 64KB buffer
+    static constexpr size_t MIN_RANGE_SIZE = 8 * 1024;    // Minimum 8KB range requests
+    
+    // Private methods
+    
+    /**
+     * @brief Initialize HTTP stream by performing HEAD request
+     * Extracts metadata including Content-Length, Content-Type, and Accept-Ranges
      */
     void initialize();
     
     /**
-     * @brief Fill buffer starting from specified position
-     * @param position Position to start reading from
-     * @param min_size Minimum amount to read
-     * @return true if successful, false on error
+     * @brief Fill buffer with data from HTTP stream
+     * @param position Stream position to start reading from
+     * @param min_size Minimum number of bytes to read (default: MIN_RANGE_SIZE)
+     * @return true if buffer was filled successfully, false on error
      */
-    bool fillBuffer(long position, size_t min_size = MIN_RANGE_SIZE);
+    bool fillBuffer(off_t position, size_t min_size = MIN_RANGE_SIZE);
     
     /**
-     * @brief Read data from current buffer position
-     * @param buffer Output buffer
+     * @brief Read data from internal buffer
+     * @param buffer Destination buffer
      * @param bytes_to_read Number of bytes to read
-     * @return Number of bytes actually read
+     * @return Number of bytes actually read from buffer
      */
     size_t readFromBuffer(void* buffer, size_t bytes_to_read);
     
     /**
-     * @brief Check if position is within current buffer
-     * @param position Position to check
-     * @return true if position is buffered
+     * @brief Check if a position is currently buffered
+     * @param position Stream position to check
+     * @return true if position is in current buffer, false otherwise
      */
-    bool isPositionBuffered(long position) const;
+    bool isPositionBuffered(off_t position) const;
+    
+    /**
+     * @brief Parse Content-Type header and normalize MIME type
+     * @param content_type Raw Content-Type header value
+     * @return Normalized MIME type string
+     */
+    std::string normalizeMimeType(const std::string& content_type);
 };
 
 #endif // HTTPIOHANDLER_H
