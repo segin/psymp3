@@ -24,12 +24,7 @@
 #ifndef WINDOWWIDGET_H
 #define WINDOWWIDGET_H
 
-#include "Widget.h"
-#include "TitlebarWidget.h"
-#include <string>
-#include <memory>
-#include <vector>
-#include <functional>
+// No direct includes - all includes should be in psymp3.h
 
 // Forward declaration
 class WindowWidget;

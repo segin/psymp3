@@ -8,9 +8,6 @@
  */
 
 #include "psymp3.h"
-#include <curl/curl.h>
-#include <mutex>
-#include <thread>
 
 // Thread-safe RAII wrapper for global curl initialization
 class CurlLifecycleManager {

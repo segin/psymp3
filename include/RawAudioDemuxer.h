@@ -24,8 +24,7 @@
 #ifndef RAWAUDIODEMUXER_H
 #define RAWAUDIODEMUXER_H
 
-#include "Demuxer.h"
-#include <optional>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Configuration for raw audio formats

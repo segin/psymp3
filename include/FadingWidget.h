@@ -24,7 +24,7 @@
 #ifndef FADINGWIDGET_H
 #define FADINGWIDGET_H
 
-#include "Widget.h"
+// No direct includes - all includes should be in psymp3.h
 
 class FadingWidget : public Widget {
 public:

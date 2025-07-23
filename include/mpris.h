@@ -3,8 +3,7 @@
 
 #ifdef HAVE_DBUS
 
-#include <string>
-#include <dbus/dbus.h>
+// No direct includes - all includes should be in psymp3.h
 
 class Player; // Forward declaration
 

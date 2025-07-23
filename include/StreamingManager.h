@@ -1,5 +1,5 @@
 /*
- * StreamingManager.h - Progressive download and streaming support for ISO demuxer
+ * StreamingManager.h - Advanced streaming management with memory optimization
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,32 +21,26 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef STREAMINGMANAGER_H
-#define STREAMINGMANAGER_H
+#ifndef STREAMING_MANAGER_H
+#define STREAMING_MANAGER_H
 
-#include "IOHandler.h"
-#include <memory>
-#include <vector>
-#include <map>
-#include <mutex>
-#include <condition_variable>
-#include <thread>
-#include <atomic>
-#include <queue>
+// No direct includes - all includes should be in psymp3.h
 
 /**
- * @brief Manages progressive download and streaming for ISO demuxer
+ * @brief Advanced streaming manager with memory optimization
  * 
- * Handles incomplete files, byte range requests, and buffering for
- * samples that are not yet available.
+ * This class provides optimized streaming capabilities for demuxers,
+ * with adaptive buffering, memory pressure awareness, and efficient
+ * resource utilization.
  */
 class StreamingManager {
 public:
     /**
      * @brief Constructor
-     * @param io IOHandler for the media source
+     * @param demuxer Demuxer to manage
+     * @param stream_id Stream ID to read from
      */
-    explicit StreamingManager(std::shared_ptr<IOHandler> io);
+    StreamingManager(std::shared_ptr<Demuxer> demuxer, uint32_t stream_id = 0);
     
     /**
      * @brief Destructor
@@ -54,162 +48,121 @@ public:
     ~StreamingManager();
     
     /**
-     * @brief Check if the file is a streaming source
-     * @return true if streaming, false if complete file
-     */
-    bool isStreaming() const;
-    
-    /**
-     * @brief Check if the movie box is at the end of the file
-     * @return true if movie box is at end (progressive download)
-     */
-    bool isMovieBoxAtEnd() const;
-    
-    /**
-     * @brief Locate the movie box in the file
-     * @return Offset to movie box, or 0 if not found
-     */
-    uint64_t findMovieBox();
-    
-    /**
-     * @brief Read data from the source, handling streaming scenarios
-     * @param offset File offset to read from
-     * @param buffer Buffer to read into
-     * @param size Size of each element to read
-     * @param count Number of elements to read
-     * @return Number of elements successfully read
-     */
-    size_t readData(uint64_t offset, void* buffer, size_t size, size_t count);
-    
-    /**
-     * @brief Check if data at a specific offset is available
-     * @param offset File offset to check
-     * @param size Size of data needed
-     * @return true if data is available, false if not yet downloaded
-     */
-    bool isDataAvailable(uint64_t offset, size_t size);
-    
-    /**
-     * @brief Request a byte range to be downloaded
-     * @param offset Start offset
-     * @param size Size of range to request
-     * @return true if request was queued successfully
-     */
-    bool requestByteRange(uint64_t offset, size_t size);
-    
-    /**
-     * @brief Wait for data to become available
-     * @param offset File offset to wait for
-     * @param size Size of data needed
-     * @param timeout_ms Timeout in milliseconds (0 = no timeout)
-     * @return true if data became available, false on timeout
-     */
-    bool waitForData(uint64_t offset, size_t size, uint32_t timeout_ms = 5000);
-    
-    /**
-     * @brief Get the download progress
-     * @return Percentage of file downloaded (0-100)
-     */
-    int getDownloadProgress() const;
-    
-    /**
-     * @brief Check if the entire file has been downloaded
-     * @return true if download is complete
-     */
-    bool isDownloadComplete() const;
-    
-    /**
-     * @brief Get the total file size if known
-     * @return File size in bytes, or -1 if unknown
-     */
-    int64_t getFileSize() const;
-    
-    /**
-     * @brief Start background prefetching for a sample
-     * @param offset Sample data offset
-     * @param size Sample data size
-     */
-    void prefetchSample(uint64_t offset, size_t size);
-    
-    /**
-     * @brief Set prefetch strategy for upcoming samples
-     * @param lookahead Number of samples to prefetch ahead
-     */
-    void setPrefetchStrategy(uint32_t lookahead);
-    
-private:
-    std::shared_ptr<IOHandler> io;
-    bool isStreamingSource = false;
-    bool movieBoxAtEnd = false;
-    uint64_t movieBoxOffset = 0;
-    int64_t fileSize = -1;
-    
-    // Track downloaded ranges
-    struct ByteRange {
-        uint64_t start;
-        uint64_t end;
-        
-        bool operator<(const ByteRange& other) const {
-            return start < other.start;
-        }
-    };
-    
-    std::vector<ByteRange> downloadedRanges;
-    mutable std::mutex rangesMutex;
-    
-    // Background download thread
-    std::thread downloadThread;
-    std::atomic<bool> stopThread;
-    std::queue<ByteRange> downloadQueue;
-    std::mutex queueMutex;
-    std::condition_variable queueCondition;
-    
-    // Prefetch settings
-    uint32_t prefetchLookahead = 5;
-    
-    /**
-     * @brief Background download thread function
-     */
-    void downloadThreadFunc();
-    
-    /**
-     * @brief Download a specific byte range
-     * @param range Range to download
+     * @brief Start streaming
      * @return true if successful
      */
-    bool downloadRange(const ByteRange& range);
+    bool start();
     
     /**
-     * @brief Merge overlapping downloaded ranges
+     * @brief Stop streaming
      */
-    void mergeRanges();
+    void stop();
     
     /**
-     * @brief Check if a range is fully downloaded
-     * @param start Start offset
-     * @param end End offset
-     * @return true if range is available
+     * @brief Seek to a specific time position
+     * @param timestamp_ms Time in milliseconds
+     * @return true if seek was successful
      */
-    bool isRangeDownloaded(uint64_t start, uint64_t end) const;
+    bool seekTo(uint64_t timestamp_ms);
     
     /**
-     * @brief Add a downloaded range to the list
-     * @param start Start offset
-     * @param end End offset
+     * @brief Read a chunk from the stream
+     * @return MediaChunk with data, or empty chunk if EOF
      */
-    void addDownloadedRange(uint64_t start, uint64_t end);
+    MediaChunk readChunk();
     
     /**
-     * @brief Scan the file for the movie box
-     * @return true if movie box was found
+     * @brief Check if we've reached the end of the stream
      */
-    bool scanForMovieBox();
+    bool isEOF() const;
     
     /**
-     * @brief Check if the IOHandler is HTTP-based
-     * @return true if HTTP streaming
+     * @brief Get current position in milliseconds
      */
-    bool isHTTPSource() const;
+    uint64_t getPosition() const;
+    
+    /**
+     * @brief Get total duration of the stream in milliseconds
+     */
+    uint64_t getDuration() const;
+    
+    /**
+     * @brief Get information about the current stream
+     */
+    StreamInfo getStreamInfo() const;
+    
+    /**
+     * @brief Set the buffer size in chunks
+     * @param max_chunks Maximum number of chunks to buffer
+     */
+    void setBufferSize(size_t max_chunks);
+    
+    /**
+     * @brief Set the buffer size in bytes
+     * @param max_bytes Maximum number of bytes to buffer
+     */
+    void setBufferSizeBytes(size_t max_bytes);
+    
+    /**
+     * @brief Get current buffer statistics
+     */
+    struct BufferStats {
+        size_t buffered_chunks;
+        size_t buffered_bytes;
+        size_t max_chunks;
+        size_t max_bytes;
+        bool is_buffering;
+        float buffer_fullness; // 0.0 to 1.0
+    };
+    BufferStats getBufferStats() const;
+    
+    /**
+     * @brief Set read-ahead mode for network streams
+     * @param enable_read_ahead true to enable read-ahead
+     */
+    void setReadAheadMode(bool enable_read_ahead);
+    
+    /**
+     * @brief Set adaptive buffer mode
+     * @param enable_adaptive true to enable adaptive buffering
+     */
+    void setAdaptiveBuffering(bool enable_adaptive);
+    
+private:
+    std::shared_ptr<Demuxer> m_demuxer;
+    uint32_t m_stream_id;
+    
+    // Bounded buffer for chunks
+    BoundedQueue<MediaChunk> m_chunk_queue;
+    
+    // Streaming thread
+    std::thread m_streaming_thread;
+    std::atomic<bool> m_running;
+    std::atomic<bool> m_buffering;
+    std::atomic<bool> m_eof;
+    std::atomic<uint64_t> m_position_ms;
+    
+    // Synchronization
+    std::mutex m_mutex;
+    std::condition_variable m_buffer_cv;
+    
+    // Buffer configuration
+    size_t m_max_chunks;
+    size_t m_max_bytes;
+    bool m_read_ahead_mode;
+    bool m_adaptive_buffering;
+    
+    // Memory pressure callback
+    int m_memory_pressure_callback_id;
+    
+    // Thread function
+    void streamingThreadFunc();
+    
+    // Memory pressure handler
+    void handleMemoryPressure(int pressure_level);
+    
+    // Calculate chunk memory usage
+    static size_t calculateChunkMemory(const MediaChunk& chunk);
 };
 
-#endif // STREAMINGMANAGER_H
+#endif // STREAMING_MANAGER_H

@@ -10,10 +10,7 @@
 #ifndef MODERNSTREAM_H
 #define MODERNSTREAM_H
 
-#include "stream.h"
-#include "Demuxer.h"
-#include "AudioCodec.h"
-#include "DemuxedStream.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Modern Stream implementation using the new demuxer/codec architecture

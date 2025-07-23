@@ -24,10 +24,7 @@
 #ifndef WINDOWFRAMEWIDGET_H
 #define WINDOWFRAMEWIDGET_H
 
-#include "Widget.h"
-#include <string>
-#include <memory>
-#include <functional>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief A classic window frame widget with titlebar and resize border.

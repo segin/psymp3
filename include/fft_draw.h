@@ -24,7 +24,7 @@
 #ifndef FFT_DRAW_H
 #define FFT_DRAW_H
 
-#include "fft.h"
+// No direct includes - all includes should be in psymp3.h
 
 class FastFourier
 {

@@ -2,7 +2,7 @@
 
 ## **Implementation Tasks**
 
-- [ ] 1. Create FLACDemuxer Class Structure
+- [-] 1. Create FLACDemuxer Class Structure
   - Implement FLACDemuxer class inheriting from Demuxer base class
   - Add private member variables for FLAC container state and metadata
   - Implement constructor accepting unique_ptr<IOHandler>

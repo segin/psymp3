@@ -24,8 +24,7 @@
 #ifndef BUTTONWIDGET_H
 #define BUTTONWIDGET_H
 
-#include "Widget.h"
-#include <functional>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Types of button symbols that can be drawn

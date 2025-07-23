@@ -69,6 +69,7 @@ enum class LoopMode {
 #include <atomic>
 #include <complex>
 #include <condition_variable>
+#include <deque>
 #include <exception>
 #include <fstream>
 #include <functional>
@@ -82,13 +83,17 @@ enum class LoopMode {
 #include <stdexcept>
 #include <string>
 #include <sstream>
+#include <stack>
 #include <thread>
 #include <typeinfo>
+#include <unordered_map>
 #include <unordered_set>
+#include <variant>
 #include <vector>
 #include <optional>
 #include <chrono>
 #include <mutex>
+#include <limits>
 
 #ifndef M_PI_F
 #define M_PI_F 3.14159265358979323846f
@@ -105,6 +110,7 @@ enum class LoopMode {
 
 // System-specific headers
 #include <sys/stat.h>
+#include <sys/types.h>
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -189,6 +195,7 @@ inline int closeSocket(int sock) {
 #include <tchar.h>
 #include <lm.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 #include <SDL_syswm.h>
 #elif defined(__linux__)
 #include <sys/prctl.h>
@@ -208,6 +215,11 @@ inline int closeSocket(int sock) {
 #include <openssl/bio.h>
 #include <openssl/md5.h>
 #include <openssl/evp.h>
+
+// DBus headers (for MPRIS)
+#ifdef HAVE_DBUS
+#include <dbus/dbus.h>
+#endif
 
 // OpenSSL forward declarations and typedefs
 typedef struct ssl_st SSL;
@@ -241,6 +253,20 @@ typedef struct bio_st BIO;
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
 #include <taglib/tstring.h>
+#include <taglib/tiostream.h>
+
+// FreeType headers
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
+// Additional system headers needed by source files
+#include <getopt.h>
+#ifdef __SSE2__
+#include <emmintrin.h>
+#endif
+
+// cURL library
+#include <curl/curl.h>
 
 // Local project headers (in dependency order where possible)
 #include "debug.h"
@@ -248,18 +274,20 @@ typedef struct bio_st BIO;
 #include "rect.h"
 #include "surface.h"
 #include "display.h"
+#include "font.h"
 #include "truetype.h"
+#include "lyrics.h"
 #include "Widget.h"
 #include "Label.h"
 #include "ButtonWidget.h"
 #include "DrawableWidget.h"
 #include "SpectrumAnalyzerWidget.h"
-#include "MainUIWidget.h"
-#include "ApplicationWidget.h"
+#include "LayoutWidget.h"
 #include "PlayerProgressBarWidget.h"
 #include "ProgressBarFrameWidget.h"
 #include "ProgressBarBracketWidget.h"
-#include "LayoutWidget.h"
+#include "MainUIWidget.h"
+#include "ApplicationWidget.h"
 #include "TitlebarWidget.h"
 #include "WindowFrameWidget.h"
 #include "WindowWidget.h"
@@ -267,6 +295,7 @@ typedef struct bio_st BIO;
 #include "TransparentWindowWidget.h"
 #include "ToastWidget.h"
 #include "ToastNotification.h"
+#include "LyricsWidget.h"
 
 // I/O and utility components (needed by other components)
 #include "utility.h"
@@ -294,6 +323,7 @@ typedef struct bio_st BIO;
 #include "OggCodecs.h"
 #endif
 #include "ISODemuxerErrorRecovery.h"
+#include "MemoryOptimizer.h"
 #include "StreamingManager.h"
 #include "ISODemuxerBoxParser.h"
 #include "ISODemuxerSampleTableManager.h"
@@ -334,6 +364,7 @@ typedef struct bio_st BIO;
 #include "LastFM.h"
 #include "playlist.h"
 #include "player.h"
+#include "mpris.h"
 
 // Portable branch prediction macros
 

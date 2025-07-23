@@ -24,9 +24,7 @@
 #ifndef TITLEBARWIDGET_H
 #define TITLEBARWIDGET_H
 
-#include "Widget.h"
-#include <string>
-#include <functional>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief A window titlebar widget that can be dragged to move its parent window.

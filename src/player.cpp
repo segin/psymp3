@@ -22,8 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "mpris.h"
-#include <getopt.h>
 
 bool Player::guiRunning = false;
 

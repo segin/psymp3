@@ -24,10 +24,7 @@
 #ifndef APPLICATIONWIDGET_H
 #define APPLICATIONWIDGET_H
 
-#include "Widget.h"
-#include "display.h"
-#include <vector>
-#include <memory>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Root widget that covers the entire SDL window and manages all UI elements.

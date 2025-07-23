@@ -24,10 +24,7 @@
 #ifndef PROGRESSBARFRAMEWIDGET_H
 #define PROGRESSBARFRAMEWIDGET_H
 
-#include "LayoutWidget.h"
-#include "DrawableWidget.h"
-#include "PlayerProgressBarWidget.h"
-#include "ProgressBarBracketWidget.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Container widget that demonstrates widget hierarchy by holding frame and progress bar as children.

@@ -22,8 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <getopt.h>
-#include "about.h"
 
 #ifdef HAVE_MP3
 // RAII wrapper for libmpg123 initialization and cleanup.

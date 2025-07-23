@@ -24,7 +24,7 @@
 #ifndef LAYOUTWIDGET_H
 #define LAYOUTWIDGET_H
 
-#include "Widget.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Generic container widget for grouping and laying out child widgets.

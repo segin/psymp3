@@ -24,7 +24,7 @@
 #ifndef WAVSTREAM_H
 #define WAVSTREAM_H
 
-#include "IOHandler.h"
+// No direct includes - all includes should be in psymp3.h
 class WaveStream : public Stream {
 public:
     explicit WaveStream(const TagLib::String& path);

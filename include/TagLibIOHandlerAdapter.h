@@ -24,10 +24,7 @@
 #ifndef TAGLIBIOHANDLERADAPTER_H
 #define TAGLIBIOHANDLERADAPTER_H
 
-#include "IOHandler.h"
-#include <taglib/tiostream.h>
-#include <taglib/tstring.h>
-#include <memory>
+// No direct includes - all includes should be in psymp3.h
 
 // Type compatibility for different TagLib versions
 #ifdef TAGLIB_MAJOR_VERSION

@@ -24,8 +24,7 @@
 #ifndef SPECTRUMANALYZERWIDGET_H
 #define SPECTRUMANALYZERWIDGET_H
 
-#include "DrawableWidget.h"
-#include <vector>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Widget that renders audio spectrum analysis visualization.

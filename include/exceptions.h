@@ -25,7 +25,7 @@
 #ifndef EXCEPTIONS_H
 #define EXCEPTIONS_H
 
-#include <stdexcept> // For std::runtime_error
+// No direct includes - all includes should be in psymp3.h
 
 class SDLException : public std::runtime_error {
 public:

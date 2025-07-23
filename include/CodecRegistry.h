@@ -24,13 +24,7 @@
 #ifndef CODECREGISTRY_H
 #define CODECREGISTRY_H
 
-#include "AudioCodec.h"
-#include <functional>
-#include <map>
-#include <vector>
-#include <string>
-#include <memory>
-#include <stdexcept>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Exception thrown when a codec is not supported

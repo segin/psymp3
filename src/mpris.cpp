@@ -1,9 +1,6 @@
 #ifdef HAVE_DBUS
 
-#include "mpris.h"
-#include "player.h"
-#include "system.h"
-#include <iostream>
+#include "psymp3.h"
 
 MPRIS::MPRIS(Player* player)
     : m_player(player),

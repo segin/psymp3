@@ -10,8 +10,7 @@
 #ifndef ISODEMUXERSTREAMMANAGER_H
 #define ISODEMUXERSTREAMMANAGER_H
 
-#include "Demuxer.h"
-#include <vector>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Stream manager for audio track management

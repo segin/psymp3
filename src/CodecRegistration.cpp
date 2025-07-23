@@ -96,26 +96,26 @@ void registerAllDemuxers() {
     Debug::log("demuxer", "registerAllDemuxers: Starting demuxer registration");
     
     // Always register these demuxers (no conditional compilation)
-    DemuxerRegistry::registerDemuxer("riff", [](std::unique_ptr<IOHandler> handler) {
+    DemuxerRegistry::getInstance().registerDemuxer("riff", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<ChunkDemuxer>(std::move(handler));
-    });
+    }, "RIFF/WAVE", {"wav", "wave"});
     Debug::log("demuxer", "registerAllDemuxers: Registered RIFF demuxer");
     
-    DemuxerRegistry::registerDemuxer("aiff", [](std::unique_ptr<IOHandler> handler) {
+    DemuxerRegistry::getInstance().registerDemuxer("aiff", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<ChunkDemuxer>(std::move(handler));
-    });
+    }, "AIFF", {"aiff", "aif"});
     Debug::log("demuxer", "registerAllDemuxers: Registered AIFF demuxer");
     
-    DemuxerRegistry::registerDemuxer("mp4", [](std::unique_ptr<IOHandler> handler) {
+    DemuxerRegistry::getInstance().registerDemuxer("mp4", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<ISODemuxer>(std::move(handler));
-    });
+    }, "MP4/ISO", {"mp4", "m4a", "mov"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MP4/ISO demuxer");
     
-    DemuxerRegistry::registerDemuxer("raw_audio", [](std::unique_ptr<IOHandler> handler) {
+    DemuxerRegistry::getInstance().registerDemuxer("raw_audio", [](std::unique_ptr<IOHandler> handler) {
         // Note: RawAudioDemuxer needs file path for format detection
         // This factory will need to be enhanced when MediaFactory is updated
         return std::make_unique<RawAudioDemuxer>(std::move(handler), "");
-    });
+    }, "Raw Audio", {"pcm", "raw"});
     Debug::log("demuxer", "registerAllDemuxers: Registered raw audio demuxer");
 
     // FLAC uses legacy Stream architecture - no separate demuxer needed
@@ -148,5 +148,5 @@ void registerAllDemuxers() {
 #endif
 
     Debug::log("demuxer", "registerAllDemuxers: Demuxer registration completed, total demuxers: ", 
-               DemuxerRegistry::getRegisteredDemuxerCount());
+               DemuxerRegistry::getInstance().getSupportedFormats().size());
 }

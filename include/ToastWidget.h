@@ -24,11 +24,7 @@
 #ifndef TOASTWIDGET_H
 #define TOASTWIDGET_H
 
-#include "TransparentWindowWidget.h"
-#include "font.h"
-#include <string>
-#include <functional>
-#include <chrono>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Android-style toast notification widget.

@@ -24,7 +24,7 @@
 #ifndef OGGDEMUXER_H
 #define OGGDEMUXER_H
 
-#include "Demuxer.h"
+// No direct includes - all includes should be in psymp3.h
 
 // OggDemuxer is built if any Ogg-based codec is enabled
 #ifdef HAVE_OGGDEMUXER

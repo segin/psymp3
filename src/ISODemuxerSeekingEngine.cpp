@@ -8,7 +8,6 @@
  */
 
 #include "psymp3.h"
-#include <algorithm>
 
 bool ISODemuxerSeekingEngine::SeekToTimestamp(double timestamp, AudioTrackInfo& track, ISODemuxerSampleTableManager& sampleTables) {
     if (timestamp < 0.0) {

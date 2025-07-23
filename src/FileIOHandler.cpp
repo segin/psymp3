@@ -22,13 +22,6 @@
  */
 
 #include "psymp3.h"
-#ifdef _WIN32
-#include <io.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#else
-#include <sys/stat.h>
-#endif
 
 /**
  * @brief Constructs a FileIOHandler for a given local file path.
@@ -38,7 +31,7 @@
  * @param path The file path to open.
  * @throws InvalidMediaException if the file cannot be opened.
  */
-FileIOHandler::FileIOHandler(const TagLib::String& path) {
+FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
 #ifdef _WIN32
     m_file_handle = _wfopen(path.toCWString(), L"rb");
 #else
@@ -64,7 +57,10 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) {
  * This ensures the underlying file handle is closed by calling the close() method.
  */
 FileIOHandler::~FileIOHandler() {
-    close();
+    if (m_file_handle) {
+        fclose(m_file_handle);
+        m_file_handle = nullptr;
+    }
 }
 
 /**
@@ -100,9 +96,9 @@ int FileIOHandler::seek(long offset, int whence) {
  * This uses 64-bit file operations (ftello) to support large files.
  * @return The current position in bytes, or -1 on error.
  */
-off_t FileIOHandler::tell() {
+long FileIOHandler::tell() const {
     if (!m_file_handle) return -1;
-    off_t pos = ftello(m_file_handle);
+    long pos = ftell(m_file_handle);
     if (pos > 800000) {
         Debug::log("io", "FileIOHandler::tell() - ftello returned pos=", pos, " (hex=0x", std::hex, pos, std::dec, ")");
         
@@ -116,19 +112,7 @@ off_t FileIOHandler::tell() {
     return pos;
 }
 
-/**
- * @brief Closes the file.
- *
- * This is a direct wrapper around the standard C `fclose` function. It ensures
- * the file is only closed once.
- * @return 0 on success, or EOF on failure.
- */
-int FileIOHandler::close() {
-    if (!m_file_handle) return 0; // Already closed, return success
-    int result = fclose(m_file_handle);
-    m_file_handle = nullptr; // Prevent double-closing
-    return result;
-}
+
 
 /**
  * @brief Checks for the end-of-file condition on the file.
@@ -136,12 +120,12 @@ int FileIOHandler::close() {
  * This is a direct wrapper around the standard C `feof` function.
  * @return `true` if the end of the file has been reached, `false` otherwise.
  */
-bool FileIOHandler::eof() {
+bool FileIOHandler::eof() const {
     if (!m_file_handle) return true;
     return feof(m_file_handle) != 0;
 }
 
-off_t FileIOHandler::getFileSize() {
+long FileIOHandler::getSize() const {
     if (!m_file_handle) return -1;
     
     // Use fstat on the file descriptor to get the size
@@ -162,4 +146,7 @@ off_t FileIOHandler::getFileSize() {
     Debug::log("io", "FileIOHandler::getFileSize() - fstat returned size=", file_stat.st_size, " (hex=0x", std::hex, file_stat.st_size, std::dec, ")");
     
     return file_stat.st_size;
+}std
+::unique_ptr<IOHandler> FileIOHandler::duplicate() const {
+    return std::make_unique<FileIOHandler>(m_file_path);
 }

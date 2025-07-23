@@ -24,8 +24,7 @@
 #ifndef TRANSPARENTWINDOWWIDGET_H
 #define TRANSPARENTWINDOWWIDGET_H
 
-#include "DrawableWidget.h"
-#include "ZOrder.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief A transparent floating window without titlebars or borders.

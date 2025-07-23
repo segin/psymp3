@@ -1,5 +1,5 @@
 /*
- * DemuxerFactory.h - Factory for creating appropriate demuxers based on file content
+ * DemuxerFactory.h - Factory for creating demuxers with optimized detection
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,167 +21,96 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef DEMUXERFACTORY_H
-#define DEMUXERFACTORY_H
+#ifndef DEMUXER_FACTORY_H
+#define DEMUXER_FACTORY_H
 
-#include "Demuxer.h"
-#include <memory>
-#include <string>
-#include <vector>
-#include <map>
+// No direct includes - all includes should be in psymp3.h
 
 /**
- * @brief Format signature for magic byte detection
+ * @brief Format signature for efficient detection
  */
 struct FormatSignature {
-    std::string format_id;           // Format identifier (e.g., "riff", "ogg", "mp4")
-    std::vector<uint8_t> signature;  // Magic bytes to match
-    size_t offset;                   // Offset in file where signature should appear
-    int priority;                    // Priority for ambiguous cases (higher = preferred)
-    std::string description;         // Human-readable description
+    std::string format_id;
+    std::vector<uint8_t> signature;
+    size_t offset;
+    int priority;
     
     FormatSignature(const std::string& id, const std::vector<uint8_t>& sig, 
-                   size_t off = 0, int prio = 100, const std::string& desc = "")
-        : format_id(id), signature(sig), offset(off), priority(prio), description(desc) {}
+                   size_t off = 0, int prio = 100)
+        : format_id(id), signature(sig), offset(off), priority(prio) {}
 };
 
 /**
- * @brief Factory for creating appropriate demuxers based on file content
- * 
- * The factory uses multiple detection methods:
- * 1. Magic byte detection - examines file headers for format signatures
- * 2. File extension hints - used for raw audio formats and fallback detection
- * 3. Priority-based matching - handles ambiguous cases where multiple formats match
- * 
- * Supported formats:
- * - RIFF/WAV files (ChunkDemuxer)
- * - AIFF files (ChunkDemuxer) 
- * - Ogg files (OggDemuxer)
- * - MP4/M4A files (ISODemuxer)
- * - FLAC files (FLACDemuxer)
- * - Raw audio files (RawAudioDemuxer)
+ * @brief Factory for creating demuxers with optimized detection
  */
 class DemuxerFactory {
 public:
     /**
-     * @brief Create a demuxer for the given file
-     * @param handler IOHandler for the file (will be moved to the demuxer)
-     * @return Unique pointer to appropriate demuxer, or nullptr if format not supported
+     * @brief Create a demuxer for the given I/O handler
+     * @param handler I/O handler for media source
+     * @return Unique pointer to appropriate demuxer
      */
     static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler);
     
     /**
-     * @brief Create a demuxer for the given file with path hint
-     * @param handler IOHandler for the file (will be moved to the demuxer)
-     * @param file_path Original file path (for extension-based raw format detection)
-     * @return Unique pointer to appropriate demuxer, or nullptr if format not supported
+     * @brief Create a demuxer with file path hint
+     * @param handler I/O handler for media source
+     * @param file_path Path hint for format detection
+     * @return Unique pointer to appropriate demuxer
      */
     static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler, 
-                                                  const std::string& file_path);
+                                                 const std::string& file_path);
     
     /**
-     * @brief Probe file format by examining magic bytes and content
-     * @param handler IOHandler to examine (position will be restored)
-     * @return Format identifier string, or empty string if unknown
+     * @brief Probe format of the given I/O handler
+     * @param handler I/O handler for media source
+     * @return Format ID string, or empty if unknown
      */
     static std::string probeFormat(IOHandler* handler);
     
     /**
-     * @brief Probe file format with file path hint for better detection
-     * @param handler IOHandler to examine (position will be restored)
-     * @param file_path Original file path for extension-based hints
-     * @return Format identifier string, or empty string if unknown
+     * @brief Probe format with file path hint
+     * @param handler I/O handler for media source
+     * @param file_path Path hint for format detection
+     * @return Format ID string, or empty if unknown
      */
     static std::string probeFormat(IOHandler* handler, const std::string& file_path);
     
     /**
-     * @brief Get all supported format signatures
-     * @return Vector of format signatures used for detection
+     * @brief Register a demuxer factory function
+     * @param format_id Format ID string
+     * @param factory_func Function that creates demuxer instances
      */
-    static std::vector<FormatSignature> getSupportedFormats();
+    using DemuxerFactoryFunc = std::function<std::unique_ptr<Demuxer>(std::unique_ptr<IOHandler>)>;
+    static void registerDemuxer(const std::string& format_id, DemuxerFactoryFunc factory_func);
     
     /**
-     * @brief Check if a format is supported by the factory
-     * @param format_id Format identifier to check
-     * @return true if format is supported
+     * @brief Register a format signature
+     * @param signature Format signature information
      */
-    static bool isFormatSupported(const std::string& format_id);
+    static void registerSignature(const FormatSignature& signature);
     
     /**
-     * @brief Get format description
-     * @param format_id Format identifier
-     * @return Human-readable description of the format
+     * @brief Get all registered format signatures
+     * @return Vector of format signatures
      */
-    static std::string getFormatDescription(const std::string& format_id);
+    static const std::vector<FormatSignature>& getSignatures();
     
 private:
-    /**
-     * @brief Format signature database with priority-based matching
-     */
-    static const std::vector<FormatSignature> s_format_signatures;
+    static std::map<std::string, DemuxerFactoryFunc> s_demuxer_factories;
+    static std::vector<FormatSignature> s_signatures;
+    static std::map<std::string, std::string> s_extension_to_format;
     
-    /**
-     * @brief Detect format using magic byte signatures
-     * @param handler IOHandler to examine
-     * @param buffer Buffer containing file header data
-     * @param buffer_size Size of buffer data
-     * @return Format identifier or empty string
-     */
-    static std::string detectByMagicBytes(IOHandler* handler, const uint8_t* buffer, size_t buffer_size);
+    // Fast signature matching
+    static bool matchSignature(const uint8_t* data, size_t data_size, 
+                              const FormatSignature& signature);
     
-    /**
-     * @brief Detect format using file extension hints
-     * @param file_path File path to examine
-     * @return Format identifier or empty string
-     */
-    static std::string detectByExtension(const std::string& file_path);
+    // Extension-based detection
+    static std::string detectFormatFromExtension(const std::string& file_path);
     
-    /**
-     * @brief Check if signature matches at given offset
-     * @param buffer Buffer to check
-     * @param buffer_size Size of buffer
-     * @param signature Signature to match
-     * @param offset Offset in buffer to check
-     * @return true if signature matches
-     */
-    static bool matchesSignature(const uint8_t* buffer, size_t buffer_size,
-                                const std::vector<uint8_t>& signature, size_t offset);
-    
-    /**
-     * @brief Handle ambiguous format detection cases
-     * @param candidates Vector of matching format IDs with priorities
-     * @param file_path Optional file path for additional hints
-     * @return Best format ID or empty string
-     */
-    static std::string resolveAmbiguousFormat(const std::vector<std::pair<std::string, int>>& candidates,
-                                            const std::string& file_path = "");
-    
-    /**
-     * @brief Create demuxer instance for detected format
-     * @param format_id Format identifier
-     * @param handler IOHandler (will be moved to demuxer)
-     * @param file_path Optional file path for format-specific configuration
-     * @return Demuxer instance or nullptr
-     */
-    static std::unique_ptr<Demuxer> createDemuxerForFormat(const std::string& format_id,
-                                                          std::unique_ptr<IOHandler> handler,
-                                                          const std::string& file_path = "");
-    
-    /**
-     * @brief Validate IOHandler before format detection
-     * @param handler IOHandler to validate
-     * @return true if handler is valid and ready for use
-     */
-    static bool validateIOHandler(IOHandler* handler);
-    
-    /**
-     * @brief Read file header for format detection
-     * @param handler IOHandler to read from
-     * @param buffer Buffer to fill with header data
-     * @param buffer_size Size of buffer
-     * @return Number of bytes actually read
-     */
-    static size_t readFileHeader(IOHandler* handler, uint8_t* buffer, size_t buffer_size);
+    // Initialize built-in formats
+    static void initializeBuiltInFormats();
+    static bool s_initialized;
 };
 
-#endif // DEMUXERFACTORY_H
+#endif // DEMUXER_FACTORY_H

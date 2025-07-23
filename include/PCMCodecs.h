@@ -24,7 +24,7 @@
 #ifndef PCMCODECS_H
 #define PCMCODECS_H
 
-#include "AudioCodec.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Linear PCM codec (8-bit, 16-bit, 24-bit, 32-bit integer and float)

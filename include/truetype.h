@@ -1,8 +1,7 @@
 #ifndef TRUETYPE_H
 #define TRUETYPE_H
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
+// No direct includes - all includes should be in psymp3.h
 
 class TrueType {
 public:

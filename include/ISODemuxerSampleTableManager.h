@@ -10,10 +10,7 @@
 #ifndef ISODEMUXERSAMPLETABLEMANAGER_H
 #define ISODEMUXERSAMPLETABLEMANAGER_H
 
-#include "Demuxer.h"
-#include <memory>
-#include <vector>
-#include <variant>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Sample table manager for efficient sample lookups with performance optimizations

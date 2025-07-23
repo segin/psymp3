@@ -24,7 +24,7 @@
 #ifndef DRAWABLEWIDGET_H
 #define DRAWABLEWIDGET_H
 
-#include "Widget.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Base class for widgets that need to perform custom drawing operations.

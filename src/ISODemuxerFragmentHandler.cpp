@@ -8,9 +8,6 @@
  */
 
 #include "psymp3.h"
-#include <algorithm>
-#include <stdexcept>
-#include <cstring>
 
 // FragmentHandler implementation
 

@@ -22,9 +22,6 @@
  */
 
 #include "psymp3.h"
-#ifdef __SSE2__
-#include <emmintrin.h>
-#endif
 
 /**
  * @brief Constructs an Audio object.

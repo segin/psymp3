@@ -24,12 +24,7 @@
 #ifndef DEMUXEDSTREAM_H
 #define DEMUXEDSTREAM_H
 
-#include "stream.h"
-#include "Demuxer.h"
-#include "AudioCodec.h"
-#include <memory>
-#include <queue>
-#include <cstring>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Stream implementation that uses the new demuxer/codec architecture
@@ -103,10 +98,15 @@ private:
     std::unique_ptr<AudioCodec> m_codec;
     uint32_t m_current_stream_id = 0;
     
-    // Bitstream chunk buffering (VLC-style)
+    // Bounded buffer management for memory efficiency
     std::queue<MediaChunk> m_chunk_buffer;
     AudioFrame m_current_frame;
     size_t m_current_frame_offset = 0;  // Byte offset within current frame
+    
+    // Buffer limits to prevent memory exhaustion
+    static constexpr size_t MAX_CHUNK_BUFFER_SIZE = 8;      // Max chunks in buffer
+    static constexpr size_t MAX_CHUNK_BUFFER_BYTES = 256 * 1024; // Max 256KB total
+    size_t m_current_buffer_bytes = 0;                      // Current buffer memory usage
     
     // Position tracking based on audio consumption, not packet timestamps
     uint64_t m_samples_consumed = 0;

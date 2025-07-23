@@ -1,5 +1,5 @@
 /*
- * IOHandler.cpp - Implementation for the I/O handler base class.
+ * IOHandler.cpp - Base I/O handler interface implementation
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -23,96 +23,136 @@
 
 #include "psymp3.h"
 
-// Default implementations for the IOHandler base class.
-// These can be overridden by concrete subclasses.
+// IOHandler base class implementation
 
-/**
- * @brief Destroys the IOHandler object.
- *
- * As a base class, this destructor is virtual to ensure that derived class
- * destructors are called correctly.
- */
-IOHandler::~IOHandler() = default;
+IOHandler::~IOHandler() {
+    // Virtual destructor for proper polymorphic cleanup
+    // Derived classes should override this to clean up their specific resources
+}
 
-/**
- * @brief Reads data from the I/O source.
- *
- * The default implementation does nothing and indicates that zero bytes were read.
- * Derived classes should override this to provide actual read functionality.
- * @param buffer A pointer to the buffer to store the read data.
- * @param size The size of each element to be read.
- * @param count The number of elements to read.
- * @return The number of elements successfully read.
- */
-size_t IOHandler::read(void* buffer, size_t size, size_t count)
-{
-    // Default behavior: read nothing.
+size_t IOHandler::read(void* buffer, size_t size, size_t count) {
+    // Default implementation returns 0 (no data read) for non-functional state
+    // This follows fread-like semantics where 0 indicates EOF or error
+    
+    // Reset error state
+    m_error = 0;
+    
+    if (m_closed) {
+        m_error = EBADF;  // Bad file descriptor
+        return 0;
+    }
+    
+    if (!buffer) {
+        m_error = EINVAL; // Invalid argument
+        return 0;
+    }
+    
+    if (size == 0 || count == 0) {
+        // Not an error, just nothing to do
+        return 0;
+    }
+    
+    if (m_eof) {
+        // Already at EOF, not an error
+        return 0;
+    }
+    
+    // Mark as EOF since we can't actually read anything in the base implementation
+    m_eof = true;
     return 0;
 }
 
-/**
- * @brief Seeks to a new position in the I/O source.
- *
- * The default implementation indicates that the stream is not seekable.
- * Derived classes should override this for seekable sources.
- * @param offset The offset from the position specified by `whence`.
- * @param whence The reference position (e.g., SEEK_SET, SEEK_CUR, SEEK_END).
- * @return 0 on success, or a non-zero value on failure.
- */
-int IOHandler::seek(long offset, int whence)
-{
-    // Default behavior: indicate an error (not seekable).
-    return -1;
-}
-
-/**
- * @brief Gets the current position in the I/O source.
- *
- * The default implementation indicates an error.
- * Derived classes should override this for seekable sources.
- * @return The current position in bytes, or -1 on error.
- */
-off_t IOHandler::tell()
-{
-    // Default behavior: indicate an error.
-    return -1;
-}
-
-/**
- * @brief Closes the I/O source.
- *
- * The default implementation does nothing. Derived classes should override this
- * to release any underlying resources (e.g., file handles, network sockets).
- * @return 0 on success, or EOF on failure.
- */
-int IOHandler::close()
-{
-    // Default behavior: do nothing, return success.
+int IOHandler::seek(long offset, int whence) {
+    // Default implementation returns -1 (failure) for non-functional state
+    // Support SEEK_SET, SEEK_CUR, SEEK_END positioning modes
+    
+    // Reset error state
+    m_error = 0;
+    
+    if (m_closed) {
+        m_error = EBADF;  // Bad file descriptor
+        return -1;
+    }
+    
+    // Calculate new position based on whence
+    off_t new_position = m_position;
+    switch (whence) {
+        case SEEK_SET:
+            new_position = offset;
+            break;
+        case SEEK_CUR:
+            new_position += offset;
+            break;
+        case SEEK_END:
+            // Can't determine end position in base class
+            m_error = EINVAL;  // Invalid argument
+            return -1;
+        default:
+            // Invalid whence parameter
+            m_error = EINVAL;  // Invalid argument
+            return -1;
+    }
+    
+    // Validate new position
+    if (new_position < 0) {
+        m_error = EINVAL;  // Invalid argument
+        return -1;
+    }
+    
+    // Update position
+    m_position = new_position;
+    
+    // Clear EOF if we've moved away from the end
+    m_eof = false;
+    
     return 0;
 }
 
-/**
- * @brief Checks for the end-of-file condition on the I/O source.
- *
- * The default implementation always returns true, indicating the end has been reached.
- * Derived classes should override this to provide an accurate EOF check.
- * @return `true` if the end of the source has been reached, `false` otherwise.
- */
-bool IOHandler::eof()
-{
-    // Default behavior: always at end of file.
-    return true;
+off_t IOHandler::tell() {
+    // Return current byte offset with off_t for large file support
+    // Return -1 on failure (e.g., if closed)
+    
+    // Reset error state
+    m_error = 0;
+    
+    if (m_closed) {
+        m_error = EBADF;  // Bad file descriptor
+        return -1;
+    }
+    
+    return m_position;
 }
 
-/**
- * @brief Gets the file size from the I/O source.
- *
- * The default implementation returns -1 to indicate unknown size.
- * Derived classes should override this for sources with known sizes.
- * @return The file size in bytes, or -1 if unknown.
- */
-off_t IOHandler::getFileSize()
-{
-    // Default behavior: unknown size.
+int IOHandler::close() {
+    // Resource cleanup with standard return codes
+    // 0 on success, non-zero on failure
+    
+    // Reset error state
+    m_error = 0;
+    
+    if (m_closed) {
+        // Already closed, not an error
+        return 0;
+    }
+    
+    m_closed = true;
+    m_eof = true;
+    return 0;
+}
+
+bool IOHandler::eof() {
+    // Return boolean end-of-stream condition
+    // True if at end of stream or closed, false otherwise
+    return m_closed || m_eof;
+}
+
+off_t IOHandler::getFileSize() {
+    // Return total size in bytes or -1 if unknown
+    // Base implementation doesn't know the size, so return -1
     return -1;
+}
+
+int IOHandler::getLastError() const {
+    // Return the last error code (0 = no error)
+    return m_error;
 }

@@ -10,10 +10,7 @@
 #ifndef ISODEMUXERMETADATAEXTRACTOR_H
 #define ISODEMUXERMETADATAEXTRACTOR_H
 
-#include "Demuxer.h"
-#include <memory>
-#include <map>
-#include <string>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Metadata extractor for iTunes/ISO metadata parsing

@@ -1,5 +1,5 @@
 /*
- * IOHandler.h - Abstract base class for generic I/O operations.
+ * IOHandler.h - Abstract I/O handler interface
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -24,19 +24,77 @@
 #ifndef IOHANDLER_H
 #define IOHANDLER_H
 
-#include <cstddef>
-#include <unistd.h>
+// No direct includes - all includes should be in psymp3.h
 
-class IOHandler
-{
+/**
+ * @brief Base IOHandler interface for unified I/O operations
+ * 
+ * This class provides a consistent interface for reading media data
+ * from various sources including local files, HTTP streams, and other protocols.
+ * All concrete implementations must provide virtual destructor for proper cleanup.
+ */
+class IOHandler {
 public:
+    /**
+     * @brief Virtual destructor for proper polymorphic cleanup
+     */
     virtual ~IOHandler();
+    
+    /**
+     * @brief Read data from the source with fread-like semantics
+     * @param buffer Buffer to read data into
+     * @param size Size of each element to read
+     * @param count Number of elements to read
+     * @return Number of elements successfully read
+     */
     virtual size_t read(void* buffer, size_t size, size_t count);
+    
+    /**
+     * @brief Seek to a position in the source
+     * @param offset Offset to seek to
+     * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
+     * @return 0 on success, -1 on failure
+     */
     virtual int seek(long offset, int whence);
+    
+    /**
+     * @brief Get current byte offset position
+     * @param return Current position as off_t for large file support, -1 on failure
+     */
     virtual off_t tell();
+    
+    /**
+     * @brief Close the I/O source and cleanup resources
+     * @return 0 on success, standard error codes on failure
+     */
     virtual int close();
+    
+    /**
+     * @brief Check if at end-of-stream condition
+     * @return true if at end of stream, false otherwise
+     */
     virtual bool eof();
+    
+    /**
+     * @brief Get total size of the source in bytes
+     * @return Size in bytes, or -1 if unknown
+     */
     virtual off_t getFileSize();
+    
+    /**
+     * @brief Get the last error code
+     * @return Error code (0 = no error)
+     */
+    virtual int getLastError() const;
+
+protected:
+    /**
+     * @brief Common state tracking for derived classes
+     */
+    bool m_closed = false;   // Indicates if the handler is closed
+    bool m_eof = false;      // Indicates end-of-stream condition
+    off_t m_position = 0;    // Current byte offset position
+    int m_error = 0;         // Last error code (0 = no error)
 };
 
 #endif // IOHANDLER_H

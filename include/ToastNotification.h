@@ -24,9 +24,7 @@
 #ifndef TOASTNOTIFICATION_H
 #define TOASTNOTIFICATION_H
 
-#include "font.h"
-
-#include "font.h"
+// No direct includes - all includes should be in psymp3.h
 
 class ToastNotification : public Widget
 {

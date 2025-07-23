@@ -24,15 +24,43 @@
 #ifndef AUDIOCODEC_H
 #define AUDIOCODEC_H
 
-#include "Demuxer.h"
-#include <memory>
-#include <vector>
-#include <functional>
-#include <map>
-#include <string>
+// No direct includes - all includes should be in psymp3.h
 
 /**
- * @brief Decoded audio frame
+ * @brief Memory pool for audio frame sample buffers
+ */
+class AudioBufferPool {
+public:
+    static AudioBufferPool& getInstance();
+    
+    /**
+     * @brief Get a sample buffer of at least the specified size
+     * @param min_samples Minimum required sample count
+     * @return Reusable sample buffer
+     */
+    std::vector<int16_t> getSampleBuffer(size_t min_samples);
+    
+    /**
+     * @brief Return a sample buffer to the pool for reuse
+     * @param buffer Buffer to return (will be moved)
+     */
+    void returnSampleBuffer(std::vector<int16_t>&& buffer);
+    
+    /**
+     * @brief Clear all pooled buffers
+     */
+    void clear();
+    
+private:
+    AudioBufferPool() = default;
+    mutable std::mutex m_mutex;
+    std::vector<std::vector<int16_t>> m_sample_buffers;
+    static constexpr size_t MAX_POOLED_BUFFERS = 16;
+    static constexpr size_t MAX_SAMPLES_PER_BUFFER = 192000; // ~4 seconds at 48kHz
+};
+
+/**
+ * @brief Decoded audio frame with optimized memory management
  */
 struct AudioFrame {
     std::vector<int16_t> samples;    // Decoded PCM samples (16-bit signed)
@@ -40,6 +68,31 @@ struct AudioFrame {
     uint16_t channels;               // Number of channels
     uint64_t timestamp_samples;      // Timestamp in sample units
     uint64_t timestamp_ms;           // Timestamp in milliseconds
+    
+    // Constructors
+    AudioFrame() = default;
+    
+    // Optimized constructor using buffer pool
+    AudioFrame(size_t sample_count, uint32_t rate, uint16_t ch)
+        : samples(AudioBufferPool::getInstance().getSampleBuffer(sample_count))
+        , sample_rate(rate), channels(ch) {
+        samples.resize(sample_count);
+    }
+    
+    // Move constructor and assignment
+    AudioFrame(AudioFrame&&) = default;
+    AudioFrame& operator=(AudioFrame&&) = default;
+    
+    // Copy constructor and assignment
+    AudioFrame(const AudioFrame&) = default;
+    AudioFrame& operator=(const AudioFrame&) = default;
+    
+    // Destructor that returns buffer to pool
+    ~AudioFrame() {
+        if (!samples.empty() && samples.capacity() >= 4096) { // Only pool reasonably sized buffers
+            AudioBufferPool::getInstance().returnSampleBuffer(std::move(samples));
+        }
+    }
     
     /**
      * @brief Get the number of bytes in this frame
@@ -61,6 +114,26 @@ struct AudioFrame {
     uint64_t getDurationMs() const {
         if (sample_rate == 0 || channels == 0) return 0;
         return (getSampleFrameCount() * 1000ULL) / sample_rate;
+    }
+    
+    /**
+     * @brief Reserve space for samples (using pool if beneficial)
+     */
+    void reserveSamples(size_t sample_count) {
+        if (samples.empty() && sample_count >= 4096) {
+            samples = AudioBufferPool::getInstance().getSampleBuffer(sample_count);
+        }
+        samples.reserve(sample_count);
+    }
+    
+    /**
+     * @brief Clear samples and potentially return buffer to pool
+     */
+    void clear() {
+        if (!samples.empty() && samples.capacity() >= 4096) {
+            AudioBufferPool::getInstance().returnSampleBuffer(std::move(samples));
+        }
+        samples.clear();
     }
 };
 

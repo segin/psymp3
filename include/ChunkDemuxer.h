@@ -24,8 +24,7 @@
 #ifndef CHUNKDEMUXER_H
 #define CHUNKDEMUXER_H
 
-#include "Demuxer.h"
-#include <map>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Universal chunk header for IFF/AIFF/RIFF formats

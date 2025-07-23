@@ -8,10 +8,6 @@
  */
 
 #include "psymp3.h"
-#include "debug.h"
-#include <chrono>
-#include <iomanip>
-#include <iostream>
 
 // Initialize static members
 std::ofstream Debug::m_logfile;

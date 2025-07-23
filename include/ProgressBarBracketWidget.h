@@ -24,7 +24,7 @@
 #ifndef PROGRESSBARBRACKETWIDGET_H
 #define PROGRESSBARBRACKETWIDGET_H
 
-#include "DrawableWidget.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Left bracket frame for progress bar.

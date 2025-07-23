@@ -24,11 +24,7 @@
 #ifndef PLAYER_H
 #define PLAYER_H
 
-#include "font.h"
-#include "LyricsWidget.h"
-#include <optional>
-
-#include "font.h"
+// No direct includes - all includes should be in psymp3.h
 
 class MPRIS;
 

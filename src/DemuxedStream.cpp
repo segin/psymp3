@@ -193,12 +193,16 @@ AudioFrame DemuxedStream::getNextFrame() {
     // If we have chunks, decode one on-demand
     if (!m_chunk_buffer.empty()) {
         MediaChunk chunk = std::move(m_chunk_buffer.front());
+        size_t chunk_size = chunk.data.size();
         m_chunk_buffer.pop();
+        
+        // Update memory tracking
+        m_current_buffer_bytes -= chunk_size;
         
         // Special handling for Opus: if codec is initialized, and we get a header chunk,
         // it means it's a redundant header from seeking or re-initialization. Skip it.
         if (m_codec && m_codec->getCodecName() == "opus" && m_codec->isInitialized() && chunk.is_keyframe) {
-            Debug::log("demux", "DemuxedStream: Skipping redundant Opus header chunk (size=", chunk.data.size(), ")");
+            Debug::log("demux", "DemuxedStream: Skipping redundant Opus header chunk (size=", chunk_size, ")");
             return AudioFrame{}; // Return empty frame, effectively discarding this chunk
         }
         
@@ -216,7 +220,7 @@ AudioFrame DemuxedStream::getNextFrame() {
             Debug::log("demux", "DemuxedStream: On-demand decoded frame with ", frame.samples.size(), " samples. Timestamp: ", frame.timestamp_ms, "ms");
             return frame;
         } else {
-            Debug::log("demux", "DemuxedStream: Codec returned empty frame for chunk size=", chunk.data.size());
+            Debug::log("demux", "DemuxedStream: Codec returned empty frame for chunk size=", chunk_size);
         }
     } else {
         Debug::log("demux", "DemuxedStream: No chunks available in buffer");
@@ -237,10 +241,31 @@ AudioFrame DemuxedStream::getNextFrame() {
 }
 
 void DemuxedStream::fillChunkBuffer() {
-    // Keep it simple: Buffer only a few chunks at a time
-    constexpr size_t MAX_BUFFER_CHUNKS = 5; // Keep buffer very small
+    // Use BoundedQueue for efficient memory management
+    static BoundedQueue<MediaChunk> bounded_buffer(
+        MAX_CHUNK_BUFFER_SIZE, 
+        MAX_CHUNK_BUFFER_BYTES,
+        [](const MediaChunk& chunk) -> size_t {
+            return sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t);
+        }
+    );
     
-    while (m_chunk_buffer.size() < MAX_BUFFER_CHUNKS && !m_demuxer->isEOF()) {
+    // Check if we need to update memory pressure
+    int memory_pressure = MemoryTracker::getInstance().getMemoryPressureLevel();
+    if (memory_pressure > 70) {
+        // Under high memory pressure, reduce buffer size
+        size_t adjusted_max_chunks = MAX_CHUNK_BUFFER_SIZE / 2;
+        size_t adjusted_max_bytes = MAX_CHUNK_BUFFER_BYTES / 2;
+        bounded_buffer.setMaxItems(adjusted_max_chunks);
+        bounded_buffer.setMaxMemoryBytes(adjusted_max_bytes);
+    } else {
+        // Normal memory pressure, use default sizes
+        bounded_buffer.setMaxItems(MAX_CHUNK_BUFFER_SIZE);
+        bounded_buffer.setMaxMemoryBytes(MAX_CHUNK_BUFFER_BYTES);
+    }
+    
+    // Fill buffer until full or EOF
+    while (!m_demuxer->isEOF()) {
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
         
         if (chunk.data.empty()) {
@@ -248,9 +273,24 @@ void DemuxedStream::fillChunkBuffer() {
             break; // No more data
         }
         
-        Debug::log("demux", "DemuxedStream: Buffering chunk size=", chunk.data.size(), " bytes (buffer size=", m_chunk_buffer.size() + 1, ")");
+        // Try to add chunk to bounded buffer
+        if (!bounded_buffer.tryPush(std::move(chunk))) {
+            Debug::log("demux", "DemuxedStream: Bounded buffer full, stopping chunk buffering");
+            break;
+        }
         
-        // Buffer the compressed chunk - no decoding yet!
+        // Get buffer stats for logging
+        auto stats = bounded_buffer.getStats();
+        Debug::log("demux", "DemuxedStream: Buffer stats - items: ", stats.current_items,
+                  ", bytes: ", stats.current_memory_bytes,
+                  ", fullness: ", stats.fullness_ratio * 100, "%");
+    }
+    
+    // Transfer chunks from bounded buffer to our queue
+    MediaChunk chunk;
+    while (bounded_buffer.tryPop(chunk)) {
+        size_t chunk_size = chunk.data.size();
+        m_current_buffer_bytes += chunk_size;
         m_chunk_buffer.push(std::move(chunk));
     }
 }
@@ -280,6 +320,7 @@ void DemuxedStream::seekTo(unsigned long pos) {
     while (!m_chunk_buffer.empty()) {
         m_chunk_buffer.pop();
     }
+    m_current_buffer_bytes = 0; // Reset memory tracking
     m_current_frame = AudioFrame{};
     m_current_frame_offset = 0;
     
@@ -342,6 +383,7 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
     while (!m_chunk_buffer.empty()) {
         m_chunk_buffer.pop();
     }
+    m_current_buffer_bytes = 0; // Reset memory tracking
     m_current_frame = AudioFrame{};
     m_current_frame_offset = 0;
     

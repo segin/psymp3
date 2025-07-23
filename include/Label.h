@@ -24,7 +24,7 @@
 #ifndef LABEL_H
 #define LABEL_H
 
-#include "font.h"
+// No direct includes - all includes should be in psymp3.h
 
 class Label : public Widget
 {

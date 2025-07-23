@@ -20,7 +20,7 @@ HTTPIOHandler::HTTPIOHandler(const std::string& url, long content_length)
 }
 
 HTTPIOHandler::~HTTPIOHandler() {
-    close();
+    // Cleanup is handled automatically by member destructors
 }
 
 void HTTPIOHandler::initialize() {
@@ -147,22 +147,17 @@ int HTTPIOHandler::seek(long offset, int whence) {
     return 0;
 }
 
-off_t HTTPIOHandler::tell() {
+long HTTPIOHandler::tell() const {
     return m_current_position;
 }
 
-int HTTPIOHandler::close() {
-    m_buffer.clear();
-    m_buffer_offset = 0;
-    m_buffer_start_position = 0;
-    return 0;
-}
 
-bool HTTPIOHandler::eof() {
+
+bool HTTPIOHandler::eof() const {
     return m_eof;
 }
 
-off_t HTTPIOHandler::getFileSize() {
+long HTTPIOHandler::getSize() const {
     return m_content_length;
 }
 
@@ -235,4 +230,8 @@ bool HTTPIOHandler::isPositionBuffered(long position) const {
     
     long buffer_end = m_buffer_start_position + static_cast<long>(m_buffer.size());
     return position >= m_buffer_start_position && position < buffer_end;
+}
+
+std::unique_ptr<IOHandler> HTTPIOHandler::duplicate() const {
+    return std::make_unique<HTTPIOHandler>(m_url);
 }

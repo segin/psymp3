@@ -24,7 +24,7 @@
 #ifndef FLAC_H
 #define FLAC_H
 
-#include "IOHandler.h"
+// No direct includes - all includes should be in psymp3.h
 
 #ifdef HAVE_FLAC
 

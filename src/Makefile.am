@@ -67,7 +67,7 @@ psymp3_SOURCES = psymp3.final.cpp
 else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
- about.cpp ApplicationWidget.cpp audio.cpp AudioCodec.cpp ButtonWidget.cpp \
+ about.cpp ApplicationWidget.cpp audio.cpp AudioCodec.cpp BufferPool.cpp ButtonWidget.cpp \
  ChainedStream.cpp ChunkDemuxer.cpp CodecRegistration.cpp CodecRegistry.cpp debug.cpp \
  DemuxedStream.cpp Demuxer.cpp DemuxerFactory.cpp DemuxerRegistry.cpp display.cpp \
  DrawableWidget.cpp exceptions.cpp FadingWidget.cpp fft.cpp fft_draw.cpp \
@@ -75,7 +75,7 @@ psymp3_SOURCES = \
  ISODemuxer.cpp ISODemuxerBoxParser.cpp ISODemuxerErrorRecovery.cpp ISODemuxerFragmentHandler.cpp \
  ISODemuxerMetadataExtractor.cpp ISODemuxerSampleTableManager.cpp ISODemuxerSeekingEngine.cpp ISODemuxerStreamManager.cpp \
  Label.cpp LastFM.cpp LayoutWidget.cpp lyrics.cpp LyricsWidget.cpp \
- main.cpp MainUIWidget.cpp MediaFactory.cpp mediafile.cpp ModernStream.cpp \
+ main.cpp MainUIWidget.cpp MediaFactory.cpp mediafile.cpp MemoryOptimizer.cpp ModernStream.cpp \
  PCMCodecs.cpp persistentstorage.cpp player.cpp PlayerProgressBarWidget.cpp playlist.cpp \
  ProgressBarBracketWidget.cpp ProgressBarFrameWidget.cpp RawAudioDemuxer.cpp rect.cpp scrobble.cpp \
  song.cpp SpectrumAnalyzerWidget.cpp stream.cpp StreamingManager.cpp surface.cpp \

@@ -24,9 +24,7 @@
 #ifndef LYRICSWIDGET_H
 #define LYRICSWIDGET_H
 
-#include <memory>
-#include <vector>
-#include <string>
+// No direct includes - all includes should be in psymp3.h
 
 // Forward declarations to avoid circular includes
 class Widget;

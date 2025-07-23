@@ -24,7 +24,7 @@
 #ifndef LASTFM_H
 #define LASTFM_H
 
-#include "scrobble.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Last.fm audioscrobbler client using the legacy 1.2 submissions API

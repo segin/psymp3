@@ -10,12 +10,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#include <string>
-#include <fstream>
-#include <mutex>
-#include <sstream>
-#include <vector>
-#include <unordered_set>
+// No direct includes - all includes should be in psymp3.h
 
 class Debug {
 public:

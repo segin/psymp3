@@ -22,7 +22,6 @@
  */
 
 #include "psymp3.h"
-#include <algorithm>
 
 // Static instance for singleton
 std::unique_ptr<ApplicationWidget> ApplicationWidget::s_instance = nullptr;

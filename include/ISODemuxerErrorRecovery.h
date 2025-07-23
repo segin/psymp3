@@ -24,11 +24,7 @@
 #ifndef ISO_DEMUXER_ERROR_RECOVERY_H
 #define ISO_DEMUXER_ERROR_RECOVERY_H
 
-#include <memory>
-#include <vector>
-#include <string>
-#include <map>
-#include <functional>
+// No direct includes - all includes should be in psymp3.h
 
 // Forward declarations
 class IOHandler;

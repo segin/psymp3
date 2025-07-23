@@ -10,9 +10,7 @@
 #ifndef ISODEMUXERFRAGMENTHANDLER_H
 #define ISODEMUXERFRAGMENTHANDLER_H
 
-#include "Demuxer.h"
-#include <memory>
-#include <vector>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Track fragment information structure

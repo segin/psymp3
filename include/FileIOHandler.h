@@ -24,8 +24,7 @@
 #ifndef FILEIOHANDLER_H
 #define FILEIOHANDLER_H
 
-#include "IOHandler.h"
-#include <cstdio> // For FILE
+// No direct includes - all includes should be in psymp3.h
 
 class FileIOHandler : public IOHandler {
 public:
@@ -34,13 +33,14 @@ public:
 
     size_t read(void* buffer, size_t size, size_t count) override;
     int seek(long offset, int whence) override;
-    off_t tell() override;
-    int close() override;
-    bool eof() override;
-    off_t getFileSize() override;
+    long tell() const override;
+    bool eof() const override;
+    long getSize() const override;
+    std::unique_ptr<IOHandler> duplicate() const override;
 
 private:
     FILE* m_file_handle;
+    TagLib::String m_file_path;
 };
 
 #endif // FILEIOHANDLER_H

@@ -10,10 +10,7 @@
 #ifndef ISODEMUXERBOXPARSER_H
 #define ISODEMUXERBOXPARSER_H
 
-#include "Demuxer.h"
-#include <memory>
-#include <stack>
-#include <functional>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief ISO box header structure

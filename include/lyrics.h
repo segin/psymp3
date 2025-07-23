@@ -24,10 +24,7 @@
 #ifndef LYRICS_H
 #define LYRICS_H
 
-#include <vector>
-#include <string>
-#include <memory>
-#include "IOHandler.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Represents a single line of lyrics with optional timing information.

@@ -24,7 +24,7 @@
 #ifndef OGGCODECS_H
 #define OGGCODECS_H
 
-#include "AudioCodec.h"
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Vorbis passthrough codec

@@ -24,7 +24,7 @@
 #ifndef LIBMPG123_H
 #define LIBMPG123_H
 
-#include "IOHandler.h"
+// No direct includes - all includes should be in psymp3.h
 
 #ifdef HAVE_MP3
 

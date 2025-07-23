@@ -24,15 +24,7 @@
 #ifndef DEMUXER_H
 #define DEMUXER_H
 
-#include "IOHandler.h"
-#include <cstdint>
-#include <string>
-#include <vector>
-#include <memory>
-#include <map>
-#include <stdexcept>
-#include <cstddef>
-#include <unistd.h>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Information about a media stream within a container
@@ -106,7 +98,50 @@ struct StreamInfo {
 };
 
 /**
- * @brief A chunk of media data with metadata
+ * @brief Memory pool for efficient buffer reuse
+ */
+class BufferPool {
+public:
+    static BufferPool& getInstance();
+    
+    /**
+     * @brief Get a buffer of at least the specified size
+     * @param min_size Minimum required size
+     * @return Reusable buffer vector
+     */
+    std::vector<uint8_t> getBuffer(size_t min_size);
+    
+    /**
+     * @brief Return a buffer to the pool for reuse
+     * @param buffer Buffer to return (will be moved)
+     */
+    void returnBuffer(std::vector<uint8_t>&& buffer);
+    
+    /**
+     * @brief Clear all pooled buffers (for memory cleanup)
+     */
+    void clear();
+    
+    /**
+     * @brief Get current pool statistics
+     */
+    struct PoolStats {
+        size_t total_buffers;
+        size_t total_memory_bytes;
+        size_t largest_buffer_size;
+    };
+    PoolStats getStats() const;
+    
+private:
+    BufferPool() = default;
+    mutable std::mutex m_mutex;
+    std::vector<std::vector<uint8_t>> m_buffers;
+    static constexpr size_t MAX_POOLED_BUFFERS = 32;
+    static constexpr size_t MAX_BUFFER_SIZE = 1024 * 1024; // 1MB max per buffer
+};
+
+/**
+ * @brief A chunk of media data with metadata and optimized memory management
  */
 struct MediaChunk {
     uint32_t stream_id = 0;
@@ -125,6 +160,12 @@ struct MediaChunk {
     MediaChunk(uint32_t id, const std::vector<uint8_t>& chunk_data)
         : stream_id(id), data(chunk_data) {}
     
+    // Optimized constructor using buffer pool
+    MediaChunk(uint32_t id, size_t data_size)
+        : stream_id(id), data(BufferPool::getInstance().getBuffer(data_size)) {
+        data.resize(data_size);
+    }
+    
     // Copy constructor and assignment (default is fine)
     MediaChunk(const MediaChunk&) = default;
     MediaChunk& operator=(const MediaChunk&) = default;
@@ -132,6 +173,13 @@ struct MediaChunk {
     // Move constructor and assignment
     MediaChunk(MediaChunk&&) = default;
     MediaChunk& operator=(MediaChunk&&) = default;
+    
+    // Destructor that returns buffer to pool
+    ~MediaChunk() {
+        if (!data.empty() && data.capacity() >= 1024) { // Only pool reasonably sized buffers
+            BufferPool::getInstance().returnBuffer(std::move(data));
+        }
+    }
     
     /**
      * @brief Check if this chunk contains valid data

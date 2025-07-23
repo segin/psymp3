@@ -24,10 +24,7 @@
 #ifndef MAINUIWIDGET_H
 #define MAINUIWIDGET_H
 
-#include "Widget.h"
-#include "SpectrumAnalyzerWidget.h"
-#include "PlayerProgressBarWidget.h"
-#include <memory>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Main background UI widget that fills the screen behind all windows.

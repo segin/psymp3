@@ -10,14 +10,7 @@
 #ifndef MEDIAFACTORY_H
 #define MEDIAFACTORY_H
 
-#include "stream.h"
-#include "IOHandler.h"
-#include <functional>
-#include <memory>
-#include <vector>
-#include <map>
-#include <set>
-#include <optional>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Media format descriptor with comprehensive metadata

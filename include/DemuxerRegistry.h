@@ -1,5 +1,5 @@
 /*
- * DemuxerRegistry.h - Registry for demuxer factories
+ * DemuxerRegistry.h - Registry for demuxer implementations with optimized lookup
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,151 +21,131 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef DEMUXERREGISTRY_H
-#define DEMUXERREGISTRY_H
+#ifndef DEMUXER_REGISTRY_H
+#define DEMUXER_REGISTRY_H
 
-#include "Demuxer.h"
-#include "IOHandler.h"
-#include <functional>
-#include <map>
-#include <vector>
-#include <string>
-#include <memory>
-#include <stdexcept>
+// No direct includes - all includes should be in psymp3.h
 
 /**
- * @brief Exception thrown when a format is not supported
- */
-class UnsupportedFormatException : public std::runtime_error {
-public:
-    explicit UnsupportedFormatException(const std::string& format_id, const std::string& reason);
-    
-    /**
-     * @brief Get the format ID that was not supported
-     */
-    const std::string& getFormatId() const { return m_format_id; }
-    
-    /**
-     * @brief Get the reason why the format is not supported
-     */
-    const std::string& getReason() const { return m_reason; }
-
-private:
-    std::string m_format_id;
-    std::string m_reason;
-};
-
-/**
- * @brief Exception thrown when format detection fails
- */
-class FormatDetectionException : public std::runtime_error {
-public:
-    explicit FormatDetectionException(const std::string& file_path, const std::string& reason);
-    
-    /**
-     * @brief Get the file path that failed detection
-     */
-    const std::string& getFilePath() const { return m_file_path; }
-    
-    /**
-     * @brief Get the reason why detection failed
-     */
-    const std::string& getReason() const { return m_reason; }
-
-private:
-    std::string m_file_path;
-    std::string m_reason;
-};
-
-/**
- * @brief Factory function type for creating demuxer instances
- */
-using DemuxerFactoryFunc = std::function<std::unique_ptr<Demuxer>(std::unique_ptr<IOHandler>)>;
-
-/**
- * @brief Registry for demuxer factories
- * 
- * This registry provides a centralized system for managing demuxer factories.
- * Demuxers register themselves at application startup through registration functions,
- * eliminating the need for conditional compilation checks throughout the codebase.
- * 
- * The registry supports:
- * - Dynamic demuxer registration and lookup
- * - Graceful handling of missing demuxers
- * - Introspection of available formats
- * - Factory-based demuxer creation
+ * @brief Registry for demuxer implementations with optimized lookup
  */
 class DemuxerRegistry {
 public:
     /**
-     * @brief Register a demuxer factory function
-     * @param format_id Format identifier (e.g., "riff", "ogg", "mp4")
-     * @param factory Factory function that creates demuxer instances
+     * @brief Get singleton instance
      */
-    static void registerDemuxer(const std::string& format_id, DemuxerFactoryFunc factory);
+    static DemuxerRegistry& getInstance();
     
     /**
-     * @brief Create a demuxer instance for the given format
-     * @param format_id Format identifier
-     * @param handler IOHandler for the media file (will be moved to the demuxer)
-     * @return Unique pointer to appropriate demuxer
-     * @throws UnsupportedFormatException if format is not supported
+     * @brief Register a demuxer factory function
+     * @param format_id Format ID string
+     * @param factory_func Function that creates demuxer instances
+     * @param format_name Human-readable format name
+     * @param extensions File extensions for this format
      */
-    static std::unique_ptr<Demuxer> createDemuxer(const std::string& format_id, std::unique_ptr<IOHandler> handler);
+    void registerDemuxer(const std::string& format_id, 
+                        DemuxerFactory::DemuxerFactoryFunc factory_func,
+                        const std::string& format_name,
+                        const std::vector<std::string>& extensions);
+    
+    /**
+     * @brief Register a format signature
+     * @param signature Format signature information
+     */
+    void registerSignature(const FormatSignature& signature);
+    
+    /**
+     * @brief Create a demuxer for the given I/O handler
+     * @param handler I/O handler for media source
+     * @return Unique pointer to appropriate demuxer
+     */
+    std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler);
+    
+    /**
+     * @brief Create a demuxer with file path hint
+     * @param handler I/O handler for media source
+     * @param file_path Path hint for format detection
+     * @return Unique pointer to appropriate demuxer
+     */
+    std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler, 
+                                          const std::string& file_path);
+    
+    /**
+     * @brief Get information about supported formats
+     */
+    struct FormatInfo {
+        std::string format_id;
+        std::string format_name;
+        std::vector<std::string> extensions;
+        bool has_signature;
+    };
+    std::vector<FormatInfo> getSupportedFormats() const;
     
     /**
      * @brief Check if a format is supported
-     * @param format_id Format identifier to check
-     * @return true if format is registered and supported
+     * @param format_id Format ID to check
+     * @return true if format is supported
      */
-    static bool isFormatSupported(const std::string& format_id);
+    bool isFormatSupported(const std::string& format_id) const;
     
     /**
-     * @brief Get list of all supported format IDs
-     * @return Vector of format IDs that are currently registered
+     * @brief Check if a file extension is supported
+     * @param extension File extension to check
+     * @return true if extension is supported
      */
-    static std::vector<std::string> getSupportedFormats();
+    bool isExtensionSupported(const std::string& extension) const;
     
-    /**
-     * @brief Unregister a demuxer (for testing or dynamic unloading)
-     * @param format_id Format identifier to unregister
-     * @return true if format was found and unregistered
-     */
-    static bool unregisterDemuxer(const std::string& format_id);
-    
-    /**
-     * @brief Clear all registered demuxers (for testing)
-     */
-    static void clearRegistry();
-    
-    /**
-     * @brief Get the number of registered demuxers
-     * @return Number of demuxers currently in the registry
-     */
-    static size_t getRegisteredDemuxerCount();
-    
-    /**
-     * @brief Check if the registry has been initialized
-     * @return true if at least one demuxer is registered
-     */
-    static bool isInitialized();
-
 private:
-    static std::map<std::string, DemuxerFactoryFunc> s_demuxer_factories;
+    DemuxerRegistry();
+    ~DemuxerRegistry();
     
-    /**
-     * @brief Validate format ID for registration
-     * @param format_id Format ID to validate
-     * @return true if format ID is valid
-     */
-    static bool isValidFormatId(const std::string& format_id);
+    // Thread safety
+    mutable std::mutex m_mutex;
     
-    /**
-     * @brief Validate factory function
-     * @param factory Factory function to validate
-     * @return true if factory is valid
-     */
-    static bool isValidFactory(const DemuxerFactoryFunc& factory);
+    // Format registry
+    struct FormatRegistration {
+        std::string format_id;
+        std::string format_name;
+        std::vector<std::string> extensions;
+        DemuxerFactory::DemuxerFactoryFunc factory_func;
+    };
+    std::map<std::string, FormatRegistration> m_formats;
+    
+    // Extension lookup (optimized)
+    std::map<std::string, std::string> m_extension_to_format;
+    
+    // Format signatures
+    std::vector<FormatSignature> m_signatures;
+    
+    // Format detection
+    std::string probeFormat(IOHandler* handler);
+    std::string detectFormatFromExtension(const std::string& file_path);
+    bool matchSignature(const uint8_t* data, size_t data_size, 
+                       const FormatSignature& signature);
+    
+    // Initialize built-in formats
+    void initializeBuiltInFormats();
+    bool m_initialized;
 };
 
-#endif // DEMUXERREGISTRY_H
+/**
+ * @brief Helper class for automatic demuxer registration
+ */
+class DemuxerRegistration {
+public:
+    /**
+     * @brief Constructor that registers a demuxer
+     * @param format_id Format ID string
+     * @param factory_func Function that creates demuxer instances
+     * @param format_name Human-readable format name
+     * @param extensions File extensions for this format
+     * @param signatures Format signatures
+     */
+    DemuxerRegistration(const std::string& format_id,
+                       DemuxerFactory::DemuxerFactoryFunc factory_func,
+                       const std::string& format_name,
+                       const std::vector<std::string>& extensions,
+                       const std::vector<FormatSignature>& signatures = {});
+};
+
+#endif // DEMUXER_REGISTRY_H

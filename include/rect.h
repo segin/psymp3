@@ -100,10 +100,7 @@
 #ifndef RECT_H
 #define RECT_H
 
-#include <utility> // For std::pair
-#include <cstdint> // For int16_t and uint16_t
-#include <string>  // For std::string
-#include <limits>  // For numeric limits
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @class Rect

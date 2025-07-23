@@ -24,8 +24,7 @@
 #ifndef PLAYERPROGRESSBARWIDGET_H
 #define PLAYERPROGRESSBARWIDGET_H
 
-#include "Widget.h"
-#include <functional>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief A progress bar widget with rainbow fill and seek functionality.

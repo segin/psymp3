@@ -25,7 +25,7 @@
 #ifndef STREAM_H
 #define STREAM_H
 
-#include "lyrics.h"
+// No direct includes - all includes should be in psymp3.h
 
 class Stream
 {

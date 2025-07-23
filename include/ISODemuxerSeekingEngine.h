@@ -10,9 +10,7 @@
 #ifndef ISODEMUXERSEEKINGENGINE_H
 #define ISODEMUXERSEEKINGENGINE_H
 
-#include "Demuxer.h"
-#include "ISODemuxerSampleTableManager.h"
-#include <vector>
+// No direct includes - all includes should be in psymp3.h
 
 /**
  * @brief Seeking engine for sample-accurate positioning
