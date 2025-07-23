@@ -57,11 +57,11 @@ public:
     
     /**
      * @brief Seek to a position in the file
-     * @param offset Offset to seek to
+     * @param offset Offset to seek to (off_t for large file support)
      * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
      * @return 0 on success, -1 on failure
      */
-    int seek(long offset, int whence) override;
+    int seek(off_t offset, int whence) override;
     
     /**
      * @brief Get current byte offset position in the file
@@ -90,6 +90,18 @@ public:
 private:
     FILE* m_file_handle = nullptr;  // File handle for I/O operations
     TagLib::String m_file_path;     // Original file path for error reporting
+    
+    /**
+     * @brief Validate that the file handle is in a usable state
+     * @return true if handle is valid and file is open, false otherwise
+     */
+    bool validateFileHandle() const;
+    
+    /**
+     * @brief Attempt to recover from certain error conditions
+     * @return true if recovery was successful, false otherwise
+     */
+    bool attemptErrorRecovery();
 };
 
 #endif // FILEIOHANDLER_H

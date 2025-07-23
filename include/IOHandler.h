@@ -51,11 +51,11 @@ public:
     
     /**
      * @brief Seek to a position in the source
-     * @param offset Offset to seek to
+     * @param offset Offset to seek to (off_t for large file support)
      * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
      * @return 0 on success, -1 on failure
      */
-    virtual int seek(long offset, int whence);
+    virtual int seek(off_t offset, int whence);
     
     /**
      * @brief Get current byte offset position

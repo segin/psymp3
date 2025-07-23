@@ -62,7 +62,7 @@ size_t IOHandler::read(void* buffer, size_t size, size_t count) {
     return 0;
 }
 
-int IOHandler::seek(long offset, int whence) {
+int IOHandler::seek(off_t offset, int whence) {
     // Default implementation returns -1 (failure) for non-functional state
     // Support SEEK_SET, SEEK_CUR, SEEK_END positioning modes
     

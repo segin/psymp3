@@ -73,6 +73,14 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     if (fileSize >= 0) {
         Debug::log("io", "FileIOHandler::FileIOHandler() - File size: ", fileSize, 
                   " bytes (", std::hex, fileSize, std::dec, ")");
+        
+        // Log warning for extremely large files that might cause issues
+        static const off_t LARGE_FILE_WARNING_SIZE = 1LL << 32; // 4GB
+        if (fileSize > LARGE_FILE_WARNING_SIZE) {
+            Debug::log("io", "FileIOHandler::FileIOHandler() - Warning: Very large file (>4GB), ensure adequate system resources");
+        }
+    } else {
+        Debug::log("io", "FileIOHandler::FileIOHandler() - Warning: Could not determine file size");
     }
 }
 
@@ -100,8 +108,8 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
     // Reset error state
     m_error = 0;
     
-    // Check if file is closed
-    if (m_closed || !m_file_handle) {
+    // Validate file handle state
+    if (!validateFileHandle()) {
         m_error = EBADF;  // Bad file descriptor
         return 0;
     }
@@ -109,11 +117,37 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
     // Validate parameters
     if (!buffer) {
         m_error = EINVAL; // Invalid argument
+        Debug::log("io", "FileIOHandler::read() - Invalid buffer parameter (null)");
         return 0;
     }
     
     if (size == 0 || count == 0) {
         // Not an error, just nothing to do
+        Debug::log("io", "FileIOHandler::read() - Zero size or count requested: size=", size, " count=", count);
+        return 0;
+    }
+    
+    // Additional validation: check for reasonable parameter values
+    static const size_t MAX_REASONABLE_SIZE = 1024 * 1024 * 1024; // 1GB per element
+    static const size_t MAX_REASONABLE_COUNT = SIZE_MAX / 1024;   // Reasonable count limit
+    
+    if (size > MAX_REASONABLE_SIZE) {
+        m_error = EINVAL;
+        Debug::log("io", "FileIOHandler::read() - Unreasonably large element size: ", size);
+        return 0;
+    }
+    
+    if (count > MAX_REASONABLE_COUNT) {
+        m_error = EINVAL;
+        Debug::log("io", "FileIOHandler::read() - Unreasonably large element count: ", count);
+        return 0;
+    }
+    
+    // Check for potential integer overflow in size calculation
+    // This prevents overflow when calculating total bytes to read
+    if (size > 0 && count > SIZE_MAX / size) {
+        m_error = EOVERFLOW;  // Value too large for defined data type
+        Debug::log("io", "FileIOHandler::read() - Integer overflow prevented: size=", size, " count=", count);
         return 0;
     }
     
@@ -124,15 +158,38 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
     if (result < count) {
         if (feof(m_file_handle)) {
             m_eof = true;
+            Debug::log("io", "FileIOHandler::read() - Reached end of file");
         } else {
             // Read error occurred
             m_error = ferror(m_file_handle);
+            Debug::log("io", "FileIOHandler::read() - Read error occurred: ", strerror(m_error));
+            
+            // Attempt error recovery for certain types of errors
+            if (m_error == EIO || m_error == EAGAIN || m_error == EINTR) {
+                Debug::log("io", "FileIOHandler::read() - Attempting recovery from recoverable error");
+                if (attemptErrorRecovery()) {
+                    Debug::log("io", "FileIOHandler::read() - Error recovery successful");
+                } else {
+                    Debug::log("io", "FileIOHandler::read() - Error recovery failed");
+                }
+            }
+            
             clearerr(m_file_handle);
         }
     }
     
-    // Update position
-    m_position += result * size;
+    // Update position with overflow protection
+    off_t bytes_read = (off_t)(result * size);
+    // Check for overflow: if m_position + bytes_read would overflow
+    // We use the fact that if a + b overflows, then a > MAX - b
+    static const off_t OFF_T_MAX_VAL = (sizeof(off_t) == 8) ? 0x7FFFFFFFFFFFFFFFLL : 0x7FFFFFFFL;
+    if (bytes_read > 0 && m_position > OFF_T_MAX_VAL - bytes_read) {
+        // Position would overflow, but we still return the successful read count
+        Debug::log("io", "FileIOHandler::read() - Position overflow prevented, clamping to maximum");
+        m_position = OFF_T_MAX_VAL;
+    } else {
+        m_position += bytes_read;
+    }
     
     return result;
 }
@@ -142,16 +199,16 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
  *
  * This uses 64-bit file operations (fseeko) to support large files.
  * 
- * @param offset Offset to seek to
+ * @param offset Offset to seek to (off_t for large file support)
  * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
  * @return 0 on success, -1 on failure
  */
-int FileIOHandler::seek(long offset, int whence) {
+int FileIOHandler::seek(off_t offset, int whence) {
     // Reset error state
     m_error = 0;
     
-    // Check if file is closed
-    if (m_closed || !m_file_handle) {
+    // Validate file handle state
+    if (!validateFileHandle()) {
         m_error = EBADF;  // Bad file descriptor
         return -1;
     }
@@ -159,6 +216,38 @@ int FileIOHandler::seek(long offset, int whence) {
     // Validate whence parameter
     if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
         m_error = EINVAL;  // Invalid argument
+        return -1;
+    }
+    
+    // Additional validation for large file support
+    // Check for potential overflow in SEEK_CUR operations
+    if (whence == SEEK_CUR) {
+        off_t current_pos = tell();
+        if (current_pos < 0) {
+            // tell() failed, error already set
+            return -1;
+        }
+        
+        // Define max/min values for off_t based on its size
+        static const off_t OFF_T_MAX_VAL = (sizeof(off_t) == 8) ? 0x7FFFFFFFFFFFFFFFLL : 0x7FFFFFFFL;
+        static const off_t OFF_T_MIN_VAL = (sizeof(off_t) == 8) ? (-0x7FFFFFFFFFFFFFFFLL - 1) : (-0x7FFFFFFFL - 1);
+        
+        // Check for overflow in addition
+        if (offset > 0 && current_pos > OFF_T_MAX_VAL - offset) {
+            m_error = EOVERFLOW;  // Value too large for defined data type
+            Debug::log("io", "FileIOHandler::seek() - SEEK_CUR overflow prevented: current=", current_pos, " offset=", offset);
+            return -1;
+        } else if (offset < 0 && current_pos < OFF_T_MIN_VAL - offset) {
+            m_error = EOVERFLOW;  // Value too large for defined data type
+            Debug::log("io", "FileIOHandler::seek() - SEEK_CUR underflow prevented: current=", current_pos, " offset=", offset);
+            return -1;
+        }
+    }
+    
+    // For SEEK_SET, validate that offset is not negative
+    if (whence == SEEK_SET && offset < 0) {
+        m_error = EINVAL;  // Invalid argument
+        Debug::log("io", "FileIOHandler::seek() - SEEK_SET with negative offset: ", offset);
         return -1;
     }
     
@@ -173,13 +262,20 @@ int FileIOHandler::seek(long offset, int whence) {
     
     if (result == 0) {
         // Seek successful, update position
-        m_position = tell();
-        
-        // Clear EOF flag if we've moved away from the end
-        m_eof = false;
+        off_t new_position = tell();
+        if (new_position >= 0) {
+            m_position = new_position;
+            // Clear EOF flag if we've moved away from the end
+            m_eof = false;
+            Debug::log("io", "FileIOHandler::seek() - Successful seek to position: ", m_position);
+        } else {
+            // tell() failed after successful seek - this shouldn't happen
+            Debug::log("io", "FileIOHandler::seek() - Warning: seek succeeded but tell() failed");
+        }
     } else {
         // Seek failed
         m_error = errno;
+        Debug::log("io", "FileIOHandler::seek() - Seek failed: ", strerror(errno));
     }
     
     return result;
@@ -196,9 +292,10 @@ off_t FileIOHandler::tell() {
     // Reset error state
     m_error = 0;
     
-    // Check if file is closed
-    if (m_closed || !m_file_handle) {
+    // Validate file handle state
+    if (!validateFileHandle()) {
         m_error = EBADF;  // Bad file descriptor
+        Debug::log("io", "FileIOHandler::tell() - File is closed or invalid");
         return -1;
     }
     
@@ -214,9 +311,11 @@ off_t FileIOHandler::tell() {
     if (position < 0) {
         // Error occurred
         m_error = errno;
+        Debug::log("io", "FileIOHandler::tell() - Failed to get position: ", strerror(errno));
     } else {
         // Update cached position
         m_position = position;
+        Debug::log("io", "FileIOHandler::tell() - Current position: ", position);
     }
     
     return position;
@@ -236,18 +335,23 @@ int FileIOHandler::close() {
     // Check if already closed
     if (m_closed || !m_file_handle) {
         m_closed = true;
+        Debug::log("io", "FileIOHandler::close() - File already closed");
         return 0;  // Already closed, not an error
     }
+    
+    Debug::log("io", "FileIOHandler::close() - Closing file: ", m_file_path.to8Bit(false));
     
     // Close the file
     int result = fclose(m_file_handle);
     if (result != 0) {
         // Close failed
         m_error = errno;
+        Debug::log("io", "FileIOHandler::close() - Failed to close file: ", strerror(errno));
     } else {
         // Close successful
         m_closed = true;
         m_eof = true;
+        Debug::log("io", "FileIOHandler::close() - File closed successfully");
     }
     
     // Nullify the handle regardless of success/failure
@@ -266,11 +370,13 @@ int FileIOHandler::close() {
 bool FileIOHandler::eof() {
     // If file is closed or we've already detected EOF, return true
     if (m_closed || !m_file_handle || m_eof) {
+        Debug::log("io", "FileIOHandler::eof() - EOF condition: closed=", m_closed, " cached_eof=", m_eof);
         return true;
     }
     
     // Check EOF condition
     m_eof = (feof(m_file_handle) != 0);
+    Debug::log("io", "FileIOHandler::eof() - EOF check result: ", m_eof);
     return m_eof;
 }
 
@@ -285,8 +391,8 @@ off_t FileIOHandler::getFileSize() {
     // Reset error state
     m_error = 0;
     
-    // Check if file is closed
-    if (m_closed || !m_file_handle) {
+    // Validate file handle state
+    if (!validateFileHandle()) {
         m_error = EBADF;  // Bad file descriptor
         return -1;
     }
@@ -296,19 +402,165 @@ off_t FileIOHandler::getFileSize() {
     // Windows: Use _fstat64 for large file support
     struct _stat64 file_stat;
     int fd = _fileno(m_file_handle);
+    if (fd < 0) {
+        m_error = errno;
+        Debug::log("io", "FileIOHandler::getFileSize() - Invalid file descriptor");
+        return -1;
+    }
     if (_fstat64(fd, &file_stat) != 0) {
         m_error = errno;
+        Debug::log("io", "FileIOHandler::getFileSize() - _fstat64 failed: ", strerror(errno));
         return -1;
     }
 #else
     // Unix/Linux: Use fstat for file size determination
     struct stat file_stat;
     int fd = fileno(m_file_handle);
+    if (fd < 0) {
+        m_error = errno;
+        Debug::log("io", "FileIOHandler::getFileSize() - Invalid file descriptor");
+        return -1;
+    }
     if (fstat(fd, &file_stat) != 0) {
         m_error = errno;
+        Debug::log("io", "FileIOHandler::getFileSize() - fstat failed: ", strerror(errno));
         return -1;
     }
 #endif
     
+    // Validate that the size is reasonable (not negative, which shouldn't happen but let's be safe)
+    if (file_stat.st_size < 0) {
+        m_error = EINVAL;
+        Debug::log("io", "FileIOHandler::getFileSize() - Invalid file size reported by system: ", file_stat.st_size);
+        return -1;
+    }
+    
     return file_stat.st_size;
+}
+
+/**
+ * @brief Validate that the file handle is in a usable state.
+ *
+ * This performs comprehensive validation of the file handle state.
+ * 
+ * @return true if handle is valid and file is open, false otherwise
+ */
+bool FileIOHandler::validateFileHandle() const {
+    // Check basic handle validity
+    if (!m_file_handle) {
+        Debug::log("io", "FileIOHandler::validateFileHandle() - File handle is null");
+        return false;
+    }
+    
+    // Check if file is marked as closed
+    if (m_closed) {
+        Debug::log("io", "FileIOHandler::validateFileHandle() - File is marked as closed");
+        return false;
+    }
+    
+    // Check if the file descriptor is valid
+#ifdef _WIN32
+    int fd = _fileno(m_file_handle);
+#else
+    int fd = fileno(m_file_handle);
+#endif
+    
+    if (fd < 0) {
+        Debug::log("io", "FileIOHandler::validateFileHandle() - Invalid file descriptor");
+        return false;
+    }
+    
+    // Additional check: verify the file handle hasn't been corrupted
+    // by checking if we can get the current position
+    off_t current_pos;
+#ifdef _WIN32
+    current_pos = _ftelli64(m_file_handle);
+#else
+    current_pos = ftello(m_file_handle);
+#endif
+    
+    if (current_pos < 0 && errno != 0) {
+        Debug::log("io", "FileIOHandler::validateFileHandle() - File handle appears corrupted, cannot get position: ", strerror(errno));
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * @brief Attempt to recover from certain error conditions.
+ *
+ * This method attempts to recover from recoverable errors such as
+ * temporary I/O errors or file handle corruption.
+ * 
+ * @return true if recovery was successful, false otherwise
+ */
+bool FileIOHandler::attemptErrorRecovery() {
+    Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Attempting error recovery");
+    
+    // If the file handle is null or corrupted, try to reopen the file
+    if (!m_file_handle || m_closed) {
+        Debug::log("io", "FileIOHandler::attemptErrorRecovery() - File handle is null or closed, attempting reopen");
+        
+        // Save current error state
+        int saved_error = m_error;
+        off_t saved_position = m_position;
+        
+        try {
+            // Try to reopen the file
+#ifdef _WIN32
+            m_file_handle = _wfopen(m_file_path.toCWString(), L"rb");
+#else
+            m_file_handle = fopen(m_file_path.toCString(false), "rb");
+#endif
+            
+            if (m_file_handle) {
+                // Reopen successful, restore state
+                m_closed = false;
+                m_eof = false;
+                m_error = 0;
+                
+                // Try to restore position
+                if (saved_position > 0) {
+#ifdef _WIN32
+                    if (_fseeki64(m_file_handle, saved_position, SEEK_SET) == 0) {
+#else
+                    if (fseeko(m_file_handle, saved_position, SEEK_SET) == 0) {
+#endif
+                        m_position = saved_position;
+                        Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Successfully reopened file and restored position: ", saved_position);
+                        return true;
+                    } else {
+                        Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Reopened file but failed to restore position");
+                        m_position = 0;
+                        return true; // Still partially successful
+                    }
+                } else {
+                    Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Successfully reopened file");
+                    return true;
+                }
+            } else {
+                // Reopen failed, restore error state
+                m_error = saved_error;
+                Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Failed to reopen file: ", strerror(errno));
+                return false;
+            }
+        } catch (...) {
+            // Exception during recovery, restore error state
+            m_error = saved_error;
+            Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Exception during recovery attempt");
+            return false;
+        }
+    }
+    
+    // For other types of errors, try to clear error flags
+    if (m_file_handle && ferror(m_file_handle)) {
+        Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Clearing file error flags");
+        clearerr(m_file_handle);
+        m_error = 0;
+        return true;
+    }
+    
+    Debug::log("io", "FileIOHandler::attemptErrorRecovery() - No recovery action needed or possible");
+    return false;
 }
