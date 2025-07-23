@@ -96,14 +96,37 @@ private:
     bool m_supports_ranges = false;       // Server supports range requests
     bool m_initialized = false;           // Initialization completed
     
-    // Buffering system
-    std::vector<uint8_t> m_buffer;        // Data buffer
+    // Enhanced buffering system
+    IOBufferPool::Buffer m_buffer;          // Primary data buffer (from pool)
     size_t m_buffer_offset = 0;           // Current offset within buffer
     off_t m_buffer_start_position = 0;    // Stream position of buffer start
     
-    // Buffer configuration
-    static constexpr size_t BUFFER_SIZE = 64 * 1024;      // Default 64KB buffer
-    static constexpr size_t MIN_RANGE_SIZE = 8 * 1024;    // Minimum 8KB range requests
+    // Read-ahead buffering for performance
+    IOBufferPool::Buffer m_read_ahead_buffer;    // Read-ahead buffer for sequential access (from pool)
+    off_t m_read_ahead_position = -1;          // Position of read-ahead buffer
+    bool m_read_ahead_active = false;          // Read-ahead is active
+    
+    // Adaptive buffer configuration
+    size_t m_buffer_size = 64 * 1024;          // Current buffer size (adaptive)
+    size_t m_min_buffer_size = 8 * 1024;       // Minimum 8KB buffer
+    size_t m_max_buffer_size = 512 * 1024;     // Maximum 512KB buffer
+    size_t m_read_ahead_size = 128 * 1024;     // Read-ahead buffer size
+    
+    // Performance tracking
+    std::chrono::steady_clock::time_point m_last_request_time;
+    size_t m_total_requests = 0;
+    size_t m_total_bytes_downloaded = 0;
+    double m_average_speed = 0.0;  // bytes per second
+    
+    // Access pattern detection
+    off_t m_last_read_position = -1;
+    bool m_sequential_access = false;
+    size_t m_sequential_reads = 0;
+    
+    // Connection optimization
+    static constexpr size_t MIN_RANGE_SIZE = 8 * 1024;     // Minimum range request size
+    static constexpr size_t RANGE_BATCH_SIZE = 256 * 1024; // Batch multiple small requests
+    static constexpr size_t SPEED_SAMPLE_COUNT = 10;       // Number of speed samples to average
     
     // Private methods
     
@@ -142,6 +165,62 @@ private:
      * @return Normalized MIME type string
      */
     std::string normalizeMimeType(const std::string& content_type);
+    
+    /**
+     * @brief Update access pattern tracking for optimization
+     * @param position Current read position
+     */
+    void updateAccessPattern(off_t position);
+    
+    /**
+     * @brief Get optimal buffer size based on network conditions and access patterns
+     * @return Optimal buffer size in bytes
+     */
+    size_t getOptimalBufferSize() const;
+    
+    /**
+     * @brief Update network performance statistics
+     * @param bytes_transferred Number of bytes transferred
+     * @param duration_ms Duration of transfer in milliseconds
+     */
+    void updatePerformanceStats(size_t bytes_transferred, std::chrono::milliseconds duration_ms);
+    
+    /**
+     * @brief Perform intelligent read-ahead based on access patterns
+     * @param current_position Current read position
+     * @return true if read-ahead was performed, false otherwise
+     */
+    bool performReadAhead(off_t current_position);
+    
+    /**
+     * @brief Check if read-ahead buffer contains the requested position
+     * @param position Position to check
+     * @return true if position is in read-ahead buffer, false otherwise
+     */
+    bool isPositionInReadAhead(off_t position) const;
+    
+    /**
+     * @brief Read data from read-ahead buffer
+     * @param buffer Destination buffer
+     * @param position Stream position to read from
+     * @param bytes_requested Number of bytes to read
+     * @return Number of bytes actually read from read-ahead buffer
+     */
+    size_t readFromReadAhead(void* buffer, off_t position, size_t bytes_requested);
+    
+    /**
+     * @brief Optimize range request size based on network conditions
+     * @param requested_size Originally requested size
+     * @return Optimized request size
+     */
+    size_t optimizeRangeRequestSize(size_t requested_size) const;
+    
+    /**
+     * @brief Optimize buffer pool usage based on access patterns and memory pressure
+     * This method analyzes current usage patterns and adjusts buffer pool settings
+     * to optimize memory usage and performance
+     */
+    void optimizeBufferPoolUsage();
 };
 
 #endif // HTTPIOHANDLER_H

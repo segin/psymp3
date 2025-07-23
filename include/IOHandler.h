@@ -36,6 +36,11 @@
 class IOHandler {
 public:
     /**
+     * @brief Constructor for IOHandler base class
+     */
+    IOHandler();
+    
+    /**
      * @brief Virtual destructor for proper polymorphic cleanup
      */
     virtual ~IOHandler();
@@ -125,6 +130,29 @@ protected:
      * @return Maximum file size in bytes
      */
     static off_t getMaxFileSize();
+    
+public:
+    /**
+     * @brief Get current memory usage statistics for all IOHandlers
+     * @return Map with memory usage statistics
+     */
+    static std::map<std::string, size_t> getMemoryStats();
+
+protected:
+    
+    /**
+     * @brief Set global memory limits for IOHandler operations
+     * @param max_total_memory Maximum total memory for all IOHandlers (default: 64MB)
+     * @param max_per_handler Maximum memory per IOHandler instance (default: 16MB)
+     */
+    static void setMemoryLimits(size_t max_total_memory, size_t max_per_handler);
+    
+    /**
+     * @brief Perform global memory optimization across all IOHandlers
+     * This method analyzes current memory usage and performs appropriate optimizations
+     * based on memory pressure levels
+     */
+    static void performMemoryOptimization();
 
 protected:
     /**
@@ -134,6 +162,31 @@ protected:
     bool m_eof = false;      // Indicates end-of-stream condition
     off_t m_position = 0;    // Current byte offset position
     int m_error = 0;         // Last error code (0 = no error)
+    
+    // Memory usage tracking
+    size_t m_memory_usage = 0;  // Current memory usage by this handler
+    
+    /**
+     * @brief Update memory usage tracking
+     * @param new_usage New memory usage in bytes
+     */
+    void updateMemoryUsage(size_t new_usage);
+    
+    /**
+     * @brief Check if memory usage is within limits
+     * @param additional_bytes Additional bytes to be allocated
+     * @return true if allocation is within limits, false otherwise
+     */
+    bool checkMemoryLimits(size_t additional_bytes) const;
+
+private:
+    // Global memory tracking
+    static std::mutex s_memory_mutex;
+    static size_t s_total_memory_usage;
+    static size_t s_max_total_memory;
+    static size_t s_max_per_handler_memory;
+    static size_t s_active_handlers;
+    static std::chrono::steady_clock::time_point s_last_memory_warning;
 };
 
 #endif // IOHANDLER_H

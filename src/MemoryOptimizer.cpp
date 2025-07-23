@@ -567,6 +567,677 @@ void EnhancedAudioBufferPool::performPeriodicCleanup() {
     }
 }
 
+// MemoryOptimizer implementation
+MemoryOptimizer& MemoryOptimizer::getInstance() {
+    static MemoryOptimizer instance;
+    return instance;
+}
+
+MemoryOptimizer::MemoryOptimizer() {
+    Debug::log("memory", "MemoryOptimizer::MemoryOptimizer() - Initializing memory optimizer");
+    
+    // Start memory pressure monitoring thread
+    startMemoryMonitoring();
+}
+
+MemoryOptimizer::~MemoryOptimizer() {
+    Debug::log("memory", "MemoryOptimizer::~MemoryOptimizer() - Destroying memory optimizer");
+    
+    // Stop memory monitoring thread
+    stopMemoryMonitoring();
+}
+
+MemoryOptimizer::MemoryPressureLevel MemoryOptimizer::getMemoryPressureLevel() const {
+    return m_memory_pressure_level;
+}
+
+size_t MemoryOptimizer::getOptimalBufferSize(size_t requested_size, 
+                                           const std::string& usage_pattern,
+                                           bool sequential_access) const {
+    return calculateOptimalBufferSize(requested_size, m_memory_pressure_level, sequential_access);
+}
+
+bool MemoryOptimizer::isSafeToAllocate(size_t requested_size, const std::string& component_name) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    // Check if allocation would exceed total memory limit
+    if (m_total_memory_usage + requested_size > m_max_total_memory) {
+        Debug::log("memory", "MemoryOptimizer::isSafeToAllocate() - Total memory limit would be exceeded: ",
+                  m_total_memory_usage + requested_size, " > ", m_max_total_memory);
+        return false;
+    }
+    
+    // Check if allocation would exceed buffer memory limit for buffer-related components
+    if ((component_name == "http" || component_name == "file" || component_name == "buffer") &&
+        m_total_memory_usage + requested_size > m_max_buffer_memory) {
+        Debug::log("memory", "MemoryOptimizer::isSafeToAllocate() - Buffer memory limit would be exceeded: ",
+                  m_total_memory_usage + requested_size, " > ", m_max_buffer_memory);
+        return false;
+    }
+    
+    // Check memory pressure level
+    if (m_memory_pressure_level == MemoryPressureLevel::Critical && requested_size > 64 * 1024) {
+        Debug::log("memory", "MemoryOptimizer::isSafeToAllocate() - Critical memory pressure, rejecting large allocation: ", requested_size);
+        return false;
+    }
+    
+    if (m_memory_pressure_level == MemoryPressureLevel::High && requested_size > 256 * 1024) {
+        Debug::log("memory", "MemoryOptimizer::isSafeToAllocate() - High memory pressure, rejecting very large allocation: ", requested_size);
+        return false;
+    }
+    
+    return true;
+}
+
+void MemoryOptimizer::registerAllocation(size_t allocated_size, const std::string& component_name) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    m_total_memory_usage += allocated_size;
+    m_component_memory_usage[component_name] += allocated_size;
+    
+    // Update usage pattern
+    auto& pattern = m_usage_patterns[component_name];
+    pattern.total_allocations++;
+    pattern.current_memory += allocated_size;
+    pattern.peak_memory = std::max(pattern.peak_memory, pattern.current_memory);
+    pattern.last_allocation = std::chrono::steady_clock::now();
+    
+    Debug::log("memory", "MemoryOptimizer::registerAllocation() - ", component_name, " allocated ", allocated_size, 
+              " bytes, total: ", m_total_memory_usage);
+}
+
+void MemoryOptimizer::registerDeallocation(size_t deallocated_size, const std::string& component_name) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    m_total_memory_usage -= deallocated_size;
+    if (m_component_memory_usage[component_name] >= deallocated_size) {
+        m_component_memory_usage[component_name] -= deallocated_size;
+    } else {
+        m_component_memory_usage[component_name] = 0;
+    }
+    
+    // Update usage pattern
+    auto& pattern = m_usage_patterns[component_name];
+    pattern.total_deallocations++;
+    if (pattern.current_memory >= deallocated_size) {
+        pattern.current_memory -= deallocated_size;
+    } else {
+        pattern.current_memory = 0;
+    }
+    pattern.last_deallocation = std::chrono::steady_clock::now();
+    
+    Debug::log("memory", "MemoryOptimizer::registerDeallocation() - ", component_name, " deallocated ", deallocated_size, 
+              " bytes, total: ", m_total_memory_usage);
+}
+
+std::map<std::string, size_t> MemoryOptimizer::getMemoryStats() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    std::map<std::string, size_t> stats;
+    stats["total_memory_usage"] = m_total_memory_usage;
+    stats["max_total_memory"] = m_max_total_memory;
+    stats["max_buffer_memory"] = m_max_buffer_memory;
+    stats["memory_pressure_level"] = static_cast<size_t>(m_memory_pressure_level);
+    
+    // Add component-specific stats
+    for (const auto& component : m_component_memory_usage) {
+        stats["component_" + component.first] = component.second;
+    }
+    
+    // Add usage pattern stats
+    for (const auto& pattern : m_usage_patterns) {
+        const std::string& name = pattern.first;
+        const UsagePattern& usage = pattern.second;
+        
+        stats["pattern_" + name + "_allocations"] = usage.total_allocations;
+        stats["pattern_" + name + "_deallocations"] = usage.total_deallocations;
+        stats["pattern_" + name + "_peak_memory"] = usage.peak_memory;
+        stats["pattern_" + name + "_current_memory"] = usage.current_memory;
+    }
+    
+    return stats;
+}
+
+void MemoryOptimizer::setMemoryLimits(size_t max_total_memory, size_t max_buffer_memory) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_max_total_memory = max_total_memory;
+    m_max_buffer_memory = max_buffer_memory;
+    
+    Debug::log("memory", "MemoryOptimizer::setMemoryLimits() - Set limits: total=", max_total_memory, 
+              ", buffer=", max_buffer_memory);
+}
+
+void MemoryOptimizer::optimizeMemoryUsage() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Starting global memory optimization");
+    
+    // Calculate memory usage percentage
+    float usage_percent = m_max_total_memory > 0 ? 
+        static_cast<float>(m_total_memory_usage) / static_cast<float>(m_max_total_memory) * 100.0f : 0.0f;
+    
+    Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Memory usage: ", usage_percent, 
+              "% (", m_total_memory_usage, " / ", m_max_total_memory, " bytes)");
+    
+    // Perform optimization based on memory pressure
+    if (m_memory_pressure_level == MemoryPressureLevel::Critical) {
+        // Critical memory pressure - aggressive optimization
+        Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Critical memory pressure, performing aggressive optimization");
+        
+        // Clear all buffer pools
+        IOBufferPool::getInstance().clear();
+        
+        // Reduce buffer pool limits drastically
+        size_t critical_pool_size = m_max_total_memory / 16; // 6.25% of total
+        IOBufferPool::getInstance().setMaxPoolSize(critical_pool_size);
+        IOBufferPool::getInstance().setMaxBuffersPerSize(1); // Minimal buffering
+        
+    } else if (m_memory_pressure_level == MemoryPressureLevel::High) {
+        // High memory pressure - moderate optimization
+        Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - High memory pressure, performing moderate optimization");
+        
+        // Optimize buffer pools
+        IOBufferPool::getInstance().optimizeAllocationPatterns();
+        IOBufferPool::getInstance().compactMemory();
+        
+        // Reduce buffer pool limits moderately
+        size_t high_pool_size = m_max_total_memory / 8; // 12.5% of total
+        IOBufferPool::getInstance().setMaxPoolSize(high_pool_size);
+        IOBufferPool::getInstance().setMaxBuffersPerSize(2); // Reduced buffering
+        
+    } else if (m_memory_pressure_level == MemoryPressureLevel::Normal) {
+        // Normal memory pressure - light optimization
+        Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Normal memory pressure, performing light optimization");
+        
+        // Defragment pools and optimize patterns
+        IOBufferPool::getInstance().defragmentPools();
+        IOBufferPool::getInstance().optimizeAllocationPatterns();
+        
+        // Use reasonable buffer pool limits
+        size_t normal_pool_size = m_max_total_memory / 4; // 25% of total
+        IOBufferPool::getInstance().setMaxPoolSize(normal_pool_size);
+        IOBufferPool::getInstance().setMaxBuffersPerSize(4); // Moderate buffering
+        
+    } else {
+        // Low memory pressure - maintenance optimization
+        Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Low memory pressure, performing maintenance optimization");
+        
+        // Just defragment to maintain efficiency
+        IOBufferPool::getInstance().defragmentPools();
+        
+        // Can afford to increase buffer pool limits for better performance
+        size_t low_pool_size = m_max_total_memory / 3; // 33% of total
+        IOBufferPool::getInstance().setMaxPoolSize(low_pool_size);
+        IOBufferPool::getInstance().setMaxBuffersPerSize(8); // Full buffering
+    }
+    
+    Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Optimization complete");
+}
+
+void MemoryOptimizer::getRecommendedBufferPoolParams(size_t& max_pool_size, size_t& max_buffers_per_size) const {
+    switch (m_memory_pressure_level) {
+        case MemoryPressureLevel::Critical:
+            max_pool_size = m_max_total_memory / 16; // 6.25% of total
+            max_buffers_per_size = 1;
+            break;
+        case MemoryPressureLevel::High:
+            max_pool_size = m_max_total_memory / 8; // 12.5% of total
+            max_buffers_per_size = 2;
+            break;
+        case MemoryPressureLevel::Normal:
+            max_pool_size = m_max_total_memory / 4; // 25% of total
+            max_buffers_per_size = 4;
+            break;
+        case MemoryPressureLevel::Low:
+        default:
+            max_pool_size = m_max_total_memory / 3; // 33% of total
+            max_buffers_per_size = 8;
+            break;
+    }
+}
+
+bool MemoryOptimizer::shouldEnableReadAhead() const {
+    return m_memory_pressure_level <= MemoryPressureLevel::Normal;
+}
+
+size_t MemoryOptimizer::getRecommendedReadAheadSize(size_t default_size) const {
+    switch (m_memory_pressure_level) {
+        case MemoryPressureLevel::Critical:
+            return 0; // Disable read-ahead completely
+        case MemoryPressureLevel::High:
+            return default_size / 4; // 25% of default
+        case MemoryPressureLevel::Normal:
+            return default_size / 2; // 50% of default
+        case MemoryPressureLevel::Low:
+        default:
+            return default_size; // Full read-ahead
+    }
+}
+
+std::string MemoryOptimizer::memoryPressureLevelToString(MemoryPressureLevel level) {
+    switch (level) {
+        case MemoryPressureLevel::Low:
+            return "Low";
+        case MemoryPressureLevel::Normal:
+            return "Normal";
+        case MemoryPressureLevel::High:
+            return "High";
+        case MemoryPressureLevel::Critical:
+            return "Critical";
+        default:
+            return "Unknown";
+    }
+}
+
+void MemoryOptimizer::startMemoryMonitoring() {
+    m_monitoring_active = true;
+    m_monitoring_thread = std::thread([this]() {
+        monitorMemoryPressure();
+    });
+}
+
+void MemoryOptimizer::stopMemoryMonitoring() {
+    m_monitoring_active = false;
+    if (m_monitoring_thread.joinable()) {
+        m_monitoring_thread.join();
+    }
+}
+
+void MemoryOptimizer::monitorMemoryPressure() {
+    using namespace std::chrono_literals;
+    
+    Debug::log("memory", "MemoryOptimizer::monitorMemoryPressure() - Starting memory pressure monitoring");
+    
+    while (m_monitoring_active) {
+        // Sleep for monitoring interval
+        std::this_thread::sleep_for(10s);
+        
+        // Check system memory pressure
+        MemoryPressureLevel new_pressure = detectMemoryPressure();
+        
+        // Update memory pressure level if changed
+        if (new_pressure != m_memory_pressure_level) {
+            updateMemoryPressureLevel(new_pressure);
+        }
+    }
+    
+    Debug::log("memory", "MemoryOptimizer::monitorMemoryPressure() - Stopping memory pressure monitoring");
+}
+
+MemoryOptimizer::MemoryPressureLevel MemoryOptimizer::detectMemoryPressure() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    // Calculate memory usage percentage
+    if (m_max_total_memory == 0) {
+        return MemoryPressureLevel::Normal;
+    }
+    
+    float usage_percent = static_cast<float>(m_total_memory_usage) / static_cast<float>(m_max_total_memory) * 100.0f;
+    
+    // Get system memory information if available
+    size_t total_system_memory = 0;
+    size_t available_system_memory = 0;
+    bool has_system_info = getSystemMemoryInfo(total_system_memory, available_system_memory);
+    
+    if (has_system_info && total_system_memory > 0) {
+        float system_usage_percent = static_cast<float>(total_system_memory - available_system_memory) / 
+                                   static_cast<float>(total_system_memory) * 100.0f;
+        
+        // Use the higher of application usage or system usage
+        usage_percent = std::max(usage_percent, system_usage_percent);
+        
+        Debug::log("memory", "MemoryOptimizer::detectMemoryPressure() - App usage: ", usage_percent, 
+                  "%, System usage: ", system_usage_percent, "%");
+    }
+    
+    // Determine memory pressure level based on usage percentage
+    if (usage_percent > 95.0f) {
+        return MemoryPressureLevel::Critical;
+    } else if (usage_percent > 85.0f) {
+        return MemoryPressureLevel::High;
+    } else if (usage_percent > 60.0f) {
+        return MemoryPressureLevel::Normal;
+    } else {
+        return MemoryPressureLevel::Low;
+    }
+}
+
+void MemoryOptimizer::updateMemoryPressureLevel(MemoryPressureLevel new_level) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    MemoryPressureLevel old_level = m_memory_pressure_level;
+    m_memory_pressure_level = new_level;
+    
+    Debug::log("memory", "MemoryOptimizer::updateMemoryPressureLevel() - Memory pressure changed from ",
+              memoryPressureLevelToString(old_level), " to ", memoryPressureLevelToString(new_level));
+    
+    // Trigger optimization based on new pressure level
+    if (new_level > old_level) {
+        // Pressure increased - perform immediate optimization
+        optimizeMemoryUsage();
+    }
+}
+
+bool MemoryOptimizer::getSystemMemoryInfo(size_t& total_memory, size_t& available_memory) const {
+#ifdef _WIN32
+    // Windows memory information
+    MEMORYSTATUSEX memInfo;
+    memInfo.dwLength = sizeof(MEMORYSTATUSEX);
+    if (GlobalMemoryStatusEx(&memInfo)) {
+        total_memory = static_cast<size_t>(memInfo.ullTotalPhys);
+        available_memory = static_cast<size_t>(memInfo.ullAvailPhys);
+        return true;
+    }
+    return false;
+#elif defined(__linux__)
+    // Linux memory information from /proc/meminfo
+    std::ifstream meminfo("/proc/meminfo");
+    if (!meminfo.is_open()) {
+        return false;
+    }
+    
+    std::string line;
+    size_t mem_total = 0;
+    size_t mem_available = 0;
+    bool found_total = false;
+    bool found_available = false;
+    
+    while (std::getline(meminfo, line) && (!found_total || !found_available)) {
+        if (line.find("MemTotal:") == 0) {
+            std::istringstream iss(line);
+            std::string label, value, unit;
+            iss >> label >> value >> unit;
+            mem_total = std::stoull(value) * 1024; // Convert KB to bytes
+            found_total = true;
+        } else if (line.find("MemAvailable:") == 0) {
+            std::istringstream iss(line);
+            std::string label, value, unit;
+            iss >> label >> value >> unit;
+            mem_available = std::stoull(value) * 1024; // Convert KB to bytes
+            found_available = true;
+        }
+    }
+    
+    if (found_total && found_available) {
+        total_memory = mem_total;
+        available_memory = mem_available;
+        return true;
+    }
+    return false;
+#elif defined(__APPLE__)
+    // macOS memory information
+    int mib[2];
+    size_t length;
+    
+    // Get total physical memory
+    mib[0] = CTL_HW;
+    mib[1] = HW_MEMSIZE;
+    length = sizeof(total_memory);
+    if (sysctl(mib, 2, &total_memory, &length, NULL, 0) != 0) {
+        return false;
+    }
+    
+    // Get available memory (this is more complex on macOS)
+    vm_size_t page_size;
+    vm_statistics64_data_t vm_stat;
+    mach_msg_type_number_t host_size = sizeof(vm_stat) / sizeof(natural_t);
+    
+    if (host_page_size(mach_host_self(), &page_size) != KERN_SUCCESS) {
+        return false;
+    }
+    
+    if (host_statistics64(mach_host_self(), HOST_VM_INFO64, (host_info64_t)&vm_stat, &host_size) != KERN_SUCCESS) {
+        return false;
+    }
+    
+    available_memory = (vm_stat.free_count + vm_stat.inactive_count) * page_size;
+    return true;
+#else
+    // Unsupported platform
+    return false;
+#endif
+}
+
+size_t MemoryOptimizer::calculateOptimalBufferSize(size_t base_size, 
+                                                 MemoryPressureLevel pressure_level,
+                                                 bool sequential) const {
+    size_t optimal_size = base_size;
+    
+    // Adjust based on memory pressure
+    switch (pressure_level) {
+        case MemoryPressureLevel::Critical:
+            optimal_size = std::min(base_size, static_cast<size_t>(8 * 1024)); // Max 8KB
+            break;
+        case MemoryPressureLevel::High:
+            optimal_size = std::min(base_size, static_cast<size_t>(32 * 1024)); // Max 32KB
+            break;
+        case MemoryPressureLevel::Normal:
+            optimal_size = std::min(base_size, static_cast<size_t>(128 * 1024)); // Max 128KB
+            break;
+        case MemoryPressureLevel::Low:
+        default:
+            optimal_size = std::min(base_size, static_cast<size_t>(512 * 1024)); // Max 512KB
+            break;
+    }
+    
+    // Adjust for access pattern
+    if (sequential && pressure_level <= MemoryPressureLevel::Normal) {
+        // Sequential access can benefit from larger buffers
+        optimal_size = std::min(optimal_size * 2, static_cast<size_t>(256 * 1024));
+    } else if (!sequential && pressure_level >= MemoryPressureLevel::High) {
+        // Random access under pressure should use smaller buffers
+        optimal_size = optimal_size / 2;
+    }
+    
+    // Ensure minimum buffer size
+    optimal_size = std::max(optimal_size, static_cast<size_t>(4 * 1024)); // Min 4KB
+    
+    return optimal_size;
+            return 0; // No read-ahead
+        case MemoryPressureLevel::High:
+            return default_size / 4; // 25% of default
+        case MemoryPressureLevel::Normal:
+            return default_size / 2; // 50% of default
+        case MemoryPressureLevel::Low:
+        default:
+            return default_size; // Full read-ahead
+    }
+}
+
+std::string MemoryOptimizer::memoryPressureLevelToString(MemoryPressureLevel level) {
+    switch (level) {
+        case MemoryPressureLevel::Low:
+            return "Low";
+        case MemoryPressureLevel::Normal:
+            return "Normal";
+        case MemoryPressureLevel::High:
+            return "High";
+        case MemoryPressureLevel::Critical:
+            return "Critical";
+        default:
+            return "Unknown";
+    }
+}
+
+void MemoryOptimizer::startMemoryMonitoring() {
+    m_monitoring_active = true;
+    m_monitoring_thread = std::thread([this]() {
+        monitorMemoryPressure();
+    });
+}
+
+void MemoryOptimizer::stopMemoryMonitoring() {
+    m_monitoring_active = false;
+    if (m_monitoring_thread.joinable()) {
+        m_monitoring_thread.join();
+    }
+}
+
+void MemoryOptimizer::monitorMemoryPressure() {
+    using namespace std::chrono_literals;
+    
+    Debug::log("memory", "MemoryOptimizer::monitorMemoryPressure() - Starting memory pressure monitoring");
+    
+    while (m_monitoring_active) {
+        // Sleep for monitoring interval
+        std::this_thread::sleep_for(10s);
+        
+        // Check system memory pressure
+        MemoryPressureLevel new_pressure = detectMemoryPressure();
+        
+        // Update memory pressure level if changed
+        if (new_pressure != m_memory_pressure_level) {
+            updateMemoryPressureLevel(new_pressure);
+        }
+    }
+    
+    Debug::log("memory", "MemoryOptimizer::monitorMemoryPressure() - Stopping memory pressure monitoring");
+}
+
+MemoryOptimizer::MemoryPressureLevel MemoryOptimizer::detectMemoryPressure() {
+    size_t total_memory = 0;
+    size_t available_memory = 0;
+    
+    if (!getSystemMemoryInfo(total_memory, available_memory)) {
+        // Fallback to internal memory tracking
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_max_total_memory > 0) {
+            float usage_percent = static_cast<float>(m_total_memory_usage) / static_cast<float>(m_max_total_memory) * 100.0f;
+            
+            if (usage_percent > 90.0f) {
+                return MemoryPressureLevel::Critical;
+            } else if (usage_percent > 75.0f) {
+                return MemoryPressureLevel::High;
+            } else if (usage_percent > 50.0f) {
+                return MemoryPressureLevel::Normal;
+            } else {
+                return MemoryPressureLevel::Low;
+            }
+        }
+        return MemoryPressureLevel::Normal;
+    }
+    
+    // Calculate system memory usage percentage
+    float usage_percent = total_memory > 0 ? 
+        static_cast<float>(total_memory - available_memory) / static_cast<float>(total_memory) * 100.0f : 0.0f;
+    
+    if (usage_percent > 90.0f) {
+        return MemoryPressureLevel::Critical;
+    } else if (usage_percent > 80.0f) {
+        return MemoryPressureLevel::High;
+    } else if (usage_percent > 60.0f) {
+        return MemoryPressureLevel::Normal;
+    } else {
+        return MemoryPressureLevel::Low;
+    }
+}
+
+void MemoryOptimizer::updateMemoryPressureLevel(MemoryPressureLevel new_level) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    Debug::log("memory", "MemoryOptimizer::updateMemoryPressureLevel() - Memory pressure changed from ",
+              memoryPressureLevelToString(m_memory_pressure_level), " to ",
+              memoryPressureLevelToString(new_level));
+    
+    m_memory_pressure_level = new_level;
+    
+    // Trigger optimization if pressure increased
+    if (new_level > MemoryPressureLevel::Normal) {
+        optimizeMemoryUsage();
+    }
+}
+
+bool MemoryOptimizer::getSystemMemoryInfo(size_t& total_memory, size_t& available_memory) const {
+#ifdef _WIN32
+    // Windows implementation
+    MEMORYSTATUSEX status;
+    status.dwLength = sizeof(status);
+    if (GlobalMemoryStatusEx(&status)) {
+        total_memory = status.ullTotalPhys;
+        available_memory = status.ullAvailPhys;
+        return true;
+    }
+#elif defined(__APPLE__)
+    // macOS implementation
+    int mib[2];
+    size_t length;
+    
+    mib[0] = CTL_HW;
+    mib[1] = HW_MEMSIZE;
+    length = sizeof(total_memory);
+    if (sysctl(mib, 2, &total_memory, &length, NULL, 0) == 0) {
+        struct vm_statistics64 vm_stats;
+        mach_port_t host_port = mach_host_self();
+        mach_msg_type_number_t host_size = sizeof(vm_statistics64) / sizeof(integer_t);
+        if (host_statistics64(host_port, HOST_VM_INFO64, (host_info64_t)&vm_stats, &host_size) == KERN_SUCCESS) {
+            available_memory = vm_stats.free_count * PAGE_SIZE;
+            return true;
+        }
+    }
+#else
+    // Linux implementation
+    FILE* file = fopen("/proc/meminfo", "r");
+    if (file) {
+        char line[128];
+        bool found_total = false, found_available = false;
+        
+        while (fgets(line, sizeof(line), file)) {
+            if (strncmp(line, "MemTotal:", 9) == 0) {
+                total_memory = static_cast<size_t>(std::stoll(line + 9) * 1024);
+                found_total = true;
+            } else if (strncmp(line, "MemAvailable:", 13) == 0) {
+                available_memory = static_cast<size_t>(std::stoll(line + 13) * 1024);
+                found_available = true;
+            }
+            
+            if (found_total && found_available) {
+                break;
+            }
+        }
+        fclose(file);
+        
+        return found_total && found_available;
+    }
+#endif
+    
+    return false;
+}
+
+size_t MemoryOptimizer::calculateOptimalBufferSize(size_t base_size, 
+                                                  MemoryPressureLevel pressure_level,
+                                                  bool sequential) const {
+    size_t optimal_size = base_size;
+    
+    // Adjust based on memory pressure
+    switch (pressure_level) {
+        case MemoryPressureLevel::Critical:
+            optimal_size = std::min(base_size, static_cast<size_t>(8 * 1024)); // Max 8KB
+            break;
+        case MemoryPressureLevel::High:
+            optimal_size = std::min(base_size, static_cast<size_t>(32 * 1024)); // Max 32KB
+            break;
+        case MemoryPressureLevel::Normal:
+            optimal_size = std::min(base_size, static_cast<size_t>(128 * 1024)); // Max 128KB
+            break;
+        case MemoryPressureLevel::Low:
+        default:
+            optimal_size = std::min(base_size, static_cast<size_t>(512 * 1024)); // Max 512KB
+            break;
+    }
+    
+    // Adjust for access pattern
+    if (sequential && pressure_level <= MemoryPressureLevel::Normal) {
+        optimal_size = std::min(optimal_size * 2, static_cast<size_t>(256 * 1024)); // Double for sequential, max 256KB
+    } else if (!sequential && pressure_level >= MemoryPressureLevel::High) {
+        optimal_size = optimal_size / 2; // Halve for random access under pressure
+    }
+    
+    // Ensure minimum size
+    optimal_size = std::max(optimal_size, static_cast<size_t>(4 * 1024)); // Min 4KB
+    
+    return optimal_size;
+}
+
 // MemoryTracker implementation
 MemoryTracker& MemoryTracker::getInstance() {
     static MemoryTracker instance;

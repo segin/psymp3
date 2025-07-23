@@ -39,6 +39,22 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     m_position = 0;
     m_error = 0;
     
+    // Initialize performance optimization state
+    m_buffer_file_position = -1;
+    m_buffer_valid_bytes = 0;
+    m_buffer_offset = 0;
+    m_last_read_position = -1;
+    m_sequential_access = false;
+    m_cached_file_size = -1;
+    
+    // Register with global memory tracking
+    {
+        std::lock_guard<std::mutex> lock(s_memory_mutex);
+        s_active_handlers++;
+    }
+    
+
+    
     // Normalize the path for consistent cross-platform handling
     std::string normalized_path = normalizePath(path.to8Bit(false));
     Debug::log("io", "FileIOHandler::FileIOHandler() - Normalized path: ", normalized_path);
@@ -144,11 +160,38 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     // Log successful file opening
     Debug::log("io", "FileIOHandler::FileIOHandler() - Successfully opened file: ", path.to8Bit(false));
     
-    // Get and log file size for debugging
+    // Get and log file size for debugging and optimization
     off_t fileSize = getFileSize();
     if (fileSize >= 0) {
+        m_cached_file_size = fileSize;  // Cache for performance
         Debug::log("io", "FileIOHandler::FileIOHandler() - File size: ", fileSize, 
                   " bytes (", std::hex, fileSize, std::dec, ")");
+        
+        // Optimize buffer size based on file size
+        m_buffer_size = getOptimalBufferSize(fileSize);
+        Debug::log("io", "FileIOHandler::FileIOHandler() - Optimal buffer size: ", m_buffer_size, " bytes");
+        
+        // Pre-allocate buffer from pool for performance
+        if (checkMemoryLimits(m_buffer_size)) {
+            m_read_buffer = IOBufferPool::getInstance().acquire(m_buffer_size);
+            if (!m_read_buffer.empty()) {
+                updateMemoryUsage(m_read_buffer.size());
+                Debug::log("io", "FileIOHandler::FileIOHandler() - Buffer acquired from pool successfully");
+            } else {
+                Debug::log("io", "FileIOHandler::FileIOHandler() - Warning: Could not acquire buffer from pool");
+                // Fall back to smaller buffer size
+                m_buffer_size = std::min(m_buffer_size, static_cast<size_t>(16 * 1024)); // 16KB fallback
+                if (checkMemoryLimits(m_buffer_size)) {
+                    m_read_buffer = IOBufferPool::getInstance().acquire(m_buffer_size);
+                    if (!m_read_buffer.empty()) {
+                        updateMemoryUsage(m_read_buffer.size());
+                    }
+                }
+            }
+        } else {
+            Debug::log("io", "FileIOHandler::FileIOHandler() - Memory limit would be exceeded, using smaller buffer");
+            m_buffer_size = std::min(m_buffer_size, static_cast<size_t>(8 * 1024)); // 8KB fallback
+        }
         
         // Check against platform maximum file size
         off_t maxFileSize = getMaxFileSize();
@@ -164,6 +207,22 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         }
     } else {
         Debug::log("io", "FileIOHandler::FileIOHandler() - Warning: Could not determine file size");
+        // Use default buffer size for unknown file sizes
+        if (checkMemoryLimits(m_buffer_size)) {
+            m_read_buffer = IOBufferPool::getInstance().acquire(m_buffer_size);
+            if (!m_read_buffer.empty()) {
+                updateMemoryUsage(m_read_buffer.size());
+            } else {
+                Debug::log("io", "FileIOHandler::FileIOHandler() - Warning: Could not acquire default buffer from pool");
+                m_buffer_size = 8 * 1024; // 8KB minimal fallback
+                if (checkMemoryLimits(m_buffer_size)) {
+                    m_read_buffer = IOBufferPool::getInstance().acquire(m_buffer_size);
+                    if (!m_read_buffer.empty()) {
+                        updateMemoryUsage(m_read_buffer.size());
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -227,55 +286,95 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
     }
     
     // Check for potential integer overflow in size calculation
-    // This prevents overflow when calculating total bytes to read
     if (size > 0 && count > SIZE_MAX / size) {
         m_error = EOVERFLOW;  // Value too large for defined data type
         Debug::log("io", "FileIOHandler::read() - Integer overflow prevented: size=", size, " count=", count);
         return 0;
     }
     
-    // Perform the read operation
-    size_t result = fread(buffer, size, count, m_file_handle);
+    size_t bytes_requested = size * count;
+    size_t total_bytes_read = 0;
+    uint8_t* dest_buffer = static_cast<uint8_t*>(buffer);
     
-    // Update EOF state
-    if (result < count) {
-        if (feof(m_file_handle)) {
-            m_eof = true;
-            Debug::log("io", "FileIOHandler::read() - Reached end of file");
-        } else {
-            // Read error occurred
-            m_error = ferror(m_file_handle);
-            Debug::log("io", "FileIOHandler::read() - Read error occurred: ", strerror(m_error));
+    // Update access pattern tracking for optimization
+    updateAccessPattern(m_position);
+    
+    // Periodic buffer pool optimization
+    static size_t read_counter = 0;
+    read_counter++;
+    if (read_counter % 100 == 0) { // Every 100 reads
+        optimizeBufferPoolUsage();
+    }
+    
+    Debug::log("io", "FileIOHandler::read() - Reading ", bytes_requested, " bytes at position ", m_position, 
+              " (sequential: ", (m_sequential_access ? "yes" : "no"), ")");
+    
+    // Read data using buffered approach
+    while (total_bytes_read < bytes_requested && !m_eof) {
+        size_t remaining_bytes = bytes_requested - total_bytes_read;
+        
+        // Check if current position is buffered
+        if (isPositionBuffered(m_position + total_bytes_read)) {
+            // Read from buffer
+            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            total_bytes_read += buffer_bytes_read;
             
-            // Attempt error recovery for certain types of errors
-            if (isRecoverableError(m_error)) {
-                Debug::log("io", "FileIOHandler::read() - Attempting recovery from recoverable error: ", 
-                          getErrorMessage(m_error));
-                if (attemptErrorRecovery()) {
-                    Debug::log("io", "FileIOHandler::read() - Error recovery successful");
-                } else {
-                    Debug::log("io", "FileIOHandler::read() - Error recovery failed");
-                }
+            if (buffer_bytes_read == 0) {
+                // Buffer exhausted, need to fill it
+                break;
+            }
+        } else {
+            // Need to fill buffer
+            off_t read_position = m_position + total_bytes_read;
+            
+            // Determine read size - use read-ahead for sequential access
+            size_t read_size = remaining_bytes;
+            if (m_sequential_access && m_read_ahead_enabled) {
+                read_size = std::max(remaining_bytes, m_read_ahead_size);
             }
             
-            clearerr(m_file_handle);
+            if (!fillBuffer(read_position, read_size)) {
+                // Buffer fill failed
+                if (m_error == 0) {
+                    // Check if we hit EOF
+                    if (feof(m_file_handle)) {
+                        m_eof = true;
+                        Debug::log("io", "FileIOHandler::read() - Reached end of file during buffer fill");
+                    } else {
+                        m_error = ferror(m_file_handle);
+                        Debug::log("io", "FileIOHandler::read() - Buffer fill failed: ", strerror(m_error));
+                    }
+                }
+                break;
+            }
+            
+            // Now read from the newly filled buffer
+            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            total_bytes_read += buffer_bytes_read;
+            
+            if (buffer_bytes_read == 0) {
+                // Still no data available, likely EOF
+                m_eof = true;
+                break;
+            }
         }
     }
     
     // Update position with overflow protection
-    off_t bytes_read = (off_t)(result * size);
-    // Check for overflow: if m_position + bytes_read would overflow
-    // We use the fact that if a + b overflows, then a > MAX - b
     static const off_t OFF_T_MAX_VAL = (sizeof(off_t) == 8) ? 0x7FFFFFFFFFFFFFFFLL : 0x7FFFFFFFL;
-    if (bytes_read > 0 && m_position > OFF_T_MAX_VAL - bytes_read) {
-        // Position would overflow, but we still return the successful read count
+    if (total_bytes_read > 0 && m_position > OFF_T_MAX_VAL - static_cast<off_t>(total_bytes_read)) {
         Debug::log("io", "FileIOHandler::read() - Position overflow prevented, clamping to maximum");
         m_position = OFF_T_MAX_VAL;
     } else {
-        m_position += bytes_read;
+        m_position += static_cast<off_t>(total_bytes_read);
     }
     
-    return result;
+    // Calculate number of complete elements read
+    size_t elements_read = total_bytes_read / size;
+    
+    Debug::log("io", "FileIOHandler::read() - Read ", total_bytes_read, " bytes (", elements_read, " elements), new position: ", m_position);
+    
+    return elements_read;
 }
 
 /**
@@ -400,6 +499,14 @@ int FileIOHandler::seek(off_t offset, int whence) {
             m_position = new_position;
             // Clear EOF flag if we've moved away from the end
             m_eof = false;
+            
+            // Invalidate buffer since we've changed position
+            invalidateBuffer();
+            
+            // Reset access pattern tracking after seek
+            m_last_read_position = new_position;
+            m_sequential_access = false;
+            
             Debug::log("io", "FileIOHandler::seek() - Successful seek to position: ", m_position);
         } else {
             // tell() failed after successful seek - this shouldn't happen
@@ -499,6 +606,16 @@ int FileIOHandler::close() {
     // Nullify the handle regardless of success/failure
     m_file_handle = nullptr;
     
+    // Clean up performance optimization resources
+    invalidateBuffer();
+    m_read_buffer = IOBufferPool::Buffer(); // Release buffer back to pool
+    m_cached_file_size = -1;
+    m_last_read_position = -1;
+    m_sequential_access = false;
+    
+    // Update memory tracking
+    updateMemoryUsage(0);
+    
     return result;
 }
 
@@ -532,6 +649,12 @@ bool FileIOHandler::eof() {
 off_t FileIOHandler::getFileSize() {
     // Reset error state
     m_error = 0;
+    
+    // Return cached size if available for performance
+    if (m_cached_file_size >= 0) {
+        Debug::log("io", "FileIOHandler::getFileSize() - Returning cached size: ", m_cached_file_size);
+        return m_cached_file_size;
+    }
     
     // Validate file handle state
     if (!validateFileHandle()) {
@@ -635,6 +758,9 @@ off_t FileIOHandler::getFileSize() {
         Debug::log("io", "FileIOHandler::getFileSize() - Invalid file size reported by system: ", file_stat.st_size);
         return -1;
     }
+    
+    // Cache the file size for future calls
+    m_cached_file_size = file_stat.st_size;
     
     return file_stat.st_size;
 }
@@ -779,4 +905,414 @@ bool FileIOHandler::attemptErrorRecovery() {
     
     Debug::log("io", "FileIOHandler::attemptErrorRecovery() - No recovery action needed or possible");
     return false;
+}
+
+bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
+    Debug::log("io", "FileIOHandler::fillBuffer() - Filling buffer at position ", file_position, " (min bytes: ", min_bytes, ")");
+    
+    // Validate file handle
+    if (!validateFileHandle()) {
+        return false;
+    }
+    
+    // Determine buffer size to use
+    size_t buffer_size_to_use = std::max(m_buffer_size, min_bytes);
+    
+    // For sequential access, use read-ahead
+    if (m_sequential_access && m_read_ahead_enabled) {
+        buffer_size_to_use = std::max(buffer_size_to_use, m_read_ahead_size);
+    }
+    
+    // Don't read beyond file size if known
+    if (m_cached_file_size > 0) {
+        off_t remaining = m_cached_file_size - file_position;
+        if (remaining <= 0) {
+            Debug::log("io", "FileIOHandler::fillBuffer() - Position beyond file size");
+            m_eof = true;
+            return false;
+        }
+        buffer_size_to_use = std::min(buffer_size_to_use, static_cast<size_t>(remaining));
+    }
+    
+    // Seek to the desired position if necessary
+    off_t current_file_pos = tell();
+    if (current_file_pos != file_position) {
+#ifdef _WIN32
+        if (_fseeki64(m_file_handle, file_position, SEEK_SET) != 0) {
+#else
+        if (fseeko(m_file_handle, file_position, SEEK_SET) != 0) {
+#endif
+            m_error = errno;
+            Debug::log("io", "FileIOHandler::fillBuffer() - Seek failed: ", strerror(errno));
+            return false;
+        }
+    }
+    
+    // Get buffer from pool if current buffer is too small
+    if (m_read_buffer.empty() || m_read_buffer.size() < buffer_size_to_use) {
+        // Check memory limits before allocating new buffer
+        size_t additional_memory = buffer_size_to_use - (m_read_buffer.empty() ? 0 : m_read_buffer.size());
+        
+        if (!checkMemoryLimits(additional_memory)) {
+            Debug::log("io", "FileIOHandler::fillBuffer() - Memory limit would be exceeded");
+            // Try with current buffer size if available
+            if (!m_read_buffer.empty()) {
+                buffer_size_to_use = m_read_buffer.size();
+            } else {
+                return false;
+            }
+        } else {
+            // Release current buffer and get a new one
+            size_t old_size = m_read_buffer.empty() ? 0 : m_read_buffer.size();
+            m_read_buffer = IOBufferPool::Buffer(); // Release current buffer
+            m_read_buffer = IOBufferPool::getInstance().acquire(buffer_size_to_use);
+            
+            if (m_read_buffer.empty()) {
+                Debug::log("io", "FileIOHandler::fillBuffer() - Buffer allocation failed from pool");
+                // Try with smaller buffer
+                buffer_size_to_use = std::min(buffer_size_to_use, static_cast<size_t>(64 * 1024));
+                m_read_buffer = IOBufferPool::getInstance().acquire(buffer_size_to_use);
+                
+                if (m_read_buffer.empty()) {
+                    Debug::log("io", "FileIOHandler::fillBuffer() - Even smaller buffer allocation failed");
+                    return false;
+                }
+            }
+            
+            // Update memory usage tracking
+            updateMemoryUsage(m_memory_usage - old_size + m_read_buffer.size());
+        }
+    }
+    
+    // Check memory limits before reading
+    if (!checkMemoryLimits(buffer_size_to_use)) {
+        Debug::log("io", "FileIOHandler::fillBuffer() - Memory limits would be exceeded");
+        m_error = ENOMEM;
+        return false;
+    }
+    
+    // Read data into buffer
+    size_t bytes_read = fread(m_read_buffer.data(), 1, buffer_size_to_use, m_file_handle);
+    
+    if (bytes_read == 0) {
+        if (feof(m_file_handle)) {
+            m_eof = true;
+            Debug::log("io", "FileIOHandler::fillBuffer() - Reached EOF during buffer fill");
+        } else {
+            m_error = ferror(m_file_handle);
+            Debug::log("io", "FileIOHandler::fillBuffer() - Read error during buffer fill: ", strerror(m_error));
+            
+            // Attempt error recovery
+            if (isRecoverableError(m_error)) {
+                if (attemptErrorRecovery()) {
+                    Debug::log("io", "FileIOHandler::fillBuffer() - Error recovery successful, retrying");
+                    clearerr(m_file_handle);
+                    bytes_read = fread(m_read_buffer.data(), 1, buffer_size_to_use, m_file_handle);
+                }
+            }
+        }
+        
+        if (bytes_read == 0) {
+            return false;
+        }
+    }
+    
+    // Update memory usage tracking
+    updateMemoryUsage(bytes_read);
+    
+    // Optimize buffer pool usage based on access patterns
+    static size_t read_counter = 0;
+    read_counter++;
+    if (read_counter % 20 == 0) { // Optimize every 20 reads to avoid overhead
+        optimizeBufferPoolUsage();
+    }
+    
+    // Update buffer state
+    m_buffer_file_position = file_position;
+    m_buffer_valid_bytes = bytes_read;
+    m_buffer_offset = 0;
+    
+    Debug::log("io", "FileIOHandler::fillBuffer() - Buffer filled with ", bytes_read, " bytes at position ", file_position);
+    
+    return true;
+}
+
+size_t FileIOHandler::readFromBuffer(void* buffer, size_t bytes_requested) {
+    if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0) {
+        Debug::log("io", "FileIOHandler::readFromBuffer() - Buffer is empty or invalid");
+        return 0;
+    }
+    
+    // Calculate current position relative to buffer
+    off_t current_buffer_offset = m_position - m_buffer_file_position;
+    
+    if (current_buffer_offset < 0 || static_cast<size_t>(current_buffer_offset) >= m_buffer_valid_bytes) {
+        Debug::log("io", "FileIOHandler::readFromBuffer() - Current position not in buffer");
+        return 0;
+    }
+    
+    // Calculate how many bytes we can read
+    size_t available_bytes = m_buffer_valid_bytes - static_cast<size_t>(current_buffer_offset);
+    size_t bytes_to_copy = std::min(bytes_requested, available_bytes);
+    
+    // Copy data from buffer
+    std::memcpy(buffer, m_read_buffer.data() + static_cast<size_t>(current_buffer_offset), bytes_to_copy);
+    
+    Debug::log("io", "FileIOHandler::readFromBuffer() - Read ", bytes_to_copy, " bytes from buffer (available: ", available_bytes, ")");
+    
+    return bytes_to_copy;
+}
+
+bool FileIOHandler::isPositionBuffered(off_t file_position) const {
+    if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0) {
+        return false;
+    }
+    
+    off_t buffer_end = m_buffer_file_position + static_cast<off_t>(m_buffer_valid_bytes);
+    return (file_position >= m_buffer_file_position && file_position < buffer_end);
+}
+
+void FileIOHandler::updateAccessPattern(off_t current_position) {
+    if (m_last_read_position >= 0) {
+        // Check if this is sequential access
+        off_t position_diff = current_position - m_last_read_position;
+        
+        // Consider it sequential if we're reading forward within a reasonable range
+        static const off_t MAX_SEQUENTIAL_GAP = 64 * 1024; // 64KB
+        if (position_diff >= 0 && position_diff <= MAX_SEQUENTIAL_GAP) {
+            if (!m_sequential_access) {
+                m_sequential_access = true;
+                Debug::log("io", "FileIOHandler::updateAccessPattern() - Sequential access pattern detected");
+            }
+        } else {
+            if (m_sequential_access) {
+                m_sequential_access = false;
+                Debug::log("io", "FileIOHandler::updateAccessPattern() - Sequential access pattern broken");
+            }
+        }
+    }
+    
+    m_last_read_position = current_position;
+}
+
+void FileIOHandler::invalidateBuffer() {
+    m_buffer_file_position = -1;
+    m_buffer_valid_bytes = 0;
+    m_buffer_offset = 0;
+    Debug::log("io", "FileIOHandler::invalidateBuffer() - Buffer invalidated");
+}
+
+size_t FileIOHandler::getOptimalBufferSize(off_t file_size) const {
+    // Base buffer size
+    size_t optimal_size = 64 * 1024; // 64KB default
+    
+    if (file_size > 0) {
+        // For small files, use smaller buffer to avoid waste
+        if (file_size < 16 * 1024) { // < 16KB
+            optimal_size = 4 * 1024; // 4KB
+        } else if (file_size < 256 * 1024) { // < 256KB
+            optimal_size = 16 * 1024; // 16KB
+        } else if (file_size < 1024 * 1024) { // < 1MB
+            optimal_size = 32 * 1024; // 32KB
+        } else if (file_size < 16 * 1024 * 1024) { // < 16MB
+            optimal_size = 64 * 1024; // 64KB
+        } else if (file_size < 256 * 1024 * 1024) { // < 256MB
+            optimal_size = 128 * 1024; // 128KB
+        } else {
+            // For very large files, use larger buffer
+            optimal_size = 256 * 1024; // 256KB
+        }
+    }
+    
+    // Ensure buffer size is reasonable and within memory limits
+    static const size_t MAX_BUFFER_SIZE = 1024 * 1024; // 1MB max
+    static const size_t MIN_BUFFER_SIZE = 4 * 1024;    // 4KB min
+    
+    optimal_size = std::max(MIN_BUFFER_SIZE, std::min(optimal_size, MAX_BUFFER_SIZE));
+    
+    Debug::log("io", "FileIOHandler::getOptimalBufferSize() - File size: ", file_size, ", optimal buffer: ", optimal_size);
+    
+    return optimal_size;
+}
+
+void FileIOHandler::optimizeBufferPoolUsage() {
+    // Get current buffer pool statistics
+    auto pool_stats = IOBufferPool::getInstance().getStats();
+    
+    // Calculate hit rate and memory efficiency
+    size_t total_requests = pool_stats["total_pool_hits"] + pool_stats["total_pool_misses"];
+    if (total_requests == 0) {
+        return; // No data to optimize on
+    }
+    
+    double hit_rate = static_cast<double>(pool_stats["total_pool_hits"]) / total_requests;
+    double memory_utilization = static_cast<double>(pool_stats["current_pool_size"]) / pool_stats["max_pool_size"];
+    
+    Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Hit rate: ", hit_rate * 100, 
+              "%, Memory utilization: ", memory_utilization * 100, "%");
+    
+    // Get memory optimizer recommendations
+    MemoryOptimizer& optimizer = MemoryOptimizer::getInstance();
+    size_t recommended_pool_size, recommended_buffers_per_size;
+    optimizer.getRecommendedBufferPoolParams(recommended_pool_size, recommended_buffers_per_size);
+    
+    // Apply memory optimizer recommendations
+    IOBufferPool::getInstance().setMaxPoolSize(recommended_pool_size);
+    IOBufferPool::getInstance().setMaxBuffersPerSize(recommended_buffers_per_size);
+    
+    // Adjust buffer pool settings based on performance metrics and memory pressure
+    MemoryOptimizer::MemoryPressureLevel pressure = optimizer.getMemoryPressureLevel();
+    
+    if (pressure >= MemoryOptimizer::MemoryPressureLevel::High) {
+        // High memory pressure - be conservative with file I/O buffers
+        if (hit_rate < 0.5) {
+            // Low hit rate under pressure - reduce pool size
+            size_t reduced_size = recommended_pool_size * 0.6;
+            IOBufferPool::getInstance().setMaxPoolSize(reduced_size);
+            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Reduced pool size to ", reduced_size, " bytes due to high memory pressure");
+        }
+        
+        // Disable read-ahead under high memory pressure
+        if (m_read_ahead_enabled) {
+            m_read_ahead_enabled = false;
+            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Disabled read-ahead due to high memory pressure");
+        }
+        
+    } else if (pressure == MemoryOptimizer::MemoryPressureLevel::Low) {
+        // Low memory pressure - can be more aggressive with optimization
+        if (hit_rate > 0.8 && memory_utilization < 0.6) {
+            // High hit rate with low memory usage - can afford to increase pool size
+            size_t increased_size = std::min(recommended_pool_size * 1.3, static_cast<size_t>(16 * 1024 * 1024)); // Cap at 16MB
+            IOBufferPool::getInstance().setMaxPoolSize(increased_size);
+            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Increased pool size to ", increased_size, " bytes due to low memory pressure");
+        }
+        
+        // Enable read-ahead under low memory pressure if not already enabled
+        if (!m_read_ahead_enabled && optimizer.shouldEnableReadAhead()) {
+            m_read_ahead_enabled = true;
+            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Enabled read-ahead due to low memory pressure");
+        }
+    }
+    
+    // Optimize buffer sizes based on access patterns and memory pressure
+    size_t optimal_buffer_size = optimizer.getOptimalBufferSize(m_buffer_size, "file", m_sequential_access);
+    
+    if (optimal_buffer_size != m_buffer_size) {
+        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Adjusting buffer size from ", m_buffer_size, 
+                  " to ", optimal_buffer_size, " based on memory optimizer recommendations");
+        
+        // Release current buffer back to pool
+        if (!m_read_buffer.empty()) {
+            m_read_buffer = IOBufferPool::Buffer(); // Release buffer
+            updateMemoryUsage(0);
+        }
+        
+        m_buffer_size = optimal_buffer_size;
+        
+        // Acquire new buffer with optimal size if memory allows
+        if (checkMemoryLimits(m_buffer_size)) {
+            m_read_buffer = IOBufferPool::getInstance().acquire(m_buffer_size);
+            if (!m_read_buffer.empty()) {
+                updateMemoryUsage(m_read_buffer.size());
+                // Invalidate buffer since we have a new one
+                invalidateBuffer();
+            }
+        }
+    }
+    
+    // Adjust read-ahead size based on memory pressure
+    if (m_read_ahead_enabled) {
+        size_t recommended_read_ahead = optimizer.getRecommendedReadAheadSize(128 * 1024); // Default 128KB
+        if (recommended_read_ahead != m_read_ahead_size) {
+            m_read_ahead_size = recommended_read_ahead;
+            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Adjusted read-ahead size to ", m_read_ahead_size, " bytes");
+        }
+    }
+    
+    // Register memory usage with optimizer
+    size_t current_memory_usage = 0;
+    if (!m_read_buffer.empty()) {
+        current_memory_usage += m_read_buffer.size();
+    }
+    
+    // Update memory tracking
+    static size_t last_reported_usage = 0;
+    if (current_memory_usage != last_reported_usage) {
+        if (last_reported_usage > 0) {
+            optimizer.registerDeallocation(last_reported_usage, "file");
+        }
+        if (current_memory_usage > 0) {
+            optimizer.registerAllocation(current_memory_usage, "file");
+        }
+        last_reported_usage = current_memory_usage;
+    }
+    
+    // Periodic global memory optimization
+    static size_t optimization_counter = 0;
+    optimization_counter++;
+    
+    if (optimization_counter % 50 == 0) { // Every 50 buffer optimizations
+        IOHandler::performMemoryOptimization();
+        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Performed global memory optimization");
+    }
+}
+
+void FileIOHandler::optimizeBufferPoolUsage() {
+    // Get current buffer pool statistics
+    auto pool_stats = IOBufferPool::getInstance().getStats();
+    
+    // Calculate hit rate and memory efficiency
+    size_t total_requests = pool_stats["total_pool_hits"] + pool_stats["total_pool_misses"];
+    if (total_requests == 0) {
+        return; // No data to optimize on
+    }
+    
+    double hit_rate = static_cast<double>(pool_stats["total_pool_hits"]) / total_requests;
+    double memory_utilization = static_cast<double>(pool_stats["current_pool_size"]) / pool_stats["max_pool_size"];
+    
+    Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Hit rate: ", hit_rate * 100, 
+              "%, Memory utilization: ", memory_utilization * 100, "%");
+    
+    // Adjust buffer pool settings based on performance metrics
+    if (hit_rate < 0.6 && memory_utilization > 0.9) {
+        // Very low hit rate with very high memory usage - aggressively reduce pool size
+        size_t new_max_size = pool_stats["max_pool_size"] * 0.7;
+        IOBufferPool::getInstance().setMaxPoolSize(new_max_size);
+        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Aggressively reduced pool size to ", new_max_size, " bytes");
+    } else if (hit_rate > 0.95 && memory_utilization < 0.3) {
+        // Excellent hit rate with low memory usage - can increase pool size
+        size_t new_max_size = pool_stats["max_pool_size"] * 1.3;
+        IOBufferPool::getInstance().setMaxPoolSize(new_max_size);
+        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Increased pool size to ", new_max_size, " bytes");
+    }
+    
+    // Optimize buffer sizes based on file access patterns
+    if (m_sequential_access && m_cached_file_size > 0) {
+        // For sequential access on large files, prefer larger buffers
+        if (m_cached_file_size > 10 * 1024 * 1024 && m_buffer_size < 256 * 1024) { // >10MB file
+            m_buffer_size = std::min(static_cast<size_t>(512 * 1024), m_buffer_size * 2);
+            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Increased buffer size to ", m_buffer_size, " bytes for large file sequential access");
+        }
+    } else if (!m_sequential_access && m_cached_file_size > 0) {
+        // For random access, optimize buffer size based on file size
+        if (m_cached_file_size < 1024 * 1024 && m_buffer_size > 32 * 1024) { // <1MB file
+            m_buffer_size = std::max(static_cast<size_t>(16 * 1024), m_buffer_size / 2);
+            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Decreased buffer size to ", m_buffer_size, " bytes for small file random access");
+        }
+    }
+    
+    // Periodic buffer pool maintenance
+    static size_t optimization_counter = 0;
+    optimization_counter++;
+    
+    if (optimization_counter % 50 == 0) { // Every 50 optimizations
+        // Perform comprehensive buffer pool optimization
+        IOBufferPool::getInstance().optimizeAllocationPatterns();
+        IOBufferPool::getInstance().compactMemory();
+        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Performed periodic buffer pool optimization");
+    } else if (optimization_counter % 20 == 0) { // Every 20 optimizations
+        // Lighter cleanup
+        IOBufferPool::getInstance().defragmentPools();
+        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Performed buffer pool defragmentation");
+    }
 }
