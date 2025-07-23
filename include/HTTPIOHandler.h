@@ -51,10 +51,10 @@ public:
 
     size_t read(void* buffer, size_t size, size_t count) override;
     int seek(long offset, int whence) override;
-    long tell() const override;
-    bool eof() const override;
-    long getSize() const override;
-    std::unique_ptr<IOHandler> duplicate() const override;
+    off_t tell() override;
+    int close() override;
+    bool eof() override;
+    off_t getFileSize() override;
 
     /**
      * @brief Get the total content length if known
