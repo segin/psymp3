@@ -241,27 +241,22 @@ AudioFrame DemuxedStream::getNextFrame() {
 }
 
 void DemuxedStream::fillChunkBuffer() {
-    // Use BoundedQueue for efficient memory management
-    static BoundedQueue<MediaChunk> bounded_buffer(
-        MAX_CHUNK_BUFFER_SIZE, 
-        MAX_CHUNK_BUFFER_BYTES,
-        [](const MediaChunk& chunk) -> size_t {
-            return sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t);
-        }
-    );
+    // Use simple bounded buffering with memory pressure awareness
+    static std::queue<MediaChunk> temp_buffer;
+    static size_t temp_buffer_bytes = 0;
+    static size_t max_chunks = MAX_CHUNK_BUFFER_SIZE;
+    static size_t max_bytes = MAX_CHUNK_BUFFER_BYTES;
     
     // Check if we need to update memory pressure
     int memory_pressure = MemoryTracker::getInstance().getMemoryPressureLevel();
     if (memory_pressure > 70) {
         // Under high memory pressure, reduce buffer size
-        size_t adjusted_max_chunks = MAX_CHUNK_BUFFER_SIZE / 2;
-        size_t adjusted_max_bytes = MAX_CHUNK_BUFFER_BYTES / 2;
-        bounded_buffer.setMaxItems(adjusted_max_chunks);
-        bounded_buffer.setMaxMemoryBytes(adjusted_max_bytes);
+        max_chunks = MAX_CHUNK_BUFFER_SIZE / 2;
+        max_bytes = MAX_CHUNK_BUFFER_BYTES / 2;
     } else {
         // Normal memory pressure, use default sizes
-        bounded_buffer.setMaxItems(MAX_CHUNK_BUFFER_SIZE);
-        bounded_buffer.setMaxMemoryBytes(MAX_CHUNK_BUFFER_BYTES);
+        max_chunks = MAX_CHUNK_BUFFER_SIZE;
+        max_bytes = MAX_CHUNK_BUFFER_BYTES;
     }
     
     // Fill buffer until full or EOF
@@ -273,23 +268,30 @@ void DemuxedStream::fillChunkBuffer() {
             break; // No more data
         }
         
-        // Try to add chunk to bounded buffer
-        if (!bounded_buffer.tryPush(std::move(chunk))) {
+        // Check bounds before adding
+        size_t chunk_size = sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t);
+        if (temp_buffer.size() >= max_chunks || temp_buffer_bytes + chunk_size > max_bytes) {
             Debug::log("demux", "DemuxedStream: Bounded buffer full, stopping chunk buffering");
             break;
         }
         
-        // Get buffer stats for logging
-        auto stats = bounded_buffer.getStats();
-        Debug::log("demux", "DemuxedStream: Buffer stats - items: ", stats.current_items,
-                  ", bytes: ", stats.current_memory_bytes,
-                  ", fullness: ", stats.fullness_ratio * 100, "%");
+        // Add chunk to temp buffer
+        temp_buffer_bytes += chunk_size;
+        temp_buffer.push(std::move(chunk));
+        
+        // Log buffer stats
+        Debug::log("demux", "DemuxedStream: Buffer stats - items: ", temp_buffer.size(),
+                  ", bytes: ", temp_buffer_bytes,
+                  ", fullness: ", (float)temp_buffer.size() / max_chunks * 100, "%");
     }
     
-    // Transfer chunks from bounded buffer to our queue
-    MediaChunk chunk;
-    while (bounded_buffer.tryPop(chunk)) {
+    // Transfer chunks from temp buffer to our queue
+    while (!temp_buffer.empty()) {
+        MediaChunk chunk = std::move(temp_buffer.front());
+        temp_buffer.pop();
+        
         size_t chunk_size = chunk.data.size();
+        temp_buffer_bytes -= (sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t));
         m_current_buffer_bytes += chunk_size;
         m_chunk_buffer.push(std::move(chunk));
     }
