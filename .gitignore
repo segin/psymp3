@@ -64,3 +64,4 @@ tests/test-harness
 tests/test_harness_integration
 tests/test_raii_file_handle
 tests/test_resource_management_simple
+tests/simple_memory_test

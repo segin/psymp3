@@ -417,8 +417,11 @@ size_t MemoryPoolManager::getOptimalBufferSize(size_t requested_size,
 
 void MemoryPoolManager::createPool(size_t size, size_t max_buffers, size_t pre_allocate) {
     // Create pool entry if it doesn't exist
-    auto& pool = m_pools[size];
-    pool.buffer_size = size;
+    auto it = m_pools.find(size);
+    if (it == m_pools.end()) {
+        it = m_pools.emplace(size, PoolEntry(size)).first;
+    }
+    auto& pool = it->second;
     
     // Pre-allocate buffers
     pre_allocate = std::min(pre_allocate, max_buffers);

@@ -78,6 +78,7 @@ void HTTPIOHandler::initialize() {
             std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "HEAD request");
             Debug::log("HTTPIOHandler", errorMsg);
             m_error = response.statusCode > 0 ? response.statusCode : -1;
+            cleanupOnError("HEAD request failed during initialization");
             return;
         }
         
@@ -138,6 +139,7 @@ void HTTPIOHandler::initialize() {
         Debug::log("HTTPIOHandler", "Exception during initialization: ", e.what());
         m_error = -1;
         m_initialized = false;
+        cleanupOnError("Exception during initialization");
     }
 }
 
@@ -228,6 +230,7 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
                 std::string errorMsg = getErrorMessage(-1, "Failed to fill buffer for read operation");
                 Debug::log("HTTPIOHandler", errorMsg);
                 m_error = -1;
+                cleanupOnError("fillBuffer failed during read operation");
                 break;
             }
             
@@ -380,6 +383,7 @@ bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {
     
     // Validate network operation
     if (!validateNetworkOperation("fillBuffer")) {
+        cleanupOnError("Network operation validation failed in fillBuffer");
         return false;
     }
     
@@ -407,6 +411,7 @@ bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {
         std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "buffer fill");
         Debug::log("HTTPIOHandler", errorMsg);
         m_error = response.statusCode > 0 ? response.statusCode : -1;
+        cleanupOnError("HTTP request failed in fillBuffer");
         return false;
     }
     
@@ -424,6 +429,7 @@ bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {
     if (!checkMemoryLimits(response.body.size())) {
         Debug::log("HTTPIOHandler", "Memory limits would be exceeded for ", response.body.size(), " bytes");
         m_error = ENOMEM;
+        cleanupOnError("Memory limits exceeded in fillBuffer");
         return false;
     }
     
@@ -431,6 +437,7 @@ bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {
     m_buffer = IOBufferPool::getInstance().acquire(response.body.size());
     if (m_buffer.empty()) {
         Debug::log("HTTPIOHandler", "Failed to acquire buffer from pool for ", response.body.size(), " bytes");
+        cleanupOnError("Failed to acquire buffer from pool in fillBuffer");
         return false;
     }
     
@@ -444,12 +451,16 @@ bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {
     // Optimize buffer pool usage based on access patterns
     optimizeBufferPoolUsage();
     
+    // Enforce bounded cache limits to prevent memory leaks
+    enforceBoundedCacheLimits();
+    
     // Periodic global memory optimization and buffer pool optimization
     static size_t global_optimization_counter = 0;
     global_optimization_counter++;
     
     if (global_optimization_counter % 50 == 0) { // Every 50 buffer fills
         optimizeBufferPoolUsage();
+        enforceBoundedCacheLimits();
     }
     
     if (global_optimization_counter % 100 == 0) { // Every 100 buffer fills
@@ -734,7 +745,7 @@ void HTTPIOHandler::optimizeBufferPoolUsage() {
         // Low memory pressure - can be more aggressive with optimization
         if (hit_rate > 0.9 && memory_utilization < 0.5) {
             // High hit rate with low memory usage - can afford to increase pool size
-            size_t increased_size = std::min(recommended_pool_size * 1.5, static_cast<size_t>(32 * 1024 * 1024)); // Cap at 32MB
+            size_t increased_size = std::min(static_cast<size_t>(recommended_pool_size * 1.5), static_cast<size_t>(32 * 1024 * 1024)); // Cap at 32MB
             IOBufferPool::getInstance().setMaxPoolSize(increased_size);
             Debug::log("memory", "HTTPIOHandler::optimizeBufferPoolUsage() - Increased pool size to ", increased_size, " bytes due to low memory pressure and high hit rate");
         }
@@ -781,8 +792,7 @@ void HTTPIOHandler::optimizeBufferPoolUsage() {
         last_reported_usage = current_memory_usage;
     }
 }
-// Netwo
-rk error handling methods
+// Network error handling methods
 
 bool HTTPIOHandler::isNetworkErrorRecoverable(int http_status, int curl_error) const {
     // Check libcurl errors first
@@ -809,7 +819,6 @@ bool HTTPIOHandler::isNetworkErrorRecoverable(int http_status, int curl_error) c
             case CURLE_FAILED_INIT:
             case CURLE_OUT_OF_MEMORY:
             case CURLE_SSL_CACERT:
-            case CURLE_SSL_PEER_CERTIFICATE:
             case CURLE_TOO_MANY_REDIRECTS:
                 Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - libcurl error ", curl_error, " is not recoverable");
                 return false;
@@ -1143,7 +1152,7 @@ bool HTTPIOHandler::validateNetworkOperation(const std::string& operation_name) 
     
     // Check if we're hitting too many errors (circuit breaker pattern)
     static const size_t MAX_CONSECUTIVE_ERRORS = 10;
-    if (m_network_retry_count >= MAX_CONSECUTIVE_ERRORS) {
+    if (m_network_retry_count >= static_cast<int>(MAX_CONSECUTIVE_ERRORS)) {
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(now - m_last_network_error_time).count();
         
@@ -1160,4 +1169,150 @@ bool HTTPIOHandler::validateNetworkOperation(const std::string& operation_name) 
     
     Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " validation successful");
     return true;
+}
+
+void HTTPIOHandler::enforceBoundedCacheLimits() {
+    // Get current memory usage statistics
+    auto memory_stats = IOHandler::getMemoryStats();
+    size_t total_usage = memory_stats["total_memory_usage"];
+    size_t max_memory = memory_stats["max_total_memory"];
+    
+    if (max_memory == 0) {
+        return; // No limits set
+    }
+    
+    float usage_percent = static_cast<float>(total_usage) / static_cast<float>(max_memory) * 100.0f;
+    
+    // Calculate current buffer memory usage
+    size_t current_buffer_memory = m_buffer.size() + m_read_ahead_buffer.size();
+    
+    Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Memory usage: ", usage_percent, 
+              "%, Buffer memory: ", current_buffer_memory, " bytes");
+    
+    // Enforce strict limits based on memory pressure
+    if (usage_percent > 95.0f) {
+        // Critical memory pressure - release all buffers except minimal main buffer
+        Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Critical memory pressure, releasing buffers");
+        
+        // Release read-ahead buffer immediately
+        if (!m_read_ahead_buffer.empty()) {
+            m_read_ahead_buffer = IOBufferPool::Buffer();
+            m_read_ahead_active = false;
+            m_read_ahead_position = -1;
+            Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Released read-ahead buffer");
+        }
+        
+        // Reduce main buffer size if it's large
+        if (m_buffer.size() > 32 * 1024) {
+            // Force a smaller buffer on next fill
+            m_buffer_size = 16 * 1024; // 16KB minimum
+            m_max_buffer_size = 32 * 1024; // 32KB maximum
+            Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Reduced buffer sizes due to critical pressure");
+        }
+        
+    } else if (usage_percent > 85.0f) {
+        // High memory pressure - disable read-ahead and reduce buffer sizes
+        Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - High memory pressure, optimizing buffers");
+        
+        // Disable read-ahead
+        if (m_read_ahead_active) {
+            m_read_ahead_buffer = IOBufferPool::Buffer();
+            m_read_ahead_active = false;
+            m_read_ahead_position = -1;
+            Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Disabled read-ahead due to high pressure");
+        }
+        
+        // Reduce buffer sizes
+        m_buffer_size = std::min(m_buffer_size, static_cast<size_t>(64 * 1024)); // 64KB max
+        m_max_buffer_size = std::min(m_max_buffer_size, static_cast<size_t>(128 * 1024)); // 128KB max
+        
+    } else if (usage_percent > 75.0f) {
+        // Moderate memory pressure - reduce read-ahead size
+        Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Moderate memory pressure, reducing read-ahead");
+        
+        // Reduce read-ahead size
+        m_read_ahead_size = std::min(m_read_ahead_size, static_cast<size_t>(64 * 1024)); // 64KB max
+        
+        // Reduce buffer sizes moderately
+        m_buffer_size = std::min(m_buffer_size, static_cast<size_t>(128 * 1024)); // 128KB max
+    }
+    
+    // Enforce absolute maximum limits to prevent runaway memory usage
+    const size_t ABSOLUTE_MAX_BUFFER_SIZE = 1024 * 1024; // 1MB absolute maximum
+    const size_t ABSOLUTE_MAX_TOTAL_BUFFER_MEMORY = 2 * 1024 * 1024; // 2MB total maximum
+    
+    if (current_buffer_memory > ABSOLUTE_MAX_TOTAL_BUFFER_MEMORY) {
+        Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Absolute memory limit exceeded, emergency cleanup");
+        
+        // Emergency cleanup - release all buffers
+        m_buffer = IOBufferPool::Buffer();
+        m_read_ahead_buffer = IOBufferPool::Buffer();
+        m_read_ahead_active = false;
+        m_read_ahead_position = -1;
+        
+        // Reset to minimal sizes
+        m_buffer_size = 16 * 1024; // 16KB
+        m_max_buffer_size = 64 * 1024; // 64KB
+        m_read_ahead_size = 32 * 1024; // 32KB
+        
+        // Update memory tracking
+        updateMemoryUsage(0);
+        
+        Debug::log("memory", "HTTPIOHandler::enforceBoundedCacheLimits() - Emergency cleanup completed");
+    }
+    
+    // Ensure buffer sizes don't exceed absolute limits
+    m_buffer_size = std::min(m_buffer_size, ABSOLUTE_MAX_BUFFER_SIZE);
+    m_max_buffer_size = std::min(m_max_buffer_size, ABSOLUTE_MAX_BUFFER_SIZE);
+    m_read_ahead_size = std::min(m_read_ahead_size, ABSOLUTE_MAX_BUFFER_SIZE / 2);
+}
+
+void HTTPIOHandler::cleanupOnError(const std::string& context) {
+    Debug::log("memory", "HTTPIOHandler::cleanupOnError() - Cleaning up resources due to error in: ", context);
+    
+    try {
+        // Release all buffers to prevent memory leaks
+        if (!m_buffer.empty()) {
+            m_buffer = IOBufferPool::Buffer();
+            Debug::log("memory", "HTTPIOHandler::cleanupOnError() - Released main buffer");
+        }
+        
+        if (!m_read_ahead_buffer.empty()) {
+            m_read_ahead_buffer = IOBufferPool::Buffer();
+            m_read_ahead_active = false;
+            m_read_ahead_position = -1;
+            Debug::log("memory", "HTTPIOHandler::cleanupOnError() - Released read-ahead buffer");
+        }
+        
+        // Update memory tracking to reflect cleanup
+        updateMemoryUsage(0);
+        
+        // Reset state to prevent further issues
+        m_buffer_offset = 0;
+        m_buffer_start_position = 0;
+        
+        // Reset network error counters to prevent accumulation
+        m_network_retry_count = 0;
+        m_total_network_errors = 0;
+        
+        Debug::log("memory", "HTTPIOHandler::cleanupOnError() - Cleanup completed successfully");
+        
+    } catch (const std::exception& e) {
+        Debug::log("memory", "HTTPIOHandler::cleanupOnError() - Exception during cleanup: ", e.what());
+        // Continue cleanup even if some operations fail
+        
+        // Force reset of critical state
+        m_buffer = IOBufferPool::Buffer();
+        m_read_ahead_buffer = IOBufferPool::Buffer();
+        m_read_ahead_active = false;
+        updateMemoryUsage(0);
+        
+    } catch (...) {
+        Debug::log("memory", "HTTPIOHandler::cleanupOnError() - Unknown exception during cleanup");
+        // Force reset of critical state
+        m_buffer = IOBufferPool::Buffer();
+        m_read_ahead_buffer = IOBufferPool::Buffer();
+        m_read_ahead_active = false;
+        updateMemoryUsage(0);
+    }
 }

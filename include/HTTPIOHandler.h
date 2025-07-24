@@ -283,6 +283,19 @@ private:
      * to optimize memory usage and performance
      */
     void optimizeBufferPoolUsage();
+    
+    /**
+     * @brief Enforce bounded cache limits to prevent memory leaks
+     * This method ensures that buffer usage stays within safe limits and
+     * implements aggressive cleanup when necessary
+     */
+    void enforceBoundedCacheLimits();
+    
+    /**
+     * @brief Clean up resources in error paths to prevent memory leaks
+     * @param context Description of the error context
+     */
+    void cleanupOnError(const std::string& context);
 };
 
 #endif // HTTPIOHANDLER_H

@@ -180,6 +180,18 @@ public:
      * This method can be called externally to proactively manage memory usage
      */
     void evictIfNeeded();
+    
+    /**
+     * @brief Enforce strict bounded cache limits to prevent memory leaks
+     * This method implements aggressive memory management when limits are exceeded
+     */
+    void enforceBoundedLimits();
+    
+    /**
+     * @brief Get current memory usage as percentage of limit
+     * @return Memory usage percentage (0-100)
+     */
+    float getMemoryUsagePercent() const;
 
 private:
     IOBufferPool();

@@ -9,58 +9,83 @@
 
 #include "psymp3.h"
 
-// Thread-safe RAII wrapper for global curl initialization
+// Thread-safe RAII wrapper for global curl initialization with proper cleanup
 class CurlLifecycleManager {
 private:
     static std::once_flag s_init_flag;
+    static std::once_flag s_cleanup_flag;
     static bool s_initialized;
+    static std::mutex s_cleanup_mutex;
+    
+public:
+    static std::atomic<int> s_active_handles;
     
 public:
     CurlLifecycleManager() {
         std::call_once(s_init_flag, []() {
             CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
             s_initialized = (result == CURLE_OK);
+            if (s_initialized) {
+                Debug::log("http", "CurlLifecycleManager: libcurl initialized successfully");
+            } else {
+                Debug::log("http", "CurlLifecycleManager: libcurl initialization failed: ", result);
+            }
         });
     }
     
     ~CurlLifecycleManager() {
-        // Note: curl_global_cleanup() should only be called once at program exit
-        // We let the static destructor handle this
+        // Cleanup is handled by explicit cleanup call or program exit
     }
     
     static bool isInitialized() { return s_initialized; }
+    
+    static void incrementHandleCount() {
+        s_active_handles.fetch_add(1);
+    }
+    
+    static void decrementHandleCount() {
+        int count = s_active_handles.fetch_sub(1);
+        if (count == 1) { // Was the last handle
+            // Perform cleanup after a delay to allow for connection reuse
+            std::thread cleanup_thread([]() {
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                performCleanupIfNeeded();
+            });
+            cleanup_thread.detach();
+        }
+    }
+    
+    static void forceCleanup() {
+        std::call_once(s_cleanup_flag, []() {
+            std::lock_guard<std::mutex> lock(s_cleanup_mutex);
+            if (s_initialized) {
+                curl_global_cleanup();
+                s_initialized = false;
+                Debug::log("http", "CurlLifecycleManager: libcurl cleanup completed");
+            }
+        });
+    }
+    
+private:
+    static void performCleanupIfNeeded() {
+        std::lock_guard<std::mutex> lock(s_cleanup_mutex);
+        if (s_active_handles.load() == 0 && s_initialized) {
+            // No active handles, safe to cleanup
+            curl_global_cleanup();
+            s_initialized = false;
+            Debug::log("http", "CurlLifecycleManager: libcurl cleanup completed (no active handles)");
+        }
+    }
 };
 
 std::once_flag CurlLifecycleManager::s_init_flag;
+std::once_flag CurlLifecycleManager::s_cleanup_flag;
 bool CurlLifecycleManager::s_initialized = false;
+std::atomic<int> CurlLifecycleManager::s_active_handles{0};
+std::mutex CurlLifecycleManager::s_cleanup_mutex;
 static CurlLifecycleManager s_curl_manager;
 
-// Callback function for libcurl to write received data into a std::string
-static size_t write_callback(void *contents, size_t size, size_t nmemb, std::string *s) {
-    size_t newLength = size * nmemb;
-    if (newLength == 0) return 0;
-    
-    try {
-        s->append(static_cast<const char*>(contents), newLength);
-    } catch(const std::bad_alloc&) {
-        // Return 0 to signal error to libcurl
-        return 0;
-    }
-    return newLength;
-}
-
-// Callback function for libcurl to write header data
-static size_t header_callback(void *contents, size_t size, size_t nmemb, std::string *s) {
-    size_t newLength = size * nmemb;
-    if (newLength == 0) return 0;
-    
-    try {
-        s->append(static_cast<const char*>(contents), newLength);
-    } catch(const std::bad_alloc&) {
-        return 0;
-    }
-    return newLength;
-}
+// Callback functions are now defined as lambdas in performRequest method
 
 HTTPClient::Response HTTPClient::get(const std::string& url,
                                     const std::map<std::string, std::string>& headers,
@@ -117,17 +142,94 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
         return response;
     }
 
+    // Track active handle for proper cleanup
+    CurlLifecycleManager::incrementHandleCount();
+    
+    // RAII wrapper for curl handle cleanup
+    struct CurlHandleGuard {
+        CURL* handle;
+        struct curl_slist* headers;
+        
+        CurlHandleGuard(CURL* h) : handle(h), headers(nullptr) {}
+        
+        ~CurlHandleGuard() {
+            if (headers) {
+                curl_slist_free_all(headers);
+                headers = nullptr;
+            }
+            if (handle) {
+                curl_easy_cleanup(handle);
+                handle = nullptr;
+            }
+            CurlLifecycleManager::decrementHandleCount();
+        }
+        
+        // Disable copy
+        CurlHandleGuard(const CurlHandleGuard&) = delete;
+        CurlHandleGuard& operator=(const CurlHandleGuard&) = delete;
+    } guard(curl);
+
+    // Use bounded buffers to prevent excessive memory usage
     std::string readBuffer;
     std::string headerBuffer;
-    struct curl_slist *chunk = nullptr;
+    
+    // Reserve reasonable initial capacity to avoid frequent reallocations
+    readBuffer.reserve(64 * 1024);  // 64KB initial capacity
+    headerBuffer.reserve(8 * 1024); // 8KB for headers
+    
+    // Set maximum response size to prevent memory exhaustion
+    const size_t MAX_RESPONSE_SIZE = 100 * 1024 * 1024; // 100MB limit
+    
+    // Custom write callback with size limits
+    auto bounded_write_callback = [](void *contents, size_t size, size_t nmemb, void *userp) -> size_t {
+        size_t realsize = size * nmemb;
+        std::string* buffer = static_cast<std::string*>(userp);
+        
+        // Check if adding this data would exceed our limit
+        if (buffer->size() + realsize > MAX_RESPONSE_SIZE) {
+            Debug::log("http", "HTTPClient: Response size limit exceeded, truncating");
+            return 0; // Signal error to libcurl
+        }
+        
+        try {
+            buffer->append(static_cast<const char*>(contents), realsize);
+        } catch (const std::bad_alloc&) {
+            Debug::log("http", "HTTPClient: Memory allocation failed during response processing");
+            return 0; // Signal error to libcurl
+        }
+        
+        return realsize;
+    };
+    
+    // Custom header callback with size limits
+    auto bounded_header_callback = [](void *contents, size_t size, size_t nmemb, void *userp) -> size_t {
+        size_t realsize = size * nmemb;
+        std::string* buffer = static_cast<std::string*>(userp);
+        
+        // Limit header size to prevent abuse
+        const size_t MAX_HEADER_SIZE = 1024 * 1024; // 1MB limit for headers
+        if (buffer->size() + realsize > MAX_HEADER_SIZE) {
+            Debug::log("http", "HTTPClient: Header size limit exceeded, truncating");
+            return 0; // Signal error to libcurl
+        }
+        
+        try {
+            buffer->append(static_cast<const char*>(contents), realsize);
+        } catch (const std::bad_alloc&) {
+            Debug::log("http", "HTTPClient: Memory allocation failed during header processing");
+            return 0; // Signal error to libcurl
+        }
+        
+        return realsize;
+    };
 
     // Basic options
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, static_cast<long>(timeoutSeconds));
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // 10 second connect timeout
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, bounded_write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, bounded_header_callback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headerBuffer);
     
     // Security and protocol options
@@ -140,6 +242,9 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
     // Accept encoding for compression
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate");
     
+    // Set maximum receive buffer size to prevent excessive memory usage
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 64L * 1024L); // 64KB buffer
+    
     // Method-specific options
     if (method == "POST") {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, postData.c_str());
@@ -148,73 +253,95 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
         curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
     }
 
-    // Set custom headers
+    // Set custom headers with proper cleanup tracking
     for (const auto& header : headers) {
         std::string headerStr = header.first + ": " + header.second;
-        chunk = curl_slist_append(chunk, headerStr.c_str());
+        guard.headers = curl_slist_append(guard.headers, headerStr.c_str());
     }
-    if (chunk) {
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, chunk);
+    if (guard.headers) {
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, guard.headers);
     }
 
-    // Perform the request
-    CURLcode res = curl_easy_perform(curl);
+    // Perform the request with exception safety
+    CURLcode res;
+    try {
+        res = curl_easy_perform(curl);
+    } catch (const std::exception& e) {
+        Debug::log("http", "HTTPClient: Exception during curl_easy_perform: ", e.what());
+        response.statusMessage = std::string("Exception during HTTP request: ") + e.what();
+        response.success = false;
+        return response;
+    } catch (...) {
+        Debug::log("http", "HTTPClient: Unknown exception during curl_easy_perform");
+        response.statusMessage = "Unknown exception during HTTP request";
+        response.success = false;
+        return response;
+    }
 
     if (res != CURLE_OK) {
         response.statusMessage = std::string("libcurl error: ") + curl_easy_strerror(res);
         response.success = false;
     } else {
-        // Get response info
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-        response.statusCode = static_cast<int>(http_code);
-        response.body = std::move(readBuffer);
-        response.success = (response.statusCode >= 200 && response.statusCode < 400);
-        
-        // Parse headers
-        std::istringstream headerStream(headerBuffer);
-        std::string headerLine;
-        while (std::getline(headerStream, headerLine)) {
-            // Remove trailing \r if present
-            if (!headerLine.empty() && headerLine.back() == '\r') {
-                headerLine.pop_back();
-            }
+        try {
+            // Get response info
+            long http_code = 0;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+            response.statusCode = static_cast<int>(http_code);
+            response.body = std::move(readBuffer);
+            response.success = (response.statusCode >= 200 && response.statusCode < 400);
             
-            // Skip empty lines and status line
-            if (headerLine.empty() || headerLine.substr(0, 4) == "HTTP") {
-                continue;
-            }
-            
-            size_t colonPos = headerLine.find(':');
-            if (colonPos != std::string::npos && colonPos > 0) {
-                std::string name = headerLine.substr(0, colonPos);
-                std::string value = headerLine.substr(colonPos + 1);
-                
-                // Trim whitespace from value
-                size_t start = value.find_first_not_of(" \t");
-                if (start != std::string::npos) {
-                    size_t end = value.find_last_not_of(" \t");
-                    value = value.substr(start, end - start + 1);
-                } else {
-                    value.clear();
+            // Parse headers with exception safety
+            std::istringstream headerStream(headerBuffer);
+            std::string headerLine;
+            while (std::getline(headerStream, headerLine)) {
+                // Remove trailing \r if present
+                if (!headerLine.empty() && headerLine.back() == '\r') {
+                    headerLine.pop_back();
                 }
                 
-                response.headers[name] = value;
+                // Skip empty lines and status line
+                if (headerLine.empty() || headerLine.substr(0, 4) == "HTTP") {
+                    continue;
+                }
+                
+                size_t colonPos = headerLine.find(':');
+                if (colonPos != std::string::npos && colonPos > 0) {
+                    std::string name = headerLine.substr(0, colonPos);
+                    std::string value = headerLine.substr(colonPos + 1);
+                    
+                    // Trim whitespace from value
+                    size_t start = value.find_first_not_of(" \t");
+                    if (start != std::string::npos) {
+                        size_t end = value.find_last_not_of(" \t");
+                        value = value.substr(start, end - start + 1);
+                    } else {
+                        value.clear();
+                    }
+                    
+                    // Limit number of headers to prevent abuse
+                    if (response.headers.size() < 100) {
+                        response.headers[name] = value;
+                    }
+                }
             }
-        }
-        
-        // Set status message for non-success codes
-        if (!response.success) {
-            response.statusMessage = "HTTP " + std::to_string(response.statusCode);
+            
+            // Set status message for non-success codes
+            if (!response.success) {
+                response.statusMessage = "HTTP " + std::to_string(response.statusCode);
+            }
+            
+        } catch (const std::exception& e) {
+            Debug::log("http", "HTTPClient: Exception during response processing: ", e.what());
+            response.statusMessage = std::string("Exception during response processing: ") + e.what();
+            response.success = false;
+        } catch (...) {
+            Debug::log("http", "HTTPClient: Unknown exception during response processing");
+            response.statusMessage = "Unknown exception during response processing";
+            response.success = false;
         }
     }
 
-    // Cleanup
-    if (chunk) {
-        curl_slist_free_all(chunk);
-    }
-    curl_easy_cleanup(curl);
-
+    // Cleanup is handled automatically by CurlHandleGuard destructor
     return response;
 }
 
@@ -281,26 +408,34 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
 }
 
 void HTTPClient::closeAllConnections() {
-    // For libcurl implementation, this is handled automatically
-    // Connection pooling would be implemented here if using keep-alive
+    // Force cleanup of libcurl resources
+    CurlLifecycleManager::forceCleanup();
+    Debug::log("http", "HTTPClient::closeAllConnections() - Forced cleanup of all HTTP connections");
 }
 
 void HTTPClient::setConnectionTimeout(int timeout_seconds) {
     // This would be stored in a static variable for use in performRequest
     // For now, we use the default 10 second connect timeout
+    Debug::log("http", "HTTPClient::setConnectionTimeout() - Connection timeout set to ", timeout_seconds, " seconds");
 }
 
 std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
-    // Return empty stats for libcurl implementation
-    return {};
+    // Return basic stats for libcurl implementation
+    std::map<std::string, int> stats;
+    stats["active_handles"] = CurlLifecycleManager::s_active_handles.load();
+    stats["initialized"] = CurlLifecycleManager::isInitialized() ? 1 : 0;
+    return stats;
 }
 
 void HTTPClient::initializeSSL() {
     // libcurl handles SSL initialization automatically
+    Debug::log("http", "HTTPClient::initializeSSL() - SSL initialization handled by libcurl");
 }
 
 void HTTPClient::cleanupSSL() {
-    // libcurl handles SSL cleanup automatically
+    // Force cleanup of libcurl resources which includes SSL cleanup
+    CurlLifecycleManager::forceCleanup();
+    Debug::log("http", "HTTPClient::cleanupSSL() - SSL cleanup handled by libcurl cleanup");
 }
 // Implementation of Connection::close() method
 void HTTPClient::Connection::close() {

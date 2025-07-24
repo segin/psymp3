@@ -111,6 +111,9 @@ IOBufferPool::Buffer IOBufferPool::acquire(size_t size) {
         // Try to free some pooled memory and retry
         evictIfNeededInternal();
         
+        // Also enforce bounded limits for more aggressive cleanup
+        enforceBoundedLimits();
+        
         try {
             uint8_t* data = new uint8_t[pool_size];
             if (it == m_pools.end()) {
@@ -119,10 +122,10 @@ IOBufferPool::Buffer IOBufferPool::acquire(size_t size) {
             it->second.total_allocated++;
             it->second.pool_misses++;
             
-            Debug::log("memory", "BufferPool::acquire() - Allocation succeeded after eviction");
+            Debug::log("memory", "BufferPool::acquire() - Allocation succeeded after eviction and bounded limits enforcement");
             return Buffer(data, pool_size, this);
         } catch (const std::bad_alloc& e2) {
-            Debug::log("memory", "BufferPool::acquire() - Allocation still failed after eviction: ", e2.what());
+            Debug::log("memory", "BufferPool::acquire() - Allocation still failed after eviction and bounded limits enforcement: ", e2.what());
             return Buffer();
         }
     }
@@ -232,6 +235,9 @@ void IOBufferPool::setMaxPoolSize(size_t max_bytes) {
     if (m_current_pool_size > m_max_pool_size) {
         evictIfNeededInternal();
     }
+    
+    // Enforce bounded limits to prevent memory leaks
+    enforceBoundedLimits();
 }
 
 void IOBufferPool::setMaxBuffersPerSize(size_t max_buffers) {
@@ -482,6 +488,7 @@ void IOBufferPool::monitorMemoryPressure() {
             // Evict buffers if needed
             if (new_pressure > MemoryPressureLevel::Normal) {
                 evictIfNeeded();
+                enforceBoundedLimits();
             }
             
             // Pre-allocate common buffers if pressure decreased
@@ -765,4 +772,136 @@ void IOBufferPool::defragmentPools() {
     }
     
     Debug::log("memory", "BufferPool::defragmentPools() - Defragmentation analysis complete");
+}
+
+void IOBufferPool::enforceBoundedLimits() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Enforcing bounded cache limits");
+    
+    // Calculate current memory usage percentage
+    float usage_percent = getMemoryUsagePercent();
+    
+    Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Current usage: ", usage_percent, 
+              "% (", m_current_pool_size, " / ", m_effective_max_pool_size, " bytes)");
+    
+    // Enforce strict limits based on usage percentage
+    if (usage_percent > 100.0f) {
+        // Over limit - emergency cleanup
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Over limit, performing emergency cleanup");
+        
+        // Clear all pools immediately
+        size_t freed_bytes = 0;
+        for (auto& pool : m_pools) {
+            for (uint8_t* buffer : pool.second.available_buffers) {
+                delete[] buffer;
+                freed_bytes += pool.second.buffer_size;
+            }
+            pool.second.available_buffers.clear();
+        }
+        
+        m_current_pool_size = 0;
+        
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Emergency cleanup freed ", freed_bytes, " bytes");
+        
+    } else if (usage_percent > 95.0f) {
+        // Critical usage - aggressive eviction
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Critical usage, aggressive eviction");
+        
+        // Remove 90% of all buffers
+        size_t freed_bytes = 0;
+        for (auto& pool : m_pools) {
+            size_t to_remove = (pool.second.available_buffers.size() * 9) / 10; // 90%
+            
+            for (size_t i = 0; i < to_remove && !pool.second.available_buffers.empty(); ++i) {
+                uint8_t* buffer = pool.second.available_buffers.back();
+                pool.second.available_buffers.pop_back();
+                delete[] buffer;
+                m_current_pool_size -= pool.second.buffer_size;
+                freed_bytes += pool.second.buffer_size;
+            }
+        }
+        
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Aggressive eviction freed ", freed_bytes, " bytes");
+        
+    } else if (usage_percent > 90.0f) {
+        // High usage - moderate eviction
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - High usage, moderate eviction");
+        
+        // Remove 50% of all buffers
+        size_t freed_bytes = 0;
+        for (auto& pool : m_pools) {
+            size_t to_remove = pool.second.available_buffers.size() / 2; // 50%
+            
+            for (size_t i = 0; i < to_remove && !pool.second.available_buffers.empty(); ++i) {
+                uint8_t* buffer = pool.second.available_buffers.back();
+                pool.second.available_buffers.pop_back();
+                delete[] buffer;
+                m_current_pool_size -= pool.second.buffer_size;
+                freed_bytes += pool.second.buffer_size;
+            }
+        }
+        
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Moderate eviction freed ", freed_bytes, " bytes");
+        
+    } else if (usage_percent > 80.0f) {
+        // Moderate usage - light eviction
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Moderate usage, light eviction");
+        
+        // Remove 25% of all buffers
+        size_t freed_bytes = 0;
+        for (auto& pool : m_pools) {
+            size_t to_remove = pool.second.available_buffers.size() / 4; // 25%
+            
+            for (size_t i = 0; i < to_remove && !pool.second.available_buffers.empty(); ++i) {
+                uint8_t* buffer = pool.second.available_buffers.back();
+                pool.second.available_buffers.pop_back();
+                delete[] buffer;
+                m_current_pool_size -= pool.second.buffer_size;
+                freed_bytes += pool.second.buffer_size;
+            }
+        }
+        
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Light eviction freed ", freed_bytes, " bytes");
+    }
+    
+    // Enforce absolute maximum limits to prevent runaway memory usage
+    const size_t ABSOLUTE_MAX_POOL_SIZE = 32 * 1024 * 1024; // 32MB absolute maximum
+    
+    if (m_current_pool_size > ABSOLUTE_MAX_POOL_SIZE) {
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Absolute limit exceeded, emergency cleanup");
+        
+        // Emergency cleanup - clear everything
+        size_t freed_bytes = 0;
+        for (auto& pool : m_pools) {
+            for (uint8_t* buffer : pool.second.available_buffers) {
+                delete[] buffer;
+                freed_bytes += pool.second.buffer_size;
+            }
+            pool.second.available_buffers.clear();
+        }
+        
+        m_current_pool_size = 0;
+        
+        // Reset limits to more conservative values
+        m_max_pool_size = std::min(m_max_pool_size, static_cast<size_t>(8 * 1024 * 1024)); // 8MB
+        m_effective_max_pool_size = m_max_pool_size;
+        m_max_buffers_per_size = std::min(m_max_buffers_per_size, static_cast<size_t>(2)); // 2 buffers max
+        m_effective_max_buffers_per_size = m_max_buffers_per_size;
+        
+        Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Emergency cleanup freed ", freed_bytes, 
+                  " bytes, reset limits to conservative values");
+    }
+    
+    Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Bounded limits enforcement complete, final usage: ", 
+              getMemoryUsagePercent(), "%");
+}
+
+float IOBufferPool::getMemoryUsagePercent() const {
+    // This method assumes the mutex is already locked when called from other methods
+    if (m_effective_max_pool_size == 0) {
+        return 0.0f;
+    }
+    
+    return static_cast<float>(m_current_pool_size) / static_cast<float>(m_effective_max_pool_size) * 100.0f;
 }
