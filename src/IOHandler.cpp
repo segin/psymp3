@@ -61,16 +61,19 @@ size_t IOHandler::read(void* buffer, size_t size, size_t count) {
     // Default implementation returns 0 (no data read) for non-functional state
     // This follows fread-like semantics where 0 indicates EOF or error
     
-    // Reset error state
-    m_error = 0;
+    // Thread-safe read operation using shared lock (allows concurrent reads)
+    std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
     
-    if (m_closed) {
-        m_error = EBADF;  // Bad file descriptor
+    // Reset error state
+    updateErrorState(0);
+    
+    if (m_closed.load()) {
+        updateErrorState(EBADF);  // Bad file descriptor
         return 0;
     }
     
     if (!buffer) {
-        m_error = EINVAL; // Invalid argument
+        updateErrorState(EINVAL); // Invalid argument
         return 0;
     }
     
@@ -79,13 +82,13 @@ size_t IOHandler::read(void* buffer, size_t size, size_t count) {
         return 0;
     }
     
-    if (m_eof) {
+    if (m_eof.load()) {
         // Already at EOF, not an error
         return 0;
     }
     
     // Mark as EOF since we can't actually read anything in the base implementation
-    m_eof = true;
+    updateEofState(true);
     return 0;
 }
 
@@ -93,16 +96,20 @@ int IOHandler::seek(off_t offset, int whence) {
     // Default implementation returns -1 (failure) for non-functional state
     // Support SEEK_SET, SEEK_CUR, SEEK_END positioning modes
     
-    // Reset error state
-    m_error = 0;
+    // Thread-safe seek operation using exclusive lock
+    std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
     
-    if (m_closed) {
-        m_error = EBADF;  // Bad file descriptor
+    // Reset error state
+    updateErrorState(0);
+    
+    if (m_closed.load()) {
+        updateErrorState(EBADF);  // Bad file descriptor
         return -1;
     }
     
     // Calculate new position based on whence
-    off_t new_position = m_position;
+    off_t current_pos = m_position.load();
+    off_t new_position = current_pos;
     switch (whence) {
         case SEEK_SET:
             new_position = offset;
@@ -112,25 +119,22 @@ int IOHandler::seek(off_t offset, int whence) {
             break;
         case SEEK_END:
             // Can't determine end position in base class
-            m_error = EINVAL;  // Invalid argument
+            updateErrorState(EINVAL);  // Invalid argument
             return -1;
         default:
             // Invalid whence parameter
-            m_error = EINVAL;  // Invalid argument
+            updateErrorState(EINVAL);  // Invalid argument
             return -1;
     }
     
-    // Validate new position
-    if (new_position < 0) {
-        m_error = EINVAL;  // Invalid argument
+    // Validate and update position atomically
+    if (!updatePosition(new_position)) {
+        updateErrorState(EINVAL);  // Invalid argument
         return -1;
     }
     
-    // Update position
-    m_position = new_position;
-    
     // Clear EOF if we've moved away from the end
-    m_eof = false;
+    updateEofState(false);
     
     return 0;
 }
@@ -139,38 +143,45 @@ off_t IOHandler::tell() {
     // Return current byte offset with off_t for large file support
     // Return -1 on failure (e.g., if closed)
     
-    // Reset error state
-    m_error = 0;
+    // Thread-safe tell operation using shared lock
+    std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
     
-    if (m_closed) {
-        m_error = EBADF;  // Bad file descriptor
+    // Reset error state
+    updateErrorState(0);
+    
+    if (m_closed.load()) {
+        updateErrorState(EBADF);  // Bad file descriptor
         return -1;
     }
     
-    return m_position;
+    return m_position.load();
 }
 
 int IOHandler::close() {
     // Resource cleanup with standard return codes
     // 0 on success, non-zero on failure
     
-    // Reset error state
-    m_error = 0;
+    // Thread-safe close operation using exclusive lock
+    std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
     
-    if (m_closed) {
+    // Reset error state
+    updateErrorState(0);
+    
+    if (m_closed.load()) {
         // Already closed, not an error
         return 0;
     }
     
-    m_closed = true;
-    m_eof = true;
+    updateClosedState(true);
+    updateEofState(true);
     return 0;
 }
 
 bool IOHandler::eof() {
     // Return boolean end-of-stream condition
     // True if at end of stream or closed, false otherwise
-    return m_closed || m_eof;
+    // Thread-safe using atomic loads
+    return m_closed.load() || m_eof.load();
 }
 
 off_t IOHandler::getFileSize() {
@@ -181,7 +192,8 @@ off_t IOHandler::getFileSize() {
 
 int IOHandler::getLastError() const {
     // Return the last error code (0 = no error)
-    return m_error;
+    // Thread-safe using atomic load
+    return m_error.load();
 }
 
 // Cross-platform utility methods
@@ -411,13 +423,43 @@ void IOHandler::setMemoryLimits(size_t max_total_memory, size_t max_per_handler)
 void IOHandler::updateMemoryUsage(size_t new_usage) {
     std::lock_guard<std::mutex> lock(s_memory_mutex);
     
-    size_t old_usage = m_memory_usage;
-    m_memory_usage = new_usage;
+    size_t old_usage = m_memory_usage.exchange(new_usage);
     
     s_total_memory_usage = s_total_memory_usage - old_usage + new_usage;
     
     Debug::log("memory", "IOHandler::updateMemoryUsage() - Updated usage from ", old_usage, 
               " to ", new_usage, ", total: ", s_total_memory_usage);
+}
+
+bool IOHandler::updatePosition(off_t new_position) {
+    // Check for overflow before updating
+    static const off_t OFF_T_MAX_VAL = (sizeof(off_t) == 8) ? 0x7FFFFFFFFFFFFFFFLL : 0x7FFFFFFFL;
+    
+    if (new_position < 0 || new_position > OFF_T_MAX_VAL) {
+        Debug::log("io", "IOHandler::updatePosition() - Position overflow/underflow prevented: ", new_position);
+        return false;
+    }
+    
+    m_position.store(new_position);
+    return true;
+}
+
+void IOHandler::updateErrorState(int error_code, const std::string& error_message) {
+    m_error.store(error_code);
+    
+    if (!error_message.empty()) {
+        Debug::log("error", "IOHandler::updateErrorState() - Error ", error_code, ": ", error_message);
+    }
+}
+
+void IOHandler::updateEofState(bool eof_state) {
+    m_eof.store(eof_state);
+    Debug::log("io", "IOHandler::updateEofState() - EOF state updated to: ", eof_state);
+}
+
+void IOHandler::updateClosedState(bool closed_state) {
+    m_closed.store(closed_state);
+    Debug::log("io", "IOHandler::updateClosedState() - Closed state updated to: ", closed_state);
 }
 
 bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {

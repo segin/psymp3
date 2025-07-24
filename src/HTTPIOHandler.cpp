@@ -55,7 +55,10 @@ HTTPIOHandler::~HTTPIOHandler() {
 void HTTPIOHandler::initialize() {
     Debug::log("HTTPIOHandler", "Initializing HTTP stream for: ", m_url);
     
-    if (m_initialized) {
+    // Thread-safe initialization check
+    std::lock_guard<std::mutex> init_lock(m_initialization_mutex);
+    
+    if (m_initialized.load()) {
         Debug::log("HTTPIOHandler", "Already initialized, skipping");
         return;
     }
@@ -131,14 +134,14 @@ void HTTPIOHandler::initialize() {
             Debug::log("HTTPIOHandler", "Range test result: ", (m_supports_ranges ? "supported" : "not supported"), " (status: ", range_test.statusCode, ")");
         }
         
-        m_initialized = true;
-        m_error = 0;
+        m_initialized.store(true);
+        updateErrorState(0);
         Debug::log("HTTPIOHandler", "HTTP stream initialization completed successfully");
         
     } catch (const std::exception& e) {
         Debug::log("HTTPIOHandler", "Exception during initialization: ", e.what());
-        m_error = -1;
-        m_initialized = false;
+        updateErrorState(-1, "Exception during initialization");
+        m_initialized.store(false);
         cleanupOnError("Exception during initialization");
     }
 }
@@ -168,17 +171,21 @@ std::string HTTPIOHandler::normalizeMimeType(const std::string& content_type) {
 }
 
 size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
-    if (!m_initialized) {
+    // Thread-safe read operation using shared lock for concurrent reads
+    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+    
+    if (!m_initialized.load()) {
         Debug::log("HTTPIOHandler", "Attempted read on uninitialized handler");
         return 0;
     }
     
-    if (m_closed) {
+    if (m_closed.load()) {
         Debug::log("HTTPIOHandler", "Attempted read on closed handler");
         return 0;
     }
     
-    if (m_eof) {
+    if (m_eof.load()) {
         Debug::log("HTTPIOHandler", "Attempted read at EOF");
         return 0;
     }
@@ -188,10 +195,13 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
         return 0;
     }
     
-    // Update access pattern tracking
-    updateAccessPattern(m_current_position);
+    // Get current position atomically
+    off_t current_position = m_current_position.load();
     
-    Debug::log("HTTPIOHandler", "Reading ", bytes_requested, " bytes at position ", static_cast<long long>(m_current_position),
+    // Update access pattern tracking
+    updateAccessPattern(current_position);
+    
+    Debug::log("HTTPIOHandler", "Reading ", bytes_requested, " bytes at position ", static_cast<long long>(current_position),
               " (sequential: ", (m_sequential_access ? "yes" : "no"), ", speed: ", m_average_speed, " B/s)");
     
     size_t total_bytes_read = 0;
@@ -207,7 +217,7 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
     // Read remaining data from main buffer or network
     while (total_bytes_read < bytes_requested && !m_eof) {
         size_t remaining_bytes = bytes_requested - total_bytes_read;
-        off_t read_position = m_current_position + total_bytes_read;
+        off_t read_position = current_position + total_bytes_read;
         
         // Check if we have data in main buffer
         if (isPositionBuffered(read_position)) {
@@ -229,7 +239,7 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
             if (!fillBuffer(read_position, request_size)) {
                 std::string errorMsg = getErrorMessage(-1, "Failed to fill buffer for read operation");
                 Debug::log("HTTPIOHandler", errorMsg);
-                m_error = -1;
+                updateErrorState(-1, "fillBuffer failed during read operation");
                 cleanupOnError("fillBuffer failed during read operation");
                 break;
             }
@@ -239,42 +249,50 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
             total_bytes_read += buffer_bytes_read;
             
             if (buffer_bytes_read == 0) {
-                m_eof = true;
+                updateEofState(true);
                 break;
             }
         }
     }
     
-    // Update position
-    m_current_position += total_bytes_read;
-    m_position = m_current_position;
+    // Update position atomically
+    off_t new_position = current_position + total_bytes_read;
+    m_current_position.store(new_position);
+    updatePosition(new_position);
     
     // Check for EOF condition
-    if (m_content_length > 0 && m_current_position >= m_content_length) {
-        m_eof = true;
+    long content_length = m_content_length.load();
+    if (content_length > 0 && new_position >= content_length) {
+        updateEofState(true);
     }
     
     // Perform read-ahead for sequential access
     if (m_sequential_access && total_bytes_read > 0) {
-        performReadAhead(m_current_position);
+        performReadAhead(new_position);
     }
     
-    Debug::log("HTTPIOHandler", "Read ", total_bytes_read, " bytes, new position: ", static_cast<long long>(m_current_position));
+    Debug::log("HTTPIOHandler", "Read ", total_bytes_read, " bytes, new position: ", static_cast<long long>(new_position));
     
     return total_bytes_read / size;  // Return number of complete elements read
 }
 
 int HTTPIOHandler::seek(off_t offset, int whence) {
-    if (!m_initialized) {
+    // Thread-safe seek operation using exclusive lock
+    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::lock_guard<std::mutex> http_lock(m_http_mutex);
+    
+    if (!m_initialized.load()) {
         Debug::log("HTTPIOHandler", "Attempted seek on uninitialized handler");
         return -1;
     }
     
-    if (m_closed) {
+    if (m_closed.load()) {
         Debug::log("HTTPIOHandler", "Attempted seek on closed handler");
         return -1;
     }
     
+    off_t current_pos = m_current_position.load();
+    long content_length = m_content_length.load();
     off_t new_position;
     
     switch (whence) {
@@ -282,14 +300,14 @@ int HTTPIOHandler::seek(off_t offset, int whence) {
             new_position = offset;
             break;
         case SEEK_CUR:
-            new_position = m_current_position + offset;
+            new_position = current_pos + offset;
             break;
         case SEEK_END:
-            if (m_content_length <= 0) {
+            if (content_length <= 0) {
                 Debug::log("HTTPIOHandler", "SEEK_END not supported without known content length");
                 return -1;
             }
-            new_position = m_content_length + offset;
+            new_position = content_length + offset;
             break;
         default:
             Debug::log("HTTPIOHandler", "Invalid seek whence: ", whence);
@@ -302,36 +320,41 @@ int HTTPIOHandler::seek(off_t offset, int whence) {
         return -1;
     }
     
-    if (m_content_length > 0 && new_position > m_content_length) {
-        Debug::log("HTTPIOHandler", "Seek beyond end of content: ", static_cast<long long>(new_position), " > ", m_content_length);
+    if (content_length > 0 && new_position > content_length) {
+        Debug::log("HTTPIOHandler", "Seek beyond end of content: ", static_cast<long long>(new_position), " > ", content_length);
         return -1;
     }
     
     // Check if server supports range requests for seeking
-    if (new_position != m_current_position && !m_supports_ranges) {
+    if (new_position != current_pos && !m_supports_ranges.load()) {
         Debug::log("HTTPIOHandler", "Seek requested but server doesn't support range requests");
         return -1;
     }
     
-    Debug::log("HTTPIOHandler", "Seeking from ", static_cast<long long>(m_current_position), " to ", static_cast<long long>(new_position));
+    Debug::log("HTTPIOHandler", "Seeking from ", static_cast<long long>(current_pos), " to ", static_cast<long long>(new_position));
     
-    m_current_position = new_position;
-    m_position = m_current_position;
+    m_current_position.store(new_position);
+    updatePosition(new_position);
     
     // Clear EOF flag if we're not at the end
-    if (m_content_length <= 0 || m_current_position < m_content_length) {
-        m_eof = false;
+    if (content_length <= 0 || new_position < content_length) {
+        updateEofState(false);
     }
     
     return 0;
 }
 
 off_t HTTPIOHandler::tell() {
-    return m_current_position;
+    // Thread-safe tell operation using atomic load
+    return m_current_position.load();
 }
 
 int HTTPIOHandler::close() {
-    if (m_closed) {
+    // Thread-safe close operation using exclusive lock
+    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+    
+    if (m_closed.load()) {
         return 0;
     }
     
@@ -350,16 +373,18 @@ int HTTPIOHandler::close() {
     m_read_ahead_active = false;
     m_read_ahead_position = -1;
     
-    m_closed = true;
+    updateClosedState(true);
     return 0;
 }
 
 bool HTTPIOHandler::eof() {
-    return m_eof;
+    // Thread-safe EOF check using atomic load
+    return m_eof.load();
 }
 
 off_t HTTPIOHandler::getFileSize() {
-    return m_content_length;
+    // Thread-safe file size access using atomic load
+    return m_content_length.load();
 }
 
 bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {

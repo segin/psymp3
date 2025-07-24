@@ -33,11 +33,11 @@
  * @throws InvalidMediaException if the file cannot be opened
  */
 FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
-    // Reset base class state
-    m_closed = false;
-    m_eof = false;
-    m_position = 0;
-    m_error = 0;
+    // Reset base class state using thread-safe methods
+    updateClosedState(false);
+    updateEofState(false);
+    updatePosition(0);
+    updateErrorState(0);
     
     // Initialize performance optimization state
     m_buffer_file_position = -1;
@@ -243,6 +243,10 @@ FileIOHandler::~FileIOHandler() {
  * @return Number of elements successfully read
  */
 size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
+    // Thread-safe read operation using shared lock for concurrent reads
+    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+    
     // Validate operation parameters and preconditions
     if (!validateOperationParameters(buffer, size, count, "read")) {
         // Error already set by validateOperationParameters
@@ -261,17 +265,20 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
     size_t total_bytes_read = 0;
     uint8_t* dest_buffer = static_cast<uint8_t*>(buffer);
     
-    // Update access pattern tracking for optimization
-    updateAccessPattern(m_position);
+    // Get current position atomically
+    off_t current_position = m_position.load();
     
-    // Periodic buffer pool optimization
-    static size_t read_counter = 0;
-    read_counter++;
-    if (read_counter % 100 == 0) { // Every 100 reads
+    // Update access pattern tracking for optimization
+    updateAccessPattern(current_position);
+    
+    // Periodic buffer pool optimization (thread-safe counter)
+    static std::atomic<size_t> read_counter{0};
+    size_t counter_val = read_counter.fetch_add(1);
+    if (counter_val % 100 == 0) { // Every 100 reads
         optimizeBufferPoolUsage();
     }
     
-    Debug::log("io", "FileIOHandler::read() - Reading ", bytes_requested, " bytes at position ", m_position, 
+    Debug::log("io", "FileIOHandler::read() - Reading ", bytes_requested, " bytes at position ", current_position, 
               " (sequential: ", (m_sequential_access ? "yes" : "no"), ")");
     
     // Read data using buffered approach
@@ -279,7 +286,8 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
         size_t remaining_bytes = bytes_requested - total_bytes_read;
         
         // Check if current position is buffered
-        if (isPositionBuffered(m_position + total_bytes_read)) {
+        off_t read_pos = current_position + total_bytes_read;
+        if (isPositionBuffered(read_pos)) {
             // Read from buffer
             size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
             total_bytes_read += buffer_bytes_read;
@@ -290,7 +298,7 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
             }
         } else {
             // Need to fill buffer
-            off_t read_position = m_position + total_bytes_read;
+            off_t read_position = read_pos;
             
             // Determine read size - use read-ahead for sequential access
             size_t read_size = remaining_bytes;
@@ -300,14 +308,16 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
             
             if (!fillBuffer(read_position, read_size)) {
                 // Buffer fill failed
-                if (m_error == 0) {
-                    // Check if we hit EOF
+                if (m_error.load() == 0) {
+                    // Check if we hit EOF (need file mutex for file operations)
+                    std::lock_guard<std::mutex> file_lock(m_file_mutex);
                     if (feof(m_file_handle.get())) {
-                        m_eof = true;
+                        updateEofState(true);
                         Debug::log("io", "FileIOHandler::read() - Reached end of file during buffer fill");
                     } else {
-                        m_error = ferror(m_file_handle.get());
-                        Debug::log("io", "FileIOHandler::read() - Buffer fill failed: ", strerror(m_error));
+                        int file_error = ferror(m_file_handle.get());
+                        updateErrorState(file_error, "Buffer fill failed");
+                        Debug::log("io", "FileIOHandler::read() - Buffer fill failed: ", strerror(file_error));
                     }
                 }
                 break;
@@ -319,25 +329,24 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
             
             if (buffer_bytes_read == 0) {
                 // Still no data available, likely EOF
-                m_eof = true;
+                updateEofState(true);
                 break;
             }
         }
     }
     
-    // Update position with overflow protection
-    static const off_t OFF_T_MAX_VAL = (sizeof(off_t) == 8) ? 0x7FFFFFFFFFFFFFFFLL : 0x7FFFFFFFL;
-    if (total_bytes_read > 0 && m_position > OFF_T_MAX_VAL - static_cast<off_t>(total_bytes_read)) {
-        Debug::log("io", "FileIOHandler::read() - Position overflow prevented, clamping to maximum");
-        m_position = OFF_T_MAX_VAL;
-    } else {
-        m_position += static_cast<off_t>(total_bytes_read);
+    // Update position with overflow protection using thread-safe method
+    if (total_bytes_read > 0) {
+        off_t new_position = current_position + static_cast<off_t>(total_bytes_read);
+        if (!updatePosition(new_position)) {
+            Debug::log("io", "FileIOHandler::read() - Position overflow prevented");
+        }
     }
     
     // Calculate number of complete elements read
     size_t elements_read = total_bytes_read / size;
     
-    Debug::log("io", "FileIOHandler::read() - Read ", total_bytes_read, " bytes (", elements_read, " elements), new position: ", m_position);
+    Debug::log("io", "FileIOHandler::read() - Read ", total_bytes_read, " bytes (", elements_read, " elements), new position: ", m_position.load());
     
     return elements_read;
 }
@@ -352,18 +361,22 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
  * @return 0 on success, -1 on failure
  */
 int FileIOHandler::seek(off_t offset, int whence) {
+    // Thread-safe seek operation using exclusive lock
+    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::lock_guard<std::mutex> file_lock(m_file_mutex);
+    
     // Reset error state
-    m_error = 0;
+    updateErrorState(0);
     
     // Validate file handle state
     if (!validateFileHandle()) {
-        m_error = EBADF;  // Bad file descriptor
+        updateErrorState(EBADF, "Bad file descriptor in seek");
         return -1;
     }
     
     // Validate whence parameter
     if (whence != SEEK_SET && whence != SEEK_CUR && whence != SEEK_END) {
-        m_error = EINVAL;  // Invalid argument
+        updateErrorState(EINVAL, "Invalid whence parameter in seek");
         return -1;
     }
     
@@ -382,11 +395,11 @@ int FileIOHandler::seek(off_t offset, int whence) {
         
         // Check for overflow in addition
         if (offset > 0 && current_pos > OFF_T_MAX_VAL - offset) {
-            m_error = EOVERFLOW;  // Value too large for defined data type
+            updateErrorState(EOVERFLOW, "SEEK_CUR overflow prevented");
             Debug::log("io", "FileIOHandler::seek() - SEEK_CUR overflow prevented: current=", current_pos, " offset=", offset);
             return -1;
         } else if (offset < 0 && current_pos < OFF_T_MIN_VAL - offset) {
-            m_error = EOVERFLOW;  // Value too large for defined data type
+            updateErrorState(EOVERFLOW, "SEEK_CUR underflow prevented");
             Debug::log("io", "FileIOHandler::seek() - SEEK_CUR underflow prevented: current=", current_pos, " offset=", offset);
             return -1;
         }
@@ -394,7 +407,7 @@ int FileIOHandler::seek(off_t offset, int whence) {
     
     // For SEEK_SET, validate that offset is not negative
     if (whence == SEEK_SET && offset < 0) {
-        m_error = EINVAL;  // Invalid argument
+        updateErrorState(EINVAL, "SEEK_SET with negative offset");
         Debug::log("io", "FileIOHandler::seek() - SEEK_SET with negative offset: ", offset);
         return -1;
     }
@@ -413,14 +426,14 @@ int FileIOHandler::seek(off_t offset, int whence) {
         switch (win_error) {
             case ERROR_NEGATIVE_SEEK:
                 Debug::log("io", "FileIOHandler::seek() - Attempted to seek to negative position");
-                m_error = EINVAL;
+                updateErrorState(EINVAL, "Attempted to seek to negative position");
                 break;
             case ERROR_SEEK:
                 Debug::log("io", "FileIOHandler::seek() - General seek error on Windows");
-                m_error = EIO;
+                updateErrorState(EIO, "General seek error on Windows");
                 break;
             default:
-                m_error = errno;
+                updateErrorState(errno, "Windows seek error");
                 break;
         }
     }
@@ -436,22 +449,22 @@ int FileIOHandler::seek(off_t offset, int whence) {
         switch (errno) {
             case EBADF:
                 Debug::log("io", "FileIOHandler::seek() - Bad file descriptor");
-                m_error = EBADF;
+                updateErrorState(EBADF, "Bad file descriptor");
                 break;
             case EINVAL:
                 Debug::log("io", "FileIOHandler::seek() - Invalid seek parameters");
-                m_error = EINVAL;
+                updateErrorState(EINVAL, "Invalid seek parameters");
                 break;
             case EOVERFLOW:
                 Debug::log("io", "FileIOHandler::seek() - Seek position would overflow");
-                m_error = EOVERFLOW;
+                updateErrorState(EOVERFLOW, "Seek position would overflow");
                 break;
             case ESPIPE:
                 Debug::log("io", "FileIOHandler::seek() - Seek not supported on this file type");
-                m_error = ESPIPE;
+                updateErrorState(ESPIPE, "Seek not supported on this file type");
                 break;
             default:
-                m_error = errno;
+                updateErrorState(errno, "Unix seek error");
                 break;
         }
     }
@@ -461,25 +474,28 @@ int FileIOHandler::seek(off_t offset, int whence) {
         // Seek successful, update position
         off_t new_position = tell();
         if (new_position >= 0) {
-            m_position = new_position;
+            updatePosition(new_position);
             // Clear EOF flag if we've moved away from the end
-            m_eof = false;
+            updateEofState(false);
             
-            // Invalidate buffer since we've changed position
-            invalidateBuffer();
+            // Invalidate buffer since we've changed position (need buffer lock)
+            {
+                std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+                invalidateBuffer();
+            }
             
             // Reset access pattern tracking after seek
             m_last_read_position = new_position;
             m_sequential_access = false;
             
-            Debug::log("io", "FileIOHandler::seek() - Successful seek to position: ", m_position);
+            Debug::log("io", "FileIOHandler::seek() - Successful seek to position: ", new_position);
         } else {
             // tell() failed after successful seek - this shouldn't happen
             Debug::log("io", "FileIOHandler::seek() - Warning: seek succeeded but tell() failed");
         }
     } else {
         // Seek failed
-        m_error = errno;
+        updateErrorState(errno, "Seek operation failed");
         Debug::log("io", "FileIOHandler::seek() - Seek failed: ", strerror(errno));
     }
     
@@ -494,12 +510,16 @@ int FileIOHandler::seek(off_t offset, int whence) {
  * @return Current position as off_t for large file support, -1 on failure
  */
 off_t FileIOHandler::tell() {
+    // Thread-safe tell operation using shared lock
+    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::lock_guard<std::mutex> file_lock(m_file_mutex);
+    
     // Reset error state
-    m_error = 0;
+    updateErrorState(0);
     
     // Validate file handle state
     if (!validateFileHandle()) {
-        m_error = EBADF;  // Bad file descriptor
+        updateErrorState(EBADF, "File is closed or invalid in tell");
         Debug::log("io", "FileIOHandler::tell() - File is closed or invalid");
         return -1;
     }
@@ -511,7 +531,7 @@ off_t FileIOHandler::tell() {
     
     if (position < 0) {
         // Error occurred - get Windows-specific error details
-        m_error = errno;
+        updateErrorState(errno, "Windows _ftelli64 failed");
         DWORD win_error = GetLastError();
         Debug::log("io", "FileIOHandler::tell() - Windows _ftelli64 failed: ", strerror(errno), ", Windows error: ", win_error);
     }
@@ -521,14 +541,14 @@ off_t FileIOHandler::tell() {
     
     if (position < 0) {
         // Error occurred
-        m_error = errno;
+        updateErrorState(errno, "Failed to get position");
         Debug::log("io", "FileIOHandler::tell() - Failed to get position: ", strerror(errno));
     }
 #endif
     
     if (position >= 0) {
         // Update cached position
-        m_position = position;
+        updatePosition(position);
         Debug::log("io", "FileIOHandler::tell() - Current position: ", position);
     }
     
@@ -543,12 +563,16 @@ off_t FileIOHandler::tell() {
  * @return 0 on success, standard error codes on failure
  */
 int FileIOHandler::close() {
+    // Thread-safe close operation using exclusive lock
+    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::lock_guard<std::mutex> file_lock(m_file_mutex);
+    
     // Reset error state
-    m_error = 0;
+    updateErrorState(0);
     
     // Check if already closed
-    if (m_closed || !m_file_handle.is_valid()) {
-        m_closed = true;
+    if (m_closed.load() || !m_file_handle.is_valid()) {
+        updateClosedState(true);
         Debug::log("io", "FileIOHandler::close() - File already closed");
         return 0;  // Already closed, not an error
     }
@@ -559,21 +583,24 @@ int FileIOHandler::close() {
     int result = m_file_handle.close();
     if (result != 0) {
         // Close failed
-        m_error = errno;
+        updateErrorState(errno, "Failed to close file");
         Debug::log("io", "FileIOHandler::close() - Failed to close file: ", strerror(errno));
     } else {
         // Close successful
-        m_closed = true;
-        m_eof = true;
+        updateClosedState(true);
+        updateEofState(true);
         Debug::log("io", "FileIOHandler::close() - File closed successfully");
     }
     
-    // Clean up performance optimization resources
-    invalidateBuffer();
-    m_read_buffer = IOBufferPool::Buffer(); // Release buffer back to pool
-    m_cached_file_size = -1;
-    m_last_read_position = -1;
-    m_sequential_access = false;
+    // Clean up performance optimization resources (need buffer lock)
+    {
+        std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+        invalidateBuffer();
+        m_read_buffer = IOBufferPool::Buffer(); // Release buffer back to pool
+        m_cached_file_size = -1;
+        m_last_read_position = -1;
+        m_sequential_access = false;
+    }
     
     // Update memory tracking
     updateMemoryUsage(0);
@@ -589,16 +616,30 @@ int FileIOHandler::close() {
  * @return true if at end of file, false otherwise
  */
 bool FileIOHandler::eof() {
+    // Thread-safe EOF check using shared lock
+    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    
     // If file is closed or we've already detected EOF, return true
-    if (m_closed || !m_file_handle.is_valid() || m_eof) {
-        Debug::log("io", "FileIOHandler::eof() - EOF condition: closed=", m_closed, " cached_eof=", m_eof);
+    bool closed = m_closed.load();
+    bool cached_eof = m_eof.load();
+    if (closed || !m_file_handle.is_valid() || cached_eof) {
+        Debug::log("io", "FileIOHandler::eof() - EOF condition: closed=", closed, " cached_eof=", cached_eof);
         return true;
     }
     
-    // Check EOF condition
-    m_eof = (feof(m_file_handle.get()) != 0);
-    Debug::log("io", "FileIOHandler::eof() - EOF check result: ", m_eof);
-    return m_eof;
+    // Check EOF condition (need file mutex for file operations)
+    bool file_eof;
+    {
+        std::lock_guard<std::mutex> file_lock(m_file_mutex);
+        file_eof = (feof(m_file_handle.get()) != 0);
+    }
+    
+    if (file_eof) {
+        updateEofState(true);
+    }
+    
+    Debug::log("io", "FileIOHandler::eof() - EOF check result: ", file_eof);
+    return file_eof;
 }
 
 /**
@@ -609,8 +650,12 @@ bool FileIOHandler::eof() {
  * @return Size in bytes, or -1 if unknown
  */
 off_t FileIOHandler::getFileSize() {
+    // Thread-safe getFileSize operation using shared lock
+    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    std::lock_guard<std::mutex> file_lock(m_file_mutex);
+    
     // Reset error state
-    m_error = 0;
+    updateErrorState(0);
     
     // Return cached size if available for performance
     if (m_cached_file_size >= 0) {
@@ -620,7 +665,7 @@ off_t FileIOHandler::getFileSize() {
     
     // Validate file handle state
     if (!validateFileHandle()) {
-        m_error = EBADF;  // Bad file descriptor
+        updateErrorState(EBADF, "Bad file descriptor in getFileSize");
         return -1;
     }
     
@@ -630,13 +675,13 @@ off_t FileIOHandler::getFileSize() {
     struct _stat64 file_stat;
     int fd = _fileno(m_file_handle.get());
     if (fd < 0) {
-        m_error = errno;
+        updateErrorState(errno, "Invalid file descriptor on Windows");
         DWORD win_error = GetLastError();
         Debug::log("io", "FileIOHandler::getFileSize() - Invalid file descriptor, Windows error: ", win_error);
         return -1;
     }
     if (_fstat64(fd, &file_stat) != 0) {
-        m_error = errno;
+        updateErrorState(errno, "_fstat64 failed on Windows");
         DWORD win_error = GetLastError();
         Debug::log("io", "FileIOHandler::getFileSize() - _fstat64 failed: ", strerror(errno), ", Windows error: ", win_error);
         return -1;
@@ -644,7 +689,7 @@ off_t FileIOHandler::getFileSize() {
     
     // Additional Windows-specific validation
     if (file_stat.st_size < 0) {
-        m_error = EINVAL;
+        updateErrorState(EINVAL, "Invalid file size reported by Windows");
         Debug::log("io", "FileIOHandler::getFileSize() - Invalid file size reported by Windows: ", file_stat.st_size);
         return -1;
     }
@@ -658,12 +703,12 @@ off_t FileIOHandler::getFileSize() {
     struct stat file_stat;
     int fd = fileno(m_file_handle.get());
     if (fd < 0) {
-        m_error = errno;
+        updateErrorState(errno, "Invalid file descriptor on Unix");
         Debug::log("io", "FileIOHandler::getFileSize() - Invalid file descriptor, errno: ", errno, " (", strerror(errno), ")");
         return -1;
     }
     if (fstat(fd, &file_stat) != 0) {
-        m_error = errno;
+        updateErrorState(errno, "fstat failed on Unix");
         Debug::log("io", "FileIOHandler::getFileSize() - fstat failed: ", strerror(errno));
         
         // Add Unix-specific error context
@@ -689,7 +734,7 @@ off_t FileIOHandler::getFileSize() {
         // Check if it's a regular file
         if (S_ISDIR(file_stat.st_mode)) {
             Debug::log("io", "FileIOHandler::getFileSize() - Path is a directory, not a regular file");
-            m_error = EISDIR;
+            updateErrorState(EISDIR, "Path is a directory, not a regular file");
             return -1;
         } else if (S_ISLNK(file_stat.st_mode)) {
             Debug::log("io", "FileIOHandler::getFileSize() - Path is a symbolic link");
@@ -716,7 +761,7 @@ off_t FileIOHandler::getFileSize() {
     
     // Validate that the size is reasonable (not negative, which shouldn't happen but let's be safe)
     if (file_stat.st_size < 0) {
-        m_error = EINVAL;
+        updateErrorState(EINVAL, "Invalid file size reported by system");
         Debug::log("io", "FileIOHandler::getFileSize() - Invalid file size reported by system: ", file_stat.st_size);
         return -1;
     }
@@ -815,7 +860,7 @@ bool FileIOHandler::attemptErrorRecovery() {
                 Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Windows reopen failed, error: ", win_error);
             }
 #else
-            m_file_handle = fopen(m_file_path.toCString(false), "rb");
+            m_file_handle.open(m_file_path.toCString(false), "rb");
 #endif
             
             if (m_file_handle) {
@@ -1676,9 +1721,9 @@ bool FileIOHandler::handleFileResourceExhaustion(const std::string& resource_typ
             
             try {
 #ifdef _WIN32
-                m_file_handle = _wfopen(m_file_path.toCWString(), L"rb");
+                m_file_handle.open(m_file_path.toCWString(), L"rb");
 #else
-                m_file_handle = fopen(m_file_path.toCString(false), "rb");
+                m_file_handle.open(m_file_path.toCString(false), "rb");
 #endif
                 if (m_file_handle) {
                     m_closed = false;
@@ -1730,7 +1775,7 @@ void FileIOHandler::ensureSafeDestructorCleanup() noexcept {
             } catch (...) {
                 // Ignore exceptions during cleanup
             }
-            m_file_handle = nullptr;
+            m_file_handle.close();
         }
         
         // Release buffer safely
@@ -1766,8 +1811,8 @@ void FileIOHandler::ensureSafeDestructorCleanup() noexcept {
     } catch (...) {
         // Absolutely no exceptions should escape from destructor cleanup
         // This is a last resort - just ensure basic state is reset
-        m_file_handle = nullptr;
-        m_closed = true;
-        m_error = 0;
+        m_file_handle.close();
+        updateClosedState(true);
+        updateErrorState(0);
     }
 }

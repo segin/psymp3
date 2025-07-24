@@ -158,19 +158,49 @@ protected:
     /**
      * @brief Common state tracking for derived classes
      */
-    bool m_closed = false;   // Indicates if the handler is closed
-    bool m_eof = false;      // Indicates end-of-stream condition
-    off_t m_position = 0;    // Current byte offset position
-    int m_error = 0;         // Last error code (0 = no error)
+    std::atomic<bool> m_closed{false};   // Indicates if the handler is closed (thread-safe)
+    std::atomic<bool> m_eof{false};      // Indicates end-of-stream condition (thread-safe)
+    std::atomic<off_t> m_position{0};    // Current byte offset position (thread-safe)
+    std::atomic<int> m_error{0};         // Last error code (0 = no error) (thread-safe)
     
-    // Memory usage tracking
-    size_t m_memory_usage = 0;  // Current memory usage by this handler
+    // Memory usage tracking (thread-safe)
+    std::atomic<size_t> m_memory_usage{0};  // Current memory usage by this handler
+    
+    // Thread safety synchronization
+    mutable std::mutex m_state_mutex;       // Protects non-atomic state changes
+    mutable std::shared_mutex m_operation_mutex;  // Allows concurrent reads, exclusive writes
     
     /**
-     * @brief Update memory usage tracking
+     * @brief Update memory usage tracking (thread-safe)
      * @param new_usage New memory usage in bytes
      */
     void updateMemoryUsage(size_t new_usage);
+    
+    /**
+     * @brief Thread-safe position update with overflow protection
+     * @param new_position New position value
+     * @return true if position was updated successfully, false if overflow would occur
+     */
+    bool updatePosition(off_t new_position);
+    
+    /**
+     * @brief Thread-safe error state update
+     * @param error_code New error code
+     * @param error_message Optional error message for logging
+     */
+    void updateErrorState(int error_code, const std::string& error_message = "");
+    
+    /**
+     * @brief Thread-safe EOF state update
+     * @param eof_state New EOF state
+     */
+    void updateEofState(bool eof_state);
+    
+    /**
+     * @brief Thread-safe closed state update
+     * @param closed_state New closed state
+     */
+    void updateClosedState(bool closed_state);
     
     /**
      * @brief Check if memory usage is within limits

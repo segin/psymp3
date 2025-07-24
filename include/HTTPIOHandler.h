@@ -90,11 +90,16 @@ public:
 private:
     // HTTP stream properties
     std::string m_url;                    // The HTTP URL
-    long m_content_length = -1;           // Total content length (-1 if unknown)
-    off_t m_current_position = 0;         // Current logical position in stream
+    std::atomic<long> m_content_length{-1};           // Total content length (-1 if unknown) (thread-safe)
+    std::atomic<off_t> m_current_position{0};         // Current logical position in stream (thread-safe)
     std::string m_mime_type;              // Content-Type from HTTP headers
-    bool m_supports_ranges = false;       // Server supports range requests
-    bool m_initialized = false;           // Initialization completed
+    std::atomic<bool> m_supports_ranges{false};       // Server supports range requests (thread-safe)
+    std::atomic<bool> m_initialized{false};           // Initialization completed (thread-safe)
+    
+    // Thread safety for HTTP operations
+    mutable std::mutex m_http_mutex;          // Protects HTTP client operations
+    mutable std::shared_mutex m_buffer_mutex; // Protects buffer operations (allows concurrent reads)
+    mutable std::mutex m_initialization_mutex; // Protects initialization process
     
     // Enhanced buffering system
     IOBufferPool::Buffer m_buffer;          // Primary data buffer (from pool)

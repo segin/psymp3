@@ -91,6 +91,10 @@ private:
     RAIIFileHandle m_file_handle;   // RAII-managed file handle for I/O operations
     TagLib::String m_file_path;     // Original file path for error reporting
     
+    // Thread safety for file operations
+    mutable std::mutex m_file_mutex;        // Protects file handle operations
+    mutable std::shared_mutex m_buffer_mutex;  // Protects buffer operations (allows concurrent reads)
+    
     // Performance optimization members
     IOBufferPool::Buffer m_read_buffer;     // Internal read buffer for performance (from pool)
     size_t m_buffer_size = 64 * 1024;       // Default 64KB buffer size

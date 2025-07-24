@@ -20,6 +20,13 @@ private:
 public:
     static std::atomic<int> s_active_handles;
     
+    // Thread-safe connection pool management
+    static std::mutex s_pool_mutex;
+    static std::unordered_map<std::string, std::vector<CURL*>> s_connection_pool;
+    static std::chrono::steady_clock::time_point s_last_pool_cleanup;
+    static const size_t MAX_CONNECTIONS_PER_HOST = 4;
+    static constexpr std::chrono::seconds POOL_CLEANUP_INTERVAL{30};
+    
 public:
     CurlLifecycleManager() {
         std::call_once(s_init_flag, []() {
@@ -59,6 +66,8 @@ public:
         std::call_once(s_cleanup_flag, []() {
             std::lock_guard<std::mutex> lock(s_cleanup_mutex);
             if (s_initialized) {
+                // Clean up connection pool first
+                cleanupConnectionPool();
                 curl_global_cleanup();
                 s_initialized = false;
                 Debug::log("http", "CurlLifecycleManager: libcurl cleanup completed");
@@ -66,15 +75,82 @@ public:
         });
     }
     
+    // Thread-safe connection pool management
+    static CURL* acquireConnection(const std::string& host) {
+        std::lock_guard<std::mutex> lock(s_pool_mutex);
+        
+        // Periodic cleanup of expired connections
+        auto now = std::chrono::steady_clock::now();
+        if (now - s_last_pool_cleanup > POOL_CLEANUP_INTERVAL) {
+            cleanupExpiredConnections();
+            s_last_pool_cleanup = now;
+        }
+        
+        auto it = s_connection_pool.find(host);
+        if (it != s_connection_pool.end() && !it->second.empty()) {
+            CURL* handle = it->second.back();
+            it->second.pop_back();
+            Debug::log("http", "CurlLifecycleManager: Reusing connection for host: ", host);
+            return handle;
+        }
+        
+        // Create new connection
+        CURL* handle = curl_easy_init();
+        if (handle) {
+            Debug::log("http", "CurlLifecycleManager: Created new connection for host: ", host);
+        }
+        return handle;
+    }
+    
+    static void releaseConnection(const std::string& host, CURL* handle) {
+        if (!handle) return;
+        
+        std::lock_guard<std::mutex> lock(s_pool_mutex);
+        
+        auto& connections = s_connection_pool[host];
+        if (connections.size() < MAX_CONNECTIONS_PER_HOST) {
+            // Reset handle for reuse
+            curl_easy_reset(handle);
+            connections.push_back(handle);
+            Debug::log("http", "CurlLifecycleManager: Released connection to pool for host: ", host);
+        } else {
+            // Pool is full, cleanup the handle
+            curl_easy_cleanup(handle);
+            Debug::log("http", "CurlLifecycleManager: Pool full, cleaned up connection for host: ", host);
+        }
+    }
+    
+    static void cleanupConnectionPool() {
+        std::lock_guard<std::mutex> lock(s_pool_mutex);
+        
+        for (auto& [host, connections] : s_connection_pool) {
+            for (CURL* handle : connections) {
+                curl_easy_cleanup(handle);
+            }
+            connections.clear();
+        }
+        s_connection_pool.clear();
+        Debug::log("http", "CurlLifecycleManager: Connection pool cleaned up");
+    }
+    
 private:
     static void performCleanupIfNeeded() {
         std::lock_guard<std::mutex> lock(s_cleanup_mutex);
         if (s_active_handles.load() == 0 && s_initialized) {
             // No active handles, safe to cleanup
+            cleanupConnectionPool();
             curl_global_cleanup();
             s_initialized = false;
             Debug::log("http", "CurlLifecycleManager: libcurl cleanup completed (no active handles)");
         }
+    }
+    
+    static void cleanupExpiredConnections() {
+        // This method assumes s_pool_mutex is already locked
+        // For now, we'll keep connections alive for the duration of the program
+        // In a more sophisticated implementation, we could track connection timestamps
+        // and clean up connections that haven't been used recently
+        Debug::log("http", "CurlLifecycleManager: Expired connection cleanup (placeholder)");
     }
 };
 
@@ -83,6 +159,9 @@ std::once_flag CurlLifecycleManager::s_cleanup_flag;
 bool CurlLifecycleManager::s_initialized = false;
 std::atomic<int> CurlLifecycleManager::s_active_handles{0};
 std::mutex CurlLifecycleManager::s_cleanup_mutex;
+std::mutex CurlLifecycleManager::s_pool_mutex;
+std::unordered_map<std::string, std::vector<CURL*>> CurlLifecycleManager::s_connection_pool;
+std::chrono::steady_clock::time_point CurlLifecycleManager::s_last_pool_cleanup = std::chrono::steady_clock::now();
 static CurlLifecycleManager s_curl_manager;
 
 // Callback functions are now defined as lambdas in performRequest method
@@ -136,21 +215,33 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
         return response;
     }
     
-    CURL *curl = curl_easy_init();
+    // Extract host from URL for connection pooling
+    std::string host;
+    int port;
+    std::string path;
+    bool isHttps;
+    if (!parseURL(url, host, port, path, isHttps)) {
+        response.statusMessage = "Failed to parse URL";
+        return response;
+    }
+    
+    // Thread-safe connection acquisition
+    CURL *curl = CurlLifecycleManager::acquireConnection(host);
     if (!curl) {
-        response.statusMessage = "Failed to initialize curl handle";
+        response.statusMessage = "Failed to acquire curl handle";
         return response;
     }
 
     // Track active handle for proper cleanup
     CurlLifecycleManager::incrementHandleCount();
     
-    // RAII wrapper for curl handle cleanup
+    // RAII wrapper for curl handle cleanup with connection pooling
     struct CurlHandleGuard {
         CURL* handle;
         struct curl_slist* headers;
+        std::string host;
         
-        CurlHandleGuard(CURL* h) : handle(h), headers(nullptr) {}
+        CurlHandleGuard(CURL* h, const std::string& host_name) : handle(h), headers(nullptr), host(host_name) {}
         
         ~CurlHandleGuard() {
             if (headers) {
@@ -158,7 +249,8 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
                 headers = nullptr;
             }
             if (handle) {
-                curl_easy_cleanup(handle);
+                // Return connection to pool instead of destroying it
+                CurlLifecycleManager::releaseConnection(host, handle);
                 handle = nullptr;
             }
             CurlLifecycleManager::decrementHandleCount();
@@ -167,7 +259,7 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
         // Disable copy
         CurlHandleGuard(const CurlHandleGuard&) = delete;
         CurlHandleGuard& operator=(const CurlHandleGuard&) = delete;
-    } guard(curl);
+    } guard(curl, host);
 
     // Use bounded buffers to prevent excessive memory usage
     std::string readBuffer;
@@ -408,9 +500,10 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
 }
 
 void HTTPClient::closeAllConnections() {
-    // Force cleanup of libcurl resources
+    // Thread-safe cleanup of connection pool and libcurl resources
+    CurlLifecycleManager::cleanupConnectionPool();
     CurlLifecycleManager::forceCleanup();
-    Debug::log("http", "HTTPClient::closeAllConnections() - Forced cleanup of all HTTP connections");
+    Debug::log("http", "HTTPClient::closeAllConnections() - Thread-safe cleanup of all HTTP connections");
 }
 
 void HTTPClient::setConnectionTimeout(int timeout_seconds) {
@@ -420,10 +513,22 @@ void HTTPClient::setConnectionTimeout(int timeout_seconds) {
 }
 
 std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
-    // Return basic stats for libcurl implementation
+    // Return thread-safe stats for libcurl implementation with connection pooling
     std::map<std::string, int> stats;
     stats["active_handles"] = CurlLifecycleManager::s_active_handles.load();
     stats["initialized"] = CurlLifecycleManager::isInitialized() ? 1 : 0;
+    
+    // Thread-safe access to connection pool stats
+    {
+        std::lock_guard<std::mutex> lock(CurlLifecycleManager::s_pool_mutex);
+        int total_pooled_connections = 0;
+        for (const auto& [host, connections] : CurlLifecycleManager::s_connection_pool) {
+            total_pooled_connections += static_cast<int>(connections.size());
+        }
+        stats["pooled_connections"] = total_pooled_connections;
+        stats["pool_hosts"] = static_cast<int>(CurlLifecycleManager::s_connection_pool.size());
+    }
+    
     return stats;
 }
 

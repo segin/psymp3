@@ -78,6 +78,7 @@ enum class LoopMode {
 #include <map>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <queue>
 #include <regex>
 #include <stdexcept>
