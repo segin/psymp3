@@ -199,6 +199,68 @@ private:
      */
     bool isPositionInReadAhead(off_t position) const;
     
+    // Network error handling methods
+    
+    /**
+     * @brief Distinguish between temporary and permanent network failures
+     * @param http_status HTTP status code
+     * @param curl_error libcurl error code (if applicable)
+     * @return true if error is temporary and may be recoverable, false otherwise
+     */
+    bool isNetworkErrorRecoverable(int http_status, int curl_error = 0) const;
+    
+    /**
+     * @brief Get descriptive error message for HTTP status codes and network errors
+     * @param http_status HTTP status code
+     * @param curl_error libcurl error code (if applicable)
+     * @param operation_context Context of the operation that failed
+     * @return Descriptive error message
+     */
+    std::string getNetworkErrorMessage(int http_status, int curl_error = 0, const std::string& operation_context = "") const;
+    
+    /**
+     * @brief Handle network timeout conditions without hanging
+     * @param operation_name Name of the operation that timed out
+     * @param timeout_seconds Timeout duration in seconds
+     * @return true if timeout was handled gracefully, false if operation should fail
+     */
+    bool handleNetworkTimeout(const std::string& operation_name, int timeout_seconds = 30);
+    
+    /**
+     * @brief Implement retry mechanism for transient network errors
+     * @param operation_func Function to retry (returns HTTPClient::Response)
+     * @param operation_name Name of the operation for logging
+     * @param max_retries Maximum number of retry attempts (default: 3)
+     * @param base_delay_ms Base delay between retries in milliseconds (default: 1000)
+     * @return HTTPClient::Response from successful operation or final failure
+     */
+    HTTPClient::Response retryNetworkOperation(std::function<HTTPClient::Response()> operation_func, 
+                                             const std::string& operation_name, 
+                                             int max_retries = 3, 
+                                             int base_delay_ms = 1000);
+    
+    /**
+     * @brief Validate network operation parameters and preconditions
+     * @param operation_name Name of the operation for error reporting
+     * @return true if parameters are valid, false otherwise
+     */
+    bool validateNetworkOperation(const std::string& operation_name);
+
+private:
+    // Network error handling state
+    int m_network_retry_count = 0;                    // Current retry count for network operations
+    std::chrono::steady_clock::time_point m_last_network_error_time;  // Time of last network error
+    std::chrono::steady_clock::time_point m_network_operation_start_time;  // Start time for timeout detection
+    bool m_network_timeout_enabled = true;           // Enable network timeout handling
+    int m_default_network_timeout_seconds = 30;      // Default timeout for network operations
+    
+    // Network error statistics
+    size_t m_total_network_errors = 0;               // Total network errors encountered
+    size_t m_recoverable_network_errors = 0;         // Number of recoverable errors
+    size_t m_timeout_errors = 0;                     // Number of timeout errors
+    size_t m_connection_errors = 0;                  // Number of connection errors
+    size_t m_http_errors = 0;                        // Number of HTTP protocol errors
+    
     /**
      * @brief Read data from read-ahead buffer
      * @param buffer Destination buffer

@@ -178,6 +178,31 @@ protected:
      * @return true if allocation is within limits, false otherwise
      */
     bool checkMemoryLimits(size_t additional_bytes) const;
+    
+    /**
+     * @brief Handle memory allocation failures with recovery mechanisms
+     * @param requested_size Size of the failed allocation
+     * @param context Context where the allocation failed
+     * @return true if recovery was successful, false otherwise
+     */
+    bool handleMemoryAllocationFailure(size_t requested_size, const std::string& context);
+    
+    /**
+     * @brief Handle resource exhaustion scenarios
+     * @param resource_type Type of resource that was exhausted
+     * @param context Context where exhaustion occurred
+     * @return true if recovery was successful, false otherwise
+     */
+    bool handleResourceExhaustion(const std::string& resource_type, const std::string& context);
+    
+    /**
+     * @brief Safely propagate errors without resource leaks
+     * @param error_code Error code to propagate
+     * @param error_message Error message
+     * @param cleanup_func Optional cleanup function to call before propagation
+     */
+    void safeErrorPropagation(int error_code, const std::string& error_message, 
+                             std::function<void()> cleanup_func = nullptr);
 
 private:
     // Global memory tracking

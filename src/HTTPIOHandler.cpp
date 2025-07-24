@@ -61,13 +61,23 @@ void HTTPIOHandler::initialize() {
     }
     
     try {
-        // Perform HEAD request to get metadata
-        HTTPClient::Response response = HTTPClient::head(m_url);
+        // Validate network operation
+        if (!validateNetworkOperation("initialize")) {
+            return;
+        }
+        
+        // Perform HEAD request to get metadata with retry logic
+        HTTPClient::Response response = retryNetworkOperation(
+            [this]() { return HTTPClient::head(m_url); },
+            "HEAD request",
+            3,  // max retries
+            1000  // base delay 1 second
+        );
         
         if (!response.success) {
-            std::string errorMsg = getErrorMessage(-1, "HEAD request failed: " + response.statusMessage + " (status: " + std::to_string(response.statusCode) + ")");
+            std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "HEAD request");
             Debug::log("HTTPIOHandler", errorMsg);
-            m_error = -1;
+            m_error = response.statusCode > 0 ? response.statusCode : -1;
             return;
         }
         
@@ -368,34 +378,47 @@ bool HTTPIOHandler::fillBuffer(off_t position, size_t min_size) {
         range_size = std::min(range_size, static_cast<size_t>(remaining));
     }
     
-    HTTPClient::Response response;
-    
-    // Use range request if supported or if we're not at the beginning
-    if (m_supports_ranges || position > 0) {
-        long end_byte = position + range_size - 1;
-        Debug::log("HTTPIOHandler", "Making range request: bytes=", static_cast<long long>(position), "-", end_byte);
-        
-        response = HTTPClient::getRange(m_url, position, end_byte);
-        
-        // Accept both 206 (Partial Content) and 200 (OK) responses
-        if (response.success && (response.statusCode == 206 || response.statusCode == 200)) {
-            Debug::log("HTTPIOHandler", "Range request successful (status: ", response.statusCode, ", body size: ", response.body.size(), ")");
-        } else {
-            Debug::log("HTTPIOHandler", "Range request failed (status: ", response.statusCode, "): ", response.statusMessage);
-            return false;
-        }
-    } else {
-        // Fall back to regular GET request
-        Debug::log("HTTPIOHandler", "Making regular GET request");
-        response = HTTPClient::get(m_url);
-        
-        if (!response.success) {
-            Debug::log("HTTPIOHandler", "GET request failed (status: ", response.statusCode, "): ", response.statusMessage);
-            return false;
-        }
-        
-        Debug::log("HTTPIOHandler", "GET request successful (status: ", response.statusCode, ", body size: ", response.body.size(), ")");
+    // Validate network operation
+    if (!validateNetworkOperation("fillBuffer")) {
+        return false;
     }
+    
+    // Perform HTTP request with retry logic
+    HTTPClient::Response response = retryNetworkOperation(
+        [this, position, range_size]() {
+            // Use range request if supported or if we're not at the beginning
+            if (m_supports_ranges || position > 0) {
+                long end_byte = position + range_size - 1;
+                Debug::log("HTTPIOHandler", "Making range request: bytes=", static_cast<long long>(position), "-", end_byte);
+                return HTTPClient::getRange(m_url, position, end_byte);
+            } else {
+                // Fall back to regular GET request
+                Debug::log("HTTPIOHandler", "Making regular GET request");
+                return HTTPClient::get(m_url);
+            }
+        },
+        "fillBuffer",
+        3,  // max retries
+        1000  // base delay 1 second
+    );
+    
+    // Check response success and status codes
+    if (!response.success) {
+        std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "buffer fill");
+        Debug::log("HTTPIOHandler", errorMsg);
+        m_error = response.statusCode > 0 ? response.statusCode : -1;
+        return false;
+    }
+    
+    // For range requests, accept both 206 (Partial Content) and 200 (OK) responses
+    if ((m_supports_ranges || position > 0) && response.statusCode != 206 && response.statusCode != 200) {
+        std::string errorMsg = getNetworkErrorMessage(response.statusCode, 0, "range request");
+        Debug::log("HTTPIOHandler", errorMsg);
+        m_error = response.statusCode;
+        return false;
+    }
+    
+    Debug::log("HTTPIOHandler", "HTTP request successful (status: ", response.statusCode, ", body size: ", response.body.size(), ")");
     
     // Check memory limits before allocating
     if (!checkMemoryLimits(response.body.size())) {
@@ -590,14 +613,20 @@ bool HTTPIOHandler::performReadAhead(off_t current_position) {
         read_size = std::min(read_size, static_cast<size_t>(remaining));
     }
     
-    // Perform read-ahead request
-    HTTPClient::Response response;
-    if (m_supports_ranges) {
-        long end_byte = read_ahead_start + read_size - 1;
-        response = HTTPClient::getRange(m_url, read_ahead_start, end_byte);
-    } else {
+    // Perform read-ahead request with error handling
+    if (!m_supports_ranges) {
         return false; // Can't do read-ahead without range support
     }
+    
+    HTTPClient::Response response = retryNetworkOperation(
+        [this, read_ahead_start, read_size]() {
+            long end_byte = read_ahead_start + read_size - 1;
+            return HTTPClient::getRange(m_url, read_ahead_start, end_byte);
+        },
+        "read-ahead",
+        2,  // fewer retries for read-ahead (not critical)
+        500  // shorter delay for read-ahead
+    );
     
     if (response.success && (response.statusCode == 206 || response.statusCode == 200)) {
         // Check memory limits before allocating read-ahead buffer
@@ -751,4 +780,384 @@ void HTTPIOHandler::optimizeBufferPoolUsage() {
         }
         last_reported_usage = current_memory_usage;
     }
+}
+// Netwo
+rk error handling methods
+
+bool HTTPIOHandler::isNetworkErrorRecoverable(int http_status, int curl_error) const {
+    // Check libcurl errors first
+    if (curl_error != 0) {
+        switch (curl_error) {
+            // Temporary network errors that may be recoverable
+            case CURLE_COULDNT_CONNECT:
+            case CURLE_COULDNT_RESOLVE_HOST:
+            case CURLE_COULDNT_RESOLVE_PROXY:
+            case CURLE_OPERATION_TIMEDOUT:
+            case CURLE_RECV_ERROR:
+            case CURLE_SEND_ERROR:
+            case CURLE_PARTIAL_FILE:
+            case CURLE_GOT_NOTHING:
+            case CURLE_SSL_CONNECT_ERROR:
+            case CURLE_AGAIN:
+                Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - libcurl error ", curl_error, " is potentially recoverable");
+                return true;
+                
+            // Permanent errors that are not recoverable
+            case CURLE_URL_MALFORMAT:
+            case CURLE_NOT_BUILT_IN:
+            case CURLE_UNSUPPORTED_PROTOCOL:
+            case CURLE_FAILED_INIT:
+            case CURLE_OUT_OF_MEMORY:
+            case CURLE_SSL_CACERT:
+            case CURLE_SSL_PEER_CERTIFICATE:
+            case CURLE_TOO_MANY_REDIRECTS:
+                Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - libcurl error ", curl_error, " is not recoverable");
+                return false;
+                
+            default:
+                Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - Unknown libcurl error ", curl_error, ", assuming not recoverable");
+                return false;
+        }
+    }
+    
+    // Check HTTP status codes
+    if (http_status > 0) {
+        // 1xx Informational - not errors
+        if (http_status >= 100 && http_status < 200) {
+            return true;
+        }
+        
+        // 2xx Success - not errors
+        if (http_status >= 200 && http_status < 300) {
+            return true;
+        }
+        
+        // 3xx Redirection - usually handled automatically by libcurl
+        if (http_status >= 300 && http_status < 400) {
+            return true;
+        }
+        
+        // 4xx Client errors - mostly permanent
+        if (http_status >= 400 && http_status < 500) {
+            switch (http_status) {
+                case 408: // Request Timeout
+                case 429: // Too Many Requests
+                case 449: // Retry With (Microsoft extension)
+                    Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - HTTP status ", http_status, " is potentially recoverable");
+                    return true;
+                    
+                case 400: // Bad Request
+                case 401: // Unauthorized
+                case 403: // Forbidden
+                case 404: // Not Found
+                case 405: // Method Not Allowed
+                case 406: // Not Acceptable
+                case 410: // Gone
+                case 413: // Payload Too Large
+                case 414: // URI Too Long
+                case 415: // Unsupported Media Type
+                case 416: // Range Not Satisfiable
+                default:
+                    Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - HTTP status ", http_status, " is not recoverable");
+                    return false;
+            }
+        }
+        
+        // 5xx Server errors - often temporary and recoverable
+        if (http_status >= 500 && http_status < 600) {
+            switch (http_status) {
+                case 500: // Internal Server Error
+                case 502: // Bad Gateway
+                case 503: // Service Unavailable
+                case 504: // Gateway Timeout
+                case 507: // Insufficient Storage
+                case 508: // Loop Detected
+                case 510: // Not Extended
+                case 511: // Network Authentication Required
+                    Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - HTTP status ", http_status, " is potentially recoverable");
+                    return true;
+                    
+                case 501: // Not Implemented
+                case 505: // HTTP Version Not Supported
+                case 506: // Variant Also Negotiates
+                default:
+                    Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - HTTP status ", http_status, " is not recoverable");
+                    return false;
+            }
+        }
+    }
+    
+    Debug::log("http", "HTTPIOHandler::isNetworkErrorRecoverable() - Unknown error condition, assuming not recoverable");
+    return false;
+}
+
+std::string HTTPIOHandler::getNetworkErrorMessage(int http_status, int curl_error, const std::string& operation_context) const {
+    std::string message = "Network operation failed";
+    
+    if (!operation_context.empty()) {
+        message += " during " + operation_context;
+    }
+    
+    message += " for URL '" + m_url + "'";
+    
+    // Add libcurl error details
+    if (curl_error != 0) {
+        message += " (libcurl error " + std::to_string(curl_error) + ": " + curl_easy_strerror(static_cast<CURLcode>(curl_error)) + ")";
+    }
+    
+    // Add HTTP status details
+    if (http_status > 0) {
+        message += " (HTTP status " + std::to_string(http_status);
+        
+        // Add descriptive status messages
+        switch (http_status) {
+            // 4xx Client errors
+            case 400: message += ": Bad Request"; break;
+            case 401: message += ": Unauthorized"; break;
+            case 403: message += ": Forbidden"; break;
+            case 404: message += ": Not Found"; break;
+            case 405: message += ": Method Not Allowed"; break;
+            case 408: message += ": Request Timeout"; break;
+            case 410: message += ": Gone"; break;
+            case 413: message += ": Payload Too Large"; break;
+            case 414: message += ": URI Too Long"; break;
+            case 415: message += ": Unsupported Media Type"; break;
+            case 416: message += ": Range Not Satisfiable"; break;
+            case 429: message += ": Too Many Requests"; break;
+            
+            // 5xx Server errors
+            case 500: message += ": Internal Server Error"; break;
+            case 501: message += ": Not Implemented"; break;
+            case 502: message += ": Bad Gateway"; break;
+            case 503: message += ": Service Unavailable"; break;
+            case 504: message += ": Gateway Timeout"; break;
+            case 505: message += ": HTTP Version Not Supported"; break;
+            case 507: message += ": Insufficient Storage"; break;
+            case 508: message += ": Loop Detected"; break;
+            case 510: message += ": Not Extended"; break;
+            case 511: message += ": Network Authentication Required"; break;
+            
+            default:
+                // No additional description for unknown status codes
+                break;
+        }
+        
+        message += ")";
+    }
+    
+    // Add recovery suggestions for recoverable errors
+    if (isNetworkErrorRecoverable(http_status, curl_error)) {
+        message += " - This error may be temporary and the operation could be retried";
+        
+        // Specific suggestions based on error type
+        if (curl_error == CURLE_COULDNT_CONNECT || curl_error == CURLE_COULDNT_RESOLVE_HOST) {
+            message += " (check network connectivity)";
+        } else if (curl_error == CURLE_OPERATION_TIMEDOUT || http_status == 408 || http_status == 504) {
+            message += " (try increasing timeout or retrying later)";
+        } else if (http_status == 429) {
+            message += " (server is rate limiting, retry with longer delay)";
+        } else if (http_status >= 500 && http_status < 600) {
+            message += " (server error, retry later)";
+        }
+    }
+    
+    return message;
+}
+
+bool HTTPIOHandler::handleNetworkTimeout(const std::string& operation_name, int timeout_seconds) {
+    Debug::log("http", "HTTPIOHandler::handleNetworkTimeout() - Handling timeout for ", operation_name, " (", timeout_seconds, "s)");
+    
+    if (!m_network_timeout_enabled) {
+        Debug::log("http", "HTTPIOHandler::handleNetworkTimeout() - Network timeout handling disabled");
+        return true;
+    }
+    
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_network_operation_start_time).count();
+    
+    if (elapsed > timeout_seconds) {
+        m_error = ETIMEDOUT;
+        m_timeout_errors++;
+        m_total_network_errors++;
+        
+        // Log detailed timeout information
+        Debug::log("http", "HTTPIOHandler::handleNetworkTimeout() - ", operation_name, " timed out after ", elapsed, " seconds (limit: ", timeout_seconds, ")");
+        Debug::log("http", "HTTPIOHandler::handleNetworkTimeout() - URL: ", m_url);
+        Debug::log("http", "HTTPIOHandler::handleNetworkTimeout() - Position: ", m_current_position);
+        Debug::log("http", "HTTPIOHandler::handleNetworkTimeout() - Total timeout errors: ", m_timeout_errors);
+        
+        // Network timeouts are often recoverable
+        if (isNetworkErrorRecoverable(0, CURLE_OPERATION_TIMEDOUT)) {
+            Debug::log("http", "HTTPIOHandler::handleNetworkTimeout() - Timeout may be recoverable, resetting timeout tracking");
+            
+            // Reset timeout tracking
+            m_network_operation_start_time = now;
+            
+            // Invalidate buffers that might contain stale data
+            m_buffer = IOBufferPool::Buffer();
+            m_buffer_offset = 0;
+            m_buffer_start_position = 0;
+            
+            // Disable read-ahead temporarily after timeout
+            m_read_ahead_active = false;
+            m_read_ahead_buffer = IOBufferPool::Buffer();
+            
+            return true; // Allow retry
+        }
+        
+        return false; // Timeout is not recoverable
+    }
+    
+    return true; // No timeout
+}
+
+HTTPClient::Response HTTPIOHandler::retryNetworkOperation(std::function<HTTPClient::Response()> operation_func, 
+                                                         const std::string& operation_name, 
+                                                         int max_retries, 
+                                                         int base_delay_ms) {
+    HTTPClient::Response response;
+    int retry_count = 0;
+    
+    Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - Starting ", operation_name, " with up to ", max_retries, " retries");
+    
+    while (retry_count <= max_retries) {
+        // Reset network operation timeout tracking
+        m_network_operation_start_time = std::chrono::steady_clock::now();
+        
+        // Attempt the operation
+        response = operation_func();
+        
+        if (response.success) {
+            if (retry_count > 0) {
+                Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - ", operation_name, " succeeded after ", retry_count, " retries");
+                m_recoverable_network_errors++;
+            }
+            return response;
+        }
+        
+        // Operation failed, check if we should retry
+        if (retry_count >= max_retries) {
+            Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - ", operation_name, " failed after ", max_retries, " retries, giving up");
+            m_total_network_errors++;
+            break;
+        }
+        
+        // Determine error type for statistics
+        bool is_connection_error = (response.statusCode == 0); // Usually indicates connection failure
+        bool is_http_error = (response.statusCode >= 400);
+        
+        if (is_connection_error) {
+            m_connection_errors++;
+        } else if (is_http_error) {
+            m_http_errors++;
+        }
+        
+        // Check if error is recoverable
+        if (!isNetworkErrorRecoverable(response.statusCode, 0)) {
+            Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - ", operation_name, " failed with non-recoverable error: HTTP ", response.statusCode, ", not retrying");
+            m_total_network_errors++;
+            break;
+        }
+        
+        retry_count++;
+        m_network_retry_count = retry_count;
+        m_last_network_error_time = std::chrono::steady_clock::now();
+        
+        Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - ", operation_name, " failed (HTTP ", response.statusCode, ": ", response.statusMessage, "), retrying (", retry_count, "/", max_retries, ")");
+        
+        // Calculate delay with exponential backoff and jitter
+        int delay = base_delay_ms * (1 << (retry_count - 1)); // Exponential backoff
+        
+        // Add jitter to prevent thundering herd
+        int jitter = rand() % (delay / 4 + 1); // Up to 25% jitter
+        delay += jitter;
+        
+        // Cap maximum delay at 30 seconds
+        delay = std::min(delay, 30000);
+        
+        // Special handling for rate limiting (HTTP 429)
+        if (response.statusCode == 429) {
+            // Check for Retry-After header
+            auto retry_after_it = response.headers.find("Retry-After");
+            if (retry_after_it != response.headers.end()) {
+                try {
+                    int retry_after_seconds = std::stoi(retry_after_it->second);
+                    delay = std::min(retry_after_seconds * 1000, 60000); // Cap at 60 seconds
+                    Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - Using Retry-After header: ", retry_after_seconds, " seconds");
+                } catch (const std::exception& e) {
+                    Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - Failed to parse Retry-After header: ", e.what());
+                }
+            } else {
+                // Use longer delay for rate limiting
+                delay = std::max(delay, 5000); // At least 5 seconds for rate limiting
+            }
+        }
+        
+        Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - Waiting ", delay, "ms before retry");
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+        
+        // Clear any cached state that might be stale
+        m_buffer = IOBufferPool::Buffer();
+        m_buffer_offset = 0;
+        m_buffer_start_position = 0;
+        m_read_ahead_active = false;
+        m_read_ahead_buffer = IOBufferPool::Buffer();
+    }
+    
+    m_total_network_errors++;
+    return response; // Return the final failed response
+}
+
+bool HTTPIOHandler::validateNetworkOperation(const std::string& operation_name) {
+    // Reset error state
+    m_error = 0;
+    
+    // Check if handler is initialized
+    if (!m_initialized) {
+        m_error = EINVAL;  // Invalid argument
+        Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " failed: handler not initialized");
+        return false;
+    }
+    
+    // Check if handler is closed
+    if (m_closed) {
+        m_error = EBADF;  // Bad file descriptor
+        Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " failed: handler is closed");
+        return false;
+    }
+    
+    // Validate URL
+    if (m_url.empty()) {
+        m_error = EINVAL;  // Invalid argument
+        Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " failed: empty URL");
+        return false;
+    }
+    
+    // Check for timeout conditions
+    if (m_network_timeout_enabled) {
+        if (!handleNetworkTimeout(operation_name, m_default_network_timeout_seconds)) {
+            // Timeout already set error code
+            return false;
+        }
+    }
+    
+    // Check if we're hitting too many errors (circuit breaker pattern)
+    static const size_t MAX_CONSECUTIVE_ERRORS = 10;
+    if (m_network_retry_count >= MAX_CONSECUTIVE_ERRORS) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(now - m_last_network_error_time).count();
+        
+        // Reset error count after 5 minutes of no operations
+        if (elapsed >= 5) {
+            Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - Resetting error count after ", elapsed, " minutes");
+            m_network_retry_count = 0;
+        } else {
+            m_error = ECONNABORTED;  // Connection aborted
+            Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " failed: too many consecutive errors (", m_network_retry_count, "), circuit breaker activated");
+            return false;
+        }
+    }
+    
+    Debug::log("http", "HTTPIOHandler::validateNetworkOperation() - ", operation_name, " validation successful");
+    return true;
 }

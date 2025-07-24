@@ -47,11 +47,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     m_sequential_access = false;
     m_cached_file_size = -1;
     
-    // Register with global memory tracking
-    {
-        std::lock_guard<std::mutex> lock(s_memory_mutex);
-        s_active_handlers++;
-    }
+    // Memory tracking is handled by base class constructor
     
 
     
@@ -59,13 +55,13 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     std::string normalized_path = normalizePath(path.to8Bit(false));
     Debug::log("io", "FileIOHandler::FileIOHandler() - Normalized path: ", normalized_path);
     
-    // Platform-specific file opening with Unicode support
+    // Platform-specific file opening with Unicode support using RAII
 #ifdef _WIN32
     // Windows: Use wide character API for proper Unicode support
-    m_file_handle = _wfopen(path.toCWString(), L"rb");
+    bool file_opened = m_file_handle.open(path.toCWString(), L"rb");
     
     // Handle file open failure with Windows-specific error handling
-    if (!m_file_handle) {
+    if (!file_opened) {
         // Get system error code - Windows uses errno for file operations
         m_error = errno;
         
@@ -134,10 +130,10 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     }
 #else
     // Unix/Linux: Use raw C string without UTF-8 conversion to preserve original filesystem encoding
-    m_file_handle = fopen(path.toCString(false), "rb");
+    bool file_opened = m_file_handle.open(path.toCString(false), "rb");
 
     // Handle file open failure
-    if (!m_file_handle) {
+    if (!file_opened) {
         // Get system error code
         m_error = errno;
         
@@ -247,19 +243,9 @@ FileIOHandler::~FileIOHandler() {
  * @return Number of elements successfully read
  */
 size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
-    // Reset error state
-    m_error = 0;
-    
-    // Validate file handle state
-    if (!validateFileHandle()) {
-        m_error = EBADF;  // Bad file descriptor
-        return 0;
-    }
-    
-    // Validate parameters
-    if (!buffer) {
-        m_error = EINVAL; // Invalid argument
-        Debug::log("io", "FileIOHandler::read() - Invalid buffer parameter (null)");
+    // Validate operation parameters and preconditions
+    if (!validateOperationParameters(buffer, size, count, "read")) {
+        // Error already set by validateOperationParameters
         return 0;
     }
     
@@ -269,28 +255,7 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
         return 0;
     }
     
-    // Additional validation: check for reasonable parameter values
-    static const size_t MAX_REASONABLE_SIZE = 1024 * 1024 * 1024; // 1GB per element
-    static const size_t MAX_REASONABLE_COUNT = SIZE_MAX / 1024;   // Reasonable count limit
-    
-    if (size > MAX_REASONABLE_SIZE) {
-        m_error = EINVAL;
-        Debug::log("io", "FileIOHandler::read() - Unreasonably large element size: ", size);
-        return 0;
-    }
-    
-    if (count > MAX_REASONABLE_COUNT) {
-        m_error = EINVAL;
-        Debug::log("io", "FileIOHandler::read() - Unreasonably large element count: ", count);
-        return 0;
-    }
-    
-    // Check for potential integer overflow in size calculation
-    if (size > 0 && count > SIZE_MAX / size) {
-        m_error = EOVERFLOW;  // Value too large for defined data type
-        Debug::log("io", "FileIOHandler::read() - Integer overflow prevented: size=", size, " count=", count);
-        return 0;
-    }
+
     
     size_t bytes_requested = size * count;
     size_t total_bytes_read = 0;
@@ -337,11 +302,11 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
                 // Buffer fill failed
                 if (m_error == 0) {
                     // Check if we hit EOF
-                    if (feof(m_file_handle)) {
+                    if (feof(m_file_handle.get())) {
                         m_eof = true;
                         Debug::log("io", "FileIOHandler::read() - Reached end of file during buffer fill");
                     } else {
-                        m_error = ferror(m_file_handle);
+                        m_error = ferror(m_file_handle.get());
                         Debug::log("io", "FileIOHandler::read() - Buffer fill failed: ", strerror(m_error));
                     }
                 }
@@ -437,7 +402,7 @@ int FileIOHandler::seek(off_t offset, int whence) {
     // Perform the seek operation
 #ifdef _WIN32
     // Windows: Use _fseeki64 for large file support
-    int result = _fseeki64(m_file_handle, offset, whence);
+    int result = _fseeki64(m_file_handle.get(), offset, whence);
     
     // Enhanced Windows error handling for seek operations
     if (result != 0) {
@@ -461,7 +426,7 @@ int FileIOHandler::seek(off_t offset, int whence) {
     }
 #else
     // Unix/Linux: Use fseeko for large file support
-    int result = fseeko(m_file_handle, offset, whence);
+    int result = fseeko(m_file_handle.get(), offset, whence);
     
     // Enhanced Unix/Linux error handling for seek operations
     if (result != 0) {
@@ -542,7 +507,7 @@ off_t FileIOHandler::tell() {
     // Get current position
 #ifdef _WIN32
     // Windows: Use _ftelli64 for large file support
-    off_t position = _ftelli64(m_file_handle);
+    off_t position = _ftelli64(m_file_handle.get());
     
     if (position < 0) {
         // Error occurred - get Windows-specific error details
@@ -552,7 +517,7 @@ off_t FileIOHandler::tell() {
     }
 #else
     // Unix/Linux: Use ftello for large file support
-    off_t position = ftello(m_file_handle);
+    off_t position = ftello(m_file_handle.get());
     
     if (position < 0) {
         // Error occurred
@@ -582,7 +547,7 @@ int FileIOHandler::close() {
     m_error = 0;
     
     // Check if already closed
-    if (m_closed || !m_file_handle) {
+    if (m_closed || !m_file_handle.is_valid()) {
         m_closed = true;
         Debug::log("io", "FileIOHandler::close() - File already closed");
         return 0;  // Already closed, not an error
@@ -590,8 +555,8 @@ int FileIOHandler::close() {
     
     Debug::log("io", "FileIOHandler::close() - Closing file: ", m_file_path.to8Bit(false));
     
-    // Close the file
-    int result = fclose(m_file_handle);
+    // Close the file using RAII
+    int result = m_file_handle.close();
     if (result != 0) {
         // Close failed
         m_error = errno;
@@ -602,9 +567,6 @@ int FileIOHandler::close() {
         m_eof = true;
         Debug::log("io", "FileIOHandler::close() - File closed successfully");
     }
-    
-    // Nullify the handle regardless of success/failure
-    m_file_handle = nullptr;
     
     // Clean up performance optimization resources
     invalidateBuffer();
@@ -628,13 +590,13 @@ int FileIOHandler::close() {
  */
 bool FileIOHandler::eof() {
     // If file is closed or we've already detected EOF, return true
-    if (m_closed || !m_file_handle || m_eof) {
+    if (m_closed || !m_file_handle.is_valid() || m_eof) {
         Debug::log("io", "FileIOHandler::eof() - EOF condition: closed=", m_closed, " cached_eof=", m_eof);
         return true;
     }
     
     // Check EOF condition
-    m_eof = (feof(m_file_handle) != 0);
+    m_eof = (feof(m_file_handle.get()) != 0);
     Debug::log("io", "FileIOHandler::eof() - EOF check result: ", m_eof);
     return m_eof;
 }
@@ -666,7 +628,7 @@ off_t FileIOHandler::getFileSize() {
 #ifdef _WIN32
     // Windows: Use _fstat64 for large file support
     struct _stat64 file_stat;
-    int fd = _fileno(m_file_handle);
+    int fd = _fileno(m_file_handle.get());
     if (fd < 0) {
         m_error = errno;
         DWORD win_error = GetLastError();
@@ -694,7 +656,7 @@ off_t FileIOHandler::getFileSize() {
 #else
     // Unix/Linux: Use fstat for file size determination
     struct stat file_stat;
-    int fd = fileno(m_file_handle);
+    int fd = fileno(m_file_handle.get());
     if (fd < 0) {
         m_error = errno;
         Debug::log("io", "FileIOHandler::getFileSize() - Invalid file descriptor, errno: ", errno, " (", strerror(errno), ")");
@@ -774,7 +736,7 @@ off_t FileIOHandler::getFileSize() {
  */
 bool FileIOHandler::validateFileHandle() const {
     // Check basic handle validity
-    if (!m_file_handle) {
+    if (!m_file_handle.is_valid()) {
         Debug::log("io", "FileIOHandler::validateFileHandle() - File handle is null");
         return false;
     }
@@ -787,14 +749,14 @@ bool FileIOHandler::validateFileHandle() const {
     
     // Check if the file descriptor is valid
 #ifdef _WIN32
-    int fd = _fileno(m_file_handle);
+    int fd = _fileno(m_file_handle.get());
     if (fd < 0) {
         DWORD win_error = GetLastError();
         Debug::log("io", "FileIOHandler::validateFileHandle() - Invalid file descriptor on Windows, error: ", win_error);
         return false;
     }
 #else
-    int fd = fileno(m_file_handle);
+    int fd = fileno(m_file_handle.get());
     if (fd < 0) {
         Debug::log("io", "FileIOHandler::validateFileHandle() - Invalid file descriptor");
         return false;
@@ -805,14 +767,14 @@ bool FileIOHandler::validateFileHandle() const {
     // by checking if we can get the current position
     off_t current_pos;
 #ifdef _WIN32
-    current_pos = _ftelli64(m_file_handle);
+    current_pos = _ftelli64(m_file_handle.get());
     if (current_pos < 0 && errno != 0) {
         DWORD win_error = GetLastError();
         Debug::log("io", "FileIOHandler::validateFileHandle() - File handle appears corrupted on Windows, cannot get position: ", strerror(errno), ", Windows error: ", win_error);
         return false;
     }
 #else
-    current_pos = ftello(m_file_handle);
+    current_pos = ftello(m_file_handle.get());
     if (current_pos < 0 && errno != 0) {
         Debug::log("io", "FileIOHandler::validateFileHandle() - File handle appears corrupted, cannot get position: ", strerror(errno));
         return false;
@@ -1182,7 +1144,7 @@ void FileIOHandler::optimizeBufferPoolUsage() {
         // Low memory pressure - can be more aggressive with optimization
         if (hit_rate > 0.8 && memory_utilization < 0.6) {
             // High hit rate with low memory usage - can afford to increase pool size
-            size_t increased_size = std::min(recommended_pool_size * 1.3, static_cast<size_t>(16 * 1024 * 1024)); // Cap at 16MB
+            size_t increased_size = std::min(static_cast<size_t>(recommended_pool_size * 1.3), static_cast<size_t>(16 * 1024 * 1024)); // Cap at 16MB
             IOBufferPool::getInstance().setMaxPoolSize(increased_size);
             Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Increased pool size to ", increased_size, " bytes due to low memory pressure");
         }
@@ -1257,62 +1219,555 @@ void FileIOHandler::optimizeBufferPoolUsage() {
     }
 }
 
-void FileIOHandler::optimizeBufferPoolUsage() {
-    // Get current buffer pool statistics
-    auto pool_stats = IOBufferPool::getInstance().getStats();
+// Enhanced error handling methods for task 7.1
+
+bool FileIOHandler::validateOperationParameters(const void* buffer, size_t size, size_t count, const std::string& operation_name) {
+    // Reset error state
+    m_error = 0;
     
-    // Calculate hit rate and memory efficiency
-    size_t total_requests = pool_stats["total_pool_hits"] + pool_stats["total_pool_misses"];
-    if (total_requests == 0) {
-        return; // No data to optimize on
+    // Record operation start time for timeout detection
+    m_operation_start_time = std::chrono::steady_clock::now();
+    
+    // Validate buffer for read operations
+    if (operation_name == "read" && !buffer) {
+        m_error = EINVAL;
+        std::string error_msg = getFileOperationErrorMessage(EINVAL, operation_name, "null buffer parameter");
+        Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+        safeErrorPropagation(EINVAL, error_msg);
+        return false;
     }
     
-    double hit_rate = static_cast<double>(pool_stats["total_pool_hits"]) / total_requests;
-    double memory_utilization = static_cast<double>(pool_stats["current_pool_size"]) / pool_stats["max_pool_size"];
-    
-    Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Hit rate: ", hit_rate * 100, 
-              "%, Memory utilization: ", memory_utilization * 100, "%");
-    
-    // Adjust buffer pool settings based on performance metrics
-    if (hit_rate < 0.6 && memory_utilization > 0.9) {
-        // Very low hit rate with very high memory usage - aggressively reduce pool size
-        size_t new_max_size = pool_stats["max_pool_size"] * 0.7;
-        IOBufferPool::getInstance().setMaxPoolSize(new_max_size);
-        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Aggressively reduced pool size to ", new_max_size, " bytes");
-    } else if (hit_rate > 0.95 && memory_utilization < 0.3) {
-        // Excellent hit rate with low memory usage - can increase pool size
-        size_t new_max_size = pool_stats["max_pool_size"] * 1.3;
-        IOBufferPool::getInstance().setMaxPoolSize(new_max_size);
-        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Increased pool size to ", new_max_size, " bytes");
-    }
-    
-    // Optimize buffer sizes based on file access patterns
-    if (m_sequential_access && m_cached_file_size > 0) {
-        // For sequential access on large files, prefer larger buffers
-        if (m_cached_file_size > 10 * 1024 * 1024 && m_buffer_size < 256 * 1024) { // >10MB file
-            m_buffer_size = std::min(static_cast<size_t>(512 * 1024), m_buffer_size * 2);
-            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Increased buffer size to ", m_buffer_size, " bytes for large file sequential access");
+    // Validate size and count parameters for read operations
+    if (operation_name == "read") {
+        // Check for reasonable parameter values to prevent abuse
+        static const size_t MAX_REASONABLE_SIZE = 1024 * 1024 * 1024; // 1GB per element
+        static const size_t MAX_REASONABLE_COUNT = SIZE_MAX / 1024;   // Reasonable count limit
+        
+        if (size > MAX_REASONABLE_SIZE) {
+            m_error = EINVAL;
+            std::string error_msg = getFileOperationErrorMessage(EINVAL, operation_name, 
+                "unreasonably large element size: " + std::to_string(size) + " bytes");
+            Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+            safeErrorPropagation(EINVAL, error_msg);
+            return false;
         }
-    } else if (!m_sequential_access && m_cached_file_size > 0) {
-        // For random access, optimize buffer size based on file size
-        if (m_cached_file_size < 1024 * 1024 && m_buffer_size > 32 * 1024) { // <1MB file
-            m_buffer_size = std::max(static_cast<size_t>(16 * 1024), m_buffer_size / 2);
-            Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Decreased buffer size to ", m_buffer_size, " bytes for small file random access");
+        
+        if (count > MAX_REASONABLE_COUNT) {
+            m_error = EINVAL;
+            std::string error_msg = getFileOperationErrorMessage(EINVAL, operation_name, 
+                "unreasonably large element count: " + std::to_string(count));
+            Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+            safeErrorPropagation(EINVAL, error_msg);
+            return false;
+        }
+        
+        // Check for potential integer overflow in size calculation
+        if (size > 0 && count > SIZE_MAX / size) {
+            m_error = EOVERFLOW;
+            std::string error_msg = getFileOperationErrorMessage(EOVERFLOW, operation_name, 
+                "integer overflow in size calculation (size=" + std::to_string(size) + 
+                ", count=" + std::to_string(count) + ")");
+            Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+            safeErrorPropagation(EOVERFLOW, error_msg);
+            return false;
+        }
+        
+        // Check memory limits for the operation
+        size_t total_bytes = size * count;
+        if (!checkMemoryLimits(total_bytes)) {
+            m_error = ENOMEM;
+            std::string error_msg = getFileOperationErrorMessage(ENOMEM, operation_name, 
+                "operation would exceed memory limits (" + std::to_string(total_bytes) + " bytes)");
+            Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+            
+            // Try to recover from memory pressure
+            if (handleFileMemoryAllocationFailure(total_bytes, operation_name + " parameter validation")) {
+                Debug::log("io", "FileIOHandler::validateOperationParameters() - Memory recovery successful, retrying validation");
+                if (checkMemoryLimits(total_bytes)) {
+                    m_error = 0; // Clear error
+                    Debug::log("io", "FileIOHandler::validateOperationParameters() - Memory limits now satisfied after recovery");
+                } else {
+                    safeErrorPropagation(ENOMEM, error_msg);
+                    return false;
+                }
+            } else {
+                safeErrorPropagation(ENOMEM, error_msg);
+                return false;
+            }
         }
     }
     
-    // Periodic buffer pool maintenance
-    static size_t optimization_counter = 0;
-    optimization_counter++;
+    // Validate file handle state for all operations
+    if (!validateFileHandle()) {
+        if (m_error == 0) {
+            m_error = EBADF;  // Bad file descriptor
+        }
+        std::string error_msg = getFileOperationErrorMessage(m_error, operation_name, "invalid file handle state");
+        Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+        safeErrorPropagation(m_error, error_msg);
+        return false;
+    }
     
-    if (optimization_counter % 50 == 0) { // Every 50 optimizations
-        // Perform comprehensive buffer pool optimization
-        IOBufferPool::getInstance().optimizeAllocationPatterns();
-        IOBufferPool::getInstance().compactMemory();
-        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Performed periodic buffer pool optimization");
-    } else if (optimization_counter % 20 == 0) { // Every 20 optimizations
-        // Lighter cleanup
-        IOBufferPool::getInstance().defragmentPools();
-        Debug::log("memory", "FileIOHandler::optimizeBufferPoolUsage() - Performed buffer pool defragmentation");
+    // Check if file is closed
+    if (m_closed) {
+        m_error = EBADF;
+        std::string error_msg = getFileOperationErrorMessage(EBADF, operation_name, "file is closed");
+        Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+        safeErrorPropagation(EBADF, error_msg);
+        return false;
+    }
+    
+    // Validate file path for security (prevent directory traversal attacks)
+    std::string path_str = m_file_path.to8Bit(false);
+    if (path_str.find("..") != std::string::npos) {
+        // Check for directory traversal attempts
+        std::string normalized = normalizePath(path_str);
+        if (normalized.find("..") != std::string::npos) {
+            m_error = EACCES;
+            std::string error_msg = getFileOperationErrorMessage(EACCES, operation_name, 
+                "potential directory traversal attack detected in path: " + path_str);
+            Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+            safeErrorPropagation(EACCES, error_msg);
+            return false;
+        }
+    }
+    
+    // Check for timeout conditions on network file systems and slow storage
+    if (m_timeout_enabled) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - m_operation_start_time);
+        
+        if (elapsed.count() >= m_default_timeout_seconds) {
+            m_error = ETIMEDOUT;
+            std::string error_msg = getFileOperationErrorMessage(ETIMEDOUT, operation_name, 
+                "operation timeout (" + std::to_string(elapsed.count()) + "s >= " + 
+                std::to_string(m_default_timeout_seconds) + "s)");
+            Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+            
+            // Try to handle timeout gracefully
+            if (handleTimeout(operation_name, m_default_timeout_seconds)) {
+                Debug::log("io", "FileIOHandler::validateOperationParameters() - Timeout recovery successful");
+                m_error = 0; // Clear error
+            } else {
+                safeErrorPropagation(ETIMEDOUT, error_msg);
+                return false;
+            }
+        }
+    }
+    
+    Debug::log("io", "FileIOHandler::validateOperationParameters() - ", operation_name, " operation parameters validated successfully");
+    return true;
+}
+
+bool FileIOHandler::handleTimeout(const std::string& operation_name, int timeout_seconds) {
+    if (!m_timeout_enabled) {
+        return true; // Timeout handling disabled
+    }
+    
+    auto current_time = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - m_operation_start_time);
+    
+    if (elapsed.count() >= timeout_seconds) {
+        m_error = ETIMEDOUT;
+        std::string error_msg = getFileOperationErrorMessage(ETIMEDOUT, operation_name, 
+            "operation timed out after " + std::to_string(elapsed.count()) + " seconds (limit: " + 
+            std::to_string(timeout_seconds) + "s)");
+        Debug::log("io", "FileIOHandler::handleTimeout() - ", error_msg);
+        
+        // Detect if this might be a network file system causing the timeout
+        std::string path_str = m_file_path.to8Bit(false);
+        bool likely_network_fs = false;
+        
+        // Check for common network file system indicators
+        if (path_str.find("//") == 0 || path_str.find("\\\\") == 0) {
+            likely_network_fs = true; // UNC path
+            Debug::log("io", "FileIOHandler::handleTimeout() - Detected UNC path, likely network file system");
+        } else if (path_str.find("/mnt/") == 0 || path_str.find("/net/") == 0) {
+            likely_network_fs = true; // Common Unix network mount points
+            Debug::log("io", "FileIOHandler::handleTimeout() - Detected network mount point");
+        }
+        
+        // For network file systems, be more lenient with timeouts
+        if (likely_network_fs && timeout_seconds < 60) {
+            Debug::log("io", "FileIOHandler::handleTimeout() - Extending timeout for network file system to 60 seconds");
+            m_default_timeout_seconds = 60; // Extend timeout for network FS
+            m_operation_start_time = current_time; // Reset timer
+            m_error = 0; // Clear timeout error
+            return true; // Give it more time
+        }
+        
+        // Attempt to recover from timeout
+        if (attemptErrorRecovery()) {
+            Debug::log("io", "FileIOHandler::handleTimeout() - Recovery successful for ", operation_name, " timeout");
+            m_operation_start_time = current_time; // Reset timer after recovery
+            return true;
+        }
+        
+        // If recovery failed, try one more approach for slow storage
+        Debug::log("io", "FileIOHandler::handleTimeout() - Attempting slow storage recovery");
+        
+        // Clear any buffered data that might be stale
+        invalidateBuffer();
+        
+        // Try to flush any pending operations
+        if (m_file_handle) {
+            fflush(m_file_handle);
+        }
+        
+        // Give one final chance with extended timeout
+        if (elapsed.count() < timeout_seconds * 2) {
+            Debug::log("io", "FileIOHandler::handleTimeout() - Giving final extended timeout chance");
+            m_operation_start_time = current_time; // Reset timer
+            m_error = 0; // Clear timeout error
+            return true;
+        }
+        
+        // Final timeout - propagate error safely
+        safeErrorPropagation(ETIMEDOUT, error_msg);
+        return false;
+    }
+    
+    return true; // No timeout
+}
+
+std::string FileIOHandler::getFileOperationErrorMessage(int error_code, const std::string& operation_name, const std::string& additional_context) {
+    std::string message = "File " + operation_name + " operation failed";
+    
+    if (!additional_context.empty()) {
+        message += " (" + additional_context + ")";
+    }
+    
+    message += " on file: " + m_file_path.to8Bit(false);
+    
+    // Add specific error details based on error code
+    switch (error_code) {
+        case ENOENT:
+            message += " - File not found";
+            break;
+        case EACCES:
+            message += " - Permission denied";
+            break;
+        case EISDIR:
+            message += " - Path is a directory, not a regular file";
+            break;
+        case ENOTDIR:
+            message += " - Path component is not a directory";
+            break;
+        case EBADF:
+            message += " - Bad file descriptor or file is closed";
+            break;
+        case EINVAL:
+            message += " - Invalid argument or parameter";
+            break;
+        case EIO:
+            message += " - I/O error occurred";
+            break;
+        case ENOSPC:
+            message += " - No space left on device";
+            break;
+        case ENOMEM:
+            message += " - Out of memory";
+            break;
+        case EROFS:
+            message += " - Read-only file system";
+            break;
+        case ELOOP:
+            message += " - Too many symbolic links encountered";
+            break;
+        case ENAMETOOLONG:
+            message += " - File name too long";
+            break;
+        case EOVERFLOW:
+            message += " - Value too large for defined data type";
+            break;
+        case ETIMEDOUT:
+            message += " - Operation timed out";
+            break;
+        case EAGAIN:
+            message += " - Resource temporarily unavailable";
+            break;
+        case EINTR:
+            message += " - Interrupted system call";
+            break;
+        default:
+            // Use cross-platform error message utility
+            message += " - " + getErrorMessage(error_code);
+            break;
+    }
+    
+    // Add recovery suggestion for recoverable errors
+    if (isFileErrorRecoverable(error_code, operation_name)) {
+        message += " (error may be recoverable)";
+    }
+    
+    return message;
+}
+
+bool FileIOHandler::isFileErrorRecoverable(int error_code, const std::string& operation_name) {
+    // Use base class method for general recoverability check
+    if (!isRecoverableError(error_code)) {
+        return false;
+    }
+    
+    // File-specific recoverability checks
+    switch (error_code) {
+        case EIO:
+            // I/O errors might be recoverable for network file systems
+            Debug::log("io", "FileIOHandler::isFileErrorRecoverable() - I/O error for ", operation_name, " may be recoverable");
+            return true;
+            
+        case EAGAIN:
+        case EINTR:
+            // These are typically recoverable
+            Debug::log("io", "FileIOHandler::isFileErrorRecoverable() - Temporary error for ", operation_name, " is recoverable");
+            return true;
+            
+        case ENOMEM:
+            // Memory errors might be recoverable if memory is freed
+            Debug::log("io", "FileIOHandler::isFileErrorRecoverable() - Memory error for ", operation_name, " may be recoverable");
+            return true;
+            
+        case ENOSPC:
+            // Disk full might be recoverable if space is freed
+            Debug::log("io", "FileIOHandler::isFileErrorRecoverable() - Disk full error for ", operation_name, " may be recoverable");
+            return true;
+            
+        case ETIMEDOUT:
+            // Timeouts are often recoverable
+            Debug::log("io", "FileIOHandler::isFileErrorRecoverable() - Timeout error for ", operation_name, " is recoverable");
+            return true;
+            
+        default:
+            return false;
+    }
+}
+
+bool FileIOHandler::retryFileOperation(std::function<bool()> operation_func, const std::string& operation_name, int max_retries, int retry_delay_ms) {
+    int retry_count = 0;
+    
+    while (retry_count <= max_retries) {
+        // Record operation start time for timeout detection
+        m_operation_start_time = std::chrono::steady_clock::now();
+        
+        // Attempt the operation
+        if (operation_func()) {
+            if (retry_count > 0) {
+                Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " succeeded after ", retry_count, " retries");
+            }
+            return true;
+        }
+        
+        // Operation failed, check if we should retry
+        if (retry_count >= max_retries) {
+            Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed after ", max_retries, " retries, giving up");
+            break;
+        }
+        
+        // Check if error is recoverable
+        if (!isFileErrorRecoverable(m_error, operation_name)) {
+            Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed with non-recoverable error: ", m_error, ", not retrying");
+            break;
+        }
+        
+        retry_count++;
+        Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed (error: ", m_error, "), retrying (", retry_count, "/", max_retries, ")");
+        
+        // Wait before retrying (exponential backoff)
+        int delay = retry_delay_ms * (1 << (retry_count - 1)); // Exponential backoff
+        std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+        
+        // Attempt error recovery before retry
+        attemptErrorRecovery();
+    }
+    
+    return false;
+}
+
+bool FileIOHandler::handleFileMemoryAllocationFailure(size_t requested_size, const std::string& context) {
+    Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - Failed to allocate ", 
+              requested_size, " bytes for file operation: ", context);
+    
+    // First try the base class recovery mechanism
+    if (handleMemoryAllocationFailure(requested_size, context)) {
+        Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - Base class recovery successful");
+        return true;
+    }
+    
+    // File-specific memory recovery strategies
+    
+    // If this is a buffer allocation failure, try to reduce buffer sizes
+    if (context.find("buffer") != std::string::npos || context.find("read") != std::string::npos) {
+        Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - Attempting buffer size reduction");
+        
+        // Release current buffer back to pool
+        if (!m_read_buffer.empty()) {
+            m_read_buffer = IOBufferPool::Buffer();
+            updateMemoryUsage(0);
+            Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - Released current buffer");
+        }
+        
+        // Try progressively smaller buffer sizes
+        std::vector<size_t> fallback_sizes = {
+            m_buffer_size / 2,    // Half current size
+            m_buffer_size / 4,    // Quarter current size
+            16 * 1024,            // 16KB
+            8 * 1024,             // 8KB
+            4 * 1024,             // 4KB
+            1024                  // 1KB minimum
+        };
+        
+        for (size_t fallback_size : fallback_sizes) {
+            if (fallback_size < 1024) continue; // Don't go below 1KB
+            
+            if (checkMemoryLimits(fallback_size)) {
+                m_read_buffer = IOBufferPool::getInstance().acquire(fallback_size);
+                if (!m_read_buffer.empty()) {
+                    m_buffer_size = fallback_size;
+                    updateMemoryUsage(m_read_buffer.size());
+                    Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - Successfully allocated fallback buffer: ", fallback_size, " bytes");
+                    return true;
+                }
+            }
+        }
+        
+        // If all buffer allocations failed, disable buffering
+        Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - Disabling buffering due to memory pressure");
+        m_buffer_size = 0;
+        invalidateBuffer();
+        return true; // Can still operate without buffering
+    }
+    
+    // If this is a read-ahead allocation failure, disable read-ahead
+    if (context.find("read-ahead") != std::string::npos || context.find("readahead") != std::string::npos) {
+        Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - Disabling read-ahead optimization");
+        m_read_ahead_enabled = false;
+        m_read_ahead_size = 0;
+        return true;
+    }
+    
+    Debug::log("memory", "FileIOHandler::handleFileMemoryAllocationFailure() - All file-specific recovery strategies failed");
+    return false;
+}
+
+bool FileIOHandler::handleFileResourceExhaustion(const std::string& resource_type, const std::string& context) {
+    Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Resource exhausted: ", 
+              resource_type, " in file context: ", context);
+    
+    // First try the base class recovery mechanism
+    if (handleResourceExhaustion(resource_type, context)) {
+        Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Base class recovery successful");
+        return true;
+    }
+    
+    // File-specific resource exhaustion recovery
+    
+    if (resource_type == "file_descriptors") {
+        Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - File descriptor exhaustion");
+        
+        // If we have a valid file handle, we can continue operating
+        if (validateFileHandle()) {
+            Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Current file handle is valid, continuing");
+            return true;
+        }
+        
+        // Try to reopen the file if it was closed due to FD exhaustion
+        if (m_closed && !m_file_path.isEmpty()) {
+            Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Attempting to reopen file");
+            
+            try {
+#ifdef _WIN32
+                m_file_handle = _wfopen(m_file_path.toCWString(), L"rb");
+#else
+                m_file_handle = fopen(m_file_path.toCString(false), "rb");
+#endif
+                if (m_file_handle) {
+                    m_closed = false;
+                    m_error = 0;
+                    Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Successfully reopened file");
+                    return true;
+                }
+            } catch (const std::exception& e) {
+                Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Exception during file reopen: ", e.what());
+            }
+        }
+        
+        Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Could not recover from file descriptor exhaustion");
+        return false;
+    }
+    
+    if (resource_type == "disk_space") {
+        Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Disk space exhaustion for file operations");
+        
+        // For read operations, disk space shouldn't matter
+        if (context.find("read") != std::string::npos) {
+            Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Disk space exhaustion during read operation, should not affect reading");
+            return true;
+        }
+        
+        // For write operations (future extension), we cannot recover
+        Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Cannot recover from disk space exhaustion for write operations");
+        return false;
+    }
+    
+    if (resource_type == "memory") {
+        // This should have been handled by handleFileMemoryAllocationFailure
+        return handleFileMemoryAllocationFailure(0, context);
+    }
+    
+    Debug::log("resource", "FileIOHandler::handleFileResourceExhaustion() - Unknown resource type or no recovery possible");
+    return false;
+}
+
+void FileIOHandler::ensureSafeDestructorCleanup() noexcept {
+    try {
+        Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - Ensuring safe cleanup");
+        
+        // Close file handle safely
+        if (m_file_handle) {
+            try {
+                fclose(m_file_handle);
+                Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - File handle closed");
+            } catch (...) {
+                // Ignore exceptions during cleanup
+            }
+            m_file_handle = nullptr;
+        }
+        
+        // Release buffer safely
+        try {
+            m_read_buffer = IOBufferPool::Buffer();
+            Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - Buffer released");
+        } catch (...) {
+            // Ignore exceptions during cleanup
+        }
+        
+        // Update memory tracking safely
+        try {
+            updateMemoryUsage(0);
+            Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - Memory tracking updated");
+        } catch (...) {
+            // Ignore exceptions during cleanup
+        }
+        
+        // Reset state safely
+        m_closed = true;
+        m_eof = true;
+        m_buffer_file_position = -1;
+        m_buffer_valid_bytes = 0;
+        m_buffer_offset = 0;
+        m_cached_file_size = -1;
+        m_last_read_position = -1;
+        m_sequential_access = false;
+        m_retry_count = 0;
+        m_error = 0;
+        
+        Debug::log("memory", "FileIOHandler::ensureSafeDestructorCleanup() - Safe cleanup completed");
+        
+    } catch (...) {
+        // Absolutely no exceptions should escape from destructor cleanup
+        // This is a last resort - just ensure basic state is reset
+        m_file_handle = nullptr;
+        m_closed = true;
+        m_error = 0;
     }
 }

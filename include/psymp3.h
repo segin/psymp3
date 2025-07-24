@@ -111,6 +111,9 @@ enum class LoopMode {
 // System-specific headers
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifndef _WIN32
+#include <sys/statfs.h>
+#endif
 #if defined(_WIN32)
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -305,6 +308,7 @@ typedef struct bio_st BIO;
 #include "MemoryTracker.h"
 #include "MemoryOptimizer.h"
 #include "MemoryPoolManager.h"
+#include "RAIIFileHandle.h"
 #include "IOHandler.h"
 #include "FileIOHandler.h"
 #include "HTTPIOHandler.h"

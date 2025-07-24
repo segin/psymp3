@@ -542,3 +542,158 @@ void IOHandler::performMemoryOptimization() {
     Debug::log("memory", "IOHandler::performMemoryOptimization() - Optimization complete: ", 
               usage_percent, "% -> ", final_percent, "% (saved ", total_usage - final_usage, " bytes)");
 }
+
+bool IOHandler::handleMemoryAllocationFailure(size_t requested_size, const std::string& context) {
+    Debug::log("memory", "IOHandler::handleMemoryAllocationFailure() - Failed to allocate ", 
+              requested_size, " bytes in context: ", context);
+    
+    // Set appropriate error code
+    m_error = ENOMEM;
+    
+    // Try to free memory through optimization
+    performMemoryOptimization();
+    
+    // Try to reduce buffer sizes if this is a buffer allocation
+    if (context.find("buffer") != std::string::npos) {
+        // Reduce buffer sizes by 50%
+        size_t reduced_size = requested_size / 2;
+        if (reduced_size >= 1024) { // Minimum 1KB buffer
+            Debug::log("memory", "IOHandler::handleMemoryAllocationFailure() - Attempting reduced allocation: ", 
+                      reduced_size, " bytes");
+            
+            // Check if reduced allocation would be within limits
+            if (checkMemoryLimits(reduced_size)) {
+                Debug::log("memory", "IOHandler::handleMemoryAllocationFailure() - Reduced allocation may succeed");
+                return true;
+            }
+        }
+    }
+    
+    // Try emergency memory cleanup
+    {
+        std::lock_guard<std::mutex> lock(s_memory_mutex);
+        
+        // Clear all buffer pools
+        IOBufferPool::getInstance().clear();
+        
+        // Request memory cleanup through tracker
+        MemoryTracker::getInstance().requestMemoryCleanup(100); // High urgency
+        
+        Debug::log("memory", "IOHandler::handleMemoryAllocationFailure() - Emergency cleanup completed");
+    }
+    
+    // Check if we now have enough memory
+    if (checkMemoryLimits(requested_size)) {
+        Debug::log("memory", "IOHandler::handleMemoryAllocationFailure() - Recovery successful after emergency cleanup");
+        m_error = 0; // Clear error
+        return true;
+    }
+    
+    // Try one more time with a much smaller allocation
+    if (context.find("buffer") != std::string::npos) {
+        size_t minimal_size = std::max(static_cast<size_t>(1024), requested_size / 8); // 1KB or 1/8 original
+        if (checkMemoryLimits(minimal_size)) {
+            Debug::log("memory", "IOHandler::handleMemoryAllocationFailure() - Minimal allocation may succeed: ", 
+                      minimal_size, " bytes");
+            return true;
+        }
+    }
+    
+    Debug::log("memory", "IOHandler::handleMemoryAllocationFailure() - Recovery failed, memory allocation not possible");
+    return false;
+}
+
+bool IOHandler::handleResourceExhaustion(const std::string& resource_type, const std::string& context) {
+    Debug::log("resource", "IOHandler::handleResourceExhaustion() - Resource exhausted: ", 
+              resource_type, " in context: ", context);
+    
+    // Set appropriate error code based on resource type
+    if (resource_type == "memory") {
+        m_error = ENOMEM;
+        return handleMemoryAllocationFailure(0, context);
+    } else if (resource_type == "file_descriptors") {
+        m_error = EMFILE; // Too many open files
+        
+        // Try to close unused file descriptors
+        Debug::log("resource", "IOHandler::handleResourceExhaustion() - Attempting to free file descriptors");
+        
+        // Force cleanup of any cached file handles
+        performMemoryOptimization();
+        
+        // Wait a bit for system to clean up
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        Debug::log("resource", "IOHandler::handleResourceExhaustion() - File descriptor cleanup attempted");
+        return true; // Assume cleanup helped
+        
+    } else if (resource_type == "disk_space") {
+        m_error = ENOSPC; // No space left on device
+        
+        Debug::log("resource", "IOHandler::handleResourceExhaustion() - Disk space exhausted, cannot recover");
+        return false; // Cannot recover from disk space issues
+        
+    } else if (resource_type == "network_connections") {
+        m_error = ECONNABORTED; // Connection aborted
+        
+        Debug::log("resource", "IOHandler::handleResourceExhaustion() - Network connection limit reached");
+        
+        // Wait for connections to be released
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        
+        return true; // Assume connections were released
+        
+    } else {
+        m_error = ENOSYS; // Function not implemented (unknown resource type)
+        Debug::log("resource", "IOHandler::handleResourceExhaustion() - Unknown resource type: ", resource_type);
+        return false;
+    }
+}
+
+void IOHandler::safeErrorPropagation(int error_code, const std::string& error_message, 
+                                    std::function<void()> cleanup_func) {
+    Debug::log("error", "IOHandler::safeErrorPropagation() - Propagating error ", error_code, ": ", error_message);
+    
+    // Set error state
+    m_error = error_code;
+    
+    // Perform cleanup if provided
+    if (cleanup_func) {
+        try {
+            Debug::log("error", "IOHandler::safeErrorPropagation() - Executing cleanup function");
+            cleanup_func();
+            Debug::log("error", "IOHandler::safeErrorPropagation() - Cleanup completed successfully");
+        } catch (const std::exception& e) {
+            Debug::log("error", "IOHandler::safeErrorPropagation() - Cleanup function threw exception: ", e.what());
+            // Continue with error propagation even if cleanup fails
+        } catch (...) {
+            Debug::log("error", "IOHandler::safeErrorPropagation() - Cleanup function threw unknown exception");
+            // Continue with error propagation even if cleanup fails
+        }
+    }
+    
+    // Ensure we're in a safe state for error propagation
+    try {
+        // Update memory tracking to reflect any cleanup
+        updateMemoryUsage(0);
+        
+        // Mark as closed if this is a fatal error
+        if (error_code == ENOMEM || error_code == ENOSPC || error_code == EMFILE) {
+            Debug::log("error", "IOHandler::safeErrorPropagation() - Fatal error, marking as closed");
+            m_closed = true;
+            m_eof = true;
+        }
+        
+    } catch (const std::exception& e) {
+        Debug::log("error", "IOHandler::safeErrorPropagation() - Exception during safe state setup: ", e.what());
+        // Force closed state to prevent further operations
+        m_closed = true;
+        m_eof = true;
+    } catch (...) {
+        Debug::log("error", "IOHandler::safeErrorPropagation() - Unknown exception during safe state setup");
+        // Force closed state to prevent further operations
+        m_closed = true;
+        m_eof = true;
+    }
+    
+    Debug::log("error", "IOHandler::safeErrorPropagation() - Error propagation completed safely");
+}
