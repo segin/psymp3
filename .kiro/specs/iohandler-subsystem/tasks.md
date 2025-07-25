@@ -248,25 +248,31 @@
   - Verify unit tests pass before completing task. ✓
   - _Requirements: 9.3, 9.5, 9.7, 9.8_
 
-- [ ] 10. Ensure Integration and API Consistency
+- [x] 10. Ensure Integration and API Consistency
   - Complete integration with PsyMP3's existing codebase and conventions
   - Add consistent error reporting using PsyMP3's exception hierarchy
   - Implement proper logging integration with PsyMP3's Debug system
   - Ensure API consistency across all IOHandler implementations
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [ ] 10.1 Complete PsyMP3 Integration
+- [x] 10.1 Complete PsyMP3 Integration
   - Integrate with demuxer implementations requiring IOHandler interface
   - Add proper exception handling using PsyMP3's InvalidMediaException hierarchy
   - Implement Debug logging with appropriate categories ("io", "http", "file")
   - Ensure compatibility with TagLib::String parameters for file paths
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 10.1, 10.2, 10.3, 10.5_
 
-- [ ] 10.2 Add URI and Configuration Integration
+- [x] 10.2 Add URI and Configuration Integration
   - Integrate with PsyMP3's URI parsing and handling components
   - Add support for PsyMP3's configuration system for I/O parameters
   - Create factory methods for IOHandler creation based on URI schemes
   - Ensure consistent resource management patterns with PsyMP3 conventions
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - Create unit tests to verify all functionality
   - Verify unit tests pass before completing task.
   - _Requirements: 10.4, 10.6, 10.7, 10.8_
@@ -294,6 +300,8 @@
   - Verify performance with large files and high-bitrate network streams
   - Test error handling and recovery across component boundaries
   - Validate thread safety in multi-threaded scenarios
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 5.1-5.8, 6.1-6.8, 7.1-7.8, 8.1-8.8, 9.1-9.8_
 
 - [ ] 11.3 Create Performance and Stress Tests

@@ -48,7 +48,12 @@ check_PROGRAMS = \
 	test_rect_modern_cpp \
 	test_harness_integration \
 	test_fragment_handler \
-	test_iso_fragmented_mp4
+	test_iso_fragmented_mp4 \
+	test_iohandler_integration_simple \
+	test_iohandler_minimal \
+	test_iohandler_basic \
+	test_integration_verification \
+	test_iohandler_basic
 
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
@@ -89,6 +94,60 @@ test_fragment_handler_LDADD = $(top_builddir)/src/FragmentHandler.o $(top_buildd
 
 test_iso_fragmented_mp4_SOURCES = test_iso_fragmented_mp4.cpp
 test_iso_fragmented_mp4_LDADD = $(top_builddir)/src/FragmentHandler.o $(top_builddir)/src/ISODemuxer.o $(AM_LDFLAGS)
+
+test_iohandler_integration_simple_SOURCES = test_iohandler_integration_simple.cpp
+test_iohandler_integration_simple_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iohandler_minimal_SOURCES = test_iohandler_minimal.cpp
+test_iohandler_minimal_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iohandler_basic_SOURCES = test_iohandler_basic.cpp
+test_iohandler_basic_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+test_integration_verification_SOURCES = test_integration_verification.cpp
+test_integration_verification_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
 
 # Test execution target
 check-local: $(check_PROGRAMS)
