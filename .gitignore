@@ -70,3 +70,10 @@ tests/test_integration_verification
 tests/test_iohandler_integration_simple
 tests/integration_test.txt
 test_thread_safety_minimal
+simple_test.txt
+tests/simple_test.txt
+tests/test_framework_only
+tests/test_iohandler_simple
+tests/test_iohandler_unit_comprehensive
+tests/test_iohandler_working
+tests/test_minimal
