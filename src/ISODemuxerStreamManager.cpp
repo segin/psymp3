@@ -73,3 +73,60 @@ AudioTrackInfo* ISODemuxerStreamManager::GetTrack(uint32_t trackId) {
 std::vector<AudioTrackInfo> ISODemuxerStreamManager::GetAudioTracks() const {
     return tracks;
 }
+// Streaming functionality (merged from StreamingManager)
+
+bool ISODemuxerStreamManager::isStreaming() const {
+    return m_is_streaming;
+}
+
+bool ISODemuxerStreamManager::isMovieBoxAtEnd() const {
+    return m_movie_box_at_end;
+}
+
+uint64_t ISODemuxerStreamManager::findMovieBox() {
+    // For now, return the cached movie box offset
+    // This would need to be implemented with actual box searching logic
+    return m_movie_box_offset;
+}
+
+bool ISODemuxerStreamManager::isDataAvailable(uint64_t offset, size_t size) const {
+    // For non-streaming sources, all data is always available
+    if (!m_is_streaming) {
+        return true;
+    }
+    
+    // For streaming sources, this would need to check the actual data availability
+    // For now, assume data is available (stub implementation)
+    return true;
+}
+
+void ISODemuxerStreamManager::requestByteRange(uint64_t offset, size_t size) {
+    // For non-streaming sources, no action needed
+    if (!m_is_streaming) {
+        return;
+    }
+    
+    // For streaming sources, this would initiate a byte range request
+    // Stub implementation for now
+}
+
+bool ISODemuxerStreamManager::waitForData(uint64_t offset, size_t size, uint32_t timeout_ms) {
+    // For non-streaming sources, data is always immediately available
+    if (!m_is_streaming) {
+        return true;
+    }
+    
+    // For streaming sources, this would wait for the data to become available
+    // Stub implementation for now - assume data becomes available
+    return true;
+}
+
+void ISODemuxerStreamManager::prefetchSample(uint64_t offset, size_t size) {
+    // For non-streaming sources, no prefetching needed
+    if (!m_is_streaming) {
+        return;
+    }
+    
+    // For streaming sources, this would initiate prefetching
+    // Stub implementation for now
+}

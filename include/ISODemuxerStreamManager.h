@@ -20,13 +20,28 @@ public:
     ISODemuxerStreamManager() = default;
     ~ISODemuxerStreamManager() = default;
     
+    // Audio track management
     void AddAudioTrack(const AudioTrackInfo& track);
     std::vector<StreamInfo> GetStreamInfos() const;
     AudioTrackInfo* GetTrack(uint32_t trackId);
     std::vector<AudioTrackInfo> GetAudioTracks() const;
     
+    // Streaming functionality (merged from StreamingManager)
+    bool isStreaming() const;
+    bool isMovieBoxAtEnd() const;
+    uint64_t findMovieBox();
+    bool isDataAvailable(uint64_t offset, size_t size) const;
+    void requestByteRange(uint64_t offset, size_t size);
+    bool waitForData(uint64_t offset, size_t size, uint32_t timeout_ms);
+    void prefetchSample(uint64_t offset, size_t size);
+    
 private:
     std::vector<AudioTrackInfo> tracks;
+    
+    // Streaming state
+    bool m_is_streaming = false;
+    bool m_movie_box_at_end = false;
+    uint64_t m_movie_box_offset = 0;
 };
 
 #endif // ISODEMUXERSTREAMMANAGER_H

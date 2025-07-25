@@ -31,7 +31,7 @@ void ISODemuxer::initializeComponents() {
     metadataExtractor = std::make_unique<ISODemuxerMetadataExtractor>();
     streamManager = std::make_unique<ISODemuxerStreamManager>();
     seekingEngine = std::make_unique<ISODemuxerSeekingEngine>();
-    streamingManager = std::make_unique<StreamingManager>(sharedHandler);
+    streamingManager = std::make_unique<ISODemuxerStreamManager>();
     errorRecovery = std::make_unique<ISODemuxerErrorRecovery>(sharedHandler);
 }
 

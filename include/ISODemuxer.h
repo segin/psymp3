@@ -217,7 +217,7 @@ private:
     std::unique_ptr<ISODemuxerMetadataExtractor> metadataExtractor;
     std::unique_ptr<ISODemuxerStreamManager> streamManager;
     std::unique_ptr<ISODemuxerSeekingEngine> seekingEngine;
-    std::unique_ptr<StreamingManager> streamingManager;
+    std::unique_ptr<ISODemuxerStreamManager> streamingManager;
     std::unique_ptr<ISODemuxerErrorRecovery> errorRecovery;
     
     // Audio track management

@@ -77,3 +77,12 @@ tests/test_iohandler_simple
 tests/test_iohandler_unit_comprehensive
 tests/test_iohandler_working
 tests/test_minimal
+tests/test_performance.csv
+# Additional test executables
+tests/test_iso_fragment_handler
+tests/test_iso_fragmented_mp4
+tests/test_iohandler_basic
+tests/test_components_only
+tests/test_debug
+tests/test_iohandler_no_memory
+tests/libtest_utilities.a
