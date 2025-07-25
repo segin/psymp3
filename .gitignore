@@ -65,3 +65,8 @@ tests/test_harness_integration
 tests/test_raii_file_handle
 tests/test_resource_management_simple
 tests/simple_memory_test
+tests/test_iohandler_minimal
+tests/test_integration_verification
+tests/test_iohandler_integration_simple
+tests/integration_test.txt
+test_thread_safety_minimal
