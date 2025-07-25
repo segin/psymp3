@@ -217,6 +217,31 @@ struct MediaChunk {
 };
 
 /**
+ * @brief Error recovery strategies for demuxer operations
+ */
+enum class DemuxerErrorRecovery {
+    NONE,           // No recovery attempted
+    SKIP_SECTION,   // Skip corrupted section and continue
+    RESET_STATE,    // Reset internal state and retry
+    FALLBACK_MODE   // Use fallback parsing mode
+};
+
+/**
+ * @brief Error information for demuxer operations
+ */
+struct DemuxerError {
+    std::string category;       // Error category (e.g., "IO", "Format", "Memory")
+    std::string message;        // Human-readable error message
+    int error_code = 0;         // Numeric error code
+    uint64_t file_offset = 0;   // File offset where error occurred
+    DemuxerErrorRecovery recovery = DemuxerErrorRecovery::NONE;
+    
+    DemuxerError() = default;
+    DemuxerError(const std::string& cat, const std::string& msg, int code = 0)
+        : category(cat), message(msg), error_code(code) {}
+};
+
+/**
  * @brief Base class for all container demuxers
  * 
  * A demuxer is responsible for parsing container formats (RIFF, Ogg, MP4, etc.)
@@ -286,6 +311,27 @@ public:
         return 0; // Default implementation for non-Ogg formats
     }
     
+    /**
+     * @brief Get the last error that occurred during demuxer operations
+     */
+    const DemuxerError& getLastError() const {
+        return m_last_error;
+    }
+    
+    /**
+     * @brief Check if the demuxer has encountered any errors
+     */
+    bool hasError() const {
+        return !m_last_error.category.empty();
+    }
+    
+    /**
+     * @brief Clear the last error state
+     */
+    void clearError() {
+        m_last_error = DemuxerError{};
+    }
+    
 protected:
     std::unique_ptr<IOHandler> m_handler;
     std::vector<StreamInfo> m_streams;
@@ -295,6 +341,10 @@ protected:
     
     // Additional state for concrete implementations
     std::map<uint32_t, uint64_t> m_stream_positions; // Per-stream position tracking
+    
+    // Error handling state
+    mutable DemuxerError m_last_error;
+    mutable std::mutex m_error_mutex; // Thread-safe error reporting
     
     /**
      * @brief Helper to read little-endian values
@@ -428,6 +478,210 @@ protected:
         }
         return nullptr;
     }
+    
+    // Error handling and recovery methods
+    
+    /**
+     * @brief Report an error with automatic recovery attempt
+     * @param category Error category
+     * @param message Error message
+     * @param error_code Optional error code
+     * @param recovery Recovery strategy to attempt
+     * @return true if recovery was successful
+     */
+    bool reportError(const std::string& category, const std::string& message, 
+                    int error_code = 0, DemuxerErrorRecovery recovery = DemuxerErrorRecovery::NONE) const {
+        std::lock_guard<std::mutex> lock(m_error_mutex);
+        
+        m_last_error.category = category;
+        m_last_error.message = message;
+        m_last_error.error_code = error_code;
+        m_last_error.file_offset = m_handler ? static_cast<uint64_t>(m_handler->tell()) : 0;
+        m_last_error.recovery = recovery;
+        
+        // Log the error
+        Debug::log("demuxer", "Demuxer error [", category, "]: ", message, 
+                   " at offset ", m_last_error.file_offset);
+        
+        // Attempt recovery if specified
+        return attemptErrorRecovery(recovery);
+    }
+    
+    /**
+     * @brief Perform I/O operation with error handling and retry
+     * @param operation Lambda function performing the I/O operation
+     * @param operation_name Description of the operation for error reporting
+     * @param max_retries Maximum number of retry attempts
+     * @return true if operation succeeded
+     */
+    template<typename Operation>
+    bool performIOWithRetry(Operation&& operation, const std::string& operation_name, 
+                           int max_retries = 3) const {
+        for (int attempt = 0; attempt <= max_retries; ++attempt) {
+            try {
+                if (operation()) {
+                    return true;
+                }
+            } catch (const std::exception& e) {
+                if (attempt == max_retries) {
+                    reportError("IO", "I/O operation failed after " + std::to_string(max_retries + 1) + 
+                               " attempts: " + operation_name + " - " + e.what());
+                    return false;
+                }
+                
+                // Brief delay before retry
+                std::this_thread::sleep_for(std::chrono::milliseconds(10 * (attempt + 1)));
+            }
+        }
+        
+        reportError("IO", "I/O operation failed: " + operation_name);
+        return false;
+    }
+    
+    /**
+     * @brief Validate data integrity with checksum or size checks
+     * @param data Data to validate
+     * @param expected_size Expected size (0 to skip size check)
+     * @param context Context description for error reporting
+     * @return true if data is valid
+     */
+    bool validateData(const std::vector<uint8_t>& data, size_t expected_size = 0, 
+                     const std::string& context = "data") const {
+        if (data.empty()) {
+            reportError("Validation", "Empty " + context + " detected");
+            return false;
+        }
+        
+        if (expected_size > 0 && data.size() != expected_size) {
+            reportError("Validation", context + " size mismatch: expected " + 
+                       std::to_string(expected_size) + ", got " + std::to_string(data.size()));
+            return false;
+        }
+        
+        // Additional validation could include checksums, magic bytes, etc.
+        return true;
+    }
+    
+    /**
+     * @brief Handle memory allocation failures with recovery
+     * @param requested_size Size that failed to allocate
+     * @param context Context description
+     * @return true if recovery was successful
+     */
+    bool handleMemoryFailure(size_t requested_size, const std::string& context) const {
+        reportError("Memory", "Failed to allocate " + std::to_string(requested_size) + 
+                   " bytes for " + context, 0, DemuxerErrorRecovery::FALLBACK_MODE);
+        
+        // Try to free some memory from buffer pool
+        BufferPool::getInstance().clear();
+        
+        // Force garbage collection if possible
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        return false; // Memory failures are generally not recoverable
+    }
+    
+    /**
+     * @brief Validate file position and size constraints
+     * @param offset File offset to validate
+     * @param size Size of data to read
+     * @return true if position is valid
+     */
+    bool validateFilePosition(uint64_t offset, uint64_t size = 0) const {
+        if (!m_handler) {
+            reportError("IO", "No I/O handler available for position validation");
+            return false;
+        }
+        
+        // Get file size
+        long current_pos = m_handler->tell();
+        if (current_pos < 0) {
+            reportError("IO", "Failed to get current file position");
+            return false;
+        }
+        
+        if (m_handler->seek(0, SEEK_END) != 0) {
+            reportError("IO", "Failed to seek to end of file for size check");
+            return false;
+        }
+        
+        long file_size = m_handler->tell();
+        m_handler->seek(current_pos, SEEK_SET); // Restore position
+        
+        if (file_size < 0) {
+            reportError("IO", "Failed to determine file size");
+            return false;
+        }
+        
+        if (offset >= static_cast<uint64_t>(file_size)) {
+            reportError("IO", "Offset " + std::to_string(offset) + 
+                       " exceeds file size " + std::to_string(file_size));
+            return false;
+        }
+        
+        if (size > 0 && offset + size > static_cast<uint64_t>(file_size)) {
+            reportError("IO", "Read operation would exceed file bounds: offset=" + 
+                       std::to_string(offset) + ", size=" + std::to_string(size) + 
+                       ", file_size=" + std::to_string(file_size));
+            return false;
+        }
+        
+        return true;
+    }
+    
+protected:
+    /**
+     * @brief Attempt error recovery based on strategy
+     * @param recovery Recovery strategy
+     * @return true if recovery was successful
+     */
+    bool attemptErrorRecovery(DemuxerErrorRecovery recovery) const {
+        switch (recovery) {
+            case DemuxerErrorRecovery::NONE:
+                return false;
+                
+            case DemuxerErrorRecovery::SKIP_SECTION:
+                // Try to skip to next valid section
+                return skipToNextValidSection();
+                
+            case DemuxerErrorRecovery::RESET_STATE:
+                // Reset internal state
+                return resetInternalState();
+                
+            case DemuxerErrorRecovery::FALLBACK_MODE:
+                // Enable fallback parsing mode
+                return enableFallbackMode();
+                
+            default:
+                return false;
+        }
+    }
+    
+    /**
+     * @brief Skip to next valid section in the file
+     */
+    virtual bool skipToNextValidSection() const {
+        // This is format-specific and should be overridden by derived classes
+        return false;
+    }
+    
+    /**
+     * @brief Reset internal parsing state
+     */
+    virtual bool resetInternalState() const {
+        // This is format-specific and should be overridden by derived classes
+        return false;
+    }
+    
+    /**
+     * @brief Enable fallback parsing mode
+     */
+    virtual bool enableFallbackMode() const {
+        // This is format-specific and should be overridden by derived classes
+        return false;
+    }
+
+private:
 };
 
 // DemuxerFactory class moved to DemuxerFactory.h

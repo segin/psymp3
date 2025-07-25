@@ -258,6 +258,43 @@ private:
      * @brief Calculate byte offset from position in milliseconds
      */
     uint64_t msToByteOffset(uint64_t timestamp_ms, uint32_t stream_id) const;
+    
+    // Error recovery methods (override base class methods)
+    
+    /**
+     * @brief Skip to next valid chunk
+     */
+    bool skipToNextValidSection() const override;
+    
+    /**
+     * @brief Reset chunk parsing state
+     */
+    bool resetInternalState() const override;
+    
+    /**
+     * @brief Enable fallback parsing mode for corrupted chunk files
+     */
+    bool enableFallbackMode() const override;
+    
+    /**
+     * @brief Recover from corrupted chunk header
+     */
+    bool recoverFromCorruptedChunk(const Chunk& chunk);
+    
+    /**
+     * @brief Validate chunk header integrity
+     */
+    bool validateChunkHeader(const Chunk& chunk) const;
+    
+    /**
+     * @brief Handle chunk size inconsistencies
+     */
+    bool handleChunkSizeError(Chunk& chunk);
+    
+private:
+    // Error recovery state
+    mutable bool m_fallback_mode = false;
+    mutable long m_last_valid_chunk_position = 0;
 };
 
 #endif // CHUNKDEMUXER_H

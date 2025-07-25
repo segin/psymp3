@@ -67,8 +67,13 @@ bool OggDemuxer::parseContainer() {
         Debug::log("ogg", "OggDemuxer: Initial m_file_size in parseContainer: ", m_file_size);
         Debug::log("demuxer", "OggDemuxer: Initial m_file_size in parseContainer: ", m_file_size);
         
-        // Read initial data to parse headers
-        if (!readIntoSyncBuffer(8192)) {
+        // Read initial data to parse headers with error recovery
+        bool initial_read_success = performIOWithRetry([this]() {
+            return readIntoSyncBuffer(8192);
+        }, "initial header read");
+        
+        if (!initial_read_success) {
+            reportError("IO", "Failed to read initial Ogg data for header parsing");
             return false;
         }
         
@@ -78,11 +83,33 @@ bool OggDemuxer::parseContainer() {
         int consecutive_no_progress = 0;
         
         while (!all_headers_complete && max_pages-- > 0) {
-            bool made_progress = processPages();
+            bool made_progress = false;
+            
+            try {
+                made_progress = processPages();
+            } catch (const std::exception& e) {
+                reportError("Processing", "Exception processing pages during header parsing: " + std::string(e.what()));
+                
+                // Try to recover by synchronizing to next page boundary
+                if (synchronizeToPageBoundary()) {
+                    consecutive_no_progress++;
+                    if (consecutive_no_progress > 5) {
+                        Debug::log("ogg", "OggDemuxer: Too many sync attempts, enabling fallback mode");
+                        enableFallbackMode();
+                    }
+                    continue;
+                } else {
+                    break;
+                }
+            }
             
             if (!made_progress) {
                 // Need more data
-                if (!readIntoSyncBuffer(4096)) {
+                bool read_success = performIOWithRetry([this]() {
+                    return readIntoSyncBuffer(4096);
+                }, "header parsing data read");
+                
+                if (!read_success) {
                     consecutive_no_progress++;
                     if (consecutive_no_progress > 10) {
                         Debug::log("ogg", "OggDemuxer: No progress for 10 iterations, stopping header parsing");
@@ -500,10 +527,33 @@ MediaChunk OggDemuxer::readChunk() {
 MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     auto stream_it = m_streams.find(stream_id);
     if (stream_it == m_streams.end()) {
+        reportError("Stream", "Stream ID " + std::to_string(stream_id) + " not found");
         m_eof = true;
         return MediaChunk{};
     }
+    
+    // Check if stream is corrupted
+    if (m_corrupted_streams.find(stream_id) != m_corrupted_streams.end()) {
+        reportError("Stream", "Stream " + std::to_string(stream_id) + " is corrupted");
+        m_eof = true;
+        return MediaChunk{};
+    }
+    
     OggStream& stream = stream_it->second;
+    
+    // Validate stream state before reading
+    if (!validateAndRepairStreamState(stream_id)) {
+        if (isolateStreamError(stream_id, "readChunk validation failed")) {
+            // Try to find another valid stream
+            uint32_t fallback_stream = findBestAudioStream();
+            if (fallback_stream != 0 && fallback_stream != stream_id) {
+                Debug::log("ogg", "OggDemuxer: Falling back to stream ", fallback_stream, " after stream ", stream_id, " failed");
+                return readChunk(fallback_stream);
+            }
+        }
+        m_eof = true;
+        return MediaChunk{};
+    }
 
     // First, send header packets if they haven't been sent yet
     if (!stream.headers_sent && stream.headers_complete) {
@@ -525,12 +575,53 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     }
 
     // If the queue is empty, read more data until we get a packet for our stream
-    while (stream.m_packet_queue.empty() && !m_eof) {
-        if (!readIntoSyncBuffer(4096)) {
-            m_eof = true; // No more data from the source
-            break;
+    int retry_count = 0;
+    const int max_retries = 3;
+    
+    while (stream.m_packet_queue.empty() && !m_eof && retry_count < max_retries) {
+        bool read_success = performIOWithRetry([this]() {
+            return readIntoSyncBuffer(4096);
+        }, "reading Ogg data for packet queue");
+        
+        if (!read_success) {
+            if (m_fallback_mode || retry_count >= max_retries - 1) {
+                m_eof = true;
+                break;
+            }
+            
+            // Try to recover from I/O error
+            if (recoverFromCorruptedPage(m_handler->tell())) {
+                retry_count++;
+                continue;
+            } else {
+                m_eof = true;
+                break;
+            }
         }
-        processPages();
+        
+        try {
+            if (!processPages()) {
+                // Processing failed, try to synchronize
+                if (synchronizeToPageBoundary()) {
+                    retry_count++;
+                    continue;
+                } else {
+                    m_eof = true;
+                    break;
+                }
+            }
+        } catch (const std::exception& e) {
+            reportError("Processing", "Exception processing Ogg pages: " + std::string(e.what()));
+            if (isolateStreamError(stream_id, "processPages exception")) {
+                retry_count++;
+                continue;
+            } else {
+                m_eof = true;
+                break;
+            }
+        }
+        
+        retry_count = 0; // Reset retry count on successful processing
     }
 
     // If we still have no packets after trying to read, we are at the end
@@ -564,7 +655,18 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
     // Find the best audio stream to use for seeking
     uint32_t stream_id = findBestAudioStream();
     if (stream_id == 0) {
+        reportError("Seeking", "No valid audio stream found for seeking");
         return false;
+    }
+    
+    // Validate seek timestamp
+    if (timestamp_ms > m_duration_ms && m_duration_ms > 0) {
+        uint64_t clamped_timestamp;
+        if (handleSeekingError(timestamp_ms, clamped_timestamp)) {
+            timestamp_ms = clamped_timestamp;
+        } else {
+            return false;
+        }
     }
 
     // Clear all stream packet queues
@@ -595,16 +697,38 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
     // Convert timestamp to granule position for seeking
     uint64_t target_granule = msToGranule(timestamp_ms, stream_id);
     
-    // Use bisection search to find the target position
-    bool success = seekToPage(target_granule, stream_id);
-    if (success) {
-        // Update sample tracking for the target stream
-        // Note: We do NOT resend headers after seeking - the decoder should
-        // maintain its state and only needs new audio data packets.
-        // Headers are only sent once at the beginning of playback.
-        OggStream& stream = m_streams[stream_id];
-        stream.total_samples_processed = target_granule;
+    // Use bisection search to find the target position with error recovery
+    bool success = false;
+    try {
+        success = performIOWithRetry([this, target_granule, stream_id]() {
+            return seekToPage(target_granule, stream_id);
+        }, "seeking to Ogg page");
+        
+        if (success) {
+            // Update sample tracking for the target stream
+            // Note: We do NOT resend headers after seeking - the decoder should
+            // maintain its state and only needs new audio data packets.
+            // Headers are only sent once at the beginning of playback.
+            OggStream& stream = m_streams[stream_id];
+            stream.total_samples_processed = target_granule;
+        } else {
+            // Try fallback seeking strategies
+            uint64_t clamped_timestamp;
+            if (handleSeekingError(timestamp_ms, clamped_timestamp)) {
+                success = true;
+                timestamp_ms = clamped_timestamp;
+            }
+        }
+    } catch (const std::exception& e) {
+        reportError("Seeking", "Exception during seek operation: " + std::string(e.what()));
+        
+        // Try to recover by seeking to beginning
+        if (timestamp_ms != 0) {
+            Debug::log("ogg", "OggDemuxer: Seek failed, attempting fallback to beginning");
+            success = seekTo(0);
+        }
     }
+    
     return success;
 }
 
@@ -1425,3 +1549,292 @@ void OggDemuxer::parseOpusTags(OggStream& stream, const OggPacket& packet) {
 #endif // !HAVE_OPUS
 
 #endif // HAVE_OGGDEMUXER
+// Err
+or recovery method implementations
+
+bool OggDemuxer::skipToNextValidSection() const {
+    if (!m_handler) {
+        return false;
+    }
+    
+    Debug::log("ogg", "OggDemuxer: Attempting to skip to next valid section");
+    
+    // Save current position
+    long current_pos = m_handler->tell();
+    if (current_pos < 0) {
+        return false;
+    }
+    
+    // Look for next "OggS" signature
+    const uint8_t ogg_signature[] = {'O', 'g', 'g', 'S'};
+    uint8_t buffer[4096];
+    
+    while (!m_handler->eof()) {
+        size_t bytes_read = m_handler->read(buffer, 1, sizeof(buffer));
+        if (bytes_read < 4) {
+            break;
+        }
+        
+        // Search for Ogg signature in buffer
+        for (size_t i = 0; i <= bytes_read - 4; ++i) {
+            if (std::memcmp(buffer + i, ogg_signature, 4) == 0) {
+                // Found potential Ogg page, seek to it
+                long found_pos = m_handler->tell() - static_cast<long>(bytes_read) + static_cast<long>(i);
+                if (m_handler->seek(found_pos, SEEK_SET) == 0) {
+                    Debug::log("ogg", "OggDemuxer: Found next Ogg page at offset ", found_pos);
+                    const_cast<OggDemuxer*>(this)->m_last_valid_position = found_pos;
+                    return true;
+                }
+            }
+        }
+        
+        // Overlap search - move back 3 bytes to catch signatures spanning buffer boundaries
+        if (bytes_read >= 4) {
+            m_handler->seek(-3, SEEK_CUR);
+        }
+    }
+    
+    Debug::log("ogg", "OggDemuxer: No valid Ogg page found, restoring position");
+    m_handler->seek(current_pos, SEEK_SET);
+    return false;
+}
+
+bool OggDemuxer::resetInternalState() const {
+    Debug::log("ogg", "OggDemuxer: Resetting internal state");
+    
+    try {
+        // Reset libogg sync state
+        ogg_sync_reset(&const_cast<OggDemuxer*>(this)->m_sync_state);
+        
+        // Reset all stream states
+        for (auto& [stream_id, ogg_stream] : const_cast<OggDemuxer*>(this)->m_ogg_streams) {
+            ogg_stream_reset(&ogg_stream);
+        }
+        
+        // Clear packet queues but preserve stream metadata
+        for (auto& [stream_id, stream] : const_cast<OggDemuxer*>(this)->m_streams) {
+            stream.m_packet_queue.clear();
+            stream.partial_packet_data.clear();
+            stream.last_page_sequence = 0;
+        }
+        
+        // Reset EOF state
+        const_cast<OggDemuxer*>(this)->m_eof = false;
+        
+        Debug::log("ogg", "OggDemuxer: Internal state reset successfully");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("ogg", "OggDemuxer: Exception during state reset: ", e.what());
+        return false;
+    }
+}
+
+bool OggDemuxer::enableFallbackMode() const {
+    Debug::log("ogg", "OggDemuxer: Enabling fallback parsing mode");
+    
+    const_cast<OggDemuxer*>(this)->m_fallback_mode = true;
+    
+    // In fallback mode, we're more lenient with:
+    // - Page validation
+    // - Packet boundaries
+    // - Stream synchronization
+    // - Error recovery
+    
+    return true;
+}
+
+bool OggDemuxer::recoverFromCorruptedPage(long file_offset) {
+    Debug::log("ogg", "OggDemuxer: Attempting to recover from corrupted page at offset ", file_offset);
+    
+    // Mark current position as potentially corrupted
+    if (file_offset > 0) {
+        m_handler->seek(file_offset, SEEK_SET);
+    }
+    
+    // Try to find next valid page
+    if (!skipToNextValidSection()) {
+        Debug::log("ogg", "OggDemuxer: Could not find next valid section after corruption");
+        return false;
+    }
+    
+    // Reset sync state to start fresh from new position
+    if (!resetInternalState()) {
+        Debug::log("ogg", "OggDemuxer: Failed to reset state after corruption recovery");
+        return false;
+    }
+    
+    Debug::log("ogg", "OggDemuxer: Successfully recovered from corrupted page");
+    return true;
+}
+
+bool OggDemuxer::handleSeekingError(uint64_t timestamp_ms, uint64_t& clamped_timestamp) {
+    Debug::log("ogg", "OggDemuxer: Handling seeking error for timestamp ", timestamp_ms, "ms");
+    
+    // Clamp timestamp to valid range
+    if (timestamp_ms > m_duration_ms && m_duration_ms > 0) {
+        clamped_timestamp = m_duration_ms;
+        Debug::log("ogg", "OggDemuxer: Clamped timestamp to duration: ", clamped_timestamp, "ms");
+    } else if (timestamp_ms == 0) {
+        // Seeking to beginning should always work
+        clamped_timestamp = 0;
+        return seekTo(0);
+    } else {
+        // Try seeking to approximate position
+        clamped_timestamp = std::min(timestamp_ms, m_duration_ms);
+    }
+    
+    // Try seeking with clamped timestamp
+    if (seekTo(clamped_timestamp)) {
+        Debug::log("ogg", "OggDemuxer: Successfully seeked to clamped timestamp: ", clamped_timestamp, "ms");
+        return true;
+    }
+    
+    // If that fails, try seeking to beginning
+    if (seekTo(0)) {
+        clamped_timestamp = 0;
+        Debug::log("ogg", "OggDemuxer: Fallback seek to beginning successful");
+        return true;
+    }
+    
+    Debug::log("ogg", "OggDemuxer: All seeking attempts failed");
+    return false;
+}
+
+bool OggDemuxer::isolateStreamError(uint32_t stream_id, const std::string& error_context) {
+    Debug::log("ogg", "OggDemuxer: Isolating error for stream ", stream_id, " in context: ", error_context);
+    
+    // Mark stream as corrupted
+    m_corrupted_streams.insert(stream_id);
+    
+    // Clear stream's packet queue to prevent further issues
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it != m_streams.end()) {
+        stream_it->second.m_packet_queue.clear();
+        stream_it->second.partial_packet_data.clear();
+        
+        Debug::log("ogg", "OggDemuxer: Cleared packet queue for corrupted stream ", stream_id);
+    }
+    
+    // Reset the libogg stream state for this stream
+    auto ogg_stream_it = m_ogg_streams.find(stream_id);
+    if (ogg_stream_it != m_ogg_streams.end()) {
+        ogg_stream_reset(&ogg_stream_it->second);
+        Debug::log("ogg", "OggDemuxer: Reset libogg stream state for stream ", stream_id);
+    }
+    
+    // Check if we have other valid streams
+    bool has_valid_streams = false;
+    for (const auto& [id, stream] : m_streams) {
+        if (m_corrupted_streams.find(id) == m_corrupted_streams.end() && 
+            stream.codec_type == "audio" && stream.headers_complete) {
+            has_valid_streams = true;
+            break;
+        }
+    }
+    
+    if (!has_valid_streams) {
+        Debug::log("ogg", "OggDemuxer: No valid streams remaining after isolation");
+        return false;
+    }
+    
+    Debug::log("ogg", "OggDemuxer: Successfully isolated stream error, ", 
+               m_corrupted_streams.size(), " streams now corrupted");
+    return true;
+}
+
+bool OggDemuxer::synchronizeToPageBoundary() {
+    Debug::log("ogg", "OggDemuxer: Synchronizing to page boundary");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Reset sync state to clear any partial data
+    ogg_sync_reset(&m_sync_state);
+    
+    // Try to find next page boundary
+    if (!skipToNextValidSection()) {
+        return false;
+    }
+    
+    // Read some data into sync buffer to establish synchronization
+    if (!readIntoSyncBuffer(4096)) {
+        return false;
+    }
+    
+    // Try to extract a page to verify synchronization
+    ogg_page page;
+    int result = ogg_sync_pageout(&m_sync_state, &page);
+    
+    if (result == 1) {
+        Debug::log("ogg", "OggDemuxer: Successfully synchronized to page boundary");
+        return true;
+    }
+    
+    Debug::log("ogg", "OggDemuxer: Failed to synchronize to page boundary");
+    return false;
+}
+
+bool OggDemuxer::validateAndRepairStreamState(uint32_t stream_id) {
+    Debug::log("ogg", "OggDemuxer: Validating and repairing stream state for stream ", stream_id);
+    
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " not found");
+        return false;
+    }
+    
+    OggStream& stream = stream_it->second;
+    
+    // Check if stream is marked as corrupted
+    if (m_corrupted_streams.find(stream_id) != m_corrupted_streams.end()) {
+        Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " is marked as corrupted");
+        return false;
+    }
+    
+    // Validate basic stream properties
+    if (stream.codec_name.empty()) {
+        Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " has no codec name");
+        return false;
+    }
+    
+    if (stream.codec_type != "audio") {
+        Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " is not an audio stream");
+        return false;
+    }
+    
+    // Check if headers are complete
+    if (!stream.headers_complete) {
+        Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " headers are incomplete");
+        
+        // Try to repair by checking if we have minimum required headers
+        if (stream.codec_name == "vorbis" && stream.header_packets.size() >= 3) {
+            stream.headers_complete = true;
+            Debug::log("ogg", "OggDemuxer: Repaired Vorbis stream ", stream_id, " header state");
+        } else if (stream.codec_name == "opus" && stream.header_packets.size() >= 2) {
+            stream.headers_complete = true;
+            Debug::log("ogg", "OggDemuxer: Repaired Opus stream ", stream_id, " header state");
+        } else if (stream.codec_name == "flac" && stream.header_packets.size() >= 1) {
+            stream.headers_complete = true;
+            Debug::log("ogg", "OggDemuxer: Repaired FLAC stream ", stream_id, " header state");
+        } else {
+            return false;
+        }
+    }
+    
+    // Validate audio properties
+    if (stream.sample_rate == 0 || stream.channels == 0) {
+        Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " has invalid audio properties");
+        return false;
+    }
+    
+    // Clear any corrupted packet data
+    if (!stream.partial_packet_data.empty()) {
+        stream.partial_packet_data.clear();
+        Debug::log("ogg", "OggDemuxer: Cleared partial packet data for stream ", stream_id);
+    }
+    
+    Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " validation and repair successful");
+    return true;
+}

@@ -287,6 +287,54 @@ private:
         }
         return value;
     }
+    
+    // Error recovery methods (override base class methods)
+    
+    /**
+     * @brief Skip to next valid Ogg page
+     */
+    bool skipToNextValidSection() const override;
+    
+    /**
+     * @brief Reset Ogg parsing state
+     */
+    bool resetInternalState() const override;
+    
+    /**
+     * @brief Enable fallback parsing mode for corrupted Ogg files
+     */
+    bool enableFallbackMode() const override;
+    
+    /**
+     * @brief Recover from corrupted Ogg page
+     */
+    bool recoverFromCorruptedPage(long file_offset);
+    
+    /**
+     * @brief Handle seeking errors with range clamping
+     */
+    bool handleSeekingError(uint64_t timestamp_ms, uint64_t& clamped_timestamp);
+    
+    /**
+     * @brief Isolate stream errors to prevent affecting other streams
+     */
+    bool isolateStreamError(uint32_t stream_id, const std::string& error_context);
+    
+    /**
+     * @brief Synchronize to next Ogg page boundary
+     */
+    bool synchronizeToPageBoundary();
+    
+    /**
+     * @brief Validate and repair stream state
+     */
+    bool validateAndRepairStreamState(uint32_t stream_id);
+    
+private:
+    // Error recovery state
+    mutable bool m_fallback_mode = false;
+    mutable std::set<uint32_t> m_corrupted_streams;
+    mutable long m_last_valid_position = 0;
 };
 
 #endif // HAVE_OGGDEMUXER

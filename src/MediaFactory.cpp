@@ -57,7 +57,18 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string
 std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::string& uri, const ContentInfo& info) {
     if (!s_initialized) {
         Debug::log("loader", "MediaFactory::createStreamWithContentInfo initializing default formats");
-        initializeDefaultFormats();
+        try {
+            initializeDefaultFormats();
+        } catch (const std::exception& e) {
+            Debug::log("loader", "MediaFactory::createStreamWithContentInfo failed to initialize formats: ", e.what());
+            throw UnsupportedMediaException("Failed to initialize media formats: " + std::string(e.what()));
+        }
+    }
+    
+    // Validate input parameters
+    if (uri.empty()) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo empty URI provided");
+        throw UnsupportedMediaException("Empty URI provided");
     }
     
     if (info.detected_format.empty()) {
@@ -72,14 +83,36 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::str
         throw UnsupportedMediaException("Unsupported media format: " + info.detected_format);
     }
     
+    // Validate format registration
+    if (!it->second.factory) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo no factory function for format: ", info.detected_format);
+        throw UnsupportedMediaException("No factory function registered for format: " + info.detected_format);
+    }
+    
     try {
         Debug::log("loader", "MediaFactory::createStreamWithContentInfo creating stream for format: ", info.detected_format);
         auto stream = it->second.factory(uri, info);
+        
+        if (!stream) {
+            Debug::log("loader", "MediaFactory::createStreamWithContentInfo factory returned null stream for format: ", info.detected_format);
+            throw UnsupportedMediaException("Factory returned null stream for format: " + info.detected_format);
+        }
+        
         Debug::log("loader", "MediaFactory::createStreamWithContentInfo successfully created stream for format: ", info.detected_format);
         return stream;
+        
+    } catch (const std::bad_alloc& e) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo memory allocation failed for: ", uri);
+        throw UnsupportedMediaException("Memory allocation failed creating stream for " + uri);
+    } catch (const UnsupportedMediaException&) {
+        // Re-throw media exceptions as-is
+        throw;
     } catch (const std::exception& e) {
         Debug::log("loader", "MediaFactory::createStreamWithContentInfo exception: ", e.what());
         throw UnsupportedMediaException("Failed to create stream for " + uri + ": " + e.what());
+    } catch (...) {
+        Debug::log("loader", "MediaFactory::createStreamWithContentInfo unknown exception for: ", uri);
+        throw UnsupportedMediaException("Unknown error creating stream for " + uri);
     }
 }
 
@@ -404,7 +437,7 @@ void MediaFactory::initializeDefaultFormats() {
 #endif
     
     // Register container formats that use demuxer registry
-    if (DemuxerRegistry::isFormatSupported("ogg")) {
+    if (DemuxerRegistry::getInstance().isFormatSupported("ogg")) {
         Debug::log("demuxer", "MediaFactory: Registering Ogg format (OggDemuxer available in registry)");
         
         // Ogg container formats - standardized extension mappings per requirements
@@ -467,7 +500,7 @@ void MediaFactory::initializeDefaultFormats() {
     }
     
     // Register container formats using demuxer registry
-    if (DemuxerRegistry::isFormatSupported("riff")) {
+    if (DemuxerRegistry::getInstance().isFormatSupported("riff")) {
         // RIFF/WAVE formats - standardized extension mappings
         MediaFormat wave_format;
         wave_format.format_id = "wave";
@@ -487,7 +520,7 @@ void MediaFactory::initializeDefaultFormats() {
         });
     }
     
-    if (DemuxerRegistry::isFormatSupported("aiff")) {
+    if (DemuxerRegistry::getInstance().isFormatSupported("aiff")) {
         // AIFF formats - standardized extension mappings
         MediaFormat aiff_format;
         aiff_format.format_id = "aiff";
@@ -507,7 +540,7 @@ void MediaFactory::initializeDefaultFormats() {
         });
     }
     
-    if (DemuxerRegistry::isFormatSupported("mp4")) {
+    if (DemuxerRegistry::getInstance().isFormatSupported("mp4")) {
         // ISO container formats - standardized extension mappings per requirements
         MediaFormat mp4_format;
         mp4_format.format_id = "mp4";
@@ -527,7 +560,7 @@ void MediaFactory::initializeDefaultFormats() {
         });
     }
     
-    if (DemuxerRegistry::isFormatSupported("raw_audio")) {
+    if (DemuxerRegistry::getInstance().isFormatSupported("raw_audio")) {
         // Raw audio formats
         MediaFormat raw_format;
         raw_format.format_id = "raw_audio";

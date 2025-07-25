@@ -70,19 +70,60 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     // Initialize built-in formats if needed
     initializeBuiltInFormats();
     
-    // Probe format
-    std::string format_id = probeFormat(handler.get());
-    
-    // Create demuxer based on format
-    if (!format_id.empty()) {
-        auto it = s_demuxer_factories.find(format_id);
-        if (it != s_demuxer_factories.end()) {
-            return it->second(std::move(handler));
-        }
+    // Validate input handler
+    if (!handler) {
+        Debug::log("demuxer", "DemuxerFactory: Null IOHandler provided");
+        return nullptr;
     }
     
-    // Format not supported
-    return nullptr;
+    // Test handler functionality
+    long initial_pos = handler->tell();
+    if (initial_pos < 0) {
+        Debug::log("demuxer", "DemuxerFactory: IOHandler tell() failed");
+        return nullptr;
+    }
+    
+    // Probe format with error handling
+    std::string format_id;
+    try {
+        format_id = probeFormat(handler.get());
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory: Exception during format probing: ", e.what());
+        return nullptr;
+    }
+    
+    if (format_id.empty()) {
+        Debug::log("demuxer", "DemuxerFactory: Unable to identify format");
+        return nullptr;
+    }
+    
+    // Create demuxer based on format with error handling
+    auto it = s_demuxer_factories.find(format_id);
+    if (it == s_demuxer_factories.end()) {
+        Debug::log("demuxer", "DemuxerFactory: No factory registered for format: ", format_id);
+        return nullptr;
+    }
+    
+    try {
+        auto demuxer = it->second(std::move(handler));
+        if (!demuxer) {
+            Debug::log("demuxer", "DemuxerFactory: Factory returned null demuxer for format: ", format_id);
+            return nullptr;
+        }
+        
+        Debug::log("demuxer", "DemuxerFactory: Successfully created demuxer for format: ", format_id);
+        return demuxer;
+        
+    } catch (const std::bad_alloc& e) {
+        Debug::log("demuxer", "DemuxerFactory: Memory allocation failed creating demuxer for format: ", format_id);
+        return nullptr;
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory: Exception creating demuxer for format: ", format_id, " - ", e.what());
+        return nullptr;
+    } catch (...) {
+        Debug::log("demuxer", "DemuxerFactory: Unknown exception creating demuxer for format: ", format_id);
+        return nullptr;
+    }
 }
 
 std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler> handler, 
@@ -90,63 +131,151 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     // Initialize built-in formats if needed
     initializeBuiltInFormats();
     
-    // Probe format with file path hint
-    std::string format_id = probeFormat(handler.get(), file_path);
-    
-    // Create demuxer based on format
-    if (!format_id.empty()) {
-        auto it = s_demuxer_factories.find(format_id);
-        if (it != s_demuxer_factories.end()) {
-            return it->second(std::move(handler));
-        }
+    // Validate input parameters
+    if (!handler) {
+        Debug::log("demuxer", "DemuxerFactory: Null IOHandler provided with file path: ", file_path);
+        return nullptr;
     }
     
-    // Format not supported
-    return nullptr;
+    if (file_path.empty()) {
+        Debug::log("demuxer", "DemuxerFactory: Empty file path provided, falling back to content-only detection");
+        return createDemuxer(std::move(handler));
+    }
+    
+    // Test handler functionality
+    long initial_pos = handler->tell();
+    if (initial_pos < 0) {
+        Debug::log("demuxer", "DemuxerFactory: IOHandler tell() failed for file: ", file_path);
+        return nullptr;
+    }
+    
+    // Probe format with file path hint and error handling
+    std::string format_id;
+    try {
+        format_id = probeFormat(handler.get(), file_path);
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory: Exception during format probing for file: ", file_path, " - ", e.what());
+        return nullptr;
+    }
+    
+    if (format_id.empty()) {
+        Debug::log("demuxer", "DemuxerFactory: Unable to identify format for file: ", file_path);
+        return nullptr;
+    }
+    
+    // Create demuxer based on format with error handling
+    auto it = s_demuxer_factories.find(format_id);
+    if (it == s_demuxer_factories.end()) {
+        Debug::log("demuxer", "DemuxerFactory: No factory registered for format: ", format_id, " (file: ", file_path, ")");
+        return nullptr;
+    }
+    
+    try {
+        auto demuxer = it->second(std::move(handler));
+        if (!demuxer) {
+            Debug::log("demuxer", "DemuxerFactory: Factory returned null demuxer for format: ", format_id, " (file: ", file_path, ")");
+            return nullptr;
+        }
+        
+        Debug::log("demuxer", "DemuxerFactory: Successfully created demuxer for format: ", format_id, " (file: ", file_path, ")");
+        return demuxer;
+        
+    } catch (const std::bad_alloc& e) {
+        Debug::log("demuxer", "DemuxerFactory: Memory allocation failed creating demuxer for format: ", format_id, " (file: ", file_path, ")");
+        return nullptr;
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory: Exception creating demuxer for format: ", format_id, " (file: ", file_path, ") - ", e.what());
+        return nullptr;
+    } catch (...) {
+        Debug::log("demuxer", "DemuxerFactory: Unknown exception creating demuxer for format: ", format_id, " (file: ", file_path, ")");
+        return nullptr;
+    }
 }
 
 std::string DemuxerFactory::probeFormat(IOHandler* handler) {
     if (!handler) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Null handler provided");
         return "";
     }
     
     // Initialize built-in formats if needed
     initializeBuiltInFormats();
     
-    // Save current position
+    // Save current position with error handling
     long original_pos = handler->tell();
+    if (original_pos < 0) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Failed to get current position");
+        return "";
+    }
     
-    // Read header bytes
+    // Seek to beginning with error handling
+    if (handler->seek(0, SEEK_SET) != 0) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Failed to seek to beginning");
+        return "";
+    }
+    
+    // Read header bytes with validation
     std::vector<uint8_t> header(128, 0);
-    handler->seek(0, SEEK_SET);
-    size_t bytes_read = handler->read(header.data(), 1, header.size());
+    size_t bytes_read = 0;
     
-    // Restore original position
-    handler->seek(original_pos, SEEK_SET);
+    try {
+        bytes_read = handler->read(header.data(), 1, header.size());
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Exception reading header: ", e.what());
+        handler->seek(original_pos, SEEK_SET); // Try to restore position
+        return "";
+    }
+    
+    // Restore original position with error handling
+    if (handler->seek(original_pos, SEEK_SET) != 0) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Failed to restore original position");
+        // Continue anyway - this is not fatal for format detection
+    }
     
     if (bytes_read < 4) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Insufficient data for format detection: ", bytes_read, " bytes");
         return ""; // Not enough data to identify format
     }
     
-    // Match signatures
+    // Validate header data
+    if (header.empty()) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Empty header data");
+        return "";
+    }
+    
+    // Match signatures with error handling
     std::vector<std::pair<std::string, int>> matches;
     
-    for (const auto& signature : s_signatures) {
-        if (matchSignature(header.data(), bytes_read, signature)) {
-            matches.emplace_back(signature.format_id, signature.priority);
+    try {
+        for (const auto& signature : s_signatures) {
+            if (matchSignature(header.data(), bytes_read, signature)) {
+                matches.emplace_back(signature.format_id, signature.priority);
+                Debug::log("demuxer", "DemuxerFactory::probeFormat: Matched signature for format: ", signature.format_id, " (priority: ", signature.priority, ")");
+            }
         }
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Exception during signature matching: ", e.what());
+        return "";
+    }
+    
+    if (matches.empty()) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: No format signatures matched");
+        return "";
     }
     
     // Sort matches by priority (highest first)
-    std::sort(matches.begin(), matches.end(), 
-             [](const auto& a, const auto& b) { return a.second > b.second; });
-    
-    // Return highest priority match
-    if (!matches.empty()) {
-        return matches.front().first;
+    try {
+        std::sort(matches.begin(), matches.end(), 
+                 [](const auto& a, const auto& b) { return a.second > b.second; });
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Exception sorting matches: ", e.what());
+        return "";
     }
     
-    return ""; // No match found
+    // Return highest priority match
+    std::string best_format = matches.front().first;
+    Debug::log("demuxer", "DemuxerFactory::probeFormat: Selected format: ", best_format, " from ", matches.size(), " matches");
+    return best_format;
 }
 
 std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& file_path) {
@@ -184,14 +313,46 @@ const std::vector<FormatSignature>& DemuxerFactory::getSignatures() {
 
 bool DemuxerFactory::matchSignature(const uint8_t* data, size_t data_size, 
                                   const FormatSignature& signature) {
-    // Check if we have enough data
-    if (signature.offset + signature.signature.size() > data_size) {
+    // Validate input parameters
+    if (!data || data_size == 0) {
+        Debug::log("demuxer", "DemuxerFactory::matchSignature: Invalid data parameters");
         return false;
     }
     
-    // Compare signature bytes
-    return std::memcmp(data + signature.offset, signature.signature.data(), 
-                      signature.signature.size()) == 0;
+    if (signature.signature.empty()) {
+        Debug::log("demuxer", "DemuxerFactory::matchSignature: Empty signature for format: ", signature.format_id);
+        return false;
+    }
+    
+    // Check if we have enough data
+    if (signature.offset + signature.signature.size() > data_size) {
+        Debug::log("demuxer", "DemuxerFactory::matchSignature: Insufficient data for signature check: format=", 
+                   signature.format_id, ", need=", signature.offset + signature.signature.size(), ", have=", data_size);
+        return false;
+    }
+    
+    // Validate offset
+    if (signature.offset >= data_size) {
+        Debug::log("demuxer", "DemuxerFactory::matchSignature: Signature offset exceeds data size: format=", 
+                   signature.format_id, ", offset=", signature.offset, ", data_size=", data_size);
+        return false;
+    }
+    
+    // Compare signature bytes with error handling
+    try {
+        bool matches = std::memcmp(data + signature.offset, signature.signature.data(), 
+                                  signature.signature.size()) == 0;
+        
+        if (matches) {
+            Debug::log("demuxer", "DemuxerFactory::matchSignature: Signature matched for format: ", signature.format_id);
+        }
+        
+        return matches;
+    } catch (const std::exception& e) {
+        Debug::log("demuxer", "DemuxerFactory::matchSignature: Exception comparing signature for format: ", 
+                   signature.format_id, " - ", e.what());
+        return false;
+    }
 }
 
 std::string DemuxerFactory::detectFormatFromExtension(const std::string& file_path) {

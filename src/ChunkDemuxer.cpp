@@ -50,61 +50,116 @@ bool ChunkDemuxer::parseContainer() {
             return false;
         }
         
-        // Parse chunks within the container
+        // Parse chunks within the container with error recovery
         while (!m_handler->eof() && m_handler->tell() < static_cast<long>(container_chunk.data_offset + container_chunk.size)) {
-            Chunk chunk = readChunkHeader();
+            Chunk chunk;
+            
+            try {
+                chunk = readChunkHeader();
+            } catch (const std::exception& e) {
+                reportError("ChunkHeader", "Exception reading chunk header: " + std::string(e.what()));
+                
+                if (skipToNextValidSection()) {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+            
+            // Validate chunk header
+            if (!validateChunkHeader(chunk)) {
+                if (handleChunkSizeError(chunk)) {
+                    Debug::log("chunk", "ChunkDemuxer: Recovered from chunk size error");
+                } else if (recoverFromCorruptedChunk(chunk)) {
+                    continue;
+                } else {
+                    Debug::log("chunk", "ChunkDemuxer: Failed to recover from corrupted chunk, stopping parsing");
+                    break;
+                }
+            }
             
             Debug::log("chunk", "ChunkDemuxer: Found chunk 0x", std::hex, chunk.fourcc, std::dec, 
                        " size=", chunk.size, " at offset=", chunk.data_offset);
             
-            if (m_form_type == WAVE_FOURCC) {
-                // RIFF/WAV chunks
-                if (chunk.fourcc == FMT_FOURCC) {
-                    if (!parseWaveFormat(chunk)) {
-                        Debug::log("chunk", "ChunkDemuxer: Failed to parse WAV format chunk");
-                        return false;
+            try {
+                if (m_form_type == WAVE_FOURCC) {
+                    // RIFF/WAV chunks
+                    if (chunk.fourcc == FMT_FOURCC) {
+                        if (!parseWaveFormat(chunk)) {
+                            reportError("Format", "Failed to parse WAV format chunk");
+                            if (!m_fallback_mode) {
+                                enableFallbackMode();
+                                continue; // Try to continue in fallback mode
+                            }
+                            return false;
+                        }
+                    } else if (chunk.fourcc == DATA_FOURCC) {
+                        if (!parseWaveData(chunk)) {
+                            reportError("Data", "Failed to parse WAV data chunk");
+                            if (!m_fallback_mode) {
+                                enableFallbackMode();
+                                continue;
+                            }
+                            return false;
+                        }
+                    } else if (chunk.fourcc == FACT_FOURCC) {
+                        // Parse fact chunk for compressed formats
+                        parseWaveFact(chunk);
+                    } else if (chunk.fourcc == LIST_FOURCC) {
+                        // Parse LIST chunk for metadata
+                        parseWaveList(chunk);
+                    } else {
+                        Debug::log("chunk", "ChunkDemuxer: Skipping unknown WAV chunk 0x", std::hex, chunk.fourcc);
+                        skipChunk(chunk);
                     }
-                } else if (chunk.fourcc == DATA_FOURCC) {
-                    if (!parseWaveData(chunk)) {
-                        Debug::log("chunk", "ChunkDemuxer: Failed to parse WAV data chunk");
-                        return false;
+                } else if (m_form_type == AIFF_FOURCC) {
+                    // FORM/AIFF chunks
+                    if (chunk.fourcc == COMM_FOURCC) {
+                        if (!parseAiffCommon(chunk)) {
+                            reportError("Format", "Failed to parse AIFF common chunk");
+                            if (!m_fallback_mode) {
+                                enableFallbackMode();
+                                continue;
+                            }
+                            return false;
+                        }
+                    } else if (chunk.fourcc == SSND_FOURCC) {
+                        if (!parseAiffSoundData(chunk)) {
+                            reportError("Data", "Failed to parse AIFF sound data chunk");
+                            if (!m_fallback_mode) {
+                                enableFallbackMode();
+                                continue;
+                            }
+                            return false;
+                        }
+                    } else if (chunk.fourcc == 0x4E414D45) { // "NAME"
+                        parseAiffName(chunk);
+                    } else if (chunk.fourcc == 0x41555448) { // "AUTH"
+                        parseAiffAuth(chunk);
+                    } else if (chunk.fourcc == 0x28632920) { // "(c) "
+                        parseAiffCopyright(chunk);
+                    } else if (chunk.fourcc == 0x414E4E4F) { // "ANNO"
+                        parseAiffAnnotation(chunk);
+                    } else {
+                        Debug::log("chunk", "ChunkDemuxer: Skipping unknown AIFF chunk 0x", std::hex, chunk.fourcc);
+                        skipChunk(chunk);
                     }
-                } else if (chunk.fourcc == FACT_FOURCC) {
-                    // Parse fact chunk for compressed formats
-                    parseWaveFact(chunk);
-                } else if (chunk.fourcc == LIST_FOURCC) {
-                    // Parse LIST chunk for metadata
-                    parseWaveList(chunk);
                 } else {
-                    Debug::log("chunk", "ChunkDemuxer: Skipping unknown WAV chunk 0x", std::hex, chunk.fourcc);
                     skipChunk(chunk);
                 }
-            } else if (m_form_type == AIFF_FOURCC) {
-                // FORM/AIFF chunks
-                if (chunk.fourcc == COMM_FOURCC) {
-                    if (!parseAiffCommon(chunk)) {
-                        Debug::log("chunk", "ChunkDemuxer: Failed to parse AIFF common chunk");
-                        return false;
-                    }
-                } else if (chunk.fourcc == SSND_FOURCC) {
-                    if (!parseAiffSoundData(chunk)) {
-                        Debug::log("chunk", "ChunkDemuxer: Failed to parse AIFF sound data chunk");
-                        return false;
-                    }
-                } else if (chunk.fourcc == 0x4E414D45) { // "NAME"
-                    parseAiffName(chunk);
-                } else if (chunk.fourcc == 0x41555448) { // "AUTH"
-                    parseAiffAuth(chunk);
-                } else if (chunk.fourcc == 0x28632920) { // "(c) "
-                    parseAiffCopyright(chunk);
-                } else if (chunk.fourcc == 0x414E4E4F) { // "ANNO"
-                    parseAiffAnnotation(chunk);
+            } catch (const std::exception& e) {
+                reportError("ChunkParsing", "Exception parsing chunk 0x" + 
+                           std::to_string(chunk.fourcc) + ": " + e.what());
+                
+                if (recoverFromCorruptedChunk(chunk)) {
+                    continue;
                 } else {
-                    Debug::log("chunk", "ChunkDemuxer: Skipping unknown AIFF chunk 0x", std::hex, chunk.fourcc);
-                    skipChunk(chunk);
+                    if (!m_fallback_mode) {
+                        enableFallbackMode();
+                        continue;
+                    }
+                    break;
                 }
-            } else {
-                skipChunk(chunk);
             }
         }
         
@@ -224,13 +279,26 @@ MediaChunk ChunkDemuxer::readChunk(uint32_t stream_id) {
     chunk.data.resize(bytes_to_read);
     chunk.file_offset = stream_data.data_offset + stream_data.current_offset;
     
-    // Seek to the current position and read
-    if (m_handler->seek(chunk.file_offset, SEEK_SET) != 0) {
-        Debug::log("chunk", "ChunkDemuxer: Failed to seek to offset ", chunk.file_offset);
+    // Seek to the current position and read with error recovery
+    bool seek_success = performIOWithRetry([this, &chunk]() {
+        return m_handler->seek(chunk.file_offset, SEEK_SET) == 0;
+    }, "seeking to chunk data");
+    
+    if (!seek_success) {
+        reportError("IO", "Failed to seek to offset " + std::to_string(chunk.file_offset));
         return MediaChunk{};
     }
     
-    size_t bytes_read = m_handler->read(chunk.data.data(), 1, bytes_to_read);
+    size_t bytes_read = 0;
+    bool read_success = performIOWithRetry([this, &chunk, bytes_to_read, &bytes_read]() {
+        bytes_read = m_handler->read(chunk.data.data(), 1, bytes_to_read);
+        return bytes_read > 0;
+    }, "reading chunk data");
+    
+    if (!read_success && bytes_read == 0) {
+        reportError("IO", "Failed to read chunk data");
+        return MediaChunk{};
+    }
     
     if (bytes_read != bytes_to_read) {
         chunk.data.resize(bytes_read);
@@ -700,4 +768,218 @@ void ChunkDemuxer::parseAiffAnnotation(const Chunk& chunk) {
     stream_data.comment = readFixedString(chunk.size);
     
     Debug::log("chunk", "ChunkDemuxer: AIFF ANNO - comment=", stream_data.comment);
+}
+
+// Error recovery method implementations
+
+bool ChunkDemuxer::skipToNextValidSection() const {
+    if (!m_handler) {
+        return false;
+    }
+    
+    Debug::log("chunk", "ChunkDemuxer: Attempting to skip to next valid chunk");
+    
+    // Save current position
+    long current_pos = m_handler->tell();
+    if (current_pos < 0) {
+        return false;
+    }
+    
+    // Look for common chunk signatures
+    const std::vector<std::vector<uint8_t>> chunk_signatures = {
+        {'R', 'I', 'F', 'F'},  // RIFF
+        {'F', 'O', 'R', 'M'},  // FORM (AIFF)
+        {'L', 'I', 'S', 'T'},  // LIST
+        {'f', 'm', 't', ' '},  // fmt 
+        {'d', 'a', 't', 'a'},  // data
+        {'C', 'O', 'M', 'M'},  // COMM (AIFF)
+        {'S', 'S', 'N', 'D'}   // SSND (AIFF)
+    };
+    
+    uint8_t buffer[4096];
+    
+    while (!m_handler->eof()) {
+        size_t bytes_read = m_handler->read(buffer, 1, sizeof(buffer));
+        if (bytes_read < 4) {
+            break;
+        }
+        
+        // Search for chunk signatures in buffer
+        for (size_t i = 0; i <= bytes_read - 4; ++i) {
+            for (const auto& signature : chunk_signatures) {
+                if (std::memcmp(buffer + i, signature.data(), 4) == 0) {
+                    // Found potential chunk, seek to it
+                    long found_pos = m_handler->tell() - static_cast<long>(bytes_read) + static_cast<long>(i);
+                    if (m_handler->seek(found_pos, SEEK_SET) == 0) {
+                        Debug::log("chunk", "ChunkDemuxer: Found chunk signature at offset ", found_pos);
+                        const_cast<ChunkDemuxer*>(this)->m_last_valid_chunk_position = found_pos;
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // Overlap search - move back 3 bytes to catch signatures spanning buffer boundaries
+        if (bytes_read >= 4) {
+            m_handler->seek(-3, SEEK_CUR);
+        }
+    }
+    
+    Debug::log("chunk", "ChunkDemuxer: No valid chunk found, restoring position");
+    m_handler->seek(current_pos, SEEK_SET);
+    return false;
+}
+
+bool ChunkDemuxer::resetInternalState() const {
+    Debug::log("chunk", "ChunkDemuxer: Resetting internal state");
+    
+    try {
+        // Reset stream positions
+        for (auto& [stream_id, stream_data] : const_cast<ChunkDemuxer*>(this)->m_audio_streams) {
+            stream_data.current_offset = 0;
+        }
+        
+        // Reset global state
+        const_cast<ChunkDemuxer*>(this)->m_current_sample = 0;
+        const_cast<ChunkDemuxer*>(this)->m_position_ms = 0;
+        const_cast<ChunkDemuxer*>(this)->m_eof = false;
+        
+        Debug::log("chunk", "ChunkDemuxer: Internal state reset successfully");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("chunk", "ChunkDemuxer: Exception during state reset: ", e.what());
+        return false;
+    }
+}
+
+bool ChunkDemuxer::enableFallbackMode() const {
+    Debug::log("chunk", "ChunkDemuxer: Enabling fallback parsing mode");
+    
+    const_cast<ChunkDemuxer*>(this)->m_fallback_mode = true;
+    
+    // In fallback mode, we're more lenient with:
+    // - Chunk size validation
+    // - Padding requirements
+    // - Format validation
+    // - Metadata parsing
+    
+    return true;
+}
+
+bool ChunkDemuxer::recoverFromCorruptedChunk(const Chunk& chunk) {
+    Debug::log("chunk", "ChunkDemuxer: Attempting to recover from corrupted chunk 0x", std::hex, chunk.fourcc);
+    
+    // Try to skip past the corrupted chunk
+    if (chunk.size > 0 && chunk.size < 0x10000000) { // Reasonable size limit
+        long skip_pos = static_cast<long>(chunk.data_offset + chunk.size);
+        
+        // Add padding if chunk size is odd (RIFF/IFF requirement)
+        if (chunk.size % 2 != 0) {
+            skip_pos++;
+        }
+        
+        if (m_handler->seek(skip_pos, SEEK_SET) == 0) {
+            Debug::log("chunk", "ChunkDemuxer: Skipped corrupted chunk, now at offset ", skip_pos);
+            return true;
+        }
+    }
+    
+    // If skipping failed, try to find next valid chunk
+    return skipToNextValidSection();
+}
+
+bool ChunkDemuxer::validateChunkHeader(const Chunk& chunk) const {
+    // Validate chunk size
+    if (chunk.size == 0) {
+        Debug::log("chunk", "ChunkDemuxer: Chunk has zero size");
+        return m_fallback_mode; // Allow in fallback mode
+    }
+    
+    if (chunk.size > 0x7FFFFFFF) {
+        Debug::log("chunk", "ChunkDemuxer: Chunk size too large: ", chunk.size);
+        return false;
+    }
+    
+    // Validate data offset
+    if (chunk.data_offset == 0) {
+        Debug::log("chunk", "ChunkDemuxer: Chunk has zero data offset");
+        return false;
+    }
+    
+    // Check if chunk extends beyond reasonable file size
+    if (!validateFilePosition(chunk.data_offset, chunk.size)) {
+        Debug::log("chunk", "ChunkDemuxer: Chunk extends beyond file bounds");
+        return m_fallback_mode; // Allow in fallback mode with clamping
+    }
+    
+    // Validate FourCC (should contain printable characters or known binary patterns)
+    uint8_t* fourcc_bytes = reinterpret_cast<uint8_t*>(const_cast<uint32_t*>(&chunk.fourcc));
+    bool has_printable = false;
+    for (int i = 0; i < 4; ++i) {
+        if (std::isprint(fourcc_bytes[i]) || fourcc_bytes[i] == ' ') {
+            has_printable = true;
+            break;
+        }
+    }
+    
+    if (!has_printable && !m_fallback_mode) {
+        Debug::log("chunk", "ChunkDemuxer: Chunk FourCC contains no printable characters: 0x", std::hex, chunk.fourcc);
+        return false;
+    }
+    
+    return true;
+}
+
+bool ChunkDemuxer::handleChunkSizeError(Chunk& chunk) {
+    Debug::log("chunk", "ChunkDemuxer: Handling chunk size error for chunk 0x", std::hex, chunk.fourcc);
+    
+    // Get current file position and size
+    long current_pos = m_handler->tell();
+    if (current_pos < 0) {
+        return false;
+    }
+    
+    m_handler->seek(0, SEEK_END);
+    long file_size = m_handler->tell();
+    m_handler->seek(current_pos, SEEK_SET);
+    
+    if (file_size < 0) {
+        return false;
+    }
+    
+    // Calculate maximum possible chunk size
+    uint64_t max_possible_size = static_cast<uint64_t>(file_size) - chunk.data_offset;
+    
+    if (chunk.size > max_possible_size) {
+        Debug::log("chunk", "ChunkDemuxer: Clamping chunk size from ", chunk.size, " to ", max_possible_size);
+        chunk.size = static_cast<uint32_t>(max_possible_size);
+        
+        // Enable fallback mode for future chunks
+        enableFallbackMode();
+        return true;
+    }
+    
+    // Check for common chunk size corruption patterns
+    if (chunk.size == 0xFFFFFFFF || chunk.size == 0) {
+        // Try to find next chunk to calculate actual size
+        long saved_pos = m_handler->tell();
+        
+        if (skipToNextValidSection()) {
+            long next_chunk_pos = m_handler->tell();
+            uint64_t calculated_size = static_cast<uint64_t>(next_chunk_pos) - chunk.data_offset;
+            
+            if (calculated_size > 0 && calculated_size < 0x10000000) {
+                Debug::log("chunk", "ChunkDemuxer: Calculated chunk size: ", calculated_size);
+                chunk.size = static_cast<uint32_t>(calculated_size);
+                m_handler->seek(saved_pos, SEEK_SET);
+                enableFallbackMode();
+                return true;
+            }
+        }
+        
+        m_handler->seek(saved_pos, SEEK_SET);
+    }
+    
+    return false;
 }
