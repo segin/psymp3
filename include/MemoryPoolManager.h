@@ -48,6 +48,13 @@ public:
     void initializePools();
     
     /**
+     * @brief Initialize memory tracker integration
+     * This method registers the memory pressure callback with MemoryTracker
+     * and should be called after construction to avoid circular dependency
+     */
+    void initializeMemoryTracking();
+    
+    /**
      * @brief Allocate a buffer from the appropriate pool
      * @param size Requested buffer size in bytes
      * @param component_name Name of component requesting the buffer
@@ -175,6 +182,7 @@ private:
     // Memory pressure monitoring
     int m_memory_pressure_level = 0;
     int m_callback_id_counter = 0;
+    int m_memory_tracker_callback_id = -1;
     std::vector<std::pair<int, std::function<void(int)>>> m_pressure_callbacks;
     
     // Common buffer sizes for pre-allocation

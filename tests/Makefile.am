@@ -129,8 +129,10 @@ test_iohandler_minimal_LDADD = libtest_utilities.a \
 
 test_iohandler_basic_SOURCES = test_iohandler_basic.cpp
 test_iohandler_basic_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/FileIOHandler.o \
 	$(top_builddir)/src/URI.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
 	$(AM_LDFLAGS)
 
 test_integration_verification_SOURCES = test_integration_verification.cpp

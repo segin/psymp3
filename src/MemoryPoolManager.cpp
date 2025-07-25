@@ -11,6 +11,14 @@
 
 MemoryPoolManager& MemoryPoolManager::getInstance() {
     static MemoryPoolManager instance;
+    static bool initialized = false;
+    
+    // Initialize memory tracking after construction to avoid circular dependency
+    if (!initialized) {
+        initialized = true;
+        instance.initializeMemoryTracking();
+    }
+    
     return instance;
 }
 
@@ -28,26 +36,15 @@ MemoryPoolManager::MemoryPoolManager() {
         { 256 * 1024, 2, "large_http" },    // 256KB - large HTTP range
         { 512 * 1024, 1, "max_buffer" }     // 512KB - maximum buffer size
     };
-    
-    // Register with memory tracker for pressure updates
-    MemoryTracker::getInstance().registerMemoryPressureCallback(
-        [this](int pressure) {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            m_memory_pressure_level = pressure;
-            
-            // If pressure is high, clean up pools
-            if (pressure > 70) {
-                cleanupPools();
-            }
-            
-            // Notify our own callbacks
-            notifyPressureCallbacks();
-        }
-    );
 }
 
 MemoryPoolManager::~MemoryPoolManager() {
     Debug::log("memory", "MemoryPoolManager::~MemoryPoolManager() - Cleaning up memory pools");
+    
+    // Unregister memory tracker callback
+    if (m_memory_tracker_callback_id != -1) {
+        MemoryTracker::getInstance().unregisterMemoryPressureCallback(m_memory_tracker_callback_id);
+    }
     
     std::lock_guard<std::mutex> lock(m_mutex);
     
@@ -73,6 +70,28 @@ void MemoryPoolManager::initializePools() {
         size_t pre_allocate = config.max_buffers / 4;
         createPool(config.buffer_size, config.max_buffers, pre_allocate);
     }
+}
+
+void MemoryPoolManager::initializeMemoryTracking() {
+    Debug::log("memory", "MemoryPoolManager::initializeMemoryTracking() - Registering memory tracker callback");
+    
+    // Register with memory tracker for pressure updates
+    m_memory_tracker_callback_id = MemoryTracker::getInstance().registerMemoryPressureCallback(
+        [this](int pressure) {
+            {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                m_memory_pressure_level = pressure;
+                
+                // If pressure is high, clean up pools
+                if (pressure > 70) {
+                    cleanupPools();
+                }
+            }
+            
+            // Notify our own callbacks without holding the mutex
+            notifyPressureCallbacks();
+        }
+    );
 }
 
 uint8_t* MemoryPoolManager::allocateBuffer(size_t size, const std::string& component_name) {
@@ -468,15 +487,18 @@ void MemoryPoolManager::updateMemoryPressureLevel() {
 void MemoryPoolManager::notifyPressureCallbacks() {
     // Make a copy of callbacks to avoid holding the lock during callback execution
     std::vector<std::pair<int, std::function<void(int)>>> callbacks;
+    int pressure_level;
+    
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         callbacks = m_pressure_callbacks;
+        pressure_level = m_memory_pressure_level;
     }
     
-    // Notify all callbacks
+    // Notify all callbacks without holding the mutex
     for (const auto& callback : callbacks) {
         try {
-            callback.second(m_memory_pressure_level);
+            callback.second(pressure_level);
         } catch (...) {
             // Ignore exceptions from callbacks
         }

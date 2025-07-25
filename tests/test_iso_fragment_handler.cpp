@@ -10,9 +10,9 @@
 #include "psymp3.h"
 #include <stdio.h>
 
-// Test FragmentHandler implementation
+// Test ISODemuxerFragmentHandler implementation
 bool test_fragment_handler() {
-    FragmentHandler handler;
+    ISODemuxerFragmentHandler handler;
     
     // Initially should not be fragmented
     if (handler.IsFragmented()) {
@@ -182,7 +182,7 @@ bool test_fragment_handler() {
 
 // Test sample table updates from fragments
 bool test_sample_table_updates() {
-    FragmentHandler handler;
+    ISODemuxerFragmentHandler handler;
     
     // Create a mock audio track
     AudioTrackInfo track;

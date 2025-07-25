@@ -4,14 +4,7 @@
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
 
-#include <iostream>
-#include <fstream>
-
-// Include only what we need without the full psymp3.h
-#include "IOHandler.h"
-#include "FileIOHandler.h"
-#include "URI.h"
-#include "exceptions.h"
+#include "psymp3.h"
 
 int main() {
     std::cout << "Running basic IOHandler test..." << std::endl;

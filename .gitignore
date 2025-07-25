@@ -86,3 +86,4 @@ tests/test_components_only
 tests/test_debug
 tests/test_iohandler_no_memory
 tests/libtest_utilities.a
+tests/test_performance.csv

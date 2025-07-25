@@ -6,9 +6,9 @@
 
 #include "psymp3.h"
 
-// Test FragmentHandler basic functionality
+// Test ISODemuxerFragmentHandler basic functionality
 bool test_fragment_handler_creation() {
-    FragmentHandler handler;
+    ISODemuxerFragmentHandler handler;
     
     // Initially should not be fragmented
     if (handler.IsFragmented()) {
@@ -92,7 +92,7 @@ bool test_track_run_info() {
 
 // Test fragment validation
 bool test_fragment_validation() {
-    FragmentHandler handler;
+    ISODemuxerFragmentHandler handler;
     
     // Create a valid fragment
     MovieFragmentInfo fragment;
@@ -138,7 +138,7 @@ bool test_fragment_validation() {
 
 // Test fragment ordering
 bool test_fragment_ordering() {
-    FragmentHandler handler;
+    ISODemuxerFragmentHandler handler;
     
     // Add fragments out of order
     MovieFragmentInfo fragment3;
@@ -193,7 +193,7 @@ bool test_fragment_ordering() {
 
 // Test default values handling
 bool test_default_values() {
-    FragmentHandler handler;
+    ISODemuxerFragmentHandler handler;
     
     // Create a mock audio track for default values
     AudioTrackInfo track;
