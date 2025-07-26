@@ -14,9 +14,11 @@ std::map<std::string, DemuxerFactory::DemuxerFactoryFunc> DemuxerFactory::s_demu
 std::vector<FormatSignature> DemuxerFactory::s_signatures;
 std::map<std::string, std::string> DemuxerFactory::s_extension_to_format;
 bool DemuxerFactory::s_initialized = false;
+std::mutex DemuxerFactory::s_factory_mutex; // Thread safety for factory operations
 
 // Initialize built-in formats
 void DemuxerFactory::initializeBuiltInFormats() {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (s_initialized) {
         return;
     }
@@ -67,7 +69,7 @@ void DemuxerFactory::initializeBuiltInFormats() {
 }
 
 std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler> handler) {
-    // Initialize built-in formats if needed
+    // Initialize built-in formats if needed (thread-safe)
     initializeBuiltInFormats();
     
     // Validate input handler
@@ -97,15 +99,20 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
         return nullptr;
     }
     
-    // Create demuxer based on format with error handling
-    auto it = s_demuxer_factories.find(format_id);
-    if (it == s_demuxer_factories.end()) {
-        Debug::log("demuxer", "DemuxerFactory: No factory registered for format: ", format_id);
-        return nullptr;
+    // Create demuxer based on format with error handling (thread-safe lookup)
+    DemuxerFactoryFunc factory_func;
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        auto it = s_demuxer_factories.find(format_id);
+        if (it == s_demuxer_factories.end()) {
+            Debug::log("demuxer", "DemuxerFactory: No factory registered for format: ", format_id);
+            return nullptr;
+        }
+        factory_func = it->second;
     }
     
     try {
-        auto demuxer = it->second(std::move(handler));
+        auto demuxer = factory_func(std::move(handler));
         if (!demuxer) {
             Debug::log("demuxer", "DemuxerFactory: Factory returned null demuxer for format: ", format_id);
             return nullptr;
@@ -128,7 +135,7 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
 
 std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler> handler, 
                                                      const std::string& file_path) {
-    // Initialize built-in formats if needed
+    // Initialize built-in formats if needed (thread-safe)
     initializeBuiltInFormats();
     
     // Validate input parameters
@@ -163,15 +170,20 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
         return nullptr;
     }
     
-    // Create demuxer based on format with error handling
-    auto it = s_demuxer_factories.find(format_id);
-    if (it == s_demuxer_factories.end()) {
-        Debug::log("demuxer", "DemuxerFactory: No factory registered for format: ", format_id, " (file: ", file_path, ")");
-        return nullptr;
+    // Create demuxer based on format with error handling (thread-safe lookup)
+    DemuxerFactoryFunc factory_func;
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        auto it = s_demuxer_factories.find(format_id);
+        if (it == s_demuxer_factories.end()) {
+            Debug::log("demuxer", "DemuxerFactory: No factory registered for format: ", format_id, " (file: ", file_path, ")");
+            return nullptr;
+        }
+        factory_func = it->second;
     }
     
     try {
-        auto demuxer = it->second(std::move(handler));
+        auto demuxer = factory_func(std::move(handler));
         if (!demuxer) {
             Debug::log("demuxer", "DemuxerFactory: Factory returned null demuxer for format: ", format_id, " (file: ", file_path, ")");
             return nullptr;
@@ -198,7 +210,7 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
         return "";
     }
     
-    // Initialize built-in formats if needed
+    // Initialize built-in formats if needed (thread-safe)
     initializeBuiltInFormats();
     
     // Save current position with error handling
@@ -243,10 +255,11 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
         return "";
     }
     
-    // Match signatures with error handling
+    // Match signatures with error handling (thread-safe access to signatures)
     std::vector<std::pair<std::string, int>> matches;
     
     try {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
         for (const auto& signature : s_signatures) {
             if (matchSignature(header.data(), bytes_read, signature)) {
                 matches.emplace_back(signature.format_id, signature.priority);
@@ -279,7 +292,7 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
 }
 
 std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& file_path) {
-    // Initialize built-in formats if needed
+    // Initialize built-in formats if needed (thread-safe)
     initializeBuiltInFormats();
     
     // Try content-based detection first
@@ -293,10 +306,12 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler, const std::string& f
 }
 
 void DemuxerFactory::registerDemuxer(const std::string& format_id, DemuxerFactoryFunc factory_func) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     s_demuxer_factories[format_id] = factory_func;
 }
 
 void DemuxerFactory::registerSignature(const FormatSignature& signature) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     s_signatures.push_back(signature);
     
     // Sort signatures by priority (highest first)
@@ -305,9 +320,10 @@ void DemuxerFactory::registerSignature(const FormatSignature& signature) {
 }
 
 const std::vector<FormatSignature>& DemuxerFactory::getSignatures() {
-    // Initialize built-in formats if needed
+    // Initialize built-in formats if needed (thread-safe)
     initializeBuiltInFormats();
     
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     return s_signatures;
 }
 
@@ -368,7 +384,8 @@ std::string DemuxerFactory::detectFormatFromExtension(const std::string& file_pa
     std::transform(extension.begin(), extension.end(), extension.begin(),
                   [](unsigned char c) { return std::tolower(c); });
     
-    // Look up extension
+    // Look up extension (thread-safe)
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     auto it = s_extension_to_format.find(extension);
     if (it != s_extension_to_format.end()) {
         return it->second;

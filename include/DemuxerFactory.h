@@ -100,6 +100,7 @@ private:
     static std::map<std::string, DemuxerFactoryFunc> s_demuxer_factories;
     static std::vector<FormatSignature> s_signatures;
     static std::map<std::string, std::string> s_extension_to_format;
+    static std::mutex s_factory_mutex; // Thread safety for factory operations
     
     // Fast signature matching
     static bool matchSignature(const uint8_t* data, size_t data_size, 

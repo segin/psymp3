@@ -14,11 +14,16 @@ std::map<std::string, MediaFactory::FormatRegistration> MediaFactory::s_formats;
 std::map<std::string, std::string> MediaFactory::s_extension_to_format;
 std::map<std::string, std::string> MediaFactory::s_mime_to_format;
 bool MediaFactory::s_initialized = false;
+std::mutex MediaFactory::s_factory_mutex; // Thread safety for factory operations
 
 std::unique_ptr<Stream> MediaFactory::createStream(const std::string& uri) {
-    if (!s_initialized) {
-        Debug::log("loader", "MediaFactory::createStream initializing default formats");
-        initializeDefaultFormats();
+    // Thread-safe initialization check
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        if (!s_initialized) {
+            Debug::log("loader", "MediaFactory::createStream initializing default formats");
+            initializeDefaultFormats();
+        }
     }
     
     Debug::log("loader", "MediaFactory::createStream analyzing content for: ", uri);
@@ -31,8 +36,12 @@ std::unique_ptr<Stream> MediaFactory::createStream(const std::string& uri) {
 }
 
 std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string& uri, const std::string& mime_type) {
-    if (!s_initialized) {
-        initializeDefaultFormats();
+    // Thread-safe initialization check
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        if (!s_initialized) {
+            initializeDefaultFormats();
+        }
     }
     
     // Start with MIME type detection
@@ -55,13 +64,17 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string
 }
 
 std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::string& uri, const ContentInfo& info) {
-    if (!s_initialized) {
-        Debug::log("loader", "MediaFactory::createStreamWithContentInfo initializing default formats");
-        try {
-            initializeDefaultFormats();
-        } catch (const std::exception& e) {
-            Debug::log("loader", "MediaFactory::createStreamWithContentInfo failed to initialize formats: ", e.what());
-            throw UnsupportedMediaException("Failed to initialize media formats: " + std::string(e.what()));
+    // Thread-safe initialization check
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        if (!s_initialized) {
+            Debug::log("loader", "MediaFactory::createStreamWithContentInfo initializing default formats");
+            try {
+                initializeDefaultFormats();
+            } catch (const std::exception& e) {
+                Debug::log("loader", "MediaFactory::createStreamWithContentInfo failed to initialize formats: ", e.what());
+                throw UnsupportedMediaException("Failed to initialize media formats: " + std::string(e.what()));
+            }
         }
     }
     
@@ -77,21 +90,29 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::str
     }
     
     Debug::log("loader", "MediaFactory::createStreamWithContentInfo looking for format handler: ", info.detected_format);
-    auto it = s_formats.find(info.detected_format);
-    if (it == s_formats.end()) {
-        Debug::log("loader", "MediaFactory::createStreamWithContentInfo unsupported format: ", info.detected_format);
-        throw UnsupportedMediaException("Unsupported media format: " + info.detected_format);
-    }
     
-    // Validate format registration
-    if (!it->second.factory) {
-        Debug::log("loader", "MediaFactory::createStreamWithContentInfo no factory function for format: ", info.detected_format);
-        throw UnsupportedMediaException("No factory function registered for format: " + info.detected_format);
+    // Thread-safe format lookup
+    StreamFactory factory_func;
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        auto it = s_formats.find(info.detected_format);
+        if (it == s_formats.end()) {
+            Debug::log("loader", "MediaFactory::createStreamWithContentInfo unsupported format: ", info.detected_format);
+            throw UnsupportedMediaException("Unsupported media format: " + info.detected_format);
+        }
+        
+        // Validate format registration
+        if (!it->second.factory) {
+            Debug::log("loader", "MediaFactory::createStreamWithContentInfo no factory function for format: ", info.detected_format);
+            throw UnsupportedMediaException("No factory function registered for format: " + info.detected_format);
+        }
+        
+        factory_func = it->second.factory;
     }
     
     try {
         Debug::log("loader", "MediaFactory::createStreamWithContentInfo creating stream for format: ", info.detected_format);
-        auto stream = it->second.factory(uri, info);
+        auto stream = factory_func(uri, info);
         
         if (!stream) {
             Debug::log("loader", "MediaFactory::createStreamWithContentInfo factory returned null stream for format: ", info.detected_format);
@@ -117,9 +138,13 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::str
 }
 
 ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
-    if (!s_initialized) {
-        Debug::log("loader", "MediaFactory::analyzeContent initializing default formats");
-        initializeDefaultFormats();
+    // Thread-safe initialization check
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        if (!s_initialized) {
+            Debug::log("loader", "MediaFactory::analyzeContent initializing default formats");
+            initializeDefaultFormats();
+        }
     }
     
     ContentInfo best_match;
@@ -163,20 +188,27 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
 }
 
 ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
-    if (!s_initialized) {
-        initializeDefaultFormats();
+    // Thread-safe initialization check
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        if (!s_initialized) {
+            initializeDefaultFormats();
+        }
     }
     
     ContentInfo best_match;
     float best_confidence = 0.0f;
     
-    // Try content-specific detectors first (highest confidence)
-    for (const auto& [format_id, registration] : s_formats) {
-        if (registration.detector) {
-            auto result = registration.detector(handler);
-            if (result && result->confidence > best_confidence) {
-                best_match = *result;
-                best_confidence = result->confidence;
+    // Try content-specific detectors first (highest confidence) - thread-safe
+    {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
+        for (const auto& [format_id, registration] : s_formats) {
+            if (registration.detector) {
+                auto result = registration.detector(handler);
+                if (result && result->confidence > best_confidence) {
+                    best_match = *result;
+                    best_confidence = result->confidence;
+                }
             }
         }
     }
@@ -203,6 +235,7 @@ ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
 }
 
 void MediaFactory::registerFormat(const MediaFormat& format, StreamFactory factory) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     FormatRegistration registration;
     registration.format = format;
     registration.factory = factory;
@@ -212,6 +245,7 @@ void MediaFactory::registerFormat(const MediaFormat& format, StreamFactory facto
 }
 
 void MediaFactory::registerContentDetector(const std::string& format_id, ContentDetector detector) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     auto it = s_formats.find(format_id);
     if (it != s_formats.end()) {
         it->second.detector = detector;
@@ -219,11 +253,13 @@ void MediaFactory::registerContentDetector(const std::string& format_id, Content
 }
 
 void MediaFactory::unregisterFormat(const std::string& format_id) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     s_formats.erase(format_id);
     rebuildLookupTables();
 }
 
 std::vector<MediaFormat> MediaFactory::getSupportedFormats() {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -236,6 +272,7 @@ std::vector<MediaFormat> MediaFactory::getSupportedFormats() {
 }
 
 std::optional<MediaFormat> MediaFactory::getFormatInfo(const std::string& format_id) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -248,6 +285,7 @@ std::optional<MediaFormat> MediaFactory::getFormatInfo(const std::string& format
 }
 
 bool MediaFactory::supportsFormat(const std::string& format_id) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -255,6 +293,7 @@ bool MediaFactory::supportsFormat(const std::string& format_id) {
 }
 
 bool MediaFactory::supportsExtension(const std::string& extension) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -264,6 +303,7 @@ bool MediaFactory::supportsExtension(const std::string& extension) {
 }
 
 bool MediaFactory::supportsMimeType(const std::string& mime_type) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -276,6 +316,7 @@ bool MediaFactory::supportsStreaming(const std::string& format_id) {
 }
 
 std::string MediaFactory::extensionToMimeType(const std::string& extension) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -294,6 +335,7 @@ std::string MediaFactory::extensionToMimeType(const std::string& extension) {
 }
 
 std::string MediaFactory::mimeTypeToExtension(const std::string& mime_type) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -309,6 +351,7 @@ std::string MediaFactory::mimeTypeToExtension(const std::string& mime_type) {
 }
 
 std::vector<std::string> MediaFactory::getExtensionsForMimeType(const std::string& mime_type) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -324,6 +367,7 @@ std::vector<std::string> MediaFactory::getExtensionsForMimeType(const std::strin
 }
 
 std::vector<std::string> MediaFactory::getMimeTypesForExtension(const std::string& extension) {
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     if (!s_initialized) {
         initializeDefaultFormats();
     }
@@ -383,6 +427,7 @@ bool MediaFactory::isLocalFile(const std::string& uri) {
 }
 
 void MediaFactory::initializeDefaultFormats() {
+    // Note: This method should only be called while holding s_factory_mutex
     if (s_initialized) {
         Debug::log("loader", "MediaFactory::initializeDefaultFormats already initialized");
         return;
@@ -624,6 +669,7 @@ ContentInfo MediaFactory::detectByExtension(const std::string& uri) {
     Debug::log("loader", "MediaFactory::detectByExtension extracted extension: ", ext.empty() ? "none" : ext);
     
     if (!ext.empty()) {
+        std::lock_guard<std::mutex> lock(s_factory_mutex);
         auto it = s_extension_to_format.find(ext);
         if (it != s_extension_to_format.end()) {
             info.detected_format = it->second;
@@ -649,6 +695,7 @@ ContentInfo MediaFactory::detectByExtension(const std::string& uri) {
 ContentInfo MediaFactory::detectByMimeType(const std::string& mime_type) {
     ContentInfo info;
     
+    std::lock_guard<std::mutex> lock(s_factory_mutex);
     auto it = s_mime_to_format.find(mime_type);
     if (it != s_mime_to_format.end()) {
         info.detected_format = it->second;

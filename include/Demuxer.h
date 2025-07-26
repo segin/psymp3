@@ -315,6 +315,7 @@ public:
      * @brief Get the last error that occurred during demuxer operations
      */
     const DemuxerError& getLastError() const {
+        std::lock_guard<std::mutex> lock(m_error_mutex);
         return m_last_error;
     }
     
@@ -322,6 +323,7 @@ public:
      * @brief Check if the demuxer has encountered any errors
      */
     bool hasError() const {
+        std::lock_guard<std::mutex> lock(m_error_mutex);
         return !m_last_error.category.empty();
     }
     
@@ -329,7 +331,30 @@ public:
      * @brief Clear the last error state
      */
     void clearError() {
+        std::lock_guard<std::mutex> lock(m_error_mutex);
         m_last_error = DemuxerError{};
+    }
+    
+    /**
+     * @brief Thread-safe accessor for parsed state
+     */
+    bool isParsed() const {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        return m_parsed;
+    }
+    
+    /**
+     * @brief Thread-safe accessor for EOF state
+     */
+    bool isEOFAtomic() const {
+        return m_eof_flag.load();
+    }
+    
+    /**
+     * @brief Thread-safe setter for EOF state
+     */
+    void setEOF(bool eof) const {
+        m_eof_flag.store(eof);
     }
     
 protected:
@@ -346,11 +371,18 @@ protected:
     mutable DemuxerError m_last_error;
     mutable std::mutex m_error_mutex; // Thread-safe error reporting
     
+    // Thread safety for demuxer state
+    mutable std::mutex m_state_mutex;        // Protects position, duration, parsed state
+    mutable std::mutex m_streams_mutex;      // Protects streams vector and stream_positions
+    mutable std::mutex m_io_mutex;           // Protects IOHandler operations
+    mutable std::atomic<bool> m_eof_flag{false}; // Atomic EOF flag for thread-safe access
+    
     /**
-     * @brief Helper to read little-endian values
+     * @brief Thread-safe helper to read little-endian values
      */
     template<typename T>
     T readLE() {
+        std::lock_guard<std::mutex> lock(m_io_mutex);
         T value;
         if (m_handler->read(&value, sizeof(T), 1) != 1) {
             throw std::runtime_error("Unexpected end of file");
@@ -370,10 +402,11 @@ protected:
     }
     
     /**
-     * @brief Helper to read big-endian values
+     * @brief Thread-safe helper to read big-endian values
      */
     template<typename T>
     T readBE() {
+        std::lock_guard<std::mutex> lock(m_io_mutex);
         T value;
         if (m_handler->read(&value, sizeof(T), 1) != 1) {
             throw std::runtime_error("Unexpected end of file");
@@ -393,17 +426,18 @@ protected:
     }
     
     /**
-     * @brief Helper to read a FourCC code
+     * @brief Thread-safe helper to read a FourCC code
      */
     uint32_t readFourCC() {
         return readLE<uint32_t>();
     }
     
     /**
-     * @brief Helper to read a null-terminated string
+     * @brief Thread-safe helper to read a null-terminated string
      * @param max_length Maximum length to read (safety limit)
      */
     std::string readString(size_t max_length = 256) {
+        std::lock_guard<std::mutex> lock(m_io_mutex);
         std::string result;
         result.reserve(max_length);
         
@@ -416,47 +450,51 @@ protected:
     }
     
     /**
-     * @brief Helper to read a fixed-length string
+     * @brief Thread-safe helper to read a fixed-length string
      * @param length Number of bytes to read
      */
     std::string readFixedString(size_t length) {
+        std::lock_guard<std::mutex> lock(m_io_mutex);
         std::vector<char> buffer(length);
         size_t bytes_read = m_handler->read(buffer.data(), 1, length);
         return std::string(buffer.data(), bytes_read);
     }
     
     /**
-     * @brief Helper to skip bytes in the stream
+     * @brief Thread-safe helper to skip bytes in the stream
      * @param count Number of bytes to skip
      * @return true if successful
      */
     bool skipBytes(size_t count) {
+        std::lock_guard<std::mutex> lock(m_io_mutex);
         return m_handler->seek(static_cast<long>(count), SEEK_CUR) == 0;
     }
     
     /**
-     * @brief Helper to align to a specific boundary
+     * @brief Thread-safe helper to align to a specific boundary
      * @param alignment Alignment boundary (e.g., 4 for 32-bit alignment)
      * @return true if successful
      */
     bool alignTo(size_t alignment) {
+        std::lock_guard<std::mutex> lock(m_io_mutex);
         off_t current_pos = m_handler->tell();
         if (current_pos < 0) return false;
         
         size_t remainder = static_cast<size_t>(current_pos) % alignment;
         if (remainder != 0) {
             size_t padding = alignment - remainder;
-            return skipBytes(padding);
+            return m_handler->seek(static_cast<long>(padding), SEEK_CUR) == 0;
         }
         return true;
     }
     
     /**
-     * @brief Helper to validate stream ID
+     * @brief Thread-safe helper to validate stream ID
      * @param stream_id Stream ID to validate
      * @return true if stream ID is valid
      */
     bool isValidStreamId(uint32_t stream_id) const {
+        std::lock_guard<std::mutex> lock(m_streams_mutex);
         for (const auto& stream : m_streams) {
             if (stream.stream_id == stream_id) {
                 return true;
@@ -466,11 +504,12 @@ protected:
     }
     
     /**
-     * @brief Helper to find stream by ID
+     * @brief Thread-safe helper to find stream by ID
      * @param stream_id Stream ID to find
      * @return Pointer to StreamInfo or nullptr if not found
      */
     const StreamInfo* findStream(uint32_t stream_id) const {
+        std::lock_guard<std::mutex> lock(m_streams_mutex);
         for (const auto& stream : m_streams) {
             if (stream.stream_id == stream_id) {
                 return &stream;
@@ -582,12 +621,14 @@ protected:
     }
     
     /**
-     * @brief Validate file position and size constraints
+     * @brief Thread-safe validation of file position and size constraints
      * @param offset File offset to validate
      * @param size Size of data to read
      * @return true if position is valid
      */
     bool validateFilePosition(uint64_t offset, uint64_t size = 0) const {
+        std::lock_guard<std::mutex> lock(m_io_mutex);
+        
         if (!m_handler) {
             reportError("IO", "No I/O handler available for position validation");
             return false;
@@ -629,6 +670,54 @@ protected:
         return true;
     }
     
+    /**
+     * @brief Thread-safe position update
+     * @param new_position New position in milliseconds
+     */
+    void updatePosition(uint64_t new_position) {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        m_position_ms = new_position;
+    }
+    
+    /**
+     * @brief Thread-safe duration update
+     * @param new_duration New duration in milliseconds
+     */
+    void updateDuration(uint64_t new_duration) {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        m_duration_ms = new_duration;
+    }
+    
+    /**
+     * @brief Thread-safe parsed state update
+     * @param parsed New parsed state
+     */
+    void setParsed(bool parsed) {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        m_parsed = parsed;
+    }
+    
+    /**
+     * @brief Thread-safe stream position update
+     * @param stream_id Stream ID
+     * @param position New position for the stream
+     */
+    void updateStreamPosition(uint32_t stream_id, uint64_t position) {
+        std::lock_guard<std::mutex> lock(m_streams_mutex);
+        m_stream_positions[stream_id] = position;
+    }
+    
+    /**
+     * @brief Thread-safe stream position getter
+     * @param stream_id Stream ID
+     * @return Current position for the stream
+     */
+    uint64_t getStreamPosition(uint32_t stream_id) const {
+        std::lock_guard<std::mutex> lock(m_streams_mutex);
+        auto it = m_stream_positions.find(stream_id);
+        return (it != m_stream_positions.end()) ? it->second : 0;
+    }
+
 protected:
     /**
      * @brief Attempt error recovery based on strategy

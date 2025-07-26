@@ -177,25 +177,31 @@
   - Add threading error handling with proper synchronization
   - _Requirements: 11.4, 11.5, 11.6, 11.7_
 
-- [ ] 8. Add Thread Safety and Concurrency Support
+- [x] 8. Add Thread Safety and Concurrency Support
   - Implement proper synchronization for shared demuxer state
   - Add thread-safe factory operations and format registration
   - Create safe concurrent access patterns for demuxer instances
   - Handle multi-threaded cleanup and resource management
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
 
-- [ ] 8.1 Implement Demuxer Thread Safety
+- [x] 8.1 Implement Demuxer Thread Safety
   - Add synchronization for shared state in demuxer instances
   - Implement thread-safe I/O operations through IOHandler coordination
   - Create atomic operations for position and state tracking
   - Handle concurrent seeking and reading operations safely
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 12.1, 12.2, 12.3, 12.7_
 
-- [ ] 8.2 Add Factory Thread Safety
+- [x] 8.2 Add Factory Thread Safety
   - Implement thread-safe format registration and lookup operations
   - Add proper synchronization for factory method calls
   - Create thread-safe error state propagation across components
   - Handle concurrent factory operations and resource sharing
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 12.4, 12.5, 12.6, 12.8_
 
 - [ ] 9. Create Extensibility and Plugin Support
@@ -203,6 +209,8 @@
   - Add custom demuxer and content detector support
   - Create extensible metadata handling for format-specific information
   - Design stable ABI for external plugin modules
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10_
 
 - [ ] 9.1 Implement Plugin Architecture
@@ -210,6 +218,8 @@
   - Add custom demuxer implementation support through base interface
   - Implement pluggable content detection algorithms
   - Design stable ABI for external format support modules
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 13.1, 13.2, 13.3, 13.8_
 
 - [ ] 9.2 Add Extensibility Features
@@ -217,6 +227,8 @@
   - Add extensible IOHandler implementation registration
   - Implement format-specific metadata extension mechanisms
   - Create runtime configuration system for demuxer behavior
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 13.4, 13.5, 13.6, 13.7, 13.9, 13.10_
 
 - [ ] 10. Ensure Integration and API Consistency
@@ -224,6 +236,8 @@
   - Add comprehensive PsyMP3 error reporting and logging integration
   - Implement URI parsing and handling integration
   - Ensure consistent API patterns across all demuxer components
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8, 14.9, 14.10_
 
 - [ ] 10.1 Complete IOHandler Integration
@@ -231,6 +245,8 @@
   - Test integration with both FileIOHandler and HTTPIOHandler implementations
   - Add proper error propagation from IOHandler to demuxer layers
   - Validate large file support and network streaming capabilities
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 14.1, 14.4, 14.7_
 
 - [ ] 10.2 Add PsyMP3 System Integration
@@ -238,6 +254,8 @@
   - Use PsyMP3 exception hierarchy for consistent error reporting
   - Add integration with URI parsing and handling components
   - Ensure compatibility with TagLib::String parameters where needed
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 14.2, 14.3, 14.5, 14.6_
 
 - [ ] 10.3 Ensure API Consistency
@@ -245,6 +263,8 @@
   - Add comprehensive parameter validation and error checking
   - Implement consistent resource management patterns throughout
   - Create uniform configuration and settings handling
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 14.8, 14.9, 14.10_
 
 - [ ] 11. Create Comprehensive Testing Suite
@@ -252,6 +272,8 @@
   - Add integration tests with various file formats and I/O sources
   - Create performance benchmarks and regression tests
   - Test error handling and recovery scenarios thoroughly
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: All requirements validation_
 
 - [ ] 11.1 Implement Unit Tests
@@ -259,6 +281,8 @@
   - Verify DemuxerFactory format detection and demuxer creation
   - Test MediaFactory registration and content detection systems
   - Validate DemuxedStream bridge functionality and compatibility
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 1.1-1.10, 7.1-7.10, 8.1-8.10, 9.1-9.10_
 
 - [ ] 11.2 Add Integration Tests
@@ -266,6 +290,8 @@
   - Verify IOHandler integration with different I/O sources
   - Test multi-threaded scenarios and concurrent access patterns
   - Validate error handling and recovery across component boundaries
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 3.1-3.10, 10.1-10.8, 11.1-11.8, 12.1-12.8_
 
 - [ ] 11.3 Create Performance and Regression Tests
@@ -273,6 +299,8 @@
   - Test memory usage and resource management under various conditions
   - Create regression tests for previously fixed issues and edge cases
   - Validate scalability with multiple concurrent streams and operations
+  - Create unit tests to verify all functionality
+  - Verify unit tests pass before completing task.
   - _Requirements: 10.1-10.8, 11.1-11.8, 13.1-13.10, 14.1-14.10_
 
 - [ ] 12. Documentation and Code Quality

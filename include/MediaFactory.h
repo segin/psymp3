@@ -121,6 +121,7 @@ private:
     static std::map<std::string, std::string> s_extension_to_format;
     static std::map<std::string, std::string> s_mime_to_format;
     static bool s_initialized;
+    static std::mutex s_factory_mutex; // Thread safety for factory operations
     
     static void initializeDefaultFormats();
     static void rebuildLookupTables();
