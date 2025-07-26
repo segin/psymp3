@@ -129,6 +129,21 @@ public:
     uint64_t getPosition() const override;
     uint64_t getGranulePosition(uint32_t stream_id) const override;
     
+    // Public methods for testing granule position conversion
+    uint64_t granuleToMs(uint64_t granule, uint32_t stream_id) const;
+    uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const;
+    
+    // Public methods for testing duration calculation
+    uint64_t getLastGranulePosition();
+    uint64_t scanBufferForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size);
+    uint64_t scanForwardForLastGranule(long start_position);
+    uint64_t getLastGranuleFromHeaders();
+    void setFileSizeForTesting(uint64_t file_size) { m_file_size = file_size; }
+    
+protected:
+    // Protected access to streams for testing
+    std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_streams; }
+    
 private:
     std::map<uint32_t, OggStream> m_streams;
     uint64_t m_file_size = 0;
@@ -194,15 +209,7 @@ private:
      */
     void calculateDuration();
     
-    /**
-     * @brief Convert granule position to timestamp for a given stream
-     */
-    uint64_t granuleToMs(uint64_t granule, uint32_t stream_id) const;
-    
-    /**
-     * @brief Convert timestamp to granule position for a given stream
-     */
-    uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const;
+
     
     /**
      * @brief Find the best audio stream for playback
@@ -229,10 +236,7 @@ private:
      */
     void fillPacketQueue(uint32_t target_stream_id);
     
-    /**
-     * @brief Get the last granule position in the file for duration calculation
-     */
-    uint64_t getLastGranulePosition();
+
     
     /**
      * @brief Check if packet data starts with given signature

@@ -1244,8 +1244,16 @@ void OggDemuxer::calculateDuration() {
 
 uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     auto it = m_streams.find(stream_id);
-    if (it == m_streams.end() || it->second.sample_rate == 0) {
-        Debug::log("ogg", "OggDemuxer: granuleToMs - Invalid stream_id or sample_rate is 0. stream_id=", stream_id);
+    if (it == m_streams.end()) {
+        Debug::log("ogg", "OggDemuxer: granuleToMs - Stream not found. stream_id=", stream_id);
+        return 0;
+    }
+    
+    const OggStream& stream = it->second;
+    
+    // Validate stream has required information
+    if (stream.sample_rate == 0) {
+        Debug::log("ogg", "OggDemuxer: granuleToMs - Invalid sample_rate is 0. stream_id=", stream_id, ", codec=", stream.codec_name);
         return 0;
     }
     
@@ -1255,46 +1263,145 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
         return 0;
     }
     
-    Debug::log("ogg", "OggDemuxer: granuleToMs - Input granule=", granule, ", stream_id=", stream_id, ", codec=", it->second.codec_name, ", sample_rate=", it->second.sample_rate, ", pre_skip=", it->second.pre_skip);
-    
-    // For Opus streams, granule positions are in 48kHz sample units
-    // and represent the total decoded samples including pre-skip
-    // However, for time calculation, we should use the granule directly
-    // as it already accounts for the proper sample count
-    if (it->second.codec_name == "opus") {
-        // Opus always uses 48kHz for granule positions regardless of output rate
-        // Granule position includes pre-skip, so subtract it for actual duration
-        uint64_t effective_granule = granule;
-        if (granule > it->second.pre_skip) {
-            effective_granule = granule - it->second.pre_skip;
-        } else {
-            effective_granule = 0;
-        }
-        Debug::log("ogg", "OggDemuxer: granuleToMs (Opus) - effective_granule=", effective_granule, ", result=", (effective_granule * 1000ULL) / 48000ULL);
-        return (effective_granule * 1000ULL) / 48000ULL;
+    // Special case: granule position 0 is always time 0
+    if (granule == 0) {
+        return 0;
     }
     
-    uint64_t result = (granule * 1000ULL) / it->second.sample_rate;
-    Debug::log("ogg", "OggDemuxer: granuleToMs (Non-Opus) - result=", result);
-    return result;
+    Debug::log("ogg", "OggDemuxer: granuleToMs - Input granule=", granule, ", stream_id=", stream_id, 
+               ", codec=", stream.codec_name, ", sample_rate=", stream.sample_rate, ", pre_skip=", stream.pre_skip);
+    
+    // Codec-specific granule position handling
+    if (stream.codec_name == "opus") {
+        // Opus granule positions are always in 48kHz sample units per RFC 7845 Section 4.2
+        // The granule position represents the total number of 48kHz samples that have been
+        // decoded, including pre-skip samples. For timing, we subtract pre-skip.
+        
+        // Validate pre-skip value (should be reasonable)
+        if (stream.pre_skip > 48000) { // More than 1 second of pre-skip is suspicious
+            Debug::log("ogg", "OggDemuxer: granuleToMs (Opus) - Warning: large pre_skip value: ", stream.pre_skip);
+        }
+        
+        uint64_t effective_granule;
+        if (granule > stream.pre_skip) {
+            effective_granule = granule - stream.pre_skip;
+        } else {
+            // If granule is less than pre-skip, we're still in the pre-skip region
+            effective_granule = 0;
+        }
+        
+        // Convert 48kHz samples to milliseconds
+        uint64_t result = (effective_granule * 1000ULL) / 48000ULL;
+        Debug::log("ogg", "OggDemuxer: granuleToMs (Opus) - effective_granule=", effective_granule, ", result=", result, "ms");
+        return result;
+        
+    } else if (stream.codec_name == "vorbis") {
+        // Vorbis granule positions represent the sample number of the last sample
+        // in the packet that ends on this page. The granule position is in units
+        // of the stream's sample rate.
+        
+        uint64_t result = (granule * 1000ULL) / stream.sample_rate;
+        Debug::log("ogg", "OggDemuxer: granuleToMs (Vorbis) - granule=", granule, ", sample_rate=", stream.sample_rate, ", result=", result, "ms");
+        return result;
+        
+    } else if (stream.codec_name == "flac") {
+        // FLAC-in-Ogg granule positions are sample-based like Vorbis
+        // The granule position represents the sample number of the first sample
+        // in the packet that ends on this page.
+        
+        uint64_t result = (granule * 1000ULL) / stream.sample_rate;
+        Debug::log("ogg", "OggDemuxer: granuleToMs (FLAC) - granule=", granule, ", sample_rate=", stream.sample_rate, ", result=", result, "ms");
+        return result;
+        
+    } else if (stream.codec_name == "speex") {
+        // Speex granule positions are sample-based at the stream's sample rate
+        
+        uint64_t result = (granule * 1000ULL) / stream.sample_rate;
+        Debug::log("ogg", "OggDemuxer: granuleToMs (Speex) - granule=", granule, ", sample_rate=", stream.sample_rate, ", result=", result, "ms");
+        return result;
+        
+    } else {
+        // Unknown codec - use generic sample-based conversion
+        Debug::log("ogg", "OggDemuxer: granuleToMs - Unknown codec, using generic conversion: ", stream.codec_name);
+        uint64_t result = (granule * 1000ULL) / stream.sample_rate;
+        Debug::log("ogg", "OggDemuxer: granuleToMs (Generic) - result=", result, "ms");
+        return result;
+    }
 }
 
 uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const {
     auto it = m_streams.find(stream_id);
-    if (it == m_streams.end() || it->second.sample_rate == 0) {
+    if (it == m_streams.end()) {
+        Debug::log("ogg", "OggDemuxer: msToGranule - Stream not found. stream_id=", stream_id);
         return 0;
     }
     
     const OggStream& stream = it->second;
     
-    // For Opus streams, granule positions are in 48kHz sample units
-    if (stream.codec_name == "opus") {
-        // Convert milliseconds to 48kHz samples and add pre-skip
-        uint64_t samples_48k = (timestamp_ms * 48000ULL) / 1000ULL;
-        return samples_48k + stream.pre_skip;
+    // Validate stream has required information
+    if (stream.sample_rate == 0) {
+        Debug::log("ogg", "OggDemuxer: msToGranule - Invalid sample_rate is 0. stream_id=", stream_id, ", codec=", stream.codec_name);
+        return 0;
     }
     
-    return (timestamp_ms * stream.sample_rate) / 1000ULL;
+    // Special case: timestamp 0 handling depends on codec
+    if (timestamp_ms == 0) {
+        if (stream.codec_name == "opus") {
+            // For Opus, granule 0 would be before pre-skip, so return pre-skip value
+            return stream.pre_skip;
+        } else {
+            // For other codecs, timestamp 0 maps to granule 0
+            return 0;
+        }
+    }
+    
+    Debug::log("ogg", "OggDemuxer: msToGranule - Input timestamp_ms=", timestamp_ms, ", stream_id=", stream_id, 
+               ", codec=", stream.codec_name, ", sample_rate=", stream.sample_rate, ", pre_skip=", stream.pre_skip);
+    
+    // Codec-specific timestamp to granule conversion
+    if (stream.codec_name == "opus") {
+        // Opus granule positions are always in 48kHz sample units per RFC 7845 Section 4.2
+        // To convert from timestamp to granule, we convert to 48kHz samples and add pre-skip
+        
+        // Validate pre-skip value
+        if (stream.pre_skip > 48000) {
+            Debug::log("ogg", "OggDemuxer: msToGranule (Opus) - Warning: large pre_skip value: ", stream.pre_skip);
+        }
+        
+        uint64_t samples_48k = (timestamp_ms * 48000ULL) / 1000ULL;
+        uint64_t result = samples_48k + stream.pre_skip;
+        
+        Debug::log("ogg", "OggDemuxer: msToGranule (Opus) - samples_48k=", samples_48k, ", pre_skip=", stream.pre_skip, ", result=", result);
+        return result;
+        
+    } else if (stream.codec_name == "vorbis") {
+        // Vorbis granule positions are sample-based at the stream's sample rate
+        
+        uint64_t result = (timestamp_ms * stream.sample_rate) / 1000ULL;
+        Debug::log("ogg", "OggDemuxer: msToGranule (Vorbis) - timestamp_ms=", timestamp_ms, ", sample_rate=", stream.sample_rate, ", result=", result);
+        return result;
+        
+    } else if (stream.codec_name == "flac") {
+        // FLAC-in-Ogg granule positions are sample-based at the stream's sample rate
+        
+        uint64_t result = (timestamp_ms * stream.sample_rate) / 1000ULL;
+        Debug::log("ogg", "OggDemuxer: msToGranule (FLAC) - timestamp_ms=", timestamp_ms, ", sample_rate=", stream.sample_rate, ", result=", result);
+        return result;
+        
+    } else if (stream.codec_name == "speex") {
+        // Speex granule positions are sample-based at the stream's sample rate
+        
+        uint64_t result = (timestamp_ms * stream.sample_rate) / 1000ULL;
+        Debug::log("ogg", "OggDemuxer: msToGranule (Speex) - timestamp_ms=", timestamp_ms, ", sample_rate=", stream.sample_rate, ", result=", result);
+        return result;
+        
+    } else {
+        // Unknown codec - use generic sample-based conversion
+        Debug::log("ogg", "OggDemuxer: msToGranule - Unknown codec, using generic conversion: ", stream.codec_name);
+        uint64_t result = (timestamp_ms * stream.sample_rate) / 1000ULL;
+        Debug::log("ogg", "OggDemuxer: msToGranule (Generic) - result=", result);
+        return result;
+    }
 }
 
 uint32_t OggDemuxer::findBestAudioStream() const {
@@ -1319,57 +1426,182 @@ uint64_t OggDemuxer::getLastGranulePosition() {
     // Save current position
     long current_pos = m_handler->tell();
     
-    // Alternative approach: scan for OggS signatures manually
-    // This handles cases where the buffer doesn't start at a page boundary
-    const size_t SCAN_SIZE = 1048576; // 1MB
-    size_t scan_size = std::min(SCAN_SIZE, m_file_size);
-    long scan_start = std::max(0L, static_cast<long>(m_file_size) - static_cast<long>(scan_size));
+    // Robust backward scanning with multiple strategies
+    uint64_t last_granule = 0;
     
-    m_handler->seek(scan_start, SEEK_SET);
+    // Strategy 1: Efficient backward scanning from end of file
+    // Start with smaller chunks and expand if needed
+    const std::vector<size_t> scan_sizes = {65536, 262144, 1048576, 4194304}; // 64KB, 256KB, 1MB, 4MB
     
-    std::vector<uint8_t> scan_buffer(scan_size);
-    long bytes_read = m_handler->read(scan_buffer.data(), 1, scan_size);
-    
-    if (bytes_read > 0) {
-        uint64_t last_granule = 0;
-        size_t pages_found = 0;
-        
-        // Scan for "OggS" signatures
-        for (size_t i = 0; i <= static_cast<size_t>(bytes_read) - 4; i++) {
-            if (scan_buffer[i] == 'O' && scan_buffer[i+1] == 'g' && 
-                scan_buffer[i+2] == 'g' && scan_buffer[i+3] == 'S') {
-                
-                // Found potential OGG page - check if we can parse the granule position
-                if (i + 14 <= static_cast<size_t>(bytes_read)) {
-                    // Granule position is at offset 6-13 in OGG page header
-                    uint64_t granule = 0;
-                    std::memcpy(&granule, &scan_buffer[i + 6], 8);
-                    
-                    if (granule != static_cast<uint64_t>(-1) && granule > last_granule) {
-                        last_granule = granule;
-                        pages_found++;
-                        
-                        // Found a page with valid granule position
-                    }
-                }
-            }
+    for (size_t scan_size : scan_sizes) {
+        if (scan_size > m_file_size) {
+            scan_size = m_file_size;
         }
         
-        Debug::log("ogg", "OggDemuxer: getLastGranulePosition - manual scan found ", pages_found, " pages, last_granule=", last_granule);
+        long scan_start = std::max(0L, static_cast<long>(m_file_size) - static_cast<long>(scan_size));
         
-        if (pages_found > 0) {
-            // Restore original position
-            m_handler->seek(current_pos, SEEK_SET);
-            return last_granule;
+        Debug::log("ogg", "OggDemuxer: getLastGranulePosition - trying scan_size=", scan_size, ", scan_start=", scan_start);
+        
+        if (m_handler->seek(scan_start, SEEK_SET) != 0) {
+            Debug::log("ogg", "OggDemuxer: getLastGranulePosition - seek failed for scan_start=", scan_start);
+            continue;
         }
+        
+        std::vector<uint8_t> scan_buffer(scan_size);
+        long bytes_read = m_handler->read(scan_buffer.data(), 1, scan_size);
+        
+        if (bytes_read <= 0) {
+            Debug::log("ogg", "OggDemuxer: getLastGranulePosition - read failed, bytes_read=", bytes_read);
+            continue;
+        }
+        
+        uint64_t found_granule = scanBufferForLastGranule(scan_buffer, bytes_read);
+        Debug::log("ogg", "OggDemuxer: getLastGranulePosition - scanBufferForLastGranule returned=", found_granule, " for scan_size=", scan_size);
+        if (found_granule > 0) {
+            last_granule = found_granule;
+            Debug::log("ogg", "OggDemuxer: getLastGranulePosition - found granule=", last_granule, " with scan_size=", scan_size);
+            break;
+        }
+        
+        // If we've scanned the entire file, no point in trying larger sizes
+        if (scan_size >= m_file_size) {
+            break;
+        }
+    }
+    
+    // Strategy 2: If backward scanning failed, try forward scanning from a reasonable position
+    if (last_granule == 0 && m_file_size > 1048576) {
+        Debug::log("ogg", "OggDemuxer: getLastGranulePosition - backward scan failed, trying forward scan");
+        
+        // Start scanning from 75% of file size
+        long forward_start = static_cast<long>(m_file_size * 3 / 4);
+        if (m_handler->seek(forward_start, SEEK_SET) == 0) {
+            last_granule = scanForwardForLastGranule(forward_start);
+        }
+    }
+    
+    // Strategy 3: Fallback to header-provided information if available
+    if (last_granule == 0) {
+        Debug::log("ogg", "OggDemuxer: getLastGranulePosition - scanning failed, checking header info");
+        last_granule = getLastGranuleFromHeaders();
     }
     
     // Restore original position
     m_handler->seek(current_pos, SEEK_SET);
     
-    Debug::log("ogg", "OggDemuxer: getLastGranulePosition - failed to find any pages with all search sizes");
+    Debug::log("ogg", "OggDemuxer: getLastGranulePosition - final result=", last_granule);
     
-    return 0;
+    return last_granule;
+}
+
+uint64_t OggDemuxer::scanBufferForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size) {
+    uint64_t last_granule = 0;
+    size_t pages_found = 0;
+    
+    // Scan backward through buffer for "OggS" signatures
+    // This gives us the most recent pages first
+    if (buffer_size >= 4) {
+        for (size_t i = buffer_size - 4; i != SIZE_MAX; i--) {
+            size_t check_pos = i;
+            
+            if (buffer[check_pos] == 'O' && buffer[check_pos + 1] == 'g' && 
+                buffer[check_pos + 2] == 'g' && buffer[check_pos + 3] == 'S') {
+                
+                // Validate this looks like a real Ogg page header
+                if (check_pos + 27 <= buffer_size) {
+                    // Check version (should be 0)
+                    if (buffer[check_pos + 4] != 0) {
+                        continue;
+                    }
+                    
+                    // Extract granule position (little-endian, 8 bytes at offset 6)
+                    uint64_t granule = 0;
+                    for (int j = 0; j < 8; j++) {
+                        granule |= (static_cast<uint64_t>(buffer[check_pos + 6 + j]) << (j * 8));
+                    }
+                    
+                    // Validate granule position
+                    if (granule != static_cast<uint64_t>(-1) && granule < 0x7FFFFFFFFFFFFFFULL) {
+                        // Check page segments count is reasonable
+                        uint8_t page_segments = buffer[check_pos + 26];
+                        if (page_segments <= 255 && check_pos + 27 + page_segments <= buffer_size) {
+                            if (granule > last_granule) {
+                                last_granule = granule;
+                            }
+                            pages_found++;
+                            
+                            Debug::log("ogg", "OggDemuxer: scanBufferForLastGranule - found page at offset ", check_pos, 
+                                       ", granule=", granule, ", segments=", static_cast<int>(page_segments));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    Debug::log("ogg", "OggDemuxer: scanBufferForLastGranule - found ", pages_found, " pages, last_granule=", last_granule);
+    return last_granule;
+}
+
+uint64_t OggDemuxer::scanForwardForLastGranule(long start_position) {
+    uint64_t last_granule = 0;
+    const size_t CHUNK_SIZE = 65536; // 64KB chunks
+    std::vector<uint8_t> buffer(CHUNK_SIZE);
+    
+    long current_pos = start_position;
+    
+    while (current_pos < static_cast<long>(m_file_size)) {
+        if (m_handler->seek(current_pos, SEEK_SET) != 0) {
+            break;
+        }
+        
+        size_t bytes_to_read = std::min(CHUNK_SIZE, static_cast<size_t>(m_file_size - current_pos));
+        long bytes_read = m_handler->read(buffer.data(), 1, bytes_to_read);
+        
+        if (bytes_read <= 0) {
+            break;
+        }
+        
+        uint64_t chunk_granule = scanBufferForLastGranule(buffer, bytes_read);
+        if (chunk_granule > last_granule) {
+            last_granule = chunk_granule;
+        }
+        
+        current_pos += bytes_read;
+    }
+    
+    Debug::log("ogg", "OggDemuxer: scanForwardForLastGranule - last_granule=", last_granule);
+    return last_granule;
+}
+
+uint64_t OggDemuxer::getLastGranuleFromHeaders() {
+    uint64_t max_total_samples = 0;
+    
+    // Check if any stream headers contain total sample information
+    for (const auto& [stream_id, stream] : m_streams) {
+        if (stream.codec_type == "audio" && stream.total_samples > 0) {
+            Debug::log("ogg", "OggDemuxer: getLastGranuleFromHeaders - stream ", stream_id, 
+                       " has total_samples=", stream.total_samples, ", codec=", stream.codec_name);
+            
+            // Convert total samples to granule position based on codec
+            uint64_t granule_from_samples = 0;
+            
+            if (stream.codec_name == "opus") {
+                // For Opus, granule position includes pre-skip
+                granule_from_samples = stream.total_samples + stream.pre_skip;
+            } else {
+                // For other codecs, granule position equals sample count
+                granule_from_samples = stream.total_samples;
+            }
+            
+            if (granule_from_samples > max_total_samples) {
+                max_total_samples = granule_from_samples;
+            }
+        }
+    }
+    
+    Debug::log("ogg", "OggDemuxer: getLastGranuleFromHeaders - max_total_samples=", max_total_samples);
+    return max_total_samples;
 }
 
 // According to RFC 6716, Section 3.1
@@ -1600,8 +1832,8 @@ void OggDemuxer::parseOpusTags(OggStream& stream, const OggPacket& packet) {
 #endif // !HAVE_OPUS
 
 #endif // HAVE_OGGDEMUXER
-// Err
-or recovery method implementations
+
+// Error recovery method implementations
 
 bool OggDemuxer::skipToNextValidSection() const {
     if (!m_handler) {

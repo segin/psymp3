@@ -24,6 +24,10 @@
 #ifndef __PSYMP3_H__
 #define __PSYMP3_H__
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <cstdint>
 
 // defines
@@ -81,6 +85,7 @@ enum class LoopMode {
 #include <shared_mutex>
 #include <queue>
 #include <regex>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <sstream>

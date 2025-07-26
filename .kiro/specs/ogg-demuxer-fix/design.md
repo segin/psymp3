@@ -2,14 +2,17 @@
 
 ## **Overview**
 
-This design document specifies the implementation of a robust, RFC-compliant Ogg container demuxer for PsyMP3. The demuxer will handle Ogg Vorbis, Ogg Opus, Ogg FLAC, and other Ogg-encapsulated audio formats with proper seeking, streaming, and error handling capabilities.
+This design document specifies the implementation of a robust, RFC-compliant Ogg container demuxer for PsyMP3 that **exactly follows the behavior patterns of libvorbisfile and libopusfile reference implementations**. The demuxer will handle Ogg Vorbis, Ogg Opus, Ogg FLAC, and other Ogg-encapsulated audio formats with proper seeking, streaming, and error handling capabilities.
 
-The design follows a layered architecture:
-- **Ogg Container Layer**: Uses libogg for page and packet parsing
-- **Logical Stream Layer**: Manages multiple logical bitstreams within the container
-- **Codec Detection Layer**: Identifies and configures codec-specific parameters
-- **Seeking Layer**: Implements efficient bisection search for timestamp-based seeking
+The design follows a layered architecture based on reference implementation patterns:
+- **Ogg Container Layer**: Uses libogg API patterns identical to libvorbisfile/libopusfile
+- **Logical Stream Layer**: Manages multiple logical bitstreams using _fetch_headers() patterns
+- **Codec Detection Layer**: Identifies codecs using opus_head_parse()/vorbis_synthesis_idheader() patterns
+- **Seeking Layer**: Implements bisection search identical to ov_pcm_seek_page()/op_pcm_seek_page()
+- **Granule Position Layer**: Handles arithmetic using libopusfile's overflow-safe patterns
 - **Integration Layer**: Bridges with PsyMP3's demuxer architecture
+
+**CRITICAL DESIGN PRINCIPLE**: All algorithms, error handling, and API usage must match the reference implementations exactly to prevent compatibility issues and bugs that have already been solved in the mature reference code.
 
 **Note**: This OggDemuxer handles FLAC-in-Ogg streams (`.oga` files), which are different from native FLAC files (`.flac` files). The existing `Flac` class in `src/flac.cpp` handles native FLAC container format and should be refactored into separate `FLACDemuxer` and `FLACCodec` components to support both native FLAC and FLAC-in-Ogg through a unified codec interface.
 
@@ -137,28 +140,40 @@ struct OggPacket {
 - Granule positions are sample-based (like Vorbis)
 - Must be distinguished from native FLAC files (which use different container)
 
-### **3. Seeking Component**
+### **3. Seeking Component (Following ov_pcm_seek_page/op_pcm_seek_page Patterns)**
 
-**Purpose**: Implement efficient timestamp-based seeking
+**Purpose**: Implement efficient timestamp-based seeking identical to reference implementations
 
 **Key Methods**:
-- `bool seekTo(uint64_t timestamp_ms)`: Main seeking interface
-- `bool seekToPage(uint64_t target_granule, uint32_t stream_id)`: Page-level seeking
+- `bool seekTo(uint64_t timestamp_ms)`: Main seeking interface (follows ov_pcm_seek/op_pcm_seek)
+- `bool seekToPage(uint64_t target_granule, uint32_t stream_id)`: Page-level seeking (follows ov_pcm_seek_page/op_pcm_seek_page)
 - `uint64_t granuleToMs(uint64_t granule, uint32_t stream_id)`: Time conversion
 - `uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id)`: Time conversion
 
-**Seeking Algorithm**:
-1. Convert timestamp to target granule position
-2. Use bisection search to find appropriate page
-3. Reset libogg state and stream positions
-4. Update position tracking
-5. **Do NOT resend headers** - decoder maintains state
+**Bisection Search Algorithm (Identical to Reference Implementations)**:
+1. Convert timestamp to target granule position using codec-specific logic
+2. Initialize bisection interval (begin, end) like libvorbisfile/libopusfile
+3. **Use ogg_sync_pageseek() for page discovery** (NOT ogg_sync_pageout())
+4. Bisect interval using (begin + end) / 2 calculation
+5. Read pages forward using _get_next_page() patterns
+6. Compare granule positions using op_granpos_cmp() equivalent logic
+7. Adjust interval based on comparison results
+8. **Switch to linear scanning when interval becomes small**
+9. Use ogg_stream_packetpeek() to examine packets without consuming
+10. Reset ogg_sync_state and stream positions after seek
+11. **Do NOT resend headers** - decoder maintains state
 
-**Granule Position Handling**:
-- **Vorbis**: Granule = sample number at end of packet
-- **Opus**: Granule = 48kHz sample number + pre-skip
+**Backward Scanning (Following _get_prev_page Patterns)**:
+- Use chunk-based backward scanning with CHUNKSIZE (65536) increments
+- Exponentially increase chunk size for efficiency (like libopusfile)
+- Handle file beginning boundary conditions
+- Prefer pages with matching serial numbers
+
+**Granule Position Handling (Reference Implementation Patterns)**:
+- **Vorbis**: Granule = sample number at end of packet (direct mapping)
+- **Opus**: Granule = 48kHz sample number, account for pre-skip using opus_granule_sample() logic
 - **FLAC**: Granule = sample number at end of packet (same as Vorbis)
-- **Speex**: Granule = sample number at end of packet
+- **Invalid (-1)**: Handle like reference implementations (continue searching)
 
 ### **4. Duration Calculation Component**
 
