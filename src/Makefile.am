@@ -69,7 +69,7 @@ else
 psymp3_SOURCES = \
  about.cpp ApplicationWidget.cpp audio.cpp AudioCodec.cpp BufferPool.cpp ButtonWidget.cpp \
  ChainedStream.cpp ChunkDemuxer.cpp CodecRegistration.cpp CodecRegistry.cpp debug.cpp \
- DemuxedStream.cpp Demuxer.cpp DemuxerFactory.cpp DemuxerRegistry.cpp display.cpp \
+ DemuxedStream.cpp Demuxer.cpp DemuxerExtensibility.cpp DemuxerFactory.cpp DemuxerPlugin.cpp DemuxerRegistry.cpp display.cpp \
  DrawableWidget.cpp exceptions.cpp FadingWidget.cpp fft.cpp fft_draw.cpp \
  FileIOHandler.cpp font.cpp HTTPClient.cpp HTTPIOHandler.cpp IOHandler.cpp \
  ISODemuxer.cpp ISODemuxerBoxParser.cpp ISODemuxerErrorRecovery.cpp ISODemuxerFragmentHandler.cpp \

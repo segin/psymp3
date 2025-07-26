@@ -45,7 +45,7 @@ bool OggDemuxer::parseContainer() {
     Debug::log("ogg", "OggDemuxer::parseContainer called");
     Debug::log("demuxer", "OggDemuxer::parseContainer called");
     
-    if (m_parsed) {
+    if (isParsed()) {
         Debug::log("loader", "OggDemuxer::parseContainer already parsed, returning true");
         Debug::log("ogg", "OggDemuxer::parseContainer already parsed, returning true");
         return true;
@@ -156,7 +156,7 @@ bool OggDemuxer::parseContainer() {
         
         Debug::log("ogg", "OggDemuxer: Headers parsed, rewound to beginning for sequential packet reading");
         
-        m_parsed = true;
+        setParsed(true);
         return true;
         
     } catch (const std::exception& e) {
@@ -172,6 +172,10 @@ bool OggDemuxer::readIntoSyncBuffer(size_t bytes) {
             Debug::log("ogg", "OggDemuxer: Invalid buffer size requested: ", bytes);
             return false;
         }
+        
+        // Thread-safe access to libogg sync state and I/O operations
+        std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
         
         char* buffer = ogg_sync_buffer(&m_sync_state, static_cast<long>(bytes));
         if (!buffer) {
@@ -199,7 +203,7 @@ bool OggDemuxer::readIntoSyncBuffer(size_t bytes) {
             // Check if we're at EOF or if this is an I/O error
             if (m_handler->eof()) {
                 Debug::log("ogg", "OggDemuxer: Reached end of file");
-                m_eof = true;
+                setEOF(true);
             } else {
                 Debug::log("ogg", "OggDemuxer: No data available (temporary)");
             }
@@ -238,6 +242,9 @@ bool OggDemuxer::processPages() {
     bool processed_any_pages = false;
     
     try {
+        // Thread-safe access to libogg sync state
+        std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+        
         while (ogg_sync_pageout(&m_sync_state, &page) == 1) {
             processed_any_pages = true;
             
@@ -578,23 +585,34 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     int retry_count = 0;
     const int max_retries = 3;
     
-    while (stream.m_packet_queue.empty() && !m_eof && retry_count < max_retries) {
+    bool queue_empty;
+    {
+        std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+        queue_empty = stream.m_packet_queue.empty();
+    }
+    
+    while (queue_empty && !isEOFAtomic() && retry_count < max_retries) {
         bool read_success = performIOWithRetry([this]() {
             return readIntoSyncBuffer(4096);
         }, "reading Ogg data for packet queue");
         
         if (!read_success) {
             if (m_fallback_mode || retry_count >= max_retries - 1) {
-                m_eof = true;
+                setEOF(true);
                 break;
             }
             
             // Try to recover from I/O error
-            if (recoverFromCorruptedPage(m_handler->tell())) {
+            long current_pos;
+            {
+                std::lock_guard<std::mutex> lock(m_io_mutex);
+                current_pos = m_handler->tell();
+            }
+            if (recoverFromCorruptedPage(current_pos)) {
                 retry_count++;
                 continue;
             } else {
-                m_eof = true;
+                setEOF(true);
                 break;
             }
         }
@@ -606,7 +624,7 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                     retry_count++;
                     continue;
                 } else {
-                    m_eof = true;
+                    setEOF(true);
                     break;
                 }
             }
@@ -616,35 +634,50 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 retry_count++;
                 continue;
             } else {
-                m_eof = true;
+                setEOF(true);
                 break;
             }
         }
         
         retry_count = 0; // Reset retry count on successful processing
+        
+        // Check queue status again
+        {
+            std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+            queue_empty = stream.m_packet_queue.empty();
+        }
     }
 
     // If we still have no packets after trying to read, we are at the end
-    if (stream.m_packet_queue.empty()) {
-        m_eof = true;
-        return MediaChunk{};
+    {
+        std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+        if (stream.m_packet_queue.empty()) {
+            setEOF(true);
+            return MediaChunk{};
+        }
     }
 
-    // Pop the next packet from the queue
-    const OggPacket& ogg_packet = stream.m_packet_queue.front();
-    
+    // Pop the next packet from the queue (thread-safe)
     MediaChunk chunk;
-    chunk.stream_id = stream_id;
-    chunk.data = ogg_packet.data;
-    chunk.granule_position = ogg_packet.granule_position;
+    {
+        std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+        const OggPacket& ogg_packet = stream.m_packet_queue.front();
+        
+        chunk.stream_id = stream_id;
+        chunk.data = ogg_packet.data;
+        chunk.granule_position = ogg_packet.granule_position;
 
-    stream.m_packet_queue.pop_front();
+        stream.m_packet_queue.pop_front();
+    }
     
-    // Update our internal position tracker for getPosition()
+    // Update our internal position tracker for getPosition() (thread-safe)
     if (chunk.granule_position != static_cast<uint64_t>(-1)) {
         uint64_t current_ms = granuleToMs(chunk.granule_position, stream_id);
-        if (current_ms > m_position_ms) {
-            m_position_ms = current_ms;
+        {
+            std::lock_guard<std::mutex> lock(m_state_mutex);
+            if (current_ms > m_position_ms) {
+                m_position_ms = current_ms;
+            }
         }
     }
 
@@ -659,8 +692,14 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
         return false;
     }
     
-    // Validate seek timestamp
-    if (timestamp_ms > m_duration_ms && m_duration_ms > 0) {
+    // Validate seek timestamp (thread-safe)
+    uint64_t current_duration;
+    {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        current_duration = m_duration_ms;
+    }
+    
+    if (timestamp_ms > current_duration && current_duration > 0) {
         uint64_t clamped_timestamp;
         if (handleSeekingError(timestamp_ms, clamped_timestamp)) {
             timestamp_ms = clamped_timestamp;
@@ -669,18 +708,28 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
         }
     }
 
-    // Clear all stream packet queues
-    for (auto& [id, stream] : m_streams) {
-        stream.m_packet_queue.clear();
+    // Clear all stream packet queues (thread-safe)
+    {
+        std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+        for (auto& [id, stream] : m_streams) {
+            stream.m_packet_queue.clear();
+        }
     }
     
     // If seeking to beginning, do it directly
     if (timestamp_ms == 0) {
-        m_handler->seek(0, SEEK_SET);
-        ogg_sync_reset(&m_sync_state);
+        {
+            std::lock_guard<std::mutex> io_lock(m_io_mutex);
+            m_handler->seek(0, SEEK_SET);
+        }
         
-        for (auto& [id, ogg_stream] : m_ogg_streams) {
-            ogg_stream_reset(&ogg_stream);
+        {
+            std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+            ogg_sync_reset(&m_sync_state);
+            
+            for (auto& [id, ogg_stream] : m_ogg_streams) {
+                ogg_stream_reset(&ogg_stream);
+            }
         }
         
         // Do NOT resend headers after seeking - decoder state should be maintained
@@ -689,8 +738,8 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
             stream.total_samples_processed = 0;
         }
         
-        m_position_ms = 0;
-        m_eof = false;
+        updatePosition(0);
+        setEOF(false);
         return true;
     }
     
@@ -733,14 +782,16 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
 }
 
 bool OggDemuxer::isEOF() const {
-    return m_eof;
+    return isEOFAtomic();
 }
 
 uint64_t OggDemuxer::getDuration() const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
     return m_duration_ms;
 }
 
 uint64_t OggDemuxer::getPosition() const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
     return m_position_ms;
 }
 

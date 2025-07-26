@@ -139,6 +139,10 @@ private:
     ogg_sync_state m_sync_state;
     std::map<uint32_t, ogg_stream_state> m_ogg_streams;
     
+    // Thread safety for OggDemuxer-specific state
+    mutable std::mutex m_ogg_state_mutex;    // Protects Ogg-specific state and libogg structures
+    mutable std::mutex m_packet_queue_mutex; // Protects packet queues in OggStream objects
+    
     /**
      * @brief Read data into libogg sync buffer
      */

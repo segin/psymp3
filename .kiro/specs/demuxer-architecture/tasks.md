@@ -204,7 +204,7 @@
   - Verify unit tests pass before completing task.
   - _Requirements: 12.4, 12.5, 12.6, 12.8_
 
-- [ ] 9. Create Extensibility and Plugin Support
+- [x] 9. Create Extensibility and Plugin Support
   - Implement dynamic format registration system for plugins
   - Add custom demuxer and content detector support
   - Create extensible metadata handling for format-specific information
@@ -213,7 +213,7 @@
   - Verify unit tests pass before completing task.
   - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10_
 
-- [ ] 9.1 Implement Plugin Architecture
+- [x] 9.1 Implement Plugin Architecture
   - Create dynamic format registration system for runtime plugin loading
   - Add custom demuxer implementation support through base interface
   - Implement pluggable content detection algorithms
@@ -222,7 +222,7 @@
   - Verify unit tests pass before completing task.
   - _Requirements: 13.1, 13.2, 13.3, 13.8_
 
-- [ ] 9.2 Add Extensibility Features
+- [x] 9.2 Add Extensibility Features
   - Create custom stream factory function support
   - Add extensible IOHandler implementation registration
   - Implement format-specific metadata extension mechanisms
@@ -240,7 +240,7 @@
   - Verify unit tests pass before completing task.
   - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8, 14.9, 14.10_
 
-- [ ] 10.1 Complete IOHandler Integration
+- [-] 10.1 Complete IOHandler Integration
   - Ensure all demuxers use IOHandler interface exclusively for I/O operations
   - Test integration with both FileIOHandler and HTTPIOHandler implementations
   - Add proper error propagation from IOHandler to demuxer layers

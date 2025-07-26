@@ -347,6 +347,8 @@ typedef struct bio_st BIO;
 #include "ISODemuxer.h"
 #include "ModernStream.h"
 #include "MediaFactory.h"
+#include "DemuxerPlugin.h"
+#include "DemuxerExtensibility.h"
 #include "FadingWidget.h"
 #ifdef HAVE_MP3
 #include "libmpg123w.h"
