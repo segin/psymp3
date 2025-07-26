@@ -2,242 +2,182 @@
 
 ## **Implementation Tasks**
 
-- [x] 1. Fix Critical Seeking Issues
-  - Fix segmentation fault in seekToPage function by properly validating ogg_page structures
-  - Remove incorrect use of ogg_sync_pageseek and use ogg_sync_pageout exclusively
-  - Implement proper bisection search algorithm with valid page detection
-  - Add comprehensive error checking for all libogg API calls
-  - _Requirements: 5.1, 5.2, 5.3, 5.7, 7.1, 7.2_
+- [ ] 1. Clean Slate - Remove Existing Problematic Tests (Halo 2 Style)
+  - Remove existing OGG-related unit tests that don't follow reference implementation patterns
+  - Delete tests/test_ogg_granule_conversion.cpp and tests/test_ogg_duration_calculation.cpp
+  - Remove any OGG test entries from tests/Makefile.am
+  - Clean up any test artifacts and ensure clean build state
+  - Verify clean build with `make clean && make -j$(nproc)` before proceeding
+  - _Requirements: All - Clean foundation for proper implementation_
 
-- [x] 1.1 Implement Safe Page Extraction
-  - Replace ogg_sync_pageseek usage with ogg_sync_pageout for reliable page extraction
-  - Add validation that ogg_page structure is properly initialized before calling ogg_page_* functions
-  - Implement proper buffer management for libogg sync state
-  - Add bounds checking for all page access operations
-  - _Requirements: 1.6, 1.7, 7.1, 7.4_
+- [ ] 2. Implement Reference-Pattern Page Extraction (Following libvorbisfile)
+  - Implement _get_next_page() equivalent using ogg_sync_pageseek() patterns from libvorbisfile
+  - Add proper boundary checking and data fetching logic like _get_data()
+  - Implement _get_prev_page() equivalent for backward scanning with CHUNKSIZE increments
+  - Add _get_prev_page_serial() equivalent for serial-number-aware backward scanning
+  - Write comprehensive unit tests for all page extraction functions
+  - Verify unit tests pass with `make test_page_extraction && ./test_page_extraction`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 1.7, 1.8, 1.9, 5.9, 7.1_
 
-- [x] 1.2 Fix Bisection Search Algorithm
-  - Rewrite seekToPage to use only ogg_sync_pageout for page extraction
-  - Implement proper file position tracking during bisection search
-  - Add stream ID validation and granule position checking
-  - Remove non-existent ogg_page_bytes function call and use alternative position calculation
-  - _Requirements: 5.1, 5.2, 5.3, 5.8_
+- [ ] 3. Implement Bisection Search Algorithm (Following ov_pcm_seek_page/op_pcm_seek_page)
+  - Implement seekToPage() using exact bisection algorithm from ov_pcm_seek_page()
+  - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
+  - Implement proper interval management and boundary conditions
+  - Add linear scanning fallback when bisection interval becomes small
+  - Use ogg_stream_packetpeek() to examine packets without consuming them
+  - Write comprehensive unit tests for bisection search algorithm
+  - Verify unit tests pass with `make test_bisection_search && ./test_bisection_search`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 5.1, 5.2, 5.11, 7.11_
 
-- [x] 1.3 Correct Header Handling After Seeks
-  - Remove incorrect header resending logic after seek operations
-  - Ensure decoder state is maintained across seeks (headers sent only once)
-  - Update position tracking without reinitializing codec state
-  - Follow reference implementation patterns from libvorbisfile and opusfile
-  - _Requirements: 5.6, 5.7, 3.7, 10.6_
+- [ ] 4. Implement Safe Granule Position Arithmetic (Following libopusfile)
+  - Implement granposAdd() following op_granpos_add() overflow detection patterns
+  - Implement granposDiff() following op_granpos_diff() wraparound handling
+  - Implement granposCmp() following op_granpos_cmp() ordering logic
+  - Handle invalid granule position (-1) like reference implementations
+  - Add proper overflow and underflow detection for all arithmetic operations
+  - Write comprehensive unit tests for granule position arithmetic
+  - Verify unit tests pass with `make test_granule_arithmetic && ./test_granule_arithmetic`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
 
-- [x] 2. Implement Robust Granule Position Handling
-  - Create codec-specific granule-to-millisecond conversion functions
-  - Fix Opus granule position calculation to account for 48kHz rate and pre-skip
-  - Implement proper Vorbis granule position handling
-  - Add FLAC granule position support for Ogg FLAC streams
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 1.4, 5.4, 5.5, 6.5, 6.6_
+- [ ] 5. Implement Codec Detection and Header Processing (Following Reference Patterns)
+  - Implement Vorbis codec detection using vorbis_synthesis_idheader() equivalent logic
+  - Implement Opus codec detection using opus_head_parse() equivalent logic  
+  - Implement FLAC codec detection using "\x7fFLAC" signature validation
+  - Add proper header processing for all three header types (ID, comment, setup/tags)
+  - Handle unknown codecs by returning appropriate error codes and continuing
+  - Write comprehensive unit tests for codec detection and header processing
+  - Verify unit tests pass with `make test_codec_detection && ./test_codec_detection`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 3.8, 3.9, 3.10, 3.11_
 
-- [x] 2.1 Implement Codec-Specific Time Conversion
-  - Write granuleToMs function with codec-specific logic for Vorbis, Opus, FLAC
-  - Write msToGranule function with proper pre-skip handling for Opus
-  - Add validation for granule position ranges and invalid values
-  - Test time conversion accuracy across different sample rates and codecs
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 5.4, 5.5, 6.5, 6.6_
-
-- [x] 2.2 Fix Duration Calculation Logic
-  - Implement getLastGranulePosition with robust backward scanning
+- [ ] 6. Implement Duration Calculation (Following op_get_last_page Patterns)
+  - Implement getLastGranulePosition() using op_get_last_page() backward scanning patterns
+  - Use chunk-based backward scanning with exponentially increasing chunk sizes
+  - Implement proper serial number preference and boundary condition handling
   - Add fallback duration calculation methods (header info, tracked max granule)
-  - Fix manual OggS signature scanning for corrupted or unusual files
-  - Ensure duration calculation works for all supported Ogg codecs
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
+  - Implement codec-specific granule-to-time conversion following reference patterns
+  - Write comprehensive unit tests for duration calculation
+  - Verify unit tests pass with `make test_duration_calculation && ./test_duration_calculation`
   - Add unit tests to build system `Makefile.am`
-  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.7_
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11_
 
-- [ ] 3. Enhance Error Handling and Robustness
-  - Add comprehensive validation for all libogg API return values
-  - Implement graceful handling of corrupted pages and invalid data
-  - Add proper resource cleanup in all error paths
-  - Create bounded parsing loops to prevent infinite hangs
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
+- [ ] 7. Implement Time Conversion Functions (Following Reference Implementation Logic)
+  - Write granuleToMs() with codec-specific logic following reference implementations
+  - Write msToGranule() with proper pre-skip handling for Opus
+  - Implement Opus time conversion using opus_granule_sample() equivalent logic
+  - Implement Vorbis time conversion using direct sample count mapping
+  - Implement FLAC time conversion using sample count mapping like Vorbis
+  - Add validation for granule position ranges and invalid values (-1)
+  - Write comprehensive unit tests for time conversion accuracy
+  - Verify unit tests pass with `make test_time_conversion && ./test_time_conversion`
   - Add unit tests to build system `Makefile.am`
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8_
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 5.4, 5.5, 6.5, 6.6, 6.8, 10.7, 10.8, 10.9_
 
-- [ ] 3.1 Implement Safe Container Parsing
-  - Add maximum iteration limits to header parsing loops
-  - Validate packet sizes and header structures before processing
-  - Handle incomplete or truncated files gracefully
-  - Add proper error reporting with specific failure reasons
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 1.1, 1.2, 7.1, 7.2, 7.4_
-
-- [ ] 3.2 Add Memory Safety Measures
+- [ ] 8. Implement Data Streaming Component (Following _fetch_and_process_packet Patterns)
+  - Implement packet streaming using ogg_stream_packetout() patterns from libvorbisfile
+  - Add proper header packet handling (send once per stream, never resend after seeks)
   - Implement bounded packet queues to prevent memory exhaustion
-  - Add proper cleanup of libogg structures in destructor and error paths
-  - Validate buffer sizes and prevent buffer overflows
-  - Add null pointer checks for all dynamic allocations
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
+  - Handle packet holes by returning OV_HOLE/OP_HOLE like reference implementations
+  - Add proper page boundary handling using ogg_stream_pagein() patterns
+  - Update position tracking from granule positions using safe arithmetic
+  - Write comprehensive unit tests for data streaming functionality
+  - Verify unit tests pass with `make test_data_streaming && ./test_data_streaming`
   - Add unit tests to build system `Makefile.am`
-  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
 
-- [ ] 4. Optimize Performance and Memory Usage
-  - Implement efficient packet buffering with bounded queues
-  - Optimize I/O operations for both local files and HTTP streams
-  - Add read-ahead buffering for network sources
-  - Minimize memory copying in packet processing
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
+- [ ] 9. Implement Error Handling and Robustness (Following Reference Implementation Patterns)
+  - Add comprehensive error handling following libvorbisfile/libopusfile patterns
+  - Implement proper error code returns (OP_EREAD, OP_EBADHEADER, OP_ENOTFORMAT, etc.)
+  - Add graceful handling of corrupted pages using ogg_sync_pageseek() negative returns
+  - Handle memory allocation failures with proper cleanup and error codes
+  - Add proper resource cleanup in all error paths following reference patterns
+  - Implement bounded parsing loops to prevent infinite hangs
+  - Write comprehensive unit tests for error handling scenarios
+  - Verify unit tests pass with `make test_error_handling && ./test_error_handling`
   - Add unit tests to build system `Makefile.am`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 7.10, 7.11, 7.12_
+
+- [ ] 10. Implement Memory Safety and Resource Management
+  - Add proper initialization and cleanup of libogg structures (ogg_sync_state, ogg_stream_state)
+  - Implement bounded packet queues with size limits to prevent memory exhaustion
+  - Add proper cleanup of libogg structures in destructor and error paths
+  - Validate buffer sizes and prevent buffer overflows using OP_PAGE_SIZE_MAX
+  - Add null pointer checks for all dynamic allocations
+  - Use ogg_sync_reset() after seeks like reference implementations
+  - Use ogg_stream_reset_serialno() for stream switching like reference implementations
+  - Write comprehensive unit tests for memory safety and resource management
+  - Verify unit tests pass with `make test_memory_safety && ./test_memory_safety`
+  - Add unit tests to build system `Makefile.am`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 12.8, 12.9, 12.10_
+
+- [ ] 11. Integrate Complete Seeking System (Combining All Components)
+  - Integrate bisection search, granule arithmetic, and page extraction into complete seeking system
+  - Implement main seekTo() interface following ov_pcm_seek/op_pcm_seek patterns
+  - Add proper state management and stream reset after seeks
+  - Ensure headers are never resent after seeks (sent only once per stream)
+  - Add comprehensive integration testing for seeking across different file types
+  - Test seeking accuracy with various Vorbis, Opus, and FLAC files
+  - Write comprehensive unit tests for complete seeking system
+  - Verify unit tests pass with `make test_seeking_integration && ./test_seeking_integration`
+  - Add unit tests to build system `Makefile.am`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11_
+
+- [ ] 12. Implement Complete OggDemuxer Class Integration
+  - Integrate all components into complete OggDemuxer class following PsyMP3 Demuxer interface
+  - Implement proper IOHandler integration for file and HTTP sources
+  - Add comprehensive debug logging using PsyMP3 Debug system
+  - Ensure proper error code mapping to PsyMP3 conventions
+  - Add MediaChunk creation and StreamInfo population
+  - Implement proper cleanup and resource management
+  - Write comprehensive integration tests for complete demuxer functionality
+  - Verify unit tests pass with `make test_ogg_demuxer_integration && ./test_ogg_demuxer_integration`
+  - Add unit tests to build system `Makefile.am`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
+  - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
+
+- [ ] 13. Performance Optimization and Buffering Strategy
+  - Implement efficient packet buffering with bounded queues following reference patterns
+  - Optimize I/O operations for both local files and HTTP streams
+  - Add read-ahead buffering for network sources using appropriate buffer sizes
+  - Minimize memory copying in packet processing following reference implementation patterns
+  - Implement page caching for recently accessed pages to improve seeking performance
+  - Add seek position hints to reduce bisection search iterations
+  - Write comprehensive performance tests and benchmarks
+  - Verify unit tests pass with `make test_performance && ./test_performance`
+  - Add unit tests to build system `Makefile.am`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8_
 
-- [ ] 4.1 Implement Efficient Buffering Strategy
-  - Design packet queue size limits based on memory constraints
-  - Add adaptive buffering for different stream types and bitrates
-  - Implement buffer reuse to minimize allocation overhead
-  - Add metrics for buffer usage and performance monitoring
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 8.2, 8.4, 8.6, 8.7_
-
-- [ ] 4.2 Optimize Seeking Performance
-  - Implement page caching for recently accessed pages
-  - Add seek position hints to reduce bisection search iterations
-  - Optimize file I/O patterns for seeking operations
-  - Add performance metrics for seek operations
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 8.1, 8.3, 8.7, 8.8_
-
-- [ ] 5. Enhance Codec Support and Metadata Handling
-  - Complete Opus header parsing with proper OpusTags support
-  - Enhance Vorbis comment parsing with full UTF-8 support
-  - Add comprehensive FLAC-in-Ogg support with STREAMINFO parsing
-  - Implement Speex header parsing for completeness
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5_
-
-- [ ] 5.1 Complete Opus Integration
-  - Fix OpusHead header parsing with all required fields
-  - Implement complete OpusTags metadata extraction
-  - Add proper pre-skip sample handling in timing calculations
-  - Test with various Opus encoder configurations
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 2.4, 3.4, 3.5, 5.4, 6.5_
-
-- [ ] 5.2 Enhance Vorbis Support
-  - Complete Vorbis comment parsing with proper UTF-8 handling
-  - Add support for all three Vorbis header types
-  - Implement proper Vorbis granule position interpretation
-  - Test with various Vorbis encoder versions and settings
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 2.1, 3.1, 3.2, 5.5, 6.6_
-
-- [ ] 5.3 Complete FLAC-in-Ogg Support
-  - Implement parseFLACHeaders with proper Ogg FLAC identification header parsing
-  - Extract STREAMINFO metadata block from Ogg FLAC identification header
-  - Add support for FLAC granule position handling (sample-based like Vorbis)
-  - Ensure FLAC-in-Ogg streams are properly detected and configured
-  - Test with various FLAC-in-Ogg files and compression levels
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 2.3, 3.3, 5.5, 6.4_
-
-
-- [ ] 6. Add Comprehensive Testing and Validation
-  - Create unit tests for all codec detection and header parsing functions
-  - Add integration tests with various Ogg file types and encoders
-  - Implement regression tests for previously failing files
-  - Add performance benchmarks for seeking and streaming operations
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
+- [ ] 14. Comprehensive Testing and Validation
+  - Create comprehensive test suite covering all codec types (Vorbis, Opus, FLAC)
+  - Test with various file types, encoders, and quality settings
+  - Add regression tests for previously failing files and edge cases
+  - Test seeking accuracy across different file sizes and durations
+  - Test error handling with corrupted and malformed files
+  - Test memory management and resource cleanup
+  - Test performance with large files and network streams
+  - Verify all unit tests pass with `make test_comprehensive && ./test_comprehensive`
+  - Add all unit tests to build system `Makefile.am`
+  - Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: All requirements validation_
 
-- [ ] 6.1 Create Codec-Specific Test Suite
-  - Test Vorbis files with various quality settings and metadata
-  - Test Opus files with different channel configurations and pre-skip values
-  - Test FLAC-in-Ogg files with various compression levels and verify lossless decoding
-  - Test Speex files for completeness of codec support
-  - Test multiplexed streams and chained bitstreams with mixed codec types
-  - Verify that FLAC-in-Ogg files are properly distinguished from native FLAC files
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7_
-
-- [ ] 6.2 Implement Seeking Accuracy Tests
-  - Test seeking precision across different file sizes and durations
-  - Validate seek accuracy at various positions (start, middle, end)
-  - Test seeking in files with variable bitrates
-  - Compare seeking behavior with reference implementations
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.8_
-
-- [ ] 7. Integrate with PsyMP3 Architecture
-  - Ensure proper integration with IOHandler subsystem
-  - Add comprehensive debug logging with appropriate categories
-  - Integrate with PsyMP3's error reporting and exception system
-  - Update MediaFactory registration for improved Ogg format detection
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7_
-
-- [ ] 7.1 Complete IOHandler Integration
-  - Ensure all I/O operations use IOHandler interface exclusively
-  - Test with both FileIOHandler and HTTPIOHandler implementations
-  - Add proper error propagation from IOHandler to demuxer
-  - Validate large file support and network streaming capabilities
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 10.1, 10.4, 8.1, 8.7_
-
-- [ ] 7.2 Add Debug Logging and Monitoring
-  - Add comprehensive debug logging for all major operations
-  - Include timing information for performance analysis
-  - Add error condition logging with detailed context
-  - Implement configurable logging levels for different components
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - Add unit tests to build system `Makefile.am`
-  - _Requirements: 10.3, 8.8, 7.8_
-
-- [ ] 8. Documentation and Code Quality
+- [ ] 15. Final Integration and Documentation
+  - Complete integration with PsyMP3 MediaFactory and DemuxerFactory
   - Add comprehensive inline documentation for all public methods
   - Create developer documentation for extending codec support
   - Add code comments explaining complex algorithms (bisection search, granule conversion)
   - Ensure code follows PsyMP3 style guidelines and conventions
-  - _Requirements: 10.8, 10.9, 10.10_
+  - Perform final testing with real-world Ogg files
+  - Verify final clean build with `make clean && make -j$(nproc)`
+  - Commit all changes with proper git commit messages
+  - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
 
-- [ ] 8.1 Document Public API
-  - Add detailed documentation for all OggDemuxer public methods
-  - Document expected behavior for edge cases and error conditions
-  - Add usage examples for common operations
-  - Document thread safety considerations and limitations
-  - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7_
-
-- [ ] 8.2 Create Developer Guide
-  - Document how to add support for new Ogg-encapsulated codecs
-  - Explain the relationship between granule positions and timing
-  - Document the seeking algorithm and optimization opportunities
-  - Provide troubleshooting guide for common issues
-  - _Requirements: 10.8, 10.9, 10.10_

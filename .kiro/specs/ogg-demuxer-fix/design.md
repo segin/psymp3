@@ -109,36 +109,47 @@ struct OggPacket {
 - Handle incomplete packets gracefully
 - Limit header parsing iterations to prevent hangs
 
-### **2. Codec Detection Component**
+### **2. Codec Detection Component (Following Reference Implementation Patterns)**
 
-**Purpose**: Identify codec types and parse codec-specific headers
+**Purpose**: Identify codec types and parse codec-specific headers using reference implementation logic
 
 **Key Methods**:
-- `std::string identifyCodec(const std::vector<uint8_t>& packet_data)`
-- `bool parseVorbisHeaders(OggStream& stream, const OggPacket& packet)`
-- `bool parseOpusHeaders(OggStream& stream, const OggPacket& packet)`
-- `bool parseFLACHeaders(OggStream& stream, const OggPacket& packet)`
+- `std::string identifyCodec(const std::vector<uint8_t>& packet_data)`: Codec signature detection
+- `bool parseVorbisHeaders(OggStream& stream, const OggPacket& packet)`: Vorbis header parsing
+- `bool parseOpusHeaders(OggStream& stream, const OggPacket& packet)`: Opus header parsing  
+- `bool parseFLACHeaders(OggStream& stream, const OggPacket& packet)`: FLAC header parsing
 
-**Codec-Specific Logic**:
+**Codec Detection Logic (Following Reference Patterns)**:
 
-**Vorbis**:
-- Identification header: `\x01vorbis` signature
-- Comment header: `\x03vorbis` signature with Vorbis comments
-- Setup header: `\x05vorbis` signature with codec setup data
-- Requires all 3 headers for complete initialization
+**Vorbis (Following libvorbisfile patterns)**:
+- Use vorbis_synthesis_idheader() equivalent logic for `\x01vorbis` signature validation
+- Use vorbis_synthesis_headerin() equivalent logic for header processing
+- Identification header: Extract sample rate, channels, bitrate from packet
+- Comment header: `\x03vorbis` signature with UTF-8 metadata parsing
+- Setup header: `\x05vorbis` signature with codec setup data preservation
+- **Requires all 3 headers for complete initialization** (libvorbisfile pattern)
+- Handle header parsing errors like libvorbisfile (return OV_EBADHEADER)
 
-**Opus**:
-- Identification header: `OpusHead` signature with channel count and pre-skip
-- Comment header: `OpusTags` signature with metadata
-- Requires 2 headers for complete initialization
+**Opus (Following libopusfile patterns)**:
+- Use opus_head_parse() equivalent logic for "OpusHead" signature validation
+- Use opus_tags_parse() equivalent logic for metadata extraction
+- Identification header: Extract channels, pre-skip, input_sample_rate, channel_mapping
+- Comment header: "OpusTags" signature with metadata parsing
+- **Requires 2 headers for complete initialization** (libopusfile pattern)
 - Uses 48kHz granule rate regardless of output sample rate
+- Handle header parsing errors like libopusfile (return OP_EBADHEADER)
 
-**FLAC**:
-- Identification header: `\x7fFLAC` signature with STREAMINFO
-- Single header contains all necessary information
-- Embedded STREAMINFO provides sample rate, channels, total samples
+**FLAC (Following Ogg FLAC specification)**:
+- Identification header: `\x7fFLAC` signature validation
+- Extract embedded STREAMINFO metadata block from identification header
+- Single header contains all necessary information (sample rate, channels, total samples)
 - Granule positions are sample-based (like Vorbis)
-- Must be distinguished from native FLAC files (which use different container)
+- Must be distinguished from native FLAC files (different container format)
+
+**Unknown Codecs**:
+- Return OP_ENOTFORMAT and continue scanning like libopusfile
+- Skip unknown streams without affecting other streams
+- Log codec signature for debugging purposes
 
 ### **3. Seeking Component (Following ov_pcm_seek_page/op_pcm_seek_page Patterns)**
 
@@ -175,40 +186,79 @@ struct OggPacket {
 - **FLAC**: Granule = sample number at end of packet (same as Vorbis)
 - **Invalid (-1)**: Handle like reference implementations (continue searching)
 
-### **4. Duration Calculation Component**
+### **4. Duration Calculation Component (Following op_get_last_page Patterns)**
 
-**Purpose**: Determine total file duration from various sources
+**Purpose**: Determine total file duration using reference implementation patterns
 
 **Key Methods**:
 - `void calculateDuration()`: Main duration calculation
-- `uint64_t getLastGranulePosition()`: Find last valid granule
+- `uint64_t getLastGranulePosition()`: Find last valid granule (follows op_get_last_page)
+- `int64_t getPrevPageSerial()`: Backward page scanning (follows _get_prev_page_serial)
 
-**Duration Sources (in priority order)**:
-1. Header-provided total sample counts
+**Duration Sources (Priority Order from Reference Implementations)**:
+1. Header-provided total sample counts (libopusfile pattern)
 2. Tracked maximum granule position during parsing
-3. Last page granule position (requires file scan)
+3. Last page granule position using backward scanning
 4. Unknown duration (return 0)
 
-**Implementation**:
-- Scan backwards from file end for last valid page
-- Use manual "OggS" signature detection for robustness
-- Convert granule positions to milliseconds using codec-specific rates
+**Backward Scanning Implementation (Following Reference Patterns)**:
+- Use chunk-based backward scanning with exponentially increasing chunk sizes
+- Start with OP_CHUNK_SIZE (65536), increase up to OP_CHUNK_SIZE_MAX
+- Scan forward from each chunk start to find valid pages
+- Prefer pages with matching serial numbers
+- Handle file beginning boundary conditions gracefully
+- Use ogg_page_granulepos() to extract granule positions
+- Continue until valid granule position found or file beginning reached
 
-### **5. Data Streaming Component**
+**Granule-to-Time Conversion**:
+- **Vorbis**: Direct sample count / sample_rate conversion
+- **Opus**: Use opus_granule_sample() equivalent logic (48kHz granule rate, account for pre-skip)
+- **FLAC**: Direct sample count / sample_rate conversion (like Vorbis)
 
-**Purpose**: Provide continuous packet streaming for playback
+### **5. Granule Position Arithmetic Component (Following libopusfile Patterns)**
+
+**Purpose**: Handle granule position calculations with overflow protection
+
+**Key Methods**:
+- `int granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta)`: Safe addition (follows op_granpos_add)
+- `int granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b)`: Safe subtraction (follows op_granpos_diff)
+- `int granposCmp(int64_t gp_a, int64_t gp_b)`: Safe comparison (follows op_granpos_cmp)
+
+**Granule Position Arithmetic (libopusfile Patterns)**:
+- **Invalid Value**: -1 in two's complement indicates invalid/unset granule position
+- **Overflow Detection**: Check for wraparound past -1 value in all operations
+- **Wraparound Handling**: Handle negative granule positions correctly (larger than positive)
+- **Range Organization**: [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+
+**Safe Addition Logic**:
+- Detect overflow that would wrap past -1
+- Handle positive and negative granule position ranges
+- Return appropriate error codes on overflow
+
+**Safe Subtraction Logic**:
+- Handle wraparound from positive to negative values
+- Detect underflow conditions
+- Maintain proper ordering semantics
+
+### **6. Data Streaming Component (Following Reference Implementation Patterns)**
+
+**Purpose**: Provide continuous packet streaming for playback using reference patterns
 
 **Key Methods**:
 - `MediaChunk readChunk()`: Read from best audio stream
 - `MediaChunk readChunk(uint32_t stream_id)`: Read from specific stream
 - `void fillPacketQueue(uint32_t target_stream_id)`: Buffer management
+- `int fetchAndProcessPacket()`: Packet processing (follows _fetch_and_process_packet)
 
-**Streaming Logic**:
-1. Send header packets first (once per stream)
-2. Buffer data packets in per-stream queues
-3. Maintain packet order within logical bitstreams
-4. Handle page boundaries and packet continuation
-5. Update position tracking from granule positions
+**Streaming Logic (Following libvorbisfile/libopusfile Patterns)**:
+1. Send header packets first (once per stream, never resend after seeks)
+2. Use ogg_stream_packetout() for packet extraction from pages
+3. Buffer data packets in per-stream queues with bounded sizes
+4. Maintain packet order within logical bitstreams
+5. Handle page boundaries using ogg_stream_pagein() patterns
+6. Update position tracking from granule positions using safe arithmetic
+7. Handle packet holes (return OV_HOLE/OP_HOLE) like reference implementations
+8. Use ogg_sync_pageseek() for page discovery during streaming
 
 ## **Data Models**
 
@@ -234,31 +284,40 @@ File → IOHandler → ogg_sync_state → ogg_page → ogg_stream_state → ogg_
 Timestamp → Target Granule → Bisection Search → Page Position → Stream Reset → Continue Streaming
 ```
 
-## **Error Handling**
+## **Error Handling (Following Reference Implementation Patterns)**
 
-### **Container Level Errors**
-- **Invalid Ogg signatures**: Skip corrupted pages, continue parsing
-- **CRC failures**: Log warnings, attempt to continue
-- **Truncated files**: Handle gracefully, report EOF
-- **Memory allocation failures**: Return error codes, clean up resources
+### **Container Level Errors (libvorbisfile/libopusfile Patterns)**
+- **Invalid Ogg signatures**: Use memcmp() validation, return OP_ENOTFORMAT like libopusfile
+- **CRC failures**: Rely on libogg's internal validation, continue like reference implementations
+- **Truncated files**: Return OP_EOF/OV_EOF, handle gracefully
+- **Memory allocation failures**: Return OP_EFAULT/OV_EFAULT, clean up resources
 
-### **Stream Level Errors**
-- **Unknown codecs**: Skip unknown streams, continue with known streams
-- **Incomplete headers**: Mark stream as incomplete, exclude from playback
-- **Packet reconstruction failures**: Skip corrupted packets, continue stream
-- **Invalid granule positions**: Use previous valid position, continue
+### **Stream Level Errors (Reference Implementation Patterns)**
+- **Unknown codecs**: Return OP_ENOTFORMAT, continue scanning like libopusfile
+- **Incomplete headers**: Return OP_EBADHEADER/OV_EBADHEADER like reference implementations
+- **Packet reconstruction failures**: Return OV_HOLE/OP_HOLE for missing packets
+- **Invalid granule positions (-1)**: Continue searching like reference implementations
+- **Duplicate serial numbers**: Return OP_EBADHEADER/OV_EBADHEADER
 
-### **Seeking Errors**
-- **Seek beyond file boundaries**: Clamp to valid range, report success
-- **No valid pages found**: Seek to beginning, report success
-- **Bisection failures**: Fall back to linear search or beginning
-- **Stream reset failures**: Reinitialize streams, continue
+### **Seeking Errors (Reference Implementation Patterns)**
+- **Seek beyond file boundaries**: Clamp to valid range using boundary checking
+- **No valid pages found**: Return OP_EBADLINK/OV_EBADLINK like reference implementations
+- **Bisection failures**: Fall back to linear search like ov_pcm_seek_page
+- **Stream reset failures**: Return appropriate error codes, maintain state
+- **Granule position overflow**: Return OP_EINVAL using safe arithmetic
 
-### **I/O Errors**
-- **Read failures**: Propagate IOHandler errors, set EOF state
+### **I/O Errors (Reference Implementation Patterns)**
+- **Read failures**: Return OP_EREAD/OV_EREAD, propagate IOHandler errors
 - **Network timeouts**: Handle gracefully in HTTPIOHandler
-- **File access errors**: Report through exception system
-- **Buffer overflow**: Implement bounded buffers, prevent crashes
+- **File access errors**: Return OP_EREAD/OV_EREAD through exception system
+- **Buffer overflow**: Use bounded buffers with OP_PAGE_SIZE_MAX limits
+- **EOF conditions**: Return OP_FALSE/OV_EOF like _get_data() patterns
+
+### **Page Processing Errors (libogg Patterns)**
+- **ogg_sync_pageseek() negative return**: Handle as skipped bytes like libvorbisfile
+- **ogg_sync_pageout() failure**: Request more data like reference implementations
+- **ogg_stream_packetout() holes**: Return OV_HOLE/OP_HOLE like reference implementations
+- **Page size exceeds maximum**: Use OP_PAGE_SIZE_MAX bounds checking
 
 ## **Testing Strategy**
 
