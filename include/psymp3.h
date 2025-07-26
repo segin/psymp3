@@ -337,6 +337,7 @@ typedef struct bio_st BIO;
 #endif
 #include "ISODemuxerErrorRecovery.h"
 #include "MemoryOptimizer.h"
+#include "BoundedQueue.h"
 #include "StreamingManager.h"
 #include "ISODemuxerBoxParser.h"
 #include "ISODemuxerSampleTableManager.h"

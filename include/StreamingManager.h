@@ -133,7 +133,7 @@ private:
     uint32_t m_stream_id;
     
     // Bounded buffer for chunks
-    std::queue<MediaChunk> m_chunk_queue;
+    BoundedQueue<MediaChunk> m_chunk_queue;
     
     // Streaming thread
     std::thread m_streaming_thread;
