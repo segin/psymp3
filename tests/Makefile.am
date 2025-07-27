@@ -55,6 +55,11 @@ check_PROGRAMS = \
 	test_integration_verification \
 	test_iohandler_basic
 
+# OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
+if HAVE_OGGDEMUXER
+check_PROGRAMS += test_page_extraction
+endif
+
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
@@ -151,6 +156,29 @@ test_integration_verification_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
+# OggDemuxer page extraction test
+if HAVE_OGGDEMUXER
+test_page_extraction_SOURCES = test_page_extraction_simple.cpp
+test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
+test_page_extraction_LDADD = \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+endif
+
 
 
 # Test execution target
@@ -171,8 +199,53 @@ if BUILD_TEST_HARNESS
 CLEANFILES += test-harness
 endif
 
-# Ensure rect.o is built before tests
+# Ensure required object files are built before tests
 $(check_PROGRAMS): $(top_builddir)/src/rect.o
 
 $(top_builddir)/src/rect.o:
 	$(MAKE) -C $(top_builddir)/src rect.o
+
+# Build rules for OggDemuxer test dependencies
+if HAVE_OGGDEMUXER
+$(top_builddir)/src/OggDemuxer.o:
+	$(MAKE) -C $(top_builddir)/src OggDemuxer.o
+
+$(top_builddir)/src/Demuxer.o:
+	$(MAKE) -C $(top_builddir)/src Demuxer.o
+
+$(top_builddir)/src/IOHandler.o:
+	$(MAKE) -C $(top_builddir)/src IOHandler.o
+
+$(top_builddir)/src/FileIOHandler.o:
+	$(MAKE) -C $(top_builddir)/src FileIOHandler.o
+
+$(top_builddir)/src/URI.o:
+	$(MAKE) -C $(top_builddir)/src URI.o
+
+$(top_builddir)/src/debug.o:
+	$(MAKE) -C $(top_builddir)/src debug.o
+
+$(top_builddir)/src/exceptions.o:
+	$(MAKE) -C $(top_builddir)/src exceptions.o
+
+$(top_builddir)/src/MemoryPoolManager.o:
+	$(MAKE) -C $(top_builddir)/src MemoryPoolManager.o
+
+$(top_builddir)/src/MemoryTracker.o:
+	$(MAKE) -C $(top_builddir)/src MemoryTracker.o
+
+$(top_builddir)/src/BufferPool.o:
+	$(MAKE) -C $(top_builddir)/src BufferPool.o
+
+$(top_builddir)/src/EnhancedBufferPool.o:
+	$(MAKE) -C $(top_builddir)/src EnhancedBufferPool.o
+
+$(top_builddir)/src/BoundedBuffer.o:
+	$(MAKE) -C $(top_builddir)/src BoundedBuffer.o
+
+$(top_builddir)/src/RAIIFileHandle.o:
+	$(MAKE) -C $(top_builddir)/src RAIIFileHandle.o
+
+$(top_builddir)/src/MemoryOptimizer.o:
+	$(MAKE) -C $(top_builddir)/src MemoryOptimizer.o
+endif

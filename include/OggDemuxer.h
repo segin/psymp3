@@ -140,6 +140,32 @@ public:
     uint64_t getLastGranuleFromHeaders();
     void setFileSizeForTesting(uint64_t file_size) { m_file_size = file_size; }
     
+    // Reference-pattern page extraction functions (following libvorbisfile)
+    // Made public for testing
+    
+    /**
+     * @brief Get next page using ogg_sync_pageseek() patterns from libvorbisfile
+     * Equivalent to _get_next_page() in libvorbisfile
+     */
+    int getNextPage(ogg_page* page, int64_t boundary = -1);
+    
+    /**
+     * @brief Get previous page using backward scanning with CHUNKSIZE increments
+     * Equivalent to _get_prev_page() in libvorbisfile
+     */
+    int getPrevPage(ogg_page* page);
+    
+    /**
+     * @brief Get previous page with serial number awareness
+     * Equivalent to _get_prev_page_serial() in libvorbisfile
+     */
+    int getPrevPageSerial(ogg_page* page, uint32_t serial_number);
+    
+    /**
+     * @brief Fetch data into sync buffer like _get_data() in libvorbisfile
+     */
+    int getData(size_t bytes_requested = 0);
+    
 protected:
     // Protected access to streams for testing
     std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_streams; }
@@ -343,6 +369,14 @@ private:
     mutable bool m_fallback_mode = false;
     mutable std::set<uint32_t> m_corrupted_streams;
     mutable long m_last_valid_position = 0;
+    
+    // Page extraction constants (following libvorbisfile patterns)
+    static constexpr size_t CHUNKSIZE = 65536;  // 64KB chunks for backward scanning
+    static constexpr size_t READSIZE = 2048;    // Default read size for _get_data()
+    
+    // Page extraction state
+    mutable int64_t m_offset = 0;               // Current file offset for page extraction
+    mutable int64_t m_end = 0;                  // End boundary for page extraction
 };
 
 #endif // HAVE_OGGDEMUXER

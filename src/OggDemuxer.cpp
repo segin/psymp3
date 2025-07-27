@@ -2121,3 +2121,283 @@ bool OggDemuxer::validateAndRepairStreamState(uint32_t stream_id) {
     Debug::log("ogg", "OggDemuxer: Stream ", stream_id, " validation and repair successful");
     return true;
 }
+
+// Reference-pattern page extraction functions (following libvorbisfile)
+
+int OggDemuxer::getNextPage(ogg_page* page, int64_t boundary) {
+    if (!page) {
+        Debug::log("ogg", "OggDemuxer::getNextPage: null page pointer");
+        return -1;
+    }
+    
+    std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+    
+    while (true) {
+        int result = ogg_sync_pageseek(&m_sync_state, page);
+        
+        if (result < 0) {
+            // Skipped bytes due to corruption, continue searching
+            Debug::log("ogg", "OggDemuxer::getNextPage: skipped ", -result, " bytes");
+            continue;
+        }
+        
+        if (result == 0) {
+            // Need more data
+            int data_result = getData(READSIZE);
+            if (data_result <= 0) {
+                Debug::log("ogg", "OggDemuxer::getNextPage: no more data available");
+                return data_result; // EOF or error
+            }
+            continue;
+        }
+        
+        // Got a page (result > 0)
+        m_offset += result;
+        
+        // Check boundary condition if specified
+        if (boundary >= 0 && m_offset > boundary) {
+            Debug::log("ogg", "OggDemuxer::getNextPage: exceeded boundary at offset ", m_offset);
+            return -1;
+        }
+        
+        // Validate page structure
+        if (!validateOggPage(page)) {
+            Debug::log("ogg", "OggDemuxer::getNextPage: invalid page structure");
+            continue;
+        }
+        
+        Debug::log("ogg", "OggDemuxer::getNextPage: found valid page at offset ", m_offset, 
+                   ", serial=", ogg_page_serialno(page), ", granule=", ogg_page_granulepos(page));
+        return result;
+    }
+}
+
+int OggDemuxer::getPrevPage(ogg_page* page) {
+    if (!page) {
+        Debug::log("ogg", "OggDemuxer::getPrevPage: null page pointer");
+        return -1;
+    }
+    
+    std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+    std::lock_guard<std::mutex> io_lock(m_io_mutex);
+    
+    int64_t begin = m_offset;
+    int64_t end = begin;
+    int64_t offset = -1;
+    
+    while (offset == -1) {
+        begin -= CHUNKSIZE;
+        if (begin < 0) {
+            begin = 0;
+        }
+        
+        // Seek to chunk start
+        if (m_handler->seek(begin, SEEK_SET) != 0) {
+            Debug::log("ogg", "OggDemuxer::getPrevPage: seek failed to offset ", begin);
+            return -1;
+        }
+        
+        // Clear sync state and read chunk
+        ogg_sync_reset(&m_sync_state);
+        
+        char* buffer = ogg_sync_buffer(&m_sync_state, static_cast<long>(end - begin));
+        if (!buffer) {
+            Debug::log("ogg", "OggDemuxer::getPrevPage: failed to get sync buffer");
+            return -1;
+        }
+        
+        long bytes_read = m_handler->read(buffer, 1, end - begin);
+        if (bytes_read <= 0) {
+            Debug::log("ogg", "OggDemuxer::getPrevPage: read failed, bytes=", bytes_read);
+            return -1;
+        }
+        
+        ogg_sync_wrote(&m_sync_state, bytes_read);
+        
+        // Scan forward through this chunk looking for pages
+        int64_t last_page_offset = -1;
+        ogg_page temp_page;
+        int64_t current_pos = begin;
+        
+        while (true) {
+            int result = ogg_sync_pageseek(&m_sync_state, &temp_page);
+            
+            if (result < 0) {
+                // Skip corrupted bytes
+                current_pos += (-result);
+                continue;
+            }
+            
+            if (result == 0) {
+                // No more pages in this chunk
+                break;
+            }
+            
+            // Found a page
+            int64_t page_offset = current_pos;
+            current_pos += result;
+            
+            if (page_offset < m_offset) {
+                // This page is before our target position
+                last_page_offset = page_offset;
+                *page = temp_page; // Copy the page
+            } else {
+                // We've gone past our target
+                break;
+            }
+        }
+        
+        if (last_page_offset != -1) {
+            offset = last_page_offset;
+            m_offset = offset;
+            Debug::log("ogg", "OggDemuxer::getPrevPage: found page at offset ", offset);
+            return 1;
+        }
+        
+        if (begin == 0) {
+            // Reached beginning of file
+            Debug::log("ogg", "OggDemuxer::getPrevPage: reached beginning of file");
+            return -1;
+        }
+        
+        end = begin;
+    }
+    
+    return -1;
+}
+
+int OggDemuxer::getPrevPageSerial(ogg_page* page, uint32_t serial_number) {
+    if (!page) {
+        Debug::log("ogg", "OggDemuxer::getPrevPageSerial: null page pointer");
+        return -1;
+    }
+    
+    std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+    std::lock_guard<std::mutex> io_lock(m_io_mutex);
+    
+    int64_t begin = m_offset;
+    int64_t end = begin;
+    int64_t offset = -1;
+    
+    while (offset == -1) {
+        begin -= CHUNKSIZE;
+        if (begin < 0) {
+            begin = 0;
+        }
+        
+        // Seek to chunk start
+        if (m_handler->seek(begin, SEEK_SET) != 0) {
+            Debug::log("ogg", "OggDemuxer::getPrevPageSerial: seek failed to offset ", begin);
+            return -1;
+        }
+        
+        // Clear sync state and read chunk
+        ogg_sync_reset(&m_sync_state);
+        
+        char* buffer = ogg_sync_buffer(&m_sync_state, static_cast<long>(end - begin));
+        if (!buffer) {
+            Debug::log("ogg", "OggDemuxer::getPrevPageSerial: failed to get sync buffer");
+            return -1;
+        }
+        
+        long bytes_read = m_handler->read(buffer, 1, end - begin);
+        if (bytes_read <= 0) {
+            Debug::log("ogg", "OggDemuxer::getPrevPageSerial: read failed, bytes=", bytes_read);
+            return -1;
+        }
+        
+        ogg_sync_wrote(&m_sync_state, bytes_read);
+        
+        // Scan forward through this chunk looking for pages with matching serial
+        int64_t last_page_offset = -1;
+        ogg_page temp_page;
+        int64_t current_pos = begin;
+        
+        while (true) {
+            int result = ogg_sync_pageseek(&m_sync_state, &temp_page);
+            
+            if (result < 0) {
+                // Skip corrupted bytes
+                current_pos += (-result);
+                continue;
+            }
+            
+            if (result == 0) {
+                // No more pages in this chunk
+                break;
+            }
+            
+            // Found a page
+            int64_t page_offset = current_pos;
+            current_pos += result;
+            
+            if (page_offset < m_offset && static_cast<uint32_t>(ogg_page_serialno(&temp_page)) == serial_number) {
+                // This page is before our target position and has matching serial
+                last_page_offset = page_offset;
+                *page = temp_page; // Copy the page
+            }
+        }
+        
+        if (last_page_offset != -1) {
+            offset = last_page_offset;
+            m_offset = offset;
+            Debug::log("ogg", "OggDemuxer::getPrevPageSerial: found page with serial ", serial_number, " at offset ", offset);
+            return 1;
+        }
+        
+        if (begin == 0) {
+            // Reached beginning of file
+            Debug::log("ogg", "OggDemuxer::getPrevPageSerial: reached beginning of file");
+            return -1;
+        }
+        
+        end = begin;
+    }
+    
+    return -1;
+}
+
+int OggDemuxer::getData(size_t bytes_requested) {
+    if (bytes_requested == 0) {
+        bytes_requested = READSIZE;
+    }
+    
+    // Limit read size to prevent excessive memory usage
+    if (bytes_requested > CHUNKSIZE) {
+        bytes_requested = CHUNKSIZE;
+    }
+    
+    std::lock_guard<std::mutex> io_lock(m_io_mutex);
+    
+    char* buffer = ogg_sync_buffer(&m_sync_state, static_cast<long>(bytes_requested));
+    if (!buffer) {
+        Debug::log("ogg", "OggDemuxer::getData: failed to get sync buffer for ", bytes_requested, " bytes");
+        return -1;
+    }
+    
+    long bytes_read = m_handler->read(buffer, 1, bytes_requested);
+    
+    if (bytes_read < 0) {
+        Debug::log("ogg", "OggDemuxer::getData: I/O error during read");
+        return -1;
+    }
+    
+    if (bytes_read == 0) {
+        if (m_handler->eof()) {
+            Debug::log("ogg", "OggDemuxer::getData: reached EOF");
+            return 0; // EOF
+        } else {
+            Debug::log("ogg", "OggDemuxer::getData: no data available (temporary)");
+            return -1; // Temporary error
+        }
+    }
+    
+    int sync_result = ogg_sync_wrote(&m_sync_state, bytes_read);
+    if (sync_result != 0) {
+        Debug::log("ogg", "OggDemuxer::getData: ogg_sync_wrote failed with code: ", sync_result);
+        return -1;
+    }
+    
+    Debug::log("ogg", "OggDemuxer::getData: read ", bytes_read, " bytes successfully");
+    return static_cast<int>(bytes_read);
+}

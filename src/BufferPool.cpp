@@ -236,8 +236,8 @@ void IOBufferPool::setMaxPoolSize(size_t max_bytes) {
         evictIfNeededInternal();
     }
     
-    // Enforce bounded limits to prevent memory leaks
-    enforceBoundedLimits();
+    // Enforce bounded limits to prevent memory leaks (lock already held)
+    enforceBoundedLimitsInternal();
 }
 
 void IOBufferPool::setMaxBuffersPerSize(size_t max_buffers) {
@@ -776,6 +776,11 @@ void IOBufferPool::defragmentPools() {
 
 void IOBufferPool::enforceBoundedLimits() {
     std::lock_guard<std::mutex> lock(m_mutex);
+    enforceBoundedLimitsInternal();
+}
+
+void IOBufferPool::enforceBoundedLimitsInternal() {
+    // Note: Caller must hold m_mutex lock
     
     Debug::log("memory", "IOBufferPool::enforceBoundedLimits() - Enforcing bounded cache limits");
     

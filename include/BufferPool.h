@@ -188,6 +188,11 @@ public:
     void enforceBoundedLimits();
     
     /**
+     * @brief Internal version of enforceBoundedLimits that assumes lock is already held
+     */
+    void enforceBoundedLimitsInternal();
+    
+    /**
      * @brief Get current memory usage as percentage of limit
      * @return Memory usage percentage (0-100)
      */
