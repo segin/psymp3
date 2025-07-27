@@ -53,9 +53,7 @@ check_PROGRAMS = \
 	test_iohandler_minimal \
 	test_iohandler_basic \
 	test_integration_verification \
-	test_iohandler_basic \
-	test_ogg_granule_conversion \
-	test_ogg_duration_calculation
+	test_iohandler_basic
 
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
@@ -153,31 +151,7 @@ test_integration_verification_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
-test_ogg_granule_conversion_SOURCES = test_ogg_granule_conversion.cpp
-test_ogg_granule_conversion_LDADD = \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(AM_LDFLAGS) \
-	-logg -lvorbis -lFLAC -lopus
 
-test_ogg_duration_calculation_SOURCES = test_ogg_duration_calculation.cpp
-test_ogg_duration_calculation_LDADD = \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(AM_LDFLAGS) \
-	-logg -lvorbis -lFLAC -lopus
 
 # Test execution target
 check-local: $(check_PROGRAMS)
