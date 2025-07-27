@@ -128,9 +128,9 @@ void registerAllDemuxers() {
     // OggDemuxer registration depends on available Ogg codecs
     // Register if any of: Vorbis, Opus, or (FLAC + Ogg) are available
 #if defined(HAVE_VORBIS) || defined(HAVE_OPUS) || (defined(HAVE_FLAC) && defined(HAVE_OGG))
-    DemuxerRegistry::registerDemuxer("ogg", [](std::unique_ptr<IOHandler> handler) {
+    DemuxerRegistry::getInstance().registerDemuxer("ogg", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<OggDemuxer>(std::move(handler));
-    });
+    }, "Ogg", {"ogg", "oga", "ogv", "ogx"});
     
     std::string ogg_codecs = "OggDemuxer registered with support for: ";
 #ifdef HAVE_VORBIS
