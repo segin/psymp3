@@ -72,6 +72,7 @@ psymp3_SOURCES = \
  DemuxedStream.cpp Demuxer.cpp DemuxerExtensibility.cpp DemuxerFactory.cpp DemuxerPlugin.cpp DemuxerRegistry.cpp display.cpp \
  DrawableWidget.cpp exceptions.cpp FadingWidget.cpp fft.cpp fft_draw.cpp \
  FileIOHandler.cpp font.cpp HTTPClient.cpp HTTPIOHandler.cpp IOHandler.cpp \
+ RAIIFileHandle.cpp EnhancedAudioBufferPool.cpp \
  ISODemuxer.cpp ISODemuxerBoxParser.cpp ISODemuxerErrorRecovery.cpp ISODemuxerFragmentHandler.cpp \
  ISODemuxerMetadataExtractor.cpp ISODemuxerSampleTableManager.cpp ISODemuxerSeekingEngine.cpp ISODemuxerStreamManager.cpp \
  Label.cpp LastFM.cpp LayoutWidget.cpp lyrics.cpp LyricsWidget.cpp \

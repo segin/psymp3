@@ -94,3 +94,5 @@ tests/test_thread_safety_simple
 tests/test_bounded_queue
 tests/test_ogg_granule_conversion
 tests/test_ogg_duration_calculation
+tests/test_minimal_demuxer
+tests/test_page_extraction
