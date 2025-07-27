@@ -22,6 +22,7 @@ private:
     DBusConnection* m_conn;
     bool m_initialized;
 
+    static DBusObjectPathVTable vtable;
     static DBusHandlerResult staticHandleMessage(DBusConnection* connection, DBusMessage* message, void* user_data);
     DBusHandlerResult handleMessage(DBusConnection* connection, DBusMessage* message);
 };

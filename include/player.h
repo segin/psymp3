@@ -26,7 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+#ifdef HAVE_DBUS
 class MPRIS;
+#endif
 
 // A struct to hold options parsed from the command line.
 // This provides a clean way to pass configuration into the Player class.
@@ -146,7 +148,9 @@ class Player
         std::unique_ptr<FastFourier> fft;
         std::unique_ptr<std::mutex> mutex;
         std::unique_ptr<System> system;
+#ifdef HAVE_DBUS
         MPRIS* mpris;
+#endif
         struct atdata ATdata;
         int scalefactor = 2;
         float decayfactor = 1.0f;

@@ -159,4 +159,7 @@ private:
     void performPeriodicCleanup();
 };
 
+// Alias for backward compatibility
+using AudioBufferPool = EnhancedAudioBufferPool;
+
 #endif // ENHANCEDAUDIOBUFFERPOOL_H

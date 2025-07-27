@@ -1,6 +1,16 @@
+#include "psymp3.h"
+
 #ifdef HAVE_DBUS
 
-#include "psymp3.h"
+// DBus vtable for MPRIS
+DBusObjectPathVTable MPRIS::vtable = {
+    nullptr,  // unregister_function
+    MPRIS::staticHandleMessage,  // message_function
+    nullptr,  // dbus_internal_pad1
+    nullptr,  // dbus_internal_pad2
+    nullptr,  // dbus_internal_pad3
+    nullptr   // dbus_internal_pad4
+};
 
 MPRIS::MPRIS(Player* player)
     : m_player(player),
@@ -171,10 +181,12 @@ void MPRIS::updatePlaybackStatus(const std::string& status) {
     dbus_message_unref(msg);
 }
 
-DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* message, void* user_data) {
-    MPRIS* self = static_cast<MPRIS*>(user_data);
+DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* message) {
     const char* interface_name = dbus_message_get_interface(message);
     const char* member_name = dbus_message_get_member(message);
+    
+    (void)interface_name; // Suppress unused variable warning
+    (void)member_name;    // Suppress unused variable warning
 
     if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2", "Raise")) {
         // Bring the media player to the foreground
@@ -191,46 +203,46 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
         dbus_connection_send(connection, reply, nullptr);
         dbus_message_unref(reply);
         // Signal the player to exit
-        self->m_player->synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
+        m_player->synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2.Player", "Play")) {
         std::cout << "MPRIS: Received Play command." << std::endl;
-        self->m_player->play();
+        m_player->play();
         DBusMessage* reply = dbus_message_new_method_return(message);
         dbus_connection_send(connection, reply, nullptr);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2.Player", "Pause")) {
         std::cout << "MPRIS: Received Pause command." << std::endl;
-        self->m_player->pause();
+        m_player->pause();
         DBusMessage* reply = dbus_message_new_method_return(message);
         dbus_connection_send(connection, reply, nullptr);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2.Player", "PlayPause")) {
         std::cout << "MPRIS: Received PlayPause command." << std::endl;
-        self->m_player->playPause();
+        m_player->playPause();
         DBusMessage* reply = dbus_message_new_method_return(message);
         dbus_connection_send(connection, reply, nullptr);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2.Player", "Stop")) {
         std::cout << "MPRIS: Received Stop command." << std::endl;
-        self->m_player->stop();
+        m_player->stop();
         DBusMessage* reply = dbus_message_new_method_return(message);
         dbus_connection_send(connection, reply, nullptr);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2.Player", "Next")) {
         std::cout << "MPRIS: Received Next command." << std::endl;
-        self->m_player->nextTrack();
+        m_player->nextTrack();
         DBusMessage* reply = dbus_message_new_method_return(message);
         dbus_connection_send(connection, reply, nullptr);
         dbus_message_unref(reply);
         return DBUS_HANDLER_RESULT_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2.Player", "Previous")) {
         std::cout << "MPRIS: Received Previous command." << std::endl;
-        self->m_player->prevTrack();
+        m_player->prevTrack();
         DBusMessage* reply = dbus_message_new_method_return(message);
         dbus_connection_send(connection, reply, nullptr);
         dbus_message_unref(reply);
@@ -246,12 +258,12 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
             // For now, we'll just add the offset to the current position.
             // This needs to be done carefully under mutex protection.
             {
-                std::lock_guard<std::mutex> lock(*self->m_player->mutex);
-                if (self->m_player->stream) {
-                    unsigned long current_pos = self->m_player->stream->getPosition();
+                std::lock_guard<std::mutex> lock(*m_player->mutex);
+                if (m_player->stream) {
+                    unsigned long current_pos = m_player->stream->getPosition();
                     long new_pos = static_cast<long>(current_pos) + static_cast<long>(offset / 1000); // Convert microseconds to milliseconds
                     if (new_pos < 0) new_pos = 0;
-                    self->m_player->seekTo(static_cast<unsigned long>(new_pos));
+                    m_player->seekTo(static_cast<unsigned long>(new_pos));
                 }
             }
             DBusMessage* reply = dbus_message_new_method_return(message);
@@ -259,20 +271,20 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
             dbus_message_unref(reply);
             return DBUS_HANDLER_RESULT_HANDLED;
         }
-        return DBUS_HANDLER_RESULT_NOT_HANDLED;
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.mpris.MediaPlayer2.Player", "SetPosition")) {
         dbus_uint64_t track_id;
         dbus_int64_t position;
         if (dbus_message_get_args(message, nullptr, DBUS_TYPE_OBJECT_PATH, &track_id, DBUS_TYPE_INT64, &position, DBUS_TYPE_INVALID)) {
             std::cout << "MPRIS: Received SetPosition command for track " << track_id << " to position " << position << std::endl;
             // Position is in microseconds, convert to milliseconds
-            self->m_player->seekTo(static_cast<unsigned long>(position / 1000));
+            m_player->seekTo(static_cast<unsigned long>(position / 1000));
             DBusMessage* reply = dbus_message_new_method_return(message);
             dbus_connection_send(connection, reply, nullptr);
             dbus_message_unref(reply);
             return DBUS_HANDLER_RESULT_HANDLED;
         }
-        return DBUS_HANDLER_RESULT_NOT_HANDLED;
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Properties", "Get")) {
         const char* iface_name;
         const char* prop_name;
@@ -283,14 +295,19 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
 
             if (std::string(prop_name) == "PlaybackStatus") {
                 std::string status_str;
-                if (self->m_player->state == PlayerState::Playing) {
+                if (m_player->state == PlayerState::Playing) {
                     status_str = "Playing";
-                } else if (self->m_player->state == PlayerState::Paused) {
+                } else if (m_player->state == PlayerState::Paused) {
                     status_str = "Paused";
                 } else {
                     status_str = "Stopped";
                 }
-                dbus_message_iter_append_basic(&args, DBUS_TYPE_VARIANT, DBUS_TYPE_STRING, &status_str);
+                // Create a variant containing the string
+                DBusMessageIter variant_iter;
+                dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s", &variant_iter);
+                const char* status_cstr = status_str.c_str();
+                dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING, &status_cstr);
+                dbus_message_iter_close_container(&args, &variant_iter);
             } else if (std::string(prop_name) == "Metadata") {
                 DBusMessageIter variant_iter;
                 dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "a{sv}", &variant_iter);
@@ -298,10 +315,10 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                 dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY, "{sv}", &metadata_dict_iter);
 
                 // Add metadata properties
-                if (self->m_player->stream) {
-                    std::string artist_str = self->m_player->stream->getArtist().to8Bit(true);
-                    std::string title_str = self->m_player->stream->getTitle().to8Bit(true);
-                    std::string album_str = self->m_player->stream->getAlbum().to8Bit(true);
+                if (m_player->stream) {
+                    std::string artist_str = m_player->stream->getArtist().to8Bit(true);
+                    std::string title_str = m_player->stream->getTitle().to8Bit(true);
+                    std::string album_str = m_player->stream->getAlbum().to8Bit(true);
 
                     // Artist
                     DBusMessageIter artist_entry_iter;
@@ -331,7 +348,7 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                     DBusMessageIter length_entry_iter;
                     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &length_entry_iter);
                     dbus_message_iter_append_basic(&length_entry_iter, DBUS_TYPE_STRING, &"mpris:length");
-                    dbus_int64_t length_us = static_cast<dbus_int64_t>(self->m_player->stream->getLength()) * 1000;
+                    dbus_int64_t length_us = static_cast<dbus_int64_t>(m_player->stream->getLength()) * 1000;
                     dbus_message_iter_append_basic(&length_entry_iter, DBUS_TYPE_UINT64, &length_us);
                     dbus_message_iter_close_container(&metadata_dict_iter, &length_entry_iter);
                 }
@@ -343,7 +360,7 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
             dbus_message_unref(reply);
             return DBUS_HANDLER_RESULT_HANDLED;
         }
-        return DBUS_HANDLER_RESULT_NOT_HANDLED;
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     } else if (dbus_message_is_method_call(message, "org.freedesktop.DBus.Properties", "Set")) {
         const char* iface_name;
         const char* prop_name;
@@ -355,11 +372,11 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                 std::string status = status_str;
                 std::cout << "MPRIS: Received Set PlaybackStatus to " << status << std::endl;
                 if (status == "Playing") {
-                    self->m_player->play();
+                    m_player->play();
                 } else if (status == "Paused") {
-                    self->m_player->pause();
+                    m_player->pause();
                 } else if (status == "Stopped") {
-                    self->m_player->stop();
+                    m_player->stop();
                 }
             } else if (std::string(prop_name) == "Volume") {
                 double volume;
@@ -370,20 +387,20 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                 dbus_int64_t position_us;
                 dbus_message_iter_get_basic(&variant_iter, &position_us);
                 std::cout << "MPRIS: Received Set Position to " << position_us << " us" << std::endl;
-                self->m_player->seekTo(static_cast<unsigned long>(position_us / 1000));
+                m_player->seekTo(static_cast<unsigned long>(position_us / 1000));
             }
             DBusMessage* reply = dbus_message_new_method_return(message);
             dbus_connection_send(connection, reply, nullptr);
             dbus_message_unref(reply);
             return DBUS_HANDLER_RESULT_HANDLED;
         }
-        return DBUS_HANDLER_RESULT_NOT_HANDLED;
+        return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
     }
-    return DBUS_HANDLER_RESULT_NOT_HANDLED;
+    return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
 DBusHandlerResult MPRIS::staticHandleMessage(DBusConnection* connection, DBusMessage* message, void* user_data) {
-    return static_cast<MPRIS*>(user_data)->handleMessage(connection, message, user_data);
+    return static_cast<MPRIS*>(user_data)->handleMessage(connection, message);
 }
 
 #endif // HAVE_DBUS

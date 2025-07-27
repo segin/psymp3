@@ -26,38 +26,7 @@
 
 // No direct includes - all includes should be in psymp3.h
 
-/**
- * @brief Memory pool for audio frame sample buffers
- */
-class AudioBufferPool {
-public:
-    static AudioBufferPool& getInstance();
-    
-    /**
-     * @brief Get a sample buffer of at least the specified size
-     * @param min_samples Minimum required sample count
-     * @return Reusable sample buffer
-     */
-    std::vector<int16_t> getSampleBuffer(size_t min_samples);
-    
-    /**
-     * @brief Return a sample buffer to the pool for reuse
-     * @param buffer Buffer to return (will be moved)
-     */
-    void returnSampleBuffer(std::vector<int16_t>&& buffer);
-    
-    /**
-     * @brief Clear all pooled buffers
-     */
-    void clear();
-    
-private:
-    AudioBufferPool() = default;
-    mutable std::mutex m_mutex;
-    std::vector<std::vector<int16_t>> m_sample_buffers;
-    static constexpr size_t MAX_POOLED_BUFFERS = 16;
-    static constexpr size_t MAX_SAMPLES_PER_BUFFER = 192000; // ~4 seconds at 48kHz
-};
+// AudioBufferPool is aliased to EnhancedAudioBufferPool in EnhancedAudioBufferPool.h
 
 /**
  * @brief Decoded audio frame with optimized memory management
