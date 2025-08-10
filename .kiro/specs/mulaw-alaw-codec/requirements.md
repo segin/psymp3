@@ -2,7 +2,13 @@
 
 ## **Introduction**
 
-This specification defines the requirements for implementing μ-law (G.711 μ-law) and A-law (G.711 A-law) audio codecs for PsyMP3. These codecs handle telephony-standard audio compression used in VoIP systems, PBX systems like Asterisk, and telecommunications infrastructure. The codecs support both containerized formats (WAV, AU) and raw bitstreams commonly used in real-time communications.
+This specification defines the requirements for implementing separate μ-law (G.711 μ-law) and A-law (G.711 A-law) audio codec classes for PsyMP3. These codecs handle telephony-standard audio compression used in VoIP systems, PBX systems like Asterisk, and telecommunications infrastructure. The codecs support both containerized formats (WAV, AU) and raw bitstreams commonly used in real-time communications.
+
+The implementation provides two distinct codec classes:
+- **MuLawCodec**: Handles μ-law (G.711 μ-law) decoding exclusively
+- **ALawCodec**: Handles A-law (G.711 A-law) decoding exclusively
+
+This separation aligns with PsyMP3's architecture where codec selection occurs at the factory level based on the codec_name field in StreamInfo, rather than requiring runtime format detection within a single codec.
 
 The implementation must support:
 - **Raw μ-law and A-law bitstream decoding** for telephony applications
@@ -136,33 +142,33 @@ The implementation must support:
 
 ### **Requirement 9: Integration with AudioCodec Architecture**
 
-**User Story:** As a PsyMP3 component, I want the μ-law/A-law codec to integrate seamlessly with the AudioCodec architecture, so that it works consistently with other audio codecs.
+**User Story:** As a PsyMP3 component, I want separate μ-law and A-law codec classes to integrate seamlessly with the AudioCodec architecture, so that they work consistently with other audio codecs.
 
 #### **Acceptance Criteria**
 
-1. **WHEN** implementing AudioCodec interface **THEN** MuLawALawCodec **SHALL** provide all required virtual methods
-2. **WHEN** initializing **THEN** the codec **SHALL** configure itself from StreamInfo parameters
-3. **WHEN** decoding chunks **THEN** the codec **SHALL** convert MediaChunk data to AudioFrame output
-4. **WHEN** flushing **THEN** the codec **SHALL** output any remaining samples as AudioFrame
-5. **WHEN** resetting **THEN** the codec **SHALL** clear state for seeking operations
-6. **WHEN** reporting capabilities **THEN** the codec **SHALL** indicate support for μ-law and A-law streams
-7. **WHEN** handling errors **THEN** the codec **SHALL** use PsyMP3's error reporting mechanisms
-8. **WHEN** logging debug information **THEN** the codec **SHALL** use PsyMP3's Debug logging system
+1. **WHEN** implementing AudioCodec interface **THEN** both MuLawCodec and ALawCodec **SHALL** provide all required virtual methods
+2. **WHEN** initializing **THEN** each codec **SHALL** configure itself from StreamInfo parameters for its specific format
+3. **WHEN** decoding chunks **THEN** each codec **SHALL** convert MediaChunk data to AudioFrame output using format-specific conversion
+4. **WHEN** flushing **THEN** each codec **SHALL** output any remaining samples as AudioFrame
+5. **WHEN** resetting **THEN** each codec **SHALL** clear state for seeking operations
+6. **WHEN** reporting capabilities **THEN** MuLawCodec **SHALL** indicate support only for μ-law streams and ALawCodec only for A-law streams
+7. **WHEN** handling errors **THEN** both codecs **SHALL** use PsyMP3's error reporting mechanisms
+8. **WHEN** logging debug information **THEN** both codecs **SHALL** use PsyMP3's Debug logging system
 
-### **Requirement 10: Format Detection and Identification**
+### **Requirement 10: Codec Factory Registration**
 
-**User Story:** As a media player, I want automatic detection of μ-law/A-law formats, so that the correct codec is selected for telephony audio files.
+**User Story:** As a media player, I want automatic selection of the correct codec based on StreamInfo, so that μ-law and A-law formats are handled by their respective specialized codecs.
 
 #### **Acceptance Criteria**
 
-1. **WHEN** detecting μ-law format **THEN** the codec **SHALL** identify from container format codes or file extensions
-2. **WHEN** detecting A-law format **THEN** the codec **SHALL** identify from container format codes or file extensions
-3. **WHEN** processing .ul files **THEN** the codec **SHALL** assume raw μ-law format
-4. **WHEN** processing .al files **THEN** the codec **SHALL** assume raw A-law format
-5. **WHEN** processing .au files **THEN** the codec **SHALL** check encoding field for μ-law/A-law
-6. **WHEN** processing .wav files **THEN** the codec **SHALL** check format tag for MULAW/ALAW
-7. **WHEN** format is ambiguous **THEN** the codec **SHALL** provide clear error messages
-8. **WHEN** multiple formats possible **THEN** the codec **SHALL** prioritize container-specified format
+1. **WHEN** registering with MediaFactory **THEN** MuLawCodec **SHALL** register for "mulaw" codec_name
+2. **WHEN** registering with MediaFactory **THEN** ALawCodec **SHALL** register for "alaw" codec_name  
+3. **WHEN** StreamInfo contains codec_name "mulaw" **THEN** MediaFactory **SHALL** create MuLawCodec instance
+4. **WHEN** StreamInfo contains codec_name "alaw" **THEN** MediaFactory **SHALL** create ALawCodec instance
+5. **WHEN** canDecode is called **THEN** MuLawCodec **SHALL** return true only for μ-law StreamInfo
+6. **WHEN** canDecode is called **THEN** ALawCodec **SHALL** return true only for A-law StreamInfo
+7. **WHEN** wrong codec is used **THEN** the codec **SHALL** reject initialization and return false
+8. **WHEN** codec registration occurs **THEN** both codecs **SHALL** use conditional compilation guards
 
 ### **Requirement 11: Thread Safety and Concurrency**
 

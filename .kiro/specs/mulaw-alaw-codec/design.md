@@ -2,25 +2,35 @@
 
 ## Overview
 
-The μ-law/A-law codec implementation provides ITU-T G.711 compliant audio decoding for telephony applications within PsyMP3. This codec handles both μ-law (North American standard) and A-law (European standard) compressed audio formats, supporting both containerized formats (WAV, AU) and raw bitstreams commonly used in VoIP and telecommunications systems.
+The μ-law/A-law codec implementation provides ITU-T G.711 compliant audio decoding for telephony applications within PsyMP3 through two separate, specialized codec classes:
 
-The design emphasizes performance through lookup table-based conversion, standards compliance with ITU-T G.711 specifications, and seamless integration with PsyMP3's existing AudioCodec architecture. The implementation supports real-time decoding requirements for telephony applications while maintaining bit-perfect accuracy.
+- **MuLawCodec**: Dedicated μ-law (G.711 μ-law) decoder for North American telephony standard
+- **ALawCodec**: Dedicated A-law (G.711 A-law) decoder for European telephony standard
+
+This separation aligns with PsyMP3's architecture where codec selection occurs at the MediaFactory level based on the codec_name field in StreamInfo. Each codec specializes in its respective format, eliminating runtime format detection and providing cleaner, more maintainable code.
+
+The design emphasizes performance through lookup table-based conversion, standards compliance with ITU-T G.711 specifications, and seamless integration with PsyMP3's existing AudioCodec architecture. Both implementations support real-time decoding requirements for telephony applications while maintaining bit-perfect accuracy.
 
 ## Architecture
 
 ### Core Components
 
 ```
-MuLawALawCodec (AudioCodec)
-├── Conversion Tables
-│   ├── μ-law to PCM lookup table (256 entries)
-│   └── A-law to PCM lookup table (256 entries)
-├── Format Detection
-│   ├── Container format identification
-│   ├── Raw stream detection
-│   └── Parameter extraction
+MuLawCodec (AudioCodec)
+├── μ-law Conversion Table (256 entries)
 ├── Decoder Engine
-│   ├── Table-based conversion
+│   ├── μ-law table-based conversion
+│   ├── Multi-channel processing
+│   └── Sample rate handling
+└── Integration Layer
+    ├── AudioCodec interface compliance
+    ├── MediaChunk processing
+    └── AudioFrame generation
+
+ALawCodec (AudioCodec)
+├── A-law Conversion Table (256 entries)
+├── Decoder Engine
+│   ├── A-law table-based conversion
 │   ├── Multi-channel processing
 │   └── Sample rate handling
 └── Integration Layer
@@ -33,46 +43,63 @@ MuLawALawCodec (AudioCodec)
 
 **Lookup Table Approach**: Pre-computed conversion tables provide optimal performance for real-time telephony applications, eliminating the need for mathematical calculations during decoding. This approach is standard in telecommunications equipment and ensures consistent performance regardless of input data patterns.
 
-**Unified Codec Design**: A single codec class handles both μ-law and A-law formats, reducing code duplication while maintaining format-specific accuracy. The format is determined during initialization and affects which lookup table is used.
+**Separate Codec Classes**: Dedicated codec classes for μ-law and A-law eliminate runtime format detection and align with PsyMP3's architecture where codec selection occurs at the MediaFactory level. This provides cleaner code, better maintainability, and clearer separation of concerns.
 
-**Container Agnostic Processing**: The decoder separates container handling from audio decoding, allowing support for WAV, AU, and raw bitstreams through the same core engine. Container-specific parameters are extracted during initialization.
+**Shared Base Implementation**: Both codecs inherit from a common base class (SimplePCMCodec) to share common functionality while maintaining format-specific conversion logic.
+
+**Container Agnostic Processing**: Both decoders separate container handling from audio decoding, allowing support for WAV, AU, and raw bitstreams through the same core engine. Container-specific parameters are extracted during initialization.
 
 ## Components and Interfaces
 
-### MuLawALawCodec Class
+### MuLawCodec Class
 
 ```cpp
-class MuLawALawCodec : public AudioCodec {
+class MuLawCodec : public SimplePCMCodec {
 public:
-    enum class Format {
-        MULAW,
-        ALAW,
-        AUTO_DETECT
-    };
-
+    explicit MuLawCodec(const StreamInfo& stream_info);
+    
     // AudioCodec interface implementation
-    bool initialize(const StreamInfo& streamInfo) override;
-    std::unique_ptr<AudioFrame> decode(const MediaChunk& chunk) override;
-    std::unique_ptr<AudioFrame> flush() override;
-    void reset() override;
-    bool canHandle(const StreamInfo& streamInfo) const override;
+    bool canDecode(const StreamInfo& stream_info) const override;
+    std::string getCodecName() const override { return "mulaw"; }
+
+protected:
+    // SimplePCMCodec implementation
+    size_t convertSamples(const std::vector<uint8_t>& input_data, 
+                         std::vector<int16_t>& output_samples) override;
+    size_t getBytesPerInputSample() const override { return 1; }
 
 private:
-    // Conversion tables (static, shared across instances)
+    // Conversion table (static, shared across instances)
     static const int16_t MULAW_TO_PCM[256];
-    static const int16_t ALAW_TO_PCM[256];
-    
-    // Instance state
-    Format m_format;
-    uint32_t m_sampleRate;
-    uint16_t m_channels;
-    bool m_initialized;
     
     // Internal methods
-    Format detectFormat(const StreamInfo& streamInfo);
-    void initializeTables();
-    int16_t convertSample(uint8_t sample) const;
-    std::unique_ptr<AudioFrame> processChunk(const uint8_t* data, size_t size);
+    static void initializeMuLawTable();
+};
+```
+
+### ALawCodec Class
+
+```cpp
+class ALawCodec : public SimplePCMCodec {
+public:
+    explicit ALawCodec(const StreamInfo& stream_info);
+    
+    // AudioCodec interface implementation
+    bool canDecode(const StreamInfo& stream_info) const override;
+    std::string getCodecName() const override { return "alaw"; }
+
+protected:
+    // SimplePCMCodec implementation
+    size_t convertSamples(const std::vector<uint8_t>& input_data, 
+                         std::vector<int16_t>& output_samples) override;
+    size_t getBytesPerInputSample() const override { return 1; }
+
+private:
+    // Conversion table (static, shared across instances)
+    static const int16_t ALAW_TO_PCM[256];
+    
+    // Internal methods
+    static void initializeALawTable();
 };
 ```
 
@@ -84,32 +111,31 @@ private:
 
 **Memory Efficiency**: Tables are declared as static const arrays, shared across all codec instances to minimize memory usage while ensuring thread-safe read-only access.
 
-### Format Detection Logic
+### Codec Selection Logic
+
+Format detection is handled at the MediaFactory level through demuxer integration:
 
 ```cpp
-Format MuLawALawCodec::detectFormat(const StreamInfo& streamInfo) {
-    // Container-based detection
-    if (streamInfo.containerFormat == "WAV") {
-        if (streamInfo.codecTag == 0x0007) return Format::MULAW;
-        if (streamInfo.codecTag == 0x0006) return Format::ALAW;
-    }
-    
-    if (streamInfo.containerFormat == "AU") {
-        if (streamInfo.codecTag == 1) return Format::MULAW;
-        if (streamInfo.codecTag == 27) return Format::ALAW;
-    }
-    
-    // File extension-based detection for raw streams
-    if (streamInfo.filename.ends_with(".ul")) return Format::MULAW;
-    if (streamInfo.filename.ends_with(".al")) return Format::ALAW;
-    
-    // MIME type detection
-    if (streamInfo.mimeType == "audio/basic") return Format::MULAW;
-    if (streamInfo.mimeType == "audio/x-alaw") return Format::ALAW;
-    
-    return Format::AUTO_DETECT;
+// MuLawCodec validation
+bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
+    return stream_info.codec_name == "mulaw" || 
+           stream_info.codec_name == "pcm_mulaw" ||
+           stream_info.codec_name == "g711_mulaw";
+}
+
+// ALawCodec validation  
+bool ALawCodec::canDecode(const StreamInfo& stream_info) const {
+    return stream_info.codec_name == "alaw" || 
+           stream_info.codec_name == "pcm_alaw" ||
+           stream_info.codec_name == "g711_alaw";
 }
 ```
+
+**Demuxer Responsibility**: Container demuxers (WAV, AU) are responsible for setting the appropriate codec_name in StreamInfo based on format tags:
+- WAV format tag 0x0007 → codec_name = "mulaw"
+- WAV format tag 0x0006 → codec_name = "alaw"  
+- AU encoding 1 → codec_name = "mulaw"
+- AU encoding 27 → codec_name = "alaw"
 
 ## Data Models
 
@@ -233,14 +259,26 @@ The MuLawALawCodec fully implements the AudioCodec interface, ensuring seamless 
 ### MediaFactory Registration
 
 ```cpp
-#ifdef ENABLE_MULAW_ALAW_CODEC
-void registerMuLawALawCodec(MediaFactory& factory) {
-    factory.registerAudioCodec("mulaw", []() {
-        return std::make_unique<MuLawALawCodec>(MuLawALawCodec::Format::MULAW);
+#ifdef ENABLE_MULAW_CODEC
+void registerMuLawCodec() {
+    AudioCodecFactory::registerCodec("mulaw", [](const StreamInfo& stream_info) {
+        return std::make_unique<MuLawCodec>(stream_info);
     });
     
-    factory.registerAudioCodec("alaw", []() {
-        return std::make_unique<MuLawALawCodec>(MuLawALawCodec::Format::ALAW);
+    AudioCodecFactory::registerCodec("pcm_mulaw", [](const StreamInfo& stream_info) {
+        return std::make_unique<MuLawCodec>(stream_info);
+    });
+}
+#endif
+
+#ifdef ENABLE_ALAW_CODEC  
+void registerALawCodec() {
+    AudioCodecFactory::registerCodec("alaw", [](const StreamInfo& stream_info) {
+        return std::make_unique<ALawCodec>(stream_info);
+    });
+    
+    AudioCodecFactory::registerCodec("pcm_alaw", [](const StreamInfo& stream_info) {
+        return std::make_unique<ALawCodec>(stream_info);
     });
 }
 #endif

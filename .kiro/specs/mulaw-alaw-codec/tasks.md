@@ -1,107 +1,119 @@
 # Implementation Plan
 
-- [ ] 1. Create core codec class structure and interfaces
-  - Implement MuLawALawCodec class inheriting from AudioCodec
-  - Define Format enum for MULAW, ALAW, and AUTO_DETECT
-  - Implement all required AudioCodec virtual methods (initialize, decode, flush, reset, canHandle)
-  - Add private member variables for format, sample rate, channels, and initialization state
+- [ ] 1. Create MuLawCodec class structure and interfaces
+  - Implement MuLawCodec class inheriting from SimplePCMCodec
+  - Implement all required AudioCodec virtual methods (canDecode, getCodecName)
+  - Override SimplePCMCodec methods (convertSamples, getBytesPerInputSample)
+  - Add constructor accepting StreamInfo parameter
   - _Requirements: 9.1, 9.2, 9.6_
 
-- [ ] 2. Implement ITU-T G.711 compliant lookup tables
+- [ ] 2. Create ALawCodec class structure and interfaces
+  - Implement ALawCodec class inheriting from SimplePCMCodec
+  - Implement all required AudioCodec virtual methods (canDecode, getCodecName)
+  - Override SimplePCMCodec methods (convertSamples, getBytesPerInputSample)
+  - Add constructor accepting StreamInfo parameter
+  - _Requirements: 9.1, 9.2, 9.6_
+
+- [ ] 3. Implement μ-law ITU-T G.711 compliant lookup table
   - Create static const MULAW_TO_PCM[256] lookup table with ITU-T G.711 μ-law values
+  - Implement initializeMuLawTable() static method for table initialization
+  - Add proper handling for μ-law silence encoding (0xFF)
+  - Ensure bit-perfect accuracy matching ITU-T G.711 specification
+  - _Requirements: 1.1, 1.3, 1.6, 6.1, 6.6_
+
+- [ ] 4. Implement A-law ITU-T G.711 compliant lookup table
   - Create static const ALAW_TO_PCM[256] lookup table with ITU-T G.711 A-law values
-  - Implement initializeTables() method for table validation
-  - Add convertSample() method for table-based conversion
-  - _Requirements: 1.1, 1.3, 2.1, 2.3, 6.1, 6.2_
+  - Implement initializeALawTable() static method for table initialization
+  - Add proper handling for A-law silence encoding (0x55)
+  - Ensure bit-perfect accuracy matching ITU-T G.711 specification
+  - _Requirements: 2.1, 2.3, 2.6, 6.2, 6.6_
 
-- [ ] 3. Implement format detection and identification system
-  - Create detectFormat() method supporting container format codes
-  - Add WAV format detection for WAVE_FORMAT_MULAW (0x0007) and WAVE_FORMAT_ALAW (0x0006)
-  - Add AU format detection for Sun/NeXT encoding values (1 for μ-law, 27 for A-law)
-  - Implement file extension detection for .ul and .al files
-  - Add MIME type detection for audio/basic and audio/x-alaw
-  - _Requirements: 4.1, 4.2, 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
+- [ ] 5. Implement MuLawCodec format validation and canDecode method
+  - Implement canDecode() to return true only for μ-law StreamInfo (codec_name "mulaw", "pcm_mulaw", "g711_mulaw")
+  - Add validation for μ-law specific parameters
+  - Ensure rejection of non-μ-law formats
+  - _Requirements: 10.5, 10.7_
 
-- [ ] 4. Implement StreamInfo parameter extraction and validation
-  - Extract sample rate from container headers with 8 kHz default for raw streams
-  - Extract channel count supporting mono and stereo configurations
-  - Validate sample rate ranges (8 kHz, 16 kHz, 32 kHz, 48 kHz)
-  - Handle raw bitstream parameters without container headers
-  - _Requirements: 3.2, 3.3, 3.5, 7.1, 7.2, 7.3, 7.4, 7.7_
+- [ ] 6. Implement ALawCodec format validation and canDecode method
+  - Implement canDecode() to return true only for A-law StreamInfo (codec_name "alaw", "pcm_alaw", "g711_alaw")
+  - Add validation for A-law specific parameters
+  - Ensure rejection of non-A-law formats
+  - _Requirements: 10.6, 10.7_
 
-- [ ] 5. Implement core decoding engine with chunk processing
-  - Create processChunk() method for MediaChunk to AudioFrame conversion
-  - Implement multi-channel sample processing with proper interleaving
-  - Handle variable chunk sizes efficiently for VoIP packet processing
-  - Generate AudioFrame output with 16-bit signed PCM in host byte order
-  - _Requirements: 1.2, 1.8, 2.2, 2.8, 3.4, 3.7, 5.5_
+- [ ] 7. Implement MuLawCodec sample conversion method
+  - Implement convertSamples() method using μ-law lookup table
+  - Handle multi-channel sample processing with proper interleaving
+  - Generate 16-bit signed PCM output in host byte order
+  - Support variable input chunk sizes for VoIP packet processing
+  - _Requirements: 1.2, 1.8, 3.4, 3.7, 5.5, 7.6_
 
-- [ ] 6. Implement comprehensive error handling and robustness
+- [ ] 8. Implement ALawCodec sample conversion method
+  - Implement convertSamples() method using A-law lookup table
+  - Handle multi-channel sample processing with proper interleaving
+  - Generate 16-bit signed PCM output in host byte order
+  - Support variable input chunk sizes for VoIP packet processing
+  - _Requirements: 2.2, 2.8, 3.4, 3.7, 5.5, 7.6_
+
+- [ ] 9. Add conditional compilation and MediaFactory registration
+  - Wrap MuLawCodec implementation with ENABLE_MULAW_CODEC guards
+  - Wrap ALawCodec implementation with ENABLE_ALAW_CODEC guards
+  - Implement registerMuLawCodec() function for AudioCodecFactory registration
+  - Implement registerALawCodec() function for AudioCodecFactory registration
+  - Register multiple codec name variants ("mulaw", "pcm_mulaw" for μ-law; "alaw", "pcm_alaw" for A-law)
+  - _Requirements: 10.1, 10.2, 10.3, 10.4_
+
+- [ ] 10. Implement comprehensive error handling for both codecs
   - Add initialization error handling for unsupported formats and invalid parameters
   - Implement runtime error recovery for corrupted data and truncated streams
   - Add input validation accepting all 8-bit values as valid
   - Handle memory allocation failures and maintain decoder state consistency
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.8_
 
-- [ ] 7. Implement silence handling and special value processing
-  - Add proper handling for μ-law silence encoding (0xFF)
-  - Add proper handling for A-law silence encoding (0x55)
-  - Ensure correct conversion of silence values to PCM
-  - Test silence suppression in telephony contexts
-  - _Requirements: 1.6, 2.6, 6.6_
-
-- [ ] 8. Add conditional compilation and MediaFactory integration
-  - Wrap codec implementation with ENABLE_MULAW_ALAW_CODEC guards
-  - Implement registerMuLawALawCodec() function for MediaFactory registration
-  - Add codec registration for both "mulaw" and "alaw" format identifiers
-  - Ensure clean builds when G.711 support is not available
-  - _Requirements: 9.1, 9.7_
-
-- [ ] 9. Implement Debug logging and PsyMP3 integration
-  - Add Debug::log() calls for format detection and initialization status
+- [ ] 11. Implement Debug logging and PsyMP3 integration
+  - Add Debug::log() calls for initialization status in both codecs
   - Implement error condition reporting using PsyMP3's Debug system
   - Add performance metrics logging when debug is enabled
   - Ensure thread-safe logging operations
   - _Requirements: 9.7, 9.8, 11.6_
 
-- [ ] 10. Create comprehensive unit tests for conversion accuracy
+- [ ] 12. Create comprehensive unit tests for μ-law conversion accuracy
   - Write tests verifying all 256 μ-law values convert to correct PCM samples
-  - Write tests verifying all 256 A-law values convert to correct PCM samples
   - Create tests comparing against ITU-T reference implementations
-  - Add tests for silence value handling (0xFF μ-law, 0x55 A-law)
+  - Add tests for μ-law silence value handling (0xFF)
+  - Test edge cases and boundary conditions for μ-law
   - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 11. Create format detection and container integration tests
-  - Write tests for WAV container format detection with correct format tags
-  - Write tests for AU container format detection with encoding values
-  - Create tests for file extension detection (.ul, .al files)
-  - Add tests for MIME type detection (audio/basic, audio/x-alaw)
-  - _Requirements: 4.3, 4.5, 10.7, 10.8_
+- [ ] 13. Create comprehensive unit tests for A-law conversion accuracy
+  - Write tests verifying all 256 A-law values convert to correct PCM samples
+  - Create tests comparing against ITU-T reference implementations
+  - Add tests for A-law silence value handling (0x55)
+  - Test edge cases and boundary conditions for A-law
+  - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 12. Implement performance and thread safety tests
-  - Create tests measuring real-time decoding performance requirements
+- [ ] 14. Create codec selection and validation tests
+  - Write tests for MuLawCodec canDecode() method with various StreamInfo
+  - Write tests for ALawCodec canDecode() method with various StreamInfo
+  - Test codec factory registration and selection
+  - Verify proper rejection of incompatible formats
+  - _Requirements: 10.5, 10.6, 10.7_
+
+- [ ] 15. Implement performance and thread safety tests
+  - Create tests measuring real-time decoding performance for both codecs
   - Write tests for concurrent codec instance operation
   - Add tests verifying lookup table memory efficiency
   - Create thread safety tests for shared lookup table access
   - _Requirements: 5.1, 5.2, 5.3, 11.1, 11.2, 11.3_
 
-- [ ] 13. Add ITU-T G.711 compliance validation tests
-  - Process ITU-T test vectors for μ-law and A-law formats
-  - Verify bit-perfect accuracy against reference outputs
-  - Test edge cases and boundary conditions for all input values
-  - Validate signal-to-noise ratio characteristics
-  - _Requirements: 6.1, 6.2, 6.5, 12.1, 12.6_
-
-- [ ] 14. Create integration tests with AudioCodec interface
+- [ ] 16. Create integration tests with SimplePCMCodec base class
   - Test initialize() method with various StreamInfo configurations
   - Test decode() method with different MediaChunk sizes
   - Test flush() behavior for stream completion scenarios
   - Test reset() functionality for seeking operations
   - _Requirements: 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 15. Add build system integration and conditional compilation tests
-  - Update Makefile.am to include codec source files with conditional compilation
-  - Add configure.ac checks for G.711 codec support availability
-  - Test builds with and without ENABLE_MULAW_ALAW_CODEC defined
+- [ ] 17. Add build system integration and conditional compilation tests
+  - Update Makefile.am to include separate codec source files with conditional compilation
+  - Add configure.ac checks for separate μ-law and A-law codec support
+  - Test builds with various combinations of ENABLE_MULAW_CODEC and ENABLE_ALAW_CODEC
   - Verify clean compilation when codec dependencies are unavailable
   - _Requirements: 9.1, 12.7_
