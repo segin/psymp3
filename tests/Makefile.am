@@ -53,7 +53,11 @@ check_PROGRAMS = \
 	test_iohandler_minimal \
 	test_iohandler_basic \
 	test_integration_verification \
-	test_iohandler_basic
+	test_iohandler_basic \
+	test_iohandler_demuxer_integration \
+	test_iohandler_demuxer_integration_simple \
+	test_psymp3_system_integration \
+	test_api_consistency
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -155,6 +159,36 @@ test_integration_verification_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
+
+test_iohandler_demuxer_integration_SOURCES = test_iohandler_demuxer_integration.cpp
+test_iohandler_demuxer_integration_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iohandler_demuxer_integration_simple_SOURCES = test_iohandler_demuxer_integration_simple.cpp
+test_iohandler_demuxer_integration_simple_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+
+test_psymp3_system_integration_SOURCES = test_psymp3_system_integration.cpp
+test_psymp3_system_integration_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/URI.o \
+	$(AM_LDFLAGS)
+
+test_api_consistency_SOURCES = test_api_consistency.cpp
+test_api_consistency_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
