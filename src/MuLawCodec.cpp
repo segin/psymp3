@@ -74,10 +74,60 @@ MuLawCodec::MuLawCodec(const StreamInfo& stream_info)
 }
 
 bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
+    // First check: Must be audio stream with μ-law codec name
+    if (stream_info.codec_type != "audio") {
+        return false;
+    }
+    
     // Accept various μ-law format identifiers
-    return stream_info.codec_name == "mulaw" || 
-           stream_info.codec_name == "pcm_mulaw" ||
-           stream_info.codec_name == "g711_mulaw";
+    bool is_mulaw_codec = (stream_info.codec_name == "mulaw" || 
+                          stream_info.codec_name == "pcm_mulaw" ||
+                          stream_info.codec_name == "g711_mulaw");
+    
+    if (!is_mulaw_codec) {
+        return false;
+    }
+    
+    // Validate μ-law specific parameters
+    // μ-law uses 8-bit samples (1 byte per sample)
+    if (stream_info.bits_per_sample != 0 && stream_info.bits_per_sample != 8) {
+        Debug::log("MuLawCodec: Rejecting stream - μ-law requires 8 bits per sample, got %d", 
+                   stream_info.bits_per_sample);
+        return false;
+    }
+    
+    // Validate sample rate - μ-law supports telephony rates and common audio rates
+    if (stream_info.sample_rate != 0) {
+        // Common telephony and audio sample rates for μ-law
+        bool valid_sample_rate = (stream_info.sample_rate == 8000 ||   // Standard telephony
+                                 stream_info.sample_rate == 16000 ||   // Wideband telephony
+                                 stream_info.sample_rate == 32000 ||   // Super-wideband
+                                 stream_info.sample_rate == 44100 ||   // CD quality
+                                 stream_info.sample_rate == 48000);    // Professional audio
+        
+        if (!valid_sample_rate) {
+            Debug::log("MuLawCodec: Warning - Unusual sample rate %d Hz for μ-law stream", 
+                       stream_info.sample_rate);
+            // Don't reject - allow unusual sample rates but log warning
+        }
+    }
+    
+    // Validate channel count - μ-law typically mono but can support stereo
+    if (stream_info.channels != 0) {
+        if (stream_info.channels > 2) {
+            Debug::log("MuLawCodec: Rejecting stream - μ-law supports max 2 channels, got %d", 
+                       stream_info.channels);
+            return false;
+        }
+        
+        if (stream_info.channels == 0) {
+            Debug::log("MuLawCodec: Rejecting stream - Invalid channel count: 0");
+            return false;
+        }
+    }
+    
+    // All validation passed
+    return true;
 }
 
 std::string MuLawCodec::getCodecName() const {

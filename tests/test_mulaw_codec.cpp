@@ -109,17 +109,19 @@ void test_mulaw_maximum_amplitudes() {
 }
 
 /**
- * @brief Test μ-law codec format detection
+ * @brief Test μ-law codec format detection and validation
  * 
- * Verify that the codec correctly identifies μ-law formats
+ * Verify that the codec correctly identifies μ-law formats and validates parameters
  */
 void test_mulaw_format_detection() {
     StreamInfo mulaw_stream;
     mulaw_stream.codec_name = "mulaw";
+    mulaw_stream.codec_type = "audio";
     MuLawCodec codec(mulaw_stream);
     
-    // Test accepted format identifiers
+    // Test accepted format identifiers with proper audio type
     StreamInfo test_stream;
+    test_stream.codec_type = "audio";
     
     test_stream.codec_name = "mulaw";
     ASSERT_TRUE(codec.canDecode(test_stream), "Should accept 'mulaw' format");
@@ -139,6 +141,70 @@ void test_mulaw_format_detection() {
     
     test_stream.codec_name = "mp3";
     ASSERT_FALSE(codec.canDecode(test_stream), "Should reject 'mp3' format");
+    
+    // Test codec type validation
+    test_stream.codec_name = "mulaw";
+    test_stream.codec_type = "video";
+    ASSERT_FALSE(codec.canDecode(test_stream), "Should reject non-audio streams");
+    
+    test_stream.codec_type = "subtitle";
+    ASSERT_FALSE(codec.canDecode(test_stream), "Should reject subtitle streams");
+    
+    test_stream.codec_type = "";
+    ASSERT_FALSE(codec.canDecode(test_stream), "Should reject empty codec type");
+    
+    // Test bits per sample validation
+    test_stream.codec_type = "audio";
+    test_stream.codec_name = "mulaw";
+    test_stream.bits_per_sample = 8;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept 8 bits per sample");
+    
+    test_stream.bits_per_sample = 0; // Unspecified
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept unspecified bits per sample");
+    
+    test_stream.bits_per_sample = 16;
+    ASSERT_FALSE(codec.canDecode(test_stream), "Should reject 16 bits per sample");
+    
+    test_stream.bits_per_sample = 24;
+    ASSERT_FALSE(codec.canDecode(test_stream), "Should reject 24 bits per sample");
+    
+    // Test channel count validation
+    test_stream.bits_per_sample = 8;
+    test_stream.channels = 1;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept mono");
+    
+    test_stream.channels = 2;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept stereo");
+    
+    test_stream.channels = 0; // Unspecified
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept unspecified channel count");
+    
+    test_stream.channels = 3;
+    ASSERT_FALSE(codec.canDecode(test_stream), "Should reject more than 2 channels");
+    
+    test_stream.channels = 8;
+    ASSERT_FALSE(codec.canDecode(test_stream), "Should reject 8 channels");
+    
+    // Test sample rate validation (should accept common rates)
+    test_stream.channels = 1;
+    test_stream.sample_rate = 8000;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept 8 kHz");
+    
+    test_stream.sample_rate = 16000;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept 16 kHz");
+    
+    test_stream.sample_rate = 44100;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept 44.1 kHz");
+    
+    test_stream.sample_rate = 48000;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept 48 kHz");
+    
+    test_stream.sample_rate = 0; // Unspecified
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept unspecified sample rate");
+    
+    // Unusual sample rates should be accepted with warning
+    test_stream.sample_rate = 22050;
+    ASSERT_TRUE(codec.canDecode(test_stream), "Should accept unusual sample rates");
 }
 
 /**

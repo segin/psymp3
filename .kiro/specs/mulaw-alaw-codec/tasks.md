@@ -28,7 +28,7 @@
   - Ensure bit-perfect accuracy matching ITU-T G.711 specification
   - _Requirements: 2.1, 2.3, 2.6, 6.2, 6.6_
 
-- [ ] 5. Implement MuLawCodec format validation and canDecode method
+- [x] 5. Implement MuLawCodec format validation and canDecode method
   - Implement canDecode() to return true only for μ-law StreamInfo (codec_name "mulaw", "pcm_mulaw", "g711_mulaw")
   - Add validation for μ-law specific parameters
   - Ensure rejection of non-μ-law formats
