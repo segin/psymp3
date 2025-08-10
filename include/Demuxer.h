@@ -28,30 +28,40 @@
 
 /**
  * @brief Information about a media stream within a container
+ * 
+ * This structure contains comprehensive metadata about a media stream,
+ * including codec information, timing data, and embedded metadata.
+ * 
+ * @note All timing values are provided in both samples and milliseconds
+ *       for convenience. Sample-based timing is more accurate for audio processing.
+ * 
+ * @thread_safety This structure is copyable and movable. Individual instances
+ *                are not thread-safe for modification, but can be safely read
+ *                from multiple threads once populated.
  */
 struct StreamInfo {
-    uint32_t stream_id = 0;
-    std::string codec_type;        // "audio", "video", "subtitle", etc.
-    std::string codec_name;        // "pcm", "mp3", "aac", "flac", etc.
-    uint32_t codec_tag = 0;        // Format-specific codec identifier
+    uint32_t stream_id = 0;           ///< Unique stream identifier within the container
+    std::string codec_type;        ///< Stream type: "audio", "video", "subtitle", etc.
+    std::string codec_name;        ///< Codec name: "pcm", "mp3", "aac", "flac", "vorbis", etc.
+    uint32_t codec_tag = 0;        ///< Format-specific codec identifier (e.g., WAVE format tag)
     
     // Audio-specific properties
-    uint32_t sample_rate = 0;
-    uint16_t channels = 0;
-    uint16_t bits_per_sample = 0;
-    uint32_t bitrate = 0;
+    uint32_t sample_rate = 0;      ///< Sample rate in Hz (e.g., 44100, 48000)
+    uint16_t channels = 0;         ///< Number of audio channels (1=mono, 2=stereo, etc.)
+    uint16_t bits_per_sample = 0;  ///< Bits per sample (8, 16, 24, 32)
+    uint32_t bitrate = 0;          ///< Average bitrate in bits per second (0 if unknown)
     
     // Additional codec-specific data
-    std::vector<uint8_t> codec_data; // Extra data needed by codec (e.g., decoder config)
+    std::vector<uint8_t> codec_data; ///< Extra data needed by codec (e.g., AAC AudioSpecificConfig, FLAC STREAMINFO)
     
     // Timing information
-    uint64_t duration_samples = 0;
-    uint64_t duration_ms = 0;
+    uint64_t duration_samples = 0; ///< Total duration in sample frames (0 if unknown)
+    uint64_t duration_ms = 0;      ///< Total duration in milliseconds (0 if unknown)
     
-    // Metadata
-    std::string artist;
-    std::string title;
-    std::string album;
+    // Metadata (extracted from container, if available)
+    std::string artist;            ///< Track artist name
+    std::string title;             ///< Track title
+    std::string album;             ///< Album name
     
     // Constructors
     StreamInfo() = default;
@@ -142,14 +152,27 @@ private:
 
 /**
  * @brief A chunk of media data with metadata and optimized memory management
+ * 
+ * MediaChunk represents a discrete unit of compressed media data from a container.
+ * It includes timing information and uses an internal buffer pool for efficient
+ * memory management.
+ * 
+ * @note The data vector contains compressed data that needs to be decoded by
+ *       an appropriate codec. For raw PCM formats, the data may be uncompressed.
+ * 
+ * @memory_management Uses BufferPool for automatic buffer reuse. Large buffers
+ *                    are automatically returned to the pool when the chunk is destroyed.
+ * 
+ * @thread_safety Individual instances are not thread-safe for modification,
+ *                but can be safely moved between threads.
  */
 struct MediaChunk {
-    uint32_t stream_id = 0;
-    std::vector<uint8_t> data;
-    uint64_t granule_position = 0;     // For Ogg-based formats
-    uint64_t timestamp_samples = 0;    // For other formats
-    bool is_keyframe = true;           // For audio, usually always true
-    uint64_t file_offset = 0;          // Original offset in file (for seeking)
+    uint32_t stream_id = 0;           ///< Stream this chunk belongs to
+    std::vector<uint8_t> data;        ///< Raw compressed media data
+    uint64_t granule_position = 0;    ///< Ogg-specific timing (0 for non-Ogg formats)
+    uint64_t timestamp_samples = 0;   ///< Timestamp in sample frames (for non-Ogg formats)
+    bool is_keyframe = true;          ///< Whether this is a keyframe (usually true for audio)
+    uint64_t file_offset = 0;         ///< Original file offset (used for seeking optimization)
     
     // Constructors
     MediaChunk() = default;
@@ -247,6 +270,31 @@ struct DemuxerError {
  * A demuxer is responsible for parsing container formats (RIFF, Ogg, MP4, etc.)
  * and extracting individual streams of media data. It does not decode the actual
  * audio/video data - that's the job of codec classes.
+ * 
+ * ## Design Principles
+ * - **Separation of Concerns**: Demuxing is separate from decoding
+ * - **Streaming Architecture**: Processes data incrementally without loading entire files
+ * - **Error Recovery**: Comprehensive error handling with recovery strategies
+ * - **Memory Efficiency**: Uses bounded buffers and buffer pooling
+ * 
+ * ## Usage Pattern
+ * 1. Create demuxer using DemuxerFactory
+ * 2. Call parseContainer() to analyze the file structure
+ * 3. Query available streams with getStreams()
+ * 4. Read data chunks with readChunk() methods
+ * 5. Optionally seek to different positions with seekTo()
+ * 
+ * ## Thread Safety
+ * Individual demuxer instances are **NOT** thread-safe. Use separate instances
+ * for concurrent access or implement external synchronization.
+ * 
+ * ## Error Handling
+ * Methods return false/empty results on error. Use getLastError() for detailed
+ * error information. The demuxer attempts automatic recovery where possible.
+ * 
+ * @see DemuxerFactory for creating demuxer instances
+ * @see MediaChunk for the data structure returned by read operations
+ * @see StreamInfo for stream metadata structure
  */
 class Demuxer {
 public:
@@ -255,12 +303,40 @@ public:
     
     /**
      * @brief Parse the container headers and identify streams
-     * @return true if container was successfully parsed, false otherwise
+     * 
+     * This method performs the initial analysis of the container format,
+     * extracting stream information, metadata, and building internal
+     * structures needed for data access.
+     * 
+     * @return true if container was successfully parsed, false on error
+     * 
+     * @post If successful, getStreams() will return valid stream information
+     * @post If successful, getDuration() may return the total duration
+     * @post On failure, getLastError() contains detailed error information
+     * 
+     * @note This method must be called successfully before any other operations
+     * @note This method should only be called once per demuxer instance
+     * 
+     * @thread_safety Not thread-safe. Do not call concurrently with other methods.
      */
     virtual bool parseContainer() = 0;
     
     /**
      * @brief Get information about all streams in the container
+     * 
+     * Returns comprehensive metadata about all streams found in the container.
+     * This includes audio, video, and subtitle streams with their respective
+     * codec information, timing data, and embedded metadata.
+     * 
+     * @return Vector of StreamInfo objects, one for each stream
+     * @return Empty vector if no streams found or container not parsed
+     * 
+     * @pre parseContainer() must have been called successfully
+     * 
+     * @thread_safety Safe to call concurrently after parseContainer() completes
+     * 
+     * @note Stream IDs in the returned StreamInfo objects are used with
+     *       readChunk(stream_id) and other stream-specific methods
      */
     virtual std::vector<StreamInfo> getStreams() const = 0;
     
@@ -271,7 +347,27 @@ public:
     
     /**
      * @brief Read the next chunk of data from any stream
-     * @return MediaChunk with data, or empty chunk if EOF
+     * 
+     * Reads the next available chunk of compressed media data from any stream
+     * in the container. The specific stream is determined by the container's
+     * internal structure and interleaving pattern.
+     * 
+     * @return MediaChunk containing compressed data and metadata
+     * @return Empty/invalid chunk if EOF reached or error occurred
+     * 
+     * @pre parseContainer() must have been called successfully
+     * 
+     * @post Updates internal position tracking
+     * @post May set EOF state if end of container reached
+     * 
+     * @thread_safety Not thread-safe. Serialize calls or use separate instances.
+     * 
+     * @note The returned data is compressed and needs codec processing
+     * @note Check MediaChunk::isValid() to distinguish valid data from EOF/error
+     * @note Use isEOF() to distinguish EOF from error conditions
+     * 
+     * @see readChunk(uint32_t) for reading from specific streams
+     * @see MediaChunk for the returned data structure
      */
     virtual MediaChunk readChunk() = 0;
     
@@ -284,8 +380,29 @@ public:
     
     /**
      * @brief Seek to a specific time position
-     * @param timestamp_ms Time in milliseconds
-     * @return true if seek was successful
+     * 
+     * Attempts to seek to the specified time position in the media.
+     * The actual seek position may be adjusted to the nearest keyframe
+     * or packet boundary depending on the container format.
+     * 
+     * @param timestamp_ms Target time position in milliseconds
+     * @return true if seek was successful, false on error
+     * 
+     * @pre parseContainer() must have been called successfully
+     * 
+     * @post If successful, subsequent readChunk() calls return data from new position
+     * @post If successful, getPosition() reflects the new position (may be approximate)
+     * @post Resets EOF state if seeking away from end of file
+     * @post May require codec reset in calling code due to discontinuity
+     * 
+     * @thread_safety Not thread-safe. Do not call concurrently with read operations.
+     * 
+     * @note Seeking may not be sample-accurate due to container format limitations
+     * @note Seeking beyond file duration is clamped to the end of the file
+     * @note Some formats (e.g., raw audio) support precise seeking, others approximate
+     * 
+     * @see getPosition() to query current position after seeking
+     * @see getDuration() to get valid seek range
      */
     virtual bool seekTo(uint64_t timestamp_ms) = 0;
     
