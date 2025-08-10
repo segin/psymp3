@@ -337,6 +337,9 @@ typedef struct bio_st BIO;
 #ifdef ENABLE_MULAW_CODEC
 #include "MuLawCodec.h"
 #endif
+#ifdef ENABLE_ALAW_CODEC
+#include "ALawCodec.h"
+#endif
 #include "DemuxedStream.h"
 #include "RawAudioDemuxer.h"
 #ifdef HAVE_OGGDEMUXER
