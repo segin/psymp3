@@ -21,7 +21,7 @@
   - Ensure bit-perfect accuracy matching ITU-T G.711 specification
   - _Requirements: 1.1, 1.3, 1.6, 6.1, 6.6_
 
-- [ ] 4. Implement A-law ITU-T G.711 compliant lookup table
+- [x] 4. Implement A-law ITU-T G.711 compliant lookup table
   - Create static const ALAW_TO_PCM[256] lookup table with ITU-T G.711 A-law values
   - Implement initializeALawTable() static method for table initialization
   - Add proper handling for A-law silence encoding (0x55)

@@ -71,6 +71,9 @@ if HAVE_OGGDEMUXER
 check_PROGRAMS += test_page_extraction
 endif
 
+# A-law codec tests
+check_PROGRAMS += test_alaw_table_verification
+
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
@@ -292,6 +295,22 @@ test_page_extraction_LDADD = \
 	$(AM_LDFLAGS)
 endif
 
+# A-law codec table verification test
+test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
+test_alaw_table_verification_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
+test_alaw_table_verification_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
 
 
 # Test execution target
@@ -362,3 +381,10 @@ $(top_builddir)/src/RAIIFileHandle.o:
 $(top_builddir)/src/MemoryOptimizer.o:
 	$(MAKE) -C $(top_builddir)/src MemoryOptimizer.o
 endif
+
+# Build rules for A-law codec test dependencies
+$(top_builddir)/src/ALawCodec.o:
+	$(MAKE) -C $(top_builddir)/src ALawCodec.o
+
+$(top_builddir)/src/AudioCodec.o:
+	$(MAKE) -C $(top_builddir)/src AudioCodec.o

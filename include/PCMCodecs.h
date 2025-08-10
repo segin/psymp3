@@ -53,30 +53,7 @@ private:
     void detectPCMFormat();
 };
 
-/**
- * @brief A-law codec (ITU-T G.711)
- * 
- * A-law is a logarithmic companding algorithm used primarily in European
- * and international telecommunications systems. Common in VoIP and telephony.
- */
-class ALawCodec : public SimplePCMCodec {
-public:
-    explicit ALawCodec(const StreamInfo& stream_info);
-    
-    std::string getCodecName() const override { return "alaw"; }
-    bool canDecode(const StreamInfo& stream_info) const override;
-    
-protected:
-    size_t convertSamples(const std::vector<uint8_t>& input_data, 
-                          std::vector<int16_t>& output_samples) override;
-    size_t getBytesPerInputSample() const override { return 1; }
-    
-private:
-    /**
-     * @brief Convert A-law sample to linear PCM
-     */
-    static int16_t alaw2linear(uint8_t alaw_sample);
-};
+
 
 
 

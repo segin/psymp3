@@ -116,48 +116,6 @@ void PCMCodec::detectPCMFormat() {
     }
 }
 
-// ALawCodec implementation
-ALawCodec::ALawCodec(const StreamInfo& stream_info) 
-    : SimplePCMCodec(stream_info) {
-}
-
-bool ALawCodec::canDecode(const StreamInfo& stream_info) const {
-    return stream_info.codec_name == "alaw" && stream_info.bits_per_sample == 8;
-}
-
-size_t ALawCodec::convertSamples(const std::vector<uint8_t>& input_data, 
-                                std::vector<int16_t>& output_samples) {
-    size_t num_samples = input_data.size();
-    output_samples.resize(num_samples);
-    
-    for (size_t i = 0; i < num_samples; ++i) {
-        output_samples[i] = alaw2linear(input_data[i]);
-    }
-    
-    return num_samples;
-}
-
-int16_t ALawCodec::alaw2linear(uint8_t alaw_sample) {
-    int16_t sign, exponent, mantissa, sample;
-    
-    alaw_sample ^= 0x55;
-    sign = (alaw_sample & 0x80);
-    exponent = (alaw_sample >> 4) & 0x07;
-    mantissa = alaw_sample & 0x0F;
-    
-    if (exponent == 0) {
-        sample = mantissa << 4;
-    } else {
-        sample = ((mantissa << 4) | 0x100) << (exponent - 1);
-    }
-    
-    if (sign == 0) {
-        sample = -sample;
-    }
-    
-    return sample;
-}
-
 
 
 #ifdef HAVE_MP3
