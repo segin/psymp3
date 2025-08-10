@@ -117,26 +117,26 @@ void ALawCodec::initializeALawTable() {
     // Validate critical values for ITU-T G.711 compliance
     // A-law silence value (0x55) should map to 0
     if (ALAW_TO_PCM[0x55] != 0) {
-        Debug::log("ALawCodec: Warning - A-law silence value (0x55) does not map to 0", "");
+        Debug::log("ALawCodec: Warning - A-law silence value (0x55) does not map to ", 0);
     }
     
     // Validate sign bit handling - values with bit 7 clear (0x00-0x7F) should be negative
     if (ALAW_TO_PCM[0x00] >= 0 || ALAW_TO_PCM[0x7F] >= 0) {
-        Debug::log("ALawCodec: Warning - A-law sign bit handling may be incorrect", "");
+        Debug::log("ALawCodec: Warning - A-law sign bit handling may be ", "incorrect");
     }
     
     // Validate sign bit handling - values with bit 7 set (0x80-0xFF) should be positive
     if (ALAW_TO_PCM[0x80] <= 0 || ALAW_TO_PCM[0xFF] <= 0) {
-        Debug::log("ALawCodec: Warning - A-law sign bit handling may be incorrect", "");
+        Debug::log("ALawCodec: Warning - A-law sign bit handling may be ", "incorrect");
     }
     
     // Validate even-bit inversion characteristic of A-law
     // A-law inverts even bits, so 0x54 and 0x56 should have different signs than 0x55
     if ((ALAW_TO_PCM[0x54] >= 0) || (ALAW_TO_PCM[0x56] >= 0)) {
-        Debug::log("ALawCodec: Warning - A-law even-bit inversion may be incorrect", "");
+        Debug::log("ALawCodec: Warning - A-law even-bit inversion may be ", "incorrect");
     }
     
-    Debug::log("ALawCodec: ITU-T G.711 A-law lookup table initialized successfully", "");
+    Debug::log("ALawCodec: ITU-T G.711 A-law lookup table initialized ", "successfully");
     s_table_initialized = true;
 }
 

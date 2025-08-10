@@ -121,7 +121,7 @@ bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
         }
         
         if (stream_info.channels == 0) {
-            Debug::log("MuLawCodec: Rejecting stream - Invalid channel count: 0");
+            Debug::log("MuLawCodec: Rejecting stream - Invalid channel count: ", 0);
             return false;
         }
     }
@@ -167,20 +167,20 @@ void MuLawCodec::initializeMuLawTable() {
     // Validate critical values for ITU-T G.711 compliance
     // μ-law silence value (0xFF) should map to 0
     if (MULAW_TO_PCM[0xFF] != 0) {
-        Debug::log("MuLawCodec: Warning - μ-law silence value (0xFF) does not map to 0", "");
+        Debug::log("MuLawCodec: Warning - μ-law silence value (0xFF) does not map to ", 0);
     }
     
     // Validate sign bit handling - values 0x00-0x7F should be negative
     if (MULAW_TO_PCM[0x00] >= 0 || MULAW_TO_PCM[0x7F] >= 0) {
-        Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be incorrect", "");
+        Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be ", "incorrect");
     }
     
     // Validate sign bit handling - values 0x80-0xFE should be positive  
     if (MULAW_TO_PCM[0x80] <= 0 || MULAW_TO_PCM[0xFE] <= 0) {
-        Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be incorrect", "");
+        Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be ", "incorrect");
     }
     
-    Debug::log("MuLawCodec: ITU-T G.711 μ-law lookup table initialized successfully", "");
+    Debug::log("MuLawCodec: ITU-T G.711 μ-law lookup table initialized ", "successfully");
     s_table_initialized = true;
 }
 

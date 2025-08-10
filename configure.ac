@@ -114,6 +114,10 @@ if test "x$have_oggdemuxer" = "xyes"; then
   AC_DEFINE([HAVE_OGGDEMUXER], [1], [Define to 1 if OggDemuxer should be built])
 fi
 
+# Enable A-law and μ-law codecs (no external dependencies required)
+AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
+AC_DEFINE([ENABLE_MULAW_CODEC], [1], [Define to 1 if μ-law codec support is enabled])
+
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])

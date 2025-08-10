@@ -313,6 +313,7 @@ test_alaw_table_verification_LDADD = \
 
 
 
+
 # Test execution target
 check-local: $(check_PROGRAMS)
 if BUILD_TEST_HARNESS

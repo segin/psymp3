@@ -77,7 +77,7 @@ psymp3_SOURCES = \
  ISODemuxerMetadataExtractor.cpp ISODemuxerSampleTableManager.cpp ISODemuxerSeekingEngine.cpp ISODemuxerStreamManager.cpp \
  Label.cpp LastFM.cpp LayoutWidget.cpp lyrics.cpp LyricsWidget.cpp \
  main.cpp MainUIWidget.cpp MediaFactory.cpp mediafile.cpp MemoryOptimizer.cpp MemoryPoolManager.cpp MemoryTracker.cpp BoundedBuffer.cpp ModernStream.cpp \
- PCMCodecs.cpp persistentstorage.cpp player.cpp PlayerProgressBarWidget.cpp playlist.cpp \
+ PCMCodecs.cpp ALawCodec.cpp MuLawCodec.cpp persistentstorage.cpp player.cpp PlayerProgressBarWidget.cpp playlist.cpp \
  ProgressBarBracketWidget.cpp ProgressBarFrameWidget.cpp RawAudioDemuxer.cpp rect.cpp scrobble.cpp \
  song.cpp SpectrumAnalyzerWidget.cpp stream.cpp StreamingManager.cpp surface.cpp \
  system.cpp TagLibIOHandlerAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp ToastWidget.cpp \

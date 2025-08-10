@@ -14,7 +14,7 @@
   - Add constructor accepting StreamInfo parameter
   - _Requirements: 9.1, 9.2, 9.6_
 
-- [x] 3. Implement μ-law ITU-T G.711 compliant lookup table
+- [x] 3. ImpSpeelement μ-law ITU-T G.711 compliant lookup table
   - Create static const MULAW_TO_PCM[256] lookup table with ITU-T G.711 μ-law values
   - Implement initializeMuLawTable() static method for table initialization
   - Add proper handling for μ-law silence encoding (0xFF)
@@ -34,7 +34,7 @@
   - Ensure rejection of non-μ-law formats
   - _Requirements: 10.5, 10.7_
 
-- [ ] 6. Implement ALawCodec format validation and canDecode method
+- [x] 6. Implement ALawCodec format validation and canDecode method
   - Implement canDecode() to return true only for A-law StreamInfo (codec_name "alaw", "pcm_alaw", "g711_alaw")
   - Add validation for A-law specific parameters
   - Ensure rejection of non-A-law formats
