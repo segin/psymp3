@@ -7,14 +7,14 @@
   - Add constructor accepting StreamInfo parameter
   - _Requirements: 9.1, 9.2, 9.6_
 
-- [ ] 2. Create ALawCodec class structure and interfaces
+- [x] 2. Create ALawCodec class structure and interfaces
   - Implement ALawCodec class inheriting from SimplePCMCodec
   - Implement all required AudioCodec virtual methods (canDecode, getCodecName)
   - Override SimplePCMCodec methods (convertSamples, getBytesPerInputSample)
   - Add constructor accepting StreamInfo parameter
   - _Requirements: 9.1, 9.2, 9.6_
 
-- [ ] 3. Implement μ-law ITU-T G.711 compliant lookup table
+- [x] 3. Implement μ-law ITU-T G.711 compliant lookup table
   - Create static const MULAW_TO_PCM[256] lookup table with ITU-T G.711 μ-law values
   - Implement initializeMuLawTable() static method for table initialization
   - Add proper handling for μ-law silence encoding (0xFF)

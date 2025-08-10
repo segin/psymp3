@@ -29,8 +29,41 @@
 bool MuLawCodec::s_table_initialized = false;
 
 // μ-law to 16-bit PCM conversion lookup table
-// Will be populated by initializeMuLawTable()
-const int16_t MuLawCodec::MULAW_TO_PCM[256] = {0}; // Placeholder - will be initialized
+// ITU-T G.711 μ-law compliant values
+const int16_t MuLawCodec::MULAW_TO_PCM[256] = {
+    -32124, -31100, -30076, -29052, -28028, -27004, -25980, -24956,
+    -23932, -22908, -21884, -20860, -19836, -18812, -17788, -16764,
+    -15996, -15484, -14972, -14460, -13948, -13436, -12924, -12412,
+    -11900, -11388, -10876, -10364,  -9852,  -9340,  -8828,  -8316,
+     -7932,  -7676,  -7420,  -7164,  -6908,  -6652,  -6396,  -6140,
+     -5884,  -5628,  -5372,  -5116,  -4860,  -4604,  -4348,  -4092,
+     -3900,  -3772,  -3644,  -3516,  -3388,  -3260,  -3132,  -3004,
+     -2876,  -2748,  -2620,  -2492,  -2364,  -2236,  -2108,  -1980,
+     -1884,  -1820,  -1756,  -1692,  -1628,  -1564,  -1500,  -1436,
+     -1372,  -1308,  -1244,  -1180,  -1116,  -1052,   -988,   -924,
+      -876,   -844,   -812,   -780,   -748,   -716,   -684,   -652,
+      -620,   -588,   -556,   -524,   -492,   -460,   -428,   -396,
+      -372,   -356,   -340,   -324,   -308,   -292,   -276,   -260,
+      -244,   -228,   -212,   -196,   -180,   -164,   -148,   -132,
+      -120,   -112,   -104,    -96,    -88,    -80,    -72,    -64,
+       -56,    -48,    -40,    -32,    -24,    -16,     -8,      0,
+     32124,  31100,  30076,  29052,  28028,  27004,  25980,  24956,
+     23932,  22908,  21884,  20860,  19836,  18812,  17788,  16764,
+     15996,  15484,  14972,  14460,  13948,  13436,  12924,  12412,
+     11900,  11388,  10876,  10364,   9852,   9340,   8828,   8316,
+      7932,   7676,   7420,   7164,   6908,   6652,   6396,   6140,
+      5884,   5628,   5372,   5116,   4860,   4604,   4348,   4092,
+      3900,   3772,   3644,   3516,   3388,   3260,   3132,   3004,
+      2876,   2748,   2620,   2492,   2364,   2236,   2108,   1980,
+      1884,   1820,   1756,   1692,   1628,   1564,   1500,   1436,
+      1372,   1308,   1244,   1180,   1116,   1052,    988,    924,
+       876,    844,    812,    780,    748,    716,    684,    652,
+       620,    588,    556,    524,    492,    460,    428,    396,
+       372,    356,    340,    324,    308,    292,    276,    260,
+       244,    228,    212,    196,    180,    164,    148,    132,
+       120,    112,    104,     96,     88,     80,     72,     64,
+        56,     48,     40,     32,     24,     16,      8,      0
+};
 
 MuLawCodec::MuLawCodec(const StreamInfo& stream_info) 
     : SimplePCMCodec(stream_info) {
@@ -74,8 +107,30 @@ size_t MuLawCodec::getBytesPerInputSample() const {
 }
 
 void MuLawCodec::initializeMuLawTable() {
-    // TODO: Implement ITU-T G.711 μ-law lookup table initialization
-    // This will be implemented in task 3
+    // Table is statically initialized with ITU-T G.711 μ-law values
+    // This method serves as a one-time initialization checkpoint
+    
+    if (s_table_initialized) {
+        return; // Already initialized
+    }
+    
+    // Validate critical values for ITU-T G.711 compliance
+    // μ-law silence value (0xFF) should map to 0
+    if (MULAW_TO_PCM[0xFF] != 0) {
+        Debug::log("MuLawCodec: Warning - μ-law silence value (0xFF) does not map to 0", "");
+    }
+    
+    // Validate sign bit handling - values 0x00-0x7F should be negative
+    if (MULAW_TO_PCM[0x00] >= 0 || MULAW_TO_PCM[0x7F] >= 0) {
+        Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be incorrect", "");
+    }
+    
+    // Validate sign bit handling - values 0x80-0xFE should be positive  
+    if (MULAW_TO_PCM[0x80] <= 0 || MULAW_TO_PCM[0xFE] <= 0) {
+        Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be incorrect", "");
+    }
+    
+    Debug::log("MuLawCodec: ITU-T G.711 μ-law lookup table initialized successfully", "");
     s_table_initialized = true;
 }
 

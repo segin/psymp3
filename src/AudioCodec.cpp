@@ -29,16 +29,20 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+#ifdef ENABLE_ALAW_CODEC
     } else if (stream_info.codec_name == "alaw") {
         auto codec = std::make_unique<ALawCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+#endif
+#ifdef ENABLE_MULAW_CODEC
     } else if (stream_info.codec_name == "mulaw") {
         auto codec = std::make_unique<MuLawCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
+#endif
 #ifdef HAVE_MP3
     } else if (stream_info.codec_name == "mp3") {
         auto codec = std::make_unique<MP3PassthroughCodec>(stream_info);

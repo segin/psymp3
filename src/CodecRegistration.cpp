@@ -12,21 +12,29 @@
 void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Starting codec registration");
     
-    // Always register PCM, A-law, μ-law (no conditional compilation)
+    // Register PCM codec (always available)
     CodecRegistry::registerCodec("pcm", [](const StreamInfo& info) {
         return std::make_unique<PCMCodec>(info);
     });
     Debug::log("codec", "registerAllCodecs: Registered PCM codec");
     
+#ifdef ENABLE_ALAW_CODEC
     CodecRegistry::registerCodec("alaw", [](const StreamInfo& info) {
         return std::make_unique<ALawCodec>(info);
     });
     Debug::log("codec", "registerAllCodecs: Registered A-law codec");
+#else
+    Debug::log("codec", "registerAllCodecs: A-law codec disabled at compile time");
+#endif
     
+#ifdef ENABLE_MULAW_CODEC
     CodecRegistry::registerCodec("mulaw", [](const StreamInfo& info) {
         return std::make_unique<MuLawCodec>(info);
     });
     Debug::log("codec", "registerAllCodecs: Registered μ-law codec");
+#else
+    Debug::log("codec", "registerAllCodecs: μ-law codec disabled at compile time");
+#endif
 
     // MP3 remains in legacy Stream architecture - not registered with CodecRegistry
 #ifdef HAVE_MP3

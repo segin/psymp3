@@ -158,39 +158,7 @@ int16_t ALawCodec::alaw2linear(uint8_t alaw_sample) {
     return sample;
 }
 
-// MuLawCodec implementation
-MuLawCodec::MuLawCodec(const StreamInfo& stream_info) 
-    : SimplePCMCodec(stream_info) {
-}
 
-bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
-    return stream_info.codec_name == "mulaw" && stream_info.bits_per_sample == 8;
-}
-
-size_t MuLawCodec::convertSamples(const std::vector<uint8_t>& input_data, 
-                                 std::vector<int16_t>& output_samples) {
-    size_t num_samples = input_data.size();
-    output_samples.resize(num_samples);
-    
-    for (size_t i = 0; i < num_samples; ++i) {
-        output_samples[i] = mulaw2linear(input_data[i]);
-    }
-    
-    return num_samples;
-}
-
-int16_t MuLawCodec::mulaw2linear(uint8_t mulaw_sample) {
-    static int exp_lut[8] = {0, 132, 396, 924, 1980, 4092, 8316, 16764};
-    int sign, exponent, mantissa, sample;
-    
-    mulaw_sample = ~mulaw_sample;
-    sign = (mulaw_sample & 0x80);
-    exponent = (mulaw_sample >> 4) & 0x07;
-    mantissa = mulaw_sample & 0x0F;
-    sample = exp_lut[exponent] + (mantissa << (exponent + 3));
-    
-    return sign ? -sample : sample;
-}
 
 #ifdef HAVE_MP3
 // MP3PassthroughCodec implementation
