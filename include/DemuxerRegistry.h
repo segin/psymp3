@@ -99,6 +99,9 @@ private:
     DemuxerRegistry();
     ~DemuxerRegistry();
     
+    // Internal method that assumes mutex is already held
+    void registerSignatureInternal(const FormatSignature& signature);
+    
     // Thread safety
     mutable std::mutex m_mutex;
     

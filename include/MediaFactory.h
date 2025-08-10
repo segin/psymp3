@@ -131,6 +131,10 @@ private:
     static ContentInfo detectByContentAnalysis(std::unique_ptr<IOHandler>& handler);
     static std::string probeOggCodec(const uint8_t* buffer, size_t buffer_size);
     static std::unique_ptr<IOHandler> createIOHandler(const std::string& uri);
+    
+    // Internal methods that assume mutex is already held
+    static void registerFormatInternal(const MediaFormat& format, StreamFactory factory);
+    static void registerContentDetectorInternal(const std::string& format_id, ContentDetector detector);
 };
 
 /**

@@ -15,14 +15,16 @@ std::map<std::string, std::string> MediaFactory::s_extension_to_format;
 std::map<std::string, std::string> MediaFactory::s_mime_to_format;
 bool MediaFactory::s_initialized = false;
 std::mutex MediaFactory::s_factory_mutex; // Thread safety for factory operations
+static std::mutex s_init_mutex; // Separate mutex for initialization
 
 std::unique_ptr<Stream> MediaFactory::createStream(const std::string& uri) {
-    // Thread-safe initialization check
-    {
-        std::lock_guard<std::mutex> lock(s_factory_mutex);
+    // Thread-safe initialization check with double-checked locking
+    if (!s_initialized) {
+        std::lock_guard<std::mutex> init_lock(s_init_mutex);
         if (!s_initialized) {
             Debug::log("loader", "MediaFactory::createStream initializing default formats");
             initializeDefaultFormats();
+            s_initialized = true;
         }
     }
     
@@ -36,11 +38,12 @@ std::unique_ptr<Stream> MediaFactory::createStream(const std::string& uri) {
 }
 
 std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string& uri, const std::string& mime_type) {
-    // Thread-safe initialization check
-    {
-        std::lock_guard<std::mutex> lock(s_factory_mutex);
+    // Thread-safe initialization check with double-checked locking
+    if (!s_initialized) {
+        std::lock_guard<std::mutex> init_lock(s_init_mutex);
         if (!s_initialized) {
             initializeDefaultFormats();
+            s_initialized = true;
         }
     }
     
@@ -64,13 +67,14 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithMimeType(const std::string
 }
 
 std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::string& uri, const ContentInfo& info) {
-    // Thread-safe initialization check
-    {
-        std::lock_guard<std::mutex> lock(s_factory_mutex);
+    // Thread-safe initialization check with double-checked locking
+    if (!s_initialized) {
+        std::lock_guard<std::mutex> init_lock(s_init_mutex);
         if (!s_initialized) {
             Debug::log("loader", "MediaFactory::createStreamWithContentInfo initializing default formats");
             try {
                 initializeDefaultFormats();
+                s_initialized = true;
             } catch (const std::exception& e) {
                 Debug::log("loader", "MediaFactory::createStreamWithContentInfo failed to initialize formats: ", e.what());
                 throw UnsupportedMediaException("Failed to initialize media formats: " + std::string(e.what()));
@@ -138,12 +142,13 @@ std::unique_ptr<Stream> MediaFactory::createStreamWithContentInfo(const std::str
 }
 
 ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
-    // Thread-safe initialization check
-    {
-        std::lock_guard<std::mutex> lock(s_factory_mutex);
+    // Thread-safe initialization check with double-checked locking
+    if (!s_initialized) {
+        std::lock_guard<std::mutex> init_lock(s_init_mutex);
         if (!s_initialized) {
             Debug::log("loader", "MediaFactory::analyzeContent initializing default formats");
             initializeDefaultFormats();
+            s_initialized = true;
         }
     }
     
@@ -188,11 +193,12 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
 }
 
 ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
-    // Thread-safe initialization check
-    {
-        std::lock_guard<std::mutex> lock(s_factory_mutex);
+    // Thread-safe initialization check with double-checked locking
+    if (!s_initialized) {
+        std::lock_guard<std::mutex> init_lock(s_init_mutex);
         if (!s_initialized) {
             initializeDefaultFormats();
+            s_initialized = true;
         }
     }
     
@@ -200,16 +206,23 @@ ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
     float best_confidence = 0.0f;
     
     // Try content-specific detectors first (highest confidence) - thread-safe
+    // Copy detectors to avoid holding factory mutex while calling them
+    std::vector<std::pair<std::string, ContentDetector>> detectors;
     {
         std::lock_guard<std::mutex> lock(s_factory_mutex);
         for (const auto& [format_id, registration] : s_formats) {
             if (registration.detector) {
-                auto result = registration.detector(handler);
-                if (result && result->confidence > best_confidence) {
-                    best_match = *result;
-                    best_confidence = result->confidence;
-                }
+                detectors.emplace_back(format_id, registration.detector);
             }
+        }
+    }
+    
+    // Call detectors without holding factory mutex to avoid deadlocks
+    for (const auto& [format_id, detector] : detectors) {
+        auto result = detector(handler);
+        if (result && result->confidence > best_confidence) {
+            best_match = *result;
+            best_confidence = result->confidence;
         }
     }
     
@@ -236,6 +249,11 @@ ContentInfo MediaFactory::analyzeContent(std::unique_ptr<IOHandler>& handler) {
 
 void MediaFactory::registerFormat(const MediaFormat& format, StreamFactory factory) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
+    registerFormatInternal(format, factory);
+}
+
+void MediaFactory::registerFormatInternal(const MediaFormat& format, StreamFactory factory) {
+    // Assumes s_factory_mutex is already held
     FormatRegistration registration;
     registration.format = format;
     registration.factory = factory;
@@ -246,6 +264,11 @@ void MediaFactory::registerFormat(const MediaFormat& format, StreamFactory facto
 
 void MediaFactory::registerContentDetector(const std::string& format_id, ContentDetector detector) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
+    registerContentDetectorInternal(format_id, detector);
+}
+
+void MediaFactory::registerContentDetectorInternal(const std::string& format_id, ContentDetector detector) {
+    // Assumes s_factory_mutex is already held
     auto it = s_formats.find(format_id);
     if (it != s_formats.end()) {
         it->second.detector = detector;
@@ -457,7 +480,7 @@ void MediaFactory::initializeDefaultFormats() {
     mp3_format.supports_seeking = true;
     mp3_format.description = "MPEG-1/2 Audio Layer II/III";
     
-    registerFormat(mp3_format, [](const std::string& uri, const ContentInfo& info) {
+    registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
         return std::make_unique<Libmpg123>(TagLib::String(uri.c_str()));
     });
 #endif
@@ -476,7 +499,7 @@ void MediaFactory::initializeDefaultFormats() {
     flac_format.supports_seeking = true;
     flac_format.description = "Free Lossless Audio Codec";
     
-    registerFormat(flac_format, [](const std::string& uri, const ContentInfo& info) {
+    registerFormatInternal(flac_format, [](const std::string& uri, const ContentInfo& info) {
         return std::make_unique<Flac>(TagLib::String(uri.c_str()));
     });
 #endif
@@ -499,7 +522,7 @@ void MediaFactory::initializeDefaultFormats() {
         ogg_format.is_container = true;
         ogg_format.description = "Ogg container (Vorbis/Opus/FLAC)";
         
-        registerFormat(ogg_format, [](const std::string& uri, const ContentInfo& info) {
+        registerFormatInternal(ogg_format, [](const std::string& uri, const ContentInfo& info) {
             Debug::log("loader", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
             Debug::log("demuxer", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
             Debug::log("ogg", "MediaFactory: Creating DemuxedStream for Ogg file: ", uri);
@@ -508,7 +531,7 @@ void MediaFactory::initializeDefaultFormats() {
         });
         
         // Register enhanced content detector for Ogg files
-        registerContentDetector("ogg", [](std::unique_ptr<IOHandler>& handler) -> std::optional<ContentInfo> {
+        registerContentDetectorInternal("ogg", [](std::unique_ptr<IOHandler>& handler) -> std::optional<ContentInfo> {
             if (!handler) return std::nullopt;
             
             uint8_t buffer[512];
@@ -560,7 +583,7 @@ void MediaFactory::initializeDefaultFormats() {
         wave_format.is_container = true;
         wave_format.description = "RIFF WAVE audio";
         
-        registerFormat(wave_format, [](const std::string& uri, const ContentInfo& info) {
+        registerFormatInternal(wave_format, [](const std::string& uri, const ContentInfo& info) {
             return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
         });
     }
@@ -580,7 +603,7 @@ void MediaFactory::initializeDefaultFormats() {
         aiff_format.is_container = true;
         aiff_format.description = "Apple AIFF audio";
         
-        registerFormat(aiff_format, [](const std::string& uri, const ContentInfo& info) {
+        registerFormatInternal(aiff_format, [](const std::string& uri, const ContentInfo& info) {
             return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
         });
     }
@@ -600,7 +623,7 @@ void MediaFactory::initializeDefaultFormats() {
         mp4_format.is_container = true;
         mp4_format.description = "ISO Base Media (MP4/M4A)";
         
-        registerFormat(mp4_format, [](const std::string& uri, const ContentInfo& info) {
+        registerFormatInternal(mp4_format, [](const std::string& uri, const ContentInfo& info) {
             return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
         });
     }
@@ -617,7 +640,7 @@ void MediaFactory::initializeDefaultFormats() {
         raw_format.supports_seeking = true;
         raw_format.description = "Raw PCM/A-law/μ-law audio";
         
-        registerFormat(raw_format, [](const std::string& uri, const ContentInfo& info) {
+        registerFormatInternal(raw_format, [](const std::string& uri, const ContentInfo& info) {
             return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));
         });
     }
@@ -633,12 +656,11 @@ void MediaFactory::initializeDefaultFormats() {
     playlist_format.supports_seeking = false;
     playlist_format.description = "M3U/M3U8 playlists";
     
-    registerFormat(playlist_format, [](const std::string& uri, const ContentInfo& info) {
+    registerFormatInternal(playlist_format, [](const std::string& uri, const ContentInfo& info) {
         return std::make_unique<NullStream>(TagLib::String(uri.c_str()));
     });
     
     rebuildLookupTables();
-    s_initialized = true;
 }
 
 void MediaFactory::rebuildLookupTables() {

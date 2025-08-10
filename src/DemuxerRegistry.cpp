@@ -53,7 +53,11 @@ void DemuxerRegistry::registerDemuxer(const std::string& format_id,
 
 void DemuxerRegistry::registerSignature(const FormatSignature& signature) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    
+    registerSignatureInternal(signature);
+}
+
+void DemuxerRegistry::registerSignatureInternal(const FormatSignature& signature) {
+    // This method assumes the mutex is already held
     m_signatures.push_back(signature);
     
     // Sort signatures by priority (highest first)
@@ -279,25 +283,25 @@ void DemuxerRegistry::initializeBuiltInFormats() {
     // Register built-in format signatures
     
     // RIFF/WAV signature
-    registerSignature(FormatSignature("riff", {0x52, 0x49, 0x46, 0x46}, 0, 100)); // "RIFF"
+    registerSignatureInternal(FormatSignature("riff", {0x52, 0x49, 0x46, 0x46}, 0, 100)); // "RIFF"
     
     // AIFF signature
-    registerSignature(FormatSignature("aiff", {0x46, 0x4F, 0x52, 0x4D}, 0, 100)); // "FORM"
+    registerSignatureInternal(FormatSignature("aiff", {0x46, 0x4F, 0x52, 0x4D}, 0, 100)); // "FORM"
     
     // Ogg signature
-    registerSignature(FormatSignature("ogg", {0x4F, 0x67, 0x67, 0x53}, 0, 100)); // "OggS"
+    registerSignatureInternal(FormatSignature("ogg", {0x4F, 0x67, 0x67, 0x53}, 0, 100)); // "OggS"
     
     // FLAC signature
-    registerSignature(FormatSignature("flac", {0x66, 0x4C, 0x61, 0x43}, 0, 100)); // "fLaC"
+    registerSignatureInternal(FormatSignature("flac", {0x66, 0x4C, 0x61, 0x43}, 0, 100)); // "fLaC"
     
     // MP4/ISO signature (ftyp box)
-    registerSignature(FormatSignature("mp4", {0x66, 0x74, 0x79, 0x70}, 4, 90)); // "ftyp" at offset 4
+    registerSignatureInternal(FormatSignature("mp4", {0x66, 0x74, 0x79, 0x70}, 4, 90)); // "ftyp" at offset 4
     
     // MP3 signature (ID3v2)
-    registerSignature(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"
+    registerSignatureInternal(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"
     
     // MP3 signature (frame sync)
-    registerSignature(FormatSignature("mp3", {0xFF, 0xFB}, 0, 70)); // MPEG frame sync
+    registerSignatureInternal(FormatSignature("mp3", {0xFF, 0xFB}, 0, 70)); // MPEG frame sync
     
     m_initialized = true;
 }

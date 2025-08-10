@@ -156,8 +156,8 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     // Log successful file opening
     Debug::log("io", "FileIOHandler::FileIOHandler() - Successfully opened file: ", path.to8Bit(false));
     
-    // Get and log file size for debugging and optimization
-    off_t fileSize = getFileSize();
+    // Get and log file size for debugging and optimization (without locks during construction)
+    off_t fileSize = getFileSizeInternal();
     if (fileSize >= 0) {
         m_cached_file_size = fileSize;  // Cache for performance
         Debug::log("io", "FileIOHandler::FileIOHandler() - File size: ", fileSize, 
@@ -306,11 +306,14 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
                 read_size = std::max(remaining_bytes, m_read_ahead_size);
             }
             
-            if (!fillBuffer(read_position, read_size)) {
-                // Buffer fill failed
-                if (m_error.load() == 0) {
-                    // Check if we hit EOF (need file mutex for file operations)
-                    std::lock_guard<std::mutex> file_lock(m_file_mutex);
+            // Acquire file mutex before calling fillBuffer to avoid recursive locking
+            bool fill_success;
+            {
+                std::lock_guard<std::mutex> file_lock(m_file_mutex);
+                fill_success = fillBuffer(read_position, read_size);
+                
+                if (!fill_success && m_error.load() == 0) {
+                    // Check if we hit EOF (file mutex already held)
                     if (feof(m_file_handle.get())) {
                         updateEofState(true);
                         Debug::log("io", "FileIOHandler::read() - Reached end of file during buffer fill");
@@ -320,6 +323,9 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
                         Debug::log("io", "FileIOHandler::read() - Buffer fill failed: ", strerror(file_error));
                     }
                 }
+            }
+            
+            if (!fill_success) {
                 break;
             }
             
@@ -772,6 +778,33 @@ off_t FileIOHandler::getFileSize() {
     return file_stat.st_size;
 }
 
+off_t FileIOHandler::getFileSizeInternal() {
+    // Internal method for constructor use - no locks to avoid deadlock
+    // This assumes the file handle is valid and the object is being constructed
+    
+    if (!m_file_handle.is_valid()) {
+        return -1;
+    }
+    
+#ifdef _WIN32
+    // Windows: Use _fstat64 for large file support
+    struct _stat64 file_stat;
+    int fd = _fileno(m_file_handle.get());
+    if (fd < 0 || _fstat64(fd, &file_stat) != 0) {
+        return -1;
+    }
+    return file_stat.st_size;
+#else
+    // Unix/Linux: Use fstat for file size determination
+    struct stat file_stat;
+    int fd = fileno(m_file_handle.get());
+    if (fd < 0 || fstat(fd, &file_stat) != 0) {
+        return -1;
+    }
+    return file_stat.st_size;
+#endif
+}
+
 /**
  * @brief Validate that the file handle is in a usable state.
  *
@@ -941,18 +974,15 @@ bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
         buffer_size_to_use = std::min(buffer_size_to_use, static_cast<size_t>(remaining));
     }
     
-    // Seek to the desired position if necessary
-    off_t current_file_pos = tell();
-    if (current_file_pos != file_position) {
+    // Seek to the desired position (assumes file mutex is already held by caller)
 #ifdef _WIN32
-        if (_fseeki64(m_file_handle, file_position, SEEK_SET) != 0) {
+    if (_fseeki64(m_file_handle, file_position, SEEK_SET) != 0) {
 #else
-        if (fseeko(m_file_handle, file_position, SEEK_SET) != 0) {
+    if (fseeko(m_file_handle, file_position, SEEK_SET) != 0) {
 #endif
-            m_error = errno;
-            Debug::log("io", "FileIOHandler::fillBuffer() - Seek failed: ", strerror(errno));
-            return false;
-        }
+        m_error = errno;
+        Debug::log("io", "FileIOHandler::fillBuffer() - Seek failed: ", strerror(errno));
+        return false;
     }
     
     // Get buffer from pool if current buffer is too small

@@ -110,7 +110,8 @@ void MPRIS::updateMetadata(const std::string& artist, const std::string& title, 
     // Add artist
     DBusMessageIter artist_entry_iter;
     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &artist_entry_iter);
-    dbus_message_iter_append_basic(&artist_entry_iter, DBUS_TYPE_STRING, &"xesam:artist");
+    const char* artist_key = "xesam:artist";
+    dbus_message_iter_append_basic(&artist_entry_iter, DBUS_TYPE_STRING, &artist_key);
     DBusMessageIter artist_array_iter;
     dbus_message_iter_open_container(&artist_entry_iter, DBUS_TYPE_ARRAY, "s", &artist_array_iter);
     dbus_message_iter_append_basic(&artist_array_iter, DBUS_TYPE_STRING, &artist);
@@ -120,14 +121,16 @@ void MPRIS::updateMetadata(const std::string& artist, const std::string& title, 
     // Add title
     DBusMessageIter title_entry_iter;
     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &title_entry_iter);
-    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &"xesam:title");
+    const char* title_key = "xesam:title";
+    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_key);
     dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title);
     dbus_message_iter_close_container(&metadata_dict_iter, &title_entry_iter);
 
     // Add album
     DBusMessageIter album_entry_iter;
     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &album_entry_iter);
-    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &"xesam:album");
+    const char* album_key = "xesam:album";
+    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_key);
     dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album);
     dbus_message_iter_close_container(&metadata_dict_iter, &album_entry_iter);
 
@@ -157,7 +160,8 @@ void MPRIS::updatePlaybackStatus(const std::string& status) {
     }
 
     dbus_message_iter_init_append(msg, &args);
-    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &"org.mpris.MediaPlayer2.Player");
+    const char* interface_name = "org.mpris.MediaPlayer2.Player";
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &interface_name);
 
     DBusMessageIter array_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &array_iter);
@@ -165,7 +169,8 @@ void MPRIS::updatePlaybackStatus(const std::string& status) {
     // Add PlaybackStatus property
     DBusMessageIter dict_entry_iter;
     dbus_message_iter_open_container(&array_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &dict_entry_iter);
-    dbus_message_iter_append_basic(&dict_entry_iter, DBUS_TYPE_STRING, &"PlaybackStatus");
+    const char* property_name = "PlaybackStatus";
+    dbus_message_iter_append_basic(&dict_entry_iter, DBUS_TYPE_STRING, &property_name);
     
     DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&dict_entry_iter, DBUS_TYPE_VARIANT, "s", &variant_iter);
@@ -323,7 +328,8 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                     // Artist
                     DBusMessageIter artist_entry_iter;
                     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &artist_entry_iter);
-                    dbus_message_iter_append_basic(&artist_entry_iter, DBUS_TYPE_STRING, &"xesam:artist");
+                    const char* artist_key = "xesam:artist";
+                    dbus_message_iter_append_basic(&artist_entry_iter, DBUS_TYPE_STRING, &artist_key);
                     DBusMessageIter artist_array_iter;
                     dbus_message_iter_open_container(&artist_entry_iter, DBUS_TYPE_ARRAY, "s", &artist_array_iter);
                     dbus_message_iter_append_basic(&artist_array_iter, DBUS_TYPE_STRING, &artist_str);
@@ -333,21 +339,24 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                     // Title
                     DBusMessageIter title_entry_iter;
                     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &title_entry_iter);
-                    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &"xesam:title");
+                    const char* title_key = "xesam:title";
+                    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_key);
                     dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_str);
                     dbus_message_iter_close_container(&metadata_dict_iter, &title_entry_iter);
 
                     // Album
                     DBusMessageIter album_entry_iter;
                     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &album_entry_iter);
-                    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &"xesam:album");
+                    const char* album_key = "xesam:album";
+                    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_key);
                     dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_str);
                     dbus_message_iter_close_container(&metadata_dict_iter, &album_entry_iter);
 
                     // Duration (in microseconds)
                     DBusMessageIter length_entry_iter;
                     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &length_entry_iter);
-                    dbus_message_iter_append_basic(&length_entry_iter, DBUS_TYPE_STRING, &"mpris:length");
+                    const char* length_key = "mpris:length";
+                    dbus_message_iter_append_basic(&length_entry_iter, DBUS_TYPE_STRING, &length_key);
                     dbus_int64_t length_us = static_cast<dbus_int64_t>(m_player->stream->getLength()) * 1000;
                     dbus_message_iter_append_basic(&length_entry_iter, DBUS_TYPE_UINT64, &length_us);
                     dbus_message_iter_close_container(&metadata_dict_iter, &length_entry_iter);
