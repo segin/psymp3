@@ -57,7 +57,14 @@ check_PROGRAMS = \
 	test_iohandler_demuxer_integration \
 	test_iohandler_demuxer_integration_simple \
 	test_psymp3_system_integration \
-	test_api_consistency
+	test_api_consistency \
+	test_demuxer_unit \
+	test_demuxer_factory_unit \
+	test_media_factory_unit \
+	test_demuxed_stream_unit \
+	test_demuxer_integration \
+	test_media_factory_integration \
+	test_demuxer_performance
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -189,6 +196,78 @@ test_psymp3_system_integration_LDADD = libtest_utilities.a \
 
 test_api_consistency_SOURCES = test_api_consistency.cpp
 test_api_consistency_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+
+# Demuxer architecture unit tests
+test_demuxer_unit_SOURCES = test_demuxer_unit.cpp
+test_demuxer_unit_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+test_demuxer_factory_unit_SOURCES = test_demuxer_factory_unit.cpp
+test_demuxer_factory_unit_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
+test_media_factory_unit_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MediaFactory.o \
+	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
+test_demuxed_stream_unit_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Integration tests
+test_demuxer_integration_SOURCES = test_demuxer_integration.cpp
+test_demuxer_integration_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+test_media_factory_integration_SOURCES = test_media_factory_integration.cpp
+test_media_factory_integration_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MediaFactory.o \
+	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Performance and regression tests
+test_demuxer_performance_SOURCES = test_demuxer_performance.cpp
+test_demuxer_performance_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
 
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
