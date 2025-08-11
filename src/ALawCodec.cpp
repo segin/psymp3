@@ -74,10 +74,57 @@ ALawCodec::ALawCodec(const StreamInfo& stream_info)
 }
 
 bool ALawCodec::canDecode(const StreamInfo& stream_info) const {
+    // First check: Must be audio stream with A-law codec name
+    if (stream_info.codec_type != "audio") {
+        return false;
+    }
+    
     // Accept various A-law format identifiers
-    return stream_info.codec_name == "alaw" || 
-           stream_info.codec_name == "pcm_alaw" ||
-           stream_info.codec_name == "g711_alaw";
+    bool is_alaw_codec = (stream_info.codec_name == "alaw" || 
+                         stream_info.codec_name == "pcm_alaw" ||
+                         stream_info.codec_name == "g711_alaw");
+    
+    if (!is_alaw_codec) {
+        return false;
+    }
+    
+    // Validate A-law specific parameters
+    // A-law uses 8-bit samples (1 byte per sample)
+    if (stream_info.bits_per_sample != 0 && stream_info.bits_per_sample != 8) {
+        Debug::log("ALawCodec", "Rejecting stream - A-law requires 8 bits per sample, got ", stream_info.bits_per_sample);
+        return false;
+    }
+    
+    // Validate sample rate - A-law supports telephony rates and common audio rates
+    if (stream_info.sample_rate != 0) {
+        // Common telephony and audio sample rates for A-law
+        bool valid_sample_rate = (stream_info.sample_rate == 8000 ||   // Standard telephony
+                                 stream_info.sample_rate == 16000 ||   // Wideband telephony
+                                 stream_info.sample_rate == 32000 ||   // Super-wideband
+                                 stream_info.sample_rate == 44100 ||   // CD quality
+                                 stream_info.sample_rate == 48000);    // Professional audio
+        
+        if (!valid_sample_rate) {
+            Debug::log("ALawCodec", "Warning - Unusual sample rate ", stream_info.sample_rate, " Hz for A-law stream");
+            // Don't reject - allow unusual sample rates but log warning
+        }
+    }
+    
+    // Validate channel count - A-law typically mono but can support stereo
+    if (stream_info.channels != 0) {
+        if (stream_info.channels > 2) {
+            Debug::log("ALawCodec", "Rejecting stream - A-law supports max 2 channels, got ", stream_info.channels);
+            return false;
+        }
+        
+        if (stream_info.channels == 0) {
+            Debug::log("ALawCodec", "Rejecting stream - Invalid channel count: ", stream_info.channels);
+            return false;
+        }
+    }
+    
+    // All validation passed
+    return true;
 }
 
 std::string ALawCodec::getCodecName() const {
@@ -88,11 +135,21 @@ size_t ALawCodec::convertSamples(const std::vector<uint8_t>& input_data,
                                 std::vector<int16_t>& output_samples) {
     const size_t input_samples = input_data.size();
     
-    // Ensure output vector has sufficient capacity
+    // Handle empty input gracefully
+    if (input_samples == 0) {
+        output_samples.clear();
+        return 0;
+    }
+    
+    // Ensure output vector has sufficient capacity for optimal performance
     output_samples.reserve(input_samples);
     output_samples.clear();
     
     // Convert each A-law sample to 16-bit PCM using lookup table
+    // For multi-channel audio, samples are processed in interleaved order:
+    // Mono: [sample0, sample1, sample2, ...]
+    // Stereo: [L0, R0, L1, R1, L2, R2, ...]
+    // This maintains proper channel interleaving in the output
     for (size_t i = 0; i < input_samples; ++i) {
         const uint8_t alaw_sample = input_data[i];
         const int16_t pcm_sample = ALAW_TO_PCM[alaw_sample];
@@ -115,28 +172,28 @@ void ALawCodec::initializeALawTable() {
     }
     
     // Validate critical values for ITU-T G.711 compliance
-    // A-law silence value (0x55) should map to 0
-    if (ALAW_TO_PCM[0x55] != 0) {
-        Debug::log("ALawCodec: Warning - A-law silence value (0x55) does not map to ", 0);
+    // A-law closest-to-silence value (0x55) should map to -8 (ITU-T G.711 compliant)
+    if (ALAW_TO_PCM[0x55] != -8) {
+        Debug::log("ALawCodec", "Warning - A-law closest-to-silence value (0x55) should map to -8, got ", ALAW_TO_PCM[0x55]);
     }
     
     // Validate sign bit handling - values with bit 7 clear (0x00-0x7F) should be negative
     if (ALAW_TO_PCM[0x00] >= 0 || ALAW_TO_PCM[0x7F] >= 0) {
-        Debug::log("ALawCodec: Warning - A-law sign bit handling may be ", "incorrect");
+        Debug::log("ALawCodec", "Warning - A-law sign bit handling may be incorrect");
     }
     
     // Validate sign bit handling - values with bit 7 set (0x80-0xFF) should be positive
     if (ALAW_TO_PCM[0x80] <= 0 || ALAW_TO_PCM[0xFF] <= 0) {
-        Debug::log("ALawCodec: Warning - A-law sign bit handling may be ", "incorrect");
+        Debug::log("ALawCodec", "Warning - A-law sign bit handling may be incorrect");
     }
     
     // Validate even-bit inversion characteristic of A-law
-    // A-law inverts even bits, so 0x54 and 0x56 should have different signs than 0x55
-    if ((ALAW_TO_PCM[0x54] >= 0) || (ALAW_TO_PCM[0x56] >= 0)) {
-        Debug::log("ALawCodec: Warning - A-law even-bit inversion may be ", "incorrect");
+    // A-law inverts even bits during encoding, verify adjacent values
+    if (ALAW_TO_PCM[0x54] != -24 || ALAW_TO_PCM[0x56] != -56) {
+        Debug::log("ALawCodec", "Warning - A-law even-bit inversion values may be incorrect");
     }
     
-    Debug::log("ALawCodec: ITU-T G.711 A-law lookup table initialized ", "successfully");
+    Debug::log("ALawCodec", "ITU-T G.711 A-law lookup table initialized successfully");
     s_table_initialized = true;
 }
 

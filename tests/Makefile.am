@@ -72,7 +72,7 @@ check_PROGRAMS += test_page_extraction
 endif
 
 # A-law codec tests
-check_PROGRAMS += test_alaw_table_verification
+check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion
 
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
@@ -299,6 +299,22 @@ endif
 test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
 test_alaw_table_verification_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
 test_alaw_table_verification_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# A-law codec sample conversion test
+test_alaw_sample_conversion_SOURCES = test_alaw_sample_conversion.cpp
+test_alaw_sample_conversion_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
+test_alaw_sample_conversion_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/AudioCodec.o \

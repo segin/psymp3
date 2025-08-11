@@ -24,7 +24,7 @@
 - [x] 4. Implement A-law ITU-T G.711 compliant lookup table
   - Create static const ALAW_TO_PCM[256] lookup table with ITU-T G.711 A-law values
   - Implement initializeALawTable() static method for table initialization
-  - Add proper handling for A-law silence encoding (0x55)
+  - Add proper handling for A-law closest-to-silence encoding (0x55 maps to -8)
   - Ensure bit-perfect accuracy matching ITU-T G.711 specification
   - _Requirements: 2.1, 2.3, 2.6, 6.2, 6.6_
 
@@ -40,14 +40,14 @@
   - Ensure rejection of non-A-law formats
   - _Requirements: 10.6, 10.7_
 
-- [ ] 7. Implement MuLawCodec sample conversion method
+- [x] 7. Implement MuLawCodec sample conversion method
   - Implement convertSamples() method using μ-law lookup table
   - Handle multi-channel sample processing with proper interleaving
   - Generate 16-bit signed PCM output in host byte order
   - Support variable input chunk sizes for VoIP packet processing
   - _Requirements: 1.2, 1.8, 3.4, 3.7, 5.5, 7.6_
 
-- [ ] 8. Implement ALawCodec sample conversion method
+- [x] 8. Implement ALawCodec sample conversion method
   - Implement convertSamples() method using A-law lookup table
   - Handle multi-channel sample processing with proper interleaving
   - Generate 16-bit signed PCM output in host byte order
@@ -86,7 +86,7 @@
 - [ ] 13. Create comprehensive unit tests for A-law conversion accuracy
   - Write tests verifying all 256 A-law values convert to correct PCM samples
   - Create tests comparing against ITU-T reference implementations
-  - Add tests for A-law silence value handling (0x55)
+  - Add tests for A-law closest-to-silence value handling (0x55)
   - Test edge cases and boundary conditions for A-law
   - _Requirements: 6.3, 6.4, 6.5_
 
