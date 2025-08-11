@@ -21,7 +21,9 @@ public:
     static inline void log(const std::string& channel, Args&&... args) {
         if (isChannelEnabled(channel)) {
             std::stringstream ss;
-            (ss << ... << args);
+            if constexpr (sizeof...(args) > 0) {
+                (ss << ... << args);
+            }
             write(channel, ss.str());
         }
     }

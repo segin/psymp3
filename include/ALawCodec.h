@@ -37,7 +37,7 @@
  * - ITU-T G.711 A-law compliant decoding
  * - Lookup table-based conversion for optimal performance
  * - Support for 8 kHz telephony standard and other sample rates
- * - Proper handling of A-law silence encoding (0x55)
+ * - Proper handling of A-law closest-to-silence encoding (0x55 maps to -8)
  * - Multi-channel support with sample interleaving
  */
 class ALawCodec : public SimplePCMCodec {
@@ -60,6 +60,19 @@ public:
      * @return "alaw" codec name
      */
     std::string getCodecName() const override;
+    
+    /**
+     * @brief Initialize codec with enhanced error handling
+     * @return true if initialization successful
+     */
+    bool initialize() override;
+    
+    /**
+     * @brief Decode audio chunk with comprehensive error handling
+     * @param chunk Input data chunk from demuxer
+     * @return Decoded audio frame, or empty frame on error
+     */
+    AudioFrame decode(const MediaChunk& chunk) override;
 
 protected:
     /**
@@ -92,7 +105,7 @@ private:
      * 
      * Called once to populate the conversion table with ITU-T G.711
      * compliant values. Uses static initialization to ensure thread-safe
-     * one-time setup.
+     * one-time setup. Includes error handling for initialization failures.
      */
     static void initializeALawTable();
     
