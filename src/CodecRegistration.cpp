@@ -19,18 +19,14 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Registered PCM codec");
     
 #ifdef ENABLE_ALAW_CODEC
-    CodecRegistry::registerCodec("alaw", [](const StreamInfo& info) {
-        return std::make_unique<ALawCodec>(info);
-    });
+    registerALawCodec();
     Debug::log("codec", "registerAllCodecs: Registered A-law codec");
 #else
     Debug::log("codec", "registerAllCodecs: A-law codec disabled at compile time");
 #endif
     
 #ifdef ENABLE_MULAW_CODEC
-    CodecRegistry::registerCodec("mulaw", [](const StreamInfo& info) {
-        return std::make_unique<MuLawCodec>(info);
-    });
+    registerMuLawCodec();
     Debug::log("codec", "registerAllCodecs: Registered μ-law codec");
 #else
     Debug::log("codec", "registerAllCodecs: μ-law codec disabled at compile time");

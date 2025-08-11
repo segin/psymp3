@@ -77,4 +77,29 @@ void registerAllCodecs();
  */
 void registerAllDemuxers();
 
+// Individual codec registration functions (conditionally compiled)
+#ifdef ENABLE_MULAW_CODEC
+/**
+ * @brief Register μ-law codec with AudioCodecFactory
+ * 
+ * Registers the codec for multiple format identifiers:
+ * - "mulaw" - Primary identifier
+ * - "pcm_mulaw" - Alternative identifier for PCM μ-law
+ * - "g711_mulaw" - ITU-T G.711 μ-law identifier
+ */
+void registerMuLawCodec();
+#endif
+
+#ifdef ENABLE_ALAW_CODEC
+/**
+ * @brief Register A-law codec with AudioCodecFactory
+ * 
+ * Registers the codec for multiple format identifiers:
+ * - "alaw" - Primary identifier
+ * - "pcm_alaw" - Alternative identifier for PCM A-law
+ * - "g711_alaw" - ITU-T G.711 A-law identifier
+ */
+void registerALawCodec();
+#endif
+
 #endif // CODECREGISTRATION_H
