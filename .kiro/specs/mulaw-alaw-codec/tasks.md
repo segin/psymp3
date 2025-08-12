@@ -54,7 +54,7 @@
   - Support variable input chunk sizes for VoIP packet processing
   - _Requirements: 2.2, 2.8, 3.4, 3.7, 5.5, 7.6_
 
-- [ ] 9. Add conditional compilation and MediaFactory registration
+- [x] 9. Add conditional compilation and MediaFactory registration
   - Wrap MuLawCodec implementation with ENABLE_MULAW_CODEC guards
   - Wrap ALawCodec implementation with ENABLE_ALAW_CODEC guards
   - Implement registerMuLawCodec() function for AudioCodecFactory registration
@@ -62,14 +62,14 @@
   - Register multiple codec name variants ("mulaw", "pcm_mulaw" for μ-law; "alaw", "pcm_alaw" for A-law)
   - _Requirements: 10.1, 10.2, 10.3, 10.4_
 
-- [ ] 10. Implement comprehensive error handling for both codecs
+- [x] 10. Implement comprehensive error handling for both codecs
   - Add initialization error handling for unsupported formats and invalid parameters
   - Implement runtime error recovery for corrupted data and truncated streams
   - Add input validation accepting all 8-bit values as valid
   - Handle memory allocation failures and maintain decoder state consistency
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.8_
 
-- [ ] 11. Implement Debug logging and PsyMP3 integration
+- [x] 11. Implement Debug logging and PsyMP3 integration
   - Add Debug::log() calls for initialization status in both codecs
   - Implement error condition reporting using PsyMP3's Debug system
   - Add performance metrics logging when debug is enabled

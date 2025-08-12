@@ -67,18 +67,24 @@ const int16_t MuLawCodec::MULAW_TO_PCM[256] = {
 
 MuLawCodec::MuLawCodec(const StreamInfo& stream_info) 
     : SimplePCMCodec(stream_info) {
+    Debug::log("codec", "MuLawCodec: Constructor called for codec: ", stream_info.codec_name);
+    
     // Ensure lookup table is initialized
     if (!s_table_initialized) {
+        Debug::log("codec", "MuLawCodec: Initializing lookup table");
         initializeMuLawTable();
     }
+    
+    Debug::log("codec", "MuLawCodec: Constructor completed successfully");
 }
 
 bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
     try {
+        Debug::log("codec", "MuLawCodec: Checking if can decode stream with codec: ", stream_info.codec_name);
+        
         // First check: Must be audio stream with μ-law codec name
         if (stream_info.codec_type != "audio") {
-            Debug::log("MuLawCodec: Rejecting stream - not audio type, got: %s", 
-                       stream_info.codec_type.c_str());
+            Debug::log("codec", "MuLawCodec: Rejecting stream - not audio type, got: ", stream_info.codec_type);
             return false;
         }
         
@@ -88,16 +94,14 @@ bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
                               stream_info.codec_name == "g711_mulaw");
         
         if (!is_mulaw_codec) {
-            Debug::log("MuLawCodec: Rejecting stream - unsupported codec: %s", 
-                       stream_info.codec_name.c_str());
+            Debug::log("codec", "MuLawCodec: Rejecting stream - unsupported codec: ", stream_info.codec_name);
             return false;
         }
         
         // Validate μ-law specific parameters
         // μ-law uses 8-bit samples (1 byte per sample)
         if (stream_info.bits_per_sample != 0 && stream_info.bits_per_sample != 8) {
-            Debug::log("MuLawCodec: Rejecting stream - μ-law requires 8 bits per sample, got %d", 
-                       stream_info.bits_per_sample);
+            Debug::log("codec", "MuLawCodec: Rejecting stream - μ-law requires 8 bits per sample, got ", stream_info.bits_per_sample);
             return false;
         }
         
@@ -105,8 +109,7 @@ bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
         if (stream_info.sample_rate != 0) {
             // Check for reasonable sample rate range (1 Hz to 192 kHz)
             if (stream_info.sample_rate < 1 || stream_info.sample_rate > 192000) {
-                Debug::log("MuLawCodec: Rejecting stream - invalid sample rate: %d Hz", 
-                           stream_info.sample_rate);
+                Debug::log("codec", "MuLawCodec: Rejecting stream - invalid sample rate: ", stream_info.sample_rate, " Hz");
                 return false;
             }
             
@@ -118,8 +121,7 @@ bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
                                      stream_info.sample_rate == 48000);    // Professional audio
             
             if (!valid_sample_rate) {
-                Debug::log("MuLawCodec: Warning - Unusual sample rate %d Hz for μ-law stream", 
-                           stream_info.sample_rate);
+                Debug::log("codec", "MuLawCodec: Warning - Unusual sample rate ", stream_info.sample_rate, " Hz for μ-law stream");
                 // Don't reject - allow unusual sample rates but log warning
             }
         }
@@ -127,26 +129,25 @@ bool MuLawCodec::canDecode(const StreamInfo& stream_info) const {
         // Validate channel count - μ-law typically mono but can support stereo
         if (stream_info.channels != 0) {
             if (stream_info.channels > 2) {
-                Debug::log("MuLawCodec: Rejecting stream - μ-law supports max 2 channels, got %d", 
-                           stream_info.channels);
+                Debug::log("codec", "MuLawCodec: Rejecting stream - μ-law supports max 2 channels, got ", stream_info.channels);
                 return false;
             }
             
             if (stream_info.channels == 0) {
-                Debug::log("MuLawCodec: Rejecting stream - Invalid channel count: 0");
+                Debug::log("codec", "MuLawCodec: Rejecting stream - Invalid channel count: 0");
                 return false;
             }
         }
         
         // All validation passed
+        Debug::log("codec", "MuLawCodec: Stream validation passed for codec: ", stream_info.codec_name);
         return true;
         
     } catch (const std::exception& e) {
-        Debug::log("MuLawCodec: Exception during format validation: %s", e.what());
+        Debug::log("codec", "MuLawCodec: Exception during format validation: ", e.what());
         return false;
     } catch (...) {
-        Debug::log("MuLawCodec: Unknown exception during format validation for codec: %s", 
-                   stream_info.codec_name.c_str());
+        Debug::log("codec", "MuLawCodec: Unknown exception during format validation for codec: ", stream_info.codec_name);
         return false;
     }
 }
@@ -156,20 +157,23 @@ std::string MuLawCodec::getCodecName() const {
 }
 
 bool MuLawCodec::initialize() {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
     try {
+        Debug::log("codec", "MuLawCodec: Starting initialization for codec: ", m_stream_info.codec_name);
+        
         // Validate stream info before initialization
         if (!canDecode(m_stream_info)) {
-            Debug::log("MuLawCodec: Initialization failed - unsupported stream format for codec: %s", 
-                       m_stream_info.codec_name.c_str());
+            Debug::log("codec", "MuLawCodec: Initialization failed - unsupported stream format for codec: ", m_stream_info.codec_name);
             return false;
         }
         
         // Ensure lookup table is properly initialized
         if (!s_table_initialized) {
+            Debug::log("codec", "MuLawCodec: Lookup table not initialized, initializing now");
             initializeMuLawTable();
             if (!s_table_initialized) {
-                Debug::log("MuLawCodec: Initialization failed - lookup table initialization failed (table_initialized=%s)", 
-                           s_table_initialized ? "true" : "false");
+                Debug::log("codec", "MuLawCodec: Initialization failed - lookup table initialization failed");
                 return false;
             }
         }
@@ -177,39 +181,42 @@ bool MuLawCodec::initialize() {
         // Set default parameters for raw streams
         if (m_stream_info.sample_rate == 0) {
             m_stream_info.sample_rate = 8000; // Default telephony rate
-            Debug::log("MuLawCodec: Using default sample rate: %d Hz", 8000);
+            Debug::log("codec", "MuLawCodec: Using default sample rate: 8000 Hz");
         }
         
         if (m_stream_info.channels == 0) {
             m_stream_info.channels = 1; // Default mono
-            Debug::log("MuLawCodec: Using default channel count: %d (mono)", 1);
+            Debug::log("codec", "MuLawCodec: Using default channel count: 1 (mono)");
         }
         
         // Validate final parameters
         if (m_stream_info.sample_rate < 1 || m_stream_info.sample_rate > 192000) {
-            Debug::log("MuLawCodec: Initialization failed - invalid sample rate: %d", 
-                       m_stream_info.sample_rate);
+            Debug::log("codec", "MuLawCodec: Initialization failed - invalid sample rate: ", m_stream_info.sample_rate);
             return false;
         }
         
         if (m_stream_info.channels < 1 || m_stream_info.channels > 2) {
-            Debug::log("MuLawCodec: Initialization failed - invalid channel count: %d", 
-                       m_stream_info.channels);
+            Debug::log("codec", "MuLawCodec: Initialization failed - invalid channel count: ", m_stream_info.channels);
             return false;
         }
         
         m_initialized = true;
-        Debug::log("MuLawCodec: Initialized successfully - %d Hz, %d channels", 
-                   m_stream_info.sample_rate, m_stream_info.channels);
+        
+        // Performance metrics logging
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        Debug::log("codec", "MuLawCodec: Initialized successfully - ", m_stream_info.sample_rate, " Hz, ", m_stream_info.channels, " channels");
+        Debug::log("performance", "MuLawCodec: Initialization completed in ", duration.count(), " microseconds");
+        
         return true;
         
     } catch (const std::exception& e) {
-        Debug::log("MuLawCodec: Exception during initialization: %s", e.what());
+        Debug::log("codec", "MuLawCodec: Exception during initialization: ", e.what());
         m_initialized = false;
         return false;
     } catch (...) {
-        Debug::log("MuLawCodec: Unknown exception during initialization for codec: %s", 
-                   m_stream_info.codec_name.c_str());
+        Debug::log("codec", "MuLawCodec: Unknown exception during initialization for codec: ", m_stream_info.codec_name);
         m_initialized = false;
         return false;
     }
@@ -217,19 +224,18 @@ bool MuLawCodec::initialize() {
 
 AudioFrame MuLawCodec::decode(const MediaChunk& chunk) {
     AudioFrame frame;
+    auto start_time = std::chrono::high_resolution_clock::now();
     
     try {
         // Check initialization state
         if (!m_initialized) {
-            Debug::log("MuLawCodec: Decode called on uninitialized codec (initialized=%s)", 
-                       m_initialized ? "true" : "false");
+            Debug::log("codec", "MuLawCodec: Decode called on uninitialized codec");
             return frame; // Empty frame
         }
         
         // Handle empty or null chunk gracefully
         if (chunk.data.empty()) {
-            Debug::log("MuLawCodec: Received empty chunk (size=%zu), returning empty frame", 
-                       chunk.data.size());
+            Debug::log("codec", "MuLawCodec: Received empty chunk (size=", chunk.data.size(), "), returning empty frame");
             return frame; // Empty frame
         }
         
@@ -245,29 +251,38 @@ AudioFrame MuLawCodec::decode(const MediaChunk& chunk) {
             frame.timestamp_ms = 0;
         }
         
-        // Convert samples with error handling
+        // Convert samples with error handling and performance tracking
         size_t samples_converted = convertSamples(chunk.data, frame.samples);
         
         if (samples_converted == 0 && !chunk.data.empty()) {
-            Debug::log("MuLawCodec: Warning - no samples converted from non-empty chunk of size %zu", 
-                       chunk.data.size());
+            Debug::log("codec", "MuLawCodec: Warning - no samples converted from non-empty chunk of size ", chunk.data.size());
             return frame; // Empty frame
         }
         
         // Validate output consistency
         if (frame.samples.size() != samples_converted) {
-            Debug::log("MuLawCodec: Warning - sample count mismatch: converted %zu, frame has %zu", 
-                       samples_converted, frame.samples.size());
+            Debug::log("codec", "MuLawCodec: Warning - sample count mismatch: converted ", samples_converted, ", frame has ", frame.samples.size());
+        }
+        
+        // Performance metrics logging
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        Debug::log("performance", "MuLawCodec: Decoded ", samples_converted, " samples in ", duration.count(), " microseconds");
+        
+        // Calculate throughput (samples per second)
+        if (duration.count() > 0) {
+            double throughput = (samples_converted * 1000000.0) / duration.count();
+            Debug::log("performance", "MuLawCodec: Decoding throughput: ", static_cast<uint64_t>(throughput), " samples/second");
         }
         
         return frame;
         
     } catch (const std::exception& e) {
-        Debug::log("MuLawCodec: Exception during decode: %s", e.what());
+        Debug::log("codec", "MuLawCodec: Exception during decode: ", e.what());
         return AudioFrame{}; // Empty frame
     } catch (...) {
-        Debug::log("MuLawCodec: Unknown exception during decode for codec: %s", 
-                   getCodecName().c_str());
+        Debug::log("codec", "MuLawCodec: Unknown exception during decode for codec: ", getCodecName());
         return AudioFrame{}; // Empty frame
     }
 }
@@ -275,6 +290,7 @@ AudioFrame MuLawCodec::decode(const MediaChunk& chunk) {
 size_t MuLawCodec::convertSamples(const std::vector<uint8_t>& input_data, 
                                  std::vector<int16_t>& output_samples) {
     const size_t input_samples = input_data.size();
+    auto start_time = std::chrono::high_resolution_clock::now();
     
     // Handle empty input gracefully
     if (input_samples == 0) {
@@ -298,24 +314,36 @@ size_t MuLawCodec::convertSamples(const std::vector<uint8_t>& input_data,
             output_samples.push_back(pcm_sample);
         }
         
+        // Performance metrics for large conversions
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        if (input_samples > 1000) { // Only log for significant conversions
+            Debug::log("performance", "MuLawCodec: Converted ", input_samples, " μ-law samples in ", duration.count(), " microseconds");
+            
+            if (duration.count() > 0) {
+                double conversion_rate = (input_samples * 1000000.0) / duration.count();
+                Debug::log("performance", "MuLawCodec: Conversion rate: ", static_cast<uint64_t>(conversion_rate), " samples/second");
+            }
+        }
+        
         return input_samples;
         
     } catch (const std::bad_alloc& e) {
-        Debug::log("MuLawCodec: Memory allocation failed during sample conversion: %s", e.what());
+        Debug::log("codec", "MuLawCodec: Memory allocation failed during sample conversion: ", e.what());
         output_samples.clear();
         return 0;
     } catch (const std::exception& e) {
-        Debug::log("MuLawCodec: Exception during sample conversion: %s", e.what());
+        Debug::log("codec", "MuLawCodec: Exception during sample conversion: ", e.what());
         // Attempt to preserve partial conversion if possible
         if (!output_samples.empty()) {
-            Debug::log("MuLawCodec: Returning %zu partially converted samples", output_samples.size());
+            Debug::log("codec", "MuLawCodec: Returning ", output_samples.size(), " partially converted samples");
             return output_samples.size();
         }
         output_samples.clear();
         return 0;
     } catch (...) {
-        Debug::log("MuLawCodec: Unknown exception during sample conversion (input_size=%zu)", 
-                   input_data.size());
+        Debug::log("codec", "MuLawCodec: Unknown exception during sample conversion (input_size=", input_data.size(), ")");
         output_samples.clear();
         return 0;
     }
@@ -330,27 +358,29 @@ void MuLawCodec::initializeMuLawTable() {
     // This method serves as a one-time initialization checkpoint
     
     if (s_table_initialized) {
+        Debug::log("codec", "MuLawCodec: Lookup table already initialized");
         return; // Already initialized
     }
     
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
     try {
+        Debug::log("codec", "MuLawCodec: Starting ITU-T G.711 μ-law lookup table validation");
+        
         // Validate critical values for ITU-T G.711 compliance
         // μ-law silence value (0xFF) should map to 0
         if (MULAW_TO_PCM[0xFF] != 0) {
-            Debug::log("MuLawCodec: Warning - μ-law silence value (0xFF) does not map to 0, got %d", 
-                       MULAW_TO_PCM[0xFF]);
+            Debug::log("codec", "MuLawCodec: Warning - μ-law silence value (0xFF) does not map to 0, got ", MULAW_TO_PCM[0xFF]);
         }
         
         // Validate sign bit handling - values 0x00-0x7F should be negative
         if (MULAW_TO_PCM[0x00] >= 0 || MULAW_TO_PCM[0x7F] >= 0) {
-            Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be incorrect for negative range (0x00=%d, 0x7F=%d)", 
-                       MULAW_TO_PCM[0x00], MULAW_TO_PCM[0x7F]);
+            Debug::log("codec", "MuLawCodec: Warning - μ-law sign bit handling may be incorrect for negative range (0x00=", MULAW_TO_PCM[0x00], ", 0x7F=", MULAW_TO_PCM[0x7F], ")");
         }
         
         // Validate sign bit handling - values 0x80-0xFE should be positive  
         if (MULAW_TO_PCM[0x80] <= 0 || MULAW_TO_PCM[0xFE] <= 0) {
-            Debug::log("MuLawCodec: Warning - μ-law sign bit handling may be incorrect for positive range (0x80=%d, 0xFE=%d)", 
-                       MULAW_TO_PCM[0x80], MULAW_TO_PCM[0xFE]);
+            Debug::log("codec", "MuLawCodec: Warning - μ-law sign bit handling may be incorrect for positive range (0x80=", MULAW_TO_PCM[0x80], ", 0xFE=", MULAW_TO_PCM[0xFE], ")");
         }
         
         // Validate table bounds to ensure no memory access issues
@@ -358,20 +388,27 @@ void MuLawCodec::initializeMuLawTable() {
         static_assert(sizeof(MULAW_TO_PCM) / sizeof(MULAW_TO_PCM[0]) == 256, 
                       "μ-law lookup table must have exactly 256 entries");
         
-        Debug::log("MuLawCodec: ITU-T G.711 μ-law lookup table initialized successfully with %d entries", 256);
+        // Performance metrics
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        Debug::log("codec", "MuLawCodec: ITU-T G.711 μ-law lookup table initialized successfully with 256 entries");
+        Debug::log("performance", "MuLawCodec: Table validation completed in ", duration.count(), " microseconds");
+        
         s_table_initialized = true;
         
     } catch (const std::exception& e) {
-        Debug::log("MuLawCodec: Exception during table initialization: %s", e.what());
+        Debug::log("codec", "MuLawCodec: Exception during table initialization: ", e.what());
         // Don't set s_table_initialized to true on error
     } catch (...) {
-        Debug::log("MuLawCodec: Unknown exception during table initialization (table_initialized=%s)", 
-                   s_table_initialized ? "true" : "false");
+        Debug::log("codec", "MuLawCodec: Unknown exception during table initialization");
         // Don't set s_table_initialized to true on error
     }
 }
 
 void registerMuLawCodec() {
+    Debug::log("codec", "MuLawCodec: Registering μ-law codec with AudioCodecFactory");
+    
     // Register μ-law codec with multiple format identifiers
     AudioCodecFactory::registerCodec("mulaw", [](const StreamInfo& stream_info) {
         return std::make_unique<MuLawCodec>(stream_info);
@@ -384,6 +421,8 @@ void registerMuLawCodec() {
     AudioCodecFactory::registerCodec("g711_mulaw", [](const StreamInfo& stream_info) {
         return std::make_unique<MuLawCodec>(stream_info);
     });
+    
+    Debug::log("codec", "MuLawCodec: Successfully registered for codec names: mulaw, pcm_mulaw, g711_mulaw");
 }
 
 #endif // ENABLE_MULAW_CODEC
