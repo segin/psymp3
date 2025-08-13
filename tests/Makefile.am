@@ -74,6 +74,9 @@ endif
 # A-law codec tests
 check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion
 
+# μ-law codec tests
+check_PROGRAMS += test_mulaw_conversion_accuracy
+
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
@@ -327,6 +330,11 @@ test_alaw_sample_conversion_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
+# μ-law codec conversion accuracy test
+test_mulaw_conversion_accuracy_SOURCES = test_mulaw_conversion_accuracy.cpp
+test_mulaw_conversion_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
+test_mulaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
+
 
 
 
@@ -405,3 +413,10 @@ $(top_builddir)/src/ALawCodec.o:
 
 $(top_builddir)/src/AudioCodec.o:
 	$(MAKE) -C $(top_builddir)/src AudioCodec.o
+
+# Build rules for μ-law codec test dependencies
+$(top_builddir)/src/MuLawCodec.o:
+	$(MAKE) -C $(top_builddir)/src MuLawCodec.o
+
+$(top_builddir)/src/PCMCodecs.o:
+	$(MAKE) -C $(top_builddir)/src PCMCodecs.o
