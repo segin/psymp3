@@ -97,8 +97,9 @@ private:
      * Static table shared across all codec instances for memory efficiency.
      * Contains 256 entries mapping each possible A-law value to its
      * corresponding 16-bit signed PCM sample according to ITU-T G.711.
+     * Runtime-initialized using the ITU-T G.711 A-law algorithm.
      */
-    static const int16_t ALAW_TO_PCM[256];
+    static int16_t ALAW_TO_PCM[256];
     
     /**
      * @brief Initialize A-law lookup table

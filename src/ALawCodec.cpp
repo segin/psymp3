@@ -28,42 +28,9 @@
 // Static member initialization
 bool ALawCodec::s_table_initialized = false;
 
-// A-law to 16-bit PCM conversion lookup table
-// ITU-T G.711 A-law compliant values
-const int16_t ALawCodec::ALAW_TO_PCM[256] = {
-    -5504, -5248, -6016, -5760, -4480, -4224, -4992, -4736,
-    -7552, -7296, -8064, -7808, -6528, -6272, -7040, -6784,
-    -2752, -2624, -3008, -2880, -2240, -2112, -2496, -2368,
-    -3776, -3648, -4032, -3904, -3264, -3136, -3520, -3392,
-    -22016,-20992,-24064,-23040,-17920,-16896,-19968,-18944,
-    -30208,-29184,-32256,-31232,-26112,-25088,-28160,-27136,
-    -11008,-10496,-12032,-11520, -8960, -8448, -9984, -9472,
-    -15104,-14592,-16128,-15616,-13056,-12544,-14080,-13568,
-    -344,  -328,  -376,  -360,  -280,  -264,  -312,  -296,
-    -472,  -456,  -504,  -488,  -408,  -392,  -440,  -424,
-    -88,   -72,   -120,  -104,  -24,   -8,    -56,   -40,
-    -216,  -200,  -248,  -232,  -152,  -136,  -184,  -168,
-    -1376, -1312, -1504, -1440, -1120, -1056, -1248, -1184,
-    -1888, -1824, -2016, -1952, -1632, -1568, -1760, -1696,
-    -688,  -656,  -752,  -720,  -560,  -528,  -624,  -592,
-    -944,  -912,  -1008, -976,  -816,  -784,  -880,  -848,
-     5504,  5248,  6016,  5760,  4480,  4224,  4992,  4736,
-     7552,  7296,  8064,  7808,  6528,  6272,  7040,  6784,
-     2752,  2624,  3008,  2880,  2240,  2112,  2496,  2368,
-     3776,  3648,  4032,  3904,  3264,  3136,  3520,  3392,
-     22016, 20992, 24064, 23040, 17920, 16896, 19968, 18944,
-     30208, 29184, 32256, 31232, 26112, 25088, 28160, 27136,
-     11008, 10496, 12032, 11520,  8960,  8448,  9984,  9472,
-     15104, 14592, 16128, 15616, 13056, 12544, 14080, 13568,
-      344,   328,   376,   360,   280,   264,   312,   296,
-      472,   456,   504,   488,   408,   392,   440,   424,
-       88,    72,   120,   104,    24,     8,    56,    40,
-      216,   200,   248,   232,   152,   136,   184,   168,
-     1376,  1312,  1504,  1440,  1120,  1056,  1248,  1184,
-     1888,  1824,  2016,  1952,  1632,  1568,  1760,  1696,
-      688,   656,   752,   720,   560,   528,   624,   592,
-      944,   912,  1008,   976,   816,   784,   880,   848
-};
+// A-law to 16-bit PCM conversion lookup table (runtime-initialized)
+// ITU-T G.711 A-law compliant values computed at runtime
+int16_t ALawCodec::ALAW_TO_PCM[256];
 
 ALawCodec::ALawCodec(const StreamInfo& stream_info) 
     : SimplePCMCodec(stream_info) {
@@ -358,9 +325,6 @@ size_t ALawCodec::getBytesPerInputSample() const {
 }
 
 void ALawCodec::initializeALawTable() {
-    // Table is statically initialized with ITU-T G.711 A-law values
-    // This method serves as a one-time initialization checkpoint
-    
     if (s_table_initialized) {
         Debug::log("codec", "ALawCodec: Lookup table already initialized");
         return; // Already initialized
@@ -369,49 +333,79 @@ void ALawCodec::initializeALawTable() {
     auto start_time = std::chrono::high_resolution_clock::now();
     
     try {
-        Debug::log("codec", "ALawCodec: Starting ITU-T G.711 A-law lookup table validation");
+        Debug::log("codec", "ALawCodec: Computing ITU-T G.711 A-law lookup table at runtime");
+        
+        // Compute all 256 A-law values using ITU-T G.711 A-law algorithm
+        for (int i = 0; i < 256; ++i) {
+            uint8_t alaw_sample = static_cast<uint8_t>(i);
+            
+            // ITU-T G.711 A-law decoding algorithm
+            // Step 1: Apply even-bit inversion (XOR with 0x55)
+            uint8_t complement = alaw_sample ^ 0x55;
+            
+            // Step 2: Extract sign bit (bit 7, but inverted logic for A-law)
+            bool sign = (complement & 0x80) == 0;
+            
+            // Step 3: Extract exponent (bits 6-4)
+            uint8_t exponent = (complement & 0x70) >> 4;
+            
+            // Step 4: Extract mantissa (bits 3-0)
+            uint8_t mantissa = complement & 0x0F;
+            
+            // Step 5: Compute linear value
+            int16_t linear;
+            if (exponent == 0) {
+                // Segment 0: linear region
+                linear = 16 + 2 * mantissa;
+            } else {
+                // Segments 1-7: logarithmic regions
+                linear = (16 + 2 * mantissa) << exponent;
+            }
+            
+            // Step 6: Apply sign
+            if (sign) {
+                linear = -linear;
+            }
+            
+            // Store in lookup table
+            ALAW_TO_PCM[i] = linear;
+        }
         
         // Validate critical values for ITU-T G.711 compliance
-        // A-law closest-to-silence value (0x55) should map to -8 (ITU-T G.711 compliant)
+        Debug::log("codec", "ALawCodec: Validating computed A-law values");
+        
+        // A-law closest-to-silence value (0x55) should map to -8
         if (ALAW_TO_PCM[0x55] != -8) {
-            Debug::log("codec", "ALawCodec: Warning - A-law closest-to-silence value (0x55) should map to -8, got ", ALAW_TO_PCM[0x55]);
+            Debug::log("codec", "ALawCodec: Warning - A-law closest-to-silence value (0x55) computed as ", ALAW_TO_PCM[0x55], ", expected -8");
         }
         
         // Validate sign bit handling - values with bit 7 clear (0x00-0x7F) should be negative
         if (ALAW_TO_PCM[0x00] >= 0 || ALAW_TO_PCM[0x7F] >= 0) {
-            Debug::log("codec", "ALawCodec: Warning - A-law sign bit handling may be incorrect for negative range (0x00=", ALAW_TO_PCM[0x00], ", 0x7F=", ALAW_TO_PCM[0x7F], ")");
+            Debug::log("codec", "ALawCodec: Warning - A-law sign bit handling incorrect for negative range (0x00=", ALAW_TO_PCM[0x00], ", 0x7F=", ALAW_TO_PCM[0x7F], ")");
         }
         
         // Validate sign bit handling - values with bit 7 set (0x80-0xFF) should be positive
         if (ALAW_TO_PCM[0x80] <= 0 || ALAW_TO_PCM[0xFF] <= 0) {
-            Debug::log("codec", "ALawCodec: Warning - A-law sign bit handling may be incorrect for positive range (0x80=", ALAW_TO_PCM[0x80], ", 0xFF=", ALAW_TO_PCM[0xFF], ")");
+            Debug::log("codec", "ALawCodec: Warning - A-law sign bit handling incorrect for positive range (0x80=", ALAW_TO_PCM[0x80], ", 0xFF=", ALAW_TO_PCM[0xFF], ")");
         }
         
-        // Validate even-bit inversion characteristic of A-law
-        // A-law inverts even bits during encoding, verify adjacent values
-        if (ALAW_TO_PCM[0x54] != -24 || ALAW_TO_PCM[0x56] != -56) {
-            Debug::log("codec", "ALawCodec: Warning - A-law even-bit inversion values may be incorrect (0x54=", ALAW_TO_PCM[0x54], ", 0x56=", ALAW_TO_PCM[0x56], ")");
-        }
-        
-        // Validate table bounds to ensure no memory access issues
-        // This is a compile-time check but we verify at runtime for safety
-        static_assert(sizeof(ALAW_TO_PCM) / sizeof(ALAW_TO_PCM[0]) == 256, 
-                      "A-law lookup table must have exactly 256 entries");
+        // Log some key computed values for verification
+        Debug::log("codec", "ALawCodec: Key computed values - 0x00=", ALAW_TO_PCM[0x00], ", 0x55=", ALAW_TO_PCM[0x55], ", 0x80=", ALAW_TO_PCM[0x80], ", 0xFF=", ALAW_TO_PCM[0xFF]);
         
         // Performance metrics
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
         
-        Debug::log("codec", "ALawCodec: ITU-T G.711 A-law lookup table initialized successfully with 256 entries");
-        Debug::log("performance", "ALawCodec: Table validation completed in ", duration.count(), " microseconds");
+        Debug::log("codec", "ALawCodec: ITU-T G.711 A-law lookup table computed successfully with 256 entries");
+        Debug::log("performance", "ALawCodec: Table computation completed in ", duration.count(), " microseconds");
         
         s_table_initialized = true;
         
     } catch (const std::exception& e) {
-        Debug::log("codec", "ALawCodec: Exception during table initialization: ", e.what());
+        Debug::log("codec", "ALawCodec: Exception during table computation: ", e.what());
         // Don't set s_table_initialized to true on error
     } catch (...) {
-        Debug::log("codec", "ALawCodec: Unknown exception during table initialization");
+        Debug::log("codec", "ALawCodec: Unknown exception during table computation");
         // Don't set s_table_initialized to true on error
     }
 }

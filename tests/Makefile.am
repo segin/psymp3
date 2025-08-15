@@ -72,7 +72,7 @@ check_PROGRAMS += test_page_extraction
 endif
 
 # A-law codec tests
-check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion
+check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy
 
 # μ-law codec tests
 check_PROGRAMS += test_mulaw_conversion_accuracy
@@ -329,6 +329,11 @@ test_alaw_sample_conversion_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
+
+# A-law codec conversion accuracy test
+test_alaw_conversion_accuracy_SOURCES = test_alaw_conversion_accuracy.cpp
+test_alaw_conversion_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
+test_alaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
 
 # μ-law codec conversion accuracy test
 test_mulaw_conversion_accuracy_SOURCES = test_mulaw_conversion_accuracy.cpp

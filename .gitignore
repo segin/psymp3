@@ -101,3 +101,5 @@ tests/test_iohandler_demuxer_integration
 tests/test_iohandler_demuxer_integration_simple
 tests/test_psymp3_system_integration
 tests/verify_mulaw_table
+tests/generate_alaw_table
+tests/test_alaw_minimal

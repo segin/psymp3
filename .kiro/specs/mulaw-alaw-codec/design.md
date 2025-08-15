@@ -159,7 +159,7 @@ Generated AudioFrames contain:
 
 **ITU-T G.711 Compliance**: Lookup tables are generated to match ITU-T G.711 specification exactly, ensuring bit-perfect accuracy for all 256 possible input values.
 
-**Silence Handling**: Special handling for silence values (0xFF for μ-law, 0x55 for A-law) ensures proper quiet periods in telephony applications.
+**Silence Handling**: Special handling for silence values (0xFF for μ-law maps to 0, 0x55 for A-law maps to -8 as closest-to-silence) ensures proper quiet periods in telephony applications.
 
 ## Error Handling
 

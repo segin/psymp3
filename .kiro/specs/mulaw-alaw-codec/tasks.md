@@ -83,7 +83,7 @@
   - Test edge cases and boundary conditions for μ-law
   - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 13. Create comprehensive unit tests for A-law conversion accuracy
+- [x] 13. Create comprehensive unit tests for A-law conversion accuracy
   - Write tests verifying all 256 A-law values convert to correct PCM samples
   - Create tests comparing against ITU-T reference implementations
   - Add tests for A-law closest-to-silence value handling (0x55)

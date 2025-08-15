@@ -97,8 +97,9 @@ private:
      * Static table shared across all codec instances for memory efficiency.
      * Contains 256 entries mapping each possible μ-law value to its
      * corresponding 16-bit signed PCM sample according to ITU-T G.711.
+     * Runtime-initialized using the ITU-T G.711 μ-law algorithm.
      */
-    static const int16_t MULAW_TO_PCM[256];
+    static int16_t MULAW_TO_PCM[256];
     
     /**
      * @brief Initialize μ-law lookup table

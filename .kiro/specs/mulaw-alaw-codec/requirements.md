@@ -46,7 +46,7 @@ The implementation must support:
 3. **WHEN** using lookup tables **THEN** the codec **SHALL** implement efficient table-based conversion
 4. **WHEN** handling telephony standard **THEN** the codec **SHALL** support 8 kHz sample rate as primary target
 5. **WHEN** processing other sample rates **THEN** the codec **SHALL** handle rates specified in container headers
-6. **WHEN** decoding silence **THEN** the codec **SHALL** properly handle A-law silence encoding (0x55)
+6. **WHEN** decoding quiet audio **THEN** the codec **SHALL** properly handle A-law closest-to-silence encoding (0x55 maps to -8)
 7. **WHEN** validating input **THEN** the codec **SHALL** accept all 8-bit A-law values as valid
 8. **WHEN** outputting PCM **THEN** the codec **SHALL** produce signed 16-bit samples in host byte order
 
