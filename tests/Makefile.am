@@ -80,6 +80,9 @@ check_PROGRAMS += test_mulaw_conversion_accuracy
 # Codec selection and validation tests
 check_PROGRAMS += test_codec_selection_validation_simple
 
+# Performance and thread safety tests
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple
+
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
@@ -348,6 +351,60 @@ test_codec_selection_validation_simple_SOURCES = test_codec_selection_validation
 test_codec_selection_validation_simple_CPPFLAGS = $(AM_CPPFLAGS)
 test_codec_selection_validation_simple_LDADD = $(AM_LDFLAGS)
 
+# Codec performance test
+test_codec_performance_SOURCES = test_codec_performance.cpp
+test_codec_performance_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_performance_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Codec thread safety test
+test_codec_thread_safety_SOURCES = test_codec_thread_safety.cpp
+test_codec_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_thread_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Codec concurrent instances test
+test_codec_concurrent_instances_SOURCES = test_codec_concurrent_instances.cpp
+test_codec_concurrent_instances_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_concurrent_instances_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
 
 
 
@@ -433,3 +490,13 @@ $(top_builddir)/src/MuLawCodec.o:
 
 $(top_builddir)/src/PCMCodecs.o:
 	$(MAKE) -C $(top_builddir)/src PCMCodecs.o
+
+# Simple codec performance test (minimal dependencies)
+test_codec_performance_simple_SOURCES = test_codec_performance_simple.cpp
+test_codec_performance_simple_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_performance_simple_LDADD = $(AM_LDFLAGS)
+
+# Simple codec thread safety test (minimal dependencies)
+test_codec_thread_safety_simple_SOURCES = test_codec_thread_safety_simple.cpp
+test_codec_thread_safety_simple_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_thread_safety_simple_LDADD = $(AM_LDFLAGS)
