@@ -90,21 +90,21 @@
   - Test edge cases and boundary conditions for A-law
   - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 14. Create codec selection and validation tests
+- [x] 14. Create codec selection and validation tests
   - Write tests for MuLawCodec canDecode() method with various StreamInfo
   - Write tests for ALawCodec canDecode() method with various StreamInfo
   - Test codec factory registration and selection
   - Verify proper rejection of incompatible formats
   - _Requirements: 10.5, 10.6, 10.7_
 
-- [ ] 15. Implement performance and thread safety tests
+- [x] 15. Implement performance and thread safety tests
   - Create tests measuring real-time decoding performance for both codecs
   - Write tests for concurrent codec instance operation
   - Add tests verifying lookup table memory efficiency
   - Create thread safety tests for shared lookup table access
   - _Requirements: 5.1, 5.2, 5.3, 11.1, 11.2, 11.3_
 
-- [ ] 16. Create integration tests with SimplePCMCodec base class
+- [x] 16. Create integration tests with SimplePCMCodec base class
   - Test initialize() method with various StreamInfo configurations
   - Test decode() method with different MediaChunk sizes
   - Test flush() behavior for stream completion scenarios
