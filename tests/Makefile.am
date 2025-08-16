@@ -77,6 +77,9 @@ check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_
 # μ-law codec tests
 check_PROGRAMS += test_mulaw_conversion_accuracy
 
+# Codec selection and validation tests
+check_PROGRAMS += test_codec_selection_validation_simple
+
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
@@ -339,6 +342,11 @@ test_alaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
 test_mulaw_conversion_accuracy_SOURCES = test_mulaw_conversion_accuracy.cpp
 test_mulaw_conversion_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
 test_mulaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
+
+# Codec selection and validation test (simple)
+test_codec_selection_validation_simple_SOURCES = test_codec_selection_validation_simple.cpp
+test_codec_selection_validation_simple_CPPFLAGS = $(AM_CPPFLAGS)
+test_codec_selection_validation_simple_LDADD = $(AM_LDFLAGS)
 
 
 
