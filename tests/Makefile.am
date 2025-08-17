@@ -84,7 +84,7 @@ check_PROGRAMS += test_codec_selection_validation_simple
 check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple
 
 # SimplePCMCodec integration tests
-check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration
+check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
 
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
@@ -513,3 +513,8 @@ test_simplepcmcodec_integration_minimal_LDADD = $(AM_LDFLAGS)
 test_simplepcmcodec_real_integration_SOURCES = test_simplepcmcodec_real_integration.cpp
 test_simplepcmcodec_real_integration_CPPFLAGS = $(AM_CPPFLAGS)
 test_simplepcmcodec_real_integration_LDADD = $(AM_LDFLAGS)
+
+# SimplePCMCodec comprehensive integration test (minimal dependencies)
+test_simplepcmcodec_comprehensive_integration_SOURCES = test_simplepcmcodec_comprehensive_integration.cpp
+test_simplepcmcodec_comprehensive_integration_CPPFLAGS = $(AM_CPPFLAGS)
+test_simplepcmcodec_comprehensive_integration_LDADD = $(AM_LDFLAGS)
