@@ -86,6 +86,9 @@ check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_con
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
 
+# Conditional compilation tests
+check_PROGRAMS += test_conditional_codec_compilation
+
 # Test program sources and dependencies
 test_rect_area_validation_SOURCES = test_rect_area_validation.cpp
 test_rect_area_validation_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
@@ -518,3 +521,14 @@ test_simplepcmcodec_real_integration_LDADD = $(AM_LDFLAGS)
 test_simplepcmcodec_comprehensive_integration_SOURCES = test_simplepcmcodec_comprehensive_integration.cpp
 test_simplepcmcodec_comprehensive_integration_CPPFLAGS = $(AM_CPPFLAGS)
 test_simplepcmcodec_comprehensive_integration_LDADD = $(AM_LDFLAGS)
+
+# Conditional codec compilation test
+test_conditional_codec_compilation_SOURCES = test_conditional_codec_compilation.cpp
+test_conditional_codec_compilation_CPPFLAGS = $(AM_CPPFLAGS)
+test_conditional_codec_compilation_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Note: This test only checks conditional compilation flags
+# No codec object files are needed since we don't instantiate the classes

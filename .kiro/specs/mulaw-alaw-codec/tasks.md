@@ -111,7 +111,7 @@
   - Test reset() functionality for seeking operations
   - _Requirements: 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 17. Add build system integration and conditional compilation tests
+- [x] 17. Add build system integration and conditional compilation tests
   - Update Makefile.am to include separate codec source files with conditional compilation
   - Add configure.ac checks for separate μ-law and A-law codec support
   - Test builds with various combinations of ENABLE_MULAW_CODEC and ENABLE_ALAW_CODEC

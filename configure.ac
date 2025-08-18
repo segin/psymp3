@@ -114,9 +114,28 @@ if test "x$have_oggdemuxer" = "xyes"; then
   AC_DEFINE([HAVE_OGGDEMUXER], [1], [Define to 1 if OggDemuxer should be built])
 fi
 
-# Enable A-law and μ-law codecs (no external dependencies required)
-AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
-AC_DEFINE([ENABLE_MULAW_CODEC], [1], [Define to 1 if μ-law codec support is enabled])
+# Optional G.711 codec support (A-law and μ-law)
+AC_ARG_ENABLE([alaw],
+  [AS_HELP_STRING([--enable-alaw], [Enable A-law (G.711 A-law) codec support @<:@default=yes@:>@])],
+  [enable_alaw=$enableval], [enable_alaw=yes])
+
+AC_ARG_ENABLE([mulaw],
+  [AS_HELP_STRING([--enable-mulaw], [Enable μ-law (G.711 μ-law) codec support @<:@default=yes@:>@])],
+  [enable_mulaw=$enableval], [enable_mulaw=yes])
+
+# G.711 codecs have no external dependencies - they are always available if enabled
+have_alaw=no
+have_mulaw=no
+
+if test "x$enable_alaw" = "xyes"; then
+  have_alaw=yes
+  AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
+fi
+
+if test "x$enable_mulaw" = "xyes"; then
+  have_mulaw=yes
+  AC_DEFINE([ENABLE_MULAW_CODEC], [1], [Define to 1 if μ-law codec support is enabled])
+fi
 
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
@@ -124,6 +143,8 @@ AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
+AM_CONDITIONAL([HAVE_ALAW], [test "x$have_alaw" = "xyes"])
+AM_CONDITIONAL([HAVE_MULAW], [test "x$have_mulaw" = "xyes"])
 
 AC_ARG_ENABLE(mpris,
   [AS_HELP_STRING([--enable-mpris], [Enable MPRIS media player remote interface support (requires D-Bus) @<:@default=auto@:>@])],
@@ -224,6 +245,8 @@ echo "  MP3 (libmpg123):   $have_mp3"
 echo "  FLAC:              $have_flac"
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
+echo "  A-law (G.711):     $have_alaw"
+echo "  μ-law (G.711):     $have_mulaw"
 echo ""
 echo "Container Support:"
 echo "  Ogg (libogg):      $have_ogg"
