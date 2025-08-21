@@ -46,6 +46,9 @@ check_PROGRAMS = \
 	test_rect_transformation \
 	test_rect_normalization \
 	test_rect_modern_cpp \
+	test_rect_backward_compatibility \
+	test_rect_performance \
+	test_widget_rect_integration \
 	test_harness_integration \
 	test_iso_fragment_handler \
 	test_iso_fragmented_mp4 \
@@ -119,6 +122,15 @@ test_rect_normalization_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $
 
 test_rect_modern_cpp_SOURCES = test_rect_modern_cpp.cpp
 test_rect_modern_cpp_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+
+test_rect_backward_compatibility_SOURCES = test_rect_backward_compatibility.cpp
+test_rect_backward_compatibility_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+
+test_rect_performance_SOURCES = test_rect_performance.cpp
+test_rect_performance_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+
+test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
+test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_harness_integration_SOURCES = test_harness_integration.cpp
 test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
