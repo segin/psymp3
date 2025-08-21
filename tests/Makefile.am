@@ -67,7 +67,8 @@ check_PROGRAMS = \
 	test_demuxed_stream_unit \
 	test_demuxer_integration \
 	test_media_factory_integration \
-	test_demuxer_performance
+	test_demuxer_performance \
+
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -544,3 +545,4 @@ test_conditional_codec_compilation_LDADD = libtest_utilities.a \
 
 # Note: This test only checks conditional compilation flags
 # No codec object files are needed since we don't instantiate the classes
+
