@@ -67,8 +67,7 @@ check_PROGRAMS = \
 	test_demuxed_stream_unit \
 	test_demuxer_integration \
 	test_media_factory_integration \
-	test_demuxer_performance \
-
+	test_demuxer_performance
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -302,9 +301,10 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
-test_page_extraction_SOURCES = test_page_extraction_simple.cpp
+test_page_extraction_SOURCES = test_page_extraction.cpp
 test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_page_extraction_LDADD = \
+	libtest_utilities.a \
 	$(top_builddir)/src/OggDemuxer.o \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/IOHandler.o \
@@ -319,6 +319,7 @@ test_page_extraction_LDADD = \
 	$(top_builddir)/src/BoundedBuffer.o \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 endif

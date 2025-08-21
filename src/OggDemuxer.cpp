@@ -2178,8 +2178,8 @@ int OggDemuxer::getPrevPage(ogg_page* page) {
         return -1;
     }
     
-    std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
     std::lock_guard<std::mutex> io_lock(m_io_mutex);
+    std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
     
     int64_t begin = m_offset;
     int64_t end = begin;
@@ -2272,8 +2272,8 @@ int OggDemuxer::getPrevPageSerial(ogg_page* page, uint32_t serial_number) {
         return -1;
     }
     
-    std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
     std::lock_guard<std::mutex> io_lock(m_io_mutex);
+    std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
     
     int64_t begin = m_offset;
     int64_t end = begin;
@@ -2367,7 +2367,8 @@ int OggDemuxer::getData(size_t bytes_requested) {
         bytes_requested = CHUNKSIZE;
     }
     
-    std::lock_guard<std::mutex> io_lock(m_io_mutex);
+    // Note: This method is called from getNextPage which already holds ogg_lock
+    // We should not acquire ogg_lock here to avoid deadlock
     
     char* buffer = ogg_sync_buffer(&m_sync_state, static_cast<long>(bytes_requested));
     if (!buffer) {
@@ -2375,7 +2376,11 @@ int OggDemuxer::getData(size_t bytes_requested) {
         return -1;
     }
     
-    long bytes_read = m_handler->read(buffer, 1, bytes_requested);
+    long bytes_read;
+    {
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        bytes_read = m_handler->read(buffer, 1, bytes_requested);
+    }
     
     if (bytes_read < 0) {
         Debug::log("ogg", "OggDemuxer::getData: I/O error during read");

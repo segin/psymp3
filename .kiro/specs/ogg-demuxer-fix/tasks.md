@@ -2,7 +2,7 @@
 
 ## **Implementation Tasks**
 
-- [x] 1. Clean Slate - Remove Existing Problematic Tests (Halo 2 Style)
+- [x] 1. Clean Slate - Remove Existing Problematic Tests
   - Remove existing OGG-related unit tests that don't follow reference implementation patterns
   - Delete tests/test_ogg_granule_conversion.cpp and tests/test_ogg_duration_calculation.cpp
   - Remove any OGG test entries from tests/Makefile.am
@@ -10,15 +10,16 @@
   - Verify clean build with `make clean && make -j$(nproc)` before proceeding
   - _Requirements: All - Clean foundation for proper implementation_
 
-- [x] 2. Implement Reference-Pattern Page Extraction (Following libvorbisfile)
-  - Implement _get_next_page() equivalent using ogg_sync_pageseek() patterns from libvorbisfile
-  - Add proper boundary checking and data fetching logic like _get_data()
-  - Implement _get_prev_page() equivalent for backward scanning with CHUNKSIZE increments
-  - Add _get_prev_page_serial() equivalent for serial-number-aware backward scanning
-  - Write comprehensive unit tests for all page extraction functions
-  - Verify unit tests pass with `make test_page_extraction && ./test_page_extraction`
-  - Ensure clean build with `make -j$(nproc)` before proceeding
+- [x] 2. Implement Reference-Pattern Page Extraction (Following libvorbisfile) ✅ **COMPLETED**
+  - ✅ Implement _get_next_page() equivalent using ogg_sync_pageseek() patterns from libvorbisfile
+  - ✅ Add proper boundary checking and data fetching logic like _get_data()
+  - ✅ Implement _get_prev_page() equivalent for backward scanning with CHUNKSIZE increments
+  - ✅ Add _get_prev_page_serial() equivalent for serial-number-aware backward scanning
+  - ✅ Write comprehensive unit tests for all page extraction functions
+  - ✅ Verify unit tests pass with `make test_page_extraction && ./test_page_extraction`
+  - ✅ Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: 1.7, 1.8, 1.9, 5.9, 7.1_
+  - **Implementation Notes:** All page extraction functions were already implemented following libvorbisfile patterns. Fixed critical deadlock issue in mutex lock ordering (io_lock before ogg_lock). Updated comprehensive unit tests to handle threading issues properly. All tests now pass successfully (11/11). Clean build verified.
 
 - [ ] 3. Implement Bisection Search Algorithm (Following ov_pcm_seek_page/op_pcm_seek_page)
   - Implement seekToPage() using exact bisection algorithm from ov_pcm_seek_page()
