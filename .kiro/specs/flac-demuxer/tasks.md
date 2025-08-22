@@ -2,21 +2,21 @@
 
 ## **Implementation Tasks**
 
-- [-] 1. Create FLACDemuxer Class Structure
+- [x] 1. Create FLACDemuxer Class Structure
   - Implement FLACDemuxer class inheriting from Demuxer base class
   - Add private member variables for FLAC container state and metadata
-  - Implement constructor accepting unique_ptr<IOHandler>
+  - Implement constructor accepting `unique_ptr<IOHandler>`
   - Add destructor with proper resource cleanup
   - _Requirements: 8.1, 8.2, 8.7_
 
-- [ ] 1.1 Define FLAC Data Structures
+- [x] 1.1 Define FLAC Data Structures
   - Create FLACMetadataBlock structure for metadata block information
   - Define FLACFrame structure for frame positioning and size data
   - Add enums for FLAC metadata block types
   - Implement helper structures for seek table and stream info
   - _Requirements: 1.1, 1.2, 1.3, 2.1_
 
-- [ ] 1.2 Implement Basic Demuxer Interface
+- [x] 1.2 Implement Basic Demuxer Interface
   - Implement all pure virtual methods from Demuxer base class
   - Add placeholder implementations that return appropriate defaults
   - Ensure proper error handling and return codes
