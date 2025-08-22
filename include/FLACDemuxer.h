@@ -287,6 +287,7 @@ private:
     
     // Private helper methods (to be implemented)
     bool parseMetadataBlocks();
+    bool parseMetadataBlockHeader(FLACMetadataBlock& block);
     bool parseStreamInfoBlock(const FLACMetadataBlock& block);
     bool parseSeekTableBlock(const FLACMetadataBlock& block);
     bool parseVorbisCommentBlock(const FLACMetadataBlock& block);
