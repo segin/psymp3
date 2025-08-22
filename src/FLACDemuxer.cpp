@@ -1045,30 +1045,606 @@ bool FLACDemuxer::skipMetadataBlock(const FLACMetadataBlock& block)
 
 bool FLACDemuxer::findNextFrame(FLACFrame& frame)
 {
-    Debug::log("flac", "FLACDemuxer::findNextFrame() - placeholder implementation");
-    // TODO: Implement frame sync detection
+    Debug::log("flac", "FLACDemuxer::findNextFrame() - searching for FLAC frame sync");
+    
+    if (!m_handler) {
+        reportError("IO", "No IOHandler available for frame sync detection");
+        return false;
+    }
+    
+    // Start searching from current position
+    uint64_t search_start = m_current_offset;
+    
+    // Buffer for reading data during sync search
+    const size_t buffer_size = 8192;  // 8KB buffer for efficient I/O
+    std::vector<uint8_t> buffer(buffer_size);
+    
+    // Seek to current position
+    if (!m_handler->seek(search_start, SEEK_SET)) {
+        reportError("IO", "Failed to seek to search position");
+        return false;
+    }
+    
+    uint64_t bytes_searched = 0;
+    const uint64_t max_search_distance = 1024 * 1024;  // Search up to 1MB for sync
+    
+    while (bytes_searched < max_search_distance && !m_handler->eof()) {
+        // Read buffer of data
+        size_t bytes_read = m_handler->read(buffer.data(), 1, buffer_size);
+        if (bytes_read < 2) {
+            // Need at least 2 bytes for sync code
+            break;
+        }
+        
+        // Search for FLAC sync code in buffer
+        // FLAC sync code is 14 bits: 11111111111110xx (0xFFF8 to 0xFFFF)
+        for (size_t i = 0; i < bytes_read - 1; i++) {
+            uint16_t sync_candidate = (static_cast<uint16_t>(buffer[i]) << 8) | 
+                                     static_cast<uint16_t>(buffer[i + 1]);
+            
+            // Check if this matches FLAC sync pattern (0xFFF8 to 0xFFFF)
+            if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+                // Found potential sync code, validate frame header
+                uint64_t sync_position = search_start + bytes_searched + i;
+                
+                Debug::log("flac", "Found potential sync code 0x", std::hex, sync_candidate, 
+                          std::dec, " at position ", sync_position);
+                
+                // Seek to this position and try to parse frame header
+                if (!m_handler->seek(sync_position, SEEK_SET)) {
+                    Debug::log("flac", "Failed to seek to sync position");
+                    continue;
+                }
+                
+                // Store position in frame structure
+                frame.file_offset = sync_position;
+                
+                // Try to parse frame header at this position
+                if (parseFrameHeader(frame)) {
+                    // Validate the parsed frame header
+                    if (validateFrameHeader(frame)) {
+                        Debug::log("flac", "Valid FLAC frame found at position ", sync_position);
+                        m_current_offset = sync_position;
+                        return true;
+                    } else {
+                        Debug::log("flac", "Frame header validation failed at position ", sync_position);
+                    }
+                } else {
+                    Debug::log("flac", "Frame header parsing failed at position ", sync_position);
+                }
+                
+                // Continue searching from next byte if this wasn't a valid frame
+            }
+        }
+        
+        bytes_searched += bytes_read;
+        
+        // If we read less than buffer_size, we're at EOF
+        if (bytes_read < buffer_size) {
+            break;
+        }
+        
+        // Overlap search to avoid missing sync codes at buffer boundaries
+        // Back up by 1 byte to ensure we don't miss a sync code split across buffers
+        if (bytes_read > 1) {
+            search_start = search_start + bytes_searched - 1;
+            bytes_searched = 1;  // Account for the overlap
+            
+            if (!m_handler->seek(search_start, SEEK_SET)) {
+                Debug::log("flac", "Failed to seek for overlapped search");
+                break;
+            }
+        }
+    }
+    
+    Debug::log("flac", "No valid FLAC frame found after searching ", bytes_searched, " bytes");
     return false;
 }
 
 bool FLACDemuxer::parseFrameHeader(FLACFrame& frame)
 {
-    Debug::log("flac", "FLACDemuxer::parseFrameHeader() - placeholder implementation");
-    // TODO: Implement frame header parsing
-    return false;
+    Debug::log("flac", "FLACDemuxer::parseFrameHeader() - parsing FLAC frame header");
+    
+    if (!m_handler) {
+        reportError("IO", "No IOHandler available for frame header parsing");
+        return false;
+    }
+    
+    // FLAC frame header is variable length, minimum 4 bytes
+    // We need to read and parse it incrementally
+    
+    // Read first 4 bytes (sync + basic header info)
+    uint8_t header_start[4];
+    if (m_handler->read(header_start, 1, 4) != 4) {
+        Debug::log("flac", "Failed to read frame header start");
+        return false;
+    }
+    
+    // Verify sync code (14 bits: 11111111111110xx)
+    uint16_t sync_code = (static_cast<uint16_t>(header_start[0]) << 8) | 
+                        static_cast<uint16_t>(header_start[1]);
+    
+    if ((sync_code & 0xFFFC) != 0xFFF8) {
+        Debug::log("flac", "Invalid sync code in frame header: 0x", std::hex, sync_code, std::dec);
+        return false;
+    }
+    
+    // Parse frame header fields
+    
+    // Reserved bit (must be 0)
+    if ((header_start[1] & 0x02) != 0) {
+        Debug::log("flac", "Reserved bit set in frame header");
+        return false;
+    }
+    
+    // Blocking strategy (1 bit)
+    frame.variable_block_size = (header_start[1] & 0x01) != 0;
+    
+    // Block size (4 bits)
+    uint8_t block_size_code = (header_start[2] & 0xF0) >> 4;
+    
+    // Sample rate (4 bits)
+    uint8_t sample_rate_code = header_start[2] & 0x0F;
+    
+    // Channel assignment (4 bits)
+    uint8_t channel_assignment = (header_start[3] & 0xF0) >> 4;
+    
+    // Sample size (3 bits)
+    uint8_t sample_size_code = (header_start[3] & 0x0E) >> 1;
+    
+    // Reserved bit (must be 0)
+    if ((header_start[3] & 0x01) != 0) {
+        Debug::log("flac", "Reserved bit set in frame header");
+        return false;
+    }
+    
+    // Parse block size
+    uint32_t block_size = 0;
+    switch (block_size_code) {
+        case 0x00: // Reserved
+            Debug::log("flac", "Reserved block size code");
+            return false;
+        case 0x01: block_size = 192; break;
+        case 0x02: block_size = 576; break;
+        case 0x03: block_size = 1152; break;
+        case 0x04: block_size = 2304; break;
+        case 0x05: block_size = 4608; break;
+        case 0x06: // 8-bit block size follows
+        case 0x07: // 16-bit block size follows
+            // Will be read later
+            break;
+        case 0x08: block_size = 256; break;
+        case 0x09: block_size = 512; break;
+        case 0x0A: block_size = 1024; break;
+        case 0x0B: block_size = 2048; break;
+        case 0x0C: block_size = 4096; break;
+        case 0x0D: block_size = 8192; break;
+        case 0x0E: block_size = 16384; break;
+        case 0x0F: block_size = 32768; break;
+    }
+    
+    // Parse sample rate
+    uint32_t sample_rate = 0;
+    switch (sample_rate_code) {
+        case 0x00: // Use STREAMINFO sample rate
+            sample_rate = m_streaminfo.sample_rate;
+            break;
+        case 0x01: sample_rate = 88200; break;
+        case 0x02: sample_rate = 176400; break;
+        case 0x03: sample_rate = 192000; break;
+        case 0x04: sample_rate = 8000; break;
+        case 0x05: sample_rate = 16000; break;
+        case 0x06: sample_rate = 22050; break;
+        case 0x07: sample_rate = 24000; break;
+        case 0x08: sample_rate = 32000; break;
+        case 0x09: sample_rate = 44100; break;
+        case 0x0A: sample_rate = 48000; break;
+        case 0x0B: sample_rate = 96000; break;
+        case 0x0C: // 8-bit sample rate follows (in kHz)
+        case 0x0D: // 16-bit sample rate follows (in Hz)
+        case 0x0E: // 16-bit sample rate follows (in 10Hz units)
+            // Will be read later
+            break;
+        case 0x0F: // Invalid
+            Debug::log("flac", "Invalid sample rate code");
+            return false;
+    }
+    
+    // Parse channel assignment
+    uint8_t channels = 0;
+    switch (channel_assignment) {
+        case 0x0: case 0x1: case 0x2: case 0x3:
+        case 0x4: case 0x5: case 0x6: case 0x7:
+            channels = channel_assignment + 1;  // 1-8 channels
+            break;
+        case 0x8: // Left/side stereo
+        case 0x9: // Right/side stereo  
+        case 0xA: // Mid/side stereo
+            channels = 2;
+            break;
+        default: // Reserved
+            Debug::log("flac", "Reserved channel assignment: ", channel_assignment);
+            return false;
+    }
+    
+    // Parse sample size
+    uint8_t bits_per_sample = 0;
+    switch (sample_size_code) {
+        case 0x0: // Use STREAMINFO bits per sample
+            bits_per_sample = m_streaminfo.bits_per_sample;
+            break;
+        case 0x1: bits_per_sample = 8; break;
+        case 0x2: bits_per_sample = 12; break;
+        case 0x3: // Reserved
+            Debug::log("flac", "Reserved sample size code");
+            return false;
+        case 0x4: bits_per_sample = 16; break;
+        case 0x5: bits_per_sample = 20; break;
+        case 0x6: bits_per_sample = 24; break;
+        case 0x7: // Reserved
+            Debug::log("flac", "Reserved sample size code");
+            return false;
+    }
+    
+    // Read frame/sample number (UTF-8 coded)
+    uint64_t frame_sample_number = 0;
+    uint8_t utf8_byte;
+    if (m_handler->read(&utf8_byte, 1, 1) != 1) {
+        Debug::log("flac", "Failed to read frame/sample number");
+        return false;
+    }
+    
+    // Decode UTF-8 coded number
+    if ((utf8_byte & 0x80) == 0) {
+        // 1 byte: 0xxxxxxx
+        frame_sample_number = utf8_byte;
+    } else if ((utf8_byte & 0xE0) == 0xC0) {
+        // 2 bytes: 110xxxxx 10xxxxxx
+        frame_sample_number = utf8_byte & 0x1F;
+        uint8_t byte2;
+        if (m_handler->read(&byte2, 1, 1) != 1 || (byte2 & 0xC0) != 0x80) {
+            Debug::log("flac", "Invalid UTF-8 sequence in frame number");
+            return false;
+        }
+        frame_sample_number = (frame_sample_number << 6) | (byte2 & 0x3F);
+    } else if ((utf8_byte & 0xF0) == 0xE0) {
+        // 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx
+        frame_sample_number = utf8_byte & 0x0F;
+        for (int i = 0; i < 2; i++) {
+            uint8_t byte;
+            if (m_handler->read(&byte, 1, 1) != 1 || (byte & 0xC0) != 0x80) {
+                Debug::log("flac", "Invalid UTF-8 sequence in frame number");
+                return false;
+            }
+            frame_sample_number = (frame_sample_number << 6) | (byte & 0x3F);
+        }
+    } else if ((utf8_byte & 0xF8) == 0xF0) {
+        // 4 bytes: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+        frame_sample_number = utf8_byte & 0x07;
+        for (int i = 0; i < 3; i++) {
+            uint8_t byte;
+            if (m_handler->read(&byte, 1, 1) != 1 || (byte & 0xC0) != 0x80) {
+                Debug::log("flac", "Invalid UTF-8 sequence in frame number");
+                return false;
+            }
+            frame_sample_number = (frame_sample_number << 6) | (byte & 0x3F);
+        }
+    } else if ((utf8_byte & 0xFC) == 0xF8) {
+        // 5 bytes: 111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+        frame_sample_number = utf8_byte & 0x03;
+        for (int i = 0; i < 4; i++) {
+            uint8_t byte;
+            if (m_handler->read(&byte, 1, 1) != 1 || (byte & 0xC0) != 0x80) {
+                Debug::log("flac", "Invalid UTF-8 sequence in frame number");
+                return false;
+            }
+            frame_sample_number = (frame_sample_number << 6) | (byte & 0x3F);
+        }
+    } else if ((utf8_byte & 0xFE) == 0xFC) {
+        // 6 bytes: 1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx
+        frame_sample_number = utf8_byte & 0x01;
+        for (int i = 0; i < 5; i++) {
+            uint8_t byte;
+            if (m_handler->read(&byte, 1, 1) != 1 || (byte & 0xC0) != 0x80) {
+                Debug::log("flac", "Invalid UTF-8 sequence in frame number");
+                return false;
+            }
+            frame_sample_number = (frame_sample_number << 6) | (byte & 0x3F);
+        }
+    } else {
+        Debug::log("flac", "Invalid UTF-8 start byte in frame number: 0x", std::hex, utf8_byte, std::dec);
+        return false;
+    }
+    
+    // Read variable-length fields if needed
+    
+    // Block size (if encoded as variable length)
+    if (block_size_code == 0x06) {
+        // 8-bit block size follows
+        uint8_t block_size_byte;
+        if (m_handler->read(&block_size_byte, 1, 1) != 1) {
+            Debug::log("flac", "Failed to read 8-bit block size");
+            return false;
+        }
+        block_size = static_cast<uint32_t>(block_size_byte) + 1;
+    } else if (block_size_code == 0x07) {
+        // 16-bit block size follows
+        uint8_t block_size_bytes[2];
+        if (m_handler->read(block_size_bytes, 1, 2) != 2) {
+            Debug::log("flac", "Failed to read 16-bit block size");
+            return false;
+        }
+        block_size = (static_cast<uint32_t>(block_size_bytes[0]) << 8) | 
+                     static_cast<uint32_t>(block_size_bytes[1]);
+        block_size += 1;
+    }
+    
+    // Sample rate (if encoded as variable length)
+    if (sample_rate_code == 0x0C) {
+        // 8-bit sample rate in kHz
+        uint8_t sample_rate_byte;
+        if (m_handler->read(&sample_rate_byte, 1, 1) != 1) {
+            Debug::log("flac", "Failed to read 8-bit sample rate");
+            return false;
+        }
+        sample_rate = static_cast<uint32_t>(sample_rate_byte) * 1000;
+    } else if (sample_rate_code == 0x0D) {
+        // 16-bit sample rate in Hz
+        uint8_t sample_rate_bytes[2];
+        if (m_handler->read(sample_rate_bytes, 1, 2) != 2) {
+            Debug::log("flac", "Failed to read 16-bit sample rate");
+            return false;
+        }
+        sample_rate = (static_cast<uint32_t>(sample_rate_bytes[0]) << 8) | 
+                      static_cast<uint32_t>(sample_rate_bytes[1]);
+    } else if (sample_rate_code == 0x0E) {
+        // 16-bit sample rate in 10Hz units
+        uint8_t sample_rate_bytes[2];
+        if (m_handler->read(sample_rate_bytes, 1, 2) != 2) {
+            Debug::log("flac", "Failed to read 16-bit sample rate (10Hz units)");
+            return false;
+        }
+        sample_rate = ((static_cast<uint32_t>(sample_rate_bytes[0]) << 8) | 
+                       static_cast<uint32_t>(sample_rate_bytes[1])) * 10;
+    }
+    
+    // Read CRC-8 (header checksum)
+    uint8_t crc8;
+    if (m_handler->read(&crc8, 1, 1) != 1) {
+        Debug::log("flac", "Failed to read frame header CRC-8");
+        return false;
+    }
+    
+    // Store parsed values in frame structure
+    frame.block_size = block_size;
+    frame.sample_rate = sample_rate;
+    frame.channels = channels;
+    frame.bits_per_sample = bits_per_sample;
+    
+    // Calculate sample offset based on blocking strategy
+    if (frame.variable_block_size) {
+        // Frame number represents sample number
+        frame.sample_offset = frame_sample_number;
+    } else {
+        // Frame number represents frame number, calculate sample offset
+        frame.sample_offset = frame_sample_number * block_size;
+    }
+    
+    Debug::log("flac", "Frame header parsed successfully:");
+    Debug::log("flac", "  Block size: ", frame.block_size, " samples");
+    Debug::log("flac", "  Sample rate: ", frame.sample_rate, " Hz");
+    Debug::log("flac", "  Channels: ", static_cast<int>(frame.channels));
+    Debug::log("flac", "  Bits per sample: ", static_cast<int>(frame.bits_per_sample));
+    Debug::log("flac", "  Sample offset: ", frame.sample_offset);
+    Debug::log("flac", "  Variable block size: ", frame.variable_block_size);
+    Debug::log("flac", "  CRC-8: 0x", std::hex, crc8, std::dec);
+    
+    return true;
 }
 
 bool FLACDemuxer::validateFrameHeader(const FLACFrame& frame)
 {
-    Debug::log("flac", "FLACDemuxer::validateFrameHeader() - placeholder implementation");
-    // TODO: Implement frame header validation
-    return false;
+    Debug::log("flac", "FLACDemuxer::validateFrameHeader() - validating frame header");
+    
+    // Check if frame contains valid data
+    if (!frame.isValid()) {
+        Debug::log("flac", "Frame header contains invalid data");
+        return false;
+    }
+    
+    // Validate against STREAMINFO if available
+    if (m_streaminfo.isValid()) {
+        // Check sample rate consistency
+        if (frame.sample_rate != m_streaminfo.sample_rate) {
+            Debug::log("flac", "Frame sample rate (", frame.sample_rate, 
+                      ") doesn't match STREAMINFO (", m_streaminfo.sample_rate, ")");
+            // This is allowed in FLAC, but log it
+        }
+        
+        // Check channels consistency
+        if (frame.channels != m_streaminfo.channels) {
+            Debug::log("flac", "Frame channels (", static_cast<int>(frame.channels), 
+                      ") doesn't match STREAMINFO (", static_cast<int>(m_streaminfo.channels), ")");
+            return false;
+        }
+        
+        // Check bits per sample consistency
+        if (frame.bits_per_sample != m_streaminfo.bits_per_sample) {
+            Debug::log("flac", "Frame bits per sample (", static_cast<int>(frame.bits_per_sample), 
+                      ") doesn't match STREAMINFO (", static_cast<int>(m_streaminfo.bits_per_sample), ")");
+            return false;
+        }
+        
+        // Check block size is within valid range
+        if (frame.block_size < m_streaminfo.min_block_size || 
+            frame.block_size > m_streaminfo.max_block_size) {
+            Debug::log("flac", "Frame block size (", frame.block_size, 
+                      ") outside STREAMINFO range (", m_streaminfo.min_block_size, 
+                      "-", m_streaminfo.max_block_size, ")");
+            return false;
+        }
+        
+        // Check sample offset is reasonable
+        if (m_streaminfo.total_samples > 0 && 
+            frame.sample_offset >= m_streaminfo.total_samples) {
+            Debug::log("flac", "Frame sample offset (", frame.sample_offset, 
+                      ") exceeds total samples (", m_streaminfo.total_samples, ")");
+            return false;
+        }
+        
+        // Check that frame doesn't extend beyond total samples
+        if (m_streaminfo.total_samples > 0 && 
+            frame.sample_offset + frame.block_size > m_streaminfo.total_samples) {
+            // This might be the last frame, which can be shorter
+            Debug::log("flac", "Frame extends beyond total samples (might be last frame)");
+        }
+    }
+    
+    // Additional sanity checks
+    
+    // Check reasonable block size limits (FLAC spec allows 1-65535)
+    if (frame.block_size == 0 || frame.block_size > 65535) {
+        Debug::log("flac", "Frame block size out of valid range: ", frame.block_size);
+        return false;
+    }
+    
+    // Check reasonable sample rate limits
+    if (frame.sample_rate == 0 || frame.sample_rate > 655350) {
+        Debug::log("flac", "Frame sample rate out of valid range: ", frame.sample_rate);
+        return false;
+    }
+    
+    // Check channel count (FLAC supports 1-8 channels)
+    if (frame.channels == 0 || frame.channels > 8) {
+        Debug::log("flac", "Frame channel count out of valid range: ", static_cast<int>(frame.channels));
+        return false;
+    }
+    
+    // Check bits per sample (FLAC supports 4-32 bits)
+    if (frame.bits_per_sample < 4 || frame.bits_per_sample > 32) {
+        Debug::log("flac", "Frame bits per sample out of valid range: ", static_cast<int>(frame.bits_per_sample));
+        return false;
+    }
+    
+    Debug::log("flac", "Frame header validation passed");
+    return true;
 }
 
 uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
 {
-    Debug::log("flac", "FLACDemuxer::calculateFrameSize() - placeholder implementation");
-    // TODO: Implement frame size calculation
-    return 0;
+    Debug::log("flac", "FLACDemuxer::calculateFrameSize() - estimating frame size");
+    
+    if (!frame.isValid()) {
+        Debug::log("flac", "Cannot calculate size for invalid frame");
+        return 0;
+    }
+    
+    // FLAC frame size estimation is complex due to variable compression
+    // We'll use multiple approaches for estimation
+    
+    uint32_t estimated_size = 0;
+    
+    // Method 1: Use STREAMINFO frame size hints if available
+    if (m_streaminfo.isValid() && 
+        m_streaminfo.min_frame_size > 0 && 
+        m_streaminfo.max_frame_size > 0) {
+        
+        // Use average of min/max frame sizes as baseline
+        uint32_t avg_frame_size = (m_streaminfo.min_frame_size + m_streaminfo.max_frame_size) / 2;
+        
+        // Adjust based on block size ratio
+        if (m_streaminfo.max_block_size > 0) {
+            double block_ratio = static_cast<double>(frame.block_size) / m_streaminfo.max_block_size;
+            estimated_size = static_cast<uint32_t>(avg_frame_size * block_ratio);
+        } else {
+            estimated_size = avg_frame_size;
+        }
+        
+        Debug::log("flac", "Frame size estimate from STREAMINFO: ", estimated_size, " bytes");
+    }
+    
+    // Method 2: Calculate theoretical minimum size
+    // Frame header (variable, typically 4-16 bytes) + subframes + frame footer (2 bytes CRC-16)
+    
+    uint32_t header_size = 4;  // Minimum header size
+    header_size += 2;  // UTF-8 frame/sample number (conservative estimate)
+    header_size += 1;  // CRC-8
+    
+    // Estimate subframe sizes
+    uint32_t subframe_size = 0;
+    
+    // Each subframe has a header (1-2 bytes) plus compressed audio data
+    uint32_t subframe_header_size = 2;  // Conservative estimate
+    
+    // Estimate compressed audio data size
+    // This is highly variable, but we can estimate based on bits per sample and compression ratio
+    
+    // Uncompressed size per subframe
+    uint32_t uncompressed_bits = frame.block_size * frame.bits_per_sample;
+    uint32_t uncompressed_bytes = (uncompressed_bits + 7) / 8;  // Round up to bytes
+    
+    // Assume compression ratio between 30-70% (FLAC typical range)
+    // Use 50% as middle estimate
+    uint32_t compressed_bytes = uncompressed_bytes / 2;
+    
+    // Add subframe header
+    subframe_size = subframe_header_size + compressed_bytes;
+    
+    // Total for all channels
+    uint32_t total_subframes_size = subframe_size * frame.channels;
+    
+    uint32_t frame_footer_size = 2;  // CRC-16
+    
+    uint32_t theoretical_size = header_size + total_subframes_size + frame_footer_size;
+    
+    Debug::log("flac", "Theoretical frame size estimate: ", theoretical_size, " bytes");
+    Debug::log("flac", "  Header: ", header_size, " bytes");
+    Debug::log("flac", "  Subframes: ", total_subframes_size, " bytes (", frame.channels, " channels)");
+    Debug::log("flac", "  Footer: ", frame_footer_size, " bytes");
+    
+    // Method 3: Use previous frame size as hint (if available)
+    uint32_t previous_frame_estimate = 0;
+    if (m_last_block_size > 0) {
+        // Scale previous frame size based on block size ratio
+        double block_ratio = static_cast<double>(frame.block_size) / m_last_block_size;
+        // Use a conservative scaling factor
+        previous_frame_estimate = static_cast<uint32_t>(theoretical_size * block_ratio);
+        Debug::log("flac", "Previous frame size estimate: ", previous_frame_estimate, " bytes");
+    }
+    
+    // Choose the best estimate
+    if (estimated_size > 0) {
+        // Use STREAMINFO-based estimate if available
+        estimated_size = std::max(estimated_size, theoretical_size);
+    } else if (previous_frame_estimate > 0) {
+        // Use previous frame estimate
+        estimated_size = std::max(previous_frame_estimate, theoretical_size);
+    } else {
+        // Fall back to theoretical estimate
+        estimated_size = theoretical_size;
+    }
+    
+    // Apply reasonable bounds checking
+    
+    // Minimum frame size (header + minimal subframes + footer)
+    uint32_t min_frame_size = header_size + frame.channels * 4 + frame_footer_size;
+    
+    // Maximum frame size (uncompressed data + overhead)
+    // In worst case, FLAC might not compress at all and add some overhead
+    uint32_t max_uncompressed = frame.block_size * frame.channels * ((frame.bits_per_sample + 7) / 8);
+    uint32_t max_frame_size = header_size + max_uncompressed + frame.channels * 16 + frame_footer_size;
+    
+    // Clamp estimate to reasonable bounds
+    estimated_size = std::max(estimated_size, min_frame_size);
+    estimated_size = std::min(estimated_size, max_frame_size);
+    
+    // Additional safety margin for seeking (add 10% buffer)
+    estimated_size = static_cast<uint32_t>(estimated_size * 1.1);
+    
+    Debug::log("flac", "Final frame size estimate: ", estimated_size, " bytes");
+    Debug::log("flac", "  Bounds: ", min_frame_size, " - ", max_frame_size, " bytes");
+    
+    return estimated_size;
 }
 
 bool FLACDemuxer::seekWithTable(uint64_t target_sample)

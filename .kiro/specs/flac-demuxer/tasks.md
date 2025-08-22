@@ -72,28 +72,28 @@
   - Store picture metadata without loading large image data unnecessarily
   - _Requirements: 2.6, 7.1, 7.2, 7.7_
 
-- [ ] 4. Implement FLAC Frame Detection and Parsing
+- [x] 4. Implement FLAC Frame Detection and Parsing
   - Create findNextFrame() method to locate FLAC frame sync codes
   - Implement parseFrameHeader() to extract frame parameters
   - Add validateFrameHeader() for frame header consistency checking
   - Create calculateFrameSize() for frame size estimation
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
 
-- [ ] 4.1 Implement Frame Sync Detection
+- [x] 4.1 Implement Frame Sync Detection
   - Search for FLAC sync codes (0xFFF8 to 0xFFFF) in bitstream
   - Validate frame header structure after sync code detection
   - Handle false sync codes and continue searching
   - Optimize sync detection for performance with large files
   - _Requirements: 3.1, 3.6, 6.4, 7.3_
 
-- [ ] 4.2 Add Frame Header Parsing
+- [x] 4.2 Add Frame Header Parsing
   - Parse blocking strategy, block size, sample rate, channel assignment
   - Extract sample size, frame/sample number, and CRC
   - Handle variable block sizes and sample rates within stream
   - Validate frame parameters against STREAMINFO for consistency
   - _Requirements: 3.2, 3.4, 3.5, 3.8_
 
-- [ ] 4.3 Implement Frame Size Calculation
+- [x] 4.3 Implement Frame Size Calculation
   - Estimate frame size based on block size, channels, and bit depth
   - Handle variable frame sizes due to compression efficiency
   - Use frame size estimates for seeking optimization
