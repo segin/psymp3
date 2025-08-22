@@ -106,6 +106,9 @@ bool FLACDemuxer::parseContainer()
     // Container parsing successful
     m_container_parsed = true;
     
+    // Initialize position tracking to start of stream
+    resetPositionTracking();
+    
     Debug::log("flac", "FLAC container parsing completed successfully");
     Debug::log("flac", "Audio data starts at offset: ", m_audio_data_offset);
     
@@ -179,7 +182,7 @@ StreamInfo FLACDemuxer::getStreamInfo(uint32_t stream_id) const
 
 MediaChunk FLACDemuxer::readChunk()
 {
-    Debug::log("flac", "FLACDemuxer::readChunk() - placeholder implementation");
+    Debug::log("flac", "FLACDemuxer::readChunk() - reading next FLAC frame");
     
     if (!m_container_parsed) {
         reportError("State", "Container not parsed");
@@ -191,9 +194,34 @@ MediaChunk FLACDemuxer::readChunk()
         return MediaChunk{};
     }
     
-    // TODO: Implement frame reading
-    // For now, return empty chunk
-    return MediaChunk{};
+    // Find the next FLAC frame
+    FLACFrame frame;
+    if (!findNextFrame(frame)) {
+        Debug::log("flac", "No more FLAC frames found");
+        return MediaChunk{};
+    }
+    
+    // Read the complete frame data
+    std::vector<uint8_t> frame_data;
+    if (!readFrameData(frame, frame_data)) {
+        reportError("IO", "Failed to read FLAC frame data");
+        return MediaChunk{};
+    }
+    
+    // Create MediaChunk with proper timing information
+    MediaChunk chunk(1, std::move(frame_data));  // stream_id = 1 for FLAC
+    chunk.timestamp_samples = frame.sample_offset;
+    chunk.is_keyframe = true;  // All FLAC frames are independent
+    chunk.file_offset = frame.file_offset;
+    
+    // Update position tracking
+    m_current_sample = frame.sample_offset + frame.block_size;
+    m_last_block_size = frame.block_size;
+    
+    Debug::log("flac", "Read FLAC frame: samples=", frame.sample_offset, 
+              " block_size=", frame.block_size, " data_size=", chunk.data.size());
+    
+    return chunk;
 }
 
 MediaChunk FLACDemuxer::readChunk(uint32_t stream_id)
@@ -210,17 +238,74 @@ MediaChunk FLACDemuxer::readChunk(uint32_t stream_id)
 
 bool FLACDemuxer::seekTo(uint64_t timestamp_ms)
 {
-    Debug::log("flac", "FLACDemuxer::seekTo(", timestamp_ms, ") - placeholder implementation");
+    Debug::log("flac", "FLACDemuxer::seekTo(", timestamp_ms, ") - seeking to timestamp");
     
     if (!m_container_parsed) {
         reportError("State", "Container not parsed");
         return false;
     }
     
-    // TODO: Implement seeking
-    // For now, return false to indicate not implemented
-    reportError("Feature", "FLAC seeking not yet implemented");
-    return false;
+    if (!m_streaminfo.isValid()) {
+        reportError("State", "Invalid STREAMINFO for seeking");
+        return false;
+    }
+    
+    // Convert timestamp to sample position
+    uint64_t target_sample = msToSamples(timestamp_ms);
+    
+    // Handle seek to beginning
+    if (timestamp_ms == 0 || target_sample == 0) {
+        Debug::log("flac", "Seeking to beginning of stream");
+        resetPositionTracking();
+        
+        // Seek to start of audio data
+        if (m_handler && !m_handler->seek(m_audio_data_offset, SEEK_SET)) {
+            reportError("IO", "Failed to seek to start of audio data");
+            return false;
+        }
+        
+        return true;
+    }
+    
+    // Validate target sample is within stream bounds
+    if (m_streaminfo.total_samples > 0 && target_sample >= m_streaminfo.total_samples) {
+        Debug::log("flac", "Seek target (", target_sample, ") beyond stream end (", 
+                  m_streaminfo.total_samples, "), clamping");
+        target_sample = m_streaminfo.total_samples - 1;
+        timestamp_ms = samplesToMs(target_sample);
+    }
+    
+    Debug::log("flac", "Seeking to sample ", target_sample, " (", timestamp_ms, " ms)");
+    
+    // Try different seeking strategies in order of preference
+    bool seek_success = false;
+    
+    // Strategy 1: Use seek table if available
+    if (!m_seektable.empty()) {
+        Debug::log("flac", "Attempting seek table based seeking");
+        seek_success = seekWithTable(target_sample);
+    }
+    
+    // Strategy 2: Binary search through frames (not implemented yet)
+    if (!seek_success) {
+        Debug::log("flac", "Attempting binary search seeking");
+        seek_success = seekBinary(target_sample);
+    }
+    
+    // Strategy 3: Linear search from current or beginning (not implemented yet)
+    if (!seek_success) {
+        Debug::log("flac", "Attempting linear seeking");
+        seek_success = seekLinear(target_sample);
+    }
+    
+    if (seek_success) {
+        Debug::log("flac", "Seek successful to sample ", m_current_sample, 
+                  " (", samplesToMs(m_current_sample), " ms)");
+        return true;
+    } else {
+        reportError("Seek", "All seeking strategies failed for timestamp " + std::to_string(timestamp_ms));
+        return false;
+    }
 }
 
 bool FLACDemuxer::isEOF() const
@@ -245,13 +330,17 @@ uint64_t FLACDemuxer::getDuration() const
 
 uint64_t FLACDemuxer::getPosition() const
 {
-    Debug::log("flac", "FLACDemuxer::getPosition() - placeholder implementation");
+    Debug::log("flac", "FLACDemuxer::getPosition() - returning current position");
     
     if (!m_container_parsed || !m_streaminfo.isValid()) {
+        Debug::log("flac", "Container not parsed or invalid STREAMINFO");
         return 0;
     }
     
-    return samplesToMs(m_current_sample);
+    uint64_t position_ms = samplesToMs(m_current_sample);
+    Debug::log("flac", "Current position: ", m_current_sample, " samples = ", position_ms, " ms");
+    
+    return position_ms;
 }
 
 // Private helper methods - implementations
@@ -1645,6 +1734,162 @@ uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
     Debug::log("flac", "  Bounds: ", min_frame_size, " - ", max_frame_size, " bytes");
     
     return estimated_size;
+}
+
+bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data)
+{
+    Debug::log("flac", "FLACDemuxer::readFrameData() - reading complete FLAC frame");
+    
+    if (!m_handler) {
+        reportError("IO", "No IOHandler available for frame reading");
+        return false;
+    }
+    
+    if (!frame.isValid()) {
+        reportError("Frame", "Invalid frame header for reading");
+        return false;
+    }
+    
+    // Seek to the frame position
+    if (!m_handler->seek(frame.file_offset, SEEK_SET)) {
+        reportError("IO", "Failed to seek to frame position: " + std::to_string(frame.file_offset));
+        return false;
+    }
+    
+    // Calculate or use known frame size
+    uint32_t frame_size = frame.frame_size;
+    if (frame_size == 0) {
+        // Estimate frame size if not known
+        frame_size = calculateFrameSize(frame);
+        Debug::log("flac", "Using estimated frame size: ", frame_size, " bytes");
+    }
+    
+    // Validate frame size is reasonable
+    if (frame_size == 0 || frame_size > 16 * 1024 * 1024) {  // 16MB max
+        reportError("Frame", "Invalid frame size: " + std::to_string(frame_size));
+        return false;
+    }
+    
+    // Check if we have enough data left in file
+    if (m_file_size > 0) {
+        uint64_t bytes_available = m_file_size - frame.file_offset;
+        if (frame_size > bytes_available) {
+            Debug::log("flac", "Frame size (", frame_size, ") exceeds available data (", 
+                      bytes_available, "), adjusting");
+            frame_size = static_cast<uint32_t>(bytes_available);
+        }
+    }
+    
+    // Allocate buffer for frame data
+    data.clear();
+    data.resize(frame_size);
+    
+    // Read the frame data
+    size_t bytes_read = m_handler->read(data.data(), 1, frame_size);
+    if (bytes_read == 0) {
+        reportError("IO", "Failed to read any frame data");
+        return false;
+    }
+    
+    // Handle partial reads (common at end of file)
+    if (bytes_read < frame_size) {
+        Debug::log("flac", "Partial frame read: ", bytes_read, " of ", frame_size, " bytes");
+        data.resize(bytes_read);
+        
+        // Check if this looks like a complete frame by looking for sync pattern
+        if (bytes_read < 4) {
+            reportError("Frame", "Frame data too small to be valid");
+            return false;
+        }
+        
+        // Verify we still have the sync pattern at the beginning
+        if ((data[0] & 0xFF) != 0xFF || (data[1] & 0xF8) != 0xF8) {
+            reportError("Frame", "Frame data missing sync pattern");
+            return false;
+        }
+    }
+    
+    // For FLAC frames, we need to find the actual end of the frame
+    // This is more complex because FLAC frames are variable length
+    // For now, we'll try to find the CRC-16 at the end or next sync pattern
+    
+    if (bytes_read == frame_size && frame_size > 2) {
+        // Try to find the actual frame boundary by looking for next sync or EOF
+        uint64_t search_start = frame.file_offset + bytes_read;
+        uint64_t original_pos = m_handler->tell();
+        
+        // Look ahead for next frame sync to validate our frame size
+        bool found_next_sync = false;
+        const uint32_t max_search = 1024;  // Don't search too far
+        
+        for (uint32_t i = 0; i < max_search && search_start + i < m_file_size; i++) {
+            if (!m_handler->seek(search_start + i, SEEK_SET)) {
+                break;
+            }
+            
+            uint8_t sync_bytes[2];
+            if (m_handler->read(sync_bytes, 1, 2) != 2) {
+                break;
+            }
+            
+            // Check for FLAC sync pattern
+            if (sync_bytes[0] == 0xFF && (sync_bytes[1] & 0xF8) == 0xF8) {
+                // Found potential next frame, adjust our frame size
+                uint32_t actual_frame_size = static_cast<uint32_t>(search_start + i - frame.file_offset);
+                if (actual_frame_size < frame_size && actual_frame_size >= 4) {
+                    Debug::log("flac", "Adjusted frame size from ", frame_size, " to ", actual_frame_size);
+                    data.resize(actual_frame_size);
+                    found_next_sync = true;
+                }
+                break;
+            }
+        }
+        
+        // Restore file position
+        m_handler->seek(original_pos, SEEK_SET);
+        
+        if (!found_next_sync && m_file_size > 0 && search_start >= m_file_size) {
+            // We're at the last frame, adjust size to file end
+            uint32_t actual_frame_size = static_cast<uint32_t>(m_file_size - frame.file_offset);
+            if (actual_frame_size < frame_size && actual_frame_size >= 4) {
+                Debug::log("flac", "Last frame, adjusted size from ", frame_size, " to ", actual_frame_size);
+                data.resize(actual_frame_size);
+            }
+        }
+    }
+    
+    // Update current file position
+    m_current_offset = frame.file_offset + data.size();
+    
+    Debug::log("flac", "Successfully read FLAC frame: ", data.size(), " bytes at offset ", frame.file_offset);
+    
+    return true;
+}
+
+void FLACDemuxer::resetPositionTracking()
+{
+    Debug::log("flac", "FLACDemuxer::resetPositionTracking() - resetting position to start");
+    
+    // Reset sample position to beginning of stream
+    m_current_sample = 0;
+    m_last_block_size = 0;
+    
+    // Reset file position to start of audio data
+    m_current_offset = m_audio_data_offset;
+    
+    Debug::log("flac", "Position tracking reset: sample=", m_current_sample, 
+              " file_offset=", m_current_offset);
+}
+
+void FLACDemuxer::updatePositionTracking(uint64_t sample_position, uint64_t file_offset)
+{
+    Debug::log("flac", "FLACDemuxer::updatePositionTracking() - updating position");
+    
+    m_current_sample = sample_position;
+    m_current_offset = file_offset;
+    
+    Debug::log("flac", "Position tracking updated: sample=", m_current_sample, 
+              " file_offset=", m_current_offset);
 }
 
 bool FLACDemuxer::seekWithTable(uint64_t target_sample)

@@ -299,6 +299,10 @@ private:
     bool validateFrameHeader(const FLACFrame& frame);
     uint32_t calculateFrameSize(const FLACFrame& frame);
     
+    bool readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data);
+    void resetPositionTracking();
+    void updatePositionTracking(uint64_t sample_position, uint64_t file_offset);
+    
     bool seekWithTable(uint64_t target_sample);
     bool seekBinary(uint64_t target_sample);
     bool seekLinear(uint64_t target_sample);
