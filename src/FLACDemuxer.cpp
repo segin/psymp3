@@ -214,8 +214,12 @@ MediaChunk FLACDemuxer::readChunk()
     chunk.is_keyframe = true;  // All FLAC frames are independent
     chunk.file_offset = frame.file_offset;
     
-    // Update position tracking
-    m_current_sample = frame.sample_offset + frame.block_size;
+    // Update position tracking - advance to next frame position
+    uint64_t next_sample_position = frame.sample_offset + frame.block_size;
+    uint64_t next_file_offset = frame.file_offset + frame.frame_size;
+    
+    // Use updatePositionTracking for consistency and validation
+    updatePositionTracking(next_sample_position, next_file_offset);
     m_last_block_size = frame.block_size;
     
     Debug::log("flac", "Read FLAC frame: samples=", frame.sample_offset, 
@@ -319,28 +323,98 @@ bool FLACDemuxer::isEOF() const
 
 uint64_t FLACDemuxer::getDuration() const
 {
-    Debug::log("flac", "FLACDemuxer::getDuration() - placeholder implementation");
+    Debug::log("flac", "FLACDemuxer::getDuration() - calculating duration");
     
-    if (!m_container_parsed || !m_streaminfo.isValid()) {
+    if (!m_container_parsed) {
+        Debug::log("flac", "Container not parsed, cannot determine duration");
         return 0;
     }
     
-    return m_streaminfo.getDurationMs();
+    // Primary method: Use total samples from STREAMINFO
+    if (m_streaminfo.isValid() && m_streaminfo.total_samples > 0 && m_streaminfo.sample_rate > 0) {
+        // Use 64-bit arithmetic to prevent overflow for very long files
+        // Calculate: (total_samples * 1000) / sample_rate
+        // But do it safely to avoid overflow
+        uint64_t duration_ms = (m_streaminfo.total_samples * 1000ULL) / m_streaminfo.sample_rate;
+        
+        Debug::log("flac", "Duration from STREAMINFO: ", duration_ms, " ms (", 
+                  m_streaminfo.total_samples, " samples at ", m_streaminfo.sample_rate, " Hz)");
+        return duration_ms;
+    }
+    
+    // Fallback method: Estimate from file size and average bitrate
+    if (m_file_size > 0 && m_streaminfo.isValid() && m_streaminfo.sample_rate > 0) {
+        Debug::log("flac", "STREAMINFO incomplete, estimating duration from file size");
+        
+        // Calculate approximate bitrate based on format parameters
+        // Uncompressed bitrate = sample_rate * channels * bits_per_sample
+        uint64_t uncompressed_bitrate = static_cast<uint64_t>(m_streaminfo.sample_rate) * 
+                                       m_streaminfo.channels * 
+                                       m_streaminfo.bits_per_sample;
+        
+        if (uncompressed_bitrate == 0) {
+            Debug::log("flac", "Cannot calculate bitrate, insufficient STREAMINFO");
+            return 0;
+        }
+        
+        // Estimate FLAC compression ratio (typically 0.5-0.7, use 0.6 as average)
+        // This is a rough estimate since FLAC compression varies by content
+        double compression_ratio = 0.6;
+        uint64_t estimated_compressed_bitrate = static_cast<uint64_t>(uncompressed_bitrate * compression_ratio);
+        
+        // Account for metadata overhead (subtract audio data offset from file size)
+        uint64_t audio_data_size = m_file_size;
+        if (m_audio_data_offset > 0 && m_audio_data_offset < m_file_size) {
+            audio_data_size = m_file_size - m_audio_data_offset;
+        }
+        
+        // Calculate duration: (audio_data_size_in_bits * 1000) / bitrate
+        // Convert bytes to bits: audio_data_size * 8
+        // Use 64-bit arithmetic to prevent overflow
+        if (estimated_compressed_bitrate > 0) {
+            uint64_t duration_ms = (audio_data_size * 8ULL * 1000ULL) / estimated_compressed_bitrate;
+            
+            Debug::log("flac", "Estimated duration from file size: ", duration_ms, " ms");
+            Debug::log("flac", "  File size: ", m_file_size, " bytes");
+            Debug::log("flac", "  Audio data size: ", audio_data_size, " bytes");
+            Debug::log("flac", "  Estimated bitrate: ", estimated_compressed_bitrate, " bps");
+            
+            return duration_ms;
+        }
+    }
+    
+    // No reliable way to determine duration
+    Debug::log("flac", "Cannot determine duration - insufficient information");
+    return 0;
 }
 
 uint64_t FLACDemuxer::getPosition() const
 {
-    Debug::log("flac", "FLACDemuxer::getPosition() - returning current position");
+    Debug::log("flac", "FLACDemuxer::getPosition() - returning current position in milliseconds");
     
     if (!m_container_parsed || !m_streaminfo.isValid()) {
         Debug::log("flac", "Container not parsed or invalid STREAMINFO");
         return 0;
     }
     
+    // Convert current sample position to milliseconds
     uint64_t position_ms = samplesToMs(m_current_sample);
     Debug::log("flac", "Current position: ", m_current_sample, " samples = ", position_ms, " ms");
     
     return position_ms;
+}
+
+uint64_t FLACDemuxer::getCurrentSample() const
+{
+    Debug::log("flac", "FLACDemuxer::getCurrentSample() - returning current position in samples");
+    
+    if (!m_container_parsed) {
+        Debug::log("flac", "Container not parsed");
+        return 0;
+    }
+    
+    Debug::log("flac", "Current sample position: ", m_current_sample);
+    return m_current_sample;
 }
 
 // Private helper methods - implementations
@@ -1878,18 +1952,29 @@ void FLACDemuxer::resetPositionTracking()
     m_current_offset = m_audio_data_offset;
     
     Debug::log("flac", "Position tracking reset: sample=", m_current_sample, 
-              " file_offset=", m_current_offset);
+              " file_offset=", m_current_offset, " (", samplesToMs(m_current_sample), " ms)");
 }
 
 void FLACDemuxer::updatePositionTracking(uint64_t sample_position, uint64_t file_offset)
 {
     Debug::log("flac", "FLACDemuxer::updatePositionTracking() - updating position");
     
+    // Validate sample position against stream bounds if known
+    if (m_streaminfo.isValid() && m_streaminfo.total_samples > 0) {
+        if (sample_position > m_streaminfo.total_samples) {
+            Debug::log("flac", "Warning: sample position (", sample_position, 
+                      ") exceeds total samples (", m_streaminfo.total_samples, ")");
+            // Clamp to valid range
+            sample_position = m_streaminfo.total_samples;
+        }
+    }
+    
+    // Update tracking variables
     m_current_sample = sample_position;
     m_current_offset = file_offset;
     
     Debug::log("flac", "Position tracking updated: sample=", m_current_sample, 
-              " file_offset=", m_current_offset);
+              " file_offset=", m_current_offset, " (", samplesToMs(m_current_sample), " ms)");
 }
 
 bool FLACDemuxer::seekWithTable(uint64_t target_sample)
@@ -2365,7 +2450,22 @@ uint64_t FLACDemuxer::samplesToMs(uint64_t samples) const
     if (m_streaminfo.sample_rate == 0) {
         return 0;
     }
-    return (samples * 1000) / m_streaminfo.sample_rate;
+    
+    // Use 64-bit arithmetic to prevent overflow for very long files
+    // For extremely large sample counts, we need to be careful about overflow
+    // when multiplying by 1000
+    
+    // Check if samples * 1000 would overflow
+    if (samples > UINT64_MAX / 1000) {
+        // Use division first to prevent overflow
+        // This may lose some precision but prevents overflow
+        uint64_t seconds = samples / m_streaminfo.sample_rate;
+        uint64_t remaining_samples = samples % m_streaminfo.sample_rate;
+        uint64_t remaining_ms = (remaining_samples * 1000) / m_streaminfo.sample_rate;
+        return (seconds * 1000) + remaining_ms;
+    }
+    
+    return (samples * 1000ULL) / m_streaminfo.sample_rate;
 }
 
 uint64_t FLACDemuxer::msToSamples(uint64_t ms) const
@@ -2373,5 +2473,16 @@ uint64_t FLACDemuxer::msToSamples(uint64_t ms) const
     if (m_streaminfo.sample_rate == 0) {
         return 0;
     }
-    return (ms * m_streaminfo.sample_rate) / 1000;
+    
+    // Use 64-bit arithmetic to prevent overflow for very long durations
+    // Check if ms * sample_rate would overflow
+    if (ms > UINT64_MAX / m_streaminfo.sample_rate) {
+        // Use division first to prevent overflow
+        uint64_t seconds = ms / 1000;
+        uint64_t remaining_ms = ms % 1000;
+        uint64_t remaining_samples = (remaining_ms * m_streaminfo.sample_rate) / 1000;
+        return (seconds * m_streaminfo.sample_rate) + remaining_samples;
+    }
+    
+    return (ms * static_cast<uint64_t>(m_streaminfo.sample_rate)) / 1000ULL;
 }

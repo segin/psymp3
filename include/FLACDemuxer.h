@@ -267,6 +267,12 @@ public:
      * @return Current playback position in milliseconds
      */
     uint64_t getPosition() const override;
+    
+    /**
+     * @brief Get current position in samples
+     * @return Current playback position in samples
+     */
+    uint64_t getCurrentSample() const;
 
 private:
     // FLAC container state

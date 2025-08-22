@@ -149,21 +149,21 @@
   - Optimize for short-distance seeks from current position
   - _Requirements: 4.3, 4.4, 4.6, 4.7_
 
-- [ ] 7. Add Duration and Position Calculation
+- [x] 7. Add Duration and Position Calculation
   - Implement getDuration() using total samples from STREAMINFO
   - Create getPosition() for current playback position reporting
   - Add sample-to-millisecond conversion utilities
   - Handle edge cases with missing or invalid duration information
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8_
 
-- [ ] 7.1 Implement Duration Calculation
+- [x] 7.1 Implement Duration Calculation
   - Use total samples and sample rate from STREAMINFO for primary duration
   - Fall back to file size estimation when STREAMINFO is incomplete
   - Handle very long files without integer overflow
   - Provide duration in milliseconds for consistency with other demuxers
   - _Requirements: 5.1, 5.2, 5.8, 8.4_
 
-- [ ] 7.2 Add Position Tracking and Reporting
+- [x] 7.2 Add Position Tracking and Reporting
   - Maintain accurate current sample position during playback
   - Convert sample positions to milliseconds for position reporting
   - Handle position updates during seeking operations
