@@ -497,23 +497,530 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
 
 bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
 {
-    Debug::log("flac", "FLACDemuxer::parseSeekTableBlock() - placeholder implementation");
-    // TODO: Implement SEEKTABLE parsing
-    return false;
+    Debug::log("flac", "FLACDemuxer::parseSeekTableBlock() - parsing SEEKTABLE block");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Each seek point is 18 bytes (3 * 64-bit values, but packed)
+    // Sample number (64 bits), stream offset (64 bits), frame samples (16 bits)
+    const uint32_t seek_point_size = 18;
+    
+    if (block.length % seek_point_size != 0) {
+        reportError("Format", "Invalid SEEKTABLE block length: " + std::to_string(block.length));
+        return false;
+    }
+    
+    uint32_t num_seek_points = block.length / seek_point_size;
+    Debug::log("flac", "SEEKTABLE contains ", num_seek_points, " seek points");
+    
+    // Clear existing seek table
+    m_seektable.clear();
+    m_seektable.reserve(num_seek_points);
+    
+    // Read and parse each seek point
+    for (uint32_t i = 0; i < num_seek_points; i++) {
+        uint8_t seek_data[18];
+        if (m_handler->read(seek_data, 1, 18) != 18) {
+            reportError("IO", "Failed to read seek point " + std::to_string(i));
+            return false;
+        }
+        
+        FLACSeekPoint seek_point;
+        
+        // Parse sample number (64 bits, big-endian)
+        seek_point.sample_number = (static_cast<uint64_t>(seek_data[0]) << 56) |
+                                   (static_cast<uint64_t>(seek_data[1]) << 48) |
+                                   (static_cast<uint64_t>(seek_data[2]) << 40) |
+                                   (static_cast<uint64_t>(seek_data[3]) << 32) |
+                                   (static_cast<uint64_t>(seek_data[4]) << 24) |
+                                   (static_cast<uint64_t>(seek_data[5]) << 16) |
+                                   (static_cast<uint64_t>(seek_data[6]) << 8) |
+                                   static_cast<uint64_t>(seek_data[7]);
+        
+        // Parse stream offset (64 bits, big-endian)
+        seek_point.stream_offset = (static_cast<uint64_t>(seek_data[8]) << 56) |
+                                   (static_cast<uint64_t>(seek_data[9]) << 48) |
+                                   (static_cast<uint64_t>(seek_data[10]) << 40) |
+                                   (static_cast<uint64_t>(seek_data[11]) << 32) |
+                                   (static_cast<uint64_t>(seek_data[12]) << 24) |
+                                   (static_cast<uint64_t>(seek_data[13]) << 16) |
+                                   (static_cast<uint64_t>(seek_data[14]) << 8) |
+                                   static_cast<uint64_t>(seek_data[15]);
+        
+        // Parse frame samples (16 bits, big-endian)
+        seek_point.frame_samples = (static_cast<uint16_t>(seek_data[16]) << 8) |
+                                   static_cast<uint16_t>(seek_data[17]);
+        
+        // Handle placeholder seek points
+        if (seek_point.isPlaceholder()) {
+            Debug::log("flac", "Seek point ", i, " is a placeholder, skipping");
+            continue;
+        }
+        
+        // Validate seek point for consistency and reasonable values
+        if (!seek_point.isValid()) {
+            Debug::log("flac", "Invalid seek point ", i, ", skipping");
+            continue;
+        }
+        
+        // Additional validation against STREAMINFO
+        if (m_streaminfo.isValid()) {
+            // Check if sample number is within total samples
+            if (m_streaminfo.total_samples > 0 && 
+                seek_point.sample_number >= m_streaminfo.total_samples) {
+                Debug::log("flac", "Seek point ", i, " sample number (", 
+                          seek_point.sample_number, ") exceeds total samples (", 
+                          m_streaminfo.total_samples, "), skipping");
+                continue;
+            }
+            
+            // Check if frame samples is reasonable
+            if (seek_point.frame_samples > m_streaminfo.max_block_size) {
+                Debug::log("flac", "Seek point ", i, " frame samples (", 
+                          seek_point.frame_samples, ") exceeds max block size (", 
+                          m_streaminfo.max_block_size, "), skipping");
+                continue;
+            }
+        }
+        
+        // Check for reasonable stream offset (should be within file size)
+        if (m_file_size > 0 && seek_point.stream_offset >= m_file_size) {
+            Debug::log("flac", "Seek point ", i, " stream offset (", 
+                      seek_point.stream_offset, ") exceeds file size (", 
+                      m_file_size, "), skipping");
+            continue;
+        }
+        
+        // Add valid seek point to table
+        m_seektable.push_back(seek_point);
+        
+        Debug::log("flac", "Added seek point: sample=", seek_point.sample_number, 
+                  " offset=", seek_point.stream_offset, 
+                  " frame_samples=", seek_point.frame_samples);
+    }
+    
+    Debug::log("flac", "SEEKTABLE parsed successfully, ", m_seektable.size(), 
+              " valid seek points out of ", num_seek_points, " total");
+    
+    // Sort seek table by sample number for efficient lookup
+    std::sort(m_seektable.begin(), m_seektable.end(), 
+              [](const FLACSeekPoint& a, const FLACSeekPoint& b) {
+                  return a.sample_number < b.sample_number;
+              });
+    
+    return true;
 }
 
 bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
 {
-    Debug::log("flac", "FLACDemuxer::parseVorbisCommentBlock() - placeholder implementation");
-    // TODO: Implement VORBIS_COMMENT parsing
-    return false;
+    Debug::log("flac", "FLACDemuxer::parseVorbisCommentBlock() - parsing VORBIS_COMMENT block");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    if (block.length < 8) {  // Minimum: 4 bytes vendor length + 4 bytes comment count
+        reportError("Format", "VORBIS_COMMENT block too small: " + std::to_string(block.length));
+        return false;
+    }
+    
+    // Clear existing comments
+    m_vorbis_comments.clear();
+    
+    uint32_t bytes_read = 0;
+    
+    // Read vendor string length (32-bit little-endian)
+    uint8_t vendor_len_data[4];
+    if (m_handler->read(vendor_len_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read vendor string length");
+        return false;
+    }
+    bytes_read += 4;
+    
+    uint32_t vendor_length = static_cast<uint32_t>(vendor_len_data[0]) |
+                            (static_cast<uint32_t>(vendor_len_data[1]) << 8) |
+                            (static_cast<uint32_t>(vendor_len_data[2]) << 16) |
+                            (static_cast<uint32_t>(vendor_len_data[3]) << 24);
+    
+    // Validate vendor string length
+    if (vendor_length > block.length - 8) {  // Leave room for comment count
+        reportError("Format", "Invalid vendor string length: " + std::to_string(vendor_length));
+        return false;
+    }
+    
+    // Read vendor string (UTF-8)
+    std::string vendor_string;
+    if (vendor_length > 0) {
+        std::vector<uint8_t> vendor_data(vendor_length);
+        if (m_handler->read(vendor_data.data(), 1, vendor_length) != vendor_length) {
+            reportError("IO", "Failed to read vendor string");
+            return false;
+        }
+        bytes_read += vendor_length;
+        
+        // Convert to string (assuming UTF-8)
+        vendor_string.assign(vendor_data.begin(), vendor_data.end());
+        Debug::log("flac", "Vendor string: ", vendor_string);
+    }
+    
+    // Read user comment count (32-bit little-endian)
+    uint8_t comment_count_data[4];
+    if (m_handler->read(comment_count_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read comment count");
+        return false;
+    }
+    bytes_read += 4;
+    
+    uint32_t comment_count = static_cast<uint32_t>(comment_count_data[0]) |
+                            (static_cast<uint32_t>(comment_count_data[1]) << 8) |
+                            (static_cast<uint32_t>(comment_count_data[2]) << 16) |
+                            (static_cast<uint32_t>(comment_count_data[3]) << 24);
+    
+    Debug::log("flac", "Processing ", comment_count, " user comments");
+    
+    // Read each user comment
+    for (uint32_t i = 0; i < comment_count; i++) {
+        // Check if we have enough bytes left
+        if (bytes_read + 4 > block.length) {
+            Debug::log("flac", "Not enough data for comment ", i, " length field");
+            break;
+        }
+        
+        // Read comment length (32-bit little-endian)
+        uint8_t comment_len_data[4];
+        if (m_handler->read(comment_len_data, 1, 4) != 4) {
+            Debug::log("flac", "Failed to read comment ", i, " length");
+            break;
+        }
+        bytes_read += 4;
+        
+        uint32_t comment_length = static_cast<uint32_t>(comment_len_data[0]) |
+                                 (static_cast<uint32_t>(comment_len_data[1]) << 8) |
+                                 (static_cast<uint32_t>(comment_len_data[2]) << 16) |
+                                 (static_cast<uint32_t>(comment_len_data[3]) << 24);
+        
+        // Validate comment length
+        if (comment_length == 0) {
+            Debug::log("flac", "Empty comment ", i, ", skipping");
+            continue;
+        }
+        
+        if (bytes_read + comment_length > block.length) {
+            Debug::log("flac", "Comment ", i, " length (", comment_length, 
+                      ") exceeds remaining block data");
+            break;
+        }
+        
+        // Reasonable size limit for comments (64KB)
+        if (comment_length > 65536) {
+            Debug::log("flac", "Comment ", i, " too large (", comment_length, " bytes), skipping");
+            // Skip this comment
+            if (!m_handler->seek(m_handler->tell() + comment_length, SEEK_SET)) {
+                Debug::log("flac", "Failed to skip oversized comment");
+                break;
+            }
+            bytes_read += comment_length;
+            continue;
+        }
+        
+        // Read comment data (UTF-8)
+        std::vector<uint8_t> comment_data(comment_length);
+        if (m_handler->read(comment_data.data(), 1, comment_length) != comment_length) {
+            Debug::log("flac", "Failed to read comment ", i, " data");
+            break;
+        }
+        bytes_read += comment_length;
+        
+        // Convert to string (assuming UTF-8)
+        std::string comment_string(comment_data.begin(), comment_data.end());
+        
+        // Parse FIELD=value format
+        size_t equals_pos = comment_string.find('=');
+        if (equals_pos == std::string::npos) {
+            Debug::log("flac", "Comment ", i, " missing '=' separator: ", comment_string);
+            continue;
+        }
+        
+        std::string field = comment_string.substr(0, equals_pos);
+        std::string value = comment_string.substr(equals_pos + 1);
+        
+        // Convert field name to uppercase for consistency
+        std::transform(field.begin(), field.end(), field.begin(), ::toupper);
+        
+        // Store the comment
+        m_vorbis_comments[field] = value;
+        
+        Debug::log("flac", "Added comment: ", field, " = ", value);
+    }
+    
+    // Skip any remaining bytes in the block
+    if (bytes_read < block.length) {
+        uint32_t remaining = block.length - bytes_read;
+        Debug::log("flac", "Skipping ", remaining, " remaining bytes in VORBIS_COMMENT block");
+        if (!m_handler->seek(m_handler->tell() + remaining, SEEK_SET)) {
+            Debug::log("flac", "Failed to skip remaining VORBIS_COMMENT data");
+            return false;
+        }
+    }
+    
+    Debug::log("flac", "VORBIS_COMMENT parsed successfully, ", m_vorbis_comments.size(), " comments");
+    
+    // Log standard metadata fields if present
+    const std::vector<std::string> standard_fields = {
+        "TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "GENRE", "ALBUMARTIST"
+    };
+    
+    for (const auto& field : standard_fields) {
+        auto it = m_vorbis_comments.find(field);
+        if (it != m_vorbis_comments.end()) {
+            Debug::log("flac", "  ", field, ": ", it->second);
+        }
+    }
+    
+    return true;
 }
 
 bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
 {
-    Debug::log("flac", "FLACDemuxer::parsePictureBlock() - placeholder implementation");
-    // TODO: Implement PICTURE parsing
-    return false;
+    Debug::log("flac", "FLACDemuxer::parsePictureBlock() - parsing PICTURE block");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Minimum PICTURE block size: 4+4+4+4+4+4+4+4 = 32 bytes (without strings and data)
+    if (block.length < 32) {
+        reportError("Format", "PICTURE block too small: " + std::to_string(block.length));
+        return false;
+    }
+    
+    FLACPicture picture;
+    uint32_t bytes_read = 0;
+    
+    // Read picture type (32-bit big-endian)
+    uint8_t type_data[4];
+    if (m_handler->read(type_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read picture type");
+        return false;
+    }
+    bytes_read += 4;
+    
+    picture.picture_type = (static_cast<uint32_t>(type_data[0]) << 24) |
+                          (static_cast<uint32_t>(type_data[1]) << 16) |
+                          (static_cast<uint32_t>(type_data[2]) << 8) |
+                          static_cast<uint32_t>(type_data[3]);
+    
+    // Read MIME type length (32-bit big-endian)
+    uint8_t mime_len_data[4];
+    if (m_handler->read(mime_len_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read MIME type length");
+        return false;
+    }
+    bytes_read += 4;
+    
+    uint32_t mime_length = (static_cast<uint32_t>(mime_len_data[0]) << 24) |
+                          (static_cast<uint32_t>(mime_len_data[1]) << 16) |
+                          (static_cast<uint32_t>(mime_len_data[2]) << 8) |
+                          static_cast<uint32_t>(mime_len_data[3]);
+    
+    // Validate MIME type length
+    if (mime_length > 256) {  // Reasonable limit for MIME type
+        reportError("Format", "MIME type too long: " + std::to_string(mime_length));
+        return false;
+    }
+    
+    if (bytes_read + mime_length > block.length) {
+        reportError("Format", "MIME type length exceeds block size");
+        return false;
+    }
+    
+    // Read MIME type string
+    if (mime_length > 0) {
+        std::vector<uint8_t> mime_data(mime_length);
+        if (m_handler->read(mime_data.data(), 1, mime_length) != mime_length) {
+            reportError("IO", "Failed to read MIME type");
+            return false;
+        }
+        bytes_read += mime_length;
+        
+        picture.mime_type.assign(mime_data.begin(), mime_data.end());
+    }
+    
+    // Read description length (32-bit big-endian)
+    uint8_t desc_len_data[4];
+    if (m_handler->read(desc_len_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read description length");
+        return false;
+    }
+    bytes_read += 4;
+    
+    uint32_t desc_length = (static_cast<uint32_t>(desc_len_data[0]) << 24) |
+                          (static_cast<uint32_t>(desc_len_data[1]) << 16) |
+                          (static_cast<uint32_t>(desc_len_data[2]) << 8) |
+                          static_cast<uint32_t>(desc_len_data[3]);
+    
+    // Validate description length
+    if (desc_length > 65536) {  // Reasonable limit for description
+        Debug::log("flac", "Description too long (", desc_length, " bytes), truncating");
+        desc_length = 65536;
+    }
+    
+    if (bytes_read + desc_length > block.length) {
+        reportError("Format", "Description length exceeds block size");
+        return false;
+    }
+    
+    // Read description string (UTF-8)
+    if (desc_length > 0) {
+        std::vector<uint8_t> desc_data(desc_length);
+        if (m_handler->read(desc_data.data(), 1, desc_length) != desc_length) {
+            reportError("IO", "Failed to read description");
+            return false;
+        }
+        bytes_read += desc_length;
+        
+        picture.description.assign(desc_data.begin(), desc_data.end());
+    }
+    
+    // Read picture width (32-bit big-endian)
+    uint8_t width_data[4];
+    if (m_handler->read(width_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read picture width");
+        return false;
+    }
+    bytes_read += 4;
+    
+    picture.width = (static_cast<uint32_t>(width_data[0]) << 24) |
+                   (static_cast<uint32_t>(width_data[1]) << 16) |
+                   (static_cast<uint32_t>(width_data[2]) << 8) |
+                   static_cast<uint32_t>(width_data[3]);
+    
+    // Read picture height (32-bit big-endian)
+    uint8_t height_data[4];
+    if (m_handler->read(height_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read picture height");
+        return false;
+    }
+    bytes_read += 4;
+    
+    picture.height = (static_cast<uint32_t>(height_data[0]) << 24) |
+                    (static_cast<uint32_t>(height_data[1]) << 16) |
+                    (static_cast<uint32_t>(height_data[2]) << 8) |
+                    static_cast<uint32_t>(height_data[3]);
+    
+    // Read color depth (32-bit big-endian)
+    uint8_t depth_data[4];
+    if (m_handler->read(depth_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read color depth");
+        return false;
+    }
+    bytes_read += 4;
+    
+    picture.color_depth = (static_cast<uint32_t>(depth_data[0]) << 24) |
+                         (static_cast<uint32_t>(depth_data[1]) << 16) |
+                         (static_cast<uint32_t>(depth_data[2]) << 8) |
+                         static_cast<uint32_t>(depth_data[3]);
+    
+    // Read colors used (32-bit big-endian)
+    uint8_t colors_data[4];
+    if (m_handler->read(colors_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read colors used");
+        return false;
+    }
+    bytes_read += 4;
+    
+    picture.colors_used = (static_cast<uint32_t>(colors_data[0]) << 24) |
+                         (static_cast<uint32_t>(colors_data[1]) << 16) |
+                         (static_cast<uint32_t>(colors_data[2]) << 8) |
+                         static_cast<uint32_t>(colors_data[3]);
+    
+    // Read picture data length (32-bit big-endian)
+    uint8_t data_len_data[4];
+    if (m_handler->read(data_len_data, 1, 4) != 4) {
+        reportError("IO", "Failed to read picture data length");
+        return false;
+    }
+    bytes_read += 4;
+    
+    uint32_t data_length = (static_cast<uint32_t>(data_len_data[0]) << 24) |
+                          (static_cast<uint32_t>(data_len_data[1]) << 16) |
+                          (static_cast<uint32_t>(data_len_data[2]) << 8) |
+                          static_cast<uint32_t>(data_len_data[3]);
+    
+    // Validate picture data length
+    if (bytes_read + data_length != block.length) {
+        reportError("Format", "Picture data length doesn't match remaining block size");
+        return false;
+    }
+    
+    // Reasonable size limit for picture data (16MB)
+    if (data_length > 16 * 1024 * 1024) {
+        Debug::log("flac", "Picture data very large (", data_length, " bytes), storing metadata only");
+        // Skip the actual image data but store the metadata
+        if (!m_handler->seek(m_handler->tell() + data_length, SEEK_SET)) {
+            reportError("IO", "Failed to skip large picture data");
+            return false;
+        }
+        // Don't store the actual image data
+        picture.data.clear();
+    } else {
+        // Read picture data
+        if (data_length > 0) {
+            picture.data.resize(data_length);
+            if (m_handler->read(picture.data.data(), 1, data_length) != data_length) {
+                reportError("IO", "Failed to read picture data");
+                return false;
+            }
+        }
+    }
+    
+    // Validate picture metadata
+    if (!picture.isValid()) {
+        Debug::log("flac", "Invalid picture metadata, skipping");
+        return true;  // Not a fatal error, just skip this picture
+    }
+    
+    // Add picture to collection
+    m_pictures.push_back(std::move(picture));
+    
+    Debug::log("flac", "PICTURE parsed successfully:");
+    Debug::log("flac", "  Type: ", picture.picture_type);
+    Debug::log("flac", "  MIME type: ", picture.mime_type);
+    Debug::log("flac", "  Description: ", picture.description);
+    Debug::log("flac", "  Dimensions: ", picture.width, "x", picture.height);
+    Debug::log("flac", "  Color depth: ", picture.color_depth, " bits");
+    Debug::log("flac", "  Data size: ", data_length, " bytes");
+    
+    // Log picture type description
+    const char* type_desc = "Unknown";
+    switch (picture.picture_type) {
+        case 0: type_desc = "Other"; break;
+        case 1: type_desc = "32x32 pixels file icon"; break;
+        case 2: type_desc = "Other file icon"; break;
+        case 3: type_desc = "Cover (front)"; break;
+        case 4: type_desc = "Cover (back)"; break;
+        case 5: type_desc = "Leaflet page"; break;
+        case 6: type_desc = "Media"; break;
+        case 7: type_desc = "Lead artist/lead performer/soloist"; break;
+        case 8: type_desc = "Artist/performer"; break;
+        case 9: type_desc = "Conductor"; break;
+        case 10: type_desc = "Band/Orchestra"; break;
+        case 11: type_desc = "Composer"; break;
+        case 12: type_desc = "Lyricist/text writer"; break;
+        case 13: type_desc = "Recording Location"; break;
+        case 14: type_desc = "During recording"; break;
+        case 15: type_desc = "During performance"; break;
+        case 16: type_desc = "Movie/video screen capture"; break;
+        case 17: type_desc = "A bright coloured fish"; break;
+        case 18: type_desc = "Illustration"; break;
+        case 19: type_desc = "Band/artist logotype"; break;
+        case 20: type_desc = "Publisher/Studio logotype"; break;
+    }
+    Debug::log("flac", "  Type description: ", type_desc);
+    
+    return true;
 }
 
 bool FLACDemuxer::skipMetadataBlock(const FLACMetadataBlock& block)
