@@ -212,21 +212,21 @@
   - Add read-ahead buffering for network streams
   - _Requirements: 7.3, 7.4, 7.5, 7.7_
 
-- [ ] 10. Integrate with Demuxer Architecture
+- [x] 10. Integrate with Demuxer Architecture
   - Ensure proper integration with IOHandler subsystem
   - Implement StreamInfo population with accurate FLAC parameters
   - Add MediaFactory registration for .flac files
   - Create proper error reporting using PsyMP3 conventions
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8_
 
-- [ ] 10.1 Complete IOHandler Integration
+- [x] 10.1 Complete IOHandler Integration
   - Use IOHandler interface exclusively for all file I/O operations
   - Support both FileIOHandler and HTTPIOHandler implementations
   - Handle large file operations with proper 64-bit offset support
   - Propagate I/O errors appropriately through demuxer interface
   - _Requirements: 8.5, 8.6, 7.1, 7.7_
 
-- [ ] 10.2 Add MediaFactory Integration
+- [x] 10.2 Add MediaFactory Integration
   - Register FLACDemuxer for .flac file extension detection
   - Add audio/flac MIME type support
   - Implement format detection based on fLaC stream marker

@@ -91,7 +91,8 @@ bool FLACDemuxer::parseContainer()
     
     // Seek to beginning of file with error recovery
     if (!m_handler->seek(0, SEEK_SET)) {
-        reportError("IO", "Failed to seek to beginning of file");
+        int io_error = m_handler->getLastError();
+        reportError("IO", "Failed to seek to beginning of file (error: " + std::to_string(io_error) + ")");
         return false;
     }
     
@@ -100,7 +101,12 @@ bool FLACDemuxer::parseContainer()
     size_t bytes_read = m_handler->read(marker, 1, 4);
     
     if (bytes_read == 0) {
-        reportError("IO", "Empty file or read error - cannot read FLAC stream marker");
+        int io_error = m_handler->getLastError();
+        if (io_error != 0) {
+            reportError("IO", "Read error while reading FLAC stream marker (error: " + std::to_string(io_error) + ")");
+        } else {
+            reportError("IO", "Empty file - cannot read FLAC stream marker");
+        }
         return false;
     }
     
@@ -1169,7 +1175,8 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
         if (comment_length > 65536) {
             Debug::log("flac", "Comment ", i, " too large (", comment_length, " bytes), skipping");
             // Skip this comment
-            if (!m_handler->seek(m_handler->tell() + comment_length, SEEK_SET)) {
+            off_t current_pos = m_handler->tell();
+            if (current_pos < 0 || !m_handler->seek(current_pos + static_cast<off_t>(comment_length), SEEK_SET)) {
                 Debug::log("flac", "Failed to skip oversized comment");
                 break;
             }
@@ -1211,7 +1218,8 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
     if (bytes_read < block.length) {
         uint32_t remaining = block.length - bytes_read;
         Debug::log("flac", "Skipping ", remaining, " remaining bytes in VORBIS_COMMENT block");
-        if (!m_handler->seek(m_handler->tell() + remaining, SEEK_SET)) {
+        off_t current_pos = m_handler->tell();
+        if (current_pos < 0 || !m_handler->seek(current_pos + static_cast<off_t>(remaining), SEEK_SET)) {
             Debug::log("flac", "Failed to skip remaining VORBIS_COMMENT data");
             return false;
         }
@@ -1415,7 +1423,7 @@ bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
     if (data_length > MAX_PICTURE_SIZE) {
         Debug::log("flac", "Picture data too large (", data_length, " bytes), skipping");
         // Skip the picture entirely if it's too large
-        if (!m_handler->seek(picture.data_offset + data_length, SEEK_SET)) {
+        if (!m_handler->seek(static_cast<off_t>(picture.data_offset + data_length), SEEK_SET)) {
             reportError("IO", "Failed to skip oversized picture data");
             return false;
         }
@@ -1426,7 +1434,7 @@ bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
     if (m_pictures.size() >= MAX_PICTURES) {
         Debug::log("flac", "Too many pictures already stored, skipping additional picture");
         // Skip the picture data
-        if (!m_handler->seek(picture.data_offset + data_length, SEEK_SET)) {
+        if (!m_handler->seek(static_cast<off_t>(picture.data_offset + data_length), SEEK_SET)) {
             reportError("IO", "Failed to skip excess picture data");
             return false;
         }
@@ -1434,7 +1442,7 @@ bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
     }
     
     // Skip the actual image data for now (will be loaded on demand)
-    if (!m_handler->seek(picture.data_offset + data_length, SEEK_SET)) {
+    if (!m_handler->seek(static_cast<off_t>(picture.data_offset + data_length), SEEK_SET)) {
         reportError("IO", "Failed to skip picture data");
         return false;
     }
@@ -1495,8 +1503,12 @@ bool FLACDemuxer::skipMetadataBlock(const FLACMetadataBlock& block)
     }
     
     // Skip the block data by seeking forward
-    int64_t current_pos = m_handler->tell();
-    int64_t target_pos = current_pos + static_cast<int64_t>(block.length);
+    off_t current_pos = m_handler->tell();
+    if (current_pos < 0) {
+        Debug::log("flac", "Failed to get current position for block skip");
+        return false;
+    }
+    off_t target_pos = current_pos + static_cast<off_t>(block.length);
     
     if (!m_handler->seek(target_pos, SEEK_SET)) {
         Debug::log("flac", "Failed to seek past metadata block");
@@ -1532,7 +1544,7 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     }
     
     // Seek to current position
-    if (!m_handler->seek(search_start, SEEK_SET)) {
+    if (!m_handler->seek(static_cast<off_t>(search_start), SEEK_SET)) {
         reportError("IO", "Failed to seek to search position");
         return false;
     }
@@ -1563,7 +1575,7 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
                           std::dec, " at position ", sync_position);
                 
                 // Seek to this position and try to parse frame header
-                if (!m_handler->seek(sync_position, SEEK_SET)) {
+                if (!m_handler->seek(static_cast<off_t>(sync_position), SEEK_SET)) {
                     Debug::log("flac", "Failed to seek to sync position");
                     continue;
                 }
@@ -1617,7 +1629,7 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
             search_start = search_start + bytes_searched - 1;
             bytes_searched = 1;  // Account for the overlap
             
-            if (!m_handler->seek(search_start, SEEK_SET)) {
+            if (!m_handler->seek(static_cast<off_t>(search_start), SEEK_SET)) {
                 Debug::log("flac", "Failed to seek for overlapped search");
                 break;
             }
@@ -2158,7 +2170,7 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
     }
     
     // Seek to the frame position
-    if (!m_handler->seek(frame.file_offset, SEEK_SET)) {
+    if (!m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET)) {
         reportError("IO", "Failed to seek to frame position: " + std::to_string(frame.file_offset));
         return false;
     }
@@ -2230,14 +2242,18 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
     if (bytes_read == frame_size && frame_size > 2) {
         // Try to find the actual frame boundary by looking for next sync or EOF
         uint64_t search_start = frame.file_offset + bytes_read;
-        uint64_t original_pos = m_handler->tell();
+        off_t original_pos = m_handler->tell();
+        if (original_pos < 0) {
+            Debug::log("flac", "Failed to get current position for frame validation");
+            return false;
+        }
         
         // Look ahead for next frame sync to validate our frame size
         bool found_next_sync = false;
         const uint32_t max_search = 1024;  // Don't search too far
         
         for (uint32_t i = 0; i < max_search && search_start + i < m_file_size; i++) {
-            if (!m_handler->seek(search_start + i, SEEK_SET)) {
+            if (!m_handler->seek(static_cast<off_t>(search_start + i), SEEK_SET)) {
                 break;
             }
             
@@ -2360,7 +2376,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
     }
     
     // Seek to the file position
-    if (!m_handler->seek(file_position, SEEK_SET)) {
+    if (!m_handler->seek(static_cast<off_t>(file_position), SEEK_SET)) {
         reportError("IO", "Failed to seek to file position " + std::to_string(file_position));
         return false;
     }
@@ -2403,7 +2419,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
                       frame.sample_offset);
             
             // Seek back to the start of this frame
-            if (!m_handler->seek(frame.file_offset, SEEK_SET)) {
+            if (!m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET)) {
                 reportError("IO", "Failed to seek back to target frame");
                 return false;
             }
@@ -2417,7 +2433,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
         // Skip to next frame
         if (frame.frame_size > 0) {
             uint64_t next_frame_offset = frame.file_offset + frame.frame_size;
-            if (!m_handler->seek(next_frame_offset, SEEK_SET)) {
+            if (!m_handler->seek(static_cast<off_t>(next_frame_offset), SEEK_SET)) {
                 Debug::log("flac", "Failed to skip to next frame");
                 break;
             }
@@ -2503,7 +2519,7 @@ bool FLACDemuxer::seekBinary(uint64_t target_sample)
         Debug::log("flac", "Binary search iteration ", iteration, ": trying offset ", mid_offset);
         
         // Seek to midpoint
-        if (!m_handler->seek(mid_offset, SEEK_SET)) {
+        if (!m_handler->seek(static_cast<off_t>(mid_offset), SEEK_SET)) {
             Debug::log("flac", "Failed to seek to offset ", mid_offset);
             break;
         }
@@ -2517,7 +2533,7 @@ bool FLACDemuxer::seekBinary(uint64_t target_sample)
         uint64_t search_offset = mid_offset;
         
         while (search_offset < search_end && (search_offset - mid_offset) < max_search_distance) {
-            if (!m_handler->seek(search_offset, SEEK_SET)) {
+            if (!m_handler->seek(static_cast<off_t>(search_offset), SEEK_SET)) {
                 break;
             }
             
@@ -2529,7 +2545,7 @@ bool FLACDemuxer::seekBinary(uint64_t target_sample)
             
             if (sync_bytes[0] == 0xFF && (sync_bytes[1] & 0xF8) == 0xF8) {
                 // Found potential sync, seek back and try to parse frame
-                if (!m_handler->seek(search_offset, SEEK_SET)) {
+                if (!m_handler->seek(static_cast<off_t>(search_offset), SEEK_SET)) {
                     break;
                 }
                 
@@ -2595,7 +2611,7 @@ bool FLACDemuxer::seekBinary(uint64_t target_sample)
     if (best_file_offset > 0) {
         Debug::log("flac", "Seeking to best position: sample ", best_sample, " at offset ", best_file_offset);
         
-        if (!m_handler->seek(best_file_offset, SEEK_SET)) {
+        if (!m_handler->seek(static_cast<off_t>(best_file_offset), SEEK_SET)) {
             reportError("IO", "Failed to seek to best position");
             return false;
         }
@@ -2657,7 +2673,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
     }
     
     // Seek to starting position
-    if (!m_handler->seek(start_offset, SEEK_SET)) {
+    if (!m_handler->seek(static_cast<off_t>(start_offset), SEEK_SET)) {
         reportError("IO", "Failed to seek to starting position");
         return false;
     }
@@ -3121,7 +3137,7 @@ bool FLACDemuxer::handleLostFrameSync()
         
         // Overlap search to avoid missing sync codes at buffer boundaries
         if (bytes_read == search_buffer_size && bytes_searched < max_search_distance) {
-            if (!m_handler->seek(start_position + bytes_searched - 1, SEEK_SET)) {
+            if (!m_handler->seek(static_cast<off_t>(start_position + bytes_searched - 1), SEEK_SET)) {
                 break;
             }
             bytes_searched -= 1;  // Account for overlap

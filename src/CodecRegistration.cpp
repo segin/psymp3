@@ -122,9 +122,12 @@ void registerAllDemuxers() {
     }, "Raw Audio", {"pcm", "raw"});
     Debug::log("demuxer", "registerAllDemuxers: Registered raw audio demuxer");
 
-    // FLAC uses legacy Stream architecture - no separate demuxer needed
+    // FLAC demuxer registration
 #ifdef HAVE_FLAC
-    Debug::log("demuxer", "registerAllDemuxers: FLAC uses legacy Stream architecture (no demuxer registration needed)");
+    DemuxerRegistry::getInstance().registerDemuxer("flac", [](std::unique_ptr<IOHandler> handler) {
+        return std::make_unique<FLACDemuxer>(std::move(handler));
+    }, "FLAC", {"flac"});
+    Debug::log("demuxer", "registerAllDemuxers: Registered FLAC demuxer");
 #else
     Debug::log("demuxer", "registerAllDemuxers: FLAC disabled at compile time");
 #endif

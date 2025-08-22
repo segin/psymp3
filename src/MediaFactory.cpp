@@ -499,9 +499,23 @@ void MediaFactory::initializeDefaultFormats() {
     flac_format.supports_seeking = true;
     flac_format.description = "Free Lossless Audio Codec";
     
-    registerFormatInternal(flac_format, [](const std::string& uri, const ContentInfo& info) {
-        return std::make_unique<Flac>(TagLib::String(uri.c_str()));
-    });
+    // Check if FLACDemuxer is available in registry
+    if (DemuxerRegistry::getInstance().isFormatSupported("flac")) {
+        Debug::log("loader", "MediaFactory: Using FLACDemuxer for FLAC files");
+        registerFormatInternal(flac_format, [](const std::string& uri, const ContentInfo& info) {
+            Debug::log("loader", "MediaFactory: Creating DemuxedStream for FLAC file: ", uri);
+            Debug::log("demuxer", "MediaFactory: Creating DemuxedStream for FLAC file: ", uri);
+            Debug::log("flac", "MediaFactory: Creating DemuxedStream for FLAC file: ", uri);
+            
+            // Route FLAC files through FLACDemuxer for proper container parsing
+            return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
+        });
+    } else {
+        Debug::log("loader", "MediaFactory: Using legacy Flac codec for FLAC files");
+        registerFormatInternal(flac_format, [](const std::string& uri, const ContentInfo& info) {
+            return std::make_unique<Flac>(TagLib::String(uri.c_str()));
+        });
+    }
 #endif
     
     // Register container formats that use demuxer registry
