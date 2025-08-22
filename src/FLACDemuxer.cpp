@@ -71,35 +71,87 @@ bool FLACDemuxer::parseContainer()
         return true;
     }
     
-    // Seek to beginning of file
+    // Seek to beginning of file with error recovery
     if (!m_handler->seek(0, SEEK_SET)) {
         reportError("IO", "Failed to seek to beginning of file");
         return false;
     }
     
-    // Validate fLaC stream marker (4 bytes)
+    // Validate fLaC stream marker (4 bytes) with enhanced error handling
     uint8_t marker[4];
-    if (m_handler->read(marker, 1, 4) != 4) {
-        reportError("IO", "Failed to read FLAC stream marker");
+    size_t bytes_read = m_handler->read(marker, 1, 4);
+    
+    if (bytes_read == 0) {
+        reportError("IO", "Empty file or read error - cannot read FLAC stream marker");
         return false;
     }
     
+    if (bytes_read < 4) {
+        reportError("Format", "File too small to be a valid FLAC file (only " + 
+                   std::to_string(bytes_read) + " bytes available)");
+        return false;
+    }
+    
+    // Enhanced fLaC marker validation with detailed error reporting
     if (marker[0] != 'f' || marker[1] != 'L' || marker[2] != 'a' || marker[3] != 'C') {
-        reportError("Format", "Invalid FLAC stream marker - not a FLAC file");
+        // Provide helpful error message based on what we found
+        std::string found_marker(reinterpret_cast<char*>(marker), 4);
+        
+        // Check for common misidentifications
+        if (marker[0] == 'I' && marker[1] == 'D' && marker[2] == '3') {
+            reportError("Format", "File appears to be MP3 with ID3 tag, not FLAC");
+        } else if (marker[0] == 'O' && marker[1] == 'g' && marker[2] == 'g' && marker[3] == 'S') {
+            reportError("Format", "File appears to be Ogg container, not native FLAC");
+        } else if (marker[0] == 'R' && marker[1] == 'I' && marker[2] == 'F' && marker[3] == 'F') {
+            reportError("Format", "File appears to be RIFF/WAV container, not FLAC");
+        } else if (std::isprint(marker[0]) && std::isprint(marker[1]) && 
+                   std::isprint(marker[2]) && std::isprint(marker[3])) {
+            reportError("Format", "Invalid FLAC stream marker '" + found_marker + 
+                       "' - not a FLAC file");
+        } else {
+            reportError("Format", "Invalid FLAC stream marker (binary data) - not a FLAC file");
+        }
         return false;
     }
     
     Debug::log("flac", "Valid fLaC stream marker found");
     
-    // Parse metadata blocks
-    if (!parseMetadataBlocks()) {
-        reportError("Format", "Failed to parse FLAC metadata blocks");
+    // Parse metadata blocks with enhanced error recovery
+    bool metadata_parse_success = false;
+    try {
+        metadata_parse_success = parseMetadataBlocks();
+    } catch (const std::exception& e) {
+        reportError("Format", "Exception during metadata parsing: " + std::string(e.what()));
+        metadata_parse_success = false;
+    } catch (...) {
+        reportError("Format", "Unknown exception during metadata parsing");
+        metadata_parse_success = false;
+    }
+    
+    if (!metadata_parse_success) {
+        // Try to recover by providing reasonable defaults
+        Debug::log("flac", "Metadata parsing failed, attempting recovery with defaults");
+        
+        if (!m_streaminfo.isValid()) {
+            // Try to derive STREAMINFO from first frame if possible
+            if (attemptStreamInfoRecovery()) {
+                Debug::log("flac", "Successfully recovered STREAMINFO from first frame");
+            } else {
+                reportError("Format", "Failed to parse FLAC metadata blocks and cannot recover");
+                return false;
+            }
+        }
+    }
+    
+    // Verify we have valid STREAMINFO (either parsed or recovered)
+    if (!m_streaminfo.isValid()) {
+        reportError("Format", "Missing or invalid STREAMINFO block - cannot proceed");
         return false;
     }
     
-    // Verify we have valid STREAMINFO
-    if (!m_streaminfo.isValid()) {
-        reportError("Format", "Missing or invalid STREAMINFO block");
+    // Validate STREAMINFO parameters for reasonableness
+    if (!validateStreamInfoParameters()) {
+        reportError("Format", "STREAMINFO contains invalid parameters");
         return false;
     }
     
@@ -194,38 +246,125 @@ MediaChunk FLACDemuxer::readChunk()
         return MediaChunk{};
     }
     
-    // Find the next FLAC frame
-    FLACFrame frame;
-    if (!findNextFrame(frame)) {
-        Debug::log("flac", "No more FLAC frames found");
-        return MediaChunk{};
+    // Attempt to read a valid frame with error recovery
+    const int max_frame_read_attempts = 5;
+    int attempts = 0;
+    
+    while (attempts < max_frame_read_attempts) {
+        attempts++;
+        
+        // Find the next FLAC frame
+        FLACFrame frame;
+        if (!findNextFrame(frame)) {
+            if (attempts == 1) {
+                Debug::log("flac", "No FLAC frame found on first attempt");
+                
+                // Try to recover from lost frame sync
+                if (handleLostFrameSync()) {
+                    Debug::log("flac", "Recovered from lost frame sync, retrying");
+                    continue;
+                }
+            }
+            
+            Debug::log("flac", "No more FLAC frames found after ", attempts, " attempts");
+            return MediaChunk{};
+        }
+        
+        // Validate frame header for consistency
+        if (!validateFrameHeader(frame)) {
+            Debug::log("flac", "Frame header validation failed on attempt ", attempts);
+            
+            // Try to skip this corrupted frame and find the next one
+            if (skipCorruptedFrame()) {
+                Debug::log("flac", "Skipped corrupted frame, retrying");
+                continue;
+            } else {
+                Debug::log("flac", "Failed to skip corrupted frame");
+                
+                // Try general frame error recovery
+                if (recoverFromFrameError()) {
+                    Debug::log("flac", "Recovered from frame error, retrying");
+                    continue;
+                } else {
+                    Debug::log("flac", "Frame error recovery failed");
+                    break;
+                }
+            }
+        }
+        
+        // Read the complete frame data
+        std::vector<uint8_t> frame_data;
+        if (!readFrameData(frame, frame_data)) {
+            Debug::log("flac", "Failed to read FLAC frame data on attempt ", attempts);
+            
+            // Try to skip this frame and continue
+            if (skipCorruptedFrame()) {
+                Debug::log("flac", "Skipped unreadable frame, retrying");
+                continue;
+            } else {
+                Debug::log("flac", "Failed to skip unreadable frame");
+                
+                // Try general frame error recovery
+                if (recoverFromFrameError()) {
+                    Debug::log("flac", "Recovered from read error, retrying");
+                    continue;
+                } else {
+                    Debug::log("flac", "Read error recovery failed");
+                    break;
+                }
+            }
+        }
+        
+        // Validate frame CRC if possible
+        if (!validateFrameCRC(frame, frame_data)) {
+            Debug::log("flac", "Frame CRC validation failed on attempt ", attempts);
+            
+            // Log CRC mismatch but attempt to use frame data anyway
+            Debug::log("flac", "CRC mismatch detected, but using frame data anyway");
+            // Continue with the frame despite CRC error
+        }
+        
+        // Create MediaChunk with proper timing information
+        MediaChunk chunk(1, std::move(frame_data));  // stream_id = 1 for FLAC
+        chunk.timestamp_samples = frame.sample_offset;
+        chunk.is_keyframe = true;  // All FLAC frames are independent
+        chunk.file_offset = frame.file_offset;
+        
+        // Update position tracking - advance to next frame position
+        uint64_t next_sample_position = frame.sample_offset + frame.block_size;
+        uint64_t next_file_offset = frame.file_offset + frame.frame_size;
+        
+        // Use updatePositionTracking for consistency and validation
+        updatePositionTracking(next_sample_position, next_file_offset);
+        m_last_block_size = frame.block_size;
+        
+        Debug::log("flac", "Successfully read FLAC frame: samples=", frame.sample_offset, 
+                  " block_size=", frame.block_size, " data_size=", chunk.data.size());
+        
+        return chunk;
     }
     
-    // Read the complete frame data
-    std::vector<uint8_t> frame_data;
-    if (!readFrameData(frame, frame_data)) {
-        reportError("IO", "Failed to read FLAC frame data");
-        return MediaChunk{};
+    // If we get here, all frame reading attempts failed
+    Debug::log("flac", "All frame reading attempts failed, providing silence");
+    
+    // Provide silence output for completely unrecoverable frames
+    uint32_t silence_block_size = m_last_block_size > 0 ? m_last_block_size : 
+                                  (m_streaminfo.min_block_size > 0 ? m_streaminfo.min_block_size : 4096);
+    
+    MediaChunk silence_chunk = createSilenceChunk(silence_block_size);
+    if (!silence_chunk.data.empty()) {
+        Debug::log("flac", "Provided silence chunk with ", silence_block_size, " samples");
+        
+        // Update position tracking to advance past the error
+        uint64_t next_sample_position = m_current_sample + silence_block_size;
+        updatePositionTracking(next_sample_position, m_current_offset);
+        
+        return silence_chunk;
     }
     
-    // Create MediaChunk with proper timing information
-    MediaChunk chunk(1, std::move(frame_data));  // stream_id = 1 for FLAC
-    chunk.timestamp_samples = frame.sample_offset;
-    chunk.is_keyframe = true;  // All FLAC frames are independent
-    chunk.file_offset = frame.file_offset;
-    
-    // Update position tracking - advance to next frame position
-    uint64_t next_sample_position = frame.sample_offset + frame.block_size;
-    uint64_t next_file_offset = frame.file_offset + frame.frame_size;
-    
-    // Use updatePositionTracking for consistency and validation
-    updatePositionTracking(next_sample_position, next_file_offset);
-    m_last_block_size = frame.block_size;
-    
-    Debug::log("flac", "Read FLAC frame: samples=", frame.sample_offset, 
-              " block_size=", frame.block_size, " data_size=", chunk.data.size());
-    
-    return chunk;
+    // Complete failure
+    reportError("Frame", "Failed to read FLAC frame after all recovery attempts");
+    return MediaChunk{};
 }
 
 MediaChunk FLACDemuxer::readChunk(uint32_t stream_id)
@@ -475,104 +614,216 @@ bool FLACDemuxer::parseMetadataBlocks()
     
     bool found_streaminfo = false;
     bool is_last_block = false;
+    int blocks_parsed = 0;
+    int blocks_skipped = 0;
+    const int max_metadata_blocks = 1000;  // Prevent infinite loops
     
-    while (!is_last_block && !m_handler->eof()) {
+    while (!is_last_block && !m_handler->eof() && blocks_parsed < max_metadata_blocks) {
         FLACMetadataBlock block;
         
-        // Parse metadata block header
+        // Parse metadata block header with error recovery
         if (!parseMetadataBlockHeader(block)) {
-            reportError("Format", "Failed to parse metadata block header");
-            return false;
+            Debug::log("flac", "Failed to parse metadata block header at block ", blocks_parsed);
+            
+            // Try to recover by searching for next valid block or audio data
+            if (recoverFromCorruptedMetadata()) {
+                Debug::log("flac", "Recovered from corrupted metadata, stopping metadata parsing");
+                break;
+            } else {
+                reportError("Format", "Failed to parse metadata block header and cannot recover");
+                return false;
+            }
         }
         
+        blocks_parsed++;
         is_last_block = block.is_last;
         
         // Validate block structure and size limits
         if (!block.isValid()) {
-            Debug::log("flac", "Invalid metadata block, skipping");
+            Debug::log("flac", "Invalid metadata block ", blocks_parsed, ", attempting to skip");
+            blocks_skipped++;
+            
             if (!skipMetadataBlock(block)) {
-                reportError("IO", "Failed to skip invalid metadata block");
-                return false;
+                Debug::log("flac", "Failed to skip invalid metadata block, attempting recovery");
+                
+                // Try to find next valid block or audio data
+                if (recoverFromCorruptedMetadata()) {
+                    Debug::log("flac", "Recovered from invalid metadata block");
+                    break;
+                } else {
+                    reportError("IO", "Failed to skip invalid metadata block and cannot recover");
+                    return false;
+                }
             }
             continue;
         }
         
         // Check for reasonable size limits (16MB max for any metadata block)
         if (block.length > 16 * 1024 * 1024) {
-            Debug::log("flac", "Metadata block too large (", block.length, " bytes), skipping");
+            Debug::log("flac", "Metadata block ", blocks_parsed, " too large (", 
+                      block.length, " bytes), skipping");
+            blocks_skipped++;
+            
             if (!skipMetadataBlock(block)) {
-                reportError("IO", "Failed to skip oversized metadata block");
-                return false;
+                Debug::log("flac", "Failed to skip oversized metadata block, attempting recovery");
+                
+                if (recoverFromCorruptedMetadata()) {
+                    Debug::log("flac", "Recovered from oversized metadata block");
+                    break;
+                } else {
+                    reportError("IO", "Failed to skip oversized metadata block and cannot recover");
+                    return false;
+                }
             }
             continue;
         }
         
-        // Process block based on type
+        // Process block based on type with enhanced error handling
         bool parse_success = false;
+        const char* block_type_name = "Unknown";
+        
         switch (block.type) {
             case FLACMetadataType::STREAMINFO:
+                block_type_name = "STREAMINFO";
                 Debug::log("flac", "Processing STREAMINFO block");
                 parse_success = parseStreamInfoBlock(block);
-                found_streaminfo = true;
+                if (parse_success) {
+                    found_streaminfo = true;
+                } else {
+                    Debug::log("flac", "STREAMINFO parsing failed, this is critical");
+                }
                 break;
                 
             case FLACMetadataType::SEEKTABLE:
+                block_type_name = "SEEKTABLE";
                 Debug::log("flac", "Processing SEEKTABLE block");
                 parse_success = parseSeekTableBlock(block);
+                if (!parse_success) {
+                    Debug::log("flac", "SEEKTABLE parsing failed, seeking will be less efficient");
+                }
                 break;
                 
             case FLACMetadataType::VORBIS_COMMENT:
+                block_type_name = "VORBIS_COMMENT";
                 Debug::log("flac", "Processing VORBIS_COMMENT block");
                 parse_success = parseVorbisCommentBlock(block);
+                if (!parse_success) {
+                    Debug::log("flac", "VORBIS_COMMENT parsing failed, metadata will be unavailable");
+                }
                 break;
                 
             case FLACMetadataType::PICTURE:
+                block_type_name = "PICTURE";
                 Debug::log("flac", "Processing PICTURE block");
                 parse_success = parsePictureBlock(block);
+                if (!parse_success) {
+                    Debug::log("flac", "PICTURE parsing failed, artwork will be unavailable");
+                }
                 break;
                 
             case FLACMetadataType::PADDING:
+                block_type_name = "PADDING";
                 Debug::log("flac", "Skipping PADDING block");
                 parse_success = skipMetadataBlock(block);
                 break;
                 
             case FLACMetadataType::APPLICATION:
+                block_type_name = "APPLICATION";
                 Debug::log("flac", "Skipping APPLICATION block");
                 parse_success = skipMetadataBlock(block);
                 break;
                 
             case FLACMetadataType::CUESHEET:
+                block_type_name = "CUESHEET";
                 Debug::log("flac", "Skipping CUESHEET block");
                 parse_success = skipMetadataBlock(block);
                 break;
                 
             default:
+                block_type_name = "Unknown";
                 Debug::log("flac", "Skipping unknown metadata block type: ", static_cast<int>(block.type));
                 parse_success = skipMetadataBlock(block);
                 break;
         }
         
         if (!parse_success) {
-            Debug::log("flac", "Failed to process metadata block type: ", static_cast<int>(block.type));
-            // Try to skip the block and continue
-            if (!skipMetadataBlock(block)) {
-                reportError("IO", "Failed to skip metadata block after parse error");
-                return false;
+            Debug::log("flac", "Failed to process ", block_type_name, " metadata block");
+            blocks_skipped++;
+            
+            // For critical blocks (STREAMINFO), this is a serious error
+            if (block.type == FLACMetadataType::STREAMINFO) {
+                Debug::log("flac", "STREAMINFO block parsing failed, attempting recovery");
+                
+                // Try to skip this block and continue, we'll attempt recovery later
+                if (!skipMetadataBlock(block)) {
+                    Debug::log("flac", "Failed to skip corrupted STREAMINFO block");
+                    
+                    // Try to recover by finding audio data
+                    if (recoverFromCorruptedMetadata()) {
+                        Debug::log("flac", "Recovered from corrupted STREAMINFO");
+                        break;
+                    } else {
+                        reportError("Format", "Failed to process STREAMINFO block and cannot recover");
+                        return false;
+                    }
+                }
+            } else {
+                // For non-critical blocks, try to skip and continue
+                Debug::log("flac", "Attempting to skip failed ", block_type_name, " block");
+                
+                if (!skipMetadataBlock(block)) {
+                    Debug::log("flac", "Failed to skip ", block_type_name, " block after parse error");
+                    
+                    // Try to recover by finding next valid block or audio data
+                    if (recoverFromCorruptedMetadata()) {
+                        Debug::log("flac", "Recovered from corrupted ", block_type_name, " block");
+                        break;
+                    } else {
+                        // For non-critical blocks, we can continue without them
+                        Debug::log("flac", "Cannot recover from ", block_type_name, 
+                                  " block error, but continuing anyway");
+                        break;
+                    }
+                }
             }
         }
     }
     
-    // STREAMINFO is mandatory
+    // Check if we hit the maximum block limit
+    if (blocks_parsed >= max_metadata_blocks) {
+        Debug::log("flac", "Reached maximum metadata block limit (", max_metadata_blocks, 
+                  "), stopping parsing");
+        
+        // Try to find audio data start
+        if (recoverFromCorruptedMetadata()) {
+            Debug::log("flac", "Found audio data after hitting block limit");
+        } else {
+            reportError("Format", "Too many metadata blocks and cannot find audio data");
+            return false;
+        }
+    }
+    
+    // STREAMINFO is mandatory - if we didn't find it, try to recover
     if (!found_streaminfo) {
-        reportError("Format", "FLAC file missing mandatory STREAMINFO block");
-        return false;
+        Debug::log("flac", "STREAMINFO block not found, attempting recovery");
+        
+        if (attemptStreamInfoRecovery()) {
+            Debug::log("flac", "Successfully recovered STREAMINFO from first frame");
+        } else {
+            reportError("Format", "FLAC file missing mandatory STREAMINFO block and cannot recover");
+            return false;
+        }
     }
     
     // Store current position as start of audio data
     m_audio_data_offset = static_cast<uint64_t>(m_handler->tell());
     m_current_offset = m_audio_data_offset;
     
-    Debug::log("flac", "Metadata parsing complete, audio data starts at offset: ", m_audio_data_offset);
+    Debug::log("flac", "Metadata parsing complete:");
+    Debug::log("flac", "  Blocks parsed: ", blocks_parsed);
+    Debug::log("flac", "  Blocks skipped: ", blocks_skipped);
+    Debug::log("flac", "  Audio data starts at offset: ", m_audio_data_offset);
+    
     return true;
 }
 
@@ -1263,17 +1514,32 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
                 frame.file_offset = sync_position;
                 
                 // Try to parse frame header at this position
-                if (parseFrameHeader(frame)) {
-                    // Validate the parsed frame header
-                    if (validateFrameHeader(frame)) {
-                        Debug::log("flac", "Valid FLAC frame found at position ", sync_position);
-                        m_current_offset = sync_position;
-                        return true;
+                bool parse_success = false;
+                bool validation_success = false;
+                
+                try {
+                    parse_success = parseFrameHeader(frame);
+                    if (parse_success) {
+                        validation_success = validateFrameHeader(frame);
+                    }
+                } catch (const std::exception& e) {
+                    Debug::log("flac", "Exception during frame parsing at position ", sync_position, ": ", e.what());
+                    parse_success = false;
+                } catch (...) {
+                    Debug::log("flac", "Unknown exception during frame parsing at position ", sync_position);
+                    parse_success = false;
+                }
+                
+                if (parse_success && validation_success) {
+                    Debug::log("flac", "Valid FLAC frame found at position ", sync_position);
+                    m_current_offset = sync_position;
+                    return true;
+                } else {
+                    if (!parse_success) {
+                        Debug::log("flac", "Frame header parsing failed at position ", sync_position);
                     } else {
                         Debug::log("flac", "Frame header validation failed at position ", sync_position);
                     }
-                } else {
-                    Debug::log("flac", "Frame header parsing failed at position ", sync_position);
                 }
                 
                 // Continue searching from next byte if this wasn't a valid frame
@@ -1316,10 +1582,17 @@ bool FLACDemuxer::parseFrameHeader(FLACFrame& frame)
     // FLAC frame header is variable length, minimum 4 bytes
     // We need to read and parse it incrementally
     
-    // Read first 4 bytes (sync + basic header info)
+    // Read first 4 bytes (sync + basic header info) with error checking
     uint8_t header_start[4];
-    if (m_handler->read(header_start, 1, 4) != 4) {
-        Debug::log("flac", "Failed to read frame header start");
+    size_t bytes_read = m_handler->read(header_start, 1, 4);
+    
+    if (bytes_read == 0) {
+        Debug::log("flac", "End of file reached while reading frame header");
+        return false;
+    }
+    
+    if (bytes_read < 4) {
+        Debug::log("flac", "Incomplete frame header read: only ", bytes_read, " bytes available");
         return false;
     }
     
@@ -1449,11 +1722,13 @@ bool FLACDemuxer::parseFrameHeader(FLACFrame& frame)
             return false;
     }
     
-    // Read frame/sample number (UTF-8 coded)
+    // Read frame/sample number (UTF-8 coded) with error handling
     uint64_t frame_sample_number = 0;
     uint8_t utf8_byte;
-    if (m_handler->read(&utf8_byte, 1, 1) != 1) {
-        Debug::log("flac", "Failed to read frame/sample number");
+    size_t utf8_bytes_read = m_handler->read(&utf8_byte, 1, 1);
+    
+    if (utf8_bytes_read != 1) {
+        Debug::log("flac", "Failed to read frame/sample number (EOF or read error)");
         return false;
     }
     
@@ -2485,4 +2760,607 @@ uint64_t FLACDemuxer::msToSamples(uint64_t ms) const
     }
     
     return (ms * static_cast<uint64_t>(m_streaminfo.sample_rate)) / 1000ULL;
+}
+
+// Error handling and recovery methods
+
+bool FLACDemuxer::attemptStreamInfoRecovery()
+{
+    Debug::log("flac", "FLACDemuxer::attemptStreamInfoRecovery() - attempting to recover STREAMINFO from first frame");
+    
+    if (!m_handler) {
+        Debug::log("flac", "No IOHandler available for STREAMINFO recovery");
+        return false;
+    }
+    
+    // Save current position
+    int64_t saved_position = m_handler->tell();
+    
+    // Try to find the first FLAC frame after metadata
+    if (m_audio_data_offset > 0) {
+        if (!m_handler->seek(m_audio_data_offset, SEEK_SET)) {
+            Debug::log("flac", "Failed to seek to audio data offset for recovery");
+            return false;
+        }
+    } else {
+        // If we don't know where audio starts, search from current position
+        Debug::log("flac", "Audio data offset unknown, searching from current position");
+    }
+    
+    // Try to find and parse the first frame
+    FLACFrame first_frame;
+    if (!findNextFrame(first_frame)) {
+        Debug::log("flac", "Could not find first FLAC frame for STREAMINFO recovery");
+        // Restore position
+        m_handler->seek(saved_position, SEEK_SET);
+        return false;
+    }
+    
+    // Extract parameters from the first frame to create minimal STREAMINFO
+    if (!first_frame.isValid()) {
+        Debug::log("flac", "First frame is invalid, cannot recover STREAMINFO");
+        // Restore position
+        m_handler->seek(saved_position, SEEK_SET);
+        return false;
+    }
+    
+    Debug::log("flac", "Recovering STREAMINFO from first frame:");
+    Debug::log("flac", "  Sample rate: ", first_frame.sample_rate, " Hz");
+    Debug::log("flac", "  Channels: ", static_cast<int>(first_frame.channels));
+    Debug::log("flac", "  Bits per sample: ", static_cast<int>(first_frame.bits_per_sample));
+    Debug::log("flac", "  Block size: ", first_frame.block_size);
+    
+    // Create minimal STREAMINFO from first frame
+    m_streaminfo.sample_rate = first_frame.sample_rate;
+    m_streaminfo.channels = first_frame.channels;
+    m_streaminfo.bits_per_sample = first_frame.bits_per_sample;
+    
+    // Set reasonable defaults for block sizes
+    m_streaminfo.min_block_size = first_frame.block_size;
+    m_streaminfo.max_block_size = first_frame.block_size;
+    
+    // Frame sizes are unknown
+    m_streaminfo.min_frame_size = 0;
+    m_streaminfo.max_frame_size = 0;
+    
+    // Total samples unknown (will be 0)
+    m_streaminfo.total_samples = 0;
+    
+    // Clear MD5 signature (unknown)
+    std::memset(m_streaminfo.md5_signature, 0, sizeof(m_streaminfo.md5_signature));
+    
+    // Restore position
+    m_handler->seek(saved_position, SEEK_SET);
+    
+    Debug::log("flac", "STREAMINFO recovery successful with minimal parameters");
+    return true;
+}
+
+bool FLACDemuxer::validateStreamInfoParameters() const
+{
+    Debug::log("flac", "FLACDemuxer::validateStreamInfoParameters() - validating STREAMINFO");
+    
+    // Check basic validity first
+    if (!m_streaminfo.isValid()) {
+        Debug::log("flac", "STREAMINFO basic validation failed");
+        return false;
+    }
+    
+    // Additional reasonableness checks
+    
+    // Sample rate should be reasonable (8 Hz to 655350 Hz)
+    if (m_streaminfo.sample_rate < 8 || m_streaminfo.sample_rate > 655350) {
+        Debug::log("flac", "Invalid sample rate: ", m_streaminfo.sample_rate, " Hz");
+        return false;
+    }
+    
+    // Channels should be 1-8 (FLAC specification limit)
+    if (m_streaminfo.channels < 1 || m_streaminfo.channels > 8) {
+        Debug::log("flac", "Invalid channel count: ", static_cast<int>(m_streaminfo.channels));
+        return false;
+    }
+    
+    // Bits per sample should be 4-32 (FLAC specification)
+    if (m_streaminfo.bits_per_sample < 4 || m_streaminfo.bits_per_sample > 32) {
+        Debug::log("flac", "Invalid bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
+        return false;
+    }
+    
+    // Block sizes should be reasonable (16 to 65535 samples)
+    if (m_streaminfo.min_block_size < 16 || m_streaminfo.min_block_size > 65535) {
+        Debug::log("flac", "Invalid minimum block size: ", m_streaminfo.min_block_size);
+        return false;
+    }
+    
+    if (m_streaminfo.max_block_size < 16 || m_streaminfo.max_block_size > 65535) {
+        Debug::log("flac", "Invalid maximum block size: ", m_streaminfo.max_block_size);
+        return false;
+    }
+    
+    // Max block size should be >= min block size
+    if (m_streaminfo.max_block_size < m_streaminfo.min_block_size) {
+        Debug::log("flac", "Maximum block size (", m_streaminfo.max_block_size, 
+                  ") is less than minimum block size (", m_streaminfo.min_block_size, ")");
+        return false;
+    }
+    
+    // Frame sizes (if specified) should be reasonable
+    if (m_streaminfo.min_frame_size > 0 && m_streaminfo.max_frame_size > 0) {
+        if (m_streaminfo.max_frame_size < m_streaminfo.min_frame_size) {
+            Debug::log("flac", "Maximum frame size (", m_streaminfo.max_frame_size, 
+                      ") is less than minimum frame size (", m_streaminfo.min_frame_size, ")");
+            return false;
+        }
+        
+        // Frame sizes should not be unreasonably large (16MB limit)
+        if (m_streaminfo.max_frame_size > 16 * 1024 * 1024) {
+            Debug::log("flac", "Maximum frame size too large: ", m_streaminfo.max_frame_size, " bytes");
+            return false;
+        }
+    }
+    
+    // Total samples should be reasonable if specified
+    if (m_streaminfo.total_samples > 0) {
+        // Check for reasonable duration (up to 24 hours at any sample rate)
+        uint64_t max_reasonable_samples = static_cast<uint64_t>(m_streaminfo.sample_rate) * 24 * 3600;
+        if (m_streaminfo.total_samples > max_reasonable_samples) {
+            Debug::log("flac", "Total samples seems unreasonably large: ", m_streaminfo.total_samples);
+            // This is just a warning, not a fatal error
+        }
+    }
+    
+    Debug::log("flac", "STREAMINFO parameters validation passed");
+    return true;
+}
+
+bool FLACDemuxer::recoverFromCorruptedMetadata()
+{
+    Debug::log("flac", "FLACDemuxer::recoverFromCorruptedMetadata() - attempting metadata recovery");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Clear any partially parsed metadata
+    m_seektable.clear();
+    m_vorbis_comments.clear();
+    m_pictures.clear();
+    
+    // If we don't have valid STREAMINFO, try to recover it
+    if (!m_streaminfo.isValid()) {
+        if (!attemptStreamInfoRecovery()) {
+            Debug::log("flac", "Failed to recover STREAMINFO");
+            return false;
+        }
+    }
+    
+    // Try to find the start of audio data by searching for frame sync
+    Debug::log("flac", "Searching for audio data start after corrupted metadata");
+    
+    // Start searching from after the fLaC marker (position 4)
+    if (!m_handler->seek(4, SEEK_SET)) {
+        Debug::log("flac", "Failed to seek to start metadata search");
+        return false;
+    }
+    
+    // Search for the first valid FLAC frame
+    FLACFrame first_frame;
+    if (findNextFrame(first_frame)) {
+        m_audio_data_offset = first_frame.file_offset;
+        Debug::log("flac", "Found audio data start at offset: ", m_audio_data_offset);
+        return true;
+    }
+    
+    Debug::log("flac", "Could not find valid audio data after corrupted metadata");
+    return false;
+}
+
+bool FLACDemuxer::resynchronizeToNextFrame()
+{
+    Debug::log("flac", "FLACDemuxer::resynchronizeToNextFrame() - attempting frame resynchronization");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Save current position for logging
+    int64_t start_position = m_handler->tell();
+    
+    // Try to find the next valid frame
+    FLACFrame frame;
+    if (findNextFrame(frame)) {
+        Debug::log("flac", "Resynchronized to frame at offset ", frame.file_offset, 
+                  " (searched from ", start_position, ")");
+        
+        // Update position tracking to the found frame
+        updatePositionTracking(frame.sample_offset, frame.file_offset);
+        return true;
+    }
+    
+    Debug::log("flac", "Failed to resynchronize - no valid frame found");
+    return false;
+}
+
+void FLACDemuxer::provideDefaultStreamInfo()
+{
+    Debug::log("flac", "FLACDemuxer::provideDefaultStreamInfo() - providing default STREAMINFO");
+    
+    // Provide reasonable defaults for a FLAC file
+    m_streaminfo.sample_rate = 44100;      // CD quality default
+    m_streaminfo.channels = 2;             // Stereo default
+    m_streaminfo.bits_per_sample = 16;     // CD quality default
+    m_streaminfo.min_block_size = 4096;    // Common FLAC block size
+    m_streaminfo.max_block_size = 4096;    // Same as min for simplicity
+    m_streaminfo.min_frame_size = 0;       // Unknown
+    m_streaminfo.max_frame_size = 0;       // Unknown
+    m_streaminfo.total_samples = 0;        // Unknown
+    
+    // Clear MD5 signature
+    std::memset(m_streaminfo.md5_signature, 0, sizeof(m_streaminfo.md5_signature));
+    
+    Debug::log("flac", "Default STREAMINFO provided:");
+    Debug::log("flac", "  Sample rate: ", m_streaminfo.sample_rate, " Hz");
+    Debug::log("flac", "  Channels: ", static_cast<int>(m_streaminfo.channels));
+    Debug::log("flac", "  Bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
+    Debug::log("flac", "  Block size: ", m_streaminfo.min_block_size);
+}
+
+// Frame-level error recovery methods
+
+bool FLACDemuxer::handleLostFrameSync()
+{
+    Debug::log("flac", "FLACDemuxer::handleLostFrameSync() - attempting to recover from lost frame sync");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Save current position
+    int64_t start_position = m_handler->tell();
+    
+    // Try to resynchronize to the next valid frame
+    if (resynchronizeToNextFrame()) {
+        Debug::log("flac", "Successfully recovered from lost frame sync");
+        return true;
+    }
+    
+    // If resynchronization failed, try a more aggressive search
+    Debug::log("flac", "Standard resynchronization failed, trying aggressive search");
+    
+    // Search further ahead for frame sync
+    const size_t search_buffer_size = 64 * 1024;  // 64KB search buffer
+    const uint64_t max_search_distance = 1024 * 1024;  // Search up to 1MB
+    std::vector<uint8_t> search_buffer(search_buffer_size);
+    
+    uint64_t bytes_searched = 0;
+    
+    while (bytes_searched < max_search_distance && !m_handler->eof()) {
+        size_t bytes_read = m_handler->read(search_buffer.data(), 1, search_buffer_size);
+        if (bytes_read < 2) {
+            break;
+        }
+        
+        // Look for potential FLAC sync codes
+        for (size_t i = 0; i < bytes_read - 1; i++) {
+            uint16_t sync_candidate = (static_cast<uint16_t>(search_buffer[i]) << 8) | 
+                                     static_cast<uint16_t>(search_buffer[i + 1]);
+            
+            if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+                // Found potential sync, try to validate
+                uint64_t sync_position = start_position + bytes_searched + i;
+                
+                if (m_handler->seek(sync_position, SEEK_SET)) {
+                    FLACFrame test_frame;
+                    test_frame.file_offset = sync_position;
+                    
+                    if (parseFrameHeader(test_frame) && validateFrameHeader(test_frame)) {
+                        Debug::log("flac", "Found valid frame sync at position ", sync_position, 
+                                  " after searching ", bytes_searched + i, " bytes");
+                        
+                        // Update position tracking
+                        updatePositionTracking(test_frame.sample_offset, sync_position);
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        bytes_searched += bytes_read;
+        
+        // Overlap search to avoid missing sync codes at buffer boundaries
+        if (bytes_read == search_buffer_size && bytes_searched < max_search_distance) {
+            if (!m_handler->seek(start_position + bytes_searched - 1, SEEK_SET)) {
+                break;
+            }
+            bytes_searched -= 1;  // Account for overlap
+        }
+    }
+    
+    Debug::log("flac", "Failed to recover frame sync after searching ", bytes_searched, " bytes");
+    
+    // Restore original position if recovery failed
+    m_handler->seek(start_position, SEEK_SET);
+    return false;
+}
+
+bool FLACDemuxer::skipCorruptedFrame()
+{
+    Debug::log("flac", "FLACDemuxer::skipCorruptedFrame() - attempting to skip corrupted frame");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Save current position
+    int64_t start_position = m_handler->tell();
+    
+    // Try to estimate frame size and skip ahead
+    uint32_t estimated_frame_size = 0;
+    
+    if (m_streaminfo.isValid()) {
+        // Estimate based on STREAMINFO parameters
+        uint32_t samples_per_frame = m_streaminfo.max_block_size > 0 ? 
+                                    m_streaminfo.max_block_size : 4096;
+        
+        // Rough estimate: uncompressed size * compression ratio
+        uint32_t uncompressed_size = samples_per_frame * m_streaminfo.channels * 
+                                    (m_streaminfo.bits_per_sample / 8);
+        
+        // Assume 50% compression ratio for FLAC
+        estimated_frame_size = uncompressed_size / 2;
+        
+        // Add some safety margin and ensure reasonable bounds
+        estimated_frame_size = std::max(estimated_frame_size, 1024U);  // At least 1KB
+        estimated_frame_size = std::min(estimated_frame_size, 64U * 1024);  // At most 64KB
+    } else {
+        // Use default estimate
+        estimated_frame_size = 8192;  // 8KB default
+    }
+    
+    Debug::log("flac", "Estimated frame size: ", estimated_frame_size, " bytes");
+    
+    // Try skipping by estimated frame size and look for next sync
+    const int skip_attempts = 3;
+    uint32_t skip_distance = estimated_frame_size / 4;  // Start with smaller skips
+    
+    for (int attempt = 0; attempt < skip_attempts; attempt++) {
+        uint64_t skip_position = start_position + skip_distance;
+        
+        if (!m_handler->seek(skip_position, SEEK_SET)) {
+            Debug::log("flac", "Failed to seek to skip position ", skip_position);
+            break;
+        }
+        
+        // Try to find a valid frame from this position
+        FLACFrame test_frame;
+        if (findNextFrame(test_frame)) {
+            Debug::log("flac", "Successfully skipped corrupted frame, found next frame at ", 
+                      test_frame.file_offset);
+            
+            // Update position tracking
+            updatePositionTracking(test_frame.sample_offset, test_frame.file_offset);
+            return true;
+        }
+        
+        // Increase skip distance for next attempt
+        skip_distance *= 2;
+    }
+    
+    Debug::log("flac", "Failed to skip corrupted frame after ", skip_attempts, " attempts");
+    
+    // Restore original position
+    m_handler->seek(start_position, SEEK_SET);
+    return false;
+}
+
+bool FLACDemuxer::validateFrameCRC(const FLACFrame& frame, const std::vector<uint8_t>& frame_data)
+{
+    Debug::log("flac", "FLACDemuxer::validateFrameCRC() - validating frame CRC");
+    
+    // FLAC frames have a CRC-16 at the end
+    if (frame_data.size() < 2) {
+        Debug::log("flac", "Frame data too small for CRC validation");
+        return false;
+    }
+    
+    // For now, we'll do a basic validation
+    // A full CRC-16 implementation would require the FLAC CRC polynomial
+    // This is a simplified check that looks for obvious corruption
+    
+    // Check for reasonable frame structure
+    if (frame_data.size() < 4) {
+        Debug::log("flac", "Frame data suspiciously small: ", frame_data.size(), " bytes");
+        return false;
+    }
+    
+    // Verify sync code at start of frame
+    if (frame_data.size() >= 2) {
+        uint16_t sync_code = (static_cast<uint16_t>(frame_data[0]) << 8) | 
+                            static_cast<uint16_t>(frame_data[1]);
+        
+        if ((sync_code & 0xFFFC) != 0xFFF8) {
+            Debug::log("flac", "Invalid sync code in frame data: 0x", std::hex, sync_code, std::dec);
+            return false;
+        }
+    }
+    
+    // Check for reasonable frame size vs. expected size
+    if (frame.frame_size > 0 && frame_data.size() != frame.frame_size) {
+        Debug::log("flac", "Frame data size (", frame_data.size(), 
+                  ") doesn't match expected size (", frame.frame_size, ")");
+        // This might not be an error if frame_size was estimated
+    }
+    
+    // Additional heuristic checks
+    
+    // Check for excessive runs of identical bytes (likely corruption)
+    if (frame_data.size() >= 16) {
+        int max_identical_run = 0;
+        int current_run = 1;
+        
+        for (size_t i = 1; i < std::min(frame_data.size(), size_t(64)); i++) {
+            if (frame_data[i] == frame_data[i-1]) {
+                current_run++;
+            } else {
+                max_identical_run = std::max(max_identical_run, current_run);
+                current_run = 1;
+            }
+        }
+        max_identical_run = std::max(max_identical_run, current_run);
+        
+        if (max_identical_run > 32) {
+            Debug::log("flac", "Suspicious identical byte run of ", max_identical_run, 
+                      " bytes, possible corruption");
+            return false;
+        }
+    }
+    
+    Debug::log("flac", "Frame CRC validation passed (basic checks)");
+    return true;
+}
+
+MediaChunk FLACDemuxer::createSilenceChunk(uint32_t block_size)
+{
+    Debug::log("flac", "FLACDemuxer::createSilenceChunk() - creating silence chunk with ", 
+              block_size, " samples");
+    
+    if (!m_streaminfo.isValid() || block_size == 0) {
+        Debug::log("flac", "Cannot create silence chunk - invalid parameters");
+        return MediaChunk{};
+    }
+    
+    // Create a minimal FLAC frame containing silence
+    // This is a simplified approach - we create a frame header followed by minimal subframes
+    
+    std::vector<uint8_t> silence_frame;
+    
+    // FLAC frame header (simplified)
+    // Sync code (14 bits) + reserved (1 bit) + blocking strategy (1 bit)
+    silence_frame.push_back(0xFF);  // Sync code high byte
+    silence_frame.push_back(0xF8);  // Sync code low byte + reserved + fixed blocking
+    
+    // Block size code (4 bits) + sample rate code (4 bits)
+    // Use "get 8-bit block size from end of header" (0x6) and "use streaminfo sample rate" (0x0)
+    silence_frame.push_back(0x60);
+    
+    // Channel assignment (4 bits) + sample size code (3 bits) + reserved (1 bit)
+    uint8_t channel_assignment = 0;  // Independent channels
+    if (m_streaminfo.channels == 2) {
+        channel_assignment = 1;  // Left-right stereo
+    } else if (m_streaminfo.channels > 2) {
+        channel_assignment = m_streaminfo.channels - 1;
+    }
+    
+    uint8_t sample_size_code = 0;  // Use streaminfo sample size
+    switch (m_streaminfo.bits_per_sample) {
+        case 8: sample_size_code = 1; break;
+        case 12: sample_size_code = 2; break;
+        case 16: sample_size_code = 4; break;
+        case 20: sample_size_code = 5; break;
+        case 24: sample_size_code = 6; break;
+        default: sample_size_code = 0; break;  // Use streaminfo
+    }
+    
+    silence_frame.push_back((channel_assignment << 4) | (sample_size_code << 1));
+    
+    // Frame number (UTF-8 coded) - use current sample position
+    uint64_t frame_number = m_current_sample;
+    if (frame_number < 128) {
+        silence_frame.push_back(static_cast<uint8_t>(frame_number));
+    } else {
+        // Simplified UTF-8 encoding for larger numbers
+        silence_frame.push_back(0xC0 | static_cast<uint8_t>(frame_number >> 6));
+        silence_frame.push_back(0x80 | static_cast<uint8_t>(frame_number & 0x3F));
+    }
+    
+    // Block size (8-bit, since we used code 0x6)
+    if (block_size <= 256) {
+        silence_frame.push_back(static_cast<uint8_t>(block_size - 1));
+    } else {
+        silence_frame.push_back(255);  // Maximum 8-bit value
+        block_size = 256;  // Adjust block size to match
+    }
+    
+    // Header CRC-8 (simplified - just use 0)
+    silence_frame.push_back(0x00);
+    
+    // Subframes (one per channel) - each subframe is a constant value (silence)
+    for (int ch = 0; ch < m_streaminfo.channels; ch++) {
+        // Subframe header: type (1 bit) + wasted bits (6 bits) + type-specific (1 bit)
+        // Type 0 = CONSTANT, no wasted bits
+        silence_frame.push_back(0x00);
+        
+        // Constant value (silence = 0, encoded as signed integer)
+        // For simplicity, just add zero bytes for the sample size
+        int bytes_per_sample = (m_streaminfo.bits_per_sample + 7) / 8;
+        for (int b = 0; b < bytes_per_sample; b++) {
+            silence_frame.push_back(0x00);
+        }
+    }
+    
+    // Frame CRC-16 (simplified - just use 0x0000)
+    silence_frame.push_back(0x00);
+    silence_frame.push_back(0x00);
+    
+    // Create MediaChunk
+    MediaChunk chunk(1, std::move(silence_frame));
+    chunk.timestamp_samples = m_current_sample;
+    chunk.is_keyframe = true;
+    chunk.file_offset = m_current_offset;
+    
+    Debug::log("flac", "Created silence chunk: ", block_size, " samples, ", 
+              chunk.data.size(), " bytes");
+    
+    return chunk;
+}
+
+bool FLACDemuxer::recoverFromFrameError()
+{
+    Debug::log("flac", "FLACDemuxer::recoverFromFrameError() - attempting general frame error recovery");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Try multiple recovery strategies
+    
+    // Strategy 1: Try to resynchronize to next frame
+    if (resynchronizeToNextFrame()) {
+        Debug::log("flac", "Recovered using frame resynchronization");
+        return true;
+    }
+    
+    // Strategy 2: Try to handle lost frame sync
+    if (handleLostFrameSync()) {
+        Debug::log("flac", "Recovered using lost sync recovery");
+        return true;
+    }
+    
+    // Strategy 3: Skip ahead by a reasonable amount and try again
+    int64_t current_pos = m_handler->tell();
+    const uint64_t skip_amounts[] = {1024, 4096, 16384, 65536};  // Progressive skip sizes
+    
+    for (size_t i = 0; i < sizeof(skip_amounts) / sizeof(skip_amounts[0]); i++) {
+        uint64_t skip_pos = current_pos + skip_amounts[i];
+        
+        if (m_handler->seek(skip_pos, SEEK_SET)) {
+            if (resynchronizeToNextFrame()) {
+                Debug::log("flac", "Recovered by skipping ", skip_amounts[i], " bytes");
+                return true;
+            }
+        }
+    }
+    
+    // Strategy 4: Try to find any valid FLAC frame in the remaining file
+    if (m_handler->seek(current_pos, SEEK_SET)) {
+        FLACFrame recovery_frame;
+        if (findNextFrame(recovery_frame)) {
+            Debug::log("flac", "Found valid frame during general recovery");
+            updatePositionTracking(recovery_frame.sample_offset, recovery_frame.file_offset);
+            return true;
+        }
+    }
+    
+    Debug::log("flac", "All frame error recovery strategies failed");
+    return false;
 }

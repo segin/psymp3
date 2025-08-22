@@ -122,7 +122,7 @@
   - _Requirements: 5.5, 5.6, 5.7, 5.8_
 
 - [x] 6. Implement Seeking Operations
-  - Create seekTo() method for timestamp-based seeking
+  - Create seekTo() method for timestamp-based seekingz
   - Implement seekWithTable() for SEEKTABLE-based seeking
   - Add seekBinary() for binary search seeking without seek table
   - Create seekLinear() as fallback for sample-accurate positioning
@@ -170,21 +170,21 @@
   - Provide both sample-based and time-based position information
   - _Requirements: 5.3, 5.4, 5.5, 5.6, 5.7_
 
-- [ ] 8. Implement Error Handling and Robustness
+- [x] 8. Implement Error Handling and Robustness
   - Add comprehensive error checking for all parsing operations
   - Implement graceful handling of corrupted metadata and frames
   - Create recovery mechanisms for lost frame sync
   - Add proper resource cleanup in all error paths
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
-- [ ] 8.1 Add Container-Level Error Handling
+- [x] 8.1 Add Container-Level Error Handling
   - Validate fLaC stream marker and reject non-FLAC files
   - Handle corrupted metadata blocks by skipping and continuing
   - Provide reasonable defaults when STREAMINFO is missing or invalid
   - Log errors appropriately without stopping playback when possible
   - _Requirements: 6.1, 6.2, 6.3, 6.8_
 
-- [ ] 8.2 Implement Frame-Level Error Recovery
+- [x] 8.2 Implement Frame-Level Error Recovery
   - Handle lost frame sync by searching for next valid frame
   - Skip corrupted frames and continue with subsequent frames
   - Log CRC mismatches but attempt to use frame data

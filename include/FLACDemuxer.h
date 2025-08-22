@@ -315,6 +315,20 @@ private:
     
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;
+    
+    // Error handling and recovery methods
+    bool attemptStreamInfoRecovery();
+    bool validateStreamInfoParameters() const;
+    bool recoverFromCorruptedMetadata();
+    bool resynchronizeToNextFrame();
+    void provideDefaultStreamInfo();
+    
+    // Frame-level error recovery methods
+    bool handleLostFrameSync();
+    bool skipCorruptedFrame();
+    bool validateFrameCRC(const FLACFrame& frame, const std::vector<uint8_t>& frame_data);
+    MediaChunk createSilenceChunk(uint32_t block_size);
+    bool recoverFromFrameError();
 };
 
 #endif // FLACDEMUXER_H
