@@ -71,7 +71,7 @@ check_PROGRAMS = \
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_page_extraction
+check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic
 endif
 
 # A-law codec tests
@@ -304,6 +304,52 @@ if HAVE_OGGDEMUXER
 test_page_extraction_SOURCES = test_page_extraction.cpp
 test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_page_extraction_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+
+# OggDemuxer bisection search test
+test_bisection_search_SOURCES = test_bisection_search.cpp
+test_bisection_search_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
+test_bisection_search_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+
+# OggDemuxer granule arithmetic test
+test_granule_arithmetic_SOURCES = test_granule_arithmetic.cpp
+test_granule_arithmetic_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
+test_granule_arithmetic_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/OggDemuxer.o \
 	$(top_builddir)/src/Demuxer.o \

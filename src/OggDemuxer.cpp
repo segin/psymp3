@@ -1404,6 +1404,152 @@ uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) cons
     }
 }
 
+// Safe granule position arithmetic functions (following libopusfile patterns)
+
+int OggDemuxer::granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta) {
+    // Following op_granpos_add() patterns from libopusfile
+    // Handle invalid granule position (-1) like reference implementations
+    
+    if (!dst_gp) {
+        Debug::log("ogg", "OggDemuxer: granposAdd - NULL destination pointer");
+        return -1;
+    }
+    
+    // Invalid granule position (-1) in two's complement
+    if (src_gp == -1) {
+        Debug::log("ogg", "OggDemuxer: granposAdd - Invalid source granule position (-1)");
+        *dst_gp = -1;
+        return -1;
+    }
+    
+    // Check for overflow that would wrap past -1
+    // Range organization: [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+    
+    int64_t result;
+    
+    if (delta >= 0) {
+        // Adding positive delta
+        if (src_gp > INT64_MAX - delta) {
+            // Would overflow past INT64_MAX, wrapping to negative range
+            result = src_gp + delta; // This will wrap to negative
+            
+            // Check if we wrapped past -1 (invalid)
+            if (result == -1) {
+                Debug::log("ogg", "OggDemuxer: granposAdd - Overflow wrapped to invalid granule position (-1)");
+                *dst_gp = -1;
+                return -1;
+            }
+        } else {
+            result = src_gp + delta;
+        }
+    } else {
+        // Adding negative delta (subtraction)
+        if (src_gp < INT64_MIN - delta) {
+            // Would underflow past INT64_MIN
+            Debug::log("ogg", "OggDemuxer: granposAdd - Underflow detected, src_gp=", src_gp, ", delta=", delta);
+            *dst_gp = -1;
+            return -1;
+        } else {
+            result = src_gp + delta;
+            
+            // Check if result is invalid (-1)
+            if (result == -1) {
+                Debug::log("ogg", "OggDemuxer: granposAdd - Result is invalid granule position (-1)");
+                *dst_gp = -1;
+                return -1;
+            }
+        }
+    }
+    
+    *dst_gp = result;
+    Debug::log("ogg", "OggDemuxer: granposAdd - Success: src_gp=", src_gp, ", delta=", delta, ", result=", result);
+    return 0;
+}
+
+int OggDemuxer::granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b) {
+    // Following op_granpos_diff() patterns from libopusfile
+    // Handle wraparound from positive to negative values correctly
+    
+    if (!delta) {
+        Debug::log("ogg", "OggDemuxer: granposDiff - NULL delta pointer");
+        return -1;
+    }
+    
+    // Invalid granule positions (-1) in two's complement
+    if (gp_a == -1 || gp_b == -1) {
+        Debug::log("ogg", "OggDemuxer: granposDiff - Invalid granule position: gp_a=", gp_a, ", gp_b=", gp_b);
+        *delta = 0;
+        return -1;
+    }
+    
+    // Calculate difference with wraparound handling
+    // Range organization: [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+    
+    int64_t result = gp_a - gp_b;
+    
+    // Check for wraparound conditions
+    if (gp_a >= 0 && gp_b < 0) {
+        // gp_a is in positive range, gp_b is in negative range
+        // This is a normal case where gp_a > gp_b
+        // No special handling needed
+    } else if (gp_a < 0 && gp_b >= 0) {
+        // gp_a is in negative range, gp_b is in positive range
+        // This means gp_a > gp_b (negative values are larger in granule position ordering)
+        // No special handling needed for the subtraction
+    }
+    
+    // Check if result is invalid (-1)
+    if (result == -1) {
+        Debug::log("ogg", "OggDemuxer: granposDiff - Result is invalid granule position (-1)");
+        *delta = 0;
+        return -1;
+    }
+    
+    *delta = result;
+    Debug::log("ogg", "OggDemuxer: granposDiff - Success: gp_a=", gp_a, ", gp_b=", gp_b, ", delta=", result);
+    return 0;
+}
+
+int OggDemuxer::granposCmp(int64_t gp_a, int64_t gp_b) {
+    // Following op_granpos_cmp() patterns from libopusfile
+    // Handle proper ordering with invalid granule positions
+    
+    // Invalid granule positions (-1) are always equal to each other and less than valid positions
+    if (gp_a == -1 && gp_b == -1) {
+        return 0; // Both invalid, equal
+    }
+    if (gp_a == -1) {
+        return -1; // Invalid is less than valid
+    }
+    if (gp_b == -1) {
+        return 1; // Valid is greater than invalid
+    }
+    
+    // Both are valid granule positions
+    // Range organization: [ 0 ... INT64_MAX ][ INT64_MIN ... -2 ]
+    // Negative values (INT64_MIN to -2) are considered larger than positive values
+    
+    bool a_is_negative = (gp_a < 0);
+    bool b_is_negative = (gp_b < 0);
+    
+    if (a_is_negative && !b_is_negative) {
+        // gp_a is in negative range (larger), gp_b is in positive range (smaller)
+        return 1;
+    } else if (!a_is_negative && b_is_negative) {
+        // gp_a is in positive range (smaller), gp_b is in negative range (larger)
+        return -1;
+    } else {
+        // Both in same range, use normal comparison
+        if (gp_a < gp_b) {
+            return -1;
+        } else if (gp_a > gp_b) {
+            return 1;
+        } else {
+            return 0;
+        }
+    }
+}
+
 uint32_t OggDemuxer::findBestAudioStream() const {
     // Find the first audio stream
     for (const auto& [stream_id, stream] : m_streams) {
@@ -1651,83 +1797,126 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id)
 
     Debug::log("ogg", "OggDemuxer: seekToPage - target_granule=", target_granule, ", stream_id=", stream_id, ", file_size=", m_file_size);
 
-    // Implement proper bisection search algorithm
-    long left = 0;
-    long right = static_cast<long>(m_file_size);
-    long best_pos = 0;
+    // Implement bisection search algorithm following ov_pcm_seek_page/op_pcm_seek_page patterns
+    int64_t begin = 0;
+    int64_t end = static_cast<int64_t>(m_file_size);
+    int64_t best_pos = 0;
     uint64_t best_granule = 0;
     bool found_valid_page = false;
     
-    // Maximum iterations to prevent infinite loops
-    const int max_iterations = 32;
+    // Maximum iterations to prevent infinite loops (following reference implementations)
+    const int max_iterations = 64;
     int iterations = 0;
     
-    while (left < right && iterations < max_iterations) {
+    // Bisection search loop (following libvorbisfile/libopusfile patterns)
+    while (begin < end && iterations < max_iterations) {
         iterations++;
-        long mid = left + (right - left) / 2;
         
-        Debug::log("ogg", "OggDemuxer: seekToPage bisection iteration ", iterations, " - left=", left, ", mid=", mid, ", right=", right);
+        // Calculate midpoint (following reference implementation patterns)
+        int64_t bisect = begin + (end - begin) / 2;
         
-        // Find granule position at this file offset
-        uint64_t granule_at_mid = findGranuleAtOffset(mid, stream_id);
+        Debug::log("ogg", "OggDemuxer: seekToPage bisection iteration ", iterations, " - begin=", begin, ", bisect=", bisect, ", end=", end);
         
-        if (granule_at_mid == static_cast<uint64_t>(-1)) {
-            // No valid page found at this position, try moving right
-            left = mid + 1;
-            Debug::log("ogg", "OggDemuxer: seekToPage - no valid page at offset ", mid, ", moving right");
+        // Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
+        // This follows libvorbisfile patterns exactly
+        uint64_t granule_at_bisect = static_cast<uint64_t>(-1);
+        
+        // First try to examine packets using ogg_stream_packetpeek() for more accuracy
+        if (!examinePacketsAtPosition(bisect, stream_id, granule_at_bisect)) {
+            // Fall back to page-level granule discovery
+            granule_at_bisect = findGranuleAtOffsetUsingPageseek(bisect, stream_id);
+        }
+        
+        if (granule_at_bisect == static_cast<uint64_t>(-1)) {
+            // No valid page found at this position, adjust search interval
+            // Following libvorbisfile error recovery patterns
+            if (bisect - begin < end - bisect) {
+                begin = bisect + 1;
+            } else {
+                end = bisect - 1;
+            }
+            Debug::log("ogg", "OggDemuxer: seekToPage - no valid page at offset ", bisect, ", adjusting interval");
             continue;
         }
         
-        Debug::log("ogg", "OggDemuxer: seekToPage - found granule ", granule_at_mid, " at offset ", mid, ", target=", target_granule);
+        Debug::log("ogg", "OggDemuxer: seekToPage - found granule ", granule_at_bisect, " at offset ", bisect, ", target=", target_granule);
         
-        // Update best position if this is closer to our target
+        // Update best position if this is closer to our target (following reference logic)
         if (!found_valid_page || 
-            (granule_at_mid <= target_granule && granule_at_mid > best_granule) ||
-            (best_granule > target_granule && granule_at_mid < best_granule)) {
-            best_pos = mid;
-            best_granule = granule_at_mid;
+            (granule_at_bisect <= target_granule && granule_at_bisect > best_granule) ||
+            (best_granule > target_granule && granule_at_bisect < best_granule)) {
+            best_pos = bisect;
+            best_granule = granule_at_bisect;
             found_valid_page = true;
         }
         
-        if (granule_at_mid < target_granule) {
+        // Adjust bisection interval based on comparison (following reference patterns)
+        if (granule_at_bisect < target_granule) {
             // Need to search right half
-            left = mid + 1;
-        } else if (granule_at_mid > target_granule) {
-            // Need to search left half
-            right = mid - 1;
+            begin = bisect + 1;
+        } else if (granule_at_bisect > target_granule) {
+            // Need to search left half  
+            end = bisect;
         } else {
             // Exact match found
-            best_pos = mid;
-            best_granule = granule_at_mid;
+            best_pos = bisect;
+            best_granule = granule_at_bisect;
+            break;
+        }
+        
+        // Linear scanning fallback when bisection interval becomes small
+        // Following libvorbisfile patterns for small intervals
+        if (end - begin < static_cast<int64_t>(CHUNKSIZE / 4)) {
+            Debug::log("ogg", "OggDemuxer: seekToPage - interval too small, switching to linear scan");
+            int64_t linear_result = linearScanForTarget(begin, end, target_granule, stream_id);
+            if (linear_result >= 0) {
+                best_pos = linear_result;
+                found_valid_page = true;
+            }
             break;
         }
     }
     
     if (!found_valid_page) {
         Debug::log("ogg", "OggDemuxer: seekToPage - no valid pages found during bisection, seeking to beginning");
-        m_handler->seek(0, SEEK_SET);
-        ogg_sync_reset(&m_sync_state);
-        m_position_ms = 0;
-        m_eof = false;
+        {
+            std::lock_guard<std::mutex> io_lock(m_io_mutex);
+            m_handler->seek(0, SEEK_SET);
+        }
+        
+        {
+            std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+            ogg_sync_reset(&m_sync_state);
+        }
+        
+        updatePosition(0);
+        setEOF(false);
         return true;
     }
     
     Debug::log("ogg", "OggDemuxer: seekToPage - bisection completed after ", iterations, " iterations, best_pos=", best_pos, ", best_granule=", best_granule);
     
-    // Seek to the best position found
-    m_handler->seek(best_pos, SEEK_SET);
+    // Seek to the best position found and reset states
+    {
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        m_handler->seek(best_pos, SEEK_SET);
+    }
     
-    // Reset sync and stream states for clean reading
-    ogg_sync_reset(&m_sync_state);
-    for (auto& [sid, ogg_stream] : m_ogg_streams) {
-        ogg_stream_reset(&ogg_stream);
+    // Reset sync and stream states for clean reading (following reference patterns)
+    {
+        std::lock_guard<std::mutex> ogg_lock(m_ogg_state_mutex);
+        ogg_sync_reset(&m_sync_state);
+        
+        for (auto& [sid, ogg_stream] : m_ogg_streams) {
+            ogg_stream_reset(&ogg_stream);
+        }
     }
     
     // Update position tracking
-    m_position_ms = granuleToMs(best_granule, stream_id);
-    m_eof = false;
+    updatePosition(granuleToMs(best_granule, stream_id));
+    setEOF(false);
     
-    Debug::log("ogg", "OggDemuxer: seekToPage completed - final position=", m_position_ms, "ms");
+    Debug::log("ogg", "OggDemuxer: seekToPage completed - final position=", getPosition(), "ms");
     return true;
 }
 
@@ -1796,6 +1985,254 @@ uint64_t OggDemuxer::findGranuleAtOffset(long file_offset, uint32_t stream_id) {
     
     // Restore original position
     m_handler->seek(original_pos, SEEK_SET);
+    
+    return found_granule;
+}
+
+uint64_t OggDemuxer::findGranuleAtOffsetUsingPageseek(int64_t file_offset, uint32_t stream_id) {
+    // Save current position
+    long original_pos;
+    {
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        original_pos = m_handler->tell();
+        
+        // Seek to the target offset
+        if (m_handler->seek(file_offset, SEEK_SET) != 0) {
+            Debug::log("ogg", "OggDemuxer: findGranuleAtOffsetUsingPageseek - failed to seek to offset ", file_offset);
+            m_handler->seek(original_pos, SEEK_SET);
+            return static_cast<uint64_t>(-1);
+        }
+    }
+    
+    // Create a temporary sync state for this search
+    ogg_sync_state temp_sync;
+    if (ogg_sync_init(&temp_sync) != 0) {
+        Debug::log("ogg", "OggDemuxer: findGranuleAtOffsetUsingPageseek - failed to initialize temp sync state");
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        m_handler->seek(original_pos, SEEK_SET);
+        return static_cast<uint64_t>(-1);
+    }
+    
+    uint64_t found_granule = static_cast<uint64_t>(-1);
+    
+    try {
+        // Read data into temporary sync buffer
+        const size_t read_size = CHUNKSIZE;  // Use CHUNKSIZE like reference implementations
+        char* buffer = ogg_sync_buffer(&temp_sync, read_size);
+        if (!buffer) {
+            throw std::runtime_error("Failed to get sync buffer");
+        }
+        
+        long bytes_read;
+        {
+            std::lock_guard<std::mutex> io_lock(m_io_mutex);
+            bytes_read = m_handler->read(buffer, 1, read_size);
+        }
+        
+        if (bytes_read <= 0) {
+            throw std::runtime_error("Failed to read data");
+        }
+        
+        if (ogg_sync_wrote(&temp_sync, bytes_read) != 0) {
+            throw std::runtime_error("Failed to write to sync buffer");
+        }
+        
+        // Use ogg_sync_pageseek() for page discovery (following libvorbisfile patterns)
+        ogg_page page;
+        long page_offset = 0;
+        
+        while (true) {
+            long result = ogg_sync_pageseek(&temp_sync, &page);
+            
+            if (result < 0) {
+                // Skipped bytes, continue searching
+                page_offset -= result;
+                continue;
+            } else if (result == 0) {
+                // Need more data, but we're doing a single-buffer search
+                break;
+            } else {
+                // Found a page, result is the page size
+                page_offset += result;
+                
+                // Validate page before accessing its fields
+                if (!validateOggPage(&page)) {
+                    continue;
+                }
+                
+                uint32_t page_stream_id = ogg_page_serialno(&page);
+                uint64_t page_granule = ogg_page_granulepos(&page);
+                
+                if (page_stream_id == stream_id && page_granule != static_cast<uint64_t>(-1)) {
+                    found_granule = page_granule;
+                    Debug::log("ogg", "OggDemuxer: findGranuleAtOffsetUsingPageseek - found granule ", page_granule, " for stream ", stream_id, " at offset ", file_offset);
+                    break;
+                }
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        Debug::log("ogg", "OggDemuxer: findGranuleAtOffsetUsingPageseek - exception: ", e.what());
+    }
+    
+    // Clean up temporary sync state
+    ogg_sync_clear(&temp_sync);
+    
+    // Restore original position
+    {
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        m_handler->seek(original_pos, SEEK_SET);
+    }
+    
+    return found_granule;
+}
+
+int64_t OggDemuxer::linearScanForTarget(int64_t begin, int64_t end, uint64_t target_granule, uint32_t stream_id) {
+    Debug::log("ogg", "OggDemuxer: linearScanForTarget - scanning from ", begin, " to ", end, " for target ", target_granule);
+    
+    int64_t best_pos = -1;
+    uint64_t best_granule = static_cast<uint64_t>(-1);
+    bool found_any = false;
+    
+    // Scan forward in small increments (following reference implementation patterns)
+    const int64_t scan_increment = 2048;  // Small increments for linear scan
+    
+    for (int64_t pos = begin; pos < end; pos += scan_increment) {
+        uint64_t granule_at_pos = findGranuleAtOffsetUsingPageseek(pos, stream_id);
+        
+        if (granule_at_pos != static_cast<uint64_t>(-1)) {
+            if (!found_any || 
+                (granule_at_pos <= target_granule && granule_at_pos > best_granule) ||
+                (best_granule > target_granule && granule_at_pos < best_granule)) {
+                best_pos = pos;
+                best_granule = granule_at_pos;
+                found_any = true;
+                
+                // If we found exact match or overshot, we can stop
+                if (granule_at_pos >= target_granule) {
+                    break;
+                }
+            }
+        }
+    }
+    
+    Debug::log("ogg", "OggDemuxer: linearScanForTarget - found best position ", best_pos, " with granule ", best_granule);
+    return best_pos;
+}
+
+bool OggDemuxer::examinePacketsAtPosition(int64_t file_offset, uint32_t stream_id, uint64_t& granule_position) {
+    // Save current position
+    long original_pos;
+    {
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        original_pos = m_handler->tell();
+        
+        // Seek to the target offset
+        if (m_handler->seek(file_offset, SEEK_SET) != 0) {
+            Debug::log("ogg", "OggDemuxer: examinePacketsAtPosition - failed to seek to offset ", file_offset);
+            m_handler->seek(original_pos, SEEK_SET);
+            return false;
+        }
+    }
+    
+    // Create temporary sync and stream states for examination
+    ogg_sync_state temp_sync;
+    ogg_stream_state temp_stream;
+    
+    if (ogg_sync_init(&temp_sync) != 0) {
+        Debug::log("ogg", "OggDemuxer: examinePacketsAtPosition - failed to initialize temp sync state");
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        m_handler->seek(original_pos, SEEK_SET);
+        return false;
+    }
+    
+    if (ogg_stream_init(&temp_stream, stream_id) != 0) {
+        Debug::log("ogg", "OggDemuxer: examinePacketsAtPosition - failed to initialize temp stream state");
+        ogg_sync_clear(&temp_sync);
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        m_handler->seek(original_pos, SEEK_SET);
+        return false;
+    }
+    
+    bool found_granule = false;
+    granule_position = static_cast<uint64_t>(-1);
+    
+    try {
+        // Read data into temporary sync buffer
+        const size_t read_size = CHUNKSIZE;
+        char* buffer = ogg_sync_buffer(&temp_sync, read_size);
+        if (!buffer) {
+            throw std::runtime_error("Failed to get sync buffer");
+        }
+        
+        long bytes_read;
+        {
+            std::lock_guard<std::mutex> io_lock(m_io_mutex);
+            bytes_read = m_handler->read(buffer, 1, read_size);
+        }
+        
+        if (bytes_read <= 0) {
+            throw std::runtime_error("Failed to read data");
+        }
+        
+        if (ogg_sync_wrote(&temp_sync, bytes_read) != 0) {
+            throw std::runtime_error("Failed to write to sync buffer");
+        }
+        
+        // Process pages and examine packets using ogg_stream_packetpeek()
+        ogg_page page;
+        while (ogg_sync_pageout(&temp_sync, &page) == 1) {
+            // Validate page before accessing its fields
+            if (!validateOggPage(&page)) {
+                continue;
+            }
+            
+            uint32_t page_stream_id = ogg_page_serialno(&page);
+            if (page_stream_id != stream_id) {
+                continue;
+            }
+            
+            // Add page to stream
+            if (ogg_stream_pagein(&temp_stream, &page) != 0) {
+                continue;
+            }
+            
+            // Use ogg_stream_packetpeek() to examine packets without consuming them
+            // This follows libvorbisfile/libopusfile patterns exactly
+            ogg_packet packet;
+            int packet_result = ogg_stream_packetpeek(&temp_stream, &packet);
+            
+            if (packet_result == 1) {
+                // Successfully peeked at a packet
+                if (packet.granulepos != -1) {
+                    granule_position = static_cast<uint64_t>(packet.granulepos);
+                    found_granule = true;
+                    Debug::log("ogg", "OggDemuxer: examinePacketsAtPosition - peeked granule ", granule_position, " for stream ", stream_id, " at offset ", file_offset);
+                    break;
+                }
+            } else if (packet_result == 0) {
+                // Need more data, but we're doing a single-buffer examination
+                break;
+            } else {
+                // Error occurred
+                Debug::log("ogg", "OggDemuxer: examinePacketsAtPosition - packet peek error for stream ", stream_id);
+                break;
+            }
+        }
+        
+    } catch (const std::exception& e) {
+        Debug::log("ogg", "OggDemuxer: examinePacketsAtPosition - exception: ", e.what());
+    }
+    
+    // Clean up temporary states
+    ogg_stream_clear(&temp_stream);
+    ogg_sync_clear(&temp_sync);
+    
+    // Restore original position
+    {
+        std::lock_guard<std::mutex> io_lock(m_io_mutex);
+        m_handler->seek(original_pos, SEEK_SET);
+    }
     
     return found_granule;
 }

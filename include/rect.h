@@ -241,14 +241,14 @@ class Rect
          * @return Left edge X coordinate
          * Performance: Inlined for optimal speed
          */
-        int16_t left() const;
+        int16_t left() const { return m_x; }
         
         /**
          * @brief Get top edge coordinate (alias for y())
          * @return Top edge Y coordinate
          * Performance: Inlined for optimal speed
          */
-        int16_t top() const;
+        int16_t top() const { return m_y; }
         
         /**
          * @brief Get right edge coordinate
@@ -290,14 +290,14 @@ class Rect
          * @return Area in pixels (width * height)
          * Returns uint32_t to handle maximum possible area without overflow
          */
-        uint32_t area() const;
+        uint32_t area() const { return static_cast<uint32_t>(m_width) * static_cast<uint32_t>(m_height); }
         
         /**
          * @brief Check if rectangle is empty
          * @return true if width or height is zero
          * Performance: Inlined for frequent validation checks
          */
-        bool isEmpty() const;
+        bool isEmpty() const { return m_width == 0 || m_height == 0; }
         
         /**
          * @brief Comprehensive rectangle validation
@@ -715,14 +715,17 @@ class Rect
          * 
          * Performance: Inlined for optimal comparison speed
          */
-        bool operator==(const Rect& other) const;
+        bool operator==(const Rect& other) const {
+            return m_x == other.m_x && m_y == other.m_y && 
+                   m_width == other.m_width && m_height == other.m_height;
+        }
         
         /**
          * @brief Inequality comparison operator
          * @param other Rectangle to compare with
          * @return true if any coordinate or dimension differs
          */
-        bool operator!=(const Rect& other) const;
+        bool operator!=(const Rect& other) const { return !(*this == other); }
         
         /**
          * @brief Generate string representation for debugging

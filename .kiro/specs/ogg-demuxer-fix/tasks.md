@@ -21,7 +21,7 @@
   - _Requirements: 1.7, 1.8, 1.9, 5.9, 7.1_
   - **Implementation Notes:** All page extraction functions were already implemented following libvorbisfile patterns. Fixed critical deadlock issue in mutex lock ordering (io_lock before ogg_lock). Updated comprehensive unit tests to handle threading issues properly. All tests now pass successfully (11/11). Clean build verified.
 
-- [ ] 3. Implement Bisection Search Algorithm (Following ov_pcm_seek_page/op_pcm_seek_page)
+- [x] 3. Implement Bisection Search Algorithm (Following ov_pcm_seek_page/op_pcm_seek_page)
   - Implement seekToPage() using exact bisection algorithm from ov_pcm_seek_page()
   - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
   - Implement proper interval management and boundary conditions
@@ -32,7 +32,7 @@
   - Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: 5.1, 5.2, 5.11, 7.11_
 
-- [ ] 4. Implement Safe Granule Position Arithmetic (Following libopusfile)
+- [x] 4. Implement Safe Granule Position Arithmetic (Following libopusfile)
   - Implement granposAdd() following op_granpos_add() overflow detection patterns
   - Implement granposDiff() following op_granpos_diff() wraparound handling
   - Implement granposCmp() following op_granpos_cmp() ordering logic

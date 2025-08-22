@@ -24,8 +24,9 @@
 #include "psymp3.h"
 #include <algorithm> // For std::max and std::min
 #include <sstream>   // For std::ostringstream
+#include <limits>    // For std::numeric_limits
 
-Rect::Rect()
+Rect::Rect() : m_x(0), m_y(0), m_width(0), m_height(0)
 {
     //ctor
 }
@@ -121,23 +122,7 @@ void Rect::height(uint16_t a)
 
 // Edge coordinate methods
 
-/**
- * @brief Get the left edge coordinate (alias to x())
- * @return The left edge coordinate
- */
-int16_t Rect::left() const
-{
-    return m_x;
-}
 
-/**
- * @brief Get the top edge coordinate (alias to y())
- * @return The top edge coordinate
- */
-int16_t Rect::top() const
-{
-    return m_y;
-}
 
 /**
  * @brief Get the right edge coordinate
@@ -192,23 +177,7 @@ std::pair<int16_t, int16_t> Rect::center() const
 
 // Area and validation methods
 
-/**
- * @brief Calculate the area of the rectangle
- * @return The area (width * height)
- */
-uint32_t Rect::area() const
-{
-    return static_cast<uint32_t>(m_width) * static_cast<uint32_t>(m_height);
-}
 
-/**
- * @brief Check if the rectangle is empty (zero width or height)
- * @return True if width or height is zero, false otherwise
- */
-bool Rect::isEmpty() const
-{
-    return m_width == 0 || m_height == 0;
-}
 
 /**
  * @brief Check if the rectangle is valid
@@ -226,17 +195,24 @@ bool Rect::isValid() const
  * @param x The x coordinate of the point
  * @param y The y coordinate of the point
  * @return True if the point is inside the rectangle (inclusive of edges), false otherwise
+ * 
+ * Performance optimized: Uses early exit and avoids potential overflow
  */
 bool Rect::contains(int16_t x, int16_t y) const
 {
-    // Empty rectangles contain no points
-    if (isEmpty()) {
+    // Early exit for empty rectangles - most common failure case
+    if (m_width == 0 || m_height == 0) {
         return false;
     }
     
-    // Check if point is within bounds (inclusive)
-    return x >= m_x && x < m_x + m_width &&
-           y >= m_y && y < m_y + m_height;
+    // Optimized bounds checking with early exit on first failure
+    // Check x bounds first (often fails earlier in UI hit testing)
+    if (x < m_x || x >= m_x + static_cast<int32_t>(m_width)) {
+        return false;
+    }
+    
+    // Check y bounds only if x bounds passed
+    return y >= m_y && y < m_y + static_cast<int32_t>(m_height);
 }
 
 /**
@@ -262,21 +238,26 @@ bool Rect::contains(const Rect& other) const
  * @brief Check if this rectangle intersects with another rectangle
  * @param other The rectangle to check for intersection
  * @return True if the rectangles overlap, false otherwise
+ * 
+ * Performance optimized: Early exit and optimized separation testing
  */
 bool Rect::intersects(const Rect& other) const
 {
-    // Empty rectangles don't intersect with anything
-    if (isEmpty() || other.isEmpty()) {
+    // Early exit for empty rectangles - most common failure case
+    if (m_width == 0 || m_height == 0 || other.m_width == 0 || other.m_height == 0) {
         return false;
     }
     
-    // Check if rectangles are separated on any axis
-    // If separated on x-axis: this.right <= other.left OR other.right <= this.left
-    // If separated on y-axis: this.bottom <= other.top OR other.bottom <= this.top
-    return !(m_x + m_width <= other.m_x ||           // this is left of other
-             other.m_x + other.m_width <= m_x ||     // other is left of this
-             m_y + m_height <= other.m_y ||          // this is above other
-             other.m_y + other.m_height <= m_y);     // other is above this
+    // Optimized separation test with early exit
+    // Test x-axis separation first (often fails earlier in UI collision detection)
+    if (m_x >= other.m_x + static_cast<int32_t>(other.m_width) ||  // this is right of other
+        other.m_x >= m_x + static_cast<int32_t>(m_width)) {        // other is right of this
+        return false;
+    }
+    
+    // Test y-axis separation only if x-axis test passed
+    return !(m_y >= other.m_y + static_cast<int32_t>(other.m_height) ||  // this is below other
+             other.m_y >= m_y + static_cast<int32_t>(m_height));          // other is below this
 }
 
 /**
@@ -666,28 +647,7 @@ Rect Rect::centeredIn(const Rect& container) const
 
 // Comparison operators
 
-/**
- * @brief Compare two rectangles for equality
- * @param other The rectangle to compare with
- * @return True if all member variables are equal, false otherwise
- */
-bool Rect::operator==(const Rect& other) const
-{
-    return m_x == other.m_x &&
-           m_y == other.m_y &&
-           m_width == other.m_width &&
-           m_height == other.m_height;
-}
 
-/**
- * @brief Compare two rectangles for inequality
- * @param other The rectangle to compare with
- * @return True if any member variables are different, false otherwise
- */
-bool Rect::operator!=(const Rect& other) const
-{
-    return !(*this == other);
-}
 
 // String representation and debugging support
 

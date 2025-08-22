@@ -141,15 +141,15 @@
     - Ensure no performance regression in hot paths
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 11. Update implementation file with new method bodies
-  - [ ] 11.1 Move complex method implementations to rect.cpp
+- [x] 11. Update implementation file with new method bodies
+  - [x] 11.1 Move complex method implementations to rect.cpp
     - Move non-trivial geometric operations to implementation file
     - Keep simple getters and setters as inline methods
     - Implement safe arithmetic helper functions
     - Add overflow checking for coordinate calculations
     - _Requirements: 6.2, 6.3, 6.4_
 
-  - [ ] 11.2 Optimize performance-critical methods
+  - [x] 11.2 Optimize performance-critical methods
     - Profile geometric operations for performance impact
     - Optimize frequently used methods like contains() and intersects()
     - Ensure memory layout remains unchanged for compatibility

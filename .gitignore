@@ -115,3 +115,9 @@ tests/test_alaw_conversion_direct
 tests/test_mulaw_conversion_accuracy
 tests/test_mulaw_direct
 tests/test_codec_error_handling_simple
+tests/test_bisection_search
+tests/test_backward_compatibility_minimal
+tests/test_granule_arithmetic
+tests/test_rect_backward_compatibility
+tests/test_rect_performance
+tests/test_widget_rect_integration

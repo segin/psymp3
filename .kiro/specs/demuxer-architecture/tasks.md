@@ -324,7 +324,7 @@
   - Provide troubleshooting guide for common integration issues
   - _Requirements: 13.1-13.10, 14.1-14.10_
 
-- [x] 13. Validate Backward Compatibility
+- [ ] 13. Validate Backward Compatibility
   - Ensure existing PsyMP3 functionality continues to work unchanged
   - Test DemuxedStream bridge with all current audio file types
   - Validate performance meets or exceeds current implementation

@@ -140,6 +140,39 @@ public:
     uint64_t getLastGranuleFromHeaders();
     void setFileSizeForTesting(uint64_t file_size) { m_file_size = file_size; }
     
+    // Public methods for testing bisection search
+    bool seekToPage(uint64_t target_granule, uint32_t stream_id);
+    bool examinePacketsAtPosition(int64_t file_offset, uint32_t stream_id, uint64_t& granule_position);
+    
+    // Safe granule position arithmetic (following libopusfile patterns)
+    // Made public for testing
+    
+    /**
+     * @brief Safe granule position addition with overflow detection (follows op_granpos_add)
+     * @param dst_gp Pointer to destination granule position
+     * @param src_gp Source granule position
+     * @param delta Delta to add
+     * @return 0 on success, negative on overflow
+     */
+    int granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta);
+    
+    /**
+     * @brief Safe granule position subtraction with wraparound handling (follows op_granpos_diff)
+     * @param delta Pointer to store the difference
+     * @param gp_a First granule position
+     * @param gp_b Second granule position (subtracted from gp_a)
+     * @return 0 on success, negative on underflow
+     */
+    int granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b);
+    
+    /**
+     * @brief Safe granule position comparison with proper ordering (follows op_granpos_cmp)
+     * @param gp_a First granule position
+     * @param gp_b Second granule position
+     * @return -1 if gp_a < gp_b, 0 if equal, 1 if gp_a > gp_b
+     */
+    int granposCmp(int64_t gp_a, int64_t gp_b);
+    
     // Reference-pattern page extraction functions (following libvorbisfile)
     // Made public for testing
     
@@ -242,15 +275,24 @@ private:
      */
     uint32_t findBestAudioStream() const;
     
-    /**
-     * @brief Seek to a specific page in the file
-     */
-    bool seekToPage(uint64_t target_granule, uint32_t stream_id);
+
     
     /**
      * @brief Find the granule position at a specific file offset
      */
     uint64_t findGranuleAtOffset(long file_offset, uint32_t stream_id);
+    
+    /**
+     * @brief Find granule position using ogg_sync_pageseek() (following libvorbisfile patterns)
+     */
+    uint64_t findGranuleAtOffsetUsingPageseek(int64_t file_offset, uint32_t stream_id);
+    
+    /**
+     * @brief Linear scan for target granule when bisection interval becomes small
+     */
+    int64_t linearScanForTarget(int64_t begin, int64_t end, uint64_t target_granule, uint32_t stream_id);
+    
+
     
     /**
      * @brief Robustly find and read the next Ogg page from the current file position.
