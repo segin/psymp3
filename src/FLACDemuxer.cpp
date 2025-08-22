@@ -1894,23 +1894,470 @@ void FLACDemuxer::updatePositionTracking(uint64_t sample_position, uint64_t file
 
 bool FLACDemuxer::seekWithTable(uint64_t target_sample)
 {
-    Debug::log("flac", "FLACDemuxer::seekWithTable() - placeholder implementation");
-    // TODO: Implement seek table based seeking
-    return false;
+    Debug::log("flac", "FLACDemuxer::seekWithTable() - seeking to sample ", target_sample);
+    
+    if (!m_handler) {
+        reportError("IO", "No IOHandler available for seeking");
+        return false;
+    }
+    
+    if (m_seektable.empty()) {
+        Debug::log("flac", "No seek table available");
+        return false;
+    }
+    
+    if (!m_streaminfo.isValid()) {
+        reportError("State", "Invalid STREAMINFO for seeking");
+        return false;
+    }
+    
+    // Find the closest seek point before or at the target sample
+    FLACSeekPoint best_seek_point;
+    bool found_seek_point = false;
+    
+    for (const auto& seek_point : m_seektable) {
+        if (seek_point.sample_number <= target_sample) {
+            // This seek point is before or at our target
+            if (!found_seek_point || seek_point.sample_number > best_seek_point.sample_number) {
+                best_seek_point = seek_point;
+                found_seek_point = true;
+            }
+        } else {
+            // We've passed our target, stop searching (table is sorted)
+            break;
+        }
+    }
+    
+    if (!found_seek_point) {
+        Debug::log("flac", "No suitable seek point found for sample ", target_sample);
+        return false;
+    }
+    
+    Debug::log("flac", "Found seek point: sample=", best_seek_point.sample_number, 
+              " offset=", best_seek_point.stream_offset, 
+              " frame_samples=", best_seek_point.frame_samples);
+    
+    // Calculate absolute file position from stream offset
+    // Stream offset is relative to the first frame (start of audio data)
+    uint64_t file_position = m_audio_data_offset + best_seek_point.stream_offset;
+    
+    // Validate file position is within bounds
+    if (m_file_size > 0 && file_position >= m_file_size) {
+        reportError("Seek", "Seek table entry points beyond file end");
+        return false;
+    }
+    
+    // Seek to the file position
+    if (!m_handler->seek(file_position, SEEK_SET)) {
+        reportError("IO", "Failed to seek to file position " + std::to_string(file_position));
+        return false;
+    }
+    
+    // Update position tracking to the seek point
+    updatePositionTracking(best_seek_point.sample_number, file_position);
+    
+    Debug::log("flac", "Seeked to file position ", file_position, 
+              " (sample ", best_seek_point.sample_number, ")");
+    
+    // If we're exactly at the target, we're done
+    if (best_seek_point.sample_number == target_sample) {
+        Debug::log("flac", "Exact seek point match found");
+        return true;
+    }
+    
+    // Parse frames forward from seek point to exact target
+    Debug::log("flac", "Parsing frames forward from sample ", best_seek_point.sample_number, 
+              " to target ", target_sample);
+    
+    uint64_t current_sample = best_seek_point.sample_number;
+    const uint32_t max_frames_to_parse = 1000;  // Prevent infinite loops
+    uint32_t frames_parsed = 0;
+    
+    while (current_sample < target_sample && frames_parsed < max_frames_to_parse) {
+        FLACFrame frame;
+        
+        // Find the next frame
+        if (!findNextFrame(frame)) {
+            Debug::log("flac", "Failed to find next frame during seek refinement");
+            break;
+        }
+        
+        // Check if this frame contains our target sample
+        uint64_t frame_end_sample = frame.sample_offset + frame.block_size;
+        
+        if (frame.sample_offset <= target_sample && target_sample < frame_end_sample) {
+            // Target sample is within this frame
+            Debug::log("flac", "Target sample ", target_sample, " found in frame at sample ", 
+                      frame.sample_offset);
+            
+            // Seek back to the start of this frame
+            if (!m_handler->seek(frame.file_offset, SEEK_SET)) {
+                reportError("IO", "Failed to seek back to target frame");
+                return false;
+            }
+            
+            // Update position tracking to this frame
+            updatePositionTracking(frame.sample_offset, frame.file_offset);
+            
+            return true;
+        }
+        
+        // Skip to next frame
+        if (frame.frame_size > 0) {
+            uint64_t next_frame_offset = frame.file_offset + frame.frame_size;
+            if (!m_handler->seek(next_frame_offset, SEEK_SET)) {
+                Debug::log("flac", "Failed to skip to next frame");
+                break;
+            }
+            updatePositionTracking(frame_end_sample, next_frame_offset);
+        } else {
+            // Frame size unknown, try to read the frame to advance position
+            std::vector<uint8_t> frame_data;
+            if (!readFrameData(frame, frame_data)) {
+                Debug::log("flac", "Failed to read frame data during seek");
+                break;
+            }
+            updatePositionTracking(frame_end_sample, m_current_offset);
+        }
+        
+        current_sample = frame_end_sample;
+        frames_parsed++;
+    }
+    
+    if (frames_parsed >= max_frames_to_parse) {
+        Debug::log("flac", "Reached maximum frame parse limit during seek refinement");
+        return false;
+    }
+    
+    if (current_sample < target_sample) {
+        Debug::log("flac", "Could not reach target sample ", target_sample, 
+                  ", stopped at sample ", current_sample);
+        return false;
+    }
+    
+    Debug::log("flac", "Seek table based seeking completed successfully");
+    return true;
 }
 
 bool FLACDemuxer::seekBinary(uint64_t target_sample)
 {
-    Debug::log("flac", "FLACDemuxer::seekBinary() - placeholder implementation");
-    // TODO: Implement binary search seeking
+    Debug::log("flac", "FLACDemuxer::seekBinary() - seeking to sample ", target_sample, " using binary search");
+    
+    if (!m_handler) {
+        reportError("IO", "No IOHandler available for seeking");
+        return false;
+    }
+    
+    if (!m_streaminfo.isValid()) {
+        reportError("State", "Invalid STREAMINFO for seeking");
+        return false;
+    }
+    
+    if (m_file_size == 0) {
+        Debug::log("flac", "Unknown file size, cannot perform binary search");
+        return false;
+    }
+    
+    // Calculate search bounds
+    uint64_t search_start = m_audio_data_offset;
+    uint64_t search_end = m_file_size;
+    
+    // Estimate average bitrate for initial position guess
+    uint64_t total_samples = m_streaminfo.total_samples;
+    if (total_samples == 0) {
+        Debug::log("flac", "Unknown total samples, using file size estimation");
+        // Rough estimation: assume average compression ratio
+        uint32_t bytes_per_sample = (m_streaminfo.channels * m_streaminfo.bits_per_sample) / 8;
+        total_samples = (m_file_size - m_audio_data_offset) / (bytes_per_sample / 2);  // Assume 2:1 compression
+    }
+    
+    Debug::log("flac", "Binary search bounds: file offset ", search_start, " to ", search_end);
+    Debug::log("flac", "Estimated total samples: ", total_samples);
+    
+    // Binary search parameters
+    const uint32_t max_iterations = 32;  // Prevent infinite loops
+    const uint64_t sample_tolerance = m_streaminfo.max_block_size;  // Accept frames within one block
+    
+    uint32_t iteration = 0;
+    uint64_t best_sample = 0;
+    uint64_t best_file_offset = search_start;
+    
+    while (iteration < max_iterations && search_start < search_end) {
+        iteration++;
+        
+        // Calculate midpoint file position
+        uint64_t mid_offset = search_start + (search_end - search_start) / 2;
+        
+        Debug::log("flac", "Binary search iteration ", iteration, ": trying offset ", mid_offset);
+        
+        // Seek to midpoint
+        if (!m_handler->seek(mid_offset, SEEK_SET)) {
+            Debug::log("flac", "Failed to seek to offset ", mid_offset);
+            break;
+        }
+        
+        // Find the next valid FLAC frame from this position
+        FLACFrame frame;
+        bool found_frame = false;
+        
+        // Search forward from midpoint for a valid frame (up to 64KB)
+        const uint32_t max_search_distance = 65536;
+        uint64_t search_offset = mid_offset;
+        
+        while (search_offset < search_end && (search_offset - mid_offset) < max_search_distance) {
+            if (!m_handler->seek(search_offset, SEEK_SET)) {
+                break;
+            }
+            
+            // Look for FLAC sync pattern
+            uint8_t sync_bytes[2];
+            if (m_handler->read(sync_bytes, 1, 2) != 2) {
+                break;
+            }
+            
+            if (sync_bytes[0] == 0xFF && (sync_bytes[1] & 0xF8) == 0xF8) {
+                // Found potential sync, seek back and try to parse frame
+                if (!m_handler->seek(search_offset, SEEK_SET)) {
+                    break;
+                }
+                
+                if (findNextFrame(frame)) {
+                    // Validate frame header for consistency
+                    if (validateFrameHeader(frame)) {
+                        found_frame = true;
+                        Debug::log("flac", "Found valid frame at offset ", frame.file_offset, 
+                                  " sample ", frame.sample_offset);
+                        break;
+                    }
+                }
+            }
+            
+            search_offset++;
+        }
+        
+        if (!found_frame) {
+            Debug::log("flac", "No valid frame found near offset ", mid_offset);
+            // Adjust search to lower half
+            search_end = mid_offset;
+            continue;
+        }
+        
+        // Update best position if this is closer to target
+        uint64_t sample_distance = (frame.sample_offset > target_sample) ? 
+                                  (frame.sample_offset - target_sample) : 
+                                  (target_sample - frame.sample_offset);
+        
+        uint64_t best_distance = (best_sample > target_sample) ? 
+                                (best_sample - target_sample) : 
+                                (target_sample - best_sample);
+        
+        if (iteration == 1 || sample_distance < best_distance) {
+            best_sample = frame.sample_offset;
+            best_file_offset = frame.file_offset;
+            Debug::log("flac", "New best position: sample ", best_sample, " at offset ", best_file_offset);
+        }
+        
+        // Check if we're close enough to the target
+        if (sample_distance <= sample_tolerance) {
+            Debug::log("flac", "Found frame within tolerance (", sample_distance, " samples)");
+            break;
+        }
+        
+        // Adjust search bounds based on frame position
+        if (frame.sample_offset < target_sample) {
+            // Frame is before target, search upper half
+            search_start = frame.file_offset + 1;
+        } else {
+            // Frame is after target, search lower half
+            search_end = frame.file_offset;
+        }
+        
+        Debug::log("flac", "Adjusted search bounds: ", search_start, " to ", search_end);
+    }
+    
+    if (iteration >= max_iterations) {
+        Debug::log("flac", "Binary search reached maximum iterations");
+    }
+    
+    // Seek to the best position found
+    if (best_file_offset > 0) {
+        Debug::log("flac", "Seeking to best position: sample ", best_sample, " at offset ", best_file_offset);
+        
+        if (!m_handler->seek(best_file_offset, SEEK_SET)) {
+            reportError("IO", "Failed to seek to best position");
+            return false;
+        }
+        
+        updatePositionTracking(best_sample, best_file_offset);
+        
+        // If we're not exactly at the target, we may need linear refinement
+        uint64_t sample_distance = (best_sample > target_sample) ? 
+                                  (best_sample - target_sample) : 
+                                  (target_sample - best_sample);
+        
+        if (sample_distance <= sample_tolerance) {
+            Debug::log("flac", "Binary search successful, within tolerance");
+            return true;
+        } else {
+            Debug::log("flac", "Binary search found approximate position, distance: ", sample_distance, " samples");
+            return true;  // Still consider this successful for approximate seeking
+        }
+    }
+    
+    Debug::log("flac", "Binary search failed to find suitable position");
     return false;
 }
 
 bool FLACDemuxer::seekLinear(uint64_t target_sample)
 {
-    Debug::log("flac", "FLACDemuxer::seekLinear() - placeholder implementation");
-    // TODO: Implement linear seeking
-    return false;
+    Debug::log("flac", "FLACDemuxer::seekLinear() - seeking to sample ", target_sample, " using linear search");
+    
+    if (!m_handler) {
+        reportError("IO", "No IOHandler available for seeking");
+        return false;
+    }
+    
+    if (!m_streaminfo.isValid()) {
+        reportError("State", "Invalid STREAMINFO for seeking");
+        return false;
+    }
+    
+    // Determine starting position for linear search
+    uint64_t start_sample = 0;
+    uint64_t start_offset = m_audio_data_offset;
+    
+    // Optimize for short-distance seeks from current position
+    uint64_t current_distance = (m_current_sample > target_sample) ? 
+                               (m_current_sample - target_sample) : 
+                               (target_sample - m_current_sample);
+    
+    // If target is close to current position and we're ahead, start from current position
+    const uint64_t short_seek_threshold = m_streaminfo.max_block_size * 10;  // 10 blocks
+    
+    if (current_distance <= short_seek_threshold && m_current_sample <= target_sample) {
+        start_sample = m_current_sample;
+        start_offset = m_current_offset;
+        Debug::log("flac", "Short-distance seek: starting from current position (sample ", 
+                  start_sample, ", offset ", start_offset, ")");
+    } else {
+        Debug::log("flac", "Long-distance seek: starting from beginning (sample ", 
+                  start_sample, ", offset ", start_offset, ")");
+    }
+    
+    // Seek to starting position
+    if (!m_handler->seek(start_offset, SEEK_SET)) {
+        reportError("IO", "Failed to seek to starting position");
+        return false;
+    }
+    
+    updatePositionTracking(start_sample, start_offset);
+    
+    // Linear search parameters
+    const uint32_t max_frames_to_parse = 10000;  // Prevent runaway parsing
+    uint32_t frames_parsed = 0;
+    uint64_t current_sample = start_sample;
+    
+    Debug::log("flac", "Starting linear search from sample ", current_sample, " to target ", target_sample);
+    
+    while (current_sample < target_sample && frames_parsed < max_frames_to_parse) {
+        FLACFrame frame;
+        
+        // Find the next frame
+        if (!findNextFrame(frame)) {
+            Debug::log("flac", "Failed to find next frame during linear search at sample ", current_sample);
+            break;
+        }
+        
+        frames_parsed++;
+        
+        // Check if this frame contains our target sample
+        uint64_t frame_end_sample = frame.sample_offset + frame.block_size;
+        
+        Debug::log("flac", "Frame ", frames_parsed, ": samples ", frame.sample_offset, 
+                  " to ", frame_end_sample, " (target: ", target_sample, ")");
+        
+        if (frame.sample_offset <= target_sample && target_sample < frame_end_sample) {
+            // Target sample is within this frame - perfect match
+            Debug::log("flac", "Target sample ", target_sample, " found in frame at sample ", 
+                      frame.sample_offset);
+            
+            // Seek back to the start of this frame
+            if (!m_handler->seek(frame.file_offset, SEEK_SET)) {
+                reportError("IO", "Failed to seek back to target frame");
+                return false;
+            }
+            
+            // Update position tracking to this frame
+            updatePositionTracking(frame.sample_offset, frame.file_offset);
+            
+            Debug::log("flac", "Linear seeking successful: positioned at sample ", 
+                      frame.sample_offset, " (target was ", target_sample, ")");
+            return true;
+        }
+        
+        // If we've passed the target, position at this frame (closest we can get)
+        if (frame.sample_offset > target_sample) {
+            Debug::log("flac", "Passed target sample ", target_sample, 
+                      ", positioning at frame sample ", frame.sample_offset);
+            
+            // Seek back to the start of this frame
+            if (!m_handler->seek(frame.file_offset, SEEK_SET)) {
+                reportError("IO", "Failed to seek back to closest frame");
+                return false;
+            }
+            
+            // Update position tracking to this frame
+            updatePositionTracking(frame.sample_offset, frame.file_offset);
+            
+            Debug::log("flac", "Linear seeking successful: positioned at sample ", 
+                      frame.sample_offset, " (closest to target ", target_sample, ")");
+            return true;
+        }
+        
+        // Continue to next frame
+        current_sample = frame_end_sample;
+        
+        // Skip to next frame position
+        if (frame.frame_size > 0) {
+            uint64_t next_frame_offset = frame.file_offset + frame.frame_size;
+            if (!m_handler->seek(next_frame_offset, SEEK_SET)) {
+                Debug::log("flac", "Failed to skip to next frame");
+                break;
+            }
+            updatePositionTracking(current_sample, next_frame_offset);
+        } else {
+            // Frame size unknown, read the frame to advance position
+            std::vector<uint8_t> frame_data;
+            if (!readFrameData(frame, frame_data)) {
+                Debug::log("flac", "Failed to read frame data during linear search");
+                break;
+            }
+            updatePositionTracking(current_sample, m_current_offset);
+        }
+        
+        // Progress logging for long searches
+        if (frames_parsed % 100 == 0) {
+            Debug::log("flac", "Linear search progress: parsed ", frames_parsed, 
+                      " frames, at sample ", current_sample);
+        }
+    }
+    
+    if (frames_parsed >= max_frames_to_parse) {
+        Debug::log("flac", "Linear search reached maximum frame limit (", max_frames_to_parse, ")");
+        return false;
+    }
+    
+    if (current_sample < target_sample) {
+        Debug::log("flac", "Linear search reached end of stream at sample ", current_sample, 
+                  " (target was ", target_sample, ")");
+        
+        // Position at the last valid position we found
+        Debug::log("flac", "Positioning at end of stream");
+        return true;  // Consider this successful - we're at the end
+    }
+    
+    Debug::log("flac", "Linear search completed successfully");
+    return true;
 }
 
 uint64_t FLACDemuxer::samplesToMs(uint64_t samples) const

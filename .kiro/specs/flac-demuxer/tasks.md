@@ -121,28 +121,28 @@
   - Handle position tracking across seeks and resets
   - _Requirements: 5.5, 5.6, 5.7, 5.8_
 
-- [ ] 6. Implement Seeking Operations
+- [x] 6. Implement Seeking Operations
   - Create seekTo() method for timestamp-based seeking
   - Implement seekWithTable() for SEEKTABLE-based seeking
   - Add seekBinary() for binary search seeking without seek table
   - Create seekLinear() as fallback for sample-accurate positioning
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8_
 
-- [ ] 6.1 Implement SEEKTABLE-Based Seeking
+- [x] 6.1 Implement SEEKTABLE-Based Seeking
   - Find closest seek point before target sample position
   - Seek to file position specified in seek table
   - Parse frames forward from seek point to exact target
   - Handle seek table errors and missing seek points
   - _Requirements: 4.1, 4.6, 4.8, 6.3_
 
-- [ ] 6.2 Add Binary Search Seeking
+- [x] 6.2 Add Binary Search Seeking
   - Estimate initial file position based on target sample and file size
   - Use binary search to refine position by parsing frame headers
   - Handle variable bitrate and compression ratio variations
   - Provide reasonable seeking performance for files without seek tables
   - _Requirements: 4.2, 4.8, 7.3, 7.7_
 
-- [ ] 6.3 Implement Linear Seeking
+- [x] 6.3 Implement Linear Seeking
   - Parse frames sequentially from current or seek table position
   - Provide sample-accurate positioning for precise seeking
   - Use as fallback when other seeking methods fail
