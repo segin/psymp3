@@ -159,7 +159,7 @@ struct FLACFrame {
 };
 
 /**
- * @brief FLAC picture metadata information
+ * @brief FLAC picture metadata information (memory-optimized)
  */
 struct FLACPicture {
     uint32_t picture_type = 0;       ///< Picture type (0=Other, 3=Cover front, etc.)
@@ -169,13 +169,32 @@ struct FLACPicture {
     uint32_t height = 0;             ///< Picture height in pixels
     uint32_t color_depth = 0;        ///< Color depth in bits per pixel
     uint32_t colors_used = 0;        ///< Number of colors used (0 for non-indexed)
-    std::vector<uint8_t> data;       ///< Picture data
+    
+    // Memory optimization: Store picture data location instead of loading it all
+    uint64_t data_offset = 0;        ///< File offset where picture data starts
+    uint32_t data_size = 0;          ///< Size of picture data in bytes
+    mutable std::vector<uint8_t> cached_data; ///< Cached picture data (loaded on demand)
     
     /**
      * @brief Check if picture metadata is valid
      */
     bool isValid() const {
-        return !mime_type.empty() && !data.empty() && width > 0 && height > 0;
+        return !mime_type.empty() && data_size > 0 && width > 0 && height > 0;
+    }
+    
+    /**
+     * @brief Get picture data, loading from file if necessary
+     * @param handler IOHandler to read data if not cached
+     * @return Reference to picture data
+     */
+    const std::vector<uint8_t>& getData(IOHandler* handler) const;
+    
+    /**
+     * @brief Clear cached picture data to free memory
+     */
+    void clearCache() const {
+        cached_data.clear();
+        cached_data.shrink_to_fit();
     }
 };
 
@@ -198,6 +217,15 @@ struct FLACPicture {
  */
 class FLACDemuxer : public Demuxer {
 public:
+    // Memory management constants
+    static constexpr size_t MAX_SEEK_TABLE_ENTRIES = 10000;     ///< Maximum seek table entries to prevent memory exhaustion
+    static constexpr size_t MAX_VORBIS_COMMENTS = 1000;        ///< Maximum number of Vorbis comments
+    static constexpr size_t MAX_COMMENT_LENGTH = 8192;         ///< Maximum length of individual comment
+    static constexpr size_t MAX_PICTURES = 50;                 ///< Maximum number of embedded pictures
+    static constexpr size_t MAX_PICTURE_SIZE = 16 * 1024 * 1024; ///< Maximum picture size (16MB)
+    static constexpr size_t FRAME_BUFFER_SIZE = 64 * 1024;     ///< Frame reading buffer size
+    static constexpr size_t SYNC_SEARCH_BUFFER_SIZE = 8192;    ///< Buffer size for frame sync search
+    static constexpr size_t MAX_FRAME_SIZE = 1024 * 1024;      ///< Maximum expected frame size (1MB)
     /**
      * @brief Construct FLAC demuxer with I/O handler
      * @param handler IOHandler for reading FLAC data (takes ownership)
@@ -291,6 +319,17 @@ private:
     uint64_t m_current_sample = 0;      ///< Current sample position in stream
     uint32_t m_last_block_size = 0;     ///< Block size of last parsed frame
     
+    // Memory management state
+    mutable std::vector<uint8_t> m_frame_buffer;     ///< Reusable buffer for frame reading
+    mutable std::vector<uint8_t> m_sync_buffer;      ///< Reusable buffer for sync search
+    size_t m_memory_usage_bytes = 0;                 ///< Current memory usage estimate
+    
+    // Performance optimization state
+    bool m_seek_table_sorted = false;                ///< True if seek table is sorted for binary search
+    uint64_t m_last_seek_position = 0;               ///< Last successful seek position for optimization
+    bool m_is_network_stream = false;                ///< True if this appears to be a network stream
+    mutable std::vector<uint8_t> m_readahead_buffer; ///< Read-ahead buffer for network streams
+    
     // Private helper methods (to be implemented)
     bool parseMetadataBlocks();
     bool parseMetadataBlockHeader(FLACMetadataBlock& block);
@@ -329,6 +368,22 @@ private:
     bool validateFrameCRC(const FLACFrame& frame, const std::vector<uint8_t>& frame_data);
     MediaChunk createSilenceChunk(uint32_t block_size);
     bool recoverFromFrameError();
+    
+    // Memory management methods
+    void initializeBuffers();
+    void optimizeSeekTable();
+    void limitVorbisComments();
+    void limitPictureStorage();
+    size_t calculateMemoryUsage() const;
+    void freeUnusedMemory();
+    bool ensureBufferCapacity(std::vector<uint8_t>& buffer, size_t required_size) const;
+    
+    // Performance optimization methods
+    size_t findSeekPointIndex(uint64_t target_sample) const;
+    bool optimizedFrameSync(uint64_t start_offset, FLACFrame& frame);
+    void prefetchNextFrame();
+    bool isNetworkStream() const;
+    void optimizeForNetworkStreaming();
 };
 
 #endif // FLACDEMUXER_H

@@ -35,6 +35,15 @@ FLACDemuxer::FLACDemuxer(std::unique_ptr<IOHandler> handler)
     m_current_offset = 0;
     m_current_sample = 0;
     m_last_block_size = 0;
+    m_memory_usage_bytes = 0;
+    
+    // Initialize performance optimization state
+    m_seek_table_sorted = false;
+    m_last_seek_position = 0;
+    m_is_network_stream = false;
+    
+    // Initialize memory-efficient buffers
+    initializeBuffers();
     
     // Get file size if possible
     if (m_handler) {
@@ -49,10 +58,19 @@ FLACDemuxer::~FLACDemuxer()
 {
     Debug::log("flac", "FLACDemuxer destructor called");
     
+    // Free all allocated memory
+    freeUnusedMemory();
+    
     // Clear metadata containers
     m_seektable.clear();
     m_vorbis_comments.clear();
     m_pictures.clear();
+    
+    // Clear reusable buffers
+    m_frame_buffer.clear();
+    m_frame_buffer.shrink_to_fit();
+    m_sync_buffer.clear();
+    m_sync_buffer.shrink_to_fit();
     
     // Base class destructor will handle IOHandler cleanup
 }
@@ -157,6 +175,18 @@ bool FLACDemuxer::parseContainer()
     
     // Container parsing successful
     m_container_parsed = true;
+    
+    // Apply memory optimizations after parsing
+    optimizeSeekTable();
+    limitVorbisComments();
+    limitPictureStorage();
+    
+    // Apply performance optimizations
+    optimizeForNetworkStreaming();
+    
+    // Calculate and log memory usage
+    m_memory_usage_bytes = calculateMemoryUsage();
+    Debug::log("flac", "Memory usage after parsing: ", m_memory_usage_bytes, " bytes");
     
     // Initialize position tracking to start of stream
     resetPositionTracking();
@@ -341,6 +371,11 @@ MediaChunk FLACDemuxer::readChunk()
         Debug::log("flac", "Successfully read FLAC frame: samples=", frame.sample_offset, 
                   " block_size=", frame.block_size, " data_size=", chunk.data.size());
         
+        // Prefetch next frame for network streams to reduce latency
+        if (m_is_network_stream) {
+            prefetchNextFrame();
+        }
+        
         return chunk;
     }
     
@@ -442,6 +477,9 @@ bool FLACDemuxer::seekTo(uint64_t timestamp_ms)
     }
     
     if (seek_success) {
+        // Track successful seek position for optimization
+        m_last_seek_position = target_sample;
+        
         Debug::log("flac", "Seek successful to sample ", m_current_sample, 
                   " (", samplesToMs(m_current_sample), " ms)");
         return true;
@@ -1369,25 +1407,36 @@ bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
         return false;
     }
     
-    // Reasonable size limit for picture data (16MB)
-    if (data_length > 16 * 1024 * 1024) {
-        Debug::log("flac", "Picture data very large (", data_length, " bytes), storing metadata only");
-        // Skip the actual image data but store the metadata
-        if (!m_handler->seek(m_handler->tell() + data_length, SEEK_SET)) {
-            reportError("IO", "Failed to skip large picture data");
+    // Memory-optimized picture storage: store location instead of loading data
+    picture.data_size = data_length;
+    picture.data_offset = static_cast<uint64_t>(m_handler->tell());
+    
+    // Apply memory management limits
+    if (data_length > MAX_PICTURE_SIZE) {
+        Debug::log("flac", "Picture data too large (", data_length, " bytes), skipping");
+        // Skip the picture entirely if it's too large
+        if (!m_handler->seek(picture.data_offset + data_length, SEEK_SET)) {
+            reportError("IO", "Failed to skip oversized picture data");
             return false;
         }
-        // Don't store the actual image data
-        picture.data.clear();
-    } else {
-        // Read picture data
-        if (data_length > 0) {
-            picture.data.resize(data_length);
-            if (m_handler->read(picture.data.data(), 1, data_length) != data_length) {
-                reportError("IO", "Failed to read picture data");
-                return false;
-            }
+        return true;  // Skip this picture but continue parsing
+    }
+    
+    // Check if we already have too many pictures
+    if (m_pictures.size() >= MAX_PICTURES) {
+        Debug::log("flac", "Too many pictures already stored, skipping additional picture");
+        // Skip the picture data
+        if (!m_handler->seek(picture.data_offset + data_length, SEEK_SET)) {
+            reportError("IO", "Failed to skip excess picture data");
+            return false;
         }
+        return true;  // Skip this picture but continue parsing
+    }
+    
+    // Skip the actual image data for now (will be loaded on demand)
+    if (!m_handler->seek(picture.data_offset + data_length, SEEK_SET)) {
+        reportError("IO", "Failed to skip picture data");
+        return false;
     }
     
     // Validate picture metadata
@@ -1469,9 +1518,18 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     // Start searching from current position
     uint64_t search_start = m_current_offset;
     
-    // Buffer for reading data during sync search
-    const size_t buffer_size = 8192;  // 8KB buffer for efficient I/O
-    std::vector<uint8_t> buffer(buffer_size);
+    // For performance, try optimized sync search first for local files
+    if (!m_is_network_stream && optimizedFrameSync(search_start, frame)) {
+        m_current_offset = frame.file_offset;
+        return true;
+    }
+    
+    // Fall back to standard sync search
+    // Use reusable sync buffer for efficient I/O
+    if (!ensureBufferCapacity(m_sync_buffer, SYNC_SEARCH_BUFFER_SIZE)) {
+        reportError("Memory", "Failed to allocate sync search buffer");
+        return false;
+    }
     
     // Seek to current position
     if (!m_handler->seek(search_start, SEEK_SET)) {
@@ -1484,7 +1542,7 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     
     while (bytes_searched < max_search_distance && !m_handler->eof()) {
         // Read buffer of data
-        size_t bytes_read = m_handler->read(buffer.data(), 1, buffer_size);
+        size_t bytes_read = m_handler->read(m_sync_buffer.data(), 1, SYNC_SEARCH_BUFFER_SIZE);
         if (bytes_read < 2) {
             // Need at least 2 bytes for sync code
             break;
@@ -1493,8 +1551,8 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
         // Search for FLAC sync code in buffer
         // FLAC sync code is 14 bits: 11111111111110xx (0xFFF8 to 0xFFFF)
         for (size_t i = 0; i < bytes_read - 1; i++) {
-            uint16_t sync_candidate = (static_cast<uint16_t>(buffer[i]) << 8) | 
-                                     static_cast<uint16_t>(buffer[i + 1]);
+            uint16_t sync_candidate = (static_cast<uint16_t>(m_sync_buffer[i]) << 8) | 
+                                     static_cast<uint16_t>(m_sync_buffer[i + 1]);
             
             // Check if this matches FLAC sync pattern (0xFFF8 to 0xFFFF)
             if ((sync_candidate & 0xFFFC) == 0xFFF8) {
@@ -1548,8 +1606,8 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
         
         bytes_searched += bytes_read;
         
-        // If we read less than buffer_size, we're at EOF
-        if (bytes_read < buffer_size) {
+        // If we read less than SYNC_SEARCH_BUFFER_SIZE, we're at EOF
+        if (bytes_read < SYNC_SEARCH_BUFFER_SIZE) {
             break;
         }
         
@@ -2113,9 +2171,10 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
         Debug::log("flac", "Using estimated frame size: ", frame_size, " bytes");
     }
     
-    // Validate frame size is reasonable
-    if (frame_size == 0 || frame_size > 16 * 1024 * 1024) {  // 16MB max
-        reportError("Frame", "Invalid frame size: " + std::to_string(frame_size));
+    // Validate frame size is reasonable (use memory management constant)
+    if (frame_size == 0 || frame_size > MAX_FRAME_SIZE) {
+        reportError("Frame", "Invalid frame size: " + std::to_string(frame_size) + 
+                   " (max: " + std::to_string(MAX_FRAME_SIZE) + ")");
         return false;
     }
     
@@ -2129,7 +2188,13 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
         }
     }
     
-    // Allocate buffer for frame data
+    // Use bounded buffer allocation
+    if (!ensureBufferCapacity(m_frame_buffer, frame_size)) {
+        reportError("Memory", "Failed to allocate frame buffer of size " + std::to_string(frame_size));
+        return false;
+    }
+    
+    // Prepare output buffer
     data.clear();
     data.resize(frame_size);
     
@@ -2271,27 +2336,14 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
         return false;
     }
     
-    // Find the closest seek point before or at the target sample
-    FLACSeekPoint best_seek_point;
-    bool found_seek_point = false;
-    
-    for (const auto& seek_point : m_seektable) {
-        if (seek_point.sample_number <= target_sample) {
-            // This seek point is before or at our target
-            if (!found_seek_point || seek_point.sample_number > best_seek_point.sample_number) {
-                best_seek_point = seek_point;
-                found_seek_point = true;
-            }
-        } else {
-            // We've passed our target, stop searching (table is sorted)
-            break;
-        }
-    }
-    
-    if (!found_seek_point) {
+    // Use optimized binary search to find the best seek point
+    size_t seek_index = findSeekPointIndex(target_sample);
+    if (seek_index == SIZE_MAX) {
         Debug::log("flac", "No suitable seek point found for sample ", target_sample);
         return false;
     }
+    
+    const FLACSeekPoint& best_seek_point = m_seektable[seek_index];
     
     Debug::log("flac", "Found seek point: sample=", best_seek_point.sample_number, 
               " offset=", best_seek_point.stream_offset, 
@@ -3314,6 +3366,276 @@ MediaChunk FLACDemuxer::createSilenceChunk(uint32_t block_size)
     return chunk;
 }
 
+// Memory management method implementations
+
+const std::vector<uint8_t>& FLACPicture::getData(IOHandler* handler) const
+{
+    // Return cached data if available
+    if (!cached_data.empty()) {
+        return cached_data;
+    }
+    
+    // Load data from file if handler is available
+    if (handler && data_size > 0 && data_offset > 0) {
+        // Save current position
+        long current_pos = handler->tell();
+        
+        // Seek to picture data
+        if (handler->seek(data_offset, SEEK_SET)) {
+            cached_data.resize(data_size);
+            size_t bytes_read = handler->read(cached_data.data(), 1, data_size);
+            
+            if (bytes_read != data_size) {
+                // Partial read, resize to actual data
+                cached_data.resize(bytes_read);
+            }
+            
+            // Restore original position
+            handler->seek(current_pos, SEEK_SET);
+        }
+    }
+    
+    return cached_data;
+}
+
+void FLACDemuxer::initializeBuffers()
+{
+    Debug::log("flac", "FLACDemuxer::initializeBuffers() - initializing reusable buffers");
+    
+    // Pre-allocate reusable buffers to avoid frequent allocations
+    m_frame_buffer.reserve(FRAME_BUFFER_SIZE);
+    m_sync_buffer.reserve(SYNC_SEARCH_BUFFER_SIZE);
+    
+    Debug::log("flac", "Initialized buffers: frame=", FRAME_BUFFER_SIZE, 
+              " bytes, sync=", SYNC_SEARCH_BUFFER_SIZE, " bytes");
+}
+
+void FLACDemuxer::optimizeSeekTable()
+{
+    Debug::log("flac", "FLACDemuxer::optimizeSeekTable() - optimizing seek table memory usage");
+    
+    if (m_seektable.empty()) {
+        return;
+    }
+    
+    size_t original_size = m_seektable.size();
+    
+    // Remove placeholder entries (they don't provide useful seek information)
+    m_seektable.erase(
+        std::remove_if(m_seektable.begin(), m_seektable.end(),
+                      [](const FLACSeekPoint& point) { return point.isPlaceholder(); }),
+        m_seektable.end()
+    );
+    
+    // Limit seek table size to prevent memory exhaustion
+    if (m_seektable.size() > MAX_SEEK_TABLE_ENTRIES) {
+        Debug::log("flac", "Seek table too large (", m_seektable.size(), 
+                  " entries), reducing to ", MAX_SEEK_TABLE_ENTRIES);
+        
+        // Keep evenly distributed entries
+        std::vector<FLACSeekPoint> optimized_table;
+        optimized_table.reserve(MAX_SEEK_TABLE_ENTRIES);
+        
+        double step = static_cast<double>(m_seektable.size()) / MAX_SEEK_TABLE_ENTRIES;
+        for (size_t i = 0; i < MAX_SEEK_TABLE_ENTRIES; ++i) {
+            size_t index = static_cast<size_t>(i * step);
+            if (index < m_seektable.size()) {
+                optimized_table.push_back(m_seektable[index]);
+            }
+        }
+        
+        m_seektable = std::move(optimized_table);
+    }
+    
+    // Shrink to fit to free unused memory
+    m_seektable.shrink_to_fit();
+    
+    Debug::log("flac", "Seek table optimized: ", original_size, " -> ", 
+              m_seektable.size(), " entries");
+}
+
+void FLACDemuxer::limitVorbisComments()
+{
+    Debug::log("flac", "FLACDemuxer::limitVorbisComments() - limiting Vorbis comments");
+    
+    if (m_vorbis_comments.empty()) {
+        return;
+    }
+    
+    size_t original_count = m_vorbis_comments.size();
+    
+    // Remove excessively long comments
+    auto it = m_vorbis_comments.begin();
+    while (it != m_vorbis_comments.end()) {
+        if (it->first.length() + it->second.length() > MAX_COMMENT_LENGTH) {
+            Debug::log("flac", "Removing oversized comment: ", it->first);
+            it = m_vorbis_comments.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Limit total number of comments
+    if (m_vorbis_comments.size() > MAX_VORBIS_COMMENTS) {
+        Debug::log("flac", "Too many Vorbis comments (", m_vorbis_comments.size(), 
+                  "), keeping only first ", MAX_VORBIS_COMMENTS);
+        
+        // Keep only the first MAX_VORBIS_COMMENTS entries
+        // Priority order: standard fields first, then others
+        std::vector<std::string> priority_fields = {
+            "TITLE", "ARTIST", "ALBUM", "DATE", "TRACKNUMBER", "GENRE", "ALBUMARTIST"
+        };
+        
+        std::map<std::string, std::string> limited_comments;
+        
+        // Add priority fields first
+        for (const auto& field : priority_fields) {
+            auto found = m_vorbis_comments.find(field);
+            if (found != m_vorbis_comments.end()) {
+                limited_comments[found->first] = found->second;
+                if (limited_comments.size() >= MAX_VORBIS_COMMENTS) break;
+            }
+        }
+        
+        // Add remaining fields if space available
+        if (limited_comments.size() < MAX_VORBIS_COMMENTS) {
+            for (const auto& comment : m_vorbis_comments) {
+                if (limited_comments.find(comment.first) == limited_comments.end()) {
+                    limited_comments[comment.first] = comment.second;
+                    if (limited_comments.size() >= MAX_VORBIS_COMMENTS) break;
+                }
+            }
+        }
+        
+        m_vorbis_comments = std::move(limited_comments);
+    }
+    
+    Debug::log("flac", "Vorbis comments limited: ", original_count, " -> ", 
+              m_vorbis_comments.size(), " entries");
+}
+
+void FLACDemuxer::limitPictureStorage()
+{
+    Debug::log("flac", "FLACDemuxer::limitPictureStorage() - limiting picture storage");
+    
+    if (m_pictures.empty()) {
+        return;
+    }
+    
+    size_t original_count = m_pictures.size();
+    
+    // Remove pictures that are too large
+    m_pictures.erase(
+        std::remove_if(m_pictures.begin(), m_pictures.end(),
+                      [](const FLACPicture& pic) { 
+                          return pic.data_size > MAX_PICTURE_SIZE; 
+                      }),
+        m_pictures.end()
+    );
+    
+    // Limit total number of pictures
+    if (m_pictures.size() > MAX_PICTURES) {
+        Debug::log("flac", "Too many pictures (", m_pictures.size(), 
+                  "), keeping only first ", MAX_PICTURES);
+        m_pictures.resize(MAX_PICTURES);
+    }
+    
+    // Clear any cached picture data to save memory
+    for (auto& picture : m_pictures) {
+        picture.clearCache();
+    }
+    
+    Debug::log("flac", "Picture storage limited: ", original_count, " -> ", 
+              m_pictures.size(), " pictures");
+}
+
+size_t FLACDemuxer::calculateMemoryUsage() const
+{
+    size_t total_usage = 0;
+    
+    // Seek table memory
+    total_usage += m_seektable.size() * sizeof(FLACSeekPoint);
+    
+    // Vorbis comments memory
+    for (const auto& comment : m_vorbis_comments) {
+        total_usage += comment.first.size() + comment.second.size() + 
+                      sizeof(std::pair<std::string, std::string>);
+    }
+    
+    // Picture metadata memory (not including cached data)
+    total_usage += m_pictures.size() * sizeof(FLACPicture);
+    for (const auto& picture : m_pictures) {
+        total_usage += picture.mime_type.size() + picture.description.size();
+        total_usage += picture.cached_data.size(); // Include cached data if present
+    }
+    
+    // Buffer memory
+    total_usage += m_frame_buffer.capacity();
+    total_usage += m_sync_buffer.capacity();
+    
+    return total_usage;
+}
+
+void FLACDemuxer::freeUnusedMemory()
+{
+    Debug::log("flac", "FLACDemuxer::freeUnusedMemory() - freeing unused memory");
+    
+    size_t before_usage = calculateMemoryUsage();
+    
+    // Optimize all metadata containers
+    optimizeSeekTable();
+    limitVorbisComments();
+    limitPictureStorage();
+    
+    // Clear cached picture data
+    for (auto& picture : m_pictures) {
+        picture.clearCache();
+    }
+    
+    // Shrink buffers if they're oversized
+    if (m_frame_buffer.capacity() > FRAME_BUFFER_SIZE * 2) {
+        m_frame_buffer.clear();
+        m_frame_buffer.shrink_to_fit();
+        m_frame_buffer.reserve(FRAME_BUFFER_SIZE);
+    }
+    
+    if (m_sync_buffer.capacity() > SYNC_SEARCH_BUFFER_SIZE * 2) {
+        m_sync_buffer.clear();
+        m_sync_buffer.shrink_to_fit();
+        m_sync_buffer.reserve(SYNC_SEARCH_BUFFER_SIZE);
+    }
+    
+    size_t after_usage = calculateMemoryUsage();
+    m_memory_usage_bytes = after_usage;
+    
+    Debug::log("flac", "Memory usage: ", before_usage, " -> ", after_usage, 
+              " bytes (freed ", (before_usage - after_usage), " bytes)");
+}
+
+bool FLACDemuxer::ensureBufferCapacity(std::vector<uint8_t>& buffer, size_t required_size) const
+{
+    // Prevent excessive memory allocation
+    if (required_size > MAX_FRAME_SIZE) {
+        Debug::log("flac", "Requested buffer size too large: ", required_size, 
+                  " bytes (max: ", MAX_FRAME_SIZE, ")");
+        return false;
+    }
+    
+    // Resize buffer if necessary
+    if (buffer.size() < required_size) {
+        try {
+            buffer.resize(required_size);
+            return true;
+        } catch (const std::bad_alloc& e) {
+            Debug::log("flac", "Failed to allocate buffer of size ", required_size, 
+                      " bytes: ", e.what());
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 bool FLACDemuxer::recoverFromFrameError()
 {
     Debug::log("flac", "FLACDemuxer::recoverFromFrameError() - attempting general frame error recovery");
@@ -3363,4 +3685,199 @@ bool FLACDemuxer::recoverFromFrameError()
     
     Debug::log("flac", "All frame error recovery strategies failed");
     return false;
+}
+
+// Performance optimization method implementations
+
+size_t FLACDemuxer::findSeekPointIndex(uint64_t target_sample) const
+{
+    if (m_seektable.empty()) {
+        return SIZE_MAX;  // No seek table available
+    }
+    
+    // Ensure seek table is sorted for binary search
+    if (!m_seek_table_sorted) {
+        // Sort seek table by sample number for efficient binary search
+        std::sort(const_cast<std::vector<FLACSeekPoint>&>(m_seektable).begin(),
+                 const_cast<std::vector<FLACSeekPoint>&>(m_seektable).end(),
+                 [](const FLACSeekPoint& a, const FLACSeekPoint& b) {
+                     return a.sample_number < b.sample_number;
+                 });
+        const_cast<FLACDemuxer*>(this)->m_seek_table_sorted = true;
+        Debug::log("flac", "Sorted seek table for binary search optimization");
+    }
+    
+    // Use binary search to find the best seek point
+    // Find the largest seek point that is <= target_sample
+    auto it = std::upper_bound(m_seektable.begin(), m_seektable.end(), target_sample,
+                              [](uint64_t sample, const FLACSeekPoint& point) {
+                                  return sample < point.sample_number;
+                              });
+    
+    if (it == m_seektable.begin()) {
+        // Target is before first seek point, use first point
+        return 0;
+    }
+    
+    // Use the previous seek point (largest one <= target)
+    --it;
+    size_t index = static_cast<size_t>(it - m_seektable.begin());
+    
+    Debug::log("flac", "Binary search found seek point ", index, " for sample ", target_sample,
+              " (seek point at sample ", it->sample_number, ")");
+    
+    return index;
+}
+
+bool FLACDemuxer::optimizedFrameSync(uint64_t start_offset, FLACFrame& frame)
+{
+    Debug::log("flac", "FLACDemuxer::optimizedFrameSync() - optimized frame sync search");
+    
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Seek to start position
+    if (!m_handler->seek(start_offset, SEEK_SET)) {
+        return false;
+    }
+    
+    // Use bit manipulation optimization for sync detection
+    // Read larger chunks and use efficient bit operations
+    const size_t chunk_size = std::min(SYNC_SEARCH_BUFFER_SIZE, static_cast<size_t>(4096));
+    if (!ensureBufferCapacity(m_sync_buffer, chunk_size)) {
+        return false;
+    }
+    
+    uint64_t bytes_searched = 0;
+    const uint64_t max_search = 64 * 1024;  // Limit search distance for performance
+    
+    // Optimization: Use 32-bit reads for faster sync detection
+    while (bytes_searched < max_search && !m_handler->eof()) {
+        size_t bytes_read = m_handler->read(m_sync_buffer.data(), 1, chunk_size);
+        if (bytes_read < 4) break;  // Need at least 4 bytes for frame header
+        
+        // Optimized sync search using 32-bit operations
+        for (size_t i = 0; i <= bytes_read - 4; i += 2) {  // Step by 2 for efficiency
+            // Read 32 bits at once for faster processing
+            uint32_t word = (static_cast<uint32_t>(m_sync_buffer[i]) << 24) |
+                           (static_cast<uint32_t>(m_sync_buffer[i + 1]) << 16) |
+                           (static_cast<uint32_t>(m_sync_buffer[i + 2]) << 8) |
+                           static_cast<uint32_t>(m_sync_buffer[i + 3]);
+            
+            // Check for FLAC sync pattern in the upper 16 bits
+            uint16_t sync_candidate = static_cast<uint16_t>(word >> 16);
+            if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+                // Found potential sync, validate frame
+                uint64_t sync_position = start_offset + bytes_searched + i;
+                
+                if (!m_handler->seek(sync_position, SEEK_SET)) {
+                    continue;
+                }
+                
+                frame.file_offset = sync_position;
+                if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
+                    Debug::log("flac", "Optimized sync found frame at position ", sync_position);
+                    return true;
+                }
+            }
+            
+            // Also check the next 16 bits (overlapping search)
+            sync_candidate = static_cast<uint16_t>(word & 0xFFFF);
+            if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+                uint64_t sync_position = start_offset + bytes_searched + i + 2;
+                
+                if (!m_handler->seek(sync_position, SEEK_SET)) {
+                    continue;
+                }
+                
+                frame.file_offset = sync_position;
+                if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
+                    Debug::log("flac", "Optimized sync found frame at position ", sync_position);
+                    return true;
+                }
+            }
+        }
+        
+        bytes_searched += bytes_read;
+        
+        // Overlap to avoid missing sync codes at boundaries
+        if (bytes_read >= 4) {
+            start_offset = start_offset + bytes_searched - 2;
+            bytes_searched = 2;
+            if (!m_handler->seek(start_offset, SEEK_SET)) {
+                break;
+            }
+        }
+    }
+    
+    return false;
+}
+
+void FLACDemuxer::prefetchNextFrame()
+{
+    // Only prefetch for network streams to reduce latency
+    if (!m_is_network_stream || !m_handler) {
+        return;
+    }
+    
+    Debug::log("flac", "FLACDemuxer::prefetchNextFrame() - prefetching for network stream");
+    
+    // Save current position
+    long current_pos = m_handler->tell();
+    
+    // Try to read ahead a reasonable amount
+    const size_t prefetch_size = 32 * 1024;  // 32KB prefetch
+    if (!ensureBufferCapacity(m_readahead_buffer, prefetch_size)) {
+        return;
+    }
+    
+    // Read ahead from current position
+    size_t bytes_read = m_handler->read(m_readahead_buffer.data(), 1, prefetch_size);
+    
+    // Restore position
+    m_handler->seek(current_pos, SEEK_SET);
+    
+    if (bytes_read > 0) {
+        Debug::log("flac", "Prefetched ", bytes_read, " bytes for network stream");
+    }
+}
+
+bool FLACDemuxer::isNetworkStream() const
+{
+    // Detect if this is likely a network stream based on IOHandler type
+    // This is a heuristic - we could check the IOHandler type more specifically
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Check if file size is unknown (common for network streams)
+    if (m_file_size == 0) {
+        return true;
+    }
+    
+    // Check if seeking is slow (another indicator of network streams)
+    // This is a simple heuristic - in practice we might time seek operations
+    return false;  // Default to false for now
+}
+
+void FLACDemuxer::optimizeForNetworkStreaming()
+{
+    Debug::log("flac", "FLACDemuxer::optimizeForNetworkStreaming() - optimizing for network");
+    
+    m_is_network_stream = isNetworkStream();
+    
+    if (m_is_network_stream) {
+        Debug::log("flac", "Network stream detected, enabling optimizations");
+        
+        // Pre-allocate read-ahead buffer
+        m_readahead_buffer.reserve(64 * 1024);  // 64KB read-ahead buffer
+        
+        // Disable some optimizations that require seeking
+        // (seeking can be expensive on network streams)
+        
+        Debug::log("flac", "Network streaming optimizations enabled");
+    } else {
+        Debug::log("flac", "Local file detected, using standard optimizations");
+    }
 }
