@@ -84,7 +84,7 @@ check_PROGRAMS += test_mulaw_conversion_accuracy
 check_PROGRAMS += test_codec_selection_validation_simple
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
@@ -562,6 +562,31 @@ $(top_builddir)/src/MuLawCodec.o:
 $(top_builddir)/src/PCMCodecs.o:
 	$(MAKE) -C $(top_builddir)/src PCMCodecs.o
 
+# Build rules for Audio thread safety test dependencies
+$(top_builddir)/src/audio.o:
+	$(MAKE) -C $(top_builddir)/src audio.o
+
+$(top_builddir)/src/stream.o:
+	$(MAKE) -C $(top_builddir)/src stream.o
+
+$(top_builddir)/src/fft.o:
+	$(MAKE) -C $(top_builddir)/src fft.o
+
+$(top_builddir)/src/fft_draw.o:
+	$(MAKE) -C $(top_builddir)/src fft_draw.o
+
+$(top_builddir)/src/system.o:
+	$(MAKE) -C $(top_builddir)/src system.o
+
+$(top_builddir)/src/track.o:
+	$(MAKE) -C $(top_builddir)/src track.o
+
+$(top_builddir)/src/lyrics.o:
+	$(MAKE) -C $(top_builddir)/src lyrics.o
+
+$(top_builddir)/src/TagLibIOHandlerAdapter.o:
+	$(MAKE) -C $(top_builddir)/src TagLibIOHandlerAdapter.o
+
 # Simple codec performance test (minimal dependencies)
 test_codec_performance_simple_SOURCES = test_codec_performance_simple.cpp
 test_codec_performance_simple_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
@@ -576,6 +601,43 @@ test_codec_thread_safety_simple_LDADD = $(AM_LDFLAGS)
 test_threading_safety_baseline_SOURCES = test_threading_safety_baseline.cpp
 test_threading_safety_baseline_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
 test_threading_safety_baseline_LDADD = $(AM_LDFLAGS)
+
+# Audio thread safety test
+test_audio_thread_safety_SOURCES = test_audio_thread_safety.cpp
+test_audio_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_audio_thread_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/fft.o \
+	$(top_builddir)/src/fft_draw.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+# Audio threading pattern test (simpler test without SDL dependencies)
+test_audio_threading_pattern_SOURCES = test_audio_threading_pattern.cpp
+test_audio_threading_pattern_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_audio_threading_pattern_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
 
 # SimplePCMCodec integration test (minimal version)
 test_simplepcmcodec_integration_minimal_SOURCES = test_simplepcmcodec_integration_minimal.cpp

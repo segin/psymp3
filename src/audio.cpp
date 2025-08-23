@@ -104,18 +104,11 @@ void Audio::play(bool go) {
  */
 std::unique_ptr<Stream> Audio::setStream(std::unique_ptr<Stream> new_stream)
 {
+    // Lock acquisition order: m_stream_mutex before m_buffer_mutex
     std::lock_guard<std::mutex> stream_lock(m_stream_mutex);
     std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
 
-    m_buffer.clear();
-    m_owned_stream = std::move(new_stream);
-    m_current_stream_raw_ptr.store(m_owned_stream.get());
-    m_samples_played = 0;
-    m_stream_eof = false;
-
-    // Notify the decoder thread that a new stream is available.
-    m_stream_cv.notify_one();
-    return nullptr; // Ownership transferred, return null unique_ptr
+    return setStream_unlocked(std::move(new_stream));
 }
 
 /**
@@ -130,7 +123,7 @@ std::unique_ptr<Stream> Audio::setStream(std::unique_ptr<Stream> new_stream)
 bool Audio::isFinished() const
 {
     std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-    return m_stream_eof && m_buffer.empty();
+    return isFinished_unlocked();
 }
 
 /**
@@ -151,8 +144,7 @@ void Audio::unlock(void) {
 
 void Audio::resetBuffer() {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
-    m_buffer.clear();
-    m_samples_played = 0;
+    resetBuffer_unlocked();
 }
 
 uint64_t Audio::getSamplesPlayed() const {
@@ -165,11 +157,7 @@ void Audio::setSamplesPlayed(uint64_t samples) {
 
 uint64_t Audio::getBufferLatencyMs() const {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
-    if (m_rate == 0) {
-        return 0;
-    }
-    size_t samples_in_buffer = m_buffer.size() / m_channels;
-    return (static_cast<uint64_t>(samples_in_buffer) * 1000) / m_rate;
+    return getBufferLatencyMs_unlocked();
 }
 
 /**
@@ -180,6 +168,10 @@ uint64_t Audio::getBufferLatencyMs() const {
  * buffer. It waits if the buffer is full and is woken up by the audio callback
  * when more data is needed. This producer-consumer pattern decouples file I/O
  * and decoding from the real-time audio callback.
+ * 
+ * Note: This method carefully manages its own locking and does not call public
+ * lock-acquiring methods to avoid deadlocks. If future modifications require
+ * calling Audio methods from within locked contexts, use the _unlocked versions.
  */
 void Audio::decoderThreadLoop() {
     System::setThisThreadName("audio-decoder");
@@ -293,6 +285,10 @@ void Audio::decoderThreadLoop() {
  * it fills the remainder with silence. It also passes the audio data to the FFT
  * for processing before it's sent to the sound card.
  * 
+ * Note: This callback function directly manages buffer access with proper locking
+ * and does not call public lock-acquiring methods to avoid deadlocks and ensure
+ * real-time performance. Never call public Audio methods from within this callback.
+ * 
  * @param userdata A pointer to the `Audio` instance.
  * @param buf A pointer to the hardware audio buffer to be filled.
  * @param len The length of the buffer in bytes.
@@ -356,6 +352,52 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         toFloat(self->m_channels, (int16_t *)buf, self->m_fft->getTimeDom());
         self->m_fft->doFFT();
     }
+}
+
+/**
+ * @brief Private unlocked version of isFinished() - assumes m_buffer_mutex is already held.
+ * @return true if the stream is decoded and the buffer is empty, false otherwise.
+ */
+bool Audio::isFinished_unlocked() const {
+    return m_stream_eof && m_buffer.empty();
+}
+
+/**
+ * @brief Private unlocked version of setStream() - assumes both mutexes are already held.
+ * Lock acquisition order: m_stream_mutex before m_buffer_mutex
+ * @param new_stream The new stream to set
+ * @return nullptr (ownership transferred)
+ */
+std::unique_ptr<Stream> Audio::setStream_unlocked(std::unique_ptr<Stream> new_stream) {
+    m_buffer.clear();
+    m_owned_stream = std::move(new_stream);
+    m_current_stream_raw_ptr.store(m_owned_stream.get());
+    m_samples_played = 0;
+    m_stream_eof = false;
+
+    // Notify the decoder thread that a new stream is available.
+    m_stream_cv.notify_one();
+    return nullptr; // Ownership transferred, return null unique_ptr
+}
+
+/**
+ * @brief Private unlocked version of resetBuffer() - assumes m_buffer_mutex is already held.
+ */
+void Audio::resetBuffer_unlocked() {
+    m_buffer.clear();
+    m_samples_played = 0;
+}
+
+/**
+ * @brief Private unlocked version of getBufferLatencyMs() - assumes m_buffer_mutex is already held.
+ * @return Buffer latency in milliseconds
+ */
+uint64_t Audio::getBufferLatencyMs_unlocked() const {
+    if (m_rate == 0) {
+        return 0;
+    }
+    size_t samples_in_buffer = m_buffer.size() / m_channels;
+    return (static_cast<uint64_t>(samples_in_buffer) * 1000) / m_rate;
 }
 
 /**

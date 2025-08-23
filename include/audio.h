@@ -48,6 +48,15 @@ private:
     static void callback(void *userdata, Uint8 *buf, int len);
     static void toFloat(int channels, int16_t *in, float *out);
 
+    // Private unlocked versions of public methods (assumes locks are already held)
+    // Lock acquisition order: m_stream_mutex before m_buffer_mutex
+    // These methods should be used when calling from within already-locked contexts
+    // to prevent deadlocks and improve performance
+    bool isFinished_unlocked() const;
+    std::unique_ptr<Stream> setStream_unlocked(std::unique_ptr<Stream> new_stream);
+    void resetBuffer_unlocked();
+    uint64_t getBufferLatencyMs_unlocked() const;
+
     // Decoder thread and buffer
     void decoderThreadLoop();
     std::thread m_decoder_thread;

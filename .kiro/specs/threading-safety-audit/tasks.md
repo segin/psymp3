@@ -6,20 +6,20 @@
   - Create baseline threading safety test framework for validation
   - _Requirements: 1.1, 1.3, 5.1_
 
-- [ ] 2. Refactor Audio class threading safety
-- [ ] 2.1 Implement private unlocked methods for Audio class
+- [x] 2. Refactor Audio class threading safety
+- [x] 2.1 Implement private unlocked methods for Audio class
   - Create `isFinished_unlocked()`, `setStream_unlocked()`, `resetBuffer_unlocked()`, and `getBufferLatencyMs_unlocked()` methods
   - Modify existing public methods to call private unlocked versions after acquiring appropriate locks
   - Ensure proper lock acquisition order between `m_stream_mutex` and `m_buffer_mutex`
   - _Requirements: 1.1, 1.2, 3.1_
 
-- [ ] 2.2 Update Audio class internal method calls to use unlocked versions
+- [x] 2.2 Update Audio class internal method calls to use unlocked versions
   - Modify `decoderThreadLoop()` to use unlocked methods when locks are already held
   - Update `callback()` function to use unlocked buffer access methods
   - Ensure `setStream()` uses unlocked methods for internal operations
   - _Requirements: 1.2, 3.3_
 
-- [ ] 2.3 Create comprehensive thread safety tests for Audio class
+- [x] 2.3 Create comprehensive thread safety tests for Audio class
   - Write unit tests for concurrent access to Audio public methods
   - Create deadlock prevention tests that would fail with old implementation
   - Implement stress tests with multiple threads performing audio operations
