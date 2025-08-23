@@ -84,7 +84,7 @@ check_PROGRAMS += test_mulaw_conversion_accuracy
 check_PROGRAMS += test_codec_selection_validation_simple
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
@@ -571,6 +571,11 @@ test_codec_performance_simple_LDADD = $(AM_LDFLAGS)
 test_codec_thread_safety_simple_SOURCES = test_codec_thread_safety_simple.cpp
 test_codec_thread_safety_simple_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
 test_codec_thread_safety_simple_LDADD = $(AM_LDFLAGS)
+
+# Threading safety baseline test
+test_threading_safety_baseline_SOURCES = test_threading_safety_baseline.cpp
+test_threading_safety_baseline_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_threading_safety_baseline_LDADD = $(AM_LDFLAGS)
 
 # SimplePCMCodec integration test (minimal version)
 test_simplepcmcodec_integration_minimal_SOURCES = test_simplepcmcodec_integration_minimal.cpp
