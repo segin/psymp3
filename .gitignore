@@ -121,3 +121,7 @@ tests/test_granule_arithmetic
 tests/test_rect_backward_compatibility
 tests/test_rect_performance
 tests/test_widget_rect_integration
+tests/test_flac_real_file
+tests/test_flac_demuxer_simple
+tests/test_iohandler_deadlock
+tests/test_flac_diagnostic
