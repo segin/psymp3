@@ -235,7 +235,7 @@ FileIOHandler::~FileIOHandler() {
 /**
  * @brief Reads data from the file.
  *
- * This is a direct wrapper around the standard C fread function.
+ * This calls the base class read method which handles locking and calls our read_unlocked implementation.
  * 
  * @param buffer Buffer to read data into
  * @param size Size of each element to read
@@ -243,10 +243,11 @@ FileIOHandler::~FileIOHandler() {
  * @return Number of elements successfully read
  */
 size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
-    // Thread-safe read operation using shared lock for concurrent reads
-    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
-    std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
-    
+    // Use base class locking - call base class read which will call our read_unlocked
+    return IOHandler::read(buffer, size, count);
+}
+
+size_t FileIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
     // Validate operation parameters and preconditions
     if (!validateOperationParameters(buffer, size, count, "read")) {
         // Error already set by validateOperationParameters
@@ -255,7 +256,7 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
     
     if (size == 0 || count == 0) {
         // Not an error, just nothing to do
-        Debug::log("io", "FileIOHandler::read() - Zero size or count requested: size=", size, " count=", count);
+        Debug::log("io", "FileIOHandler::read_unlocked() - Zero size or count requested: size=", size, " count=", count);
         return 0;
     }
     
@@ -287,9 +288,19 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
         
         // Check if current position is buffered
         off_t read_pos = current_position + total_bytes_read;
-        if (isPositionBuffered(read_pos)) {
-            // Read from buffer
-            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+        bool position_buffered;
+        size_t buffer_bytes_read = 0;
+        
+        {
+            std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+            position_buffered = isPositionBuffered(read_pos);
+            if (position_buffered) {
+                // Read from buffer
+                buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            }
+        }
+        
+        if (position_buffered) {
             total_bytes_read += buffer_bytes_read;
             
             if (buffer_bytes_read == 0) {
@@ -330,7 +341,10 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
             }
             
             // Now read from the newly filled buffer
-            size_t buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            {
+                std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+                buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+            }
             total_bytes_read += buffer_bytes_read;
             
             if (buffer_bytes_read == 0) {
@@ -352,7 +366,7 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
     // Calculate number of complete elements read
     size_t elements_read = total_bytes_read / size;
     
-    Debug::log("io", "FileIOHandler::read() - Read ", total_bytes_read, " bytes (", elements_read, " elements), new position: ", m_position.load());
+    Debug::log("io", "FileIOHandler::read_unlocked() - Read ", total_bytes_read, " bytes (", elements_read, " elements), new position: ", m_position.load());
     
     return elements_read;
 }
@@ -360,15 +374,19 @@ size_t FileIOHandler::read(void* buffer, size_t size, size_t count) {
 /**
  * @brief Seeks to a position in the file.
  *
- * This uses 64-bit file operations (fseeko) to support large files.
+ * This calls the base class seek method which handles locking and calls our seek_unlocked implementation.
  * 
  * @param offset Offset to seek to (off_t for large file support)
  * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
  * @return 0 on success, -1 on failure
  */
 int FileIOHandler::seek(off_t offset, int whence) {
-    // Thread-safe seek operation using exclusive lock
-    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    // Use base class locking - call base class seek which will call our seek_unlocked
+    return IOHandler::seek(offset, whence);
+}
+
+int FileIOHandler::seek_unlocked(off_t offset, int whence) {
+    // Acquire file-specific lock for this operation
     std::lock_guard<std::mutex> file_lock(m_file_mutex);
     
     // Reset error state
@@ -389,9 +407,9 @@ int FileIOHandler::seek(off_t offset, int whence) {
     // Additional validation for large file support
     // Check for potential overflow in SEEK_CUR operations
     if (whence == SEEK_CUR) {
-        off_t current_pos = tell();
+        off_t current_pos = tell_internal();
         if (current_pos < 0) {
-            // tell() failed, error already set
+            // tell_internal() failed, error already set
             return -1;
         }
         
@@ -478,7 +496,7 @@ int FileIOHandler::seek(off_t offset, int whence) {
     
     if (result == 0) {
         // Seek successful, update position
-        off_t new_position = tell();
+        off_t new_position = tell_internal();
         if (new_position >= 0) {
             updatePosition(new_position);
             // Clear EOF flag if we've moved away from the end
@@ -494,15 +512,15 @@ int FileIOHandler::seek(off_t offset, int whence) {
             m_last_read_position = new_position;
             m_sequential_access = false;
             
-            Debug::log("io", "FileIOHandler::seek() - Successful seek to position: ", new_position);
+            Debug::log("io", "FileIOHandler::seek_unlocked() - Successful seek to position: ", new_position);
         } else {
-            // tell() failed after successful seek - this shouldn't happen
-            Debug::log("io", "FileIOHandler::seek() - Warning: seek succeeded but tell() failed");
+            // tell_internal() failed after successful seek - this shouldn't happen
+            Debug::log("io", "FileIOHandler::seek() - Warning: seek succeeded but tell_internal() failed");
         }
     } else {
         // Seek failed
         updateErrorState(errno, "Seek operation failed");
-        Debug::log("io", "FileIOHandler::seek() - Seek failed: ", strerror(errno));
+        Debug::log("io", "FileIOHandler::seek_unlocked() - Seek failed: ", strerror(errno));
     }
     
     return result;
@@ -516,17 +534,25 @@ int FileIOHandler::seek(off_t offset, int whence) {
  * @return Current position as off_t for large file support, -1 on failure
  */
 off_t FileIOHandler::tell() {
-    // Thread-safe tell operation using shared lock
-    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    // Use base class locking - call base class tell which will call our tell_unlocked
+    return IOHandler::tell();
+}
+
+off_t FileIOHandler::tell_unlocked() {
+    // Acquire file-specific lock for this operation
     std::lock_guard<std::mutex> file_lock(m_file_mutex);
     
+    return tell_internal();
+}
+
+off_t FileIOHandler::tell_internal() {
     // Reset error state
     updateErrorState(0);
     
     // Validate file handle state
     if (!validateFileHandle()) {
         updateErrorState(EBADF, "File is closed or invalid in tell");
-        Debug::log("io", "FileIOHandler::tell() - File is closed or invalid");
+        Debug::log("io", "FileIOHandler::tell_internal() - File is closed or invalid");
         return -1;
     }
     
@@ -555,7 +581,7 @@ off_t FileIOHandler::tell() {
     if (position >= 0) {
         // Update cached position
         updatePosition(position);
-        Debug::log("io", "FileIOHandler::tell() - Current position: ", position);
+        Debug::log("io", "FileIOHandler::tell_unlocked() - Current position: ", position);
     }
     
     return position;
@@ -569,8 +595,12 @@ off_t FileIOHandler::tell() {
  * @return 0 on success, standard error codes on failure
  */
 int FileIOHandler::close() {
-    // Thread-safe close operation using exclusive lock
-    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    // Use base class locking - call base class close which will call our close_unlocked
+    return IOHandler::close();
+}
+
+int FileIOHandler::close_unlocked() {
+    // Acquire file-specific lock for this operation
     std::lock_guard<std::mutex> file_lock(m_file_mutex);
     
     // Reset error state
@@ -579,23 +609,23 @@ int FileIOHandler::close() {
     // Check if already closed
     if (m_closed.load() || !m_file_handle.is_valid()) {
         updateClosedState(true);
-        Debug::log("io", "FileIOHandler::close() - File already closed");
+        Debug::log("io", "FileIOHandler::close_unlocked() - File already closed");
         return 0;  // Already closed, not an error
     }
     
-    Debug::log("io", "FileIOHandler::close() - Closing file: ", m_file_path.to8Bit(false));
+    Debug::log("io", "FileIOHandler::close_unlocked() - Closing file: ", m_file_path.to8Bit(false));
     
     // Close the file using RAII
     int result = m_file_handle.close();
     if (result != 0) {
         // Close failed
         updateErrorState(errno, "Failed to close file");
-        Debug::log("io", "FileIOHandler::close() - Failed to close file: ", strerror(errno));
+        Debug::log("io", "FileIOHandler::close_unlocked() - Failed to close file: ", strerror(errno));
     } else {
         // Close successful
         updateClosedState(true);
         updateEofState(true);
-        Debug::log("io", "FileIOHandler::close() - File closed successfully");
+        Debug::log("io", "FileIOHandler::close_unlocked() - File closed successfully");
     }
     
     // Clean up performance optimization resources (need buffer lock)
@@ -622,9 +652,6 @@ int FileIOHandler::close() {
  * @return true if at end of file, false otherwise
  */
 bool FileIOHandler::eof() {
-    // Thread-safe EOF check using shared lock
-    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
-    
     // If file is closed or we've already detected EOF, return true
     bool closed = m_closed.load();
     bool cached_eof = m_eof.load();
@@ -656,8 +683,7 @@ bool FileIOHandler::eof() {
  * @return Size in bytes, or -1 if unknown
  */
 off_t FileIOHandler::getFileSize() {
-    // Thread-safe getFileSize operation using shared lock
-    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    // Thread-safe getFileSize operation using file lock
     std::lock_guard<std::mutex> file_lock(m_file_mutex);
     
     // Reset error state

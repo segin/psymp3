@@ -25,20 +25,20 @@
   - Implement stress tests with multiple threads performing audio operations
   - _Requirements: 3.3, 5.4_
 
-- [ ] 3. Refactor IOHandler class threading safety
-- [ ] 3.1 Implement private unlocked methods for IOHandler base class
+- [-] 3. Refactor IOHandler class threading safety
+- [x] 3.1 Implement private unlocked methods for IOHandler base class
   - Create `read_unlocked()`, `seek_unlocked()`, `tell_unlocked()`, and `close_unlocked()` methods
   - Implement `getMemoryStats_unlocked()` and other static method unlocked versions
   - Modify public methods to acquire locks and call private unlocked implementations
   - _Requirements: 1.1, 1.2, 4.1_
 
-- [ ] 3.2 Update IOHandler memory management to use unlocked patterns
+- [x] 3.2 Update IOHandler memory management to use unlocked patterns
   - Modify `updateMemoryUsage()`, `checkMemoryLimits()`, and `performMemoryOptimization()` to have unlocked versions
   - Ensure memory tracking methods don't cause deadlocks when called from I/O operations
   - Update error handling methods to use proper lock patterns
   - _Requirements: 1.2, 3.1, 4.1_
 
-- [ ] 3.3 Refactor FileIOHandler and HTTPIOHandler derived classes
+- [x] 3.3 Refactor FileIOHandler and HTTPIOHandler derived classes
   - Update derived class implementations to use base class unlocked methods
   - Ensure derived classes follow the same public/private lock pattern
   - Modify any derived class specific locking to be compatible with base class pattern

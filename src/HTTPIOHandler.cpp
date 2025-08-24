@@ -171,8 +171,12 @@ std::string HTTPIOHandler::normalizeMimeType(const std::string& content_type) {
 }
 
 size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
-    // Thread-safe read operation using shared lock for concurrent reads
-    std::shared_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    // Use base class locking - call base class read which will call our read_unlocked
+    return IOHandler::read(buffer, size, count);
+}
+
+size_t HTTPIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
+    // Acquire HTTP-specific locks for this operation
     std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
     
     if (!m_initialized.load()) {
@@ -277,8 +281,12 @@ size_t HTTPIOHandler::read(void* buffer, size_t size, size_t count) {
 }
 
 int HTTPIOHandler::seek(off_t offset, int whence) {
-    // Thread-safe seek operation using exclusive lock
-    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    // Use base class locking - call base class seek which will call our seek_unlocked
+    return IOHandler::seek(offset, whence);
+}
+
+int HTTPIOHandler::seek_unlocked(off_t offset, int whence) {
+    // Acquire HTTP-specific lock for this operation
     std::lock_guard<std::mutex> http_lock(m_http_mutex);
     
     if (!m_initialized.load()) {
@@ -345,13 +353,22 @@ int HTTPIOHandler::seek(off_t offset, int whence) {
 }
 
 off_t HTTPIOHandler::tell() {
-    // Thread-safe tell operation using atomic load
+    // Use base class locking - call base class tell which will call our tell_unlocked
+    return IOHandler::tell();
+}
+
+off_t HTTPIOHandler::tell_unlocked() {
+    // Return current position using atomic load
     return m_current_position.load();
 }
 
 int HTTPIOHandler::close() {
-    // Thread-safe close operation using exclusive lock
-    std::unique_lock<std::shared_mutex> operation_lock(m_operation_mutex);
+    // Use base class locking - call base class close which will call our close_unlocked
+    return IOHandler::close();
+}
+
+int HTTPIOHandler::close_unlocked() {
+    // Acquire HTTP-specific locks for this operation
     std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
     
     if (m_closed.load()) {

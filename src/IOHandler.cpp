@@ -58,11 +58,15 @@ IOHandler::~IOHandler() {
 }
 
 size_t IOHandler::read(void* buffer, size_t size, size_t count) {
-    // Default implementation returns 0 (no data read) for non-functional state
-    // This follows fread-like semantics where 0 indicates EOF or error
-    
     // Thread-safe read operation using shared lock (allows concurrent reads)
     std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
+    
+    return read_unlocked(buffer, size, count);
+}
+
+size_t IOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
+    // Default implementation returns 0 (no data read) for non-functional state
+    // This follows fread-like semantics where 0 indicates EOF or error
     
     // Reset error state
     updateErrorState(0);
@@ -93,11 +97,15 @@ size_t IOHandler::read(void* buffer, size_t size, size_t count) {
 }
 
 int IOHandler::seek(off_t offset, int whence) {
-    // Default implementation returns -1 (failure) for non-functional state
-    // Support SEEK_SET, SEEK_CUR, SEEK_END positioning modes
-    
     // Thread-safe seek operation using exclusive lock
     std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
+    
+    return seek_unlocked(offset, whence);
+}
+
+int IOHandler::seek_unlocked(off_t offset, int whence) {
+    // Default implementation returns -1 (failure) for non-functional state
+    // Support SEEK_SET, SEEK_CUR, SEEK_END positioning modes
     
     // Reset error state
     updateErrorState(0);
@@ -140,11 +148,15 @@ int IOHandler::seek(off_t offset, int whence) {
 }
 
 off_t IOHandler::tell() {
-    // Return current byte offset with off_t for large file support
-    // Return -1 on failure (e.g., if closed)
-    
     // Thread-safe tell operation using shared lock
     std::shared_lock<std::shared_mutex> lock(m_operation_mutex);
+    
+    return tell_unlocked();
+}
+
+off_t IOHandler::tell_unlocked() {
+    // Return current byte offset with off_t for large file support
+    // Return -1 on failure (e.g., if closed)
     
     // Reset error state
     updateErrorState(0);
@@ -158,11 +170,15 @@ off_t IOHandler::tell() {
 }
 
 int IOHandler::close() {
-    // Resource cleanup with standard return codes
-    // 0 on success, non-zero on failure
-    
     // Thread-safe close operation using exclusive lock
     std::unique_lock<std::shared_mutex> lock(m_operation_mutex);
+    
+    return close_unlocked();
+}
+
+int IOHandler::close_unlocked() {
+    // Resource cleanup with standard return codes
+    // 0 on success, non-zero on failure
     
     // Reset error state
     updateErrorState(0);
@@ -371,6 +387,10 @@ off_t IOHandler::getMaxFileSize() {
 std::map<std::string, size_t> IOHandler::getMemoryStats() {
     std::lock_guard<std::mutex> lock(s_memory_mutex);
     
+    return getMemoryStats_unlocked();
+}
+
+std::map<std::string, size_t> IOHandler::getMemoryStats_unlocked() {
     std::map<std::string, size_t> stats;
     stats["total_memory_usage"] = s_total_memory_usage;
     stats["max_total_memory"] = s_max_total_memory;
@@ -423,11 +443,15 @@ void IOHandler::setMemoryLimits(size_t max_total_memory, size_t max_per_handler)
 void IOHandler::updateMemoryUsage(size_t new_usage) {
     std::lock_guard<std::mutex> lock(s_memory_mutex);
     
+    updateMemoryUsage_unlocked(new_usage);
+}
+
+void IOHandler::updateMemoryUsage_unlocked(size_t new_usage) {
     size_t old_usage = m_memory_usage.exchange(new_usage);
     
     s_total_memory_usage = s_total_memory_usage - old_usage + new_usage;
     
-    Debug::log("memory", "IOHandler::updateMemoryUsage() - Updated usage from ", old_usage, 
+    Debug::log("memory", "IOHandler::updateMemoryUsage_unlocked() - Updated usage from ", old_usage, 
               " to ", new_usage, ", total: ", s_total_memory_usage);
 }
 
@@ -465,6 +489,10 @@ void IOHandler::updateClosedState(bool closed_state) {
 bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {
     std::lock_guard<std::mutex> lock(s_memory_mutex);
     
+    return checkMemoryLimits_unlocked(additional_bytes);
+}
+
+bool IOHandler::checkMemoryLimits_unlocked(size_t additional_bytes) const {
     // Use MemoryPoolManager to check if allocation is safe
     if (!MemoryPoolManager::getInstance().isSafeToAllocate(additional_bytes, "iohandler")) {
         auto now = std::chrono::steady_clock::now();
@@ -472,7 +500,7 @@ bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {
         
         // Log warning at most once per 5 seconds to avoid log spam
         if (elapsed >= 5) {
-            Debug::log("memory", "IOHandler::checkMemoryLimits() - Memory allocation of ", 
+            Debug::log("memory", "IOHandler::checkMemoryLimits_unlocked() - Memory allocation of ", 
                       additional_bytes, " bytes not safe according to MemoryPoolManager");
             s_last_memory_warning = now;
             
@@ -492,7 +520,7 @@ bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {
         
         // Log warning at most once per 5 seconds to avoid log spam
         if (elapsed >= 5) {
-            Debug::log("memory", "IOHandler::checkMemoryLimits() - Per-handler limit exceeded: ", 
+            Debug::log("memory", "IOHandler::checkMemoryLimits_unlocked() - Per-handler limit exceeded: ", 
                       m_memory_usage + additional_bytes, " > ", s_max_per_handler_memory);
             s_last_memory_warning = now;
         }
@@ -506,7 +534,7 @@ bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {
         
         // Log warning at most once per 5 seconds to avoid log spam
         if (elapsed >= 5) {
-            Debug::log("memory", "IOHandler::checkMemoryLimits() - Total memory limit exceeded: ", 
+            Debug::log("memory", "IOHandler::checkMemoryLimits_unlocked() - Total memory limit exceeded: ", 
                       s_total_memory_usage + additional_bytes, " > ", s_max_total_memory);
             s_last_memory_warning = now;
         }
@@ -520,7 +548,7 @@ bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {
         
         // Log warning at most once per 30 seconds to avoid log spam
         if (elapsed >= 30) {
-            Debug::log("memory", "IOHandler::checkMemoryLimits() - Approaching memory limit: ", 
+            Debug::log("memory", "IOHandler::checkMemoryLimits_unlocked() - Approaching memory limit: ", 
                       s_total_memory_usage + additional_bytes, " / ", s_max_total_memory, 
                       " (", (s_total_memory_usage + additional_bytes) * 100 / s_max_total_memory, "%)");
             s_last_memory_warning = now;
@@ -536,10 +564,14 @@ bool IOHandler::checkMemoryLimits(size_t additional_bytes) const {
 void IOHandler::performMemoryOptimization() {
     std::lock_guard<std::mutex> lock(s_memory_mutex);
     
-    Debug::log("memory", "IOHandler::performMemoryOptimization() - Starting global memory optimization");
+    performMemoryOptimization_unlocked();
+}
+
+void IOHandler::performMemoryOptimization_unlocked() {
+    Debug::log("memory", "IOHandler::performMemoryOptimization_unlocked() - Starting global memory optimization");
     
     // Get current memory statistics
-    auto memory_stats = getMemoryStats();
+    auto memory_stats = getMemoryStats_unlocked();
     size_t total_usage = memory_stats["total_memory_usage"];
     size_t max_memory = memory_stats["max_total_memory"];
     
@@ -549,7 +581,7 @@ void IOHandler::performMemoryOptimization() {
     
     float usage_percent = static_cast<float>(total_usage) / static_cast<float>(max_memory) * 100.0f;
     
-    Debug::log("memory", "IOHandler::performMemoryOptimization() - Memory usage: ", usage_percent, 
+    Debug::log("memory", "IOHandler::performMemoryOptimization_unlocked() - Memory usage: ", usage_percent, 
               "% (", total_usage, " / ", max_memory, " bytes)");
     
     // Use the MemoryPoolManager for centralized memory optimization
@@ -577,11 +609,11 @@ void IOHandler::performMemoryOptimization() {
     }
     
     // Log final statistics
-    auto final_stats = getMemoryStats();
+    auto final_stats = getMemoryStats_unlocked();
     size_t final_usage = final_stats["total_memory_usage"];
     float final_percent = static_cast<float>(final_usage) / static_cast<float>(max_memory) * 100.0f;
     
-    Debug::log("memory", "IOHandler::performMemoryOptimization() - Optimization complete: ", 
+    Debug::log("memory", "IOHandler::performMemoryOptimization_unlocked() - Optimization complete: ", 
               usage_percent, "% -> ", final_percent, "% (saved ", total_usage - final_usage, " bytes)");
 }
 
@@ -593,7 +625,10 @@ bool IOHandler::handleMemoryAllocationFailure(size_t requested_size, const std::
     m_error = ENOMEM;
     
     // Try to free memory through optimization
-    performMemoryOptimization();
+    {
+        std::lock_guard<std::mutex> lock(s_memory_mutex);
+        performMemoryOptimization_unlocked();
+    }
     
     // Try to reduce buffer sizes if this is a buffer allocation
     if (context.find("buffer") != std::string::npos) {
@@ -660,7 +695,10 @@ bool IOHandler::handleResourceExhaustion(const std::string& resource_type, const
         Debug::log("resource", "IOHandler::handleResourceExhaustion() - Attempting to free file descriptors");
         
         // Force cleanup of any cached file handles
-        performMemoryOptimization();
+        {
+            std::lock_guard<std::mutex> lock(s_memory_mutex);
+            performMemoryOptimization_unlocked();
+        }
         
         // Wait a bit for system to clean up
         std::this_thread::sleep_for(std::chrono::milliseconds(100));

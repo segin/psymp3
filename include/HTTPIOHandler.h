@@ -88,6 +88,38 @@ public:
     bool isInitialized() const { return m_initialized; }
 
 private:
+    // Private unlocked methods for thread-safe implementation
+    
+    /**
+     * @brief Read data from HTTP stream (unlocked version)
+     * @param buffer Buffer to read data into
+     * @param size Size of each element to read
+     * @param count Number of elements to read
+     * @return Number of elements successfully read
+     */
+    size_t read_unlocked(void* buffer, size_t size, size_t count) override;
+    
+    /**
+     * @brief Seek to a position in HTTP stream (unlocked version)
+     * @param offset Offset to seek to
+     * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
+     * @return 0 on success, -1 on failure
+     */
+    int seek_unlocked(off_t offset, int whence) override;
+    
+    /**
+     * @brief Get current byte offset position (unlocked version)
+     * @return Current position as off_t, -1 on failure
+     */
+    off_t tell_unlocked() override;
+    
+    /**
+     * @brief Close HTTP stream and cleanup resources (unlocked version)
+     * @return 0 on success, standard error codes on failure
+     */
+    int close_unlocked() override;
+
+private:
     // HTTP stream properties
     std::string m_url;                    // The HTTP URL
     std::atomic<long> m_content_length{-1};           // Total content length (-1 if unknown) (thread-safe)

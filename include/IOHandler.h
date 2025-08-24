@@ -137,6 +137,51 @@ public:
      * @return Map with memory usage statistics
      */
     static std::map<std::string, size_t> getMemoryStats();
+    
+    /**
+     * @brief Perform global memory optimization across all IOHandlers
+     * This method analyzes current memory usage and performs appropriate optimizations
+     * based on memory pressure levels
+     */
+    static void performMemoryOptimization();
+
+private:
+    // Private unlocked methods for thread-safe implementation
+    
+    /**
+     * @brief Read data from the source (unlocked version)
+     * @param buffer Buffer to read data into
+     * @param size Size of each element to read
+     * @param count Number of elements to read
+     * @return Number of elements successfully read
+     */
+    virtual size_t read_unlocked(void* buffer, size_t size, size_t count);
+    
+    /**
+     * @brief Seek to a position in the source (unlocked version)
+     * @param offset Offset to seek to
+     * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
+     * @return 0 on success, -1 on failure
+     */
+    virtual int seek_unlocked(off_t offset, int whence);
+    
+    /**
+     * @brief Get current byte offset position (unlocked version)
+     * @return Current position as off_t, -1 on failure
+     */
+    virtual off_t tell_unlocked();
+    
+    /**
+     * @brief Close the I/O source and cleanup resources (unlocked version)
+     * @return 0 on success, standard error codes on failure
+     */
+    virtual int close_unlocked();
+    
+    /**
+     * @brief Get current memory usage statistics for all IOHandlers (unlocked version)
+     * @return Map with memory usage statistics
+     */
+    static std::map<std::string, size_t> getMemoryStats_unlocked();
 
 protected:
     
@@ -148,11 +193,22 @@ protected:
     static void setMemoryLimits(size_t max_total_memory, size_t max_per_handler);
     
     /**
-     * @brief Perform global memory optimization across all IOHandlers
-     * This method analyzes current memory usage and performs appropriate optimizations
-     * based on memory pressure levels
+     * @brief Update memory usage tracking (unlocked version)
+     * @param new_usage New memory usage in bytes
      */
-    static void performMemoryOptimization();
+    void updateMemoryUsage_unlocked(size_t new_usage);
+    
+    /**
+     * @brief Check if memory usage is within limits (unlocked version)
+     * @param additional_bytes Additional bytes to be allocated
+     * @return true if allocation is within limits, false otherwise
+     */
+    bool checkMemoryLimits_unlocked(size_t additional_bytes) const;
+    
+    /**
+     * @brief Perform global memory optimization across all IOHandlers (unlocked version)
+     */
+    static void performMemoryOptimization_unlocked();
 
 protected:
     /**

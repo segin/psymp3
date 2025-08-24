@@ -88,14 +88,48 @@ public:
     off_t getFileSize() override;
 
 private:
+    // Private unlocked methods for thread-safe implementation
+    
+    /**
+     * @brief Read data from the file (unlocked version)
+     * @param buffer Buffer to read data into
+     * @param size Size of each element to read
+     * @param count Number of elements to read
+     * @return Number of elements successfully read
+     */
+    size_t read_unlocked(void* buffer, size_t size, size_t count) override;
+    
+    /**
+     * @brief Seek to a position in the file (unlocked version)
+     * @param offset Offset to seek to
+     * @param whence SEEK_SET, SEEK_CUR, or SEEK_END positioning mode
+     * @return 0 on success, -1 on failure
+     */
+    int seek_unlocked(off_t offset, int whence) override;
+    
+    /**
+     * @brief Get current byte offset position in the file (unlocked version)
+     * @return Current position as off_t, -1 on failure
+     */
+    off_t tell_unlocked() override;
+    
+    /**
+     * @brief Close the file and cleanup resources (unlocked version)
+     * @return 0 on success, standard error codes on failure
+     */
+    int close_unlocked() override;
+
+private:
     RAIIFileHandle m_file_handle;   // RAII-managed file handle for I/O operations
     TagLib::String m_file_path;     // Original file path for error reporting
     
     // Internal method for constructor use (no locks)
     off_t getFileSizeInternal();
     
+    // Internal tell method that assumes file mutex is already held
+    off_t tell_internal();
+    
     // Thread safety for file operations
-    mutable std::shared_mutex m_operation_mutex; // Protects overall operations (allows concurrent reads)
     mutable std::mutex m_file_mutex;        // Protects file handle operations
     mutable std::shared_mutex m_buffer_mutex;  // Protects buffer operations (allows concurrent reads)
     
