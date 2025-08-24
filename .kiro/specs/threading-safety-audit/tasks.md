@@ -75,20 +75,20 @@
   - Implement stress tests for memory pressure scenarios with multiple threads
   - _Requirements: 3.3, 5.4_
 
-- [ ] 5. Refactor Surface class SDL locking patterns
-- [ ] 5.1 Implement private unlocked methods for Surface class
+- [x] 5. Refactor Surface class SDL locking patterns
+- [x] 5.1 Implement private unlocked methods for Surface class
   - Create unlocked versions of drawing methods: `put_pixel_unlocked()`, `hline_unlocked()`, `vline_unlocked()`
   - Implement `line_unlocked()`, `fill_unlocked()`, and other graphics operation unlocked methods
   - Modify public methods to handle SDL surface locking and call private unlocked implementations
   - _Requirements: 1.1, 1.2, 4.3_
 
-- [ ] 5.2 Update Surface class internal method calls
+- [x] 5.2 Update Surface class internal method calls
   - Modify complex drawing operations to use unlocked methods when SDL surface is already locked
   - Ensure proper SDL lock acquisition order and exception safety
   - Update any Surface methods that call other Surface methods to use unlocked versions
   - _Requirements: 1.2, 3.1_
 
-- [ ] 5.3 Create Surface class thread safety tests
+- [x] 5.3 Create Surface class thread safety tests
   - Write tests for concurrent drawing operations on different surfaces
   - Create tests that verify SDL locking doesn't cause deadlocks
   - Implement performance tests to ensure graphics operations aren't significantly impacted

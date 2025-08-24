@@ -166,13 +166,8 @@ void Surface::pixel(int16_t x, int16_t y, uint32_t color)
     if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
         return;
     }
-    if (SDL_MUSTLOCK(m_handle.get())) {
-        SDL_LockSurface(m_handle.get());
-    }
+    SDLLockGuard lock_guard(m_handle.get());
     put_pixel_unlocked(x, y, color);
-    if (SDL_MUSTLOCK(m_handle.get())) {
-        SDL_UnlockSurface(m_handle.get());
-    }
 }
 
 void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -240,9 +235,8 @@ void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 {
     if (!m_handle) return;
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    SDLLockGuard lock_guard(m_handle.get());
     hline_unlocked(x1, x2, y, color);
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -251,14 +245,24 @@ void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uin
     hline(x1, x2, y, MapRGBA(r, g, b, a));
 }
 
+void Surface::rectangle_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
+{
+    // Draw rectangle outline using unlocked line methods
+    if (x1 > x2) std::swap(x1, x2);
+    if (y1 > y2) std::swap(y1, y2);
+    
+    // Draw the four sides of the rectangle
+    hline_unlocked(x1, x2, y1, color);     // Top
+    hline_unlocked(x1, x2, y2, color);     // Bottom
+    vline_unlocked(x1, y1, y2, color);     // Left
+    vline_unlocked(x2, y1, y2, color);     // Right
+}
+
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    // Optimized implementation using SDL_FillRect instead of line-by-line drawing
-    if (x1 > x2) std::swap(x1, x2);
-    if (y1 > y2) std::swap(y1, y2);
-    SDL_Rect rect = { x1, y1, static_cast<Uint16>(x2 - x1 + 1), static_cast<Uint16>(y2 - y1 + 1) };
-    SDL_FillRect(m_handle.get(), &rect, color);
+    SDLLockGuard lock_guard(m_handle.get());
+    rectangle_unlocked(x1, y1, x2, y2, color);
 }
 
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -267,15 +271,32 @@ void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t 
     rectangle(x1, y1, x2, y2, MapRGBA(r, g, b, a));
 }
 
+void Surface::box_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
+{
+    // Fill rectangle using horizontal lines - assumes surface is already locked
+    if (x1 > x2) std::swap(x1, x2);
+    if (y1 > y2) std::swap(y1, y2);
+    
+    for (int16_t y = y1; y <= y2; y++) {
+        hline_unlocked(x1, x2, y, color);
+    }
+}
+
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    // This is now the canonical implementation for drawing a filled rectangle.
-    // It uses SDL_FillRect for efficiency, breaking the recursive loop with rectangle().
-    if (x1 > x2) std::swap(x1, x2);
-    if (y1 > y2) std::swap(y1, y2);
-    SDL_Rect rect = { x1, y1, static_cast<Uint16>(x2 - x1 + 1), static_cast<Uint16>(y2 - y1 + 1) };
-    SDL_FillRect(m_handle.get(), &rect, color);
+    // Use SDL_FillRect for efficiency when we can avoid locking overhead
+    if (SDL_MUSTLOCK(m_handle.get())) {
+        SDL_LockSurface(m_handle.get());
+        box_unlocked(x1, y1, x2, y2, color);
+        SDL_UnlockSurface(m_handle.get());
+    } else {
+        // For surfaces that don't need locking, use SDL_FillRect directly
+        if (x1 > x2) std::swap(x1, x2);
+        if (y1 > y2) std::swap(y1, y2);
+        SDL_Rect rect = { x1, y1, static_cast<Uint16>(x2 - x1 + 1), static_cast<Uint16>(y2 - y1 + 1) };
+        SDL_FillRect(m_handle.get(), &rect, color);
+    }
 }
 
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -287,9 +308,8 @@ void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uin
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
+    SDLLockGuard lock_guard(m_handle.get());
     vline_unlocked(x, y1, y2, color);
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
@@ -298,19 +318,14 @@ void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uin
     vline(x, y1, y2, MapRGBA(r, g, b, a));
 }
 
-void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+void Surface::line_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, uint32_t color)
 {
-    if (!m_handle) return;
-    uint32_t color = MapRGBA(r, g, b, a);
-
-    // Bresenham's line algorithm
+    // Bresenham's line algorithm - assumes surface is already locked
     int dx = abs(x2 - x1);
     int dy = abs(y2 - y1);
     int sx = (x1 < x2) ? 1 : -1;
     int sy = (y1 < y2) ? 1 : -1;
     int err = dx - dy;
-
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
 
     while (true) {
         if (x1 >= 0 && x1 < m_handle->w && y1 >= 0 && y1 < m_handle->h) {
@@ -328,15 +343,19 @@ void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g,
             y1 += sy;
         }
     }
-
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
-void Surface::filledPolygon(const Sint16* vx, const Sint16* vy, int n, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
-    if (!m_handle || n < 3) return;
-    
+    if (!m_handle) return;
     uint32_t color = MapRGBA(r, g, b, a);
+    SDLLockGuard lock_guard(m_handle.get());
+    line_unlocked(x1, y1, x2, y2, color);
+}
+
+void Surface::filledPolygon_unlocked(const Sint16* vx, const Sint16* vy, int n, uint32_t color)
+{
+    if (n < 3) return;
     
     // Find bounding box
     Sint16 min_y = vy[0], max_y = vy[0];
@@ -345,9 +364,7 @@ void Surface::filledPolygon(const Sint16* vx, const Sint16* vy, int n, Uint8 r, 
         if (vy[i] > max_y) max_y = vy[i];
     }
     
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
-    
-    // Scanline fill algorithm
+    // Scanline fill algorithm - assumes surface is already locked
     for (Sint16 y = min_y; y <= max_y; y++) {
         std::vector<Sint16> intersections;
         
@@ -375,16 +392,43 @@ void Surface::filledPolygon(const Sint16* vx, const Sint16* vy, int n, Uint8 r, 
             }
         }
     }
+}
+
+void Surface::filledPolygon(const Sint16* vx, const Sint16* vy, int n, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    if (!m_handle || n < 3) return;
     
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+    uint32_t color = MapRGBA(r, g, b, a);
+    SDLLockGuard lock_guard(m_handle.get());
+    filledPolygon_unlocked(vx, vy, n, color);
+}
+
+void Surface::filledTriangle_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, uint32_t color)
+{
+    // Use the general polygon algorithm for triangles - assumes surface is already locked
+    Sint16 vx[3] = {x1, x2, x3};
+    Sint16 vy[3] = {y1, y2, y3};
+    filledPolygon_unlocked(vx, vy, 3, color);
 }
 
 void Surface::filledTriangle(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
-    // Use the general polygon algorithm for triangles
-    Sint16 vx[3] = {x1, x2, x3};
-    Sint16 vy[3] = {y1, y2, y3};
-    filledPolygon(vx, vy, 3, r, g, b, a);
+    if (!m_handle) return;
+    uint32_t color = MapRGBA(r, g, b, a);
+    SDLLockGuard lock_guard(m_handle.get());
+    filledTriangle_unlocked(x1, y1, x2, y2, x3, y3, color);
+}
+
+void Surface::filledCircleRGBA_unlocked(Sint16 x, Sint16 y, Sint16 rad, uint32_t color)
+{
+    if (rad <= 0) return;
+
+    // Assumes surface is already locked
+    for (Sint16 dy = -rad; dy <= rad; dy++) {
+        // Using integer arithmetic for the circle equation to avoid floats
+        Sint16 dx = static_cast<Sint16>(sqrt(rad * rad - dy * dy));
+        hline_unlocked(x - dx, x + dx, y + dy, color);
+    }
 }
 
 void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
@@ -393,21 +437,13 @@ void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g,
     if (rad <= 0) return;
 
     uint32_t color = MapRGBA(r, g, b, a);
-
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
-
-    for (Sint16 dy = -rad; dy <= rad; dy++) {
-        // Using integer arithmetic for the circle equation to avoid floats
-        Sint16 dx = static_cast<Sint16>(sqrt(rad * rad - dy * dy));
-        hline_unlocked(x - dx, x + dx, y + dy, color);
-    }
-
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+    SDLLockGuard lock_guard(m_handle.get());
+    filledCircleRGBA_unlocked(x, y, rad, color);
 }
 
-void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+void Surface::roundedBoxRGBA_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, uint32_t color)
 {
-    if (!m_handle || rad < 0) return;
+    if (rad < 0) return;
     if (x1 > x2) std::swap(x1, x2);
     if (y1 > y2) std::swap(y1, y2);
 
@@ -416,31 +452,39 @@ void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 
     if (rad > (y2 - y1) / 2) rad = (y2 - y1) / 2;
 
     if (rad == 0) {
-        box(x1, y1, x2, y2, r, g, b, a);
+        box_unlocked(x1, y1, x2, y2, color);
         return;
     }
 
-    // Draw three non-overlapping rectangles that form the main body
+    // Draw non-overlapping rectangles that form the main body - assumes surface is already locked
     // 1. Central horizontal rectangle
-    box(x1 + rad, y1 + rad, x2 - rad, y2 - rad, r, g, b, a);
+    box_unlocked(x1 + rad, y1 + rad, x2 - rad, y2 - rad, color);
     
     // 2. Top rectangle (excluding corners)
-    box(x1 + rad, y1, x2 - rad, y1 + rad - 1, r, g, b, a);
+    box_unlocked(x1 + rad, y1, x2 - rad, y1 + rad - 1, color);
     
     // 3. Bottom rectangle (excluding corners)
-    box(x1 + rad, y2 - rad + 1, x2 - rad, y2, r, g, b, a);
+    box_unlocked(x1 + rad, y2 - rad + 1, x2 - rad, y2, color);
     
     // 4. Left rectangle (excluding corners)
-    box(x1, y1 + rad, x1 + rad - 1, y2 - rad, r, g, b, a);
+    box_unlocked(x1, y1 + rad, x1 + rad - 1, y2 - rad, color);
     
     // 5. Right rectangle (excluding corners)
-    box(x2 - rad + 1, y1 + rad, x2, y2 - rad, r, g, b, a);
+    box_unlocked(x2 - rad + 1, y1 + rad, x2, y2 - rad, color);
 
     // Draw the four corner circles
-    filledCircleRGBA(x1 + rad, y1 + rad, rad, r, g, b, a);
-    filledCircleRGBA(x2 - rad, y1 + rad, rad, r, g, b, a);
-    filledCircleRGBA(x1 + rad, y2 - rad, rad, r, g, b, a);
-    filledCircleRGBA(x2 - rad, y2 - rad, rad, r, g, b, a);
+    filledCircleRGBA_unlocked(x1 + rad, y1 + rad, rad, color);
+    filledCircleRGBA_unlocked(x2 - rad, y1 + rad, rad, color);
+    filledCircleRGBA_unlocked(x1 + rad, y2 - rad, rad, color);
+    filledCircleRGBA_unlocked(x2 - rad, y2 - rad, rad, color);
+}
+
+void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+{
+    if (!m_handle || rad < 0) return;
+    uint32_t color = MapRGBA(r, g, b, a);
+    SDLLockGuard lock_guard(m_handle.get());
+    roundedBoxRGBA_unlocked(x1, y1, x2, y2, rad, color);
 }
     
 int16_t Surface::height()
@@ -486,25 +530,9 @@ uint32_t Surface::get_pixel_unlocked(int16_t x, int16_t y)
     return 0;
 }
 
-void Surface::floodFill(Sint16 x, Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
+void Surface::floodFill_unlocked(Sint16 x, Sint16 y, uint32_t new_color, uint32_t original_color)
 {
-    if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
-        return;
-    }
-    
-    uint32_t new_color = MapRGBA(r, g, b, a);
-    
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
-    
-    uint32_t original_color = get_pixel_unlocked(x, y);
-    
-    // Don't fill if the color is already the target color
-    if (original_color == new_color) {
-        if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
-        return;
-    }
-    
-    // Stack-based flood fill to avoid recursion stack overflow
+    // Stack-based flood fill to avoid recursion stack overflow - assumes surface is already locked
     std::vector<std::pair<Sint16, Sint16>> stack;
     stack.push_back({x, y});
     
@@ -528,20 +556,34 @@ void Surface::floodFill(Sint16 x, Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
         stack.push_back({cx, cy + 1});
         stack.push_back({cx, cy - 1});
     }
-    
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
 }
 
-void Surface::bezierCurve(const std::vector<std::pair<double, double>>& points, Uint8 r, Uint8 g, Uint8 b, Uint8 a, double step)
+void Surface::floodFill(Sint16 x, Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
-    if (!m_handle || points.size() < 2) return;
+    if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
+        return;
+    }
     
-    uint32_t color = MapRGBA(r, g, b, a);
+    uint32_t new_color = MapRGBA(r, g, b, a);
+    SDLLockGuard lock_guard(m_handle.get());
+    
+    uint32_t original_color = get_pixel_unlocked(x, y);
+    
+    // Don't fill if the color is already the target color
+    if (original_color == new_color) {
+        return;
+    }
+    
+    floodFill_unlocked(x, y, new_color, original_color);
+}
+
+void Surface::bezierCurve_unlocked(const std::vector<std::pair<double, double>>& points, uint32_t color, double step)
+{
+    if (points.size() < 2) return;
+    
     int order = points.size() - 1;
     
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_LockSurface(m_handle.get());
-    
-    // Bezier curve computation using De Casteljau's algorithm
+    // Bezier curve computation using De Casteljau's algorithm - assumes surface is already locked
     for (double t = 0.0; t <= 1.0; t += step) {
         // Create working copy of points for this t value
         std::vector<std::vector<std::pair<double, double>>> levels(order + 1);
@@ -565,6 +607,13 @@ void Surface::bezierCurve(const std::vector<std::pair<double, double>>& points, 
             put_pixel_unlocked(px, py, color);
         }
     }
+}
+
+void Surface::bezierCurve(const std::vector<std::pair<double, double>>& points, Uint8 r, Uint8 g, Uint8 b, Uint8 a, double step)
+{
+    if (!m_handle || points.size() < 2) return;
     
-    if (SDL_MUSTLOCK(m_handle.get())) SDL_UnlockSurface(m_handle.get());
+    uint32_t color = MapRGBA(r, g, b, a);
+    SDLLockGuard lock_guard(m_handle.get());
+    bezierCurve_unlocked(points, color, step);
 }

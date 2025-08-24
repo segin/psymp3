@@ -84,7 +84,7 @@ check_PROGRAMS += test_mulaw_conversion_accuracy
 check_PROGRAMS += test_codec_selection_validation_simple
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
@@ -587,6 +587,10 @@ $(top_builddir)/src/lyrics.o:
 $(top_builddir)/src/TagLibIOHandlerAdapter.o:
 	$(MAKE) -C $(top_builddir)/src TagLibIOHandlerAdapter.o
 
+# Build rules for Surface thread safety test dependencies
+$(top_builddir)/src/surface.o:
+	$(MAKE) -C $(top_builddir)/src surface.o
+
 # Simple codec performance test (minimal dependencies)
 test_codec_performance_simple_SOURCES = test_codec_performance_simple.cpp
 test_codec_performance_simple_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
@@ -637,6 +641,28 @@ test_audio_threading_pattern_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Surface thread safety test
+test_surface_thread_safety_SOURCES = test_surface_thread_safety.cpp
+test_surface_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_surface_thread_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+# Surface performance regression test
+test_surface_performance_regression_SOURCES = test_surface_performance_regression.cpp
+test_surface_performance_regression_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_surface_performance_regression_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
 	$(AM_LDFLAGS)
 
 # SimplePCMCodec integration test (minimal version)
@@ -894,6 +920,27 @@ test_memory_pool_manager_integration_SOURCES = test_memory_pool_manager_integrat
 test_memory_pool_manager_integration_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
 test_memory_pool_manager_integration_LDADD = \
 	libtest_utilities.a \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# MemoryPoolManager comprehensive thread safety test
+test_memory_pool_manager_thread_safety_comprehensive_SOURCES = test_memory_pool_manager_thread_safety_comprehensive.cpp
+test_memory_pool_manager_thread_safety_comprehensive_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_memory_pool_manager_thread_safety_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# MemoryPoolManager basic threading test
+test_memory_pool_manager_basic_threading_SOURCES = test_memory_pool_manager_basic_threading.cpp
+test_memory_pool_manager_basic_threading_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_memory_pool_manager_basic_threading_LDADD = \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/debug.o \
