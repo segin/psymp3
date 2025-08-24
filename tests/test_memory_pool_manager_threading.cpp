@@ -15,9 +15,12 @@
  */
 void test_concurrent_allocation() {
     std::cout << "Testing concurrent allocation/deallocation..." << std::endl;
+    std::cout << "Getting MemoryPoolManager instance..." << std::endl;
     
     MemoryPoolManager& manager = MemoryPoolManager::getInstance();
+    std::cout << "Initializing pools..." << std::endl;
     manager.initializePools();
+    std::cout << "Pools initialized." << std::endl;
     
     const int num_threads = 8;
     const int operations_per_thread = 100;
@@ -34,15 +37,22 @@ void test_concurrent_allocation() {
             for (int j = 0; j < operations_per_thread; ++j) {
                 try {
                     // Allocate various sizes
-                    size_t size = (j % 8 + 1) * 8 * 1024; // 8KB to 64KB
-                    uint8_t* buffer = manager.allocateBuffer(size, component_name);
+                    size_t requested_size = (j % 8 + 1) * 8 * 1024; // 8KB to 64KB
+                    uint8_t* buffer = manager.allocateBuffer(requested_size, component_name);
                     
                     if (buffer) {
                         successful_allocations++;
-                        allocated_buffers.push_back({buffer, size});
+                        allocated_buffers.push_back({buffer, requested_size});
                         
-                        // Write to buffer to ensure it's valid
-                        memset(buffer, 0xAA, size);
+                        // Write to buffer to ensure it's valid - only write up to requested size
+                        // The actual buffer might be larger (from a pool), but we only use what we requested
+                        
+                        // Debug: print allocation info
+                        if (requested_size >= 40 * 1024) {
+                            printf("Thread %d: allocated %zu bytes at %p\n", i, requested_size, (void*)buffer);
+                        }
+                        
+                        memset(buffer, 0xAA, requested_size);
                         
                         // Occasionally release some buffers
                         if (allocated_buffers.size() > 10) {

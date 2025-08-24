@@ -132,3 +132,4 @@ tests/test_seek_deadlock
 tests/test_iohandler_thread_safety_comprehensive
 tests/test_iohandler_memory_deadlock_prevention
 tests/test_audio_threading_pattern
+tests/test_iohandler_subsystem_thread_safety
