@@ -1,0 +1,222 @@
+name: Threading Safety Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/threading-safety.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - '.github/workflows/threading-safety.yml'
+
+jobs:
+  threading-safety-check:
+    name: Threading Safety Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          autotools-dev \
+          automake \
+          autoconf \
+          libtool \
+          pkg-config \
+          libsdl2-dev \
+          libfreetype6-dev \
+          libtag1-dev \
+          libflac-dev \
+          libvorbis-dev \
+          libogg-dev \
+          libopus-dev \
+          libmpg123-dev
+          
+    - name: Install Python dependencies
+      run: |
+        python3 -m pip install --upgrade pip
+        # Add any Python dependencies needed by the analysis scripts
+        
+    - name: Generate build system
+      run: |
+        ./generate-configure.sh
+        
+    - name: Configure build
+      run: |
+        ./configure --enable-debug
+        
+    - name: Run Threading Safety CI Check
+      run: |
+        chmod +x scripts/ci_threading_safety_check.sh
+        scripts/ci_threading_safety_check.sh
+      env:
+        CI_MODE: "true"
+        FAIL_FAST: "true"
+        VERBOSE: "false"
+        
+    - name: Upload CI Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: threading-safety-ci-report
+        path: ci_threading_safety_report.txt
+        
+    - name: Upload Analysis Reports
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: threading-safety-analysis
+        path: |
+          threading_safety_analysis.md
+          threading_pattern_issues.txt
+        if-no-files-found: ignore
+
+  comprehensive-validation:
+    name: Comprehensive Threading Validation
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          autotools-dev \
+          automake \
+          autoconf \
+          libtool \
+          pkg-config \
+          libsdl2-dev \
+          libfreetype6-dev \
+          libtag1-dev \
+          libflac-dev \
+          libvorbis-dev \
+          libogg-dev \
+          libopus-dev \
+          libmpg123-dev
+          
+    - name: Generate build system
+      run: |
+        ./generate-configure.sh
+        
+    - name: Configure build
+      run: |
+        ./configure --enable-debug
+        
+    - name: Run Comprehensive Threading Validation
+      run: |
+        chmod +x scripts/run_comprehensive_threading_validation.sh
+        scripts/run_comprehensive_threading_validation.sh
+        
+    - name: Upload Comprehensive Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: comprehensive-threading-validation-report
+        path: threading_safety_validation_report.md
+        
+    - name: Comment PR with Results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          
+          try {
+            const report = fs.readFileSync('threading_safety_validation_report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Threading Safety Validation Report\n\n${report}`
+            });
+          } catch (error) {
+            console.log('Could not read or post threading safety report:', error);
+          }
+
+  performance-regression:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+        
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          autotools-dev \
+          automake \
+          autoconf \
+          libtool \
+          pkg-config \
+          libsdl2-dev \
+          libfreetype6-dev \
+          libtag1-dev \
+          libflac-dev \
+          libvorbis-dev \
+          libogg-dev \
+          libopus-dev \
+          libmpg123-dev
+          
+    - name: Generate build system
+      run: |
+        ./generate-configure.sh
+        
+    - name: Configure build
+      run: |
+        ./configure --enable-debug
+        
+    - name: Build project
+      run: |
+        make -j$(nproc)
+        
+    - name: Build performance tests
+      run: |
+        make -C tests test_threading_performance_regression
+        
+    - name: Run performance regression tests
+      run: |
+        cd tests && ./test_threading_performance_regression
+        
+    - name: Check performance results
+      run: |
+        echo "Performance regression check completed"
+        echo "Review the test output above for any performance issues"

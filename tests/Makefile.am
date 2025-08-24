@@ -84,7 +84,7 @@ check_PROGRAMS += test_mulaw_conversion_accuracy
 check_PROGRAMS += test_codec_selection_validation_simple
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
 
 # SimplePCMCodec integration tests
 check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
@@ -590,6 +590,64 @@ $(top_builddir)/src/TagLibIOHandlerAdapter.o:
 # Build rules for Surface thread safety test dependencies
 $(top_builddir)/src/surface.o:
 	$(MAKE) -C $(top_builddir)/src surface.o
+
+# System-wide threading integration test
+test_system_wide_threading_integration_SOURCES = test_system_wide_threading_integration.cpp
+test_system_wide_threading_integration_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_system_wide_threading_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/fft.o \
+	$(top_builddir)/src/fft_draw.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+# Threading performance regression test
+test_threading_performance_regression_SOURCES = test_threading_performance_regression.cpp
+test_threading_performance_regression_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_threading_performance_regression_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/audio.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/fft.o \
+	$(top_builddir)/src/fft_draw.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
 
 # Simple codec performance test (minimal dependencies)
 test_codec_performance_simple_SOURCES = test_codec_performance_simple.cpp

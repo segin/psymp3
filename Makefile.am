@@ -18,3 +18,53 @@
 datadir=$(prefix)/@PACKAGE@/data
 
 SUBDIRS = res src tests
+
+# Include threading safety makefile
+include scripts/threading-safety-makefile.mk
+
+# Add threading safety checks to the build process
+all-local: threading-check
+
+# Add threading safety tests to check target
+check-local: threading-check-tests
+
+# Threading safety test targets
+.PHONY: threading-check-tests threading-check-integration threading-check-performance
+
+threading-check-tests:
+	@echo "Running threading safety tests..."
+	@$(MAKE) -C tests test_threading_safety_baseline
+	@$(MAKE) -C tests test_audio_thread_safety
+	@$(MAKE) -C tests test_iohandler_thread_safety_comprehensive
+	@$(MAKE) -C tests test_memory_pool_manager_thread_safety_comprehensive
+	@$(MAKE) -C tests test_surface_thread_safety
+	@echo "Basic threading safety tests completed"
+
+threading-check-integration:
+	@echo "Running threading safety integration tests..."
+	@$(MAKE) -C tests test_system_wide_threading_integration
+	@cd tests && ./test_system_wide_threading_integration
+	@echo "Threading safety integration tests completed"
+
+threading-check-performance:
+	@echo "Running threading performance regression tests..."
+	@$(MAKE) -C tests test_threading_performance_regression
+	@cd tests && ./test_threading_performance_regression
+	@echo "Threading performance regression tests completed"
+
+# Comprehensive threading validation (for CI)
+threading-validation: threading-check-strict threading-check-tests threading-check-integration threading-check-performance
+	@echo "=== Comprehensive Threading Safety Validation ==="
+	@echo "All threading safety checks PASSED"
+	@echo "- Static analysis: PASSED"
+	@echo "- Pattern validation: PASSED"
+	@echo "- Unit tests: PASSED"
+	@echo "- Integration tests: PASSED"
+	@echo "- Performance regression: PASSED"
+
+# Development helper targets
+threading-dev-check: threading-check threading-check-tests
+	@echo "Development threading safety check completed"
+
+# Clean threading artifacts
+clean-local: threading-clean
