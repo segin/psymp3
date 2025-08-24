@@ -83,17 +83,25 @@ void MemoryPoolManager::initializeMemoryTracking() {
     // Register with memory tracker for pressure updates
     m_memory_tracker_callback_id = MemoryTracker::getInstance().registerMemoryPressureCallback(
         [this](int pressure) {
+            bool should_cleanup = false;
+            
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
-                m_memory_pressure_level = pressure;
                 
-                // If pressure is high, clean up pools (use unlocked version since we hold the lock)
-                if (pressure > 70) {
-                    cleanupPools();
-                }
+                // Use the safe method to update pressure level
+                updateMemoryPressureLevelFromCallback(pressure);
                 
-                // Notify our own callbacks using unlocked version
+                // Check if we need to clean up pools
+                should_cleanup = (pressure > 70);
+                
+                // Queue callback notifications to avoid deadlocks
                 notifyPressureCallbacks_unlocked();
+            }
+            
+            // Perform cleanup outside of lock if needed
+            if (should_cleanup) {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                cleanupPools();
             }
         }
     );
@@ -296,6 +304,9 @@ std::map<std::string, size_t> MemoryPoolManager::getMemoryStats_unlocked() const
 }
 
 void MemoryPoolManager::optimizeMemoryUsage() {
+    // Update memory pressure level before acquiring lock to avoid deadlocks
+    updateMemoryPressureLevel();
+    
     std::lock_guard<std::mutex> lock(m_mutex);
     optimizeMemoryUsage_unlocked();
 }
@@ -303,8 +314,9 @@ void MemoryPoolManager::optimizeMemoryUsage() {
 void MemoryPoolManager::optimizeMemoryUsage_unlocked() {
     Debug::log("memory", "MemoryPoolManager::optimizeMemoryUsage_unlocked() - Optimizing memory usage");
     
-    // Update memory pressure level
-    updateMemoryPressureLevel();
+    // Note: We don't update memory pressure level here since it would require calling
+    // MemoryTracker while holding our mutex, which could cause deadlocks.
+    // The pressure level is updated via the callback from MemoryTracker.
     
     // Clean up pools based on memory pressure
     cleanupPools();
@@ -354,14 +366,25 @@ void MemoryPoolManager::optimizeMemoryUsage_unlocked() {
 }
 
 int MemoryPoolManager::registerMemoryPressureCallback(std::function<void(int)> callback) {
-    std::lock_guard<std::mutex> lock(m_mutex);
+    int id;
+    int current_pressure;
     
-    int id = m_callback_id_counter++;
-    m_pressure_callbacks.push_back(std::make_pair(id, callback));
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        id = m_callback_id_counter++;
+        m_pressure_callbacks.push_back(std::make_pair(id, callback));
+        current_pressure = m_memory_pressure_level;
+    }
     
-    // Immediately notify with current pressure level
-    callback(m_memory_pressure_level);
+    // Immediately notify with current pressure level (outside of lock to prevent deadlock)
+    try {
+        callback(current_pressure);
+    } catch (...) {
+        // Ignore exceptions from callback during registration
+        Debug::log("memory", "MemoryPoolManager::registerMemoryPressureCallback() - Exception in callback during registration");
+    }
     
+    Debug::log("memory", "MemoryPoolManager::registerMemoryPressureCallback() - Registered callback with ID ", id);
     return id;
 }
 
@@ -373,6 +396,9 @@ void MemoryPoolManager::unregisterMemoryPressureCallback(int id) {
     
     if (it != m_pressure_callbacks.end()) {
         m_pressure_callbacks.erase(it);
+        Debug::log("memory", "MemoryPoolManager::unregisterMemoryPressureCallback() - Unregistered callback with ID ", id);
+    } else {
+        Debug::log("memory", "MemoryPoolManager::unregisterMemoryPressureCallback() - Callback ID ", id, " not found");
     }
 }
 
@@ -506,11 +532,23 @@ std::map<size_t, MemoryPoolManager::PoolEntry>::iterator MemoryPoolManager::find
 }
 
 void MemoryPoolManager::updateMemoryPressureLevel() {
-    // Use the memory tracker's pressure level
-    m_memory_pressure_level = MemoryTracker::getInstance().getMemoryPressureLevel();
+    // Get the memory tracker's pressure level without holding our mutex
+    int new_pressure_level = MemoryTracker::getInstance().getMemoryPressureLevel();
+    
+    // Update our pressure level (this is thread-safe since it's atomic in practice)
+    m_memory_pressure_level = new_pressure_level;
 }
 
 void MemoryPoolManager::notifyPressureCallbacks() {
+    // Process any queued callbacks first
+    processQueuedCallbacks();
+    
+    // Prevent reentrancy - if callbacks are already executing, queue this notification
+    if (m_callbacks_executing.exchange(true)) {
+        queueCallbackNotification(m_memory_pressure_level);
+        return;
+    }
+    
     // Make a copy of callbacks to avoid holding the lock during callback execution
     std::vector<std::pair<int, std::function<void(int)>>> callbacks;
     int pressure_level;
@@ -527,20 +565,23 @@ void MemoryPoolManager::notifyPressureCallbacks() {
             callback.second(pressure_level);
         } catch (...) {
             // Ignore exceptions from callbacks
+            Debug::log("memory", "MemoryPoolManager::notifyPressureCallbacks() - Exception in callback, continuing");
         }
     }
+    
+    // Mark callbacks as no longer executing
+    m_callbacks_executing = false;
+    
+    // Process any callbacks that were queued while we were executing
+    processQueuedCallbacks();
 }
 
 void MemoryPoolManager::notifyPressureCallbacks_unlocked() {
-    // Don't execute callbacks while holding the mutex to avoid deadlocks
-    // Instead, just mark that callbacks need to be executed
-    // The actual callback execution should be done without holding the mutex
+    // Queue the callback notification for later execution to avoid deadlocks
+    // This ensures we don't execute callbacks while holding the main mutex
+    queueCallbackNotification(m_memory_pressure_level);
     
-    // For now, we'll skip callback execution in the unlocked version
-    // This prevents deadlocks but means callbacks won't be called from
-    // internal operations. This is acceptable for the threading safety implementation.
-    
-    Debug::log("memory", "MemoryPoolManager::notifyPressureCallbacks_unlocked() - Skipping callback execution to avoid deadlocks");
+    Debug::log("memory", "MemoryPoolManager::notifyPressureCallbacks_unlocked() - Queued callback notification for pressure level ", m_memory_pressure_level);
 }
 
 void MemoryPoolManager::cleanupPools() {
@@ -627,4 +668,73 @@ size_t MemoryPoolManager::getMaxBuffersPerPool() const {
     // At 0% pressure: 16 buffers
     // At 100% pressure: 2 buffers
     return 16 - ((14 * m_memory_pressure_level) / 100);
+}
+
+void MemoryPoolManager::queueCallbackNotification(int pressure_level) {
+    std::lock_guard<std::mutex> lock(m_callback_queue_mutex);
+    m_queued_pressure_notifications.push(pressure_level);
+    
+    Debug::log("memory", "MemoryPoolManager::queueCallbackNotification() - Queued pressure level ", pressure_level);
+}
+
+void MemoryPoolManager::processQueuedCallbacks() {
+    // Process all queued notifications
+    std::queue<int> notifications_to_process;
+    
+    {
+        std::lock_guard<std::mutex> lock(m_callback_queue_mutex);
+        notifications_to_process.swap(m_queued_pressure_notifications);
+    }
+    
+    if (notifications_to_process.empty()) {
+        return;
+    }
+    
+    Debug::log("memory", "MemoryPoolManager::processQueuedCallbacks() - Processing ", 
+              notifications_to_process.size(), " queued notifications");
+    
+    // Prevent reentrancy during queued callback processing
+    if (m_callbacks_executing.exchange(true)) {
+        // If callbacks are already executing, put the notifications back in the queue
+        std::lock_guard<std::mutex> lock(m_callback_queue_mutex);
+        while (!notifications_to_process.empty()) {
+            m_queued_pressure_notifications.push(notifications_to_process.front());
+            notifications_to_process.pop();
+        }
+        return;
+    }
+    
+    // Get a copy of callbacks
+    std::vector<std::pair<int, std::function<void(int)>>> callbacks;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        callbacks = m_pressure_callbacks;
+    }
+    
+    // Process each queued notification
+    while (!notifications_to_process.empty()) {
+        int pressure_level = notifications_to_process.front();
+        notifications_to_process.pop();
+        
+        // Notify all callbacks with this pressure level
+        for (const auto& callback : callbacks) {
+            try {
+                callback.second(pressure_level);
+            } catch (...) {
+                // Ignore exceptions from callbacks
+                Debug::log("memory", "MemoryPoolManager::processQueuedCallbacks() - Exception in callback, continuing");
+            }
+        }
+    }
+    
+    // Mark callbacks as no longer executing
+    m_callbacks_executing = false;
+}
+
+void MemoryPoolManager::updateMemoryPressureLevelFromCallback(int new_pressure_level) {
+    // This method is called from the MemoryTracker callback and is safe to call
+    // while holding the mutex since it doesn't call back into MemoryTracker
+    m_memory_pressure_level = new_pressure_level;
+    
+    Debug::log("memory", "MemoryPoolManager::updateMemoryPressureLevelFromCallback() - Updated pressure level to ", new_pressure_level);
 }

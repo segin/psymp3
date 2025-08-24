@@ -188,6 +188,26 @@ private:
      * @note Assumes m_mutex is already held by caller, but releases it during callback execution
      */
     void notifyPressureCallbacks_unlocked();
+    
+    /**
+     * @brief Queue a callback notification for later execution
+     * @param pressure_level The pressure level to notify callbacks with
+     * @note This method is thread-safe and can be called from within locked methods
+     */
+    void queueCallbackNotification(int pressure_level);
+    
+    /**
+     * @brief Process all queued callback notifications
+     * @note This method should be called without holding any locks
+     */
+    void processQueuedCallbacks();
+    
+    /**
+     * @brief Update memory pressure level from MemoryTracker (safe to call while holding mutex)
+     * @param new_pressure_level The new pressure level to set
+     * @note This method is used by the MemoryTracker callback to avoid deadlocks
+     */
+    void updateMemoryPressureLevelFromCallback(int new_pressure_level);
     MemoryPoolManager();
     ~MemoryPoolManager();
     
@@ -243,6 +263,11 @@ private:
     int m_callback_id_counter = 0;
     int m_memory_tracker_callback_id = -1;
     std::vector<std::pair<int, std::function<void(int)>>> m_pressure_callbacks;
+    
+    // Callback safety and reentrancy protection
+    std::atomic<bool> m_callbacks_executing{false};
+    std::mutex m_callback_queue_mutex;
+    std::queue<int> m_queued_pressure_notifications;
     
     // Common buffer sizes for pre-allocation
     static constexpr size_t COMMON_SIZES[] = {

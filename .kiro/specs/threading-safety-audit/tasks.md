@@ -50,26 +50,26 @@
   - Implement integration tests for IOHandler with other threaded components
   - _Requirements: 3.3, 5.4_
 
-- [-] 4. Refactor MemoryPoolManager class threading safety
+- [x] 4. Refactor MemoryPoolManager class threading safety
 - [x] 4.1 Implement private unlocked methods for MemoryPoolManager
   - Create `allocateBuffer_unlocked()`, `releaseBuffer_unlocked()`, and `getMemoryStats_unlocked()` methods
   - Implement `optimizeMemoryUsage_unlocked()` and other management method unlocked versions
   - Modify public methods to acquire `m_mutex` and call private unlocked implementations
   - _Requirements: 1.1, 1.2, 4.2_
 
-- [-] 4.2 Implement callback safety for MemoryPoolManager
+- [x] 4.2 Implement callback safety for MemoryPoolManager
   - Create `notifyPressureCallbacks_unlocked()` that can be called without holding internal locks
   - Implement callback queuing system to prevent reentrancy issues
   - Modify pressure callback registration/unregistration to be thread-safe
   - _Requirements: 1.2, 3.1, 4.2_
 
-- [ ] 4.3 Update MemoryPoolManager integration with MemoryTracker
+- [x] 4.3 Update MemoryPoolManager integration with MemoryTracker
   - Ensure MemoryTracker callbacks don't cause deadlocks in MemoryPoolManager
   - Modify callback handling to use unlocked methods where appropriate
   - Test integration between memory tracking and pool management under high concurrency
   - _Requirements: 1.2, 3.3, 4.2_
 
-- [ ] 4.4 Create MemoryPoolManager thread safety tests
+- [x] 4.4 Create MemoryPoolManager thread safety tests
   - Write tests for concurrent buffer allocation and release operations
   - Create tests that verify callback system doesn't cause deadlocks
   - Implement stress tests for memory pressure scenarios with multiple threads
