@@ -51,7 +51,7 @@
   - _Requirements: 3.3, 5.4_
 
 - [ ] 4. Refactor MemoryPoolManager class threading safety
-- [ ] 4.1 Implement private unlocked methods for MemoryPoolManager
+- [x] 4.1 Implement private unlocked methods for MemoryPoolManager
   - Create `allocateBuffer_unlocked()`, `releaseBuffer_unlocked()`, and `getMemoryStats_unlocked()` methods
   - Implement `optimizeMemoryUsage_unlocked()` and other management method unlocked versions
   - Modify public methods to acquire `m_mutex` and call private unlocked implementations

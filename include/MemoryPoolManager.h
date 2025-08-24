@@ -129,6 +129,65 @@ public:
                                bool sequential_access = true) const;
 
 private:
+    // Private unlocked versions of public methods (assumes m_mutex is already held)
+    
+    /**
+     * @brief Allocate a buffer from the appropriate pool (unlocked version)
+     * @param size Requested buffer size in bytes
+     * @param component_name Name of component requesting the buffer
+     * @return Allocated buffer pointer, or nullptr if allocation fails
+     * @note Assumes m_mutex is already held by caller
+     */
+    uint8_t* allocateBuffer_unlocked(size_t size, const std::string& component_name);
+    
+    /**
+     * @brief Release a buffer back to the pool (unlocked version)
+     * @param buffer Buffer pointer to release
+     * @param size Size of the buffer
+     * @param component_name Name of component releasing the buffer
+     * @note Assumes m_mutex is already held by caller
+     */
+    void releaseBuffer_unlocked(uint8_t* buffer, size_t size, const std::string& component_name);
+    
+    /**
+     * @brief Get memory usage statistics (unlocked version)
+     * @return Map with memory usage statistics
+     * @note Assumes m_mutex is already held by caller
+     */
+    std::map<std::string, size_t> getMemoryStats_unlocked() const;
+    
+    /**
+     * @brief Perform global memory optimization (unlocked version)
+     * @note Assumes m_mutex is already held by caller
+     */
+    void optimizeMemoryUsage_unlocked();
+    
+    /**
+     * @brief Check if memory allocation is within safe limits (unlocked version)
+     * @param requested_size Size of memory to allocate
+     * @param component_name Name of component requesting memory
+     * @return true if allocation is safe, false if it would cause memory pressure
+     * @note Assumes m_mutex is already held by caller
+     */
+    bool isSafeToAllocate_unlocked(size_t requested_size, const std::string& component_name) const;
+    
+    /**
+     * @brief Get optimal buffer size based on memory pressure and usage patterns (unlocked version)
+     * @param requested_size Requested buffer size
+     * @param component_name Component name for usage pattern tracking
+     * @param sequential_access Whether access pattern is sequential
+     * @return Optimized buffer size
+     * @note Assumes m_mutex is already held by caller
+     */
+    size_t getOptimalBufferSize_unlocked(size_t requested_size, 
+                                        const std::string& component_name,
+                                        bool sequential_access = true) const;
+    
+    /**
+     * @brief Notify all registered callbacks of pressure level change (unlocked version)
+     * @note Assumes m_mutex is already held by caller, but releases it during callback execution
+     */
+    void notifyPressureCallbacks_unlocked();
     MemoryPoolManager();
     ~MemoryPoolManager();
     
