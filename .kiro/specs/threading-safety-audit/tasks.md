@@ -94,20 +94,20 @@
   - Implement performance tests to ensure graphics operations aren't significantly impacted
   - _Requirements: 3.3, 5.4_
 
-- [ ] 6. Update project steering documents with threading guidelines
-- [ ] 6.1 Create comprehensive threading safety guidelines document
+- [x] 6. Update project steering documents with threading guidelines
+- [x] 6.1 Create comprehensive threading safety guidelines document
   - Write detailed guidelines for implementing public/private lock patterns
   - Document lock acquisition order requirements and naming conventions
   - Create examples of correct and incorrect threading patterns
   - _Requirements: 2.1, 2.2, 2.3_
 
-- [ ] 6.2 Update development standards with threading requirements
+- [x] 6.2 Update development standards with threading requirements
   - Modify existing development standards to include threading safety requirements
   - Add code review checklist items for threading safety patterns
   - Include threading safety as a requirement for new code contributions
   - _Requirements: 2.1, 2.3, 5.2_
 
-- [ ] 6.3 Create static analysis rules for threading safety
+- [x] 6.3 Create static analysis rules for threading safety
   - Implement scripts or tools to detect public methods that acquire locks without private counterparts
   - Create build system integration to check for threading anti-patterns
   - Document how to use and maintain the threading safety analysis tools

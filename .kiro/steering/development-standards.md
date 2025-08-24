@@ -57,6 +57,38 @@
 - Test files should follow naming convention: `test_<component>.cpp`
 - Tests should be compilable and runnable independently where possible
 
+## Threading Safety
+
+### Mandatory Threading Pattern
+- **Public/Private Lock Pattern**: All classes that use synchronization primitives (mutexes, spinlocks, etc.) MUST follow the public/private lock pattern
+- **Public Methods**: Handle lock acquisition and call private `_unlocked` implementations
+- **Private Methods**: Append `_unlocked` suffix and perform work without acquiring locks
+- **Internal Calls**: Always use `_unlocked` versions when calling methods within the same class
+
+### Threading Safety Requirements
+- **Lock Documentation**: Document lock acquisition order at the class level to prevent deadlocks
+- **RAII Lock Guards**: Always use RAII lock guards (`std::lock_guard`, `std::unique_lock`) instead of manual lock/unlock
+- **Exception Safety**: Ensure locks are released even when exceptions occur
+- **Callback Safety**: Never invoke callbacks while holding internal locks
+
+### Code Review Checklist for Threading
+When reviewing code that involves threading, verify:
+- [ ] Every public method that acquires locks has a corresponding `_unlocked` private method
+- [ ] Internal method calls use the `_unlocked` versions
+- [ ] Lock acquisition order is documented and consistently followed
+- [ ] RAII lock guards are used instead of manual lock/unlock
+- [ ] Callbacks are never invoked while holding internal locks
+- [ ] No public method calls other public methods that acquire the same locks
+- [ ] Mutable mutexes are used for const methods that need to acquire locks
+- [ ] Exception safety is maintained (locks released even on exceptions)
+
+### Threading Test Requirements
+All threading-related code changes must include:
+- **Basic Thread Safety Tests**: Multiple threads calling the same public method
+- **Deadlock Prevention Tests**: Scenarios that would cause deadlocks with incorrect patterns
+- **Stress Tests**: High-concurrency scenarios to validate thread safety
+- **Performance Tests**: Ensure lock overhead doesn't significantly impact performance
+
 ## Codec Development
 
 ### Conditional Compilation Architecture
