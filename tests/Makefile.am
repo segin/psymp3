@@ -94,7 +94,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety
 endif
 
 # Test program sources and dependencies
@@ -909,6 +909,28 @@ test_flac_compatibility_integration_LDADD = \
 	$(top_builddir)/src/FileIOHandler.o \
 	$(top_builddir)/src/MediaFactory.o \
 	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# FLAC demuxer thread safety test
+test_flac_demuxer_thread_safety_SOURCES = test_flac_demuxer_thread_safety.cpp
+test_flac_demuxer_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_demuxer_thread_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
 	$(top_builddir)/src/URI.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \

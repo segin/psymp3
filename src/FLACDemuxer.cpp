@@ -28,14 +28,15 @@ FLACDemuxer::FLACDemuxer(std::unique_ptr<IOHandler> handler)
 {
     Debug::log("flac", "FLACDemuxer constructor called");
     
-    // Initialize state
+    // Initialize state (no locks needed during construction)
     m_container_parsed = false;
     m_file_size = 0;
     m_audio_data_offset = 0;
     m_current_offset = 0;
-    m_current_sample = 0;
+    m_current_sample.store(0);
     m_last_block_size = 0;
     m_memory_usage_bytes = 0;
+    m_error_state.store(false);
     
     // Initialize performance optimization state
     m_seek_table_sorted = false;
@@ -58,6 +59,13 @@ FLACDemuxer::~FLACDemuxer()
 {
     Debug::log("flac", "FLACDemuxer destructor called");
     
+    // Set error state to prevent new operations during destruction
+    m_error_state.store(true);
+    
+    // Acquire locks to ensure no operations are in progress
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    
     // Free all allocated memory
     freeUnusedMemory();
     
@@ -77,10 +85,23 @@ FLACDemuxer::~FLACDemuxer()
 
 bool FLACDemuxer::parseContainer()
 {
-    Debug::log("flac", "FLACDemuxer::parseContainer() - parsing FLAC container");
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return parseContainer_unlocked();
+}
+
+bool FLACDemuxer::parseContainer_unlocked()
+{
+    Debug::log("flac", "FLACDemuxer::parseContainer_unlocked() - parsing FLAC container");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state, cannot parse container");
+        return false;
+    }
     
     if (!m_handler) {
         reportError("IO", "No IOHandler available for parsing");
+        setErrorState(true);
         return false;
     }
     
@@ -205,7 +226,19 @@ bool FLACDemuxer::parseContainer()
 
 std::vector<StreamInfo> FLACDemuxer::getStreams() const
 {
-    Debug::log("flac", "FLACDemuxer::getStreams() - returning FLAC stream info");
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return getStreams_unlocked();
+}
+
+std::vector<StreamInfo> FLACDemuxer::getStreams_unlocked() const
+{
+    Debug::log("flac", "FLACDemuxer::getStreams_unlocked() - returning FLAC stream info");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state, returning empty stream list");
+        return {};
+    }
     
     if (!m_container_parsed) {
         Debug::log("flac", "Container not parsed, returning empty stream list");
@@ -248,7 +281,19 @@ std::vector<StreamInfo> FLACDemuxer::getStreams() const
 
 StreamInfo FLACDemuxer::getStreamInfo(uint32_t stream_id) const
 {
-    Debug::log("flac", "FLACDemuxer::getStreamInfo(", stream_id, ") - returning FLAC stream info");
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return getStreamInfo_unlocked(stream_id);
+}
+
+StreamInfo FLACDemuxer::getStreamInfo_unlocked(uint32_t stream_id) const
+{
+    Debug::log("flac", "FLACDemuxer::getStreamInfo_unlocked(", stream_id, ") - returning FLAC stream info");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state");
+        return StreamInfo{};
+    }
     
     if (!m_container_parsed) {
         Debug::log("flac", "Container not parsed");
@@ -260,7 +305,7 @@ StreamInfo FLACDemuxer::getStreamInfo(uint32_t stream_id) const
         return StreamInfo{};
     }
     
-    auto streams = getStreams();
+    auto streams = getStreams_unlocked();
     if (streams.empty()) {
         return StreamInfo{};
     }
@@ -270,10 +315,22 @@ StreamInfo FLACDemuxer::getStreamInfo(uint32_t stream_id) const
 
 MediaChunk FLACDemuxer::readChunk()
 {
-    Debug::log("flac", "FLACDemuxer::readChunk() - reading next FLAC frame");
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    return readChunk_unlocked();
+}
+
+MediaChunk FLACDemuxer::readChunk_unlocked()
+{
+    Debug::log("flac", "FLACDemuxer::readChunk_unlocked() - reading next FLAC frame");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state");
+        return MediaChunk{};
+    }
     
     if (!m_container_parsed) {
         reportError("State", "Container not parsed");
+        setErrorState(true);
         return MediaChunk{};
     }
     
@@ -397,7 +454,7 @@ MediaChunk FLACDemuxer::readChunk()
         Debug::log("flac", "Provided silence chunk with ", silence_block_size, " samples");
         
         // Update position tracking to advance past the error
-        uint64_t next_sample_position = m_current_sample + silence_block_size;
+        uint64_t next_sample_position = m_current_sample.load() + silence_block_size;
         updatePositionTracking(next_sample_position, m_current_offset);
         
         return silence_chunk;
@@ -410,22 +467,46 @@ MediaChunk FLACDemuxer::readChunk()
 
 MediaChunk FLACDemuxer::readChunk(uint32_t stream_id)
 {
-    Debug::log("flac", "FLACDemuxer::readChunk(", stream_id, ") - placeholder implementation");
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    return readChunk_unlocked(stream_id);
+}
+
+MediaChunk FLACDemuxer::readChunk_unlocked(uint32_t stream_id)
+{
+    Debug::log("flac", "FLACDemuxer::readChunk_unlocked(", stream_id, ") - implementation");
     
-    if (stream_id != 1) {
-        reportError("Stream", "Invalid stream ID for FLAC: " + std::to_string(stream_id));
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state");
         return MediaChunk{};
     }
     
-    return readChunk();
+    if (stream_id != 1) {
+        reportError("Stream", "Invalid stream ID for FLAC: " + std::to_string(stream_id));
+        setErrorState(true);
+        return MediaChunk{};
+    }
+    
+    return readChunk_unlocked();
 }
 
 bool FLACDemuxer::seekTo(uint64_t timestamp_ms)
 {
-    Debug::log("flac", "FLACDemuxer::seekTo(", timestamp_ms, ") - seeking to timestamp");
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    return seekTo_unlocked(timestamp_ms);
+}
+
+bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
+{
+    Debug::log("flac", "FLACDemuxer::seekTo_unlocked(", timestamp_ms, ") - seeking to timestamp");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state");
+        return false;
+    }
     
     if (!m_container_parsed) {
         reportError("State", "Container not parsed");
+        setErrorState(true);
         return false;
     }
     
@@ -486,8 +567,9 @@ bool FLACDemuxer::seekTo(uint64_t timestamp_ms)
         // Track successful seek position for optimization
         m_last_seek_position = target_sample;
         
-        Debug::log("flac", "Seek successful to sample ", m_current_sample, 
-                  " (", samplesToMs(m_current_sample), " ms)");
+        uint64_t current_sample = m_current_sample.load();
+        Debug::log("flac", "Seek successful to sample ", current_sample, 
+                  " (", samplesToMs(current_sample), " ms)");
         return true;
     } else {
         reportError("Seek", "All seeking strategies failed for timestamp " + std::to_string(timestamp_ms));
@@ -497,6 +579,16 @@ bool FLACDemuxer::seekTo(uint64_t timestamp_ms)
 
 bool FLACDemuxer::isEOF() const
 {
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    return isEOF_unlocked();
+}
+
+bool FLACDemuxer::isEOF_unlocked() const
+{
+    if (m_error_state.load()) {
+        return true;
+    }
+    
     if (!m_handler) {
         return true;
     }
@@ -506,7 +598,18 @@ bool FLACDemuxer::isEOF() const
 
 uint64_t FLACDemuxer::getDuration() const
 {
-    Debug::log("flac", "FLACDemuxer::getDuration() - calculating duration");
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return getDuration_unlocked();
+}
+
+uint64_t FLACDemuxer::getDuration_unlocked() const
+{
+    Debug::log("flac", "FLACDemuxer::getDuration_unlocked() - calculating duration");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state, cannot determine duration");
+        return 0;
+    }
     
     if (!m_container_parsed) {
         Debug::log("flac", "Container not parsed, cannot determine duration");
@@ -573,31 +676,54 @@ uint64_t FLACDemuxer::getDuration() const
 
 uint64_t FLACDemuxer::getPosition() const
 {
-    Debug::log("flac", "FLACDemuxer::getPosition() - returning current position in milliseconds");
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return getPosition_unlocked();
+}
+
+uint64_t FLACDemuxer::getPosition_unlocked() const
+{
+    Debug::log("flac", "FLACDemuxer::getPosition_unlocked() - returning current position in milliseconds");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state");
+        return 0;
+    }
     
     if (!m_container_parsed || !m_streaminfo.isValid()) {
         Debug::log("flac", "Container not parsed or invalid STREAMINFO");
         return 0;
     }
     
-    // Convert current sample position to milliseconds
-    uint64_t position_ms = samplesToMs(m_current_sample);
-    Debug::log("flac", "Current position: ", m_current_sample, " samples = ", position_ms, " ms");
+    // Convert current sample position to milliseconds (atomic read)
+    uint64_t current_sample = m_current_sample.load();
+    uint64_t position_ms = samplesToMs(current_sample);
+    Debug::log("flac", "Current position: ", current_sample, " samples = ", position_ms, " ms");
     
     return position_ms;
 }
 
 uint64_t FLACDemuxer::getCurrentSample() const
 {
-    Debug::log("flac", "FLACDemuxer::getCurrentSample() - returning current position in samples");
+    return getCurrentSample_unlocked();
+}
+
+uint64_t FLACDemuxer::getCurrentSample_unlocked() const
+{
+    Debug::log("flac", "FLACDemuxer::getCurrentSample_unlocked() - returning current position in samples");
+    
+    if (m_error_state.load()) {
+        Debug::log("flac", "Demuxer in error state");
+        return 0;
+    }
     
     if (!m_container_parsed) {
         Debug::log("flac", "Container not parsed");
         return 0;
     }
     
-    Debug::log("flac", "Current sample position: ", m_current_sample);
-    return m_current_sample;
+    uint64_t current_sample = m_current_sample.load();
+    Debug::log("flac", "Current sample position: ", current_sample);
+    return current_sample;
 }
 
 // Private helper methods - implementations
@@ -2300,15 +2426,15 @@ void FLACDemuxer::resetPositionTracking()
 {
     Debug::log("flac", "FLACDemuxer::resetPositionTracking() - resetting position to start");
     
-    // Reset sample position to beginning of stream
-    m_current_sample = 0;
+    // Reset sample position to beginning of stream (atomic update)
+    m_current_sample.store(0);
     m_last_block_size = 0;
     
     // Reset file position to start of audio data
     m_current_offset = m_audio_data_offset;
     
-    Debug::log("flac", "Position tracking reset: sample=", m_current_sample, 
-              " file_offset=", m_current_offset, " (", samplesToMs(m_current_sample), " ms)");
+    Debug::log("flac", "Position tracking reset: sample=0", 
+              " file_offset=", m_current_offset, " (0 ms)");
 }
 
 void FLACDemuxer::updatePositionTracking(uint64_t sample_position, uint64_t file_offset)
@@ -2325,12 +2451,12 @@ void FLACDemuxer::updatePositionTracking(uint64_t sample_position, uint64_t file
         }
     }
     
-    // Update tracking variables
-    m_current_sample = sample_position;
+    // Update tracking variables (atomic update for sample position)
+    m_current_sample.store(sample_position);
     m_current_offset = file_offset;
     
-    Debug::log("flac", "Position tracking updated: sample=", m_current_sample, 
-              " file_offset=", m_current_offset, " (", samplesToMs(m_current_sample), " ms)");
+    Debug::log("flac", "Position tracking updated: sample=", sample_position, 
+              " file_offset=", file_offset, " (", samplesToMs(sample_position), " ms)");
 }
 
 bool FLACDemuxer::seekWithTable(uint64_t target_sample)
@@ -2655,15 +2781,16 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
     uint64_t start_offset = m_audio_data_offset;
     
     // Optimize for short-distance seeks from current position
-    uint64_t current_distance = (m_current_sample > target_sample) ? 
-                               (m_current_sample - target_sample) : 
-                               (target_sample - m_current_sample);
+    uint64_t current_sample = m_current_sample.load();
+    uint64_t current_distance = (current_sample > target_sample) ? 
+                               (current_sample - target_sample) : 
+                               (target_sample - current_sample);
     
     // If target is close to current position and we're ahead, start from current position
     const uint64_t short_seek_threshold = m_streaminfo.max_block_size * 10;  // 10 blocks
     
-    if (current_distance <= short_seek_threshold && m_current_sample <= target_sample) {
-        start_sample = m_current_sample;
+    if (current_distance <= short_seek_threshold && current_sample <= target_sample) {
+        start_sample = current_sample;
         start_offset = m_current_offset;
         Debug::log("flac", "Short-distance seek: starting from current position (sample ", 
                   start_sample, ", offset ", start_offset, ")");
@@ -2683,11 +2810,11 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
     // Linear search parameters
     const uint32_t max_frames_to_parse = 10000;  // Prevent runaway parsing
     uint32_t frames_parsed = 0;
-    uint64_t current_sample = start_sample;
+    uint64_t linear_current_sample = start_sample;
     
-    Debug::log("flac", "Starting linear search from sample ", current_sample, " to target ", target_sample);
+    Debug::log("flac", "Starting linear search from sample ", linear_current_sample, " to target ", target_sample);
     
-    while (current_sample < target_sample && frames_parsed < max_frames_to_parse) {
+    while (linear_current_sample < target_sample && frames_parsed < max_frames_to_parse) {
         FLACFrame frame;
         
         // Find the next frame
@@ -2743,7 +2870,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
         }
         
         // Continue to next frame
-        current_sample = frame_end_sample;
+        linear_current_sample = frame_end_sample;
         
         // Skip to next frame position
         if (frame.frame_size > 0) {
@@ -2775,8 +2902,8 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
         return false;
     }
     
-    if (current_sample < target_sample) {
-        Debug::log("flac", "Linear search reached end of stream at sample ", current_sample, 
+    if (linear_current_sample < target_sample) {
+        Debug::log("flac", "Linear search reached end of stream at sample ", linear_current_sample, 
                   " (target was ", target_sample, ")");
         
         // Position at the last valid position we found
@@ -3896,4 +4023,19 @@ void FLACDemuxer::optimizeForNetworkStreaming()
     } else {
         Debug::log("flac", "Local file detected, using standard optimizations");
     }
+}
+
+// Thread safety helper methods
+
+void FLACDemuxer::setErrorState(bool error_state)
+{
+    m_error_state.store(error_state);
+    if (error_state) {
+        Debug::log("flac", "FLACDemuxer error state set to true");
+    }
+}
+
+bool FLACDemuxer::getErrorState() const
+{
+    return m_error_state.load();
 }

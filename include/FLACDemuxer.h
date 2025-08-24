@@ -211,9 +211,16 @@ struct FLACPicture {
  * - Efficient seeking using FLAC's built-in seek table or sample-accurate seeking
  * - Large file support for high-resolution and long-duration FLAC files
  * - Integration with the modern demuxer/codec architecture
+ * - Thread-safe concurrent access for seeking and reading operations
  * 
- * @thread_safety Individual instances are NOT thread-safe. Use separate instances
- *                for concurrent access or implement external synchronization.
+ * @thread_safety This class is thread-safe. Multiple threads can safely call
+ *                public methods concurrently. Internal synchronization uses
+ *                the public/private lock pattern to prevent deadlocks.
+ * 
+ * Lock acquisition order (to prevent deadlocks):
+ * 1. m_state_mutex (for container state and position tracking)
+ * 2. m_metadata_mutex (for metadata access)
+ * 3. IOHandler locks (managed by IOHandler implementation)
  */
 class FLACDemuxer : public Demuxer {
 public:
@@ -242,12 +249,14 @@ public:
     /**
      * @brief Parse FLAC container headers and identify streams
      * @return true if container was successfully parsed, false on error
+     * @thread_safety Thread-safe
      */
     bool parseContainer() override;
     
     /**
      * @brief Get information about all streams in the container
      * @return Vector containing single StreamInfo for FLAC audio stream
+     * @thread_safety Thread-safe
      */
     std::vector<StreamInfo> getStreams() const override;
     
@@ -255,12 +264,14 @@ public:
      * @brief Get information about a specific stream
      * @param stream_id Stream ID (should be 1 for FLAC)
      * @return StreamInfo for the requested stream
+     * @thread_safety Thread-safe
      */
     StreamInfo getStreamInfo(uint32_t stream_id) const override;
     
     /**
      * @brief Read the next chunk of FLAC frame data
      * @return MediaChunk containing complete FLAC frame with headers
+     * @thread_safety Thread-safe
      */
     MediaChunk readChunk() override;
     
@@ -268,6 +279,7 @@ public:
      * @brief Read the next chunk from a specific stream
      * @param stream_id Stream ID (should be 1 for FLAC)
      * @return MediaChunk containing FLAC frame data
+     * @thread_safety Thread-safe
      */
     MediaChunk readChunk(uint32_t stream_id) override;
     
@@ -275,62 +287,84 @@ public:
      * @brief Seek to a specific time position
      * @param timestamp_ms Target time position in milliseconds
      * @return true if seek was successful, false on error
+     * @thread_safety Thread-safe
      */
     bool seekTo(uint64_t timestamp_ms) override;
     
     /**
      * @brief Check if we've reached the end of the FLAC stream
      * @return true if at end of file
+     * @thread_safety Thread-safe
      */
     bool isEOF() const override;
     
     /**
      * @brief Get total duration of the FLAC file in milliseconds
      * @return Duration in milliseconds, 0 if unknown
+     * @thread_safety Thread-safe
      */
     uint64_t getDuration() const override;
     
     /**
      * @brief Get current position in milliseconds
      * @return Current playback position in milliseconds
+     * @thread_safety Thread-safe
      */
     uint64_t getPosition() const override;
     
     /**
      * @brief Get current position in samples
      * @return Current playback position in samples
+     * @thread_safety Thread-safe
      */
     uint64_t getCurrentSample() const;
 
 private:
-    // FLAC container state
+    // Thread safety - Lock acquisition order documented above
+    mutable std::mutex m_state_mutex;    ///< Protects container state and position tracking
+    mutable std::mutex m_metadata_mutex; ///< Protects metadata access
+    mutable std::atomic<bool> m_error_state{false}; ///< Thread-safe error state flag
+    
+    // FLAC container state (protected by m_state_mutex)
     bool m_container_parsed = false;     ///< True if container has been successfully parsed
     uint64_t m_file_size = 0;           ///< Total file size in bytes
     uint64_t m_audio_data_offset = 0;   ///< File offset where FLAC frames start
     uint64_t m_current_offset = 0;      ///< Current read position in file
     
-    // FLAC metadata
+    // FLAC metadata (protected by m_metadata_mutex)
     FLACStreamInfo m_streaminfo;                           ///< STREAMINFO block data
     std::vector<FLACSeekPoint> m_seektable;               ///< SEEKTABLE entries
     std::map<std::string, std::string> m_vorbis_comments; ///< Vorbis comments metadata
     std::vector<FLACPicture> m_pictures;                  ///< Embedded pictures
     
-    // Frame parsing state
-    uint64_t m_current_sample = 0;      ///< Current sample position in stream
-    uint32_t m_last_block_size = 0;     ///< Block size of last parsed frame
+    // Frame parsing state (protected by m_state_mutex)
+    std::atomic<uint64_t> m_current_sample{0};      ///< Current sample position in stream (atomic for fast reads)
+    uint32_t m_last_block_size = 0;                 ///< Block size of last parsed frame
     
-    // Memory management state
+    // Memory management state (protected by m_state_mutex)
     mutable std::vector<uint8_t> m_frame_buffer;     ///< Reusable buffer for frame reading
     mutable std::vector<uint8_t> m_sync_buffer;      ///< Reusable buffer for sync search
     size_t m_memory_usage_bytes = 0;                 ///< Current memory usage estimate
     
-    // Performance optimization state
+    // Performance optimization state (protected by m_state_mutex)
     bool m_seek_table_sorted = false;                ///< True if seek table is sorted for binary search
     uint64_t m_last_seek_position = 0;               ///< Last successful seek position for optimization
     bool m_is_network_stream = false;                ///< True if this appears to be a network stream
     mutable std::vector<uint8_t> m_readahead_buffer; ///< Read-ahead buffer for network streams
     
-    // Private helper methods (to be implemented)
+    // Thread-safe public method implementations (assume locks are held)
+    bool parseContainer_unlocked();
+    std::vector<StreamInfo> getStreams_unlocked() const;
+    StreamInfo getStreamInfo_unlocked(uint32_t stream_id) const;
+    MediaChunk readChunk_unlocked();
+    MediaChunk readChunk_unlocked(uint32_t stream_id);
+    bool seekTo_unlocked(uint64_t timestamp_ms);
+    bool isEOF_unlocked() const;
+    uint64_t getDuration_unlocked() const;
+    uint64_t getPosition_unlocked() const;
+    uint64_t getCurrentSample_unlocked() const;
+    
+    // Private helper methods (assume appropriate locks are held)
     bool parseMetadataBlocks();
     bool parseMetadataBlockHeader(FLACMetadataBlock& block);
     bool parseStreamInfoBlock(const FLACMetadataBlock& block);
@@ -354,6 +388,10 @@ private:
     
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;
+    
+    // Thread safety helper methods
+    void setErrorState(bool error_state);
+    bool getErrorState() const;
     
     // Error handling and recovery methods
     bool attemptStreamInfoRecovery();
