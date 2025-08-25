@@ -145,3 +145,10 @@ tests/debug_bit_extraction
 tests/debug_dual_flac
 tests/test_iohandler_seek_comprehensive
 tests/test_iohandler_buffer_analysis
+tests/test_system_wide_threading_integration
+tests/test_system_wide_threading_integration
+tests/test_threading_performance_regression
+debug_test_data
+debug_flac_bits
+debug_gdb_script.gdb
+debug_streaminfo_packing
