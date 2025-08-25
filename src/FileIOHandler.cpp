@@ -295,8 +295,8 @@ size_t FileIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
             std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
             position_buffered = isPositionBuffered(read_pos);
             if (position_buffered) {
-                // Read from buffer
-                buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+                // Read from buffer using the logical read position
+                buffer_bytes_read = readFromBufferAtPosition(dest_buffer + total_bytes_read, remaining_bytes, read_pos);
             }
         }
         
@@ -340,10 +340,10 @@ size_t FileIOHandler::read_unlocked(void* buffer, size_t size, size_t count) {
                 break;
             }
             
-            // Now read from the newly filled buffer
+            // Now read from the newly filled buffer using the logical read position
             {
                 std::shared_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
-                buffer_bytes_read = readFromBuffer(dest_buffer + total_bytes_read, remaining_bytes);
+                buffer_bytes_read = readFromBufferAtPosition(dest_buffer + total_bytes_read, remaining_bytes, read_pos);
             }
             total_bytes_read += buffer_bytes_read;
             
@@ -539,10 +539,13 @@ off_t FileIOHandler::tell() {
 }
 
 off_t FileIOHandler::tell_unlocked() {
-    // Acquire file-specific lock for this operation
-    std::lock_guard<std::mutex> file_lock(m_file_mutex);
+    // Return the logical position, not the physical file position
+    // The physical file position may be ahead due to buffering
+    off_t logical_position = m_position.load();
     
-    return tell_internal();
+    Debug::log("io", "FileIOHandler::tell_unlocked() - Returning logical position: ", logical_position);
+    
+    return logical_position;
 }
 
 off_t FileIOHandler::tell_internal() {
@@ -1101,27 +1104,32 @@ bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
 }
 
 size_t FileIOHandler::readFromBuffer(void* buffer, size_t bytes_requested) {
+    // Use current position for backward compatibility
+    return readFromBufferAtPosition(buffer, bytes_requested, m_position.load());
+}
+
+size_t FileIOHandler::readFromBufferAtPosition(void* buffer, size_t bytes_requested, off_t logical_position) {
     if (m_buffer_valid_bytes == 0 || m_buffer_file_position < 0) {
-        Debug::log("io", "FileIOHandler::readFromBuffer() - Buffer is empty or invalid");
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Buffer is empty or invalid");
         return 0;
     }
     
-    // Calculate current position relative to buffer
-    off_t current_buffer_offset = m_position - m_buffer_file_position;
+    // Calculate logical position relative to buffer
+    off_t buffer_offset = logical_position - m_buffer_file_position;
     
-    if (current_buffer_offset < 0 || static_cast<size_t>(current_buffer_offset) >= m_buffer_valid_bytes) {
-        Debug::log("io", "FileIOHandler::readFromBuffer() - Current position not in buffer");
+    if (buffer_offset < 0 || static_cast<size_t>(buffer_offset) >= m_buffer_valid_bytes) {
+        Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Position ", logical_position, " not in buffer (buffer covers ", m_buffer_file_position, " to ", m_buffer_file_position + m_buffer_valid_bytes - 1, ")");
         return 0;
     }
     
     // Calculate how many bytes we can read
-    size_t available_bytes = m_buffer_valid_bytes - static_cast<size_t>(current_buffer_offset);
+    size_t available_bytes = m_buffer_valid_bytes - static_cast<size_t>(buffer_offset);
     size_t bytes_to_copy = std::min(bytes_requested, available_bytes);
     
     // Copy data from buffer
-    std::memcpy(buffer, m_read_buffer.data() + static_cast<size_t>(current_buffer_offset), bytes_to_copy);
+    std::memcpy(buffer, m_read_buffer.data() + static_cast<size_t>(buffer_offset), bytes_to_copy);
     
-    Debug::log("io", "FileIOHandler::readFromBuffer() - Read ", bytes_to_copy, " bytes from buffer (available: ", available_bytes, ")");
+    Debug::log("io", "FileIOHandler::readFromBufferAtPosition() - Read ", bytes_to_copy, " bytes from buffer at logical position ", logical_position, " (available: ", available_bytes, ")");
     
     return bytes_to_copy;
 }

@@ -234,6 +234,15 @@ private:
     size_t readFromBuffer(void* buffer, size_t bytes_requested);
     
     /**
+     * @brief Read data from internal buffer at a specific logical position
+     * @param buffer Destination buffer
+     * @param bytes_requested Number of bytes to read
+     * @param logical_position The logical file position to read from
+     * @return Number of bytes actually read from buffer
+     */
+    size_t readFromBufferAtPosition(void* buffer, size_t bytes_requested, off_t logical_position);
+    
+    /**
      * @brief Check if a file position is currently buffered
      * @param file_position Position to check
      * @return true if position is in current buffer, false otherwise
