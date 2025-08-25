@@ -143,3 +143,5 @@ tests/debug_flac_simple
 tests/debug_real_flac
 tests/debug_bit_extraction
 tests/debug_dual_flac
+tests/test_iohandler_seek_comprehensive
+tests/test_iohandler_buffer_analysis
