@@ -26,13 +26,39 @@ noinst_LIBRARIES = libtest_utilities.a
 libtest_utilities_a_SOURCES = test_framework.cpp test_rect_utilities.cpp
 libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
-# Test harness executable
+# Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness
+noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
+else
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction
 endif
+
+debug_dual_flac_SOURCES = debug_dual_flac.cpp
+debug_dual_flac_CPPFLAGS = $(AM_CPPFLAGS)
+debug_dual_flac_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+debug_bit_extraction_SOURCES = debug_bit_extraction.cpp
+debug_bit_extraction_CPPFLAGS = $(AM_CPPFLAGS)
+debug_bit_extraction_LDADD = $(AM_LDFLAGS)
 
 # Individual test executables
 check_PROGRAMS = \
@@ -141,10 +167,54 @@ test_harness_integration_SOURCES = test_harness_integration.cpp
 test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
 test_iso_fragment_handler_SOURCES = test_iso_fragment_handler.cpp
-test_iso_fragment_handler_LDADD = $(top_builddir)/src/ISODemuxerFragmentHandler.o $(top_builddir)/src/ISODemuxer.o $(AM_LDFLAGS)
+test_iso_fragment_handler_LDADD = \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
 
 test_iso_fragmented_mp4_SOURCES = test_iso_fragmented_mp4.cpp
-test_iso_fragmented_mp4_LDADD = $(top_builddir)/src/ISODemuxerFragmentHandler.o $(top_builddir)/src/ISODemuxer.o $(AM_LDFLAGS)
+test_iso_fragmented_mp4_LDADD = \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
 
 test_iohandler_integration_simple_SOURCES = test_iohandler_integration_simple.cpp
 test_iohandler_integration_simple_LDADD = libtest_utilities.a \
@@ -590,6 +660,31 @@ $(top_builddir)/src/TagLibIOHandlerAdapter.o:
 # Build rules for Surface thread safety test dependencies
 $(top_builddir)/src/surface.o:
 	$(MAKE) -C $(top_builddir)/src surface.o
+
+# Build rules for ISO demuxer test dependencies
+$(top_builddir)/src/ISODemuxer.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxer.o
+
+$(top_builddir)/src/ISODemuxerFragmentHandler.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxerFragmentHandler.o
+
+$(top_builddir)/src/ISODemuxerBoxParser.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxerBoxParser.o
+
+$(top_builddir)/src/ISODemuxerSampleTableManager.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxerSampleTableManager.o
+
+$(top_builddir)/src/ISODemuxerSeekingEngine.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxerSeekingEngine.o
+
+$(top_builddir)/src/ISODemuxerMetadataExtractor.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxerMetadataExtractor.o
+
+$(top_builddir)/src/ISODemuxerStreamManager.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxerStreamManager.o
+
+$(top_builddir)/src/ISODemuxerErrorRecovery.o:
+	$(MAKE) -C $(top_builddir)/src ISODemuxerErrorRecovery.o
 
 # System-wide threading integration test
 test_system_wide_threading_integration_SOURCES = test_system_wide_threading_integration.cpp

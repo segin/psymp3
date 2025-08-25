@@ -138,3 +138,8 @@ tests/test_surface_thread_safety
 tests/test_surface_performance_regression
 tests/test_flac_demuxer_integration_comprehensive
 tests/test_flac_demuxer_unit_comprehensive
+tests/debug_flac_simple
+tests/debug_flac_simple
+tests/debug_real_flac
+tests/debug_bit_extraction
+tests/debug_dual_flac
