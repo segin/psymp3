@@ -344,7 +344,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         return MediaChunk{};
     }
     
-    if (isEOF()) {
+    if (isEOF_unlocked()) {
         Debug::log("flac", "At end of file");
         return MediaChunk{};
     }
@@ -714,6 +714,7 @@ uint64_t FLACDemuxer::getPosition_unlocked() const
 
 uint64_t FLACDemuxer::getCurrentSample() const
 {
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
     return getCurrentSample_unlocked();
 }
 
@@ -749,17 +750,6 @@ bool FLACDemuxer::parseMetadataBlockHeader(FLACMetadataBlock& block)
     // Read 4-byte metadata block header
     long pos_before_header = m_handler->tell();
     std::cout << "FLAC DEBUG: Position before reading metadata header: " << pos_before_header << std::endl;
-    
-    // WORKAROUND: FileIOHandler buffering issue - ensure we're at position 4 after fLaC marker
-    if (pos_before_header != 4) {
-        std::cout << "FLAC DEBUG: Position mismatch after fLaC marker, seeking to position 4" << std::endl;
-        if (m_handler->seek(4, SEEK_SET) != 0) {
-            Debug::log("flac", "Failed to seek to metadata block header position");
-            return false;
-        }
-        pos_before_header = m_handler->tell();
-        std::cout << "FLAC DEBUG: Position after corrective seek: " << pos_before_header << std::endl;
-    }
     
     uint8_t header[4];
     if (m_handler->read(header, 1, 4) != 4) {
@@ -1045,19 +1035,6 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
     std::cout << "FLAC DEBUG: File position before reading STREAMINFO data: " << current_pos << std::endl;
     std::cout << "FLAC DEBUG: Expected data_offset: " << block.data_offset << std::endl;
     
-    // WORKAROUND: FileIOHandler buffering issue - seek to correct position
-    // For STREAMINFO, the data should start at position 8 (4-byte fLaC + 4-byte header)
-    long expected_pos = 8;
-    if (current_pos != expected_pos) {
-        std::cout << "FLAC DEBUG: Position mismatch, seeking to correct offset: " << expected_pos << std::endl;
-        if (m_handler->seek(expected_pos, SEEK_SET) != 0) {
-            reportError("IO", "Failed to seek to STREAMINFO data offset");
-            return false;
-        }
-        current_pos = m_handler->tell();
-        std::cout << "FLAC DEBUG: Position after corrective seek: " << current_pos << std::endl;
-    }
-    
     // Read STREAMINFO data
     uint8_t data[34];
     if (m_handler->read(data, 1, 34) != 34) {
@@ -1075,6 +1052,9 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
     m_streaminfo.max_block_size = (static_cast<uint16_t>(data[2]) << 8) | 
                                   static_cast<uint16_t>(data[3]);
     
+    std::cout << "FLAC DEBUG: Min block size: " << m_streaminfo.min_block_size << std::endl;
+    std::cout << "FLAC DEBUG: Max block size: " << m_streaminfo.max_block_size << std::endl;
+    
     // Minimum frame size (24 bits)
     m_streaminfo.min_frame_size = (static_cast<uint32_t>(data[4]) << 16) |
                                   (static_cast<uint32_t>(data[5]) << 8) |
@@ -1088,34 +1068,29 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
     // Sample rate (20 bits), channels (3 bits), bits per sample (5 bits)
     // Packed across bytes 10-13 according to RFC 9639
     
-    // Build full 32-bit packed value from bytes 10-13
-    uint32_t full_packed = (static_cast<uint32_t>(data[10]) << 24) |
-                           (static_cast<uint32_t>(data[11]) << 16) |
-                           (static_cast<uint32_t>(data[12]) << 8) |
-                           static_cast<uint32_t>(data[13]);
-    
     // Debug output using std::cout to bypass Debug::log system
     std::cout << "FLAC DEBUG: Raw bytes 10-13: 0x" << std::hex 
               << static_cast<int>(data[10]) << " 0x" << static_cast<int>(data[11]) 
               << " 0x" << static_cast<int>(data[12]) << " 0x" << static_cast<int>(data[13]) 
               << std::dec << std::endl;
-    std::cout << "FLAC DEBUG: Full packed value: 0x" << std::hex << full_packed << std::dec << std::endl;
     
-    // Sample rate: top 20 bits
-    m_streaminfo.sample_rate = (full_packed >> 12) & 0xFFFFF;
+    // Sample rate (20 bits, big-endian) - bytes 10-12 + 4 bits of byte 13
+    m_streaminfo.sample_rate = (static_cast<uint32_t>(data[10]) << 12) |
+                               (static_cast<uint32_t>(data[11]) << 4) |
+                               ((static_cast<uint32_t>(data[12]) >> 4) & 0x0F);
     
-    // Channels: next 3 bits + 1
-    m_streaminfo.channels = ((full_packed >> 9) & 0x07) + 1;
+    // Channels (3 bits) - bits 1-3 of byte 12, add 1
+    m_streaminfo.channels = ((data[12] >> 1) & 0x07) + 1;
     
-    // Bits per sample: next 5 bits + 1
-    m_streaminfo.bits_per_sample = ((full_packed >> 4) & 0x1F) + 1;
+    // Bits per sample (5 bits) - bit 0 of byte 12 + bits 4-7 of byte 13, add 1
+    m_streaminfo.bits_per_sample = (((data[12] & 0x01) << 4) | ((data[13] >> 4) & 0x0F)) + 1;
     
     std::cout << "FLAC DEBUG: Extracted sample rate: " << m_streaminfo.sample_rate << std::endl;
     std::cout << "FLAC DEBUG: Extracted channels: " << static_cast<int>(m_streaminfo.channels) << std::endl;
     std::cout << "FLAC DEBUG: Extracted bits per sample: " << static_cast<int>(m_streaminfo.bits_per_sample) << std::endl;
     
-    // Total samples (36 bits): bottom 4 bits of packed value + bytes 14-17
-    m_streaminfo.total_samples = (static_cast<uint64_t>(full_packed & 0x0F) << 32) |
+    // Total samples (36 bits): bottom 4 bits of byte 13 + bytes 14-17
+    m_streaminfo.total_samples = (static_cast<uint64_t>(data[13] & 0x0F) << 32) |
                                  (static_cast<uint64_t>(data[14]) << 24) |
                                  (static_cast<uint64_t>(data[15]) << 16) |
                                  (static_cast<uint64_t>(data[16]) << 8) |

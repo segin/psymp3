@@ -140,19 +140,19 @@ public:
         data.push_back(0x00);
         data.push_back(0x00);
         
-        // Sample rate (20 bits) = 44100, channels (3 bits) = 2, bits per sample (5 bits) = 16
-        uint32_t sr_ch_bps = (44100 << 12) | (1 << 9) | (15); // 2 channels = 1, 16 bits = 15
+        // Sample rate (20 bits) = 44100, channels (3 bits) = 2-1, bits per sample (5 bits) = 16-1, total samples high (4 bits) = 0
+        uint32_t sr_ch_bps = (44100 << 12) | ((2-1) << 9) | ((16-1) << 4) | 0;
+        data.push_back((sr_ch_bps >> 24) & 0xFF);
         data.push_back((sr_ch_bps >> 16) & 0xFF);
         data.push_back((sr_ch_bps >> 8) & 0xFF);
         data.push_back(sr_ch_bps & 0xFF);
         
-        // Total samples (36 bits) = 1000000
+        // Total samples (36 bits) = 1000000 (low 32 bits, high 4 bits are in the previous word)
         uint64_t total_samples = 1000000;
-        data.push_back((total_samples >> 28) & 0xFF);
-        data.push_back((total_samples >> 20) & 0xFF);
-        data.push_back((total_samples >> 12) & 0xFF);
-        data.push_back((total_samples >> 4) & 0xFF);
-        data.push_back((total_samples << 4) & 0xF0);
+        data.push_back((total_samples >> 24) & 0xFF);
+        data.push_back((total_samples >> 16) & 0xFF);
+        data.push_back((total_samples >> 8) & 0xFF);
+        data.push_back(total_samples & 0xFF);
         
         // MD5 signature (16 bytes) - all zeros for test
         for (int i = 0; i < 16; i++) {
@@ -300,18 +300,27 @@ private:
         data.insert(data.end(), {0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
         
         // Sample rate, channels, bits per sample
-        uint32_t sr_ch_bps = (44100 << 12) | (1 << 9) | (15);
-        data.push_back((sr_ch_bps >> 16) & 0xFF);
-        data.push_back((sr_ch_bps >> 8) & 0xFF);
-        data.push_back(sr_ch_bps & 0xFF);
+        // FLAC format according to RFC 9639:
+        // Byte 10: sample_rate[19:12]
+        // Byte 11: sample_rate[11:4] 
+        // Byte 12: sample_rate[3:0] + channels[2:0] + bits_per_sample[4]
+        // Byte 13: bits_per_sample[3:0] + total_samples[35:32]
+        uint32_t sample_rate = 44100;      // 0xAC44
+        uint32_t channels_minus_1 = 1;     // 2 channels - 1
+        uint32_t bits_per_sample_minus_1 = 15; // 16 bits - 1
         
-        // Total samples
+        data.push_back((sample_rate >> 12) & 0xFF);  // Byte 10: 0x0A
+        data.push_back((sample_rate >> 4) & 0xFF);   // Byte 11: 0xC4
+        data.push_back(((sample_rate & 0x0F) << 4) | (channels_minus_1 << 1) | ((bits_per_sample_minus_1 >> 4) & 0x01)); // Byte 12: 0x42
+        // Total samples (36 bits): bottom 4 bits of byte 13 + bytes 14-17
         uint64_t total_samples = 1000000;
-        data.push_back((total_samples >> 28) & 0xFF);
-        data.push_back((total_samples >> 20) & 0xFF);
-        data.push_back((total_samples >> 12) & 0xFF);
-        data.push_back((total_samples >> 4) & 0xFF);
-        data.push_back((total_samples << 4) & 0xF0);
+        data.push_back(((bits_per_sample_minus_1 & 0x0F) << 4) | ((total_samples >> 32) & 0x0F)); // Byte 13: bits_per_sample + total_samples[35:32]
+        
+        // Total samples continued (bytes 14-17)
+        data.push_back((total_samples >> 24) & 0xFF);  // Byte 14
+        data.push_back((total_samples >> 16) & 0xFF);  // Byte 15
+        data.push_back((total_samples >> 8) & 0xFF);   // Byte 16
+        data.push_back(total_samples & 0xFF);          // Byte 17
         
         // MD5 signature (16 bytes of zeros)
         for (int i = 0; i < 16; i++) {
