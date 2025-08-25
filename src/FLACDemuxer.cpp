@@ -750,6 +750,17 @@ bool FLACDemuxer::parseMetadataBlockHeader(FLACMetadataBlock& block)
     long pos_before_header = m_handler->tell();
     std::cout << "FLAC DEBUG: Position before reading metadata header: " << pos_before_header << std::endl;
     
+    // WORKAROUND: FileIOHandler buffering issue - ensure we're at position 4 after fLaC marker
+    if (pos_before_header != 4) {
+        std::cout << "FLAC DEBUG: Position mismatch after fLaC marker, seeking to position 4" << std::endl;
+        if (m_handler->seek(4, SEEK_SET) != 0) {
+            Debug::log("flac", "Failed to seek to metadata block header position");
+            return false;
+        }
+        pos_before_header = m_handler->tell();
+        std::cout << "FLAC DEBUG: Position after corrective seek: " << pos_before_header << std::endl;
+    }
+    
     uint8_t header[4];
     if (m_handler->read(header, 1, 4) != 4) {
         Debug::log("flac", "Failed to read metadata block header");
@@ -1033,6 +1044,19 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
     long current_pos = m_handler->tell();
     std::cout << "FLAC DEBUG: File position before reading STREAMINFO data: " << current_pos << std::endl;
     std::cout << "FLAC DEBUG: Expected data_offset: " << block.data_offset << std::endl;
+    
+    // WORKAROUND: FileIOHandler buffering issue - seek to correct position
+    // For STREAMINFO, the data should start at position 8 (4-byte fLaC + 4-byte header)
+    long expected_pos = 8;
+    if (current_pos != expected_pos) {
+        std::cout << "FLAC DEBUG: Position mismatch, seeking to correct offset: " << expected_pos << std::endl;
+        if (m_handler->seek(expected_pos, SEEK_SET) != 0) {
+            reportError("IO", "Failed to seek to STREAMINFO data offset");
+            return false;
+        }
+        current_pos = m_handler->tell();
+        std::cout << "FLAC DEBUG: Position after corrective seek: " << current_pos << std::endl;
+    }
     
     // Read STREAMINFO data
     uint8_t data[34];
