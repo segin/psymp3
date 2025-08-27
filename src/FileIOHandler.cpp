@@ -495,28 +495,44 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
 #endif
     
     if (result == 0) {
-        // Seek successful, update position
-        off_t new_position = tell_internal();
-        if (new_position >= 0) {
-            updatePosition(new_position);
-            // Clear EOF flag if we've moved away from the end
-            updateEofState(false);
-            
-            // Invalidate buffer since we've changed position (need buffer lock)
-            {
-                std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
-                invalidateBuffer();
-            }
-            
-            // Reset access pattern tracking after seek
-            m_last_read_position = new_position;
-            m_sequential_access = false;
-            
-            Debug::log("io", "FileIOHandler::seek_unlocked() - Successful seek to position: ", new_position);
-        } else {
-            // tell_internal() failed after successful seek - this shouldn't happen
-            Debug::log("io", "FileIOHandler::seek() - Warning: seek succeeded but tell_internal() failed");
+        // Seek successful, calculate the logical position based on seek parameters
+        off_t new_logical_position;
+        switch (whence) {
+            case SEEK_SET:
+                new_logical_position = offset;
+                break;
+            case SEEK_CUR:
+                new_logical_position = m_position.load() + offset;
+                break;
+            case SEEK_END:
+                // For SEEK_END, we need to get the file size
+                if (m_cached_file_size >= 0) {
+                    new_logical_position = m_cached_file_size + offset;
+                } else {
+                    // Fall back to tell_internal for SEEK_END if we don't know file size
+                    new_logical_position = tell_internal();
+                }
+                break;
+            default:
+                new_logical_position = m_position.load(); // Shouldn't happen due to earlier validation
+                break;
         }
+        
+        updatePosition(new_logical_position);
+        // Clear EOF flag if we've moved away from the end
+        updateEofState(false);
+        
+        // Invalidate buffer since we've changed position (need buffer lock)
+        {
+            std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
+            invalidateBuffer();
+        }
+        
+        // Reset access pattern tracking after seek
+        m_last_read_position = new_logical_position;
+        m_sequential_access = false;
+        
+        Debug::log("io", "FileIOHandler::seek_unlocked() - Successful seek to logical position: ", new_logical_position);
     } else {
         // Seek failed
         updateErrorState(errno, "Seek operation failed");
@@ -582,9 +598,10 @@ off_t FileIOHandler::tell_internal() {
 #endif
     
     if (position >= 0) {
-        // Update cached position
-        updatePosition(position);
-        Debug::log("io", "FileIOHandler::tell_unlocked() - Current position: ", position);
+        // NOTE: Do NOT call updatePosition() here! 
+        // tell_internal() returns the physical file position, which may be ahead due to buffering.
+        // The logical position is tracked separately in m_position.
+        Debug::log("io", "FileIOHandler::tell_internal() - Physical file position: ", position);
     }
     
     return position;
