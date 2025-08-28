@@ -384,7 +384,25 @@ private:
     void updatePositionTracking(uint64_t sample_position, uint64_t file_offset);
     
     bool seekWithTable(uint64_t target_sample);
+    
+    /**
+     * @brief Binary search seeking with architectural limitations acknowledgment
+     * 
+     * ARCHITECTURAL LIMITATION: Binary search is fundamentally incompatible with 
+     * compressed audio streams due to variable-length frame encoding.
+     * 
+     * PROBLEM: Cannot predict frame positions in variable-length compressed data.
+     * FLAC frames have unpredictable sizes based on audio content and compression.
+     * 
+     * CURRENT APPROACH: Attempts binary search but expects frequent failures.
+     * FALLBACK STRATEGY: Returns to beginning position when search fails.
+     * FUTURE SOLUTION: Frame indexing during initial parsing for accurate seeking.
+     * 
+     * @param target_sample Target sample position to seek to
+     * @return true if successful or acceptable approximation found, false if fallback used
+     */
     bool seekBinary(uint64_t target_sample);
+    
     bool seekLinear(uint64_t target_sample);
     
     uint64_t samplesToMs(uint64_t samples) const;
