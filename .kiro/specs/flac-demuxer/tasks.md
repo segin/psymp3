@@ -271,7 +271,7 @@
   - Ensure proper cleanup during multi-threaded destruction
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [ ] 12.1 Implement Public/Private Lock Pattern (CRITICAL)
+- [-] 12.1 Implement Public/Private Lock Pattern (CRITICAL)
   - **Priority 1**: Create public methods that acquire locks and call private `_unlocked` implementations
   - **Priority 2**: Ensure all internal method calls use `_unlocked` versions to prevent deadlocks
   - **Priority 3**: Document lock acquisition order to prevent deadlock scenarios
