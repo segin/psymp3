@@ -376,6 +376,7 @@ private:
     bool findNextFrame(FLACFrame& frame);
     bool parseFrameHeader(FLACFrame& frame);
     bool validateFrameHeader(const FLACFrame& frame);
+    bool validateFrameHeaderAt(uint64_t file_offset);
     uint32_t calculateFrameSize(const FLACFrame& frame);
     
     bool readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data);
