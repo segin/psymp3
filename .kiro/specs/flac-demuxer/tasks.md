@@ -86,7 +86,7 @@
   - Create calculateFrameSize() for frame size estimation
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
 
-- [ ] 4.1 Implement Efficient Frame Boundary Detection (CRITICAL)
+- [x] 4.1 Implement Efficient Frame Boundary Detection (CRITICAL)
   - **Priority 1**: Limit frame boundary search scope to 512 bytes maximum to prevent excessive I/O
   - **Priority 2**: Use 16-byte search increments instead of 2-byte for faster detection
   - **Priority 3**: Implement conservative fallback using STREAMINFO minimum frame size when detection fails
@@ -101,7 +101,7 @@
   - Validate frame parameters against STREAMINFO for consistency
   - _Requirements: 3.2, 3.4, 3.5, 3.8_
 
-- [ ] 4.3 Implement Accurate Frame Size Calculation (CRITICAL)
+- [x] 4.3 Implement Accurate Frame Size Calculation (CRITICAL)
   - **Priority 1**: Use STREAMINFO minimum frame size as primary estimate
   - **Priority 2**: For fixed block size streams, return minimum frame size directly without scaling
   - **Priority 3**: Avoid complex theoretical calculations that produce inaccurate estimates

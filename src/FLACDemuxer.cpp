@@ -1698,7 +1698,7 @@ bool FLACDemuxer::skipMetadataBlock(const FLACMetadataBlock& block)
 
 bool FLACDemuxer::findNextFrame(FLACFrame& frame)
 {
-    Debug::log("flac", "FLACDemuxer::findNextFrame() - searching for FLAC frame sync");
+    Debug::log("flac", "[findNextFrame] Starting FLAC frame sync search");
     
     if (!m_handler) {
         reportError("IO", "No IOHandler available for frame sync detection");
@@ -1708,7 +1708,7 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     // Start searching from current position
     uint64_t search_start = m_current_offset;
     
-    Debug::log("flac", "Starting frame search from offset: ", search_start);
+    Debug::log("flac", "[findNextFrame] Starting frame search from offset: ", search_start);
     
     // Seek to search position
     if (m_handler->seek(static_cast<off_t>(search_start), SEEK_SET) != 0) {
@@ -1719,21 +1719,19 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     // Try to parse frame header at current position first
     frame.file_offset = search_start;
     if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
-        Debug::log("flac", "Valid FLAC frame found at current position ", search_start);
+        Debug::log("flac", "[findNextFrame] Valid FLAC frame found at current position ", search_start);
         m_current_offset = search_start;
         return true;
     }
     
-    // For performance, try optimized sync search first for local files
-    if (!m_is_network_stream && optimizedFrameSync(search_start, frame)) {
-        m_current_offset = frame.file_offset;
-        Debug::log("flac", "Found frame using optimized sync at offset: ", frame.file_offset);
-        return true;
-    }
+    // CRITICAL OPTIMIZATION: Limit search scope to 512 bytes maximum to prevent excessive I/O
+    const uint64_t MAX_SEARCH_SCOPE = 512;
     
-    // Fall back to standard sync search
-    // Use reusable sync buffer for efficient I/O
-    if (!ensureBufferCapacity(m_sync_buffer, SYNC_SEARCH_BUFFER_SIZE)) {
+    Debug::log("flac", "[findNextFrame] Frame not at current position, starting limited search (max ", MAX_SEARCH_SCOPE, " bytes)");
+    
+    // Use reusable sync buffer for efficient I/O - smaller buffer for limited search
+    const size_t EFFICIENT_BUFFER_SIZE = std::min(static_cast<size_t>(MAX_SEARCH_SCOPE), static_cast<size_t>(256));
+    if (!ensureBufferCapacity(m_sync_buffer, EFFICIENT_BUFFER_SIZE)) {
         reportError("Memory", "Failed to allocate sync search buffer");
         return false;
     }
@@ -1745,33 +1743,41 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     }
     
     uint64_t bytes_searched = 0;
-    const uint64_t max_search_distance = 1024 * 1024;  // Search up to 1MB for sync
     
-    while (bytes_searched < max_search_distance && !m_handler->eof()) {
-        // Read buffer of data
-        size_t bytes_read = m_handler->read(m_sync_buffer.data(), 1, SYNC_SEARCH_BUFFER_SIZE);
+    while (bytes_searched < MAX_SEARCH_SCOPE && !m_handler->eof()) {
+        // Read buffer of data - limit to remaining search scope
+        size_t bytes_to_read = std::min(EFFICIENT_BUFFER_SIZE, static_cast<size_t>(MAX_SEARCH_SCOPE - bytes_searched));
+        size_t bytes_read = m_handler->read(m_sync_buffer.data(), 1, bytes_to_read);
+        
         if (bytes_read < 2) {
             // Need at least 2 bytes for sync code
+            Debug::log("flac", "[findNextFrame] Insufficient data for sync search (", bytes_read, " bytes)");
             break;
         }
         
-        // Search for FLAC sync code in buffer
+        // CRITICAL OPTIMIZATION: Use 16-byte search increments instead of 2-byte for faster detection
+        const size_t SEARCH_INCREMENT = 16;
+        
+        // Search for FLAC sync code in buffer with optimized increments
         // FLAC sync code is 14 bits: 11111111111110xx (0xFFF8 to 0xFFFF)
-        for (size_t i = 0; i < bytes_read - 1; i++) {
-            uint16_t sync_candidate = (static_cast<uint16_t>(m_sync_buffer[i]) << 8) | 
-                                     static_cast<uint16_t>(m_sync_buffer[i + 1]);
+        for (size_t i = 0; i < bytes_read - 1; i += SEARCH_INCREMENT) {
+            // Ensure we don't go past buffer bounds
+            size_t actual_i = std::min(i, bytes_read - 2);
+            
+            uint16_t sync_candidate = (static_cast<uint16_t>(m_sync_buffer[actual_i]) << 8) | 
+                                     static_cast<uint16_t>(m_sync_buffer[actual_i + 1]);
             
             // Check if this matches FLAC sync pattern (0xFFF8 to 0xFFFF)
             if ((sync_candidate & 0xFFFC) == 0xFFF8) {
                 // Found potential sync code, validate frame header
-                uint64_t sync_position = search_start + bytes_searched + i;
+                uint64_t sync_position = search_start + bytes_searched + actual_i;
                 
-                Debug::log("flac", "Found potential sync code 0x", std::hex, sync_candidate, 
-                          std::dec, " at position ", sync_position, " (bytes_searched=", bytes_searched, ", i=", i, ")");
+                Debug::log("flac", "[findNextFrame] Found potential sync code 0x", std::hex, sync_candidate, 
+                          std::dec, " at position ", sync_position, " (increment search)");
                 
                 // Seek to this position and try to parse frame header
                 if (!m_handler->seek(static_cast<off_t>(sync_position), SEEK_SET)) {
-                    Debug::log("flac", "Failed to seek to sync position");
+                    Debug::log("flac", "[findNextFrame] Failed to seek to sync position");
                     continue;
                 }
                 
@@ -1788,50 +1794,74 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
                         validation_success = validateFrameHeader(frame);
                     }
                 } catch (const std::exception& e) {
-                    Debug::log("flac", "Exception during frame parsing at position ", sync_position, ": ", e.what());
+                    Debug::log("flac", "[findNextFrame] Exception during frame parsing at position ", sync_position, ": ", e.what());
                     parse_success = false;
                 } catch (...) {
-                    Debug::log("flac", "Unknown exception during frame parsing at position ", sync_position);
+                    Debug::log("flac", "[findNextFrame] Unknown exception during frame parsing at position ", sync_position);
                     parse_success = false;
                 }
                 
                 if (parse_success && validation_success) {
-                    Debug::log("flac", "Valid FLAC frame found at position ", sync_position);
+                    Debug::log("flac", "[findNextFrame] Valid FLAC frame found at position ", sync_position);
                     m_current_offset = sync_position;
                     return true;
                 } else {
                     if (!parse_success) {
-                        Debug::log("flac", "Frame header parsing failed at position ", sync_position);
+                        Debug::log("flac", "[findNextFrame] Frame header parsing failed at position ", sync_position);
                     } else {
-                        Debug::log("flac", "Frame header validation failed at position ", sync_position);
+                        Debug::log("flac", "[findNextFrame] Frame header validation failed at position ", sync_position);
                     }
                 }
                 
-                // Continue searching from next byte if this wasn't a valid frame
+                // Continue searching from next increment if this wasn't a valid frame
+            }
+            
+            // If we used the increment and reached the end, break
+            if (i + SEARCH_INCREMENT >= bytes_read - 1) {
+                break;
             }
         }
         
         bytes_searched += bytes_read;
         
-        // If we read less than SYNC_SEARCH_BUFFER_SIZE, we're at EOF
-        if (bytes_read < SYNC_SEARCH_BUFFER_SIZE) {
+        // If we read less than requested, we're at EOF or reached search limit
+        if (bytes_read < bytes_to_read) {
+            Debug::log("flac", "[findNextFrame] Reached EOF or search limit after ", bytes_searched, " bytes");
             break;
         }
         
-        // Overlap search to avoid missing sync codes at buffer boundaries
-        // Back up by 1 byte to ensure we don't miss a sync code split across buffers
-        if (bytes_read > 1) {
-            search_start = search_start + bytes_searched - 1;
-            bytes_searched = 1;  // Account for the overlap
-            
-            if (!m_handler->seek(static_cast<off_t>(search_start), SEEK_SET)) {
-                Debug::log("flac", "Failed to seek for overlapped search");
-                break;
-            }
+        // For limited search scope, don't do overlapped search - just continue
+        search_start += bytes_read;
+        
+        if (!m_handler->seek(static_cast<off_t>(search_start), SEEK_SET)) {
+            Debug::log("flac", "[findNextFrame] Failed to seek for continued search");
+            break;
         }
     }
     
-    Debug::log("flac", "No valid FLAC frame found after searching ", bytes_searched, " bytes");
+    Debug::log("flac", "[findNextFrame] No valid FLAC frame found in limited search scope (", bytes_searched, " bytes searched)");
+    
+    // CRITICAL OPTIMIZATION: Conservative fallback using STREAMINFO minimum frame size when detection fails
+    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
+        Debug::log("flac", "[findNextFrame] Using conservative fallback with STREAMINFO minimum frame size: ", m_streaminfo.min_frame_size, " bytes");
+        
+        // Position at original search start and create a conservative frame estimate
+        frame.file_offset = m_current_offset;
+        frame.frame_size = m_streaminfo.min_frame_size;
+        frame.block_size = m_streaminfo.min_block_size;
+        frame.sample_rate = m_streaminfo.sample_rate;
+        frame.channels = m_streaminfo.channels;
+        frame.bits_per_sample = m_streaminfo.bits_per_sample;
+        frame.variable_block_size = (m_streaminfo.min_block_size != m_streaminfo.max_block_size);
+        frame.sample_offset = m_current_sample.load();
+        
+        Debug::log("flac", "[findNextFrame] Conservative fallback frame created - size: ", frame.frame_size, 
+                  " bytes, block_size: ", frame.block_size, " samples");
+        
+        return true;
+    }
+    
+    Debug::log("flac", "[findNextFrame] No STREAMINFO available for conservative fallback");
     return false;
 }
 
@@ -2379,134 +2409,73 @@ bool FLACDemuxer::validateFrameHeaderAt(uint64_t file_offset)
 
 uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
 {
-    Debug::log("flac", "FLACDemuxer::calculateFrameSize() - estimating frame size");
+    Debug::log("flac", "[calculateFrameSize] Starting frame size estimation");
     
     if (!frame.isValid()) {
-        Debug::log("flac", "Cannot calculate size for invalid frame");
+        Debug::log("flac", "[calculateFrameSize] Cannot calculate size for invalid frame");
         return 0;
     }
     
-    uint32_t estimated_size = 0;
-    
-    // Method 1: Use STREAMINFO frame size hints if available (preferred)
+    // CRITICAL PRIORITY 1: Use STREAMINFO minimum frame size as primary estimate
     if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
-        // Start with minimum frame size - many FLAC files have highly compressed frames
-        estimated_size = m_streaminfo.min_frame_size;
+        uint32_t estimated_size = m_streaminfo.min_frame_size;
         
-        Debug::log("flac", "[calculateFrameSize] Frame size estimate from STREAMINFO min: ", estimated_size, " bytes");
-        Debug::log("flac", "Block size range: ", m_streaminfo.min_block_size, "-", m_streaminfo.max_block_size);
+        Debug::log("flac", "[calculateFrameSize] Using STREAMINFO minimum frame size: ", estimated_size, " bytes");
+        Debug::log("flac", "[calculateFrameSize] Block size range: ", m_streaminfo.min_block_size, "-", m_streaminfo.max_block_size);
         
-        // For fixed block size streams, frames are likely similar sizes
+        // CRITICAL PRIORITY 2: For fixed block size streams, return minimum frame size directly without scaling
         if (m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
-            Debug::log("flac", "[calculateFrameSize] Fixed block size detected, using minimum frame size: ", estimated_size, " bytes");
-            return estimated_size;
+            Debug::log("flac", "[calculateFrameSize] Fixed block size stream detected - using minimum frame size directly: ", estimated_size, " bytes");
+            return estimated_size;  // Return immediately for fixed block size - no scaling needed
         }
         
-        Debug::log("flac", "Variable block size detected, scaling estimate");
-        
-        // For variable block size, scale slightly based on block size ratio
-        if (m_streaminfo.max_block_size > 0 && frame.block_size > m_streaminfo.min_block_size) {
-            double block_ratio = static_cast<double>(frame.block_size) / m_streaminfo.max_block_size;
-            // Conservative scaling - don't increase too much
-            estimated_size = static_cast<uint32_t>(estimated_size * (1.0 + block_ratio * 0.5));
-            Debug::log("flac", "Scaled estimate based on block ratio: ", block_ratio, " -> ", estimated_size, " bytes");
+        // For variable block size streams, apply minimal conservative scaling only
+        if (frame.block_size > m_streaminfo.min_block_size && m_streaminfo.max_block_size > m_streaminfo.min_block_size) {
+            // Very conservative scaling - only increase slightly for larger blocks
+            double block_ratio = static_cast<double>(frame.block_size - m_streaminfo.min_block_size) / 
+                                (m_streaminfo.max_block_size - m_streaminfo.min_block_size);
+            
+            // Limit scaling to maximum 50% increase to avoid overestimation
+            uint32_t scaling_factor = static_cast<uint32_t>(estimated_size * block_ratio * 0.3);
+            estimated_size += scaling_factor;
+            
+            Debug::log("flac", "[calculateFrameSize] Variable block size - conservative scaling applied: ", 
+                      block_ratio, " ratio -> +", scaling_factor, " bytes = ", estimated_size, " bytes total");
         }
         
-        Debug::log("flac", "Final STREAMINFO-based estimate: ", estimated_size, " bytes");
+        Debug::log("flac", "[calculateFrameSize] Final STREAMINFO-based estimate: ", estimated_size, " bytes");
         return estimated_size;
     }
     
-    // Method 2: Calculate theoretical minimum size
-    // Frame header (variable, typically 4-16 bytes) + subframes + frame footer (2 bytes CRC-16)
+    // CRITICAL PRIORITY 3: Avoid complex theoretical calculations that produce inaccurate estimates
+    // Instead, use simple conservative fallback for highly compressed streams
     
-    uint32_t header_size = 4;  // Minimum header size
-    header_size += 2;  // UTF-8 frame/sample number (conservative estimate)
-    header_size += 1;  // CRC-8
+    Debug::log("flac", "[calculateFrameSize] No STREAMINFO available - using conservative fallback");
     
-    // Estimate subframe sizes
-    uint32_t subframe_size = 0;
+    // Conservative minimum estimate for highly compressed streams (can be as small as 14 bytes)
+    uint32_t conservative_estimate = 64;  // Conservative minimum that handles highly compressed frames
     
-    // Each subframe has a header (1-2 bytes) plus compressed audio data
-    uint32_t subframe_header_size = 2;  // Conservative estimate
-    
-    // Estimate compressed audio data size
-    // This is highly variable, but we can estimate based on bits per sample and compression ratio
-    
-    // Uncompressed size per subframe
-    uint32_t uncompressed_bits = frame.block_size * frame.bits_per_sample;
-    uint32_t uncompressed_bytes = (uncompressed_bits + 7) / 8;  // Round up to bytes
-    
-    // Assume compression ratio between 30-70% (FLAC typical range)
-    // Use 40% as more realistic estimate for typical music
-    uint32_t compressed_bytes = (uncompressed_bytes * 2) / 5;
-    
-    // Add subframe header
-    subframe_size = subframe_header_size + compressed_bytes;
-    
-    // Total for all channels
-    uint32_t total_subframes_size = subframe_size * frame.channels;
-    
-    uint32_t frame_footer_size = 2;  // CRC-16
-    
-    uint32_t theoretical_size = header_size + total_subframes_size + frame_footer_size;
-    
-    Debug::log("flac", "Theoretical frame size estimate: ", theoretical_size, " bytes");
-    Debug::log("flac", "  Header: ", header_size, " bytes");
-    Debug::log("flac", "  Subframes: ", total_subframes_size, " bytes (", frame.channels, " channels)");
-    Debug::log("flac", "  Footer: ", frame_footer_size, " bytes");
-    
-    // Method 3: Use previous frame size as hint (if available)
-    uint32_t previous_frame_estimate = 0;
-    if (m_last_block_size > 0) {
-        // Scale previous frame size based on block size ratio
-        double block_ratio = static_cast<double>(frame.block_size) / m_last_block_size;
-        // Use a conservative scaling factor
-        previous_frame_estimate = static_cast<uint32_t>(theoretical_size * block_ratio);
-        Debug::log("flac", "Previous frame size estimate: ", previous_frame_estimate, " bytes");
+    // Simple scaling based on block size if we have frame information
+    if (frame.block_size > 0 && frame.channels > 0) {
+        // Very simple estimate: assume 1 bit per sample after compression (highly conservative)
+        uint32_t simple_estimate = (frame.block_size * frame.channels) / 8;
+        
+        // Add minimal overhead for headers and footers
+        simple_estimate += 16;  // Frame header + footer overhead
+        
+        // Use the larger of conservative minimum and simple estimate
+        conservative_estimate = std::max(conservative_estimate, simple_estimate);
+        
+        Debug::log("flac", "[calculateFrameSize] Simple estimate based on frame parameters: ", simple_estimate, " bytes");
     }
     
-    // Choose the best estimate - prefer smaller estimates for better boundary detection
-    if (estimated_size > 0 && theoretical_size > 0) {
-        // Use the smaller of STREAMINFO-based and theoretical estimates
-        estimated_size = std::min(estimated_size, theoretical_size);
-        // But ensure it's at least the theoretical minimum
-        estimated_size = std::max(estimated_size, theoretical_size / 2);
-    } else if (previous_frame_estimate > 0) {
-        // Use previous frame estimate
-        estimated_size = previous_frame_estimate;
-    } else {
-        // Fall back to theoretical estimate
-        estimated_size = theoretical_size;
-    }
+    // CRITICAL PRIORITY 5: Handle highly compressed streams with frames as small as 14 bytes
+    // Ensure we don't underestimate too much, but also don't overestimate
+    conservative_estimate = std::max(conservative_estimate, static_cast<uint32_t>(14));  // Absolute minimum
+    conservative_estimate = std::min(conservative_estimate, static_cast<uint32_t>(1024)); // Reasonable maximum for fallback
     
-    // Apply reasonable bounds checking
-    
-    // Minimum frame size (header + minimal subframes + footer)
-    uint32_t min_frame_size = header_size + frame.channels * 4 + frame_footer_size;
-    
-    // Maximum frame size (uncompressed data + overhead)
-    // In worst case, FLAC might not compress at all and add some overhead
-    uint32_t max_uncompressed = frame.block_size * frame.channels * ((frame.bits_per_sample + 7) / 8);
-    uint32_t max_frame_size = header_size + max_uncompressed + frame.channels * 16 + frame_footer_size;
-    
-    // Clamp estimate to reasonable bounds
-    estimated_size = std::max(estimated_size, min_frame_size);
-    estimated_size = std::min(estimated_size, max_frame_size);
-    
-    // For highly compressed content, use a smaller safety margin
-    // Large margins cause excessive I/O when frames are actually very small
-    if (estimated_size < 1000) {
-        // Small frames - use minimal margin
-        estimated_size = static_cast<uint32_t>(estimated_size * 1.2);
-    } else {
-        // Larger frames - use standard margin
-        estimated_size = static_cast<uint32_t>(estimated_size * 1.5);
-    }
-    
-    Debug::log("flac", "Final frame size estimate: ", estimated_size, " bytes");
-    Debug::log("flac", "  Bounds: ", min_frame_size, " - ", max_frame_size, " bytes");
-    
-    return estimated_size;
+    Debug::log("flac", "[calculateFrameSize] Conservative fallback estimate: ", conservative_estimate, " bytes");
+    return conservative_estimate;
 }
 
 bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data)
@@ -3529,7 +3498,7 @@ bool FLACDemuxer::handleLostFrameSync()
 
 bool FLACDemuxer::skipCorruptedFrame()
 {
-    Debug::log("flac", "FLACDemuxer::skipCorruptedFrame() - attempting to skip corrupted frame");
+    Debug::log("flac", "[skipCorruptedFrame] Attempting to skip corrupted frame");
     
     if (!m_handler) {
         return false;
@@ -3538,37 +3507,45 @@ bool FLACDemuxer::skipCorruptedFrame()
     // Save current position
     int64_t start_position = m_handler->tell();
     
-    // Try to estimate frame size and skip ahead
+    // CRITICAL: Use proper STREAMINFO minimum frame size estimation
     uint32_t estimated_frame_size = 0;
     
-    if (m_streaminfo.isValid()) {
-        // Use STREAMINFO minimum frame size for skipping
-        estimated_frame_size = m_streaminfo.min_frame_size > 0 ? 
-                              m_streaminfo.min_frame_size : 64;  // Conservative fallback
+    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
+        // Use STREAMINFO minimum frame size directly - same logic as calculateFrameSize
+        estimated_frame_size = m_streaminfo.min_frame_size;
         
-        Debug::log("flac", "[skipCorruptedFrame] Frame size estimate from STREAMINFO: ", estimated_frame_size, " bytes");
+        Debug::log("flac", "[skipCorruptedFrame] Using STREAMINFO minimum frame size: ", estimated_frame_size, " bytes");
+        
+        // For fixed block size streams, this is the most accurate estimate
+        if (m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
+            Debug::log("flac", "[skipCorruptedFrame] Fixed block size stream - using minimum directly");
+        }
     } else {
-        // Use conservative default estimate
-        estimated_frame_size = 64;  // Small default for unknown streams
-        Debug::log("flac", "[skipCorruptedFrame] Using default frame size estimate: ", estimated_frame_size, " bytes");
+        // Conservative fallback for highly compressed streams (can be as small as 14 bytes)
+        estimated_frame_size = 64;  // Conservative minimum that handles highly compressed frames
+        Debug::log("flac", "[skipCorruptedFrame] No STREAMINFO available - using conservative fallback: ", estimated_frame_size, " bytes");
     }
     
     // Try skipping by estimated frame size and look for next sync
     const int skip_attempts = 3;
-    uint32_t skip_distance = estimated_frame_size / 4;  // Start with smaller skips
+    uint32_t skip_distance = estimated_frame_size / 4;  // Start with smaller skips to avoid overshooting
+    
+    Debug::log("flac", "[skipCorruptedFrame] Starting skip attempts with initial distance: ", skip_distance, " bytes");
     
     for (int attempt = 0; attempt < skip_attempts; attempt++) {
         uint64_t skip_position = start_position + skip_distance;
         
+        Debug::log("flac", "[skipCorruptedFrame] Attempt ", attempt + 1, " - seeking to position: ", skip_position);
+        
         if (!m_handler->seek(skip_position, SEEK_SET)) {
-            Debug::log("flac", "Failed to seek to skip position ", skip_position);
+            Debug::log("flac", "[skipCorruptedFrame] Failed to seek to skip position ", skip_position);
             break;
         }
         
         // Try to find a valid frame from this position
         FLACFrame test_frame;
         if (findNextFrame(test_frame)) {
-            Debug::log("flac", "Successfully skipped corrupted frame, found next frame at ", 
+            Debug::log("flac", "[skipCorruptedFrame] Successfully skipped corrupted frame, found next frame at ", 
                       test_frame.file_offset);
             
             // Update position tracking
@@ -3576,11 +3553,12 @@ bool FLACDemuxer::skipCorruptedFrame()
             return true;
         }
         
-        // Increase skip distance for next attempt
-        skip_distance *= 2;
+        // Increase skip distance for next attempt, but keep it reasonable
+        skip_distance = std::min(skip_distance * 2, estimated_frame_size * 2);
+        Debug::log("flac", "[skipCorruptedFrame] Frame not found, increasing skip distance to: ", skip_distance, " bytes");
     }
     
-    Debug::log("flac", "Failed to skip corrupted frame after ", skip_attempts, " attempts");
+    Debug::log("flac", "[skipCorruptedFrame] Failed to skip corrupted frame after ", skip_attempts, " attempts");
     
     // Restore original position
     m_handler->seek(start_position, SEEK_SET);
