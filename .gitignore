@@ -157,3 +157,4 @@ tests/test_debug_iohandler_position
 # Test data directory (contains copyrighted FLAC files)
 tests/data/
 tests/debug_flac_seeking
+tests/test_flac_binary_search_limitations
