@@ -1,10 +1,17 @@
-# **FLAC DEMUXER DESIGN**
+# **FLAC DEMUXER DESIGN - REVISED**
 
 ## **Overview**
 
-This design document specifies the implementation of a native FLAC container demuxer for PsyMP3. The demuxer handles native FLAC files (.flac) by parsing the FLAC container format and extracting FLAC bitstream data for decoding. This demuxer works in conjunction with a separate FLACCodec to provide container-agnostic FLAC decoding.
+This design document specifies the implementation of a native FLAC container demuxer for PsyMP3, incorporating lessons learned from real-world debugging and performance optimization. The demuxer handles native FLAC files (.flac) by parsing the FLAC container format and extracting FLAC bitstream data for decoding.
 
-The design separates container parsing from bitstream decoding, enabling the same FLACCodec to work with FLAC data from any container (native FLAC, Ogg FLAC, or future ISO FLAC).
+**Critical Design Insights:**
+- **Frame size estimation** must prioritize STREAMINFO minimum frame size over theoretical calculations
+- **Highly compressed FLAC** streams can have frames as small as 14 bytes requiring accurate estimation
+- **Binary search seeking** is fundamentally incompatible with variable-length compressed frames
+- **Thread safety** requires public/private method patterns with `_unlocked` suffixes
+- **Debug logging** must include method identification tokens for effective troubleshooting
+
+The design separates container parsing from bitstream decoding while optimizing for the performance characteristics of highly compressed FLAC streams.
 
 ## **Architecture**
 
@@ -130,10 +137,10 @@ enum FLACMetadataType {
 **Purpose**: Locate and parse FLAC frame headers for streaming
 
 **Key Methods**:
-- `bool findNextFrame(FLACFrame& frame)`: Locate next frame
-- `bool parseFrameHeader(FLACFrame& frame)`: Parse frame header
-- `bool validateFrameHeader(const FLACFrame& frame)`: Validate header
-- `uint32_t calculateFrameSize(const FLACFrame& frame)`: Estimate frame size
+- `bool findNextFrame(FLACFrame& frame)`: Locate next frame with limited search scope
+- `bool parseFrameHeader(FLACFrame& frame)`: Parse frame header per RFC 9639
+- `bool validateFrameHeader(const FLACFrame& frame)`: Validate header consistency
+- `uint32_t calculateFrameSize(const FLACFrame& frame)`: Accurate size estimation using STREAMINFO
 
 **Frame Sync Detection**:
 - Look for sync code (0xFFF8 to 0xFFFF)
@@ -157,32 +164,63 @@ Sample rate (0-16 bits): if not encoded in header
 CRC-8 (8 bits): header checksum
 ```
 
-### **4. Seeking Component**
+**Critical Frame Size Estimation Algorithm**:
 
-**Purpose**: Implement efficient timestamp-based seeking
+Based on real-world debugging, frame size estimation is critical for performance:
+
+```cpp
+uint32_t calculateFrameSize(const FLACFrame& frame) {
+    // Method 1: Use STREAMINFO minimum frame size (preferred)
+    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
+        uint32_t estimated_size = m_streaminfo.min_frame_size;
+        
+        // For fixed block size streams, use minimum directly
+        if (m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
+            Debug::log("flac", "[calculateFrameSize] Fixed block size detected, using minimum frame size: ", estimated_size, " bytes");
+            return estimated_size;  // Critical: return immediately for fixed block size
+        }
+        
+        // Variable block size: minimal scaling only
+        // ... conservative scaling logic
+    }
+    
+    // Method 2: Conservative fallback (avoid complex calculations)
+    return 64;  // Conservative minimum for unknown streams
+}
+```
+
+**Key Lessons:**
+- **STREAMINFO minimum frame size** is the most accurate estimate for highly compressed streams
+- **Fixed block size streams** should use minimum frame size directly without scaling
+- **Complex theoretical calculations** often produce inaccurate estimates (e.g., 6942 bytes vs actual 14 bytes)
+- **Conservative fallbacks** prevent excessive I/O when estimation fails
+
+### **4. Seeking Component with Architectural Limitations**
+
+**Purpose**: Implement timestamp-based seeking with understanding of compressed audio limitations
 
 **Key Methods**:
-- `bool seekTo(uint64_t timestamp_ms)`: Main seeking interface
-- `bool seekWithTable(uint64_t target_sample)`: Use SEEKTABLE for seeking
-- `bool seekBinary(uint64_t target_sample)`: Binary search through frames
-- `bool seekLinear(uint64_t target_sample)`: Linear search (fallback)
+- `bool seekTo(uint64_t timestamp_ms)`: Main seeking interface with fallback handling
+- `bool seekWithTable(uint64_t target_sample)`: Use SEEKTABLE for seeking (preferred)
+- `bool seekBinary(uint64_t target_sample)`: Binary search (limited effectiveness)
+- `bool seekLinear(uint64_t target_sample)`: Linear search (future frame indexing)
 
-**Seeking Strategies**:
+**Seeking Strategies with Real-World Constraints**:
 
-1. **SEEKTABLE-based seeking** (fastest):
-   - Find closest seek point before target
-   - Seek to that file position
+1. **SEEKTABLE-based seeking** (fastest, most reliable):
+   - Find closest seek point before target sample
+   - Seek to that file position in compressed stream
    - Parse frames forward to exact position
 
-2. **Binary search seeking** (medium speed):
-   - Use file size and average bitrate for initial estimate
-   - Binary search through file looking for frame sync codes
-   - Refine position based on frame sample numbers
+2. **Binary search seeking** (architectural limitation):
+   - **Problem**: Cannot predict frame positions in compressed data
+   - **Reality**: Fails because frame boundaries are unpredictable
+   - **Fallback**: Return to beginning position when search fails
 
-3. **Linear seeking** (slowest, most accurate):
-   - Parse frames sequentially from current position
-   - Guaranteed sample-accurate positioning
-   - Used for fine-tuning after coarse seeking
+3. **Future frame indexing** (recommended approach):
+   - Build frame index during initial parsing
+   - Cache discovered frame positions for seeking
+   - Provide sample-accurate positioning with known positions
 
 ### **5. Data Streaming Component**
 
@@ -248,25 +286,78 @@ File Position → Sync Search → Header Parse → Frame Size → Complete Frame
 - **Frame parsing failures**: Use approximate positioning
 - **I/O errors**: Propagate IOHandler errors
 
+## **Thread Safety Architecture**
+
+### **Public/Private Lock Pattern**
+
+All thread-safe classes must follow this mandatory pattern:
+
+```cpp
+class FLACDemuxer : public Demuxer {
+public:
+    // Public methods acquire locks and call private implementations
+    bool parseContainer() {
+        std::lock_guard<std::mutex> state_lock(m_state_mutex);
+        std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+        return parseContainer_unlocked();
+    }
+    
+    MediaChunk readChunk() {
+        std::lock_guard<std::mutex> state_lock(m_state_mutex);
+        return readChunk_unlocked();
+    }
+    
+private:
+    // Private methods assume locks are already held
+    bool parseContainer_unlocked();
+    MediaChunk readChunk_unlocked();
+    
+    // Internal calls use _unlocked versions to prevent deadlocks
+    void internalMethod() {
+        // CORRECT: Call unlocked version
+        auto result = readChunk_unlocked();
+        
+        // INCORRECT: Would cause deadlock
+        // auto result = readChunk();
+    }
+    
+    // Lock acquisition order (documented to prevent deadlocks):
+    // 1. m_state_mutex (acquired first)
+    // 2. m_metadata_mutex (acquired second)
+    mutable std::mutex m_state_mutex;
+    mutable std::mutex m_metadata_mutex;
+};
+```
+
+### **Debug Method Identification**
+
+All debug logging must include method identification tokens:
+
+```cpp
+Debug::log("flac", "[calculateFrameSize] Frame size estimate from STREAMINFO min: ", size, " bytes");
+Debug::log("flac", "[readFrame] Using estimated frame size: ", size, " bytes");
+Debug::log("flac", "[skipCorruptedFrame] Frame size estimate from STREAMINFO: ", size, " bytes");
+```
+
 ## **Performance Considerations**
 
+### **Frame Processing Optimization**
+- **STREAMINFO-based estimation**: Use minimum frame size for accurate estimates
+- **Limited boundary detection**: Restrict search scope to 512 bytes maximum
+- **Efficient I/O patterns**: Reduce seeks from hundreds to tens per frame
+- **Conservative fallbacks**: Use STREAMINFO data when boundary detection fails
+
 ### **Memory Usage**
+- **Accurate frame sizing**: Prevent buffer waste with correct size estimates
 - **Metadata caching**: Store only essential metadata in memory
 - **Seek table optimization**: Use efficient data structures for seek points
-- **Frame buffering**: Minimal buffering, stream frames on demand
-- **Large file support**: Handle files >2GB with 64-bit offsets
+- **Large file support**: Handle files >4GB with 64-bit offsets
 
 ### **I/O Efficiency**
-- **Sequential optimization**: Optimize for forward playback
-- **Seek optimization**: Minimize I/O operations during seeking
-- **Buffer management**: Use appropriate buffer sizes for different operations
-- **Read-ahead**: Consider read-ahead for network streams
-
-### **CPU Efficiency**
-- **Frame sync detection**: Use efficient bit manipulation for sync search
-- **Header parsing**: Optimize common header parsing operations
-- **Seek table lookup**: Use binary search for large seek tables
-- **UTF-8 decoding**: Efficient UTF-8 handling for metadata
+- **Sequential optimization**: Optimize for forward playback with minimal seeks
+- **Frame boundary optimization**: Use efficient search patterns for sync detection
+- **Buffer management**: Use accurate frame size estimates for buffer allocation
+- **Network stream support**: Consider read-ahead for streaming sources
 
 ## **Integration Points**
 

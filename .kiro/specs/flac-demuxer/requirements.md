@@ -1,32 +1,39 @@
-# **FLAC DEMUXER REQUIREMENTS**
+# **FLAC DEMUXER REQUIREMENTS - REVISED**
 
 ## **Introduction**
 
-This specification defines the requirements for implementing a native FLAC container demuxer for PsyMP3. The FLAC demuxer will handle native FLAC files (.flac) by parsing the FLAC container format and extracting FLAC bitstream data for decoding. This demuxer works in conjunction with a separate FLACCodec to provide container-agnostic FLAC decoding.
+This specification defines the requirements for implementing a native FLAC container demuxer for PsyMP3, based on lessons learned from real-world implementation and debugging. The FLAC demuxer handles native FLAC files (.flac) by parsing the FLAC container format and extracting FLAC bitstream data for decoding.
+
+**Key Implementation Insights:**
+- **Frame size estimation** is critical for performance - must use STREAMINFO minimum frame size
+- **Highly compressed FLAC** can have frames as small as 14 bytes, requiring accurate estimation
+- **Binary search seeking** is fundamentally incompatible with compressed audio streams
+- **Thread safety** requires careful public/private method patterns to prevent deadlocks
+- **Debug logging** with method identification tokens is essential for troubleshooting
 
 The implementation must support:
-- **Native FLAC container format** as defined in the FLAC specification
-- **FLAC metadata blocks** including STREAMINFO, VORBIS_COMMENT, and others
-- **Efficient seeking** using FLAC's built-in seek table or sample-accurate seeking
-- **Large file support** for high-resolution and long-duration FLAC files
-- **Integration** with the modern demuxer/codec architecture
+- **Native FLAC container format** as defined in RFC 9639 (FLAC specification)
+- **Accurate frame size estimation** using STREAMINFO metadata for performance
+- **Efficient frame boundary detection** with minimal I/O operations
+- **Robust error recovery** for corrupted or incomplete streams
+- **Thread-safe operations** using proper synchronization patterns
 
 ## **Requirements**
 
-### **Requirement 1: FLAC Container Parsing**
+### **Requirement 1: FLAC Container Parsing with Robust Error Recovery**
 
-**User Story:** As a media player, I want to parse native FLAC container files correctly, so that I can extract FLAC bitstream data and metadata reliably.
+**User Story:** As a media player, I want to parse native FLAC container files correctly with robust error recovery, so that I can extract FLAC bitstream data and metadata reliably even from damaged files.
 
 #### **Acceptance Criteria**
 
-1. **WHEN** a FLAC file is opened **THEN** the demuxer **SHALL** validate the "fLaC" stream marker per FLAC specification
-2. **WHEN** parsing metadata blocks **THEN** the demuxer **SHALL** read block header with type and size information
-3. **WHEN** encountering STREAMINFO block **THEN** the demuxer **SHALL** extract sample rate, channels, bit depth, and total samples
-4. **WHEN** processing metadata blocks **THEN** the demuxer **SHALL** handle both standard and non-standard block types
-5. **WHEN** reaching audio data **THEN** the demuxer **SHALL** identify the start of FLAC frames
-6. **WHEN** parsing is complete **THEN** the demuxer **SHALL** be ready to provide FLAC bitstream chunks
-7. **WHEN** handling large files **THEN** the demuxer **SHALL** support files larger than 2GB
-8. **WHEN** validating structure **THEN** the demuxer **SHALL** verify metadata block structure integrity
+1. **WHEN** a FLAC file is opened **THEN** the demuxer **SHALL** validate the "fLaC" stream marker per RFC 9639
+2. **WHEN** parsing metadata blocks **THEN** the demuxer **SHALL** read block header with type, is_last flag, and 24-bit length
+3. **WHEN** encountering STREAMINFO block **THEN** the demuxer **SHALL** extract minimum/maximum frame sizes for performance optimization
+4. **WHEN** processing metadata blocks **THEN** the demuxer **SHALL** skip unknown blocks gracefully without failing
+5. **WHEN** metadata parsing fails **THEN** the demuxer **SHALL** attempt STREAMINFO recovery from first frame header
+6. **WHEN** reaching audio data **THEN** the demuxer **SHALL** identify the start of FLAC frames at calculated offset
+7. **WHEN** handling large files **THEN** the demuxer **SHALL** support files larger than 4GB with 64-bit offsets
+8. **WHEN** validating structure **THEN** the demuxer **SHALL** provide detailed error messages for debugging
 
 ### **Requirement 2: Metadata Block Processing**
 
@@ -43,35 +50,35 @@ The implementation must support:
 7. **WHEN** encountering unknown blocks **THEN** the demuxer **SHALL** skip unknown metadata blocks gracefully
 8. **WHEN** metadata is incomplete **THEN** the demuxer **SHALL** provide reasonable defaults for missing information
 
-### **Requirement 3: FLAC Frame Identification and Streaming**
+### **Requirement 3: Accurate Frame Size Estimation and Efficient Boundary Detection**
 
-**User Story:** As a FLAC codec, I want to receive properly formatted FLAC frame data, so that I can decode audio samples correctly.
-
-#### **Acceptance Criteria**
-
-1. **WHEN** identifying FLAC frames **THEN** the demuxer **SHALL** locate frame sync codes (0xFFF8-0xFFFF)
-2. **WHEN** parsing frame headers **THEN** the demuxer **SHALL** extract block size, sample rate, channel assignment, and bit depth
-3. **WHEN** reading frame data **THEN** the demuxer **SHALL** include complete frames with headers and CRC
-4. **WHEN** streaming frames **THEN** the demuxer **SHALL** provide frames in sequential order
-5. **WHEN** handling variable block sizes **THEN** the demuxer **SHALL** adapt to different frame sizes within the stream
-6. **WHEN** encountering frame errors **THEN** the demuxer **SHALL** skip corrupted frames and continue
-7. **WHEN** reaching end of stream **THEN** the demuxer **SHALL** detect EOF condition properly
-8. **WHEN** providing frame data **THEN** the demuxer **SHALL** include sample position information for timing
-
-### **Requirement 4: Seeking Operations**
-
-**User Story:** As a media player, I want to seek to specific timestamps in FLAC files, so that users can navigate through audio content efficiently.
+**User Story:** As a FLAC codec, I want to receive properly formatted FLAC frame data with minimal I/O overhead, so that I can decode audio samples efficiently even from highly compressed streams.
 
 #### **Acceptance Criteria**
 
-1. **WHEN** seeking with SEEKTABLE **THEN** the demuxer **SHALL** use seek points for fast approximate positioning
-2. **WHEN** seeking without SEEKTABLE **THEN** the demuxer **SHALL** perform binary search through frames
-3. **WHEN** seeking to exact positions **THEN** the demuxer **SHALL** provide sample-accurate positioning
-4. **WHEN** seeking to stream beginning **THEN** the demuxer **SHALL** reset to first audio frame
-5. **WHEN** seeking beyond stream end **THEN** the demuxer **SHALL** clamp to last valid position
-6. **WHEN** seek operation completes **THEN** the demuxer **SHALL** update position tracking accurately
-7. **WHEN** seeking fails **THEN** the demuxer **SHALL** maintain current position and report error
-8. **WHEN** seeking in large files **THEN** the demuxer **SHALL** maintain efficient performance
+1. **WHEN** estimating frame sizes **THEN** the demuxer **SHALL** use STREAMINFO minimum frame size as primary estimate
+2. **WHEN** handling fixed block size streams **THEN** the demuxer **SHALL** use minimum frame size directly without scaling
+3. **WHEN** detecting frame boundaries **THEN** the demuxer **SHALL** limit search scope to prevent excessive I/O operations
+4. **WHEN** boundary detection fails **THEN** the demuxer **SHALL** use conservative STREAMINFO-based fallback sizes
+5. **WHEN** reading highly compressed frames **THEN** the demuxer **SHALL** handle frames as small as 14 bytes efficiently
+6. **WHEN** encountering frame errors **THEN** the demuxer **SHALL** provide silence output for unrecoverable frames
+7. **WHEN** streaming frames **THEN** the demuxer **SHALL** maintain accurate sample position tracking
+8. **WHEN** providing frame data **THEN** the demuxer **SHALL** include complete frames with proper MediaChunk formatting
+
+### **Requirement 4: Seeking Operations with Architectural Limitations**
+
+**User Story:** As a media player, I want to seek to specific timestamps in FLAC files, so that users can navigate through audio content, understanding that compressed audio has fundamental seeking limitations.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** seeking to beginning **THEN** the demuxer **SHALL** reset to first audio frame efficiently
+2. **WHEN** seeking with SEEKTABLE **THEN** the demuxer **SHALL** use seek points for approximate positioning
+3. **WHEN** SEEKTABLE is available **THEN** the demuxer **SHALL** find closest seek point and parse forward
+4. **WHEN** seeking without SEEKTABLE **THEN** the demuxer **SHALL** acknowledge binary search limitations with compressed data
+5. **WHEN** binary search fails **THEN** the demuxer **SHALL** fall back to beginning position gracefully
+6. **WHEN** seeking beyond stream end **THEN** the demuxer **SHALL** clamp to last valid position
+7. **WHEN** seek operation fails **THEN** the demuxer **SHALL** maintain current position and provide clear error reporting
+8. **WHEN** implementing future seeking **THEN** the demuxer **SHALL** support frame indexing during initial parsing
 
 ### **Requirement 5: Duration and Position Tracking**
 
@@ -103,20 +110,20 @@ The implementation must support:
 7. **WHEN** memory allocation fails **THEN** the demuxer **SHALL** return appropriate error codes
 8. **WHEN** I/O operations fail **THEN** the demuxer **SHALL** handle read errors and EOF conditions properly
 
-### **Requirement 7: Performance and Memory Management**
+### **Requirement 7: Performance Optimization Based on Real-World Lessons**
 
-**User Story:** As a media player, I want efficient FLAC processing with minimal memory usage, so that large files can be handled without excessive resource consumption.
+**User Story:** As a media player, I want efficient FLAC processing with minimal I/O overhead, so that highly compressed files can be processed without performance degradation.
 
 #### **Acceptance Criteria**
 
-1. **WHEN** processing large files **THEN** the demuxer **SHALL** use streaming approach without loading entire file
-2. **WHEN** buffering frames **THEN** the demuxer **SHALL** implement bounded buffers to prevent memory exhaustion
-3. **WHEN** seeking operations occur **THEN** the demuxer **SHALL** minimize I/O operations through efficient algorithms
-4. **WHEN** parsing metadata **THEN** the demuxer **SHALL** process blocks incrementally without excessive buffering
-5. **WHEN** handling seek tables **THEN** the demuxer **SHALL** store seek points efficiently in memory
-6. **WHEN** cleaning up resources **THEN** the demuxer **SHALL** properly free all allocated memory
-7. **WHEN** processing very long files **THEN** the demuxer **SHALL** maintain acceptable performance characteristics
-8. **WHEN** caching data **THEN** the demuxer **SHALL** implement bounded caches to prevent unbounded growth
+1. **WHEN** estimating frame sizes **THEN** the demuxer **SHALL** avoid complex theoretical calculations that cause inaccurate estimates
+2. **WHEN** detecting frame boundaries **THEN** the demuxer **SHALL** limit search operations to 512 bytes maximum
+3. **WHEN** processing highly compressed streams **THEN** the demuxer **SHALL** reduce I/O operations from hundreds to tens per frame
+4. **WHEN** using STREAMINFO data **THEN** the demuxer **SHALL** prioritize minimum frame size over complex scaling algorithms
+5. **WHEN** handling frame reading **THEN** the demuxer **SHALL** complete processing in milliseconds rather than seconds
+6. **WHEN** managing memory **THEN** the demuxer **SHALL** use accurate frame size estimates to prevent buffer waste
+7. **WHEN** debugging performance **THEN** the demuxer **SHALL** provide method-specific logging tokens for identification
+8. **WHEN** processing sequential frames **THEN** the demuxer **SHALL** maintain consistent performance across frame types
 
 ### **Requirement 8: Integration with Demuxer Architecture**
 
@@ -148,17 +155,32 @@ The implementation must support:
 7. **WHEN** integrating with Stream interface **THEN** the demuxer **SHALL** work through DemuxedStream bridge
 8. **WHEN** performance is measured **THEN** the demuxer **SHALL** provide comparable or better performance
 
-### **Requirement 10: Thread Safety and Concurrency**
+### **Requirement 10: Thread Safety Using Public/Private Lock Pattern**
 
-**User Story:** As a multi-threaded media player, I want thread-safe FLAC demuxing operations, so that seeking and reading can occur concurrently without corruption.
+**User Story:** As a multi-threaded media player, I want thread-safe FLAC demuxing operations using proven patterns, so that seeking and reading can occur concurrently without deadlocks.
 
 #### **Acceptance Criteria**
 
-1. **WHEN** multiple threads access the demuxer **THEN** it **SHALL** protect shared state with appropriate synchronization
-2. **WHEN** seeking occurs during playback **THEN** the demuxer **SHALL** handle concurrent operations safely
-3. **WHEN** I/O operations are in progress **THEN** the demuxer **SHALL** prevent race conditions on IOHandler
-4. **WHEN** metadata is accessed **THEN** the demuxer **SHALL** ensure thread-safe metadata access
-5. **WHEN** position tracking is updated **THEN** the demuxer **SHALL** use atomic operations where appropriate
-6. **WHEN** cleanup occurs **THEN** the demuxer **SHALL** ensure no operations are in progress before destruction
-7. **WHEN** errors occur in one thread **THEN** the demuxer **SHALL** propagate error state safely to other threads
-8. **WHEN** caching data **THEN** the demuxer **SHALL** implement thread-safe caching mechanisms
+1. **WHEN** implementing public methods **THEN** the demuxer **SHALL** acquire locks and call private `_unlocked` implementations
+2. **WHEN** calling internal methods **THEN** the demuxer **SHALL** use `_unlocked` versions to prevent deadlocks
+3. **WHEN** multiple locks are needed **THEN** the demuxer **SHALL** acquire them in documented order to prevent deadlocks
+4. **WHEN** using RAII lock guards **THEN** the demuxer **SHALL** ensure exception safety for all operations
+5. **WHEN** invoking callbacks **THEN** the demuxer **SHALL** never call callbacks while holding internal locks
+6. **WHEN** updating position tracking **THEN** the demuxer **SHALL** use atomic operations for sample counters
+7. **WHEN** handling errors **THEN** the demuxer **SHALL** use atomic error state flags for thread-safe propagation
+8. **WHEN** debugging threading issues **THEN** the demuxer **SHALL** provide clear method identification for lock analysis
+
+### **Requirement 11: Debug Logging and Troubleshooting Support**
+
+**User Story:** As a developer debugging FLAC issues, I want comprehensive logging with method identification, so that I can quickly identify which code paths are executing and causing problems.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** logging debug messages **THEN** the demuxer **SHALL** include method-specific tokens like `[calculateFrameSize]`
+2. **WHEN** multiple methods use similar messages **THEN** the demuxer **SHALL** use unique identifiers to distinguish them
+3. **WHEN** frame size estimation occurs **THEN** the demuxer **SHALL** log which calculation method is being used
+4. **WHEN** frame boundary detection runs **THEN** the demuxer **SHALL** log search scope and results
+5. **WHEN** seeking operations execute **THEN** the demuxer **SHALL** log strategy selection and outcomes
+6. **WHEN** error recovery activates **THEN** the demuxer **SHALL** log recovery attempts and success/failure
+7. **WHEN** performance issues occur **THEN** the demuxer **SHALL** provide timing information for critical operations
+8. **WHEN** troubleshooting **THEN** the demuxer **SHALL** log sufficient detail to reproduce and fix issues

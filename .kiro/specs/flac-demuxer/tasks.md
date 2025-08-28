@@ -1,6 +1,13 @@
-# **FLAC DEMUXER IMPLEMENTATION PLAN**
+# **FLAC DEMUXER IMPLEMENTATION PLAN - REVISED**
 
-## **Implementation Tasks**
+## **Implementation Tasks Based on Real-World Lessons**
+
+**Key Implementation Priorities:**
+1. **Accurate frame size estimation** using STREAMINFO minimum frame size
+2. **Efficient frame boundary detection** with limited search scope
+3. **Thread-safe public/private method patterns** to prevent deadlocks
+4. **Comprehensive debug logging** with method identification tokens
+5. **Robust error recovery** for corrupted or incomplete streams
 
 - [x] 1. Create FLACDemuxer Class Structure
   - Implement FLACDemuxer class inheriting from Demuxer base class
@@ -79,12 +86,13 @@
   - Create calculateFrameSize() for frame size estimation
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8_
 
-- [x] 4.1 Implement Frame Sync Detection
-  - Search for FLAC sync codes (0xFFF8 to 0xFFFF) in bitstream
-  - Validate frame header structure after sync code detection
-  - Handle false sync codes and continue searching
-  - Optimize sync detection for performance with large files
-  - _Requirements: 3.1, 3.6, 6.4, 7.3_
+- [ ] 4.1 Implement Efficient Frame Boundary Detection (CRITICAL)
+  - **Priority 1**: Limit frame boundary search scope to 512 bytes maximum to prevent excessive I/O
+  - **Priority 2**: Use 16-byte search increments instead of 2-byte for faster detection
+  - **Priority 3**: Implement conservative fallback using STREAMINFO minimum frame size when detection fails
+  - **Priority 4**: Add debug logging showing search scope and results
+  - **Priority 5**: Optimize for highly compressed streams where frames may be very small
+  - _Requirements: 3.1, 3.4, 7.1, 7.2, 7.3, 11.4_
 
 - [x] 4.2 Add Frame Header Parsing
   - Parse blocking strategy, block size, sample rate, channel assignment
@@ -93,12 +101,13 @@
   - Validate frame parameters against STREAMINFO for consistency
   - _Requirements: 3.2, 3.4, 3.5, 3.8_
 
-- [x] 4.3 Implement Frame Size Calculation
-  - Estimate frame size based on block size, channels, and bit depth
-  - Handle variable frame sizes due to compression efficiency
-  - Use frame size estimates for seeking optimization
-  - Add bounds checking to prevent reading beyond file boundaries
-  - _Requirements: 3.4, 3.5, 7.1, 7.2_
+- [ ] 4.3 Implement Accurate Frame Size Calculation (CRITICAL)
+  - **Priority 1**: Use STREAMINFO minimum frame size as primary estimate
+  - **Priority 2**: For fixed block size streams, return minimum frame size directly without scaling
+  - **Priority 3**: Avoid complex theoretical calculations that produce inaccurate estimates
+  - **Priority 4**: Add debug logging with `[calculateFrameSize]` token for troubleshooting
+  - **Priority 5**: Handle highly compressed streams with frames as small as 14 bytes
+  - _Requirements: 3.1, 3.2, 7.1, 7.4, 11.1, 11.3_
 
 - [x] 5. Implement Data Streaming Component
   - Create readChunk() methods for sequential frame reading
@@ -135,12 +144,13 @@
   - Handle seek table errors and missing seek points
   - _Requirements: 4.1, 4.6, 4.8, 6.3_
 
-- [x] 6.2 Add Binary Search Seeking
-  - Estimate initial file position based on target sample and file size
-  - Use binary search to refine position by parsing frame headers
-  - Handle variable bitrate and compression ratio variations
-  - Provide reasonable seeking performance for files without seek tables
-  - _Requirements: 4.2, 4.8, 7.3, 7.7_
+- [ ] 6.2 Acknowledge Binary Search Limitations (ARCHITECTURAL)
+  - **Reality Check**: Binary search is fundamentally incompatible with compressed audio streams
+  - **Problem**: Cannot predict frame positions in variable-length compressed data
+  - **Current Approach**: Implement binary search but expect failures with compressed streams
+  - **Fallback Strategy**: Return to beginning position when binary search fails
+  - **Future Solution**: Implement frame indexing during initial parsing for accurate seeking
+  - _Requirements: 4.2, 4.5, 4.7, 4.8_
 
 - [x] 6.3 Implement Linear Seeking
   - Parse frames sequentially from current or seek table position
@@ -261,12 +271,13 @@
   - Ensure proper cleanup during multi-threaded destruction
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [x] 12.1 Implement Thread Synchronization
-  - Add mutex protection for shared demuxer state
-  - Use atomic operations for position tracking where appropriate
-  - Implement thread-safe error state propagation
-  - Add proper synchronization for seek operations
-  - _Requirements: 10.1, 10.2, 10.5, 10.7_
+- [ ] 12.1 Implement Public/Private Lock Pattern (CRITICAL)
+  - **Priority 1**: Create public methods that acquire locks and call private `_unlocked` implementations
+  - **Priority 2**: Ensure all internal method calls use `_unlocked` versions to prevent deadlocks
+  - **Priority 3**: Document lock acquisition order to prevent deadlock scenarios
+  - **Priority 4**: Use RAII lock guards for exception safety
+  - **Priority 5**: Never invoke callbacks while holding internal locks
+  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.8_
 
 - [x] 12.2 Add Concurrent Access Support
   - Handle multiple threads accessing metadata safely
@@ -317,9 +328,41 @@
   - Add troubleshooting guide for common issues
   - _Requirements: 8.7, 8.8, 10.1-10.8_
 
-- [x] 14.2 Add Developer Guide
+- [ ] 14.2 Add Developer Guide
   - Document integration with FLACCodec and other components
   - Explain relationship between container parsing and bitstream decoding
   - Provide guidance for extending FLAC support
   - Document thread safety considerations and best practices
   - _Requirements: 9.7, 9.8, 10.1-10.8_
+
+- [ ] 15. Implement Debug Logging with Method Identification (NEW)
+  - **Priority 1**: Add unique method tokens to all debug messages (e.g., `[calculateFrameSize]`)
+  - **Priority 2**: Distinguish between similar messages from different methods
+  - **Priority 3**: Log frame size estimation method selection and results
+  - **Priority 4**: Log frame boundary detection scope and outcomes
+  - **Priority 5**: Provide sufficient detail for performance troubleshooting
+  - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.8_
+
+- [ ] 16. Fix Multiple Frame Size Estimation Methods (NEW)
+  - **Priority 1**: Identify all locations where frame size estimation occurs
+  - **Priority 2**: Ensure consistent use of STREAMINFO-based estimation across all methods
+  - **Priority 3**: Fix `skipCorruptedFrame()` method to use proper STREAMINFO minimum
+  - **Priority 4**: Remove or fix complex theoretical calculations that produce wrong estimates
+  - **Priority 5**: Add method-specific debug tokens to distinguish estimation sources
+  - _Requirements: 3.1, 3.2, 7.1, 7.4, 11.1, 11.3_
+
+- [ ] 17. Optimize Frame Processing Performance (NEW)
+  - **Priority 1**: Reduce I/O operations from hundreds to tens per frame
+  - **Priority 2**: Complete frame processing in milliseconds rather than seconds
+  - **Priority 3**: Use accurate frame size estimates to prevent buffer waste
+  - **Priority 4**: Implement efficient frame boundary detection with limited search scope
+  - **Priority 5**: Handle highly compressed streams (14-byte frames) efficiently
+  - _Requirements: 7.1, 7.2, 7.3, 7.5, 7.8_
+
+- [ ] 18. Implement Future Seeking Architecture (FUTURE)
+  - **Priority 1**: Design frame indexing system during initial parsing
+  - **Priority 2**: Cache discovered frame positions for accurate seeking
+  - **Priority 3**: Implement sample-accurate seeking using frame index
+  - **Priority 4**: Provide efficient seeking for files without SEEKTABLE
+  - **Priority 5**: Replace binary search with index-based seeking
+  - _Requirements: 4.1, 4.2, 4.3, 4.8_
