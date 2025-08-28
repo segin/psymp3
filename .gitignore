@@ -152,3 +152,8 @@ debug_test_data
 debug_flac_bits
 debug_gdb_script.gdb
 debug_streaminfo_packing
+tests/test_debug_iohandler_position
+
+# Test data directory (contains copyrighted FLAC files)
+tests/data/
+tests/debug_flac_seeking

@@ -24,6 +24,11 @@ PsyMP3 appears to be a multimedia player application with the following characte
 - XML processing capabilities
 - Font rendering (TrueType support)
 
+### Technical Specifications
+- **FLAC Format**: The official FLAC specification is available in `docs/rfc9639.txt` (RFC 9639) with a summary in `docs/RFC9639_FLAC_SUMMARY.md`
+- When working with FLAC demuxer implementation, always consult the RFC for authoritative format details, frame structure, and bit-level encoding
+- All FLAC implementation decisions should be validated against RFC 9639 to ensure compliance
+
 ## Development Notes
 - This is a mature codebase with established patterns
 - Focus on maintaining consistency with existing architecture

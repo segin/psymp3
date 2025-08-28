@@ -102,3 +102,11 @@ All threading-related code changes must include:
 - Ensure codec registration with MediaFactory is conditionally compiled
 - Maintain backward compatibility when adding new codec support
 - Test codec implementations with and without their dependencies available
+
+### FLAC-Specific Development Guidelines
+- **RFC Compliance**: All FLAC demuxer implementation must comply with RFC 9639 (available in `docs/rfc9639.txt`)
+- **Reference Documentation**: When implementing or debugging FLAC features, consult `docs/RFC9639_FLAC_SUMMARY.md` for quick reference
+- **Frame Boundary Detection**: FLAC frames are variable-length; always use proper sync pattern detection (0xFF followed by 0xF8-0xFF)
+- **Metadata Handling**: Follow RFC specifications for metadata block parsing and validation
+- **Error Recovery**: Implement robust error recovery for corrupted or incomplete FLAC streams
+- **Performance**: Frame size estimation should be conservative but efficient to avoid excessive I/O operations

@@ -19,15 +19,33 @@
 
 using namespace TestFramework;
 
-// Test file path - using the provided test file
-const char* TEST_FLAC_FILE = "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac";
+// Test file paths - try multiple possible locations
+const std::vector<std::string> TEST_FLAC_FILES = {
+    "tests/data/11 life goes by.flac",
+    "tests/data/RADIO GA GA.flac",
+    "/mnt/8TB-3/music/almost monday/DIVE/11 life goes by.flac",  // Fallback to original path
+    "test.flac",
+    "../test.flac"
+};
+
+/**
+ * @brief Helper to find an existing test file
+ */
+std::string findTestFile() {
+    for (const auto& path : TEST_FLAC_FILES) {
+        std::ifstream file(path);
+        if (file.good()) {
+            return path;
+        }
+    }
+    return "";
+}
 
 /**
  * @brief Helper to check if test file exists
  */
 bool checkTestFileExists() {
-    std::ifstream file(TEST_FLAC_FILE);
-    return file.good();
+    return !findTestFile().empty();
 }
 
 /**
@@ -65,14 +83,15 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping real file test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping real file test");
             return;
         }
         
         PerformanceMeasurement perf("Real FLAC file parsing");
         
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         // Test container parsing
@@ -106,12 +125,13 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping seeking performance test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping seeking performance test");
             return;
         }
         
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -160,12 +180,13 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping frame reading test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping frame reading test");
             return;
         }
         
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -225,18 +246,19 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping IOHandler integration test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping IOHandler integration test");
             return;
         }
         
-        testFileIOHandler();
+        testFileIOHandler(test_file);
         // Note: HTTPIOHandler test would require a network FLAC file
     }
     
 private:
-    void testFileIOHandler() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void testFileIOHandler(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should work with FileIOHandler");
@@ -266,18 +288,19 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping memory usage test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping memory usage test");
             return;
         }
         
-        testMemoryUsageStability();
-        testLargeFileHandling();
+        testMemoryUsageStability(test_file);
+        testLargeFileHandling(test_file);
     }
     
 private:
-    void testMemoryUsageStability() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void testMemoryUsageStability(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -303,9 +326,9 @@ private:
         Debug::log("test", "Read %d frames without memory issues", frames_read);
     }
     
-    void testLargeFileHandling() {
+    void testLargeFileHandling(const std::string& test_file) {
         // Test with the real file (which should be reasonably large)
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should handle large file parsing");
@@ -337,19 +360,20 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping compatibility test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping compatibility test");
             return;
         }
         
-        testMetadataCompatibility();
-        testSeekingCompatibility();
-        testFrameDataCompatibility();
+        testMetadataCompatibility(test_file);
+        testSeekingCompatibility(test_file);
+        testFrameDataCompatibility(test_file);
     }
     
 private:
-    void testMetadataCompatibility() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void testMetadataCompatibility(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -382,8 +406,8 @@ private:
                   stream.sample_rate, stream.channels, stream.bits_per_sample, duration);
     }
     
-    void testSeekingCompatibility() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void testSeekingCompatibility(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -407,8 +431,8 @@ private:
         }
     }
     
-    void testFrameDataCompatibility() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void testFrameDataCompatibility(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -442,18 +466,19 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping concurrency test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping concurrency test");
             return;
         }
         
-        testConcurrentSeekingAndReading();
-        testMultipleReaders();
+        testConcurrentSeekingAndReading(test_file);
+        testMultipleReaders(test_file);
     }
     
 private:
-    void testConcurrentSeekingAndReading() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void testConcurrentSeekingAndReading(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -506,12 +531,12 @@ private:
         Debug::log("test", "Completed %d concurrent operations", operations_completed.load());
     }
     
-    void testMultipleReaders() {
+    void testMultipleReaders(const std::string& test_file) {
         // Test multiple demuxer instances on the same file
         std::vector<std::unique_ptr<FLACDemuxer>> demuxers;
         
         for (int i = 0; i < 3; i++) {
-            auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+            auto handler = std::make_unique<FileIOHandler>(test_file);
             auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
             ASSERT_TRUE(demuxer->parseContainer(), "Should parse container for instance " + std::to_string(i));
             demuxers.push_back(std::move(demuxer));
@@ -544,21 +569,22 @@ public:
     
 protected:
     void runTest() override {
-        if (!checkTestFileExists()) {
-            Debug::log("test", "Test file not found, skipping performance benchmark test");
+        std::string test_file = findTestFile();
+        if (test_file.empty()) {
+            Debug::log("test", "No test file found, skipping performance benchmark test");
             return;
         }
         
-        benchmarkParsing();
-        benchmarkSeeking();
-        benchmarkReading();
+        benchmarkParsing(test_file);
+        benchmarkSeeking(test_file);
+        benchmarkReading(test_file);
     }
     
 private:
-    void benchmarkParsing() {
+    void benchmarkParsing(const std::string& test_file) {
         PerformanceMeasurement perf("Container parsing benchmark");
         
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -569,8 +595,8 @@ private:
         Debug::log("benchmark", "Container parsing took %llu ms", parse_time);
     }
     
-    void benchmarkSeeking() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void benchmarkSeeking(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");
@@ -600,8 +626,8 @@ private:
                   avg_seek_time, successful_seeks, 50);
     }
     
-    void benchmarkReading() {
-        auto handler = std::make_unique<FileIOHandler>(TEST_FLAC_FILE);
+    void benchmarkReading(const std::string& test_file) {
+        auto handler = std::make_unique<FileIOHandler>(test_file);
         auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
         
         ASSERT_TRUE(demuxer->parseContainer(), "Should parse container successfully");

@@ -421,13 +421,14 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         
         // Create MediaChunk with proper timing information
         MediaChunk chunk(1, std::move(frame_data));  // stream_id = 1 for FLAC
+        // Use the frame's actual sample offset (calculated during parsing)
         chunk.timestamp_samples = frame.sample_offset;
         chunk.is_keyframe = true;  // All FLAC frames are independent
         chunk.file_offset = frame.file_offset;
         
         // Update position tracking - advance to next frame position
         uint64_t next_sample_position = frame.sample_offset + frame.block_size;
-        uint64_t next_file_offset = frame.file_offset + frame.frame_size;
+        uint64_t next_file_offset = frame.file_offset + chunk.data.size();
         
         // Use updatePositionTracking for consistency and validation
         updatePositionTracking(next_sample_position, next_file_offset);
@@ -525,7 +526,12 @@ bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
         Debug::log("flac", "Seeking to beginning of stream");
         resetPositionTracking();
         
-        // TEMPORARY FIX: Simple seek to beginning for test data
+        // Seek to beginning of audio data
+        if (m_handler->seek(static_cast<off_t>(m_audio_data_offset), SEEK_SET) != 0) {
+            reportError("IO", "Failed to seek to beginning of audio data");
+            return false;
+        }
+        
         m_current_offset = m_audio_data_offset;
         m_current_sample.store(0);
         
@@ -542,9 +548,14 @@ bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
     
     Debug::log("flac", "Seeking to sample ", target_sample, " (", timestamp_ms, " ms)");
     
-    // TEMPORARY FIX: Simple seeking for test data
-    // For test purposes, just update the position tracking
-    m_current_sample.store(target_sample);
+    // Choose seeking strategy based on available metadata
+    if (!m_seektable.empty()) {
+        // Use seek table for fastest seeking
+        return seekWithTable(target_sample);
+    } else {
+        // Use binary search for reasonable performance
+        return seekBinary(target_sample);
+    }
     m_current_offset = m_audio_data_offset;  // Keep at start of audio data
     
     bool seek_success = true;
@@ -900,6 +911,15 @@ bool FLACDemuxer::parseMetadataBlocks()
                 parse_success = parsePictureBlock(block);
                 if (!parse_success) {
                     Debug::log("flac", "PICTURE parsing failed, artwork will be unavailable");
+                    // Skip the failed PICTURE block by seeking to its end
+                    off_t block_end = static_cast<off_t>(block.data_offset + block.length);
+                    if (m_handler->seek(block_end, SEEK_SET)) {
+                        Debug::log("flac", "Successfully skipped failed PICTURE block");
+                        parse_success = true; // Continue parsing other blocks
+                    } else {
+                        Debug::log("flac", "Failed to skip PICTURE block, continuing anyway");
+                        parse_success = true; // Non-fatal error, continue parsing
+                    }
                 }
                 break;
                 
@@ -1326,7 +1346,7 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
             Debug::log("flac", "Comment ", i, " too large (", comment_length, " bytes), skipping");
             // Skip this comment
             off_t current_pos = m_handler->tell();
-            if (current_pos < 0 || !m_handler->seek(current_pos + static_cast<off_t>(comment_length), SEEK_SET)) {
+            if (current_pos < 0 || m_handler->seek(current_pos + static_cast<off_t>(comment_length), SEEK_SET) != 0) {
                 Debug::log("flac", "Failed to skip oversized comment");
                 break;
             }
@@ -1369,7 +1389,7 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
         uint32_t remaining = block.length - bytes_read;
         Debug::log("flac", "Skipping ", remaining, " remaining bytes in VORBIS_COMMENT block");
         off_t current_pos = m_handler->tell();
-        if (current_pos < 0 || !m_handler->seek(current_pos + static_cast<off_t>(remaining), SEEK_SET)) {
+        if (current_pos < 0 || m_handler->seek(current_pos + static_cast<off_t>(remaining), SEEK_SET) != 0) {
             Debug::log("flac", "Failed to skip remaining VORBIS_COMMENT data");
             return false;
         }
@@ -1573,7 +1593,8 @@ bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
     if (data_length > MAX_PICTURE_SIZE) {
         Debug::log("flac", "Picture data too large (", data_length, " bytes), skipping");
         // Skip the picture entirely if it's too large
-        if (!m_handler->seek(static_cast<off_t>(picture.data_offset + data_length), SEEK_SET)) {
+        off_t block_end = static_cast<off_t>(block.data_offset + block.length);
+        if (m_handler->seek(block_end, SEEK_SET) != 0) {
             reportError("IO", "Failed to skip oversized picture data");
             return false;
         }
@@ -1584,7 +1605,8 @@ bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
     if (m_pictures.size() >= MAX_PICTURES) {
         Debug::log("flac", "Too many pictures already stored, skipping additional picture");
         // Skip the picture data
-        if (!m_handler->seek(static_cast<off_t>(picture.data_offset + data_length), SEEK_SET)) {
+        off_t block_end = static_cast<off_t>(block.data_offset + block.length);
+        if (m_handler->seek(block_end, SEEK_SET) != 0) {
             reportError("IO", "Failed to skip excess picture data");
             return false;
         }
@@ -1592,8 +1614,15 @@ bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
     }
     
     // Skip the actual image data for now (will be loaded on demand)
-    if (!m_handler->seek(static_cast<off_t>(picture.data_offset + data_length), SEEK_SET)) {
-        reportError("IO", "Failed to skip picture data");
+    // Seek to the end of this metadata block
+    // Note: block.data_offset points to the start of block data, 
+    // and block.length is the size of the data portion
+    off_t block_end = static_cast<off_t>(block.data_offset + block.length);
+    Debug::log("flac", "Seeking to end of PICTURE block: data_offset=", block.data_offset, 
+               " length=", block.length, " target=", block_end);
+    
+    if (m_handler->seek(block_end, SEEK_SET) != 0) {
+        reportError("IO", "Failed to skip picture data at offset " + std::to_string(block_end));
         return false;
     }
     
@@ -1652,16 +1681,15 @@ bool FLACDemuxer::skipMetadataBlock(const FLACMetadataBlock& block)
         return false;
     }
     
-    // Skip the block data by seeking forward
-    off_t current_pos = m_handler->tell();
-    if (current_pos < 0) {
-        Debug::log("flac", "Failed to get current position for block skip");
-        return false;
-    }
-    off_t target_pos = current_pos + static_cast<off_t>(block.length);
+    // Skip the block data by seeking to the end of the block
+    // Use block.data_offset + block.length to get the correct end position
+    off_t target_pos = static_cast<off_t>(block.data_offset + block.length);
     
-    if (!m_handler->seek(target_pos, SEEK_SET)) {
-        Debug::log("flac", "Failed to seek past metadata block");
+    Debug::log("flac", "Seeking to end of block: data_offset=", block.data_offset, 
+              " length=", block.length, " target=", target_pos);
+    
+    if (m_handler->seek(target_pos, SEEK_SET) != 0) {
+        Debug::log("flac", "Failed to seek past metadata block to position ", target_pos);
         return false;
     }
     
@@ -1682,21 +1710,17 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     
     Debug::log("flac", "Starting frame search from offset: ", search_start);
     
-    // TEMPORARY FIX: Simple frame detection for test data
-    // This is a minimal implementation to make tests pass
-    if (search_start == m_audio_data_offset) {
-        // For test data, we know the frame starts at the audio data offset
-        // Create a minimal frame structure
-        frame.file_offset = search_start;
-        frame.sample_offset = 0;
-        frame.block_size = 4096;  // From STREAMINFO
-        frame.sample_rate = m_streaminfo.sample_rate;
-        frame.channels = m_streaminfo.channels;
-        frame.bits_per_sample = m_streaminfo.bits_per_sample;
-        frame.frame_size = 58;  // Approximate size from test data
-        frame.variable_block_size = false;
-        
-        m_current_offset = frame.file_offset;
+    // Seek to search position
+    if (m_handler->seek(static_cast<off_t>(search_start), SEEK_SET) != 0) {
+        reportError("IO", "Failed to seek to search position");
+        return false;
+    }
+    
+    // Try to parse frame header at current position first
+    frame.file_offset = search_start;
+    if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
+        Debug::log("flac", "Valid FLAC frame found at current position ", search_start);
+        m_current_offset = search_start;
         return true;
     }
     
@@ -2263,8 +2287,8 @@ uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
     uint32_t uncompressed_bytes = (uncompressed_bits + 7) / 8;  // Round up to bytes
     
     // Assume compression ratio between 30-70% (FLAC typical range)
-    // Use 50% as middle estimate
-    uint32_t compressed_bytes = uncompressed_bytes / 2;
+    // Use 40% as more realistic estimate for typical music
+    uint32_t compressed_bytes = (uncompressed_bytes * 2) / 5;
     
     // Add subframe header
     subframe_size = subframe_header_size + compressed_bytes;
@@ -2291,13 +2315,15 @@ uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
         Debug::log("flac", "Previous frame size estimate: ", previous_frame_estimate, " bytes");
     }
     
-    // Choose the best estimate
-    if (estimated_size > 0) {
-        // Use STREAMINFO-based estimate if available
-        estimated_size = std::max(estimated_size, theoretical_size);
+    // Choose the best estimate - prefer smaller estimates for better boundary detection
+    if (estimated_size > 0 && theoretical_size > 0) {
+        // Use the smaller of STREAMINFO-based and theoretical estimates
+        estimated_size = std::min(estimated_size, theoretical_size);
+        // But ensure it's at least the theoretical minimum
+        estimated_size = std::max(estimated_size, theoretical_size / 2);
     } else if (previous_frame_estimate > 0) {
         // Use previous frame estimate
-        estimated_size = std::max(previous_frame_estimate, theoretical_size);
+        estimated_size = previous_frame_estimate;
     } else {
         // Fall back to theoretical estimate
         estimated_size = theoretical_size;
@@ -2317,8 +2343,9 @@ uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
     estimated_size = std::max(estimated_size, min_frame_size);
     estimated_size = std::min(estimated_size, max_frame_size);
     
-    // Additional safety margin for seeking (add 10% buffer)
-    estimated_size = static_cast<uint32_t>(estimated_size * 1.1);
+    // Additional safety margin for seeking (add 50% buffer for variable compression)
+    // This ensures we read enough data to find the frame boundary
+    estimated_size = static_cast<uint32_t>(estimated_size * 1.5);
     
     Debug::log("flac", "Final frame size estimate: ", estimated_size, " bytes");
     Debug::log("flac", "  Bounds: ", min_frame_size, " - ", max_frame_size, " bytes");
@@ -2335,27 +2362,10 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
         return false;
     }
     
-    // TEMPORARY FIX: Simple frame data reading for test data
-    if (frame.file_offset == m_audio_data_offset && frame.frame_size == 58) {
-        // Create minimal frame data that matches test expectations
-        data.clear();
-        data.push_back(0xFF); // Sync code start
-        data.push_back(0xF8); // Sync code end + reserved + blocking strategy
-        data.push_back(0x69); // Block size + sample rate
-        data.push_back(0x04); // Channel assignment + sample size + reserved
-        data.push_back(0x00); // Frame number (UTF-8 coded, single byte)
-        data.push_back(0x8A); // CRC-8 (dummy value)
-        
-        // Add some frame data
-        for (int i = 0; i < 50; i++) {
-            data.push_back(0x00);
-        }
-        
-        // Frame footer CRC-16 (dummy)
-        data.push_back(0x00);
-        data.push_back(0x00);
-        
-        return true;
+    // Validate frame parameters
+    if (!frame.isValid()) {
+        reportError("Frame", "Invalid frame header for reading");
+        return false;
     }
     
     if (!frame.isValid()) {
@@ -2364,7 +2374,7 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
     }
     
     // Seek to the frame position
-    if (!m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET)) {
+    if (m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET) != 0) {
         reportError("IO", "Failed to seek to frame position: " + std::to_string(frame.file_offset));
         return false;
     }
@@ -2429,25 +2439,34 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
         }
     }
     
-    // For FLAC frames, we need to find the actual end of the frame
-    // This is more complex because FLAC frames are variable length
-    // For now, we'll try to find the CRC-16 at the end or next sync pattern
+    // For FLAC frames, we need to find the actual end by looking for the CRC-16
+    // FLAC frames end with a 16-bit CRC, and the next frame starts with sync pattern
     
-    if (bytes_read == frame_size && frame_size > 2) {
-        // Try to find the actual frame boundary by looking for next sync or EOF
-        uint64_t search_start = frame.file_offset + bytes_read;
-        off_t original_pos = m_handler->tell();
-        if (original_pos < 0) {
-            Debug::log("flac", "Failed to get current position for frame validation");
-            return false;
+    if (bytes_read == frame_size && frame_size > 10) {  // Minimum frame: header(7) + subframe(1) + CRC(2)
+        // Use a more conservative approach: look for frame boundaries using STREAMINFO constraints
+        uint32_t min_frame_size = 10;  // Absolute minimum FLAC frame size
+        uint32_t max_reasonable_size = frame_size;
+        
+        // If we have STREAMINFO, use it to constrain our search
+        if (m_streaminfo.isValid() && m_streaminfo.max_frame_size > 0) {
+            max_reasonable_size = std::min(frame_size, m_streaminfo.max_frame_size);
         }
         
-        // Look ahead for next frame sync to validate our frame size
-        bool found_next_sync = false;
-        const uint32_t max_search = 1024;  // Don't search too far
+        // Look for the next sync pattern within reasonable bounds
+        bool found_boundary = false;
+        uint64_t search_start = frame.file_offset;
         
-        for (uint32_t i = 0; i < max_search && search_start + i < m_file_size; i++) {
-            if (!m_handler->seek(static_cast<off_t>(search_start + i), SEEK_SET)) {
+        // Search from minimum frame size to maximum reasonable size
+        for (uint32_t test_size = min_frame_size; test_size <= max_reasonable_size && !found_boundary; test_size += 2) {
+            uint64_t test_pos = search_start + test_size;
+            
+            // Don't search beyond file end
+            if (test_pos + 2 >= m_file_size) {
+                break;
+            }
+            
+            // Seek to potential frame boundary
+            if (m_handler->seek(static_cast<off_t>(test_pos), SEEK_SET) != 0) {
                 break;
             }
             
@@ -2456,36 +2475,41 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
                 break;
             }
             
-            // Check for FLAC sync pattern
+            // Check for FLAC sync pattern (0xFF followed by 0xF8-0xFF)
             if (sync_bytes[0] == 0xFF && (sync_bytes[1] & 0xF8) == 0xF8) {
-                // Found potential next frame, adjust our frame size
-                uint32_t actual_frame_size = static_cast<uint32_t>(search_start + i - frame.file_offset);
-                if (actual_frame_size < frame_size && actual_frame_size >= 4) {
-                    Debug::log("flac", "Adjusted frame size from ", frame_size, " to ", actual_frame_size);
-                    data.resize(actual_frame_size);
-                    found_next_sync = true;
-                }
+                // Found potential next frame
+                Debug::log("flac", "Found frame boundary at offset ", test_pos, 
+                          ", frame size: ", test_size, " bytes");
+                data.resize(test_size);
+                found_boundary = true;
                 break;
             }
         }
         
-        // Restore file position
-        m_handler->seek(original_pos, SEEK_SET);
-        
-        if (!found_next_sync && m_file_size > 0 && search_start >= m_file_size) {
-            // We're at the last frame, adjust size to file end
-            uint32_t actual_frame_size = static_cast<uint32_t>(m_file_size - frame.file_offset);
-            if (actual_frame_size < frame_size && actual_frame_size >= 4) {
-                Debug::log("flac", "Last frame, adjusted size from ", frame_size, " to ", actual_frame_size);
-                data.resize(actual_frame_size);
+        // If we still haven't found a boundary, use a fallback approach
+        if (!found_boundary) {
+            // Use the minimum of our estimate and STREAMINFO max
+            uint32_t fallback_size = frame_size;
+            if (m_streaminfo.isValid() && m_streaminfo.max_frame_size > 0) {
+                fallback_size = std::min(frame_size, m_streaminfo.max_frame_size);
             }
+            
+            // Further constrain to a reasonable maximum (8KB for typical FLAC frames)
+            fallback_size = std::min(fallback_size, static_cast<uint32_t>(8192));
+            
+            Debug::log("flac", "No frame boundary found, using fallback size: ", fallback_size, " bytes");
+            data.resize(fallback_size);
         }
     }
     
-    // Update current file position
-    m_current_offset = frame.file_offset + data.size();
+    // Update current file position to the actual end of the frame
+    uint32_t actual_frame_size = static_cast<uint32_t>(data.size());
+    m_current_offset = frame.file_offset + actual_frame_size;
     
-    Debug::log("flac", "Successfully read FLAC frame: ", data.size(), " bytes at offset ", frame.file_offset);
+    Debug::log("flac", "Successfully read FLAC frame: ", actual_frame_size, " bytes at offset ", frame.file_offset);
+    
+    // Update the frame's actual size for future reference
+    const_cast<FLACFrame&>(frame).frame_size = actual_frame_size;
     
     return true;
 }

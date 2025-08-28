@@ -303,21 +303,21 @@
   - Need to investigate FileIOHandler buffering behavior
   - May need to disable buffering or fix buffer position tracking
 
-- [ ] 14. Documentation and Code Quality
+- [x] 14. Documentation and Code Quality
   - Add comprehensive inline documentation for all public methods
   - Create developer documentation for FLAC container format handling
   - Document seeking algorithms and optimization opportunities
   - Ensure code follows PsyMP3 style guidelines and conventions
   - _Requirements: 8.7, 8.8, 9.7, 9.8_
 
-- [ ] 14.1 Create API Documentation
+- [x] 14.1 Create API Documentation
   - Document all FLACDemuxer public methods with usage examples
   - Explain FLAC container format and metadata block structure
   - Document seeking strategies and performance characteristics
   - Add troubleshooting guide for common issues
   - _Requirements: 8.7, 8.8, 10.1-10.8_
 
-- [ ] 14.2 Add Developer Guide
+- [x] 14.2 Add Developer Guide
   - Document integration with FLACCodec and other components
   - Explain relationship between container parsing and bitstream decoding
   - Provide guidance for extending FLAC support
