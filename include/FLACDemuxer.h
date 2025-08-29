@@ -624,6 +624,11 @@ private:
     bool isNetworkStream() const;
     void optimizeForNetworkStreaming();
     
+    // Performance optimization methods
+    void optimizeFrameProcessingPerformance();
+    bool validatePerformanceOptimizations();
+    void logPerformanceMetrics();
+    
     // Frame indexing methods
     bool performInitialFrameIndexing();
     void addFrameToIndex(const FLACFrame& frame);
