@@ -343,7 +343,7 @@
   - **Priority 5**: Provide sufficient detail for performance troubleshooting
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.8_
 
-- [-] 16. Fix Multiple Frame Size Estimation Methods (NEW)
+- [x] 16. Fix Multiple Frame Size Estimation Methods (NEW)
   - **Priority 1**: Identify all locations where frame size estimation occurs
   - **Priority 2**: Ensure consistent use of STREAMINFO-based estimation across all methods
   - **Priority 3**: Fix `skipCorruptedFrame()` method to use proper STREAMINFO minimum

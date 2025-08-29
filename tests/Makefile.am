@@ -33,7 +33,7 @@ test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp tes
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_flac_frame_indexing
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_flac_frame_indexing test_frame_size_estimation_consistency
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -1283,4 +1283,24 @@ test_memory_pool_manager_basic_threading_LDADD = \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+test_frame_size_estimation_consistency_SOURCES = test_frame_size_estimation_consistency.cpp
+test_frame_size_estimation_consistency_CPPFLAGS = $(AM_CPPFLAGS)
+test_frame_size_estimation_consistency_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)

@@ -2633,19 +2633,10 @@ uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
             return estimated_size;  // Return immediately for fixed block size - no scaling needed
         }
         
-        // For variable block size streams, apply minimal conservative scaling only
-        if (frame.block_size > m_streaminfo.min_block_size && m_streaminfo.max_block_size > m_streaminfo.min_block_size) {
-            // Very conservative scaling - only increase slightly for larger blocks
-            double block_ratio = static_cast<double>(frame.block_size - m_streaminfo.min_block_size) / 
-                                (m_streaminfo.max_block_size - m_streaminfo.min_block_size);
-            
-            // Limit scaling to maximum 50% increase to avoid overestimation
-            uint32_t scaling_factor = static_cast<uint32_t>(estimated_size * block_ratio * 0.3);
-            estimated_size += scaling_factor;
-            
-            Debug::log("flac", "[calculateFrameSize] Variable block size - conservative scaling applied: ", 
-                      block_ratio, " ratio -> +", scaling_factor, " bytes = ", estimated_size, " bytes total");
-        }
+        // PRIORITY 4: Remove complex theoretical calculations - use STREAMINFO minimum directly
+        // For variable block size streams, still use minimum frame size without complex scaling
+        // This avoids inaccurate estimates that can be orders of magnitude wrong
+        Debug::log("flac", "[calculateFrameSize] Variable block size stream - using STREAMINFO minimum without scaling to avoid inaccurate estimates");
         
         Debug::log("flac", "[calculateFrameSize] Final STREAMINFO-based estimate: ", estimated_size, " bytes");
         return estimated_size;
@@ -2713,7 +2704,7 @@ bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& da
     if (frame_size == 0) {
         // Estimate frame size if not known
         frame_size = calculateFrameSize(frame);
-        Debug::log("flac", "[readFrameData] Using estimated frame size: ", frame_size, " bytes");
+        Debug::log("flac", "[readFrameData] Using estimated frame size from calculateFrameSize: ", frame_size, " bytes");
     }
     
     // Validate frame size is reasonable (use memory management constant)
@@ -3992,11 +3983,11 @@ bool FLACDemuxer::skipCorruptedFrame()
     // Save current position
     int64_t start_position = m_handler->tell();
     
-    // CRITICAL: Use proper STREAMINFO minimum frame size estimation
+    // PRIORITY 3: Use consistent STREAMINFO-based estimation (same as calculateFrameSize)
     uint32_t estimated_frame_size = 0;
     
     if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
-        // Use STREAMINFO minimum frame size directly - same logic as calculateFrameSize
+        // Use STREAMINFO minimum frame size directly - consistent with calculateFrameSize
         estimated_frame_size = m_streaminfo.min_frame_size;
         
         Debug::log("flac", "[skipCorruptedFrame] Using STREAMINFO minimum frame size: ", estimated_frame_size, " bytes");
@@ -4006,7 +3997,7 @@ bool FLACDemuxer::skipCorruptedFrame()
             Debug::log("flac", "[skipCorruptedFrame] Fixed block size stream - using minimum directly");
         }
     } else {
-        // Conservative fallback for highly compressed streams (can be as small as 14 bytes)
+        // Conservative fallback consistent with calculateFrameSize
         estimated_frame_size = 64;  // Conservative minimum that handles highly compressed frames
         Debug::log("flac", "[skipCorruptedFrame] No STREAMINFO available - using conservative fallback: ", estimated_frame_size, " bytes");
     }
