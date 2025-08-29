@@ -159,6 +159,142 @@ struct FLACFrame {
 };
 
 /**
+ * @brief Frame index entry for efficient seeking
+ * 
+ * This structure stores discovered frame positions during parsing or playback
+ * to enable sample-accurate seeking without the limitations of binary search
+ * on compressed audio streams.
+ */
+struct FLACFrameIndexEntry {
+    uint64_t sample_offset = 0;      ///< Sample position of this frame in the stream
+    uint64_t file_offset = 0;        ///< File position where frame starts
+    uint32_t block_size = 0;         ///< Number of samples in this frame
+    uint32_t frame_size = 0;         ///< Actual size of frame in bytes (if known)
+    
+    FLACFrameIndexEntry() = default;
+    
+    FLACFrameIndexEntry(uint64_t sample, uint64_t offset, uint32_t blocks, uint32_t size = 0)
+        : sample_offset(sample), file_offset(offset), block_size(blocks), frame_size(size) {}
+    
+    /**
+     * @brief Check if this index entry is valid
+     */
+    bool isValid() const {
+        return block_size > 0 && file_offset > 0;
+    }
+    
+    /**
+     * @brief Get the sample range covered by this frame
+     */
+    std::pair<uint64_t, uint64_t> getSampleRange() const {
+        return {sample_offset, sample_offset + block_size};
+    }
+    
+    /**
+     * @brief Check if a target sample falls within this frame
+     */
+    bool containsSample(uint64_t target_sample) const {
+        return target_sample >= sample_offset && target_sample < (sample_offset + block_size);
+    }
+};
+
+/**
+ * @brief Frame index for efficient seeking in FLAC streams
+ * 
+ * This class maintains a sorted index of discovered frame positions to enable
+ * sample-accurate seeking without the architectural limitations of binary search
+ * on compressed audio streams.
+ */
+class FLACFrameIndex {
+public:
+    // Configuration constants
+    static constexpr size_t MAX_INDEX_ENTRIES = 50000;        ///< Maximum index entries to prevent memory exhaustion
+    static constexpr size_t INDEX_GRANULARITY_SAMPLES = 44100; ///< Target samples between index entries (1 second at 44.1kHz)
+    static constexpr size_t MEMORY_LIMIT_BYTES = 8 * 1024 * 1024; ///< Maximum memory usage for index (8MB)
+    
+    FLACFrameIndex() = default;
+    
+    /**
+     * @brief Add a frame to the index
+     * @param entry Frame index entry to add
+     * @return true if added successfully, false if rejected (duplicate, memory limit, etc.)
+     */
+    bool addFrame(const FLACFrameIndexEntry& entry);
+    
+    /**
+     * @brief Find the best frame index entry for seeking to a target sample
+     * @param target_sample Target sample position
+     * @return Pointer to best index entry, or nullptr if no suitable entry found
+     */
+    const FLACFrameIndexEntry* findBestEntry(uint64_t target_sample) const;
+    
+    /**
+     * @brief Find frame index entry that contains the target sample
+     * @param target_sample Target sample position
+     * @return Pointer to containing index entry, or nullptr if not found
+     */
+    const FLACFrameIndexEntry* findContainingEntry(uint64_t target_sample) const;
+    
+    /**
+     * @brief Get all index entries (for debugging or analysis)
+     */
+    const std::vector<FLACFrameIndexEntry>& getEntries() const { return m_entries; }
+    
+    /**
+     * @brief Get number of entries in the index
+     */
+    size_t size() const { return m_entries.size(); }
+    
+    /**
+     * @brief Check if index is empty
+     */
+    bool empty() const { return m_entries.empty(); }
+    
+    /**
+     * @brief Clear all index entries
+     */
+    void clear();
+    
+    /**
+     * @brief Get memory usage of the index in bytes
+     */
+    size_t getMemoryUsage() const;
+    
+    /**
+     * @brief Check if index should accept more entries based on memory and granularity
+     */
+    bool shouldAddEntry(const FLACFrameIndexEntry& entry) const;
+    
+    /**
+     * @brief Get coverage statistics for the index
+     */
+    struct IndexStats {
+        uint64_t first_sample = 0;
+        uint64_t last_sample = 0;
+        uint64_t total_samples_covered = 0;
+        double coverage_percentage = 0.0;
+        size_t entry_count = 0;
+        size_t memory_usage = 0;
+    };
+    
+    IndexStats getStats() const;
+
+private:
+    std::vector<FLACFrameIndexEntry> m_entries;  ///< Sorted list of frame index entries
+    mutable std::mutex m_mutex;                  ///< Thread safety for index access
+    
+    /**
+     * @brief Ensure entries are sorted by sample offset
+     */
+    void ensureSorted();
+    
+    /**
+     * @brief Check if we should skip adding this entry due to granularity
+     */
+    bool checkGranularity(const FLACFrameIndexEntry& entry) const;
+};
+
+/**
  * @brief FLAC picture metadata information (memory-optimized)
  */
 struct FLACPicture {
@@ -318,6 +454,34 @@ public:
      * @thread_safety Thread-safe
      */
     uint64_t getCurrentSample() const;
+    
+    /**
+     * @brief Enable or disable frame indexing for efficient seeking
+     * @param enable True to enable frame indexing, false to disable
+     * @thread_safety Thread-safe
+     */
+    void setFrameIndexingEnabled(bool enable);
+    
+    /**
+     * @brief Check if frame indexing is enabled
+     * @return True if frame indexing is enabled
+     * @thread_safety Thread-safe
+     */
+    bool isFrameIndexingEnabled() const;
+    
+    /**
+     * @brief Get frame index statistics for debugging and analysis
+     * @return Frame index statistics structure
+     * @thread_safety Thread-safe
+     */
+    FLACFrameIndex::IndexStats getFrameIndexStats() const;
+    
+    /**
+     * @brief Trigger initial frame indexing (if not already done)
+     * @return True if indexing completed successfully
+     * @thread_safety Thread-safe
+     */
+    bool buildFrameIndex();
 
 private:
     // Thread safety - Lock acquisition order documented above
@@ -352,6 +516,13 @@ private:
     bool m_is_network_stream = false;                ///< True if this appears to be a network stream
     mutable std::vector<uint8_t> m_readahead_buffer; ///< Read-ahead buffer for network streams
     
+    // Frame indexing system (protected by m_state_mutex)
+    FLACFrameIndex m_frame_index;                    ///< Frame index for efficient seeking
+    bool m_frame_indexing_enabled = true;            ///< True if frame indexing is enabled
+    bool m_initial_indexing_complete = false;        ///< True if initial parsing-based indexing is complete
+    size_t m_frames_indexed_during_parsing = 0;      ///< Number of frames indexed during initial parsing
+    size_t m_frames_indexed_during_playback = 0;     ///< Number of frames indexed during playback
+    
     // Thread-safe public method implementations (assume locks are held)
     bool parseContainer_unlocked();
     std::vector<StreamInfo> getStreams_unlocked() const;
@@ -384,6 +555,17 @@ private:
     void updatePositionTracking(uint64_t sample_position, uint64_t file_offset);
     
     bool seekWithTable(uint64_t target_sample);
+    
+    /**
+     * @brief Frame index-based seeking (preferred method for accurate seeking)
+     * 
+     * Uses the frame index built during parsing or playback to provide sample-accurate
+     * seeking without the architectural limitations of binary search on compressed streams.
+     * 
+     * @param target_sample Target sample position to seek to
+     * @return true if successful, false if index insufficient or I/O error
+     */
+    bool seekWithIndex(uint64_t target_sample);
     
     /**
      * @brief Binary search seeking with architectural limitations acknowledgment
@@ -441,6 +623,13 @@ private:
     void prefetchNextFrame();
     bool isNetworkStream() const;
     void optimizeForNetworkStreaming();
+    
+    // Frame indexing methods
+    bool performInitialFrameIndexing();
+    void addFrameToIndex(const FLACFrame& frame);
+    void addFrameToIndex(uint64_t sample_offset, uint64_t file_offset, uint32_t block_size, uint32_t frame_size = 0);
+    void enableFrameIndexing(bool enable);
+    void clearFrameIndex();
 };
 
 #endif // FLACDEMUXER_H
