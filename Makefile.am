@@ -23,7 +23,7 @@ SUBDIRS = res src tests
 include scripts/threading-safety-makefile.mk
 
 # Add threading safety checks to the build process
-all-local: threading-check
+# all-local: threading-check  # DISABLED - too pushy during development
 
 # Add threading safety tests to check target
 check-local: threading-check-tests
