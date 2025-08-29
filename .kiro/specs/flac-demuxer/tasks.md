@@ -271,7 +271,7 @@
   - Ensure proper cleanup during multi-threaded destruction
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [-] 12.1 Implement Public/Private Lock Pattern (CRITICAL)
+- [x] 12.1 Implement Public/Private Lock Pattern (CRITICAL)
   - **Priority 1**: Create public methods that acquire locks and call private `_unlocked` implementations
   - **Priority 2**: Ensure all internal method calls use `_unlocked` versions to prevent deadlocks
   - **Priority 3**: Document lock acquisition order to prevent deadlock scenarios
@@ -328,14 +328,14 @@
   - Add troubleshooting guide for common issues
   - _Requirements: 8.7, 8.8, 10.1-10.8_
 
-- [ ] 14.2 Add Developer Guide
+- [x] 14.2 Add Developer Guide
   - Document integration with FLACCodec and other components
   - Explain relationship between container parsing and bitstream decoding
   - Provide guidance for extending FLAC support
   - Document thread safety considerations and best practices
   - _Requirements: 9.7, 9.8, 10.1-10.8_
 
-- [ ] 15. Implement Debug Logging with Method Identification (NEW)
+- [x] 15. Implement Debug Logging with Method Identification (NEW)
   - **Priority 1**: Add unique method tokens to all debug messages (e.g., `[calculateFrameSize]`)
   - **Priority 2**: Distinguish between similar messages from different methods
   - **Priority 3**: Log frame size estimation method selection and results
@@ -343,7 +343,7 @@
   - **Priority 5**: Provide sufficient detail for performance troubleshooting
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.8_
 
-- [ ] 16. Fix Multiple Frame Size Estimation Methods (NEW)
+- [-] 16. Fix Multiple Frame Size Estimation Methods (NEW)
   - **Priority 1**: Identify all locations where frame size estimation occurs
   - **Priority 2**: Ensure consistent use of STREAMINFO-based estimation across all methods
   - **Priority 3**: Fix `skipCorruptedFrame()` method to use proper STREAMINFO minimum
@@ -359,7 +359,7 @@
   - **Priority 5**: Handle highly compressed streams (14-byte frames) efficiently
   - _Requirements: 7.1, 7.2, 7.3, 7.5, 7.8_
 
-- [ ] 18. Implement Future Seeking Architecture (FUTURE)
+- [x] 18. Implement Future Seeking Architecture (FUTURE)
   - **Priority 1**: Design frame indexing system during initial parsing
   - **Priority 2**: Cache discovered frame positions for accurate seeking
   - **Priority 3**: Implement sample-accurate seeking using frame index

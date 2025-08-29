@@ -663,7 +663,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked(uint32_t stream_id)
     Debug::log("flac", "[readChunk_unlocked] Reading chunk for stream_id: ", stream_id);
     
     if (m_error_state.load()) {
-        Debug::log("flac", "Demuxer in error state");
+        Debug::log("flac", "[readChunk_unlocked] Demuxer in error state");
         return MediaChunk{};
     }
     
@@ -914,14 +914,14 @@ uint64_t FLACDemuxer::getPosition_unlocked() const
     }
     
     if (!m_container_parsed || !m_streaminfo.isValid()) {
-        Debug::log("flac", "Container not parsed or invalid STREAMINFO");
+        Debug::log("flac", "[getPosition_unlocked] Container not parsed or invalid STREAMINFO");
         return 0;
     }
     
     // Convert current sample position to milliseconds (atomic read)
     uint64_t current_sample = m_current_sample.load();
     uint64_t position_ms = samplesToMs(current_sample);
-    Debug::log("flac", "Current position: ", current_sample, " samples = ", position_ms, " ms");
+    Debug::log("flac", "[getPosition_unlocked] Current position: ", current_sample, " samples = ", position_ms, " ms");
     
     return position_ms;
 }
@@ -934,20 +934,20 @@ uint64_t FLACDemuxer::getCurrentSample() const
 
 uint64_t FLACDemuxer::getCurrentSample_unlocked() const
 {
-    Debug::log("flac", "FLACDemuxer::getCurrentSample_unlocked() - returning current position in samples");
+    Debug::log("flac", "[getCurrentSample_unlocked] Returning current position in samples");
     
     if (m_error_state.load()) {
-        Debug::log("flac", "Demuxer in error state");
+        Debug::log("flac", "[getCurrentSample_unlocked] Demuxer in error state");
         return 0;
     }
     
     if (!m_container_parsed) {
-        Debug::log("flac", "Container not parsed");
+        Debug::log("flac", "[getCurrentSample_unlocked] Container not parsed");
         return 0;
     }
     
     uint64_t current_sample = m_current_sample.load();
-    Debug::log("flac", "Current sample position: ", current_sample);
+    Debug::log("flac", "[getCurrentSample_unlocked] Current sample position: ", current_sample);
     return current_sample;
 }
 
@@ -955,7 +955,7 @@ uint64_t FLACDemuxer::getCurrentSample_unlocked() const
 
 bool FLACDemuxer::parseMetadataBlockHeader(FLACMetadataBlock& block)
 {
-    Debug::log("flac", "FLACDemuxer::parseMetadataBlockHeader() - parsing block header");
+    Debug::log("flac", "[parseMetadataBlockHeader] Parsing block header");
     
     if (!m_handler) {
         return false;
@@ -964,7 +964,7 @@ bool FLACDemuxer::parseMetadataBlockHeader(FLACMetadataBlock& block)
     // Read 4-byte metadata block header
     uint8_t header[4];
     if (m_handler->read(header, 1, 4) != 4) {
-        Debug::log("flac", "Failed to read metadata block header");
+        Debug::log("flac", "[parseMetadataBlockHeader] Failed to read metadata block header");
         return false;
     }
     
@@ -993,7 +993,7 @@ bool FLACDemuxer::parseMetadataBlockHeader(FLACMetadataBlock& block)
     // Store current position as data offset
     block.data_offset = static_cast<uint64_t>(m_handler->tell());
     
-    Debug::log("flac", "Metadata block: type=", static_cast<int>(block.type), 
+    Debug::log("flac", "[parseMetadataBlockHeader] Metadata block: type=", static_cast<int>(block.type), 
                " is_last=", block.is_last, " length=", block.length, 
                " data_offset=", block.data_offset);
     
@@ -1118,10 +1118,10 @@ bool FLACDemuxer::parseMetadataBlocks()
                     // Skip the failed PICTURE block by seeking to its end
                     off_t block_end = static_cast<off_t>(block.data_offset + block.length);
                     if (m_handler->seek(block_end, SEEK_SET)) {
-                        Debug::log("flac", "Successfully skipped failed PICTURE block");
+                        Debug::log("flac", "[parseMetadataBlocks] Successfully skipped failed PICTURE block");
                         parse_success = true; // Continue parsing other blocks
                     } else {
-                        Debug::log("flac", "Failed to skip PICTURE block, continuing anyway");
+                        Debug::log("flac", "[parseMetadataBlocks] Failed to skip PICTURE block, continuing anyway");
                         parse_success = true; // Non-fatal error, continue parsing
                     }
                 }
@@ -1129,44 +1129,44 @@ bool FLACDemuxer::parseMetadataBlocks()
                 
             case FLACMetadataType::PADDING:
                 block_type_name = "PADDING";
-                Debug::log("flac", "Skipping PADDING block");
+                Debug::log("flac", "[parseMetadataBlocks] Skipping PADDING block");
                 parse_success = skipMetadataBlock(block);
                 break;
                 
             case FLACMetadataType::APPLICATION:
                 block_type_name = "APPLICATION";
-                Debug::log("flac", "Skipping APPLICATION block");
+                Debug::log("flac", "[parseMetadataBlocks] Skipping APPLICATION block");
                 parse_success = skipMetadataBlock(block);
                 break;
                 
             case FLACMetadataType::CUESHEET:
                 block_type_name = "CUESHEET";
-                Debug::log("flac", "Skipping CUESHEET block");
+                Debug::log("flac", "[parseMetadataBlocks] Skipping CUESHEET block");
                 parse_success = skipMetadataBlock(block);
                 break;
                 
             default:
                 block_type_name = "Unknown";
-                Debug::log("flac", "Skipping unknown metadata block type: ", static_cast<int>(block.type));
+                Debug::log("flac", "[parseMetadataBlocks] Skipping unknown metadata block type: ", static_cast<int>(block.type));
                 parse_success = skipMetadataBlock(block);
                 break;
         }
         
         if (!parse_success) {
-            Debug::log("flac", "Failed to process ", block_type_name, " metadata block");
+            Debug::log("flac", "[parseMetadataBlocks] Failed to process ", block_type_name, " metadata block");
             blocks_skipped++;
             
             // For critical blocks (STREAMINFO), this is a serious error
             if (block.type == FLACMetadataType::STREAMINFO) {
-                Debug::log("flac", "STREAMINFO block parsing failed, attempting recovery");
+                Debug::log("flac", "[parseMetadataBlocks] STREAMINFO block parsing failed, attempting recovery");
                 
                 // Try to skip this block and continue, we'll attempt recovery later
                 if (!skipMetadataBlock(block)) {
-                    Debug::log("flac", "Failed to skip corrupted STREAMINFO block");
+                    Debug::log("flac", "[parseMetadataBlocks] Failed to skip corrupted STREAMINFO block");
                     
                     // Try to recover by finding audio data
                     if (recoverFromCorruptedMetadata()) {
-                        Debug::log("flac", "Recovered from corrupted STREAMINFO");
+                        Debug::log("flac", "[parseMetadataBlocks] Recovered from corrupted STREAMINFO");
                         break;
                     } else {
                         reportError("Format", "Failed to process STREAMINFO block and cannot recover");
@@ -1175,18 +1175,18 @@ bool FLACDemuxer::parseMetadataBlocks()
                 }
             } else {
                 // For non-critical blocks, try to skip and continue
-                Debug::log("flac", "Attempting to skip failed ", block_type_name, " block");
+                Debug::log("flac", "[parseMetadataBlocks] Attempting to skip failed ", block_type_name, " block");
                 
                 if (!skipMetadataBlock(block)) {
-                    Debug::log("flac", "Failed to skip ", block_type_name, " block after parse error");
+                    Debug::log("flac", "[parseMetadataBlocks] Failed to skip ", block_type_name, " block after parse error");
                     
                     // Try to recover by finding next valid block or audio data
                     if (recoverFromCorruptedMetadata()) {
-                        Debug::log("flac", "Recovered from corrupted ", block_type_name, " block");
+                        Debug::log("flac", "[parseMetadataBlocks] Recovered from corrupted ", block_type_name, " block");
                         break;
                     } else {
                         // For non-critical blocks, we can continue without them
-                        Debug::log("flac", "Cannot recover from ", block_type_name, 
+                        Debug::log("flac", "[parseMetadataBlocks] Cannot recover from ", block_type_name, 
                                   " block error, but continuing anyway");
                         break;
                     }
@@ -1197,12 +1197,12 @@ bool FLACDemuxer::parseMetadataBlocks()
     
     // Check if we hit the maximum block limit
     if (blocks_parsed >= max_metadata_blocks) {
-        Debug::log("flac", "Reached maximum metadata block limit (", max_metadata_blocks, 
+        Debug::log("flac", "[parseMetadataBlocks] Reached maximum metadata block limit (", max_metadata_blocks, 
                   "), stopping parsing");
         
         // Try to find audio data start
         if (recoverFromCorruptedMetadata()) {
-            Debug::log("flac", "Found audio data after hitting block limit");
+            Debug::log("flac", "[parseMetadataBlocks] Found audio data after hitting block limit");
         } else {
             reportError("Format", "Too many metadata blocks and cannot find audio data");
             return false;
@@ -1211,10 +1211,10 @@ bool FLACDemuxer::parseMetadataBlocks()
     
     // STREAMINFO is mandatory - if we didn't find it, try to recover
     if (!found_streaminfo) {
-        Debug::log("flac", "STREAMINFO block not found, attempting recovery");
+        Debug::log("flac", "[parseMetadataBlocks] STREAMINFO block not found, attempting recovery");
         
         if (attemptStreamInfoRecovery()) {
-            Debug::log("flac", "Successfully recovered STREAMINFO from first frame");
+            Debug::log("flac", "[parseMetadataBlocks] Successfully recovered STREAMINFO from first frame");
         } else {
             reportError("Format", "FLAC file missing mandatory STREAMINFO block and cannot recover");
             return false;
@@ -1225,10 +1225,10 @@ bool FLACDemuxer::parseMetadataBlocks()
     m_audio_data_offset = static_cast<uint64_t>(m_handler->tell());
     m_current_offset = m_audio_data_offset;
     
-    Debug::log("flac", "Metadata parsing complete:");
-    Debug::log("flac", "  Blocks parsed: ", blocks_parsed);
-    Debug::log("flac", "  Blocks skipped: ", blocks_skipped);
-    Debug::log("flac", "  Audio data starts at offset: ", m_audio_data_offset);
+    Debug::log("flac", "[parseMetadataBlocks] Metadata parsing complete:");
+    Debug::log("flac", "[parseMetadataBlocks] Blocks parsed: ", blocks_parsed);
+    Debug::log("flac", "[parseMetadataBlocks] Blocks skipped: ", blocks_skipped);
+    Debug::log("flac", "[parseMetadataBlocks] Audio data starts at offset: ", m_audio_data_offset);
     
     return true;
 }
@@ -1312,16 +1312,16 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
         return false;
     }
     
-    Debug::log("flac", "STREAMINFO parsed successfully:");
-    Debug::log("flac", "  Sample rate: ", m_streaminfo.sample_rate, " Hz");
-    Debug::log("flac", "  Channels: ", static_cast<int>(m_streaminfo.channels));
-    Debug::log("flac", "  Bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
-    Debug::log("flac", "  Total samples: ", m_streaminfo.total_samples);
-    Debug::log("flac", "  Duration: ", m_streaminfo.getDurationMs(), " ms");
-    Debug::log("flac", "  Block size range: ", m_streaminfo.min_block_size, "-", m_streaminfo.max_block_size);
+    Debug::log("flac", "[parseStreamInfoBlock] STREAMINFO parsed successfully:");
+    Debug::log("flac", "[parseStreamInfoBlock] Sample rate: ", m_streaminfo.sample_rate, " Hz");
+    Debug::log("flac", "[parseStreamInfoBlock] Channels: ", static_cast<int>(m_streaminfo.channels));
+    Debug::log("flac", "[parseStreamInfoBlock] Bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
+    Debug::log("flac", "[parseStreamInfoBlock] Total samples: ", m_streaminfo.total_samples);
+    Debug::log("flac", "[parseStreamInfoBlock] Duration: ", m_streaminfo.getDurationMs(), " ms");
+    Debug::log("flac", "[parseStreamInfoBlock] Block size range: ", m_streaminfo.min_block_size, "-", m_streaminfo.max_block_size);
     
     if (m_streaminfo.min_frame_size > 0 && m_streaminfo.max_frame_size > 0) {
-        Debug::log("flac", "  Frame size range: ", m_streaminfo.min_frame_size, "-", m_streaminfo.max_frame_size);
+        Debug::log("flac", "[parseStreamInfoBlock] Frame size range: ", m_streaminfo.min_frame_size, "-", m_streaminfo.max_frame_size);
     }
     
     return true;
@@ -1345,7 +1345,7 @@ bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
     }
     
     uint32_t num_seek_points = block.length / seek_point_size;
-    Debug::log("flac", "SEEKTABLE contains ", num_seek_points, " seek points");
+    Debug::log("flac", "[parseSeekTableBlock] SEEKTABLE contains ", num_seek_points, " seek points");
     
     // Clear existing seek table
     m_seektable.clear();
@@ -1387,13 +1387,13 @@ bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
         
         // Handle placeholder seek points
         if (seek_point.isPlaceholder()) {
-            Debug::log("flac", "Seek point ", i, " is a placeholder, skipping");
+            Debug::log("flac", "[parseSeekTableBlock] Seek point ", i, " is a placeholder, skipping");
             continue;
         }
         
         // Validate seek point for consistency and reasonable values
         if (!seek_point.isValid()) {
-            Debug::log("flac", "Invalid seek point ", i, ", skipping");
+            Debug::log("flac", "[parseSeekTableBlock] Invalid seek point ", i, ", skipping");
             continue;
         }
         
@@ -1402,7 +1402,7 @@ bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
             // Check if sample number is within total samples
             if (m_streaminfo.total_samples > 0 && 
                 seek_point.sample_number >= m_streaminfo.total_samples) {
-                Debug::log("flac", "Seek point ", i, " sample number (", 
+                Debug::log("flac", "[parseSeekTableBlock] Seek point ", i, " sample number (", 
                           seek_point.sample_number, ") exceeds total samples (", 
                           m_streaminfo.total_samples, "), skipping");
                 continue;
@@ -1410,7 +1410,7 @@ bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
             
             // Check if frame samples is reasonable
             if (seek_point.frame_samples > m_streaminfo.max_block_size) {
-                Debug::log("flac", "Seek point ", i, " frame samples (", 
+                Debug::log("flac", "[parseSeekTableBlock] Seek point ", i, " frame samples (", 
                           seek_point.frame_samples, ") exceeds max block size (", 
                           m_streaminfo.max_block_size, "), skipping");
                 continue;
@@ -1419,7 +1419,7 @@ bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
         
         // Check for reasonable stream offset (should be within file size)
         if (m_file_size > 0 && seek_point.stream_offset >= m_file_size) {
-            Debug::log("flac", "Seek point ", i, " stream offset (", 
+            Debug::log("flac", "[parseSeekTableBlock] Seek point ", i, " stream offset (", 
                       seek_point.stream_offset, ") exceeds file size (", 
                       m_file_size, "), skipping");
             continue;
@@ -1428,12 +1428,12 @@ bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
         // Add valid seek point to table
         m_seektable.push_back(seek_point);
         
-        Debug::log("flac", "Added seek point: sample=", seek_point.sample_number, 
+        Debug::log("flac", "[parseSeekTableBlock] Added seek point: sample=", seek_point.sample_number, 
                   " offset=", seek_point.stream_offset, 
                   " frame_samples=", seek_point.frame_samples);
     }
     
-    Debug::log("flac", "SEEKTABLE parsed successfully, ", m_seektable.size(), 
+    Debug::log("flac", "[parseSeekTableBlock] SEEKTABLE parsed successfully, ", m_seektable.size(), 
               " valid seek points out of ", num_seek_points, " total");
     
     // Sort seek table by sample number for efficient lookup
@@ -1447,7 +1447,7 @@ bool FLACDemuxer::parseSeekTableBlock(const FLACMetadataBlock& block)
 
 bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
 {
-    Debug::log("flac", "FLACDemuxer::parseVorbisCommentBlock() - parsing VORBIS_COMMENT block");
+    Debug::log("flac", "[parseVorbisCommentBlock] Parsing VORBIS_COMMENT block");
     
     if (!m_handler) {
         return false;
@@ -1494,7 +1494,7 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
         
         // Convert to string (assuming UTF-8)
         vendor_string.assign(vendor_data.begin(), vendor_data.end());
-        Debug::log("flac", "Vendor string: ", vendor_string);
+        Debug::log("flac", "[parseVorbisCommentBlock] Vendor string: ", vendor_string);
     }
     
     // Read user comment count (32-bit little-endian)
@@ -1510,20 +1510,20 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
                             (static_cast<uint32_t>(comment_count_data[2]) << 16) |
                             (static_cast<uint32_t>(comment_count_data[3]) << 24);
     
-    Debug::log("flac", "Processing ", comment_count, " user comments");
+    Debug::log("flac", "[parseVorbisCommentBlock] Processing ", comment_count, " user comments");
     
     // Read each user comment
     for (uint32_t i = 0; i < comment_count; i++) {
         // Check if we have enough bytes left
         if (bytes_read + 4 > block.length) {
-            Debug::log("flac", "Not enough data for comment ", i, " length field");
+            Debug::log("flac", "[parseVorbisCommentBlock] Not enough data for comment ", i, " length field");
             break;
         }
         
         // Read comment length (32-bit little-endian)
         uint8_t comment_len_data[4];
         if (m_handler->read(comment_len_data, 1, 4) != 4) {
-            Debug::log("flac", "Failed to read comment ", i, " length");
+            Debug::log("flac", "[parseVorbisCommentBlock] Failed to read comment ", i, " length");
             break;
         }
         bytes_read += 4;
@@ -1535,23 +1535,23 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
         
         // Validate comment length
         if (comment_length == 0) {
-            Debug::log("flac", "Empty comment ", i, ", skipping");
+            Debug::log("flac", "[parseVorbisCommentBlock] Empty comment ", i, ", skipping");
             continue;
         }
         
         if (bytes_read + comment_length > block.length) {
-            Debug::log("flac", "Comment ", i, " length (", comment_length, 
+            Debug::log("flac", "[parseVorbisCommentBlock] Comment ", i, " length (", comment_length, 
                       ") exceeds remaining block data");
             break;
         }
         
         // Reasonable size limit for comments (64KB)
         if (comment_length > 65536) {
-            Debug::log("flac", "Comment ", i, " too large (", comment_length, " bytes), skipping");
+            Debug::log("flac", "[parseVorbisCommentBlock] Comment ", i, " too large (", comment_length, " bytes), skipping");
             // Skip this comment
             off_t current_pos = m_handler->tell();
             if (current_pos < 0 || m_handler->seek(current_pos + static_cast<off_t>(comment_length), SEEK_SET) != 0) {
-                Debug::log("flac", "Failed to skip oversized comment");
+                Debug::log("flac", "[parseVorbisCommentBlock] Failed to skip oversized comment");
                 break;
             }
             bytes_read += comment_length;
@@ -1561,7 +1561,7 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
         // Read comment data (UTF-8)
         std::vector<uint8_t> comment_data(comment_length);
         if (m_handler->read(comment_data.data(), 1, comment_length) != comment_length) {
-            Debug::log("flac", "Failed to read comment ", i, " data");
+            Debug::log("flac", "[parseVorbisCommentBlock] Failed to read comment ", i, " data");
             break;
         }
         bytes_read += comment_length;
@@ -1572,7 +1572,7 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
         // Parse FIELD=value format
         size_t equals_pos = comment_string.find('=');
         if (equals_pos == std::string::npos) {
-            Debug::log("flac", "Comment ", i, " missing '=' separator: ", comment_string);
+            Debug::log("flac", "[parseVorbisCommentBlock] Comment ", i, " missing '=' separator: ", comment_string);
             continue;
         }
         
@@ -1585,21 +1585,21 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
         // Store the comment
         m_vorbis_comments[field] = value;
         
-        Debug::log("flac", "Added comment: ", field, " = ", value);
+        Debug::log("flac", "[parseVorbisCommentBlock] Added comment: ", field, " = ", value);
     }
     
     // Skip any remaining bytes in the block
     if (bytes_read < block.length) {
         uint32_t remaining = block.length - bytes_read;
-        Debug::log("flac", "Skipping ", remaining, " remaining bytes in VORBIS_COMMENT block");
+        Debug::log("flac", "[parseVorbisCommentBlock] Skipping ", remaining, " remaining bytes in VORBIS_COMMENT block");
         off_t current_pos = m_handler->tell();
         if (current_pos < 0 || m_handler->seek(current_pos + static_cast<off_t>(remaining), SEEK_SET) != 0) {
-            Debug::log("flac", "Failed to skip remaining VORBIS_COMMENT data");
+            Debug::log("flac", "[parseVorbisCommentBlock] Failed to skip remaining VORBIS_COMMENT data");
             return false;
         }
     }
     
-    Debug::log("flac", "VORBIS_COMMENT parsed successfully, ", m_vorbis_comments.size(), " comments");
+    Debug::log("flac", "[parseVorbisCommentBlock] VORBIS_COMMENT parsed successfully, ", m_vorbis_comments.size(), " comments");
     
     // Log standard metadata fields if present
     const std::vector<std::string> standard_fields = {
@@ -1609,7 +1609,7 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
     for (const auto& field : standard_fields) {
         auto it = m_vorbis_comments.find(field);
         if (it != m_vorbis_comments.end()) {
-            Debug::log("flac", "  ", field, ": ", it->second);
+            Debug::log("flac", "[parseVorbisCommentBlock] ", field, ": ", it->second);
         }
     }
     
@@ -1618,7 +1618,7 @@ bool FLACDemuxer::parseVorbisCommentBlock(const FLACMetadataBlock& block)
 
 bool FLACDemuxer::parsePictureBlock(const FLACMetadataBlock& block)
 {
-    Debug::log("flac", "FLACDemuxer::parsePictureBlock() - parsing PICTURE block");
+    Debug::log("flac", "[parsePictureBlock] Parsing PICTURE block");
     
     if (!m_handler) {
         return false;
