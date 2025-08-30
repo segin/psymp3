@@ -191,7 +191,7 @@ check_PROGRAMS = \
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic
+check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection
 endif
 
 # A-law codec tests
@@ -214,7 +214,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking
 endif
 
 # Test program sources and dependencies
@@ -519,6 +519,29 @@ test_bisection_search_LDADD = \
 test_granule_arithmetic_SOURCES = test_granule_arithmetic.cpp
 test_granule_arithmetic_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_granule_arithmetic_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+
+# OggDemuxer codec detection test
+test_codec_detection_SOURCES = test_codec_detection.cpp
+test_codec_detection_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
+test_codec_detection_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/OggDemuxer.o \
 	$(top_builddir)/src/Demuxer.o \
@@ -1183,6 +1206,29 @@ test_flac_demuxer_integration_comprehensive_LDADD = \
 test_flac_demuxer_unit_fixed_SOURCES = test_flac_demuxer_unit_fixed.cpp
 test_flac_demuxer_unit_fixed_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_demuxer_unit_fixed_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# FLAC index-based seeking test
+test_flac_index_based_seeking_SOURCES = test_flac_index_based_seeking.cpp
+test_flac_index_based_seeking_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_index_based_seeking_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACDemuxer.o \
 	$(top_builddir)/src/Demuxer.o \
