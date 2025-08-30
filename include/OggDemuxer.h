@@ -133,6 +133,14 @@ public:
     uint64_t granuleToMs(uint64_t granule, uint32_t stream_id) const;
     uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const;
     
+    // Public methods for testing codec detection and header processing
+    std::string identifyCodec(const std::vector<uint8_t>& packet_data);
+    bool parseVorbisHeaders(OggStream& stream, const OggPacket& packet);
+    bool parseFLACHeaders(OggStream& stream, const OggPacket& packet);
+    bool parseOpusHeaders(OggStream& stream, const OggPacket& packet);
+    bool parseSpeexHeaders(OggStream& stream, const OggPacket& packet);
+    std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_streams; }
+    
     // Public methods for testing duration calculation
     uint64_t getLastGranulePosition();
     uint64_t scanBufferForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size);
@@ -200,8 +208,6 @@ public:
     int getData(size_t bytes_requested = 0);
     
 protected:
-    // Protected access to streams for testing
-    std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_streams; }
     
 private:
     std::map<uint32_t, OggStream> m_streams;
@@ -228,40 +234,14 @@ private:
     bool processPages();
     
     /**
-     * @brief Identify codec from packet data
-     */
-    std::string identifyCodec(const std::vector<uint8_t>& packet_data);
-    
-    
-    /**
-     * @brief Parse Vorbis identification header
-     */
-    bool parseVorbisHeaders(OggStream& stream, const OggPacket& packet);
-    
-    /**
      * @brief Parse Vorbis comments from Vorbis comment header
      */
     void parseVorbisComments(OggStream& stream, const OggPacket& packet);
     
     /**
-     * @brief Parse FLAC identification header
-     */
-    bool parseFLACHeaders(OggStream& stream, const OggPacket& packet);
-    
-    /**
-     * @brief Parse Opus identification header
-     */
-    bool parseOpusHeaders(OggStream& stream, const OggPacket& packet);
-    
-    /**
      * @brief Parse OpusTags metadata from Opus comment header
      */
     void parseOpusTags(OggStream& stream, const OggPacket& packet);
-    
-    /**
-     * @brief Parse Speex identification header
-     */
-    bool parseSpeexHeaders(OggStream& stream, const OggPacket& packet);
     
     /**
      * @brief Calculate duration from stream information

@@ -158,3 +158,9 @@ tests/test_debug_iohandler_position
 tests/data/
 tests/debug_flac_seeking
 tests/test_flac_binary_search_limitations
+tests/test_flac_frame_indexing
+tests/test_flac_performance_optimization
+tests/test_frame_size_estimation_consistency
+tests/test_flac_performance_with_real_files
+tests/test_flac_index_based_seeking
+tests/test_codec_detection
