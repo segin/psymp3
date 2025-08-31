@@ -18,18 +18,12 @@ using namespace TestFramework;
 class MockAudioCodec : public AudioCodec {
 private:
     bool m_initialized = false;
-    uint32_t m_sample_rate = 44100;
-    uint16_t m_channels = 2;
-    uint16_t m_bits_per_sample = 16;
     size_t m_frame_counter = 0;
     
 public:
-    MockAudioCodec() = default;
+    MockAudioCodec(const StreamInfo& stream_info) : AudioCodec(stream_info) {}
     
-    bool initialize(const StreamInfo& stream_info) override {
-        m_sample_rate = stream_info.sample_rate;
-        m_channels = stream_info.channels;
-        m_bits_per_sample = stream_info.bits_per_sample;
+    bool initialize() override {
         m_initialized = true;
         return true;
     }
@@ -37,37 +31,37 @@ public:
     AudioFrame decode(const MediaChunk& chunk) override {
         if (!m_initialized) return AudioFrame{};
         
-        AudioFrame frame;
-        frame.sample_rate = m_sample_rate;
-        frame.channels = m_channels;
-        frame.bits_per_sample = m_bits_per_sample;
-        
         // Generate mock PCM data (1024 samples per frame)
         size_t samples_per_frame = 1024;
-        size_t bytes_per_sample = (m_bits_per_sample / 8) * m_channels;
-        frame.data.resize(samples_per_frame * bytes_per_sample);
+        AudioFrame frame(samples_per_frame, getStreamInfo().sample_rate, getStreamInfo().channels);
         
         // Fill with simple pattern based on frame counter
-        for (size_t i = 0; i < frame.data.size(); ++i) {
-            frame.data[i] = static_cast<uint8_t>((m_frame_counter + i) & 0xFF);
+        for (size_t i = 0; i < frame.samples.size(); ++i) {
+            frame.samples[i] = static_cast<int16_t>((m_frame_counter + i) & 0xFFFF);
         }
         
-        frame.sample_count = samples_per_frame;
+        frame.timestamp_samples = m_frame_counter * samples_per_frame;
+        frame.timestamp_ms = (frame.timestamp_samples * 1000) / getStreamInfo().sample_rate;
+        
         m_frame_counter++;
         
         return frame;
+    }
+    
+    AudioFrame flush() override {
+        return AudioFrame{};
     }
     
     void reset() override {
         m_frame_counter = 0;
     }
     
-    bool isInitialized() const override {
-        return m_initialized;
-    }
-    
     std::string getCodecName() const override {
         return "mock";
+    }
+    
+    bool canDecode(const StreamInfo& stream_info) const override {
+        return true; // Mock codec can decode anything
     }
 };
 
@@ -224,7 +218,7 @@ public:
         return m_position >= m_data.size();
     }
     
-    void close() override {}
+    int close() override { return 0; }
 };
 
 /**
@@ -249,8 +243,8 @@ protected:
         ASSERT_EQUALS(1u, streams.size(), "Should have one stream");
         ASSERT_TRUE(streams[0].isAudio(), "Stream should be audio");
         
-        auto codec = std::make_unique<MockAudioCodec>();
-        ASSERT_TRUE(codec->initialize(streams[0]), "Mock codec should initialize successfully");
+        auto codec = std::make_unique<MockAudioCodec>(streams[0]);
+        ASSERT_TRUE(codec->initialize(), "Mock codec should initialize successfully");
         
         // Test codec functionality
         MediaChunk chunk;
@@ -258,10 +252,9 @@ protected:
         chunk.data = {0x01, 0x02, 0x03, 0x04};
         
         AudioFrame frame = codec->decode(chunk);
-        ASSERT_FALSE(frame.data.empty(), "Decoded frame should have data");
+        ASSERT_FALSE(frame.samples.empty(), "Decoded frame should have data");
         ASSERT_EQUALS(44100u, frame.sample_rate, "Frame sample rate should match");
         ASSERT_EQUALS(2u, frame.channels, "Frame channels should match");
-        ASSERT_EQUALS(16u, frame.bits_per_sample, "Frame bits per sample should match");
     }
 };
 
@@ -402,8 +395,8 @@ protected:
         ASSERT_TRUE(demuxer->parseContainer(), "Demuxer should parse successfully");
         
         auto streams = demuxer->getStreams();
-        auto codec = std::make_unique<MockAudioCodec>();
-        ASSERT_TRUE(codec->initialize(streams[0]), "Codec should initialize successfully");
+        auto codec = std::make_unique<MockAudioCodec>(streams[0]);
+        ASSERT_TRUE(codec->initialize(), "Codec should initialize successfully");
         
         // Read and decode chunks
         std::vector<AudioFrame> frames;
@@ -411,15 +404,14 @@ protected:
             auto chunk = demuxer->readChunk();
             if (chunk.isValid()) {
                 auto frame = codec->decode(chunk);
-                ASSERT_FALSE(frame.data.empty(), "Decoded frame should have data");
+                ASSERT_FALSE(frame.samples.empty(), "Decoded frame should have data");
                 ASSERT_EQUALS(44100u, frame.sample_rate, "Frame sample rate should be correct");
                 ASSERT_EQUALS(2u, frame.channels, "Frame channels should be correct");
-                ASSERT_EQUALS(16u, frame.bits_per_sample, "Frame bits per sample should be correct");
-                ASSERT_EQUALS(1024u, frame.sample_count, "Frame sample count should be correct");
+                ASSERT_EQUALS(1024u, frame.samples.size(), "Frame sample count should be correct");
                 
-                // Verify frame data size
-                size_t expected_size = frame.sample_count * (frame.bits_per_sample / 8) * frame.channels;
-                ASSERT_EQUALS(expected_size, frame.data.size(), "Frame data size should be correct");
+                // Verify frame data size (samples are int16_t, so 2 bytes each)
+                size_t expected_size = 1024 * sizeof(int16_t);
+                ASSERT_EQUALS(expected_size, frame.getByteCount(), "Frame data size should be correct");
                 
                 frames.push_back(frame);
             }
@@ -428,7 +420,7 @@ protected:
         ASSERT_EQUALS(5u, frames.size(), "Should decode 5 frames");
         
         // Verify frames are different (mock codec generates different data)
-        ASSERT_NOT_EQUALS(frames[0].data[0], frames[1].data[0], "Frames should have different data");
+        ASSERT_NOT_EQUALS(frames[0].samples[0], frames[1].samples[0], "Frames should have different data");
         
         // Test codec reset
         codec->reset();
@@ -436,7 +428,7 @@ protected:
         if (reset_chunk.isValid()) {
             auto reset_frame = codec->decode(reset_chunk);
             // After reset, the mock codec should start from frame 0 again
-            ASSERT_EQUALS(frames[0].data[0], reset_frame.data[0], "Reset should restart frame generation");
+            ASSERT_EQUALS(frames[0].samples[0], reset_frame.samples[0], "Reset should restart frame generation");
         }
     }
 };

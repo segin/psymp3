@@ -344,10 +344,18 @@ test_iohandler_minimal_LDADD = libtest_utilities.a \
 
 test_iohandler_basic_SOURCES = test_iohandler_basic.cpp
 test_iohandler_basic_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/FileIOHandler.o \
 	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
 	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_integration_verification_SOURCES = test_integration_verification.cpp
@@ -402,6 +410,12 @@ test_demuxer_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -412,6 +426,12 @@ test_demuxer_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -420,9 +440,55 @@ test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
 test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/CodecRegistration.o \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/HTTPIOHandler.o \
+	$(top_builddir)/src/HTTPClient.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/ModernStream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/flac.o \
+	$(top_builddir)/src/libmpg123.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/RawAudioDemuxer.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ChunkDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(FLAC_LIBS) \
+	-logg -lvorbis -lvorbisenc -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
@@ -431,10 +497,30 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	-logg -lvorbis -lvorbisenc -lopus \
 	$(AM_LDFLAGS)
 
 # Integration tests
@@ -452,7 +538,7 @@ test_media_factory_integration_SOURCES = test_media_factory_integration.cpp
 test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -1066,27 +1152,7 @@ test_flac_demuxer_compatibility_LDADD = \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
-# FLAC demuxer compatibility test
-test_flac_demuxer_compatibility_SOURCES = test_flac_demuxer_compatibility.cpp
-test_flac_demuxer_compatibility_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
-test_flac_demuxer_compatibility_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
+
 
 # FLAC demuxer performance test
 test_flac_demuxer_performance_SOURCES = test_flac_demuxer_performance.cpp
@@ -1120,7 +1186,7 @@ test_flac_compatibility_integration_LDADD = \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/FileIOHandler.o \
 	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/Stream.o \
+	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/URI.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -1256,7 +1322,7 @@ $(top_builddir)/src/MediaFactory.o:
 	$(MAKE) -C $(top_builddir)/src MediaFactory.o
 
 $(top_builddir)/src/Stream.o:
-	$(MAKE) -C $(top_builddir)/src Stream.o
+	$(MAKE) -C $(top_builddir)/src stream.o
 endif
 
 # IOHandler thread safety comprehensive test

@@ -164,3 +164,7 @@ tests/test_frame_size_estimation_consistency
 tests/test_flac_performance_with_real_files
 tests/test_flac_index_based_seeking
 tests/test_codec_detection
+tests/test_media_factory_unit
+tests/test_demuxer_unit
+tests/test_demuxer_factory_unit
+tests/test_demuxed_stream_unit

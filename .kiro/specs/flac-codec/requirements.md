@@ -4,13 +4,22 @@
 
 This specification defines the requirements for implementing a container-agnostic FLAC audio codec for PsyMP3. The FLAC codec will decode FLAC bitstream data from any container (native FLAC, Ogg FLAC, or potentially ISO FLAC) into standard 16-bit PCM audio. This codec works with the AudioCodec architecture and receives FLAC frame data from various demuxers.
 
+**Key Architectural Insights from Implementation Experience:**
+- **Frame-level processing**: FLAC frames are self-contained units that can be decoded independently
+- **Variable compression ratios**: Highly compressed streams can have frames as small as 10-14 bytes
+- **Container independence**: The codec must work with MediaChunk data regardless of source demuxer
+- **Performance criticality**: Efficient decoding is essential for real-time playback of high-resolution files
+- **Threading safety**: Must follow PsyMP3's public/private lock pattern for thread safety
+- **RFC 9639 compliance**: All implementation must strictly follow the FLAC specification
+
 The implementation must support:
 - **Container-agnostic FLAC decoding** from any source (native FLAC, Ogg FLAC)
 - **All FLAC bit depths** with conversion to 16-bit PCM output
-- **Variable block sizes** and all FLAC compression modes
+- **Variable block sizes** and all FLAC compression modes including highly compressed streams
 - **Efficient frame-by-frame decoding** without requiring complete file access
 - **Sample-accurate seeking support** through decoder reset capabilities
-- **Thread-safe operation** for multi-threaded playback scenarios
+- **Thread-safe operation** following established PsyMP3 threading patterns
+- **High-performance decoding** suitable for real-time playback of 24-bit/96kHz+ files
 
 ## **Requirements**
 
@@ -193,3 +202,63 @@ The implementation must support:
 6. **WHEN** handling edge cases **THEN** the codec **SHALL** maintain accuracy for unusual sample values
 7. **WHEN** processing silence **THEN** the codec **SHALL** output true digital silence (zero samples)
 8. **WHEN** comparing with reference **THEN** the codec **SHALL** produce identical output to reference implementations
+
+### **Requirement 13: RFC 9639 Compliance**
+
+**User Story:** As a FLAC format implementer, I want strict compliance with RFC 9639, so that the codec works with all valid FLAC streams and produces correct output.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** parsing frame headers **THEN** the codec **SHALL** follow RFC 9639 frame header specification exactly
+2. **WHEN** decoding subframes **THEN** the codec **SHALL** implement all subframe types per RFC 9639
+3. **WHEN** processing entropy coding **THEN** the codec **SHALL** follow RFC 9639 Rice/Golomb coding specification
+4. **WHEN** handling prediction **THEN** the codec **SHALL** implement LPC prediction per RFC 9639 algorithms
+5. **WHEN** validating CRC **THEN** the codec **SHALL** use RFC 9639 CRC-16 polynomial and calculation
+6. **WHEN** processing channel assignments **THEN** the codec **SHALL** follow RFC 9639 channel assignment rules
+7. **WHEN** handling bit depths **THEN** the codec **SHALL** support all RFC 9639 specified bit depths (4-32 bits)
+8. **WHEN** encountering reserved values **THEN** the codec **SHALL** handle them per RFC 9639 error handling
+
+### **Requirement 14: High-Performance Decoding**
+
+**User Story:** As a user of high-resolution audio, I want efficient FLAC decoding that maintains real-time performance, so that 24-bit/96kHz+ files play smoothly without dropouts.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** decoding 44.1kHz/16-bit FLAC **THEN** the codec **SHALL** maintain <1% CPU usage on target hardware
+2. **WHEN** decoding 96kHz/24-bit FLAC **THEN** the codec **SHALL** maintain real-time performance without dropouts
+3. **WHEN** processing highly compressed frames **THEN** the codec **SHALL** handle 10-14 byte frames efficiently
+4. **WHEN** using libFLAC **THEN** the codec **SHALL** leverage libFLAC's optimized decoding routines
+5. **WHEN** converting bit depths **THEN** the codec **SHALL** use optimized conversion algorithms
+6. **WHEN** processing multiple channels **THEN** the codec **SHALL** handle up to 8 channels efficiently
+7. **WHEN** memory allocation occurs **THEN** the codec **SHALL** minimize allocations during decoding
+8. **WHEN** benchmarked **THEN** the codec **SHALL** meet or exceed current FLAC implementation performance
+
+### **Requirement 15: Threading Safety Compliance**
+
+**User Story:** As a PsyMP3 developer, I want the FLAC codec to follow established threading patterns, so that it integrates safely with the multi-threaded architecture.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** implementing public methods **THEN** the codec **SHALL** follow public/private lock pattern with `_unlocked` suffixes
+2. **WHEN** acquiring locks **THEN** the codec **SHALL** use RAII lock guards for exception safety
+3. **WHEN** calling internal methods **THEN** the codec **SHALL** use `_unlocked` versions to prevent deadlocks
+4. **WHEN** documenting locks **THEN** the codec **SHALL** document lock acquisition order to prevent deadlocks
+5. **WHEN** handling callbacks **THEN** the codec **SHALL** never invoke callbacks while holding internal locks
+6. **WHEN** managing state **THEN** the codec **SHALL** use appropriate synchronization primitives
+7. **WHEN** multiple instances exist **THEN** each codec instance **SHALL** maintain independent thread-safe state
+8. **WHEN** exceptions occur **THEN** the codec **SHALL** ensure locks are released via RAII guards
+
+### **Requirement 16: Conditional Compilation Integration**
+
+**User Story:** As a build system maintainer, I want the FLAC codec to integrate with conditional compilation, so that builds work correctly when FLAC dependencies are unavailable.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** FLAC libraries are available **THEN** the codec **SHALL** compile and register with MediaFactory
+2. **WHEN** FLAC libraries are unavailable **THEN** the build **SHALL** succeed without FLAC codec support
+3. **WHEN** using preprocessor guards **THEN** the codec **SHALL** use appropriate `#ifdef` guards around FLAC-specific code
+4. **WHEN** registering with MediaFactory **THEN** registration **SHALL** be conditionally compiled
+5. **WHEN** checking codec availability **THEN** the system **SHALL** correctly report FLAC support status
+6. **WHEN** building without FLAC **THEN** no FLAC-related symbols **SHALL** be referenced
+7. **WHEN** linking **THEN** FLAC libraries **SHALL** only be linked when available
+8. **WHEN** testing **THEN** FLAC codec tests **SHALL** be conditionally compiled based on availability

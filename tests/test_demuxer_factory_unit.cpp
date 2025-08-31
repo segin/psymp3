@@ -57,7 +57,7 @@ public:
         return m_position >= m_data.size();
     }
     
-    void close() override {}
+    int close() override { return 0; }
 };
 
 /**

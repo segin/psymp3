@@ -112,6 +112,9 @@ private:
     // Initialize built-in formats
     static void initializeBuiltInFormats();
     static bool s_initialized;
+    
+    // Private unlocked version for internal use
+    static void registerSignature_unlocked(const FormatSignature& signature);
 };
 
 #endif // DEMUXER_FACTORY_H

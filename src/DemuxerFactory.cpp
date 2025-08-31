@@ -26,25 +26,25 @@ void DemuxerFactory::initializeBuiltInFormats() {
     // Register built-in format signatures
     
     // RIFF/WAV signature
-    registerSignature(FormatSignature("riff", {0x52, 0x49, 0x46, 0x46}, 0, 100)); // "RIFF"
+    registerSignature_unlocked(FormatSignature("riff", {0x52, 0x49, 0x46, 0x46}, 0, 100)); // "RIFF"
     
     // AIFF signature
-    registerSignature(FormatSignature("aiff", {0x46, 0x4F, 0x52, 0x4D}, 0, 100)); // "FORM"
+    registerSignature_unlocked(FormatSignature("aiff", {0x46, 0x4F, 0x52, 0x4D}, 0, 100)); // "FORM"
     
     // Ogg signature
-    registerSignature(FormatSignature("ogg", {0x4F, 0x67, 0x67, 0x53}, 0, 100)); // "OggS"
+    registerSignature_unlocked(FormatSignature("ogg", {0x4F, 0x67, 0x67, 0x53}, 0, 100)); // "OggS"
     
     // FLAC signature
-    registerSignature(FormatSignature("flac", {0x66, 0x4C, 0x61, 0x43}, 0, 100)); // "fLaC"
+    registerSignature_unlocked(FormatSignature("flac", {0x66, 0x4C, 0x61, 0x43}, 0, 100)); // "fLaC"
     
     // MP4/ISO signature (ftyp box)
-    registerSignature(FormatSignature("mp4", {0x66, 0x74, 0x79, 0x70}, 4, 90)); // "ftyp" at offset 4
+    registerSignature_unlocked(FormatSignature("mp4", {0x66, 0x74, 0x79, 0x70}, 4, 90)); // "ftyp" at offset 4
     
     // MP3 signature (ID3v2)
-    registerSignature(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"
+    registerSignature_unlocked(FormatSignature("mp3", {0x49, 0x44, 0x33}, 0, 80)); // "ID3"
     
     // MP3 signature (frame sync)
-    registerSignature(FormatSignature("mp3", {0xFF, 0xFB}, 0, 70)); // MPEG frame sync
+    registerSignature_unlocked(FormatSignature("mp3", {0xFF, 0xFB}, 0, 70)); // MPEG frame sync
     
     // Register file extensions
     s_extension_to_format["wav"] = "riff";
@@ -312,6 +312,10 @@ void DemuxerFactory::registerDemuxer(const std::string& format_id, DemuxerFactor
 
 void DemuxerFactory::registerSignature(const FormatSignature& signature) {
     std::lock_guard<std::mutex> lock(s_factory_mutex);
+    registerSignature_unlocked(signature);
+}
+
+void DemuxerFactory::registerSignature_unlocked(const FormatSignature& signature) {
     s_signatures.push_back(signature);
     
     // Sort signatures by priority (highest first)
