@@ -585,17 +585,38 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         return AudioFrame(); // Empty frame
     }
     
-    // Check if codec is initialized
-    if (!m_initialized || !m_decoder_initialized || !m_decoder) {
-        Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Decoder not initialized");
-        setErrorState_unlocked(true);
-        return createSilenceFrame_unlocked(1024); // Fallback silence
+    // Validate codec integrity before processing
+    if (!validateCodecIntegrity_unlocked()) {
+        Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Codec integrity validation failed - attempting recovery");
+        
+        // Try to recover from integrity issues
+        if (recoverFromError_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Codec recovery successful, retrying decode");
+            
+            // Validate again after recovery
+            if (!validateCodecIntegrity_unlocked()) {
+                Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Codec still not functional after recovery");
+                setErrorState_unlocked(true);
+                return createSilenceFrame_unlocked(1024);
+            }
+        } else {
+            Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Codec recovery failed");
+            setErrorState_unlocked(true);
+            return createSilenceFrame_unlocked(1024);
+        }
     }
     
     // Check for error state
     if (m_error_state.load()) {
-        Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Codec in error state");
-        return createSilenceFrame_unlocked(1024);
+        Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Codec in error state - attempting recovery");
+        
+        // Try to clear error state through recovery
+        if (recoverFromError_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Error state recovery successful");
+        } else {
+            Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Error state recovery failed");
+            return createSilenceFrame_unlocked(1024);
+        }
     }
     
     try {
@@ -1870,73 +1891,864 @@ void FLACCodec::handleErrorCallback_unlocked(FLAC__StreamDecoderErrorStatus stat
 AudioFrame FLACCodec::handleDecodingError_unlocked(const MediaChunk& chunk) {
     m_stats.error_count++;
     
-    Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Handling decoding error");
+    Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Handling decoding error for chunk with ", 
+              chunk.data.size(), " bytes");
     
-    // Try to recover from error
-    if (recoverFromError_unlocked()) {
-        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Error recovery successful");
-        // Return silence frame for this chunk
-        return createSilenceFrame_unlocked(1024);
+    // Analyze the type of error based on chunk data
+    bool is_corrupted_frame = false;
+    bool is_sync_lost = false;
+    bool is_memory_error = false;
+    
+    // Check if this looks like a corrupted FLAC frame
+    if (!chunk.data.empty()) {
+        // Check for FLAC sync pattern (0xFF followed by 0xF8-0xFF)
+        if (chunk.data.size() >= 2) {
+            uint8_t sync1 = chunk.data[0];
+            uint8_t sync2 = chunk.data[1];
+            
+            if (sync1 != 0xFF || (sync2 & 0xF8) != 0xF8) {
+                is_sync_lost = true;
+                m_stats.sync_errors++;
+                Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Sync pattern lost - invalid frame header");
+            } else {
+                is_corrupted_frame = true;
+                Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Frame appears corrupted despite valid sync");
+            }
+        } else {
+            is_sync_lost = true;
+            m_stats.sync_errors++;
+            Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Insufficient data for frame header");
+        }
     } else {
-        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Error recovery failed");
+        is_memory_error = true;
+        m_stats.memory_errors++;
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Empty chunk - possible memory error");
+    }
+    
+    // Attempt recovery based on error type
+    bool recovery_successful = false;
+    
+    if (is_sync_lost) {
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Attempting sync recovery");
+        recovery_successful = recoverFromSyncLoss_unlocked(chunk);
+    } else if (is_corrupted_frame) {
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Attempting corrupted frame recovery");
+        recovery_successful = recoverFromCorruptedFrame_unlocked(chunk);
+    } else if (is_memory_error) {
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Attempting memory error recovery");
+        recovery_successful = recoverFromMemoryError_unlocked();
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Attempting general error recovery");
+        recovery_successful = recoverFromError_unlocked();
+    }
+    
+    if (recovery_successful) {
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Error recovery successful");
+        
+        // Estimate block size for silence frame based on chunk size or use default
+        uint32_t estimated_block_size = estimateBlockSizeFromChunk_unlocked(chunk);
+        return createSilenceFrame_unlocked(estimated_block_size);
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Error recovery failed - codec entering error state");
         setErrorState_unlocked(true);
-        return AudioFrame();
+        return createSilenceFrame_unlocked(1024); // Fallback silence
     }
 }
 
 bool FLACCodec::recoverFromError_unlocked() {
-    Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Attempting error recovery");
+    Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Attempting comprehensive error recovery");
     
     try {
-        // Reset libFLAC decoder state
-        resetDecoderState_unlocked();
+        // Step 1: Ensure decoder is functional
+        if (!ensureDecoderFunctional_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Failed to ensure decoder functionality");
+            return false;
+        }
         
-        // Clear any error flags
+        // Step 2: Handle any decoder state inconsistencies
+        if (!handleDecoderStateInconsistency_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Failed to handle decoder state inconsistency");
+            return false;
+        }
+        
+        // Step 3: Clear any error flags
         if (m_decoder) {
             m_decoder->clearError();
         }
         
-        Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Error recovery completed");
+        // Step 4: Clear input buffers to remove potentially corrupted data
+        {
+            std::lock_guard<std::mutex> input_lock(m_input_mutex);
+            clearInputQueue_unlocked();
+            resetFrameReconstruction_unlocked();
+            resetInputFlowControl_unlocked();
+        }
+        
+        // Step 5: Reset buffer state
+        {
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            m_output_buffer.clear();
+            m_buffer_read_position = 0;
+            resetBufferFlowControl_unlocked();
+        }
+        
+        // Step 6: Reset threading state if async processing is enabled
+        if (m_async_processing_enabled) {
+            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+            clearAsyncQueues_unlocked();
+        }
+        
+        // Step 7: Reset codec state variables
+        m_stream_finished = false;
+        m_last_block_size = 0;
+        m_current_block_size = 0;
+        m_previous_block_size = 0;
+        
+        // Step 8: Clear error state
+        setErrorState_unlocked(false);
+        
+        Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Comprehensive error recovery completed successfully");
         return true;
         
     } catch (const std::exception& e) {
-        Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Recovery failed: ", e.what());
+        Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Recovery failed with exception: ", e.what());
+        
+        // Last resort: try to recreate decoder
+        try {
+            if (recreateDecoder_unlocked()) {
+                Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Decoder recreation successful as last resort");
+                setErrorState_unlocked(false);
+                return true;
+            }
+        } catch (...) {
+            Debug::log("flac_codec", "[FLACCodec::recoverFromError_unlocked] Even decoder recreation failed");
+        }
+        
+        return false;
+    }
+}
+
+bool FLACCodec::recoverFromSyncLoss_unlocked(const MediaChunk& chunk) {
+    Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Attempting sync recovery");
+    
+    try {
+        // Reset decoder to search for next sync pattern
+        if (m_decoder && m_decoder_initialized) {
+            if (!m_decoder->reset()) {
+                Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] libFLAC reset failed");
+                return false;
+            }
+            
+            // Clear decoder input buffer
+            m_decoder->clearInputBuffer();
+        }
+        
+        // Search for next valid FLAC sync pattern in the chunk
+        if (!chunk.data.empty() && chunk.data.size() >= 2) {
+            for (size_t i = 0; i < chunk.data.size() - 1; ++i) {
+                if (chunk.data[i] == 0xFF && (chunk.data[i + 1] & 0xF8) == 0xF8) {
+                    Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Found potential sync at offset ", i);
+                    
+                    // Validate this looks like a real frame header
+                    if (i + 4 < chunk.data.size()) {
+                        if (validateFrameHeader_unlocked(chunk.data.data() + i, chunk.data.size() - i)) {
+                            Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Valid frame header found at offset ", i);
+                            
+                            // Feed the data starting from the sync point
+                            if (m_decoder->feedData(chunk.data.data() + i, chunk.data.size() - i)) {
+                                Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Sync recovery successful");
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] No valid sync pattern found");
+        return false;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Sync recovery failed: ", e.what());
+        return false;
+    }
+}
+
+bool FLACCodec::recoverFromCorruptedFrame_unlocked(const MediaChunk& chunk) {
+    Debug::log("flac_codec", "[FLACCodec::recoverFromCorruptedFrame_unlocked] Attempting corrupted frame recovery");
+    
+    try {
+        // For corrupted frames, we skip the frame and continue with next data
+        // This is appropriate for CRC errors where the frame structure is intact
+        
+        // Clear decoder error state but don't reset completely
+        if (m_decoder) {
+            m_decoder->clearError();
+        }
+        
+        // Log frame corruption details for debugging
+        if (!chunk.data.empty()) {
+            Debug::log("flac_codec", "[FLACCodec::recoverFromCorruptedFrame_unlocked] Skipping corrupted frame: ", 
+                      chunk.data.size(), " bytes, sync=0x", 
+                      std::hex, (chunk.data.size() >= 2 ? 
+                                (static_cast<uint16_t>(chunk.data[0]) << 8) | chunk.data[1] : 0), 
+                      std::dec);
+        }
+        
+        // Increment CRC error count
+        m_stats.crc_errors++;
+        
+        // Continue processing - the decoder should be able to handle the next frame
+        Debug::log("flac_codec", "[FLACCodec::recoverFromCorruptedFrame_unlocked] Corrupted frame recovery completed");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::recoverFromCorruptedFrame_unlocked] Corrupted frame recovery failed: ", e.what());
+        return false;
+    }
+}
+
+bool FLACCodec::recoverFromMemoryError_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::recoverFromMemoryError_unlocked] Attempting memory error recovery");
+    
+    try {
+        // Free unused memory and reset buffers
+        freeUnusedMemory_unlocked();
+        
+        // Reset buffer management state
+        {
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            m_output_buffer.clear();
+            m_output_buffer.shrink_to_fit(); // Release memory
+            m_buffer_read_position = 0;
+            resetBufferFlowControl_unlocked();
+        }
+        
+        // Reset input queue management
+        {
+            std::lock_guard<std::mutex> input_lock(m_input_mutex);
+            clearInputQueue_unlocked();
+            resetFrameReconstruction_unlocked();
+            resetInputFlowControl_unlocked();
+        }
+        
+        // Increment memory error count
+        m_stats.memory_errors++;
+        
+        Debug::log("flac_codec", "[FLACCodec::recoverFromMemoryError_unlocked] Memory error recovery completed");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::recoverFromMemoryError_unlocked] Memory error recovery failed: ", e.what());
         return false;
     }
 }
 
 void FLACCodec::resetDecoderState_unlocked() {
-    Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Resetting decoder state");
+    Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Resetting decoder state for error recovery");
     
-    if (m_decoder && m_decoder_initialized) {
-        if (!m_decoder->reset()) {
-            Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] libFLAC reset failed");
+    try {
+        // Reset libFLAC decoder if available
+        if (m_decoder && m_decoder_initialized) {
+            // Get current decoder state for logging
+            FLAC__StreamDecoderState decoder_state = m_decoder->get_state();
+            Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Current decoder state: ", 
+                      static_cast<int>(decoder_state));
+            
+            // Attempt decoder reset
+            if (!m_decoder->reset()) {
+                Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] libFLAC reset failed, attempting finish/init cycle");
+                
+                // Try finish and re-initialize if reset fails
+                if (m_decoder->finish()) {
+                    FLAC__StreamDecoderInitStatus init_status = m_decoder->init();
+                    if (init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
+                        Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Re-initialization failed: ", 
+                                  static_cast<int>(init_status));
+                        m_decoder_initialized = false;
+                    } else {
+                        Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Decoder re-initialized successfully");
+                    }
+                } else {
+                    Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Decoder finish failed");
+                    m_decoder_initialized = false;
+                }
+            } else {
+                Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] libFLAC reset successful");
+            }
+            
+            // Clear input buffer regardless of reset success
+            m_decoder->clearInputBuffer();
+            
+            // Clear decoder error state
+            m_decoder->clearError();
+        } else {
+            Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] No decoder available or not initialized");
         }
-        m_decoder->clearInputBuffer();
+        
+        // Reset internal decoder state variables
+        m_last_block_size = 0;
+        m_stream_finished = false;
+        
+        // Reset variable block size state
+        m_current_block_size = 0;
+        m_previous_block_size = 0;
+        
+        // Clear any pending asynchronous work
+        if (m_async_processing_enabled) {
+            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+            clearAsyncQueues_unlocked();
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Decoder state reset completed");
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Exception during decoder reset: ", e.what());
+        
+        // Mark decoder as uninitialized on critical failure
+        m_decoder_initialized = false;
+        setErrorState_unlocked(true);
     }
 }
 
 AudioFrame FLACCodec::createSilenceFrame_unlocked(uint32_t block_size) {
+    // Validate block size against RFC 9639 limits
+    if (block_size == 0) {
+        block_size = 576; // Default FLAC block size
+        Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Zero block size, using default 576");
+    } else if (block_size > 65535) {
+        block_size = 4608; // Common large block size
+        Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Block size too large, clamping to 4608");
+    }
+    
     AudioFrame frame;
-    frame.sample_rate = m_sample_rate;
-    frame.channels = m_channels;
+    frame.sample_rate = m_sample_rate > 0 ? m_sample_rate : 44100; // Fallback sample rate
+    frame.channels = m_channels > 0 ? m_channels : 2; // Fallback to stereo
     frame.timestamp_samples = m_current_sample.load();
     
-    // Create silence samples
-    size_t sample_count = static_cast<size_t>(block_size) * m_channels;
-    frame.samples.resize(sample_count, 0); // Fill with silence (zeros)
+    // Create silence samples (16-bit PCM zeros)
+    size_t sample_count = static_cast<size_t>(block_size) * frame.channels;
     
-    // Update position
-    m_current_sample.fetch_add(block_size);
-    
-    Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Created silence frame: ", 
-              block_size, " samples");
+    try {
+        frame.samples.resize(sample_count, 0); // Fill with silence (zeros)
+        
+        // Update position tracking
+        m_current_sample.fetch_add(block_size);
+        
+        Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Created silence frame: ", 
+                  block_size, " samples, ", frame.channels, " channels, ", 
+                  frame.sample_rate, "Hz, timestamp=", frame.timestamp_samples);
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Failed to allocate silence frame: ", e.what());
+        
+        // Create minimal silence frame as fallback
+        frame.samples.clear();
+        try {
+            frame.samples.resize(frame.channels, 0); // Single sample of silence
+            block_size = 1;
+            m_current_sample.fetch_add(1);
+        } catch (...) {
+            // Complete failure - return empty frame
+            Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Critical: Cannot allocate even minimal silence frame");
+        }
+    }
     
     return frame;
 }
 
 void FLACCodec::setErrorState_unlocked(bool error_state) {
     m_error_state.store(error_state);
+}
+
+uint32_t FLACCodec::estimateBlockSizeFromChunk_unlocked(const MediaChunk& chunk) {
+    // Try to extract block size from FLAC frame header if possible
+    if (chunk.data.size() >= 4) {
+        // Check if this looks like a valid FLAC frame header
+        if (chunk.data[0] == 0xFF && (chunk.data[1] & 0xF8) == 0xF8) {
+            // Extract block size from frame header (RFC 9639 section 7.2)
+            uint8_t block_size_bits = (chunk.data[2] & 0xF0) >> 4;
+            
+            switch (block_size_bits) {
+                case 0x1: return 192;
+                case 0x2: return 576;
+                case 0x3: return 1152;
+                case 0x4: return 2304;
+                case 0x5: return 4608;
+                case 0x6: return 9216;  // Non-standard but used
+                case 0x7: return 18432; // Non-standard but used
+                case 0x8: return 256;
+                case 0x9: return 512;
+                case 0xA: return 1024;
+                case 0xB: return 2048;
+                case 0xC: return 4096;
+                case 0xD: return 8192;
+                case 0xE: return 16384;
+                case 0xF: return 32768;
+                default:
+                    // Variable block size or reserved - use default
+                    break;
+            }
+        }
+    }
+    
+    // Fallback: estimate based on chunk size and compression ratio
+    // Typical FLAC compression is 50-70%, so estimate original sample count
+    size_t estimated_samples = chunk.data.size() * 2; // Assume ~50% compression
+    
+    // Divide by bytes per sample to get block size
+    size_t bytes_per_sample = (m_bits_per_sample + 7) / 8; // Round up to nearest byte
+    uint32_t estimated_block_size = static_cast<uint32_t>(estimated_samples / (bytes_per_sample * m_channels));
+    
+    // Clamp to reasonable range
+    if (estimated_block_size < 16) {
+        estimated_block_size = 576; // Common FLAC block size
+    } else if (estimated_block_size > 65535) {
+        estimated_block_size = 4608; // Another common FLAC block size
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::estimateBlockSizeFromChunk_unlocked] Estimated block size: ", 
+              estimated_block_size, " samples from ", chunk.data.size(), " byte chunk");
+    
+    return estimated_block_size;
+}
+
+bool FLACCodec::handleDecoderStateInconsistency_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Handling decoder state inconsistency");
+    
+    try {
+        if (!m_decoder) {
+            Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] No decoder instance - creating new one");
+            return recreateDecoder_unlocked();
+        }
+        
+        // Check current decoder state
+        FLAC__StreamDecoderState current_state = m_decoder->get_state();
+        Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Current decoder state: ", 
+                  static_cast<int>(current_state));
+        
+        switch (current_state) {
+            case FLAC__STREAM_DECODER_SEARCH_FOR_METADATA:
+            case FLAC__STREAM_DECODER_READ_METADATA:
+            case FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC:
+            case FLAC__STREAM_DECODER_READ_FRAME:
+                // These are normal operational states
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Decoder in normal state");
+                return true;
+                
+            case FLAC__STREAM_DECODER_END_OF_STREAM:
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Decoder at end of stream - resetting");
+                return resetDecoderForNewStream_unlocked();
+                
+            case FLAC__STREAM_DECODER_OGG_ERROR:
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Ogg container error - attempting recovery");
+                return recoverFromOggError_unlocked();
+                
+            case FLAC__STREAM_DECODER_SEEK_ERROR:
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Seek error - resetting decoder");
+                return resetDecoderState_unlocked(), true;
+                
+            case FLAC__STREAM_DECODER_ABORTED:
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Decoder aborted - recreating");
+                return recreateDecoder_unlocked();
+                
+            case FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR:
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Memory allocation error - attempting recovery");
+                return recoverFromDecoderMemoryError_unlocked();
+                
+            case FLAC__STREAM_DECODER_UNINITIALIZED:
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Decoder uninitialized - reinitializing");
+                return reinitializeDecoder_unlocked();
+                
+            default:
+                Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Unknown decoder state - recreating");
+                return recreateDecoder_unlocked();
+        }
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::handleDecoderStateInconsistency_unlocked] Exception: ", e.what());
+        return false;
+    }
+}
+
+bool FLACCodec::recreateDecoder_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::recreateDecoder_unlocked] Recreating libFLAC decoder");
+    
+    try {
+        // Clean up existing decoder
+        if (m_decoder) {
+            if (m_decoder_initialized) {
+                m_decoder->finish();
+            }
+            m_decoder.reset();
+        }
+        
+        m_decoder_initialized = false;
+        
+        // Create new decoder instance
+        m_decoder = std::make_unique<FLACStreamDecoder>(this);
+        if (!m_decoder) {
+            Debug::log("flac_codec", "[FLACCodec::recreateDecoder_unlocked] Failed to create new decoder instance");
+            return false;
+        }
+        
+        // Initialize the new decoder
+        return initializeFLACDecoder_unlocked();
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::recreateDecoder_unlocked] Exception: ", e.what());
+        m_decoder.reset();
+        m_decoder_initialized = false;
+        return false;
+    }
+}
+
+bool FLACCodec::resetDecoderForNewStream_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::resetDecoderForNewStream_unlocked] Resetting decoder for new stream");
+    
+    try {
+        if (!m_decoder) {
+            return recreateDecoder_unlocked();
+        }
+        
+        // Finish current stream processing
+        if (m_decoder_initialized) {
+            if (!m_decoder->finish()) {
+                Debug::log("flac_codec", "[FLACCodec::resetDecoderForNewStream_unlocked] Decoder finish failed");
+            }
+        }
+        
+        // Clear all buffers
+        m_decoder->clearInputBuffer();
+        m_decoder->clearError();
+        
+        // Re-initialize for new stream
+        FLAC__StreamDecoderInitStatus init_status = m_decoder->init();
+        if (init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
+            Debug::log("flac_codec", "[FLACCodec::resetDecoderForNewStream_unlocked] Re-initialization failed: ", 
+                      static_cast<int>(init_status));
+            return recreateDecoder_unlocked();
+        }
+        
+        m_decoder_initialized = true;
+        m_stream_finished = false;
+        
+        Debug::log("flac_codec", "[FLACCodec::resetDecoderForNewStream_unlocked] Decoder reset for new stream successful");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::resetDecoderForNewStream_unlocked] Exception: ", e.what());
+        return recreateDecoder_unlocked();
+    }
+}
+
+bool FLACCodec::recoverFromOggError_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::recoverFromOggError_unlocked] Recovering from Ogg container error");
+    
+    try {
+        // Ogg errors typically require decoder recreation
+        // as the Ogg wrapper state may be corrupted
+        
+        // Clear any Ogg-specific state
+        if (m_decoder) {
+            m_decoder->clearInputBuffer();
+            m_decoder->clearError();
+        }
+        
+        // Reset decoder state
+        resetDecoderState_unlocked();
+        
+        // If reset doesn't work, recreate the decoder
+        if (m_decoder && m_decoder->get_state() == FLAC__STREAM_DECODER_OGG_ERROR) {
+            Debug::log("flac_codec", "[FLACCodec::recoverFromOggError_unlocked] Reset failed, recreating decoder");
+            return recreateDecoder_unlocked();
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::recoverFromOggError_unlocked] Ogg error recovery successful");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::recoverFromOggError_unlocked] Exception: ", e.what());
+        return recreateDecoder_unlocked();
+    }
+}
+
+bool FLACCodec::recoverFromDecoderMemoryError_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::recoverFromDecoderMemoryError_unlocked] Recovering from decoder memory error");
+    
+    try {
+        // Free as much memory as possible
+        freeUnusedMemory_unlocked();
+        
+        // Clear all buffers to free memory
+        {
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            m_output_buffer.clear();
+            m_output_buffer.shrink_to_fit();
+        }
+        
+        {
+            std::lock_guard<std::mutex> input_lock(m_input_mutex);
+            clearInputQueue_unlocked();
+            m_partial_frame_buffer.clear();
+            m_partial_frame_buffer.shrink_to_fit();
+        }
+        
+        // Clear decoder buffers
+        if (m_decoder) {
+            m_decoder->clearInputBuffer();
+        }
+        
+        // Clear internal buffers
+        m_input_buffer.clear();
+        m_input_buffer.shrink_to_fit();
+        m_decode_buffer.clear();
+        m_decode_buffer.shrink_to_fit();
+        
+        // Increment memory error statistics
+        m_stats.memory_errors++;
+        
+        // Try to recreate decoder with minimal memory footprint
+        bool recovery_success = recreateDecoder_unlocked();
+        
+        if (recovery_success) {
+            Debug::log("flac_codec", "[FLACCodec::recoverFromDecoderMemoryError_unlocked] Memory error recovery successful");
+            
+            // Re-allocate minimal buffers
+            try {
+                m_input_buffer.reserve(32 * 1024);  // Smaller buffer
+                m_decode_buffer.reserve(4608 * 8);  // Smaller decode buffer
+                m_output_buffer.reserve(MAX_BUFFER_SAMPLES / 4); // Smaller output buffer
+            } catch (...) {
+                Debug::log("flac_codec", "[FLACCodec::recoverFromDecoderMemoryError_unlocked] Warning: Could not re-allocate full buffers");
+            }
+        }
+        
+        return recovery_success;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::recoverFromDecoderMemoryError_unlocked] Exception: ", e.what());
+        return false;
+    }
+}
+
+bool FLACCodec::reinitializeDecoder_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::reinitializeDecoder_unlocked] Reinitializing uninitialized decoder");
+    
+    try {
+        if (!m_decoder) {
+            return recreateDecoder_unlocked();
+        }
+        
+        // Clear any existing state
+        m_decoder->clearInputBuffer();
+        m_decoder->clearError();
+        
+        // Initialize the decoder
+        FLAC__StreamDecoderInitStatus init_status = m_decoder->init();
+        if (init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK) {
+            Debug::log("flac_codec", "[FLACCodec::reinitializeDecoder_unlocked] Initialization failed: ", 
+                      static_cast<int>(init_status));
+            
+            // Try recreating if initialization fails
+            return recreateDecoder_unlocked();
+        }
+        
+        m_decoder_initialized = true;
+        
+        Debug::log("flac_codec", "[FLACCodec::reinitializeDecoder_unlocked] Decoder reinitialization successful");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::reinitializeDecoder_unlocked] Exception: ", e.what());
+        return recreateDecoder_unlocked();
+    }
+}
+
+bool FLACCodec::ensureDecoderFunctional_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::ensureDecoderFunctional_unlocked] Ensuring decoder is functional");
+    
+    try {
+        // Check if decoder exists
+        if (!m_decoder) {
+            Debug::log("flac_codec", "[FLACCodec::ensureDecoderFunctional_unlocked] No decoder - creating new one");
+            return recreateDecoder_unlocked();
+        }
+        
+        // Check if decoder is initialized
+        if (!m_decoder_initialized) {
+            Debug::log("flac_codec", "[FLACCodec::ensureDecoderFunctional_unlocked] Decoder not initialized - initializing");
+            return reinitializeDecoder_unlocked();
+        }
+        
+        // Check decoder state
+        FLAC__StreamDecoderState state = m_decoder->get_state();
+        switch (state) {
+            case FLAC__STREAM_DECODER_SEARCH_FOR_METADATA:
+            case FLAC__STREAM_DECODER_READ_METADATA:
+            case FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC:
+            case FLAC__STREAM_DECODER_READ_FRAME:
+                // Normal operational states
+                Debug::log("flac_codec", "[FLACCodec::ensureDecoderFunctional_unlocked] Decoder is functional");
+                return true;
+                
+            case FLAC__STREAM_DECODER_END_OF_STREAM:
+                Debug::log("flac_codec", "[FLACCodec::ensureDecoderFunctional_unlocked] End of stream - resetting");
+                return resetDecoderForNewStream_unlocked();
+                
+            default:
+                Debug::log("flac_codec", "[FLACCodec::ensureDecoderFunctional_unlocked] Problematic state - handling inconsistency");
+                return handleDecoderStateInconsistency_unlocked();
+        }
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::ensureDecoderFunctional_unlocked] Exception: ", e.what());
+        return recreateDecoder_unlocked();
+    }
+}
+
+bool FLACCodec::handleMemoryAllocationFailure_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::handleMemoryAllocationFailure_unlocked] Handling memory allocation failure");
+    
+    try {
+        // Increment memory error statistics
+        m_stats.memory_errors++;
+        
+        // Step 1: Free all non-essential memory
+        freeUnusedMemory_unlocked();
+        
+        // Step 2: Clear and shrink all buffers
+        {
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            m_output_buffer.clear();
+            m_output_buffer.shrink_to_fit();
+            m_buffer_read_position = 0;
+            
+            // Reset buffer management to minimal state
+            m_preferred_buffer_size = 1024; // Minimal buffer size
+            m_adaptive_buffer_sizing = false; // Disable adaptive sizing
+        }
+        
+        {
+            std::lock_guard<std::mutex> input_lock(m_input_mutex);
+            clearInputQueue_unlocked();
+            m_partial_frame_buffer.clear();
+            m_partial_frame_buffer.shrink_to_fit();
+            
+            // Reduce queue sizes to minimal
+            m_max_input_queue_size = 4; // Minimal queue size
+            m_max_input_queue_bytes = 64 * 1024; // 64KB max
+        }
+        
+        // Step 3: Clear internal codec buffers
+        m_input_buffer.clear();
+        m_input_buffer.shrink_to_fit();
+        m_decode_buffer.clear();
+        m_decode_buffer.shrink_to_fit();
+        
+        // Step 4: Clear decoder buffers
+        if (m_decoder) {
+            m_decoder->clearInputBuffer();
+        }
+        
+        // Step 5: Clear async processing queues if enabled
+        if (m_async_processing_enabled) {
+            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+            clearAsyncQueues_unlocked();
+            
+            // Reduce async queue sizes
+            m_max_async_input_queue = 2;
+            m_max_async_output_queue = 2;
+        }
+        
+        // Step 6: Try to allocate minimal working buffers
+        try {
+            // Minimal input buffer (16KB)
+            m_input_buffer.reserve(16 * 1024);
+            
+            // Minimal decode buffer (1152 samples * 2 channels)
+            m_decode_buffer.reserve(1152 * 2);
+            
+            // Minimal output buffer (1 second at 44.1kHz stereo)
+            {
+                std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+                m_output_buffer.reserve(44100 * 2);
+            }
+            
+            Debug::log("flac_codec", "[FLACCodec::handleMemoryAllocationFailure_unlocked] Minimal buffers allocated successfully");
+            
+        } catch (const std::exception& e) {
+            Debug::log("flac_codec", "[FLACCodec::handleMemoryAllocationFailure_unlocked] Failed to allocate even minimal buffers: ", e.what());
+            
+            // Critical memory shortage - disable codec
+            setErrorState_unlocked(true);
+            return false;
+        }
+        
+        // Step 7: Ensure decoder is still functional after memory cleanup
+        if (!ensureDecoderFunctional_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::handleMemoryAllocationFailure_unlocked] Decoder not functional after memory cleanup");
+            return false;
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::handleMemoryAllocationFailure_unlocked] Memory allocation failure recovery completed");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::handleMemoryAllocationFailure_unlocked] Exception during memory recovery: ", e.what());
+        setErrorState_unlocked(true);
+        return false;
+    }
+}
+
+bool FLACCodec::validateCodecIntegrity_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Validating codec integrity");
+    
+    try {
+        // Check basic codec state
+        if (!m_initialized) {
+            Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Codec not initialized");
+            return false;
+        }
+        
+        // Check decoder state
+        if (!m_decoder) {
+            Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] No decoder instance");
+            return false;
+        }
+        
+        if (!m_decoder_initialized) {
+            Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Decoder not initialized");
+            return false;
+        }
+        
+        // Check decoder state is valid
+        FLAC__StreamDecoderState state = m_decoder->get_state();
+        if (state == FLAC__STREAM_DECODER_ABORTED || 
+            state == FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR) {
+            Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Decoder in error state: ", static_cast<int>(state));
+            return false;
+        }
+        
+        // Check configuration parameters
+        if (m_sample_rate == 0 || m_channels == 0 || m_bits_per_sample == 0) {
+            Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Invalid configuration parameters");
+            return false;
+        }
+        
+        // Check error state
+        if (m_error_state.load()) {
+            Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Codec in error state");
+            return false;
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Codec integrity validation passed");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Exception during validation: ", e.what());
+        return false;
+    }
 }
 
 // Memory management methods

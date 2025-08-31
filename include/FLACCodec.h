@@ -483,9 +483,24 @@ private:
     // Error handling methods (assume appropriate locks are held)
     AudioFrame handleDecodingError_unlocked(const MediaChunk& chunk);
     bool recoverFromError_unlocked();
+    bool recoverFromSyncLoss_unlocked(const MediaChunk& chunk);
+    bool recoverFromCorruptedFrame_unlocked(const MediaChunk& chunk);
+    bool recoverFromMemoryError_unlocked();
     void resetDecoderState_unlocked();
     AudioFrame createSilenceFrame_unlocked(uint32_t block_size);
     void setErrorState_unlocked(bool error_state);
+    uint32_t estimateBlockSizeFromChunk_unlocked(const MediaChunk& chunk);
+    
+    // Decoder state recovery methods (assume appropriate locks are held)
+    bool handleDecoderStateInconsistency_unlocked();
+    bool recreateDecoder_unlocked();
+    bool resetDecoderForNewStream_unlocked();
+    bool recoverFromOggError_unlocked();
+    bool recoverFromDecoderMemoryError_unlocked();
+    bool reinitializeDecoder_unlocked();
+    bool ensureDecoderFunctional_unlocked();
+    bool handleMemoryAllocationFailure_unlocked();
+    bool validateCodecIntegrity_unlocked();
     
     // Memory management methods (assume appropriate locks are held)
     void optimizeBufferSizes_unlocked();
