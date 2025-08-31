@@ -480,6 +480,13 @@ private:
     void processRightSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]);
     void processMidSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]);
     
+    // Optimized channel processing methods for performance (assume m_buffer_mutex is held)
+    void processMonoChannelOptimized_unlocked(const FLAC__int32* input, uint32_t block_size, uint16_t bits_per_sample);
+    void processStereoChannelsOptimized_unlocked(const FLAC__int32* left, const FLAC__int32* right, 
+                                               uint32_t block_size, uint16_t bits_per_sample);
+    void processMultiChannelOptimized_unlocked(const FLAC__int32* const buffer[], uint16_t channels, 
+                                             uint32_t block_size, uint16_t bits_per_sample);
+    
     // Error handling methods (assume appropriate locks are held)
     AudioFrame handleDecodingError_unlocked(const MediaChunk& chunk);
     bool recoverFromError_unlocked();
@@ -506,6 +513,11 @@ private:
     void optimizeBufferSizes_unlocked();
     void ensureBufferCapacity_unlocked(size_t required_samples);
     void freeUnusedMemory_unlocked();
+    
+    // Advanced memory management methods (assume appropriate locks are held)
+    size_t calculateCurrentMemoryUsage_unlocked() const;
+    void implementMemoryPoolAllocation_unlocked();
+    void optimizeMemoryFragmentation_unlocked();
     
     // Enhanced output buffer management methods (assume m_buffer_mutex is held)
     bool checkBufferCapacity_unlocked(size_t required_samples);
@@ -580,6 +592,16 @@ private:
     bool waitForWorkCompletion_unlocked(std::chrono::milliseconds timeout);
     void handleThreadException_unlocked(const std::exception& e);
     void resetThreadState_unlocked();
+    
+    // Optimized threading methods for performance (assume appropriate locks are held)
+    AudioFrame decodeChunkOptimized_unlocked(const MediaChunk& chunk);
+    bool processFrameDataFast_unlocked(const uint8_t* data, size_t size);
+    AudioFrame extractDecodedSamplesFast_unlocked();
+    AudioFrame createSilenceFrameFast_unlocked(uint32_t block_size);
+    bool hasAsyncInputFast_unlocked() const;
+    void notifyWorkCompletedBatch_unlocked(size_t batch_size);
+    void handleThreadExceptionFast_unlocked(const std::exception& e);
+    void handleThreadTerminationFast_unlocked();
     
     // Asynchronous processing methods (assume m_async_mutex is held)
     bool enqueueAsyncInput_unlocked(const MediaChunk& chunk);

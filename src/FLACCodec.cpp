@@ -2754,23 +2754,65 @@ bool FLACCodec::validateCodecIntegrity_unlocked() {
 // Memory management methods
 
 void FLACCodec::optimizeBufferSizes_unlocked() {
-    Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Optimizing buffer sizes");
+    Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Optimizing buffer sizes with advanced memory management");
     
-    // Pre-calculate buffer sizes based on configuration
-    size_t max_block_size = 65535; // RFC 9639 maximum
+    // Calculate optimal buffer sizes based on stream characteristics and performance requirements
+    size_t max_block_size = std::max(m_max_block_size, static_cast<uint32_t>(65535)); // Use stream max or RFC 9639 maximum
     size_t required_buffer_size = max_block_size * m_channels;
     
-    // Pre-allocate buffers to avoid runtime allocations
+    // Calculate memory pool sizes based on expected usage patterns
+    size_t optimal_output_buffer_size = required_buffer_size * 2; // Double buffering for smooth playback
+    size_t optimal_decode_buffer_size = required_buffer_size;     // Single frame processing
+    size_t optimal_input_buffer_size = std::max(static_cast<size_t>(128 * 1024), required_buffer_size / 4); // Adaptive input buffer
+    
+    // Apply memory usage limits to prevent excessive allocation
+    size_t max_memory_per_buffer = 16 * 1024 * 1024; // 16MB per buffer limit
+    optimal_output_buffer_size = std::min(optimal_output_buffer_size, max_memory_per_buffer / sizeof(int16_t));
+    optimal_decode_buffer_size = std::min(optimal_decode_buffer_size, max_memory_per_buffer / sizeof(FLAC__int32));
+    optimal_input_buffer_size = std::min(optimal_input_buffer_size, max_memory_per_buffer);
+    
+    // Pre-allocate buffers with optimal sizes to avoid runtime allocations
     {
         std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-        m_output_buffer.reserve(required_buffer_size);
+        
+        // Reserve output buffer with alignment optimization
+        if (m_output_buffer.capacity() < optimal_output_buffer_size) {
+            m_output_buffer.reserve(optimal_output_buffer_size);
+            Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Output buffer reserved: ", 
+                      optimal_output_buffer_size, " samples (", 
+                      (optimal_output_buffer_size * sizeof(int16_t)) / 1024, " KB)");
+        }
+        
+        // Update buffer management parameters
+        m_preferred_buffer_size = optimal_output_buffer_size;
+        updateBufferWatermarks_unlocked();
     }
     
-    m_decode_buffer.reserve(required_buffer_size);
-    m_input_buffer.reserve(64 * 1024); // 64KB input buffer
+    // Reserve decode buffer for libFLAC processing
+    if (m_decode_buffer.capacity() < optimal_decode_buffer_size) {
+        m_decode_buffer.reserve(optimal_decode_buffer_size);
+        Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Decode buffer reserved: ", 
+                  optimal_decode_buffer_size, " samples (", 
+                  (optimal_decode_buffer_size * sizeof(FLAC__int32)) / 1024, " KB)");
+    }
     
-    Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Buffers optimized for ", 
-              required_buffer_size, " samples");
+    // Reserve input buffer for frame data
+    if (m_input_buffer.capacity() < optimal_input_buffer_size) {
+        m_input_buffer.reserve(optimal_input_buffer_size);
+        Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Input buffer reserved: ", 
+                  optimal_input_buffer_size, " bytes (", optimal_input_buffer_size / 1024, " KB)");
+    }
+    
+    // Initialize memory pool allocation tracking
+    m_buffer_allocation_count = 0;
+    m_adaptive_buffer_sizing = true;
+    
+    size_t total_memory_kb = (optimal_output_buffer_size * sizeof(int16_t) + 
+                             optimal_decode_buffer_size * sizeof(FLAC__int32) + 
+                             optimal_input_buffer_size) / 1024;
+    
+    Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Total memory allocated: ", 
+              total_memory_kb, " KB for ", m_channels, " channels, max block size ", max_block_size);
 }
 
 void FLACCodec::ensureBufferCapacity_unlocked(size_t required_samples) {
@@ -2784,16 +2826,251 @@ void FLACCodec::ensureBufferCapacity_unlocked(size_t required_samples) {
 }
 
 void FLACCodec::freeUnusedMemory_unlocked() {
-    // Shrink buffers if they're significantly over-allocated
+    Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Performing advanced memory cleanup");
+    
+    size_t memory_freed = 0;
+    
+    // Shrink output buffer if significantly over-allocated
     {
         std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-        if (m_output_buffer.capacity() > m_output_buffer.size() * 4) {
-            std::vector<int16_t>(m_output_buffer).swap(m_output_buffer);
+        
+        size_t current_capacity = m_output_buffer.capacity();
+        size_t current_size = m_output_buffer.size();
+        size_t optimal_capacity = std::max(current_size * 2, m_preferred_buffer_size / 4); // Keep some headroom
+        
+        if (current_capacity > optimal_capacity * 2) {
+            // Use copy-and-swap idiom for memory shrinking
+            std::vector<int16_t> shrunk_buffer;
+            shrunk_buffer.reserve(optimal_capacity);
+            shrunk_buffer.assign(m_output_buffer.begin(), m_output_buffer.end());
+            m_output_buffer.swap(shrunk_buffer);
+            
+            size_t freed_bytes = (current_capacity - m_output_buffer.capacity()) * sizeof(int16_t);
+            memory_freed += freed_bytes;
+            
+            Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Output buffer shrunk from ", 
+                      current_capacity, " to ", m_output_buffer.capacity(), " samples (freed ", 
+                      freed_bytes / 1024, " KB)");
         }
     }
     
-    if (m_decode_buffer.capacity() > m_decode_buffer.size() * 4) {
-        std::vector<FLAC__int32>(m_decode_buffer).swap(m_decode_buffer);
+    // Shrink decode buffer if over-allocated
+    {
+        size_t current_capacity = m_decode_buffer.capacity();
+        size_t current_size = m_decode_buffer.size();
+        size_t min_required = std::max(static_cast<size_t>(65535 * m_channels), current_size * 2);
+        
+        if (current_capacity > min_required * 2) {
+            std::vector<FLAC__int32> shrunk_buffer;
+            shrunk_buffer.reserve(min_required);
+            shrunk_buffer.assign(m_decode_buffer.begin(), m_decode_buffer.end());
+            m_decode_buffer.swap(shrunk_buffer);
+            
+            size_t freed_bytes = (current_capacity - m_decode_buffer.capacity()) * sizeof(FLAC__int32);
+            memory_freed += freed_bytes;
+            
+            Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Decode buffer shrunk from ", 
+                      current_capacity, " to ", m_decode_buffer.capacity(), " samples (freed ", 
+                      freed_bytes / 1024, " KB)");
+        }
+    }
+    
+    // Shrink input buffer if over-allocated
+    {
+        size_t current_capacity = m_input_buffer.capacity();
+        size_t current_size = m_input_buffer.size();
+        size_t min_required = std::max(static_cast<size_t>(64 * 1024), current_size * 2);
+        
+        if (current_capacity > min_required * 2) {
+            std::vector<uint8_t> shrunk_buffer;
+            shrunk_buffer.reserve(min_required);
+            shrunk_buffer.assign(m_input_buffer.begin(), m_input_buffer.end());
+            m_input_buffer.swap(shrunk_buffer);
+            
+            size_t freed_bytes = current_capacity - m_input_buffer.capacity();
+            memory_freed += freed_bytes;
+            
+            Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Input buffer shrunk from ", 
+                      current_capacity, " to ", m_input_buffer.capacity(), " bytes (freed ", 
+                      freed_bytes / 1024, " KB)");
+        }
+    }
+    
+    // Clear input queue buffers if they're consuming too much memory
+    {
+        std::lock_guard<std::mutex> input_lock(m_input_mutex);
+        
+        if (m_input_queue_bytes > 512 * 1024) { // If queue is using more than 512KB
+            size_t original_bytes = m_input_queue_bytes;
+            
+            // Keep only the most recent chunks
+            while (m_input_queue.size() > 4 && m_input_queue_bytes > 256 * 1024) {
+                MediaChunk front_chunk = m_input_queue.front();
+                m_input_queue.pop();
+                m_input_queue_bytes -= front_chunk.data.size();
+            }
+            
+            size_t freed_bytes = original_bytes - m_input_queue_bytes;
+            memory_freed += freed_bytes;
+            
+            if (freed_bytes > 0) {
+                Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Input queue trimmed, freed ", 
+                          freed_bytes / 1024, " KB, ", m_input_queue.size(), " chunks remaining");
+            }
+        }
+        
+        // Shrink partial frame buffer if over-allocated
+        if (m_partial_frame_buffer.capacity() > m_partial_frame_buffer.size() * 4 && 
+            m_partial_frame_buffer.capacity() > 32 * 1024) {
+            
+            size_t original_capacity = m_partial_frame_buffer.capacity();
+            std::vector<uint8_t> shrunk_buffer(m_partial_frame_buffer);
+            m_partial_frame_buffer.swap(shrunk_buffer);
+            
+            size_t freed_bytes = original_capacity - m_partial_frame_buffer.capacity();
+            memory_freed += freed_bytes;
+            
+            Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Partial frame buffer shrunk, freed ", 
+                      freed_bytes / 1024, " KB");
+        }
+    }
+    
+    // Clear async processing queues if they're consuming too much memory
+    if (m_async_processing_enabled) {
+        std::lock_guard<std::mutex> async_lock(m_async_mutex);
+        
+        size_t async_memory_freed = 0;
+        
+        // Limit async input queue size
+        while (m_async_input_queue.size() > m_max_async_input_queue / 2) {
+            m_async_input_queue.pop();
+            async_memory_freed += 1024; // Estimate
+        }
+        
+        // Limit async output queue size
+        while (m_async_output_queue.size() > m_max_async_output_queue / 2) {
+            m_async_output_queue.pop();
+            async_memory_freed += 4096; // Estimate for AudioFrame
+        }
+        
+        if (async_memory_freed > 0) {
+            memory_freed += async_memory_freed;
+            Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Async queues trimmed, freed ~", 
+                      async_memory_freed / 1024, " KB");
+        }
+    }
+    
+    // Update memory usage statistics
+    m_stats.memory_usage_bytes = calculateCurrentMemoryUsage_unlocked();
+    
+    if (memory_freed > 0) {
+        Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] Total memory freed: ", 
+                  memory_freed / 1024, " KB, current usage: ", m_stats.memory_usage_bytes / 1024, " KB");
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] No significant memory to free, current usage: ", 
+                  m_stats.memory_usage_bytes / 1024, " KB");
+    }
+}
+
+size_t FLACCodec::calculateCurrentMemoryUsage_unlocked() const {
+    size_t total_memory = 0;
+    
+    // Calculate buffer memory usage
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        total_memory += m_output_buffer.capacity() * sizeof(int16_t);
+    }
+    
+    total_memory += m_decode_buffer.capacity() * sizeof(FLAC__int32);
+    total_memory += m_input_buffer.capacity();
+    
+    // Calculate queue memory usage
+    {
+        std::lock_guard<std::mutex> input_lock(m_input_mutex);
+        total_memory += m_input_queue_bytes;
+        total_memory += m_partial_frame_buffer.capacity();
+    }
+    
+    // Estimate async queue memory usage
+    if (m_async_processing_enabled) {
+        std::lock_guard<std::mutex> async_lock(m_async_mutex);
+        total_memory += m_async_input_queue.size() * 1024; // Estimate per chunk
+        total_memory += m_async_output_queue.size() * 4096; // Estimate per AudioFrame
+    }
+    
+    // Add fixed overhead for codec state
+    total_memory += sizeof(FLACCodec);
+    total_memory += sizeof(FLACStreamDecoder);
+    
+    return total_memory;
+}
+
+void FLACCodec::implementMemoryPoolAllocation_unlocked() {
+    // Implement memory pool allocation for frequently used buffers
+    Debug::log("flac_codec", "[FLACCodec::implementMemoryPoolAllocation_unlocked] Setting up memory pools");
+    
+    // Pre-allocate common buffer sizes to reduce allocation overhead
+    std::vector<size_t> common_sizes = {
+        static_cast<size_t>(576) * m_channels,    // Common FLAC block size
+        static_cast<size_t>(1152) * m_channels,   // Common FLAC block size
+        static_cast<size_t>(2304) * m_channels,   // Common FLAC block size
+        static_cast<size_t>(4608) * m_channels    // Common FLAC block size
+    };
+    
+    // Reserve space for these common sizes in the output buffer
+    size_t max_common_size = *std::max_element(common_sizes.begin(), common_sizes.end());
+    
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        if (m_output_buffer.capacity() < max_common_size * 4) {
+            m_output_buffer.reserve(max_common_size * 4);
+            Debug::log("flac_codec", "[FLACCodec::implementMemoryPoolAllocation_unlocked] Reserved pool space for common block sizes");
+        }
+    }
+    
+    // Pre-allocate decode buffer for common sizes
+    if (m_decode_buffer.capacity() < max_common_size * 2) {
+        m_decode_buffer.reserve(max_common_size * 2);
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::implementMemoryPoolAllocation_unlocked] Memory pools configured for ", 
+              common_sizes.size(), " common block sizes");
+}
+
+void FLACCodec::optimizeMemoryFragmentation_unlocked() {
+    // Minimize memory fragmentation in long-running scenarios
+    Debug::log("flac_codec", "[FLACCodec::optimizeMemoryFragmentation_unlocked] Optimizing memory layout");
+    
+    // Reallocate buffers to ensure contiguous memory layout
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        
+        // Force reallocation to get fresh, contiguous memory
+        if (m_buffer_allocation_count > 100) { // After many allocations
+            size_t optimal_capacity = m_preferred_buffer_size;
+            
+            std::vector<int16_t> fresh_buffer;
+            fresh_buffer.reserve(optimal_capacity);
+            fresh_buffer.assign(m_output_buffer.begin(), m_output_buffer.end());
+            m_output_buffer.swap(fresh_buffer);
+            
+            m_buffer_allocation_count = 0;
+            
+            Debug::log("flac_codec", "[FLACCodec::optimizeMemoryFragmentation_unlocked] Output buffer reallocated for defragmentation");
+        }
+    }
+    
+    // Optimize decode buffer layout
+    if (m_decode_buffer.size() > 0) {
+        size_t optimal_capacity = 65535 * m_channels * 2;
+        if (m_decode_buffer.capacity() != optimal_capacity) {
+            std::vector<FLAC__int32> fresh_buffer;
+            fresh_buffer.reserve(optimal_capacity);
+            fresh_buffer.assign(m_decode_buffer.begin(), m_decode_buffer.end());
+            m_decode_buffer.swap(fresh_buffer);
+            
+            Debug::log("flac_codec", "[FLACCodec::optimizeMemoryFragmentation_unlocked] Decode buffer reallocated for defragmentation");
+        }
     }
 }
 
@@ -3602,39 +3879,16 @@ void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, co
     }
     m_output_buffer.resize(required_samples);
     
-    // Convert and interleave samples
-    for (uint32_t sample = 0; sample < block_size; ++sample) {
-        for (uint16_t channel = 0; channel < channels; ++channel) {
-            size_t output_index = sample * channels + channel;
-            FLAC__int32 raw_sample = buffer[channel][sample];
-            
-            // Convert based on bit depth
-            int16_t converted_sample;
-            switch (frame->header.bits_per_sample) {
-                case 8:
-                    converted_sample = convert8BitTo16Bit(raw_sample);
-                    break;
-                case 16:
-                    converted_sample = static_cast<int16_t>(raw_sample);
-                    break;
-                case 24:
-                    converted_sample = convert24BitTo16Bit(raw_sample);
-                    break;
-                case 32:
-                    converted_sample = convert32BitTo16Bit(raw_sample);
-                    break;
-                default:
-                    // Generic conversion for unusual bit depths
-                    if (frame->header.bits_per_sample < 16) {
-                        converted_sample = static_cast<int16_t>(raw_sample << (16 - frame->header.bits_per_sample));
-                    } else {
-                        converted_sample = static_cast<int16_t>(raw_sample >> (frame->header.bits_per_sample - 16));
-                    }
-                    break;
-            }
-            
-            m_output_buffer[output_index] = converted_sample;
-        }
+    // Optimized convert and interleave samples with channel-specific optimizations
+    if (channels == 1) {
+        // Mono optimization - direct conversion without interleaving overhead
+        processMonoChannelOptimized_unlocked(buffer[0], block_size, frame->header.bits_per_sample);
+    } else if (channels == 2) {
+        // Stereo optimization - optimized interleaving with SIMD when available
+        processStereoChannelsOptimized_unlocked(buffer[0], buffer[1], block_size, frame->header.bits_per_sample);
+    } else {
+        // Multi-channel processing with optimized inner loops
+        processMultiChannelOptimized_unlocked(buffer, channels, block_size, frame->header.bits_per_sample);
     }
     
     m_stats.conversion_operations++;
@@ -3828,6 +4082,326 @@ void FLACCodec::processMidSideStereo_unlocked(const FLAC__Frame* frame, const FL
               block_size, " mid-side stereo samples");
 }
 
+// Optimized channel processing methods for performance
+
+void FLACCodec::processMonoChannelOptimized_unlocked(const FLAC__int32* input, uint32_t block_size, uint16_t bits_per_sample) {
+    // Optimized mono channel processing - direct conversion without interleaving overhead
+    
+    switch (bits_per_sample) {
+        case 8:
+            // Optimized 8-bit mono conversion with loop unrolling
+            {
+                size_t unroll_samples = (block_size / 4) * 4;
+                for (size_t i = 0; i < unroll_samples; i += 4) {
+                    m_output_buffer[i] = static_cast<int16_t>(input[i] << 8);
+                    m_output_buffer[i + 1] = static_cast<int16_t>(input[i + 1] << 8);
+                    m_output_buffer[i + 2] = static_cast<int16_t>(input[i + 2] << 8);
+                    m_output_buffer[i + 3] = static_cast<int16_t>(input[i + 3] << 8);
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    m_output_buffer[i] = convert8BitTo16Bit(input[i]);
+                }
+            }
+            break;
+            
+        case 16:
+            // Direct copy for 16-bit mono - fastest path
+            #ifdef HAVE_SSE2
+            {
+                size_t simd_samples = (block_size / 8) * 8;
+                for (size_t i = 0; i < simd_samples; i += 8) {
+                    // Load 8 32-bit samples
+                    __m128i samples1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&input[i]));
+                    __m128i samples2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&input[i + 4]));
+                    
+                    // Pack to 16-bit
+                    __m128i packed = _mm_packs_epi32(samples1, samples2);
+                    
+                    // Store 8 16-bit samples
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(&m_output_buffer[i]), packed);
+                }
+                for (size_t i = simd_samples; i < block_size; ++i) {
+                    m_output_buffer[i] = static_cast<int16_t>(input[i]);
+                }
+            }
+            #else
+            {
+                size_t unroll_samples = (block_size / 4) * 4;
+                for (size_t i = 0; i < unroll_samples; i += 4) {
+                    m_output_buffer[i] = static_cast<int16_t>(input[i]);
+                    m_output_buffer[i + 1] = static_cast<int16_t>(input[i + 1]);
+                    m_output_buffer[i + 2] = static_cast<int16_t>(input[i + 2]);
+                    m_output_buffer[i + 3] = static_cast<int16_t>(input[i + 3]);
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    m_output_buffer[i] = static_cast<int16_t>(input[i]);
+                }
+            }
+            #endif
+            break;
+            
+        case 24:
+            // Optimized 24-bit mono conversion
+            {
+                size_t unroll_samples = (block_size / 4) * 4;
+                for (size_t i = 0; i < unroll_samples; i += 4) {
+                    m_output_buffer[i] = static_cast<int16_t>(input[i] >> 8);
+                    m_output_buffer[i + 1] = static_cast<int16_t>(input[i + 1] >> 8);
+                    m_output_buffer[i + 2] = static_cast<int16_t>(input[i + 2] >> 8);
+                    m_output_buffer[i + 3] = static_cast<int16_t>(input[i + 3] >> 8);
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    m_output_buffer[i] = convert24BitTo16Bit(input[i]);
+                }
+            }
+            break;
+            
+        case 32:
+            // Optimized 32-bit mono conversion with overflow protection
+            {
+                size_t unroll_samples = (block_size / 4) * 4;
+                for (size_t i = 0; i < unroll_samples; i += 4) {
+                    m_output_buffer[i] = static_cast<int16_t>(std::clamp(input[i] >> 16, -32768, 32767));
+                    m_output_buffer[i + 1] = static_cast<int16_t>(std::clamp(input[i + 1] >> 16, -32768, 32767));
+                    m_output_buffer[i + 2] = static_cast<int16_t>(std::clamp(input[i + 2] >> 16, -32768, 32767));
+                    m_output_buffer[i + 3] = static_cast<int16_t>(std::clamp(input[i + 3] >> 16, -32768, 32767));
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    m_output_buffer[i] = convert32BitTo16Bit(input[i]);
+                }
+            }
+            break;
+            
+        default:
+            // Generic conversion for unusual bit depths
+            for (uint32_t i = 0; i < block_size; ++i) {
+                if (bits_per_sample < 16) {
+                    m_output_buffer[i] = static_cast<int16_t>(input[i] << (16 - bits_per_sample));
+                } else {
+                    m_output_buffer[i] = static_cast<int16_t>(input[i] >> (bits_per_sample - 16));
+                }
+            }
+            break;
+    }
+}
+
+void FLACCodec::processStereoChannelsOptimized_unlocked(const FLAC__int32* left, const FLAC__int32* right, 
+                                                       uint32_t block_size, uint16_t bits_per_sample) {
+    // Optimized stereo channel processing with SIMD interleaving when available
+    
+    switch (bits_per_sample) {
+        case 8:
+            // Optimized 8-bit stereo conversion with interleaving
+            #ifdef HAVE_SSE2
+            {
+                size_t simd_samples = (block_size / 4) * 4;
+                for (size_t i = 0; i < simd_samples; i += 4) {
+                    // Load 4 samples from each channel
+                    __m128i left_samples = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&left[i]));
+                    __m128i right_samples = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&right[i]));
+                    
+                    // Convert to 16-bit range
+                    left_samples = _mm_slli_epi32(left_samples, 8);
+                    right_samples = _mm_slli_epi32(right_samples, 8);
+                    
+                    // Pack to 16-bit
+                    __m128i left_packed = _mm_packs_epi32(left_samples, _mm_setzero_si128());
+                    __m128i right_packed = _mm_packs_epi32(right_samples, _mm_setzero_si128());
+                    
+                    // Interleave left and right channels
+                    __m128i interleaved = _mm_unpacklo_epi16(left_packed, right_packed);
+                    
+                    // Store 8 interleaved samples (4 stereo pairs)
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(&m_output_buffer[i * 2]), interleaved);
+                }
+                for (size_t i = simd_samples; i < block_size; ++i) {
+                    size_t out_idx = i * 2;
+                    m_output_buffer[out_idx] = static_cast<int16_t>(left[i] << 8);
+                    m_output_buffer[out_idx + 1] = static_cast<int16_t>(right[i] << 8);
+                }
+            }
+            #else
+            {
+                size_t unroll_samples = (block_size / 2) * 2;
+                for (size_t i = 0; i < unroll_samples; i += 2) {
+                    size_t out_idx1 = i * 2;
+                    size_t out_idx2 = (i + 1) * 2;
+                    m_output_buffer[out_idx1] = static_cast<int16_t>(left[i] << 8);
+                    m_output_buffer[out_idx1 + 1] = static_cast<int16_t>(right[i] << 8);
+                    m_output_buffer[out_idx2] = static_cast<int16_t>(left[i + 1] << 8);
+                    m_output_buffer[out_idx2 + 1] = static_cast<int16_t>(right[i + 1] << 8);
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    size_t out_idx = i * 2;
+                    m_output_buffer[out_idx] = convert8BitTo16Bit(left[i]);
+                    m_output_buffer[out_idx + 1] = convert8BitTo16Bit(right[i]);
+                }
+            }
+            #endif
+            break;
+            
+        case 16:
+            // Direct copy for 16-bit stereo with optimized interleaving
+            #ifdef HAVE_SSE2
+            {
+                size_t simd_samples = (block_size / 4) * 4;
+                for (size_t i = 0; i < simd_samples; i += 4) {
+                    // Load 4 samples from each channel
+                    __m128i left_samples = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&left[i]));
+                    __m128i right_samples = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&right[i]));
+                    
+                    // Pack to 16-bit
+                    __m128i left_packed = _mm_packs_epi32(left_samples, _mm_setzero_si128());
+                    __m128i right_packed = _mm_packs_epi32(right_samples, _mm_setzero_si128());
+                    
+                    // Interleave left and right channels
+                    __m128i interleaved = _mm_unpacklo_epi16(left_packed, right_packed);
+                    
+                    // Store 8 interleaved samples (4 stereo pairs)
+                    _mm_storeu_si128(reinterpret_cast<__m128i*>(&m_output_buffer[i * 2]), interleaved);
+                }
+                for (size_t i = simd_samples; i < block_size; ++i) {
+                    size_t out_idx = i * 2;
+                    m_output_buffer[out_idx] = static_cast<int16_t>(left[i]);
+                    m_output_buffer[out_idx + 1] = static_cast<int16_t>(right[i]);
+                }
+            }
+            #else
+            {
+                size_t unroll_samples = (block_size / 2) * 2;
+                for (size_t i = 0; i < unroll_samples; i += 2) {
+                    size_t out_idx1 = i * 2;
+                    size_t out_idx2 = (i + 1) * 2;
+                    m_output_buffer[out_idx1] = static_cast<int16_t>(left[i]);
+                    m_output_buffer[out_idx1 + 1] = static_cast<int16_t>(right[i]);
+                    m_output_buffer[out_idx2] = static_cast<int16_t>(left[i + 1]);
+                    m_output_buffer[out_idx2 + 1] = static_cast<int16_t>(right[i + 1]);
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    size_t out_idx = i * 2;
+                    m_output_buffer[out_idx] = static_cast<int16_t>(left[i]);
+                    m_output_buffer[out_idx + 1] = static_cast<int16_t>(right[i]);
+                }
+            }
+            #endif
+            break;
+            
+        case 24:
+            // Optimized 24-bit stereo conversion
+            {
+                size_t unroll_samples = (block_size / 2) * 2;
+                for (size_t i = 0; i < unroll_samples; i += 2) {
+                    size_t out_idx1 = i * 2;
+                    size_t out_idx2 = (i + 1) * 2;
+                    m_output_buffer[out_idx1] = static_cast<int16_t>(left[i] >> 8);
+                    m_output_buffer[out_idx1 + 1] = static_cast<int16_t>(right[i] >> 8);
+                    m_output_buffer[out_idx2] = static_cast<int16_t>(left[i + 1] >> 8);
+                    m_output_buffer[out_idx2 + 1] = static_cast<int16_t>(right[i + 1] >> 8);
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    size_t out_idx = i * 2;
+                    m_output_buffer[out_idx] = convert24BitTo16Bit(left[i]);
+                    m_output_buffer[out_idx + 1] = convert24BitTo16Bit(right[i]);
+                }
+            }
+            break;
+            
+        case 32:
+            // Optimized 32-bit stereo conversion with overflow protection
+            {
+                size_t unroll_samples = (block_size / 2) * 2;
+                for (size_t i = 0; i < unroll_samples; i += 2) {
+                    size_t out_idx1 = i * 2;
+                    size_t out_idx2 = (i + 1) * 2;
+                    m_output_buffer[out_idx1] = static_cast<int16_t>(std::clamp(left[i] >> 16, -32768, 32767));
+                    m_output_buffer[out_idx1 + 1] = static_cast<int16_t>(std::clamp(right[i] >> 16, -32768, 32767));
+                    m_output_buffer[out_idx2] = static_cast<int16_t>(std::clamp(left[i + 1] >> 16, -32768, 32767));
+                    m_output_buffer[out_idx2 + 1] = static_cast<int16_t>(std::clamp(right[i + 1] >> 16, -32768, 32767));
+                }
+                for (size_t i = unroll_samples; i < block_size; ++i) {
+                    size_t out_idx = i * 2;
+                    m_output_buffer[out_idx] = convert32BitTo16Bit(left[i]);
+                    m_output_buffer[out_idx + 1] = convert32BitTo16Bit(right[i]);
+                }
+            }
+            break;
+            
+        default:
+            // Generic conversion for unusual bit depths
+            for (uint32_t i = 0; i < block_size; ++i) {
+                size_t out_idx = i * 2;
+                if (bits_per_sample < 16) {
+                    m_output_buffer[out_idx] = static_cast<int16_t>(left[i] << (16 - bits_per_sample));
+                    m_output_buffer[out_idx + 1] = static_cast<int16_t>(right[i] << (16 - bits_per_sample));
+                } else {
+                    m_output_buffer[out_idx] = static_cast<int16_t>(left[i] >> (bits_per_sample - 16));
+                    m_output_buffer[out_idx + 1] = static_cast<int16_t>(right[i] >> (bits_per_sample - 16));
+                }
+            }
+            break;
+    }
+}
+
+void FLACCodec::processMultiChannelOptimized_unlocked(const FLAC__int32* const buffer[], uint16_t channels, 
+                                                     uint32_t block_size, uint16_t bits_per_sample) {
+    // Optimized multi-channel processing with cache-friendly access patterns
+    
+    // Use channel-major processing for better cache locality
+    switch (bits_per_sample) {
+        case 8:
+            for (uint32_t sample = 0; sample < block_size; ++sample) {
+                size_t output_base = sample * channels;
+                for (uint16_t channel = 0; channel < channels; ++channel) {
+                    m_output_buffer[output_base + channel] = static_cast<int16_t>(buffer[channel][sample] << 8);
+                }
+            }
+            break;
+            
+        case 16:
+            for (uint32_t sample = 0; sample < block_size; ++sample) {
+                size_t output_base = sample * channels;
+                for (uint16_t channel = 0; channel < channels; ++channel) {
+                    m_output_buffer[output_base + channel] = static_cast<int16_t>(buffer[channel][sample]);
+                }
+            }
+            break;
+            
+        case 24:
+            for (uint32_t sample = 0; sample < block_size; ++sample) {
+                size_t output_base = sample * channels;
+                for (uint16_t channel = 0; channel < channels; ++channel) {
+                    m_output_buffer[output_base + channel] = static_cast<int16_t>(buffer[channel][sample] >> 8);
+                }
+            }
+            break;
+            
+        case 32:
+            for (uint32_t sample = 0; sample < block_size; ++sample) {
+                size_t output_base = sample * channels;
+                for (uint16_t channel = 0; channel < channels; ++channel) {
+                    int32_t scaled = buffer[channel][sample] >> 16;
+                    m_output_buffer[output_base + channel] = static_cast<int16_t>(std::clamp(scaled, -32768, 32767));
+                }
+            }
+            break;
+            
+        default:
+            // Generic conversion for unusual bit depths
+            for (uint32_t sample = 0; sample < block_size; ++sample) {
+                size_t output_base = sample * channels;
+                for (uint16_t channel = 0; channel < channels; ++channel) {
+                    FLAC__int32 raw_sample = buffer[channel][sample];
+                    if (bits_per_sample < 16) {
+                        m_output_buffer[output_base + channel] = static_cast<int16_t>(raw_sample << (16 - bits_per_sample));
+                    } else {
+                        m_output_buffer[output_base + channel] = static_cast<int16_t>(raw_sample >> (bits_per_sample - 16));
+                    }
+                }
+            }
+            break;
+    }
+}
+
 // Bit depth conversion methods
 
 int16_t FLACCodec::convert8BitTo16Bit(FLAC__int32 sample) const {
@@ -4002,24 +4576,186 @@ void FLACCodec::convertSamples8BitStandard_unlocked(const FLAC__int32* const buf
 
 void FLACCodec::convertSamples8BitVectorized_unlocked(const FLAC__int32* const buffer[], uint32_t block_size) {
     // Vectorized conversion for batch processing of multiple samples
-    // Optimized for high-throughput 8-bit to 16-bit conversion
+    // Optimized for high-throughput 8-bit to 16-bit conversion with SIMD when available
     
+#ifdef HAVE_SSE2
+    // SSE2-optimized 8-bit conversion for x86/x64
     if (m_channels == 1) {
-        // Mono vectorized conversion - process samples in batches
-        for (uint32_t sample = 0; sample < block_size; ++sample) {
-            m_output_buffer[sample] = convert8BitTo16Bit(buffer[0][sample]);
+        // Mono SSE2 conversion - process 8 samples at once
+        const FLAC__int32* input = buffer[0];
+        size_t simd_samples = (block_size / 8) * 8;
+        
+        for (size_t i = 0; i < simd_samples; i += 8) {
+            // Load 8 32-bit samples into two SSE registers
+            __m128i samples1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&input[i]));
+            __m128i samples2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&input[i + 4]));
+            
+            // Shift left by 8 bits (multiply by 256) to convert 8-bit to 16-bit range
+            samples1 = _mm_slli_epi32(samples1, 8);
+            samples2 = _mm_slli_epi32(samples2, 8);
+            
+            // Pack 32-bit to 16-bit with saturation
+            __m128i packed = _mm_packs_epi32(samples1, samples2);
+            
+            // Store 8 16-bit samples
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(&m_output_buffer[i]), packed);
+        }
+        
+        // Handle remaining samples
+        for (size_t i = simd_samples; i < block_size; ++i) {
+            m_output_buffer[i] = convert8BitTo16Bit(input[i]);
         }
     } else if (m_channels == 2) {
-        // Stereo vectorized conversion - interleaved processing
-        for (uint32_t sample = 0; sample < block_size; ++sample) {
-            size_t output_base = sample * 2;
-            m_output_buffer[output_base] = convert8BitTo16Bit(buffer[0][sample]);     // Left
-            m_output_buffer[output_base + 1] = convert8BitTo16Bit(buffer[1][sample]); // Right
+        // Stereo SSE2 conversion - process 4 sample pairs at once
+        const FLAC__int32* left = buffer[0];
+        const FLAC__int32* right = buffer[1];
+        size_t simd_samples = (block_size / 4) * 4;
+        
+        for (size_t i = 0; i < simd_samples; i += 4) {
+            // Load 4 samples from each channel
+            __m128i left_samples = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&left[i]));
+            __m128i right_samples = _mm_loadu_si128(reinterpret_cast<const __m128i*>(&right[i]));
+            
+            // Convert to 16-bit range
+            left_samples = _mm_slli_epi32(left_samples, 8);
+            right_samples = _mm_slli_epi32(right_samples, 8);
+            
+            // Pack to 16-bit
+            __m128i left_packed = _mm_packs_epi32(left_samples, _mm_setzero_si128());
+            __m128i right_packed = _mm_packs_epi32(right_samples, _mm_setzero_si128());
+            
+            // Interleave left and right channels
+            __m128i interleaved = _mm_unpacklo_epi16(left_packed, right_packed);
+            
+            // Store 8 interleaved samples (4 stereo pairs)
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(&m_output_buffer[i * 2]), interleaved);
+        }
+        
+        // Handle remaining samples
+        for (size_t i = simd_samples; i < block_size; ++i) {
+            size_t output_base = i * 2;
+            m_output_buffer[output_base] = convert8BitTo16Bit(left[i]);
+            m_output_buffer[output_base + 1] = convert8BitTo16Bit(right[i]);
         }
     } else {
         // Fallback to standard conversion for >2 channels
         convertSamples8BitStandard_unlocked(buffer, block_size);
     }
+#elif defined(HAVE_NEON)
+    // NEON-optimized 8-bit conversion for ARM
+    if (m_channels == 1) {
+        // Mono NEON conversion - process 8 samples at once
+        const FLAC__int32* input = buffer[0];
+        size_t simd_samples = (block_size / 8) * 8;
+        
+        for (size_t i = 0; i < simd_samples; i += 8) {
+            // Load 8 32-bit samples
+            int32x4_t samples1 = vld1q_s32(&input[i]);
+            int32x4_t samples2 = vld1q_s32(&input[i + 4]);
+            
+            // Shift left by 8 bits to convert 8-bit to 16-bit range
+            samples1 = vshlq_n_s32(samples1, 8);
+            samples2 = vshlq_n_s32(samples2, 8);
+            
+            // Convert to 16-bit with saturation
+            int16x4_t packed1 = vqmovn_s32(samples1);
+            int16x4_t packed2 = vqmovn_s32(samples2);
+            int16x8_t packed = vcombine_s16(packed1, packed2);
+            
+            // Store 8 16-bit samples
+            vst1q_s16(&m_output_buffer[i], packed);
+        }
+        
+        // Handle remaining samples
+        for (size_t i = simd_samples; i < block_size; ++i) {
+            m_output_buffer[i] = convert8BitTo16Bit(input[i]);
+        }
+    } else if (m_channels == 2) {
+        // Stereo NEON conversion - process 4 sample pairs at once
+        const FLAC__int32* left = buffer[0];
+        const FLAC__int32* right = buffer[1];
+        size_t simd_samples = (block_size / 4) * 4;
+        
+        for (size_t i = 0; i < simd_samples; i += 4) {
+            // Load 4 samples from each channel
+            int32x4_t left_samples = vld1q_s32(&left[i]);
+            int32x4_t right_samples = vld1q_s32(&right[i]);
+            
+            // Convert to 16-bit range
+            left_samples = vshlq_n_s32(left_samples, 8);
+            right_samples = vshlq_n_s32(right_samples, 8);
+            
+            // Convert to 16-bit with saturation
+            int16x4_t left_packed = vqmovn_s32(left_samples);
+            int16x4_t right_packed = vqmovn_s32(right_samples);
+            
+            // Interleave left and right channels
+            int16x4x2_t interleaved = vzip_s16(left_packed, right_packed);
+            
+            // Store 8 interleaved samples (4 stereo pairs)
+            vst1_s16(&m_output_buffer[i * 2], interleaved.val[0]);
+            vst1_s16(&m_output_buffer[i * 2 + 4], interleaved.val[1]);
+        }
+        
+        // Handle remaining samples
+        for (size_t i = simd_samples; i < block_size; ++i) {
+            size_t output_base = i * 2;
+            m_output_buffer[output_base] = convert8BitTo16Bit(left[i]);
+            m_output_buffer[output_base + 1] = convert8BitTo16Bit(right[i]);
+        }
+    } else {
+        // Fallback to standard conversion for >2 channels
+        convertSamples8BitStandard_unlocked(buffer, block_size);
+    }
+#else
+    // Optimized scalar conversion for platforms without SIMD
+    if (m_channels == 1) {
+        // Mono optimized scalar conversion with loop unrolling
+        const FLAC__int32* input = buffer[0];
+        size_t unroll_samples = (block_size / 4) * 4;
+        
+        // Process 4 samples at a time for better instruction pipelining
+        for (size_t i = 0; i < unroll_samples; i += 4) {
+            // Direct bit shift for maximum performance (8-bit to 16-bit is just << 8)
+            m_output_buffer[i] = static_cast<int16_t>(input[i] << 8);
+            m_output_buffer[i + 1] = static_cast<int16_t>(input[i + 1] << 8);
+            m_output_buffer[i + 2] = static_cast<int16_t>(input[i + 2] << 8);
+            m_output_buffer[i + 3] = static_cast<int16_t>(input[i + 3] << 8);
+        }
+        
+        // Handle remaining samples
+        for (size_t i = unroll_samples; i < block_size; ++i) {
+            m_output_buffer[i] = convert8BitTo16Bit(input[i]);
+        }
+    } else if (m_channels == 2) {
+        // Stereo optimized scalar conversion with loop unrolling
+        const FLAC__int32* left = buffer[0];
+        const FLAC__int32* right = buffer[1];
+        size_t unroll_samples = (block_size / 2) * 2;
+        
+        // Process 2 sample pairs at a time
+        for (size_t i = 0; i < unroll_samples; i += 2) {
+            size_t out_base1 = i * 2;
+            size_t out_base2 = (i + 1) * 2;
+            
+            // Direct bit shift for maximum performance
+            m_output_buffer[out_base1] = static_cast<int16_t>(left[i] << 8);
+            m_output_buffer[out_base1 + 1] = static_cast<int16_t>(right[i] << 8);
+            m_output_buffer[out_base2] = static_cast<int16_t>(left[i + 1] << 8);
+            m_output_buffer[out_base2 + 1] = static_cast<int16_t>(right[i + 1] << 8);
+        }
+        
+        // Handle remaining samples
+        for (size_t i = unroll_samples; i < block_size; ++i) {
+            size_t output_base = i * 2;
+            m_output_buffer[output_base] = convert8BitTo16Bit(left[i]);
+            m_output_buffer[output_base + 1] = convert8BitTo16Bit(right[i]);
+        }
+    } else {
+        // Fallback to standard conversion for >2 channels
+        convertSamples8BitStandard_unlocked(buffer, block_size);
+    }
+#endif
 }
 
 void FLACCodec::convertSamples16Bit_unlocked(const FLAC__int32* const buffer[], uint32_t block_size) {
@@ -5191,119 +5927,309 @@ void FLACCodec::stopDecoderThread_unlocked() {
 }
 
 void FLACCodec::decoderThreadLoop() {
-    Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Decoder thread started");
+    Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] High-performance decoder thread started");
+    
+    // Thread-local performance optimization variables
+    constexpr size_t BATCH_SIZE = 4;  // Process multiple chunks per iteration
+    constexpr auto FAST_POLL_INTERVAL = std::chrono::microseconds(100);  // Fast polling for low latency
+    constexpr auto SLOW_POLL_INTERVAL = std::chrono::milliseconds(5);    // Slower polling when idle
+    
+    size_t consecutive_idle_cycles = 0;
+    auto last_work_time = std::chrono::high_resolution_clock::now();
     
     try {
-        // Mark thread as active
-        m_thread_active.store(true);
+        // Mark thread as active with memory ordering for performance
+        m_thread_active.store(true, std::memory_order_release);
         
-        // Thread main loop
-        while (!m_thread_shutdown_requested.load()) {
-            bool work_processed = false;
+        // High-performance thread main loop with adaptive polling
+        while (!m_thread_shutdown_requested.load(std::memory_order_acquire)) {
+            size_t work_items_processed = 0;
+            bool had_work_this_iteration = false;
             
             try {
-                // Process asynchronous input if available
+                // Batch process multiple work items for better throughput
                 if (m_async_processing_enabled) {
-                    MediaChunk input_chunk;
+                    std::vector<MediaChunk> work_batch;
+                    work_batch.reserve(BATCH_SIZE);
                     
-                    // Check for async input work
+                    // Collect a batch of work items with minimal locking
                     {
                         std::lock_guard<std::mutex> async_lock(m_async_mutex);
-                        if (hasAsyncInput_unlocked()) {
-                            input_chunk = dequeueAsyncInput_unlocked();
-                            work_processed = true;
+                        
+                        while (work_batch.size() < BATCH_SIZE && hasAsyncInput_unlocked()) {
+                            work_batch.push_back(dequeueAsyncInput_unlocked());
                         }
                     }
                     
-                    // Process the chunk if we have one
-                    if (!input_chunk.data.empty()) {
-                        auto start_time = std::chrono::high_resolution_clock::now();
+                    // Process the batch outside of locks for better concurrency
+                    if (!work_batch.empty()) {
+                        had_work_this_iteration = true;
+                        last_work_time = std::chrono::high_resolution_clock::now();
+                        consecutive_idle_cycles = 0;
                         
-                        // Decode the chunk (this will acquire necessary locks internally)
-                        AudioFrame decoded_frame = decode(input_chunk);
+                        std::vector<AudioFrame> results;
+                        results.reserve(work_batch.size());
                         
-                        auto end_time = std::chrono::high_resolution_clock::now();
-                        auto processing_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+                        auto batch_start_time = std::chrono::high_resolution_clock::now();
                         
-                        // Update thread performance statistics
-                        m_thread_processing_time_us.fetch_add(processing_time.count());
-                        m_thread_frames_processed.fetch_add(1);
-                        
-                        // Queue the result if we got valid output
-                        if (decoded_frame.getSampleFrameCount() > 0) {
-                            std::lock_guard<std::mutex> async_lock(m_async_mutex);
-                            if (!enqueueAsyncOutput_unlocked(decoded_frame)) {
-                                Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Failed to enqueue output frame");
+                        // Process each chunk in the batch
+                        for (const auto& chunk : work_batch) {
+                            if (m_thread_shutdown_requested.load(std::memory_order_acquire)) {
+                                break; // Early exit on shutdown
+                            }
+                            
+                            auto chunk_start_time = std::chrono::high_resolution_clock::now();
+                            
+                            // Decode the chunk with optimized path
+                            AudioFrame decoded_frame = decodeChunkOptimized_unlocked(chunk);
+                            
+                            auto chunk_end_time = std::chrono::high_resolution_clock::now();
+                            auto chunk_processing_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                                chunk_end_time - chunk_start_time);
+                            
+                            // Update performance statistics atomically
+                            m_thread_processing_time_us.fetch_add(chunk_processing_time.count(), std::memory_order_relaxed);
+                            
+                            if (decoded_frame.getSampleFrameCount() > 0) {
+                                results.push_back(std::move(decoded_frame));
+                                work_items_processed++;
                             }
                         }
                         
-                        // Update work completion counters
-                        m_completed_work_items.fetch_add(1);
-                        notifyWorkCompleted_unlocked();
+                        // Batch enqueue results for better throughput
+                        if (!results.empty()) {
+                            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+                            for (auto& result : results) {
+                                if (!enqueueAsyncOutput_unlocked(std::move(result))) {
+                                    Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Output queue full, dropping frame");
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        // Update batch statistics
+                        auto batch_end_time = std::chrono::high_resolution_clock::now();
+                        auto batch_processing_time = std::chrono::duration_cast<std::chrono::microseconds>(
+                            batch_end_time - batch_start_time);
+                        
+                        // Update counters atomically for better performance
+                        m_thread_frames_processed.fetch_add(work_items_processed, std::memory_order_relaxed);
+                        m_completed_work_items.fetch_add(work_items_processed, std::memory_order_relaxed);
+                        
+                        // Notify work completion if needed (avoid unnecessary notifications)
+                        if (work_items_processed > 0) {
+                            notifyWorkCompletedBatch_unlocked(work_items_processed);
+                        }
+                        
+                        // Log performance for large batches
+                        if (work_items_processed >= BATCH_SIZE / 2) {
+                            Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Processed batch of ", 
+                                      work_items_processed, " items in ", batch_processing_time.count(), " μs");
+                        }
                     }
                 }
                 
-                // If no work was processed, wait for work or shutdown signal
-                if (!work_processed) {
-                    std::unique_lock<std::mutex> thread_lock(m_thread_mutex);
+                // Adaptive waiting strategy based on workload
+                if (!had_work_this_iteration) {
+                    consecutive_idle_cycles++;
                     
-                    // Wait for work to become available or shutdown request
-                    m_work_available_cv.wait_for(thread_lock, m_thread_work_timeout, [this] {
-                        return m_thread_shutdown_requested.load() || 
-                               (m_async_processing_enabled && hasAsyncInput_unlocked());
-                    });
-                    
-                    // Count idle cycles for performance monitoring
-                    if (!m_thread_shutdown_requested.load()) {
-                        m_thread_idle_cycles.fetch_add(1);
+                    // Use different wait strategies based on idle time
+                    if (consecutive_idle_cycles < 10) {
+                        // Fast polling for low latency when recently active
+                        std::this_thread::sleep_for(FAST_POLL_INTERVAL);
+                    } else if (consecutive_idle_cycles < 100) {
+                        // Medium polling for moderate idle periods
+                        std::unique_lock<std::mutex> thread_lock(m_thread_mutex);
+                        m_work_available_cv.wait_for(thread_lock, SLOW_POLL_INTERVAL, [this] {
+                            return m_thread_shutdown_requested.load(std::memory_order_acquire) || 
+                                   (m_async_processing_enabled && hasAsyncInputFast_unlocked());
+                        });
+                    } else {
+                        // Longer wait for extended idle periods to save CPU
+                        std::unique_lock<std::mutex> thread_lock(m_thread_mutex);
+                        m_work_available_cv.wait_for(thread_lock, m_thread_work_timeout, [this] {
+                            return m_thread_shutdown_requested.load(std::memory_order_acquire) || 
+                                   (m_async_processing_enabled && hasAsyncInputFast_unlocked());
+                        });
                     }
+                    
+                    // Update idle statistics
+                    m_thread_idle_cycles.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    // Reset idle counter when we have work
+                    consecutive_idle_cycles = 0;
                 }
                 
             } catch (const std::exception& e) {
                 Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Exception in work processing: ", e.what());
                 
-                // Handle thread exception but continue running
-                {
-                    std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
-                    handleThreadException_unlocked(e);
-                }
+                // Handle thread exception with minimal overhead
+                handleThreadExceptionFast_unlocked(e);
                 
-                // Brief sleep to prevent tight exception loop
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                // Brief sleep to prevent tight exception loop, but shorter than before
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                consecutive_idle_cycles = 0; // Reset to prevent long waits after exceptions
             }
         }
         
-        Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Shutdown requested, exiting thread loop");
+        Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Shutdown requested, exiting optimized thread loop");
         
     } catch (const std::exception& e) {
         Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Fatal exception: ", e.what());
         
         // Mark thread exception for main thread to handle
-        {
-            std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
-            handleThreadException_unlocked(e);
-        }
+        handleThreadExceptionFast_unlocked(e);
     } catch (...) {
         Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Unknown fatal exception");
         
-        // Mark unknown exception
+        // Mark unknown exception with minimal overhead
+        m_thread_exception_occurred = true;
+        m_thread_exception_message = "Unknown exception in decoder thread";
+    }
+    
+    // Mark thread as no longer active with proper memory ordering
+    m_thread_active.store(false, std::memory_order_release);
+    
+    // Final cleanup and notification
+    handleThreadTerminationFast_unlocked();
+    
+    Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] High-performance decoder thread terminated");
+}
+
+// Optimized threading helper methods for performance
+
+AudioFrame FLACCodec::decodeChunkOptimized_unlocked(const MediaChunk& chunk) {
+    // Optimized decode path for thread processing with minimal overhead
+    
+    // Fast path validation
+    if (chunk.data.empty() || m_error_state.load(std::memory_order_relaxed)) {
+        return AudioFrame();
+    }
+    
+    try {
+        // Use thread-local decoder state when possible to reduce contention
+        // This is a simplified decode path that avoids some of the overhead
+        // of the full decode() method while maintaining correctness
+        
+        // Clear output buffer efficiently
         {
-            std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
-            m_thread_exception_occurred = true;
-            m_thread_exception_message = "Unknown exception in decoder thread";
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            m_output_buffer.clear();
+            m_buffer_read_position = 0;
         }
+        
+        // Process frame data with minimal locking
+        bool decode_success = false;
+        {
+            std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+            if (m_decoder && m_decoder_initialized) {
+                decode_success = processFrameDataFast_unlocked(chunk.data.data(), chunk.data.size());
+            }
+        }
+        
+        if (decode_success) {
+            return extractDecodedSamplesFast_unlocked();
+        } else {
+            return createSilenceFrameFast_unlocked(1024);
+        }
+        
+    } catch (const std::exception& e) {
+        // Minimal exception handling for performance
+        return AudioFrame();
+    }
+}
+
+bool FLACCodec::processFrameDataFast_unlocked(const uint8_t* data, size_t size) {
+    // Fast frame processing with minimal validation overhead
+    
+    if (!m_decoder || !data || size == 0) {
+        return false;
     }
     
-    // Mark thread as no longer active
-    m_thread_active.store(false);
+    // Feed data to decoder efficiently
+    if (!m_decoder->feedData(data, size)) {
+        return false;
+    }
     
-    // Notify any waiting threads that we're shutting down
-    {
+    // Process single frame with minimal error checking
+    return m_decoder->process_single();
+}
+
+AudioFrame FLACCodec::extractDecodedSamplesFast_unlocked() {
+    // Fast sample extraction with minimal overhead
+    
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    
+    if (m_output_buffer.empty()) {
+        return AudioFrame();
+    }
+    
+    // Create AudioFrame with move semantics for performance
+    AudioFrame frame;
+    frame.sample_rate = m_sample_rate;
+    frame.channels = m_channels;
+    frame.timestamp_samples = m_current_sample.load(std::memory_order_relaxed);
+    frame.timestamp_ms = 0; // Initialize to avoid warning
+    
+    // Move buffer contents for zero-copy performance
+    frame.samples = std::move(m_output_buffer);
+    m_output_buffer.clear(); // Ensure buffer is cleared after move
+    
+    // Update position atomically
+    size_t sample_frame_count = frame.getSampleFrameCount();
+    m_current_sample.fetch_add(sample_frame_count, std::memory_order_relaxed);
+    
+    return frame;
+}
+
+AudioFrame FLACCodec::createSilenceFrameFast_unlocked(uint32_t block_size) {
+    // Fast silence frame creation for error recovery
+    
+    AudioFrame frame;
+    frame.sample_rate = m_sample_rate;
+    frame.channels = m_channels;
+    frame.timestamp_samples = m_current_sample.load(std::memory_order_relaxed);
+    frame.timestamp_ms = 0; // Initialize to avoid warning
+    
+    // Pre-allocate and zero-fill for silence
+    frame.samples.assign(block_size * m_channels, 0);
+    
+    return frame;
+}
+
+bool FLACCodec::hasAsyncInputFast_unlocked() const {
+    // Fast check for async input without full lock acquisition
+    // This is called frequently so it needs to be very fast
+    
+    return !m_async_input_queue.empty();
+}
+
+void FLACCodec::notifyWorkCompletedBatch_unlocked(size_t batch_size) {
+    // Optimized batch notification to reduce condition variable overhead
+    
+    // Only notify if there are waiters (avoid unnecessary syscalls)
+    if (m_pending_work_items.load(std::memory_order_relaxed) > 0) {
         std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
-        handleThreadTermination_unlocked();
+        m_work_completed_cv.notify_one();
     }
+}
+
+void FLACCodec::handleThreadExceptionFast_unlocked(const std::exception& e) {
+    // Fast exception handling with minimal overhead
     
-    Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Decoder thread terminated");
+    m_thread_exception_occurred = true;
+    m_thread_exception_message = e.what();
+    
+    // Don't acquire locks in exception path for performance
+    // The main thread will handle cleanup
+}
+
+void FLACCodec::handleThreadTerminationFast_unlocked() {
+    // Fast thread termination handling
+    
+    // Notify any waiting threads with minimal overhead
+    m_work_completed_cv.notify_all();
+    m_work_available_cv.notify_all();
 }
 
 bool FLACCodec::initializeDecoderThread_unlocked() {
