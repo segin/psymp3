@@ -1502,26 +1502,27 @@ AudioFrame FLACCodec::extractDecodedSamples_unlocked() {
         return AudioFrame();
     }
     
-    // Create AudioFrame with optimal memory usage
-    AudioFrame frame;
-    frame.sample_rate = m_sample_rate;
-    frame.channels = m_channels;
-    frame.timestamp_samples = m_current_sample.load();
+    // Get current timestamp before updating position
+    uint64_t current_timestamp = m_current_sample.load();
     
-    // Calculate sample frame count (samples per channel)
-    size_t sample_frame_count = m_output_buffer.size() / m_channels;
-    
-    // Efficient sample data transfer
-    frame.samples.reserve(m_output_buffer.size());
-    frame.samples.assign(m_output_buffer.begin(), m_output_buffer.end());
-    
-    // Update position tracking
-    m_current_sample.fetch_add(sample_frame_count);
-    
-    // Calculate timestamps
-    if (m_sample_rate > 0) {
-        frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / m_sample_rate;
+    // Calculate sample frame count (samples per channel) with validation
+    uint16_t channels = m_channels > 0 ? m_channels : 2; // Fallback to stereo
+    if (m_output_buffer.size() % channels != 0) {
+        Debug::log("flac_codec", "[FLACCodec::extractDecodedSamples_unlocked] WARNING: Buffer size ", 
+                  m_output_buffer.size(), " not divisible by channel count ", channels);
+        
+        // Truncate to nearest complete sample frame
+        size_t complete_samples = (m_output_buffer.size() / channels) * channels;
+        m_output_buffer.resize(complete_samples);
     }
+    
+    size_t sample_frame_count = m_output_buffer.size() / channels;
+    
+    // Create AudioFrame using helper method with move semantics for efficiency
+    AudioFrame frame = createAudioFrame_unlocked(std::move(m_output_buffer), current_timestamp);
+    
+    // Update position tracking using helper method
+    updateSamplePosition_unlocked(sample_frame_count);
     
     // Clear buffer after extraction to free space
     m_output_buffer.clear();
@@ -2221,40 +2222,45 @@ AudioFrame FLACCodec::createSilenceFrame_unlocked(uint32_t block_size) {
         Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Block size too large, clamping to 4608");
     }
     
-    AudioFrame frame;
-    frame.sample_rate = m_sample_rate > 0 ? m_sample_rate : 44100; // Fallback sample rate
-    frame.channels = m_channels > 0 ? m_channels : 2; // Fallback to stereo
-    frame.timestamp_samples = m_current_sample.load();
+    // Get current timestamp before updating position
+    uint64_t current_timestamp = m_current_sample.load();
     
     // Create silence samples (16-bit PCM zeros)
-    size_t sample_count = static_cast<size_t>(block_size) * frame.channels;
+    uint16_t channels = m_channels > 0 ? m_channels : 2; // Fallback to stereo
+    size_t sample_count = static_cast<size_t>(block_size) * channels;
     
     try {
-        frame.samples.resize(sample_count, 0); // Fill with silence (zeros)
+        // Create silence buffer
+        std::vector<int16_t> silence_samples(sample_count, 0); // Fill with silence (zeros)
         
-        // Update position tracking
-        m_current_sample.fetch_add(block_size);
+        // Create AudioFrame using helper method
+        AudioFrame frame = createAudioFrame_unlocked(std::move(silence_samples), current_timestamp);
+        
+        // Update position tracking using helper method
+        updateSamplePosition_unlocked(block_size);
         
         Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Created silence frame: ", 
                   block_size, " samples, ", frame.channels, " channels, ", 
-                  frame.sample_rate, "Hz, timestamp=", frame.timestamp_samples);
+                  frame.sample_rate, "Hz, timestamp=", frame.timestamp_samples, 
+                  " (", frame.timestamp_ms, "ms)");
+        
+        return frame;
         
     } catch (const std::exception& e) {
         Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Failed to allocate silence frame: ", e.what());
         
         // Create minimal silence frame as fallback
-        frame.samples.clear();
         try {
-            frame.samples.resize(frame.channels, 0); // Single sample of silence
-            block_size = 1;
+            std::vector<int16_t> minimal_silence(channels, 0); // Single sample of silence per channel
+            AudioFrame fallback_frame = createAudioFrame_unlocked(std::move(minimal_silence), current_timestamp);
             m_current_sample.fetch_add(1);
+            return fallback_frame;
         } catch (...) {
             // Complete failure - return empty frame
             Debug::log("flac_codec", "[FLACCodec::createSilenceFrame_unlocked] Critical: Cannot allocate even minimal silence frame");
+            return AudioFrame();
         }
     }
-    
-    return frame;
 }
 
 void FLACCodec::setErrorState_unlocked(bool error_state) {
@@ -2970,6 +2976,135 @@ void FLACCodec::freeUnusedMemory_unlocked() {
         Debug::log("flac_codec", "[FLACCodec::freeUnusedMemory_unlocked] No significant memory to free, current usage: ", 
                   m_stats.memory_usage_bytes / 1024, " KB");
     }
+}
+
+// AudioFrame creation and validation methods
+
+AudioFrame FLACCodec::createAudioFrame_unlocked(const std::vector<int16_t>& samples, uint64_t timestamp_samples) {
+    AudioFrame frame;
+    
+    // Set basic properties with validation
+    frame.sample_rate = m_sample_rate > 0 ? m_sample_rate : 44100; // Fallback to 44.1kHz
+    frame.channels = m_channels > 0 ? m_channels : 2; // Fallback to stereo
+    frame.timestamp_samples = timestamp_samples;
+    
+    // Calculate timestamp in milliseconds with overflow protection
+    if (frame.sample_rate > 0) {
+        frame.timestamp_ms = (timestamp_samples * 1000ULL) / frame.sample_rate;
+    } else {
+        frame.timestamp_ms = 0;
+    }
+    
+    // Copy samples with validation
+    if (samples.size() % frame.channels != 0) {
+        Debug::log("flac_codec", "[FLACCodec::createAudioFrame_unlocked] WARNING: Sample count ", 
+                  samples.size(), " not divisible by channel count ", frame.channels);
+        
+        // Truncate to nearest complete sample frame
+        size_t complete_samples = (samples.size() / frame.channels) * frame.channels;
+        frame.samples.assign(samples.begin(), samples.begin() + complete_samples);
+    } else {
+        frame.samples = samples;
+    }
+    
+    // Validate the created frame
+    validateAudioFrame_unlocked(frame);
+    
+    Debug::log("flac_codec", "[FLACCodec::createAudioFrame_unlocked] Created AudioFrame: ", 
+              frame.getSampleFrameCount(), " sample frames, ", frame.channels, " channels, ", 
+              frame.sample_rate, "Hz, timestamp=", frame.timestamp_samples, " (", frame.timestamp_ms, "ms)");
+    
+    return frame;
+}
+
+AudioFrame FLACCodec::createAudioFrame_unlocked(std::vector<int16_t>&& samples, uint64_t timestamp_samples) {
+    AudioFrame frame;
+    
+    // Set basic properties with validation
+    frame.sample_rate = m_sample_rate > 0 ? m_sample_rate : 44100; // Fallback to 44.1kHz
+    frame.channels = m_channels > 0 ? m_channels : 2; // Fallback to stereo
+    frame.timestamp_samples = timestamp_samples;
+    
+    // Calculate timestamp in milliseconds with overflow protection
+    if (frame.sample_rate > 0) {
+        frame.timestamp_ms = (timestamp_samples * 1000ULL) / frame.sample_rate;
+    } else {
+        frame.timestamp_ms = 0;
+    }
+    
+    // Move samples with validation
+    if (samples.size() % frame.channels != 0) {
+        Debug::log("flac_codec", "[FLACCodec::createAudioFrame_unlocked] WARNING: Sample count ", 
+                  samples.size(), " not divisible by channel count ", frame.channels);
+        
+        // Truncate to nearest complete sample frame
+        size_t complete_samples = (samples.size() / frame.channels) * frame.channels;
+        samples.resize(complete_samples);
+    }
+    
+    frame.samples = std::move(samples);
+    
+    // Validate the created frame
+    validateAudioFrame_unlocked(frame);
+    
+    Debug::log("flac_codec", "[FLACCodec::createAudioFrame_unlocked] Created AudioFrame (move): ", 
+              frame.getSampleFrameCount(), " sample frames, ", frame.channels, " channels, ", 
+              frame.sample_rate, "Hz, timestamp=", frame.timestamp_samples, " (", frame.timestamp_ms, "ms)");
+    
+    return frame;
+}
+
+void FLACCodec::validateAudioFrame_unlocked(AudioFrame& frame) const {
+    // Validate sample rate
+    if (frame.sample_rate == 0) {
+        Debug::log("flac_codec", "[FLACCodec::validateAudioFrame_unlocked] WARNING: Zero sample rate, setting to 44100Hz");
+        frame.sample_rate = 44100;
+    } else if (frame.sample_rate > 655350) {
+        Debug::log("flac_codec", "[FLACCodec::validateAudioFrame_unlocked] WARNING: Sample rate ", 
+                  frame.sample_rate, " exceeds RFC 9639 limit, clamping to 655350Hz");
+        frame.sample_rate = 655350;
+    }
+    
+    // Validate channel count
+    if (frame.channels == 0) {
+        Debug::log("flac_codec", "[FLACCodec::validateAudioFrame_unlocked] WARNING: Zero channels, setting to 2 (stereo)");
+        frame.channels = 2;
+    } else if (frame.channels > 8) {
+        Debug::log("flac_codec", "[FLACCodec::validateAudioFrame_unlocked] WARNING: Channel count ", 
+                  frame.channels, " exceeds RFC 9639 limit, clamping to 8");
+        frame.channels = 8;
+    }
+    
+    // Validate sample consistency
+    if (!frame.samples.empty() && frame.samples.size() % frame.channels != 0) {
+        Debug::log("flac_codec", "[FLACCodec::validateAudioFrame_unlocked] ERROR: Sample count ", 
+                  frame.samples.size(), " not consistent with channel count ", frame.channels);
+        
+        // Truncate to make it consistent
+        size_t complete_samples = (frame.samples.size() / frame.channels) * frame.channels;
+        frame.samples.resize(complete_samples);
+    }
+    
+    // Recalculate timestamp_ms if it seems incorrect
+    if (frame.sample_rate > 0) {
+        uint64_t expected_timestamp_ms = (frame.timestamp_samples * 1000ULL) / frame.sample_rate;
+        if (frame.timestamp_ms != expected_timestamp_ms) {
+            Debug::log("flac_codec", "[FLACCodec::validateAudioFrame_unlocked] Correcting timestamp_ms from ", 
+                      frame.timestamp_ms, " to ", expected_timestamp_ms);
+            frame.timestamp_ms = expected_timestamp_ms;
+        }
+    }
+}
+
+void FLACCodec::updateSamplePosition_unlocked(size_t sample_frame_count) {
+    // Update current sample position atomically
+    uint64_t old_position = m_current_sample.fetch_add(sample_frame_count);
+    
+    Debug::log("flac_codec", "[FLACCodec::updateSamplePosition_unlocked] Updated position from ", 
+              old_position, " to ", old_position + sample_frame_count, " (added ", sample_frame_count, " frames)");
+    
+    // Update statistics
+    m_stats.samples_decoded += sample_frame_count * m_channels;
 }
 
 size_t FLACCodec::calculateCurrentMemoryUsage_unlocked() const {
@@ -6164,19 +6299,18 @@ AudioFrame FLACCodec::extractDecodedSamplesFast_unlocked() {
         return AudioFrame();
     }
     
-    // Create AudioFrame with move semantics for performance
-    AudioFrame frame;
-    frame.sample_rate = m_sample_rate;
-    frame.channels = m_channels;
-    frame.timestamp_samples = m_current_sample.load(std::memory_order_relaxed);
-    frame.timestamp_ms = 0; // Initialize to avoid warning
+    // Get current timestamp before updating position
+    uint64_t current_timestamp = m_current_sample.load(std::memory_order_relaxed);
     
-    // Move buffer contents for zero-copy performance
-    frame.samples = std::move(m_output_buffer);
+    // Calculate sample frame count for position update
+    uint16_t channels = m_channels > 0 ? m_channels : 2;
+    size_t sample_frame_count = m_output_buffer.size() / channels;
+    
+    // Create AudioFrame using helper method with move semantics for performance
+    AudioFrame frame = createAudioFrame_unlocked(std::move(m_output_buffer), current_timestamp);
     m_output_buffer.clear(); // Ensure buffer is cleared after move
     
     // Update position atomically
-    size_t sample_frame_count = frame.getSampleFrameCount();
     m_current_sample.fetch_add(sample_frame_count, std::memory_order_relaxed);
     
     return frame;
@@ -6185,14 +6319,18 @@ AudioFrame FLACCodec::extractDecodedSamplesFast_unlocked() {
 AudioFrame FLACCodec::createSilenceFrameFast_unlocked(uint32_t block_size) {
     // Fast silence frame creation for error recovery
     
-    AudioFrame frame;
-    frame.sample_rate = m_sample_rate;
-    frame.channels = m_channels;
-    frame.timestamp_samples = m_current_sample.load(std::memory_order_relaxed);
-    frame.timestamp_ms = 0; // Initialize to avoid warning
+    // Get current timestamp before updating position
+    uint64_t current_timestamp = m_current_sample.load(std::memory_order_relaxed);
     
-    // Pre-allocate and zero-fill for silence
-    frame.samples.assign(block_size * m_channels, 0);
+    // Create silence samples
+    uint16_t channels = m_channels > 0 ? m_channels : 2; // Fallback to stereo
+    std::vector<int16_t> silence_samples(block_size * channels, 0);
+    
+    // Create AudioFrame using helper method
+    AudioFrame frame = createAudioFrame_unlocked(std::move(silence_samples), current_timestamp);
+    
+    // Update position tracking
+    m_current_sample.fetch_add(block_size, std::memory_order_relaxed);
     
     return frame;
 }

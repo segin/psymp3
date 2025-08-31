@@ -168,3 +168,4 @@ tests/test_media_factory_unit
 tests/test_demuxer_unit
 tests/test_demuxer_factory_unit
 tests/test_demuxed_stream_unit
+tests/test_flac_variable_block_size

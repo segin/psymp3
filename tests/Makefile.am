@@ -28,12 +28,12 @@ libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 # Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position
+noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_flac_audioframe_creation
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_flac_frame_indexing test_frame_size_estimation_consistency
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_flac_frame_indexing test_frame_size_estimation_consistency test_flac_audioframe_creation
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -214,7 +214,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_variable_block_size
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_variable_block_size test_flac_codec_minimal_container_agnostic
 endif
 
 # Test program sources and dependencies
@@ -1324,15 +1324,147 @@ test_flac_variable_block_size_LDADD = \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
+# FLAC codec minimal container-agnostic test
+test_flac_codec_minimal_container_agnostic_SOURCES = test_flac_codec_minimal_container_agnostic.cpp
+test_flac_codec_minimal_container_agnostic_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_codec_minimal_container_agnostic_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# FLAC codec container-agnostic operation test
+test_flac_codec_container_agnostic_SOURCES = test_flac_codec_container_agnostic.cpp
+test_flac_codec_container_agnostic_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_codec_container_agnostic_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(FLAC_LIBS) \
+	-logg -lvorbis -lvorbisenc -lopus \
+	$(AM_LDFLAGS)
+
+# FLAC codec StreamInfo-only initialization test
+test_flac_codec_streaminfo_only_SOURCES = test_flac_codec_streaminfo_only.cpp
+test_flac_codec_streaminfo_only_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_codec_streaminfo_only_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(FLAC_LIBS) \
+	-logg -lvorbis -lvorbisenc -lopus \
+	$(AM_LDFLAGS)
+
 # Build rules for FLAC demuxer test dependencies
 $(top_builddir)/src/FLACDemuxer.o:
 	$(MAKE) -C $(top_builddir)/src FLACDemuxer.o
 
+$(top_builddir)/src/FLACCodec.o:
+	$(MAKE) -C $(top_builddir)/src FLACCodec.o
+
+$(top_builddir)/src/EnhancedAudioBufferPool.o:
+	$(MAKE) -C $(top_builddir)/src EnhancedAudioBufferPool.o
+
+$(top_builddir)/src/ALawCodec.o:
+	$(MAKE) -C $(top_builddir)/src ALawCodec.o
+
+$(top_builddir)/src/MuLawCodec.o:
+	$(MAKE) -C $(top_builddir)/src MuLawCodec.o
+
+$(top_builddir)/src/PCMCodecs.o:
+	$(MAKE) -C $(top_builddir)/src PCMCodecs.o
+
+$(top_builddir)/src/OggCodecs.o:
+	$(MAKE) -C $(top_builddir)/src OggCodecs.o
+
+$(top_builddir)/src/vorbis.o:
+	$(MAKE) -C $(top_builddir)/src vorbis.o
+
+$(top_builddir)/src/opus.o:
+	$(MAKE) -C $(top_builddir)/src opus.o
+
+$(top_builddir)/src/stream.o:
+	$(MAKE) -C $(top_builddir)/src stream.o
+
+$(top_builddir)/src/DemuxedStream.o:
+	$(MAKE) -C $(top_builddir)/src DemuxedStream.o
+
+$(top_builddir)/src/DemuxerFactory.o:
+	$(MAKE) -C $(top_builddir)/src DemuxerFactory.o
+
+$(top_builddir)/src/TagLibIOHandlerAdapter.o:
+	$(MAKE) -C $(top_builddir)/src TagLibIOHandlerAdapter.o
+
+$(top_builddir)/src/track.o:
+	$(MAKE) -C $(top_builddir)/src track.o
+
+$(top_builddir)/src/lyrics.o:
+	$(MAKE) -C $(top_builddir)/src lyrics.o
+
 $(top_builddir)/src/MediaFactory.o:
 	$(MAKE) -C $(top_builddir)/src MediaFactory.o
-
-$(top_builddir)/src/Stream.o:
-	$(MAKE) -C $(top_builddir)/src stream.o
 endif
 
 # IOHandler thread safety comprehensive test
@@ -1426,3 +1558,32 @@ test_frame_size_estimation_consistency_LDADD = \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
+# FLAC AudioFrame creation test
+test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
+test_flac_audioframe_creation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
+test_flac_audioframe_creation_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# Build rule for FLACCodec test dependency
+$(top_builddir)/src/FLACCodec.o:
+	$(MAKE) -C $(top_builddir)/src FLACCodec.o
+
+$(top_builddir)/src/EnhancedAudioBufferPool.o:
+	$(MAKE) -C $(top_builddir)/src EnhancedAudioBufferPool.o

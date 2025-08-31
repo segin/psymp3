@@ -514,6 +514,12 @@ private:
     void ensureBufferCapacity_unlocked(size_t required_samples);
     void freeUnusedMemory_unlocked();
     
+    // AudioFrame creation and validation methods (assume appropriate locks are held)
+    AudioFrame createAudioFrame_unlocked(const std::vector<int16_t>& samples, uint64_t timestamp_samples);
+    AudioFrame createAudioFrame_unlocked(std::vector<int16_t>&& samples, uint64_t timestamp_samples);
+    void validateAudioFrame_unlocked(AudioFrame& frame) const;
+    void updateSamplePosition_unlocked(size_t sample_frame_count);
+    
     // Advanced memory management methods (assume appropriate locks are held)
     size_t calculateCurrentMemoryUsage_unlocked() const;
     void implementMemoryPoolAllocation_unlocked();
