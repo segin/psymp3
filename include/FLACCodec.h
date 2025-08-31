@@ -286,6 +286,30 @@ private:
     uint32_t m_last_block_size = 0;
     bool m_stream_finished = false;
     
+    // Variable block size handling (protected by m_state_mutex)
+    uint32_t m_min_block_size = 0;              ///< Minimum block size from STREAMINFO
+    uint32_t m_max_block_size = 0;              ///< Maximum block size from STREAMINFO
+    bool m_variable_block_size = false;         ///< True if stream uses variable block sizes
+    uint32_t m_current_block_size = 0;          ///< Current frame's block size
+    
+    // Block size optimization state (protected by m_state_mutex)
+    static constexpr uint32_t STANDARD_BLOCK_SIZES[] = {
+        192, 576, 1152, 2304, 4608, 9216, 18432, 36864  ///< Standard FLAC block sizes
+    };
+    static constexpr size_t NUM_STANDARD_BLOCK_SIZES = sizeof(STANDARD_BLOCK_SIZES) / sizeof(STANDARD_BLOCK_SIZES[0]);
+    uint32_t m_preferred_block_size = 0;        ///< Detected preferred block size for optimization
+    
+    // Variable block size adaptation state (protected by m_state_mutex)
+    uint32_t m_previous_block_size = 0;         ///< Previous frame's block size for transition detection
+    uint32_t m_block_size_changes = 0;          ///< Count of block size changes for adaptation
+    uint64_t m_total_samples_processed = 0;     ///< Total samples processed for timing consistency
+    bool m_adaptive_buffering_enabled = true;   ///< Enable adaptive buffer resizing
+    
+    // Performance tracking for variable block sizes
+    uint32_t m_smallest_block_seen = UINT32_MAX; ///< Smallest block size encountered
+    uint32_t m_largest_block_seen = 0;           ///< Largest block size encountered
+    double m_average_block_size = 0.0;           ///< Running average of block sizes
+    
     // Output buffering (protected by m_buffer_mutex)
     std::vector<int16_t> m_output_buffer;
     size_t m_buffer_read_position = 0;
@@ -390,6 +414,28 @@ private:
     // Performance monitoring (assume m_state_mutex is held)
     void updatePerformanceStats_unlocked(uint32_t block_size, uint64_t decode_time_us);
     void logPerformanceMetrics_unlocked() const;
+    
+    // Variable block size handling methods (assume m_state_mutex is held)
+    void initializeBlockSizeHandling_unlocked();
+    bool validateBlockSize_unlocked(uint32_t block_size) const;
+    void updateBlockSizeTracking_unlocked(uint32_t block_size);
+    void optimizeForBlockSize_unlocked(uint32_t block_size);
+    bool isStandardBlockSize_unlocked(uint32_t block_size) const;
+    void adaptBuffersForBlockSize_unlocked(uint32_t block_size);
+    void detectPreferredBlockSize_unlocked(uint32_t block_size);
+    
+    // Fixed block size optimization methods (assume appropriate locks are held)
+    void optimizeForFixedBlockSizes_unlocked();
+    void preAllocateForStandardSizes_unlocked();
+    size_t calculateOptimalBufferSize_unlocked() const;
+    
+    // Variable block size adaptation methods (assume appropriate locks are held)
+    void handleBlockSizeTransition_unlocked(uint32_t old_size, uint32_t new_size);
+    void smoothBlockSizeTransition_unlocked(uint32_t new_block_size);
+    void maintainOutputTiming_unlocked(uint32_t block_size);
+    void adaptiveBufferResize_unlocked(uint32_t block_size);
+    bool requiresBufferReallocation_unlocked(uint32_t block_size) const;
+    void optimizeForVariableBlockSizes_unlocked();
     
     // Prevent copying
     FLACCodec(const FLACCodec&) = delete;

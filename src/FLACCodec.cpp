@@ -513,6 +513,9 @@ bool FLACCodec::initialize_unlocked() {
             return false;
         }
         
+        // Initialize variable block size handling
+        initializeBlockSizeHandling_unlocked();
+        
         // Optimize buffer sizes for performance
         optimizeBufferSizes_unlocked();
         
@@ -653,6 +656,16 @@ void FLACCodec::reset_unlocked() {
     m_current_sample.store(0);
     m_last_block_size = 0;
     m_stream_finished = false;
+    
+    // Reset block size tracking
+    m_current_block_size = 0;
+    m_preferred_block_size = 0;
+    m_previous_block_size = 0;
+    m_total_samples_processed = 0;
+    // Note: Don't reset m_min_block_size, m_max_block_size, m_variable_block_size 
+    // as they come from STREAMINFO and should persist across resets
+    // Also don't reset statistics like m_block_size_changes, m_smallest_block_seen, etc.
+    // as they represent accumulated knowledge about the stream
     
     // Clear error state
     setErrorState_unlocked(false);
@@ -1339,13 +1352,16 @@ void FLACCodec::handleWriteCallback_unlocked(const FLAC__Frame* frame, const FLA
             return;
         }
         
-        // Validate block size for RFC 9639 compliance
-        if (frame->header.blocksize == 0 || frame->header.blocksize > 65535) [[unlikely]] {
-            Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] Invalid block size: ", 
-                      frame->header.blocksize, " (RFC 9639 range: 1-65535)");
+        // Validate block size for RFC 9639 compliance and STREAMINFO constraints
+        if (!validateBlockSize_unlocked(frame->header.blocksize)) [[unlikely]] {
+            Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] Block size validation failed: ", 
+                      frame->header.blocksize);
             m_stats.error_count++;
             return;
         }
+        
+        // Update block size tracking for variable block size handling
+        updateBlockSizeTracking_unlocked(frame->header.blocksize);
         
         // Validate bit depth for RFC 9639 compliance
         if (frame->header.bits_per_sample < 4 || frame->header.bits_per_sample > 32) [[unlikely]] {
@@ -1468,6 +1484,21 @@ void FLACCodec::handleMetadataCallback_unlocked(const FLAC__StreamMetadata* meta
                     m_total_samples = info.total_samples;
                     Debug::log("flac_codec", "[FLACCodec::handleMetadataCallback_unlocked] Updated total samples from STREAMINFO: ", 
                               m_total_samples);
+                }
+                
+                // Update block size constraints from STREAMINFO
+                if (info.min_blocksize > 0 && info.max_blocksize > 0) {
+                    m_min_block_size = info.min_blocksize;
+                    m_max_block_size = info.max_blocksize;
+                    
+                    Debug::log("flac_codec", "[FLACCodec::handleMetadataCallback_unlocked] Updated block size constraints: ",
+                              "min=", m_min_block_size, ", max=", m_max_block_size);
+                    
+                    // Detect if stream uses variable block sizes
+                    if (m_min_block_size != m_max_block_size) {
+                        m_variable_block_size = true;
+                        Debug::log("flac_codec", "[FLACCodec::handleMetadataCallback_unlocked] Variable block size stream detected");
+                    }
                 }
                 
                 // Performance optimization: pre-allocate buffers based on STREAMINFO
@@ -2841,5 +2872,433 @@ std::string getCodecInfo() {
 }
 
 } // namespace FLACCodecSupport
+
+// ============================================================================
+// Variable Block Size Handling Implementation
+// ============================================================================
+
+void FLACCodec::initializeBlockSizeHandling_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::initializeBlockSizeHandling_unlocked] Initializing block size handling");
+    
+    // Initialize block size tracking with RFC 9639 defaults
+    m_min_block_size = 16;      // RFC 9639 minimum block size
+    m_max_block_size = 65535;   // RFC 9639 maximum block size
+    m_variable_block_size = false;
+    m_current_block_size = 0;
+    m_preferred_block_size = 0;
+    
+    // Initialize variable block size adaptation state
+    m_previous_block_size = 0;
+    m_block_size_changes = 0;
+    m_total_samples_processed = 0;
+    m_adaptive_buffering_enabled = true;
+    m_smallest_block_seen = UINT32_MAX;
+    m_largest_block_seen = 0;
+    m_average_block_size = 0.0;
+    
+    // Pre-optimize for standard block sizes
+    optimizeForFixedBlockSizes_unlocked();
+    
+    Debug::log("flac_codec", "[FLACCodec::initializeBlockSizeHandling_unlocked] Block size handling initialized: ",
+              "min=", m_min_block_size, ", max=", m_max_block_size);
+}
+
+bool FLACCodec::validateBlockSize_unlocked(uint32_t block_size) const {
+    // RFC 9639 compliance validation
+    if (block_size < 16 || block_size > 65535) {
+        Debug::log("flac_codec", "[FLACCodec::validateBlockSize_unlocked] Block size ", block_size, 
+                  " outside RFC 9639 range (16-65535)");
+        return false;
+    }
+    
+    // Check against STREAMINFO constraints if available
+    if (m_min_block_size > 0 && block_size < m_min_block_size) {
+        Debug::log("flac_codec", "[FLACCodec::validateBlockSize_unlocked] Block size ", block_size, 
+                  " below STREAMINFO minimum ", m_min_block_size);
+        return false;
+    }
+    
+    if (m_max_block_size > 0 && block_size > m_max_block_size) {
+        Debug::log("flac_codec", "[FLACCodec::validateBlockSize_unlocked] Block size ", block_size, 
+                  " above STREAMINFO maximum ", m_max_block_size);
+        return false;
+    }
+    
+    return true;
+}
+
+void FLACCodec::updateBlockSizeTracking_unlocked(uint32_t block_size) {
+    Debug::log("flac_codec", "[FLACCodec::updateBlockSizeTracking_unlocked] Updating block size tracking: ", 
+              "current=", m_current_block_size, " -> new=", block_size);
+    
+    // Handle block size transition for variable block size adaptation
+    if (m_current_block_size != 0) {
+        handleBlockSizeTransition_unlocked(m_current_block_size, block_size);
+    }
+    
+    // Detect variable block size usage
+    if (m_current_block_size != 0 && m_current_block_size != block_size) {
+        if (!m_variable_block_size) {
+            Debug::log("flac_codec", "[FLACCodec::updateBlockSizeTracking_unlocked] Variable block size detected: ",
+                      "previous=", m_current_block_size, ", current=", block_size);
+            m_variable_block_size = true;
+        }
+    }
+    
+    // Update current block size
+    uint32_t previous_block_size = m_current_block_size;
+    m_current_block_size = block_size;
+    
+    // Update last block size for compatibility
+    m_last_block_size = block_size;
+    
+    // Detect preferred block size for optimization
+    detectPreferredBlockSize_unlocked(block_size);
+    
+    // Optimize buffers if block size changed significantly
+    if (previous_block_size == 0 || 
+        (block_size > previous_block_size * 2) || 
+        (previous_block_size > block_size * 2)) {
+        optimizeForBlockSize_unlocked(block_size);
+    }
+}
+
+void FLACCodec::optimizeForBlockSize_unlocked(uint32_t block_size) {
+    Debug::log("flac_codec", "[FLACCodec::optimizeForBlockSize_unlocked] Optimizing for block size: ", block_size);
+    
+    // Check if this is a standard block size for special optimization
+    if (isStandardBlockSize_unlocked(block_size)) {
+        Debug::log("flac_codec", "[FLACCodec::optimizeForBlockSize_unlocked] Standard block size detected: ", block_size);
+        
+        // Pre-allocate buffers for this standard size
+        adaptBuffersForBlockSize_unlocked(block_size);
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::optimizeForBlockSize_unlocked] Non-standard block size: ", block_size);
+        
+        // Use conservative buffer allocation for non-standard sizes
+        adaptBuffersForBlockSize_unlocked(block_size);
+    }
+}
+
+bool FLACCodec::isStandardBlockSize_unlocked(uint32_t block_size) const {
+    // Check against standard FLAC block sizes
+    for (size_t i = 0; i < NUM_STANDARD_BLOCK_SIZES; ++i) {
+        if (STANDARD_BLOCK_SIZES[i] == block_size) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void FLACCodec::adaptBuffersForBlockSize_unlocked(uint32_t block_size) {
+    Debug::log("flac_codec", "[FLACCodec::adaptBuffersForBlockSize_unlocked] Adapting buffers for block size: ", block_size);
+    
+    // Calculate required buffer size for this block size
+    size_t required_samples = static_cast<size_t>(block_size) * m_channels;
+    
+    // Ensure decode buffer has sufficient capacity
+    if (m_decode_buffer.capacity() < required_samples) {
+        size_t new_capacity = required_samples * 2; // Over-allocate for future frames
+        m_decode_buffer.reserve(new_capacity);
+        Debug::log("flac_codec", "[FLACCodec::adaptBuffersForBlockSize_unlocked] Expanded decode buffer: ", 
+                  new_capacity, " samples");
+    }
+    
+    // Ensure output buffer has sufficient capacity (with buffer lock)
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        if (m_output_buffer.capacity() < required_samples) {
+            size_t new_capacity = required_samples * 2; // Over-allocate for future frames
+            m_output_buffer.reserve(new_capacity);
+            Debug::log("flac_codec", "[FLACCodec::adaptBuffersForBlockSize_unlocked] Expanded output buffer: ", 
+                      new_capacity, " samples");
+        }
+    }
+}
+
+void FLACCodec::detectPreferredBlockSize_unlocked(uint32_t block_size) {
+    // Simple heuristic: if we see the same block size multiple times, consider it preferred
+    static uint32_t last_seen_block_size = 0;
+    static uint32_t consecutive_count = 0;
+    
+    if (block_size == last_seen_block_size) {
+        consecutive_count++;
+        
+        // After seeing the same block size 5 times, consider it preferred
+        if (consecutive_count >= 5 && m_preferred_block_size != block_size) {
+            m_preferred_block_size = block_size;
+            Debug::log("flac_codec", "[FLACCodec::detectPreferredBlockSize_unlocked] Detected preferred block size: ", 
+                      block_size, " (seen ", consecutive_count, " times consecutively)");
+            
+            // Optimize specifically for this preferred size
+            optimizeForBlockSize_unlocked(block_size);
+        }
+    } else {
+        last_seen_block_size = block_size;
+        consecutive_count = 1;
+    }
+}
+
+void FLACCodec::optimizeForFixedBlockSizes_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::optimizeForFixedBlockSizes_unlocked] Optimizing for standard fixed block sizes");
+    
+    // Pre-allocate buffers for the largest standard block size to handle all cases efficiently
+    preAllocateForStandardSizes_unlocked();
+    
+    Debug::log("flac_codec", "[FLACCodec::optimizeForFixedBlockSizes_unlocked] Fixed block size optimization completed");
+}
+
+void FLACCodec::preAllocateForStandardSizes_unlocked() {
+    // Find the largest standard block size for pre-allocation
+    uint32_t max_standard_size = 0;
+    for (size_t i = 0; i < NUM_STANDARD_BLOCK_SIZES; ++i) {
+        if (STANDARD_BLOCK_SIZES[i] > max_standard_size) {
+            max_standard_size = STANDARD_BLOCK_SIZES[i];
+        }
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::preAllocateForStandardSizes_unlocked] Pre-allocating for max standard size: ", 
+              max_standard_size);
+    
+    // Pre-allocate buffers for the largest standard size
+    if (max_standard_size > 0) {
+        size_t required_samples = static_cast<size_t>(max_standard_size) * m_channels;
+        
+        // Pre-allocate decode buffer
+        if (m_decode_buffer.capacity() < required_samples) {
+            m_decode_buffer.reserve(required_samples);
+            Debug::log("flac_codec", "[FLACCodec::preAllocateForStandardSizes_unlocked] Pre-allocated decode buffer: ", 
+                      required_samples, " samples");
+        }
+        
+        // Pre-allocate output buffer (with buffer lock)
+        {
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            if (m_output_buffer.capacity() < required_samples) {
+                m_output_buffer.reserve(required_samples);
+                Debug::log("flac_codec", "[FLACCodec::preAllocateForStandardSizes_unlocked] Pre-allocated output buffer: ", 
+                          required_samples, " samples");
+            }
+        }
+    }
+}
+
+size_t FLACCodec::calculateOptimalBufferSize_unlocked() const {
+    // Calculate optimal buffer size based on current configuration
+    uint32_t target_block_size = m_max_block_size;
+    
+    // Use preferred block size if detected
+    if (m_preferred_block_size > 0) {
+        target_block_size = m_preferred_block_size;
+    }
+    // Use current block size if available
+    else if (m_current_block_size > 0) {
+        target_block_size = m_current_block_size;
+    }
+    // Fall back to RFC 9639 maximum
+    else {
+        target_block_size = 65535;
+    }
+    
+    size_t optimal_size = static_cast<size_t>(target_block_size) * m_channels;
+    
+    Debug::log("flac_codec", "[FLACCodec::calculateOptimalBufferSize_unlocked] Calculated optimal buffer size: ", 
+              optimal_size, " samples (block_size=", target_block_size, ", channels=", m_channels, ")");
+    
+    return optimal_size;
+}
+
+// ============================================================================
+// Variable Block Size Adaptation Implementation
+// ============================================================================
+
+void FLACCodec::handleBlockSizeTransition_unlocked(uint32_t old_size, uint32_t new_size) {
+    Debug::log("flac_codec", "[FLACCodec::handleBlockSizeTransition_unlocked] Block size transition: ", 
+              old_size, " -> ", new_size);
+    
+    // Track block size changes for adaptation
+    if (old_size != 0 && old_size != new_size) {
+        m_block_size_changes++;
+        
+        // Update statistics for variable block size streams
+        if (new_size < m_smallest_block_seen) {
+            m_smallest_block_seen = new_size;
+        }
+        if (new_size > m_largest_block_seen) {
+            m_largest_block_seen = new_size;
+        }
+        
+        // Update running average
+        if (m_stats.frames_decoded > 0) {
+            m_average_block_size = ((m_average_block_size * (m_stats.frames_decoded - 1)) + new_size) / m_stats.frames_decoded;
+        } else {
+            m_average_block_size = new_size;
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::handleBlockSizeTransition_unlocked] Block size statistics: ",
+                  "changes=", m_block_size_changes, ", range=[", m_smallest_block_seen, "-", m_largest_block_seen, "], ",
+                  "average=", static_cast<uint32_t>(m_average_block_size));
+        
+        // Perform smooth transition handling
+        smoothBlockSizeTransition_unlocked(new_size);
+    }
+    
+    // Update previous block size for next transition
+    m_previous_block_size = new_size;
+}
+
+void FLACCodec::smoothBlockSizeTransition_unlocked(uint32_t new_block_size) {
+    Debug::log("flac_codec", "[FLACCodec::smoothBlockSizeTransition_unlocked] Smoothing transition to block size: ", 
+              new_block_size);
+    
+    // Check if buffer reallocation is needed
+    if (requiresBufferReallocation_unlocked(new_block_size)) {
+        Debug::log("flac_codec", "[FLACCodec::smoothBlockSizeTransition_unlocked] Buffer reallocation required");
+        
+        // Perform adaptive buffer resize
+        adaptiveBufferResize_unlocked(new_block_size);
+    }
+    
+    // Maintain consistent output timing across block size changes
+    maintainOutputTiming_unlocked(new_block_size);
+    
+    // Optimize for variable block size patterns if we've seen enough changes
+    if (m_block_size_changes >= 10 && !m_variable_block_size) {
+        Debug::log("flac_codec", "[FLACCodec::smoothBlockSizeTransition_unlocked] Enabling variable block size optimization");
+        m_variable_block_size = true;
+        optimizeForVariableBlockSizes_unlocked();
+    }
+}
+
+void FLACCodec::maintainOutputTiming_unlocked(uint32_t block_size) {
+    // Update total samples processed for timing consistency
+    m_total_samples_processed += block_size;
+    
+    // Ensure current sample position is consistent
+    uint64_t expected_position = m_total_samples_processed;
+    uint64_t actual_position = m_current_sample.load();
+    
+    if (actual_position != expected_position) {
+        Debug::log("flac_codec", "[FLACCodec::maintainOutputTiming_unlocked] Timing correction: ",
+                  "expected=", expected_position, ", actual=", actual_position, 
+                  ", difference=", static_cast<int64_t>(expected_position - actual_position));
+        
+        // Correct the timing if the difference is significant
+        if (std::abs(static_cast<int64_t>(expected_position - actual_position)) > block_size) {
+            m_current_sample.store(expected_position);
+            Debug::log("flac_codec", "[FLACCodec::maintainOutputTiming_unlocked] Applied timing correction");
+        }
+    }
+}
+
+void FLACCodec::adaptiveBufferResize_unlocked(uint32_t block_size) {
+    if (!m_adaptive_buffering_enabled) {
+        return;
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Adaptive buffer resize for block size: ", 
+              block_size);
+    
+    // Calculate new buffer size with some headroom for future block size variations
+    size_t required_samples = static_cast<size_t>(block_size) * m_channels;
+    
+    // Add headroom based on observed block size variation
+    double variation_factor = 1.5; // Default 50% headroom
+    if (m_largest_block_seen > 0 && m_smallest_block_seen < UINT32_MAX) {
+        double size_ratio = static_cast<double>(m_largest_block_seen) / m_smallest_block_seen;
+        variation_factor = std::min(3.0, std::max(1.2, size_ratio * 1.1)); // 20% to 300% headroom
+    }
+    
+    size_t target_capacity = static_cast<size_t>(required_samples * variation_factor);
+    
+    Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Target capacity: ", 
+              target_capacity, " samples (variation_factor=", variation_factor, ")");
+    
+    // Resize decode buffer if needed
+    if (m_decode_buffer.capacity() < target_capacity) {
+        m_decode_buffer.reserve(target_capacity);
+        Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Resized decode buffer: ", 
+                  target_capacity, " samples");
+    }
+    
+    // Resize output buffer if needed (with buffer lock)
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        if (m_output_buffer.capacity() < target_capacity) {
+            m_output_buffer.reserve(target_capacity);
+            Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Resized output buffer: ", 
+                      target_capacity, " samples");
+        }
+    }
+}
+
+bool FLACCodec::requiresBufferReallocation_unlocked(uint32_t block_size) const {
+    size_t required_samples = static_cast<size_t>(block_size) * m_channels;
+    
+    // Check if current buffers are insufficient
+    bool decode_buffer_insufficient = m_decode_buffer.capacity() < required_samples;
+    
+    bool output_buffer_insufficient = false;
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        output_buffer_insufficient = m_output_buffer.capacity() < required_samples;
+    }
+    
+    bool reallocation_needed = decode_buffer_insufficient || output_buffer_insufficient;
+    
+    if (reallocation_needed) {
+        Debug::log("flac_codec", "[FLACCodec::requiresBufferReallocation_unlocked] Reallocation needed: ",
+                  "required=", required_samples, ", decode_capacity=", m_decode_buffer.capacity(),
+                  ", output_capacity=", m_output_buffer.capacity());
+    }
+    
+    return reallocation_needed;
+}
+
+void FLACCodec::optimizeForVariableBlockSizes_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::optimizeForVariableBlockSizes_unlocked] Optimizing for variable block sizes");
+    
+    // Calculate optimal buffer size based on observed block size patterns
+    uint32_t optimal_size = m_max_block_size;
+    
+    // Use statistical information to optimize buffer allocation
+    if (m_largest_block_seen > 0) {
+        optimal_size = m_largest_block_seen;
+        
+        // Add some headroom for future larger blocks
+        optimal_size = static_cast<uint32_t>(optimal_size * 1.2);
+        
+        // Clamp to RFC 9639 maximum
+        optimal_size = std::min(optimal_size, static_cast<uint32_t>(65535));
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::optimizeForVariableBlockSizes_unlocked] Optimal size calculated: ", 
+              optimal_size, " (based on largest_seen=", m_largest_block_seen, ")");
+    
+    // Pre-allocate buffers for the optimal size
+    size_t optimal_samples = static_cast<size_t>(optimal_size) * m_channels;
+    
+    // Optimize decode buffer
+    if (m_decode_buffer.capacity() < optimal_samples) {
+        m_decode_buffer.reserve(optimal_samples);
+        Debug::log("flac_codec", "[FLACCodec::optimizeForVariableBlockSizes_unlocked] Optimized decode buffer: ", 
+                  optimal_samples, " samples");
+    }
+    
+    // Optimize output buffer (with buffer lock)
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        if (m_output_buffer.capacity() < optimal_samples) {
+            m_output_buffer.reserve(optimal_samples);
+            Debug::log("flac_codec", "[FLACCodec::optimizeForVariableBlockSizes_unlocked] Optimized output buffer: ", 
+                      optimal_samples, " samples");
+        }
+    }
+    
+    // Enable adaptive buffering for future block size changes
+    m_adaptive_buffering_enabled = true;
+    
+    Debug::log("flac_codec", "[FLACCodec::optimizeForVariableBlockSizes_unlocked] Variable block size optimization completed");
+}
 
 #endif // HAVE_FLAC

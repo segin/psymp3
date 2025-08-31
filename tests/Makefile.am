@@ -214,7 +214,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_variable_block_size
 endif
 
 # Test program sources and dependencies
@@ -1311,6 +1311,16 @@ test_flac_index_based_seeking_LDADD = \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# FLAC codec variable block size test
+test_flac_variable_block_size_SOURCES = test_flac_variable_block_size.cpp
+test_flac_variable_block_size_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_variable_block_size_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 

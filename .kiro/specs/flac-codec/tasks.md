@@ -146,21 +146,21 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - Validate channel assignments against FLAC specification
   - _Requirements: 3.3, 3.6, 3.7, 3.8_
 
-- [ ] 6. Implement Variable Block Size Handling
+- [x] 6. Implement Variable Block Size Handling
   - Add support for fixed block sizes (192, 576, 1152, 2304, 4608, etc.)
   - Handle variable block sizes within the same stream
   - Implement dynamic buffer allocation based on block size
   - Ensure consistent output regardless of input block size variations
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8_
 
-- [ ] 6.1 Add Fixed Block Size Support
+- [x] 6.1 Add Fixed Block Size Support
   - Handle standard FLAC block sizes efficiently
   - Optimize buffer allocation for common block sizes
   - Ensure proper processing of fixed-size blocks
   - Validate block sizes against FLAC specification limits
   - _Requirements: 4.1, 4.4, 4.7, 4.8_
 
-- [ ] 6.2 Implement Variable Block Size Adaptation
+- [x] 6.2 Implement Variable Block Size Adaptation
   - Detect block size changes within streams
   - Dynamically adjust internal buffers and processing
   - Handle transitions between different block sizes smoothly
