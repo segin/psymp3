@@ -311,6 +311,7 @@ private:
     
     // Frame processing methods (assume appropriate locks are held)
     bool processFrameData_unlocked(const uint8_t* data, size_t size);
+    bool feedDataToDecoder_unlocked(const uint8_t* data, size_t size);
     AudioFrame extractDecodedSamples_unlocked();
     void handleWriteCallback_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]);
     void handleMetadataCallback_unlocked(const FLAC__StreamMetadata* metadata);
@@ -322,6 +323,50 @@ private:
     int16_t convert24BitTo16Bit(FLAC__int32 sample) const;
     int16_t convert32BitTo16Bit(FLAC__int32 sample) const;
     void convertSamplesGeneric_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    
+    // Specialized bit depth conversion methods for performance optimization
+    void convertSamples8Bit_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples16Bit_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples24Bit_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples32Bit_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    
+    // Vectorized conversion methods for batch processing of multiple samples
+    void convertSamples8BitStandard_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples8BitVectorized_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    
+    // 24-bit conversion methods with SIMD optimization
+    void convertSamples24BitStandard_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples24BitSIMD_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples24BitScalar_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    
+#ifdef HAVE_SSE2
+    // SSE2-optimized 24-bit conversion methods for x86/x64
+    void convertSamples24BitSSE2Mono_unlocked(const FLAC__int32* input, uint32_t block_size);
+    void convertSamples24BitSSE2Stereo_unlocked(const FLAC__int32* left, const FLAC__int32* right, uint32_t block_size);
+#endif
+    
+#ifdef HAVE_NEON
+    // NEON-optimized 24-bit conversion methods for ARM
+    void convertSamples24BitNEONMono_unlocked(const FLAC__int32* input, uint32_t block_size);
+    void convertSamples24BitNEONStereo_unlocked(const FLAC__int32* left, const FLAC__int32* right, uint32_t block_size);
+#endif
+    
+    // 32-bit conversion methods with SIMD optimization and overflow protection
+    void convertSamples32BitStandard_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples32BitSIMD_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    void convertSamples32BitScalar_unlocked(const FLAC__int32* const buffer[], uint32_t block_size);
+    
+#ifdef HAVE_SSE2
+    // SSE2-optimized 32-bit conversion methods for x86/x64 with overflow protection
+    void convertSamples32BitSSE2Mono_unlocked(const FLAC__int32* input, uint32_t block_size);
+    void convertSamples32BitSSE2Stereo_unlocked(const FLAC__int32* left, const FLAC__int32* right, uint32_t block_size);
+#endif
+    
+#ifdef HAVE_NEON
+    // NEON-optimized 32-bit conversion methods for ARM with overflow protection
+    void convertSamples32BitNEONMono_unlocked(const FLAC__int32* input, uint32_t block_size);
+    void convertSamples32BitNEONStereo_unlocked(const FLAC__int32* left, const FLAC__int32* right, uint32_t block_size);
+#endif
     
     // Channel processing methods (assume m_buffer_mutex is held)
     void processChannelAssignment_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]);

@@ -272,6 +272,12 @@ typedef struct bio_st BIO;
 #include <getopt.h>
 #ifdef __SSE2__
 #include <emmintrin.h>
+#define HAVE_SSE2
+#endif
+
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#define HAVE_NEON
 #endif
 
 // cURL library
