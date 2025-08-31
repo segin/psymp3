@@ -86,7 +86,7 @@ psymp3_SOURCES = \
 
 # Optional codec sources
 if HAVE_FLAC
-psymp3_SOURCES += flac.cpp FLACDemuxer.cpp
+psymp3_SOURCES += flac.cpp FLACDemuxer.cpp FLACCodec.cpp
 endif
 
 if HAVE_MP3

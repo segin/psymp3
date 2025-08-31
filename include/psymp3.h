@@ -375,6 +375,7 @@ typedef struct bio_st BIO;
 #ifdef HAVE_FLAC
 #include "flac.h"
 #include "FLACDemuxer.h"
+#include "FLACCodec.h"
 #endif
 #include "ChainedStream.h"
 #include "nullstream.h"

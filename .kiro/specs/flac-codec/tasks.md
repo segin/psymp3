@@ -2,96 +2,121 @@
 
 ## **Implementation Tasks**
 
-- [ ] 1. Create FLACCodec Class Structure
-  - Implement FLACCodec class inheriting from AudioCodec base class
-  - Add private member variables for FLAC decoder state and configuration
-  - Implement constructor accepting StreamInfo parameter
-  - Add destructor with proper resource cleanup and thread management
-  - _Requirements: 10.1, 10.2, 10.8, 11.1_
+**Implementation Strategy Based on Lessons Learned:**
 
-- [ ] 1.1 Define FLAC Codec Data Structures
-  - Create FLACStreamDecoder class inheriting from FLAC::Decoder::Stream
-  - Define FLACFrameInfo structure for frame parameter tracking
-  - Add internal structures for decoder state and buffer management
-  - Implement helper classes for threading and synchronization
-  - _Requirements: 1.1, 1.2, 6.1, 9.1_
+This implementation plan incorporates critical insights from extensive FLAC demuxer development and performance optimization work:
 
-- [ ] 1.2 Implement Basic AudioCodec Interface
-  - Implement all pure virtual methods from AudioCodec base class
-  - Add placeholder implementations with proper error handling
-  - Ensure consistent return types and error codes
-  - Add basic logging for debugging and development
-  - _Requirements: 10.1, 10.2, 10.3, 10.4_
+- **Performance-First Approach**: All tasks prioritize real-time performance for high-resolution files
+- **RFC 9639 Compliance**: Every implementation decision validated against the official FLAC specification  
+- **Threading Safety**: Mandatory use of public/private lock pattern throughout
+- **Container Independence**: Design ensures compatibility with any demuxer providing MediaChunk data
+- **Conditional Compilation**: Clean integration with build-time dependency checking
+- **Memory Efficiency**: Optimized for minimal allocations and memory usage
+- **Error Resilience**: Robust handling based on real-world debugging experience
 
-- [ ] 2. Implement Codec Initialization
-  - Create initialize() method to configure codec from StreamInfo
-  - Add configureFromStreamInfo() to extract FLAC parameters
-  - Implement initializeFLACDecoder() to set up libFLAC decoder
-  - Add validateConfiguration() for parameter validation
-  - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.4, 5.5, 5.6, 5.7_
+- [x] 1. Create FLACCodec Class Structure with Threading Safety
+  - Implement FLACCodec class inheriting from AudioCodec base class with thread-safe design
+  - Add private member variables following public/private lock pattern with documented lock order
+  - Implement constructor accepting StreamInfo parameter with RFC 9639 validation
+  - Add destructor with proper resource cleanup, thread coordination, and libFLAC cleanup
+  - Include conditional compilation guards for optional FLAC support
+  - _Requirements: 10.1, 10.2, 10.8, 11.1, 15.1, 15.2, 16.1_
 
-- [ ] 2.1 Add Parameter Extraction and Validation
-  - Extract sample rate, channels, bit depth from StreamInfo
-  - Validate parameters against FLAC specification limits
-  - Handle missing or invalid parameters with reasonable defaults
-  - Set up internal configuration for bit depth conversion
-  - _Requirements: 1.1, 1.2, 2.1, 2.2, 2.3, 5.4_
+- [x] 1.1 Define FLAC Codec Data Structures with Performance Optimization
+  - Create FLACStreamDecoder class inheriting from FLAC::Decoder::Stream with optimized callbacks
+  - Define FLACFrameInfo structure for frame parameter tracking with RFC 9639 compliance
+  - Add FLACCodecStats structure for performance monitoring and debugging
+  - Implement FLACCodecSupport namespace for conditional compilation integration
+  - Add internal structures for decoder state and buffer management with pre-allocation
+  - _Requirements: 1.1, 1.2, 6.1, 9.1, 14.1, 14.7, 16.2_
 
-- [ ] 2.2 Initialize libFLAC Decoder
-  - Create and configure FLAC::Decoder::Stream instance
-  - Set up decoder callbacks for read, write, metadata, and error handling
-  - Initialize decoder state and prepare for frame processing
-  - Handle libFLAC initialization failures gracefully
-  - _Requirements: 1.1, 1.3, 5.5, 7.1, 7.2_
+- [x] 1.2 Implement Thread-Safe AudioCodec Interface
+  - Implement all pure virtual methods from AudioCodec base class with public/private lock pattern
+  - Add thread-safe implementations with `_unlocked` suffixes for internal methods
+  - Ensure consistent return types, error codes, and exception safety with RAII guards
+  - Add comprehensive logging with method identification tokens for debugging
+  - Document lock acquisition order and threading safety guarantees
+  - _Requirements: 10.1, 10.2, 10.3, 10.4, 15.1, 15.3, 15.4_
 
-- [ ] 3. Implement FLAC Frame Decoding
-  - Create decode() method to process MediaChunk input
-  - Implement processFrame() to handle individual FLAC frames
-  - Add feedDataToDecoder() to provide data to libFLAC
-  - Create extractDecodedSamples() to get PCM output
-  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8_
+- [ ] 2. Implement High-Performance Codec Initialization
+  - Create thread-safe initialize() method to configure codec from StreamInfo with performance optimization
+  - Add configureFromStreamInfo_unlocked() to extract FLAC parameters with RFC 9639 validation
+  - Implement initializeFLACDecoder_unlocked() to set up libFLAC decoder with performance settings
+  - Add validateConfiguration_unlocked() for comprehensive parameter validation against FLAC specification
+  - Include performance optimization setup with pre-allocated buffers and optimized settings
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 5.4, 5.5, 5.6, 5.7, 13.1, 13.2, 14.1, 14.4_
 
-- [ ] 3.1 Implement Frame Data Processing
-  - Accept MediaChunk containing complete FLAC frame data
-  - Feed frame data to libFLAC decoder through read callback
-  - Handle frame processing asynchronously if needed
-  - Manage input data buffering and flow control
-  - _Requirements: 1.1, 1.2, 5.1, 5.2, 5.3, 6.1_
+- [ ] 2.1 Add RFC 9639 Compliant Parameter Extraction and Validation
+  - Extract sample rate, channels, bit depth from StreamInfo with strict RFC 9639 validation
+  - Validate parameters against FLAC specification limits (1-655350 Hz, 1-8 channels, 4-32 bits)
+  - Handle missing or invalid parameters with RFC-compliant error reporting
+  - Set up internal configuration for optimized bit depth conversion algorithms
+  - Pre-calculate buffer sizes and performance optimization parameters
+  - _Requirements: 1.1, 1.2, 2.1, 2.2, 2.3, 5.4, 13.1, 13.3, 13.7_
 
-- [ ] 3.2 Add libFLAC Callback Implementation
-  - Implement read_callback to provide frame data to libFLAC
-  - Create write_callback to receive decoded PCM samples
-  - Add metadata_callback for stream parameter updates
-  - Implement error_callback for decoder error handling
-  - _Requirements: 1.3, 1.4, 1.5, 1.8, 7.1, 7.2, 7.3_
+- [ ] 2.2 Initialize Optimized libFLAC Decoder
+  - Create and configure FLAC::Decoder::Stream instance with performance settings
+  - Set up optimized decoder callbacks for read, write, metadata, and error handling
+  - Configure libFLAC for maximum performance (disable MD5 checking, optimize settings)
+  - Initialize decoder state and prepare for high-performance frame processing
+  - Handle libFLAC initialization failures gracefully with detailed error logging
+  - _Requirements: 1.1, 1.3, 5.5, 7.1, 7.2, 14.4, 14.5_
 
-- [ ] 4. Implement Bit Depth Conversion
-  - Create convertSamples() method for bit depth conversion to 16-bit PCM
-  - Add specific conversion functions for 8-bit, 24-bit, and 32-bit sources
-  - Implement proper scaling and dithering algorithms
-  - Handle signed sample conversion and range validation
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8_
+- [ ] 3. Implement High-Performance FLAC Frame Decoding
+  - Create thread-safe decode() method to process MediaChunk input with performance monitoring
+  - Implement optimized processFrameData_unlocked() to handle individual FLAC frames efficiently
+  - Add efficient feedDataToDecoder_unlocked() to provide data to libFLAC with minimal copying
+  - Create extractDecodedSamples_unlocked() to get PCM output with optimized memory management
+  - Include performance metrics collection and real-time performance validation
+  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 14.1, 14.2, 14.4_
 
-- [ ] 4.1 Implement 8-bit to 16-bit Conversion
-  - Create convert8BitTo16Bit() with proper upscaling
-  - Handle signed 8-bit sample range (-128 to 127)
-  - Scale to 16-bit range (-32768 to 32767) correctly
-  - Ensure no clipping or overflow in conversion
-  - _Requirements: 2.2, 2.5, 2.6, 12.1, 12.2_
+- [ ] 3.1 Implement Optimized Frame Data Processing
+  - Accept MediaChunk containing complete FLAC frame data with validation
+  - Feed frame data to libFLAC decoder through optimized read callback with minimal overhead
+  - Handle frame processing with performance monitoring and error recovery
+  - Manage input data buffering with pre-allocated reusable buffers
+  - Implement efficient memory management to avoid allocations during decoding
+  - _Requirements: 1.1, 1.2, 5.1, 5.2, 5.3, 6.1, 14.7, 14.8_
 
-- [ ] 4.2 Add 24-bit to 16-bit Conversion
-  - Implement convert24BitTo16Bit() with downscaling
-  - Add optional dithering for better audio quality
-  - Handle proper truncation or rounding of least significant bits
-  - Maintain audio quality while reducing bit depth
-  - _Requirements: 2.3, 2.5, 2.6, 12.1, 12.3, 12.4_
+- [ ] 3.2 Add High-Performance libFLAC Callback Implementation
+  - Implement optimized read_callback to provide frame data to libFLAC efficiently
+  - Create write_callback to receive decoded PCM samples with minimal processing overhead
+  - Add metadata_callback for stream parameter updates with thread safety
+  - Implement error_callback for comprehensive decoder error handling and recovery
+  - Include performance monitoring in callbacks to detect bottlenecks
+  - _Requirements: 1.3, 1.4, 1.5, 1.8, 7.1, 7.2, 7.3, 15.6, 15.8_
 
-- [ ] 4.3 Implement 32-bit to 16-bit Conversion
-  - Create convert32BitTo16Bit() with proper scaling
-  - Handle full 32-bit dynamic range conversion
-  - Prevent clipping and maintain signal integrity
-  - Optimize conversion for performance
-  - _Requirements: 2.4, 2.5, 2.6, 8.1, 8.5_
+- [ ] 4. Implement Optimized Bit Depth Conversion
+  - Create high-performance convertSamples_unlocked() method for bit depth conversion to 16-bit PCM
+  - Add SIMD-optimized conversion functions for 8-bit, 24-bit, and 32-bit sources
+  - Implement proper scaling, dithering algorithms, and vectorized batch processing
+  - Handle signed sample conversion with overflow protection and range validation
+  - Include performance monitoring and optimization for real-time requirements
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 14.5, 14.6_
+
+- [ ] 4.1 Implement Optimized 8-bit to 16-bit Conversion
+  - Create convert8BitTo16Bit() with bit-shift upscaling for maximum performance
+  - Handle signed 8-bit sample range (-128 to 127) with proper sign extension
+  - Scale to 16-bit range (-32768 to 32767) using efficient bit operations
+  - Ensure no clipping or overflow with optimized range checking
+  - Add vectorized conversion for batch processing of multiple samples
+  - _Requirements: 2.2, 2.5, 2.6, 12.1, 12.2, 14.5_
+
+- [ ] 4.2 Add High-Quality 24-bit to 16-bit Conversion
+  - Implement convert24BitTo16Bit() with optimized downscaling and optional dithering
+  - Add triangular dithering for better audio quality when enabled
+  - Handle proper truncation or rounding with performance-optimized algorithms
+  - Maintain audio quality while reducing bit depth using advanced techniques
+  - Include SIMD optimization for batch conversion of 24-bit samples
+  - _Requirements: 2.3, 2.5, 2.6, 12.1, 12.3, 12.4, 14.5_
+
+- [ ] 4.3 Implement Optimized 32-bit to 16-bit Conversion
+  - Create convert32BitTo16Bit() with arithmetic right-shift scaling for performance
+  - Handle full 32-bit dynamic range conversion with overflow protection
+  - Prevent clipping using efficient clamping operations and maintain signal integrity
+  - Optimize conversion for performance using bit operations and SIMD instructions
+  - Add vectorized processing for high-throughput 32-bit to 16-bit conversion
+  - _Requirements: 2.4, 2.5, 2.6, 8.1, 8.5, 14.5, 14.6_
 
 - [ ] 5. Implement Channel Processing
   - Create processChannelAssignment() for various FLAC channel modes
@@ -331,23 +356,50 @@
   - Validate integration with different demuxer implementations
   - _Requirements: 5.1-5.8, 6.1-6.8, 8.1-8.8, 9.1-9.8, 10.1-10.8_
 
-- [ ] 16. Documentation and Code Quality
-  - Add comprehensive inline documentation for all public methods
-  - Create developer documentation for FLAC codec architecture
-  - Document bit depth conversion algorithms and channel processing
-  - Ensure code follows PsyMP3 style guidelines and conventions
-  - _Requirements: 10.7, 10.8, 11.7, 11.8_
+- [ ] 16. Implement RFC 9639 Compliance Validation
+  - Add comprehensive RFC 9639 compliance checking throughout implementation
+  - Validate frame header parsing against official FLAC specification
+  - Implement all subframe types per RFC 9639 requirements (CONSTANT, VERBATIM, FIXED, LPC)
+  - Add entropy coding validation using RFC 9639 Rice/Golomb specification
+  - Ensure CRC-16 calculation follows RFC 9639 polynomial and algorithm
+  - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
 
-- [ ] 16.1 Create API Documentation
-  - Document all FLACCodec public methods with usage examples
-  - Explain bit depth conversion and channel processing algorithms
-  - Document threading model and synchronization requirements
-  - Add troubleshooting guide for common codec issues
-  - _Requirements: 10.7, 10.8, 9.1-9.8_
+- [ ] 16.1 Add Performance Benchmarking and Validation
+  - Implement real-time performance validation for high-resolution files
+  - Add CPU usage monitoring to ensure <1% usage for 44.1kHz/16-bit files
+  - Create performance regression tests for 96kHz/24-bit and 192kHz/32-bit files
+  - Validate frame processing time stays under 100μs for real-time requirements
+  - Add memory allocation monitoring to ensure zero allocations during steady-state
+  - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.7, 14.8_
 
-- [ ] 16.2 Add Developer Guide
-  - Document integration with AudioCodec architecture
-  - Explain container-agnostic design principles
-  - Provide guidance for extending FLAC codec functionality
-  - Document performance optimization opportunities and techniques
-  - _Requirements: 11.7, 11.8, 8.1-8.8, 12.1-12.8_
+- [ ] 16.2 Implement Conditional Compilation Integration
+  - Add preprocessor guards around all FLAC-specific code using HAVE_FLAC
+  - Implement FLACCodecSupport namespace for build-time availability checking
+  - Add conditional MediaFactory registration that only occurs when FLAC is available
+  - Ensure clean builds when FLAC libraries are unavailable
+  - Add conditional test compilation for FLAC codec tests
+  - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.8_
+
+- [ ] 17. Documentation and Code Quality with Lessons Learned
+  - Add comprehensive inline documentation for all public methods with threading safety notes
+  - Create developer documentation for FLAC codec architecture incorporating implementation experience
+  - Document optimized bit depth conversion algorithms and high-performance channel processing
+  - Ensure code follows PsyMP3 style guidelines and threading safety patterns
+  - Include performance optimization documentation and troubleshooting guides
+  - _Requirements: 10.7, 10.8, 11.7, 11.8, 15.1, 15.4_
+
+- [ ] 17.1 Create Comprehensive API Documentation
+  - Document all FLACCodec public methods with usage examples and threading safety guarantees
+  - Explain optimized bit depth conversion and channel processing algorithms with performance notes
+  - Document threading model, synchronization requirements, and lock acquisition order
+  - Add troubleshooting guide for common codec issues based on implementation experience
+  - Include performance tuning guide and optimization recommendations
+  - _Requirements: 10.7, 10.8, 9.1-9.8, 15.1, 15.4_
+
+- [ ] 17.2 Add Developer Guide with Implementation Insights
+  - Document integration with AudioCodec architecture and container-agnostic design principles
+  - Explain lessons learned from FLAC demuxer development and performance optimization
+  - Provide guidance for extending FLAC codec functionality with threading safety
+  - Document performance optimization opportunities, techniques, and real-world benchmarks
+  - Include RFC 9639 compliance guidelines and validation strategies
+  - _Requirements: 11.7, 11.8, 8.1-8.8, 12.1-12.8, 13.1-13.8, 14.1-14.8_
