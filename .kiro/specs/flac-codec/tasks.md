@@ -167,42 +167,42 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - Maintain consistent output timing across block size changes
   - _Requirements: 4.2, 4.3, 4.5, 4.6_
 
-- [ ] 7. Add Streaming and Buffering Management
+- [x] 7. Add Streaming and Buffering Management
   - Implement bounded output buffering to prevent memory exhaustion
   - Create input queue management for MediaChunk processing
   - Add flow control to handle backpressure from output consumers
   - Implement flush() method to output remaining samples
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
 
-- [ ] 7.1 Implement Output Buffer Management
+- [x] 7.1 Implement Output Buffer Management
   - Create bounded output buffer with configurable size limits
   - Add flow control to prevent buffer overflow
   - Implement efficient buffer allocation and reuse
   - Handle buffer underrun and overrun conditions gracefully
   - _Requirements: 6.2, 6.4, 6.7, 8.2, 8.3_
 
-- [ ] 7.2 Add Input Queue Processing
+- [x] 7.2 Add Input Queue Processing
   - Implement MediaChunk input queue with bounded size
   - Handle partial frame data and frame reconstruction
   - Add proper synchronization for multi-threaded access
   - Manage input flow control and backpressure
   - _Requirements: 6.1, 6.3, 6.5, 6.8_
 
-- [ ] 8. Implement Threading and Asynchronous Processing
+- [x] 8. Implement Threading and Asynchronous Processing
   - Create startDecoderThread() and stopDecoderThread() methods
   - Implement decoderThreadLoop() for background processing
   - Add proper thread synchronization with mutexes and condition variables
   - Handle thread lifecycle and cleanup properly
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8_
 
-- [ ] 8.1 Add Decoder Thread Management
+- [x] 8.1 Add Decoder Thread Management
   - Implement background thread for FLAC decoding operations
   - Add proper thread startup and shutdown procedures
   - Handle thread exceptions and error conditions
   - Ensure clean thread termination during codec destruction
   - _Requirements: 9.1, 9.2, 9.6, 9.7_
 
-- [ ] 8.2 Implement Thread Synchronization
+- [x] 8.2 Implement Thread Synchronization
   - Add mutex protection for shared codec state
   - Use condition variables for efficient thread communication
   - Implement proper synchronization for buffer access

@@ -356,6 +356,26 @@ FLACCodec::FLACCodec(const StreamInfo& stream_info)
     // Initialize statistics
     m_stats = FLACCodecStats{};
     
+    // Initialize enhanced buffer management
+    m_max_pending_samples = MAX_BUFFER_SAMPLES;
+    updateBufferWatermarks_unlocked();
+    m_preferred_buffer_size = calculateOptimalBufferSize_unlocked(65535 * stream_info.channels);
+    
+    // Initialize input queue management
+    updateInputQueueWatermarks_unlocked();
+    
+    // Initialize threading state
+    m_thread_active.store(false);
+    m_thread_shutdown_requested.store(false);
+    m_pending_work_items.store(0);
+    m_completed_work_items.store(0);
+    m_thread_processing_time_us.store(0);
+    m_thread_frames_processed.store(0);
+    m_thread_idle_cycles.store(0);
+    
+    // Initialize asynchronous processing (disabled by default)
+    m_async_processing_enabled = false;
+    
     // Pre-allocate buffers for performance
     m_input_buffer.reserve(64 * 1024);  // 64KB input buffer
     m_decode_buffer.reserve(65535 * 8); // Maximum FLAC block size * max channels
@@ -365,10 +385,31 @@ FLACCodec::FLACCodec(const StreamInfo& stream_info)
 FLACCodec::~FLACCodec() {
     Debug::log("flac_codec", "[FLACCodec] Destroying FLAC codec");
     
+    // Stop decoder thread first to ensure clean shutdown
+    try {
+        if (m_thread_active.load()) {
+            Debug::log("flac_codec", "[FLACCodec] Stopping active decoder thread during destruction");
+            stopDecoderThread();
+        }
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec] Exception stopping thread during destruction: ", e.what());
+    }
+    
     // Ensure proper cleanup with thread coordination
     {
         std::lock_guard<std::mutex> state_lock(m_state_mutex);
         cleanupFLAC_unlocked();
+    }
+    
+    // Final cleanup of threading resources
+    try {
+        std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
+        if (m_decoder_thread && m_decoder_thread->joinable()) {
+            Debug::log("flac_codec", "[FLACCodec] Joining remaining thread during destruction");
+            m_decoder_thread->join();
+        }
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec] Exception during final thread cleanup: ", e.what());
     }
     
     Debug::log("flac_codec", "[FLACCodec] Destroyed FLAC codec, decoded ", 
@@ -558,17 +599,92 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
     }
     
     try {
-        // Clear previous output buffer efficiently
+        // Clear previous output buffer efficiently with thread synchronization
         {
             std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            
+            // Wait for any pending buffer operations to complete
+            if (m_thread_active.load() && m_async_processing_enabled) {
+                // Brief check to ensure buffer is not being accessed by decoder thread
+                // The decoder thread will acquire the same lock, ensuring synchronization
+            }
+            
             m_output_buffer.clear();
             m_buffer_read_position = 0;
         }
         
-        // Process frame data with optimized handling
-        if (!processFrameData_unlocked(chunk.data.data(), chunk.data.size())) {
-            Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Failed to process frame data");
-            return handleDecodingError_unlocked(chunk);
+        // Process input through queue management
+        MediaChunk processed_chunk = chunk;
+        
+        // Handle input queue processing with frame reconstruction
+        {
+            std::lock_guard<std::mutex> input_lock(m_input_mutex);
+            
+            // Check if this might be a partial frame
+            if (!isFrameComplete_unlocked(chunk.data.data(), chunk.data.size())) {
+                Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Processing partial frame");
+                
+                if (!processPartialFrame_unlocked(chunk)) {
+                    Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Failed to process partial frame");
+                    return handleDecodingError_unlocked(chunk);
+                }
+                
+                // Try to reconstruct complete frame
+                if (!reconstructFrame_unlocked(processed_chunk)) {
+                    Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Frame reconstruction incomplete, queuing for later");
+                    return AudioFrame(); // Return empty frame, wait for more data
+                }
+            } else {
+                // Complete frame - can process directly or queue it
+                if (!enqueueInputChunk_unlocked(chunk)) {
+                    Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Failed to enqueue input chunk");
+                    return handleDecodingError_unlocked(chunk);
+                }
+                
+                // Dequeue for processing
+                processed_chunk = dequeueInputChunk_unlocked();
+                if (processed_chunk.data.empty()) {
+                    Debug::log("flac_codec", "[FLACCodec::decode_unlocked] No chunk available for processing");
+                    return AudioFrame();
+                }
+            }
+        }
+        
+        // Process frame data with thread-safe decoder access
+        // Ensure decoder state synchronization when thread is active
+        if (m_thread_active.load() && m_async_processing_enabled) {
+            // For async processing, queue the chunk instead of processing directly
+            {
+                std::lock_guard<std::mutex> async_lock(m_async_mutex);
+                if (!enqueueAsyncInput_unlocked(processed_chunk)) {
+                    Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Failed to enqueue chunk for async processing");
+                    return handleDecodingError_unlocked(processed_chunk);
+                }
+                
+                // Notify decoder thread that work is available
+                {
+                    std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
+                    notifyWorkAvailable_unlocked();
+                }
+                
+                // Check if we have any completed output available
+                if (hasAsyncOutput_unlocked()) {
+                    AudioFrame async_result = dequeueAsyncOutput_unlocked();
+                    if (async_result.getSampleFrameCount() > 0) {
+                        Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Returning async processed frame");
+                        return async_result;
+                    }
+                }
+                
+                // Return empty frame - async processing will complete later
+                return AudioFrame();
+            }
+        } else {
+            // Synchronous processing with decoder state protection
+            if (!processFrameData_unlocked(processed_chunk.data.data(), processed_chunk.data.size())) {
+                Debug::log("flac_codec", "[FLACCodec::decode_unlocked] Failed to process frame data");
+                return handleDecodingError_unlocked(processed_chunk);
+            }
         }
         
         // Extract decoded samples
@@ -606,6 +722,36 @@ AudioFrame FLACCodec::flush_unlocked() {
     }
     
     try {
+        // Process any remaining chunks in input queue
+        {
+            std::lock_guard<std::mutex> input_lock(m_input_mutex);
+            
+            while (hasInputChunks_unlocked()) {
+                MediaChunk remaining_chunk = dequeueInputChunk_unlocked();
+                if (!remaining_chunk.data.empty()) {
+                    Debug::log("flac_codec", "[FLACCodec::flush_unlocked] Processing remaining queued chunk with ", 
+                              remaining_chunk.data.size(), " bytes");
+                    
+                    // Process the remaining chunk
+                    if (!processFrameData_unlocked(remaining_chunk.data.data(), remaining_chunk.data.size())) {
+                        Debug::log("flac_codec", "[FLACCodec::flush_unlocked] Failed to process remaining chunk");
+                        break;
+                    }
+                }
+            }
+            
+            // Try to complete any partial frame reconstruction
+            MediaChunk reconstructed_frame;
+            if (reconstructFrame_unlocked(reconstructed_frame)) {
+                Debug::log("flac_codec", "[FLACCodec::flush_unlocked] Processing reconstructed frame with ", 
+                          reconstructed_frame.data.size(), " bytes");
+                
+                if (!processFrameData_unlocked(reconstructed_frame.data.data(), reconstructed_frame.data.size())) {
+                    Debug::log("flac_codec", "[FLACCodec::flush_unlocked] Failed to process reconstructed frame");
+                }
+            }
+        }
+        
         // Process any remaining data in the decoder
         if (m_decoder->hasInputData()) {
             Debug::log("flac_codec", "[FLACCodec::flush_unlocked] Processing remaining input data");
@@ -628,8 +774,14 @@ AudioFrame FLACCodec::flush_unlocked() {
             Debug::log("flac_codec", "[FLACCodec::flush_unlocked] No remaining samples to flush");
         }
         
-        // Mark stream as finished
+        // Mark stream as finished and reset buffer flow control
         m_stream_finished = true;
+        
+        // Reset buffer flow control state for potential reuse
+        {
+            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+            resetBufferFlowControl_unlocked();
+        }
         
         return result;
         
@@ -645,11 +797,30 @@ void FLACCodec::reset_unlocked() {
     // Reset decoder state
     resetDecoderState_unlocked();
     
-    // Clear buffers
+    // Clear buffers and reset flow control
     {
         std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
         m_output_buffer.clear();
         m_buffer_read_position = 0;
+        resetBufferFlowControl_unlocked();
+    }
+    
+    // Clear input queue and reset input flow control
+    {
+        std::lock_guard<std::mutex> input_lock(m_input_mutex);
+        clearInputQueue_unlocked();
+    }
+    
+    // Reset threading state if thread is active
+    if (m_thread_active.load()) {
+        std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
+        resetThreadState_unlocked();
+        
+        // Clear async queues
+        {
+            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+            clearAsyncQueues_unlocked();
+        }
     }
     
     // Reset position tracking
@@ -977,8 +1148,11 @@ bool FLACCodec::initializeFLACDecoder_unlocked() {
         
         Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Performance optimizations configured");
         
-        // Initialize decoder state with comprehensive error checking
+        // Initialize decoder state with comprehensive error checking and thread safety
         Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Initializing decoder state");
+        
+        // Protect decoder initialization with mutex
+        std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
         
         FLAC__StreamDecoderInitStatus init_status = m_decoder->init();
         
@@ -1102,6 +1276,9 @@ void FLACCodec::cleanupFLAC_unlocked() {
     
     if (m_decoder) {
         try {
+            // Protect decoder cleanup with mutex
+            std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+            
             if (m_decoder_initialized) {
                 Debug::log("flac_codec", "[FLACCodec::cleanupFLAC_unlocked] Finishing libFLAC decoder");
                 
@@ -1193,13 +1370,25 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
             }
         }
         
+        // Protect libFLAC decoder operations with dedicated mutex
+        std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+        
+        // Ensure decoder is in valid state for processing
+        auto decoder_state = m_decoder->get_state();
+        if (decoder_state == FLAC__STREAM_DECODER_ABORTED || 
+            decoder_state == FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR) {
+            Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Decoder in error state: ", 
+                      FLAC__StreamDecoderStateString[decoder_state]);
+            return false;
+        }
+        
         // Feed data to decoder with optimized buffering
         if (!feedDataToDecoder_unlocked(data, size)) {
             Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Failed to feed data to decoder");
             return false;
         }
         
-        // Process the frame through libFLAC
+        // Process the frame through libFLAC (thread-safe with decoder lock)
         if (!m_decoder->process_single()) {
             FLAC__StreamDecoderState state = m_decoder->get_state();
             Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] libFLAC processing failed, state: ", 
@@ -1288,6 +1477,7 @@ AudioFrame FLACCodec::extractDecodedSamples_unlocked() {
     
     if (m_output_buffer.empty()) {
         Debug::log("flac_codec", "[FLACCodec::extractDecodedSamples_unlocked] No samples in buffer");
+        handleBufferUnderrun_unlocked();
         return AudioFrame();
     }
     
@@ -1312,8 +1502,19 @@ AudioFrame FLACCodec::extractDecodedSamples_unlocked() {
         frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / m_sample_rate;
     }
     
+    // Clear buffer after extraction to free space
+    m_output_buffer.clear();
+    
+    // Notify waiting threads that buffer space is now available
+    notifyBufferSpaceAvailable_unlocked();
+    
+    // Deactivate backpressure if buffer is now below low watermark
+    if (m_backpressure_active && m_output_buffer.size() <= m_buffer_low_watermark) {
+        deactivateBackpressure_unlocked();
+    }
+    
     Debug::log("flac_codec", "[FLACCodec::extractDecodedSamples_unlocked] Extracted ", 
-              sample_frame_count, " sample frames (", m_output_buffer.size(), " samples) at ", 
+              sample_frame_count, " sample frames (", frame.samples.size(), " samples) at ", 
               frame.timestamp_samples);
     
     return frame;
@@ -1374,15 +1575,24 @@ void FLACCodec::handleWriteCallback_unlocked(const FLAC__Frame* frame, const FLA
         // Update current block size for performance tracking
         m_last_block_size = frame->header.blocksize;
         
-        // Ensure output buffer has sufficient capacity before processing
+        // Enhanced buffer management with flow control and backpressure
         size_t required_samples = static_cast<size_t>(frame->header.blocksize) * frame->header.channels;
         {
             std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-            if (m_output_buffer.capacity() < required_samples) {
-                m_output_buffer.reserve(required_samples * 2); // Over-allocate for future frames
-                Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] Expanded output buffer to ", 
-                          m_output_buffer.capacity(), " samples");
+            
+            // Check buffer capacity and handle backpressure
+            if (!checkBufferCapacity_unlocked(required_samples)) {
+                handleBackpressure_unlocked(required_samples);
+                
+                // If still no space after backpressure handling, handle overflow
+                if (!checkBufferCapacity_unlocked(required_samples)) {
+                    handleBufferOverflow_unlocked();
+                    return; // Skip this frame to prevent buffer overflow
+                }
             }
+            
+            // Optimize buffer allocation based on stream characteristics
+            optimizeBufferAllocation_unlocked(required_samples);
         }
         
         // High-performance channel assignment processing with minimal overhead
@@ -1773,6 +1983,678 @@ void FLACCodec::freeUnusedMemory_unlocked() {
     if (m_decode_buffer.capacity() > m_decode_buffer.size() * 4) {
         std::vector<FLAC__int32>(m_decode_buffer).swap(m_decode_buffer);
     }
+}
+
+// ============================================================================
+// Enhanced Output Buffer Management Implementation
+// ============================================================================
+
+bool FLACCodec::checkBufferCapacity_unlocked(size_t required_samples) {
+    // Check if buffer has enough space for required samples
+    size_t available_space = m_max_pending_samples - m_output_buffer.size();
+    
+    if (required_samples > available_space) {
+        Debug::log("flac_codec", "[FLACCodec::checkBufferCapacity_unlocked] Insufficient buffer space: ", 
+                  "required=", required_samples, ", available=", available_space, 
+                  ", buffer_size=", m_output_buffer.size(), ", max_pending=", m_max_pending_samples);
+        
+        updateBufferStatistics_unlocked(true, false); // Record overflow
+        return false;
+    }
+    
+    return true;
+}
+
+void FLACCodec::handleBufferOverflow_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::handleBufferOverflow_unlocked] Buffer overflow detected");
+    
+    m_buffer_overflow_detected = true;
+    m_buffer_overrun_count++;
+    
+    // Activate backpressure to prevent further overflow
+    activateBackpressure_unlocked();
+    
+    // If adaptive sizing is enabled, try to increase buffer size
+    if (m_adaptive_buffer_sizing && m_max_pending_samples < MAX_BUFFER_SAMPLES) {
+        size_t new_max = std::min(m_max_pending_samples * 2, MAX_BUFFER_SAMPLES);
+        Debug::log("flac_codec", "[FLACCodec::handleBufferOverflow_unlocked] Increasing max pending samples from ", 
+                  m_max_pending_samples, " to ", new_max);
+        m_max_pending_samples = new_max;
+        updateBufferWatermarks_unlocked();
+    }
+}
+
+void FLACCodec::handleBufferUnderrun_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::handleBufferUnderrun_unlocked] Buffer underrun detected");
+    
+    m_buffer_underrun_count++;
+    
+    // Deactivate backpressure if it was active
+    if (m_backpressure_active) {
+        deactivateBackpressure_unlocked();
+    }
+    
+    // Notify waiting threads that buffer space is available
+    notifyBufferSpaceAvailable_unlocked();
+}
+
+bool FLACCodec::waitForBufferSpace_unlocked(size_t required_samples, std::chrono::milliseconds timeout) {
+    auto start_time = std::chrono::steady_clock::now();
+    
+    while (!checkBufferCapacity_unlocked(required_samples)) {
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed >= timeout) {
+            Debug::log("flac_codec", "[FLACCodec::waitForBufferSpace_unlocked] Timeout waiting for buffer space");
+            return false;
+        }
+        
+        // Wait for buffer space to become available
+        auto remaining_timeout = timeout - std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
+        std::unique_lock<std::mutex> lock(m_buffer_mutex, std::adopt_lock);
+        if (m_buffer_cv.wait_for(lock, remaining_timeout) == std::cv_status::timeout) {
+            Debug::log("flac_codec", "[FLACCodec::waitForBufferSpace_unlocked] Condition variable timeout");
+            lock.release(); // Don't unlock since we adopted the lock
+            return false;
+        }
+        lock.release(); // Don't unlock since we adopted the lock
+    }
+    
+    return true;
+}
+
+void FLACCodec::notifyBufferSpaceAvailable_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::notifyBufferSpaceAvailable_unlocked] Notifying buffer space available");
+    m_buffer_cv.notify_all();
+}
+
+void FLACCodec::updateBufferWatermarks_unlocked() {
+    m_buffer_high_watermark = (m_max_pending_samples * 3) / 4;  // 75% of max
+    m_buffer_low_watermark = m_max_pending_samples / 4;         // 25% of max
+    
+    Debug::log("flac_codec", "[FLACCodec::updateBufferWatermarks_unlocked] Updated watermarks: ", 
+              "low=", m_buffer_low_watermark, ", high=", m_buffer_high_watermark, 
+              ", max=", m_max_pending_samples);
+}
+
+void FLACCodec::resetBufferFlowControl_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::resetBufferFlowControl_unlocked] Resetting flow control state");
+    
+    m_buffer_overflow_detected = false;
+    m_backpressure_active = false;
+    m_buffer_full = false;
+    
+    // Reset statistics
+    m_buffer_underrun_count = 0;
+    m_buffer_overrun_count = 0;
+    m_buffer_allocation_count = 0;
+    
+    // Notify any waiting threads
+    notifyBufferSpaceAvailable_unlocked();
+}
+
+void FLACCodec::optimizeBufferAllocation_unlocked(size_t required_samples) {
+    if (!m_adaptive_buffer_sizing) {
+        return;
+    }
+    
+    // Calculate optimal buffer size based on stream characteristics
+    size_t optimal_size = calculateOptimalBufferSize_unlocked(required_samples);
+    
+    if (optimal_size != m_preferred_buffer_size) {
+        Debug::log("flac_codec", "[FLACCodec::optimizeBufferAllocation_unlocked] Updating preferred buffer size from ", 
+                  m_preferred_buffer_size, " to ", optimal_size);
+        m_preferred_buffer_size = optimal_size;
+    }
+    
+    // Perform adaptive resize if needed
+    if (requiresBufferReallocation_unlocked(required_samples)) {
+        adaptiveBufferResize_unlocked(required_samples);
+    }
+}
+
+void FLACCodec::adaptiveBufferResize_unlocked(size_t required_samples) {
+    size_t current_capacity = m_output_buffer.capacity();
+    size_t new_capacity = std::max(required_samples * 2, m_preferred_buffer_size);
+    
+    // Ensure we don't exceed maximum buffer size
+    new_capacity = std::min(new_capacity, MAX_BUFFER_SAMPLES);
+    
+    if (new_capacity != current_capacity) {
+        Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Resizing buffer from ", 
+                  current_capacity, " to ", new_capacity, " samples");
+        
+        m_output_buffer.reserve(new_capacity);
+        m_buffer_allocation_count++;
+        
+        // Update max pending samples if needed
+        if (new_capacity < m_max_pending_samples) {
+            m_max_pending_samples = new_capacity;
+            updateBufferWatermarks_unlocked();
+        }
+    }
+}
+
+bool FLACCodec::requiresBufferReallocation_unlocked(size_t required_samples) const {
+    size_t current_capacity = m_output_buffer.capacity();
+    
+    // Reallocate if current capacity is insufficient
+    if (current_capacity < required_samples) {
+        return true;
+    }
+    
+    // Reallocate if buffer is significantly over-allocated (more than 4x needed)
+    if (current_capacity > required_samples * 4 && current_capacity > m_preferred_buffer_size * 2) {
+        return true;
+    }
+    
+    return false;
+}
+
+void FLACCodec::updateBufferStatistics_unlocked(bool overflow, bool underrun) {
+    if (overflow) {
+        m_buffer_overrun_count++;
+        m_buffer_overflow_detected = true;
+    }
+    
+    if (underrun) {
+        m_buffer_underrun_count++;
+    }
+    
+    // Log statistics periodically for debugging
+    static size_t log_counter = 0;
+    if (++log_counter % 1000 == 0) {
+        Debug::log("flac_codec", "[FLACCodec::updateBufferStatistics_unlocked] Buffer stats: ", 
+                  "overruns=", m_buffer_overrun_count, ", underruns=", m_buffer_underrun_count, 
+                  ", allocations=", m_buffer_allocation_count, ", size=", m_output_buffer.size(), 
+                  ", capacity=", m_output_buffer.capacity());
+    }
+}
+
+size_t FLACCodec::calculateOptimalBufferSize_unlocked(size_t required_samples) const {
+    // Base optimal size on stream characteristics
+    size_t base_size = static_cast<size_t>(m_sample_rate) * m_channels / 10; // 100ms worth of samples
+    
+    // Factor in block size if known
+    if (m_max_block_size > 0) {
+        size_t block_samples = static_cast<size_t>(m_max_block_size) * m_channels;
+        base_size = std::max(base_size, block_samples * 4); // 4 blocks worth
+    }
+    
+    // Ensure it's at least as large as required
+    base_size = std::max(base_size, required_samples * 2);
+    
+    // Cap at maximum buffer size
+    return std::min(base_size, MAX_BUFFER_SAMPLES);
+}
+
+bool FLACCodec::isBackpressureActive_unlocked() const {
+    return m_backpressure_active;
+}
+
+void FLACCodec::activateBackpressure_unlocked() {
+    if (!m_backpressure_active) {
+        Debug::log("flac_codec", "[FLACCodec::activateBackpressure_unlocked] Activating backpressure");
+        m_backpressure_active = true;
+        m_buffer_full = true;
+    }
+}
+
+void FLACCodec::deactivateBackpressure_unlocked() {
+    if (m_backpressure_active) {
+        Debug::log("flac_codec", "[FLACCodec::deactivateBackpressure_unlocked] Deactivating backpressure");
+        m_backpressure_active = false;
+        m_buffer_full = false;
+        notifyBufferSpaceAvailable_unlocked();
+    }
+}
+
+bool FLACCodec::shouldApplyBackpressure_unlocked(size_t required_samples) const {
+    // Apply backpressure if buffer is above high watermark
+    size_t current_size = m_output_buffer.size();
+    
+    if (current_size + required_samples > m_buffer_high_watermark) {
+        return true;
+    }
+    
+    // Apply backpressure if we're already in backpressure state and buffer isn't below low watermark
+    if (m_backpressure_active && current_size > m_buffer_low_watermark) {
+        return true;
+    }
+    
+    return false;
+}
+
+void FLACCodec::handleBackpressure_unlocked(size_t required_samples) {
+    Debug::log("flac_codec", "[FLACCodec::handleBackpressure_unlocked] Handling backpressure for ", 
+              required_samples, " samples");
+    
+    if (shouldApplyBackpressure_unlocked(required_samples)) {
+        activateBackpressure_unlocked();
+        
+        // Wait for buffer space to become available
+        if (!waitForBufferSpace_unlocked(required_samples)) {
+            Debug::log("flac_codec", "[FLACCodec::handleBackpressure_unlocked] Failed to wait for buffer space");
+            handleBufferOverflow_unlocked();
+        }
+    } else if (m_backpressure_active && m_output_buffer.size() <= m_buffer_low_watermark) {
+        deactivateBackpressure_unlocked();
+    }
+}
+
+// ============================================================================
+// Input Queue Management Implementation
+// ============================================================================
+
+bool FLACCodec::enqueueInputChunk_unlocked(const MediaChunk& chunk) {
+    Debug::log("flac_codec", "[FLACCodec::enqueueInputChunk_unlocked] Enqueueing chunk with ", 
+              chunk.data.size(), " bytes");
+    
+    // Check if we have capacity for this chunk
+    if (!checkInputQueueCapacity_unlocked(chunk)) {
+        handleInputBackpressure_unlocked(chunk);
+        
+        // Check again after backpressure handling
+        if (!checkInputQueueCapacity_unlocked(chunk)) {
+            handleInputOverflow_unlocked();
+            return false;
+        }
+    }
+    
+    // Add chunk to queue
+    m_input_queue.push(chunk);
+    m_input_queue_bytes += chunk.data.size();
+    
+    Debug::log("flac_codec", "[FLACCodec::enqueueInputChunk_unlocked] Enqueued chunk, queue size: ", 
+              m_input_queue.size(), " chunks, ", m_input_queue_bytes, " bytes");
+    
+    return true;
+}
+
+MediaChunk FLACCodec::dequeueInputChunk_unlocked() {
+    if (m_input_queue.empty()) {
+        Debug::log("flac_codec", "[FLACCodec::dequeueInputChunk_unlocked] Input queue is empty");
+        handleInputUnderrun_unlocked();
+        return MediaChunk();
+    }
+    
+    MediaChunk chunk = m_input_queue.front();
+    m_input_queue.pop();
+    m_input_queue_bytes -= chunk.data.size();
+    
+    Debug::log("flac_codec", "[FLACCodec::dequeueInputChunk_unlocked] Dequeued chunk with ", 
+              chunk.data.size(), " bytes, queue size: ", m_input_queue.size(), " chunks, ", 
+              m_input_queue_bytes, " bytes");
+    
+    // Notify waiting threads that queue space is available
+    notifyInputQueueSpaceAvailable_unlocked();
+    
+    // Deactivate input backpressure if queue is below low watermark
+    if (m_input_backpressure_active && m_input_queue.size() <= m_input_queue_low_watermark) {
+        deactivateInputBackpressure_unlocked();
+    }
+    
+    return chunk;
+}
+
+bool FLACCodec::hasInputChunks_unlocked() const {
+    return !m_input_queue.empty();
+}
+
+size_t FLACCodec::getInputQueueSize_unlocked() const {
+    return m_input_queue.size();
+}
+
+void FLACCodec::clearInputQueue_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::clearInputQueue_unlocked] Clearing input queue with ", 
+              m_input_queue.size(), " chunks");
+    
+    // Clear the queue
+    while (!m_input_queue.empty()) {
+        m_input_queue.pop();
+    }
+    m_input_queue_bytes = 0;
+    
+    // Reset frame reconstruction
+    resetFrameReconstruction_unlocked();
+    
+    // Reset flow control
+    resetInputFlowControl_unlocked();
+}
+
+bool FLACCodec::isInputQueueFull_unlocked() const {
+    return m_input_queue.size() >= m_max_input_queue_size || 
+           m_input_queue_bytes >= m_max_input_queue_bytes;
+}
+
+void FLACCodec::updateInputQueueWatermarks_unlocked() {
+    m_input_queue_high_watermark = (m_max_input_queue_size * 3) / 4;  // 75% of max
+    m_input_queue_low_watermark = m_max_input_queue_size / 4;         // 25% of max
+    
+    Debug::log("flac_codec", "[FLACCodec::updateInputQueueWatermarks_unlocked] Updated input watermarks: ", 
+              "low=", m_input_queue_low_watermark, ", high=", m_input_queue_high_watermark, 
+              ", max=", m_max_input_queue_size);
+}
+
+// ============================================================================
+// Frame Reconstruction Implementation
+// ============================================================================
+
+bool FLACCodec::processPartialFrame_unlocked(const MediaChunk& chunk) {
+    Debug::log("flac_codec", "[FLACCodec::processPartialFrame_unlocked] Processing partial frame with ", 
+              chunk.data.size(), " bytes");
+    
+    m_partial_frames_received++;
+    
+    // If not currently reconstructing, start new frame reconstruction
+    if (!m_frame_reconstruction_active) {
+        // Estimate frame size from header if possible
+        m_expected_frame_size = estimateFrameSize_unlocked(chunk.data.data(), chunk.data.size());
+        
+        if (m_expected_frame_size == 0) {
+            Debug::log("flac_codec", "[FLACCodec::processPartialFrame_unlocked] Cannot estimate frame size");
+            return false;
+        }
+        
+        // Initialize partial frame buffer
+        m_partial_frame_buffer.clear();
+        m_partial_frame_buffer.reserve(m_expected_frame_size);
+        m_frame_reconstruction_active = true;
+        
+        Debug::log("flac_codec", "[FLACCodec::processPartialFrame_unlocked] Started frame reconstruction, expected size: ", 
+                  m_expected_frame_size);
+    }
+    
+    // Append chunk data to partial frame buffer
+    if (m_partial_frame_buffer.size() + chunk.data.size() <= m_expected_frame_size) {
+        m_partial_frame_buffer.insert(m_partial_frame_buffer.end(), 
+                                     chunk.data.begin(), chunk.data.end());
+        
+        Debug::log("flac_codec", "[FLACCodec::processPartialFrame_unlocked] Appended ", chunk.data.size(), 
+                  " bytes, buffer now has ", m_partial_frame_buffer.size(), " bytes");
+        return true;
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::processPartialFrame_unlocked] Chunk would exceed expected frame size");
+        resetFrameReconstruction_unlocked();
+        return false;
+    }
+}
+
+bool FLACCodec::reconstructFrame_unlocked(MediaChunk& complete_frame) {
+    if (!m_frame_reconstruction_active || m_partial_frame_buffer.empty()) {
+        return false;
+    }
+    
+    // Check if frame is complete
+    if (isFrameComplete_unlocked(m_partial_frame_buffer.data(), m_partial_frame_buffer.size())) {
+        // Create complete frame from reconstructed data
+        complete_frame.data = m_partial_frame_buffer;
+        complete_frame.timestamp_samples = 0; // Will be set by caller if needed
+        
+        m_frames_reconstructed++;
+        
+        Debug::log("flac_codec", "[FLACCodec::reconstructFrame_unlocked] Reconstructed complete frame with ", 
+                  complete_frame.data.size(), " bytes");
+        
+        // Reset reconstruction state
+        resetFrameReconstruction_unlocked();
+        return true;
+    }
+    
+    return false;
+}
+
+void FLACCodec::resetFrameReconstruction_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::resetFrameReconstruction_unlocked] Resetting frame reconstruction");
+    
+    m_frame_reconstruction_active = false;
+    m_expected_frame_size = 0;
+    m_partial_frame_buffer.clear();
+}
+
+bool FLACCodec::isFrameComplete_unlocked(const uint8_t* data, size_t size) const {
+    if (!data || size < 4) {
+        return false;
+    }
+    
+    // Basic FLAC frame completeness check
+    // A complete frame should have:
+    // 1. Valid sync pattern (0xFFF8-0xFFFF at start)
+    // 2. Valid frame header
+    // 3. Proper frame size matching the data
+    
+    // Check sync pattern (RFC 9639 Section 9.2.1)
+    if (data[0] != 0xFF || (data[1] & 0xF8) != 0xF8) {
+        return false;
+    }
+    
+    // Validate frame header structure
+    if (!validateFrameHeader_unlocked(data, size)) {
+        return false;
+    }
+    
+    // For a more complete check, we would need to parse the entire frame
+    // For now, assume frame is complete if it has valid header and expected size
+    return size >= m_expected_frame_size;
+}
+
+size_t FLACCodec::estimateFrameSize_unlocked(const uint8_t* data, size_t size) const {
+    if (!data || size < 4) {
+        return 0;
+    }
+    
+    // Check for FLAC sync pattern
+    if (data[0] != 0xFF || (data[1] & 0xF8) != 0xF8) {
+        return 0;
+    }
+    
+    // For FLAC frames, size estimation is complex because frames are variable length
+    // We'll use a conservative estimate based on block size and bit depth
+    
+    // Parse block size from frame header (RFC 9639 Section 9.2.2)
+    uint8_t block_size_bits = (data[2] >> 4) & 0x0F;
+    uint32_t estimated_block_size = 0;
+    
+    switch (block_size_bits) {
+        case 0x1: estimated_block_size = 192; break;
+        case 0x2: case 0x3: case 0x4: case 0x5:
+            estimated_block_size = 576 << (block_size_bits - 2); break;
+        case 0x6: case 0x7:
+            // Variable block size - need to read from frame header
+            estimated_block_size = 4608; // Conservative estimate
+            break;
+        case 0x8: case 0x9: case 0xA: case 0xB: case 0xC: case 0xD: case 0xE: case 0xF:
+            estimated_block_size = 256 << (block_size_bits - 8); break;
+        default:
+            estimated_block_size = 4608; // Conservative default
+            break;
+    }
+    
+    // Estimate frame size based on block size, channels, and bit depth
+    // This is a rough estimate - actual frames can be much smaller due to compression
+    size_t estimated_size = (estimated_block_size * m_channels * m_bits_per_sample) / 8;
+    
+    // Add overhead for frame header, subframe headers, and CRC
+    estimated_size += 64; // Conservative overhead estimate
+    
+    // Ensure minimum reasonable size
+    estimated_size = std::max(estimated_size, size_t(16));
+    
+    // Cap at reasonable maximum (highly compressed frames are usually much smaller)
+    estimated_size = std::min(estimated_size, size_t(65536));
+    
+    Debug::log("flac_codec", "[FLACCodec::estimateFrameSize_unlocked] Estimated frame size: ", 
+              estimated_size, " bytes for block size ", estimated_block_size);
+    
+    return estimated_size;
+}
+
+bool FLACCodec::validateFrameHeader_unlocked(const uint8_t* data, size_t size) const {
+    if (!data || size < 4) {
+        return false;
+    }
+    
+    // Check sync pattern (RFC 9639 Section 9.2.1)
+    if (data[0] != 0xFF || (data[1] & 0xF8) != 0xF8) {
+        return false;
+    }
+    
+    // Check reserved bits (should be 0)
+    if ((data[1] & 0x06) != 0) {
+        return false;
+    }
+    
+    // Basic validation of frame header fields
+    uint8_t block_size_bits = (data[2] >> 4) & 0x0F;
+    // uint8_t sample_rate_bits = data[2] & 0x0F; // Not used in validation
+    uint8_t channel_assignment = (data[3] >> 4) & 0x0F;
+    uint8_t sample_size_bits = (data[3] >> 1) & 0x07;
+    
+    // Validate block size field (RFC 9639 Section 9.2.2)
+    if (block_size_bits == 0x0) {
+        return false; // Reserved
+    }
+    
+    // Validate sample rate field (RFC 9639 Section 9.2.3)
+    // All values are valid, so no check needed
+    
+    // Validate channel assignment (RFC 9639 Section 9.2.4)
+    if (channel_assignment > 0x0A) {
+        return false; // Reserved values
+    }
+    
+    // Validate sample size (RFC 9639 Section 9.2.5)
+    if (sample_size_bits == 0x3 || sample_size_bits == 0x7) {
+        return false; // Reserved values
+    }
+    
+    return true;
+}
+
+// ============================================================================
+// Input Flow Control Implementation
+// ============================================================================
+
+bool FLACCodec::checkInputQueueCapacity_unlocked(const MediaChunk& chunk) {
+    // Check both queue size and byte limits
+    if (m_input_queue.size() >= m_max_input_queue_size) {
+        Debug::log("flac_codec", "[FLACCodec::checkInputQueueCapacity_unlocked] Queue size limit exceeded: ", 
+                  m_input_queue.size(), " >= ", m_max_input_queue_size);
+        return false;
+    }
+    
+    if (m_input_queue_bytes + chunk.data.size() > m_max_input_queue_bytes) {
+        Debug::log("flac_codec", "[FLACCodec::checkInputQueueCapacity_unlocked] Queue byte limit exceeded: ", 
+                  m_input_queue_bytes + chunk.data.size(), " > ", m_max_input_queue_bytes);
+        return false;
+    }
+    
+    return true;
+}
+
+void FLACCodec::handleInputOverflow_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::handleInputOverflow_unlocked] Input queue overflow detected");
+    
+    m_input_overrun_count++;
+    activateInputBackpressure_unlocked();
+}
+
+void FLACCodec::handleInputUnderrun_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::handleInputUnderrun_unlocked] Input queue underrun detected");
+    
+    m_input_underrun_count++;
+    
+    if (m_input_backpressure_active) {
+        deactivateInputBackpressure_unlocked();
+    }
+}
+
+bool FLACCodec::waitForInputQueueSpace_unlocked(const MediaChunk& chunk, std::chrono::milliseconds timeout) {
+    auto start_time = std::chrono::steady_clock::now();
+    
+    while (!checkInputQueueCapacity_unlocked(chunk)) {
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed >= timeout) {
+            Debug::log("flac_codec", "[FLACCodec::waitForInputQueueSpace_unlocked] Timeout waiting for queue space");
+            return false;
+        }
+        
+        // Wait for queue space to become available
+        auto remaining_timeout = timeout - std::chrono::duration_cast<std::chrono::milliseconds>(elapsed);
+        std::unique_lock<std::mutex> lock(m_input_mutex, std::adopt_lock);
+        if (m_input_cv.wait_for(lock, remaining_timeout) == std::cv_status::timeout) {
+            Debug::log("flac_codec", "[FLACCodec::waitForInputQueueSpace_unlocked] Condition variable timeout");
+            lock.release(); // Don't unlock since we adopted the lock
+            return false;
+        }
+        lock.release(); // Don't unlock since we adopted the lock
+    }
+    
+    return true;
+}
+
+void FLACCodec::notifyInputQueueSpaceAvailable_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::notifyInputQueueSpaceAvailable_unlocked] Notifying input queue space available");
+    m_input_cv.notify_all();
+}
+
+bool FLACCodec::shouldApplyInputBackpressure_unlocked(const MediaChunk& chunk) const {
+    // Apply backpressure if queue is above high watermark
+    if (m_input_queue.size() >= m_input_queue_high_watermark) {
+        return true;
+    }
+    
+    // Apply backpressure if we're already in backpressure state and queue isn't below low watermark
+    if (m_input_backpressure_active && m_input_queue.size() > m_input_queue_low_watermark) {
+        return true;
+    }
+    
+    return false;
+}
+
+void FLACCodec::handleInputBackpressure_unlocked(const MediaChunk& chunk) {
+    Debug::log("flac_codec", "[FLACCodec::handleInputBackpressure_unlocked] Handling input backpressure for chunk with ", 
+              chunk.data.size(), " bytes");
+    
+    if (shouldApplyInputBackpressure_unlocked(chunk)) {
+        activateInputBackpressure_unlocked();
+        
+        // Wait for queue space to become available
+        if (!waitForInputQueueSpace_unlocked(chunk)) {
+            Debug::log("flac_codec", "[FLACCodec::handleInputBackpressure_unlocked] Failed to wait for queue space");
+            handleInputOverflow_unlocked();
+        }
+    } else if (m_input_backpressure_active && m_input_queue.size() <= m_input_queue_low_watermark) {
+        deactivateInputBackpressure_unlocked();
+    }
+}
+
+void FLACCodec::activateInputBackpressure_unlocked() {
+    if (!m_input_backpressure_active) {
+        Debug::log("flac_codec", "[FLACCodec::activateInputBackpressure_unlocked] Activating input backpressure");
+        m_input_backpressure_active = true;
+        m_input_queue_full = true;
+    }
+}
+
+void FLACCodec::deactivateInputBackpressure_unlocked() {
+    if (m_input_backpressure_active) {
+        Debug::log("flac_codec", "[FLACCodec::deactivateInputBackpressure_unlocked] Deactivating input backpressure");
+        m_input_backpressure_active = false;
+        m_input_queue_full = false;
+        notifyInputQueueSpaceAvailable_unlocked();
+    }
+}
+
+void FLACCodec::resetInputFlowControl_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::resetInputFlowControl_unlocked] Resetting input flow control");
+    
+    m_input_backpressure_active = false;
+    m_input_queue_full = false;
+    m_input_underrun_count = 0;
+    m_input_overrun_count = 0;
+    
+    // Notify any waiting threads
+    notifyInputQueueSpaceAvailable_unlocked();
 }
 
 // Performance monitoring methods
@@ -3299,6 +4181,608 @@ void FLACCodec::optimizeForVariableBlockSizes_unlocked() {
     m_adaptive_buffering_enabled = true;
     
     Debug::log("flac_codec", "[FLACCodec::optimizeForVariableBlockSizes_unlocked] Variable block size optimization completed");
+}
+
+// ============================================================================
+// Threading and Asynchronous Processing Implementation
+// ============================================================================
+
+// Public threading interface (thread-safe with RAII guards)
+
+bool FLACCodec::startDecoderThread() {
+    Debug::log("flac_codec", "[FLACCodec::startDecoderThread] [ENTRY] Acquiring thread lock");
+    std::lock_guard<std::mutex> lock(m_thread_mutex);
+    Debug::log("flac_codec", "[FLACCodec::startDecoderThread] [LOCKED] Thread lock acquired, calling unlocked implementation");
+    
+    try {
+        bool result = startDecoderThread_unlocked();
+        Debug::log("flac_codec", "[FLACCodec::startDecoderThread] [EXIT] Returning ", result ? "success" : "failure");
+        return result;
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::startDecoderThread] [EXCEPTION] ", e.what());
+        handleThreadException_unlocked(e);
+        return false;
+    }
+}
+
+void FLACCodec::stopDecoderThread() {
+    Debug::log("flac_codec", "[FLACCodec::stopDecoderThread] [ENTRY] Acquiring thread lock");
+    std::lock_guard<std::mutex> lock(m_thread_mutex);
+    Debug::log("flac_codec", "[FLACCodec::stopDecoderThread] [LOCKED] Thread lock acquired, calling unlocked implementation");
+    
+    try {
+        stopDecoderThread_unlocked();
+        Debug::log("flac_codec", "[FLACCodec::stopDecoderThread] [EXIT] Thread stopped successfully");
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::stopDecoderThread] [EXCEPTION] ", e.what());
+        handleThreadException_unlocked(e);
+    }
+}
+
+bool FLACCodec::isDecoderThreadActive() const {
+    // Atomic read - no lock needed for thread-safe access
+    bool active = m_thread_active.load();
+    Debug::log("flac_codec", "[FLACCodec::isDecoderThreadActive] Thread active: ", active ? "true" : "false");
+    return active;
+}
+
+void FLACCodec::enableAsyncProcessing(bool enable) {
+    Debug::log("flac_codec", "[FLACCodec::enableAsyncProcessing] [ENTRY] Setting async processing to ", enable ? "enabled" : "disabled");
+    std::lock_guard<std::mutex> lock(m_async_mutex);
+    Debug::log("flac_codec", "[FLACCodec::enableAsyncProcessing] [LOCKED] Async lock acquired");
+    
+    try {
+        m_async_processing_enabled = enable;
+        
+        if (!enable) {
+            // Clear async queues when disabling
+            clearAsyncQueues_unlocked();
+            Debug::log("flac_codec", "[FLACCodec::enableAsyncProcessing] Async queues cleared");
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::enableAsyncProcessing] [EXIT] Async processing ", 
+                  enable ? "enabled" : "disabled");
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::enableAsyncProcessing] [EXCEPTION] ", e.what());
+    }
+}
+
+bool FLACCodec::isAsyncProcessingEnabled() const {
+    std::lock_guard<std::mutex> lock(m_async_mutex);
+    bool enabled = m_async_processing_enabled;
+    Debug::log("flac_codec", "[FLACCodec::isAsyncProcessingEnabled] Async processing: ", enabled ? "enabled" : "disabled");
+    return enabled;
+}
+
+// Private threading implementation methods (assume locks are held)
+
+bool FLACCodec::startDecoderThread_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Starting decoder thread");
+    
+    // Check if thread is already active
+    if (m_thread_active.load()) {
+        Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Thread already active");
+        return true;
+    }
+    
+    // Check if codec is properly initialized
+    if (!m_initialized || !m_decoder_initialized) {
+        Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Codec not initialized - cannot start thread");
+        return false;
+    }
+    
+    try {
+        // Initialize thread state
+        if (!initializeDecoderThread_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Failed to initialize thread state");
+            return false;
+        }
+        
+        // Reset thread flags
+        m_thread_shutdown_requested.store(false);
+        m_thread_exception_occurred = false;
+        m_thread_exception_message.clear();
+        m_pending_work_items.store(0);
+        m_completed_work_items.store(0);
+        
+        // Create and start the decoder thread
+        m_decoder_thread = std::make_unique<std::thread>(&FLACCodec::decoderThreadLoop, this);
+        
+        if (!m_decoder_thread || !m_decoder_thread->joinable()) {
+            Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Failed to create decoder thread");
+            cleanupDecoderThread_unlocked();
+            return false;
+        }
+        
+        // Wait for thread to become active (with timeout)
+        auto start_time = std::chrono::high_resolution_clock::now();
+        while (!m_thread_active.load() && !m_thread_exception_occurred) {
+            auto elapsed = std::chrono::high_resolution_clock::now() - start_time;
+            if (elapsed > std::chrono::milliseconds(1000)) { // 1 second timeout
+                Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Thread startup timeout");
+                stopDecoderThread_unlocked();
+                return false;
+            }
+            
+            // Brief sleep to avoid busy waiting
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        
+        if (m_thread_exception_occurred) {
+            Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Thread startup failed with exception: ", 
+                      m_thread_exception_message);
+            stopDecoderThread_unlocked();
+            return false;
+        }
+        
+        m_thread_start_time = std::chrono::high_resolution_clock::now();
+        
+        Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Decoder thread started successfully");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::startDecoderThread_unlocked] Exception: ", e.what());
+        handleThreadException_unlocked(e);
+        cleanupDecoderThread_unlocked();
+        return false;
+    }
+}
+
+void FLACCodec::stopDecoderThread_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] Stopping decoder thread");
+    
+    if (!m_thread_active.load() && !m_decoder_thread) {
+        Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] No active thread to stop");
+        return;
+    }
+    
+    try {
+        // Request thread shutdown
+        m_thread_shutdown_requested.store(true);
+        
+        // Notify thread to wake up and check shutdown flag
+        notifyWorkAvailable_unlocked();
+        
+        // Wait for thread to complete with timeout
+        if (!waitForThreadShutdown_unlocked(m_thread_shutdown_timeout)) {
+            Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] Thread shutdown timeout - forcing termination");
+            
+            // Force thread termination (not ideal but necessary for cleanup)
+            if (m_decoder_thread && m_decoder_thread->joinable()) {
+                // Note: std::thread::detach() is safer than forced termination
+                m_decoder_thread->detach();
+                Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] Thread detached due to timeout");
+            }
+        } else {
+            Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] Thread shutdown completed gracefully");
+        }
+        
+        // Clean up thread resources
+        cleanupDecoderThread_unlocked();
+        
+        // Log thread statistics
+        logThreadStatistics_unlocked();
+        
+        Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] Decoder thread stopped");
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] Exception during thread shutdown: ", e.what());
+        handleThreadException_unlocked(e);
+        
+        // Force cleanup even if exception occurred
+        try {
+            cleanupDecoderThread_unlocked();
+        } catch (...) {
+            Debug::log("flac_codec", "[FLACCodec::stopDecoderThread_unlocked] Exception during cleanup - ignoring");
+        }
+    }
+}
+
+void FLACCodec::decoderThreadLoop() {
+    Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Decoder thread started");
+    
+    try {
+        // Mark thread as active
+        m_thread_active.store(true);
+        
+        // Thread main loop
+        while (!m_thread_shutdown_requested.load()) {
+            bool work_processed = false;
+            
+            try {
+                // Process asynchronous input if available
+                if (m_async_processing_enabled) {
+                    MediaChunk input_chunk;
+                    
+                    // Check for async input work
+                    {
+                        std::lock_guard<std::mutex> async_lock(m_async_mutex);
+                        if (hasAsyncInput_unlocked()) {
+                            input_chunk = dequeueAsyncInput_unlocked();
+                            work_processed = true;
+                        }
+                    }
+                    
+                    // Process the chunk if we have one
+                    if (!input_chunk.data.empty()) {
+                        auto start_time = std::chrono::high_resolution_clock::now();
+                        
+                        // Decode the chunk (this will acquire necessary locks internally)
+                        AudioFrame decoded_frame = decode(input_chunk);
+                        
+                        auto end_time = std::chrono::high_resolution_clock::now();
+                        auto processing_time = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+                        
+                        // Update thread performance statistics
+                        m_thread_processing_time_us.fetch_add(processing_time.count());
+                        m_thread_frames_processed.fetch_add(1);
+                        
+                        // Queue the result if we got valid output
+                        if (decoded_frame.getSampleFrameCount() > 0) {
+                            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+                            if (!enqueueAsyncOutput_unlocked(decoded_frame)) {
+                                Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Failed to enqueue output frame");
+                            }
+                        }
+                        
+                        // Update work completion counters
+                        m_completed_work_items.fetch_add(1);
+                        notifyWorkCompleted_unlocked();
+                    }
+                }
+                
+                // If no work was processed, wait for work or shutdown signal
+                if (!work_processed) {
+                    std::unique_lock<std::mutex> thread_lock(m_thread_mutex);
+                    
+                    // Wait for work to become available or shutdown request
+                    m_work_available_cv.wait_for(thread_lock, m_thread_work_timeout, [this] {
+                        return m_thread_shutdown_requested.load() || 
+                               (m_async_processing_enabled && hasAsyncInput_unlocked());
+                    });
+                    
+                    // Count idle cycles for performance monitoring
+                    if (!m_thread_shutdown_requested.load()) {
+                        m_thread_idle_cycles.fetch_add(1);
+                    }
+                }
+                
+            } catch (const std::exception& e) {
+                Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Exception in work processing: ", e.what());
+                
+                // Handle thread exception but continue running
+                {
+                    std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
+                    handleThreadException_unlocked(e);
+                }
+                
+                // Brief sleep to prevent tight exception loop
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Shutdown requested, exiting thread loop");
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Fatal exception: ", e.what());
+        
+        // Mark thread exception for main thread to handle
+        {
+            std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
+            handleThreadException_unlocked(e);
+        }
+    } catch (...) {
+        Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Unknown fatal exception");
+        
+        // Mark unknown exception
+        {
+            std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
+            m_thread_exception_occurred = true;
+            m_thread_exception_message = "Unknown exception in decoder thread";
+        }
+    }
+    
+    // Mark thread as no longer active
+    m_thread_active.store(false);
+    
+    // Notify any waiting threads that we're shutting down
+    {
+        std::lock_guard<std::mutex> thread_lock(m_thread_mutex);
+        handleThreadTermination_unlocked();
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::decoderThreadLoop] [THREAD] Decoder thread terminated");
+}
+
+bool FLACCodec::initializeDecoderThread_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::initializeDecoderThread_unlocked] Initializing thread state");
+    
+    try {
+        // Reset thread state
+        resetThreadState_unlocked();
+        
+        // Initialize async queues if async processing is enabled
+        if (m_async_processing_enabled) {
+            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+            clearAsyncQueues_unlocked();
+        }
+        
+        // Set thread initialization flag
+        m_thread_initialized = true;
+        m_clean_shutdown_completed = false;
+        
+        Debug::log("flac_codec", "[FLACCodec::initializeDecoderThread_unlocked] Thread state initialized successfully");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::initializeDecoderThread_unlocked] Exception: ", e.what());
+        return false;
+    }
+}
+
+void FLACCodec::cleanupDecoderThread_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::cleanupDecoderThread_unlocked] Cleaning up thread resources");
+    
+    try {
+        // Join thread if it's still joinable
+        if (m_decoder_thread && m_decoder_thread->joinable()) {
+            m_decoder_thread->join();
+            Debug::log("flac_codec", "[FLACCodec::cleanupDecoderThread_unlocked] Thread joined successfully");
+        }
+        
+        // Reset thread pointer
+        m_decoder_thread.reset();
+        
+        // Clear thread state
+        m_thread_active.store(false);
+        m_thread_shutdown_requested.store(false);
+        m_thread_initialized = false;
+        m_clean_shutdown_completed = true;
+        
+        // Clear async queues
+        {
+            std::lock_guard<std::mutex> async_lock(m_async_mutex);
+            clearAsyncQueues_unlocked();
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::cleanupDecoderThread_unlocked] Thread cleanup completed");
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::cleanupDecoderThread_unlocked] Exception during cleanup: ", e.what());
+        
+        // Force reset even if exception occurred
+        m_decoder_thread.reset();
+        m_thread_active.store(false);
+        m_thread_shutdown_requested.store(false);
+    }
+}
+
+bool FLACCodec::waitForThreadShutdown_unlocked(std::chrono::milliseconds timeout) {
+    Debug::log("flac_codec", "[FLACCodec::waitForThreadShutdown_unlocked] Waiting for thread shutdown with ", 
+              timeout.count(), "ms timeout");
+    
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    while (m_thread_active.load()) {
+        auto elapsed = std::chrono::high_resolution_clock::now() - start_time;
+        if (elapsed >= timeout) {
+            Debug::log("flac_codec", "[FLACCodec::waitForThreadShutdown_unlocked] Thread shutdown timeout after ", 
+                      elapsed.count() / 1000000, "ms");
+            return false;
+        }
+        
+        // Brief sleep to avoid busy waiting
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    
+    auto elapsed = std::chrono::high_resolution_clock::now() - start_time;
+    Debug::log("flac_codec", "[FLACCodec::waitForThreadShutdown_unlocked] Thread shutdown completed in ", 
+              elapsed.count() / 1000, "μs");
+    
+    return true;
+}
+
+// Thread synchronization methods
+
+void FLACCodec::notifyWorkAvailable_unlocked() {
+    // Notify the decoder thread that work is available
+    m_work_available_cv.notify_one();
+}
+
+void FLACCodec::notifyWorkCompleted_unlocked() {
+    // Notify waiting threads that work has been completed
+    m_work_completed_cv.notify_all();
+}
+
+bool FLACCodec::waitForWorkCompletion_unlocked(std::chrono::milliseconds timeout) {
+    Debug::log("flac_codec", "[FLACCodec::waitForWorkCompletion_unlocked] Waiting for work completion with ", 
+              timeout.count(), "ms timeout");
+    
+    std::unique_lock<std::mutex> lock(m_thread_mutex);
+    
+    bool completed = m_work_completed_cv.wait_for(lock, timeout, [this] {
+        return m_pending_work_items.load() == m_completed_work_items.load() || 
+               m_thread_shutdown_requested.load() ||
+               m_thread_exception_occurred;
+    });
+    
+    if (completed) {
+        Debug::log("flac_codec", "[FLACCodec::waitForWorkCompletion_unlocked] Work completion detected");
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::waitForWorkCompletion_unlocked] Work completion timeout");
+    }
+    
+    return completed;
+}
+
+void FLACCodec::handleThreadException_unlocked(const std::exception& e) {
+    Debug::log("flac_codec", "[FLACCodec::handleThreadException_unlocked] Handling thread exception: ", e.what());
+    
+    m_thread_exception_occurred = true;
+    m_thread_exception_message = e.what();
+    
+    // Notify any waiting threads about the exception
+    m_work_completed_cv.notify_all();
+    m_work_available_cv.notify_all();
+}
+
+void FLACCodec::resetThreadState_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::resetThreadState_unlocked] Resetting thread state");
+    
+    m_thread_exception_occurred = false;
+    m_thread_exception_message.clear();
+    m_pending_work_items.store(0);
+    m_completed_work_items.store(0);
+    m_thread_processing_time_us.store(0);
+    m_thread_frames_processed.store(0);
+    m_thread_idle_cycles.store(0);
+}
+
+// Asynchronous processing methods
+
+bool FLACCodec::enqueueAsyncInput_unlocked(const MediaChunk& chunk) {
+    if (m_async_input_queue.size() >= m_max_async_input_queue) {
+        Debug::log("flac_codec", "[FLACCodec::enqueueAsyncInput_unlocked] Async input queue full");
+        return false;
+    }
+    
+    m_async_input_queue.push(chunk);
+    m_pending_work_items.fetch_add(1);
+    
+    Debug::log("flac_codec", "[FLACCodec::enqueueAsyncInput_unlocked] Enqueued async input chunk, queue size: ", 
+              m_async_input_queue.size());
+    
+    return true;
+}
+
+MediaChunk FLACCodec::dequeueAsyncInput_unlocked() {
+    if (m_async_input_queue.empty()) {
+        return MediaChunk();
+    }
+    
+    MediaChunk chunk = m_async_input_queue.front();
+    m_async_input_queue.pop();
+    
+    Debug::log("flac_codec", "[FLACCodec::dequeueAsyncInput_unlocked] Dequeued async input chunk, queue size: ", 
+              m_async_input_queue.size());
+    
+    return chunk;
+}
+
+bool FLACCodec::enqueueAsyncOutput_unlocked(const AudioFrame& frame) {
+    if (m_async_output_queue.size() >= m_max_async_output_queue) {
+        Debug::log("flac_codec", "[FLACCodec::enqueueAsyncOutput_unlocked] Async output queue full");
+        return false;
+    }
+    
+    m_async_output_queue.push(frame);
+    
+    Debug::log("flac_codec", "[FLACCodec::enqueueAsyncOutput_unlocked] Enqueued async output frame, queue size: ", 
+              m_async_output_queue.size());
+    
+    return true;
+}
+
+AudioFrame FLACCodec::dequeueAsyncOutput_unlocked() {
+    if (m_async_output_queue.empty()) {
+        return AudioFrame();
+    }
+    
+    AudioFrame frame = m_async_output_queue.front();
+    m_async_output_queue.pop();
+    
+    Debug::log("flac_codec", "[FLACCodec::dequeueAsyncOutput_unlocked] Dequeued async output frame, queue size: ", 
+              m_async_output_queue.size());
+    
+    return frame;
+}
+
+bool FLACCodec::hasAsyncInput_unlocked() const {
+    return !m_async_input_queue.empty();
+}
+
+bool FLACCodec::hasAsyncOutput_unlocked() const {
+    return !m_async_output_queue.empty();
+}
+
+void FLACCodec::clearAsyncQueues_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::clearAsyncQueues_unlocked] Clearing async queues");
+    
+    // Clear input queue
+    while (!m_async_input_queue.empty()) {
+        m_async_input_queue.pop();
+    }
+    
+    // Clear output queue
+    while (!m_async_output_queue.empty()) {
+        m_async_output_queue.pop();
+    }
+    
+    // Reset work counters
+    m_pending_work_items.store(0);
+    m_completed_work_items.store(0);
+    
+    Debug::log("flac_codec", "[FLACCodec::clearAsyncQueues_unlocked] Async queues cleared");
+}
+
+// Thread lifecycle and exception handling
+
+void FLACCodec::ensureThreadSafety_unlocked() {
+    if (m_thread_exception_occurred) {
+        Debug::log("flac_codec", "[FLACCodec::ensureThreadSafety_unlocked] Thread exception detected: ", 
+                  m_thread_exception_message);
+        
+        // Stop the thread if it's still running
+        if (m_thread_active.load()) {
+            stopDecoderThread_unlocked();
+        }
+        
+        throw std::runtime_error("Decoder thread exception: " + m_thread_exception_message);
+    }
+}
+
+bool FLACCodec::isThreadHealthy_unlocked() const {
+    return m_thread_active.load() && !m_thread_exception_occurred && !m_thread_shutdown_requested.load();
+}
+
+void FLACCodec::handleThreadTermination_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::handleThreadTermination_unlocked] Handling thread termination");
+    
+    // Notify all waiting condition variables
+    m_work_completed_cv.notify_all();
+    m_work_available_cv.notify_all();
+    
+    // Clear any pending work
+    m_pending_work_items.store(0);
+    m_completed_work_items.store(0);
+}
+
+void FLACCodec::logThreadStatistics_unlocked() const {
+    if (!m_thread_initialized) {
+        return;
+    }
+    
+    uint64_t total_processing_time = m_thread_processing_time_us.load();
+    size_t frames_processed = m_thread_frames_processed.load();
+    size_t idle_cycles = m_thread_idle_cycles.load();
+    
+    double avg_processing_time = frames_processed > 0 ? 
+                                static_cast<double>(total_processing_time) / frames_processed : 0.0;
+    
+    auto thread_lifetime = std::chrono::high_resolution_clock::now() - m_thread_start_time;
+    auto lifetime_ms = std::chrono::duration_cast<std::chrono::milliseconds>(thread_lifetime).count();
+    
+    Debug::log("flac_codec", "[FLACCodec::logThreadStatistics_unlocked] Thread Statistics:");
+    Debug::log("flac_codec", "  - Lifetime: ", lifetime_ms, " ms");
+    Debug::log("flac_codec", "  - Frames processed: ", frames_processed);
+    Debug::log("flac_codec", "  - Total processing time: ", total_processing_time, " μs");
+    Debug::log("flac_codec", "  - Average processing time per frame: ", avg_processing_time, " μs");
+    Debug::log("flac_codec", "  - Idle cycles: ", idle_cycles);
+    Debug::log("flac_codec", "  - Exception occurred: ", m_thread_exception_occurred ? "yes" : "no");
+    
+    if (m_thread_exception_occurred) {
+        Debug::log("flac_codec", "  - Exception message: ", m_thread_exception_message);
+    }
 }
 
 #endif // HAVE_FLAC

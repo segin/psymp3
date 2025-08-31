@@ -238,8 +238,12 @@ private:
  * 
  * LOCK ACQUISITION ORDER (to prevent deadlocks):
  * 1. m_state_mutex (for codec state and configuration)
- * 2. m_buffer_mutex (for output buffer management)  
- * 3. libFLAC internal locks (managed by libFLAC)
+ * 2. m_thread_mutex (for threading state management)
+ * 3. m_async_mutex (for asynchronous processing queues)
+ * 4. m_decoder_mutex (for libFLAC decoder operations)
+ * 5. m_buffer_mutex (for output buffer management)
+ * 6. m_input_mutex (for input queue and frame reconstruction)
+ * 7. libFLAC internal locks (managed by libFLAC)
  * 
  * NEVER acquire locks in different order to prevent deadlocks!
  * NEVER call public methods from _unlocked methods!
@@ -269,6 +273,7 @@ private:
     // Thread safety - documented lock acquisition order above
     mutable std::mutex m_state_mutex;    ///< Protects codec state and configuration
     mutable std::mutex m_buffer_mutex;   ///< Protects output buffer operations
+    mutable std::mutex m_decoder_mutex;  ///< Protects libFLAC decoder operations
     std::atomic<bool> m_error_state{false}; ///< Thread-safe error state flag
     
     // FLAC decoder state (protected by m_state_mutex)
@@ -314,6 +319,82 @@ private:
     std::vector<int16_t> m_output_buffer;
     size_t m_buffer_read_position = 0;
     static constexpr size_t MAX_BUFFER_SAMPLES = 48000 * 2 * 4; // 4 seconds stereo
+    
+    // Enhanced output buffer management (protected by m_buffer_mutex)
+    size_t m_buffer_high_watermark = MAX_BUFFER_SAMPLES * 3 / 4;  // 75% of max buffer
+    size_t m_buffer_low_watermark = MAX_BUFFER_SAMPLES / 4;       // 25% of max buffer
+    bool m_buffer_overflow_detected = false;                      // Overflow detection flag
+    bool m_backpressure_active = false;                          // Backpressure state
+    size_t m_buffer_underrun_count = 0;                          // Underrun statistics
+    size_t m_buffer_overrun_count = 0;                           // Overrun statistics
+    
+    // Buffer allocation strategy (protected by m_buffer_mutex)
+    size_t m_preferred_buffer_size = 0;                          // Optimal buffer size for current stream
+    size_t m_buffer_allocation_count = 0;                        // Number of buffer reallocations
+    bool m_adaptive_buffer_sizing = true;                        // Enable adaptive buffer sizing
+    
+    // Flow control state (protected by m_buffer_mutex)
+    std::condition_variable m_buffer_cv;                         // Condition variable for flow control
+    bool m_buffer_full = false;                                  // Buffer full flag for backpressure
+    size_t m_max_pending_samples = MAX_BUFFER_SAMPLES;           // Maximum samples to buffer
+    
+    // Input queue management (protected by m_input_mutex)
+    mutable std::mutex m_input_mutex;                            // Protects input queue operations
+    std::queue<MediaChunk> m_input_queue;                        // Queue of pending MediaChunks
+    size_t m_max_input_queue_size = 32;                          // Maximum number of queued chunks
+    size_t m_input_queue_bytes = 0;                              // Total bytes in input queue
+    size_t m_max_input_queue_bytes = 1024 * 1024;               // Maximum bytes in input queue (1MB)
+    std::condition_variable m_input_cv;                          // Condition variable for input flow control
+    bool m_input_queue_full = false;                             // Input queue full flag
+    
+    // Frame reconstruction state (protected by m_input_mutex)
+    std::vector<uint8_t> m_partial_frame_buffer;                 // Buffer for partial frame reconstruction
+    size_t m_expected_frame_size = 0;                            // Expected size of current frame being reconstructed
+    bool m_frame_reconstruction_active = false;                  // True if reconstructing a partial frame
+    size_t m_frames_reconstructed = 0;                           // Statistics: number of frames reconstructed
+    size_t m_partial_frames_received = 0;                        // Statistics: number of partial frames received
+    
+    // Input flow control state (protected by m_input_mutex)
+    bool m_input_backpressure_active = false;                   // Input backpressure state
+    size_t m_input_underrun_count = 0;                          // Input underrun statistics
+    size_t m_input_overrun_count = 0;                           // Input overrun statistics
+    size_t m_input_queue_high_watermark = 24;                   // 75% of max queue size
+    size_t m_input_queue_low_watermark = 8;                     // 25% of max queue size
+    
+    // Threading and asynchronous processing state (protected by m_thread_mutex)
+    mutable std::mutex m_thread_mutex;                          // Protects threading state
+    std::unique_ptr<std::thread> m_decoder_thread;              // Background decoder thread
+    std::atomic<bool> m_thread_active{false};                   // Thread active flag
+    std::atomic<bool> m_thread_shutdown_requested{false};       // Thread shutdown request flag
+    std::condition_variable m_thread_cv;                        // Thread communication
+    std::condition_variable m_work_available_cv;                // Work available notification
+    std::condition_variable m_work_completed_cv;                // Work completion notification
+    
+    // Asynchronous processing queues (protected by m_async_mutex)
+    mutable std::mutex m_async_mutex;                           // Protects async processing state
+    std::queue<MediaChunk> m_async_input_queue;                 // Async input processing queue
+    std::queue<AudioFrame> m_async_output_queue;                // Async output queue
+    size_t m_max_async_input_queue = 16;                        // Maximum async input queue size
+    size_t m_max_async_output_queue = 8;                        // Maximum async output queue size
+    bool m_async_processing_enabled = false;                    // Enable asynchronous processing
+    
+    // Thread synchronization state (protected by m_thread_mutex)
+    bool m_thread_exception_occurred = false;                   // Thread exception flag
+    std::string m_thread_exception_message;                     // Thread exception details
+    std::atomic<size_t> m_pending_work_items{0};                // Number of pending work items
+    std::atomic<size_t> m_completed_work_items{0};              // Number of completed work items
+    
+    // Thread performance monitoring (protected by m_thread_mutex)
+    std::chrono::high_resolution_clock::time_point m_thread_start_time; // Thread start time
+    std::atomic<uint64_t> m_thread_processing_time_us{0};       // Total thread processing time
+    std::atomic<size_t> m_thread_frames_processed{0};           // Frames processed by thread
+    std::atomic<size_t> m_thread_idle_cycles{0};                // Thread idle cycle count
+    
+    // Thread lifecycle management (protected by m_thread_mutex)
+    bool m_thread_initialized = false;                          // Thread initialization flag
+    bool m_clean_shutdown_completed = false;                    // Clean shutdown completion flag
+    std::chrono::milliseconds m_thread_shutdown_timeout{5000};  // Thread shutdown timeout (5 seconds)
+    std::chrono::milliseconds m_thread_work_timeout{1000};      // Work processing timeout (1 second)
     
     // Performance optimization state (protected by m_state_mutex)
     std::vector<uint8_t> m_input_buffer;     ///< Reusable input buffer
@@ -410,6 +491,95 @@ private:
     void optimizeBufferSizes_unlocked();
     void ensureBufferCapacity_unlocked(size_t required_samples);
     void freeUnusedMemory_unlocked();
+    
+    // Enhanced output buffer management methods (assume m_buffer_mutex is held)
+    bool checkBufferCapacity_unlocked(size_t required_samples);
+    void handleBufferOverflow_unlocked();
+    void handleBufferUnderrun_unlocked();
+    bool waitForBufferSpace_unlocked(size_t required_samples, std::chrono::milliseconds timeout = std::chrono::milliseconds(100));
+    void notifyBufferSpaceAvailable_unlocked();
+    void updateBufferWatermarks_unlocked();
+    void resetBufferFlowControl_unlocked();
+    
+    // Buffer allocation and reuse methods (assume m_buffer_mutex is held)
+    void optimizeBufferAllocation_unlocked(size_t required_samples);
+    void adaptiveBufferResize_unlocked(size_t required_samples);
+    bool requiresBufferReallocation_unlocked(size_t required_samples) const;
+    void updateBufferStatistics_unlocked(bool overflow, bool underrun);
+    size_t calculateOptimalBufferSize_unlocked(size_t required_samples) const;
+    
+    // Flow control and backpressure methods (assume m_buffer_mutex is held)
+    bool isBackpressureActive_unlocked() const;
+    void activateBackpressure_unlocked();
+    void deactivateBackpressure_unlocked();
+    bool shouldApplyBackpressure_unlocked(size_t required_samples) const;
+    void handleBackpressure_unlocked(size_t required_samples);
+    
+    // Input queue management methods (assume m_input_mutex is held)
+    bool enqueueInputChunk_unlocked(const MediaChunk& chunk);
+    MediaChunk dequeueInputChunk_unlocked();
+    bool hasInputChunks_unlocked() const;
+    size_t getInputQueueSize_unlocked() const;
+    void clearInputQueue_unlocked();
+    bool isInputQueueFull_unlocked() const;
+    void updateInputQueueWatermarks_unlocked();
+    
+    // Frame reconstruction methods (assume m_input_mutex is held)
+    bool processPartialFrame_unlocked(const MediaChunk& chunk);
+    bool reconstructFrame_unlocked(MediaChunk& complete_frame);
+    void resetFrameReconstruction_unlocked();
+    bool isFrameComplete_unlocked(const uint8_t* data, size_t size) const;
+    size_t estimateFrameSize_unlocked(const uint8_t* data, size_t size) const;
+    bool validateFrameHeader_unlocked(const uint8_t* data, size_t size) const;
+    
+    // Input flow control methods (assume m_input_mutex is held)
+    bool checkInputQueueCapacity_unlocked(const MediaChunk& chunk);
+    void handleInputOverflow_unlocked();
+    void handleInputUnderrun_unlocked();
+    bool waitForInputQueueSpace_unlocked(const MediaChunk& chunk, std::chrono::milliseconds timeout = std::chrono::milliseconds(100));
+    void notifyInputQueueSpaceAvailable_unlocked();
+    bool shouldApplyInputBackpressure_unlocked(const MediaChunk& chunk) const;
+    void handleInputBackpressure_unlocked(const MediaChunk& chunk);
+    void activateInputBackpressure_unlocked();
+    void deactivateInputBackpressure_unlocked();
+    void resetInputFlowControl_unlocked();
+    
+    // Threading and asynchronous processing methods (thread-safe public interface)
+    bool startDecoderThread();
+    void stopDecoderThread();
+    bool isDecoderThreadActive() const;
+    void enableAsyncProcessing(bool enable = true);
+    bool isAsyncProcessingEnabled() const;
+    
+    // Thread management methods (assume m_thread_mutex is held)
+    bool startDecoderThread_unlocked();
+    void stopDecoderThread_unlocked();
+    void decoderThreadLoop();
+    bool initializeDecoderThread_unlocked();
+    void cleanupDecoderThread_unlocked();
+    bool waitForThreadShutdown_unlocked(std::chrono::milliseconds timeout);
+    
+    // Thread synchronization methods (assume appropriate locks are held)
+    void notifyWorkAvailable_unlocked();
+    void notifyWorkCompleted_unlocked();
+    bool waitForWorkCompletion_unlocked(std::chrono::milliseconds timeout);
+    void handleThreadException_unlocked(const std::exception& e);
+    void resetThreadState_unlocked();
+    
+    // Asynchronous processing methods (assume m_async_mutex is held)
+    bool enqueueAsyncInput_unlocked(const MediaChunk& chunk);
+    MediaChunk dequeueAsyncInput_unlocked();
+    bool enqueueAsyncOutput_unlocked(const AudioFrame& frame);
+    AudioFrame dequeueAsyncOutput_unlocked();
+    bool hasAsyncInput_unlocked() const;
+    bool hasAsyncOutput_unlocked() const;
+    void clearAsyncQueues_unlocked();
+    
+    // Thread lifecycle and exception handling (assume m_thread_mutex is held)
+    void ensureThreadSafety_unlocked();
+    bool isThreadHealthy_unlocked() const;
+    void handleThreadTermination_unlocked();
+    void logThreadStatistics_unlocked() const;
     
     // Performance monitoring (assume m_state_mutex is held)
     void updatePerformanceStats_unlocked(uint32_t block_size, uint64_t decode_time_us);
