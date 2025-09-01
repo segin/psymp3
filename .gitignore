@@ -174,3 +174,6 @@ tests/test_flac_codec_unit_comprehensive
 tests/test_flac_codec_performance_comprehensive
 tests/test_flac_codec_error_handling
 tests/test_flac_codec_unit_minimal
+tests/test_conditional_codec_compilation
+tests/test_flac_comprehensive_validation
+tests/test_flac_test_data_validation
