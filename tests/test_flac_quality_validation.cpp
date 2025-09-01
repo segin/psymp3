@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 
 #ifdef HAVE_FLAC
 
@@ -683,7 +684,36 @@ int main() {
     std::cout << "Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8" << std::endl;
     std::cout << std::endl;
     
+    // Print test file information
+    FLACTestDataUtils::printTestFileInfo("FLAC Quality Validation");
+    
+    // Run synthetic tests
     bool success = FLACQualityValidationTest::runAllTests();
+    
+    // Also validate with real test files if available
+    auto testFiles = FLACTestDataUtils::getAvailableTestFiles();
+    if (!testFiles.empty()) {
+        std::cout << std::endl << "=== Real File Validation ===" << std::endl;
+        for (const auto& file : testFiles) {
+            std::cout << "Validating quality with: " << file << std::endl;
+            try {
+                auto handler = std::make_unique<FileIOHandler>(file);
+                auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
+                
+                // Try to read a few frames to validate basic functionality
+                int frameCount = 0;
+                while (frameCount < 10 && !demuxer->isFinished()) {
+                    auto frame = demuxer->getNextFrame();
+                    if (frame) frameCount++;
+                }
+                
+                std::cout << "  ✓ Successfully read " << frameCount << " frames" << std::endl;
+            } catch (const std::exception& e) {
+                std::cout << "  ✗ Error: " << e.what() << std::endl;
+                success = false;
+            }
+        }
+    }
     
     return success ? 0 : 1;
 }

@@ -4,6 +4,7 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 #include <chrono>
 
 void testFlacPerformance(const std::string& filename, const std::string& label) {
@@ -112,12 +113,15 @@ int main() {
     std::cout << "Testing FLAC demuxer performance optimizations with real files" << std::endl;
     std::cout << "=========================================================" << std::endl;
     
-    // List of test FLAC files
-    std::vector<std::string> test_files = {
-        "data/11 Everlong.flac",
-        "data/11 life goes by.flac", 
-        "data/RADIO GA GA.flac"
-    };
+    // Print test file information
+    FLACTestDataUtils::printTestFileInfo("FLAC Performance Test");
+    
+    // Get available test files
+    auto test_files = FLACTestDataUtils::getAvailableTestFiles();
+    if (test_files.empty()) {
+        std::cerr << "ERROR: No FLAC test files found!" << std::endl;
+        return 1;
+    }
     
     int tests_passed = 0;
     int tests_failed = 0;

@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include "flac_test_data_utils.h"
 #include "test_framework.h"
 
 using namespace TestFramework;
