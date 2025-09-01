@@ -249,13 +249,10 @@ echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"
 echo ""
 echo "Container Support:"
-echo "  Ogg (libogg):      $have_ogg"
-echo "  OggDemuxer:        $have_oggdemuxer"
-if test "x$have_flac" = "xyes" && test "x$have_ogg" = "xyes"; then
-echo "  Ogg FLAC:          yes"
-else
-echo "  Ogg FLAC:          no"
-fi
+echo "  FLAC:              $have_flac"
+echo "  Ogg:               $have_ogg"
+echo "  ISO (MP4):         yes"
+echo "  RIFF (WAV):        yes"
 echo ""
 echo "Optional Features:"
 echo "  MPRIS (D-Bus):     $have_dbus"
