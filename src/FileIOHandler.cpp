@@ -519,8 +519,21 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
         }
         
         updatePosition(new_logical_position);
-        // Clear EOF flag if we've moved away from the end
-        updateEofState(false);
+        
+        // Handle EOF state based on position
+        if (whence == SEEK_END && offset == 0) {
+            // Seeking to the exact end of file - set EOF
+            updateEofState(true);
+        } else {
+            // Check if we're at the end of the file
+            off_t file_size = (m_cached_file_size >= 0) ? m_cached_file_size : getFileSizeInternal();
+            if (file_size >= 0 && new_logical_position >= file_size) {
+                updateEofState(true);
+            } else {
+                // Clear EOF flag if we've moved away from the end
+                updateEofState(false);
+            }
+        }
         
         // Invalidate buffer since we've changed position (need buffer lock)
         {

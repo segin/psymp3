@@ -187,7 +187,9 @@ check_PROGRAMS = \
 	test_demuxed_stream_unit \
 	test_demuxer_integration \
 	test_media_factory_integration \
-	test_demuxer_performance
+	test_demuxer_performance \
+	test_iohandler_legacy_compatibility \
+	test_iohandler_performance_validation
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -554,6 +556,45 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
+# IOHandler backward compatibility and performance validation tests
+test_iohandler_legacy_compatibility_SOURCES = test_iohandler_legacy_compatibility.cpp
+test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/HTTPIOHandler.o \
+	$(top_builddir)/src/HTTPClient.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	-lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+
+test_iohandler_performance_validation_SOURCES = test_iohandler_performance_validation.cpp
+test_iohandler_performance_validation_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/HTTPIOHandler.o \
+	$(top_builddir)/src/HTTPClient.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	-lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
 test_page_extraction_SOURCES = test_page_extraction.cpp
@@ -819,6 +860,12 @@ $(top_builddir)/src/RAIIFileHandle.o:
 
 $(top_builddir)/src/MemoryOptimizer.o:
 	$(MAKE) -C $(top_builddir)/src MemoryOptimizer.o
+
+$(top_builddir)/src/HTTPIOHandler.o:
+	$(MAKE) -C $(top_builddir)/src HTTPIOHandler.o
+
+$(top_builddir)/src/HTTPClient.o:
+	$(MAKE) -C $(top_builddir)/src HTTPClient.o
 endif
 
 # Build rules for A-law codec test dependencies
