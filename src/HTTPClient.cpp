@@ -164,7 +164,50 @@ std::unordered_map<std::string, std::vector<CURL*>> CurlLifecycleManager::s_conn
 std::chrono::steady_clock::time_point CurlLifecycleManager::s_last_pool_cleanup = std::chrono::steady_clock::now();
 static CurlLifecycleManager s_curl_manager;
 
-// Callback functions are now defined as lambdas in performRequest method
+// C-style callback functions for libcurl
+static size_t writeCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t realsize = size * nmemb;
+    std::string* buffer = static_cast<std::string*>(userp);
+    
+    // Set maximum response size to prevent memory exhaustion
+    const size_t MAX_RESPONSE_SIZE = 100 * 1024 * 1024; // 100MB limit
+    
+    // Check if adding this data would exceed our limit
+    if (buffer->size() + realsize > MAX_RESPONSE_SIZE) {
+        Debug::log("http", "HTTPClient: Response size limit exceeded, truncating");
+        return 0; // Signal error to libcurl
+    }
+    
+    try {
+        buffer->append(static_cast<const char*>(contents), realsize);
+    } catch (const std::bad_alloc&) {
+        Debug::log("http", "HTTPClient: Memory allocation failed during response processing");
+        return 0; // Signal error to libcurl
+    }
+    
+    return realsize;
+}
+
+static size_t headerCallback(void *contents, size_t size, size_t nmemb, void *userp) {
+    size_t realsize = size * nmemb;
+    std::string* buffer = static_cast<std::string*>(userp);
+    
+    // Limit header size to prevent abuse
+    const size_t MAX_HEADER_SIZE = 1024 * 1024; // 1MB limit for headers
+    if (buffer->size() + realsize > MAX_HEADER_SIZE) {
+        Debug::log("http", "HTTPClient: Header size limit exceeded, truncating");
+        return 0; // Signal error to libcurl
+    }
+    
+    try {
+        buffer->append(static_cast<const char*>(contents), realsize);
+    } catch (const std::bad_alloc&) {
+        Debug::log("http", "HTTPClient: Memory allocation failed during header processing");
+        return 0; // Signal error to libcurl
+    }
+    
+    return realsize;
+}
 
 HTTPClient::Response HTTPClient::get(const std::string& url,
                                     const std::map<std::string, std::string>& headers,
@@ -269,59 +312,15 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
     readBuffer.reserve(64 * 1024);  // 64KB initial capacity
     headerBuffer.reserve(8 * 1024); // 8KB for headers
     
-    // Set maximum response size to prevent memory exhaustion
-    const size_t MAX_RESPONSE_SIZE = 100 * 1024 * 1024; // 100MB limit
-    
-    // Custom write callback with size limits
-    auto bounded_write_callback = [](void *contents, size_t size, size_t nmemb, void *userp) -> size_t {
-        size_t realsize = size * nmemb;
-        std::string* buffer = static_cast<std::string*>(userp);
-        
-        // Check if adding this data would exceed our limit
-        if (buffer->size() + realsize > MAX_RESPONSE_SIZE) {
-            Debug::log("http", "HTTPClient: Response size limit exceeded, truncating");
-            return 0; // Signal error to libcurl
-        }
-        
-        try {
-            buffer->append(static_cast<const char*>(contents), realsize);
-        } catch (const std::bad_alloc&) {
-            Debug::log("http", "HTTPClient: Memory allocation failed during response processing");
-            return 0; // Signal error to libcurl
-        }
-        
-        return realsize;
-    };
-    
-    // Custom header callback with size limits
-    auto bounded_header_callback = [](void *contents, size_t size, size_t nmemb, void *userp) -> size_t {
-        size_t realsize = size * nmemb;
-        std::string* buffer = static_cast<std::string*>(userp);
-        
-        // Limit header size to prevent abuse
-        const size_t MAX_HEADER_SIZE = 1024 * 1024; // 1MB limit for headers
-        if (buffer->size() + realsize > MAX_HEADER_SIZE) {
-            Debug::log("http", "HTTPClient: Header size limit exceeded, truncating");
-            return 0; // Signal error to libcurl
-        }
-        
-        try {
-            buffer->append(static_cast<const char*>(contents), realsize);
-        } catch (const std::bad_alloc&) {
-            Debug::log("http", "HTTPClient: Memory allocation failed during header processing");
-            return 0; // Signal error to libcurl
-        }
-        
-        return realsize;
-    };
+
 
     // Basic options
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, static_cast<long>(timeoutSeconds));
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L); // 10 second connect timeout
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, bounded_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &readBuffer);
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, bounded_header_callback);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, headerCallback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headerBuffer);
     
     // Security and protocol options
