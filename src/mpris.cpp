@@ -92,7 +92,8 @@ void MPRIS::updateMetadata(const std::string& artist, const std::string& title, 
     }
 
     dbus_message_iter_init_append(msg, &args);
-    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &"org.mpris.MediaPlayer2.Player");
+    const char* interface_name = "org.mpris.MediaPlayer2.Player";
+    dbus_message_iter_append_basic(&args, DBUS_TYPE_STRING, &interface_name);
 
     DBusMessageIter array_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &array_iter);
@@ -100,7 +101,8 @@ void MPRIS::updateMetadata(const std::string& artist, const std::string& title, 
     // Add metadata properties
     DBusMessageIter dict_entry_iter;
     dbus_message_iter_open_container(&array_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &dict_entry_iter);
-    dbus_message_iter_append_basic(&dict_entry_iter, DBUS_TYPE_STRING, &"Metadata");
+    const char* metadata_key = "Metadata";
+    dbus_message_iter_append_basic(&dict_entry_iter, DBUS_TYPE_STRING, &metadata_key);
     
     DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&dict_entry_iter, DBUS_TYPE_VARIANT, "a{sv}", &variant_iter);
@@ -114,7 +116,8 @@ void MPRIS::updateMetadata(const std::string& artist, const std::string& title, 
     dbus_message_iter_append_basic(&artist_entry_iter, DBUS_TYPE_STRING, &artist_key);
     DBusMessageIter artist_array_iter;
     dbus_message_iter_open_container(&artist_entry_iter, DBUS_TYPE_ARRAY, "s", &artist_array_iter);
-    dbus_message_iter_append_basic(&artist_array_iter, DBUS_TYPE_STRING, &artist);
+    const char* artist_cstr = artist.c_str();
+    dbus_message_iter_append_basic(&artist_array_iter, DBUS_TYPE_STRING, &artist_cstr);
     dbus_message_iter_close_container(&artist_entry_iter, &artist_array_iter);
     dbus_message_iter_close_container(&metadata_dict_iter, &artist_entry_iter);
 
@@ -123,7 +126,8 @@ void MPRIS::updateMetadata(const std::string& artist, const std::string& title, 
     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &title_entry_iter);
     const char* title_key = "xesam:title";
     dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_key);
-    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title);
+    const char* title_cstr = title.c_str();
+    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_cstr);
     dbus_message_iter_close_container(&metadata_dict_iter, &title_entry_iter);
 
     // Add album
@@ -131,7 +135,8 @@ void MPRIS::updateMetadata(const std::string& artist, const std::string& title, 
     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &album_entry_iter);
     const char* album_key = "xesam:album";
     dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_key);
-    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album);
+    const char* album_cstr = album.c_str();
+    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_cstr);
     dbus_message_iter_close_container(&metadata_dict_iter, &album_entry_iter);
 
     dbus_message_iter_close_container(&variant_iter, &metadata_dict_iter);
@@ -174,7 +179,8 @@ void MPRIS::updatePlaybackStatus(const std::string& status) {
     
     DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&dict_entry_iter, DBUS_TYPE_VARIANT, "s", &variant_iter);
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING, &status);
+    const char* status_cstr = status.c_str();
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING, &status_cstr);
     dbus_message_iter_close_container(&dict_entry_iter, &variant_iter);
     dbus_message_iter_close_container(&array_iter, &dict_entry_iter);
 
@@ -332,7 +338,8 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                     dbus_message_iter_append_basic(&artist_entry_iter, DBUS_TYPE_STRING, &artist_key);
                     DBusMessageIter artist_array_iter;
                     dbus_message_iter_open_container(&artist_entry_iter, DBUS_TYPE_ARRAY, "s", &artist_array_iter);
-                    dbus_message_iter_append_basic(&artist_array_iter, DBUS_TYPE_STRING, &artist_str);
+                    const char* artist_str_cstr = artist_str.c_str();
+                    dbus_message_iter_append_basic(&artist_array_iter, DBUS_TYPE_STRING, &artist_str_cstr);
                     dbus_message_iter_close_container(&artist_entry_iter, &artist_array_iter);
                     dbus_message_iter_close_container(&metadata_dict_iter, &artist_entry_iter);
 
@@ -341,7 +348,8 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &title_entry_iter);
                     const char* title_key = "xesam:title";
                     dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_key);
-                    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_str);
+                    const char* title_str_cstr = title_str.c_str();
+                    dbus_message_iter_append_basic(&title_entry_iter, DBUS_TYPE_STRING, &title_str_cstr);
                     dbus_message_iter_close_container(&metadata_dict_iter, &title_entry_iter);
 
                     // Album
@@ -349,7 +357,8 @@ DBusHandlerResult MPRIS::handleMessage(DBusConnection* connection, DBusMessage* 
                     dbus_message_iter_open_container(&metadata_dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr, &album_entry_iter);
                     const char* album_key = "xesam:album";
                     dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_key);
-                    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_str);
+                    const char* album_str_cstr = album_str.c_str();
+                    dbus_message_iter_append_basic(&album_entry_iter, DBUS_TYPE_STRING, &album_str_cstr);
                     dbus_message_iter_close_container(&metadata_dict_iter, &album_entry_iter);
 
                     // Duration (in microseconds)
