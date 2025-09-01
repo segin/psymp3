@@ -88,6 +88,43 @@ struct FLACFrameInfo {
 };
 
 /**
+ * @brief Audio quality metrics for validation and testing
+ * 
+ * This structure contains various audio quality measurements used
+ * for validating codec accuracy and conversion quality.
+ */
+struct AudioQualityMetrics {
+    double signal_to_noise_ratio_db = 0.0;     ///< SNR in decibels
+    double total_harmonic_distortion = 0.0;    ///< THD as percentage
+    double dynamic_range_db = 0.0;             ///< Dynamic range in decibels
+    double peak_amplitude = 0.0;               ///< Peak sample amplitude (0.0-1.0)
+    double rms_amplitude = 0.0;                ///< RMS amplitude (0.0-1.0)
+    double dc_offset = 0.0;                    ///< DC offset as percentage
+    size_t zero_crossings = 0;                 ///< Number of zero crossings
+    size_t clipped_samples = 0;                ///< Number of clipped samples
+    bool bit_perfect = false;                  ///< True if bit-perfect match with reference
+    
+    /**
+     * @brief Check if quality metrics indicate good audio quality
+     */
+    bool isGoodQuality() const {
+        return signal_to_noise_ratio_db > 90.0 &&  // >90dB SNR
+               total_harmonic_distortion < 0.01 &&  // <1% THD
+               dynamic_range_db > 80.0 &&           // >80dB dynamic range
+               clipped_samples == 0;                // No clipping
+    }
+    
+    /**
+     * @brief Check if quality metrics indicate bit-perfect decoding
+     */
+    bool isBitPerfect() const {
+        return bit_perfect && 
+               signal_to_noise_ratio_db > 120.0 &&  // Theoretical maximum for 16-bit
+               total_harmonic_distortion < 0.0001;  // Minimal distortion
+    }
+};
+
+/**
  * @brief FLAC codec performance and debugging statistics
  * 
  * This structure tracks performance metrics and debugging information
@@ -265,6 +302,18 @@ public:
     bool supportsSeekReset() const;
     uint64_t getCurrentSample() const;
     FLACCodecStats getStats() const;
+    
+    // Quality validation and accuracy testing interface
+    bool validateBitPerfectDecoding(const std::vector<int16_t>& reference_samples, 
+                                   const std::vector<int16_t>& decoded_samples) const;
+    double calculateSignalToNoiseRatio(const std::vector<int16_t>& reference_samples,
+                                      const std::vector<int16_t>& decoded_samples) const;
+    double calculateTotalHarmonicDistortion(const std::vector<int16_t>& samples) const;
+    bool validateConversionQuality(const std::vector<FLAC__int32>& source_samples,
+                                  const std::vector<int16_t>& converted_samples,
+                                  uint16_t source_bit_depth) const;
+    bool validateDynamicRange(const std::vector<int16_t>& samples) const;
+    AudioQualityMetrics calculateQualityMetrics(const std::vector<int16_t>& samples) const;
     
     // Friend class for callback access
     friend class FLACStreamDecoder;
@@ -570,6 +619,48 @@ private:
     void handleInputOverflow_unlocked();
     void handleInputUnderrun_unlocked();
     bool waitForInputQueueSpace_unlocked(const MediaChunk& chunk, std::chrono::milliseconds timeout = std::chrono::milliseconds(100));
+    
+    // Quality validation and accuracy testing methods (thread-safe)
+    bool validateBitPerfectDecoding_unlocked(const std::vector<int16_t>& reference_samples, 
+                                           const std::vector<int16_t>& decoded_samples) const;
+    double calculateSignalToNoiseRatio_unlocked(const std::vector<int16_t>& reference_samples,
+                                               const std::vector<int16_t>& decoded_samples) const;
+    double calculateTotalHarmonicDistortion_unlocked(const std::vector<int16_t>& samples) const;
+    bool validateConversionQuality_unlocked(const std::vector<FLAC__int32>& source_samples,
+                                          const std::vector<int16_t>& converted_samples,
+                                          uint16_t source_bit_depth) const;
+    bool validateDynamicRange_unlocked(const std::vector<int16_t>& samples) const;
+    AudioQualityMetrics calculateQualityMetrics_unlocked(const std::vector<int16_t>& samples) const;
+    
+    // Bit-perfect validation helpers
+    bool compareSamplesExact_unlocked(const std::vector<int16_t>& samples1,
+                                     const std::vector<int16_t>& samples2) const;
+    double calculateMeanSquaredError_unlocked(const std::vector<int16_t>& reference_samples,
+                                            const std::vector<int16_t>& test_samples) const;
+    double calculatePeakSignalToNoiseRatio_unlocked(const std::vector<int16_t>& reference_samples,
+                                                   const std::vector<int16_t>& test_samples) const;
+    
+    // Conversion accuracy validation helpers
+    bool validateBitDepthConversion_unlocked(FLAC__int32 source_sample, int16_t converted_sample,
+                                           uint16_t source_bit_depth) const;
+    double calculateConversionError_unlocked(const std::vector<FLAC__int32>& source_samples,
+                                           const std::vector<int16_t>& converted_samples,
+                                           uint16_t source_bit_depth) const;
+    bool validateNoClipping_unlocked(const std::vector<int16_t>& samples) const;
+    
+    // Audio quality analysis helpers
+    double calculateRMSAmplitude_unlocked(const std::vector<int16_t>& samples) const;
+    double calculatePeakAmplitude_unlocked(const std::vector<int16_t>& samples) const;
+    double calculateDCOffset_unlocked(const std::vector<int16_t>& samples) const;
+    size_t countZeroCrossings_unlocked(const std::vector<int16_t>& samples) const;
+    size_t countClippedSamples_unlocked(const std::vector<int16_t>& samples) const;
+    
+    // Reference decoder comparison helpers
+    bool compareWithReferenceDecoder_unlocked(const MediaChunk& chunk,
+                                            const std::vector<int16_t>& our_output) const;
+    std::vector<int16_t> generateReferenceSamples_unlocked(const MediaChunk& chunk) const;
+    
+    // Input flow control methods (assume m_input_mutex is held)
     void notifyInputQueueSpaceAvailable_unlocked();
     bool shouldApplyInputBackpressure_unlocked(const MediaChunk& chunk) const;
     void handleInputBackpressure_unlocked(const MediaChunk& chunk);

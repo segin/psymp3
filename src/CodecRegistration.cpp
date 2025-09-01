@@ -69,9 +69,11 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Opus codec disabled at compile time");
 #endif
 
-    // FLAC remains in legacy Stream architecture - not registered with CodecRegistry
+    // FLAC codec registration
 #ifdef HAVE_FLAC
-    Debug::log("codec", "registerAllCodecs: FLAC codec uses legacy Stream architecture (not registered)");
+    // Register the new container-agnostic FLAC codec
+    FLACCodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: Registered FLAC codec");
     
     // Register Ogg FLAC passthrough codec if Ogg support is available
 #ifdef HAVE_OGGDEMUXER

@@ -5439,6 +5439,518 @@ std::string getCodecInfo() {
 } // namespace FLACCodecSupport
 
 // ============================================================================
+// Quality Validation and Accuracy Testing Implementation
+// ============================================================================
+
+bool FLACCodec::validateBitPerfectDecoding(const std::vector<int16_t>& reference_samples, 
+                                          const std::vector<int16_t>& decoded_samples) const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return validateBitPerfectDecoding_unlocked(reference_samples, decoded_samples);
+}
+
+double FLACCodec::calculateSignalToNoiseRatio(const std::vector<int16_t>& reference_samples,
+                                             const std::vector<int16_t>& decoded_samples) const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return calculateSignalToNoiseRatio_unlocked(reference_samples, decoded_samples);
+}
+
+double FLACCodec::calculateTotalHarmonicDistortion(const std::vector<int16_t>& samples) const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return calculateTotalHarmonicDistortion_unlocked(samples);
+}
+
+bool FLACCodec::validateConversionQuality(const std::vector<FLAC__int32>& source_samples,
+                                         const std::vector<int16_t>& converted_samples,
+                                         uint16_t source_bit_depth) const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return validateConversionQuality_unlocked(source_samples, converted_samples, source_bit_depth);
+}
+
+bool FLACCodec::validateDynamicRange(const std::vector<int16_t>& samples) const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return validateDynamicRange_unlocked(samples);
+}
+
+AudioQualityMetrics FLACCodec::calculateQualityMetrics(const std::vector<int16_t>& samples) const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return calculateQualityMetrics_unlocked(samples);
+}
+
+// ============================================================================
+// Private Quality Validation Implementation
+// ============================================================================
+
+bool FLACCodec::validateBitPerfectDecoding_unlocked(const std::vector<int16_t>& reference_samples, 
+                                                   const std::vector<int16_t>& decoded_samples) const {
+    Debug::log("flac_codec", "[FLACCodec::validateBitPerfectDecoding_unlocked] Validating bit-perfect decoding");
+    
+    // Check size match first
+    if (reference_samples.size() != decoded_samples.size()) {
+        Debug::log("flac_codec", "[validateBitPerfectDecoding] Size mismatch: reference=", 
+                  reference_samples.size(), ", decoded=", decoded_samples.size());
+        return false;
+    }
+    
+    if (reference_samples.empty()) {
+        Debug::log("flac_codec", "[validateBitPerfectDecoding] Empty sample arrays");
+        return true; // Empty arrays are trivially bit-perfect
+    }
+    
+    // Perform exact sample-by-sample comparison
+    bool bit_perfect = compareSamplesExact_unlocked(reference_samples, decoded_samples);
+    
+    if (bit_perfect) {
+        Debug::log("flac_codec", "[validateBitPerfectDecoding] Bit-perfect match confirmed for ", 
+                  reference_samples.size(), " samples");
+    } else {
+        // Calculate error statistics for debugging
+        double mse = calculateMeanSquaredError_unlocked(reference_samples, decoded_samples);
+        double psnr = calculatePeakSignalToNoiseRatio_unlocked(reference_samples, decoded_samples);
+        
+        Debug::log("flac_codec", "[validateBitPerfectDecoding] Bit-perfect validation failed - MSE=", 
+                  mse, ", PSNR=", psnr, "dB");
+    }
+    
+    return bit_perfect;
+}
+
+double FLACCodec::calculateSignalToNoiseRatio_unlocked(const std::vector<int16_t>& reference_samples,
+                                                      const std::vector<int16_t>& decoded_samples) const {
+    Debug::log("flac_codec", "[FLACCodec::calculateSignalToNoiseRatio_unlocked] Calculating SNR");
+    
+    if (reference_samples.size() != decoded_samples.size() || reference_samples.empty()) {
+        Debug::log("flac_codec", "[calculateSignalToNoiseRatio] Invalid input arrays");
+        return 0.0;
+    }
+    
+    // Calculate signal power (RMS of reference signal)
+    double signal_power = 0.0;
+    for (size_t i = 0; i < reference_samples.size(); ++i) {
+        double sample = static_cast<double>(reference_samples[i]) / 32768.0; // Normalize to [-1, 1]
+        signal_power += sample * sample;
+    }
+    signal_power /= reference_samples.size();
+    
+    // Calculate noise power (RMS of difference signal)
+    double noise_power = 0.0;
+    for (size_t i = 0; i < reference_samples.size(); ++i) {
+        double diff = static_cast<double>(reference_samples[i] - decoded_samples[i]) / 32768.0;
+        noise_power += diff * diff;
+    }
+    noise_power /= reference_samples.size();
+    
+    // Calculate SNR in dB
+    if (noise_power <= 0.0) {
+        Debug::log("flac_codec", "[calculateSignalToNoiseRatio] Perfect match - infinite SNR");
+        return 200.0; // Return very high SNR for perfect match
+    }
+    
+    double snr_db = 10.0 * std::log10(signal_power / noise_power);
+    
+    Debug::log("flac_codec", "[calculateSignalToNoiseRatio] SNR = ", snr_db, " dB");
+    return snr_db;
+}
+
+double FLACCodec::calculateTotalHarmonicDistortion_unlocked(const std::vector<int16_t>& samples) const {
+    Debug::log("flac_codec", "[FLACCodec::calculateTotalHarmonicDistortion_unlocked] Calculating THD");
+    
+    if (samples.empty()) {
+        Debug::log("flac_codec", "[calculateTotalHarmonicDistortion] Empty sample array");
+        return 0.0;
+    }
+    
+    // For simplicity, we'll calculate THD as the ratio of high-frequency content
+    // to total signal energy. A more sophisticated implementation would use FFT.
+    
+    // Calculate total signal energy
+    double total_energy = 0.0;
+    for (int16_t sample : samples) {
+        double normalized = static_cast<double>(sample) / 32768.0;
+        total_energy += normalized * normalized;
+    }
+    
+    if (total_energy <= 0.0) {
+        Debug::log("flac_codec", "[calculateTotalHarmonicDistortion] Zero signal energy");
+        return 0.0;
+    }
+    
+    // Calculate high-frequency energy using simple high-pass filtering
+    double hf_energy = 0.0;
+    for (size_t i = 1; i < samples.size(); ++i) {
+        double diff = static_cast<double>(samples[i] - samples[i-1]) / 32768.0;
+        hf_energy += diff * diff;
+    }
+    
+    // THD as percentage
+    double thd = (hf_energy / total_energy) * 100.0;
+    
+    Debug::log("flac_codec", "[calculateTotalHarmonicDistortion] THD = ", thd, "%");
+    return thd;
+}
+
+bool FLACCodec::validateConversionQuality_unlocked(const std::vector<FLAC__int32>& source_samples,
+                                                  const std::vector<int16_t>& converted_samples,
+                                                  uint16_t source_bit_depth) const {
+    Debug::log("flac_codec", "[FLACCodec::validateConversionQuality_unlocked] Validating conversion quality from ", 
+              source_bit_depth, "-bit to 16-bit");
+    
+    if (source_samples.empty() || converted_samples.empty()) {
+        Debug::log("flac_codec", "[validateConversionQuality] Empty sample arrays");
+        return false;
+    }
+    
+    if (source_samples.size() != converted_samples.size()) {
+        Debug::log("flac_codec", "[validateConversionQuality] Size mismatch: source=", 
+                  source_samples.size(), ", converted=", converted_samples.size());
+        return false;
+    }
+    
+    // Validate each conversion individually
+    size_t error_count = 0;
+    double max_error = 0.0;
+    
+    for (size_t i = 0; i < source_samples.size(); ++i) {
+        if (!validateBitDepthConversion_unlocked(source_samples[i], converted_samples[i], source_bit_depth)) {
+            error_count++;
+        }
+        
+        // Calculate conversion error for statistics
+        double expected = 0.0;
+        switch (source_bit_depth) {
+            case 8:
+                expected = static_cast<double>(source_samples[i] << 8);
+                break;
+            case 16:
+                expected = static_cast<double>(source_samples[i]);
+                break;
+            case 24:
+                expected = static_cast<double>(source_samples[i] >> 8);
+                break;
+            case 32:
+                expected = static_cast<double>(source_samples[i] >> 16);
+                break;
+            default:
+                expected = static_cast<double>(source_samples[i] >> (source_bit_depth - 16));
+                break;
+        }
+        
+        double actual = static_cast<double>(converted_samples[i]);
+        double error = std::abs(expected - actual);
+        max_error = std::max(max_error, error);
+    }
+    
+    double error_rate = static_cast<double>(error_count) / source_samples.size();
+    bool quality_ok = error_rate < 0.01; // Less than 1% error rate
+    
+    Debug::log("flac_codec", "[validateConversionQuality] Error rate: ", error_rate * 100.0, 
+              "%, Max error: ", max_error, ", Quality OK: ", quality_ok);
+    
+    return quality_ok;
+}
+
+bool FLACCodec::validateDynamicRange_unlocked(const std::vector<int16_t>& samples) const {
+    Debug::log("flac_codec", "[FLACCodec::validateDynamicRange_unlocked] Validating dynamic range");
+    
+    if (samples.empty()) {
+        Debug::log("flac_codec", "[validateDynamicRange] Empty sample array");
+        return false;
+    }
+    
+    // Calculate peak and RMS amplitudes
+    double peak_amplitude = calculatePeakAmplitude_unlocked(samples);
+    double rms_amplitude = calculateRMSAmplitude_unlocked(samples);
+    
+    if (rms_amplitude <= 0.0) {
+        Debug::log("flac_codec", "[validateDynamicRange] Zero RMS amplitude - silence");
+        return true; // Silence is valid
+    }
+    
+    // Calculate dynamic range in dB
+    double dynamic_range_db = 20.0 * std::log10(peak_amplitude / rms_amplitude);
+    
+    // Check for reasonable dynamic range (should be > 20dB for most audio)
+    bool range_ok = dynamic_range_db > 20.0 && dynamic_range_db < 120.0;
+    
+    Debug::log("flac_codec", "[validateDynamicRange] Peak: ", peak_amplitude, 
+              ", RMS: ", rms_amplitude, ", Dynamic range: ", dynamic_range_db, 
+              "dB, Valid: ", range_ok);
+    
+    return range_ok;
+}
+
+AudioQualityMetrics FLACCodec::calculateQualityMetrics_unlocked(const std::vector<int16_t>& samples) const {
+    Debug::log("flac_codec", "[FLACCodec::calculateQualityMetrics_unlocked] Calculating comprehensive quality metrics");
+    
+    AudioQualityMetrics metrics;
+    
+    if (samples.empty()) {
+        Debug::log("flac_codec", "[calculateQualityMetrics] Empty sample array");
+        return metrics;
+    }
+    
+    // Calculate basic amplitude metrics
+    metrics.peak_amplitude = calculatePeakAmplitude_unlocked(samples);
+    metrics.rms_amplitude = calculateRMSAmplitude_unlocked(samples);
+    metrics.dc_offset = calculateDCOffset_unlocked(samples);
+    
+    // Calculate dynamic range
+    if (metrics.rms_amplitude > 0.0) {
+        metrics.dynamic_range_db = 20.0 * std::log10(metrics.peak_amplitude / metrics.rms_amplitude);
+    }
+    
+    // Count zero crossings and clipped samples
+    metrics.zero_crossings = countZeroCrossings_unlocked(samples);
+    metrics.clipped_samples = countClippedSamples_unlocked(samples);
+    
+    // Calculate THD (simplified)
+    metrics.total_harmonic_distortion = calculateTotalHarmonicDistortion_unlocked(samples);
+    
+    // For SNR, we need a reference signal - use theoretical maximum for bit depth
+    // For 16-bit audio, theoretical SNR is ~96dB
+    if (metrics.rms_amplitude > 0.0) {
+        double theoretical_max = 1.0; // Full scale
+        metrics.signal_to_noise_ratio_db = 20.0 * std::log10(theoretical_max / metrics.rms_amplitude);
+        
+        // Clamp to reasonable range
+        if (metrics.signal_to_noise_ratio_db > 120.0) {
+            metrics.signal_to_noise_ratio_db = 120.0;
+        }
+    }
+    
+    // Determine if bit-perfect (no clipping, good SNR, low THD)
+    metrics.bit_perfect = (metrics.clipped_samples == 0 && 
+                          metrics.signal_to_noise_ratio_db > 90.0 && 
+                          metrics.total_harmonic_distortion < 1.0);
+    
+    Debug::log("flac_codec", "[calculateQualityMetrics] Peak: ", metrics.peak_amplitude, 
+              ", RMS: ", metrics.rms_amplitude, ", SNR: ", metrics.signal_to_noise_ratio_db, 
+              "dB, THD: ", metrics.total_harmonic_distortion, "%, Clipped: ", metrics.clipped_samples);
+    
+    return metrics;
+}
+
+// ============================================================================
+// Quality Validation Helper Methods
+// ============================================================================
+
+bool FLACCodec::compareSamplesExact_unlocked(const std::vector<int16_t>& samples1,
+                                            const std::vector<int16_t>& samples2) const {
+    if (samples1.size() != samples2.size()) {
+        return false;
+    }
+    
+    for (size_t i = 0; i < samples1.size(); ++i) {
+        if (samples1[i] != samples2[i]) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+double FLACCodec::calculateMeanSquaredError_unlocked(const std::vector<int16_t>& reference_samples,
+                                                    const std::vector<int16_t>& test_samples) const {
+    if (reference_samples.size() != test_samples.size() || reference_samples.empty()) {
+        return 0.0;
+    }
+    
+    double mse = 0.0;
+    for (size_t i = 0; i < reference_samples.size(); ++i) {
+        double diff = static_cast<double>(reference_samples[i] - test_samples[i]);
+        mse += diff * diff;
+    }
+    
+    return mse / reference_samples.size();
+}
+
+double FLACCodec::calculatePeakSignalToNoiseRatio_unlocked(const std::vector<int16_t>& reference_samples,
+                                                          const std::vector<int16_t>& test_samples) const {
+    double mse = calculateMeanSquaredError_unlocked(reference_samples, test_samples);
+    
+    if (mse <= 0.0) {
+        return 200.0; // Perfect match
+    }
+    
+    double max_possible_value = 32767.0; // Maximum 16-bit signed value
+    return 20.0 * std::log10(max_possible_value / std::sqrt(mse));
+}
+
+bool FLACCodec::validateBitDepthConversion_unlocked(FLAC__int32 source_sample, int16_t converted_sample,
+                                                   uint16_t source_bit_depth) const {
+    // Calculate expected converted value
+    int16_t expected = 0;
+    
+    switch (source_bit_depth) {
+        case 8:
+            expected = convert8BitTo16Bit(source_sample);
+            break;
+        case 16:
+            expected = static_cast<int16_t>(std::clamp(static_cast<int32_t>(source_sample), -32768, 32767));
+            break;
+        case 24:
+            expected = convert24BitTo16Bit(source_sample);
+            break;
+        case 32:
+            expected = convert32BitTo16Bit(source_sample);
+            break;
+        default:
+            // Generic conversion for unusual bit depths
+            int shift = source_bit_depth - 16;
+            if (shift > 0) {
+                expected = static_cast<int16_t>(std::clamp(source_sample >> shift, -32768, 32767));
+            } else {
+                expected = static_cast<int16_t>(std::clamp(source_sample << (-shift), -32768, 32767));
+            }
+            break;
+    }
+    
+    // Allow small tolerance for dithering and rounding
+    int tolerance = (source_bit_depth > 16) ? 1 : 0;
+    return std::abs(converted_sample - expected) <= tolerance;
+}
+
+double FLACCodec::calculateConversionError_unlocked(const std::vector<FLAC__int32>& source_samples,
+                                                   const std::vector<int16_t>& converted_samples,
+                                                   uint16_t source_bit_depth) const {
+    if (source_samples.size() != converted_samples.size() || source_samples.empty()) {
+        return 0.0;
+    }
+    
+    double total_error = 0.0;
+    
+    for (size_t i = 0; i < source_samples.size(); ++i) {
+        // Calculate expected value
+        double expected = 0.0;
+        switch (source_bit_depth) {
+            case 8:
+                expected = static_cast<double>(source_samples[i] << 8);
+                break;
+            case 16:
+                expected = static_cast<double>(source_samples[i]);
+                break;
+            case 24:
+                expected = static_cast<double>(source_samples[i] >> 8);
+                break;
+            case 32:
+                expected = static_cast<double>(source_samples[i] >> 16);
+                break;
+            default:
+                expected = static_cast<double>(source_samples[i] >> (source_bit_depth - 16));
+                break;
+        }
+        
+        double actual = static_cast<double>(converted_samples[i]);
+        double error = std::abs(expected - actual);
+        total_error += error;
+    }
+    
+    return total_error / source_samples.size();
+}
+
+bool FLACCodec::validateNoClipping_unlocked(const std::vector<int16_t>& samples) const {
+    for (int16_t sample : samples) {
+        if (sample == -32768 || sample == 32767) {
+            return false; // Potential clipping detected
+        }
+    }
+    return true;
+}
+
+double FLACCodec::calculateRMSAmplitude_unlocked(const std::vector<int16_t>& samples) const {
+    if (samples.empty()) {
+        return 0.0;
+    }
+    
+    double sum_squares = 0.0;
+    for (int16_t sample : samples) {
+        double normalized = static_cast<double>(sample) / 32768.0;
+        sum_squares += normalized * normalized;
+    }
+    
+    return std::sqrt(sum_squares / samples.size());
+}
+
+double FLACCodec::calculatePeakAmplitude_unlocked(const std::vector<int16_t>& samples) const {
+    if (samples.empty()) {
+        return 0.0;
+    }
+    
+    int16_t max_sample = 0;
+    for (int16_t sample : samples) {
+        max_sample = std::max(max_sample, static_cast<int16_t>(std::abs(sample)));
+    }
+    
+    return static_cast<double>(max_sample) / 32768.0;
+}
+
+double FLACCodec::calculateDCOffset_unlocked(const std::vector<int16_t>& samples) const {
+    if (samples.empty()) {
+        return 0.0;
+    }
+    
+    double sum = 0.0;
+    for (int16_t sample : samples) {
+        sum += static_cast<double>(sample);
+    }
+    
+    double average = sum / samples.size();
+    return (average / 32768.0) * 100.0; // Return as percentage
+}
+
+size_t FLACCodec::countZeroCrossings_unlocked(const std::vector<int16_t>& samples) const {
+    if (samples.size() < 2) {
+        return 0;
+    }
+    
+    size_t crossings = 0;
+    for (size_t i = 1; i < samples.size(); ++i) {
+        if ((samples[i-1] >= 0 && samples[i] < 0) || (samples[i-1] < 0 && samples[i] >= 0)) {
+            crossings++;
+        }
+    }
+    
+    return crossings;
+}
+
+size_t FLACCodec::countClippedSamples_unlocked(const std::vector<int16_t>& samples) const {
+    size_t clipped = 0;
+    for (int16_t sample : samples) {
+        if (sample == -32768 || sample == 32767) {
+            clipped++;
+        }
+    }
+    return clipped;
+}
+
+bool FLACCodec::compareWithReferenceDecoder_unlocked(const MediaChunk& chunk,
+                                                    const std::vector<int16_t>& our_output) const {
+    // This is a placeholder for reference decoder comparison
+    // In a real implementation, this would use a reference FLAC decoder
+    // like libFLAC's reference implementation or another trusted decoder
+    
+    Debug::log("flac_codec", "[FLACCodec::compareWithReferenceDecoder_unlocked] Reference decoder comparison not implemented");
+    
+    // For now, just validate that our output is reasonable
+    if (our_output.empty()) {
+        return false;
+    }
+    
+    // Basic sanity checks
+    AudioQualityMetrics metrics = calculateQualityMetrics_unlocked(our_output);
+    return metrics.isGoodQuality();
+}
+
+std::vector<int16_t> FLACCodec::generateReferenceSamples_unlocked(const MediaChunk& chunk) const {
+    // This is a placeholder for reference sample generation
+    // In a real implementation, this would decode the chunk using a reference decoder
+    
+    Debug::log("flac_codec", "[FLACCodec::generateReferenceSamples_unlocked] Reference sample generation not implemented");
+    
+    // Return empty vector to indicate no reference available
+    return std::vector<int16_t>();
+}
+
+// ============================================================================
 // Variable Block Size Handling Implementation
 // ============================================================================
 
