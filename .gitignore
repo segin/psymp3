@@ -177,3 +177,4 @@ tests/test_flac_codec_unit_minimal
 tests/test_conditional_codec_compilation
 tests/test_flac_comprehensive_validation
 tests/test_flac_test_data_validation
+tests/test_flac_audioframe_creation

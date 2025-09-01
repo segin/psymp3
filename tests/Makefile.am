@@ -1562,6 +1562,20 @@ test_flac_audioframe_creation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/libmpg123.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/FileIOHandler.o \
 	$(top_builddir)/src/URI.o \
@@ -1575,7 +1589,7 @@ test_flac_audioframe_creation_LDADD = \
 	$(top_builddir)/src/BoundedBuffer.o \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
-	$(FLAC_LIBS) \
+	$(FLAC_LIBS) -logg -lvorbis -lvorbisenc -lmpg123 -lopus \
 	$(AM_LDFLAGS)
 
 # Note: FLACCodec.o and EnhancedAudioBufferPool.o build rules already defined above

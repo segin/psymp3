@@ -185,7 +185,7 @@ struct MediaChunk {
     
     // Optimized constructor using buffer pool
     MediaChunk(uint32_t id, size_t data_size)
-        : stream_id(id), data(BufferPool::getInstance().getBuffer(data_size)) {
+        : stream_id(id), data(EnhancedBufferPool::getInstance().getBuffer(data_size)) {
         data.resize(data_size);
     }
     
@@ -200,7 +200,7 @@ struct MediaChunk {
     // Destructor that returns buffer to pool
     ~MediaChunk() {
         if (!data.empty() && data.capacity() >= 1024) { // Only pool reasonably sized buffers
-            BufferPool::getInstance().returnBuffer(std::move(data));
+            EnhancedBufferPool::getInstance().returnBuffer(std::move(data));
         }
     }
     
@@ -729,7 +729,7 @@ protected:
                    " bytes for " + context, 0, DemuxerErrorRecovery::FALLBACK_MODE);
         
         // Try to free some memory from buffer pool
-        BufferPool::getInstance().clear();
+        EnhancedBufferPool::getInstance().clear();
         
         // Force garbage collection if possible
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
