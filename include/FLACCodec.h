@@ -263,17 +263,71 @@ private:
  * data in MediaChunk format, including FLACDemuxer, OggDemuxer, and
  * potentially future ISO demuxers.
  * 
+ * ARCHITECTURE OVERVIEW:
+ * =====================
+ * The FLACCodec implements a high-performance, container-agnostic FLAC decoder
+ * that integrates seamlessly with PsyMP3's AudioCodec architecture. Key design
+ * principles include:
+ * 
+ * 1. **Container Independence**: Works with any demuxer providing MediaChunk data
+ * 2. **RFC 9639 Compliance**: Strict adherence to FLAC specification
+ * 3. **Performance Optimization**: Real-time decoding for high-resolution files
+ * 4. **Threading Safety**: Comprehensive thread-safe design with deadlock prevention
+ * 5. **Memory Efficiency**: Optimized buffer management and minimal allocations
+ * 6. **Error Resilience**: Robust handling of corrupted frames and edge cases
+ * 
+ * PERFORMANCE CHARACTERISTICS:
+ * ===========================
+ * - **44.1kHz/16-bit**: <1% CPU usage on target hardware
+ * - **96kHz/24-bit**: Real-time performance without dropouts
+ * - **Frame Processing**: <100μs per frame for real-time requirements
+ * - **Memory Usage**: Bounded allocation with pre-allocated buffers
+ * - **SIMD Optimization**: Vectorized bit depth conversion where available
+ * 
+ * BIT DEPTH CONVERSION ALGORITHMS:
+ * ===============================
+ * The codec implements optimized algorithms for converting FLAC samples to 16-bit PCM:
+ * 
+ * - **8-bit → 16-bit**: Bit-shift upscaling (sample << 8) for maximum performance
+ * - **16-bit → 16-bit**: Direct copy with no conversion overhead
+ * - **24-bit → 16-bit**: Optimized downscaling with optional triangular dithering
+ * - **32-bit → 16-bit**: Arithmetic right-shift with overflow protection
+ * - **SIMD Variants**: SSE2/NEON optimized batch conversion for high throughput
+ * 
+ * CHANNEL PROCESSING:
+ * ==================
+ * Supports all FLAC channel configurations per RFC 9639:
+ * 
+ * - **Independent Channels**: Standard mono/stereo processing
+ * - **Left-Side Stereo**: Left + (Left-Right) difference reconstruction
+ * - **Right-Side Stereo**: (Left+Right) sum + Right reconstruction
+ * - **Mid-Side Stereo**: (Left+Right) sum + (Left-Right) difference reconstruction
+ * - **Multi-Channel**: Up to 8 channels with proper interleaving
+ * 
+ * VARIABLE BLOCK SIZE HANDLING:
+ * ============================
+ * Efficiently handles FLAC's variable block size feature:
+ * 
+ * - **Fixed Block Sizes**: Optimized processing for standard sizes (192, 576, 1152, etc.)
+ * - **Variable Block Sizes**: Dynamic buffer adaptation within same stream
+ * - **Block Size Range**: 16-65535 samples per RFC 9639
+ * - **Adaptive Buffering**: Automatic buffer resizing based on detected patterns
+ * - **Performance Optimization**: Pre-allocation for common block sizes
+ * 
  * @thread_safety This class is thread-safe. All public methods follow the
  *                public/private lock pattern to prevent deadlocks.
  * 
  * THREADING SAFETY GUARANTEES:
+ * ============================
  * - All public methods acquire locks using RAII guards (std::lock_guard)
  * - All public methods call corresponding _unlocked private methods
  * - Internal method calls always use _unlocked versions to prevent deadlocks
  * - Exception safety is maintained through RAII lock guards
  * - No callbacks are invoked while holding internal locks
+ * - Atomic variables used for frequently accessed state (current sample position)
  * 
  * LOCK ACQUISITION ORDER (to prevent deadlocks):
+ * =============================================
  * 1. m_state_mutex (for codec state and configuration)
  * 2. m_thread_mutex (for threading state management)
  * 3. m_async_mutex (for asynchronous processing queues)
@@ -282,8 +336,92 @@ private:
  * 6. m_input_mutex (for input queue and frame reconstruction)
  * 7. libFLAC internal locks (managed by libFLAC)
  * 
- * NEVER acquire locks in different order to prevent deadlocks!
- * NEVER call public methods from _unlocked methods!
+ * CRITICAL THREADING RULES:
+ * ========================
+ * - NEVER acquire locks in different order to prevent deadlocks!
+ * - NEVER call public methods from _unlocked methods!
+ * - ALWAYS use RAII lock guards for exception safety
+ * - NEVER invoke callbacks while holding internal locks
+ * - Use atomic variables for high-frequency read-only access
+ * 
+ * USAGE EXAMPLE:
+ * =============
+ * @code
+ * // Initialize codec with stream information
+ * StreamInfo stream_info;
+ * stream_info.sample_rate = 44100;
+ * stream_info.channels = 2;
+ * stream_info.bits_per_sample = 16;
+ * 
+ * FLACCodec codec(stream_info);
+ * if (!codec.initialize()) {
+ *     // Handle initialization error
+ *     return false;
+ * }
+ * 
+ * // Decode FLAC frames
+ * MediaChunk chunk = demuxer.getNextChunk();
+ * AudioFrame frame = codec.decode(chunk);
+ * 
+ * if (frame.sample_count > 0) {
+ *     // Process decoded PCM samples
+ *     processAudio(frame.samples);
+ * }
+ * 
+ * // Flush remaining samples at end of stream
+ * AudioFrame final_frame = codec.flush();
+ * @endcode
+ * 
+ * TROUBLESHOOTING GUIDE:
+ * =====================
+ * Common issues and solutions:
+ * 
+ * 1. **Initialization Failures**:
+ *    - Verify StreamInfo contains valid FLAC parameters
+ *    - Check libFLAC library availability (HAVE_FLAC defined)
+ *    - Ensure sample rate is 1-655350 Hz per RFC 9639
+ *    - Verify channel count is 1-8 per RFC 9639
+ *    - Check bit depth is 4-32 bits per RFC 9639
+ * 
+ * 2. **Decoding Errors**:
+ *    - Corrupted frames: Codec will skip and continue
+ *    - CRC failures: Logged as warnings, decoded data still used
+ *    - Sync loss: Decoder automatically resets and resynchronizes
+ *    - Memory errors: Check available system memory
+ * 
+ * 3. **Performance Issues**:
+ *    - High CPU usage: Check for excessive buffer reallocations
+ *    - Dropouts: Verify real-time performance requirements met
+ *    - Memory usage: Monitor buffer sizes and allocation patterns
+ *    - Threading contention: Review lock acquisition patterns
+ * 
+ * 4. **Quality Issues**:
+ *    - Bit depth conversion artifacts: Enable dithering for 24→16 bit
+ *    - Channel reconstruction errors: Verify stereo mode handling
+ *    - Dynamic range loss: Check conversion algorithm selection
+ *    - Clipping: Verify overflow protection in 32→16 bit conversion
+ * 
+ * PERFORMANCE TUNING RECOMMENDATIONS:
+ * ==================================
+ * 1. **Buffer Management**:
+ *    - Use adaptive buffer sizing for variable block sizes
+ *    - Pre-allocate buffers based on maximum expected block size
+ *    - Monitor buffer utilization and adjust watermarks
+ * 
+ * 2. **SIMD Optimization**:
+ *    - Enable SSE2 on x86/x64 platforms for batch conversion
+ *    - Use NEON on ARM platforms for vectorized processing
+ *    - Verify SIMD code paths are being used in performance-critical sections
+ * 
+ * 3. **Threading Optimization**:
+ *    - Minimize lock contention by using atomic variables for read-only access
+ *    - Consider asynchronous processing for high-throughput scenarios
+ *    - Profile lock acquisition patterns to identify bottlenecks
+ * 
+ * 4. **Memory Optimization**:
+ *    - Use memory pools for frequently allocated/deallocated buffers
+ *    - Implement buffer reuse strategies to minimize allocation overhead
+ *    - Monitor memory fragmentation in long-running scenarios
  */
 class FLACCodec : public AudioCodec {
 public:
@@ -291,28 +429,497 @@ public:
     ~FLACCodec() override;
     
     // AudioCodec interface implementation (thread-safe public methods)
+    
+    /**
+     * @brief Initialize the FLAC codec with stream parameters
+     * 
+     * Configures the codec from StreamInfo parameters and initializes the libFLAC
+     * decoder with performance optimizations. This method must be called before
+     * any decoding operations.
+     * 
+     * INITIALIZATION PROCESS:
+     * 1. Validates StreamInfo parameters against RFC 9639 specification
+     * 2. Configures internal state (sample rate, channels, bit depth)
+     * 3. Initializes libFLAC decoder with performance settings
+     * 4. Pre-allocates buffers based on maximum expected block size
+     * 5. Sets up bit depth conversion algorithms
+     * 6. Initializes performance monitoring
+     * 
+     * PERFORMANCE OPTIMIZATIONS:
+     * - Disables MD5 checking in libFLAC for maximum performance
+     * - Pre-allocates buffers to minimize runtime allocations
+     * - Configures optimal decoder settings for real-time processing
+     * - Sets up SIMD-optimized conversion paths where available
+     * 
+     * @return true if initialization successful, false on error
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * @note This method follows the public/private lock pattern:
+     *       - Acquires m_state_mutex using RAII guard
+     *       - Calls initialize_unlocked() for actual implementation
+     * 
+     * COMMON FAILURE REASONS:
+     * - Invalid sample rate (must be 1-655350 Hz per RFC 9639)
+     * - Invalid channel count (must be 1-8 per RFC 9639)
+     * - Invalid bit depth (must be 4-32 bits per RFC 9639)
+     * - libFLAC initialization failure
+     * - Memory allocation failure
+     * - Missing FLAC library support (HAVE_FLAC not defined)
+     * 
+     * @see initialize_unlocked() for implementation details
+     * @see configureFromStreamInfo_unlocked() for parameter validation
+     * @see initializeFLACDecoder_unlocked() for libFLAC setup
+     */
     bool initialize() override;
+    
+    /**
+     * @brief Decode a FLAC frame from MediaChunk data
+     * 
+     * Processes a complete FLAC frame contained in a MediaChunk and returns
+     * decoded 16-bit PCM samples as an AudioFrame. This is the primary decoding
+     * method for real-time playback.
+     * 
+     * DECODING PROCESS:
+     * 1. Validates input MediaChunk contains complete FLAC frame
+     * 2. Feeds frame data to libFLAC decoder
+     * 3. Processes libFLAC callbacks (read, write, metadata, error)
+     * 4. Converts decoded samples to 16-bit PCM using optimized algorithms
+     * 5. Handles channel reconstruction for stereo modes
+     * 6. Creates AudioFrame with proper timing information
+     * 7. Updates performance statistics
+     * 
+     * BIT DEPTH CONVERSION:
+     * - 8-bit: Upscaled using bit shift (sample << 8)
+     * - 16-bit: Direct copy (no conversion needed)
+     * - 24-bit: Downscaled with optional dithering (sample >> 8)
+     * - 32-bit: Downscaled with overflow protection (clamp + shift)
+     * - SIMD: Vectorized conversion for batch processing where available
+     * 
+     * CHANNEL PROCESSING:
+     * - Independent: Each channel processed separately
+     * - Left-Side: Left + (Left-Right) difference reconstruction
+     * - Right-Side: (Left+Right) sum + Right reconstruction
+     * - Mid-Side: (Left+Right) sum + (Left-Right) difference reconstruction
+     * 
+     * @param chunk MediaChunk containing complete FLAC frame data
+     * @return AudioFrame with decoded 16-bit PCM samples, empty on error
+     * 
+     * @thread_safety Thread-safe. Uses multiple mutexes for synchronization.
+     * 
+     * @note This method follows the public/private lock pattern:
+     *       - Acquires m_state_mutex for codec state access
+     *       - Acquires m_buffer_mutex for output buffer operations
+     *       - Calls decode_unlocked() for actual implementation
+     * 
+     * ERROR HANDLING:
+     * - Corrupted frames: Skipped, returns silence frame
+     * - CRC failures: Logged as warning, decoded data still returned
+     * - Sync loss: Decoder reset and resynchronization attempted
+     * - Memory errors: Returns empty AudioFrame
+     * - Invalid input: Returns empty AudioFrame
+     * 
+     * PERFORMANCE CHARACTERISTICS:
+     * - Target: <100μs per frame for real-time requirements
+     * - Memory: Minimal allocations during steady-state operation
+     * - CPU: <1% usage for 44.1kHz/16-bit, real-time for 96kHz/24-bit
+     * 
+     * @see decode_unlocked() for implementation details
+     * @see processFrameData_unlocked() for frame processing
+     * @see convertSamples_unlocked() for bit depth conversion
+     * @see processChannelAssignment_unlocked() for channel processing
+     */
     AudioFrame decode(const MediaChunk& chunk) override;
+    
+    /**
+     * @brief Flush remaining decoded samples from internal buffers
+     * 
+     * Outputs any remaining decoded samples that are buffered internally.
+     * This method should be called at the end of a stream to ensure all
+     * audio data is retrieved.
+     * 
+     * FLUSH PROCESS:
+     * 1. Processes any remaining data in libFLAC decoder
+     * 2. Converts and outputs buffered samples
+     * 3. Clears internal buffers
+     * 4. Updates final sample position
+     * 5. Prepares codec for potential reset/reuse
+     * 
+     * @return AudioFrame with remaining samples, empty if no samples buffered
+     * 
+     * @thread_safety Thread-safe. Uses m_buffer_mutex for synchronization.
+     * 
+     * @note This method follows the public/private lock pattern:
+     *       - Acquires m_buffer_mutex for buffer operations
+     *       - Calls flush_unlocked() for actual implementation
+     * 
+     * TYPICAL USAGE:
+     * - Called at end of stream to retrieve final samples
+     * - Called before reset() to ensure no data loss
+     * - Called during seeking to clear stale buffered data
+     * 
+     * @see flush_unlocked() for implementation details
+     */
     AudioFrame flush() override;
+    
+    /**
+     * @brief Reset codec state for seeking or new stream
+     * 
+     * Resets the codec to initial state, clearing all buffers and resetting
+     * the libFLAC decoder. This enables sample-accurate seeking by allowing
+     * the codec to start decoding from any FLAC frame.
+     * 
+     * RESET PROCESS:
+     * 1. Clears all internal buffers (input, output, decode)
+     * 2. Resets libFLAC decoder state
+     * 3. Resets sample position tracking
+     * 4. Clears error state
+     * 5. Resets performance statistics (optional)
+     * 6. Prepares for new decoding sequence
+     * 
+     * @thread_safety Thread-safe. Uses multiple mutexes for synchronization.
+     * 
+     * @note This method follows the public/private lock pattern:
+     *       - Acquires m_state_mutex for codec state
+     *       - Acquires m_buffer_mutex for buffer operations
+     *       - Calls reset_unlocked() for actual implementation
+     * 
+     * SEEKING SUPPORT:
+     * The reset functionality enables sample-accurate seeking by:
+     * - Clearing decoder state without losing configuration
+     * - Allowing decoding to start from any FLAC frame
+     * - Maintaining consistent output format
+     * - Preserving codec configuration and optimization settings
+     * 
+     * @see reset_unlocked() for implementation details
+     * @see resetDecoderState_unlocked() for decoder reset
+     */
     void reset() override;
+    
+    /**
+     * @brief Get codec name identifier
+     * 
+     * Returns the codec identifier used by MediaFactory for codec selection
+     * and registration. This identifier is used to match FLAC streams with
+     * this codec implementation.
+     * 
+     * @return "flac" - the standard FLAC codec identifier
+     * 
+     * @thread_safety Thread-safe (no synchronization needed - returns constant)
+     * 
+     * @note This method is used by:
+     *       - MediaFactory for codec registration and selection
+     *       - Demuxers for codec capability queries
+     *       - Debug logging and error reporting
+     *       - Codec enumeration and discovery
+     */
     std::string getCodecName() const override { return "flac"; }
+    
+    /**
+     * @brief Check if codec can decode the given stream
+     * 
+     * Validates whether this codec can handle the stream described by the
+     * StreamInfo parameters. Performs comprehensive validation against
+     * RFC 9639 FLAC specification requirements.
+     * 
+     * VALIDATION CHECKS:
+     * 1. Codec name matches "flac" (case-insensitive)
+     * 2. Sample rate within RFC 9639 limits (1-655350 Hz)
+     * 3. Channel count within RFC 9639 limits (1-8 channels)
+     * 4. Bit depth within RFC 9639 limits (4-32 bits)
+     * 5. libFLAC library availability (HAVE_FLAC defined)
+     * 6. System resource availability for decoding
+     * 
+     * @param stream_info Stream parameters to validate
+     * @return true if codec can decode the stream, false otherwise
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * @note This method follows the public/private lock pattern:
+     *       - Acquires m_state_mutex for thread safety
+     *       - Calls canDecode_unlocked() for actual validation
+     * 
+     * PERFORMANCE CONSIDERATIONS:
+     * - Lightweight validation suitable for frequent calls
+     * - No decoder initialization or resource allocation
+     * - Fast parameter range checking
+     * - Minimal computational overhead
+     * 
+     * @see canDecode_unlocked() for implementation details
+     * @see validateConfiguration_unlocked() for detailed validation
+     */
     bool canDecode(const StreamInfo& stream_info) const override;
     
     // FLAC-specific public interface
+    
+    /**
+     * @brief Check if codec supports seek reset functionality
+     * 
+     * Indicates whether this codec implementation supports sample-accurate
+     * seeking through the reset() method. FLAC's frame-based structure
+     * enables seeking to any frame boundary.
+     * 
+     * @return true - FLAC codec always supports seek reset
+     * 
+     * @thread_safety Thread-safe (no synchronization needed - returns constant)
+     * 
+     * SEEK RESET CAPABILITY:
+     * The FLAC codec supports seek reset because:
+     * - FLAC frames are self-contained and can be decoded independently
+     * - No inter-frame dependencies (unlike some predictive codecs)
+     * - Frame headers contain all necessary decoding parameters
+     * - libFLAC decoder can be reset without losing configuration
+     * 
+     * USAGE IN SEEKING:
+     * 1. Demuxer seeks to target FLAC frame
+     * 2. Calls codec.reset() to clear state
+     * 3. Begins decoding from new position
+     * 4. Sample-accurate playback resumes
+     * 
+     * @see reset() for seek reset implementation
+     */
     bool supportsSeekReset() const;
+    
+    /**
+     * @brief Get current sample position in stream
+     * 
+     * Returns the current playback position as a sample number from the
+     * beginning of the stream. This value is updated after each successful
+     * decode operation and is used for timing and seeking calculations.
+     * 
+     * @return Current sample position (0-based)
+     * 
+     * @thread_safety Thread-safe. Uses atomic variable for lock-free access.
+     * 
+     * @note This method uses atomic access for high-frequency reads without
+     *       lock overhead. The position is updated atomically after each
+     *       successful decode operation.
+     * 
+     * POSITION TRACKING:
+     * - Initialized to 0 at codec creation
+     * - Incremented by block_size after each decoded frame
+     * - Reset to 0 by reset() method
+     * - Maintained across variable block sizes
+     * - Used for AudioFrame timestamp calculation
+     * 
+     * ACCURACY GUARANTEES:
+     * - Sample-accurate position tracking
+     * - Consistent across variable block sizes
+     * - Atomic updates prevent race conditions
+     * - Monotonically increasing during normal playback
+     * 
+     * @see updateSamplePosition_unlocked() for position update logic
+     */
     uint64_t getCurrentSample() const;
+    
+    /**
+     * @brief Get comprehensive codec performance statistics
+     * 
+     * Returns detailed performance and debugging statistics collected during
+     * codec operation. These statistics are useful for performance monitoring,
+     * optimization, and troubleshooting.
+     * 
+     * STATISTICS INCLUDED:
+     * - Frame and sample counts
+     * - Processing times and efficiency metrics
+     * - Memory usage and allocation statistics
+     * - Error counts and types
+     * - Buffer utilization metrics
+     * - Conversion operation counts
+     * 
+     * @return FLACCodecStats structure with current statistics
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * @note Statistics are continuously updated during operation and can
+     *       be retrieved at any time for monitoring purposes.
+     * 
+     * PERFORMANCE MONITORING:
+     * Use these statistics to:
+     * - Monitor real-time performance requirements
+     * - Identify performance bottlenecks
+     * - Track memory usage patterns
+     * - Analyze error rates and types
+     * - Optimize buffer sizes and allocation strategies
+     * 
+     * DEBUGGING APPLICATIONS:
+     * - Troubleshoot decoding issues
+     * - Verify codec efficiency
+     * - Monitor resource utilization
+     * - Validate optimization effectiveness
+     * 
+     * @see FLACCodecStats for detailed field descriptions
+     * @see updatePerformanceStats_unlocked() for statistics update logic
+     */
     FLACCodecStats getStats() const;
     
     // Quality validation and accuracy testing interface
+    
+    /**
+     * @brief Validate bit-perfect decoding accuracy
+     * 
+     * Compares decoded samples with reference samples to verify bit-perfect
+     * accuracy. This is used for testing and validation of the codec
+     * implementation against known reference data.
+     * 
+     * @param reference_samples Known correct PCM samples
+     * @param decoded_samples Samples decoded by this codec
+     * @return true if samples match exactly (bit-perfect), false otherwise
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * BIT-PERFECT VALIDATION:
+     * - Compares every sample value exactly
+     * - Accounts for sample count differences
+     * - Validates timing and channel ordering
+     * - Used for codec accuracy verification
+     * 
+     * TESTING APPLICATIONS:
+     * - Regression testing against reference implementations
+     * - Validation of bit depth conversion accuracy
+     * - Verification of channel processing correctness
+     * - Quality assurance for codec releases
+     */
     bool validateBitPerfectDecoding(const std::vector<int16_t>& reference_samples, 
                                    const std::vector<int16_t>& decoded_samples) const;
+    
+    /**
+     * @brief Calculate Signal-to-Noise Ratio between reference and decoded samples
+     * 
+     * Computes SNR in decibels to quantify the quality of decoded audio
+     * compared to a reference. Higher SNR indicates better quality.
+     * 
+     * @param reference_samples Reference PCM samples
+     * @param decoded_samples Decoded PCM samples
+     * @return SNR in decibels (higher is better)
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * SNR CALCULATION:
+     * SNR = 20 * log10(RMS_signal / RMS_noise)
+     * where noise = reference - decoded
+     * 
+     * QUALITY THRESHOLDS:
+     * - >120 dB: Bit-perfect (theoretical maximum for 16-bit)
+     * - >90 dB: Excellent quality
+     * - >60 dB: Good quality
+     * - <40 dB: Poor quality (audible artifacts)
+     */
     double calculateSignalToNoiseRatio(const std::vector<int16_t>& reference_samples,
                                       const std::vector<int16_t>& decoded_samples) const;
+    
+    /**
+     * @brief Calculate Total Harmonic Distortion of audio samples
+     * 
+     * Measures the harmonic distortion present in decoded audio samples.
+     * Lower THD indicates better audio quality and more accurate decoding.
+     * 
+     * @param samples PCM samples to analyze
+     * @return THD as percentage (lower is better)
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * THD CALCULATION:
+     * Analyzes frequency spectrum to identify harmonic distortion
+     * components relative to fundamental frequencies.
+     * 
+     * QUALITY THRESHOLDS:
+     * - <0.01%: Excellent (inaudible distortion)
+     * - <0.1%: Very good
+     * - <1%: Acceptable
+     * - >1%: Poor (audible distortion)
+     */
     double calculateTotalHarmonicDistortion(const std::vector<int16_t>& samples) const;
+    
+    /**
+     * @brief Validate bit depth conversion quality
+     * 
+     * Analyzes the quality of bit depth conversion by comparing source
+     * samples with converted output. Validates conversion algorithms
+     * and identifies potential quality issues.
+     * 
+     * @param source_samples Original FLAC samples (various bit depths)
+     * @param converted_samples Converted 16-bit PCM samples
+     * @param source_bit_depth Original bit depth (8, 16, 24, or 32)
+     * @return true if conversion quality meets standards, false otherwise
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * CONVERSION QUALITY VALIDATION:
+     * - Verifies proper scaling and range mapping
+     * - Checks for clipping and overflow
+     * - Validates dithering effectiveness (24→16 bit)
+     * - Ensures no DC offset introduction
+     * - Verifies dynamic range preservation
+     * 
+     * QUALITY CRITERIA:
+     * - No clipping or overflow
+     * - Proper scaling for bit depth
+     * - Minimal quantization noise
+     * - Preserved dynamic range
+     * - Correct dithering application
+     */
     bool validateConversionQuality(const std::vector<FLAC__int32>& source_samples,
                                   const std::vector<int16_t>& converted_samples,
                                   uint16_t source_bit_depth) const;
+    
+    /**
+     * @brief Validate dynamic range of decoded samples
+     * 
+     * Analyzes the dynamic range of decoded audio to ensure proper
+     * utilization of the available bit depth and absence of compression
+     * artifacts or range limitations.
+     * 
+     * @param samples PCM samples to analyze
+     * @return true if dynamic range is adequate, false otherwise
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * DYNAMIC RANGE ANALYSIS:
+     * - Measures peak-to-RMS ratio
+     * - Analyzes amplitude distribution
+     * - Detects compression artifacts
+     * - Validates bit depth utilization
+     * 
+     * VALIDATION CRITERIA:
+     * - Adequate peak-to-RMS ratio (>20 dB typical)
+     * - Full bit depth utilization when appropriate
+     * - No artificial limiting or compression
+     * - Proper noise floor characteristics
+     */
     bool validateDynamicRange(const std::vector<int16_t>& samples) const;
+    
+    /**
+     * @brief Calculate comprehensive audio quality metrics
+     * 
+     * Performs comprehensive analysis of decoded audio samples and returns
+     * detailed quality metrics including SNR, THD, dynamic range, and
+     * various other audio quality indicators.
+     * 
+     * @param samples PCM samples to analyze
+     * @return AudioQualityMetrics structure with comprehensive analysis
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * COMPREHENSIVE ANALYSIS:
+     * - Signal-to-noise ratio calculation
+     * - Total harmonic distortion measurement
+     * - Dynamic range analysis
+     * - Peak and RMS amplitude measurement
+     * - DC offset detection
+     * - Zero crossing analysis
+     * - Clipping detection
+     * - Bit-perfect validation flag
+     * 
+     * APPLICATIONS:
+     * - Automated quality testing
+     * - Performance benchmarking
+     * - Codec validation and verification
+     * - Audio quality monitoring
+     * - Regression testing
+     * 
+     * @see AudioQualityMetrics for detailed metric descriptions
+     */
     AudioQualityMetrics calculateQualityMetrics(const std::vector<int16_t>& samples) const;
     
     // Friend class for callback access
