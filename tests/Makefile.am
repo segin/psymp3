@@ -1876,3 +1876,5 @@ test_flac_test_data_validation_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+
+	
