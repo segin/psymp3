@@ -144,13 +144,20 @@ public:
     // Public methods for testing duration calculation
     uint64_t getLastGranulePosition();
     uint64_t scanBufferForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size);
-    uint64_t scanForwardForLastGranule(long start_position);
+    uint64_t scanBackwardForLastGranule(int64_t scan_start, size_t scan_size);
+    uint64_t scanChunkForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size, 
+                                     uint32_t preferred_serial, bool has_preferred_serial);
+    uint64_t scanForwardForLastGranule(int64_t start_position);
     uint64_t getLastGranuleFromHeaders();
     void setFileSizeForTesting(uint64_t file_size) { m_file_size = file_size; }
     
     // Public methods for testing bisection search
     bool seekToPage(uint64_t target_granule, uint32_t stream_id);
     bool examinePacketsAtPosition(int64_t file_offset, uint32_t stream_id, uint64_t& granule_position);
+    
+    // Public methods for testing data streaming
+    void fillPacketQueue(uint32_t target_stream_id);
+    int fetchAndProcessPacket();
     
     // Safe granule position arithmetic (following libopusfile patterns)
     // Made public for testing
@@ -279,12 +286,7 @@ private:
      */
     bool findAndReadNextPage(ogg_page& page, uint32_t target_stream_id = 0);
     
-    /**
-     * @brief Read and queue packets until we have data for the requested stream
-     */
-    void fillPacketQueue(uint32_t target_stream_id);
-    
-
+protected:
     
     /**
      * @brief Check if packet data starts with given signature
