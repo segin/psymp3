@@ -103,10 +103,40 @@ All threading-related code changes must include:
 - Maintain backward compatibility when adding new codec support
 - Test codec implementations with and without their dependencies available
 
-### FLAC-Specific Development Guidelines
+### Format-Specific Development Guidelines
+
+#### FLAC-Specific Guidelines
 - **RFC Compliance**: All FLAC demuxer implementation must comply with RFC 9639 (available in `docs/rfc9639.txt`)
 - **Reference Documentation**: When implementing or debugging FLAC features, consult `docs/RFC9639_FLAC_SUMMARY.md` for quick reference
 - **Frame Boundary Detection**: FLAC frames are variable-length; always use proper sync pattern detection (0xFF followed by 0xF8-0xFF)
 - **Metadata Handling**: Follow RFC specifications for metadata block parsing and validation
 - **Error Recovery**: Implement robust error recovery for corrupted or incomplete FLAC streams
 - **Performance**: Frame size estimation should be conservative but efficient to avoid excessive I/O operations
+
+#### Ogg Container Guidelines
+- **RFC Compliance**: All Ogg demuxer implementation must comply with RFC 3533 (available in `docs/rfc3533.txt`)
+- **Reference Documentation**: When implementing or debugging Ogg features, consult `docs/RFC3533_OGG_SUMMARY.md` for quick reference
+- **Page Parsing**: Always verify "OggS" capture pattern and validate CRC checksums for corruption detection
+- **Packet Reconstruction**: Handle packet continuation across pages using continuation flags and segment tables
+- **Stream Multiplexing**: Support multiple logical streams with unique serial numbers in single Ogg file
+- **Seeking**: Implement bisection search using granule positions for efficient time-based seeking
+- **Error Recovery**: Use page boundaries and sequence numbers for robust error recovery
+
+#### Vorbis Codec Guidelines
+- **Specification Compliance**: All Vorbis codec implementation must comply with the official Vorbis I specification (available in `docs/vorbis-spec.html`)
+- **Reference Documentation**: When implementing or debugging Vorbis features, consult `docs/VORBIS_SPEC_SUMMARY.md` for quick reference
+- **Header Processing**: Always validate identification, comment, and setup headers before processing audio packets
+- **Framing Validation**: Verify framing flags in all Vorbis packets to ensure proper packet structure
+- **Block Handling**: Implement proper overlap-add for variable block sizes (short/long blocks)
+- **Quality Management**: Support VBR encoding and quality levels (-1 to 10 scale)
+- **Error Recovery**: Handle corrupted packets gracefully with proper error concealment
+
+#### Opus Codec Guidelines
+- **RFC Compliance**: All Opus codec implementation must comply with RFC 6716 (available in `docs/rfc6716.txt`)
+- **Ogg Encapsulation**: Follow RFC 7845 for Opus-specific Ogg container requirements (available in `docs/rfc7845.txt`)
+- **Reference Documentation**: When implementing or debugging Opus features, consult `docs/RFC6716_OPUS_SUMMARY.md` for quick reference
+- **TOC Parsing**: Properly decode Table of Contents byte for configuration, stereo flag, and frame count
+- **Mode Handling**: Support SILK (speech), CELT (music), and hybrid modes based on configuration
+- **Sample Rate**: Handle internal 48 kHz processing with automatic resampling for other rates
+- **Pre-skip**: Implement proper pre-skip handling for encoder delay compensation
+- **Packet Loss**: Implement forward error correction (FEC) and packet loss concealment algorithms
