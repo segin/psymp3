@@ -66,7 +66,7 @@
   - Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11_
 
-- [ ] 7. Implement Time Conversion Functions (Following Reference Implementation Logic)
+- [x] 7. Implement Time Conversion Functions (Following Reference Implementation Logic)
   - Write granuleToMs() with codec-specific logic following reference implementations
   - Write msToGranule() with proper pre-skip handling for Opus
   - Implement Opus time conversion using opus_granule_sample() equivalent logic
