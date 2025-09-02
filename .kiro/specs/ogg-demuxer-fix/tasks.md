@@ -43,7 +43,7 @@
   - Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
 
-- [ ] 5. Implement Codec Detection and Header Processing (Following Reference Patterns)
+- [x] 5. Implement Codec Detection and Header Processing (Following Reference Patterns)
   - Implement Vorbis codec detection using vorbis_synthesis_idheader() equivalent logic
   - Implement Opus codec detection using opus_head_parse() equivalent logic  
   - Implement FLAC codec detection using "\x7fFLAC" signature validation
@@ -54,7 +54,7 @@
   - Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.5, 3.8, 3.9, 3.10, 3.11_
 
-- [ ] 6. Implement Duration Calculation (Following op_get_last_page Patterns)
+- [x] 6. Implement Duration Calculation (Following op_get_last_page Patterns)
   - Implement getLastGranulePosition() using op_get_last_page() backward scanning patterns
   - Use chunk-based backward scanning with exponentially increasing chunk sizes
   - Implement proper serial number preference and boundary condition handling
