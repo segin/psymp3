@@ -214,6 +214,100 @@ public:
      */
     int getData(size_t bytes_requested = 0);
     
+    /**
+     * @brief Clean up all libogg structures (assumes locks are held)
+     */
+    void cleanupLiboggStructures_unlocked();
+    
+    /**
+     * @brief Validate buffer sizes to prevent overflow (Requirement 8.4)
+     */
+    bool validateBufferSize(size_t requested_size, const char* operation_name);
+    
+    /**
+     * @brief Check and enforce packet queue limits (Requirement 8.2)
+     */
+    bool enforcePacketQueueLimits_unlocked(uint32_t stream_id);
+    
+    /**
+     * @brief Reset sync state after seeks (Requirement 12.9)
+     */
+    void resetSyncStateAfterSeek_unlocked();
+    
+    /**
+     * @brief Reset stream state for stream switching (Requirement 12.10)
+     */
+    void resetStreamState_unlocked(uint32_t stream_id, uint32_t new_serial_number);
+    
+    /**
+     * @brief Perform comprehensive memory audit (Requirement 8.2, 8.3)
+     */
+    bool performMemoryAudit_unlocked();
+    
+    /**
+     * @brief Enforce strict memory limits to prevent exhaustion (Requirement 8.2)
+     */
+    void enforceMemoryLimits_unlocked();
+    
+    /**
+     * @brief Validate libogg structures for corruption (Requirement 8.1, 8.3)
+     */
+    bool validateLiboggStructures_unlocked();
+    
+    /**
+     * @brief Perform periodic maintenance to prevent resource leaks (Requirement 8.2, 8.3)
+     */
+    void performPeriodicMaintenance_unlocked();
+    
+    /**
+     * @brief Detect and prevent infinite loops in packet processing (Requirement 8.1)
+     */
+    bool detectInfiniteLoop_unlocked(const std::string& operation_name);
+    
+    /**
+     * @brief Implement efficient read-ahead buffering for network sources (Requirement 8.4)
+     */
+    bool performReadAheadBuffering_unlocked(size_t target_buffer_size);
+    
+    /**
+     * @brief Cache recently accessed pages for seeking performance (Requirement 8.6)
+     */
+    void cachePageForSeeking_unlocked(int64_t file_offset, uint64_t granule_position, 
+                                      uint32_t stream_id, const std::vector<uint8_t>& page_data);
+    
+    /**
+     * @brief Find cached page near target position (Requirement 8.6)
+     */
+    bool findCachedPageNearTarget_unlocked(uint64_t target_granule, uint32_t stream_id, 
+                                           int64_t& file_offset, uint64_t& granule_position);
+    
+    /**
+     * @brief Add seek hint to reduce bisection iterations (Requirement 8.3)
+     */
+    void addSeekHint_unlocked(uint64_t timestamp_ms, int64_t file_offset, uint64_t granule_position);
+    
+    /**
+     * @brief Find best seek hint for target timestamp (Requirement 8.3)
+     */
+    bool findBestSeekHint_unlocked(uint64_t target_timestamp_ms, int64_t& file_offset, 
+                                   uint64_t& granule_position);
+    
+    /**
+     * @brief Optimize I/O operations with efficient buffering (Requirements 8.1, 8.3)
+     */
+    bool optimizedRead_unlocked(void* buffer, size_t size, size_t count, long& bytes_read);
+    
+    /**
+     * @brief Minimize memory copying in packet processing (Requirement 8.5)
+     */
+    bool processPacketWithMinimalCopy_unlocked(const ogg_packet& packet, uint32_t stream_id, 
+                                               OggPacket& output_packet);
+    
+    /**
+     * @brief Clean up performance caches and hints
+     */
+    void cleanupPerformanceCaches_unlocked();
+    
 protected:
     
 private:
@@ -225,6 +319,43 @@ private:
     // libogg structures
     ogg_sync_state m_sync_state;
     std::map<uint32_t, ogg_stream_state> m_ogg_streams;
+    
+    // Memory management (Requirement 8.2)
+    size_t m_max_packet_queue_size;
+    std::atomic<size_t> m_total_memory_usage;
+    size_t m_max_memory_usage;
+    
+    // Performance optimization settings (Requirements 8.1-8.7)
+    size_t m_read_ahead_buffer_size;
+    size_t m_page_cache_size;
+    size_t m_io_buffer_size;
+    uint64_t m_seek_hint_granularity;
+    
+    // Performance tracking
+    std::atomic<uint64_t> m_bytes_read_total;
+    std::atomic<uint32_t> m_seek_operations;
+    std::atomic<uint32_t> m_cache_hits;
+    std::atomic<uint32_t> m_cache_misses;
+    
+    // Page cache for seeking performance (Requirement 8.6)
+    struct CachedPage {
+        int64_t file_offset;
+        uint64_t granule_position;
+        uint32_t stream_id;
+        std::vector<uint8_t> page_data;
+        std::chrono::steady_clock::time_point access_time;
+    };
+    mutable std::vector<CachedPage> m_page_cache;
+    mutable std::mutex m_page_cache_mutex;
+    
+    // Seek hints for bisection optimization (Requirement 8.3)
+    struct SeekHint {
+        uint64_t timestamp_ms;
+        int64_t file_offset;
+        uint64_t granule_position;
+    };
+    mutable std::vector<SeekHint> m_seek_hints;
+    mutable std::mutex m_seek_hints_mutex;
     
     // Thread safety for OggDemuxer-specific state
     mutable std::mutex m_ogg_state_mutex;    // Protects Ogg-specific state and libogg structures

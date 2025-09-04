@@ -193,7 +193,7 @@ check_PROGRAMS = \
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming test_error_handling test_memory_safety test_seeking_integration test_ogg_demuxer_integration
+check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming test_error_handling test_memory_safety test_seeking_integration test_ogg_demuxer_integration test_oggdemuxer_performance
 endif
 
 # A-law codec tests
@@ -2110,3 +2110,30 @@ test_flac_test_data_validation_LDADD = \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
+# OggDemuxer performance test
+test_oggdemuxer_performance_SOURCES = test_oggdemuxer_performance.cpp
+test_oggdemuxer_performance_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_oggdemuxer_performance_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(VORBIS_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)

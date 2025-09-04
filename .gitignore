@@ -180,3 +180,9 @@ tests/test_flac_test_data_validation
 tests/test_flac_audioframe_creation
 tests/test_iohandler_legacy_compatibility
 tests/test_iohandler_performance_validation
+tests/test_error_handling
+tests/test_memory_safety
+tests/test_ogg_demuxer_integration
+tests/test_seeking_integration
+tests/test_error_handling
+
