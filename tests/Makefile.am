@@ -193,7 +193,7 @@ check_PROGRAMS = \
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming
+check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming test_error_handling test_memory_safety test_seeking_integration test_ogg_demuxer_integration
 endif
 
 # A-law codec tests
@@ -757,6 +757,29 @@ test_data_streaming_LDADD = \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
+# OggDemuxer memory safety test
+test_memory_safety_SOURCES = test_memory_safety.cpp
+test_memory_safety_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
+test_memory_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+
 # OggDemuxer error handling test
 test_error_handling_SOURCES = test_error_handling.cpp
 test_error_handling_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
@@ -767,6 +790,60 @@ test_error_handling_LDADD = \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/FileIOHandler.o \
 	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(VORBIS_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# OggDemuxer seeking integration test
+test_seeking_integration_SOURCES = test_seeking_integration.cpp
+test_seeking_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_seeking_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(VORBIS_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# OggDemuxer integration test
+test_ogg_demuxer_integration_SOURCES = test_ogg_demuxer_integration.cpp
+test_ogg_demuxer_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_ogg_demuxer_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
