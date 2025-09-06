@@ -186,3 +186,6 @@ tests/test_ogg_demuxer_integration
 tests/test_seeking_integration
 tests/test_error_handling
 
+# Comprehensive test suite
+tests/test_oggdemuxer_comprehensive
+tests/test_*_temp.*

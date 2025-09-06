@@ -146,7 +146,7 @@
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7_
   - **Implementation Notes:** Created comprehensive integration test covering all aspects of OggDemuxer integration with PsyMP3 architecture. Test works with both real Ogg files and minimal test data. All components properly integrated with threading safety, error recovery, and memory management.
 
-- [ ] 13. Performance Optimization and Buffering Strategy
+- [x] 13. Performance Optimization and Buffering Strategy
   - Implement efficient packet buffering with bounded queues following reference patterns
   - Optimize I/O operations for both local files and HTTP streams
   - Add read-ahead buffering for network sources using appropriate buffer sizes
@@ -159,7 +159,7 @@
   - Ensure clean build with `make -j$(nproc)` before proceeding
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8_
 
-- [ ] 14. Comprehensive Testing and Validation
+- [x] 14. Comprehensive Testing and Validation
   - Create comprehensive test suite covering all codec types (Vorbis, Opus, FLAC)
   - Test with various file types, encoders, and quality settings
   - Add regression tests for previously failing files and edge cases
