@@ -6,9 +6,10 @@ A simplistic audio media player with a flashy Fourier transform.
 
 1. [Overview](#overview)
 2. [System Requirements](#system-requirements)
-3. [Building and Testing](#building-and-testing)
+3. [Building](#building)
 4. [Usage](#usage)
-5. [Notes](#notes)
+5. [Testing](#testing)
+6. [Notes](#notes)
 
 ## Overview
 
@@ -49,9 +50,7 @@ Building from git requires `autoconf-archive` for the extended macros.
 
 > **Note**: The build system now supports optional codec dependencies. If a codec library is not found, that codec will be disabled but the build will continue. Use configure options like `--disable-flac`, `--disable-mp3`, `--disable-vorbis`, or `--disable-opus` to explicitly disable codec support.
 
-## Building and Testing
-
-### Building PsyMP3
+## Building
 
 **From a release tarball:**
 ```bash
@@ -73,102 +72,6 @@ make
 - `--enable-opus` - Enable Opus support (default: yes)
 - `--enable-test-harness` - Build test harness (default: yes)
 - `--enable-release` - Enable release optimizations (default: no)
-
-### Testing PsyMP3
-
-**Run all tests with the unified test harness:**
-```bash
-make check
-```
-
-This will build all test executables and run them through the test harness, providing a comprehensive report of test results.
-
-#### Test Harness Options
-
-**Basic Usage:**
-```bash
-cd tests && ./test-harness                    # Run all tests
-cd tests && ./test-harness -v                # Run with verbose output
-cd tests && ./test-harness -l                # List available tests
-cd tests && ./test-harness -q                # Quiet mode (summary only)
-```
-
-**Filtering and Selection:**
-```bash
-cd tests && ./test-harness -f "*rect*"       # Run only rectangle tests
-cd tests && ./test-harness -f "*containment*" # Run containment tests
-cd tests && ./test-harness -s                # Stop on first failure
-```
-
-**Parallel Execution:**
-```bash
-cd tests && ./test-harness -p                # Run tests in parallel
-cd tests && ./test-harness -p -j 8           # Use 8 parallel processes
-```
-
-**Output Formats:**
-```bash
-cd tests && ./test-harness -o xml > results.xml    # XML output for CI
-cd tests && ./test-harness -o json > results.json  # JSON output
-cd tests && ./test-harness -o console              # Console output (default)
-```
-
-**Performance Analysis:**
-```bash
-cd tests && ./test-harness --track-performance     # Enable performance tracking
-cd tests && ./test-harness --show-performance      # Show performance report
-cd tests && ./test-harness --show-detailed-perf    # Detailed performance metrics
-cd tests && ./test-harness --analyze-trends        # Analyze performance trends
-```
-
-**Advanced Options:**
-```bash
-cd tests && ./test-harness -t 60               # Set 60-second timeout per test
-cd tests && ./test-harness -d /path/to/tests   # Specify test directory
-```
-
-#### Running Individual Tests
-
-If you prefer to run tests individually (legacy method):
-```bash
-cd tests
-make test_rect_containment
-./test_rect_containment
-```
-
-**Available individual test executables:**
-- `test_rect_area_validation`
-- `test_rect_containment`
-- `test_rect_intersection`
-- `test_rect_union`
-- `test_rect_centering`
-- `test_rect_centering_overflow`
-- `test_rect_expansion`
-- `test_rect_transformation`
-- `test_rect_normalization`
-- `test_rect_modern_cpp`
-
-#### Migration from Old Testing Methods
-
-**Old way:**
-```bash
-cd tests
-gcc -o test_rect_containment test_rect_containment.cpp -I../include
-./test_rect_containment
-```
-
-**New way:**
-```bash
-make check
-```
-
-The new test harness provides:
-- Automatic test discovery and execution
-- Standardized reporting across all tests
-- Performance tracking and analysis
-- Multiple output formats for CI integration
-- Parallel execution for faster testing
-- Better error handling and timeout management
 
 ## Usage
 
@@ -214,6 +117,16 @@ password=your_lastfm_password
 
 For detailed Last.fm setup and troubleshooting, see the included `LASTFM_SETUP.md` file.
 
+## Testing
+
+To run the test suite:
+
+```bash
+make check
+```
+
+For detailed testing information, options, and troubleshooting, see [TESTING.md](TESTING.md).
+
 ## Notes
 
 At this time, PsyMP3 2.x is incomplete. There's very little UI code, and most features are missing at this time. If you are a developer and are interested in helping, please email me above.
@@ -224,4 +137,4 @@ If you are an end user and you don't like this program, feel free to use somethi
 
 ---
 
-*This README was last updated on July 20, 2025.*
+*This README was last updated on September 6, 2025.*
