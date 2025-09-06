@@ -151,7 +151,31 @@ public:
     uint64_t getLastGranuleFromHeaders();
     void setFileSizeForTesting(uint64_t file_size) { m_file_size = file_size; }
     
-    // Public methods for testing bisection search
+    /**
+     * @brief Bisection search algorithm for timestamp-based seeking (follows ov_pcm_seek_page/op_pcm_seek_page)
+     * 
+     * This function implements the exact bisection search algorithm used in libvorbisfile's
+     * ov_pcm_seek_page() and libopusfile's op_pcm_seek_page() functions. It performs
+     * efficient binary search through the file to find the page containing the target
+     * granule position.
+     * 
+     * The bisection algorithm:
+     * 1. Initializes search interval [begin, end] spanning the entire file
+     * 2. Repeatedly bisects the interval using (begin + end) / 2
+     * 3. Uses getNextPage() with ogg_sync_pageseek() for page discovery
+     * 4. Compares granule positions using granposCmp() for proper ordering
+     * 5. Adjusts interval boundaries based on comparison results
+     * 6. Switches to linear scanning when interval becomes small (< 8KB)
+     * 7. Uses ogg_stream_packetpeek() to examine packets without consuming them
+     * 8. Handles invalid granule positions (-1) by continuing search
+     * 
+     * This algorithm provides O(log n) seeking performance and is essential for
+     * responsive user interaction in large audio files.
+     * 
+     * @param target_granule Target granule position to seek to
+     * @param stream_id Stream ID for granule position interpretation
+     * @return true if target position found and stream positioned correctly
+     */
     bool seekToPage(uint64_t target_granule, uint32_t stream_id);
     bool examinePacketsAtPosition(int64_t file_offset, uint32_t stream_id, uint64_t& granule_position);
     
@@ -164,27 +188,65 @@ public:
     
     /**
      * @brief Safe granule position addition with overflow detection (follows op_granpos_add)
-     * @param dst_gp Pointer to destination granule position
-     * @param src_gp Source granule position
-     * @param delta Delta to add
-     * @return 0 on success, negative on overflow
+     * 
+     * This function implements safe granule position arithmetic following the exact patterns
+     * used in libopusfile's op_granpos_add() function. Granule positions in Ogg streams
+     * use a special encoding where -1 indicates an invalid/unset position, and the valid
+     * range wraps around from positive to negative values.
+     * 
+     * The granule position space is organized as:
+     * [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+     * 
+     * This function detects overflow conditions that would wrap past the invalid -1 value
+     * and returns appropriate error codes to prevent corruption of timing information.
+     * 
+     * @param dst_gp Pointer to destination granule position (must not be null)
+     * @param src_gp Source granule position to add to
+     * @param delta Delta value to add (can be positive or negative)
+     * @return 0 on success, negative error code on overflow/underflow
      */
     int granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta);
     
     /**
      * @brief Safe granule position subtraction with wraparound handling (follows op_granpos_diff)
-     * @param delta Pointer to store the difference
-     * @param gp_a First granule position
-     * @param gp_b Second granule position (subtracted from gp_a)
-     * @return 0 on success, negative on underflow
+     * 
+     * This function implements safe granule position subtraction following the exact patterns
+     * used in libopusfile's op_granpos_diff() function. It correctly handles the wraparound
+     * behavior of granule positions where negative values (except -1) are considered larger
+     * than positive values.
+     * 
+     * The function computes gp_a - gp_b while handling:
+     * - Invalid granule positions (-1) which result in invalid differences
+     * - Wraparound from positive to negative granule position ranges
+     * - Underflow conditions that would produce invalid results
+     * 
+     * This is essential for accurate seeking and duration calculations in Ogg streams.
+     * 
+     * @param delta Pointer to store the computed difference (must not be null)
+     * @param gp_a First granule position (minuend)
+     * @param gp_b Second granule position (subtrahend) - subtracted from gp_a
+     * @return 0 on success, negative error code on underflow or invalid input
      */
     int granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b);
     
     /**
      * @brief Safe granule position comparison with proper ordering (follows op_granpos_cmp)
-     * @param gp_a First granule position
-     * @param gp_b Second granule position
-     * @return -1 if gp_a < gp_b, 0 if equal, 1 if gp_a > gp_b
+     * 
+     * This function implements granule position comparison following the exact patterns
+     * used in libopusfile's op_granpos_cmp() function. It correctly handles the special
+     * ordering semantics of granule positions where:
+     * 
+     * 1. Invalid positions (-1) are considered equal to each other
+     * 2. Invalid positions are considered less than all valid positions
+     * 3. Negative positions (except -1) are considered greater than positive positions
+     * 4. Within the same sign range, normal integer comparison applies
+     * 
+     * This ordering is crucial for bisection search algorithms and duration calculations
+     * to work correctly with the wraparound granule position encoding.
+     * 
+     * @param gp_a First granule position to compare
+     * @param gp_b Second granule position to compare
+     * @return -1 if gp_a < gp_b, 0 if gp_a == gp_b, 1 if gp_a > gp_b
      */
     int granposCmp(int64_t gp_a, int64_t gp_b);
     
@@ -193,24 +255,104 @@ public:
     
     /**
      * @brief Get next page using ogg_sync_pageseek() patterns from libvorbisfile
-     * Equivalent to _get_next_page() in libvorbisfile
+     * 
+     * This function implements the exact page extraction algorithm used in libvorbisfile's
+     * _get_next_page() function. It uses ogg_sync_pageseek() for robust page discovery
+     * that can handle corrupted data by skipping invalid bytes.
+     * 
+     * The function:
+     * 1. Uses ogg_sync_pageseek() to find the next valid page boundary
+     * 2. Handles negative return values (corrupted bytes) by skipping them
+     * 3. Fetches additional data when needed using _get_data() patterns
+     * 4. Respects boundary limits to prevent reading beyond specified positions
+     * 5. Maintains proper file position tracking for seeking operations
+     * 
+     * This is the foundation for all page-based operations including seeking,
+     * duration calculation, and sequential packet reading.
+     * 
+     * Equivalent to _get_next_page() in libvorbisfile.
+     * 
+     * @param page Pointer to ogg_page structure to fill (must not be null)
+     * @param boundary Optional boundary position (-1 for no limit)
+     * @return 1 if page found, 0 if need more data, negative on error
      */
     int getNextPage(ogg_page* page, int64_t boundary = -1);
     
     /**
      * @brief Get previous page using backward scanning with CHUNKSIZE increments
-     * Equivalent to _get_prev_page() in libvorbisfile
+     * 
+     * This function implements the exact backward page scanning algorithm used in
+     * libvorbisfile's _get_prev_page() function. It performs chunk-based backward
+     * scanning to efficiently find the previous valid page without reading the
+     * entire file.
+     * 
+     * The algorithm:
+     * 1. Moves backward by CHUNKSIZE (65536) byte increments
+     * 2. Scans forward within each chunk to find valid pages
+     * 3. Handles file beginning boundary conditions gracefully
+     * 4. Uses exponentially increasing chunk sizes for efficiency
+     * 5. Maintains proper synchronization with libogg page parsing
+     * 
+     * This is essential for seeking operations and duration calculation that
+     * need to scan backward from the end of the file to find the last valid
+     * granule position.
+     * 
+     * Equivalent to _get_prev_page() in libvorbisfile.
+     * 
+     * @param page Pointer to ogg_page structure to fill (must not be null)
+     * @return 1 if page found, 0 if at beginning of file, negative on error
      */
     int getPrevPage(ogg_page* page);
     
     /**
      * @brief Get previous page with serial number awareness
-     * Equivalent to _get_prev_page_serial() in libvorbisfile
+     * 
+     * This function implements the exact serial-number-aware backward scanning
+     * algorithm used in libvorbisfile's _get_prev_page_serial() function. It
+     * extends the basic backward scanning to prefer pages from a specific
+     * logical bitstream.
+     * 
+     * The algorithm:
+     * 1. Performs backward chunk-based scanning like getPrevPage()
+     * 2. Prefers pages with the specified serial number
+     * 3. Falls back to any valid page if preferred serial not found
+     * 4. Handles multiplexed streams correctly
+     * 5. Maintains proper granule position tracking per stream
+     * 
+     * This is crucial for duration calculation in multiplexed Ogg files where
+     * different logical streams may have different lengths and we need to find
+     * the last page of the longest stream.
+     * 
+     * Equivalent to _get_prev_page_serial() in libvorbisfile.
+     * 
+     * @param page Pointer to ogg_page structure to fill (must not be null)
+     * @param serial_number Preferred serial number to search for
+     * @return 1 if page found, 0 if at beginning of file, negative on error
      */
     int getPrevPageSerial(ogg_page* page, uint32_t serial_number);
     
     /**
      * @brief Fetch data into sync buffer like _get_data() in libvorbisfile
+     * 
+     * This function implements the exact data fetching algorithm used in
+     * libvorbisfile's _get_data() function. It manages the libogg sync buffer
+     * and handles I/O operations with proper error handling.
+     * 
+     * The function:
+     * 1. Requests buffer space from libogg using ogg_sync_buffer()
+     * 2. Performs I/O operations through the IOHandler interface
+     * 3. Submits read data to libogg using ogg_sync_wrote()
+     * 4. Handles EOF and error conditions gracefully
+     * 5. Maintains proper buffer size limits to prevent memory exhaustion
+     * 6. Provides thread-safe access to I/O operations
+     * 
+     * This is the foundation for all data input operations and ensures
+     * consistent behavior with the reference implementation.
+     * 
+     * Equivalent to _get_data() in libvorbisfile.
+     * 
+     * @param bytes_requested Number of bytes to request (0 for default)
+     * @return Number of bytes read, 0 on EOF, negative on error
      */
     int getData(size_t bytes_requested = 0);
     

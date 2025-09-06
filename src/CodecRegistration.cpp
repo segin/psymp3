@@ -134,9 +134,9 @@ void registerAllDemuxers() {
     Debug::log("demuxer", "registerAllDemuxers: FLAC disabled at compile time");
 #endif
 
-    // OggDemuxer registration depends on available Ogg codecs
-    // Register if any of: Vorbis, Opus, or (FLAC + Ogg) are available
-#if defined(HAVE_VORBIS) || defined(HAVE_OPUS) || (defined(HAVE_FLAC) && defined(HAVE_OGG))
+    // OggDemuxer registration - uses HAVE_OGGDEMUXER flag from configure.ac
+    // This flag is set when any Ogg-compatible codec is available (Vorbis, Opus, or FLAC+Ogg)
+#ifdef HAVE_OGGDEMUXER
     DemuxerRegistry::getInstance().registerDemuxer("ogg", [](std::unique_ptr<IOHandler> handler) {
         return std::make_unique<OggDemuxer>(std::move(handler));
     }, "Ogg", {"ogg", "oga", "ogv", "ogx"});

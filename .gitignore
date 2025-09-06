@@ -189,3 +189,12 @@ tests/test_error_handling
 # Comprehensive test suite
 tests/test_oggdemuxer_comprehensive
 tests/test_*_temp.*
+tests/test_error_handling
+tests/test_data_streaming
+tests/test_duration_calculation
+tests/test_oggdemuxer_performance
+tests/test_time_conversion
+tests/test_error_handling
+
+.gitignore
+tests/test_error_handling

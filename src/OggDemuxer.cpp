@@ -2236,55 +2236,109 @@ uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) cons
     }
 }
 
-// Safe granule position arithmetic functions (following libopusfile patterns)
+/*
+ * SAFE GRANULE POSITION ARITHMETIC FUNCTIONS
+ * 
+ * These functions implement safe granule position arithmetic following the exact patterns
+ * used in libopusfile (op_granpos_add, op_granpos_diff, op_granpos_cmp). They handle the
+ * special wraparound encoding of granule positions in Ogg streams.
+ * 
+ * GRANULE POSITION ENCODING:
+ * 
+ * Granule positions use a special encoding where -1 indicates an invalid/unset position,
+ * and the valid range wraps around from positive to negative values:
+ * 
+ * [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+ *                  ^-- valid range --^
+ * 
+ * This means:
+ * - -1 is always invalid (unset granule position)
+ * - 0 to INT64_MAX are valid positions (normal positive range)
+ * - INT64_MIN to -2 are valid positions (wraparound negative range)
+ * - Negative values (except -1) are considered LARGER than positive values
+ * 
+ * This encoding allows for very large granule position ranges while using a single
+ * invalid sentinel value (-1) that's easy to check.
+ */
 
 int OggDemuxer::granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta) {
-    // Following op_granpos_add() patterns from libopusfile
-    // Handle invalid granule position (-1) like reference implementations
+    /*
+     * SAFE GRANULE POSITION ADDITION (following op_granpos_add patterns)
+     * 
+     * This function adds a delta to a granule position while detecting overflow
+     * conditions that would wrap past the invalid -1 value. It handles both
+     * positive and negative deltas correctly.
+     * 
+     * Overflow detection is critical because wrapping past -1 would create
+     * invalid granule positions that could corrupt timing information.
+     */
     
     if (!dst_gp) {
         Debug::log("ogg", "OggDemuxer: granposAdd - NULL destination pointer");
         return -1;
     }
     
-    // Invalid granule position (-1) in two's complement
+    // Invalid granule position (-1) in two's complement - propagate invalidity
     if (src_gp == -1) {
         Debug::log("ogg", "OggDemuxer: granposAdd - Invalid source granule position (-1)");
         *dst_gp = -1;
         return -1;
     }
     
-    // Check for overflow that would wrap past -1
-    // Range organization: [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+    /*
+     * OVERFLOW DETECTION LOGIC
+     * 
+     * We need to detect when addition would cause wraparound past the invalid -1 value.
+     * The granule position space is organized as:
+     * [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+     * 
+     * Overflow can occur in two ways:
+     * 1. Adding positive delta: src_gp + delta > INT64_MAX (wraps to negative range)
+     * 2. Adding negative delta: src_gp + delta < INT64_MIN (underflows)
+     * 
+     * We also need to check if the result equals -1 (invalid).
+     */
     
     int64_t result;
     
     if (delta >= 0) {
-        // Adding positive delta
+        /*
+         * POSITIVE DELTA ADDITION
+         * 
+         * When adding a positive delta, we need to check for overflow past INT64_MAX.
+         * If overflow occurs, the result wraps to the negative range, which is valid
+         * unless it equals -1.
+         */
         if (src_gp > INT64_MAX - delta) {
             // Would overflow past INT64_MAX, wrapping to negative range
-            result = src_gp + delta; // This will wrap to negative
+            result = src_gp + delta; // This will wrap to negative (valid unless -1)
             
-            // Check if we wrapped past -1 (invalid)
+            // Check if we wrapped to the invalid -1 value
             if (result == -1) {
                 Debug::log("ogg", "OggDemuxer: granposAdd - Overflow wrapped to invalid granule position (-1)");
                 *dst_gp = -1;
                 return -1;
             }
         } else {
+            // No overflow, normal addition
             result = src_gp + delta;
         }
     } else {
-        // Adding negative delta (subtraction)
+        /*
+         * NEGATIVE DELTA ADDITION (SUBTRACTION)
+         * 
+         * When adding a negative delta (subtracting), we need to check for underflow
+         * past INT64_MIN and also ensure the result doesn't equal -1.
+         */
         if (src_gp < INT64_MIN - delta) {
-            // Would underflow past INT64_MIN
+            // Would underflow past INT64_MIN - this is invalid
             Debug::log("ogg", "OggDemuxer: granposAdd - Underflow detected, src_gp=", src_gp, ", delta=", delta);
             *dst_gp = -1;
             return -1;
         } else {
             result = src_gp + delta;
             
-            // Check if result is invalid (-1)
+            // Check if result equals the invalid -1 value
             if (result == -1) {
                 Debug::log("ogg", "OggDemuxer: granposAdd - Result is invalid granule position (-1)");
                 *dst_gp = -1;
@@ -2299,23 +2353,42 @@ int OggDemuxer::granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta) {
 }
 
 int OggDemuxer::granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b) {
-    // Following op_granpos_diff() patterns from libopusfile
-    // Handle wraparound from positive to negative values correctly
+    /*
+     * SAFE GRANULE POSITION SUBTRACTION (following op_granpos_diff patterns)
+     * 
+     * This function computes gp_a - gp_b while handling the wraparound behavior
+     * of granule positions. The key challenge is that negative values (except -1)
+     * are considered larger than positive values due to the wraparound encoding.
+     * 
+     * Examples of correct ordering:
+     * - 100 - 50 = 50 (normal case)
+     * - -2 - 100 = very large positive (wraparound case)
+     * - 100 - (-2) = negative (wraparound case)
+     * 
+     * This is essential for accurate seeking and duration calculations.
+     */
     
     if (!delta) {
         Debug::log("ogg", "OggDemuxer: granposDiff - NULL delta pointer");
         return -1;
     }
     
-    // Invalid granule positions (-1) in two's complement
+    // Invalid granule positions (-1) result in invalid differences
     if (gp_a == -1 || gp_b == -1) {
         Debug::log("ogg", "OggDemuxer: granposDiff - Invalid granule position: gp_a=", gp_a, ", gp_b=", gp_b);
         *delta = 0;
         return -1;
     }
     
-    // Calculate difference with wraparound handling
-    // Range organization: [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+    /*
+     * WRAPAROUND SUBTRACTION LOGIC
+     * 
+     * The granule position space wraps around, so we need to handle cases where
+     * the subtraction crosses the wraparound boundary. The result of gp_a - gp_b
+     * using normal integer arithmetic gives the correct wraparound behavior.
+     * 
+     * Range organization: [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+     */
     
     int64_t result = gp_a - gp_b;
     
@@ -2343,10 +2416,29 @@ int OggDemuxer::granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b) {
 }
 
 int OggDemuxer::granposCmp(int64_t gp_a, int64_t gp_b) {
-    // Following op_granpos_cmp() patterns from libopusfile
-    // Handle proper ordering with invalid granule positions
+    /*
+     * SAFE GRANULE POSITION COMPARISON (following op_granpos_cmp patterns)
+     * 
+     * This function implements the special ordering semantics of granule positions
+     * where negative values (except -1) are considered larger than positive values
+     * due to the wraparound encoding.
+     * 
+     * ORDERING RULES:
+     * 1. Invalid positions (-1) are equal to each other
+     * 2. Invalid positions are less than all valid positions
+     * 3. Negative positions (INT64_MIN to -2) are greater than positive positions (0 to INT64_MAX)
+     * 4. Within the same sign range, normal integer comparison applies
+     * 
+     * This ordering is crucial for bisection search and duration calculations.
+     */
     
-    // Invalid granule positions (-1) are always equal to each other and less than valid positions
+    /*
+     * INVALID GRANULE POSITION HANDLING
+     * 
+     * Invalid granule positions (-1) have special comparison semantics:
+     * - Two invalid positions are considered equal
+     * - Invalid positions are considered less than all valid positions
+     */
     if (gp_a == -1 && gp_b == -1) {
         return 0; // Both invalid, equal
     }
@@ -2357,21 +2449,27 @@ int OggDemuxer::granposCmp(int64_t gp_a, int64_t gp_b) {
         return 1; // Valid is greater than invalid
     }
     
-    // Both are valid granule positions
-    // Range organization: [ 0 ... INT64_MAX ][ INT64_MIN ... -2 ]
-    // Negative values (INT64_MIN to -2) are considered larger than positive values
+    /*
+     * VALID GRANULE POSITION COMPARISON
+     * 
+     * Both granule positions are valid. The key insight is that the granule position
+     * space wraps around, with negative values (except -1) being larger than positive values:
+     * 
+     * Ordering: [ 0 ... INT64_MAX ] < [ INT64_MIN ... -2 ]
+     *           ^-- smaller range --^   ^-- larger range --^
+     */
     
     bool a_is_negative = (gp_a < 0);
     bool b_is_negative = (gp_b < 0);
     
     if (a_is_negative && !b_is_negative) {
         // gp_a is in negative range (larger), gp_b is in positive range (smaller)
-        return 1;
+        return 1; // gp_a > gp_b
     } else if (!a_is_negative && b_is_negative) {
         // gp_a is in positive range (smaller), gp_b is in negative range (larger)
-        return -1;
+        return -1; // gp_a < gp_b
     } else {
-        // Both in same range, use normal comparison
+        // Both in same range (both positive or both negative), use normal integer comparison
         if (gp_a < gp_b) {
             return -1;
         } else if (gp_a > gp_b) {
@@ -2794,42 +2892,100 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id)
 
     Debug::log("ogg", "OggDemuxer: seekToPage - target_granule=", target_granule, ", stream_id=", stream_id, ", file_size=", m_file_size);
 
-    // Implement bisection search algorithm following ov_pcm_seek_page/op_pcm_seek_page patterns
+    /*
+     * BISECTION SEARCH ALGORITHM (following ov_pcm_seek_page/op_pcm_seek_page patterns)
+     * 
+     * This implements the exact bisection search algorithm used in libvorbisfile and libopusfile
+     * for efficient timestamp-based seeking. The algorithm provides O(log n) performance by
+     * repeatedly dividing the search space in half.
+     * 
+     * Key principles:
+     * 1. Maintain search interval [begin, end] that brackets the target
+     * 2. Use midpoint bisection to divide the interval
+     * 3. Use ogg_sync_pageseek() for robust page discovery (handles corruption)
+     * 4. Use safe granule position comparison (handles wraparound encoding)
+     * 5. Switch to linear scan when interval becomes small
+     * 6. Track best match found so far for fallback
+     */
+    
+    // Initialize search interval to span entire file
     int64_t begin = 0;
     int64_t end = static_cast<int64_t>(m_file_size);
+    
+    // Track best match found during search (fallback if exact match not found)
     int64_t best_pos = 0;
     uint64_t best_granule = 0;
     bool found_valid_page = false;
     
     // Maximum iterations to prevent infinite loops (following reference implementations)
+    // 64 iterations is sufficient for files up to 2^64 bytes with good convergence
     const int max_iterations = 64;
     int iterations = 0;
     
-    // Bisection search loop (following libvorbisfile/libopusfile patterns)
+    /*
+     * MAIN BISECTION LOOP
+     * 
+     * This loop repeatedly bisects the search interval until:
+     * 1. Exact match is found (granule == target)
+     * 2. Interval becomes too small (< CHUNKSIZE/4, switch to linear scan)
+     * 3. Maximum iterations reached (prevent infinite loops)
+     * 4. No valid pages found in interval
+     */
     while (begin < end && iterations < max_iterations) {
         iterations++;
         
-        // Calculate midpoint (following reference implementation patterns)
+        /*
+         * MIDPOINT CALCULATION
+         * 
+         * Use (begin + end) / 2 but avoid overflow by computing as begin + (end - begin) / 2
+         * This is the standard bisection midpoint calculation used in reference implementations.
+         */
         int64_t bisect = begin + (end - begin) / 2;
         
         Debug::log("ogg", "OggDemuxer: seekToPage bisection iteration ", iterations, " - begin=", begin, ", bisect=", bisect, ", end=", end);
         
-        // Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
-        // This follows libvorbisfile patterns exactly
+        /*
+         * GRANULE POSITION DISCOVERY AT BISECTION POINT
+         * 
+         * We need to find the granule position at the bisection point to compare with target.
+         * Two methods are used in order of preference:
+         * 
+         * 1. Packet-level examination (more accurate): Use ogg_stream_packetpeek() to examine
+         *    packets without consuming them, getting precise granule positions
+         * 
+         * 2. Page-level examination (fallback): Use ogg_sync_pageseek() to find pages and
+         *    extract granule positions from page headers
+         * 
+         * Both methods follow libvorbisfile patterns exactly.
+         */
         uint64_t granule_at_bisect = static_cast<uint64_t>(-1);
         
-        // First try to examine packets using ogg_stream_packetpeek() for more accuracy
+        // First try packet-level examination for higher accuracy
         if (!examinePacketsAtPosition(bisect, stream_id, granule_at_bisect)) {
-            // Fall back to page-level granule discovery
+            // Fall back to page-level granule discovery if packet examination fails
             granule_at_bisect = findGranuleAtOffsetUsingPageseek(bisect, stream_id);
         }
         
+        /*
+         * HANDLE INVALID GRANULE POSITIONS
+         * 
+         * If no valid granule position is found at the bisection point, we need to
+         * adjust the search interval. This can happen due to:
+         * 1. Corrupted data at the bisection point
+         * 2. Bisection point falls in the middle of a page
+         * 3. No pages with the target stream ID near the bisection point
+         * 
+         * Recovery strategy (following libvorbisfile patterns):
+         * - Shrink the interval by moving the boundary that's closer to the bisection point
+         * - This ensures we don't get stuck in infinite loops with bad data
+         */
         if (granule_at_bisect == static_cast<uint64_t>(-1)) {
             // No valid page found at this position, adjust search interval
-            // Following libvorbisfile error recovery patterns
             if (bisect - begin < end - bisect) {
+                // Bisection point is closer to begin, move begin forward
                 begin = bisect + 1;
             } else {
+                // Bisection point is closer to end, move end backward
                 end = bisect - 1;
             }
             Debug::log("ogg", "OggDemuxer: seekToPage - no valid page at offset ", bisect, ", adjusting interval");
@@ -2838,17 +2994,33 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id)
         
         Debug::log("ogg", "OggDemuxer: seekToPage - found granule ", granule_at_bisect, " at offset ", bisect, ", target=", target_granule);
         
-        // Update best position if this is closer to our target (using safe granule comparison)
+        /*
+         * BEST MATCH TRACKING
+         * 
+         * We track the best match found so far as a fallback in case we don't find an exact match.
+         * The "best" match is defined as the granule position that is closest to the target
+         * without exceeding it (for forward seeking) or the closest match overall.
+         * 
+         * This uses safe granule position comparison that handles the wraparound encoding
+         * where negative values (except -1) are considered larger than positive values.
+         */
         bool is_better_match = false;
         if (!found_valid_page) {
+            // First valid page found - always better than nothing
             is_better_match = true;
         } else {
-            // Use safe granule comparison functions
+            // Use safe granule comparison functions that handle wraparound encoding
             int cmp_bisect_target = granposCmp(granule_at_bisect, target_granule);
             int cmp_bisect_best = granposCmp(granule_at_bisect, best_granule);
             int cmp_best_target = granposCmp(best_granule, target_granule);
             
-            // Better if: (bisect <= target && bisect > best) || (best > target && bisect < best)
+            /*
+             * Better match criteria:
+             * 1. If bisect <= target && bisect > best: closer to target from below
+             * 2. If best > target && bisect < best: closer to target from above
+             * 
+             * This ensures we find the closest position that doesn't overshoot the target.
+             */
             is_better_match = (cmp_bisect_target <= 0 && cmp_bisect_best > 0) ||
                              (cmp_best_target > 0 && cmp_bisect_best < 0);
         }
@@ -2859,23 +3031,46 @@ bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id)
             found_valid_page = true;
         }
         
-        // Adjust bisection interval based on safe granule comparison
+        /*
+         * BISECTION INTERVAL ADJUSTMENT
+         * 
+         * Based on the comparison between the granule at the bisection point and the target,
+         * we adjust the search interval to continue bisecting toward the target.
+         * 
+         * This uses safe granule comparison that handles the special wraparound encoding
+         * of granule positions in Ogg streams.
+         */
         int cmp_result = granposCmp(granule_at_bisect, target_granule);
         if (cmp_result < 0) {
-            // granule_at_bisect < target_granule: search right half
+            // granule_at_bisect < target_granule: target is in the right half
+            // Move begin to search the right half of the interval
             begin = bisect + 1;
         } else if (cmp_result > 0) {
-            // granule_at_bisect > target_granule: search left half  
+            // granule_at_bisect > target_granule: target is in the left half
+            // Move end to search the left half of the interval
             end = bisect;
         } else {
             // Exact match found (cmp_result == 0)
+            // We found exactly the granule position we're looking for
             best_pos = bisect;
             best_granule = granule_at_bisect;
             break;
         }
         
-        // Linear scanning fallback when bisection interval becomes small
-        // Following libvorbisfile patterns for small intervals
+        /*
+         * LINEAR SCANNING FALLBACK
+         * 
+         * When the bisection interval becomes small (< CHUNKSIZE/4 = ~16KB), we switch
+         * to linear scanning. This is more efficient than continuing bisection because:
+         * 
+         * 1. Small intervals can be scanned quickly with sequential I/O
+         * 2. Bisection overhead becomes significant for small intervals
+         * 3. Linear scan can find the exact target more reliably
+         * 4. Matches libvorbisfile behavior exactly
+         * 
+         * CHUNKSIZE/4 (16KB) is chosen as the threshold because it's small enough to
+         * scan quickly but large enough to benefit from bisection.
+         */
         if (end - begin < static_cast<int64_t>(CHUNKSIZE / 4)) {
             Debug::log("ogg", "OggDemuxer: seekToPage - interval too small, switching to linear scan");
             int64_t linear_result = linearScanForTarget(begin, end, target_granule, stream_id);
