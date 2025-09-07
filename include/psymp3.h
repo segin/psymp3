@@ -402,6 +402,7 @@ typedef struct bio_st BIO;
 #include "player.h"
 #include "MPRISTypes.h"
 #include "DBusConnectionManager.h"
+#include "PropertyManager.h"
 #include "mpris.h"
 
 // Portable branch prediction macros

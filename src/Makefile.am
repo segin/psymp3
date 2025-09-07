@@ -106,7 +106,7 @@ psymp3_SOURCES += OggDemuxer.cpp OggCodecs.cpp
 endif
 
 if HAVE_DBUS
-psymp3_SOURCES += MPRISTypes.cpp DBusConnectionManager.cpp mpris.cpp
+psymp3_SOURCES += MPRISTypes.cpp DBusConnectionManager.cpp PropertyManager.cpp mpris.cpp
 endif
 
 # G.711 codec sources
