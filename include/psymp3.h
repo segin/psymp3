@@ -400,6 +400,7 @@ typedef struct bio_st BIO;
 #include "LastFM.h"
 #include "playlist.h"
 #include "player.h"
+#include "MPRISTypes.h"
 #include "mpris.h"
 
 // Portable branch prediction macros

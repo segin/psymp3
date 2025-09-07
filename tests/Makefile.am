@@ -214,6 +214,11 @@ check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_re
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
 
+# MPRIS tests (conditional on HAVE_DBUS)
+if HAVE_DBUS
+check_PROGRAMS += test_mpris_types
+endif
+
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
 check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_test_data_validation
@@ -961,6 +966,19 @@ test_codec_concurrent_instances_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
+
+# MPRIS types test (conditional on HAVE_DBUS)
+if HAVE_DBUS
+test_mpris_types_SOURCES = test_mpris_types.cpp
+test_mpris_types_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_types_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+endif
 
 
 
