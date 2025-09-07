@@ -225,8 +225,7 @@ private:
     int selectedTrackIndex = -1;
     uint64_t currentSampleIndex = 0;
     
-    // State management
-    bool m_eof = false;
+    // State management is handled by base class
     
     // Metadata storage
     std::map<std::string, std::string> m_metadata;

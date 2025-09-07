@@ -10,7 +10,7 @@
 #include "psymp3.h"
 
 ISODemuxer::ISODemuxer(std::unique_ptr<IOHandler> handler) 
-    : Demuxer(std::move(handler)), selectedTrackIndex(-1), currentSampleIndex(0), m_eof(false) {
+    : Demuxer(std::move(handler)), selectedTrackIndex(-1), currentSampleIndex(0) {
     initializeComponents();
 }
 
@@ -50,7 +50,7 @@ bool ISODemuxer::parseContainer() {
     try {
         // Get file size with error handling
         off_t file_size = 0;
-        bool fileSizeResult = PerformIOWithRetry([this, &file_size]() {
+        bool fileSizeResult = performIOWithRetry([this, &file_size]() {
             m_handler->seek(0, SEEK_END);
             file_size = m_handler->tell();
             m_handler->seek(0, SEEK_SET);
@@ -58,12 +58,12 @@ bool ISODemuxer::parseContainer() {
         }, "Getting file size");
         
         if (!fileSizeResult) {
-            ReportError("FileAccess", "Failed to determine file size");
+            reportError("FileAccess", "Failed to determine file size");
             return false;
         }
         
         if (file_size <= 0) {
-            ReportError("FileSize", "Invalid file size: " + std::to_string(file_size));
+            reportError("FileSize", "Invalid file size: " + std::to_string(file_size));
             return false;
         }
         
@@ -171,7 +171,7 @@ bool ISODemuxer::parseContainer() {
         // Validate and repair sample tables for all tracks
         for (auto& track : audioTracks) {
             if (!ValidateAndRepairSampleTables(track)) {
-                ReportError("SampleTableValidation", "Sample table validation failed for track " + 
+                reportError("SampleTableValidation", "Sample table validation failed for track " + 
                            std::to_string(track.trackId));
                 // Continue with other tracks - graceful degradation
             }
@@ -179,7 +179,7 @@ bool ISODemuxer::parseContainer() {
             // Handle missing codec configuration
             std::vector<uint8_t> sampleData; // Would need to extract first sample for inference
             if (!HandleMissingCodecConfig(track, sampleData)) {
-                ReportError("CodecConfiguration", "Failed to resolve codec configuration for track " + 
+                reportError("CodecConfiguration", "Failed to resolve codec configuration for track " + 
                            std::to_string(track.trackId));
                 // Continue with other tracks - graceful degradation
             }
@@ -190,7 +190,7 @@ bool ISODemuxer::parseContainer() {
             try {
                 streamManager->AddAudioTrack(track);
             } catch (const std::exception& e) {
-                ReportError("StreamManager", "Failed to add track " + std::to_string(track.trackId) + 
+                reportError("StreamManager", "Failed to add track " + std::to_string(track.trackId) + 
                            " to stream manager");
                 // Continue with other tracks
             }
@@ -221,7 +221,7 @@ bool ISODemuxer::parseContainer() {
         
         // Final validation - ensure we have at least one valid track
         if (audioTracks.empty()) {
-            ReportError("NoAudioTracks", "No valid audio tracks found in container");
+            reportError("NoAudioTracks", "No valid audio tracks found in container");
             return false;
         }
         
@@ -229,15 +229,15 @@ bool ISODemuxer::parseContainer() {
         
     } catch (const std::bad_alloc& e) {
         // Handle memory allocation failures
-        HandleMemoryAllocationFailure(0, "parseContainer");
+        handleMemoryFailure(0, "parseContainer");
         return false;
     } catch (const std::exception& e) {
         // Handle other exceptions with detailed error reporting
-        ReportError("ParseException", "Exception during container parsing: " + std::string(e.what()));
+        reportError("ParseException", "Exception during container parsing: " + std::string(e.what()));
         return false;
     } catch (...) {
         // Handle unknown exceptions
-        ReportError("UnknownException", "Unknown exception during container parsing");
+        reportError("UnknownException", "Unknown exception during container parsing");
         return false;
     }
 }
@@ -280,13 +280,13 @@ MediaChunk ISODemuxer::readChunk() {
 
 MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
     if (!streamManager) {
-        ReportError("ReadChunk", "StreamManager not initialized");
+        reportError("ReadChunk", "StreamManager not initialized");
         return MediaChunk{};
     }
     
     AudioTrackInfo* track = streamManager->GetTrack(stream_id);
     if (!track) {
-        ReportError("ReadChunk", "Track not found: " + std::to_string(stream_id));
+        reportError("ReadChunk", "Track not found: " + std::to_string(stream_id));
         return MediaChunk{};
     }
     
@@ -304,8 +304,8 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
             
             // Validate sample size
             if (sampleSize == 0) {
-                ReportError("FragmentSample", "Zero-sized sample in fragment");
-                m_eof = true;
+                reportError("FragmentSample", "Zero-sized sample in fragment");
+                setEOF(true);
                 return MediaChunk{};
             }
             
@@ -313,8 +313,8 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
             try {
                 chunk.data.resize(sampleSize);
             } catch (const std::bad_alloc& e) {
-                if (!HandleMemoryAllocationFailure(sampleSize, "fragment sample data")) {
-                    ReportError("MemoryAllocation", "Failed to allocate " + std::to_string(sampleSize) + 
+                if (!handleMemoryFailure(sampleSize, "fragment sample data")) {
+                    reportError("MemoryAllocation", "Failed to allocate " + std::to_string(sampleSize) + 
                                " bytes for fragment sample");
                     return MediaChunk{};
                 }
@@ -323,7 +323,7 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
             }
             
             // Perform I/O with retry mechanism
-            bool readSuccess = PerformIOWithRetry([this, sampleOffset, sampleSize, &chunk]() {
+            bool readSuccess = performIOWithRetry([this, sampleOffset, sampleSize, &chunk]() {
                 return (m_handler->seek(static_cast<long>(sampleOffset), SEEK_SET) == 0 &&
                         m_handler->read(chunk.data.data(), 1, sampleSize) == sampleSize);
             }, "reading fragment sample data");
@@ -338,24 +338,24 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
                 
                 // Update track position
                 track->currentSampleIndex++;
-                m_position_ms = timestamp_ms;
+                updatePosition(timestamp_ms);
                 
                 return chunk;
             } else {
-                ReportError("FragmentRead", "Failed to read fragment sample data");
+                reportError("FragmentRead", "Failed to read fragment sample data");
             }
         } else {
-            ReportError("FragmentExtraction", "Failed to extract sample from fragment");
+            reportError("FragmentExtraction", "Failed to extract sample from fragment");
         }
         
         // Fragment sample extraction failed
-        m_eof = true;
+        setEOF(true);
         return MediaChunk{};
     }
     
     // Use SampleTableManager for non-fragmented files
     if (!sampleTables) {
-        ReportError("ReadChunk", "SampleTableManager not initialized");
+        reportError("ReadChunk", "SampleTableManager not initialized");
         return MediaChunk{};
     }
     
@@ -364,18 +364,18 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
     try {
         sampleInfo = sampleTables->GetSampleInfo(track->currentSampleIndex);
     } catch (const std::exception& e) {
-        ReportError("SampleInfo", "Failed to get sample info for index " + 
+        reportError("SampleInfo", "Failed to get sample info for index " + 
                    std::to_string(track->currentSampleIndex) + ": " + e.what());
-        m_eof = true;
+        setEOF(true);
         return MediaChunk{};
     }
     
     if (sampleInfo.size == 0) {
         // Check if this is truly EOF or a corrupted sample table
         if (track->currentSampleIndex == 0) {
-            ReportError("SampleTable", "First sample has zero size - possible corruption");
+            reportError("SampleTable", "First sample has zero size - possible corruption");
         }
-        m_eof = true;
+        setEOF(true);
         return MediaChunk{};
     }
     
@@ -396,15 +396,15 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
     try {
         chunk = ExtractSampleData(stream_id, *track, sampleInfo);
     } catch (const std::exception& e) {
-        ReportError("SampleExtraction", "Failed to extract sample data: " + std::string(e.what()));
-        m_eof = true;
+        reportError("SampleExtraction", "Failed to extract sample data: " + std::string(e.what()));
+        setEOF(true);
         return MediaChunk{};
     }
     
     if (chunk.data.empty()) {
-        ReportError("EmptySample", "Extracted sample data is empty for track " + 
+        reportError("EmptySample", "Extracted sample data is empty for track " + 
                    std::to_string(stream_id) + " sample " + std::to_string(track->currentSampleIndex));
-        m_eof = true;
+        setEOF(true);
         return MediaChunk{};
     }
     
@@ -413,7 +413,7 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
     
     // Update global position based on track timing
     double timestamp = sampleTables->SampleToTime(track->currentSampleIndex);
-    m_position_ms = static_cast<uint64_t>(timestamp * 1000.0);
+    updatePosition(static_cast<uint64_t>(timestamp * 1000.0));
     
     return chunk;
 }
@@ -512,8 +512,8 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
                                     // Found the sample
                                     track.currentSampleIndex = sampleIndex;
                                     currentSampleIndex = sampleIndex;
-                                    m_position_ms = timestamp_ms;
-                                    m_eof = false;
+                                    updatePosition(timestamp_ms);
+                                    setEOF(false);
                                     return true;
                                 }
                                 
@@ -525,8 +525,8 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
                         // If we get here, use the first sample in the fragment
                         track.currentSampleIndex = 0;
                         currentSampleIndex = 0;
-                        m_position_ms = (fragmentStartTime * 1000ULL) / track.timescale;
-                        m_eof = false;
+                        updatePosition((fragmentStartTime * 1000ULL) / track.timescale);
+                        setEOF(false);
                         return true;
                     }
                 }
@@ -541,8 +541,8 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
                 fragmentHandler->SeekToFragment(fragmentCount);
                 track.currentSampleIndex = 0;
                 currentSampleIndex = 0;
-                m_position_ms = timestamp_ms;
-                m_eof = false;
+                updatePosition(timestamp_ms);
+                setEOF(false);
                 return true;
             }
         }
@@ -564,9 +564,9 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
         
         // Update position to actual seek position (may be different due to keyframe alignment)
         double actualTimestamp = sampleTables->SampleToTime(track.currentSampleIndex);
-        m_position_ms = static_cast<uint64_t>(actualTimestamp * 1000.0);
+        updatePosition(static_cast<uint64_t>(actualTimestamp * 1000.0));
         
-        m_eof = false;
+        setEOF(false);
         
         // Update all tracks to maintain synchronization (if multiple tracks exist)
         for (auto& otherTrack : audioTracks) {
@@ -581,7 +581,7 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
 }
 
 bool ISODemuxer::isEOF() const {
-    return m_eof;
+    return isEOFAtomic();
 }
 
 uint64_t ISODemuxer::getDuration() const {
@@ -984,7 +984,7 @@ BoxHeader ISODemuxer::HandleCorruptedBox(const BoxHeader& header, uint64_t conta
     
     // Log the recovery attempt
     if (recoveredHeader.type != header.type || recoveredHeader.size != header.size) {
-        ReportError("BoxRecovery", "Recovered corrupted box", header.type);
+        reportError("BoxRecovery", "Recovered corrupted box", header.type);
     }
     
     return recoveredHeader;
@@ -999,14 +999,13 @@ bool ISODemuxer::ValidateAndRepairSampleTables(AudioTrackInfo& track) {
     bool repairResult = errorRecovery->RepairSampleTables(track.sampleTableInfo);
     
     if (!repairResult) {
-        ReportError("SampleTableValidation", "Failed to repair sample tables for track " + 
+        reportError("SampleTableValidation", "Failed to repair sample tables for track " + 
                    std::to_string(track.trackId));
         return false;
     }
     
     // Log successful repair if any changes were made
-    ReportError("SampleTableRepair", "Successfully validated/repaired sample tables for track " + 
-               std::to_string(track.trackId));
+    Debug::log("iso", "Successfully validated/repaired sample tables for track ", track.trackId);
     
     return true;
 }
@@ -1025,10 +1024,9 @@ bool ISODemuxer::HandleMissingCodecConfig(AudioTrackInfo& track, const std::vect
     bool inferenceResult = errorRecovery->InferCodecConfig(track, sampleData);
     
     if (inferenceResult) {
-        ReportError("CodecConfigInference", "Successfully inferred codec configuration for " + 
-                   track.codecType + " track " + std::to_string(track.trackId));
+        Debug::log("iso", "Successfully inferred codec configuration for ", track.codecType, " track ", track.trackId);
     } else {
-        ReportError("CodecConfigMissing", "Failed to infer codec configuration for " + 
+        reportError("CodecConfigMissing", "Failed to infer codec configuration for " + 
                    track.codecType + " track " + std::to_string(track.trackId));
     }
     
@@ -1036,48 +1034,20 @@ bool ISODemuxer::HandleMissingCodecConfig(AudioTrackInfo& track, const std::vect
 }
 
 bool ISODemuxer::PerformIOWithRetry(std::function<bool()> operation, const std::string& errorContext) {
-    if (!errorRecovery) {
-        // No error recovery available, try operation once
-        return operation();
-    }
-    
-    // Use ISODemuxerErrorRecovery's retry mechanism with exponential backoff
-    bool result = errorRecovery->RetryIOOperation(operation, 3); // Max 3 retries
-    
-    if (!result) {
-        ReportError("IOFailure", "I/O operation failed after retries: " + errorContext);
-    }
-    
-    return result;
+    // Use base class I/O retry mechanism
+    return performIOWithRetry(operation, errorContext);
 }
 
 bool ISODemuxer::HandleMemoryAllocationFailure(size_t requestedSize, const std::string& context) {
-    // Log the memory allocation failure
-    ReportError("MemoryAllocation", "Failed to allocate " + std::to_string(requestedSize) + 
-               " bytes for " + context);
-    
-    // Attempt to free up memory by clearing caches
-    if (sampleTables) {
-        // Clear any cached data in sample tables
-        // This would need to be implemented in SampleTableManager
-    }
-    
-    if (fragmentHandler) {
-        // Clear fragment cache if possible
-        // This would need to be implemented in FragmentHandler
-    }
-    
-    // Try a smaller allocation if possible
-    if (requestedSize > 1024 * 1024) { // If requesting more than 1MB
-        // Could implement chunked allocation strategy
-        ReportError("MemoryRecovery", "Attempting chunked allocation strategy for " + context);
-        return false; // For now, indicate failure
-    }
-    
-    return false; // Memory allocation failure is generally unrecoverable
+    // Use base class memory failure handling
+    return handleMemoryFailure(requestedSize, context);
 }
 
 void ISODemuxer::ReportError(const std::string& errorType, const std::string& message, uint32_t boxType) {
+    // Use base class error reporting
+    reportError(errorType, message, boxType);
+    
+    // Also log to error recovery component if available
     if (errorRecovery) {
         errorRecovery->LogError(errorType, message, boxType);
     }
