@@ -15,7 +15,7 @@
   - Write unit tests with mock D-Bus connections
   - _Requirements: 1.1, 1.2, 3.1, 6.1_
 
-- [ ] 3. Create Property Manager for thread-safe state caching
+- [x] 3. Create Property Manager for thread-safe state caching
   - Implement PropertyManager class following threading safety guidelines
   - Add metadata caching with thread-safe getters and setters
   - Implement playback status tracking with atomic updates
@@ -24,7 +24,7 @@
   - Write unit tests for concurrent property access
   - _Requirements: 2.1, 2.2, 2.4, 4.1, 4.2_
 
-- [ ] 4. Implement Method Handler for D-Bus message processing
+- [x] 4. Implement Method Handler for D-Bus message processing
   - Create MethodHandler class with public/private lock pattern
   - Implement individual method handlers (Play, Pause, Stop, Next, Previous)
   - Add seeking method handlers (Seek, SetPosition) with proper validation

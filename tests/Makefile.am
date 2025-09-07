@@ -216,7 +216,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -997,6 +997,16 @@ test_property_manager_LDADD = \
 	$(top_builddir)/src/PropertyManager.o \
 	$(top_builddir)/src/MPRISTypes.o \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_method_handler_SOURCES = test_method_handler.cpp
+test_method_handler_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_method_handler_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISTypes.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
