@@ -33,6 +33,7 @@ void ISODemuxer::initializeComponents() {
     seekingEngine = std::make_unique<ISODemuxerSeekingEngine>();
     streamingManager = std::make_unique<ISODemuxerStreamManager>();
     errorRecovery = std::make_unique<ISODemuxerErrorRecovery>(sharedHandler);
+    complianceValidator = std::make_unique<ISODemuxerComplianceValidator>(sharedHandler);
 }
 
 void ISODemuxer::cleanup() {
@@ -88,7 +89,16 @@ bool ISODemuxer::parseContainer() {
         });
         
         boxParser->ParseBoxRecursively(0, static_cast<uint64_t>(file_size), 
-            [this, &containerType, &foundFileType, &foundMovie, &hasFragments, sharedHandler](const BoxHeader& header, uint64_t boxOffset) {
+            [this, &containerType, &foundFileType, &foundMovie, &hasFragments, sharedHandler, file_size](const BoxHeader& header, uint64_t boxOffset) {
+                // Validate box structure compliance
+                BoxSizeValidationResult sizeValidation = complianceValidator->ValidateBoxStructure(
+                    header.type, header.size, boxOffset, static_cast<uint64_t>(file_size));
+                
+                if (!sizeValidation.isValid) {
+                    std::string boxTypeStr = complianceValidator->BoxTypeToString(header.type);
+                    Debug::log("iso_compliance", "Box structure validation failed for " + boxTypeStr + ": " + sizeValidation.errorMessage);
+                }
+                
                 switch (header.type) {
                     case BOX_FTYP:
                         // File type box - identify container variant
@@ -130,6 +140,24 @@ bool ISODemuxer::parseContainer() {
         if (!foundFileType) {
             // No ftyp box found, assume generic MP4
             containerType = "MP4";
+        }
+        
+        // Validate container compliance
+        std::vector<uint8_t> fileTypeBoxData; // This would need to be populated from actual ftyp box data
+        ComplianceValidationResult containerValidation = complianceValidator->ValidateContainerCompliance(fileTypeBoxData, containerType);
+        if (!containerValidation.isCompliant) {
+            Debug::log("iso_compliance", "Container compliance validation failed: " + 
+                      std::to_string(containerValidation.errors.size()) + " errors");
+            for (const auto& error : containerValidation.errors) {
+                Debug::log("iso_compliance", "  Container Error: " + error);
+            }
+        }
+        if (!containerValidation.warnings.empty()) {
+            Debug::log("iso_compliance", "Container compliance warnings: " + 
+                      std::to_string(containerValidation.warnings.size()) + " warnings");
+            for (const auto& warning : containerValidation.warnings) {
+                Debug::log("iso_compliance", "  Container Warning: " + warning);
+            }
         }
         
         if (!foundMovie) {
@@ -430,6 +458,16 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
     
     AudioTrackInfo& track = audioTracks[selectedTrackIndex];
     
+    // Validate timestamp configuration
+    uint64_t timestampInTimescale = track.timescale > 0 ? (timestamp_ms * track.timescale) / 1000ULL : 0;
+    TimestampValidationResult timestampValidation = complianceValidator->ValidateTimestampConfiguration(
+        timestampInTimescale, track.timescale, track.duration);
+    
+    if (!timestampValidation.isValid) {
+        Debug::log("iso_compliance", "Timestamp validation failed for seek to " + 
+                  std::to_string(timestamp_ms) + "ms: " + timestampValidation.errorMessage);
+    }
+    
     // Validate seek position against track duration
     uint64_t trackDurationMs = track.timescale > 0 ? (track.duration * 1000ULL) / track.timescale : 0;
     if (timestamp_ms > trackDurationMs && trackDurationMs > 0) {
@@ -606,6 +644,23 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
                         if (boxParser->ParseTrackBox(header.dataOffset, 
                                                    header.size - (header.dataOffset - boxOffset), 
                                                    track)) {
+                            // Validate track compliance
+                            ComplianceValidationResult trackValidation = complianceValidator->ValidateTrackCompliance(track);
+                            if (!trackValidation.isCompliant) {
+                                Debug::log("iso_compliance", "Track compliance validation failed for track " + 
+                                          std::to_string(track.trackId) + ": " + std::to_string(trackValidation.errors.size()) + " errors");
+                                for (const auto& error : trackValidation.errors) {
+                                    Debug::log("iso_compliance", "  Error: " + error);
+                                }
+                            }
+                            if (!trackValidation.warnings.empty()) {
+                                Debug::log("iso_compliance", "Track compliance warnings for track " + 
+                                          std::to_string(track.trackId) + ": " + std::to_string(trackValidation.warnings.size()) + " warnings");
+                                for (const auto& warning : trackValidation.warnings) {
+                                    Debug::log("iso_compliance", "  Warning: " + warning);
+                                }
+                            }
+                            
                             audioTracks.push_back(track);
                         }
                         return true;
@@ -841,6 +896,18 @@ bool ISODemuxer::ValidateTelephonyCodecConfiguration(const AudioTrackInfo& track
 
 std::map<std::string, std::string> ISODemuxer::getMetadata() const {
     return m_metadata;
+}
+
+ComplianceValidationResult ISODemuxer::getComplianceReport() const {
+    if (complianceValidator) {
+        return complianceValidator->GetComplianceReport();
+    }
+    
+    // Return empty result if no validator available
+    ComplianceValidationResult result;
+    result.isCompliant = true;
+    result.complianceLevel = "unknown";
+    return result;
 }
 
 

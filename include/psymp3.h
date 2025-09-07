@@ -362,6 +362,7 @@ typedef struct bio_st BIO;
 #include "ISODemuxerMetadataExtractor.h"
 #include "ISODemuxerStreamManager.h"
 #include "ISODemuxerSeekingEngine.h"
+#include "ISODemuxerComplianceValidator.h"
 #include "ISODemuxer.h"
 #include "ModernStream.h"
 #include "MediaFactory.h"

@@ -85,14 +85,54 @@
   - Remove duplicate function definitions that belong in separate component files
   - _Requirements: Project header inclusion policy_
 
-- [ ] 15. Integrate with PsyMP3 demuxer architecture
+- [x] 15. Integrate with PsyMP3 demuxer architecture
   - Implement all required Demuxer interface methods
   - Add proper StreamInfo population with codec and format details
   - Integrate with PsyMP3 error reporting and logging systems
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
 
-- [ ] 16. Add standards compliance validation and quality assurance
+- [-] 16. Add standards compliance validation and quality assurance
   - Implement ISO/IEC 14496-12 specification compliance checking
   - Add support for both 32-bit and 64-bit box sizes
   - Validate timestamp handling and timescale configurations
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
+
+- [ ] 17. Integrate compliance validator with main demuxer
+  - Add ISODemuxerComplianceValidator to psymp3.h header inclusion
+  - Initialize compliance validator in ISODemuxer constructor
+  - Add compliance validation calls during box parsing and track processing
+  - Implement compliance reporting in demuxer error handling
+  - _Requirements: 12.1, 12.8_
+
+- [ ] 18. Add comprehensive test coverage for compliance validation
+  - Create unit tests for box structure validation (32-bit and 64-bit sizes)
+  - Add tests for timestamp and timescale validation
+  - Implement sample table consistency validation tests
+  - Create codec-specific data integrity tests
+  - Add container format compliance tests
+  - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
+
+- [ ] 19. Implement performance optimization and memory management
+  - Add lazy loading for large sample size tables in SampleTableManager
+  - Implement compressed sample-to-chunk mappings for memory efficiency
+  - Optimize binary search structures for time-to-sample lookups
+  - Add memory usage profiling and optimization for large files
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8_
+
+- [ ] 20. Add FLAC-in-MP4 codec support
+  - Implement FLAC codec detection and configuration extraction for ISO containers
+  - Add support for FLAC sample description box parsing (fLaC codec type)
+  - Create FLAC-specific configuration data extraction from sample description
+  - Implement FLAC frame boundary detection within MP4 sample data
+  - Add FLAC metadata block handling within ISO container context
+  - Integrate with existing FLACCodec for decoding FLAC samples from MP4
+  - _Requirements: 2.1, 2.2, 2.7, 10.4_
+
+- [ ] 21. Add comprehensive integration testing
+  - Create tests with real-world MP4/M4A files from various encoders
+  - Add fragmented MP4 streaming scenario tests
+  - Implement seeking accuracy validation across different codecs
+  - Add telephony codec (mulaw/alaw) integration tests
+  - Add FLAC-in-MP4 integration tests with various FLAC configurations
+  - Create error handling and recovery scenario tests
+  - _Requirements: All requirements validation_

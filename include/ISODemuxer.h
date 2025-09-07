@@ -209,6 +209,9 @@ public:
     // Metadata extraction
     std::map<std::string, std::string> getMetadata() const;
     
+    // Compliance validation
+    ComplianceValidationResult getComplianceReport() const;
+    
 private:
     // Core components as per design
     std::unique_ptr<ISODemuxerBoxParser> boxParser;
@@ -219,6 +222,7 @@ private:
     std::unique_ptr<ISODemuxerSeekingEngine> seekingEngine;
     std::unique_ptr<ISODemuxerStreamManager> streamingManager;
     std::unique_ptr<ISODemuxerErrorRecovery> errorRecovery;
+    std::unique_ptr<ISODemuxerComplianceValidator> complianceValidator;
     
     // Audio track management
     std::vector<AudioTrackInfo> audioTracks;
