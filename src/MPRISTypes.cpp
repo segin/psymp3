@@ -599,6 +599,10 @@ GracefulDegradationManager::GracefulDegradationManager() {
 
 void GracefulDegradationManager::setDegradationLevel(DegradationLevel level) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    setDegradationLevel_unlocked(level);
+}
+
+void GracefulDegradationManager::setDegradationLevel_unlocked(DegradationLevel level) {
     m_current_level = level;
     
     // Update feature availability based on degradation level
@@ -724,7 +728,7 @@ void GracefulDegradationManager::updateDegradationLevel() {
     
     // Only increase degradation level automatically (manual intervention required to decrease)
     if (static_cast<int>(new_level) > static_cast<int>(m_current_level)) {
-        setDegradationLevel(new_level);
+        setDegradationLevel_unlocked(new_level);
         
         ErrorLogger::getInstance().logWarning(
             "Auto-degradation triggered: level changed to " + std::to_string(static_cast<int>(new_level)),

@@ -18,12 +18,19 @@ MPRISManager::MPRISManager(Player* player)
     , m_methods(nullptr)
     , m_signals(nullptr)
 {
+    // Initialize error logging system with default handler
+    MPRISTypes::ErrorLogger::getInstance().setDefaultLogHandler();
+    MPRISTypes::ErrorLogger::getInstance().setLogLevel(MPRISTypes::ErrorLogger::LogLevel::Warning);
+    
+    // Configure error recovery system
+    configureErrorRecovery_unlocked();
+    
     if (!m_player) {
         setLastError_unlocked("Player instance cannot be null");
         return;
     }
     
-    logInfo_unlocked("MPRISManager created");
+    logInfo_unlocked("MPRISManager created with comprehensive error handling");
 }
 
 MPRISManager::~MPRISManager() {
@@ -84,6 +91,46 @@ void MPRISManager::setAutoReconnect(bool enable) {
 MPRISTypes::Result<void> MPRISManager::reconnect() {
     std::lock_guard<std::mutex> lock(m_mutex);
     return reconnect_unlocked();
+}
+
+MPRISTypes::GracefulDegradationManager::DegradationLevel MPRISManager::getDegradationLevel() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return getDegradationLevel_unlocked();
+}
+
+void MPRISManager::setDegradationLevel(MPRISTypes::GracefulDegradationManager::DegradationLevel level) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    setDegradationLevel_unlocked(level);
+}
+
+bool MPRISManager::isFeatureAvailable(const std::string& feature) const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return isFeatureAvailable_unlocked(feature);
+}
+
+MPRISTypes::ErrorLogger::ErrorStats MPRISManager::getErrorStats() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return getErrorStats_unlocked();
+}
+
+MPRISTypes::ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return getRecoveryStats_unlocked();
+}
+
+void MPRISManager::resetStats() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    resetStats_unlocked();
+}
+
+void MPRISManager::setLogLevel(MPRISTypes::ErrorLogger::LogLevel level) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    setLogLevel_unlocked(level);
+}
+
+void MPRISManager::reportErrorToPlayer(const MPRISTypes::MPRISError& error) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    reportErrorToPlayer_unlocked(error);
 }
 
 // Private implementations
@@ -155,12 +202,23 @@ void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std:
         return;
     }
     
+    // Check if metadata updates are available at current degradation level
+    if (!isFeatureAvailable_unlocked("metadata_updates")) {
+        return; // Feature disabled due to degradation
+    }
+    
     try {
         m_properties->updateMetadata(artist, title, album);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
-        logError_unlocked("updateMetadata", e.what());
-        handleConnectionLoss_unlocked();
+        MPRISTypes::MPRISError error(
+            MPRISTypes::MPRISError::Category::PlayerState,
+            MPRISTypes::MPRISError::Severity::Warning,
+            "Failed to update metadata: " + std::string(e.what()),
+            "updateMetadata",
+            MPRISTypes::MPRISError::RecoveryStrategy::Retry
+        );
+        handleError_unlocked(error);
     }
 }
 
@@ -169,12 +227,20 @@ void MPRISManager::updatePlaybackStatus_unlocked(MPRISTypes::PlaybackStatus stat
         return;
     }
     
+    // Playback status updates are always allowed (core functionality)
+    
     try {
         m_properties->updatePlaybackStatus(status);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
-        logError_unlocked("updatePlaybackStatus", e.what());
-        handleConnectionLoss_unlocked();
+        MPRISTypes::MPRISError error(
+            MPRISTypes::MPRISError::Category::PlayerState,
+            MPRISTypes::MPRISError::Severity::Error,
+            "Failed to update playback status: " + std::string(e.what()),
+            "updatePlaybackStatus",
+            MPRISTypes::MPRISError::RecoveryStrategy::Retry
+        );
+        handleError_unlocked(error);
     }
 }
 
@@ -198,20 +264,40 @@ void MPRISManager::notifySeeked_unlocked(uint64_t position_us) {
         return;
     }
     
+    // Check if seeking is available at current degradation level
+    if (!isFeatureAvailable_unlocked("seeking")) {
+        return; // Feature disabled due to degradation
+    }
+    
     try {
         // Update position first
-        if (m_properties) {
+        if (m_properties && isFeatureAvailable_unlocked("position_tracking")) {
             m_properties->updatePosition(position_us);
         }
         
         // Emit Seeked signal
-        auto result = m_signals->emitSeeked(position_us);
-        if (!result.isSuccess()) {
-            logError_unlocked("notifySeeked", "Failed to emit Seeked signal: " + result.getError());
+        if (isFeatureAvailable_unlocked("signal_emission")) {
+            auto result = m_signals->emitSeeked(position_us);
+            if (!result.isSuccess()) {
+                MPRISTypes::MPRISError error(
+                    MPRISTypes::MPRISError::Category::Protocol,
+                    MPRISTypes::MPRISError::Severity::Warning,
+                    "Failed to emit Seeked signal: " + result.getError(),
+                    "notifySeeked",
+                    MPRISTypes::MPRISError::RecoveryStrategy::Retry
+                );
+                handleError_unlocked(error);
+            }
         }
     } catch (const std::exception& e) {
-        logError_unlocked("notifySeeked", e.what());
-        handleConnectionLoss_unlocked();
+        MPRISTypes::MPRISError error(
+            MPRISTypes::MPRISError::Category::Protocol,
+            MPRISTypes::MPRISError::Severity::Error,
+            "Failed to notify seek: " + std::string(e.what()),
+            "notifySeeked",
+            MPRISTypes::MPRISError::RecoveryStrategy::Reconnect
+        );
+        handleError_unlocked(error);
     }
 }
 
@@ -471,15 +557,17 @@ void MPRISManager::setLastError_unlocked(const std::string& error) {
 }
 
 void MPRISManager::logError_unlocked(const std::string& context, const std::string& error) {
-    std::string message = "MPRISManager::" + context + ": " + error;
-    // In a real implementation, this would use the project's logging system
-    fprintf(stderr, "[ERROR] %s\n", message.c_str());
+    // Use the comprehensive error logging system
+    MPRISTypes::ErrorLogger::getInstance().logError(error, "MPRISManager::" + context);
+    
+    // Also report to degradation manager for auto-degradation
+    MPRISTypes::MPRISError mpris_error(MPRISTypes::MPRISError::Category::Internal, error);
+    m_degradation_manager.reportError(mpris_error);
 }
 
 void MPRISManager::logInfo_unlocked(const std::string& message) {
-    std::string full_message = "MPRISManager: " + message;
-    // In a real implementation, this would use the project's logging system
-    fprintf(stdout, "[INFO] %s\n", full_message.c_str());
+    // Use the comprehensive error logging system
+    MPRISTypes::ErrorLogger::getInstance().logInfo(message, "MPRISManager");
 }
 
 void MPRISManager::emitPropertyChanges_unlocked() {
@@ -517,6 +605,231 @@ void MPRISManager::updateComponentStates_unlocked() {
             }
         }
     }
+}
+
+// Error handling and recovery method implementations
+
+MPRISTypes::GracefulDegradationManager::DegradationLevel MPRISManager::getDegradationLevel_unlocked() const {
+    return m_degradation_manager.getDegradationLevel();
+}
+
+void MPRISManager::setDegradationLevel_unlocked(MPRISTypes::GracefulDegradationManager::DegradationLevel level) {
+    m_degradation_manager.setDegradationLevel(level);
+    logInfo_unlocked("Degradation level set to " + std::to_string(static_cast<int>(level)));
+}
+
+bool MPRISManager::isFeatureAvailable_unlocked(const std::string& feature) const {
+    return m_degradation_manager.isFeatureAvailable(feature);
+}
+
+MPRISTypes::ErrorLogger::ErrorStats MPRISManager::getErrorStats_unlocked() const {
+    return MPRISTypes::ErrorLogger::getInstance().getErrorStats();
+}
+
+MPRISTypes::ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats_unlocked() const {
+    return m_recovery_manager.getRecoveryStats();
+}
+
+void MPRISManager::resetStats_unlocked() {
+    MPRISTypes::ErrorLogger::getInstance().resetErrorStats();
+    m_recovery_manager.resetRecoveryStats();
+    logInfo_unlocked("Error and recovery statistics reset");
+}
+
+void MPRISManager::setLogLevel_unlocked(MPRISTypes::ErrorLogger::LogLevel level) {
+    MPRISTypes::ErrorLogger::getInstance().setLogLevel(level);
+    logInfo_unlocked("Log level set to " + std::to_string(static_cast<int>(level)));
+}
+
+void MPRISManager::reportErrorToPlayer_unlocked(const MPRISTypes::MPRISError& error) {
+    if (!m_player) {
+        return; // No player to report to
+    }
+    
+    // Create a user-friendly error message based on error category and severity
+    std::string user_message;
+    
+    switch (error.getCategory()) {
+        case MPRISTypes::MPRISError::Category::Connection:
+            user_message = "Media control integration temporarily unavailable";
+            break;
+        case MPRISTypes::MPRISError::Category::Message:
+            user_message = "Media control communication error";
+            break;
+        case MPRISTypes::MPRISError::Category::PlayerState:
+            user_message = "Media control state synchronization issue";
+            break;
+        case MPRISTypes::MPRISError::Category::Threading:
+            user_message = "Media control system error - restarting";
+            break;
+        case MPRISTypes::MPRISError::Category::Resource:
+            user_message = "Media control resource limitation";
+            break;
+        case MPRISTypes::MPRISError::Category::Protocol:
+            user_message = "Media control protocol error";
+            break;
+        case MPRISTypes::MPRISError::Category::Configuration:
+            user_message = "Media control configuration issue";
+            break;
+        case MPRISTypes::MPRISError::Category::Internal:
+            user_message = "Internal media control error";
+            break;
+        default:
+            user_message = "Media control system error";
+            break;
+    }
+    
+    // Only report critical and fatal errors to user to avoid spam
+    if (error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+        // In a real implementation, this would call a Player method to show user notification
+        // For now, we'll log it as a user-facing message
+        logError_unlocked("reportErrorToPlayer", "User notification: " + user_message);
+        
+        // TODO: Add actual Player notification method call when Player interface is available
+        // m_player->showNotification(user_message, Player::NotificationType::Error);
+    }
+}
+
+void MPRISManager::handleError_unlocked(const MPRISTypes::MPRISError& error) {
+    // Log the error
+    MPRISTypes::ErrorLogger::getInstance().logError(error);
+    
+    // Report to degradation manager
+    m_degradation_manager.reportError(error);
+    
+    // Attempt recovery if appropriate
+    bool recovery_attempted = attemptErrorRecovery_unlocked(error);
+    
+    // Report to player if necessary
+    if (!recovery_attempted || error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+        reportErrorToPlayer_unlocked(error);
+    }
+    
+    // Handle specific error categories
+    switch (error.getCategory()) {
+        case MPRISTypes::MPRISError::Category::Connection:
+            handleConnectionLoss_unlocked();
+            break;
+            
+        case MPRISTypes::MPRISError::Category::Threading:
+            // Threading errors are serious - consider shutdown
+            if (error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+                logError_unlocked("handleError", "Critical threading error - initiating shutdown");
+                shutdown_unlocked();
+            }
+            break;
+            
+        case MPRISTypes::MPRISError::Category::Internal:
+            // Internal errors may require component reset
+            if (error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+                logError_unlocked("handleError", "Critical internal error - resetting components");
+                shutdownComponents_unlocked();
+                // Attempt to reinitialize after a delay
+                scheduleReconnection_unlocked();
+            }
+            break;
+            
+        default:
+            // Other errors are handled by the recovery system
+            break;
+    }
+}
+
+bool MPRISManager::attemptErrorRecovery_unlocked(const MPRISTypes::MPRISError& error) {
+    if (error.getRecoveryStrategy() == MPRISTypes::MPRISError::RecoveryStrategy::None) {
+        return false; // No recovery possible
+    }
+    
+    logInfo_unlocked("Attempting error recovery for " + error.getCategoryString() + " error");
+    
+    bool success = m_recovery_manager.attemptRecovery(error);
+    
+    if (success) {
+        logInfo_unlocked("Error recovery successful");
+    } else {
+        logError_unlocked("attemptErrorRecovery", "Error recovery failed");
+    }
+    
+    return success;
+}
+
+void MPRISManager::configureErrorRecovery_unlocked() {
+    // Configure recovery actions for different strategies
+    
+    // Reconnect strategy - attempt D-Bus reconnection
+    m_recovery_manager.setRecoveryAction(
+        MPRISTypes::MPRISError::RecoveryStrategy::Reconnect,
+        [this]() -> bool {
+            auto result = reconnect_unlocked();
+            return result.isSuccess();
+        }
+    );
+    
+    // Reset strategy - reset components
+    m_recovery_manager.setRecoveryAction(
+        MPRISTypes::MPRISError::RecoveryStrategy::Reset,
+        [this]() -> bool {
+            try {
+                shutdownComponents_unlocked();
+                auto result = initializeComponents_unlocked();
+                if (result.isSuccess()) {
+                    result = establishDBusConnection_unlocked();
+                    if (result.isSuccess()) {
+                        result = registerDBusService_unlocked();
+                    }
+                }
+                return result.isSuccess();
+            } catch (const std::exception& e) {
+                logError_unlocked("configureErrorRecovery", "Reset recovery failed: " + std::string(e.what()));
+                return false;
+            }
+        }
+    );
+    
+    // Restart strategy - full restart
+    m_recovery_manager.setRecoveryAction(
+        MPRISTypes::MPRISError::RecoveryStrategy::Restart,
+        [this]() -> bool {
+            try {
+                shutdown_unlocked();
+                auto result = initialize_unlocked();
+                return result.isSuccess();
+            } catch (const std::exception& e) {
+                logError_unlocked("configureErrorRecovery", "Restart recovery failed: " + std::string(e.what()));
+                return false;
+            }
+        }
+    );
+    
+    // Degrade strategy - enable graceful degradation
+    m_recovery_manager.setRecoveryAction(
+        MPRISTypes::MPRISError::RecoveryStrategy::Degrade,
+        [this]() -> bool {
+            auto current_level = m_degradation_manager.getDegradationLevel();
+            auto new_level = static_cast<MPRISTypes::GracefulDegradationManager::DegradationLevel>(
+                std::min(static_cast<int>(current_level) + 1, 
+                        static_cast<int>(MPRISTypes::GracefulDegradationManager::DegradationLevel::Disabled))
+            );
+            
+            if (new_level != current_level) {
+                m_degradation_manager.setDegradationLevel(new_level);
+                logInfo_unlocked("Graceful degradation activated: level " + std::to_string(static_cast<int>(new_level)));
+                return true;
+            }
+            
+            return false; // Already at maximum degradation
+        }
+    );
+    
+    // Retry strategy - simple retry (handled by recovery manager automatically)
+    m_recovery_manager.setRecoveryAction(
+        MPRISTypes::MPRISError::RecoveryStrategy::Retry,
+        [this]() -> bool {
+            // For retry strategy, we don't do anything special here
+            // The recovery manager handles the retry logic
+            return true;
+        }
+    );
 }
 
 #else // !HAVE_DBUS

@@ -9,6 +9,14 @@
 #include <exception>
 #include <chrono>
 #include <functional>
+#include <atomic>
+#include <mutex>
+#include <set>
+#include <sstream>
+#include <algorithm>
+#include <thread>
+#include <ctime>
+#include <cstdio>
 
 // Forward declarations for D-Bus types
 struct DBusConnection;
@@ -341,6 +349,7 @@ private:
     
     mutable std::mutex m_mutex;
     
+    void setDegradationLevel_unlocked(DegradationLevel level);
     void updateDegradationLevel();
     void cleanupOldErrors();
 };

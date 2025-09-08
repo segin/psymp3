@@ -113,6 +113,54 @@ public:
      * @return Result indicating success or error message
      */
     MPRISTypes::Result<void> reconnect();
+    
+    /**
+     * Get current degradation level
+     * @return Current degradation level
+     */
+    MPRISTypes::GracefulDegradationManager::DegradationLevel getDegradationLevel() const;
+    
+    /**
+     * Set degradation level manually
+     * @param level New degradation level
+     */
+    void setDegradationLevel(MPRISTypes::GracefulDegradationManager::DegradationLevel level);
+    
+    /**
+     * Check if a specific feature is available at current degradation level
+     * @param feature Feature name to check
+     * @return true if feature is available
+     */
+    bool isFeatureAvailable(const std::string& feature) const;
+    
+    /**
+     * Get error statistics
+     * @return Current error statistics
+     */
+    MPRISTypes::ErrorLogger::ErrorStats getErrorStats() const;
+    
+    /**
+     * Get recovery statistics
+     * @return Current recovery statistics
+     */
+    MPRISTypes::ErrorRecoveryManager::RecoveryStats getRecoveryStats() const;
+    
+    /**
+     * Reset error and recovery statistics
+     */
+    void resetStats();
+    
+    /**
+     * Configure error logging level
+     * @param level New logging level
+     */
+    void setLogLevel(MPRISTypes::ErrorLogger::LogLevel level);
+    
+    /**
+     * Report error to Player for user notification
+     * @param error Error to report
+     */
+    void reportErrorToPlayer(const MPRISTypes::MPRISError& error);
 
 private:
     // Private implementations - assume locks are already held
@@ -128,6 +176,21 @@ private:
     std::string getLastError_unlocked() const;
     void setAutoReconnect_unlocked(bool enable);
     MPRISTypes::Result<void> reconnect_unlocked();
+    
+    // Error handling and recovery methods
+    MPRISTypes::GracefulDegradationManager::DegradationLevel getDegradationLevel_unlocked() const;
+    void setDegradationLevel_unlocked(MPRISTypes::GracefulDegradationManager::DegradationLevel level);
+    bool isFeatureAvailable_unlocked(const std::string& feature) const;
+    MPRISTypes::ErrorLogger::ErrorStats getErrorStats_unlocked() const;
+    MPRISTypes::ErrorRecoveryManager::RecoveryStats getRecoveryStats_unlocked() const;
+    void resetStats_unlocked();
+    void setLogLevel_unlocked(MPRISTypes::ErrorLogger::LogLevel level);
+    void reportErrorToPlayer_unlocked(const MPRISTypes::MPRISError& error);
+    
+    // Error handling utilities
+    void handleError_unlocked(const MPRISTypes::MPRISError& error);
+    bool attemptErrorRecovery_unlocked(const MPRISTypes::MPRISError& error);
+    void configureErrorRecovery_unlocked();
     
     // Internal component management
     MPRISTypes::Result<void> initializeComponents_unlocked();
@@ -161,6 +224,10 @@ private:
     std::unique_ptr<PropertyManager> m_properties;
     std::unique_ptr<MethodHandler> m_methods;
     std::unique_ptr<MPRISTypes::SignalEmitter> m_signals;
+    
+    // Error handling and recovery systems
+    MPRISTypes::ErrorRecoveryManager m_recovery_manager;
+    MPRISTypes::GracefulDegradationManager m_degradation_manager;
     
     // State management
     std::atomic<bool> m_initialized{false};

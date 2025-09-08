@@ -216,7 +216,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -1075,6 +1075,24 @@ test_mpris_manager_basic_integration_LDADD = \
 	$(top_builddir)/src/DBusConnectionManager.o \
 	$(top_builddir)/src/PropertyManager.o \
 	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_error_handling_SOURCES = test_mpris_error_handling.cpp
+test_mpris_error_handling_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_error_handling_LDADD = \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_error_integration_SOURCES = test_mpris_error_integration.cpp
+test_mpris_error_integration_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/MPRISTypes.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
