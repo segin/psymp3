@@ -9,12 +9,13 @@ MethodHandler::MethodHandler(Player* player, PropertyManager* properties)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     
-    if (!m_player) {
-        throw std::invalid_argument("MethodHandler: Player pointer cannot be null");
-    }
-    
     if (!m_properties) {
         throw std::invalid_argument("MethodHandler: PropertyManager pointer cannot be null");
+    }
+    
+    // Note: Player can be null for testing purposes
+    if (!m_player) {
+        logError_unlocked("MethodHandler", "Player is null - MPRIS commands will be ignored");
     }
     
     initializeMethodHandlers_unlocked();
@@ -140,7 +141,10 @@ DBusHandlerResult MethodHandler::handleQuit_unlocked(DBusConnection* connection,
     sendMethodReturn_unlocked(connection, message);
     
     // Signal the player to exit using the established pattern
-    Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
+    // Note: This is a static method, so it doesn't require m_player to be non-null
+    if (m_player) {
+        Player::synthesizeUserEvent(QUIT_APPLICATION, nullptr, nullptr);
+    }
     
     return DBUS_HANDLER_RESULT_HANDLED;
 }
@@ -149,6 +153,12 @@ DBusHandlerResult MethodHandler::handleQuit_unlocked(DBusConnection* connection,
 
 DBusHandlerResult MethodHandler::handlePlay_unlocked(DBusConnection* connection, DBusMessage* message) {
     std::cout << "MPRIS: Received Play command" << std::endl;
+    
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     
     bool success = m_player->play();
     if (success) {
@@ -164,6 +174,12 @@ DBusHandlerResult MethodHandler::handlePlay_unlocked(DBusConnection* connection,
 DBusHandlerResult MethodHandler::handlePause_unlocked(DBusConnection* connection, DBusMessage* message) {
     std::cout << "MPRIS: Received Pause command" << std::endl;
     
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    
     bool success = m_player->pause();
     if (success) {
         sendMethodReturn_unlocked(connection, message);
@@ -177,6 +193,12 @@ DBusHandlerResult MethodHandler::handlePause_unlocked(DBusConnection* connection
 
 DBusHandlerResult MethodHandler::handleStop_unlocked(DBusConnection* connection, DBusMessage* message) {
     std::cout << "MPRIS: Received Stop command" << std::endl;
+    
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     
     bool success = m_player->stop();
     if (success) {
@@ -192,6 +214,12 @@ DBusHandlerResult MethodHandler::handleStop_unlocked(DBusConnection* connection,
 DBusHandlerResult MethodHandler::handlePlayPause_unlocked(DBusConnection* connection, DBusMessage* message) {
     std::cout << "MPRIS: Received PlayPause command" << std::endl;
     
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    
     bool success = m_player->playPause();
     if (success) {
         sendMethodReturn_unlocked(connection, message);
@@ -205,6 +233,12 @@ DBusHandlerResult MethodHandler::handlePlayPause_unlocked(DBusConnection* connec
 
 DBusHandlerResult MethodHandler::handleNext_unlocked(DBusConnection* connection, DBusMessage* message) {
     std::cout << "MPRIS: Received Next command" << std::endl;
+    
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     
     if (!m_properties->canGoNext()) {
         sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
@@ -220,6 +254,12 @@ DBusHandlerResult MethodHandler::handleNext_unlocked(DBusConnection* connection,
 
 DBusHandlerResult MethodHandler::handlePrevious_unlocked(DBusConnection* connection, DBusMessage* message) {
     std::cout << "MPRIS: Received Previous command" << std::endl;
+    
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     
     if (!m_properties->canGoPrevious()) {
         sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
@@ -273,6 +313,12 @@ DBusHandlerResult MethodHandler::handleSeek_unlocked(DBusConnection* connection,
         new_position_us = static_cast<int64_t>(track_length_us);
     }
     
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
+    
     // Convert to milliseconds for Player::seekTo
     unsigned long new_position_ms = static_cast<unsigned long>(new_position_us / 1000);
     m_player->seekTo(new_position_ms);
@@ -316,6 +362,12 @@ DBusHandlerResult MethodHandler::handleSetPosition_unlocked(DBusConnection* conn
     
     std::cout << "MPRIS: Received SetPosition command for track " << track_id 
               << " to position " << position_us << " microseconds" << std::endl;
+    
+    if (!m_player) {
+        sendErrorReply_unlocked(connection, message, "org.mpris.MediaPlayer2.Error.Failed", 
+                              "Player not available");
+        return DBUS_HANDLER_RESULT_HANDLED;
+    }
     
     // Convert to milliseconds for Player::seekTo
     unsigned long position_ms = static_cast<unsigned long>(position_us / 1000);

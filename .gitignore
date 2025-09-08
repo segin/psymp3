@@ -199,3 +199,8 @@ tests/test_error_handling
 .gitignore
 tests/test_error_handling
 
+tests/test_method_handler_simple
+tests/debug_dbus
+tests/debug_psymp3
+tests/test_signal_emitter
+tests/test_mpris_manager_basic_integration

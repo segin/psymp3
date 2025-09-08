@@ -216,7 +216,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -1018,6 +1018,63 @@ test_signal_emitter_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/SignalEmitter.o \
 	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_manager_integration_SOURCES = test_mpris_manager_integration.cpp
+test_mpris_manager_integration_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_manager_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_manager_simple_SOURCES = test_mpris_manager_simple.cpp
+test_mpris_manager_simple_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_manager_simple_LDADD = \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_manager_minimal_SOURCES = test_mpris_manager_minimal.cpp
+test_mpris_manager_minimal_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_manager_minimal_LDADD = \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_manager_basic_integration_SOURCES = test_mpris_manager_basic_integration.cpp player_stub.cpp
+test_mpris_manager_basic_integration_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_manager_basic_integration_LDADD = \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
 	$(top_builddir)/src/MPRISTypes.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \

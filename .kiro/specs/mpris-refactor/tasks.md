@@ -42,7 +42,7 @@
   - Write unit tests for signal emission and threading behavior
   - _Requirements: 2.3, 2.4, 4.1_
 
-- [ ] 6. Implement main MPRIS Manager coordinator
+- [-] 6. Implement main MPRIS Manager coordinator
   - Create MPRISManager class integrating all components
   - Implement initialization and shutdown with proper resource cleanup
   - Add public API methods following threading safety pattern
