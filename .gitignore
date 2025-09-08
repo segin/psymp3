@@ -206,3 +206,4 @@ tests/test_signal_emitter
 tests/test_mpris_manager_basic_integration
 tests/test_mpris_error_handling
 tests/test_mpris_error_integration
+tests/test_mock_framework_standalone

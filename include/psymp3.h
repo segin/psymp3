@@ -29,6 +29,7 @@
 #endif
 
 #include <cstdint>
+#include <ostream>
 
 // defines
 #define PSYMP3_VERSION "2-CURRENT"
@@ -61,6 +62,16 @@ enum class PlayerState {
     Paused
 };
 
+// Stream operator for PlayerState (for testing)
+inline std::ostream& operator<<(std::ostream& os, PlayerState state) {
+    switch (state) {
+        case PlayerState::Stopped: return os << "Stopped";
+        case PlayerState::Playing: return os << "Playing";
+        case PlayerState::Paused: return os << "Paused";
+        default: return os << "Unknown";
+    }
+}
+
 enum class LoopMode {
     None,
     One,
@@ -84,6 +95,7 @@ enum class LoopMode {
 #include <mutex>
 #include <shared_mutex>
 #include <queue>
+#include <random>
 #include <regex>
 #include <set>
 #include <stdexcept>
