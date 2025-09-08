@@ -23,7 +23,7 @@ AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIB
 
 # Common test utilities library
 noinst_LIBRARIES = libtest_utilities.a
-libtest_utilities_a_SOURCES = test_framework.cpp test_rect_utilities.cpp
+libtest_utilities_a_SOURCES = test_framework.cpp test_rect_utilities.cpp test_framework_threading.cpp mock_dbus_connection.cpp mock_player.cpp mpris_test_fixtures.cpp
 libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 # Test harness executable and debug programs
@@ -216,7 +216,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -2303,3 +2303,32 @@ test_oggdemuxer_comprehensive_LDADD = \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+# MPRIS Mock Framework Tests
+if HAVE_DBUS
+test_mpris_mock_framework_SOURCES = test_mpris_mock_framework.cpp
+test_mpris_mock_framework_CPPFLAGS = $(AM_CPPFLAGS)
+test_mpris_mock_framework_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+
+test_mpris_stress_testing_SOURCES = test_mpris_stress_testing.cpp
+test_mpris_stress_testing_CPPFLAGS = $(AM_CPPFLAGS)
+test_mpris_stress_testing_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+
+test_comprehensive_mock_framework_SOURCES = test_comprehensive_mock_framework.cpp
+test_comprehensive_mock_framework_CPPFLAGS = $(AM_CPPFLAGS)
+test_comprehensive_mock_framework_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+
+test_mock_framework_standalone_SOURCES = test_mock_framework_standalone.cpp
+test_mock_framework_standalone_CPPFLAGS = $(AM_CPPFLAGS)
+test_mock_framework_standalone_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+endif
+
+# Test scripts for running comprehensive test suites
+EXTRA_DIST = \
+	run_mpris_mock_tests.sh \
+	run_mpris_stress_tests.sh \
+	validate_mock_framework.sh
+
+# Test data files for mock framework validation
+EXTRA_DIST += \
+	mock_test_data.txt \
+	stress_test_config.json

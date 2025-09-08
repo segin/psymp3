@@ -1,14 +1,14 @@
+/*
+ * test_framework_threading.h - Threading safety test utilities for PsyMP3
+ * This file is part of PsyMP3.
+ * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ */
+
 #ifndef TEST_FRAMEWORK_THREADING_H
 #define TEST_FRAMEWORK_THREADING_H
-
-/**
- * Threading Safety Test Framework for PsyMP3
- * 
- * This framework provides utilities for testing thread safety patterns
- * and validating the public/private lock pattern implementation.
- * 
- * Requirements addressed: 1.1, 1.3, 5.1
- */
 
 #include <thread>
 #include <vector>
@@ -17,340 +17,353 @@
 #include <functional>
 #include <mutex>
 #include <condition_variable>
+#include <future>
 #include <random>
-#include <cassert>
-#include <iostream>
+#include <memory>
 
-namespace ThreadingTest {
-
-/**
- * Configuration for threading tests
- */
-struct TestConfig {
-    int num_threads = 8;
-    int operations_per_thread = 1000;
-    std::chrono::milliseconds timeout = std::chrono::milliseconds(5000);
-    bool enable_stress_testing = false;
-    int stress_duration_seconds = 10;
-};
+namespace TestFramework {
+namespace Threading {
 
 /**
- * Results from a threading test
+ * @brief Utility class for testing thread safety and lock contention
  */
-struct TestResults {
-    bool success = false;
-    int total_operations = 0;
-    int failed_operations = 0;
-    std::chrono::milliseconds duration{0};
-    std::vector<std::string> errors;
+class ThreadSafetyTester {
+public:
+    /**
+     * @brief Configuration for thread safety tests
+     */
+    struct Config {
+        size_t num_threads;
+        std::chrono::milliseconds test_duration;
+        size_t operations_per_thread;
+        bool enable_random_delays;
+        std::chrono::microseconds min_delay;
+        std::chrono::microseconds max_delay;
+        
+        Config() : num_threads(4), test_duration(1000), operations_per_thread(100), 
+                   enable_random_delays(true), min_delay(1), max_delay(100) {}
+    };
     
-    void addError(const std::string& error) {
-        errors.push_back(error);
-        failed_operations++;
-    }
+    /**
+     * @brief Results from thread safety testing
+     */
+    struct Results {
+        size_t total_operations = 0;
+        size_t successful_operations = 0;
+        size_t failed_operations = 0;
+        std::chrono::milliseconds total_duration{0};
+        std::chrono::milliseconds average_operation_time{0};
+        std::chrono::milliseconds max_operation_time{0};
+        std::chrono::milliseconds min_operation_time{std::chrono::milliseconds::max()};
+        size_t lock_contentions = 0;
+        bool deadlock_detected = false;
+        std::vector<std::string> error_messages;
+    };
     
-    double getSuccessRate() const {
-        if (total_operations == 0) return 0.0;
-        return (double)(total_operations - failed_operations) / total_operations;
-    }
-};
+    /**
+     * @brief Test function type - should return true on success, false on failure
+     */
+    using TestFunction = std::function<bool()>;
+    
+    /**
+     * @brief Constructor
+     * @param config Test configuration
+     */
+    explicit ThreadSafetyTester(const Config& config = Config());
+    
+    /**
+     * @brief Run thread safety test with given function
+     * @param test_func Function to test for thread safety
+     * @param test_name Name of the test for reporting
+     * @return Test results
+     */
+    Results runTest(TestFunction test_func, const std::string& test_name = "");
+    
+    /**
+     * @brief Run stress test with multiple different operations
+     * @param operations Map of operation name to test function
+     * @param test_name Name of the test for reporting
+     * @return Test results
+     */
+    Results runStressTest(const std::map<std::string, TestFunction>& operations, 
+                         const std::string& test_name = "");
+    
+    /**
+     * @brief Test for deadlock detection
+     * @param setup_func Function to set up the deadlock scenario
+     * @param timeout Maximum time to wait for deadlock
+     * @return true if deadlock was detected, false otherwise
+     */
+    bool testForDeadlock(std::function<void()> setup_func, 
+                        std::chrono::milliseconds timeout = std::chrono::milliseconds{5000});
+    
+    /**
+     * @brief Test lock contention measurement
+     * @param lock_func Function that acquires and releases a lock
+     * @param contention_threads Number of threads to create contention
+     * @return Average lock acquisition time
+     */
+    std::chrono::microseconds measureLockContention(std::function<void()> lock_func, 
+                                                   size_t contention_threads = 8);
 
-/**
- * Barrier for synchronizing thread starts
- */
-class ThreadBarrier {
 private:
+    Config m_config;
+    std::mt19937 m_random_generator;
+    
+    void workerThread(TestFunction test_func, 
+                     std::atomic<size_t>& operations_count,
+                     std::atomic<size_t>& success_count,
+                     std::atomic<size_t>& failure_count,
+                     std::atomic<bool>& should_stop,
+                     std::vector<std::chrono::microseconds>& operation_times,
+                     std::mutex& times_mutex);
+    
+    void addRandomDelay();
+};
+
+/**
+ * @brief Barrier synchronization primitive for coordinating test threads
+ */
+class TestBarrier {
+public:
+    explicit TestBarrier(size_t thread_count);
+    
+    /**
+     * @brief Wait for all threads to reach the barrier
+     */
+    void wait();
+    
+    /**
+     * @brief Reset the barrier for reuse
+     */
+    void reset();
+
+private:
+    size_t m_thread_count;
+    size_t m_waiting_count;
+    size_t m_generation;
     std::mutex m_mutex;
     std::condition_variable m_cv;
-    int m_count;
-    int m_waiting;
-    
-public:
-    explicit ThreadBarrier(int count) : m_count(count), m_waiting(0) {}
-    
-    void wait() {
-        std::unique_lock<std::mutex> lock(m_mutex);
-        m_waiting++;
-        if (m_waiting == m_count) {
-            m_cv.notify_all();
-        } else {
-            m_cv.wait(lock, [this] { return m_waiting == m_count; });
-        }
-    }
 };
 
 /**
- * Base class for threading safety tests
+ * @brief Lock contention analyzer for measuring performance impact
  */
-class ThreadSafetyTestBase {
-protected:
-    TestConfig m_config;
-    TestResults m_results;
-    std::atomic<bool> m_should_stop{false};
-    
+class LockContentionAnalyzer {
 public:
-    explicit ThreadSafetyTestBase(const TestConfig& config = TestConfig{}) 
-        : m_config(config) {}
-    
-    virtual ~ThreadSafetyTestBase() = default;
-    
-    /**
-     * Run the threading test
-     */
-    TestResults run() {
-        m_results = TestResults{};
-        m_should_stop = false;
-        
-        auto start_time = std::chrono::steady_clock::now();
-        
-        try {
-            runTest();
-            m_results.success = (m_results.failed_operations == 0);
-        } catch (const std::exception& e) {
-            m_results.addError(std::string("Exception: ") + e.what());
-            m_results.success = false;
-        }
-        
-        auto end_time = std::chrono::steady_clock::now();
-        m_results.duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-            end_time - start_time);
-        
-        return m_results;
-    }
+    struct ContentionMetrics {
+        std::chrono::microseconds average_acquisition_time{0};
+        std::chrono::microseconds max_acquisition_time{0};
+        std::chrono::microseconds min_acquisition_time{std::chrono::microseconds::max()};
+        size_t total_acquisitions = 0;
+        size_t contentions_detected = 0;
+        double contention_ratio = 0.0; // contentions / total_acquisitions
+    };
     
     /**
-     * Get the test results
+     * @brief Measure lock contention for a given mutex
+     * @param mutex Mutex to analyze
+     * @param test_duration How long to run the test
+     * @param num_threads Number of threads to create contention
+     * @return Contention metrics
      */
-    const TestResults& getResults() const { return m_results; }
-    
-protected:
-    /**
-     * Override this method to implement the actual test
-     */
-    virtual void runTest() = 0;
-    
-    /**
-     * Helper method to run operations concurrently
-     */
-    void runConcurrentOperations(std::function<void(int thread_id)> operation) {
+    template<typename MutexType>
+    ContentionMetrics analyzeLockContention(MutexType& mutex,
+                                          std::chrono::milliseconds test_duration,
+                                          size_t num_threads = 4) {
+        ContentionMetrics metrics;
+        std::atomic<bool> should_stop{false};
         std::vector<std::thread> threads;
-        std::atomic<int> error_count{0};
-        ThreadBarrier barrier(m_config.num_threads);
+        std::vector<std::chrono::microseconds> acquisition_times;
+        std::mutex times_mutex;
         
-        // Start threads
-        for (int i = 0; i < m_config.num_threads; ++i) {
-            threads.emplace_back([this, &operation, &error_count, &barrier, i]() {
-                try {
-                    barrier.wait(); // Synchronize thread starts
+        // Start worker threads
+        for (size_t i = 0; i < num_threads; ++i) {
+            threads.emplace_back([&]() {
+                while (!should_stop.load()) {
+                    auto start = std::chrono::high_resolution_clock::now();
                     
-                    for (int j = 0; j < m_config.operations_per_thread && !m_should_stop; ++j) {
-                        operation(i);
-                        m_results.total_operations++;
+                    {
+                        std::lock_guard<MutexType> lock(mutex);
+                        // Simulate some work
+                        std::this_thread::sleep_for(std::chrono::microseconds(10));
                     }
-                } catch (const std::exception& e) {
-                    error_count++;
-                    m_results.addError(std::string("Thread ") + std::to_string(i) + 
-                                     " error: " + e.what());
+                    
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+                    
+                    {
+                        std::lock_guard<std::mutex> times_lock(times_mutex);
+                        acquisition_times.push_back(duration);
+                    }
                 }
             });
         }
         
-        // Wait for completion or timeout
-        auto timeout_thread = std::thread([this]() {
-            std::this_thread::sleep_for(m_config.timeout);
-            m_should_stop = true;
-        });
+        // Let test run for specified duration
+        std::this_thread::sleep_for(test_duration);
+        should_stop.store(true);
         
-        // Join all threads
-        for (auto& t : threads) {
-            if (t.joinable()) {
-                t.join();
-            }
+        // Wait for all threads to complete
+        for (auto& thread : threads) {
+            thread.join();
         }
         
-        m_should_stop = true;
-        if (timeout_thread.joinable()) {
-            timeout_thread.join();
-        }
-        
-        if (error_count > 0) {
-            m_results.addError("Concurrent operations failed");
-        }
-    }
-};
-
-/**
- * Test for basic concurrent access to public methods
- */
-template<typename T>
-class ConcurrentAccessTest : public ThreadSafetyTestBase {
-private:
-    T* m_test_object;
-    std::function<void(T*, int)> m_operation;
-    
-public:
-    ConcurrentAccessTest(T* test_object, 
-                        std::function<void(T*, int)> operation,
-                        const TestConfig& config = TestConfig{})
-        : ThreadSafetyTestBase(config), m_test_object(test_object), m_operation(operation) {}
-    
-protected:
-    void runTest() override {
-        runConcurrentOperations([this](int thread_id) {
-            m_operation(m_test_object, thread_id);
-        });
-    }
-};
-
-/**
- * Test for deadlock detection
- */
-template<typename T>
-class DeadlockDetectionTest : public ThreadSafetyTestBase {
-private:
-    T* m_test_object;
-    std::function<void(T*, int)> m_deadlock_operation;
-    
-public:
-    DeadlockDetectionTest(T* test_object,
-                         std::function<void(T*, int)> deadlock_operation,
-                         const TestConfig& config = TestConfig{})
-        : ThreadSafetyTestBase(config), m_test_object(test_object), 
-          m_deadlock_operation(deadlock_operation) {}
-    
-protected:
-    void runTest() override {
-        // This test should complete without hanging
-        // If it hangs, it indicates a deadlock
-        runConcurrentOperations([this](int thread_id) {
-            m_deadlock_operation(m_test_object, thread_id);
-        });
-    }
-};
-
-/**
- * Stress test for high-concurrency scenarios
- */
-template<typename T>
-class StressTest : public ThreadSafetyTestBase {
-private:
-    T* m_test_object;
-    std::vector<std::function<void(T*, int)>> m_operations;
-    std::mt19937 m_rng;
-    
-public:
-    StressTest(T* test_object,
-               std::vector<std::function<void(T*, int)>> operations,
-               const TestConfig& config = TestConfig{})
-        : ThreadSafetyTestBase(config), m_test_object(test_object), 
-          m_operations(operations), m_rng(std::random_device{}()) {}
-    
-protected:
-    void runTest() override {
-        if (m_operations.empty()) {
-            m_results.addError("No operations provided for stress test");
-            return;
-        }
-        
-        runConcurrentOperations([this](int thread_id) {
-            // Randomly select an operation to perform
-            std::uniform_int_distribution<size_t> dist(0, m_operations.size() - 1);
-            size_t op_index = dist(m_rng);
-            m_operations[op_index](m_test_object, thread_id);
-        });
-    }
-};
-
-/**
- * Utility class for measuring performance impact of threading changes
- */
-class PerformanceBenchmark {
-private:
-    std::string m_test_name;
-    std::chrono::steady_clock::time_point m_start_time;
-    
-public:
-    explicit PerformanceBenchmark(const std::string& test_name) 
-        : m_test_name(test_name) {
-        m_start_time = std::chrono::steady_clock::now();
-    }
-    
-    ~PerformanceBenchmark() {
-        auto end_time = std::chrono::steady_clock::now();
-        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-            end_time - m_start_time);
-        
-        std::cout << "Benchmark [" << m_test_name << "]: " 
-                  << duration.count() << " microseconds" << std::endl;
-    }
-};
-
-/**
- * Macro for easy performance benchmarking
- */
-#define BENCHMARK(name) PerformanceBenchmark _bench(name)
-
-/**
- * Test runner for executing multiple threading tests
- */
-class ThreadingTestRunner {
-private:
-    std::vector<std::unique_ptr<ThreadSafetyTestBase>> m_tests;
-    
-public:
-    void addTest(std::unique_ptr<ThreadSafetyTestBase> test) {
-        m_tests.push_back(std::move(test));
-    }
-    
-    bool runAllTests() {
-        bool all_passed = true;
-        int test_number = 1;
-        
-        std::cout << "Running " << m_tests.size() << " threading safety tests..." << std::endl;
-        
-        for (auto& test : m_tests) {
-            std::cout << "Test " << test_number << "/" << m_tests.size() << "... ";
+        // Calculate metrics
+        if (!acquisition_times.empty()) {
+            metrics.total_acquisitions = acquisition_times.size();
             
-            auto results = test->run();
-            
-            if (results.success) {
-                std::cout << "PASSED";
-            } else {
-                std::cout << "FAILED";
-                all_passed = false;
-            }
-            
-            std::cout << " (" << results.duration.count() << "ms, "
-                      << results.total_operations << " ops, "
-                      << (results.getSuccessRate() * 100.0) << "% success)" << std::endl;
-            
-            if (!results.errors.empty()) {
-                for (const auto& error : results.errors) {
-                    std::cout << "  Error: " << error << std::endl;
+            auto total_time = std::chrono::microseconds{0};
+            for (const auto& time : acquisition_times) {
+                total_time += time;
+                metrics.max_acquisition_time = std::max(metrics.max_acquisition_time, time);
+                metrics.min_acquisition_time = std::min(metrics.min_acquisition_time, time);
+                
+                // Consider contention if acquisition took longer than expected
+                if (time > std::chrono::microseconds{50}) {
+                    metrics.contentions_detected++;
                 }
             }
             
-            test_number++;
+            metrics.average_acquisition_time = total_time / metrics.total_acquisitions;
+            metrics.contention_ratio = static_cast<double>(metrics.contentions_detected) / metrics.total_acquisitions;
         }
         
-        std::cout << std::endl;
-        std::cout << "Threading safety tests: " 
-                  << (all_passed ? "ALL PASSED" : "SOME FAILED") << std::endl;
-        
-        return all_passed;
+        return metrics;
     }
 };
 
-} // namespace ThreadingTest
+/**
+ * @brief Race condition detector for finding threading bugs
+ */
+class RaceConditionDetector {
+public:
+    /**
+     * @brief Test for race conditions in shared data access
+     * @param setup_func Function to set up shared data
+     * @param test_func Function that accesses shared data
+     * @param verify_func Function to verify data consistency
+     * @param num_threads Number of threads to use
+     * @param iterations Number of iterations per thread
+     * @return true if race condition detected, false otherwise
+     */
+    template<typename SetupFunc, typename TestFunc, typename VerifyFunc>
+    bool detectRaceCondition(SetupFunc setup_func,
+                           TestFunc test_func,
+                           VerifyFunc verify_func,
+                           size_t num_threads = 4,
+                           size_t iterations = 1000) {
+        bool race_detected = false;
+        
+        for (size_t test_run = 0; test_run < 10 && !race_detected; ++test_run) {
+            // Set up test data
+            setup_func();
+            
+            // Create barrier for synchronized start
+            TestBarrier barrier(num_threads);
+            std::vector<std::thread> threads;
+            std::atomic<bool> start_flag{false};
+            
+            // Start worker threads
+            for (size_t i = 0; i < num_threads; ++i) {
+                threads.emplace_back([&, i]() {
+                    // Wait for synchronized start
+                    barrier.wait();
+                    
+                    // Run test iterations
+                    for (size_t iter = 0; iter < iterations; ++iter) {
+                        test_func(i, iter);
+                    }
+                });
+            }
+            
+            // Wait for all threads to complete
+            for (auto& thread : threads) {
+                thread.join();
+            }
+            
+            // Verify data consistency
+            if (!verify_func()) {
+                race_detected = true;
+            }
+        }
+        
+        return race_detected;
+    }
+};
 
-// Convenience macros for common test patterns
-#define THREADING_TEST_CONCURRENT_ACCESS(object, operation) \
-    ThreadingTest::ConcurrentAccessTest<decltype(object)>(&object, operation)
+/**
+ * @brief Performance benchmarking utilities for threading code
+ */
+class ThreadingBenchmark {
+public:
+    struct BenchmarkResults {
+        std::chrono::microseconds single_thread_time{0};
+        std::chrono::microseconds multi_thread_time{0};
+        double speedup_ratio = 0.0;
+        double efficiency = 0.0; // speedup / num_threads
+        size_t operations_per_second = 0;
+    };
+    
+    /**
+     * @brief Benchmark single-threaded vs multi-threaded performance
+     * @param operation Function to benchmark
+     * @param num_operations Total number of operations
+     * @param num_threads Number of threads for multi-threaded test
+     * @return Benchmark results
+     */
+    template<typename OperationFunc>
+    BenchmarkResults benchmarkScaling(OperationFunc operation,
+                                    size_t num_operations,
+                                    size_t num_threads = 4) {
+        BenchmarkResults results;
+        
+        // Single-threaded benchmark
+        auto start = std::chrono::high_resolution_clock::now();
+        for (size_t i = 0; i < num_operations; ++i) {
+            operation(i);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        results.single_thread_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        
+        // Multi-threaded benchmark
+        start = std::chrono::high_resolution_clock::now();
+        std::vector<std::thread> threads;
+        size_t operations_per_thread = num_operations / num_threads;
+        
+        for (size_t t = 0; t < num_threads; ++t) {
+            threads.emplace_back([&, t]() {
+                size_t start_op = t * operations_per_thread;
+                size_t end_op = (t == num_threads - 1) ? num_operations : (t + 1) * operations_per_thread;
+                
+                for (size_t i = start_op; i < end_op; ++i) {
+                    operation(i);
+                }
+            });
+        }
+        
+        for (auto& thread : threads) {
+            thread.join();
+        }
+        end = std::chrono::high_resolution_clock::now();
+        results.multi_thread_time = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        
+        // Calculate metrics
+        if (results.multi_thread_time.count() > 0) {
+            results.speedup_ratio = static_cast<double>(results.single_thread_time.count()) / 
+                                   results.multi_thread_time.count();
+            results.efficiency = results.speedup_ratio / num_threads;
+        }
+        
+        if (results.multi_thread_time.count() > 0) {
+            results.operations_per_second = (num_operations * 1000000) / results.multi_thread_time.count();
+        }
+        
+        return results;
+    }
+};
 
-#define THREADING_TEST_DEADLOCK_DETECTION(object, operation) \
-    ThreadingTest::DeadlockDetectionTest<decltype(object)>(&object, operation)
-
-#define THREADING_TEST_STRESS(object, operations) \
-    ThreadingTest::StressTest<decltype(object)>(&object, operations)
+} // namespace Threading
+} // namespace TestFramework
 
 #endif // TEST_FRAMEWORK_THREADING_H
