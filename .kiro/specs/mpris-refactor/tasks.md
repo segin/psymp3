@@ -60,7 +60,7 @@
   - Write unit tests for error scenarios and recovery paths
   - _Requirements: 1.1, 6.1, 6.2, 6.3, 7.1, 7.2_
 
-- [ ] 8. Integrate new MPRIS system with Player class
+- [-] 8. Integrate new MPRIS system with Player class
   - Replace old MPRIS class usage in Player constructor and destructor
   - Update Player method calls to use new MPRISManager API
   - Ensure proper lock acquisition order between Player and MPRIS mutexes

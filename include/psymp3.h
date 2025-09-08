@@ -406,7 +406,6 @@ typedef struct bio_st BIO;
 #include "MethodHandler.h"
 #include "SignalEmitter.h"
 #include "MPRISManager.h"
-#include "mpris.h"
 
 // Portable branch prediction macros
 

@@ -53,8 +53,15 @@ Player::Player() {
     m_track_scrobbled = false;
     
 #ifdef HAVE_DBUS
-    mpris = new MPRIS(this);
-    mpris->init();
+    m_mpris_manager = std::make_unique<MPRISManager>(this);
+    auto init_result = m_mpris_manager->initialize();
+    if (!init_result.isSuccess()) {
+        Debug::log("mpris", "MPRIS initialization failed: ", init_result.getError());
+        // Continue without MPRIS - graceful degradation
+        m_mpris_manager.reset();
+    } else {
+        Debug::log("mpris", "MPRIS initialized successfully");
+    }
 #endif
 }
 
@@ -63,9 +70,9 @@ Player::~Player() {
     ApplicationWidget::getInstance().notifyShutdown();
     
 #ifdef HAVE_DBUS
-    if (mpris) {
-        mpris->shutdown();
-        delete mpris;
+    if (m_mpris_manager) {
+        m_mpris_manager->shutdown();
+        m_mpris_manager.reset();
     }
 #endif
     if (m_loader_active) {
@@ -369,7 +376,9 @@ bool Player::stop(void) {
     stream = nullptr;
 
 #ifdef HAVE_DBUS
-    if (mpris) mpris->updatePlaybackStatus("Stopped");
+    if (m_mpris_manager) {
+        m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+    }
 #endif
 #ifdef _WIN32
     if (system) system->clearNowPlaying();
@@ -391,7 +400,9 @@ bool Player::pause(void) {
         audio->play(false);
         state = PlayerState::Paused;
 #ifdef HAVE_DBUS
-        if (mpris) mpris->updatePlaybackStatus("Paused");
+        if (m_mpris_manager) {
+            m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+        }
 #endif
         // Clear Last.fm now playing status when pausing
         if (m_lastfm) {
@@ -425,7 +436,9 @@ bool Player::play(void) {
         if (audio) audio->play(true);
         state = PlayerState::Playing;
 #ifdef HAVE_DBUS
-        if (mpris) mpris->updatePlaybackStatus("Playing");
+        if (m_mpris_manager) {
+            m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        }
 #endif
         // Re-set Last.fm now playing status when resuming from pause
         if (previous_state == PlayerState::Paused && m_lastfm) {
@@ -463,6 +476,13 @@ void Player::seekTo(unsigned long pos)
             audio->setSamplesPlayed((pos * audio->getRate()) / 1000);
         }
         stream->seekTo(pos);
+        
+#ifdef HAVE_DBUS
+        // Notify MPRIS about the seek operation (convert ms to microseconds)
+        if (m_mpris_manager) {
+            m_mpris_manager->notifySeeked(static_cast<uint64_t>(pos) * 1000);
+        }
+#endif
     }
 }
 
@@ -735,6 +755,19 @@ bool Player::updateGUI()
             m_spectrum_widget->updateSpectrum(spectrum, 320, scalefactor, decayfactor);
         }
     }
+
+#ifdef HAVE_DBUS
+    // Update MPRIS position (outside of Player mutex to avoid deadlocks)
+    if (m_mpris_manager && current_stream && state == PlayerState::Playing) {
+        // Update position periodically (convert ms to microseconds)
+        static Uint32 last_position_update = 0;
+        Uint32 current_time = SDL_GetTicks();
+        if (current_time - last_position_update > 1000) { // Update every second
+            m_mpris_manager->updatePosition(static_cast<uint64_t>(current_pos_ms) * 1000);
+            last_position_update = current_time;
+        }
+    }
+#endif
 
     // --- Lyrics Widget Rendering ---
     // NOTE: Temporarily disabled - will be converted to transparent window system
@@ -1244,10 +1277,14 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             startTrackScrobbling();
             
 #ifdef HAVE_DBUS
-            if (mpris) {
-                mpris->updatePlaybackStatus("Playing");
+            if (m_mpris_manager) {
+                m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
                 if (stream) {
-                    mpris->updateMetadata(stream->getArtist().to8Bit(true), stream->getTitle().to8Bit(true), stream->getAlbum().to8Bit(true));
+                    m_mpris_manager->updateMetadata(
+                        stream->getArtist().to8Bit(true), 
+                        stream->getTitle().to8Bit(true), 
+                        stream->getAlbum().to8Bit(true)
+                    );
                 }
             }
 #endif
