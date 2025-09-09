@@ -2,6 +2,7 @@
 
 #ifdef HAVE_DBUS
 #include <dbus/dbus.h>
+#include "MPRISLogger.h"
 #endif
 
 #include <algorithm>
@@ -118,8 +119,12 @@ Result<void> DBusConnectionManager::attemptReconnection_unlocked() {
         oss << "Reconnection not allowed: too many attempts (" 
             << m_reconnect_attempt_count << "/" << MAX_RECONNECT_ATTEMPTS 
             << ") or too soon since last attempt";
+        MPRIS_LOG_WARN("DBusConnectionManager", oss.str());
         return Result<void>::error(oss.str());
     }
+    
+    MPRIS_LOG_INFO("DBusConnectionManager", "Attempting D-Bus reconnection (attempt " + 
+                   std::to_string(m_reconnect_attempt_count + 1) + "/" + std::to_string(MAX_RECONNECT_ATTEMPTS) + ")");
     
     // Update attempt tracking
     updateReconnectAttemptTime_unlocked();
@@ -129,7 +134,14 @@ Result<void> DBusConnectionManager::attemptReconnection_unlocked() {
     disconnect_unlocked();
     
     // Attempt new connection
-    return connect_unlocked();
+    auto result = connect_unlocked();
+    if (result.isSuccess()) {
+        MPRIS_LOG_INFO("DBusConnectionManager", "D-Bus reconnection successful");
+    } else {
+        MPRIS_LOG_ERROR("DBusConnectionManager", "D-Bus reconnection failed: " + result.getError());
+    }
+    
+    return result;
 #endif
 }
 
@@ -152,22 +164,30 @@ std::chrono::seconds DBusConnectionManager::getTimeSinceLastReconnectAttempt_unl
 void DBusConnectionManager::cleanupConnection_unlocked() {
 #ifdef HAVE_DBUS
     if (m_connection) {
+        MPRIS_LOG_DEBUG("DBusConnectionManager", "Cleaning up D-Bus connection");
+        MPRIS::MPRISLogger::getInstance().traceDBusConnection("cleanup", m_connection.get(), "Starting connection cleanup");
+        
         // Unregister from D-Bus if we were registered
         if (dbus_connection_get_is_connected(m_connection.get())) {
+            MPRIS_LOG_DEBUG("DBusConnectionManager", "Releasing D-Bus service name");
             // Release the service name if we own it
             DBusError error;
             dbus_error_init(&error);
             
             int result = dbus_bus_release_name(m_connection.get(), DBUS_SERVICE_NAME, &error);
             if (dbus_error_is_set(&error)) {
-                // Log error but continue cleanup
+                MPRIS_LOG_WARN("DBusConnectionManager", "Error releasing D-Bus service name: " + std::string(error.message));
                 dbus_error_free(&error);
+            } else {
+                MPRIS_LOG_DEBUG("DBusConnectionManager", "D-Bus service name released successfully");
             }
             (void)result; // Suppress unused variable warning
         }
         
         // Reset the connection pointer (RAII will handle cleanup)
+        MPRIS::MPRISLogger::getInstance().traceDBusConnection("destroyed", m_connection.get(), "Connection being destroyed");
         m_connection.reset();
+        MPRIS_LOG_DEBUG("DBusConnectionManager", "D-Bus connection cleanup complete");
     }
 #endif
 }
@@ -176,32 +196,41 @@ Result<void> DBusConnectionManager::establishConnection_unlocked() {
 #ifndef HAVE_DBUS
     return Result<void>::error("D-Bus support not compiled in");
 #else
+    MPRIS_LOG_INFO("DBusConnectionManager", "Establishing D-Bus connection");
+    
     DBusError error;
     dbus_error_init(&error);
     
     // Connect to session bus
+    MPRIS_LOG_DEBUG("DBusConnectionManager", "Connecting to D-Bus session bus");
     DBusConnection* raw_connection = dbus_bus_get(DBUS_BUS_SESSION, &error);
     if (dbus_error_is_set(&error)) {
         std::string error_msg = "Failed to connect to D-Bus session bus: ";
         error_msg += error.message;
+        MPRIS_LOG_ERROR("DBusConnectionManager", error_msg);
         dbus_error_free(&error);
         return Result<void>::error(error_msg);
     }
     
     if (!raw_connection) {
+        MPRIS_LOG_ERROR("DBusConnectionManager", "Failed to connect to D-Bus session bus: null connection");
         return Result<void>::error("Failed to connect to D-Bus session bus: null connection");
     }
     
     // Wrap in RAII pointer
     m_connection = DBusConnectionPtr(raw_connection);
+    MPRIS_LOG_DEBUG("DBusConnectionManager", "D-Bus connection established");
+    MPRIS::MPRISLogger::getInstance().traceDBusConnection("established", raw_connection, "Session bus connection");
     
     // Request service name
+    MPRIS_LOG_DEBUG("DBusConnectionManager", "Requesting D-Bus service name: " + std::string(DBUS_SERVICE_NAME));
     int name_result = dbus_bus_request_name(m_connection.get(), DBUS_SERVICE_NAME, 
                                            DBUS_NAME_FLAG_REPLACE_EXISTING, &error);
     
     if (dbus_error_is_set(&error)) {
         std::string error_msg = "Failed to request D-Bus service name: ";
         error_msg += error.message;
+        MPRIS_LOG_ERROR("DBusConnectionManager", error_msg);
         dbus_error_free(&error);
         cleanupConnection_unlocked();
         return Result<void>::error(error_msg);
@@ -213,13 +242,17 @@ Result<void> DBusConnectionManager::establishConnection_unlocked() {
         std::ostringstream oss;
         oss << "Failed to acquire D-Bus service name '" << DBUS_SERVICE_NAME 
             << "': result code " << name_result;
+        MPRIS_LOG_ERROR("DBusConnectionManager", oss.str());
         cleanupConnection_unlocked();
         return Result<void>::error(oss.str());
     }
     
+    MPRIS_LOG_INFO("DBusConnectionManager", "D-Bus service name acquired successfully");
+    
     // Set up connection for threading
     dbus_connection_set_exit_on_disconnect(m_connection.get(), FALSE);
     
+    MPRIS_LOG_INFO("DBusConnectionManager", "D-Bus connection fully established");
     return Result<void>::success();
 #endif
 }

@@ -207,3 +207,6 @@ tests/test_mpris_manager_basic_integration
 tests/test_mpris_error_handling
 tests/test_mpris_error_integration
 tests/test_mock_framework_standalone
+tests/test_method_handler_comprehensive
+tests/test_mpris_logger_basic
+tests/test_property_manager_comprehensive
