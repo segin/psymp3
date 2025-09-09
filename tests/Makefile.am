@@ -216,7 +216,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive test_mpris_logger_basic test_mpris_logger_dbus_tracing test_mpris_logger_performance
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -2382,13 +2382,38 @@ test_mpris_manager_comprehensive_LDADD = \
 	$(top_builddir)/src/MPRISTypes.o \
 	$(top_builddir)/src/rect.o \
 	$(AM_LDFLAGS)
+
+test_mpris_logger_basic_SOURCES = test_mpris_logger_basic.cpp
+test_mpris_logger_basic_CPPFLAGS = $(AM_CPPFLAGS)
+test_mpris_logger_basic_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_mpris_logger_dbus_tracing_SOURCES = test_mpris_logger_dbus_tracing.cpp
+test_mpris_logger_dbus_tracing_CPPFLAGS = $(AM_CPPFLAGS)
+test_mpris_logger_dbus_tracing_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_mpris_logger_performance_SOURCES = test_mpris_logger_performance.cpp
+test_mpris_logger_performance_CPPFLAGS = $(AM_CPPFLAGS)
+test_mpris_logger_performance_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
 endif
 
 # Test scripts for running comprehensive test suites
 EXTRA_DIST = \
 	run_mpris_mock_tests.sh \
 	run_mpris_stress_tests.sh \
-	validate_mock_framework.sh
+	validate_mock_framework.sh \
+	run_mpris_logging_tests.sh
 
 # Test data files for mock framework validation
 EXTRA_DIST += \
