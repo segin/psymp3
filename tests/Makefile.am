@@ -216,7 +216,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -2320,6 +2320,68 @@ test_comprehensive_mock_framework_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 test_mock_framework_standalone_SOURCES = test_mock_framework_standalone.cpp
 test_mock_framework_standalone_CPPFLAGS = $(AM_CPPFLAGS)
 test_mock_framework_standalone_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+
+# Comprehensive MPRIS component tests
+test_dbus_connection_manager_comprehensive_SOURCES = test_dbus_connection_manager_comprehensive.cpp
+test_dbus_connection_manager_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
+test_dbus_connection_manager_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_property_manager_comprehensive_SOURCES = test_property_manager_comprehensive.cpp
+test_property_manager_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
+test_property_manager_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_method_handler_comprehensive_SOURCES = test_method_handler_comprehensive.cpp
+test_method_handler_comprehensive_CPPFLAGS = $(AM_CPPFLAGS) -DTESTING
+test_method_handler_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_method_handler_simple_SOURCES = test_method_handler_simple.cpp
+test_method_handler_simple_CPPFLAGS = $(AM_CPPFLAGS) -DTESTING
+test_method_handler_simple_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_signal_emitter_comprehensive_SOURCES = test_signal_emitter_comprehensive.cpp
+test_signal_emitter_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
+test_signal_emitter_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_mpris_manager_comprehensive_SOURCES = test_mpris_manager_comprehensive.cpp
+test_mpris_manager_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
+test_mpris_manager_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
 endif
 
 # Test scripts for running comprehensive test suites
