@@ -96,7 +96,7 @@
   - Write tests for logging configuration and output
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 12. Create build system integration and conditional compilation
+- [-] 12. Create build system integration and conditional compilation
   - Update Makefile.am to include new MPRIS source files
   - Ensure proper conditional compilation with HAVE_DBUS guards
   - Add new header files to include directory structure
