@@ -96,7 +96,7 @@
   - Write tests for logging configuration and output
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [-] 12. Create build system integration and conditional compilation
+- [x] 12. Create build system integration and conditional compilation
   - Update Makefile.am to include new MPRIS source files
   - Ensure proper conditional compilation with HAVE_DBUS guards
   - Add new header files to include directory structure
@@ -105,7 +105,7 @@
   - Test build system changes on different platforms
   - _Requirements: 5.3_
 
-- [ ] 13. Perform integration testing and validation
+- [x] 13. Perform integration testing and validation
   - Test MPRIS functionality with real D-Bus clients (media players, desktop environments)
   - Validate MPRIS specification compliance with standard test tools
   - Perform stress testing with multiple concurrent D-Bus clients
@@ -114,7 +114,7 @@
   - Create automated integration test suite
   - _Requirements: 1.2, 4.1, 4.2, 4.3, 4.4, 6.1_
 
-- [ ] 14. Update documentation and cleanup legacy code
+- [-] 14. Update documentation and cleanup legacy code
   - Remove old MPRIS implementation files (mpris.h, mpris.cpp)
   - Update Player class documentation for new MPRIS integration
   - Create developer documentation for MPRIS architecture

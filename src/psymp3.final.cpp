@@ -28,7 +28,6 @@
 #include "main.cpp"
 #include "MainUIWidget.cpp"
 #include "mediafile.cpp"
-#include "mpris.cpp"
 #include "opus.cpp"
 #include "persistentstorage.cpp"
 #include "player.cpp"
@@ -71,3 +70,14 @@
 #include "ISODemuxer.cpp"
 #include "ModernStream.cpp"
 #include "MediaFactory.cpp"
+
+// MPRIS D-Bus integration (conditional compilation)
+#ifdef HAVE_DBUS
+#include "MPRISTypes.cpp"
+#include "DBusConnectionManager.cpp"
+#include "PropertyManager.cpp"
+#include "MethodHandler.cpp"
+#include "SignalEmitter.cpp"
+#include "MPRISManager.cpp"
+#include "MPRISLogger.cpp"
+#endif

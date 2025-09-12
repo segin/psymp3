@@ -40,7 +40,9 @@ PsyMP3 2.x is a radical departure from the code of the 1.x series. Whereas 1.x w
 - libogg (required for Vorbis, Opus, and Ogg FLAC)
 - libFLAC++ 1.2 or later (for FLAC support)
 - libFLAC (for FLAC support)
-- D-Bus 1.0 or later (optional, for MPRIS support)
+
+**Optional integration dependencies**:
+- D-Bus 1.0 or later (for MPRIS desktop media control support)
 
 ### macOS
 Not officially supported, but building the dependencies for Linux/BSD with MacPorts might work.
@@ -70,6 +72,7 @@ make
 - `--enable-mp3` - Enable MP3 support (default: yes)  
 - `--enable-vorbis` - Enable Vorbis support (default: yes)
 - `--enable-opus` - Enable Opus support (default: yes)
+- `--enable-dbus` - Enable MPRIS desktop integration (default: yes)
 - `--enable-test-harness` - Build test harness (default: yes)
 - `--enable-release` - Enable release optimizations (default: no)
 
@@ -116,6 +119,35 @@ password=your_lastfm_password
 - Cache scrobbles offline and submit when connection is restored
 
 For detailed Last.fm setup and troubleshooting, see the included `LASTFM_SETUP.md` file.
+
+### MPRIS Desktop Integration
+
+PsyMP3 includes built-in MPRIS (Media Player Remote Interfacing Specification) support for seamless desktop media control integration.
+
+**Features:**
+- Desktop media control panel integration
+- Keyboard media key support (play/pause, next/previous, etc.)
+- Third-party application control (media players, notification systems)
+- Real-time metadata display (artist, title, album, position)
+- Automatic reconnection on D-Bus service restart
+
+**Requirements:**
+- D-Bus session bus (automatically available in most desktop environments)
+- MPRIS-compatible desktop environment or media control application
+
+**Supported Desktop Environments:**
+- GNOME (media controls in top bar)
+- KDE Plasma (media player widget)
+- XFCE (panel media controls)
+- Most other desktop environments with MPRIS support
+
+**Troubleshooting:**
+If MPRIS integration isn't working, check:
+1. D-Bus is running: `echo $DBUS_SESSION_BUS_ADDRESS`
+2. MPRIS was compiled in: `ldd psymp3 | grep dbus`
+3. Enable debug output: `./psymp3 --debug 2>&1 | grep mpris`
+
+For detailed MPRIS troubleshooting, see `docs/mpris-troubleshooting.md`.
 
 ## Testing
 

@@ -47,7 +47,22 @@ struct atdata {
     std::mutex *mutex;
 };
 
-/* PsyMP3 main class! */
+/* PsyMP3 main class! 
+ * 
+ * The Player class is the central coordinator for PsyMP3, managing audio playback,
+ * user interface, and external integrations including MPRIS (Media Player Remote
+ * Interfacing Specification) for desktop media control integration.
+ * 
+ * MPRIS Integration:
+ * - Automatically initializes MPRIS support when D-Bus is available
+ * - Provides graceful degradation when D-Bus is unavailable
+ * - Updates MPRIS state on playback changes (play, pause, stop, seek)
+ * - Exposes metadata and position information to desktop media controls
+ * - Thread-safe integration following the public/private lock pattern
+ * 
+ * The MPRIS integration is conditionally compiled based on HAVE_DBUS and will
+ * not affect functionality when D-Bus support is not available.
+ */
 
 class Player
 {
@@ -149,7 +164,7 @@ class Player
         std::unique_ptr<std::mutex> mutex;
         std::unique_ptr<System> system;
 #ifdef HAVE_DBUS
-        std::unique_ptr<MPRISManager> m_mpris_manager;
+        std::unique_ptr<MPRISManager> m_mpris_manager;  // MPRIS integration for desktop media controls
 #endif
         struct atdata ATdata;
         int scalefactor = 2;
