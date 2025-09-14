@@ -99,6 +99,12 @@ bool ISODemuxer::parseContainer() {
                     Debug::log("iso_compliance", "Box structure validation failed for " + boxTypeStr + ": " + sizeValidation.errorMessage);
                 }
                 
+                // Validate box nesting compliance (top-level boxes have no parent)
+                if (complianceValidator && !complianceValidator->ValidateBoxNesting(header.type, 0)) {
+                    std::string boxTypeStr = complianceValidator->BoxTypeToString(header.type);
+                    Debug::log("iso_compliance", "Box nesting validation failed - " + boxTypeStr + " not allowed at top level");
+                }
+                
                 switch (header.type) {
                     case BOX_FTYP:
                         // File type box - identify container variant
@@ -202,6 +208,13 @@ bool ISODemuxer::parseContainer() {
                 reportError("SampleTableValidation", "Sample table validation failed for track " + 
                            std::to_string(track.trackId));
                 // Continue with other tracks - graceful degradation
+            }
+            
+            // Validate codec data integrity
+            if (complianceValidator && !complianceValidator->ValidateCodecDataIntegrity(track.codecType, track.codecConfig, track)) {
+                Debug::log("iso_compliance", "Codec data integrity validation failed for " + 
+                          track.codecType + " track " + std::to_string(track.trackId));
+                // Continue processing - may still be playable
             }
             
             // Handle missing codec configuration
@@ -633,6 +646,12 @@ uint64_t ISODemuxer::getPosition() const {
 bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
     bool success = boxParser->ParseBoxRecursively(offset, size, 
         [this](const BoxHeader& header, uint64_t boxOffset) {
+            // Validate box nesting compliance within movie box
+            if (complianceValidator && !complianceValidator->ValidateBoxNesting(header.type, BOX_MOOV)) {
+                std::string boxTypeStr = complianceValidator->BoxTypeToString(header.type);
+                Debug::log("iso_compliance", "Box nesting validation failed - " + boxTypeStr + " not allowed in movie box");
+            }
+            
             switch (header.type) {
                 case BOX_MVHD:
                     // Movie header - contains global timescale and duration
@@ -690,6 +709,13 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
         // Build sample tables for the first track (for now)
         const AudioTrackInfo& firstTrack = audioTracks[0];
         if (!firstTrack.sampleTableInfo.chunkOffsets.empty()) {
+            // Validate sample table consistency before building
+            if (complianceValidator && !complianceValidator->ValidateSampleTableConsistency(firstTrack.sampleTableInfo)) {
+                Debug::log("iso_compliance", "Sample table consistency validation failed for track " + 
+                          std::to_string(firstTrack.trackId));
+                // Continue with building - may still be usable
+            }
+            
             if (!sampleTables->BuildSampleTables(firstTrack.sampleTableInfo)) {
                 // Sample table validation failed
                 return false;
@@ -949,6 +975,13 @@ bool ISODemuxer::HandleProgressiveDownload() {
     // Select first audio track by default
     selectedTrackIndex = 0;
     
+    // Validate sample table consistency for progressive download
+    if (complianceValidator && !complianceValidator->ValidateSampleTableConsistency(audioTracks[selectedTrackIndex].sampleTableInfo)) {
+        Debug::log("iso_compliance", "Sample table consistency validation failed for progressive download track " + 
+                  std::to_string(audioTracks[selectedTrackIndex].trackId));
+        // Continue with building - may still be usable for progressive download
+    }
+    
     // Build sample tables for selected track
     if (!sampleTables->BuildSampleTables(audioTracks[selectedTrackIndex].sampleTableInfo)) {
         Debug::log("iso", "ISODemuxer: Failed to build sample tables");
@@ -1117,6 +1150,18 @@ void ISODemuxer::ReportError(const std::string& errorType, const std::string& me
     // Also log to error recovery component if available
     if (errorRecovery) {
         errorRecovery->LogError(errorType, message, boxType);
+    }
+    
+    // Log compliance-related errors with additional context
+    if (complianceValidator && (errorType.find("Compliance") != std::string::npos || 
+                               errorType.find("Validation") != std::string::npos ||
+                               errorType.find("Standards") != std::string::npos)) {
+        ComplianceValidationResult report = complianceValidator->GetComplianceReport();
+        if (!report.isCompliant) {
+            Debug::log("iso_compliance", "Compliance error context - Level: " + report.complianceLevel + 
+                      ", Total errors: " + std::to_string(report.errors.size()) + 
+                      ", Total warnings: " + std::to_string(report.warnings.size()));
+        }
     }
     
     // Could also integrate with PsyMP3's error reporting system here

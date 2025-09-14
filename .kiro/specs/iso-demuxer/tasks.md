@@ -97,7 +97,7 @@
   - Validate timestamp handling and timescale configurations
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
 
-- [ ] 17. Integrate compliance validator with main demuxer
+- [-] 17. Integrate compliance validator with main demuxer
   - Add ISODemuxerComplianceValidator to psymp3.h header inclusion
   - Initialize compliance validator in ISODemuxer constructor
   - Add compliance validation calls during box parsing and track processing
