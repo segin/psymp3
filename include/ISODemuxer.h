@@ -234,6 +234,9 @@ private:
     // Metadata storage
     std::map<std::string, std::string> m_metadata;
     
+    // Memory management
+    int memoryPressureCallbackId = -1;
+    
     /**
      * @brief Initialize core components
      */
@@ -243,6 +246,33 @@ private:
      * @brief Clean up resources
      */
     void cleanup();
+    
+    /**
+     * @brief Initialize memory management integration (Requirement 8.8)
+     */
+    void InitializeMemoryManagement();
+    
+    /**
+     * @brief Handle memory pressure changes adaptively
+     * @param pressureLevel Memory pressure level (0-100)
+     */
+    void HandleMemoryPressureChange(int pressureLevel);
+    
+    /**
+     * @brief Optimize for critical memory pressure
+     */
+    void OptimizeForCriticalMemoryPressure();
+    
+    /**
+     * @brief Log current memory usage breakdown
+     */
+    void LogMemoryUsage() const;
+    
+    /**
+     * @brief Get total memory usage of the demuxer
+     * @return Total memory usage in bytes
+     */
+    size_t GetMemoryUsage() const;
     
     /**
      * @brief Parse movie box and extract audio tracks

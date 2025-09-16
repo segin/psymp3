@@ -37,6 +37,11 @@ public:
     void EnableLazyLoading(bool enable) { lazyLoadingEnabled = enable; }
     size_t GetMemoryFootprint() const;
     
+    // Memory pressure specific optimizations (Requirement 8.8)
+    void OptimizeForCriticalMemoryPressure();
+    void OptimizeForHighMemoryPressure();
+    void OptimizeForNormalMemoryPressure();
+    
 private:
     // Legacy chunk info structure for compatibility
     struct ChunkInfo {
@@ -52,6 +57,7 @@ private:
         uint32_t samplesPerChunk;   // Samples per chunk (constant within range)
         uint32_t firstSample;       // First sample index in this range
         uint32_t totalSamples;      // Total samples in this range
+        uint32_t averageChunkSize = 0; // Average chunk size for memory optimization
     };
     std::vector<CompressedChunkInfo> compressedChunkTable;
     
@@ -76,12 +82,30 @@ private:
     };
     std::vector<OptimizedTimeEntry> optimizedTimeTable;
     
-    // Lazy-loaded sample size table (Requirement 8.1)
+    // Hierarchical index for large time tables (Requirement 8.3)
+    struct HierarchicalTimeIndex {
+        size_t entryIndex;          // Index into optimizedTimeTable
+        uint64_t timestamp;         // Timestamp at this index
+        uint64_t sampleIndex;       // Sample index at this index
+    };
+    std::vector<HierarchicalTimeIndex> hierarchicalTimeIndex;
+    
+    // Lazy-loaded sample size table with chunked loading (Requirement 8.1)
     struct LazyLoadedSampleSizes {
         mutable bool isLoaded = false;
         bool isCompressed = false;
         uint32_t fixedSize = 0;                    // For compressed (all same size)
         mutable std::vector<uint32_t> variableSizes; // For variable sizes (lazy loaded)
+        
+        // Chunked loading for memory optimization
+        mutable bool chunkedMode = false;
+        mutable size_t chunkSize = 256;            // Samples per chunk
+        
+        struct SampleChunk {
+            std::vector<uint32_t> samples;
+            std::chrono::steady_clock::time_point lastAccess;
+        };
+        mutable std::map<size_t, SampleChunk> sampleChunks; // Chunk cache
         
         // Lazy loading parameters
         std::shared_ptr<IOHandler> io;
@@ -89,6 +113,9 @@ private:
         uint32_t sampleCount = 0;
         
         void LoadIfNeeded() const;
+        void LoadChunkedSampleSizes() const;
+        void LoadChunk(size_t chunkIndex) const;
+        void EvictOldestChunk() const;
         uint32_t GetSize(uint64_t sampleIndex) const;
     };
     mutable LazyLoadedSampleSizes sampleSizes;
@@ -107,6 +134,7 @@ private:
     bool BuildOptimizedChunkTable(const SampleTableInfo& rawTables);
     bool BuildOptimizedTimeTable(const SampleTableInfo& rawTables);
     bool BuildLazyLoadedSampleSizeTable(const SampleTableInfo& rawTables);
+    void BuildHierarchicalTimeIndex();
     bool ValidateTableConsistency();
     bool ValidateTableConsistencyDetailed();
     

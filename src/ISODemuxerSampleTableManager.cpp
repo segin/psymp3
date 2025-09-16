@@ -11,7 +11,7 @@
 #include <algorithm>
 #include <numeric>
 
-// Lazy-loaded sample size table implementation (Requirement 8.1)
+// Enhanced lazy-loaded sample size table implementation (Requirement 8.1)
 void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadIfNeeded() const {
     if (isLoaded || !io) {
         return;
@@ -23,26 +23,138 @@ void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadIfNeeded() const {
         return;
     }
     
-    // Load variable sample sizes from file
+    // Load variable sample sizes from file with memory optimization
     if (tableOffset > 0 && sampleCount > 0) {
-        variableSizes.resize(sampleCount);
+        // Check memory pressure before loading large tables
+        auto& memoryOptimizer = MemoryOptimizer::getInstance();
+        size_t requiredMemory = sampleCount * sizeof(uint32_t);
         
-        io->seek(static_cast<long>(tableOffset), SEEK_SET);
-        for (uint32_t i = 0; i < sampleCount; i++) {
-            uint8_t bytes[4];
-            if (io->read(bytes, 1, 4) == 4) {
-                variableSizes[i] = (static_cast<uint32_t>(bytes[0]) << 24) |
-                                  (static_cast<uint32_t>(bytes[1]) << 16) |
-                                  (static_cast<uint32_t>(bytes[2]) << 8) |
-                                  static_cast<uint32_t>(bytes[3]);
-            } else {
-                // I/O error - use default size
-                variableSizes[i] = fixedSize > 0 ? fixedSize : 1024;
+        if (!memoryOptimizer.isSafeToAllocate(requiredMemory, "ISODemuxer_SampleSizes")) {
+            // Memory pressure is high - use chunked loading approach
+            LoadChunkedSampleSizes();
+            return;
+        }
+        
+        try {
+            variableSizes.resize(sampleCount);
+            memoryOptimizer.registerAllocation(requiredMemory, "ISODemuxer_SampleSizes");
+            
+            io->seek(static_cast<long>(tableOffset), SEEK_SET);
+            
+            // Batch read for better I/O performance
+            constexpr size_t BATCH_SIZE = 1024; // Read 1024 entries at a time
+            std::vector<uint8_t> batchBuffer(BATCH_SIZE * 4);
+            
+            for (uint32_t i = 0; i < sampleCount; i += BATCH_SIZE) {
+                uint32_t batchCount = std::min(static_cast<uint32_t>(BATCH_SIZE), sampleCount - i);
+                size_t bytesToRead = batchCount * 4;
+                
+                if (io->read(batchBuffer.data(), 1, bytesToRead) == bytesToRead) {
+                    // Parse batch data
+                    for (uint32_t j = 0; j < batchCount; j++) {
+                        uint32_t idx = i + j;
+                        uint32_t offset = j * 4;
+                        variableSizes[idx] = (static_cast<uint32_t>(batchBuffer[offset]) << 24) |
+                                           (static_cast<uint32_t>(batchBuffer[offset + 1]) << 16) |
+                                           (static_cast<uint32_t>(batchBuffer[offset + 2]) << 8) |
+                                           static_cast<uint32_t>(batchBuffer[offset + 3]);
+                    }
+                } else {
+                    // I/O error - fill remaining with default size
+                    for (uint32_t j = i; j < sampleCount; j++) {
+                        variableSizes[j] = fixedSize > 0 ? fixedSize : 1024;
+                    }
+                    break;
+                }
             }
+        } catch (const std::bad_alloc& e) {
+            // Memory allocation failed - fall back to chunked loading
+            variableSizes.clear();
+            LoadChunkedSampleSizes();
+            return;
         }
     }
     
     isLoaded = true;
+}
+
+void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadChunkedSampleSizes() const {
+    // Chunked loading for memory-constrained environments
+    // Load samples in chunks and cache recently accessed chunks
+    constexpr size_t CHUNK_SIZE = 256; // 256 samples per chunk
+    chunkSize = CHUNK_SIZE;
+    chunkedMode = true;
+    
+    // Pre-load first chunk for immediate access
+    LoadChunk(0);
+    isLoaded = true;
+}
+
+void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadChunk(size_t chunkIndex) const {
+    if (!io || tableOffset == 0) return;
+    
+    size_t startSample = chunkIndex * chunkSize;
+    if (startSample >= sampleCount) return;
+    
+    size_t samplesInChunk = std::min(chunkSize, sampleCount - startSample);
+    
+    // Check if chunk is already loaded
+    auto it = sampleChunks.find(chunkIndex);
+    if (it != sampleChunks.end()) {
+        // Update access time for LRU
+        it->second.lastAccess = std::chrono::steady_clock::now();
+        return;
+    }
+    
+    // Load new chunk
+    SampleChunk chunk;
+    chunk.samples.resize(samplesInChunk);
+    chunk.lastAccess = std::chrono::steady_clock::now();
+    
+    // Seek to chunk position in file
+    uint64_t chunkOffset = tableOffset + (startSample * 4);
+    io->seek(static_cast<long>(chunkOffset), SEEK_SET);
+    
+    // Read chunk data
+    std::vector<uint8_t> buffer(samplesInChunk * 4);
+    if (io->read(buffer.data(), 1, buffer.size()) == buffer.size()) {
+        for (size_t i = 0; i < samplesInChunk; i++) {
+            size_t offset = i * 4;
+            chunk.samples[i] = (static_cast<uint32_t>(buffer[offset]) << 24) |
+                              (static_cast<uint32_t>(buffer[offset + 1]) << 16) |
+                              (static_cast<uint32_t>(buffer[offset + 2]) << 8) |
+                              static_cast<uint32_t>(buffer[offset + 3]);
+        }
+    } else {
+        // I/O error - fill with default size
+        std::fill(chunk.samples.begin(), chunk.samples.end(), 
+                 fixedSize > 0 ? fixedSize : 1024);
+    }
+    
+    // Add to cache
+    sampleChunks[chunkIndex] = std::move(chunk);
+    
+    // Limit cache size to prevent memory bloat
+    constexpr size_t MAX_CACHED_CHUNKS = 8;
+    if (sampleChunks.size() > MAX_CACHED_CHUNKS) {
+        EvictOldestChunk();
+    }
+}
+
+void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::EvictOldestChunk() const {
+    if (sampleChunks.empty()) return;
+    
+    auto oldestIt = sampleChunks.begin();
+    auto oldestTime = oldestIt->second.lastAccess;
+    
+    for (auto it = sampleChunks.begin(); it != sampleChunks.end(); ++it) {
+        if (it->second.lastAccess < oldestTime) {
+            oldestTime = it->second.lastAccess;
+            oldestIt = it;
+        }
+    }
+    
+    sampleChunks.erase(oldestIt);
 }
 
 uint32_t ISODemuxerSampleTableManager::LazyLoadedSampleSizes::GetSize(uint64_t sampleIndex) const {
@@ -51,6 +163,24 @@ uint32_t ISODemuxerSampleTableManager::LazyLoadedSampleSizes::GetSize(uint64_t s
     }
     
     LoadIfNeeded();
+    
+    if (chunkedMode) {
+        // Get size from chunked cache
+        size_t chunkIndex = sampleIndex / chunkSize;
+        size_t indexInChunk = sampleIndex % chunkSize;
+        
+        // Load chunk if not cached
+        LoadChunk(chunkIndex);
+        
+        auto it = sampleChunks.find(chunkIndex);
+        if (it != sampleChunks.end() && indexInChunk < it->second.samples.size()) {
+            // Update access time for LRU
+            it->second.lastAccess = std::chrono::steady_clock::now();
+            return it->second.samples[indexInChunk];
+        }
+        
+        return fixedSize > 0 ? fixedSize : 1024; // Default fallback
+    }
     
     if (sampleIndex < variableSizes.size()) {
         return variableSizes[sampleIndex];
@@ -92,17 +222,23 @@ bool ISODemuxerSampleTableManager::BuildSampleTables(const SampleTableInfo& rawT
     return true;
 }
 
-// Compressed sample-to-chunk mapping implementation (Requirement 8.2)
+// Enhanced compressed sample-to-chunk mapping implementation (Requirement 8.2)
 bool ISODemuxerSampleTableManager::BuildOptimizedChunkTable(const SampleTableInfo& rawTables) {
     if (rawTables.chunkOffsets.empty() || rawTables.sampleToChunkEntries.empty()) {
         return false;
     }
+    
+    // Check memory pressure and optimize accordingly
+    auto& memoryOptimizer = MemoryOptimizer::getInstance();
+    bool useUltraCompression = (memoryOptimizer.getMemoryPressureLevel() >= 
+                               MemoryOptimizer::MemoryPressureLevel::High);
     
     compressedChunkTable.clear();
     compressedChunkTable.reserve(rawTables.sampleToChunkEntries.size());
     
     uint32_t currentSample = 0;
     
+    // Build compressed chunk table with enhanced compression
     for (size_t i = 0; i < rawTables.sampleToChunkEntries.size(); i++) {
         const auto& entry = rawTables.sampleToChunkEntries[i];
         
@@ -123,7 +259,7 @@ bool ISODemuxerSampleTableManager::BuildOptimizedChunkTable(const SampleTableInf
         uint32_t chunkCount = lastChunk - firstChunk + 1;
         uint32_t totalSamples = chunkCount * entry.samplesPerChunk;
         
-        // Create compressed chunk info
+        // Create compressed chunk info with enhanced compression
         CompressedChunkInfo compressedInfo;
         compressedInfo.baseOffset = rawTables.chunkOffsets[firstChunk];
         compressedInfo.chunkCount = chunkCount;
@@ -131,18 +267,59 @@ bool ISODemuxerSampleTableManager::BuildOptimizedChunkTable(const SampleTableInf
         compressedInfo.firstSample = currentSample;
         compressedInfo.totalSamples = totalSamples;
         
+        // Calculate average chunk size for memory optimization
+        if (chunkCount > 1 && firstChunk + 1 < rawTables.chunkOffsets.size()) {
+            uint64_t totalChunkSize = 0;
+            uint32_t validChunks = 0;
+            
+            for (uint32_t j = firstChunk; j < std::min(firstChunk + chunkCount, 
+                                                      static_cast<uint32_t>(rawTables.chunkOffsets.size() - 1)); j++) {
+                if (j + 1 < rawTables.chunkOffsets.size()) {
+                    totalChunkSize += rawTables.chunkOffsets[j + 1] - rawTables.chunkOffsets[j];
+                    validChunks++;
+                }
+            }
+            
+            if (validChunks > 0) {
+                compressedInfo.averageChunkSize = static_cast<uint32_t>(totalChunkSize / validChunks);
+            }
+        }
+        
+        // For ultra compression mode, merge adjacent entries with same samples per chunk
+        if (useUltraCompression && !compressedChunkTable.empty()) {
+            auto& lastEntry = compressedChunkTable.back();
+            if (lastEntry.samplesPerChunk == compressedInfo.samplesPerChunk &&
+                lastEntry.firstSample + lastEntry.totalSamples == compressedInfo.firstSample) {
+                // Merge with previous entry
+                lastEntry.chunkCount += compressedInfo.chunkCount;
+                lastEntry.totalSamples += compressedInfo.totalSamples;
+                currentSample += totalSamples;
+                continue;
+            }
+        }
+        
         compressedChunkTable.push_back(compressedInfo);
         currentSample += totalSamples;
     }
     
+    // Shrink to fit to minimize memory usage
+    compressedChunkTable.shrink_to_fit();
+    
+    // Register memory usage with optimizer
+    size_t memoryUsed = compressedChunkTable.size() * sizeof(CompressedChunkInfo);
+    memoryOptimizer.registerAllocation(memoryUsed, "ISODemuxer_ChunkTable");
+    
     return !compressedChunkTable.empty();
 }
 
-// Optimized time-to-sample lookup with binary search structures (Requirement 8.3)
+// Enhanced optimized time-to-sample lookup with binary search structures (Requirement 8.3)
 bool ISODemuxerSampleTableManager::BuildOptimizedTimeTable(const SampleTableInfo& rawTables) {
     if (rawTables.sampleTimes.empty()) {
         return false;
     }
+    
+    auto& memoryOptimizer = MemoryOptimizer::getInstance();
+    bool useHierarchicalIndex = (rawTables.sampleTimes.size() > 10000); // Use hierarchical for large tables
     
     optimizedTimeTable.clear();
     optimizedTimeTable.reserve(rawTables.sampleTimes.size() / 10); // Estimate compression ratio
@@ -198,7 +375,42 @@ bool ISODemuxerSampleTableManager::BuildOptimizedTimeTable(const SampleTableInfo
         optimizedTimeTable.push_back(entry);
     }
     
+    // Build hierarchical index for large tables (Requirement 8.3)
+    if (useHierarchicalIndex && optimizedTimeTable.size() > 100) {
+        BuildHierarchicalTimeIndex();
+    }
+    
+    // Shrink to fit to minimize memory usage
+    optimizedTimeTable.shrink_to_fit();
+    
+    // Register memory usage
+    size_t memoryUsed = optimizedTimeTable.size() * sizeof(OptimizedTimeEntry);
+    if (!hierarchicalTimeIndex.empty()) {
+        memoryUsed += hierarchicalTimeIndex.size() * sizeof(HierarchicalTimeIndex);
+    }
+    memoryOptimizer.registerAllocation(memoryUsed, "ISODemuxer_TimeTable");
+    
     return !optimizedTimeTable.empty();
+}
+
+void ISODemuxerSampleTableManager::BuildHierarchicalTimeIndex() {
+    if (optimizedTimeTable.empty()) return;
+    
+    // Build hierarchical index for faster binary search on large tables
+    constexpr size_t INDEX_GRANULARITY = 64; // One index entry per 64 time entries
+    
+    hierarchicalTimeIndex.clear();
+    hierarchicalTimeIndex.reserve((optimizedTimeTable.size() + INDEX_GRANULARITY - 1) / INDEX_GRANULARITY);
+    
+    for (size_t i = 0; i < optimizedTimeTable.size(); i += INDEX_GRANULARITY) {
+        HierarchicalTimeIndex indexEntry;
+        indexEntry.entryIndex = i;
+        indexEntry.timestamp = optimizedTimeTable[i].timestamp;
+        indexEntry.sampleIndex = optimizedTimeTable[i].sampleIndex;
+        hierarchicalTimeIndex.push_back(indexEntry);
+    }
+    
+    hierarchicalTimeIndex.shrink_to_fit();
 }
 
 // Lazy-loaded sample size table implementation (Requirement 8.1)
@@ -305,10 +517,37 @@ uint64_t ISODemuxerSampleTableManager::TimeToSample(double timestamp) {
         return 0;
     }
     
-    // Binary search in optimized time table (Requirement 8.3)
+    // Enhanced binary search with hierarchical index (Requirement 8.3)
     uint64_t timestampUnits = static_cast<uint64_t>(timestamp * 1000); // Convert to milliseconds
     
-    auto it = std::lower_bound(optimizedTimeTable.begin(), optimizedTimeTable.end(), timestampUnits,
+    // Use hierarchical index for large tables
+    auto searchStart = optimizedTimeTable.begin();
+    auto searchEnd = optimizedTimeTable.end();
+    
+    if (!hierarchicalTimeIndex.empty()) {
+        // First, search in hierarchical index to narrow down the range
+        auto indexIt = std::lower_bound(hierarchicalTimeIndex.begin(), hierarchicalTimeIndex.end(), timestampUnits,
+            [](const HierarchicalTimeIndex& entry, uint64_t ts) {
+                return entry.timestamp < ts;
+            });
+        
+        if (indexIt != hierarchicalTimeIndex.end()) {
+            // Found index entry, narrow search range
+            searchStart = optimizedTimeTable.begin() + indexIt->entryIndex;
+            
+            // Set end boundary
+            if (indexIt + 1 != hierarchicalTimeIndex.end()) {
+                searchEnd = optimizedTimeTable.begin() + (indexIt + 1)->entryIndex;
+            }
+        } else if (!hierarchicalTimeIndex.empty()) {
+            // Timestamp is beyond last index entry
+            const auto& lastIndex = hierarchicalTimeIndex.back();
+            searchStart = optimizedTimeTable.begin() + lastIndex.entryIndex;
+        }
+    }
+    
+    // Binary search in narrowed range
+    auto it = std::lower_bound(searchStart, searchEnd, timestampUnits,
         [](const OptimizedTimeEntry& entry, uint64_t ts) {
             return entry.timestamp < ts;
         });
@@ -371,28 +610,131 @@ double ISODemuxerSampleTableManager::SampleToTime(uint64_t sampleIndex) {
     return 0.0;
 }
 
-// Memory management and optimization methods (Requirements 8.1, 8.2, 8.7)
+// Enhanced memory management and optimization methods (Requirements 8.1, 8.2, 8.7, 8.8)
 void ISODemuxerSampleTableManager::OptimizeMemoryUsage() {
     if (!memoryOptimizationEnabled) {
         return;
     }
     
+    auto& memoryOptimizer = MemoryOptimizer::getInstance();
+    auto pressureLevel = memoryOptimizer.getMemoryPressureLevel();
+    
+    // Calculate current memory usage before optimization
+    size_t memoryBeforeOptimization = GetMemoryFootprint();
+    
     // Release legacy chunk table if compressed version is available
     if (!compressedChunkTable.empty() && chunkTableLoaded) {
+        size_t freedMemory = chunkTable.size() * sizeof(ChunkInfo);
         chunkTable.clear();
         chunkTable.shrink_to_fit();
         chunkTableLoaded = false;
+        memoryOptimizer.registerDeallocation(freedMemory, "ISODemuxer_LegacyChunkTable");
     }
     
-    // Optimize sync sample table
-    syncSamples.shrink_to_fit();
+    // Optimize based on memory pressure level
+    switch (pressureLevel) {
+        case MemoryOptimizer::MemoryPressureLevel::Critical:
+            OptimizeForCriticalMemoryPressure();
+            break;
+        case MemoryOptimizer::MemoryPressureLevel::High:
+            OptimizeForHighMemoryPressure();
+            break;
+        case MemoryOptimizer::MemoryPressureLevel::Normal:
+            OptimizeForNormalMemoryPressure();
+            break;
+        case MemoryOptimizer::MemoryPressureLevel::Low:
+            // No aggressive optimization needed
+            break;
+    }
     
-    // Optimize time table
+    // Standard optimizations
+    syncSamples.shrink_to_fit();
     optimizedTimeTable.shrink_to_fit();
     compressedChunkTable.shrink_to_fit();
+    hierarchicalTimeIndex.shrink_to_fit();
     
     // Update memory footprint calculation
     CalculateMemoryFootprint();
+    
+    // Log optimization results
+    size_t memoryAfterOptimization = GetMemoryFootprint();
+    if (memoryBeforeOptimization > memoryAfterOptimization) {
+        size_t savedMemory = memoryBeforeOptimization - memoryAfterOptimization;
+        Debug::log("memory", "ISODemuxerSampleTableManager: Optimized memory usage, saved ", 
+                  savedMemory, " bytes (", 
+                  (savedMemory * 100) / memoryBeforeOptimization, "% reduction)");
+    }
+}
+
+void ISODemuxerSampleTableManager::OptimizeForCriticalMemoryPressure() {
+    // Critical memory pressure - use most aggressive optimizations
+    
+    // Force chunked mode for sample sizes if not already enabled
+    if (!sampleSizes.isCompressed && !sampleSizes.chunkedMode) {
+        // Clear loaded sample sizes and switch to chunked mode
+        if (sampleSizes.isLoaded) {
+            auto& memoryOptimizer = MemoryOptimizer::getInstance();
+            size_t freedMemory = sampleSizes.variableSizes.size() * sizeof(uint32_t);
+            sampleSizes.variableSizes.clear();
+            sampleSizes.variableSizes.shrink_to_fit();
+            sampleSizes.isLoaded = false;
+            sampleSizes.chunkedMode = true;
+            sampleSizes.chunkSize = 64; // Smaller chunks for critical pressure
+            memoryOptimizer.registerDeallocation(freedMemory, "ISODemuxer_SampleSizes");
+        }
+    }
+    
+    // Reduce chunk cache size
+    if (sampleSizes.chunkedMode) {
+        while (sampleSizes.sampleChunks.size() > 2) { // Keep only 2 chunks
+            sampleSizes.EvictOldestChunk();
+        }
+    }
+    
+    // Clear hierarchical index if memory is critical
+    if (!hierarchicalTimeIndex.empty()) {
+        auto& memoryOptimizer = MemoryOptimizer::getInstance();
+        size_t freedMemory = hierarchicalTimeIndex.size() * sizeof(HierarchicalTimeIndex);
+        hierarchicalTimeIndex.clear();
+        hierarchicalTimeIndex.shrink_to_fit();
+        memoryOptimizer.registerDeallocation(freedMemory, "ISODemuxer_HierarchicalIndex");
+    }
+}
+
+void ISODemuxerSampleTableManager::OptimizeForHighMemoryPressure() {
+    // High memory pressure - moderate optimizations
+    
+    // Switch to chunked mode with smaller chunks
+    if (!sampleSizes.isCompressed && sampleSizes.isLoaded && !sampleSizes.chunkedMode) {
+        if (sampleSizes.variableSizes.size() > 1000) { // Only for large tables
+            auto& memoryOptimizer = MemoryOptimizer::getInstance();
+            size_t freedMemory = sampleSizes.variableSizes.size() * sizeof(uint32_t);
+            sampleSizes.variableSizes.clear();
+            sampleSizes.variableSizes.shrink_to_fit();
+            sampleSizes.isLoaded = false;
+            sampleSizes.chunkedMode = true;
+            sampleSizes.chunkSize = 128; // Smaller chunks for high pressure
+            memoryOptimizer.registerDeallocation(freedMemory, "ISODemuxer_SampleSizes");
+        }
+    }
+    
+    // Reduce chunk cache size
+    if (sampleSizes.chunkedMode) {
+        while (sampleSizes.sampleChunks.size() > 4) { // Keep only 4 chunks
+            sampleSizes.EvictOldestChunk();
+        }
+    }
+}
+
+void ISODemuxerSampleTableManager::OptimizeForNormalMemoryPressure() {
+    // Normal memory pressure - light optimizations
+    
+    // Reduce chunk cache size moderately
+    if (sampleSizes.chunkedMode) {
+        while (sampleSizes.sampleChunks.size() > 8) { // Keep up to 8 chunks
+            sampleSizes.EvictOldestChunk();
+        }
+    }
 }
 
 size_t ISODemuxerSampleTableManager::GetMemoryFootprint() const {
@@ -403,23 +745,43 @@ void ISODemuxerSampleTableManager::CalculateMemoryFootprint() const {
     estimatedMemoryUsage = 0;
     
     // Compressed chunk table
-    estimatedMemoryUsage += compressedChunkTable.size() * sizeof(CompressedChunkInfo);
+    estimatedMemoryUsage += compressedChunkTable.capacity() * sizeof(CompressedChunkInfo);
     
     // Optimized time table
-    estimatedMemoryUsage += optimizedTimeTable.size() * sizeof(OptimizedTimeEntry);
+    estimatedMemoryUsage += optimizedTimeTable.capacity() * sizeof(OptimizedTimeEntry);
     
-    // Sample sizes (only if loaded)
+    // Hierarchical time index
+    estimatedMemoryUsage += hierarchicalTimeIndex.capacity() * sizeof(HierarchicalTimeIndex);
+    
+    // Sample sizes
     if (sampleSizes.isLoaded && !sampleSizes.isCompressed) {
-        estimatedMemoryUsage += sampleSizes.variableSizes.size() * sizeof(uint32_t);
+        if (sampleSizes.chunkedMode) {
+            // Calculate memory used by cached chunks
+            for (const auto& chunkPair : sampleSizes.sampleChunks) {
+                estimatedMemoryUsage += chunkPair.second.samples.capacity() * sizeof(uint32_t);
+                estimatedMemoryUsage += sizeof(LazyLoadedSampleSizes::SampleChunk);
+            }
+            // Add map overhead
+            estimatedMemoryUsage += sampleSizes.sampleChunks.size() * 
+                                   (sizeof(size_t) + sizeof(LazyLoadedSampleSizes::SampleChunk) + 32); // Estimate map node overhead
+        } else {
+            estimatedMemoryUsage += sampleSizes.variableSizes.capacity() * sizeof(uint32_t);
+        }
     }
     
     // Sync samples
-    estimatedMemoryUsage += syncSamples.size() * sizeof(uint64_t);
+    estimatedMemoryUsage += syncSamples.capacity() * sizeof(uint64_t);
     
     // Legacy tables (if loaded)
     if (chunkTableLoaded) {
-        estimatedMemoryUsage += chunkTable.size() * sizeof(ChunkInfo);
+        estimatedMemoryUsage += chunkTable.capacity() * sizeof(ChunkInfo);
     }
+    
+    // Legacy time table
+    estimatedMemoryUsage += timeTable.capacity() * sizeof(TimeToSampleEntry);
+    
+    // Add base object overhead
+    estimatedMemoryUsage += sizeof(ISODemuxerSampleTableManager);
 }
 
 // Private helper methods

@@ -97,14 +97,14 @@
   - Validate timestamp handling and timescale configurations
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
 
-- [-] 17. Integrate compliance validator with main demuxer
+- [x] 17. Integrate compliance validator with main demuxer
   - Add ISODemuxerComplianceValidator to psymp3.h header inclusion
   - Initialize compliance validator in ISODemuxer constructor
   - Add compliance validation calls during box parsing and track processing
   - Implement compliance reporting in demuxer error handling
   - _Requirements: 12.1, 12.8_
 
-- [ ] 18. Add comprehensive test coverage for compliance validation
+- [x] 18. Add comprehensive test coverage for compliance validation
   - Create unit tests for box structure validation (32-bit and 64-bit sizes)
   - Add tests for timestamp and timescale validation
   - Implement sample table consistency validation tests
@@ -112,7 +112,7 @@
   - Add container format compliance tests
   - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
 
-- [ ] 19. Implement performance optimization and memory management
+- [x] 19. Implement performance optimization and memory management
   - Add lazy loading for large sample size tables in SampleTableManager
   - Implement compressed sample-to-chunk mappings for memory efficiency
   - Optimize binary search structures for time-to-sample lookups

@@ -34,9 +34,155 @@ void ISODemuxer::initializeComponents() {
     streamingManager = std::make_unique<ISODemuxerStreamManager>();
     errorRecovery = std::make_unique<ISODemuxerErrorRecovery>(sharedHandler);
     complianceValidator = std::make_unique<ISODemuxerComplianceValidator>(sharedHandler);
+    
+    // Initialize memory management integration (Requirement 8.8)
+    InitializeMemoryManagement();
+}
+
+void ISODemuxer::InitializeMemoryManagement() {
+    // Register with memory tracking system
+    auto& memoryTracker = MemoryTracker::getInstance();
+    
+    // Register memory pressure callback for adaptive optimization
+    memoryPressureCallbackId = memoryTracker.registerMemoryPressureCallback(
+        [this](int pressureLevel) {
+            HandleMemoryPressureChange(pressureLevel);
+        });
+    
+    // Enable lazy loading based on system memory
+    MemoryTracker::MemoryStats stats = memoryTracker.getStats();
+    if (stats.total_physical_memory > 0) {
+        // Enable lazy loading if system has less than 4GB RAM
+        bool enableLazyLoading = (stats.total_physical_memory < 4ULL * 1024 * 1024 * 1024);
+        if (sampleTables) {
+            sampleTables->EnableLazyLoading(enableLazyLoading);
+        }
+        
+        Debug::log("memory", "ISODemuxer: Initialized memory management - System RAM: ", 
+                  stats.total_physical_memory / (1024 * 1024), "MB, Lazy loading: ", 
+                  enableLazyLoading ? "enabled" : "disabled");
+    }
+}
+
+void ISODemuxer::HandleMemoryPressureChange(int pressureLevel) {
+    // Handle memory pressure changes adaptively (Requirement 8.8)
+    Debug::log("memory", "ISODemuxer: Memory pressure changed to level ", pressureLevel);
+    
+    if (pressureLevel >= 75) { // High memory pressure
+        // Optimize sample tables aggressively
+        if (sampleTables) {
+            sampleTables->OptimizeMemoryUsage();
+        }
+        
+        // Clear cached metadata if not essential
+        if (pressureLevel >= 90) { // Critical memory pressure
+            OptimizeForCriticalMemoryPressure();
+        }
+    } else if (pressureLevel >= 50) { // Moderate memory pressure
+        // Perform moderate optimizations
+        if (sampleTables) {
+            sampleTables->OptimizeMemoryUsage();
+        }
+    }
+    
+    // Log current memory usage
+    LogMemoryUsage();
+}
+
+void ISODemuxer::OptimizeForCriticalMemoryPressure() {
+    // Critical memory pressure optimizations
+    
+    // Clear non-essential metadata
+    auto essentialKeys = {"title", "artist", "album", "duration"};
+    auto it = m_metadata.begin();
+    while (it != m_metadata.end()) {
+        bool isEssential = false;
+        for (const auto& key : essentialKeys) {
+            if (it->first == key) {
+                isEssential = true;
+                break;
+            }
+        }
+        
+        if (!isEssential) {
+            it = m_metadata.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Force garbage collection of components
+    if (sampleTables) {
+        sampleTables->OptimizeMemoryUsage();
+    }
+    
+    Debug::log("memory", "ISODemuxer: Applied critical memory pressure optimizations");
+}
+
+void ISODemuxer::LogMemoryUsage() const {
+    size_t totalMemoryUsage = GetMemoryUsage();
+    
+    Debug::log("memory", "ISODemuxer memory usage breakdown:");
+    Debug::log("memory", "  Total: ", totalMemoryUsage, " bytes (", 
+              totalMemoryUsage / 1024, " KB)");
+    
+    if (sampleTables) {
+        size_t sampleTableMemory = sampleTables->GetMemoryFootprint();
+        Debug::log("memory", "  Sample tables: ", sampleTableMemory, " bytes (", 
+                  (sampleTableMemory * 100) / totalMemoryUsage, "%)");
+    }
+    
+    size_t metadataMemory = 0;
+    for (const auto& pair : m_metadata) {
+        metadataMemory += pair.first.size() + pair.second.size() + 32; // Estimate map overhead
+    }
+    Debug::log("memory", "  Metadata: ", metadataMemory, " bytes (", 
+              (metadataMemory * 100) / totalMemoryUsage, "%)");
+    
+    size_t trackMemory = audioTracks.size() * sizeof(AudioTrackInfo);
+    Debug::log("memory", "  Audio tracks: ", trackMemory, " bytes (", 
+              (trackMemory * 100) / totalMemoryUsage, "%)");
+}
+
+size_t ISODemuxer::GetMemoryUsage() const {
+    size_t totalUsage = sizeof(ISODemuxer);
+    
+    // Sample tables memory
+    if (sampleTables) {
+        totalUsage += sampleTables->GetMemoryFootprint();
+    }
+    
+    // Metadata memory
+    for (const auto& pair : m_metadata) {
+        totalUsage += pair.first.capacity() + pair.second.capacity() + 32; // Estimate map overhead
+    }
+    
+    // Audio tracks memory
+    totalUsage += audioTracks.capacity() * sizeof(AudioTrackInfo);
+    for (const auto& track : audioTracks) {
+        totalUsage += track.codecConfig.capacity();
+        // Add sample table info memory
+        totalUsage += track.sampleTableInfo.chunkOffsets.capacity() * sizeof(uint64_t);
+        totalUsage += track.sampleTableInfo.sampleSizes.capacity() * sizeof(uint32_t);
+        totalUsage += track.sampleTableInfo.sampleTimes.capacity() * sizeof(uint64_t);
+        totalUsage += track.sampleTableInfo.syncSamples.capacity() * sizeof(uint64_t);
+        totalUsage += track.sampleTableInfo.sampleToChunkEntries.capacity() * sizeof(SampleToChunkEntry);
+    }
+    
+    // Component memory (estimated)
+    totalUsage += 1024; // Estimate for other components
+    
+    return totalUsage;
 }
 
 void ISODemuxer::cleanup() {
+    // Unregister memory pressure callback
+    if (memoryPressureCallbackId != -1) {
+        auto& memoryTracker = MemoryTracker::getInstance();
+        memoryTracker.unregisterMemoryPressureCallback(memoryPressureCallbackId);
+        memoryPressureCallbackId = -1;
+    }
+    
     // Components will be automatically cleaned up by unique_ptr destructors
     audioTracks.clear();
     selectedTrackIndex = -1;
