@@ -119,7 +119,7 @@
   - Add memory usage profiling and optimization for large files
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8_
 
-- [ ] 20. Add FLAC-in-MP4 codec support
+- [x] 20. Add FLAC-in-MP4 codec support
   - Implement FLAC codec detection and configuration extraction for ISO containers
   - Add support for FLAC sample description box parsing (fLaC codec type)
   - Create FLAC-specific configuration data extraction from sample description
@@ -128,7 +128,7 @@
   - Integrate with existing FLACCodec for decoding FLAC samples from MP4
   - _Requirements: 2.1, 2.2, 2.7, 10.4_
 
-- [ ] 21. Add comprehensive integration testing
+- [x] 21. Add comprehensive integration testing
   - Create tests with real-world MP4/M4A files from various encoders
   - Add fragmented MP4 streaming scenario tests
   - Implement seeking accuracy validation across different codecs

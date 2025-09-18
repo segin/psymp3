@@ -216,7 +216,7 @@ check_PROGRAMS += test_conditional_codec_compilation
 
 # MPRIS tests (conditional on HAVE_DBUS)
 if HAVE_DBUS
-check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive test_mpris_logger_basic test_mpris_logger_dbus_tracing test_mpris_logger_performance
+check_PROGRAMS += test_mpris_types test_dbus_connection_manager test_property_manager test_method_handler test_signal_emitter test_mpris_manager_integration test_mpris_manager_simple test_mpris_manager_minimal test_mpris_manager_basic_integration test_mpris_error_handling test_mpris_error_integration test_mpris_mock_framework test_mpris_stress_testing test_comprehensive_mock_framework test_mock_framework_standalone test_dbus_connection_manager_comprehensive test_property_manager_comprehensive test_method_handler_comprehensive test_method_handler_simple test_signal_emitter_comprehensive test_mpris_manager_comprehensive test_mpris_logger_basic test_mpris_logger_dbus_tracing test_mpris_logger_performance test_mpris_spec_compliance test_mpris_concurrent_clients test_mpris_reconnection_behavior test_mpris_memory_validation test_mpris_performance_profiler test_mpris_regression_validation
 endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
@@ -2408,14 +2408,326 @@ test_mpris_logger_performance_LDADD = \
 	$(AM_LDFLAGS)
 endif
 
+# MPRIS Integration Tests
+test_mpris_spec_compliance_SOURCES = test_mpris_spec_compliance.cpp
+test_mpris_spec_compliance_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_spec_compliance_LDADD = \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/rect.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_concurrent_clients_SOURCES = test_mpris_concurrent_clients.cpp
+test_mpris_concurrent_clients_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_concurrent_clients_LDADD = \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/rect.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_reconnection_behavior_SOURCES = test_mpris_reconnection_behavior.cpp
+test_mpris_reconnection_behavior_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_reconnection_behavior_LDADD = \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/rect.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
+test_mpris_memory_validation_SOURCES = test_mpris_memory_validation.cpp
+test_mpris_memory_validation_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
+test_mpris_memory_validation_LDADD = \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/rect.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+
 # Test scripts for running comprehensive test suites
 EXTRA_DIST = \
 	run_mpris_mock_tests.sh \
 	run_mpris_stress_tests.sh \
 	validate_mock_framework.sh \
-	run_mpris_logging_tests.sh
+	run_mpris_logging_tests.sh \
+	run_mpris_integration_tests.sh
 
 # Test data files for mock framework validation
 EXTRA_DIST += \
 	mock_test_data.txt \
 	stress_test_config.json
+
+# MPRIS Final Validation Tests (Task 15)
+if HAVE_DBUS
+test_mpris_performance_profiler_SOURCES = test_mpris_performance_profiler.cpp
+test_mpris_performance_profiler_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_mpris_performance_profiler_LDADD = \
+	$(AM_LDFLAGS)
+
+test_mpris_regression_validation_SOURCES = test_mpris_regression_validation.cpp fake_player.h
+test_mpris_regression_validation_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS) -std=c++17 -pthread
+test_mpris_regression_validation_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/MPRISManager.o \
+	$(top_builddir)/src/PropertyManager.o \
+	$(top_builddir)/src/MethodHandler.o \
+	$(top_builddir)/src/SignalEmitter.o \
+	$(top_builddir)/src/DBusConnectionManager.o \
+	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+endif
+
+# Additional test scripts and headers to be distributed
+EXTRA_DIST += \
+	run_mpris_static_analysis.sh \
+	run_mpris_final_validation.sh \
+	run_mpris_integration_tests.sh \
+	run_basic_integration_tests.sh \
+	run_mpris_logging_tests.sh \
+	fake_player.h
+
+# Make test scripts executable during build
+all-local:
+	chmod +x $(srcdir)/run_mpris_static_analysis.sh
+	chmod +x $(srcdir)/run_mpris_final_validation.sh
+	chmod +x $(srcdir)/run_mpris_integration_tests.sh
+	chmod +x $(srcdir)/run_basic_integration_tests.sh
+	chmod +x $(srcdir)/run_mpris_logging_tests.sh
+
+# Clean up generated validation reports
+clean-local:
+	rm -f mpris_performance_profile.csv
+	rm -f mpris_performance_report.txt
+	rm -f mpris_regression_report.txt
+	rm -f static_analysis_report.txt
+	rm -f final_validation_report.html
+	rm -rf /tmp/mpris_*
+	rm -rf validation_results_*
+
+# ISO Demuxer Compliance Validation Tests
+check_PROGRAMS += test_iso_compliance_comprehensive test_iso_compliance_edge_cases test_iso_codec_compliance
+
+# ISO Demuxer Comprehensive Integration Tests (Task 21)
+check_PROGRAMS += test_iso_comprehensive_integration_simple test_iso_encoder_compatibility test_iso_fragmented_streaming test_iso_seeking_accuracy
+
+test_iso_compliance_comprehensive_SOURCES = test_iso_compliance_comprehensive.cpp
+test_iso_compliance_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_iso_compliance_edge_cases_SOURCES = test_iso_compliance_edge_cases.cpp
+test_iso_compliance_edge_cases_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+test_iso_codec_compliance_SOURCES = test_iso_codec_compliance.cpp
+test_iso_codec_compliance_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
+	$(AM_LDFLAGS)
+
+# ISO Demuxer Comprehensive Integration Tests (Task 21)
+test_iso_comprehensive_integration_simple_SOURCES = test_iso_comprehensive_integration_simple.cpp
+test_iso_comprehensive_integration_simple_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_comprehensive_integration_simple_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_encoder_compatibility_SOURCES = test_iso_encoder_compatibility.cpp
+test_iso_encoder_compatibility_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_encoder_compatibility_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_fragmented_streaming_SOURCES = test_iso_fragmented_streaming.cpp
+test_iso_fragmented_streaming_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_fragmented_streaming_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_seeking_accuracy_SOURCES = test_iso_seeking_accuracy.cpp
+test_iso_seeking_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_seeking_accuracy_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
