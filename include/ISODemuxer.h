@@ -150,6 +150,7 @@ constexpr uint32_t BOX_COVR = FOURCC('c','o','v','r'); // Cover art
 // Audio codec types
 constexpr uint32_t CODEC_AAC  = FOURCC('m','p','4','a'); // AAC audio
 constexpr uint32_t CODEC_ALAC = FOURCC('a','l','a','c'); // Apple Lossless
+constexpr uint32_t CODEC_FLAC = FOURCC('f','L','a','C'); // FLAC lossless
 constexpr uint32_t CODEC_ULAW = FOURCC('u','l','a','w'); // μ-law
 constexpr uint32_t CODEC_ALAW = FOURCC('a','l','a','w'); // A-law
 constexpr uint32_t CODEC_LPCM = FOURCC('l','p','c','m'); // Linear PCM
@@ -310,6 +311,30 @@ private:
      * @return True if configuration is valid for telephony use
      */
     bool ValidateTelephonyCodecConfiguration(const AudioTrackInfo& track);
+    
+    /**
+     * @brief Validate FLAC codec configuration meets RFC 9639 compliance
+     * @param track Audio track information to validate
+     * @return True if configuration is valid for FLAC decoding
+     */
+    bool ValidateFLACCodecConfiguration(const AudioTrackInfo& track);
+    
+    /**
+     * @brief Detect FLAC frame boundaries within MP4 sample data
+     * @param sampleData Raw sample data from MP4 container
+     * @param frameOffsets Output vector of frame start offsets
+     * @return True if frame boundaries were successfully detected
+     */
+    bool DetectFLACFrameBoundaries(const std::vector<uint8_t>& sampleData, 
+                                  std::vector<size_t>& frameOffsets);
+    
+    /**
+     * @brief Validate FLAC frame header structure
+     * @param data Sample data containing potential FLAC frame
+     * @param offset Offset to start of potential frame header
+     * @return True if frame header is valid
+     */
+    bool ValidateFLACFrameHeader(const std::vector<uint8_t>& data, size_t offset);
     
     /**
      * @brief Handle progressive download with movie box at end

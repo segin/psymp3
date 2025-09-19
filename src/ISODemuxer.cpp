@@ -345,6 +345,12 @@ bool ISODemuxer::parseContainer() {
                     // Log warning about non-compliant telephony configuration
                     // Continue processing but note the issue
                 }
+            } else if (track.codecType == "flac") {
+                if (!ValidateFLACCodecConfiguration(track)) {
+                    Debug::log("iso", "ISODemuxer: FLAC codec configuration validation failed for track ", 
+                              track.trackId);
+                    // Continue processing but note the issue
+                }
             }
         }
         
@@ -383,7 +389,7 @@ bool ISODemuxer::parseContainer() {
             }
         }
         
-        // Calculate duration from audio tracks with special handling for telephony
+        // Calculate duration from audio tracks with special handling for telephony and FLAC
         for (const auto& track : audioTracks) {
             uint64_t track_duration_ms;
             
@@ -395,6 +401,17 @@ bool ISODemuxer::parseContainer() {
                 } else {
                     // Fallback to timescale calculation
                     track_duration_ms = track.timescale > 0 ? (track.duration * 1000ULL) / track.timescale : 0;
+                }
+            } else if (track.codecType == "flac") {
+                // For FLAC, use the duration from STREAMINFO block if available
+                if (track.duration > 0 && track.timescale > 0) {
+                    track_duration_ms = (track.duration * 1000ULL) / track.timescale;
+                } else if (track.sampleRate > 0 && !track.sampleTableInfo.sampleTimes.empty()) {
+                    // Fallback: estimate from sample table size (less accurate for variable block sizes)
+                    size_t totalSamples = track.sampleTableInfo.sampleTimes.size();
+                    track_duration_ms = (totalSamples * 1000ULL) / track.sampleRate;
+                } else {
+                    track_duration_ms = 0;
                 }
             } else {
                 // Standard calculation for other codecs
@@ -942,6 +959,64 @@ void ISODemuxer::ProcessCodecSpecificData(MediaChunk& chunk, const AudioTrackInf
         // ALAC samples are already properly formatted
         // No additional processing needed
         
+    } else if (track.codecType == "flac") {
+        // FLAC samples contain raw FLAC frame data
+        // Validate FLAC frame structure and detect frame boundaries
+        
+        if (chunk.data.size() < 4) {
+            Debug::log("iso", "ISODemuxer: FLAC sample too small: ", chunk.data.size(), " bytes");
+            return;
+        }
+        
+        // Detect FLAC frame boundaries within the sample data
+        std::vector<size_t> frameOffsets;
+        if (DetectFLACFrameBoundaries(chunk.data, frameOffsets)) {
+            Debug::log("iso", "ISODemuxer: Detected ", frameOffsets.size(), 
+                      " FLAC frames in sample of ", chunk.data.size(), " bytes");
+            
+            // For FLAC-in-MP4, typically each sample contains one complete FLAC frame
+            if (frameOffsets.size() > 1) {
+                Debug::log("iso", "ISODemuxer: Warning - Multiple FLAC frames in single MP4 sample");
+            }
+        } else {
+            // No valid FLAC frames detected - validate sync pattern manually
+            uint16_t syncPattern = (static_cast<uint16_t>(chunk.data[0]) << 8) | chunk.data[1];
+            if ((syncPattern & 0xFFF8) != 0xFFF8) {
+                Debug::log("iso", "ISODemuxer: Invalid FLAC frame sync pattern: 0x", 
+                          std::hex, syncPattern, std::dec);
+            }
+            // Continue processing - may still be valid FLAC data
+        }
+        
+        // For FLAC-in-MP4, each sample should contain a complete FLAC frame
+        // The frame data is ready for FLACCodec processing
+        // MediaChunk doesn't have codec_type field - codec is determined by track
+        
+        // FLAC frames are variable-length, so we rely on the container's sample table
+        // for accurate timing information
+        
+        // Add FLAC metadata blocks to the beginning of the first chunk if needed
+        // This ensures the FLACCodec has access to STREAMINFO and other metadata
+        if (track.currentSampleIndex == 0 && !track.codecConfig.empty()) {
+            // Prepend FLAC metadata blocks to the first frame
+            std::vector<uint8_t> frameWithMetadata;
+            frameWithMetadata.reserve(track.codecConfig.size() + chunk.data.size());
+            
+            // Add FLAC signature and metadata blocks
+            const uint8_t flacSignature[] = {'f', 'L', 'a', 'C'};
+            frameWithMetadata.insert(frameWithMetadata.end(), 
+                                   flacSignature, flacSignature + 4);
+            frameWithMetadata.insert(frameWithMetadata.end(), 
+                                   track.codecConfig.begin(), track.codecConfig.end());
+            frameWithMetadata.insert(frameWithMetadata.end(), 
+                                   chunk.data.begin(), chunk.data.end());
+            
+            chunk.data = std::move(frameWithMetadata);
+            
+            Debug::log("iso", "ISODemuxer: Added FLAC metadata to first frame, total size: ", 
+                      chunk.data.size(), " bytes");
+        }
+        
     } else if (track.codecType == "ulaw" || track.codecType == "alaw") {
         // Telephony codecs - samples are raw companded 8-bit data
         // Ensure proper sample alignment and validate data integrity
@@ -1000,6 +1075,16 @@ uint64_t ISODemuxer::CalculateTelephonyTiming(const AudioTrackInfo& track, uint6
         // Each sample represents 1/sampleRate seconds
         // Convert to milliseconds: (sampleIndex * 1000) / sampleRate
         if (track.sampleRate > 0) {
+            return (sampleIndex * 1000) / track.sampleRate;
+        }
+    } else if (track.codecType == "flac") {
+        // For FLAC, timing is based on the sample table and timescale
+        // FLAC frames are variable-length, so we rely on the sample table
+        if (track.timescale > 0 && sampleIndex < track.sampleTableInfo.sampleTimes.size()) {
+            uint64_t trackTime = track.sampleTableInfo.sampleTimes[sampleIndex];
+            return (trackTime * 1000) / track.timescale;
+        } else if (track.sampleRate > 0) {
+            // Fallback: estimate based on sample rate (less accurate for variable block sizes)
             return (sampleIndex * 1000) / track.sampleRate;
         }
     }
@@ -1064,7 +1149,145 @@ bool ISODemuxer::ValidateTelephonyCodecConfiguration(const AudioTrackInfo& track
     return isValid;
 }
 
+bool ISODemuxer::ValidateFLACCodecConfiguration(const AudioTrackInfo& track) {
+    // Only validate FLAC codecs
+    if (track.codecType != "flac") {
+        return true; // Not a FLAC codec, validation not applicable
+    }
+    
+    bool isValid = true;
+    
+    // Validate sample rate (RFC 9639 FLAC specification: 1-655350 Hz)
+    if (track.sampleRate < 1 || track.sampleRate > 655350) {
+        Debug::log("iso", "ISODemuxer: Invalid FLAC sample rate: ", track.sampleRate, " Hz");
+        isValid = false;
+    }
+    
+    // Validate channel count (RFC 9639: 1-8 channels)
+    if (track.channelCount < 1 || track.channelCount > 8) {
+        Debug::log("iso", "ISODemuxer: Invalid FLAC channel count: ", track.channelCount);
+        isValid = false;
+    }
+    
+    // Validate bit depth (RFC 9639: 4-32 bits per sample)
+    if (track.bitsPerSample < 4 || track.bitsPerSample > 32) {
+        Debug::log("iso", "ISODemuxer: Invalid FLAC bit depth: ", track.bitsPerSample, " bits");
+        isValid = false;
+    }
+    
+    // Validate codec configuration (should contain FLAC metadata blocks)
+    if (track.codecConfig.empty()) {
+        Debug::log("iso", "ISODemuxer: Missing FLAC metadata blocks in codec configuration");
+        isValid = false;
+    } else {
+        // Validate that codec configuration contains valid FLAC metadata
+        if (track.codecConfig.size() < 34) { // Minimum size for STREAMINFO block
+            Debug::log("iso", "ISODemuxer: FLAC codec configuration too small: ", 
+                      track.codecConfig.size(), " bytes");
+            isValid = false;
+        } else {
+            // Check for STREAMINFO block (type 0)
+            uint8_t blockType = track.codecConfig[0] & 0x7F;
+            if (blockType != 0) {
+                Debug::log("iso", "ISODemuxer: FLAC codec configuration missing STREAMINFO block");
+                isValid = false;
+            }
+        }
+    }
+    
+    // Validate timescale matches sample rate for FLAC
+    if (track.timescale != track.sampleRate && track.timescale != 0) {
+        Debug::log("iso", "ISODemuxer: FLAC timescale (", track.timescale, 
+                  ") does not match sample rate (", track.sampleRate, ")");
+        // This is a warning, not a failure - continue processing
+    }
+    
+    // Validate duration is reasonable
+    if (track.duration == 0) {
+        Debug::log("iso", "ISODemuxer: FLAC track has zero duration");
+        // This is acceptable for some streams - not a failure
+    }
+    
+    return isValid;
+}
 
+bool ISODemuxer::DetectFLACFrameBoundaries(const std::vector<uint8_t>& sampleData, 
+                                          std::vector<size_t>& frameOffsets) {
+    frameOffsets.clear();
+    
+    if (sampleData.size() < 4) {
+        return false; // Too small to contain a FLAC frame
+    }
+    
+    // FLAC frame sync pattern: 0xFFF8-0xFFFF (14 bits set + 2 reserved bits)
+    // We look for the pattern 0xFFF8 to 0xFFFF at the start of each frame
+    
+    for (size_t i = 0; i <= sampleData.size() - 4; ++i) {
+        // Check for FLAC sync pattern
+        uint16_t syncPattern = (static_cast<uint16_t>(sampleData[i]) << 8) | sampleData[i + 1];
+        
+        if ((syncPattern & 0xFFF8) == 0xFFF8) {
+            // Potential FLAC frame start - validate frame header
+            if (ValidateFLACFrameHeader(sampleData, i)) {
+                frameOffsets.push_back(i);
+                
+                // Skip ahead to avoid detecting the same frame multiple times
+                // Minimum FLAC frame size is typically 16 samples, so skip at least 16 bytes
+                i += 15; // Will be incremented by loop
+            }
+        }
+    }
+    
+    return !frameOffsets.empty();
+}
+
+bool ISODemuxer::ValidateFLACFrameHeader(const std::vector<uint8_t>& data, size_t offset) {
+    if (offset + 4 > data.size()) {
+        return false; // Not enough data for frame header
+    }
+    
+    // Basic FLAC frame header validation
+    // Byte 0-1: Sync pattern (already validated)
+    // Byte 2: Reserved bit (must be 0) + blocking strategy + block size index + sample rate index
+    // Byte 3: Channel assignment + sample size + reserved bit (must be 0)
+    
+    uint8_t byte2 = data[offset + 2];
+    uint8_t byte3 = data[offset + 3];
+    
+    // Check reserved bit in byte 2 (bit 1, should be 0)
+    if ((byte2 & 0x02) != 0) {
+        return false;
+    }
+    
+    // Check reserved bit in byte 3 (bit 0, should be 0)
+    if ((byte3 & 0x01) != 0) {
+        return false;
+    }
+    
+    // Check block size index (bits 4-7 of byte 2)
+    uint8_t blockSizeIndex = (byte2 & 0xF0) >> 4;
+    if (blockSizeIndex == 0) {
+        return false; // Reserved block size
+    }
+    
+    // Check sample rate index (bits 0-3 of byte 2)
+    // uint8_t sampleRateIndex = byte2 & 0x0F; // Not used in current validation
+    // All values are valid for sample rate index
+    
+    // Check channel assignment (bits 4-7 of byte 3)
+    uint8_t channelAssignment = (byte3 & 0xF0) >> 4;
+    if (channelAssignment >= 11) {
+        return false; // Reserved channel assignment
+    }
+    
+    // Check sample size (bits 1-3 of byte 3)
+    uint8_t sampleSize = (byte3 & 0x0E) >> 1;
+    if (sampleSize == 3 || sampleSize == 7) {
+        return false; // Reserved sample sizes
+    }
+    
+    return true; // Frame header appears valid
+}
 
 std::map<std::string, std::string> ISODemuxer::getMetadata() const {
     return m_metadata;
@@ -1151,6 +1374,17 @@ bool ISODemuxer::HandleProgressiveDownload() {
             } else {
                 // Fallback to timescale calculation
                 track_duration_ms = track.timescale > 0 ? (track.duration * 1000ULL) / track.timescale : 0;
+            }
+        } else if (track.codecType == "flac") {
+            // For FLAC, use the duration from STREAMINFO block if available
+            if (track.duration > 0 && track.timescale > 0) {
+                track_duration_ms = (track.duration * 1000ULL) / track.timescale;
+            } else if (track.sampleRate > 0 && !track.sampleTableInfo.sampleTimes.empty()) {
+                // Fallback: estimate from sample table size (less accurate for variable block sizes)
+                size_t totalSamples = track.sampleTableInfo.sampleTimes.size();
+                track_duration_ms = (totalSamples * 1000ULL) / track.sampleRate;
+            } else {
+                track_duration_ms = 0;
             }
         } else {
             // Standard calculation for other codecs

@@ -1,0 +1,38 @@
+=== ISO Demuxer Compliance Validation Test Report ===
+Generated: Sun Sep 14 22:29:27 CDT 2025
+Test Directory: /home/segin/psymp3/tests
+
+=== Test Summary ===
+Total Tests: 3
+Passed: 0
+Failed: 3
+Build Failures: 1
+
+=== Test Coverage Areas ===
+✓ Box structure validation (32-bit and 64-bit sizes)
+✓ Timestamp and timescale validation
+✓ Sample table consistency validation
+✓ Codec-specific data integrity tests
+✓ Container format compliance tests
+✓ Edge case and error condition handling
+✓ AAC codec compliance validation
+✓ ALAC codec compliance validation
+✓ Telephony codec (mulaw/alaw) compliance
+✓ PCM codec compliance validation
+
+=== Individual Test Results ===
+✗ test_iso_compliance_comprehensive: FAILED
+✗ test_iso_compliance_edge_cases: FAILED
+✗ test_iso_codec_compliance: FAILED
+✗ test_iso_compliance_validation: BUILD FAILED
+
+=== Requirements Coverage ===
+This test suite covers the following requirements from task 18:
+- 12.1: ISO/IEC 14496-12 specification compliance
+- 12.2: 32-bit and 64-bit box size validation
+- 12.3: Timestamp and timescale validation
+- 12.4: Sample table consistency validation
+- 12.5: Codec-specific data integrity validation
+- 12.6: Container format compliance validation
+- 12.7: Track structure compliance validation
+- 12.8: Comprehensive compliance reporting

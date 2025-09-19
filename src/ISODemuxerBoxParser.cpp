@@ -54,6 +54,7 @@ BoxHeader ISODemuxerBoxParser::ReadBoxHeader(uint64_t offset) {
         }
         header.size = ReadUInt64BE(offset + 8);
         header.dataOffset = offset + 16;
+        header.extendedSize = true; // Mark as extended size
         
         // Validate extended size
         if (header.size < 16) {
@@ -65,10 +66,12 @@ BoxHeader ISODemuxerBoxParser::ReadBoxHeader(uint64_t offset) {
         // Size extends to end of file
         header.size = fileSize - offset;
         header.dataOffset = offset + 8;
+        header.extendedSize = false;
     } else {
         // Normal size
         header.size = size32;
         header.dataOffset = offset + 8;
+        header.extendedSize = false;
         
         // Validate normal size
         if (header.size < 8) {
@@ -656,6 +659,22 @@ bool ISODemuxerBoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t si
                         });
                 }
                 break;
+            case CODEC_FLAC:
+                track.codecType = "flac";
+                // Look for dfLa box for FLAC configuration
+                if (entrySize > 36) {
+                    ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
+                        [this, &track](const BoxHeader& header, uint64_t boxOffset) {
+                            if (header.type == FOURCC('d','f','L','a')) {
+                                // FLAC configuration box
+                                return ParseFLACConfiguration(header.dataOffset,
+                                                            header.size - (header.dataOffset - boxOffset),
+                                                            track);
+                            }
+                            return true;
+                        });
+                }
+                break;
             case CODEC_ULAW:
                 // Configure μ-law telephony codec (North American/Japanese standard)
                 if (!ConfigureTelephonyCodec(track, "ulaw")) {
@@ -931,6 +950,124 @@ bool ISODemuxerBoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size,
     // This would parse the ALAC magic cookie to extract
     // ALAC-specific configuration data
     return true;
+}
+
+bool ISODemuxerBoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+    // Parse FLAC configuration from dfLa box (FLAC-in-MP4 specification)
+    // The dfLa box contains FLAC metadata blocks without the 'fLaC' signature
+    
+    if (size < 4) {
+        Debug::log("iso", "ISODemuxerBoxParser: dfLa box too small: ", size, " bytes");
+        return false;
+    }
+    
+    try {
+        // Read dfLa box header
+        io->seek(static_cast<long>(offset), SEEK_SET);
+        
+        // dfLa box format:
+        // - version (1 byte)
+        // - flags (3 bytes) 
+        // - FLAC metadata blocks (remaining bytes)
+        
+        uint8_t version = 0;
+        if (io->read(&version, 1, 1) != 1) {
+            Debug::log("iso", "ISODemuxerBoxParser: Failed to read dfLa version");
+            return false;
+        }
+        
+        // Skip flags (3 bytes)
+        uint8_t flags[3];
+        if (io->read(flags, 1, 3) != 3) {
+            Debug::log("iso", "ISODemuxerBoxParser: Failed to read dfLa flags");
+            return false;
+        }
+        
+        // Remaining data contains FLAC metadata blocks
+        size_t metadataSize = size - 4; // Subtract version + flags
+        if (metadataSize == 0) {
+            Debug::log("iso", "ISODemuxerBoxParser: No FLAC metadata in dfLa box");
+            return false;
+        }
+        
+        // Read FLAC metadata blocks
+        std::vector<uint8_t> metadataBlocks(metadataSize);
+        if (io->read(metadataBlocks.data(), 1, metadataSize) != metadataSize) {
+            Debug::log("iso", "ISODemuxerBoxParser: Failed to read FLAC metadata blocks");
+            return false;
+        }
+        
+        // Parse STREAMINFO block (should be first)
+        if (metadataSize >= 34) { // Minimum STREAMINFO size
+            // FLAC metadata block header (4 bytes)
+            uint8_t blockType = metadataBlocks[0] & 0x7F; // Remove last-metadata-block flag
+            // bool isLastBlock = (metadataBlocks[0] & 0x80) != 0; // Not used in current implementation
+            
+            // Block length (24-bit big-endian)
+            uint32_t blockLength = (static_cast<uint32_t>(metadataBlocks[1]) << 16) |
+                                  (static_cast<uint32_t>(metadataBlocks[2]) << 8) |
+                                  static_cast<uint32_t>(metadataBlocks[3]);
+            
+            if (blockType == 0 && blockLength >= 34) { // STREAMINFO block
+                // Parse STREAMINFO data (starts at offset 4)
+                const uint8_t* streamInfo = metadataBlocks.data() + 4;
+                
+                // Extract key parameters from STREAMINFO
+                // Minimum block size (16-bit) - not used but part of STREAMINFO structure
+                // uint16_t minBlockSize = (static_cast<uint16_t>(streamInfo[0]) << 8) | streamInfo[1];
+                
+                // Maximum block size (16-bit) - not used but part of STREAMINFO structure
+                // uint16_t maxBlockSize = (static_cast<uint16_t>(streamInfo[2]) << 8) | streamInfo[3];
+                
+                // Sample rate (20-bit, bits 96-115)
+                uint32_t sampleRate = (static_cast<uint32_t>(streamInfo[10]) << 12) |
+                                     (static_cast<uint32_t>(streamInfo[11]) << 4) |
+                                     ((streamInfo[12] & 0xF0) >> 4);
+                
+                // Channels (3-bit, bits 116-118) + 1
+                uint8_t channels = ((streamInfo[12] & 0x0E) >> 1) + 1;
+                
+                // Bits per sample (5-bit, bits 119-123) + 1
+                uint8_t bitsPerSample = (((streamInfo[12] & 0x01) << 4) | ((streamInfo[13] & 0xF0) >> 4)) + 1;
+                
+                // Total samples (36-bit, bits 124-159)
+                uint64_t totalSamples = (static_cast<uint64_t>(streamInfo[13] & 0x0F) << 32) |
+                                       (static_cast<uint64_t>(streamInfo[14]) << 24) |
+                                       (static_cast<uint64_t>(streamInfo[15]) << 16) |
+                                       (static_cast<uint64_t>(streamInfo[16]) << 8) |
+                                       static_cast<uint64_t>(streamInfo[17]);
+                
+                // Update track information with FLAC parameters
+                track.sampleRate = sampleRate;
+                track.channelCount = channels;
+                track.bitsPerSample = bitsPerSample;
+                
+                // Calculate duration from total samples
+                if (sampleRate > 0) {
+                    track.duration = totalSamples; // Duration in samples
+                    track.timescale = sampleRate;  // Timescale matches sample rate for FLAC
+                }
+                
+                // Store complete metadata blocks as codec configuration
+                track.codecConfig = std::move(metadataBlocks);
+                
+                Debug::log("iso", "ISODemuxerBoxParser: FLAC configuration - ",
+                          sampleRate, "Hz, ", static_cast<int>(channels), " channels, ",
+                          static_cast<int>(bitsPerSample), " bits, ", totalSamples, " samples");
+                
+                return true;
+            } else {
+                Debug::log("iso", "ISODemuxerBoxParser: Invalid or missing STREAMINFO block in dfLa");
+            }
+        } else {
+            Debug::log("iso", "ISODemuxerBoxParser: dfLa metadata too small for STREAMINFO");
+        }
+        
+    } catch (const std::exception& e) {
+        Debug::log("iso", "ISODemuxerBoxParser: Exception parsing FLAC configuration: ", e.what());
+    }
+    
+    return false;
 }
 
 bool ISODemuxerBoxParser::ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType) {

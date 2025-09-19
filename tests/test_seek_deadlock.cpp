@@ -42,8 +42,12 @@ int main() {
                             
                             // Verify position
                             off_t current_pos = handler.tell();
-                            if (current_pos != position + static_cast<off_t>(bytes_read)) {
-                                std::cerr << "Thread " << i << " position mismatch!" << std::endl;
+                            off_t expected_pos = position + static_cast<off_t>(bytes_read);
+                            
+                            // Only check position if we're not at EOF
+                            if (bytes_read > 0 && current_pos != expected_pos) {
+                                std::cerr << "Thread " << i << " position mismatch! Expected: " << expected_pos 
+                                         << ", Got: " << current_pos << ", Bytes read: " << bytes_read << std::endl;
                                 errors++;
                             }
                         } else {

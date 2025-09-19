@@ -210,3 +210,5 @@ tests/test_mock_framework_standalone
 tests/test_method_handler_comprehensive
 tests/test_mpris_logger_basic
 tests/test_property_manager_comprehensive
+test_mpris_build
+test_mpris_build_no_dbus

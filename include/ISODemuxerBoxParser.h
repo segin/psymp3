@@ -19,8 +19,9 @@ struct BoxHeader {
     uint32_t type;
     uint64_t size;
     uint64_t dataOffset;
+    bool extendedSize = false; // Track if this was parsed as extended size
     
-    bool isExtendedSize() const { return size == 1; }
+    bool isExtendedSize() const { return extendedSize; }
 };
 
 /**
@@ -52,6 +53,7 @@ public:
     // Codec-specific configuration parsing
     bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
     bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    bool ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
     
     // Telephony codec configuration and validation
     bool ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType);

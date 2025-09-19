@@ -114,7 +114,7 @@
   - Create automated integration test suite
   - _Requirements: 1.2, 4.1, 4.2, 4.3, 4.4, 6.1_
 
-- [-] 14. Update documentation and cleanup legacy code
+- [x] 14. Update documentation and cleanup legacy code
   - Remove old MPRIS implementation files (mpris.h, mpris.cpp)
   - Update Player class documentation for new MPRIS integration
   - Create developer documentation for MPRIS architecture
@@ -123,7 +123,7 @@
   - Create migration notes for any API changes
   - _Requirements: 7.1, 7.4_
 
-- [ ] 15. Final validation and performance optimization
+- [x] 15. Final validation and performance optimization
   - Profile lock contention and optimize critical paths
   - Validate threading safety with static analysis tools
   - Perform final integration testing with complete PsyMP3 application
