@@ -212,3 +212,8 @@ tests/test_mpris_logger_basic
 tests/test_property_manager_comprehensive
 test_mpris_build
 test_mpris_build_no_dbus
+tests/test_iso_comprehensive_integration_simple
+tests/test_iso_constants
+tests/test_iso_debug_segfault
+tests/test_iso_flac_integration
+tests/test_iso_sample_table_simple

@@ -19,7 +19,6 @@
 
 class SeekingAccuracyTestSuite {
 private:
-    TestFramework framework;
     std::string testDataDir;
     
     struct SeekTest {
@@ -32,7 +31,7 @@ private:
     
 public:
     SeekingAccuracyTestSuite() : testDataDir("data/") {
-        framework.setTestSuiteName("ISO Demuxer Seeking Accuracy Tests");
+        std::cout << "=== ISO Demuxer Seeking Accuracy Tests ===" << std::endl;
         
         // Define seeking test scenarios
         seekTests = {
