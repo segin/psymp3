@@ -28,12 +28,12 @@ libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 # Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_flac_audioframe_creation test_codec_detection test_error_handling
+noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_audioframe_creation test_codec_detection test_error_handling
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_flac_frame_indexing test_frame_size_estimation_consistency test_flac_audioframe_creation test_codec_detection test_error_handling
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_flac_audioframe_creation test_codec_detection test_error_handling
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -119,6 +119,24 @@ test_iohandler_buffer_analysis_LDADD = \
 test_debug_iohandler_position_SOURCES = test_debug_iohandler_position.cpp
 test_debug_iohandler_position_CPPFLAGS = $(AM_CPPFLAGS)
 test_debug_iohandler_position_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_seek_deadlock_SOURCES = test_seek_deadlock.cpp
+test_seek_deadlock_CPPFLAGS = $(AM_CPPFLAGS)
+test_seek_deadlock_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/FileIOHandler.o \

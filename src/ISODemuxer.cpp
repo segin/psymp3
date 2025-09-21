@@ -198,10 +198,11 @@ bool ISODemuxer::parseContainer() {
         // Get file size with error handling
         off_t file_size = 0;
         bool fileSizeResult = performIOWithRetry([this, &file_size]() {
-            m_handler->seek(0, SEEK_END);
+            if (m_handler->seek(0, SEEK_END) != 0) return false;
             file_size = m_handler->tell();
-            m_handler->seek(0, SEEK_SET);
-            return file_size > 0;
+            if (file_size <= 0) return false;
+            if (m_handler->seek(0, SEEK_SET) != 0) return false;
+            return true;
         }, "Getting file size");
         
         if (!fileSizeResult) {
@@ -296,20 +297,9 @@ bool ISODemuxer::parseContainer() {
         
         // Validate container compliance
         std::vector<uint8_t> fileTypeBoxData; // This would need to be populated from actual ftyp box data
-        ComplianceValidationResult containerValidation = complianceValidator->ValidateContainerCompliance(fileTypeBoxData, containerType);
-        if (!containerValidation.isCompliant) {
-            Debug::log("iso_compliance", "Container compliance validation failed: " + 
-                      std::to_string(containerValidation.errors.size()) + " errors");
-            for (const auto& error : containerValidation.errors) {
-                Debug::log("iso_compliance", "  Container Error: " + error);
-            }
-        }
-        if (!containerValidation.warnings.empty()) {
-            Debug::log("iso_compliance", "Container compliance warnings: " + 
-                      std::to_string(containerValidation.warnings.size()) + " warnings");
-            for (const auto& warning : containerValidation.warnings) {
-                Debug::log("iso_compliance", "  Container Warning: " + warning);
-            }
+        bool containerValidation = complianceValidator->ValidateContainerCompliance(fileTypeBoxData, containerType);
+        if (!containerValidation) {
+            Debug::log("iso_compliance", "Container compliance validation failed");
         }
         
         if (!foundMovie) {
@@ -528,8 +518,8 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
             
             // Perform I/O with retry mechanism
             bool readSuccess = performIOWithRetry([this, sampleOffset, sampleSize, &chunk]() {
-                return (m_handler->seek(static_cast<long>(sampleOffset), SEEK_SET) == 0 &&
-                        m_handler->read(chunk.data.data(), 1, sampleSize) == sampleSize);
+                if (m_handler->seek(static_cast<long>(sampleOffset), SEEK_SET) != 0) return false;
+                return m_handler->read(chunk.data.data(), 1, sampleSize) == sampleSize;
             }, "reading fragment sample data");
             
             if (readSuccess) {
@@ -827,20 +817,10 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
                                                    header.size - (header.dataOffset - boxOffset), 
                                                    track)) {
                             // Validate track compliance
-                            ComplianceValidationResult trackValidation = complianceValidator->ValidateTrackCompliance(track);
-                            if (!trackValidation.isCompliant) {
+                            bool trackValidation = complianceValidator->ValidateTrackCompliance(track);
+                            if (!trackValidation) {
                                 Debug::log("iso_compliance", "Track compliance validation failed for track " + 
-                                          std::to_string(track.trackId) + ": " + std::to_string(trackValidation.errors.size()) + " errors");
-                                for (const auto& error : trackValidation.errors) {
-                                    Debug::log("iso_compliance", "  Error: " + error);
-                                }
-                            }
-                            if (!trackValidation.warnings.empty()) {
-                                Debug::log("iso_compliance", "Track compliance warnings for track " + 
-                                          std::to_string(track.trackId) + ": " + std::to_string(trackValidation.warnings.size()) + " warnings");
-                                for (const auto& warning : trackValidation.warnings) {
-                                    Debug::log("iso_compliance", "  Warning: " + warning);
-                                }
+                                          std::to_string(track.trackId));
                             }
                             
                             audioTracks.push_back(track);
@@ -1301,7 +1281,7 @@ ComplianceValidationResult ISODemuxer::getComplianceReport() const {
     // Return empty result if no validator available
     ComplianceValidationResult result;
     result.isCompliant = true;
-    result.complianceLevel = "unknown";
+    result.validationDetails["complianceLevel"] = "unknown";
     return result;
 }
 
@@ -1538,7 +1518,7 @@ void ISODemuxer::ReportError(const std::string& errorType, const std::string& me
                                errorType.find("Standards") != std::string::npos)) {
         ComplianceValidationResult report = complianceValidator->GetComplianceReport();
         if (!report.isCompliant) {
-            Debug::log("iso_compliance", "Compliance error context - Level: " + report.complianceLevel + 
+            Debug::log("iso_compliance", "Compliance error context - Level: " + report.validationDetails.at("complianceLevel") + 
                       ", Total errors: " + std::to_string(report.errors.size()) + 
                       ", Total warnings: " + std::to_string(report.warnings.size()));
         }
