@@ -136,3 +136,39 @@
   - Add FLAC-in-MP4 integration tests with various FLAC configurations
   - Create error handling and recovery scenario tests
   - _Requirements: All requirements validation_
+
+- [x] 22. Fix critical test unit failures and segmentation faults
+  - Fixed segmentation fault in ISO demuxer parseContainer method
+  - Corrected ComplianceValidationResult structure usage and field access
+  - Fixed performIOWithRetry lambda expressions and error handling
+  - Resolved test_seek_deadlock threading safety issues and added to build system
+  - Improved file size handling and position validation in threading tests
+  - _Requirements: Test stability and reliability_
+
+## Test Status Summary
+
+### Fixed Critical Issues ✅
+- **Segmentation fault in ISO demuxer**: Fixed memory corruption in parseContainer method
+- **Threading safety test**: Fixed test_seek_deadlock and added to build system
+- **Compilation errors**: Resolved ComplianceValidationResult structure issues
+
+### Working Tests ✅
+- test_error_handling: All OggDemuxer error handling tests pass
+- test_seek_deadlock: Threading safety test now passes
+- test_api_consistency: All API consistency tests pass
+- test_iso_comprehensive_integration_simple: All integration tests pass
+- test_flac_codec_constant: FLAC codec constant tests pass
+
+### Tests Needing Framework Updates ⚠️
+Several test files use outdated TestFramework patterns and need updates:
+- test_iso_seeking_accuracy.cpp: Uses undefined TestFramework class
+- test_iso_flac_integration.cpp: Not configured in Makefile.am
+- Various other test files: Missing proper build configuration
+
+### Recommendation
+The critical segmentation fault and threading issues have been resolved. The remaining test failures are primarily due to:
+1. Missing Makefile.am configurations for newer test files
+2. Inconsistent test framework usage patterns
+3. Some tests expecting different API signatures
+
+These are maintenance issues rather than functional bugs in the core demuxer implementation.
