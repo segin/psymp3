@@ -295,6 +295,7 @@ test_iso_fragment_handler_LDADD = \
 	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/FileIOHandler.o \
@@ -320,6 +321,7 @@ test_iso_fragmented_mp4_LDADD = \
 	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/FileIOHandler.o \
