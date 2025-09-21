@@ -2548,10 +2548,19 @@ clean-local:
 	rm -rf validation_results_*
 
 # ISO Demuxer Compliance Validation Tests
-check_PROGRAMS += test_iso_compliance_comprehensive test_iso_compliance_edge_cases test_iso_codec_compliance
+check_PROGRAMS += test_iso_compliance_comprehensive test_iso_compliance_edge_cases test_iso_codec_compliance test_iso_compliance_minimal test_iso_compliance_validation
 
 # ISO Demuxer Comprehensive Integration Tests (Task 21)
-check_PROGRAMS += test_iso_comprehensive_integration_simple test_iso_encoder_compatibility test_iso_fragmented_streaming test_iso_seeking_accuracy
+check_PROGRAMS += test_iso_comprehensive_integration_simple test_iso_encoder_compatibility test_iso_fragmented_streaming test_iso_seeking_accuracy test_iso_comprehensive_integration
+
+# ISO Demuxer FLAC Integration Tests
+check_PROGRAMS += test_iso_flac_integration test_iso_flac_support
+
+# ISO Demuxer Performance and Optimization Tests
+check_PROGRAMS += test_iso_performance_optimization test_iso_sample_table_optimization test_iso_sample_table_simple
+
+# ISO Demuxer Additional Tests
+check_PROGRAMS += test_iso_constants test_iso_metadata_extraction test_iso_telephony_codecs
 
 test_iso_compliance_comprehensive_SOURCES = test_iso_compliance_comprehensive.cpp
 test_iso_compliance_comprehensive_LDADD = \
@@ -2725,6 +2734,299 @@ test_iso_fragmented_streaming_LDADD = \
 test_iso_seeking_accuracy_SOURCES = test_iso_seeking_accuracy.cpp
 test_iso_seeking_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_seeking_accuracy_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+# Additional ISO Demuxer Compliance Tests
+test_iso_compliance_minimal_SOURCES = test_iso_compliance_minimal.cpp
+test_iso_compliance_minimal_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_compliance_minimal_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_compliance_validation_SOURCES = test_iso_compliance_validation.cpp
+test_iso_compliance_validation_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_compliance_validation_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+# Additional ISO Demuxer Integration Tests
+test_iso_comprehensive_integration_SOURCES = test_iso_comprehensive_integration.cpp
+test_iso_comprehensive_integration_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_comprehensive_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+# ISO Demuxer FLAC Integration Tests
+test_iso_flac_integration_SOURCES = test_iso_flac_integration.cpp
+test_iso_flac_integration_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_flac_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_flac_support_SOURCES = test_iso_flac_support.cpp
+test_iso_flac_support_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_flac_support_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+# ISO Demuxer Performance and Optimization Tests
+test_iso_performance_optimization_SOURCES = test_iso_performance_optimization.cpp
+test_iso_performance_optimization_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_performance_optimization_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_sample_table_optimization_SOURCES = test_iso_sample_table_optimization.cpp
+test_iso_sample_table_optimization_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_sample_table_optimization_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_sample_table_simple_SOURCES = test_iso_sample_table_simple.cpp
+test_iso_sample_table_simple_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_sample_table_simple_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+# ISO Demuxer Additional Tests
+test_iso_constants_SOURCES = test_iso_constants.cpp
+test_iso_constants_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_constants_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+test_iso_metadata_extraction_SOURCES = test_iso_metadata_extraction.cpp
+test_iso_metadata_extraction_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_metadata_extraction_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(AM_LDFLAGS)
+
+test_iso_telephony_codecs_SOURCES = test_iso_telephony_codecs.cpp
+test_iso_telephony_codecs_CPPFLAGS = $(AM_CPPFLAGS)
+test_iso_telephony_codecs_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/ISODemuxer.o \
 	$(top_builddir)/src/ISODemuxerBoxParser.o \
