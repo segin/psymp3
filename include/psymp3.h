@@ -389,6 +389,7 @@ typedef struct bio_st BIO;
 #endif
 #ifdef HAVE_OGGDEMUXER
 #include "opusw.h"
+#include "OpusCodec.h"
 #endif
 #include "wav.h"
 #ifdef HAVE_FLAC

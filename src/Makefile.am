@@ -98,7 +98,7 @@ psymp3_SOURCES += vorbis.cpp
 endif
 
 if HAVE_OPUS
-psymp3_SOURCES += opus.cpp
+psymp3_SOURCES += opus.cpp OpusCodec.cpp
 endif
 
 if HAVE_OGGDEMUXER

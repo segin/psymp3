@@ -54,38 +54,7 @@ private:
     std::unique_ptr<DemuxedStream> m_demuxed_stream;
 };
 
-/**
- * @brief Direct Opus codec using libopus
- * 
- * This codec processes Opus packets directly from any demuxer using
- * the low-level libopus API instead of opusfile.
- * Works with any container format that can deliver Opus packets.
- */
-class OpusCodec : public AudioCodec
-{
-public:
-    explicit OpusCodec(const StreamInfo& stream_info);
-    ~OpusCodec() override;
-    
-    bool initialize() override;
-    AudioFrame decode(const MediaChunk& chunk) override;
-    AudioFrame flush() override;
-    void reset() override;
-    std::string getCodecName() const override { return "opus"; }
-    bool canDecode(const StreamInfo& stream_info) const override;
-    
-private:
-    OpusDecoder* m_opus_decoder = nullptr;
-    int m_header_packets_received = 0;
-    bool m_decoder_initialized = false;
-    std::vector<int16_t> m_output_buffer;
-    
-    // Opus stream properties
-    int m_channels = 0;
-    int m_sample_rate = 48000; // Opus always outputs at 48kHz
-    
-    bool processHeaderPacket(const std::vector<uint8_t>& packet_data);
-};
+// OpusCodec is now defined in OpusCodec.h
 
 #endif // HAVE_OGGDEMUXER
 

@@ -512,6 +512,8 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/ChunkDemuxer.o \
 	$(top_builddir)/src/Demuxer.o \
 	$(FLAC_LIBS) \
@@ -557,6 +559,11 @@ test_demuxer_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -568,6 +575,54 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/CodecRegistration.o \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/HTTPIOHandler.o \
+	$(top_builddir)/src/HTTPClient.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/ModernStream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/flac.o \
+	$(top_builddir)/src/libmpg123.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/RawAudioDemuxer.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/ChunkDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(FLAC_LIBS) \
+	-logg -lvorbis -lvorbisenc -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 # Performance and regression tests
@@ -577,6 +632,11 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/Demuxer.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -893,13 +953,32 @@ test_alaw_table_verification_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/libmpg123.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/IOHandler.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	-logg -lvorbis -lvorbisenc -lmpg123 -lopus \
 	$(AM_LDFLAGS)
 
 # A-law codec sample conversion test
@@ -1945,6 +2024,7 @@ test_flac_audioframe_creation_LDADD = \
 	$(top_builddir)/src/OggCodecs.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/libmpg123.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
