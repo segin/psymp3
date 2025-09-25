@@ -45,15 +45,15 @@
     - Make header data available to demuxer for metadata extraction
     - _Requirements: 1.3, 14.1, 14.2, 14.4_
 
-- [ ] 4. Implement libopus Decoder Integration
-  - [ ] 4.1 Create libopus decoder initialization
+- [x] 4. Implement libopus Decoder Integration
+  - [x] 4.1 Create libopus decoder initialization
     - Implement initializeOpusDecoder() method using opus_decoder_create()
     - Configure decoder with proper channel count and sample rate (48kHz)
     - Handle multi-stream decoder setup for surround sound configurations
     - Add proper error handling for decoder creation failures
     - _Requirements: 2.1, 2.4, 4.1, 4.2_
 
-  - [ ] 4.2 Implement decoder state management
+  - [x] 4.2 Implement decoder state management
     - Add proper cleanup in destructor using opus_decoder_destroy()
     - Implement reset() method using opus_decoder_ctl() for seeking support
     - Handle decoder state validation and error recovery

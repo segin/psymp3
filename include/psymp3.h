@@ -269,6 +269,7 @@ typedef struct bio_st BIO;
 #include <vorbis/vorbisfile.h>
 #endif
 #ifdef HAVE_OGGDEMUXER
+#include <opus/opus.h>
 #include <opus/opusfile.h>
 #endif
 #include <taglib/tag.h>

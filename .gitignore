@@ -217,3 +217,7 @@ tests/test_iso_constants
 tests/test_iso_debug_segfault
 tests/test_iso_flac_integration
 tests/test_iso_sample_table_simple
+tests/test_alaw_table_verification
+tests/test_demuxer_integration
+
+tests/test_media_factory_integration

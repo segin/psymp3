@@ -27,6 +27,36 @@
 // No direct includes - all includes should be in psymp3.h
 
 /**
+ * @brief Opus header structure for identification header parsing
+ */
+struct OpusHeader {
+    uint8_t version;
+    uint8_t channel_count;
+    uint16_t pre_skip;
+    uint32_t input_sample_rate;
+    int16_t output_gain;
+    uint8_t channel_mapping_family;
+    
+    // Channel mapping (for multichannel)
+    uint8_t stream_count;
+    uint8_t coupled_stream_count;
+    std::vector<uint8_t> channel_mapping;
+    
+    bool isValid() const;
+    static OpusHeader parseFromPacket(const std::vector<uint8_t>& packet_data);
+};
+
+/**
+ * @brief Opus comments structure for comment header parsing
+ */
+struct OpusComments {
+    std::string vendor_string;
+    std::vector<std::pair<std::string, std::string>> user_comments;
+    
+    static OpusComments parseFromPacket(const std::vector<uint8_t>& packet_data);
+};
+
+/**
  * @brief Container-agnostic Opus audio codec
  * 
  * This codec decodes Opus bitstream data from any container format
@@ -50,6 +80,8 @@ public:
 private:
     // libopus decoder state
     OpusDecoder* m_opus_decoder = nullptr;
+    OpusMSDecoder* m_opus_ms_decoder = nullptr;  // For multi-stream decoding
+    bool m_use_multistream = false;
     
     // Stream configuration
     uint32_t m_sample_rate = 48000;  // Opus always outputs at 48kHz
@@ -80,47 +112,28 @@ private:
     bool processHeaderPacket_unlocked(const std::vector<uint8_t>& packet_data);
     bool processIdentificationHeader_unlocked(const std::vector<uint8_t>& packet_data);
     bool processCommentHeader_unlocked(const std::vector<uint8_t>& packet_data);
+    bool validateOpusHeaderParameters_unlocked(uint8_t version, uint8_t channels, uint8_t mapping_family, uint32_t input_sample_rate);
     
     // Audio decoding (private unlocked methods)
     AudioFrame decodeAudioPacket_unlocked(const std::vector<uint8_t>& packet_data);
     void applyPreSkip_unlocked(AudioFrame& frame);
     void applyOutputGain_unlocked(AudioFrame& frame);
     
+    // Initialization methods (private unlocked methods)
+    bool initialize_unlocked();
+    bool extractOpusParameters_unlocked();
+    bool validateOpusParameters_unlocked();
+    bool setupInternalBuffers_unlocked();
+    bool resizeBuffersForChannels_unlocked(uint16_t channels);
+    
     // Utility methods (private unlocked methods)
     bool validateOpusPacket_unlocked(const std::vector<uint8_t>& packet_data);
     void handleDecoderError_unlocked(int opus_error);
     void resetDecoderState_unlocked();
     bool initializeOpusDecoder_unlocked();
-};
-
-/**
- * @brief Opus header structure for identification header parsing
- */
-struct OpusHeader {
-    uint8_t version;
-    uint8_t channel_count;
-    uint16_t pre_skip;
-    uint32_t input_sample_rate;
-    int16_t output_gain;
-    uint8_t channel_mapping_family;
-    
-    // Channel mapping (for multichannel)
-    uint8_t stream_count;
-    uint8_t coupled_stream_count;
-    std::vector<uint8_t> channel_mapping;
-    
-    bool isValid() const;
-    static OpusHeader parseFromPacket(const std::vector<uint8_t>& packet_data);
-};
-
-/**
- * @brief Opus comments structure for comment header parsing
- */
-struct OpusComments {
-    std::string vendor_string;
-    std::vector<std::pair<std::string, std::string>> user_comments;
-    
-    static OpusComments parseFromPacket(const std::vector<uint8_t>& packet_data);
+    bool initializeMultiStreamDecoder_unlocked(const OpusHeader& header);
+    bool validateDecoderState_unlocked() const;
+    bool recoverFromError_unlocked();
 };
 
 #endif // OPUSCODEC_H
