@@ -736,51 +736,120 @@ bool OpusCodec::initializeOpusDecoder_unlocked()
 
 void OpusCodec::applyPreSkip_unlocked(AudioFrame& frame)
 {
+    // Get current samples to skip using atomic operation
     uint64_t samples_to_skip = m_samples_to_skip.load();
+    
+    // Early return if no pre-skip needed or empty frame
     if (samples_to_skip == 0 || frame.samples.empty()) {
         return;
     }
     
+    // Calculate frame sample count (total samples / channels)
     size_t frame_samples = frame.getSampleFrameCount();
     
+    if (frame_samples == 0) {
+        Debug::log("opus", "Warning: Frame has zero sample frames, skipping pre-skip processing");
+        return;
+    }
+    
+    Debug::log("opus", "Applying pre-skip: ", samples_to_skip, " samples to skip, frame has ", frame_samples, " sample frames");
+    
     if (samples_to_skip >= frame_samples) {
-        // Skip entire frame
-        m_samples_to_skip.fetch_sub(frame_samples);
+        // Skip entire frame - all samples in this frame should be discarded
+        uint64_t samples_skipped = frame_samples;
+        
+        // Use atomic compare-and-swap to safely update skip counter
+        uint64_t expected = samples_to_skip;
+        while (!m_samples_to_skip.compare_exchange_weak(expected, expected - samples_skipped)) {
+            // If another thread modified the counter, reload and retry
+            samples_to_skip = expected;
+            if (samples_to_skip < samples_skipped) {
+                // Skip count was reduced by another thread, adjust
+                samples_skipped = samples_to_skip;
+                break;
+            }
+        }
+        
+        // Clear the entire frame
         frame.samples.clear();
-        Debug::log("opus", "Skipped entire frame (", frame_samples, " samples), ", 
-                  m_samples_to_skip.load(), " samples remaining to skip");
+        
+        Debug::log("opus", "Skipped entire frame (", samples_skipped, " sample frames), ", 
+                  m_samples_to_skip.load(), " sample frames remaining to skip");
+        
     } else {
-        // Skip partial frame
+        // Skip partial frame - remove samples from the beginning
         size_t samples_to_remove = samples_to_skip * frame.channels;
+        
+        // Ensure we don't try to remove more samples than available
+        if (samples_to_remove > frame.samples.size()) {
+            Debug::log("opus", "Warning: Attempting to skip more samples than available in frame");
+            samples_to_remove = frame.samples.size();
+            samples_to_skip = samples_to_remove / frame.channels;
+        }
+        
+        // Remove samples from the beginning of the frame
+        // Use efficient erase operation that maintains sample alignment
         frame.samples.erase(frame.samples.begin(), frame.samples.begin() + samples_to_remove);
+        
+        // Reset skip counter to zero atomically
         m_samples_to_skip.store(0);
-        Debug::log("opus", "Skipped ", samples_to_skip, " samples from frame start");
+        
+        Debug::log("opus", "Skipped ", samples_to_skip, " sample frames from frame start, ", 
+                  frame.samples.size(), " samples remaining in frame");
+        
+        // Verify sample alignment after pre-skip application
+        if ((frame.samples.size() % frame.channels) != 0) {
+            Debug::log("opus", "Warning: Sample alignment lost after pre-skip - samples=", 
+                      frame.samples.size(), ", channels=", frame.channels);
+            
+            // Fix alignment by truncating to the nearest complete sample frame
+            size_t aligned_samples = (frame.samples.size() / frame.channels) * frame.channels;
+            frame.samples.resize(aligned_samples);
+            
+            Debug::log("opus", "Fixed sample alignment, frame now has ", aligned_samples, " samples");
+        }
     }
 }
 
 void OpusCodec::applyOutputGain_unlocked(AudioFrame& frame)
 {
-    if (m_output_gain == 0 || frame.samples.empty()) {
-        return; // No gain adjustment needed
+    // Early return for zero gain case (most efficient - no processing needed)
+    if (m_output_gain == 0) {
+        return;
     }
     
-    // Apply Q7.8 format gain (output_gain / 256.0)
-    float gain_factor = static_cast<float>(m_output_gain) / 256.0f;
+    // Early return for empty frame
+    if (frame.samples.empty()) {
+        return;
+    }
     
+    Debug::log("opus", "Applying output gain: ", m_output_gain, " (Q7.8 format) to ", frame.samples.size(), " samples");
+    
+    // Convert Q7.8 format gain to floating point factor
+    // Q7.8 format: output_gain / 256.0 gives the actual gain multiplier
+    // Range: -128.0 dB to +127.996 dB (approximately)
+    const float gain_factor = static_cast<float>(m_output_gain) / 256.0f;
+    
+    // Apply gain to all samples with proper clamping to prevent artifacts
     for (int16_t& sample : frame.samples) {
-        float adjusted = static_cast<float>(sample) * gain_factor;
+        // Convert to float for precise calculation
+        const float original_sample = static_cast<float>(sample);
+        const float adjusted_sample = original_sample * gain_factor;
         
-        // Clamp to 16-bit range
-        if (adjusted > 32767.0f) {
+        // Clamp to 16-bit signed integer range with proper rounding
+        // This prevents audio artifacts from overflow/underflow
+        if (adjusted_sample > 32767.0f) {
             sample = 32767;
-        } else if (adjusted < -32768.0f) {
+        } else if (adjusted_sample < -32768.0f) {
             sample = -32768;
         } else {
-            sample = static_cast<int16_t>(adjusted);
+            // Round to nearest integer for better audio quality
+            sample = static_cast<int16_t>(adjusted_sample + (adjusted_sample >= 0.0f ? 0.5f : -0.5f));
         }
     }
     
-    Debug::log("opus", "Applied output gain: ", m_output_gain, " (factor: ", gain_factor, ")");
+    Debug::log("opus", "Output gain applied successfully - factor: ", gain_factor, 
+              ", processed ", frame.samples.size(), " samples");
 }
 
 bool OpusCodec::validateOpusPacket_unlocked(const std::vector<uint8_t>& packet_data)

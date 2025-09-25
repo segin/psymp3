@@ -81,15 +81,15 @@
     - Output silence for failed frames while maintaining stream continuity
     - _Requirements: 8.2, 8.3, 8.4, 1.8_
 
-- [ ] 6. Implement Pre-skip and Gain Processing
-  - [ ] 6.1 Create pre-skip sample removal system
+- [x] 6. Implement Pre-skip and Gain Processing
+  - [x] 6.1 Create pre-skip sample removal system
     - Implement applyPreSkip() method to remove initial samples
     - Track samples to skip using atomic counter
     - Handle pre-skip across multiple frames correctly
     - Ensure proper sample alignment after pre-skip application
     - _Requirements: 5.1, 5.3, 5.5, 5.8_
 
-  - [ ] 6.2 Implement output gain adjustment
+  - [x] 6.2 Implement output gain adjustment
     - Create applyOutputGain() method for Q7.8 format gain
     - Apply gain to decoded samples with proper clamping
     - Handle zero gain case efficiently (no processing)
