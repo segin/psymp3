@@ -89,6 +89,12 @@ private:
     uint16_t m_pre_skip = 0;
     int16_t m_output_gain = 0;
     
+    // Multi-channel configuration
+    uint8_t m_channel_mapping_family = 0;
+    uint8_t m_stream_count = 0;
+    uint8_t m_coupled_stream_count = 0;
+    std::vector<uint8_t> m_channel_mapping;
+    
     // Header processing state
     int m_header_packets_received = 0;
     bool m_decoder_initialized = false;
@@ -114,6 +120,20 @@ private:
     bool processCommentHeader_unlocked(const std::vector<uint8_t>& packet_data);
     bool validateOpusHeaderParameters_unlocked(uint8_t version, uint8_t channels, uint8_t mapping_family, uint32_t input_sample_rate);
     
+    // Multi-channel support (private unlocked methods)
+    bool configureChannelMapping_unlocked(uint8_t mapping_family, uint8_t channels, const std::vector<uint8_t>& packet_data);
+    bool validateChannelConfiguration_unlocked(uint8_t channels, uint8_t mapping_family);
+    bool configureChannelMappingFamily0_unlocked(uint8_t channels);
+    bool configureChannelMappingFamily1_unlocked(uint8_t channels, const std::vector<uint8_t>& packet_data);
+    bool configureChannelMappingFamily255_unlocked(uint8_t channels, const std::vector<uint8_t>& packet_data);
+    bool validateSurroundSoundConfiguration_unlocked(uint8_t channels);
+    void processChannelMapping_unlocked(AudioFrame& frame);
+    bool applyVorbisChannelOrdering_unlocked(AudioFrame& frame);
+    bool applyCustomChannelMapping_unlocked(AudioFrame& frame);
+    bool validateChannelMappingConfiguration_unlocked();
+    bool isVorbisChannelOrderingSupported_unlocked(uint8_t channels);
+    void handleUnsupportedChannelConfiguration_unlocked(uint8_t channels, const std::string& reason);
+    
     // Audio decoding (private unlocked methods)
     AudioFrame decodeAudioPacket_unlocked(const std::vector<uint8_t>& packet_data);
     void applyPreSkip_unlocked(AudioFrame& frame);
@@ -131,7 +151,7 @@ private:
     void handleDecoderError_unlocked(int opus_error);
     void resetDecoderState_unlocked();
     bool initializeOpusDecoder_unlocked();
-    bool initializeMultiStreamDecoder_unlocked(const OpusHeader& header);
+    bool initializeMultiStreamDecoder_unlocked();
     bool validateDecoderState_unlocked() const;
     bool recoverFromError_unlocked();
 };

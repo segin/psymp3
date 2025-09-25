@@ -496,6 +496,9 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
         applyPreSkip_unlocked(frame);
         applyOutputGain_unlocked(frame);
         
+        // Apply channel mapping and ordering for multi-channel configurations
+        processChannelMapping_unlocked(frame);
+        
         // Update sample counter for position tracking
         m_samples_decoded.fetch_add(samples_decoded);
         
@@ -611,50 +614,10 @@ bool OpusCodec::processIdentificationHeader_unlocked(const std::vector<uint8_t>&
     m_pre_skip = pre_skip;
     m_output_gain = output_gain;
     
-    // Validate and extract channel mapping for multi-channel configurations
-    if (channel_mapping_family != 0) {
-        // For non-zero mapping families, we need additional header data
-        size_t required_size = 21 + channels; // Basic header + stream counts + channel mapping
-        if (packet_data.size() < required_size) {
-            Debug::log("opus", "OpusHead packet too small for channel mapping family ", 
-                      channel_mapping_family, ": ", packet_data.size(), " bytes (need ", required_size, ")");
-            return false;
-        }
-        
-        uint8_t stream_count = packet_data[19];
-        uint8_t coupled_stream_count = packet_data[20];
-        
-        Debug::log("opus", "  Stream count: ", stream_count);
-        Debug::log("opus", "  Coupled stream count: ", coupled_stream_count);
-        
-        // Validate stream configuration
-        if (stream_count == 0 || stream_count > 255) {
-            Debug::log("opus", "Invalid stream count: ", stream_count);
-            return false;
-        }
-        
-        if (coupled_stream_count > stream_count) {
-            Debug::log("opus", "Invalid coupled stream count: ", coupled_stream_count, " > ", stream_count);
-            return false;
-        }
-        
-        // Parse channel mapping table
-        std::vector<uint8_t> channel_mapping(channels);
-        for (uint8_t i = 0; i < channels; i++) {
-            channel_mapping[i] = packet_data[21 + i];
-            Debug::log("opus", "  Channel ", i, " maps to stream ", channel_mapping[i]);
-        }
-        
-        // For multistream configurations, parse the complete header
-        OpusHeader header = OpusHeader::parseFromPacket(packet_data);
-        if (!header.isValid()) {
-            Debug::log("opus", "Failed to parse complete Opus header for multistream setup");
-            return false;
-        }
-        
-        // Store multistream configuration for later decoder initialization
-        // (Decoder initialization happens after header processing is complete)
-        Debug::log("opus", "Multistream configuration stored for decoder initialization");
+    // Handle channel configuration based on mapping family
+    if (!configureChannelMapping_unlocked(channel_mapping_family, channels, packet_data)) {
+        Debug::log("opus", "Failed to configure channel mapping");
+        return false;
     }
     
     // Resize buffers now that we know the actual channel count
@@ -842,6 +805,551 @@ bool OpusCodec::validateOpusHeaderParameters_unlocked(uint8_t version, uint8_t c
     return true;
 }
 
+bool OpusCodec::configureChannelMapping_unlocked(uint8_t mapping_family, uint8_t channels, const std::vector<uint8_t>& packet_data)
+{
+    Debug::log("opus", "configureChannelMapping_unlocked called - family=", mapping_family, ", channels=", channels);
+    
+    // Validate channel configuration first
+    if (!validateChannelConfiguration_unlocked(channels, mapping_family)) {
+        Debug::log("opus", "Channel configuration validation failed");
+        return false;
+    }
+    
+    // Store basic configuration
+    m_channel_mapping_family = mapping_family;
+    
+    // Handle different channel mapping families
+    switch (mapping_family) {
+        case 0:
+            // Mono and stereo configurations (channel mapping family 0)
+            return configureChannelMappingFamily0_unlocked(channels);
+            
+        case 1:
+            // Surround sound configurations (channel mapping family 1)
+            return configureChannelMappingFamily1_unlocked(channels, packet_data);
+            
+        case 255:
+            // Custom mapping (application-defined)
+            return configureChannelMappingFamily255_unlocked(channels, packet_data);
+            
+        default:
+            Debug::log("opus", "Unsupported channel mapping family: ", mapping_family);
+            return false;
+    }
+}
+
+bool OpusCodec::validateChannelConfiguration_unlocked(uint8_t channels, uint8_t mapping_family)
+{
+    Debug::log("opus", "validateChannelConfiguration_unlocked called - channels=", channels, ", family=", mapping_family);
+    
+    // Validate channel count against Opus specification limits
+    if (channels < 1 || channels > 255) {
+        Debug::log("opus", "Invalid channel count: ", channels, " (must be 1-255)");
+        return false;
+    }
+    
+    // Validate channel count against mapping family limits
+    switch (mapping_family) {
+        case 0:
+            // Channel mapping family 0 supports mono and stereo only
+            if (channels > 2) {
+                Debug::log("opus", "Channel mapping family 0 supports max 2 channels, got ", channels);
+                return false;
+            }
+            break;
+            
+        case 1:
+            // Channel mapping family 1 supports up to 8 channels (surround sound)
+            if (channels > 8) {
+                Debug::log("opus", "Channel mapping family 1 supports max 8 channels, got ", channels);
+                return false;
+            }
+            break;
+            
+        case 255:
+            // Custom mapping - accept any channel count up to 255
+            break;
+            
+        default:
+            Debug::log("opus", "Unsupported channel mapping family: ", mapping_family);
+            return false;
+    }
+    
+    Debug::log("opus", "Channel configuration validation passed");
+    return true;
+}
+
+bool OpusCodec::configureChannelMappingFamily0_unlocked(uint8_t channels)
+{
+    Debug::log("opus", "Configuring channel mapping family 0 for ", channels, " channels");
+    
+    // Channel mapping family 0: mono and stereo configurations
+    // No additional header data needed - simple configuration
+    
+    if (channels == 1) {
+        // Mono configuration
+        m_stream_count = 1;
+        m_coupled_stream_count = 0;
+        m_channel_mapping.clear();
+        m_channel_mapping.push_back(0); // Single channel maps to stream 0
+        
+        Debug::log("opus", "Configured mono (1 channel) - stream_count=1, coupled=0");
+        
+    } else if (channels == 2) {
+        // Stereo configuration with channel coupling
+        m_stream_count = 1;
+        m_coupled_stream_count = 1; // Stereo uses one coupled stream
+        m_channel_mapping.clear();
+        m_channel_mapping.push_back(0); // Left channel maps to stream 0
+        m_channel_mapping.push_back(1); // Right channel maps to stream 0 (coupled)
+        
+        Debug::log("opus", "Configured stereo (2 channels) with coupling - stream_count=1, coupled=1");
+        
+    } else {
+        Debug::log("opus", "Invalid channel count for family 0: ", channels);
+        return false;
+    }
+    
+    Debug::log("opus", "Channel mapping family 0 configuration completed successfully");
+    return true;
+}
+
+bool OpusCodec::configureChannelMappingFamily1_unlocked(uint8_t channels, const std::vector<uint8_t>& packet_data)
+{
+    Debug::log("opus", "Configuring channel mapping family 1 for ", channels, " channels");
+    
+    // Channel mapping family 1: surround sound configurations
+    // Requires additional header data for stream counts and channel mapping
+    
+    size_t required_size = 21 + channels; // Basic header + stream counts + channel mapping
+    if (packet_data.size() < required_size) {
+        Debug::log("opus", "OpusHead packet too small for channel mapping family 1: ", 
+                  packet_data.size(), " bytes (need ", required_size, ")");
+        return false;
+    }
+    
+    // Extract stream configuration from header
+    uint8_t stream_count = packet_data[19];
+    uint8_t coupled_stream_count = packet_data[20];
+    
+    Debug::log("opus", "Family 1 header data - stream_count=", stream_count, ", coupled=", coupled_stream_count);
+    
+    // Validate stream configuration
+    if (stream_count == 0 || stream_count > 255) {
+        Debug::log("opus", "Invalid stream count: ", stream_count);
+        return false;
+    }
+    
+    if (coupled_stream_count > stream_count) {
+        Debug::log("opus", "Invalid coupled stream count: ", coupled_stream_count, " > ", stream_count);
+        return false;
+    }
+    
+    // Validate stream count against channel count
+    // Each coupled stream handles 2 channels, each uncoupled stream handles 1 channel
+    uint8_t expected_channels = coupled_stream_count * 2 + (stream_count - coupled_stream_count);
+    if (expected_channels != channels) {
+        Debug::log("opus", "Stream configuration mismatch: expected ", expected_channels, 
+                  " channels from streams, got ", channels);
+        return false;
+    }
+    
+    // Store stream configuration
+    m_stream_count = stream_count;
+    m_coupled_stream_count = coupled_stream_count;
+    
+    // Parse channel mapping table
+    m_channel_mapping.clear();
+    m_channel_mapping.resize(channels);
+    for (uint8_t i = 0; i < channels; i++) {
+        m_channel_mapping[i] = packet_data[21 + i];
+        Debug::log("opus", "Channel ", i, " maps to stream ", m_channel_mapping[i]);
+        
+        // Validate channel mapping values
+        if (m_channel_mapping[i] >= stream_count && m_channel_mapping[i] != 255) {
+            Debug::log("opus", "Invalid channel mapping: channel ", i, " maps to stream ", 
+                      m_channel_mapping[i], " but only ", stream_count, " streams available");
+            return false;
+        }
+    }
+    
+    // Validate standard surround sound configurations for family 1
+    if (!validateSurroundSoundConfiguration_unlocked(channels)) {
+        Debug::log("opus", "Invalid surround sound configuration for ", channels, " channels");
+        return false;
+    }
+    
+    Debug::log("opus", "Channel mapping family 1 configuration completed successfully");
+    return true;
+}
+
+bool OpusCodec::configureChannelMappingFamily255_unlocked(uint8_t channels, const std::vector<uint8_t>& packet_data)
+{
+    Debug::log("opus", "Configuring channel mapping family 255 (custom) for ", channels, " channels");
+    
+    // Channel mapping family 255: custom mapping (application-defined)
+    // Requires additional header data for stream counts and channel mapping
+    
+    size_t required_size = 21 + channels; // Basic header + stream counts + channel mapping
+    if (packet_data.size() < required_size) {
+        Debug::log("opus", "OpusHead packet too small for channel mapping family 255: ", 
+                  packet_data.size(), " bytes (need ", required_size, ")");
+        return false;
+    }
+    
+    // Extract stream configuration from header
+    uint8_t stream_count = packet_data[19];
+    uint8_t coupled_stream_count = packet_data[20];
+    
+    Debug::log("opus", "Family 255 header data - stream_count=", stream_count, ", coupled=", coupled_stream_count);
+    
+    // Validate stream configuration
+    if (stream_count == 0 || stream_count > 255) {
+        Debug::log("opus", "Invalid stream count: ", stream_count);
+        return false;
+    }
+    
+    if (coupled_stream_count > stream_count) {
+        Debug::log("opus", "Invalid coupled stream count: ", coupled_stream_count, " > ", stream_count);
+        return false;
+    }
+    
+    // Store stream configuration
+    m_stream_count = stream_count;
+    m_coupled_stream_count = coupled_stream_count;
+    
+    // Parse channel mapping table
+    m_channel_mapping.clear();
+    m_channel_mapping.resize(channels);
+    for (uint8_t i = 0; i < channels; i++) {
+        m_channel_mapping[i] = packet_data[21 + i];
+        Debug::log("opus", "Channel ", i, " maps to stream ", m_channel_mapping[i]);
+        
+        // For custom mapping, allow 255 (unmapped) channels
+        if (m_channel_mapping[i] < stream_count || m_channel_mapping[i] == 255) {
+            // Valid mapping
+        } else {
+            Debug::log("opus", "Invalid channel mapping: channel ", i, " maps to stream ", 
+                      m_channel_mapping[i], " but only ", stream_count, " streams available");
+            return false;
+        }
+    }
+    
+    Debug::log("opus", "Channel mapping family 255 configuration completed successfully");
+    return true;
+}
+
+bool OpusCodec::validateSurroundSoundConfiguration_unlocked(uint8_t channels)
+{
+    Debug::log("opus", "Validating surround sound configuration for ", channels, " channels");
+    
+    // Validate standard surround sound configurations for channel mapping family 1
+    // Based on Opus specification and Vorbis channel ordering
+    
+    switch (channels) {
+        case 1:
+            // Mono - should use family 0, but family 1 is allowed
+            Debug::log("opus", "Mono configuration in family 1 (unusual but valid)");
+            break;
+            
+        case 2:
+            // Stereo - should use family 0, but family 1 is allowed
+            Debug::log("opus", "Stereo configuration in family 1 (unusual but valid)");
+            break;
+            
+        case 3:
+            // 2.1 surround: L, R, LFE
+            Debug::log("opus", "2.1 surround sound configuration");
+            break;
+            
+        case 4:
+            // Quadraphonic: L, R, RL, RR
+            Debug::log("opus", "Quadraphonic surround sound configuration");
+            break;
+            
+        case 5:
+            // 4.1 surround: L, R, RL, RR, LFE
+            Debug::log("opus", "4.1 surround sound configuration");
+            break;
+            
+        case 6:
+            // 5.1 surround: L, R, C, LFE, RL, RR
+            Debug::log("opus", "5.1 surround sound configuration");
+            break;
+            
+        case 7:
+            // 6.1 surround: L, R, C, LFE, RC, RL, RR
+            Debug::log("opus", "6.1 surround sound configuration");
+            break;
+            
+        case 8:
+            // 7.1 surround: L, R, C, LFE, RL, RR, SL, SR
+            Debug::log("opus", "7.1 surround sound configuration");
+            break;
+            
+        default:
+            Debug::log("opus", "Unsupported surround sound configuration: ", channels, " channels");
+            return false;
+    }
+    
+    Debug::log("opus", "Surround sound configuration validation passed");
+    return true;
+}
+
+void OpusCodec::processChannelMapping_unlocked(AudioFrame& frame)
+{
+    // Early return if no channel mapping needed or empty frame
+    if (frame.samples.empty() || m_channel_mapping_family == 0 || m_channel_mapping.empty()) {
+        return;
+    }
+    
+    Debug::log("opus", "Processing channel mapping for family ", m_channel_mapping_family, 
+              " with ", frame.channels, " channels");
+    
+    // Validate frame channel count matches our configuration
+    if (frame.channels != m_channels) {
+        Debug::log("opus", "Error: Frame channel count (", frame.channels, 
+                  ") doesn't match codec configuration (", m_channels, ")");
+        handleUnsupportedChannelConfiguration_unlocked(frame.channels, "Channel count mismatch");
+        return;
+    }
+    
+    // Calculate frame sample count
+    size_t frame_samples = frame.getSampleFrameCount();
+    if (frame_samples == 0) {
+        Debug::log("opus", "Warning: Frame has zero sample frames, skipping channel mapping");
+        return;
+    }
+    
+    // Validate channel mapping configuration
+    if (!validateChannelMappingConfiguration_unlocked()) {
+        Debug::log("opus", "Error: Invalid channel mapping configuration");
+        handleUnsupportedChannelConfiguration_unlocked(m_channels, "Invalid channel mapping");
+        return;
+    }
+    
+    // For channel mapping family 0, no reordering is needed (already in correct order)
+    if (m_channel_mapping_family == 0) {
+        return;
+    }
+    
+    // For families 1 and 255, apply Opus channel ordering conventions
+    if (m_channel_mapping_family == 1) {
+        // Apply Vorbis channel ordering for surround sound
+        if (!applyVorbisChannelOrdering_unlocked(frame)) {
+            Debug::log("opus", "Error: Failed to apply Vorbis channel ordering");
+            handleUnsupportedChannelConfiguration_unlocked(frame.channels, "Vorbis ordering failed");
+            return;
+        }
+        
+    } else if (m_channel_mapping_family == 255) {
+        // Apply custom channel mapping
+        if (!applyCustomChannelMapping_unlocked(frame)) {
+            Debug::log("opus", "Error: Failed to apply custom channel mapping");
+            handleUnsupportedChannelConfiguration_unlocked(frame.channels, "Custom mapping failed");
+            return;
+        }
+        
+    } else {
+        // Unsupported channel mapping family
+        Debug::log("opus", "Error: Unsupported channel mapping family: ", m_channel_mapping_family);
+        handleUnsupportedChannelConfiguration_unlocked(frame.channels, 
+            "Unsupported mapping family " + std::to_string(m_channel_mapping_family));
+        return;
+    }
+    
+    Debug::log("opus", "Channel mapping processing completed successfully");
+}
+
+bool OpusCodec::applyVorbisChannelOrdering_unlocked(AudioFrame& frame)
+{
+    Debug::log("opus", "Applying Vorbis channel ordering for ", frame.channels, " channels");
+    
+    // Opus uses Vorbis channel ordering for surround sound configurations
+    // This ensures proper interleaved channel data in AudioFrame
+    
+    size_t frame_samples = frame.getSampleFrameCount();
+    if (frame_samples == 0) {
+        Debug::log("opus", "Warning: Empty frame, no channel ordering needed");
+        return true;
+    }
+    
+    // Validate channel count against supported Vorbis configurations
+    if (!isVorbisChannelOrderingSupported_unlocked(frame.channels)) {
+        Debug::log("opus", "Unsupported channel count for Vorbis ordering: ", frame.channels);
+        return false;
+    }
+    
+    // Apply channel reordering based on Vorbis conventions
+    // For most standard configurations, Opus already outputs in correct Vorbis order
+    switch (frame.channels) {
+        case 1:
+        case 2:
+            // Mono and stereo - no reordering needed
+            Debug::log("opus", "Mono/stereo configuration - no reordering needed");
+            return true;
+            
+        case 3:
+            // 2.1: L, R, LFE -> L, R, LFE (already correct Vorbis order)
+            Debug::log("opus", "2.1 surround - already in correct Vorbis order");
+            return true;
+            
+        case 4:
+            // Quadraphonic: L, R, RL, RR -> L, R, RL, RR (already correct)
+            Debug::log("opus", "Quadraphonic - already in correct Vorbis order");
+            return true;
+            
+        case 5:
+            // 4.1: L, R, C, RL, RR -> L, R, C, RL, RR (already correct for Vorbis)
+            Debug::log("opus", "4.1 surround - already in correct Vorbis order");
+            return true;
+            
+        case 6:
+            // 5.1: L, R, C, LFE, RL, RR (correct Vorbis order)
+            Debug::log("opus", "5.1 surround - already in correct Vorbis order");
+            return true;
+            
+        case 7:
+            // 6.1: L, R, C, LFE, RC, RL, RR (correct Vorbis order)
+            Debug::log("opus", "6.1 surround - already in correct Vorbis order");
+            return true;
+            
+        case 8:
+            // 7.1: L, R, C, LFE, RL, RR, SL, SR (correct Vorbis order)
+            Debug::log("opus", "7.1 surround - already in correct Vorbis order");
+            return true;
+            
+        default:
+            Debug::log("opus", "Unsupported channel count for Vorbis ordering: ", frame.channels);
+            return false;
+    }
+    
+    // Note: For most standard configurations, Opus already outputs in Vorbis order,
+    // so no reordering is typically needed. This method validates the configuration
+    // and ensures proper channel data is provided in AudioFrame.
+}
+
+bool OpusCodec::applyCustomChannelMapping_unlocked(AudioFrame& frame)
+{
+    Debug::log("opus", "Applying custom channel mapping for ", frame.channels, " channels");
+    
+    // For custom channel mapping (family 255), we need to handle application-specific
+    // channel ordering. Since this is application-defined, we provide basic support
+    // and validate the configuration.
+    
+    size_t frame_samples = frame.getSampleFrameCount();
+    if (frame_samples == 0) {
+        Debug::log("opus", "Warning: Empty frame, no custom mapping needed");
+        return true;
+    }
+    
+    // Validate custom channel mapping configuration
+    if (m_channel_mapping.size() != frame.channels) {
+        Debug::log("opus", "Error: Channel mapping size (", m_channel_mapping.size(), 
+                  ") doesn't match frame channels (", frame.channels, ")");
+        return false;
+    }
+    
+    // Validate channel mapping values
+    for (size_t i = 0; i < m_channel_mapping.size(); i++) {
+        uint8_t stream_id = m_channel_mapping[i];
+        if (stream_id != 255 && stream_id >= m_stream_count) {
+            Debug::log("opus", "Error: Invalid channel mapping - channel ", i, 
+                      " maps to stream ", stream_id, " but only ", m_stream_count, " streams available");
+            return false;
+        }
+        Debug::log("opus", "Custom mapping: channel ", i, " -> stream ", stream_id);
+    }
+    
+    // For custom mapping, we assume the libopus multistream decoder already handles
+    // the mapping correctly and outputs channels in the expected order. The validation
+    // above ensures the configuration is consistent.
+    
+    // If specific reordering is needed for custom applications, it would be implemented
+    // here based on the application's requirements. For now, we provide pass-through
+    // with validation.
+    
+    Debug::log("opus", "Custom channel mapping processing completed successfully");
+    return true;
+}
+
+bool OpusCodec::validateChannelMappingConfiguration_unlocked()
+{
+    Debug::log("opus", "Validating channel mapping configuration");
+    
+    // Basic validation of channel mapping state
+    if (m_channels == 0) {
+        Debug::log("opus", "Error: Channel count not set");
+        return false;
+    }
+    
+    if (m_channel_mapping_family > 1 && m_channel_mapping_family != 255) {
+        Debug::log("opus", "Error: Unsupported channel mapping family: ", m_channel_mapping_family);
+        return false;
+    }
+    
+    // For families that require channel mapping, validate the mapping table
+    if (m_channel_mapping_family != 0) {
+        if (m_channel_mapping.empty()) {
+            Debug::log("opus", "Error: Channel mapping table is empty for family ", m_channel_mapping_family);
+            return false;
+        }
+        
+        if (m_channel_mapping.size() != m_channels) {
+            Debug::log("opus", "Error: Channel mapping size (", m_channel_mapping.size(), 
+                      ") doesn't match channel count (", m_channels, ")");
+            return false;
+        }
+        
+        if (m_stream_count == 0) {
+            Debug::log("opus", "Error: Stream count not set for multi-channel configuration");
+            return false;
+        }
+    }
+    
+    Debug::log("opus", "Channel mapping configuration validation passed");
+    return true;
+}
+
+bool OpusCodec::isVorbisChannelOrderingSupported_unlocked(uint8_t channels)
+{
+    // Check if the channel count is supported for Vorbis channel ordering
+    switch (channels) {
+        case 1:  // Mono
+        case 2:  // Stereo
+        case 3:  // 2.1 surround
+        case 4:  // Quadraphonic
+        case 5:  // 4.1 surround
+        case 6:  // 5.1 surround
+        case 7:  // 6.1 surround
+        case 8:  // 7.1 surround
+            return true;
+            
+        default:
+            return false;
+    }
+}
+
+void OpusCodec::handleUnsupportedChannelConfiguration_unlocked(uint8_t channels, const std::string& reason)
+{
+    std::string error_msg = "Unsupported channel configuration: " + std::to_string(channels) + 
+                           " channels (" + reason + ")";
+    
+    Debug::log("opus", error_msg);
+    
+    // Set error state to prevent further processing
+    m_error_state.store(true);
+    m_last_error = error_msg;
+    
+    // Log detailed configuration for debugging
+    Debug::log("opus", "Channel configuration details:");
+    Debug::log("opus", "  Channels: ", m_channels);
+    Debug::log("opus", "  Mapping family: ", m_channel_mapping_family);
+    Debug::log("opus", "  Stream count: ", m_stream_count);
+    Debug::log("opus", "  Coupled streams: ", m_coupled_stream_count);
+    Debug::log("opus", "  Mapping table size: ", m_channel_mapping.size());
+}
+
 bool OpusCodec::resizeBuffersForChannels_unlocked(uint16_t channels)
 {
     Debug::log("opus", "resizeBuffersForChannels_unlocked called with ", channels, " channels");
@@ -894,15 +1402,38 @@ bool OpusCodec::initializeOpusDecoder_unlocked()
         m_sample_rate = 48000; // Force to 48kHz
     }
     
-    // For simple mono/stereo configurations (channel mapping family 0),
-    // use the standard decoder. For surround sound (family 1) or custom (family 255),
-    // we need to use the multistream decoder.
+    // Determine decoder type based on channel mapping family and configuration
+    bool needs_multistream = false;
     
-    // Since we don't have the full header info here, we'll determine based on channel count
-    // and initialize the appropriate decoder type
+    if (m_channel_mapping_family == 0 && m_channels <= 2) {
+        // Simple mono/stereo configuration - use standard decoder
+        needs_multistream = false;
+        Debug::log("opus", "Using standard decoder for family 0, ", m_channels, " channels");
+        
+    } else if (m_channel_mapping_family == 1 || m_channel_mapping_family == 255) {
+        // Surround sound or custom mapping - use multistream decoder
+        needs_multistream = true;
+        Debug::log("opus", "Using multistream decoder for family ", m_channel_mapping_family, ", ", m_channels, " channels");
+        
+    } else if (m_channel_mapping_family == 0 && m_channels > 2) {
+        // Invalid configuration - family 0 doesn't support > 2 channels
+        m_last_error = "Invalid configuration: family 0 with " + std::to_string(m_channels) + " channels";
+        Debug::log("opus", m_last_error);
+        return false;
+        
+    } else {
+        // Unsupported mapping family
+        m_last_error = "Unsupported channel mapping family: " + std::to_string(m_channel_mapping_family);
+        Debug::log("opus", m_last_error);
+        return false;
+    }
     
-    if (m_channels <= 2) {
-        // Use standard decoder for mono/stereo
+    if (needs_multistream) {
+        // Initialize multistream decoder
+        return initializeMultiStreamDecoder_unlocked();
+        
+    } else {
+        // Initialize standard decoder for mono/stereo
         int error;
         m_opus_decoder = opus_decoder_create(m_sample_rate, m_channels, &error);
         
@@ -915,26 +1446,13 @@ bool OpusCodec::initializeOpusDecoder_unlocked()
         m_use_multistream = false;
         Debug::log("opus", "Standard Opus decoder initialized successfully - sample_rate=", m_sample_rate, ", channels=", m_channels);
         
-    } else {
-        // For multi-channel, we need the full header information to set up multistream decoder
-        // This will be handled by initializeMultiStreamDecoder_unlocked() when we have the header
-        Debug::log("opus", "Multi-channel configuration detected (", m_channels, " channels) - will initialize multistream decoder");
-        m_use_multistream = true;
-        // Don't set m_decoder_initialized yet - wait for full header processing
+        // Configure decoder parameters for optimal performance
+        Debug::log("opus", "Decoder configured for integer API operation");
+        
+        m_decoder_initialized = true;
+        Debug::log("opus", "Standard decoder configuration completed successfully");
         return true;
     }
-    
-    // Configure decoder parameters for optimal performance
-    if (m_opus_decoder) {
-        // Note: We're using the integer API (opus_decode) which is the standard approach
-        // The decoder is already optimized for the target platform
-        Debug::log("opus", "Decoder configured for integer API operation");
-    }
-    
-    m_decoder_initialized = true;
-    Debug::log("opus", "Opus decoder configuration completed successfully");
-    
-    return true;
 }
 
 void OpusCodec::applyPreSkip_unlocked(AudioFrame& frame)
@@ -1210,90 +1728,50 @@ void OpusCodec::handleDecoderError_unlocked(int opus_error)
     }
 }
 
-bool OpusCodec::initializeMultiStreamDecoder_unlocked(const OpusHeader& header)
+bool OpusCodec::initializeMultiStreamDecoder_unlocked()
 {
     Debug::log("opus", "initializeMultiStreamDecoder_unlocked called");
     
-    if (!header.isValid()) {
-        m_last_error = "Invalid Opus header for multistream decoder initialization";
+    // Validate that we have the necessary configuration
+    if (m_channels == 0 || m_stream_count == 0 || m_channel_mapping.empty()) {
+        m_last_error = "Incomplete multistream configuration for decoder initialization";
         Debug::log("opus", m_last_error);
         return false;
     }
     
-    // Validate that we need multistream decoder
-    if (header.channel_mapping_family == 0 && header.channel_count <= 2) {
-        Debug::log("opus", "Warning: Using multistream decoder for simple configuration");
+    // Validate channel mapping size
+    if (m_channel_mapping.size() != m_channels) {
+        m_last_error = "Channel mapping size mismatch: expected " + std::to_string(m_channels) + 
+                      " entries, got " + std::to_string(m_channel_mapping.size());
+        Debug::log("opus", m_last_error);
+        return false;
     }
     
-    // For channel mapping family 1 (surround sound), we need stream count and coupling info
-    if (header.channel_mapping_family == 1) {
-        if (header.stream_count == 0 || header.channel_mapping.size() != header.channel_count) {
-            m_last_error = "Invalid multistream configuration in Opus header";
-            Debug::log("opus", m_last_error);
-            return false;
-        }
-        
-        // Create multistream decoder
-        int error;
-        m_opus_ms_decoder = opus_multistream_decoder_create(
-            m_sample_rate,
-            header.channel_count,
-            header.stream_count,
-            header.coupled_stream_count,
-            header.channel_mapping.data(),
-            &error
-        );
-        
-        if (!m_opus_ms_decoder || error != OPUS_OK) {
-            m_last_error = "Failed to create Opus multistream decoder: " + std::string(opus_strerror(error));
-            Debug::log("opus", m_last_error);
-            return false;
-        }
-        
-        Debug::log("opus", "Multistream decoder created successfully:");
-        Debug::log("opus", "  Channels: ", header.channel_count);
-        Debug::log("opus", "  Streams: ", header.stream_count);
-        Debug::log("opus", "  Coupled streams: ", header.coupled_stream_count);
-        
-    } else if (header.channel_mapping_family == 255) {
-        // Custom channel mapping - we need the mapping table
-        if (header.channel_mapping.size() != header.channel_count) {
-            m_last_error = "Invalid custom channel mapping in Opus header";
-            Debug::log("opus", m_last_error);
-            return false;
-        }
-        
-        // For custom mapping, assume all streams are uncoupled for simplicity
-        // This may need to be enhanced based on specific use cases
-        int error;
-        m_opus_ms_decoder = opus_multistream_decoder_create(
-            m_sample_rate,
-            header.channel_count,
-            header.channel_count, // Assume one stream per channel
-            0, // No coupled streams
-            header.channel_mapping.data(),
-            &error
-        );
-        
-        if (!m_opus_ms_decoder || error != OPUS_OK) {
-            m_last_error = "Failed to create Opus custom multistream decoder: " + std::string(opus_strerror(error));
-            Debug::log("opus", m_last_error);
-            return false;
-        }
-        
-        Debug::log("opus", "Custom multistream decoder created successfully for ", header.channel_count, " channels");
-        
-    } else {
-        m_last_error = "Unsupported channel mapping family for multistream decoder: " + std::to_string(header.channel_mapping_family);
+    Debug::log("opus", "Initializing multistream decoder:");
+    Debug::log("opus", "  Channels: ", m_channels);
+    Debug::log("opus", "  Streams: ", m_stream_count);
+    Debug::log("opus", "  Coupled streams: ", m_coupled_stream_count);
+    Debug::log("opus", "  Mapping family: ", m_channel_mapping_family);
+    
+    // Create multistream decoder with our stored configuration
+    int error;
+    m_opus_ms_decoder = opus_multistream_decoder_create(
+        m_sample_rate,
+        m_channels,
+        m_stream_count,
+        m_coupled_stream_count,
+        m_channel_mapping.data(),
+        &error
+    );
+    
+    if (!m_opus_ms_decoder || error != OPUS_OK) {
+        m_last_error = "Failed to create Opus multistream decoder: " + std::string(opus_strerror(error));
         Debug::log("opus", m_last_error);
         return false;
     }
     
     // Configure multistream decoder parameters
-    if (m_opus_ms_decoder) {
-        // Note: Using integer API for consistency and compatibility
-        Debug::log("opus", "Multistream decoder configured for integer API operation");
-    }
+    Debug::log("opus", "Multistream decoder configured for integer API operation");
     
     m_use_multistream = true;
     m_decoder_initialized = true;
@@ -1323,6 +1801,12 @@ void OpusCodec::resetDecoderState_unlocked()
     m_channels = 0;
     m_pre_skip = 0;
     m_output_gain = 0;
+    
+    // Reset multi-channel configuration
+    m_channel_mapping_family = 0;
+    m_stream_count = 0;
+    m_coupled_stream_count = 0;
+    m_channel_mapping.clear();
     
     // Clear buffers
     m_output_buffer.clear();

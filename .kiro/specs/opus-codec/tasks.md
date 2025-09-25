@@ -96,15 +96,15 @@
     - Ensure no audio artifacts from gain application
     - _Requirements: 5.2, 5.4, 5.7_
 
-- [ ] 7. Implement Multi-Channel Support
-  - [ ] 7.1 Add channel configuration handling
+- [x] 7. Implement Multi-Channel Support
+  - [x] 7.1 Add channel configuration handling
     - Support mono and stereo configurations (channel mapping family 0)
     - Handle surround sound configurations (channel mapping family 1)
     - Validate channel count against Opus specification limits
     - Process channel coupling for stereo streams correctly
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [ ] 7.2 Implement channel mapping and ordering
+  - [x] 7.2 Implement channel mapping and ordering
     - Follow Opus channel ordering conventions for multi-channel output
     - Provide properly interleaved channel data in AudioFrame
     - Handle unsupported channel configurations with appropriate errors
