@@ -59,22 +59,22 @@
     - Handle decoder state validation and error recovery
     - _Requirements: 2.5, 2.7, 8.7_
 
-- [ ] 5. Implement Audio Packet Decoding
-  - [ ] 5.1 Create main decode() method implementation
+- [x] 5. Implement Audio Packet Decoding
+  - [x] 5.1 Create main decode() method implementation
     - Route header packets to header processing system
     - Route audio packets to audio decoding system
     - Handle empty packets and end-of-stream conditions
     - Return appropriate AudioFrame or empty frame
     - _Requirements: 11.3, 1.5, 6.1_
 
-  - [ ] 5.2 Implement audio packet decoding core
+  - [x] 5.2 Implement audio packet decoding core
     - Create decodeAudioPacket() method using opus_decode()
     - Handle variable frame sizes (2.5ms to 60ms) efficiently
     - Process SILK, CELT, and hybrid mode packets correctly
     - Convert libopus output to 16-bit PCM format
     - _Requirements: 1.5, 3.1, 3.2, 3.3, 3.6_
 
-  - [ ] 5.3 Add packet validation and error handling
+  - [x] 5.3 Add packet validation and error handling
     - Implement validateOpusPacket() for basic packet validation
     - Handle corrupted packets by skipping and continuing
     - Implement handleDecoderError() for libopus error code processing

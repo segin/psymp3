@@ -115,6 +115,31 @@ bool OpusCodec::canDecode(const StreamInfo& stream_info) const
 AudioFrame OpusCodec::decode(const MediaChunk& chunk)
 {
     std::lock_guard<std::mutex> lock(m_mutex);
+    
+    Debug::log("opus", "OpusCodec::decode called - chunk_size=", chunk.data.size());
+    
+    // Handle empty packets and end-of-stream conditions
+    if (chunk.data.empty()) {
+        Debug::log("opus", "Empty chunk received - treating as end-of-stream, returning empty frame");
+        // Empty packets in Opus can indicate end-of-stream or silence
+        // Return empty frame to maintain stream continuity
+        return AudioFrame();
+    }
+    
+    // Check for error state
+    if (m_error_state.load()) {
+        Debug::log("opus", "Codec in error state, returning empty frame");
+        return AudioFrame();
+    }
+    
+    // Route header packets to header processing system
+    if (m_header_packets_received < 2) {
+        Debug::log("opus", "Routing to header processing system (packet ", m_header_packets_received + 1, ")");
+        return decodeAudioPacket_unlocked(chunk.data);
+    }
+    
+    // Route audio packets to audio decoding system
+    Debug::log("opus", "Routing to audio decoding system");
     return decodeAudioPacket_unlocked(chunk.data);
 }
 
@@ -381,54 +406,89 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     
     Debug::log("opus", "Decoding audio packet size=", packet_data.size(), " bytes");
     
-    // Decode the packet
-    // Maximum frame size for Opus is 5760 samples per channel at 48kHz
+    // Decode the packet using opus_decode()
+    // Maximum frame size for Opus is 5760 samples per channel at 48kHz (120ms frame)
+    // This handles variable frame sizes efficiently (2.5ms to 60ms)
     constexpr int MAX_FRAME_SIZE = 5760;
     std::vector<opus_int16> decode_buffer(MAX_FRAME_SIZE * m_channels);
     
     int samples_decoded;
     
     if (m_use_multistream && m_opus_ms_decoder) {
-        // Use multistream decoder
+        // Use multistream decoder for surround sound configurations
+        // This handles SILK, CELT, and hybrid mode packets correctly
         samples_decoded = opus_multistream_decode(m_opus_ms_decoder,
                                                  packet_data.data(),
                                                  static_cast<opus_int32>(packet_data.size()),
                                                  decode_buffer.data(),
                                                  MAX_FRAME_SIZE,
                                                  0); // 0 = normal decode, 1 = FEC decode
+        Debug::log("opus", "Multistream decode returned ", samples_decoded, " samples");
+        
     } else if (!m_use_multistream && m_opus_decoder) {
-        // Use standard decoder
+        // Use standard decoder for mono/stereo configurations
+        // libopus automatically handles SILK, CELT, and hybrid modes
         samples_decoded = opus_decode(m_opus_decoder, 
                                      packet_data.data(), 
                                      static_cast<opus_int32>(packet_data.size()),
                                      decode_buffer.data(), 
                                      MAX_FRAME_SIZE, 
                                      0); // 0 = normal decode, 1 = FEC decode
+        Debug::log("opus", "Standard decode returned ", samples_decoded, " samples");
+        
     } else {
-        Debug::log("opus", "Decoder configuration mismatch");
+        Debug::log("opus", "Decoder configuration mismatch - no valid decoder available");
         m_last_error = "Decoder configuration mismatch";
         return frame;
     }
     
     if (samples_decoded < 0) {
-        // Handle decoder error
+        // Handle decoder error and output silence for failed frames while maintaining stream continuity
         handleDecoderError_unlocked(samples_decoded);
+        
+        // For corrupted packets, output silence to maintain stream continuity
+        if (samples_decoded == OPUS_INVALID_PACKET) {
+            Debug::log("opus", "Corrupted packet detected, outputting silence frame");
+            
+            // Generate silence frame with typical Opus frame size (20ms at 48kHz = 960 samples)
+            constexpr int TYPICAL_FRAME_SIZE = 960;
+            size_t silence_samples = TYPICAL_FRAME_SIZE * m_channels;
+            
+            frame.sample_rate = m_sample_rate;
+            frame.channels = m_channels;
+            frame.samples.resize(silence_samples, 0); // Fill with silence (zeros)
+            
+            // Apply pre-skip and gain processing to silence frame
+            applyPreSkip_unlocked(frame);
+            applyOutputGain_unlocked(frame);
+            
+            // Update sample counter
+            m_samples_decoded.fetch_add(TYPICAL_FRAME_SIZE);
+            
+            Debug::log("opus", "Generated silence frame with ", silence_samples, " samples");
+            return frame;
+        }
+        
+        // For other errors, return empty frame
         return frame;
     }
     
     if (samples_decoded > 0) {
-        // Copy decoded samples to output buffer
+        // Convert libopus output to 16-bit PCM format
+        // libopus already outputs 16-bit samples, so we just need to copy them
         size_t total_samples = samples_decoded * m_channels;
         m_output_buffer.resize(total_samples);
         
-        for (size_t i = 0; i < total_samples; i++) {
-            m_output_buffer[i] = static_cast<int16_t>(decode_buffer[i]);
-        }
+        // Direct copy since opus_decode already outputs opus_int16 (16-bit PCM)
+        // This efficiently handles variable frame sizes from 2.5ms to 60ms
+        std::memcpy(m_output_buffer.data(), decode_buffer.data(), total_samples * sizeof(int16_t));
         
-        Debug::log("opus", "Successfully decoded ", samples_decoded, " samples, total_samples=", total_samples);
+        Debug::log("opus", "Successfully decoded ", samples_decoded, " sample frames (", 
+                  total_samples, " total samples) - frame duration: ", 
+                  (samples_decoded * 1000.0f / m_sample_rate), "ms");
         
-        // Create frame
-        frame.sample_rate = m_sample_rate;
+        // Create AudioFrame with decoded PCM data
+        frame.sample_rate = m_sample_rate;  // Always 48kHz for Opus
         frame.channels = m_channels;
         frame.samples = std::move(m_output_buffer);
         
@@ -436,11 +496,15 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
         applyPreSkip_unlocked(frame);
         applyOutputGain_unlocked(frame);
         
-        // Update sample counter
+        // Update sample counter for position tracking
         m_samples_decoded.fetch_add(samples_decoded);
         
         // Clear output buffer for next use
         m_output_buffer.clear();
+        
+    } else if (samples_decoded == 0) {
+        Debug::log("opus", "Decoder returned 0 samples - empty frame");
+        // Return empty frame for 0-sample result
     }
     
     Debug::log("opus", "Returning frame with ", frame.samples.size(), " samples");
@@ -854,74 +918,154 @@ void OpusCodec::applyOutputGain_unlocked(AudioFrame& frame)
 
 bool OpusCodec::validateOpusPacket_unlocked(const std::vector<uint8_t>& packet_data)
 {
-    // Basic packet validation
+    // Basic packet validation for Opus packets
     if (packet_data.empty()) {
+        Debug::log("opus", "Packet validation failed: empty packet");
         return false;
     }
     
     // Opus packets should not be excessively large
-    // Maximum theoretical packet size is around 1275 bytes
+    // Maximum theoretical packet size is around 1275 bytes for standard configurations
+    // Allow some headroom for unusual configurations
     if (packet_data.size() > 2000) {
-        Debug::log("opus", "Packet suspiciously large: ", packet_data.size(), " bytes");
+        Debug::log("opus", "Packet validation failed: suspiciously large packet: ", packet_data.size(), " bytes");
         return false;
     }
+    
+    // Minimum packet size check - Opus packets should be at least 1 byte
+    // (even for silence frames)
+    if (packet_data.size() < 1) {
+        Debug::log("opus", "Packet validation failed: packet too small");
+        return false;
+    }
+    
+    // Basic TOC (Table of Contents) byte validation
+    // The first byte contains configuration information
+    uint8_t toc = packet_data[0];
+    
+    // Extract configuration from TOC byte (bits 3-7)
+    uint8_t config = (toc >> 3) & 0x1F;
+    
+    // Validate configuration - should be 0-31 (all values are valid)
+    // This is just a sanity check since all 32 configurations are defined
+    if (config > 31) {
+        // This should never happen since we're masking to 5 bits
+        Debug::log("opus", "Packet validation failed: invalid configuration in TOC: ", config);
+        return false;
+    }
+    
+    // Extract stereo flag (bit 2)
+    bool stereo = (toc & 0x04) != 0;
+    
+    // Extract frame count code (bits 0-1)
+    uint8_t frame_count_code = toc & 0x03;
+    
+    // Validate frame count code (0-3 are all valid)
+    // 0: 1 frame, 1: 2 frames, 2: 2 frames, 3: arbitrary frames
+    if (frame_count_code > 3) {
+        // This should never happen since we're masking to 2 bits
+        Debug::log("opus", "Packet validation failed: invalid frame count code: ", frame_count_code);
+        return false;
+    }
+    
+    // For code 3 (arbitrary frames), we need at least 2 bytes (TOC + frame count)
+    if (frame_count_code == 3 && packet_data.size() < 2) {
+        Debug::log("opus", "Packet validation failed: arbitrary frame count packet too small");
+        return false;
+    }
+    
+    // Additional validation for multi-frame packets
+    if (frame_count_code == 3 && packet_data.size() >= 2) {
+        uint8_t frame_count = packet_data[1] & 0x3F; // Lower 6 bits
+        if (frame_count == 0) {
+            Debug::log("opus", "Packet validation failed: zero frame count in arbitrary frame packet");
+            return false;
+        }
+    }
+    
+    Debug::log("opus", "Packet validation passed: size=", packet_data.size(), 
+              " bytes, config=", config, ", stereo=", stereo, 
+              ", frame_count_code=", frame_count_code);
     
     return true;
 }
 
 void OpusCodec::handleDecoderError_unlocked(int opus_error)
 {
-    std::string error_msg = "Opus decode error: " + std::string(opus_strerror(opus_error));
+    std::string error_msg = "Opus decode error (" + std::to_string(opus_error) + "): " + std::string(opus_strerror(opus_error));
     Debug::log("opus", error_msg);
     
     m_last_error = error_msg;
     
-    // For some errors, we can continue; for others, we should attempt recovery
+    // Handle different libopus error codes with appropriate recovery strategies
     switch (opus_error) {
         case OPUS_BAD_ARG:
+            // Invalid argument - usually indicates programming error
+            Debug::log("opus", "Bad argument error - skipping packet and continuing");
+            break;
+            
         case OPUS_BUFFER_TOO_SMALL:
+            // Output buffer too small - should not happen with our MAX_FRAME_SIZE
+            Debug::log("opus", "Buffer too small error - this should not happen, skipping packet");
+            break;
+            
         case OPUS_INVALID_PACKET:
-            // These are recoverable - just skip this packet
-            Debug::log("opus", "Recoverable error, skipping packet");
+            // Corrupted packet - skip and continue, output silence handled in caller
+            Debug::log("opus", "Invalid/corrupted packet - skipping and outputting silence");
             break;
             
         case OPUS_INTERNAL_ERROR:
-        case OPUS_INVALID_STATE:
-            // These indicate decoder state issues - attempt recovery
-            Debug::log("opus", "Decoder state error, attempting recovery");
+            // Internal libopus error - attempt decoder reset
+            Debug::log("opus", "Internal libopus error - attempting decoder state reset");
             m_error_state.store(true);
             if (recoverFromError_unlocked()) {
-                Debug::log("opus", "Error recovery successful");
+                Debug::log("opus", "Internal error recovery successful");
+                m_error_state.store(false);
             } else {
-                Debug::log("opus", "Error recovery failed, decoder disabled");
+                Debug::log("opus", "Internal error recovery failed - decoder may be unstable");
+            }
+            break;
+            
+        case OPUS_INVALID_STATE:
+            // Decoder in invalid state - reset decoder state
+            Debug::log("opus", "Invalid decoder state - resetting decoder");
+            m_error_state.store(true);
+            if (recoverFromError_unlocked()) {
+                Debug::log("opus", "Decoder state recovery successful");
+                m_error_state.store(false);
+            } else {
+                Debug::log("opus", "Decoder state recovery failed - decoder disabled");
             }
             break;
             
         case OPUS_UNIMPLEMENTED:
-            // Feature not supported - this is permanent
-            Debug::log("opus", "Unsupported feature, decoder disabled");
+            // Feature not implemented in this libopus version
+            Debug::log("opus", "Unimplemented feature - decoder disabled for this stream");
             m_error_state.store(true);
+            m_last_error = "Opus feature not supported by libopus version";
             break;
             
         case OPUS_ALLOC_FAIL:
             // Memory allocation failure - serious but might be temporary
-            Debug::log("opus", "Memory allocation failure, attempting recovery");
+            Debug::log("opus", "Memory allocation failure - attempting recovery");
             m_error_state.store(true);
             if (recoverFromError_unlocked()) {
-                Debug::log("opus", "Memory error recovery successful");
+                Debug::log("opus", "Memory allocation recovery successful");
+                m_error_state.store(false);
             } else {
-                Debug::log("opus", "Memory error recovery failed, decoder disabled");
+                Debug::log("opus", "Memory allocation recovery failed - decoder disabled");
             }
             break;
             
         default:
-            // Unknown error - be conservative and attempt recovery
-            Debug::log("opus", "Unknown error code ", opus_error, ", attempting recovery");
+            // Unknown error code - be conservative and attempt recovery
+            Debug::log("opus", "Unknown libopus error code ", opus_error, " - attempting recovery");
             m_error_state.store(true);
             if (recoverFromError_unlocked()) {
                 Debug::log("opus", "Unknown error recovery successful");
+                m_error_state.store(false);
             } else {
-                Debug::log("opus", "Unknown error recovery failed, decoder disabled");
+                Debug::log("opus", "Unknown error recovery failed - decoder disabled");
             }
             break;
     }
