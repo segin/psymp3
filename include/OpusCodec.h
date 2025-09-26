@@ -129,7 +129,14 @@ private:
     thread_local static std::chrono::steady_clock::time_point tl_last_error_time;
     
     // Threading safety - following public/private lock pattern
+    // Lock acquisition order (to prevent deadlocks):
+    // 1. OpusCodec::m_mutex (instance-level lock)
+    // Note: OpusCodec only uses a single mutex, so no deadlock concerns within this class
     mutable std::mutex m_mutex;
+    
+    // Performance optimization state (per-instance to ensure thread safety)
+    int m_last_frame_size = 0;
+    int m_frame_size_changes = 0;
     
     // Header processing (private unlocked methods)
     bool processHeaderPacket_unlocked(const std::vector<uint8_t>& packet_data);
@@ -172,6 +179,15 @@ private:
     bool validateDecoderState_unlocked() const;
     bool recoverFromError_unlocked();
     
+    // Performance optimization methods (private unlocked methods)
+    bool configureOpusOptimizations_unlocked();
+    bool enableSIMDOptimizations_unlocked();
+    void optimizeBufferSizes_unlocked(uint16_t channels);
+    bool isMonoStereoOptimizable_unlocked() const;
+    void optimizeMemoryAccessPatterns_unlocked(AudioFrame& frame);
+    bool handleVariableFrameSizeEfficiently_unlocked(int frame_size_samples);
+    void optimizeCacheEfficiency_unlocked();
+    
     // Enhanced error handling and validation methods (private unlocked methods)
     bool validateInputParameters_unlocked(const std::vector<uint8_t>& packet_data) const;
     bool validateHeaderPacketParameters_unlocked(const std::vector<uint8_t>& packet_data) const;
@@ -185,6 +201,9 @@ private:
     std::string getThreadLocalError_unlocked() const;
     void clearThreadLocalError_unlocked();
     bool hasRecentThreadLocalError_unlocked() const;
+    
+    // Thread safety validation (private unlocked methods)
+    bool validateThreadSafetyState_unlocked() const;
     
     // Enhanced error recovery and state management (private unlocked methods)
     bool performUnrecoverableErrorReset_unlocked();
