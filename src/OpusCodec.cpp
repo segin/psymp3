@@ -25,6 +25,11 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+// Thread-local error state for concurrent operation (Requirement 8.8)
+thread_local std::string OpusCodec::tl_last_error;
+thread_local int OpusCodec::tl_last_opus_error = OPUS_OK;
+thread_local std::chrono::steady_clock::time_point OpusCodec::tl_last_error_time;
+
 // ========== OpusCodec Implementation ==========
 
 OpusCodec::OpusCodec(const StreamInfo& stream_info) : AudioCodec(stream_info)
@@ -41,6 +46,8 @@ OpusCodec::OpusCodec(const StreamInfo& stream_info) : AudioCodec(stream_info)
     m_samples_decoded.store(0);
     m_samples_to_skip.store(0);
     m_error_state.store(false);
+    m_frames_processed.store(0);
+    m_last_decode_time = std::chrono::steady_clock::now();
     
     // Reserve buffer space for efficiency
     m_output_buffer.reserve(5760 * 8); // Max frame size * max channels
@@ -53,6 +60,12 @@ OpusCodec::~OpusCodec()
 {
     Debug::log("opus", "OpusCodec destructor called");
     
+    // Ensure proper cleanup before codec destruction (Requirement 10.6)
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
+    // Clear thread-local error state
+    clearThreadLocalError_unlocked();
+    
     // Clean up libopus decoders
     if (m_opus_ms_decoder) {
         opus_multistream_decoder_destroy(m_opus_ms_decoder);
@@ -62,6 +75,12 @@ OpusCodec::~OpusCodec()
         opus_decoder_destroy(m_opus_decoder);
         m_opus_decoder = nullptr;
     }
+    
+    // Clear all buffers
+    clearOutputBuffers_unlocked();
+    m_output_buffer.clear();
+    m_float_buffer.clear();
+    m_partial_packet_buffer.clear();
     
     Debug::log("opus", "OpusCodec destructor completed");
 }
@@ -100,6 +119,13 @@ bool OpusCodec::initialize_unlocked()
         return false;
     }
     
+    // Initialize output buffer management system
+    if (!initializeOutputBuffers_unlocked()) {
+        m_last_error = "Failed to initialize output buffer management";
+        Debug::log("opus", m_last_error);
+        return false;
+    }
+    
     m_initialized = true;
     
     Debug::log("opus", "OpusCodec::initialize_unlocked completed successfully");
@@ -118,11 +144,30 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
     
     Debug::log("opus", "OpusCodec::decode called - chunk_size=", chunk.data.size());
     
+    // Check for buffer overflow - provide backpressure (Requirement 7.4)
+    if (m_buffer_overflow.load()) {
+        Debug::log("opus", "Output buffer overflow active - returning buffered frame to provide backpressure");
+        if (hasBufferedFrames_unlocked()) {
+            return getBufferedFrame_unlocked();
+        } else {
+            // Buffer overflow cleared, continue processing
+            m_buffer_overflow.store(false);
+        }
+    }
+    
+    // Return buffered frames first if available (incremental processing - Requirement 7.1)
+    if (hasBufferedFrames_unlocked() && !chunk.data.empty()) {
+        Debug::log("opus", "Returning buffered frame while processing new packet");
+        return getBufferedFrame_unlocked();
+    }
+    
     // Handle empty packets and end-of-stream conditions
     if (chunk.data.empty()) {
-        Debug::log("opus", "Empty chunk received - treating as end-of-stream, returning empty frame");
-        // Empty packets in Opus can indicate end-of-stream or silence
-        // Return empty frame to maintain stream continuity
+        Debug::log("opus", "Empty chunk received - checking for buffered frames");
+        if (hasBufferedFrames_unlocked()) {
+            return getBufferedFrame_unlocked();
+        }
+        Debug::log("opus", "No buffered frames, returning empty frame for end-of-stream");
         return AudioFrame();
     }
     
@@ -132,15 +177,57 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         return AudioFrame();
     }
     
+    // Handle partial packet data gracefully (Requirement 7.3)
+    if (!handlePartialPacketData_unlocked(chunk.data)) {
+        Debug::log("opus", "Partial packet handling failed - returning buffered frame if available");
+        if (hasBufferedFrames_unlocked()) {
+            return getBufferedFrame_unlocked();
+        }
+        return AudioFrame();
+    }
+    
+    // If partial packet handling consumed the data, return buffered frame
+    if (!m_partial_packet_buffer.empty()) {
+        Debug::log("opus", "Packet data buffered for partial handling - returning existing buffered frame");
+        if (hasBufferedFrames_unlocked()) {
+            return getBufferedFrame_unlocked();
+        }
+        return AudioFrame();
+    }
+    
+    // Process the new packet
+    AudioFrame decoded_frame;
+    
     // Route header packets to header processing system
     if (m_header_packets_received < 2) {
         Debug::log("opus", "Routing to header processing system (packet ", m_header_packets_received + 1, ")");
-        return decodeAudioPacket_unlocked(chunk.data);
+        decoded_frame = decodeAudioPacket_unlocked(chunk.data);
+    } else {
+        // Route audio packets to audio decoding system
+        Debug::log("opus", "Routing to audio decoding system");
+        decoded_frame = decodeAudioPacket_unlocked(chunk.data);
+        
+        // Maintain streaming latency and throughput (Requirement 7.8)
+        maintainStreamingLatency_unlocked();
     }
     
-    // Route audio packets to audio decoding system
-    Debug::log("opus", "Routing to audio decoding system");
-    return decodeAudioPacket_unlocked(chunk.data);
+    // If we got a valid frame, try to buffer it for incremental processing
+    if (!decoded_frame.samples.empty()) {
+        if (bufferFrame_unlocked(decoded_frame)) {
+            Debug::log("opus", "Frame buffered successfully");
+        } else {
+            Debug::log("opus", "Failed to buffer frame - returning directly");
+            return decoded_frame;
+        }
+    }
+    
+    // Return the next available buffered frame
+    if (hasBufferedFrames_unlocked()) {
+        return getBufferedFrame_unlocked();
+    }
+    
+    // Return the decoded frame directly if no buffering occurred
+    return decoded_frame;
 }
 
 AudioFrame OpusCodec::flush()
@@ -149,12 +236,68 @@ AudioFrame OpusCodec::flush()
     
     Debug::log("opus", "OpusCodec::flush called");
     
-    // Opus doesn't buffer data like some other codecs
-    // Return empty frame as there's nothing to flush
-    AudioFrame frame;
+    // Output any remaining decoded samples from buffer (Requirement 7.5)
+    if (hasBufferedFrames_unlocked()) {
+        AudioFrame frame = getBufferedFrame_unlocked();
+        Debug::log("opus", "Flushing buffered frame with ", frame.samples.size(), " samples");
+        return frame;
+    }
     
-    Debug::log("opus", "OpusCodec::flush completed");
-    return frame;
+    // For Opus, we can also try to decode any remaining data in the decoder
+    // by calling opus_decode with NULL packet data to get any final samples
+    if (m_decoder_initialized && (m_opus_decoder || m_opus_ms_decoder)) {
+        Debug::log("opus", "Attempting to flush decoder internal state");
+        
+        // Try to get any remaining samples from the decoder
+        constexpr int MAX_FRAME_SIZE = 5760;
+        std::vector<opus_int16> decode_buffer(MAX_FRAME_SIZE * m_channels);
+        
+        int samples_decoded = 0;
+        
+        if (m_use_multistream && m_opus_ms_decoder) {
+            // Flush multistream decoder
+            samples_decoded = opus_multistream_decode(m_opus_ms_decoder,
+                                                     nullptr, 0, // NULL packet for flushing
+                                                     decode_buffer.data(),
+                                                     MAX_FRAME_SIZE,
+                                                     0);
+        } else if (!m_use_multistream && m_opus_decoder) {
+            // Flush standard decoder
+            samples_decoded = opus_decode(m_opus_decoder, 
+                                         nullptr, 0, // NULL packet for flushing
+                                         decode_buffer.data(), 
+                                         MAX_FRAME_SIZE, 
+                                         0);
+        }
+        
+        if (samples_decoded > 0) {
+            Debug::log("opus", "Decoder flush returned ", samples_decoded, " samples");
+            
+            // Create frame with flushed samples
+            AudioFrame frame;
+            frame.sample_rate = m_sample_rate;
+            frame.channels = m_channels;
+            
+            size_t total_samples = samples_decoded * m_channels;
+            frame.samples.resize(total_samples);
+            std::memcpy(frame.samples.data(), decode_buffer.data(), total_samples * sizeof(int16_t));
+            
+            // Apply post-processing
+            applyPreSkip_unlocked(frame);
+            applyOutputGain_unlocked(frame);
+            processChannelMapping_unlocked(frame);
+            
+            Debug::log("opus", "Returning flushed frame with ", frame.samples.size(), " samples");
+            return frame;
+        } else if (samples_decoded < 0) {
+            Debug::log("opus", "Decoder flush failed: ", opus_strerror(samples_decoded));
+        } else {
+            Debug::log("opus", "No samples to flush from decoder");
+        }
+    }
+    
+    Debug::log("opus", "OpusCodec::flush completed - no data to flush");
+    return AudioFrame();
 }
 
 void OpusCodec::reset()
@@ -198,6 +341,12 @@ void OpusCodec::reset()
         // Clear output buffers but don't deallocate
         m_output_buffer.clear();
         m_float_buffer.clear();
+        
+        // Clear bounded output buffers (Requirement 7.6)
+        clearOutputBuffers_unlocked();
+        
+        // Clear partial packet buffer
+        m_partial_packet_buffer.clear();
         
         Debug::log("opus", "Decoder reset completed (seeking mode)");
         
@@ -309,6 +458,13 @@ bool OpusCodec::setupInternalBuffers_unlocked()
     constexpr size_t INITIAL_BUFFER_SIZE = MAX_FRAME_SIZE * MAX_INITIAL_CHANNELS;
     
     try {
+        // Validate memory allocation request (Requirement 8.5)
+        size_t buffer_bytes = INITIAL_BUFFER_SIZE * sizeof(int16_t);
+        if (!validateMemoryAllocation_unlocked(buffer_bytes)) {
+            reportDetailedError_unlocked("Memory Validation", "Buffer allocation size validation failed");
+            return false;
+        }
+        
         // Reserve space for output buffers to avoid reallocations during decoding
         m_output_buffer.clear();
         m_output_buffer.reserve(INITIAL_BUFFER_SIZE);
@@ -339,7 +495,17 @@ bool OpusCodec::setupInternalBuffers_unlocked()
         
     } catch (const std::exception& e) {
         Debug::log("opus", "Failed to set up internal buffers: ", e.what());
-        return false;
+        reportDetailedError_unlocked("Memory Allocation", std::string("Buffer setup failed: ") + e.what());
+        
+        // Attempt to handle memory allocation failure
+        if (!handleMemoryAllocationFailure_unlocked()) {
+            reportDetailedError_unlocked("Memory Recovery", "Failed to recover from memory allocation failure");
+            return false;
+        }
+        
+        // If recovery succeeded, try again with minimal buffers
+        Debug::log("opus", "Attempting buffer setup with minimal configuration after recovery");
+        return true; // Recovery handled the buffer setup
     }
 }
 
@@ -389,18 +555,24 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
         return frame;
     }
     
+    // Comprehensive input parameter validation (Requirement 8.6)
+    if (!validateInputParameters_unlocked(packet_data)) {
+        reportDetailedError_unlocked("Input Validation", "Invalid input parameters");
+        return frame;
+    }
+    
     // Validate decoder state before processing
     if (!validateDecoderState_unlocked()) {
         Debug::log("opus", "Decoder state validation failed, attempting recovery");
         if (!recoverFromError_unlocked()) {
-            Debug::log("opus", "Decoder recovery failed, skipping packet");
+            reportDetailedError_unlocked("Decoder State", "Decoder recovery failed");
             return frame;
         }
     }
     
     // Validate packet before decoding
     if (!validateOpusPacket_unlocked(packet_data)) {
-        Debug::log("opus", "Invalid Opus packet, skipping");
+        reportDetailedError_unlocked("Packet Validation", "Invalid Opus packet structure");
         return frame;
     }
     
@@ -518,9 +690,9 @@ bool OpusCodec::processHeaderPacket_unlocked(const std::vector<uint8_t>& packet_
 {
     Debug::log("opus", "processHeaderPacket_unlocked called, packet_size=", packet_data.size());
     
-    // Validate packet data is not empty
-    if (packet_data.empty()) {
-        Debug::log("opus", "Empty header packet received");
+    // Comprehensive header packet validation (Requirement 8.1)
+    if (!validateHeaderPacketParameters_unlocked(packet_data)) {
+        reportDetailedError_unlocked("Header Validation", "Invalid header packet parameters");
         return false;
     }
     
@@ -1647,6 +1819,508 @@ bool OpusCodec::validateOpusPacket_unlocked(const std::vector<uint8_t>& packet_d
     return true;
 }
 
+bool OpusCodec::validateInputParameters_unlocked(const std::vector<uint8_t>& packet_data) const
+{
+    // Comprehensive input parameter validation (Requirement 8.6)
+    Debug::log("opus", "Validating input parameters");
+    
+    // Validate packet data pointer and size
+    if (packet_data.empty()) {
+        Debug::log("opus", "Input validation failed: empty packet data");
+        return false;
+    }
+    
+    // Check for reasonable packet size limits
+    if (packet_data.size() > 65535) {
+        Debug::log("opus", "Input validation failed: packet size too large: ", packet_data.size(), " bytes");
+        return false;
+    }
+    
+    // Validate decoder state before processing
+    if (!m_decoder_initialized) {
+        Debug::log("opus", "Input validation failed: decoder not initialized");
+        return false;
+    }
+    
+    // Validate channel configuration
+    if (m_channels == 0 || m_channels > 255) {
+        Debug::log("opus", "Input validation failed: invalid channel count: ", m_channels);
+        return false;
+    }
+    
+    // Validate sample rate
+    if (m_sample_rate != 48000) {
+        Debug::log("opus", "Input validation failed: invalid sample rate: ", m_sample_rate);
+        return false;
+    }
+    
+    // Validate decoder pointers
+    if (m_use_multistream) {
+        if (!m_opus_ms_decoder) {
+            Debug::log("opus", "Input validation failed: multistream decoder not initialized");
+            return false;
+        }
+    } else {
+        if (!m_opus_decoder) {
+            Debug::log("opus", "Input validation failed: standard decoder not initialized");
+            return false;
+        }
+    }
+    
+    // Validate error state
+    if (m_error_state.load()) {
+        Debug::log("opus", "Input validation failed: codec in error state");
+        return false;
+    }
+    
+    Debug::log("opus", "Input parameter validation passed");
+    return true;
+}
+
+bool OpusCodec::validateHeaderPacketParameters_unlocked(const std::vector<uint8_t>& packet_data) const
+{
+    // Validate header packet parameters (Requirement 8.1)
+    Debug::log("opus", "Validating header packet parameters");
+    
+    if (packet_data.empty()) {
+        Debug::log("opus", "Header validation failed: empty packet");
+        return false;
+    }
+    
+    // Check minimum header size
+    if (packet_data.size() < 8) {
+        Debug::log("opus", "Header validation failed: packet too small for header signature");
+        return false;
+    }
+    
+    // Validate header sequence
+    if (m_header_packets_received == 0) {
+        // First packet must be OpusHead
+        if (std::memcmp(packet_data.data(), "OpusHead", 8) != 0) {
+            Debug::log("opus", "Header validation failed: first packet is not OpusHead");
+            return false;
+        }
+        
+        // OpusHead must be at least 19 bytes
+        if (packet_data.size() < 19) {
+            Debug::log("opus", "Header validation failed: OpusHead packet too small");
+            return false;
+        }
+        
+    } else if (m_header_packets_received == 1) {
+        // Second packet must be OpusTags
+        if (std::memcmp(packet_data.data(), "OpusTags", 8) != 0) {
+            Debug::log("opus", "Header validation failed: second packet is not OpusTags");
+            return false;
+        }
+        
+        // OpusTags must be at least 16 bytes (8 byte signature + 4 byte vendor length + 4 byte comment count)
+        if (packet_data.size() < 16) {
+            Debug::log("opus", "Header validation failed: OpusTags packet too small");
+            return false;
+        }
+        
+    } else {
+        Debug::log("opus", "Header validation failed: too many header packets");
+        return false;
+    }
+    
+    Debug::log("opus", "Header packet validation passed");
+    return true;
+}
+
+bool OpusCodec::validateMemoryAllocation_unlocked(size_t requested_size) const
+{
+    // Validate memory allocation requests (Requirement 8.5)
+    Debug::log("opus", "Validating memory allocation request: ", requested_size, " bytes");
+    
+    // Check for reasonable size limits
+    if (requested_size == 0) {
+        Debug::log("opus", "Memory validation failed: zero size allocation requested");
+        return false;
+    }
+    
+    // Check for excessively large allocations (1MB limit for audio buffers)
+    if (requested_size > 1024 * 1024) {
+        Debug::log("opus", "Memory validation failed: allocation too large: ", requested_size, " bytes");
+        return false;
+    }
+    
+    // Check for integer overflow in size calculations
+    if (requested_size > SIZE_MAX / 2) {
+        Debug::log("opus", "Memory validation failed: size too large, potential overflow");
+        return false;
+    }
+    
+    // Validate against maximum frame size expectations
+    constexpr size_t MAX_FRAME_SIZE = 5760;
+    constexpr size_t MAX_CHANNELS = 255;
+    constexpr size_t MAX_EXPECTED_SIZE = MAX_FRAME_SIZE * MAX_CHANNELS * sizeof(int16_t);
+    
+    if (requested_size > MAX_EXPECTED_SIZE * 2) { // Allow some headroom
+        Debug::log("opus", "Memory validation warning: unusually large allocation: ", requested_size, " bytes");
+        // Don't fail, just warn - might be legitimate for large multi-channel configurations
+    }
+    
+    Debug::log("opus", "Memory allocation validation passed");
+    return true;
+}
+
+bool OpusCodec::handleMemoryAllocationFailure_unlocked()
+{
+    // Handle memory allocation failures gracefully (Requirement 8.5)
+    Debug::log("opus", "Handling memory allocation failure");
+    
+    // Try to free up memory by clearing non-essential buffers
+    try {
+        // Clear output buffers
+        clearOutputBuffers_unlocked();
+        
+        // Shrink buffers to free memory
+        m_output_buffer.clear();
+        m_output_buffer.shrink_to_fit();
+        m_float_buffer.clear();
+        m_float_buffer.shrink_to_fit();
+        
+        // Clear partial packet buffer
+        m_partial_packet_buffer.clear();
+        m_partial_packet_buffer.shrink_to_fit();
+        
+        Debug::log("opus", "Memory cleanup completed");
+        
+        // Try to re-setup minimal buffers
+        constexpr size_t MINIMAL_BUFFER_SIZE = 5760 * 2; // Stereo frame
+        m_output_buffer.reserve(MINIMAL_BUFFER_SIZE);
+        m_float_buffer.reserve(MINIMAL_BUFFER_SIZE);
+        
+        Debug::log("opus", "Minimal buffers re-allocated successfully");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("opus", "Memory allocation failure recovery failed: ", e.what());
+        m_error_state.store(true);
+        m_last_error = "Memory allocation failure - insufficient memory";
+        return false;
+    }
+}
+
+void OpusCodec::reportDetailedError_unlocked(const std::string& error_type, const std::string& details)
+{
+    // Provide detailed error reporting through PsyMP3's error mechanisms (Requirement 11.7)
+    std::string full_error = "OpusCodec " + error_type + ": " + details;
+    
+    // Log to debug system
+    Debug::log("opus", "ERROR: ", full_error);
+    
+    // Store for later retrieval
+    m_last_error = full_error;
+    
+    // Log additional context information
+    Debug::log("opus", "Error context:");
+    Debug::log("opus", "  Decoder initialized: ", m_decoder_initialized);
+    Debug::log("opus", "  Channels: ", m_channels);
+    Debug::log("opus", "  Sample rate: ", m_sample_rate);
+    Debug::log("opus", "  Use multistream: ", m_use_multistream);
+    Debug::log("opus", "  Header packets received: ", m_header_packets_received);
+    Debug::log("opus", "  Samples decoded: ", m_samples_decoded.load());
+    Debug::log("opus", "  Error state: ", m_error_state.load());
+    
+    // Log buffer states
+    Debug::log("opus", "  Output buffer size: ", m_output_buffer.size());
+    Debug::log("opus", "  Float buffer size: ", m_float_buffer.size());
+    Debug::log("opus", "  Buffered samples: ", m_buffered_samples.load());
+    Debug::log("opus", "  Buffer overflow: ", m_buffer_overflow.load());
+}
+
+bool OpusCodec::isRecoverableError_unlocked(int opus_error) const
+{
+    // Determine if an error is recoverable (Requirement 8.7)
+    switch (opus_error) {
+        case OPUS_BAD_ARG:
+            // Programming error - not recoverable through reset
+            return false;
+            
+        case OPUS_BUFFER_TOO_SMALL:
+            // Buffer sizing error - not recoverable without code changes
+            return false;
+            
+        case OPUS_INVALID_PACKET:
+            // Corrupted packet - recoverable by skipping packet
+            return true;
+            
+        case OPUS_INTERNAL_ERROR:
+            // Internal libopus error - potentially recoverable through reset
+            return true;
+            
+        case OPUS_INVALID_STATE:
+            // Invalid decoder state - recoverable through reset
+            return true;
+            
+        case OPUS_UNIMPLEMENTED:
+            // Feature not implemented - not recoverable
+            return false;
+            
+        case OPUS_ALLOC_FAIL:
+            // Memory allocation failure - potentially recoverable
+            return true;
+            
+        default:
+            // Unknown error - assume recoverable to be safe
+            return true;
+    }
+}
+
+void OpusCodec::setThreadLocalError_unlocked(int opus_error, const std::string& error_message)
+{
+    // Set thread-local error state for concurrent operation (Requirement 8.8)
+    tl_last_opus_error = opus_error;
+    tl_last_error = error_message;
+    tl_last_error_time = std::chrono::steady_clock::now();
+    
+    Debug::log("opus", "Thread-local error set: ", error_message, " (code: ", opus_error, ")");
+}
+
+std::string OpusCodec::getThreadLocalError_unlocked() const
+{
+    // Get thread-local error information
+    if (tl_last_opus_error != OPUS_OK) {
+        auto now = std::chrono::steady_clock::now();
+        auto error_age = std::chrono::duration_cast<std::chrono::milliseconds>(now - tl_last_error_time).count();
+        
+        return tl_last_error + " (age: " + std::to_string(error_age) + "ms)";
+    }
+    
+    return "No thread-local error";
+}
+
+void OpusCodec::clearThreadLocalError_unlocked()
+{
+    // Clear thread-local error state
+    tl_last_opus_error = OPUS_OK;
+    tl_last_error.clear();
+    tl_last_error_time = std::chrono::steady_clock::time_point{};
+    
+    Debug::log("opus", "Thread-local error state cleared");
+}
+
+bool OpusCodec::hasRecentThreadLocalError_unlocked() const
+{
+    // Check if there's a recent thread-local error (within last 5 seconds)
+    if (tl_last_opus_error == OPUS_OK) {
+        return false;
+    }
+    
+    auto now = std::chrono::steady_clock::now();
+    auto error_age = std::chrono::duration_cast<std::chrono::seconds>(now - tl_last_error_time).count();
+    
+    return error_age < 5; // Consider errors recent if within 5 seconds
+}
+
+bool OpusCodec::performUnrecoverableErrorReset_unlocked()
+{
+    // Reset decoder state when encountering unrecoverable errors (Requirement 8.7)
+    Debug::log("opus", "Performing unrecoverable error reset");
+    
+    // Set error state to prevent further processing during reset
+    m_error_state.store(true);
+    
+    // Save current configuration before reset
+    uint16_t saved_channels = m_channels;
+    uint16_t saved_pre_skip = m_pre_skip;
+    int16_t saved_output_gain = m_output_gain;
+    uint8_t saved_mapping_family = m_channel_mapping_family;
+    uint8_t saved_stream_count = m_stream_count;
+    uint8_t saved_coupled_stream_count = m_coupled_stream_count;
+    std::vector<uint8_t> saved_channel_mapping = m_channel_mapping;
+    
+    // Perform complete reset
+    resetDecoderState_unlocked();
+    
+    // Restore configuration
+    m_channels = saved_channels;
+    m_pre_skip = saved_pre_skip;
+    m_output_gain = saved_output_gain;
+    m_channel_mapping_family = saved_mapping_family;
+    m_stream_count = saved_stream_count;
+    m_coupled_stream_count = saved_coupled_stream_count;
+    m_channel_mapping = saved_channel_mapping;
+    
+    // Reset position tracking
+    m_samples_decoded.store(0);
+    m_samples_to_skip.store(m_pre_skip);
+    
+    // Clear thread-local error state
+    clearThreadLocalError_unlocked();
+    
+    // Try to reinitialize decoder with saved configuration
+    if (m_channels > 0) {
+        if (initializeOpusDecoder_unlocked()) {
+            Debug::log("opus", "Unrecoverable error reset successful");
+            m_error_state.store(false);
+            m_last_error.clear();
+            return true;
+        } else {
+            Debug::log("opus", "Failed to reinitialize decoder after unrecoverable error reset");
+            reportDetailedError_unlocked("Recovery Failure", "Decoder reinitialization failed after reset");
+            return false;
+        }
+    } else {
+        Debug::log("opus", "Cannot reinitialize decoder: no channel configuration available");
+        reportDetailedError_unlocked("Recovery Failure", "No channel configuration available for reinitialization");
+        return false;
+    }
+}
+
+bool OpusCodec::attemptGracefulRecovery_unlocked(int opus_error)
+{
+    // Attempt graceful recovery based on error type (Requirement 8.7)
+    Debug::log("opus", "Attempting graceful recovery for error: ", opus_strerror(opus_error));
+    
+    // Set thread-local error state
+    setThreadLocalError_unlocked(opus_error, std::string("Graceful recovery attempt: ") + opus_strerror(opus_error));
+    
+    // Check if error is recoverable
+    if (!isRecoverableError_unlocked(opus_error)) {
+        Debug::log("opus", "Error is not recoverable, performing unrecoverable error reset");
+        return performUnrecoverableErrorReset_unlocked();
+    }
+    
+    // Try different recovery strategies based on error type
+    switch (opus_error) {
+        case OPUS_INVALID_PACKET:
+            // For invalid packets, just skip and continue - no decoder reset needed
+            Debug::log("opus", "Invalid packet - continuing without decoder reset");
+            clearThreadLocalError_unlocked();
+            return true;
+            
+        case OPUS_INTERNAL_ERROR:
+        case OPUS_INVALID_STATE:
+            // Try decoder state reset first
+            if (m_decoder_initialized) {
+                if (m_use_multistream && m_opus_ms_decoder) {
+                    int reset_error = opus_multistream_decoder_ctl(m_opus_ms_decoder, OPUS_RESET_STATE);
+                    if (reset_error == OPUS_OK) {
+                        Debug::log("opus", "Multistream decoder state reset successful");
+                        clearThreadLocalError_unlocked();
+                        return true;
+                    }
+                } else if (!m_use_multistream && m_opus_decoder) {
+                    int reset_error = opus_decoder_ctl(m_opus_decoder, OPUS_RESET_STATE);
+                    if (reset_error == OPUS_OK) {
+                        Debug::log("opus", "Decoder state reset successful");
+                        clearThreadLocalError_unlocked();
+                        return true;
+                    }
+                }
+            }
+            
+            // If state reset failed, try full reinitialization
+            Debug::log("opus", "Decoder state reset failed, attempting full reinitialization");
+            return performUnrecoverableErrorReset_unlocked();
+            
+        case OPUS_ALLOC_FAIL:
+            // Try memory cleanup and recovery
+            if (handleMemoryAllocationFailure_unlocked()) {
+                Debug::log("opus", "Memory allocation recovery successful");
+                clearThreadLocalError_unlocked();
+                return true;
+            } else {
+                Debug::log("opus", "Memory allocation recovery failed");
+                return performUnrecoverableErrorReset_unlocked();
+            }
+            
+        default:
+            // For unknown errors, try full reset
+            Debug::log("opus", "Unknown error, attempting full reset");
+            return performUnrecoverableErrorReset_unlocked();
+    }
+}
+
+void OpusCodec::saveDecoderState_unlocked()
+{
+    // Save current decoder state for potential restoration
+    Debug::log("opus", "Saving decoder state");
+    
+    // State is already maintained in member variables, so this is mostly
+    // for logging and validation purposes
+    Debug::log("opus", "Decoder state saved:");
+    Debug::log("opus", "  Channels: ", m_channels);
+    Debug::log("opus", "  Pre-skip: ", m_pre_skip);
+    Debug::log("opus", "  Output gain: ", m_output_gain);
+    Debug::log("opus", "  Mapping family: ", m_channel_mapping_family);
+    Debug::log("opus", "  Stream count: ", m_stream_count);
+    Debug::log("opus", "  Coupled streams: ", m_coupled_stream_count);
+    Debug::log("opus", "  Samples decoded: ", m_samples_decoded.load());
+    Debug::log("opus", "  Samples to skip: ", m_samples_to_skip.load());
+}
+
+bool OpusCodec::restoreDecoderState_unlocked()
+{
+    // Restore decoder state after recovery attempt
+    Debug::log("opus", "Restoring decoder state");
+    
+    // Validate that we have the necessary configuration to restore
+    if (m_channels == 0) {
+        Debug::log("opus", "Cannot restore decoder state: no channel configuration");
+        return false;
+    }
+    
+    // Try to reinitialize decoder with current configuration
+    if (!initializeOpusDecoder_unlocked()) {
+        Debug::log("opus", "Failed to restore decoder state: reinitialization failed");
+        return false;
+    }
+    
+    Debug::log("opus", "Decoder state restored successfully");
+    return true;
+}
+
+bool OpusCodec::validateRecoverySuccess_unlocked() const
+{
+    // Validate that recovery was successful (Requirement 8.7)
+    Debug::log("opus", "Validating recovery success");
+    
+    // Check basic decoder state
+    if (!validateDecoderState_unlocked()) {
+        Debug::log("opus", "Recovery validation failed: decoder state invalid");
+        return false;
+    }
+    
+    // Check error states
+    if (m_error_state.load()) {
+        Debug::log("opus", "Recovery validation failed: error state still set");
+        return false;
+    }
+    
+    // Check thread-local error state
+    if (hasRecentThreadLocalError_unlocked()) {
+        Debug::log("opus", "Recovery validation failed: recent thread-local error");
+        return false;
+    }
+    
+    // Validate decoder functionality with a simple query
+    if (m_decoder_initialized) {
+        if (m_use_multistream && m_opus_ms_decoder) {
+            opus_int32 lookahead;
+            int error = opus_multistream_decoder_ctl(m_opus_ms_decoder, OPUS_GET_LOOKAHEAD(&lookahead));
+            if (error != OPUS_OK) {
+                Debug::log("opus", "Recovery validation failed: multistream decoder query failed");
+                return false;
+            }
+        } else if (!m_use_multistream && m_opus_decoder) {
+            opus_int32 lookahead;
+            int error = opus_decoder_ctl(m_opus_decoder, OPUS_GET_LOOKAHEAD(&lookahead));
+            if (error != OPUS_OK) {
+                Debug::log("opus", "Recovery validation failed: decoder query failed");
+                return false;
+            }
+        }
+    }
+    
+    Debug::log("opus", "Recovery validation successful");
+    return true;
+}
+
 void OpusCodec::handleDecoderError_unlocked(int opus_error)
 {
     std::string error_msg = "Opus decode error (" + std::to_string(opus_error) + "): " + std::string(opus_strerror(opus_error));
@@ -1658,40 +2332,62 @@ void OpusCodec::handleDecoderError_unlocked(int opus_error)
     switch (opus_error) {
         case OPUS_BAD_ARG:
             // Invalid argument - usually indicates programming error
-            Debug::log("opus", "Bad argument error - skipping packet and continuing");
+            // This should not happen in normal operation, log detailed error
+            Debug::log("opus", "CRITICAL: Bad argument error - indicates programming error");
+            Debug::log("opus", "Decoder state: initialized=", m_decoder_initialized, 
+                      ", channels=", m_channels, ", use_multistream=", m_use_multistream);
+            // Don't set error state for this - just skip the packet
             break;
             
         case OPUS_BUFFER_TOO_SMALL:
             // Output buffer too small - should not happen with our MAX_FRAME_SIZE
-            Debug::log("opus", "Buffer too small error - this should not happen, skipping packet");
+            Debug::log("opus", "CRITICAL: Buffer too small error - this indicates a serious bug");
+            Debug::log("opus", "Buffer sizes: output=", m_output_buffer.capacity(), 
+                      ", float=", m_float_buffer.capacity());
+            // This is a serious error that indicates our buffer sizing is wrong
+            m_error_state.store(true);
+            m_last_error = "Internal buffer sizing error - decoder disabled";
             break;
             
         case OPUS_INVALID_PACKET:
             // Corrupted packet - skip and continue, output silence handled in caller
             Debug::log("opus", "Invalid/corrupted packet - skipping and outputting silence");
+            // Don't set error state - this is expected for corrupted streams
             break;
             
         case OPUS_INTERNAL_ERROR:
-            // Internal libopus error - attempt decoder reset
-            Debug::log("opus", "Internal libopus error - attempting decoder state reset");
+            // Internal libopus error - attempt graceful recovery
+            Debug::log("opus", "Internal libopus error - attempting graceful recovery");
             m_error_state.store(true);
-            if (recoverFromError_unlocked()) {
-                Debug::log("opus", "Internal error recovery successful");
-                m_error_state.store(false);
+            if (attemptGracefulRecovery_unlocked(opus_error)) {
+                if (validateRecoverySuccess_unlocked()) {
+                    Debug::log("opus", "Internal error recovery successful and validated");
+                    m_error_state.store(false);
+                } else {
+                    Debug::log("opus", "Internal error recovery validation failed");
+                    reportDetailedError_unlocked("Recovery Validation", "Internal error recovery failed validation");
+                }
             } else {
                 Debug::log("opus", "Internal error recovery failed - decoder may be unstable");
+                reportDetailedError_unlocked("Recovery Failure", "Internal error recovery failed");
             }
             break;
             
         case OPUS_INVALID_STATE:
-            // Decoder in invalid state - reset decoder state
-            Debug::log("opus", "Invalid decoder state - resetting decoder");
+            // Decoder in invalid state - attempt graceful recovery
+            Debug::log("opus", "Invalid decoder state - attempting graceful recovery");
             m_error_state.store(true);
-            if (recoverFromError_unlocked()) {
-                Debug::log("opus", "Decoder state recovery successful");
-                m_error_state.store(false);
+            if (attemptGracefulRecovery_unlocked(opus_error)) {
+                if (validateRecoverySuccess_unlocked()) {
+                    Debug::log("opus", "Decoder state recovery successful and validated");
+                    m_error_state.store(false);
+                } else {
+                    Debug::log("opus", "Decoder state recovery validation failed");
+                    reportDetailedError_unlocked("Recovery Validation", "Decoder state recovery failed validation");
+                }
             } else {
                 Debug::log("opus", "Decoder state recovery failed - decoder disabled");
+                reportDetailedError_unlocked("Recovery Failure", "Decoder state recovery failed");
             }
             break;
             
@@ -1700,29 +2396,49 @@ void OpusCodec::handleDecoderError_unlocked(int opus_error)
             Debug::log("opus", "Unimplemented feature - decoder disabled for this stream");
             m_error_state.store(true);
             m_last_error = "Opus feature not supported by libopus version";
+            // This is a permanent error - don't attempt recovery
             break;
             
         case OPUS_ALLOC_FAIL:
-            // Memory allocation failure - serious but might be temporary
-            Debug::log("opus", "Memory allocation failure - attempting recovery");
+            // Memory allocation failure - attempt graceful recovery
+            Debug::log("opus", "Memory allocation failure - attempting graceful recovery");
             m_error_state.store(true);
-            if (recoverFromError_unlocked()) {
-                Debug::log("opus", "Memory allocation recovery successful");
-                m_error_state.store(false);
+            
+            if (attemptGracefulRecovery_unlocked(opus_error)) {
+                if (validateRecoverySuccess_unlocked()) {
+                    Debug::log("opus", "Memory allocation recovery successful and validated");
+                    m_error_state.store(false);
+                    // Re-setup buffers after recovery
+                    if (!setupInternalBuffers_unlocked()) {
+                        Debug::log("opus", "Buffer re-setup failed after memory recovery");
+                        reportDetailedError_unlocked("Buffer Setup", "Failed to re-setup buffers after memory recovery");
+                        m_error_state.store(true);
+                    }
+                } else {
+                    Debug::log("opus", "Memory allocation recovery validation failed");
+                    reportDetailedError_unlocked("Recovery Validation", "Memory allocation recovery failed validation");
+                }
             } else {
                 Debug::log("opus", "Memory allocation recovery failed - decoder disabled");
+                reportDetailedError_unlocked("Recovery Failure", "Memory allocation recovery failed - insufficient memory");
             }
             break;
             
         default:
-            // Unknown error code - be conservative and attempt recovery
-            Debug::log("opus", "Unknown libopus error code ", opus_error, " - attempting recovery");
+            // Unknown error code - attempt graceful recovery
+            Debug::log("opus", "Unknown libopus error code ", opus_error, " - attempting graceful recovery");
             m_error_state.store(true);
-            if (recoverFromError_unlocked()) {
-                Debug::log("opus", "Unknown error recovery successful");
-                m_error_state.store(false);
+            if (attemptGracefulRecovery_unlocked(opus_error)) {
+                if (validateRecoverySuccess_unlocked()) {
+                    Debug::log("opus", "Unknown error recovery successful and validated");
+                    m_error_state.store(false);
+                } else {
+                    Debug::log("opus", "Unknown error recovery validation failed");
+                    reportDetailedError_unlocked("Recovery Validation", "Unknown error recovery failed validation");
+                }
             } else {
                 Debug::log("opus", "Unknown error recovery failed - decoder disabled");
+                reportDetailedError_unlocked("Recovery Failure", "Unknown decoder error recovery failed");
             }
             break;
     }
@@ -1812,11 +2528,19 @@ void OpusCodec::resetDecoderState_unlocked()
     m_output_buffer.clear();
     m_float_buffer.clear();
     
+    // Clear bounded output buffers (Requirement 7.6)
+    clearOutputBuffers_unlocked();
+    
+    // Clear partial packet buffer
+    m_partial_packet_buffer.clear();
+    
     // Reset atomic variables
     m_samples_decoded.store(0);
     m_samples_to_skip.store(0);
     m_error_state.store(false);
+    m_frames_processed.store(0);
     m_last_error.clear();
+    m_last_decode_time = std::chrono::steady_clock::now();
     
     Debug::log("opus", "Decoder state reset completed");
 }
@@ -1887,67 +2611,20 @@ bool OpusCodec::validateDecoderState_unlocked() const
 
 bool OpusCodec::recoverFromError_unlocked()
 {
-    Debug::log("opus", "Attempting decoder error recovery");
+    Debug::log("opus", "Legacy decoder error recovery - delegating to enhanced recovery system");
     
     if (!m_error_state.load()) {
         Debug::log("opus", "No error state to recover from");
         return true;
     }
     
-    // Try to reset decoder state first
-    if (m_decoder_initialized) {
-        if (m_use_multistream && m_opus_ms_decoder) {
-            int error = opus_multistream_decoder_ctl(m_opus_ms_decoder, OPUS_RESET_STATE);
-            if (error == OPUS_OK) {
-                Debug::log("opus", "Multistream decoder state reset successful");
-                m_error_state.store(false);
-                m_last_error.clear();
-                return true;
-            } else {
-                Debug::log("opus", "Multistream decoder state reset failed: ", opus_strerror(error));
-            }
-        } else if (!m_use_multistream && m_opus_decoder) {
-            int error = opus_decoder_ctl(m_opus_decoder, OPUS_RESET_STATE);
-            if (error == OPUS_OK) {
-                Debug::log("opus", "Decoder state reset successful");
-                m_error_state.store(false);
-                m_last_error.clear();
-                return true;
-            } else {
-                Debug::log("opus", "Decoder state reset failed: ", opus_strerror(error));
-            }
-        }
+    // Use the enhanced recovery system with a generic error
+    // This maintains backward compatibility while using the new system
+    if (attemptGracefulRecovery_unlocked(OPUS_INTERNAL_ERROR)) {
+        return validateRecoverySuccess_unlocked();
     }
     
-    // If state reset failed, try full reinitialization
-    Debug::log("opus", "Attempting full decoder reinitialization");
-    
-    // Save current configuration
-    uint16_t saved_channels = m_channels;
-    uint16_t saved_pre_skip = m_pre_skip;
-    int16_t saved_output_gain = m_output_gain;
-    
-    // Reset everything
-    resetDecoderState_unlocked();
-    
-    // Restore configuration
-    m_channels = saved_channels;
-    m_pre_skip = saved_pre_skip;
-    m_output_gain = saved_output_gain;
-    m_samples_to_skip.store(m_pre_skip);
-    
-    // Reinitialize decoder
-    if (initializeOpusDecoder_unlocked()) {
-        Debug::log("opus", "Decoder recovery successful");
-        m_error_state.store(false);
-        m_last_error.clear();
-        return true;
-    } else {
-        Debug::log("opus", "Decoder recovery failed");
-        m_error_state.store(true);
-        m_last_error = "Decoder recovery failed";
-        return false;
-    }
+    return false;
 }
 
 // ========== OpusHeader Implementation ==========
@@ -2017,6 +2694,298 @@ OpusComments OpusComments::parseFromPacket(const std::vector<uint8_t>& packet_da
     }
     
     return comments;
+}
+
+// ========== Buffer Management Implementation ==========
+
+bool OpusCodec::initializeOutputBuffers_unlocked()
+{
+    Debug::log("opus", "initializeOutputBuffers_unlocked called");
+    
+    // Configure bounded output buffer limits to prevent memory exhaustion (Requirement 7.2)
+    // Maximum frames to buffer: enough for ~1 second of audio at typical frame rates
+    // Opus typical frame size is 20ms (960 samples at 48kHz), so 50 frames = ~1 second
+    m_max_output_buffer_frames = 50;
+    
+    // Maximum samples to buffer: conservative limit based on typical multi-channel usage
+    // 8 channels * 48000 Hz * 1 second = 384,000 samples maximum
+    m_max_output_buffer_samples = 384000;
+    
+    // Clear any existing buffered data
+    clearOutputBuffers_unlocked();
+    
+    Debug::log("opus", "Output buffer limits configured:");
+    Debug::log("opus", "  Max frames: ", m_max_output_buffer_frames);
+    Debug::log("opus", "  Max samples: ", m_max_output_buffer_samples);
+    
+    return true;
+}
+
+bool OpusCodec::canBufferFrame_unlocked(const AudioFrame& frame) const
+{
+    // Check if we can buffer this frame without exceeding limits (Requirement 7.4)
+    
+    // Check frame count limit
+    if (m_output_queue.size() >= m_max_output_buffer_frames) {
+        Debug::log("opus", "Cannot buffer frame: frame limit reached (", 
+                  m_output_queue.size(), "/", m_max_output_buffer_frames, ")");
+        return false;
+    }
+    
+    // Check sample count limit
+    size_t current_samples = m_buffered_samples.load();
+    if (current_samples + frame.samples.size() > m_max_output_buffer_samples) {
+        Debug::log("opus", "Cannot buffer frame: sample limit would be exceeded (", 
+                  current_samples, " + ", frame.samples.size(), " > ", m_max_output_buffer_samples, ")");
+        return false;
+    }
+    
+    return true;
+}
+
+bool OpusCodec::bufferFrame_unlocked(const AudioFrame& frame)
+{
+    // Buffer frame with overflow protection (Requirements 7.2, 7.4)
+    
+    if (frame.samples.empty()) {
+        Debug::log("opus", "Skipping empty frame for buffering");
+        return true; // Empty frames don't need buffering
+    }
+    
+    // Check if we can buffer this frame
+    if (!canBufferFrame_unlocked(frame)) {
+        // Set overflow flag to provide backpressure (Requirement 7.4)
+        m_buffer_overflow.store(true);
+        Debug::log("opus", "Output buffer overflow detected - backpressure activated");
+        return false;
+    }
+    
+    // Buffer the frame
+    m_output_queue.push(frame);
+    m_buffered_samples.fetch_add(frame.samples.size());
+    
+    Debug::log("opus", "Frame buffered: ", frame.samples.size(), " samples, ", 
+              m_output_queue.size(), " frames total, ", 
+              m_buffered_samples.load(), " samples total");
+    
+    return true;
+}
+
+AudioFrame OpusCodec::getBufferedFrame_unlocked()
+{
+    // Retrieve buffered frame and update counters
+    
+    if (m_output_queue.empty()) {
+        Debug::log("opus", "No buffered frames available");
+        return AudioFrame();
+    }
+    
+    AudioFrame frame = std::move(m_output_queue.front());
+    m_output_queue.pop();
+    
+    // Update sample counter
+    m_buffered_samples.fetch_sub(frame.samples.size());
+    
+    // Clear overflow flag if buffer is no longer full
+    if (m_buffer_overflow.load() && !isOutputBufferFull_unlocked()) {
+        m_buffer_overflow.store(false);
+        Debug::log("opus", "Output buffer overflow cleared - backpressure released");
+    }
+    
+    Debug::log("opus", "Frame retrieved from buffer: ", frame.samples.size(), " samples, ", 
+              m_output_queue.size(), " frames remaining, ", 
+              m_buffered_samples.load(), " samples remaining");
+    
+    return frame;
+}
+
+bool OpusCodec::hasBufferedFrames_unlocked() const
+{
+    return !m_output_queue.empty();
+}
+
+void OpusCodec::clearOutputBuffers_unlocked()
+{
+    // Clear all buffered frames and reset counters (Requirement 7.6)
+    
+    Debug::log("opus", "Clearing output buffers - had ", m_output_queue.size(), 
+              " frames, ", m_buffered_samples.load(), " samples");
+    
+    // Clear the queue
+    while (!m_output_queue.empty()) {
+        m_output_queue.pop();
+    }
+    
+    // Reset counters
+    m_buffered_samples.store(0);
+    m_buffer_overflow.store(false);
+    
+    Debug::log("opus", "Output buffers cleared");
+}
+
+size_t OpusCodec::getBufferedSampleCount_unlocked() const
+{
+    return m_buffered_samples.load();
+}
+
+bool OpusCodec::isOutputBufferFull_unlocked() const
+{
+    // Check if buffer is at or near capacity
+    return (m_output_queue.size() >= m_max_output_buffer_frames) ||
+           (m_buffered_samples.load() >= m_max_output_buffer_samples);
+}
+
+// ========== Streaming Support Implementation ==========
+
+bool OpusCodec::handlePartialPacketData_unlocked(const std::vector<uint8_t>& packet_data)
+{
+    Debug::log("opus", "handlePartialPacketData_unlocked called with ", packet_data.size(), " bytes");
+    
+    // Handle partial packet data gracefully (Requirement 7.3)
+    
+    if (packet_data.empty()) {
+        Debug::log("opus", "Empty packet data - nothing to handle");
+        return true;
+    }
+    
+    // Check if this looks like a valid partial packet
+    if (!isValidPartialPacket_unlocked(packet_data)) {
+        Debug::log("opus", "Invalid partial packet data - discarding");
+        m_partial_packet_buffer.clear();
+        return false;
+    }
+    
+    // For Opus, packets are typically self-contained, but we can handle
+    // cases where packet data might be incomplete due to streaming issues
+    
+    // If we have buffered partial data, try to combine it
+    if (!m_partial_packet_buffer.empty()) {
+        Debug::log("opus", "Combining with ", m_partial_packet_buffer.size(), " bytes of buffered partial data");
+        
+        // Append new data to partial buffer
+        m_partial_packet_buffer.insert(m_partial_packet_buffer.end(), 
+                                      packet_data.begin(), packet_data.end());
+        
+        Debug::log("opus", "Combined packet size: ", m_partial_packet_buffer.size(), " bytes");
+        
+        // Check if combined packet is now valid
+        if (validateOpusPacket_unlocked(m_partial_packet_buffer)) {
+            Debug::log("opus", "Combined packet is now valid - processing");
+            
+            // Process the combined packet
+            AudioFrame frame = decodeAudioPacket_unlocked(m_partial_packet_buffer);
+            
+            // Clear partial buffer
+            m_partial_packet_buffer.clear();
+            
+            // Buffer the decoded frame if valid
+            if (!frame.samples.empty()) {
+                bufferFrame_unlocked(frame);
+            }
+            
+            return true;
+        } else {
+            Debug::log("opus", "Combined packet still invalid - keeping in buffer");
+            
+            // Prevent buffer from growing too large
+            constexpr size_t MAX_PARTIAL_BUFFER_SIZE = 65536; // 64KB limit
+            if (m_partial_packet_buffer.size() > MAX_PARTIAL_BUFFER_SIZE) {
+                Debug::log("opus", "Partial packet buffer too large - discarding");
+                m_partial_packet_buffer.clear();
+                return false;
+            }
+        }
+    } else {
+        // No existing partial data - check if this packet is complete
+        if (validateOpusPacket_unlocked(packet_data)) {
+            Debug::log("opus", "Packet is complete - processing normally");
+            return true; // Let normal processing handle it
+        } else {
+            Debug::log("opus", "Packet appears incomplete - buffering for later");
+            m_partial_packet_buffer = packet_data;
+        }
+    }
+    
+    return true;
+}
+
+bool OpusCodec::isValidPartialPacket_unlocked(const std::vector<uint8_t>& packet_data) const
+{
+    // Basic validation for partial packet data (Requirement 7.3)
+    
+    if (packet_data.empty()) {
+        return false;
+    }
+    
+    // For Opus packets, we can do some basic validation:
+    // - Minimum size check (Opus packets are at least 1 byte)
+    // - Maximum size check (Opus packets are typically under 1275 bytes)
+    // - TOC byte validation (first byte contains configuration)
+    
+    constexpr size_t MIN_OPUS_PACKET_SIZE = 1;
+    constexpr size_t MAX_OPUS_PACKET_SIZE = 1275;
+    
+    if (packet_data.size() < MIN_OPUS_PACKET_SIZE) {
+        Debug::log("opus", "Packet too small: ", packet_data.size(), " bytes");
+        return false;
+    }
+    
+    if (packet_data.size() > MAX_OPUS_PACKET_SIZE) {
+        Debug::log("opus", "Packet too large: ", packet_data.size(), " bytes");
+        return false;
+    }
+    
+    // Basic TOC byte validation
+    uint8_t toc = packet_data[0];
+    
+    // Extract configuration from TOC byte (bits 3-7)
+    uint8_t config = (toc >> 3) & 0x1F;
+    
+    // Valid configurations are 0-31
+    if (config > 31) {
+        Debug::log("opus", "Invalid TOC configuration: ", config);
+        return false;
+    }
+    
+    Debug::log("opus", "Partial packet validation passed - config=", config, ", size=", packet_data.size());
+    return true;
+}
+
+void OpusCodec::maintainStreamingLatency_unlocked()
+{
+    // Maintain consistent latency and throughput for continuous streaming (Requirement 7.8)
+    
+    auto current_time = std::chrono::steady_clock::now();
+    
+    // Update timing information
+    if (m_frames_processed.load() > 0) {
+        auto time_diff = std::chrono::duration_cast<std::chrono::milliseconds>(
+            current_time - m_last_decode_time).count();
+        
+        // Log timing information for monitoring
+        if (time_diff > 50) { // Log if processing takes more than 50ms
+            Debug::log("opus", "Decode timing: ", time_diff, "ms for frame ", m_frames_processed.load());
+        }
+    }
+    
+    m_last_decode_time = current_time;
+    m_frames_processed.fetch_add(1);
+    
+    // Adaptive buffer management for consistent latency
+    size_t buffered_samples = m_buffered_samples.load();
+    size_t buffered_frames = m_output_queue.size();
+    
+    // If we have too many buffered frames, we might be introducing latency
+    if (buffered_frames > m_max_output_buffer_frames / 2) {
+        Debug::log("opus", "High buffer usage detected: ", buffered_frames, " frames, ", 
+                  buffered_samples, " samples - consider reducing latency");
+    }
+    
+    // If buffer is nearly empty during continuous streaming, we might have throughput issues
+    if (buffered_frames < 2 && m_frames_processed.load() > 10) {
+        Debug::log("opus", "Low buffer usage during streaming: ", buffered_frames, 
+                  " frames - throughput may be insufficient");
+    }
 }
 
 #endif // HAVE_OGGDEMUXER

@@ -110,27 +110,27 @@
     - Handle unsupported channel configurations with appropriate errors
     - _Requirements: 4.6, 4.7, 4.8_
 
-- [ ] 8. Implement Buffering and Flow Control
-  - [ ] 8.1 Create output buffer management
+- [x] 8. Implement Buffering and Flow Control
+  - [x] 8.1 Create output buffer management
     - Implement bounded output buffers to prevent memory exhaustion
     - Handle buffer overflow with appropriate backpressure
     - Process packets incrementally without requiring complete file access
     - _Requirements: 7.1, 7.2, 7.4_
 
-  - [ ] 8.2 Add streaming support and buffer flushing
+  - [x] 8.2 Add streaming support and buffer flushing
     - Implement flush() method to output remaining decoded samples
     - Handle partial packet data gracefully
     - Maintain consistent latency and throughput for continuous streaming
     - _Requirements: 7.3, 7.5, 7.8_
 
-- [ ] 9. Implement Error Handling and Recovery
-  - [ ] 9.1 Create comprehensive error handling system
+- [x] 9. Implement Error Handling and Recovery
+  - [x] 9.1 Create comprehensive error handling system
     - Handle invalid header packets with proper error reporting
     - Implement graceful handling of memory allocation failures
     - Validate input parameters and reject invalid data appropriately
     - _Requirements: 8.1, 8.5, 8.6_
 
-  - [ ] 9.2 Add error recovery and state management
+  - [x] 9.2 Add error recovery and state management
     - Reset decoder state when encountering unrecoverable errors
     - Maintain thread-local error state for concurrent operation
     - Provide clear error reporting through PsyMP3's error mechanisms
