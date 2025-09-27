@@ -221,3 +221,13 @@ tests/test_alaw_table_verification
 tests/test_demuxer_integration
 
 tests/test_media_factory_integration
+
+# Opus codec test executables
+tests/test_opus_codec_core_decoding
+tests/test_opus_codec_error_handling
+tests/test_opus_integration
+tests/test_opus_compatibility_performance
+tests/test_opus_multichannel
+
+# Additional test executables that may be generated
+tests/test_demuxer_performance
