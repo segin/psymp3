@@ -162,15 +162,15 @@
     - Ensure proper cleanup before codec destruction
     - _Requirements: 10.7, 10.8, 11.8_
 
-- [ ] 12. Create Comprehensive Unit Tests
-  - [ ] 12.1 Test core decoding functionality
+- [x] 12. Create Comprehensive Unit Tests
+  - [x] 12.1 Test core decoding functionality
     - Write tests for Opus header processing (ID and comment headers)
     - Test audio packet decoding with various frame sizes and modes
     - Verify pre-skip and gain processing correctness
     - Test multi-channel configurations and channel mapping
     - _Requirements: 1.1, 1.2, 1.3, 1.5, 5.1, 5.2, 4.1, 4.2_
 
-  - [ ] 12.2 Test error handling and edge cases
+  - [x] 12.2 Test error handling and edge cases
     - Test handling of corrupted packets and invalid headers
     - Verify error recovery and decoder state reset functionality
     - Test memory allocation failure scenarios
