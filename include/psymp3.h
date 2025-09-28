@@ -415,7 +415,7 @@ typedef struct bio_st BIO;
 #include "playlist.h"
 #include "player.h"
 #include "MPRISTypes.h"
-#include "MPRISLogger.h"
+#include "MPRISDebugMacros.h"
 #include "DBusConnectionManager.h"
 #include "PropertyManager.h"
 #include "MethodHandler.h"

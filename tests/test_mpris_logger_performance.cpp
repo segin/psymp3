@@ -11,7 +11,6 @@
 
 #ifdef HAVE_DBUS
 
-#include "MPRISLogger.h"
 #include "test_framework.h"
 #include <thread>
 #include <vector>

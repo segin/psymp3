@@ -11,6 +11,9 @@
 # Enable memory debugging (for performance issues)
 ./psymp3 --debug=memory music.flac
 
+# Enable MPRIS debugging (for media player interface issues)
+./psymp3 --debug=mpris,dbus music.flac
+
 # Enable multiple channels
 ./psymp3 --debug=flac,memory,io music.flac
 
@@ -40,6 +43,9 @@
 
 # Debugging Ogg/Vorbis files
 ./psymp3 --debug=ogg,vorbis problem.ogg
+
+# Debugging MPRIS interface issues
+./psymp3 --debug=mpris,dbus music.flac
 
 # Full debugging session (save to file - console will be flooded!)
 ./psymp3 --debug=all --logfile=full_debug.log problem_file.flac
@@ -86,6 +92,8 @@
 - **`spectrum`** - Spectrum analyzer and visualization
 - **`font`** - Font rendering and text operations
 - **`widget`** - UI widget debugging (runtime toggle with 'r' key)
+- **`mpris`** - MPRIS media player interface operations
+- **`dbus`** - D-Bus connection and message handling
 
 ### Infrastructure Channels  
 - **`raii`** - RAII resource management and lifecycle tracking
@@ -571,6 +579,52 @@ Debug::init("", all_channels); // Empty string = console output
 - Event handling and propagation
 - Layout calculations
 
+### `mpris`
+**Purpose**: MPRIS media player interface operations
+
+**Components**:
+- `MPRISManager` - Main MPRIS interface management
+- `PropertyManager` - MPRIS property handling and updates
+- `MethodHandler` - MPRIS method call processing
+- `SignalEmitter` - MPRIS signal emission and event handling
+
+**Example Output**:
+```
+14:32:15.140123 [mpris]: [MPRISManager] MPRIS interface initialized successfully
+14:32:15.140678 [mpris]: [PropertyManager] Property updated: PlaybackStatus = Playing
+14:32:15.141234 [mpris]: [MethodHandler] Method call received: Play()
+14:32:15.141789 [mpris]: [SignalEmitter] Emitting PropertiesChanged signal
+```
+
+**Key Events**:
+- MPRIS interface initialization and shutdown
+- Property updates (PlaybackStatus, Metadata, Position, etc.)
+- Method call processing (Play, Pause, Stop, Seek, etc.)
+- Signal emission for property changes
+- Error handling and recovery operations
+
+### `dbus`
+**Purpose**: D-Bus connection and message handling
+
+**Components**:
+- `DBusConnectionManager` - D-Bus connection lifecycle management
+- D-Bus message tracing and debugging
+
+**Example Output**:
+```
+14:32:15.142345 [dbus]: [DBusConnectionManager] D-Bus connection established successfully
+14:32:15.142901 [dbus]: [DBusConnectionManager] Connection state changed: Connected
+14:32:15.143456 [dbus]: OUTGOING D-Bus message (method call)
+14:32:15.144012 [dbus]: INCOMING D-Bus message (signal)
+```
+
+**Key Events**:
+- D-Bus connection establishment and teardown
+- Connection state changes and monitoring
+- D-Bus message tracing (incoming/outgoing)
+- Connection error handling and recovery
+- Service registration and name acquisition
+
 ## Infrastructure Channels
 
 ### `raii`
@@ -893,6 +947,27 @@ Configure debug channels at build time:
 # ✗ "Failed to allocate X bytes"
 ```
 
+### "MPRIS interface not working"
+
+```bash
+# Enable MPRIS debugging
+./psymp3 --debug=mpris,dbus music.flac
+
+# Look for these messages:
+# ✓ Good: "[MPRISManager] MPRIS interface initialized successfully"
+# ✓ Good: "[DBusConnectionManager] D-Bus connection established successfully"
+# ✗ Bad: "[DBusConnectionManager] ERROR: Failed to connect to D-Bus"
+# ✗ Bad: "[MPRISManager] ERROR: Failed to register MPRIS service"
+
+# Step 2: If D-Bus connection issues, check system D-Bus
+./psymp3 --debug=dbus --logfile=dbus_debug.log music.flac
+
+# Look for:
+# ✓ Good: "Connection state changed: Connected"
+# ✗ Bad: "Connection state changed: Disconnected"
+# ✗ Bad: "D-Bus service registration failed"
+```
+
 ### Common Issues
 
 1. **No debug output**: Check you're using `--debug=channel` not `--debug-channel`
@@ -917,6 +992,7 @@ if (Debug::isChannelEnabled("flac")) {
 ./psymp3 --debug=flac problem.flac        # For FLAC issues
 ./psymp3 --debug=ogg problem.ogg          # For Ogg issues  
 ./psymp3 --debug=memory slow_performance   # For performance issues
+./psymp3 --debug=mpris music.flac          # For MPRIS interface issues
 ```
 
 #### 2. Add Related Channels
@@ -926,6 +1002,9 @@ if (Debug::isChannelEnabled("flac")) {
 
 # If memory issues, add I/O debugging
 ./psymp3 --debug=memory,io --logfile=debug.log problem.flac
+
+# If MPRIS interface issues, add D-Bus debugging
+./psymp3 --debug=mpris,dbus --logfile=mpris_debug.log music.flac
 ```
 
 #### 3. Full Debug (Last Resort)
@@ -957,6 +1036,12 @@ grep "limit exceeded" debug.log
 
 # Find FLAC-specific issues
 grep "\[flac\].*failed\|error\|exception" debug.log
+
+# Find MPRIS-specific issues
+grep "\[mpris\].*ERROR\|FATAL\|failed" debug.log
+
+# Find D-Bus connection issues
+grep "\[dbus\].*ERROR\|failed\|Disconnected" debug.log
 ```
 
 ## Future Enhancements

@@ -79,5 +79,4 @@
 #include "MethodHandler.cpp"
 #include "SignalEmitter.cpp"
 #include "MPRISManager.cpp"
-#include "MPRISLogger.cpp"
 #endif
