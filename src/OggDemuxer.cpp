@@ -828,8 +828,8 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     }
 
     // If the queue is empty, read more data until we get a packet for our stream
-    int retry_count = 0;
-    const int max_retries = 3;
+    int error_count = 0;
+    const int max_errors = 10; // Allow more attempts for "need more data" conditions
     
     bool queue_empty;
     {
@@ -837,14 +837,17 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
         queue_empty = stream.m_packet_queue.empty();
     }
     
-    while (queue_empty && !isEOFAtomic() && retry_count < max_retries) {
+    while (queue_empty && !isEOFAtomic()) {
+        Debug::log("ogg", "OggDemuxer::readChunk - Loop iteration: error_count=", error_count, ", max_errors=", max_errors, ", queue_empty=", queue_empty);
         // Try to read more data using reference implementation patterns
         bool read_success = performIOWithRetry([this]() {
             return readIntoSyncBuffer(4096);
         }, "reading Ogg data for packet queue");
         
         if (!read_success) {
-            if (m_fallback_mode || retry_count >= max_retries - 1) {
+            error_count++;
+            if (m_fallback_mode || error_count >= max_errors) {
+                Debug::log("ogg", "OggDemuxer::readChunk - Max I/O errors reached (", error_count, "), setting EOF");
                 setEOF(true);
                 break;
             }
@@ -856,9 +859,9 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
                 current_pos = m_handler->tell();
             }
             if (recoverFromCorruptedPage(current_pos)) {
-                retry_count++;
                 continue;
             } else {
+                Debug::log("ogg", "OggDemuxer::readChunk - Failed to recover from corrupted page, setting EOF");
                 setEOF(true);
                 break;
             }
@@ -869,26 +872,29 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
             int fetch_result = fetchAndProcessPacket();
             if (fetch_result < 0) {
                 // Error or EOF
+                Debug::log("ogg", "OggDemuxer::readChunk - fetchAndProcessPacket returned error (", fetch_result, "), setting EOF");
                 setEOF(true);
                 break;
             } else if (fetch_result == 0) {
-                // Need more data - continue reading
-                retry_count++;
-                if (retry_count >= max_retries) {
-                    Debug::log("ogg", "OggDemuxer::readChunk - Max retries reached, setting EOF");
+                // Need more data - this is NOT a failure, just continue reading
+                // Reset error count on successful I/O
+                error_count = 0;
+                continue;
+            }
+            // fetch_result == 1 means packet was processed successfully
+            error_count = 0; // Reset error count on successful processing
+        } catch (const std::exception& e) {
+            error_count++;
+            reportError("Processing", "Exception in fetchAndProcessPacket: " + std::string(e.what()));
+            if (isolateStreamError(stream_id, "fetchAndProcessPacket exception")) {
+                if (error_count >= max_errors) {
+                    Debug::log("ogg", "OggDemuxer::readChunk - Max processing errors reached (", error_count, "), setting EOF");
                     setEOF(true);
                     break;
                 }
                 continue;
-            }
-            // fetch_result == 1 means packet was processed successfully
-            retry_count = 0; // Reset retry count on successful processing
-        } catch (const std::exception& e) {
-            reportError("Processing", "Exception in fetchAndProcessPacket: " + std::string(e.what()));
-            if (isolateStreamError(stream_id, "fetchAndProcessPacket exception")) {
-                retry_count++;
-                continue;
             } else {
+                Debug::log("ogg", "OggDemuxer::readChunk - Failed to isolate stream error, setting EOF");
                 setEOF(true);
                 break;
             }
@@ -905,6 +911,7 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     {
         std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
         if (stream.m_packet_queue.empty()) {
+            Debug::log("ogg", "OggDemuxer::readChunk - No packets available and loop exited, setting EOF");
             setEOF(true);
             return MediaChunk{};
         }

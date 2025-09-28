@@ -133,9 +133,8 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
             bytes_written += bytes_copied;
             m_current_frame_offset += bytes_copied;
             
-            // Update samples consumed based on actual audio consumption
-            size_t samples_copied = bytes_copied / (sizeof(int16_t) * m_channels);
-            m_samples_consumed += samples_copied;
+            // Note: m_samples_consumed is now updated when we get new frames,
+            // not when we copy data to output buffer
             continue;
         }
         
@@ -143,19 +142,28 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         m_current_frame = std::move(getNextFrame());
         m_current_frame_offset = 0;
         
+        // Update samples consumed based on frame timestamp when we get a new frame
+        if (!m_current_frame.samples.empty()) {
+            // Use frame timestamp to update position, not output buffer counting
+            m_samples_consumed = m_current_frame.timestamp_samples + m_current_frame.getSampleFrameCount();
+        }
+        
         if (m_current_frame.samples.empty()) {
             // Empty frame could be from header processing or actual EOF
             // Check if we have more chunks to process before declaring EOF
             Debug::log("demux", "DemuxedStream::getData: Empty frame - chunk_buffer.size()=", m_chunk_buffer.size(), 
                                ", demuxer.isEOF()=", m_demuxer ? m_demuxer->isEOF() : true);
             
+            // Try to get more chunks before declaring EOF
+            fillChunkBuffer();
+            
             if (m_chunk_buffer.empty() && m_demuxer && m_demuxer->isEOF()) {
                 // Truly at EOF - no more chunks and demuxer is done
-                Debug::log("demux", "DemuxedStream::getData: Natural EOF reached after consuming ", 
-                                   m_samples_consumed, " samples (", 
-                                   (m_samples_consumed * 1000) / m_rate, "ms)");
-                Debug::log("demux", "DemuxedStream::getData: Setting EOF - consumed_samples=", m_samples_consumed, 
-                                   ", time=", (m_samples_consumed * 1000) / m_rate, "ms");
+                // Use current position from frame timestamps, not sample counter
+                uint64_t current_time_ms = static_cast<uint64_t>(m_position);
+                Debug::log("demux", "DemuxedStream::getData: Natural EOF reached at position ", 
+                                   current_time_ms, "ms (frame-based position)");
+                Debug::log("demux", "DemuxedStream::getData: Setting EOF - position=", current_time_ms, "ms");
                 m_eof_reached = true;
                 m_eof = true;
                 break;
@@ -172,11 +180,8 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         }
     }
     
-    // Update position based on actual audio consumption, not packet timestamps
-    if (m_channels > 0 && m_rate > 0) {
-        m_sposition = m_samples_consumed;
-        m_position = static_cast<int>((m_samples_consumed * 1000) / m_rate);
-    }
+    // Position is updated when we process new frames (see above)
+    // Don't recalculate based on sample counting as it can drift
     
     return bytes_written;
 }
@@ -350,8 +355,7 @@ void DemuxedStream::seekTo(unsigned long pos) {
 
 bool DemuxedStream::eof() {
     if (m_eof_reached) {
-        Debug::log("demux", "DemuxedStream::eof() returning true - consumed_samples=", m_samples_consumed, 
-                       ", time=", (m_samples_consumed * 1000) / m_rate, "ms");
+        Debug::log("demux", "DemuxedStream::eof() returning true - position=", m_position, "ms (frame-based)");
     }
     return m_eof_reached;
 }
