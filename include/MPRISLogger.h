@@ -154,33 +154,39 @@ private:
     std::chrono::steady_clock::time_point m_start_time;
 };
 
-// Convenience macros for logging
+// Replacement macros that integrate with the existing PsyMP3 debug system
+// These maintain component information in debug output while using Debug::log()
+
+// Helper macro to determine the appropriate debug channel based on component
+#define MPRIS_GET_DEBUG_CHANNEL(component) \
+    (strstr(component, "DBus") != nullptr ? "dbus" : "mpris")
+
+// Replacement macros that map MPRIS_LOG_* calls to Debug::log() calls
 #define MPRIS_LOG_TRACE(component, message) \
-    do { if (MPRIS::MPRISLogger::getInstance().isLevelEnabled(MPRIS::LogLevel::TRACE)) \
-         MPRIS::MPRISLogger::getInstance().trace(component, message); } while(0)
+    Debug::log(MPRIS_GET_DEBUG_CHANNEL(component), "[", component, "] ", message)
 
 #define MPRIS_LOG_DEBUG(component, message) \
-    do { if (MPRIS::MPRISLogger::getInstance().isLevelEnabled(MPRIS::LogLevel::DEBUG)) \
-         MPRIS::MPRISLogger::getInstance().debug(component, message); } while(0)
+    Debug::log(MPRIS_GET_DEBUG_CHANNEL(component), "[", component, "] ", message)
 
 #define MPRIS_LOG_INFO(component, message) \
-    MPRIS::MPRISLogger::getInstance().info(component, message)
+    Debug::log(MPRIS_GET_DEBUG_CHANNEL(component), "[", component, "] ", message)
 
 #define MPRIS_LOG_WARN(component, message) \
-    MPRIS::MPRISLogger::getInstance().warn(component, message)
+    Debug::log(MPRIS_GET_DEBUG_CHANNEL(component), "[", component, "] WARNING: ", message)
 
 #define MPRIS_LOG_ERROR(component, message) \
-    MPRIS::MPRISLogger::getInstance().error(component, message)
+    Debug::log(MPRIS_GET_DEBUG_CHANNEL(component), "[", component, "] ERROR: ", message)
 
 #define MPRIS_LOG_FATAL(component, message) \
-    MPRIS::MPRISLogger::getInstance().fatal(component, message)
+    Debug::log(MPRIS_GET_DEBUG_CHANNEL(component), "[", component, "] FATAL: ", message)
 
+// Simplified D-Bus message tracing using existing debug system
 #define MPRIS_TRACE_DBUS_MESSAGE(direction, message, context) \
-    do { if (MPRIS::MPRISLogger::getInstance().isLevelEnabled(MPRIS::LogLevel::TRACE)) \
-         MPRIS::MPRISLogger::getInstance().traceDBusMessage(direction, message, context); } while(0)
+    Debug::log("dbus", direction, " D-Bus message (", context, ")")
 
+// Remove the complex lock measurement system - unnecessary complexity
 #define MPRIS_MEASURE_LOCK(lock_name) \
-    MPRIS::LockTimer _lock_timer(lock_name)
+    // Removed - unnecessary complexity for debug integration
 
 } // namespace MPRIS
 
