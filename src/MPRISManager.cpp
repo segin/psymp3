@@ -20,13 +20,7 @@ MPRISManager::MPRISManager(Player* player)
     , m_methods(nullptr)
     , m_signals(nullptr)
 {
-    // Initialize comprehensive logging system
-    auto& logger = MPRIS::MPRISLogger::getInstance();
-    logger.setLogLevel(MPRIS::LogLevel::INFO);
-    logger.enableConsoleOutput(true);
-    logger.enableDebugMode(false);
-    logger.enableMessageTracing(false);
-    logger.enablePerformanceMetrics(true);
+    // Logging system now integrated with PsyMP3 debug system
     
     // Initialize error logging system with default handler
     MPRISTypes::ErrorLogger::getInstance().setDefaultLogHandler();
@@ -161,14 +155,12 @@ MPRISTypes::Result<void> MPRISManager::initialize_unlocked() {
     }
     
     MPRIS_LOG_INFO("MPRISManager", "Initializing MPRIS system");
-    MPRIS::MPRISLogger::getInstance().updateConnectionState(MPRIS::ConnectionState::CONNECTING, "Starting initialization");
     logInfo_unlocked("Initializing MPRIS system");
     
     // Initialize components in dependency order
     auto result = initializeComponents_unlocked();
     if (!result.isSuccess()) {
         MPRIS_LOG_ERROR("MPRISManager", "Component initialization failed: " + result.getError());
-        MPRIS::MPRISLogger::getInstance().updateConnectionState(MPRIS::ConnectionState::FAILED, "Component initialization failed");
         setLastError_unlocked("Component initialization failed: " + result.getError());
         shutdownComponents_unlocked(); // Clean up partial initialization
         return result;
@@ -178,8 +170,6 @@ MPRISTypes::Result<void> MPRISManager::initialize_unlocked() {
     result = establishDBusConnection_unlocked();
     if (!result.isSuccess()) {
         MPRIS_LOG_ERROR("MPRISManager", "D-Bus connection failed: " + result.getError());
-        MPRIS::MPRISLogger::getInstance().updateConnectionState(MPRIS::ConnectionState::FAILED, "D-Bus connection failed");
-        MPRIS::MPRISLogger::getInstance().recordConnectionAttempt(false);
         setLastError_unlocked("D-Bus connection failed: " + result.getError());
         shutdownComponents_unlocked();
         return result;
@@ -189,7 +179,6 @@ MPRISTypes::Result<void> MPRISManager::initialize_unlocked() {
     result = registerDBusService_unlocked();
     if (!result.isSuccess()) {
         MPRIS_LOG_ERROR("MPRISManager", "D-Bus service registration failed: " + result.getError());
-        MPRIS::MPRISLogger::getInstance().updateConnectionState(MPRIS::ConnectionState::FAILED, "Service registration failed");
         setLastError_unlocked("D-Bus service registration failed: " + result.getError());
         shutdownComponents_unlocked();
         return result;
@@ -199,8 +188,6 @@ MPRISTypes::Result<void> MPRISManager::initialize_unlocked() {
     m_initialized.store(true);
     
     MPRIS_LOG_INFO("MPRISManager", "MPRIS system initialized successfully");
-    MPRIS::MPRISLogger::getInstance().updateConnectionState(MPRIS::ConnectionState::CONNECTED, "Initialization complete");
-    MPRIS::MPRISLogger::getInstance().recordConnectionAttempt(true);
     logInfo_unlocked("MPRIS system initialized successfully");
     return MPRISTypes::Result<void>::success();
 }
@@ -215,7 +202,6 @@ void MPRISManager::shutdown_unlocked() {
     
     m_shutdown_requested.store(true);
     MPRIS_LOG_INFO("MPRISManager", "Shutting down MPRIS system");
-    MPRIS::MPRISLogger::getInstance().updateConnectionState(MPRIS::ConnectionState::DISCONNECTED, "Shutdown initiated");
     logInfo_unlocked("Shutting down MPRIS system");
     
     // Unregister D-Bus service first
@@ -228,7 +214,6 @@ void MPRISManager::shutdown_unlocked() {
     m_initialization_phase = InitializationPhase::None;
     
     MPRIS_LOG_INFO("MPRISManager", "MPRIS system shutdown complete");
-    MPRIS::MPRISLogger::getInstance().updateConnectionState(MPRIS::ConnectionState::DISCONNECTED, "Shutdown complete");
     logInfo_unlocked("MPRIS system shutdown complete");
 }
 
@@ -250,7 +235,6 @@ void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std:
     
     try {
         m_properties->updateMetadata(artist, title, album);
-        MPRIS::MPRISLogger::getInstance().recordPropertyUpdate();
         emitPropertyChanges_unlocked();
         MPRIS_LOG_DEBUG("MPRISManager", "Metadata updated successfully");
     } catch (const std::exception& e) {
@@ -632,7 +616,6 @@ void MPRISManager::emitPropertyChanges_unlocked() {
             MPRIS_LOG_ERROR("MPRISManager", "Failed to emit PropertiesChanged: " + result.getError());
             logError_unlocked("emitPropertyChanges", "Failed to emit PropertiesChanged: " + result.getError());
         } else {
-            MPRIS::MPRISLogger::getInstance().recordSignalEmission();
             MPRIS_LOG_TRACE("MPRISManager", "PropertiesChanged signal emitted successfully");
         }
     } catch (const std::exception& e) {

@@ -2,7 +2,6 @@
 
 #ifdef HAVE_DBUS
 #include <dbus/dbus.h>
-#include "MPRISLogger.h"
 #endif
 
 #include <algorithm>
@@ -165,7 +164,7 @@ void DBusConnectionManager::cleanupConnection_unlocked() {
 #ifdef HAVE_DBUS
     if (m_connection) {
         MPRIS_LOG_DEBUG("DBusConnectionManager", "Cleaning up D-Bus connection");
-        MPRIS::MPRISLogger::getInstance().traceDBusConnection("cleanup", m_connection.get(), "Starting connection cleanup");
+        MPRIS_TRACE_DBUS_MESSAGE("cleanup", m_connection.get(), "Starting connection cleanup");
         
         // Unregister from D-Bus if we were registered
         if (dbus_connection_get_is_connected(m_connection.get())) {
@@ -185,7 +184,7 @@ void DBusConnectionManager::cleanupConnection_unlocked() {
         }
         
         // Reset the connection pointer (RAII will handle cleanup)
-        MPRIS::MPRISLogger::getInstance().traceDBusConnection("destroyed", m_connection.get(), "Connection being destroyed");
+        MPRIS_TRACE_DBUS_MESSAGE("destroyed", m_connection.get(), "Connection being destroyed");
         m_connection.reset();
         MPRIS_LOG_DEBUG("DBusConnectionManager", "D-Bus connection cleanup complete");
     }
@@ -220,7 +219,7 @@ Result<void> DBusConnectionManager::establishConnection_unlocked() {
     // Wrap in RAII pointer
     m_connection = DBusConnectionPtr(raw_connection);
     MPRIS_LOG_DEBUG("DBusConnectionManager", "D-Bus connection established");
-    MPRIS::MPRISLogger::getInstance().traceDBusConnection("established", raw_connection, "Session bus connection");
+    MPRIS_TRACE_DBUS_MESSAGE("established", raw_connection, "Session bus connection");
     
     // Request service name
     MPRIS_LOG_DEBUG("DBusConnectionManager", "Requesting D-Bus service name: " + std::string(DBUS_SERVICE_NAME));

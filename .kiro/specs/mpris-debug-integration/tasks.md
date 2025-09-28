@@ -6,7 +6,7 @@
   - Test macros work correctly with existing debug system
   - _Requirements: 1.1, 2.1, 5.1, 5.2_
 
-- [ ] 2. Update MPRIS source files to use new debug system
+- [-] 2. Update MPRIS source files to use new debug system
   - Replace all MPRIS_LOG_* macro calls in DBusConnectionManager.cpp
   - Replace all MPRIS_LOG_* macro calls in MPRISManager.cpp  
   - Replace all MPRIS_LOG_* macro calls in other MPRIS source files
