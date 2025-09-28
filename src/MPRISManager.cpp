@@ -11,8 +11,6 @@
 
 #ifdef HAVE_DBUS
 
-#include "MPRISLogger.h"
-
 MPRISManager::MPRISManager(Player* player)
     : m_player(player)
     , m_connection(nullptr)

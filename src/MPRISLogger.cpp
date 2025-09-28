@@ -449,9 +449,7 @@ LockTimer::LockTimer(const std::string& lock_name)
 }
 
 LockTimer::~LockTimer() {
-    auto end_time = std::chrono::steady_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - m_start_time);
-    MPRISLogger::getInstance().recordLockAcquisition(m_lock_name, duration.count());
+    // Lock measurement removed - unnecessary complexity for debug integration
 }
 
 } // namespace MPRIS
