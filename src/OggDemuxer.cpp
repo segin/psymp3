@@ -4494,9 +4494,10 @@ void OggDemuxer::resetStreamState_unlocked(uint32_t stream_id, uint32_t new_seri
         stream.m_packet_queue.clear();
         m_total_memory_usage.fetch_sub(queue_memory);
         
-        // Reset stream state
-        stream.headers_sent = false;
-        stream.next_header_index = 0;
+        // Reset stream state (but keep headers_sent = true to avoid resending headers after seeks)
+        // Headers should only be sent once at the beginning of playback, not after seeks
+        // stream.headers_sent = false;  // DON'T reset this - causes codec restart
+        // stream.next_header_index = 0; // DON'T reset this - headers already sent
         stream.total_samples_processed = 0;
         
         Debug::log("ogg", "OggDemuxer: Cleared packet queue and reset state for stream ", stream_id, 

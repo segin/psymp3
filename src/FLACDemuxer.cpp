@@ -548,6 +548,12 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         if (!validateFrameHeader(frame)) {
             Debug::log("flac", "[readChunk_unlocked] Frame header validation failed on attempt ", attempts);
             
+            // Check if we've reached EOF (validation may have set EOF flag)
+            if (isEOF()) {
+                Debug::log("flac", "[readChunk_unlocked] Reached EOF during validation");
+                return MediaChunk{};
+            }
+            
             // Try to skip this corrupted frame and find the next one
             if (skipCorruptedFrame()) {
                 Debug::log("flac", "[readChunk_unlocked] Skipped corrupted frame, retrying");
@@ -2423,7 +2429,9 @@ bool FLACDemuxer::validateFrameHeader(const FLACFrame& frame)
         if (m_streaminfo.total_samples > 0 && 
             frame.sample_offset >= m_streaminfo.total_samples) {
             Debug::log("flac", "Frame sample offset (", frame.sample_offset, 
-                      ") exceeds total samples (", m_streaminfo.total_samples, ")");
+                      ") exceeds total samples (", m_streaminfo.total_samples, ") - reached EOF");
+            // This is EOF, not a validation error - set EOF flag
+            setEOF(true);
             return false;
         }
         
