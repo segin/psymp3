@@ -231,3 +231,5 @@ tests/test_opus_multichannel
 
 # Additional test executables that may be generated
 tests/test_demuxer_performance
+tests/test_flac_rfc_subframe_validation
+tests/test_entropy_coding_compilation
