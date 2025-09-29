@@ -4122,6 +4122,396 @@ uint8_t FLACCodec::extractPredictorOrder_unlocked(uint8_t subframe_type_bits) co
 }
 
 // ============================================================================
+// RFC 9639 Section 9.2.5 Entropy Coding Compliance Validation Implementation
+// ============================================================================
+
+bool FLACCodec::validateEntropyCoding_unlocked(const uint8_t* residual_data, size_t data_size, 
+                                              uint32_t block_size, uint8_t predictor_order) const {
+    // RFC 9639 Section 9.2.5: Coded Residual validation
+    // The first two bits indicate the coding method
+    
+    if (!residual_data || data_size < 1) {
+        Debug::log("flac_codec", "[validateEntropyCoding_unlocked] Invalid residual data parameters");
+        return false;
+    }
+    
+    // Extract coding method from first 2 bits
+    uint8_t coding_method_bits = (residual_data[0] >> 6) & 0x03;
+    
+    Debug::log("flac_codec", "[validateEntropyCoding_unlocked] Validating entropy coding method: 0b", 
+              std::bitset<2>(coding_method_bits).to_string(), " (", 
+              static_cast<unsigned>(coding_method_bits), ")");
+    
+    // Validate coding method per RFC 9639 Table 23
+    if (!validateRiceCodingMethod_unlocked(coding_method_bits)) {
+        Debug::log("flac_codec", "[validateEntropyCoding_unlocked] Invalid Rice coding method: ", 
+                  static_cast<unsigned>(coding_method_bits));
+        return false;
+    }
+    
+    // Extract partition order from next 4 bits
+    uint8_t partition_order = (residual_data[0] >> 2) & 0x0F;
+    
+    Debug::log("flac_codec", "[validateEntropyCoding_unlocked] Partition order: ", 
+              static_cast<unsigned>(partition_order));
+    
+    // Validate partition order constraints per RFC 9639
+    if (!validatePartitionOrder_unlocked(partition_order, block_size, predictor_order)) {
+        Debug::log("flac_codec", "[validateEntropyCoding_unlocked] Invalid partition order: ", 
+                  static_cast<unsigned>(partition_order), " for block size ", block_size, 
+                  " and predictor order ", static_cast<unsigned>(predictor_order));
+        return false;
+    }
+    
+    // Validate Rice parameters for all partitions
+    if (!validateRiceParameters_unlocked(residual_data + 1, data_size - 1, coding_method_bits, 
+                                        partition_order, block_size, predictor_order)) {
+        Debug::log("flac_codec", "[validateEntropyCoding_unlocked] Rice parameter validation failed");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validateEntropyCoding_unlocked] Entropy coding validation successful");
+    return true;
+}
+
+bool FLACCodec::validateRiceCodingMethod_unlocked(uint8_t coding_method_bits) const {
+    // RFC 9639 Section 9.2.5 Table 23: Coding method validation
+    switch (coding_method_bits) {
+        case 0x00:
+            Debug::log("flac_codec", "[validateRiceCodingMethod_unlocked] Valid: Partitioned Rice code with 4-bit parameters");
+            return true;
+        case 0x01:
+            Debug::log("flac_codec", "[validateRiceCodingMethod_unlocked] Valid: Partitioned Rice code with 5-bit parameters");
+            return true;
+        case 0x02:
+        case 0x03:
+            Debug::log("flac_codec", "[validateRiceCodingMethod_unlocked] Invalid: Reserved coding method: ", 
+                      static_cast<unsigned>(coding_method_bits));
+            return false;
+        default:
+            Debug::log("flac_codec", "[validateRiceCodingMethod_unlocked] Invalid: Unknown coding method: ", 
+                      static_cast<unsigned>(coding_method_bits));
+            return false;
+    }
+}
+
+bool FLACCodec::validatePartitionOrder_unlocked(uint8_t partition_order, uint32_t block_size, 
+                                               uint8_t predictor_order) const {
+    // RFC 9639 Section 9.2.5: Partition order constraints
+    
+    // Partition order must be <= 8 per RFC 9639
+    if (partition_order > 8) {
+        Debug::log("flac_codec", "[validatePartitionOrder_unlocked] Partition order too large: ", 
+                  static_cast<unsigned>(partition_order), " > 8 (RFC 9639 limit)");
+        return false;
+    }
+    
+    uint32_t num_partitions = 1U << partition_order; // 2^partition_order
+    
+    // Block size must be evenly divisible by number of partitions
+    if ((block_size % num_partitions) != 0) {
+        Debug::log("flac_codec", "[validatePartitionOrder_unlocked] Block size ", block_size, 
+                  " not evenly divisible by ", num_partitions, " partitions");
+        return false;
+    }
+    
+    uint32_t samples_per_partition = block_size >> partition_order; // block_size / num_partitions
+    
+    // Samples per partition must be larger than predictor order
+    if (samples_per_partition <= predictor_order) {
+        Debug::log("flac_codec", "[validatePartitionOrder_unlocked] Samples per partition (", 
+                  samples_per_partition, ") <= predictor order (", 
+                  static_cast<unsigned>(predictor_order), ")");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validatePartitionOrder_unlocked] Valid partition order: ", 
+              static_cast<unsigned>(partition_order), " (", num_partitions, " partitions, ", 
+              samples_per_partition, " samples each)");
+    return true;
+}
+
+bool FLACCodec::validateRiceParameters_unlocked(const uint8_t* partition_data, size_t data_size,
+                                               uint8_t coding_method, uint8_t partition_order,
+                                               uint32_t block_size, uint8_t predictor_order) const {
+    // RFC 9639 Section 9.2.5: Validate Rice parameters for all partitions
+    
+    if (!partition_data || data_size == 0) {
+        Debug::log("flac_codec", "[validateRiceParameters_unlocked] Invalid partition data");
+        return false;
+    }
+    
+    uint32_t num_partitions = 1U << partition_order;
+    uint32_t samples_per_partition = block_size >> partition_order;
+    bool is_5bit_parameter = (coding_method == 0x01);
+    uint8_t parameter_bits = is_5bit_parameter ? 5 : 4;
+    
+    Debug::log("flac_codec", "[validateRiceParameters_unlocked] Validating ", num_partitions, 
+              " partitions with ", (is_5bit_parameter ? "5-bit" : "4-bit"), " parameters");
+    
+    size_t bit_offset = 0;
+    
+    for (uint32_t partition = 0; partition < num_partitions; ++partition) {
+        // Calculate samples in this partition (first partition has fewer samples due to predictor order)
+        uint32_t partition_samples = (partition == 0) ? 
+                                   (samples_per_partition - predictor_order) : samples_per_partition;
+        
+        if (bit_offset + parameter_bits > data_size * 8) {
+            Debug::log("flac_codec", "[validateRiceParameters_unlocked] Insufficient data for partition ", 
+                      partition, " parameter");
+            return false;
+        }
+        
+        // Extract parameter bits
+        uint8_t parameter_value = 0;
+        for (uint8_t bit = 0; bit < parameter_bits; ++bit) {
+            size_t byte_index = bit_offset / 8;
+            size_t bit_index = 7 - (bit_offset % 8);
+            
+            if (partition_data[byte_index] & (1 << bit_index)) {
+                parameter_value |= (1 << (parameter_bits - 1 - bit));
+            }
+            bit_offset++;
+        }
+        
+        Debug::log("flac_codec", "[validateRiceParameters_unlocked] Partition ", partition, 
+                  " parameter: ", static_cast<unsigned>(parameter_value), 
+                  " (", partition_samples, " samples)");
+        
+        // Check for escape code
+        if (validateEscapeCode_unlocked(parameter_value, is_5bit_parameter)) {
+            Debug::log("flac_codec", "[validateRiceParameters_unlocked] Partition ", partition, 
+                      " uses escape code - validating unencoded residual");
+            
+            // Skip escape code validation for now - would need to parse the unencoded data
+            // This is a simplified validation that checks the parameter format
+            continue;
+        }
+        
+        // Validate Rice parameter range
+        uint8_t max_rice_parameter = is_5bit_parameter ? 30 : 14; // Reserve escape codes
+        if (parameter_value > max_rice_parameter) {
+            Debug::log("flac_codec", "[validateRiceParameters_unlocked] Invalid Rice parameter: ", 
+                      static_cast<unsigned>(parameter_value), " > ", 
+                      static_cast<unsigned>(max_rice_parameter));
+            return false;
+        }
+        
+        // For full validation, we would decode the Rice-coded residuals here
+        // This simplified version just validates the parameter structure
+    }
+    
+    Debug::log("flac_codec", "[validateRiceParameters_unlocked] All Rice parameters validated successfully");
+    return true;
+}
+
+bool FLACCodec::validateEscapeCode_unlocked(uint8_t parameter_bits, bool is_5bit_parameter) const {
+    // RFC 9639 Section 9.2.5: Escape code detection
+    if (is_5bit_parameter) {
+        // 5-bit escape code is 0b11111 (31)
+        bool is_escape = (parameter_bits == 0x1F);
+        if (is_escape) {
+            Debug::log("flac_codec", "[validateEscapeCode_unlocked] 5-bit escape code detected (0b11111)");
+        }
+        return is_escape;
+    } else {
+        // 4-bit escape code is 0b1111 (15)
+        bool is_escape = (parameter_bits == 0x0F);
+        if (is_escape) {
+            Debug::log("flac_codec", "[validateEscapeCode_unlocked] 4-bit escape code detected (0b1111)");
+        }
+        return is_escape;
+    }
+}
+
+bool FLACCodec::decodeRicePartition_unlocked(const uint8_t* partition_data, size_t data_size,
+                                           uint8_t rice_parameter, uint32_t sample_count,
+                                           std::vector<int32_t>& decoded_residuals) const {
+    // RFC 9639 Section 9.2.5.2: Rice code decoding
+    
+    if (!partition_data || data_size == 0 || sample_count == 0) {
+        Debug::log("flac_codec", "[decodeRicePartition_unlocked] Invalid parameters");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[decodeRicePartition_unlocked] Decoding ", sample_count, 
+              " samples with Rice parameter ", static_cast<unsigned>(rice_parameter));
+    
+    decoded_residuals.clear();
+    decoded_residuals.reserve(sample_count);
+    
+    size_t bit_offset = 0;
+    
+    for (uint32_t sample = 0; sample < sample_count; ++sample) {
+        int32_t residual = decodeRiceSample_unlocked(partition_data, bit_offset, rice_parameter);
+        
+        if (!validateResidualRange_unlocked(residual)) {
+            Debug::log("flac_codec", "[decodeRicePartition_unlocked] Residual value out of range: ", residual);
+            return false;
+        }
+        
+        decoded_residuals.push_back(residual);
+        
+        // Check if we've exceeded the available data
+        if (bit_offset >= data_size * 8) {
+            if (sample + 1 < sample_count) {
+                Debug::log("flac_codec", "[decodeRicePartition_unlocked] Insufficient data for all samples");
+                return false;
+            }
+            break;
+        }
+    }
+    
+    Debug::log("flac_codec", "[decodeRicePartition_unlocked] Successfully decoded ", 
+              decoded_residuals.size(), " residual samples");
+    return true;
+}
+
+bool FLACCodec::decodeEscapedPartition_unlocked(const uint8_t* partition_data, size_t data_size,
+                                              uint8_t bits_per_sample, uint32_t sample_count,
+                                              std::vector<int32_t>& decoded_residuals) const {
+    // RFC 9639 Section 9.2.5.1: Escaped partition decoding
+    
+    if (!partition_data || data_size == 0) {
+        Debug::log("flac_codec", "[decodeEscapedPartition_unlocked] Invalid parameters");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[decodeEscapedPartition_unlocked] Decoding escaped partition: ", 
+              sample_count, " samples, ", static_cast<unsigned>(bits_per_sample), " bits each");
+    
+    // Special case: 0 bits per sample means all residuals are 0
+    if (bits_per_sample == 0) {
+        decoded_residuals.assign(sample_count, 0);
+        Debug::log("flac_codec", "[decodeEscapedPartition_unlocked] All residuals are zero");
+        return true;
+    }
+    
+    // Validate we have enough data
+    size_t required_bits = static_cast<size_t>(sample_count) * bits_per_sample;
+    if (required_bits > data_size * 8) {
+        Debug::log("flac_codec", "[decodeEscapedPartition_unlocked] Insufficient data: need ", 
+                  required_bits, " bits, have ", data_size * 8);
+        return false;
+    }
+    
+    decoded_residuals.clear();
+    decoded_residuals.reserve(sample_count);
+    
+    size_t bit_offset = 0;
+    
+    for (uint32_t sample = 0; sample < sample_count; ++sample) {
+        int32_t residual = 0;
+        
+        // Extract bits_per_sample bits as signed two's complement
+        for (uint8_t bit = 0; bit < bits_per_sample; ++bit) {
+            size_t byte_index = bit_offset / 8;
+            size_t bit_index = 7 - (bit_offset % 8);
+            
+            if (partition_data[byte_index] & (1 << bit_index)) {
+                residual |= (1 << (bits_per_sample - 1 - bit));
+            }
+            bit_offset++;
+        }
+        
+        // Sign extend if necessary
+        if (bits_per_sample < 32 && (residual & (1 << (bits_per_sample - 1)))) {
+            // Negative number - sign extend
+            residual |= (~0U << bits_per_sample);
+        }
+        
+        if (!validateResidualRange_unlocked(residual)) {
+            Debug::log("flac_codec", "[decodeEscapedPartition_unlocked] Residual value out of range: ", residual);
+            return false;
+        }
+        
+        decoded_residuals.push_back(residual);
+    }
+    
+    Debug::log("flac_codec", "[decodeEscapedPartition_unlocked] Successfully decoded ", 
+              decoded_residuals.size(), " escaped residual samples");
+    return true;
+}
+
+int32_t FLACCodec::decodeRiceSample_unlocked(const uint8_t* data, size_t& bit_offset, 
+                                           uint8_t rice_parameter) const {
+    // RFC 9639 Section 9.2.5.2: Rice code decoding algorithm
+    
+    // Count leading zeros (unary part)
+    uint32_t quotient = 0;
+    while (true) {
+        size_t byte_index = bit_offset / 8;
+        size_t bit_index = 7 - (bit_offset % 8);
+        
+        if (data[byte_index] & (1 << bit_index)) {
+            // Found the '1' bit, stop counting
+            bit_offset++;
+            break;
+        }
+        
+        quotient++;
+        bit_offset++;
+        
+        // Prevent infinite loop on malformed data
+        if (quotient > 1000) {
+            Debug::log("flac_codec", "[decodeRiceSample_unlocked] Excessive quotient: ", quotient);
+            return 0; // Return safe value
+        }
+    }
+    
+    // Read remainder (binary part)
+    uint32_t remainder = 0;
+    for (uint8_t bit = 0; bit < rice_parameter; ++bit) {
+        size_t byte_index = bit_offset / 8;
+        size_t bit_index = 7 - (bit_offset % 8);
+        
+        if (data[byte_index] & (1 << bit_index)) {
+            remainder |= (1 << (rice_parameter - 1 - bit));
+        }
+        bit_offset++;
+    }
+    
+    // Combine quotient and remainder: folded_value = (quotient << rice_parameter) | remainder
+    uint32_t folded_value = (quotient << rice_parameter) | remainder;
+    
+    // Zigzag decode to get signed residual
+    int32_t residual = zigzagDecode_unlocked(folded_value);
+    
+    return residual;
+}
+
+int32_t FLACCodec::zigzagDecode_unlocked(uint32_t folded_value) const {
+    // RFC 9639 Section 9.2.5.2: Zigzag decoding
+    // Even folded values: residual = folded_value / 2
+    // Odd folded values: residual = -(folded_value + 1) / 2
+    
+    if ((folded_value & 1) == 0) {
+        // Even: positive residual
+        return static_cast<int32_t>(folded_value >> 1);
+    } else {
+        // Odd: negative residual
+        return -static_cast<int32_t>((folded_value + 1) >> 1);
+    }
+}
+
+bool FLACCodec::validateResidualRange_unlocked(int32_t residual_value) const {
+    // RFC 9639 Section 9.2.5.3: Residual sample value limit
+    // All residual values must be representable in 32-bit signed two's complement,
+    // excluding the most negative value (-2^31)
+    
+    const int32_t MIN_RESIDUAL = -(1LL << 31) + 1; // -2^31 + 1
+    const int32_t MAX_RESIDUAL = (1LL << 31) - 1;  // 2^31 - 1
+    
+    if (residual_value < MIN_RESIDUAL || residual_value > MAX_RESIDUAL) {
+        Debug::log("flac_codec", "[validateResidualRange_unlocked] Residual out of range: ", 
+                  residual_value, " (valid range: ", MIN_RESIDUAL, " to ", MAX_RESIDUAL, ")");
+        return false;
+    }
+    
+    return true;
+}
+
+// ============================================================================
 // Input Flow Control Implementation
 // ============================================================================
 

@@ -1236,6 +1236,27 @@ private:
     bool validateWastedBitsFlag_unlocked(uint8_t wasted_bits_flag) const;
     uint8_t extractPredictorOrder_unlocked(uint8_t subframe_type_bits) const;
     
+    // RFC 9639 Section 9.2.5 Entropy Coding Compliance Validation (assume appropriate locks are held)
+    bool validateEntropyCoding_unlocked(const uint8_t* residual_data, size_t data_size, 
+                                       uint32_t block_size, uint8_t predictor_order) const;
+    bool validateRiceCodingMethod_unlocked(uint8_t coding_method_bits) const;
+    bool validatePartitionOrder_unlocked(uint8_t partition_order, uint32_t block_size, 
+                                        uint8_t predictor_order) const;
+    bool validateRiceParameters_unlocked(const uint8_t* partition_data, size_t data_size,
+                                        uint8_t coding_method, uint8_t partition_order,
+                                        uint32_t block_size, uint8_t predictor_order) const;
+    bool validateEscapeCode_unlocked(uint8_t parameter_bits, bool is_5bit_parameter) const;
+    bool decodeRicePartition_unlocked(const uint8_t* partition_data, size_t data_size,
+                                     uint8_t rice_parameter, uint32_t sample_count,
+                                     std::vector<int32_t>& decoded_residuals) const;
+    bool decodeEscapedPartition_unlocked(const uint8_t* partition_data, size_t data_size,
+                                        uint8_t bits_per_sample, uint32_t sample_count,
+                                        std::vector<int32_t>& decoded_residuals) const;
+    int32_t decodeRiceSample_unlocked(const uint8_t* data, size_t& bit_offset, 
+                                     uint8_t rice_parameter) const;
+    int32_t zigzagDecode_unlocked(uint32_t folded_value) const;
+    bool validateResidualRange_unlocked(int32_t residual_value) const;
+    
     // Input flow control methods (assume m_input_mutex is held)
     bool checkInputQueueCapacity_unlocked(const MediaChunk& chunk);
     void handleInputOverflow_unlocked();
