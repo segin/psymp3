@@ -3714,44 +3714,411 @@ size_t FLACCodec::estimateFrameSize_unlocked(const uint8_t* data, size_t size) c
 
 bool FLACCodec::validateFrameHeader_unlocked(const uint8_t* data, size_t size) const {
     if (!data || size < 4) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Insufficient data: need 4 bytes, got ", size);
         return false;
     }
     
-    // Check sync pattern (RFC 9639 Section 9.2.1)
-    if (data[0] != 0xFF || (data[1] & 0xF8) != 0xF8) {
+    // RFC 9639 Section 9.1: Frame Header Validation
+    // Validate 15-bit sync code: 0b111111111111100 (0x3FFE when shifted)
+    uint16_t sync_pattern = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    if ((sync_pattern & 0xFFFE) != 0xFFF8) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Invalid sync pattern: 0x", 
+                  std::hex, sync_pattern, std::dec, " (expected 0xFFF8 or 0xFFF9)");
         return false;
     }
     
-    // Check reserved bits (should be 0)
-    if ((data[1] & 0x06) != 0) {
+    // Extract and validate blocking strategy bit (RFC 9639 Section 9.1)
+    uint8_t blocking_strategy = data[1] & 0x01;
+    
+    // Validate that sync code + blocking strategy forms valid pattern
+    // Fixed block size: 0xFFF8, Variable block size: 0xFFF9
+    if (blocking_strategy == 0 && (sync_pattern & 0xFFFF) != 0xFFF8) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Invalid fixed block size sync: 0x", 
+                  std::hex, sync_pattern, std::dec);
+        return false;
+    }
+    if (blocking_strategy == 1 && (sync_pattern & 0xFFFF) != 0xFFF9) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Invalid variable block size sync: 0x", 
+                  std::hex, sync_pattern, std::dec);
         return false;
     }
     
-    // Basic validation of frame header fields
-    uint8_t block_size_bits = (data[2] >> 4) & 0x0F;
-    // uint8_t sample_rate_bits = data[2] & 0x0F; // Not used in validation
-    uint8_t channel_assignment = (data[3] >> 4) & 0x0F;
-    uint8_t sample_size_bits = (data[3] >> 1) & 0x07;
+    // Extract frame header fields for validation
+    uint8_t block_size_bits = (data[2] >> 4) & 0x0F;      // RFC 9639 Section 9.1.1
+    uint8_t sample_rate_bits = data[2] & 0x0F;             // RFC 9639 Section 9.1.2
+    uint8_t channel_assignment = (data[3] >> 4) & 0x0F;    // RFC 9639 Section 9.1.3
+    uint8_t bit_depth_bits = (data[3] >> 1) & 0x07;       // RFC 9639 Section 9.1.4
+    uint8_t reserved_bit = data[3] & 0x01;                 // RFC 9639 Section 9.1.4
     
-    // Validate block size field (RFC 9639 Section 9.2.2)
+    // RFC 9639 Section 9.1.1: Block Size Bits Validation (Table 14)
     if (block_size_bits == 0x0) {
-        return false; // Reserved
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved block size bits: 0x0");
+        return false;
     }
     
-    // Validate sample rate field (RFC 9639 Section 9.2.3)
-    // All values are valid, so no check needed
-    
-    // Validate channel assignment (RFC 9639 Section 9.2.4)
-    if (channel_assignment > 0x0A) {
-        return false; // Reserved values
+    // RFC 9639 Section 9.1.2: Sample Rate Bits Validation (Table 15)
+    if (sample_rate_bits == 0xF) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Forbidden sample rate bits: 0xF");
+        return false;
     }
     
-    // Validate sample size (RFC 9639 Section 9.2.5)
-    if (sample_size_bits == 0x3 || sample_size_bits == 0x7) {
-        return false; // Reserved values
+    // RFC 9639 Section 9.1.3: Channel Assignment Validation (Table 16)
+    if (channel_assignment >= 0x0B && channel_assignment <= 0x0F) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved channel assignment: 0x", 
+                  std::hex, static_cast<unsigned>(channel_assignment), std::dec);
+        return false;
     }
+    
+    // RFC 9639 Section 9.1.4: Bit Depth Validation (Table 17)
+    if (bit_depth_bits == 0x3) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved bit depth: 0x3");
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1.4: Reserved Bit Validation
+    if (reserved_bit != 0) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved bit must be 0, got: ", 
+                  static_cast<unsigned>(reserved_bit));
+        return false;
+    }
+    
+    // Additional RFC 9639 compliance checks for consistency
+    
+    // Validate block size ranges per RFC 9639 Table 14
+    if (!validateBlockSizeBits_unlocked(block_size_bits)) {
+        return false;
+    }
+    
+    // Validate sample rate ranges per RFC 9639 Table 15
+    if (!validateSampleRateBits_unlocked(sample_rate_bits)) {
+        return false;
+    }
+    
+    // Validate channel assignment per RFC 9639 Table 16
+    if (!validateChannelAssignment_unlocked(channel_assignment)) {
+        return false;
+    }
+    
+    // Validate bit depth per RFC 9639 Table 17
+    if (!validateBitDepthBits_unlocked(bit_depth_bits)) {
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validateFrameHeader_unlocked] Valid frame header: sync=0x", 
+              std::hex, sync_pattern, std::dec, ", blocking=", static_cast<unsigned>(blocking_strategy),
+              ", block_size=0x", std::hex, static_cast<unsigned>(block_size_bits), std::dec,
+              ", sample_rate=0x", std::hex, static_cast<unsigned>(sample_rate_bits), std::dec,
+              ", channels=0x", std::hex, static_cast<unsigned>(channel_assignment), std::dec,
+              ", bit_depth=0x", std::hex, static_cast<unsigned>(bit_depth_bits), std::dec);
     
     return true;
+}
+
+// ============================================================================
+// RFC 9639 Compliance Validation Helper Functions
+// ============================================================================
+
+bool FLACCodec::validateBlockSizeBits_unlocked(uint8_t block_size_bits) const {
+    // RFC 9639 Section 9.1.1 Table 14: Block Size Bits Validation
+    switch (block_size_bits) {
+        case 0x0:
+            // Reserved - already checked in main validation
+            Debug::log("flac_codec", "[validateBlockSizeBits_unlocked] Reserved block size: 0x0");
+            return false;
+            
+        case 0x1:
+            // 192 samples - valid
+            return true;
+            
+        case 0x2: case 0x3: case 0x4: case 0x5:
+            // 144 * (2^v): 576, 1152, 2304, 4608 - valid
+            return true;
+            
+        case 0x6:
+            // Uncommon block size minus 1, stored as 8-bit number
+            // Need additional validation for the actual value
+            Debug::log("flac_codec", "[validateBlockSizeBits_unlocked] Uncommon 8-bit block size");
+            return true; // Will be validated when parsing the actual value
+            
+        case 0x7:
+            // Uncommon block size minus 1, stored as 16-bit number
+            // Need additional validation for the actual value
+            Debug::log("flac_codec", "[validateBlockSizeBits_unlocked] Uncommon 16-bit block size");
+            return true; // Will be validated when parsing the actual value
+            
+        case 0x8: case 0x9: case 0xA: case 0xB:
+        case 0xC: case 0xD: case 0xE: case 0xF:
+            // 2^v: 256, 512, 1024, 2048, 4096, 8192, 16384, 32768 - valid
+            return true;
+            
+        default:
+            // Should never reach here due to 4-bit mask
+            Debug::log("flac_codec", "[validateBlockSizeBits_unlocked] Invalid block size bits: 0x", 
+                      std::hex, static_cast<unsigned>(block_size_bits), std::dec);
+            return false;
+    }
+}
+
+bool FLACCodec::validateSampleRateBits_unlocked(uint8_t sample_rate_bits) const {
+    // RFC 9639 Section 9.1.2 Table 15: Sample Rate Bits Validation
+    switch (sample_rate_bits) {
+        case 0x0:
+            // Sample rate only stored in streaminfo metadata block - valid
+            return true;
+            
+        case 0x1: // 88.2 kHz
+        case 0x2: // 176.4 kHz
+        case 0x3: // 192 kHz
+        case 0x4: // 8 kHz
+        case 0x5: // 16 kHz
+        case 0x6: // 22.05 kHz
+        case 0x7: // 24 kHz
+        case 0x8: // 32 kHz
+        case 0x9: // 44.1 kHz
+        case 0xA: // 48 kHz
+        case 0xB: // 96 kHz
+            // Standard sample rates - valid
+            return true;
+            
+        case 0xC:
+            // Uncommon sample rate in kHz, stored as 8-bit number
+            Debug::log("flac_codec", "[validateSampleRateBits_unlocked] Uncommon 8-bit sample rate (kHz)");
+            return true; // Will be validated when parsing the actual value
+            
+        case 0xD:
+            // Uncommon sample rate in Hz, stored as 16-bit number
+            Debug::log("flac_codec", "[validateSampleRateBits_unlocked] Uncommon 16-bit sample rate (Hz)");
+            return true; // Will be validated when parsing the actual value
+            
+        case 0xE:
+            // Uncommon sample rate in Hz divided by 10, stored as 16-bit number
+            Debug::log("flac_codec", "[validateSampleRateBits_unlocked] Uncommon 16-bit sample rate (Hz/10)");
+            return true; // Will be validated when parsing the actual value
+            
+        case 0xF:
+            // Forbidden - already checked in main validation
+            Debug::log("flac_codec", "[validateSampleRateBits_unlocked] Forbidden sample rate: 0xF");
+            return false;
+            
+        default:
+            // Should never reach here due to 4-bit mask
+            Debug::log("flac_codec", "[validateSampleRateBits_unlocked] Invalid sample rate bits: 0x", 
+                      std::hex, static_cast<unsigned>(sample_rate_bits), std::dec);
+            return false;
+    }
+}
+
+bool FLACCodec::validateChannelAssignment_unlocked(uint8_t channel_assignment) const {
+    // RFC 9639 Section 9.1.3 Table 16: Channel Assignment Validation
+    switch (channel_assignment) {
+        case 0x0: // 1 channel: mono
+        case 0x1: // 2 channels: left, right
+        case 0x2: // 3 channels: left, right, center
+        case 0x3: // 4 channels: front left, front right, back left, back right
+        case 0x4: // 5 channels: front left, front right, front center, back/surround left, back/surround right
+        case 0x5: // 6 channels: front left, front right, front center, LFE, back/surround left, back/surround right
+        case 0x6: // 7 channels: front left, front right, front center, LFE, back center, side left, side right
+        case 0x7: // 8 channels: front left, front right, front center, LFE, back left, back right, side left, side right
+            // Standard channel configurations - valid
+            return true;
+            
+        case 0x8: // 2 channels: left, right; stored as left-side stereo
+        case 0x9: // 2 channels: left, right; stored as side-right stereo
+        case 0xA: // 2 channels: left, right; stored as mid-side stereo
+            // Stereo decorrelation modes - valid
+            return true;
+            
+        case 0xB: case 0xC: case 0xD: case 0xE: case 0xF:
+            // Reserved - already checked in main validation
+            Debug::log("flac_codec", "[validateChannelAssignment_unlocked] Reserved channel assignment: 0x", 
+                      std::hex, static_cast<unsigned>(channel_assignment), std::dec);
+            return false;
+            
+        default:
+            // Should never reach here due to 4-bit mask
+            Debug::log("flac_codec", "[validateChannelAssignment_unlocked] Invalid channel assignment: 0x", 
+                      std::hex, static_cast<unsigned>(channel_assignment), std::dec);
+            return false;
+    }
+}
+
+bool FLACCodec::validateBitDepthBits_unlocked(uint8_t bit_depth_bits) const {
+    // RFC 9639 Section 9.1.4 Table 17: Bit Depth Validation
+    switch (bit_depth_bits) {
+        case 0x0:
+            // Bit depth only stored in streaminfo metadata block - valid
+            return true;
+            
+        case 0x1: // 8 bits per sample
+        case 0x2: // 12 bits per sample
+        case 0x4: // 16 bits per sample
+        case 0x5: // 20 bits per sample
+        case 0x6: // 24 bits per sample
+        case 0x7: // 32 bits per sample
+            // Valid bit depths - valid
+            return true;
+            
+        case 0x3:
+            // Reserved - already checked in main validation
+            Debug::log("flac_codec", "[validateBitDepthBits_unlocked] Reserved bit depth: 0x3");
+            return false;
+            
+        default:
+            // Should never reach here due to 3-bit mask
+            Debug::log("flac_codec", "[validateBitDepthBits_unlocked] Invalid bit depth bits: 0x", 
+                      std::hex, static_cast<unsigned>(bit_depth_bits), std::dec);
+            return false;
+    }
+}
+
+// ============================================================================
+// RFC 9639 Section 9.2 Subframe Type Compliance Validation Implementation
+// ============================================================================
+
+bool FLACCodec::validateSubframeType_unlocked(uint8_t subframe_type_bits) const {
+    // RFC 9639 Section 9.2.1 Table 19: Subframe Type Validation
+    // The subframe_type_bits parameter contains the 6-bit subframe type value
+    
+    Debug::log("flac_codec", "[validateSubframeType_unlocked] Validating subframe type: 0b", 
+              std::bitset<6>(subframe_type_bits).to_string(), " (0x", 
+              std::hex, static_cast<unsigned>(subframe_type_bits), std::dec, ")");
+    
+    // Validate individual subframe types per RFC 9639 specification
+    if (validateConstantSubframe_unlocked(subframe_type_bits)) {
+        Debug::log("flac_codec", "[validateSubframeType_unlocked] Valid CONSTANT subframe");
+        return true;
+    }
+    
+    if (validateVerbatimSubframe_unlocked(subframe_type_bits)) {
+        Debug::log("flac_codec", "[validateSubframeType_unlocked] Valid VERBATIM subframe");
+        return true;
+    }
+    
+    if (validateFixedPredictorSubframe_unlocked(subframe_type_bits)) {
+        uint8_t order = extractPredictorOrder_unlocked(subframe_type_bits);
+        Debug::log("flac_codec", "[validateSubframeType_unlocked] Valid FIXED predictor subframe, order: ", 
+                  static_cast<unsigned>(order));
+        return true;
+    }
+    
+    if (validateLinearPredictorSubframe_unlocked(subframe_type_bits)) {
+        uint8_t order = extractPredictorOrder_unlocked(subframe_type_bits);
+        Debug::log("flac_codec", "[validateSubframeType_unlocked] Valid LPC predictor subframe, order: ", 
+                  static_cast<unsigned>(order));
+        return true;
+    }
+    
+    // Check for reserved values per RFC 9639 Table 19
+    if ((subframe_type_bits >= 0x02 && subframe_type_bits <= 0x07) ||
+        (subframe_type_bits >= 0x0D && subframe_type_bits <= 0x1F)) {
+        Debug::log("flac_codec", "[validateSubframeType_unlocked] Reserved subframe type: 0x", 
+                  std::hex, static_cast<unsigned>(subframe_type_bits), std::dec, 
+                  " (RFC 9639 Section 9.2.1)");
+        return false;
+    }
+    
+    // Invalid subframe type
+    Debug::log("flac_codec", "[validateSubframeType_unlocked] Invalid subframe type: 0x", 
+              std::hex, static_cast<unsigned>(subframe_type_bits), std::dec);
+    return false;
+}
+
+bool FLACCodec::validateConstantSubframe_unlocked(uint8_t subframe_type_bits) const {
+    // RFC 9639 Section 9.2.3: Constant subframe type is 0b000000
+    if (subframe_type_bits == 0x00) {
+        Debug::log("flac_codec", "[validateConstantSubframe_unlocked] Valid CONSTANT subframe (0x00)");
+        return true;
+    }
+    return false;
+}
+
+bool FLACCodec::validateVerbatimSubframe_unlocked(uint8_t subframe_type_bits) const {
+    // RFC 9639 Section 9.2.4: Verbatim subframe type is 0b000001
+    if (subframe_type_bits == 0x01) {
+        Debug::log("flac_codec", "[validateVerbatimSubframe_unlocked] Valid VERBATIM subframe (0x01)");
+        return true;
+    }
+    return false;
+}
+
+bool FLACCodec::validateFixedPredictorSubframe_unlocked(uint8_t subframe_type_bits) const {
+    // RFC 9639 Section 9.2.5: Fixed predictor subframes are 0b001000 - 0b001100
+    // This corresponds to predictor orders 0, 1, 2, 3, 4 (v-8 where v is the 6-bit value)
+    if (subframe_type_bits >= 0x08 && subframe_type_bits <= 0x0C) {
+        uint8_t predictor_order = subframe_type_bits - 0x08;
+        Debug::log("flac_codec", "[validateFixedPredictorSubframe_unlocked] Valid FIXED predictor subframe, ", 
+                  "type: 0x", std::hex, static_cast<unsigned>(subframe_type_bits), std::dec, 
+                  ", order: ", static_cast<unsigned>(predictor_order));
+        
+        // Validate predictor order is within RFC 9639 limits (0-4)
+        if (predictor_order > 4) {
+            Debug::log("flac_codec", "[validateFixedPredictorSubframe_unlocked] Invalid predictor order: ", 
+                      static_cast<unsigned>(predictor_order), " (RFC 9639 limit: 0-4)");
+            return false;
+        }
+        
+        return true;
+    }
+    return false;
+}
+
+bool FLACCodec::validateLinearPredictorSubframe_unlocked(uint8_t subframe_type_bits) const {
+    // RFC 9639 Section 9.2.6: Linear predictor subframes are 0b100000 - 0b111111
+    // This corresponds to predictor orders 1-32 (v-31 where v is the 6-bit value)
+    if (subframe_type_bits >= 0x20 && subframe_type_bits <= 0x3F) {
+        uint8_t predictor_order = subframe_type_bits - 0x1F; // v-31, but we want 1-based
+        Debug::log("flac_codec", "[validateLinearPredictorSubframe_unlocked] Valid LPC predictor subframe, ", 
+                  "type: 0x", std::hex, static_cast<unsigned>(subframe_type_bits), std::dec, 
+                  ", order: ", static_cast<unsigned>(predictor_order));
+        
+        // Validate predictor order is within RFC 9639 limits (1-32)
+        if (predictor_order < 1 || predictor_order > 32) {
+            Debug::log("flac_codec", "[validateLinearPredictorSubframe_unlocked] Invalid predictor order: ", 
+                      static_cast<unsigned>(predictor_order), " (RFC 9639 limit: 1-32)");
+            return false;
+        }
+        
+        // RFC 9639 Section 7: Streamable subset restriction for sample rates <= 48kHz
+        // Linear prediction subframes MUST have predictor order <= 12 for sample rates <= 48000 Hz
+        if (m_sample_rate <= 48000 && predictor_order > 12) {
+            Debug::log("flac_codec", "[validateLinearPredictorSubframe_unlocked] Streamable subset violation: ", 
+                      "predictor order ", static_cast<unsigned>(predictor_order), 
+                      " > 12 for sample rate ", m_sample_rate, " Hz (RFC 9639 Section 7)");
+            return false;
+        }
+        
+        return true;
+    }
+    return false;
+}
+
+bool FLACCodec::validateWastedBitsFlag_unlocked(uint8_t wasted_bits_flag) const {
+    // RFC 9639 Section 9.2.2: Wasted bits flag is a single bit (0 or 1)
+    if (wasted_bits_flag > 1) {
+        Debug::log("flac_codec", "[validateWastedBitsFlag_unlocked] Invalid wasted bits flag: ", 
+                  static_cast<unsigned>(wasted_bits_flag), " (must be 0 or 1)");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validateWastedBitsFlag_unlocked] Valid wasted bits flag: ", 
+              static_cast<unsigned>(wasted_bits_flag));
+    return true;
+}
+
+uint8_t FLACCodec::extractPredictorOrder_unlocked(uint8_t subframe_type_bits) const {
+    // Extract predictor order based on subframe type per RFC 9639 Section 9.2.1
+    if (subframe_type_bits >= 0x08 && subframe_type_bits <= 0x0C) {
+        // Fixed predictor: order = v - 8 (where v is the 6-bit value)
+        return subframe_type_bits - 0x08;
+    } else if (subframe_type_bits >= 0x20 && subframe_type_bits <= 0x3F) {
+        // Linear predictor: order = v - 31 (where v is the 6-bit value)
+        return subframe_type_bits - 0x1F; // -31 + 1 to make it 1-based
+    } else {
+        // Not a predictor subframe
+        Debug::log("flac_codec", "[extractPredictorOrder_unlocked] Not a predictor subframe: 0x", 
+                  std::hex, static_cast<unsigned>(subframe_type_bits), std::dec);
+        return 0;
+    }
 }
 
 // ============================================================================

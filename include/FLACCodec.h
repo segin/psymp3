@@ -1221,6 +1221,21 @@ private:
     size_t estimateFrameSize_unlocked(const uint8_t* data, size_t size) const;
     bool validateFrameHeader_unlocked(const uint8_t* data, size_t size) const;
     
+    // RFC 9639 compliance validation helper methods (assume appropriate locks are held)
+    bool validateBlockSizeBits_unlocked(uint8_t block_size_bits) const;
+    bool validateSampleRateBits_unlocked(uint8_t sample_rate_bits) const;
+    bool validateChannelAssignment_unlocked(uint8_t channel_assignment) const;
+    bool validateBitDepthBits_unlocked(uint8_t bit_depth_bits) const;
+    
+    // RFC 9639 Section 9.2 Subframe Type Compliance Validation (assume appropriate locks are held)
+    bool validateSubframeType_unlocked(uint8_t subframe_type_bits) const;
+    bool validateConstantSubframe_unlocked(uint8_t subframe_type_bits) const;
+    bool validateVerbatimSubframe_unlocked(uint8_t subframe_type_bits) const;
+    bool validateFixedPredictorSubframe_unlocked(uint8_t subframe_type_bits) const;
+    bool validateLinearPredictorSubframe_unlocked(uint8_t subframe_type_bits) const;
+    bool validateWastedBitsFlag_unlocked(uint8_t wasted_bits_flag) const;
+    uint8_t extractPredictorOrder_unlocked(uint8_t subframe_type_bits) const;
+    
     // Input flow control methods (assume m_input_mutex is held)
     bool checkInputQueueCapacity_unlocked(const MediaChunk& chunk);
     void handleInputOverflow_unlocked();
