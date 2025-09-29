@@ -356,13 +356,81 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - Validate integration with different demuxer implementations
   - _Requirements: 5.1-5.8, 6.1-6.8, 8.1-8.8, 9.1-9.8, 10.1-10.8_
 
-- [x] 16. Implement RFC 9639 Compliance Validation
-  - Add comprehensive RFC 9639 compliance checking throughout implementation
-  - Validate frame header parsing against official FLAC specification
-  - Implement all subframe types per RFC 9639 requirements (CONSTANT, VERBATIM, FIXED, LPC)
-  - Add entropy coding validation using RFC 9639 Rice/Golomb specification
-  - Ensure CRC-16 calculation follows RFC 9639 polynomial and algorithm
-  - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5_
+- [ ] 16. Implement RFC 9639 Compliance Validation
+  - [x] 16.1 Add Frame Header RFC Compliance Validation
+    - Implement strict RFC 9639 Section 9.1 frame header parsing with bit-level accuracy
+    - Validate sync code (0x3FFE) detection and forbidden pattern rejection per RFC
+    - Add reserved bit validation and proper handling of future format extensions
+    - Implement blocking strategy validation (fixed vs variable) per RFC specification
+    - Validate block size encoding against RFC 9639 Table 1 (Section 9.1.2)
+    - Add sample rate validation against RFC 9639 Table 2 (Section 9.1.3)
+    - Implement channel assignment validation per RFC 9639 Table 3 (Section 9.1.4)
+    - Add sample size validation against RFC 9639 Table 4 (Section 9.1.5)
+    - _Requirements: 13.1, 13.2, 1.1, 1.2_
+
+  - [x] 16.2 Implement Subframe Type RFC Compliance
+    - Add CONSTANT subframe processing per RFC 9639 Section 9.2.1
+    - Implement VERBATIM subframe handling per RFC 9639 Section 9.2.2
+    - Add FIXED predictor subframes per RFC 9639 Section 9.2.3 with all 5 predictor orders
+    - Implement LPC subframes per RFC 9639 Section 9.2.4 with proper coefficient handling
+    - Validate subframe header parsing including wasted bits per RFC specification
+    - Add proper residual coding validation for each subframe type
+    - Implement side-channel processing (left-side, right-side, mid-side) per RFC
+    - _Requirements: 13.2, 13.3, 1.3, 1.4, 1.5_
+
+  - [x] 16.3 Add Entropy Coding RFC Compliance
+    - Implement Rice/Golomb coding per RFC 9639 Section 9.2.5 with exact algorithms
+    - Validate partition order and Rice parameter encoding per RFC specification
+    - Add proper escape code handling for unencoded residuals per RFC
+    - Implement residual decoding with proper sign handling and bit manipulation
+    - Validate entropy coding parameters against RFC limits and constraints
+    - Add debugging for entropy decoding failures with RFC section references
+    - _Requirements: 13.3, 13.4, 1.4, 1.5_
+
+  - [-] 16.4 Implement CRC Validation RFC Compliance
+    - Add frame-level CRC-16 validation using RFC 9639 polynomial (0x8005)
+    - Implement proper CRC calculation over frame header and subframes per RFC
+    - Add CRC mismatch handling with RFC-compliant error recovery strategies
+    - Validate CRC calculation excludes sync code and CRC field itself per RFC
+    - Implement optional CRC validation with performance considerations
+    - Add debugging output for CRC validation failures with frame details
+    - _Requirements: 13.5, 1.7, 1.8, 7.2_
+
+  - [-] 16.5 Add Bit Depth and Sample Format RFC Compliance
+    - Validate supported bit depths (4-32 bits) per RFC 9639 specification
+    - Implement proper sign extension for samples less than 32 bits per RFC
+    - Add overflow protection for bit depth conversion per RFC requirements
+    - Validate sample format consistency between STREAMINFO and frame headers
+    - Implement proper handling of reserved bit depth values per RFC
+    - Add bit-perfect validation for lossless reconstruction per RFC principles
+    - _Requirements: 13.7, 2.1, 2.2, 2.3, 2.4, 12.1_
+
+  - [-] 16.6 Implement Channel Assignment RFC Compliance
+    - Add independent channel processing per RFC 9639 channel assignment table
+    - Implement left-side stereo reconstruction per RFC formula: right = left - side
+    - Add right-side stereo reconstruction per RFC formula: left = side + right
+    - Implement mid-side stereo reconstruction per RFC formulas with proper bit handling
+    - Validate channel assignment values against RFC specification limits
+    - Add multi-channel support validation for up to 8 channels per RFC
+    - _Requirements: 13.6, 3.1, 3.2, 3.4, 3.5, 3.6_
+
+  - [-] 16.7 Add Block Size and Sample Rate RFC Compliance
+    - Validate block size encoding per RFC 9639 Table 1 with proper range checking
+    - Implement variable block size handling per RFC specification requirements
+    - Add sample rate validation per RFC 9639 Table 2 with reserved value handling
+    - Validate consistency between STREAMINFO and frame header parameters per RFC
+    - Implement proper handling of "get from end of header" encoding per RFC
+    - Add validation for maximum block size limits per RFC specification
+    - _Requirements: 13.1, 4.1, 4.2, 4.3, 4.4, 4.5_
+
+  - [-] 16.8 Implement Error Handling RFC Compliance
+    - Add RFC-compliant error handling for all forbidden bit patterns
+    - Implement proper response to reserved field violations per RFC
+    - Add graceful handling of unsupported features per RFC recommendations
+    - Validate error recovery strategies against RFC best practices
+    - Implement proper stream termination on unrecoverable errors per RFC
+    - Add comprehensive error logging with RFC section references for debugging
+    - _Requirements: 13.8, 7.1, 7.2, 7.3, 7.4, 7.8_
 
 - [x] 16.1 Add Performance Benchmarking and Validation
   - Implement real-time performance validation for high-resolution files
@@ -380,7 +448,44 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - Add conditional test compilation for FLAC codec tests
   - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.8_
 
-- [x] 17. Documentation and Code Quality with Lessons Learned
+- [ ] 17. Fix Critical RFC Compliance Issues Found in Debugging
+  - [ ] 17.1 Fix Frame Boundary Detection RFC Compliance
+    - Implement proper sync pattern detection per RFC 9639 Section 9.1 (0x3FFE followed by reserved bit)
+    - Fix frame header parsing to correctly identify frame boundaries in compressed streams
+    - Add validation that frame sync detection doesn't skip valid frames due to incorrect parsing
+    - Implement proper handling of highly compressed frames (10-14 bytes) per RFC requirements
+    - Fix CRC validation issues that may be caused by incorrect frame boundary detection
+    - Add comprehensive debugging for frame sync detection with RFC compliance validation
+    - _Requirements: 13.1, 1.1, 1.7, 1.8_
+
+  - [ ] 17.2 Fix Subframe Processing RFC Compliance Issues
+    - Debug and fix subframe type detection per RFC 9639 Section 9.2 requirements
+    - Implement proper wasted bits handling per RFC specification for all subframe types
+    - Fix predictor coefficient processing for FIXED and LPC subframes per RFC algorithms
+    - Add validation that residual decoding follows RFC 9639 entropy coding specification exactly
+    - Fix channel reconstruction algorithms to match RFC formulas precisely
+    - Add bit-level debugging for subframe processing with RFC section references
+    - _Requirements: 13.2, 13.3, 1.3, 1.4, 1.5_
+
+  - [ ] 17.3 Fix Sample Format and Bit Depth RFC Compliance
+    - Debug bit depth conversion issues found during testing against RFC requirements
+    - Fix sign extension and sample format handling per RFC 9639 specification
+    - Implement proper overflow handling and range validation per RFC requirements
+    - Add validation that decoded samples match RFC bit-perfect lossless requirements
+    - Fix any endianness issues in sample processing per RFC specification
+    - Add comprehensive sample format debugging with RFC compliance validation
+    - _Requirements: 13.7, 2.1, 2.2, 2.3, 2.4, 12.1_
+
+  - [ ] 17.4 Add RFC Compliance Debugging and Validation Tools
+    - Implement comprehensive RFC compliance checking with detailed error reporting
+    - Add frame-by-frame validation against RFC 9639 specification requirements
+    - Create debugging tools that reference specific RFC sections for violations
+    - Implement bit-level analysis tools for debugging complex RFC compliance issues
+    - Add performance monitoring to ensure RFC compliance doesn't impact real-time decoding
+    - Create test suite with RFC-compliant reference files for validation
+    - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8_
+
+- [x] 18. Documentation and Code Quality with Lessons Learned
   - Add comprehensive inline documentation for all public methods with threading safety notes
   - Create developer documentation for FLAC codec architecture incorporating implementation experience
   - Document optimized bit depth conversion algorithms and high-performance channel processing
@@ -388,7 +493,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - Include performance optimization documentation and troubleshooting guides
   - _Requirements: 10.7, 10.8, 11.7, 11.8, 15.1, 15.4_
 
-- [x] 17.1 Create Comprehensive API Documentation
+- [x] 18.1 Create Comprehensive API Documentation
   - Document all FLACCodec public methods with usage examples and threading safety guarantees
   - Explain optimized bit depth conversion and channel processing algorithms with performance notes
   - Document threading model, synchronization requirements, and lock acquisition order
@@ -396,7 +501,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - Include performance tuning guide and optimization recommendations
   - _Requirements: 10.7, 10.8, 9.1-9.8, 15.1, 15.4_
 
-- [x] 17.2 Add Developer Guide with Implementation Insights
+- [x] 18.2 Add Developer Guide with Implementation Insights
   - Document integration with AudioCodec architecture and container-agnostic design principles
   - Explain lessons learned from FLAC demuxer development and performance optimization
   - Provide guidance for extending FLAC codec functionality with threading safety
