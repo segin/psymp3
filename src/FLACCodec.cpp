@@ -525,6 +525,100 @@ FLACCodecStats FLACCodec::getStats() const {
     }
 }
 
+// CRC Validation Control Methods (RFC 9639 Compliance)
+
+void FLACCodec::setCRCValidationEnabled(bool enabled) {
+    Debug::log("flac_codec", "[FLACCodec::setCRCValidationEnabled] [ENTRY] Setting CRC validation to: ", 
+              (enabled ? "ENABLED" : "DISABLED"));
+    
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    Debug::log("flac_codec", "[FLACCodec::setCRCValidationEnabled] [LOCKED] State lock acquired");
+    
+    m_crc_validation_enabled = enabled;
+    
+    // Reset automatic disabling flag when manually enabling
+    if (enabled) {
+        m_crc_validation_disabled_due_to_errors = false;
+        Debug::log("flac_codec", "[FLACCodec::setCRCValidationEnabled] CRC validation enabled, reset auto-disable flag");
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::setCRCValidationEnabled] [EXIT] CRC validation state updated");
+}
+
+bool FLACCodec::getCRCValidationEnabled() const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    bool enabled = shouldValidateCRC_unlocked();
+    
+    Debug::log("flac_codec", "[FLACCodec::getCRCValidationEnabled] [ENTRY/EXIT] CRC validation active: ", 
+              (enabled ? "YES" : "NO"));
+    
+    if (m_crc_validation_enabled && !enabled) {
+        Debug::log("flac_codec", "[FLACCodec::getCRCValidationEnabled] Note: Validation disabled due to excessive errors");
+    }
+    
+    return enabled;
+}
+
+void FLACCodec::setCRCValidationStrict(bool strict) {
+    Debug::log("flac_codec", "[FLACCodec::setCRCValidationStrict] [ENTRY] Setting strict CRC mode to: ", 
+              (strict ? "STRICT" : "PERMISSIVE"));
+    
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    Debug::log("flac_codec", "[FLACCodec::setCRCValidationStrict] [LOCKED] State lock acquired");
+    
+    m_strict_crc_validation = strict;
+    
+    Debug::log("flac_codec", "[FLACCodec::setCRCValidationStrict] [EXIT] CRC validation mode updated");
+    
+    if (strict) {
+        Debug::log("flac_codec", "[FLACCodec::setCRCValidationStrict] RFC 9639 strict mode: frames with CRC errors will be rejected");
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::setCRCValidationStrict] RFC 9639 permissive mode: frames with CRC errors will be used but logged");
+    }
+}
+
+bool FLACCodec::getCRCValidationStrict() const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    bool strict = m_strict_crc_validation;
+    
+    Debug::log("flac_codec", "[FLACCodec::getCRCValidationStrict] [ENTRY/EXIT] Strict CRC mode: ", 
+              (strict ? "ENABLED" : "DISABLED"));
+    
+    return strict;
+}
+
+size_t FLACCodec::getCRCErrorCount() const {
+    // Use atomic access for performance - no lock needed
+    size_t errors = m_stats.crc_errors;
+    
+    Debug::log("flac_codec", "[FLACCodec::getCRCErrorCount] [ENTRY/EXIT] Total CRC errors: ", errors);
+    
+    return errors;
+}
+
+void FLACCodec::setCRCErrorThreshold(size_t threshold) {
+    Debug::log("flac_codec", "[FLACCodec::setCRCErrorThreshold] [ENTRY] Setting CRC error threshold to: ", threshold);
+    
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    Debug::log("flac_codec", "[FLACCodec::setCRCErrorThreshold] [LOCKED] State lock acquired");
+    
+    m_crc_error_threshold = threshold;
+    
+    Debug::log("flac_codec", "[FLACCodec::setCRCErrorThreshold] [EXIT] CRC error threshold updated");
+    
+    if (threshold == 0) {
+        Debug::log("flac_codec", "[FLACCodec::setCRCErrorThreshold] Automatic CRC validation disabling is now DISABLED");
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::setCRCErrorThreshold] CRC validation will auto-disable after ", threshold, " errors");
+    }
+    
+    // Re-enable validation if we're now below the threshold
+    if (m_crc_validation_disabled_due_to_errors && m_stats.crc_errors < threshold) {
+        m_crc_validation_disabled_due_to_errors = false;
+        Debug::log("flac_codec", "[FLACCodec::setCRCErrorThreshold] Re-enabled CRC validation (below new threshold)");
+    }
+}
+
 // Private implementation methods (assume locks are held)
 
 bool FLACCodec::initialize_unlocked() {
@@ -1385,6 +1479,22 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
             // Check for FLAC frame sync pattern (0xFF followed by 0xF8-0xFF)
             if (data[0] == 0xFF && (data[1] & 0xF8) == 0xF8) {
                 Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Valid FLAC frame sync pattern detected");
+                
+                // Perform CRC validation per RFC 9639 if enabled
+                if (shouldValidateCRC_unlocked()) {
+                    if (!validateFrameCRC_unlocked(data, size)) {
+                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Frame CRC validation failed");
+                        
+                        // In strict mode, reject the frame
+                        if (m_strict_crc_validation) {
+                            return false;
+                        }
+                        // In non-strict mode, continue processing but log the error
+                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Continuing with potentially corrupted frame data");
+                    } else {
+                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Frame CRC validation passed");
+                    }
+                }
             } else {
                 Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Warning: No FLAC sync pattern found");
                 // Continue anyway - might be metadata or partial frame
@@ -2754,6 +2864,518 @@ bool FLACCodec::validateCodecIntegrity_unlocked() {
     } catch (const std::exception& e) {
         Debug::log("flac_codec", "[FLACCodec::validateCodecIntegrity_unlocked] Exception during validation: ", e.what());
         return false;
+    }
+}
+
+// ============================================================================
+// CRC Validation Methods (RFC 9639 Compliance)
+// ============================================================================
+
+bool FLACCodec::validateFrameCRC_unlocked(const uint8_t* frame_data, size_t frame_size) {
+    // Performance optimization: early exit if CRC validation is disabled
+    if (!shouldValidateCRC_unlocked()) {
+        return true; // CRC validation disabled for performance or due to excessive errors
+    }
+    
+    // Validate input parameters per RFC 9639 requirements
+    if (!frame_data || frame_size < 6) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameCRC_unlocked] Invalid frame data for CRC validation");
+        Debug::log("flac_codec", "  Frame data pointer: ", (frame_data ? "valid" : "NULL"));
+        Debug::log("flac_codec", "  Frame size: ", frame_size, " bytes (minimum 6 required)");
+        return false;
+    }
+    
+    // Performance monitoring for CRC validation overhead
+    auto crc_start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        // Validate frame header CRC (8-bit CRC per RFC 9639 Section 9.1.8)
+        // Find the header CRC position - it's after the frame/sample number and optional fields
+        size_t header_crc_pos = 4; // Start after sync code and basic header
+        
+        // Skip variable-length fields to find header CRC position
+        if (frame_size > header_crc_pos + 1) {
+            // Parse frame header to find CRC position
+            uint8_t blocking_strategy = (frame_data[1] >> 0) & 0x01;
+            uint8_t block_size_bits = (frame_data[2] >> 4) & 0x0F;
+            uint8_t sample_rate_bits = frame_data[2] & 0x0F;
+            
+            // Skip frame/sample number (variable length)
+            if (blocking_strategy == 0) {
+                // Fixed block size - frame number (up to 6 bytes)
+                while (header_crc_pos < frame_size && (frame_data[header_crc_pos] & 0x80)) {
+                    header_crc_pos++;
+                }
+                header_crc_pos++; // Final byte of frame number
+            } else {
+                // Variable block size - sample number (up to 7 bytes)
+                while (header_crc_pos < frame_size && (frame_data[header_crc_pos] & 0x80)) {
+                    header_crc_pos++;
+                }
+                header_crc_pos++; // Final byte of sample number
+            }
+            
+            // Skip uncommon block size if present
+            if (block_size_bits == 0x06) {
+                header_crc_pos++; // 8-bit block size
+            } else if (block_size_bits == 0x07) {
+                header_crc_pos += 2; // 16-bit block size
+            }
+            
+            // Skip uncommon sample rate if present
+            if (sample_rate_bits == 0x0C) {
+                header_crc_pos++; // 8-bit sample rate
+            } else if (sample_rate_bits == 0x0D || sample_rate_bits == 0x0E) {
+                header_crc_pos += 2; // 16-bit sample rate
+            }
+            
+            // Now header_crc_pos points to the header CRC byte
+            if (header_crc_pos < frame_size) {
+                uint8_t expected_header_crc = frame_data[header_crc_pos];
+                uint8_t calculated_header_crc = calculateFrameHeaderCRC_unlocked(frame_data, header_crc_pos);
+                
+                if (expected_header_crc != calculated_header_crc) {
+                    handleCRCMismatch_unlocked("header", expected_header_crc, calculated_header_crc, 
+                                             frame_data, frame_size);
+                    return false;
+                }
+            }
+        }
+        
+        // Validate frame footer CRC (16-bit CRC per RFC 9639 Section 9.3)
+        if (frame_size >= 2) {
+            uint16_t expected_footer_crc = (static_cast<uint16_t>(frame_data[frame_size - 2]) << 8) |
+                                          static_cast<uint16_t>(frame_data[frame_size - 1]);
+            uint16_t calculated_footer_crc = calculateFrameFooterCRC_unlocked(frame_data, frame_size);
+            
+            if (expected_footer_crc != calculated_footer_crc) {
+                handleCRCMismatch_unlocked("footer", expected_footer_crc, calculated_footer_crc, 
+                                         frame_data, frame_size);
+                return false;
+            }
+        }
+        
+        // Performance monitoring: measure CRC validation overhead
+        auto crc_end_time = std::chrono::high_resolution_clock::now();
+        auto crc_duration = std::chrono::duration_cast<std::chrono::microseconds>(crc_end_time - crc_start_time);
+        
+        Debug::log("flac_codec", "[FLACCodec::validateFrameCRC_unlocked] Frame CRC validation PASSED");
+        Debug::log("flac_codec", "  Validation time: ", crc_duration.count(), " μs");
+        Debug::log("flac_codec", "  Frame size: ", frame_size, " bytes");
+        Debug::log("flac_codec", "  Validation rate: ", 
+                  (frame_size * 1000000.0) / crc_duration.count(), " bytes/second");
+        
+        // Log performance warning if CRC validation is taking too long
+        if (crc_duration.count() > 1000) { // >1ms for CRC validation
+            Debug::log("flac_codec", "[FLACCodec::validateFrameCRC_unlocked] PERFORMANCE WARNING:");
+            Debug::log("flac_codec", "  CRC validation took ", crc_duration.count(), " μs (>1ms)");
+            Debug::log("flac_codec", "  Consider disabling CRC validation for better performance");
+            Debug::log("flac_codec", "  Use setCRCValidationEnabled(false) to disable");
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        auto crc_end_time = std::chrono::high_resolution_clock::now();
+        auto crc_duration = std::chrono::duration_cast<std::chrono::microseconds>(crc_end_time - crc_start_time);
+        
+        Debug::log("flac_codec", "[FLACCodec::validateFrameCRC_unlocked] Exception during CRC validation: ", e.what());
+        Debug::log("flac_codec", "  Validation time before exception: ", crc_duration.count(), " μs");
+        return false;
+    }
+}
+
+uint8_t FLACCodec::calculateFrameHeaderCRC_unlocked(const uint8_t* header_data, size_t header_size) {
+    // RFC 9639 Section 9.1.8: CRC-8 with polynomial x^8 + x^2 + x^1 + x^0 (0x107)
+    // IMPORTANT: CRC covers whole frame header INCLUDING sync code but EXCLUDING the CRC byte itself
+    // This ensures the CRC calculation follows RFC 9639 requirements exactly
+    // 
+    // CRC-8 calculation details per RFC 9639:
+    // - Polynomial: x^8 + x^2 + x^1 + x^0 (0x107 in binary representation)
+    // - Initialization: 0x00
+    // - Data coverage: sync code (2 bytes) + frame header fields (variable) EXCLUDING CRC byte
+    // - CRC position: immediately after frame/sample number and optional fields
+    //
+    // This is the correct CRC-8 table for polynomial 0x107 (x^8 + x^2 + x^1 + x^0)
+    
+    static const uint8_t crc8_table[256] = {
+        0x00, 0x07, 0x0E, 0x09, 0x1C, 0x1B, 0x12, 0x15,
+        0x38, 0x3F, 0x36, 0x31, 0x24, 0x23, 0x2A, 0x2D,
+        0x70, 0x77, 0x7E, 0x79, 0x6C, 0x6B, 0x62, 0x65,
+        0x48, 0x4F, 0x46, 0x41, 0x54, 0x53, 0x5A, 0x5D,
+        0xE0, 0xE7, 0xEE, 0xE9, 0xFC, 0xFB, 0xF2, 0xF5,
+        0xD8, 0xDF, 0xD6, 0xD1, 0xC4, 0xC3, 0xCA, 0xCD,
+        0x90, 0x97, 0x9E, 0x99, 0x8C, 0x8B, 0x82, 0x85,
+        0xA8, 0xAF, 0xA6, 0xA1, 0xB4, 0xB3, 0xBA, 0xBD,
+        0xC7, 0xC0, 0xC9, 0xCE, 0xDB, 0xDC, 0xD5, 0xD2,
+        0xFF, 0xF8, 0xF1, 0xF6, 0xE3, 0xE4, 0xED, 0xEA,
+        0xB7, 0xB0, 0xB9, 0xBE, 0xAB, 0xAC, 0xA5, 0xA2,
+        0x8F, 0x88, 0x81, 0x86, 0x93, 0x94, 0x9D, 0x9A,
+        0x27, 0x20, 0x29, 0x2E, 0x3B, 0x3C, 0x35, 0x32,
+        0x1F, 0x18, 0x11, 0x16, 0x03, 0x04, 0x0D, 0x0A,
+        0x57, 0x50, 0x59, 0x5E, 0x4B, 0x4C, 0x45, 0x42,
+        0x6F, 0x68, 0x61, 0x66, 0x73, 0x74, 0x7D, 0x7A,
+        0x89, 0x8E, 0x87, 0x80, 0x95, 0x92, 0x9B, 0x9C,
+        0xB1, 0xB6, 0xBF, 0xB8, 0xAD, 0xAA, 0xA3, 0xA4,
+        0xF9, 0xFE, 0xF7, 0xF0, 0xE5, 0xE2, 0xEB, 0xEC,
+        0xC1, 0xC6, 0xCF, 0xC8, 0xDD, 0xDA, 0xD3, 0xD4,
+        0x69, 0x6E, 0x67, 0x60, 0x75, 0x72, 0x7B, 0x7C,
+        0x51, 0x56, 0x5F, 0x58, 0x4D, 0x4A, 0x43, 0x44,
+        0x19, 0x1E, 0x17, 0x10, 0x05, 0x02, 0x0B, 0x0C,
+        0x21, 0x26, 0x2F, 0x28, 0x3D, 0x3A, 0x33, 0x34,
+        0x4E, 0x49, 0x40, 0x47, 0x52, 0x55, 0x5C, 0x5B,
+        0x76, 0x71, 0x78, 0x7F, 0x6A, 0x6D, 0x64, 0x63,
+        0x3E, 0x39, 0x30, 0x37, 0x22, 0x25, 0x2C, 0x2B,
+        0x06, 0x01, 0x08, 0x0F, 0x1A, 0x1D, 0x14, 0x13,
+        0xAE, 0xA9, 0xA0, 0xA7, 0xB2, 0xB5, 0xBC, 0xBB,
+        0x96, 0x91, 0x98, 0x9F, 0x8A, 0x8D, 0x84, 0x83,
+        0xDE, 0xD9, 0xD0, 0xD7, 0xC2, 0xC5, 0xCC, 0xCB,
+        0xE6, 0xE1, 0xE8, 0xEF, 0xFA, 0xFD, 0xF4, 0xF3
+    };
+    
+    if (!header_data || header_size == 0) {
+        Debug::log("flac_codec", "[FLACCodec::calculateFrameHeaderCRC_unlocked] Invalid input parameters");
+        return 0x00;
+    }
+    
+    uint8_t crc = 0x00; // Initialize with 0 per RFC 9639 Section 9.1.8
+    
+    // Validate that we're not including the CRC byte itself per RFC 9639
+    if (header_size >= 2) {
+        uint16_t sync_check = (static_cast<uint16_t>(header_data[0]) << 8) | header_data[1];
+        bool valid_sync = (sync_check & 0xFFFE) == 0x3FFE;
+        
+        Debug::log("flac_codec", "[FLACCodec::calculateFrameHeaderCRC_unlocked] RFC 9639 CRC-8 calculation:");
+        Debug::log("flac_codec", "  Data coverage: ", header_size, " bytes (INCLUDING sync code, EXCLUDING CRC byte)");
+        Debug::log("flac_codec", "  Sync pattern validation: ", (valid_sync ? "VALID" : "INVALID"));
+        Debug::log("flac_codec", "  First 4 bytes: 0x", std::hex, std::uppercase,
+                  static_cast<uint32_t>(header_data[0]), " 0x", static_cast<uint32_t>(header_data[1]),
+                  " 0x", static_cast<uint32_t>(header_data[2]), " 0x", static_cast<uint32_t>(header_data[3]),
+                  std::nouppercase, std::dec);
+    }
+    
+    // Calculate CRC-8 over header data per RFC 9639 (includes sync code, excludes CRC byte)
+    for (size_t i = 0; i < header_size; i++) {
+        crc = crc8_table[crc ^ header_data[i]];
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::calculateFrameHeaderCRC_unlocked] Calculated header CRC-8: 0x", 
+              std::hex, std::uppercase, static_cast<uint32_t>(crc), std::nouppercase, std::dec, 
+              " over ", header_size, " bytes");
+    
+    return crc;
+}
+
+uint16_t FLACCodec::calculateFrameFooterCRC_unlocked(const uint8_t* frame_data, size_t frame_size) {
+    // RFC 9639 Section 9.3: CRC-16 with polynomial x^16 + x^15 + x^2 + x^0 (0x8005)
+    // IMPORTANT: CRC covers entire frame INCLUDING sync code but EXCLUDING the 16-bit CRC itself
+    // This ensures the CRC calculation follows RFC 9639 requirements exactly
+    //
+    // CRC-16 calculation details per RFC 9639:
+    // - Polynomial: x^16 + x^15 + x^2 + x^0 (0x8005 in binary representation)
+    // - Initialization: 0x0000
+    // - Data coverage: entire frame including sync code EXCLUDING final 2-byte CRC
+    // - CRC position: last 2 bytes of frame (big-endian format)
+    //
+    // This is the correct CRC-16 table for polynomial 0x8005 (x^16 + x^15 + x^2 + x^0)
+    
+    static const uint16_t crc16_table[256] = {
+        0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
+        0x8033, 0x0036, 0x003C, 0x8039, 0x0028, 0x802D, 0x8027, 0x0022,
+        0x8063, 0x0066, 0x006C, 0x8069, 0x0078, 0x807D, 0x8077, 0x0072,
+        0x0050, 0x8055, 0x805F, 0x005A, 0x804B, 0x004E, 0x0044, 0x8041,
+        0x80C3, 0x00C6, 0x00CC, 0x80C9, 0x00D8, 0x80DD, 0x80D7, 0x00D2,
+        0x00F0, 0x80F5, 0x80FF, 0x00FA, 0x80EB, 0x00EE, 0x00E4, 0x80E1,
+        0x00A0, 0x80A5, 0x80AF, 0x00AA, 0x80BB, 0x00BE, 0x00B4, 0x80B1,
+        0x8093, 0x0096, 0x009C, 0x8099, 0x0088, 0x808D, 0x8087, 0x0082,
+        0x8183, 0x0186, 0x018C, 0x8189, 0x0198, 0x819D, 0x8197, 0x0192,
+        0x01B0, 0x81B5, 0x81BF, 0x01BA, 0x81AB, 0x01AE, 0x01A4, 0x81A1,
+        0x01E0, 0x81E5, 0x81EF, 0x01EA, 0x81FB, 0x01FE, 0x01F4, 0x81F1,
+        0x81D3, 0x01D6, 0x01DC, 0x81D9, 0x01C8, 0x81CD, 0x81C7, 0x01C2,
+        0x0140, 0x8145, 0x814F, 0x014A, 0x815B, 0x015E, 0x0154, 0x8151,
+        0x8173, 0x0176, 0x017C, 0x8179, 0x0168, 0x816D, 0x8167, 0x0162,
+        0x8123, 0x0126, 0x012C, 0x8129, 0x0138, 0x813D, 0x8137, 0x0132,
+        0x0110, 0x8115, 0x811F, 0x011A, 0x810B, 0x010E, 0x0104, 0x8101,
+        0x8303, 0x0306, 0x030C, 0x8309, 0x0318, 0x831D, 0x8317, 0x0312,
+        0x0330, 0x8335, 0x833F, 0x033A, 0x832B, 0x032E, 0x0324, 0x8321,
+        0x0360, 0x8365, 0x836F, 0x036A, 0x837B, 0x037E, 0x0374, 0x8371,
+        0x8353, 0x0356, 0x035C, 0x8359, 0x0348, 0x834D, 0x8347, 0x0342,
+        0x03C0, 0x83C5, 0x83CF, 0x03CA, 0x83DB, 0x03DE, 0x03D4, 0x83D1,
+        0x83F3, 0x03F6, 0x03FC, 0x83F9, 0x03E8, 0x83ED, 0x83E7, 0x03E2,
+        0x83A3, 0x03A6, 0x03AC, 0x83A9, 0x03B8, 0x83BD, 0x83B7, 0x03B2,
+        0x0390, 0x8395, 0x839F, 0x039A, 0x838B, 0x038E, 0x0384, 0x8381,
+        0x0280, 0x8285, 0x828F, 0x028A, 0x829B, 0x029E, 0x0294, 0x8291,
+        0x82B3, 0x02B6, 0x02BC, 0x82B9, 0x02A8, 0x82AD, 0x82A7, 0x02A2,
+        0x82E3, 0x02E6, 0x02EC, 0x82E9, 0x02F8, 0x82FD, 0x82F7, 0x02F2,
+        0x02D0, 0x82D5, 0x82DF, 0x02DA, 0x82CB, 0x02CE, 0x02C4, 0x82C1,
+        0x8243, 0x0246, 0x024C, 0x8249, 0x0258, 0x825D, 0x8257, 0x0252,
+        0x0270, 0x8275, 0x827F, 0x027A, 0x826B, 0x026E, 0x0264, 0x8261,
+        0x0220, 0x8225, 0x822F, 0x022A, 0x823B, 0x023E, 0x0234, 0x8231,
+        0x8213, 0x0216, 0x021C, 0x8219, 0x0208, 0x820D, 0x8207, 0x0202
+    };
+    
+    if (!frame_data || frame_size < 2) {
+        Debug::log("flac_codec", "[FLACCodec::calculateFrameFooterCRC_unlocked] Invalid input parameters - frame_size: ", frame_size);
+        return 0x0000;
+    }
+    
+    uint16_t crc = 0x0000; // Initialize with 0 per RFC 9639 Section 9.3
+    
+    // Calculate CRC over whole frame excluding the 16-bit CRC itself per RFC 9639
+    // The CRC covers everything including sync code but excluding the final 2-byte CRC
+    size_t crc_data_size = frame_size - 2;
+    
+    // Validate that we're properly excluding the CRC bytes per RFC 9639
+    if (frame_size >= 4) {
+        uint16_t sync_check = (static_cast<uint16_t>(frame_data[0]) << 8) | frame_data[1];
+        bool valid_sync = (sync_check & 0xFFFE) == 0x3FFE;
+        
+        Debug::log("flac_codec", "[FLACCodec::calculateFrameFooterCRC_unlocked] RFC 9639 CRC-16 calculation:");
+        Debug::log("flac_codec", "  Total frame size: ", frame_size, " bytes");
+        Debug::log("flac_codec", "  Data coverage: ", crc_data_size, " bytes (INCLUDING sync code, EXCLUDING 2-byte CRC)");
+        Debug::log("flac_codec", "  CRC location: bytes ", frame_size - 2, "-", frame_size - 1, " (EXCLUDED from calculation)");
+        Debug::log("flac_codec", "  Sync pattern validation: ", (valid_sync ? "VALID" : "INVALID"));
+        Debug::log("flac_codec", "  CRC bytes: 0x", std::hex, std::uppercase,
+                  static_cast<uint32_t>(frame_data[frame_size - 2]), " 0x", 
+                  static_cast<uint32_t>(frame_data[frame_size - 1]), std::nouppercase, std::dec);
+    }
+    
+    // Calculate CRC-16 over frame data per RFC 9639 (includes sync code, excludes final 2-byte CRC)
+    for (size_t i = 0; i < crc_data_size; i++) {
+        crc = (crc << 8) ^ crc16_table[((crc >> 8) ^ frame_data[i]) & 0xFF];
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::calculateFrameFooterCRC_unlocked] Calculated footer CRC-16: 0x", 
+              std::hex, std::uppercase, static_cast<uint32_t>(crc), std::nouppercase, std::dec, 
+              " over ", crc_data_size, " bytes");
+    
+    return crc;
+}
+
+void FLACCodec::handleCRCMismatch_unlocked(const char* crc_type, uint32_t expected, uint32_t calculated, 
+                                          const uint8_t* frame_data, size_t frame_size) {
+    m_stats.crc_errors++;
+    
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ========================================");
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] RFC 9639 CRC VALIDATION FAILURE");
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ========================================");
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] CRC Type: ", crc_type, " CRC");
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Expected CRC: 0x", 
+              std::hex, std::uppercase, expected, std::nouppercase, std::dec);
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Calculated CRC: 0x", 
+              std::hex, std::uppercase, calculated, std::nouppercase, std::dec);
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] CRC Difference: 0x", 
+              std::hex, std::uppercase, (expected ^ calculated), std::nouppercase, std::dec);
+    
+    // Log comprehensive frame details for debugging per RFC 9639 requirements
+    if (frame_data && frame_size >= 4) {
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ----------------------------------------");
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] DETAILED FRAME ANALYSIS (RFC 9639)");
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ----------------------------------------");
+        
+        // Extract and validate sync pattern per RFC 9639 Section 9.1.1
+        uint16_t sync_pattern = (static_cast<uint16_t>(frame_data[0]) << 8) | frame_data[1];
+        bool valid_sync = (sync_pattern & 0xFFFE) == 0x3FFE; // RFC 9639 sync pattern: 11111111111110xx
+        
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Frame size: ", frame_size, " bytes");
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Sync pattern: 0x", 
+                  std::hex, std::uppercase, sync_pattern, std::nouppercase, std::dec, 
+                  " (", (valid_sync ? "VALID per RFC 9639" : "INVALID - not RFC 9639 compliant"), ")");
+        
+        if (!valid_sync) {
+            Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] WARNING: Invalid sync pattern may indicate frame boundary detection error");
+            Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] RFC 9639 requires sync pattern 0x3FFE (14 bits) followed by reserved bit and blocking strategy");
+        }
+        
+        if (frame_size >= 4) {
+            // Parse frame header for additional debugging info per RFC 9639 Section 9.1
+            uint8_t reserved_bit = (frame_data[1] >> 1) & 0x01;
+            uint8_t blocking_strategy = (frame_data[1] >> 0) & 0x01;
+            uint8_t block_size_bits = (frame_data[2] >> 4) & 0x0F;
+            uint8_t sample_rate_bits = frame_data[2] & 0x0F;
+            uint8_t channel_assignment = (frame_data[3] >> 4) & 0x0F;
+            uint8_t sample_size_bits = (frame_data[3] >> 1) & 0x07;
+            uint8_t reserved_bit2 = frame_data[3] & 0x01;
+            
+            Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Frame Header Analysis (RFC 9639 Section 9.1):");
+            Debug::log("flac_codec", "  Reserved bit (must be 0): ", static_cast<uint32_t>(reserved_bit), 
+                      (reserved_bit == 0 ? " (VALID)" : " (INVALID - RFC violation)"));
+            Debug::log("flac_codec", "  Blocking strategy: ", (blocking_strategy ? "variable block size" : "fixed block size"));
+            Debug::log("flac_codec", "  Block size encoding: 0x", std::hex, static_cast<uint32_t>(block_size_bits), std::dec);
+            Debug::log("flac_codec", "  Sample rate encoding: 0x", std::hex, static_cast<uint32_t>(sample_rate_bits), std::dec);
+            Debug::log("flac_codec", "  Channel assignment: 0x", std::hex, static_cast<uint32_t>(channel_assignment), std::dec, 
+                      " (", getChannelAssignmentName(channel_assignment), ")");
+            Debug::log("flac_codec", "  Sample size encoding: 0x", std::hex, static_cast<uint32_t>(sample_size_bits), std::dec);
+            Debug::log("flac_codec", "  Reserved bit 2 (must be 0): ", static_cast<uint32_t>(reserved_bit2), 
+                      (reserved_bit2 == 0 ? " (VALID)" : " (INVALID - RFC violation)"));
+            
+            // Validate reserved bits per RFC 9639
+            if (reserved_bit != 0 || reserved_bit2 != 0) {
+                Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ERROR: Reserved bits are non-zero - RFC 9639 violation detected");
+                Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] This may indicate corrupted frame data or incorrect frame parsing");
+            }
+            
+            // Validate forbidden patterns per RFC 9639
+            if (block_size_bits == 0x00) {
+                Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ERROR: Block size 0x00 is forbidden per RFC 9639");
+            }
+            if (sample_rate_bits == 0x0F) {
+                Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ERROR: Sample rate 0x0F is forbidden per RFC 9639");
+            }
+            if (channel_assignment >= 0x0B && channel_assignment <= 0x0F) {
+                Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ERROR: Channel assignment 0x", 
+                          std::hex, static_cast<uint32_t>(channel_assignment), std::dec, " is reserved per RFC 9639");
+            }
+            if (sample_size_bits == 0x03 || sample_size_bits == 0x07) {
+                Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ERROR: Sample size 0x", 
+                          std::hex, static_cast<uint32_t>(sample_size_bits), std::dec, " is reserved per RFC 9639");
+            }
+        }
+        
+        // Log frame data in hex for detailed analysis
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ----------------------------------------");
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] FRAME DATA DUMP (for debugging)");
+        Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ----------------------------------------");
+        
+        size_t hex_bytes = std::min(frame_size, static_cast<size_t>(64)); // Show first 64 bytes
+        for (size_t i = 0; i < hex_bytes; i += 16) {
+            std::string hex_line = "";
+            std::string ascii_line = "";
+            
+            // Format address
+            char addr_str[16];
+            snprintf(addr_str, sizeof(addr_str), "0x%04X: ", static_cast<unsigned int>(i));
+            hex_line += addr_str;
+            
+            // Format hex bytes
+            for (size_t j = 0; j < 16 && (i + j) < hex_bytes; j++) {
+                char hex_byte[4];
+                snprintf(hex_byte, sizeof(hex_byte), "%02X ", frame_data[i + j]);
+                hex_line += hex_byte;
+                
+                // ASCII representation
+                char c = frame_data[i + j];
+                ascii_line += (c >= 32 && c <= 126) ? c : '.';
+            }
+            
+            // Pad hex line if needed
+            while (hex_line.length() < 55) {
+                hex_line += " ";
+            }
+            
+            Debug::log("flac_codec", "  ", hex_line, " |", ascii_line, "|");
+        }
+        
+        if (frame_size > 64) {
+            Debug::log("flac_codec", "  ... (", frame_size - 64, " more bytes not shown)");
+        }
+        
+        // Specific CRC location analysis
+        if (strcmp(crc_type, "header") == 0) {
+            Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Header CRC Analysis (RFC 9639 Section 9.1.8):");
+            Debug::log("flac_codec", "  CRC-8 polynomial: x^8 + x^2 + x^1 + x^0 (0x107)");
+            Debug::log("flac_codec", "  CRC initialization: 0x00");
+            Debug::log("flac_codec", "  CRC covers: sync code + frame header (excluding CRC byte itself)");
+        } else if (strcmp(crc_type, "footer") == 0) {
+            Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Footer CRC Analysis (RFC 9639 Section 9.3):");
+            Debug::log("flac_codec", "  CRC-16 polynomial: x^16 + x^15 + x^2 + x^0 (0x8005)");
+            Debug::log("flac_codec", "  CRC initialization: 0x0000");
+            Debug::log("flac_codec", "  CRC covers: entire frame including sync code (excluding 16-bit CRC itself)");
+            
+            if (frame_size >= 2) {
+                uint16_t footer_crc = (static_cast<uint16_t>(frame_data[frame_size - 2]) << 8) |
+                                     static_cast<uint16_t>(frame_data[frame_size - 1]);
+                Debug::log("flac_codec", "  Footer CRC location: bytes ", frame_size - 2, "-", frame_size - 1);
+                Debug::log("flac_codec", "  Footer CRC bytes: 0x", 
+                          std::hex, std::uppercase, static_cast<uint32_t>(frame_data[frame_size - 2]), " 0x", 
+                          static_cast<uint32_t>(frame_data[frame_size - 1]), std::nouppercase, std::dec);
+                Debug::log("flac_codec", "  Footer CRC value: 0x", 
+                          std::hex, std::uppercase, static_cast<uint32_t>(footer_crc), std::nouppercase, std::dec);
+            }
+        }
+    }
+    
+    
+    // RFC 9639 compliant error recovery strategy
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] RFC 9639 error recovery analysis:");
+    
+    // Check if we should disable CRC validation due to excessive errors
+    double error_rate = m_stats.frames_decoded > 0 ? 
+                       (static_cast<double>(m_stats.crc_errors) * 100.0) / m_stats.frames_decoded : 0.0;
+    
+    Debug::log("flac_codec", "  Total CRC errors: ", m_stats.crc_errors);
+    Debug::log("flac_codec", "  Total frames decoded: ", m_stats.frames_decoded);
+    Debug::log("flac_codec", "  CRC error rate: ", error_rate, "%");
+    Debug::log("flac_codec", "  CRC error threshold: ", m_crc_error_threshold, " errors");
+    Debug::log("flac_codec", "  Auto-disable threshold: ", (m_crc_error_threshold == 0 ? "DISABLED" : "ENABLED"));
+    
+    // Automatic CRC validation disabling per performance requirements
+    if (m_crc_error_threshold > 0 && m_stats.crc_errors >= m_crc_error_threshold) {
+        if (!m_crc_validation_disabled_due_to_errors) {
+            Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] RFC 9639 compliance note:");
+            Debug::log("flac_codec", "  Disabling CRC validation due to excessive errors (", 
+                      m_stats.crc_errors, " errors, ", error_rate, "% error rate)");
+            Debug::log("flac_codec", "  This may indicate systematic issues with the FLAC stream or decoder");
+            Debug::log("flac_codec", "  CRC validation can be re-enabled with setCRCValidationEnabled(true)");
+            m_crc_validation_disabled_due_to_errors = true;
+        }
+    }
+    
+    // RFC 9639 compliant error handling modes
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Error handling strategy:");
+    if (m_strict_crc_validation) {
+        Debug::log("flac_codec", "  Mode: STRICT RFC 9639 compliance");
+        Debug::log("flac_codec", "  Action: Frame with CRC error will be REJECTED");
+        Debug::log("flac_codec", "  Result: Silence output for this frame, decoder continues");
+        Debug::log("flac_codec", "  Impact: Maximum data integrity, potential audio dropouts");
+        setErrorState_unlocked(true);
+    } else {
+        Debug::log("flac_codec", "  Mode: PERMISSIVE RFC 9639 compliance");
+        Debug::log("flac_codec", "  Action: Frame with CRC error will be USED but logged");
+        Debug::log("flac_codec", "  Result: Potentially corrupted audio data, playback continues");
+        Debug::log("flac_codec", "  Impact: Better user experience, possible quality degradation");
+        Debug::log("flac_codec", "  RFC 9639 note: Decoders MAY use data despite CRC mismatches for error resilience");
+    }
+    
+    // Performance and debugging recommendations
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] Recommendations:");
+    if (m_stats.crc_errors == 1) {
+        Debug::log("flac_codec", "  First CRC error detected - monitor for patterns");
+        Debug::log("flac_codec", "  Performance: CRC validation adds ~5-10% CPU overhead");
+        Debug::log("flac_codec", "  Quality: Consider source integrity if errors persist");
+    } else if (m_stats.crc_errors < 5) {
+        Debug::log("flac_codec", "  Occasional CRC errors - likely transmission/storage issues");
+        Debug::log("flac_codec", "  Action: Continue monitoring, consider source quality");
+    } else {
+        Debug::log("flac_codec", "  Frequent CRC errors - systematic issue likely");
+        Debug::log("flac_codec", "  Action: Check source file integrity, consider disabling CRC validation");
+        Debug::log("flac_codec", "  Debug: Enable detailed frame logging for analysis");
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ========================================");
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] END CRC VALIDATION FAILURE ANALYSIS");
+    Debug::log("flac_codec", "[FLACCodec::handleCRCMismatch_unlocked] ========================================");
+}
+
+bool FLACCodec::shouldValidateCRC_unlocked() const {
+    return m_crc_validation_enabled && !m_crc_validation_disabled_due_to_errors;
+}
+
+const char* FLACCodec::getChannelAssignmentName(uint8_t channel_assignment) const {
+    // RFC 9639 Section 9.1.4 - Channel Assignment
+    switch (channel_assignment) {
+        case 0: return "1 channel (mono)";
+        case 1: return "2 channels (left, right)";
+        case 2: return "3 channels (left, right, center)";
+        case 3: return "4 channels (front left, front right, back left, back right)";
+        case 4: return "5 channels (front left, front right, front center, back left, back right)";
+        case 5: return "6 channels (front left, front right, front center, LFE, back left, back right)";
+        case 6: return "7 channels (front left, front right, front center, LFE, back center, side left, side right)";
+        case 7: return "8 channels (front left, front right, front center, LFE, back left, back right, side left, side right)";
+        case 8: return "2 channels (left-side stereo: channel 0 is left, channel 1 is side)";
+        case 9: return "2 channels (right-side stereo: channel 0 is side, channel 1 is right)";
+        case 10: return "2 channels (mid-side stereo: channel 0 is mid, channel 1 is side)";
+        default: return "reserved/invalid channel assignment";
     }
 }
 

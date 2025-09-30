@@ -387,7 +387,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add debugging for entropy decoding failures with RFC section references
     - _Requirements: 13.3, 13.4, 1.4, 1.5_
 
-  - [-] 16.4 Implement CRC Validation RFC Compliance
+  - [x] 16.4 Implement CRC Validation RFC Compliance
     - Add frame-level CRC-16 validation using RFC 9639 polynomial (0x8005)
     - Implement proper CRC calculation over frame header and subframes per RFC
     - Add CRC mismatch handling with RFC-compliant error recovery strategies
@@ -396,7 +396,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add debugging output for CRC validation failures with frame details
     - _Requirements: 13.5, 1.7, 1.8, 7.2_
 
-  - [-] 16.5 Add Bit Depth and Sample Format RFC Compliance
+  - [ ] 16.5 Add Bit Depth and Sample Format RFC Compliance
     - Validate supported bit depths (4-32 bits) per RFC 9639 specification
     - Implement proper sign extension for samples less than 32 bits per RFC
     - Add overflow protection for bit depth conversion per RFC requirements

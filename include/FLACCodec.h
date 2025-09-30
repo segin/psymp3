@@ -706,11 +706,203 @@ public:
      * - Sample-accurate position tracking
      * - Consistent across variable block sizes
      * - Atomic updates prevent race conditions
-     * - Monotonically increasing during normal playback
-     * 
-     * @see updateSamplePosition_unlocked() for position update logic
      */
     uint64_t getCurrentSample() const;
+    
+    /**
+     * @brief Get codec performance and debugging statistics
+     * 
+     * Returns comprehensive statistics about codec performance, including
+     * decoding efficiency, error counts, memory usage, and timing information.
+     * This information is useful for performance monitoring and debugging.
+     * 
+     * @return FLACCodecStats structure with current statistics
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * STATISTICS INCLUDED:
+     * - Frame and sample counts
+     * - Error breakdown (CRC, sync, memory, libFLAC)
+     * - Performance timing (average, min, max decode times)
+     * - Memory usage information
+     * - Decode efficiency metrics
+     * 
+     * @see FLACCodecStats for detailed field descriptions
+     */
+    FLACCodecStats getStats() const;
+    
+    // CRC Validation Control (RFC 9639 Compliance)
+    
+    /**
+     * @brief Enable or disable CRC validation per RFC 9639
+     * 
+     * Controls whether the codec performs CRC validation on FLAC frames.
+     * CRC validation provides data integrity checking but has performance
+     * overhead. RFC 9639 requires CRC validation for full compliance.
+     * 
+     * CRC VALIDATION TYPES:
+     * - Header CRC-8: Validates frame header integrity (polynomial x^8 + x^2 + x^1 + x^0)
+     * - Footer CRC-16: Validates entire frame integrity (polynomial x^16 + x^15 + x^2 + x^0)
+     * 
+     * @param enabled true to enable CRC validation, false to disable
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * PERFORMANCE CONSIDERATIONS:
+     * - Enabling CRC validation adds ~5-10% CPU overhead
+     * - Recommended for untrusted sources or debugging
+     * - Can be disabled for trusted sources to improve performance
+     * - Automatically disabled if excessive errors occur
+     * 
+     * RFC 9639 COMPLIANCE:
+     * - Full RFC compliance requires CRC validation enabled
+     * - Decoders MAY disable validation for performance reasons
+     * - Error recovery strategies differ based on validation mode
+     * 
+     * @see setCRCValidationStrict() for strict error handling mode
+     * @see getCRCValidationEnabled() to query current state
+     */
+    void setCRCValidationEnabled(bool enabled);
+    
+    /**
+     * @brief Check if CRC validation is currently enabled
+     * 
+     * Returns the current state of CRC validation. Note that validation
+     * may be automatically disabled if excessive errors occur, even if
+     * originally enabled.
+     * 
+     * @return true if CRC validation is enabled and active, false otherwise
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * AUTOMATIC DISABLING:
+     * CRC validation may be automatically disabled if:
+     * - Error rate exceeds threshold (default 10 errors)
+     * - Systematic CRC failures indicate stream corruption
+     * - Performance requirements cannot be met
+     * 
+     * @see setCRCValidationEnabled() to control validation
+     * @see getCRCErrorCount() to check error statistics
+     */
+    bool getCRCValidationEnabled() const;
+    
+    /**
+     * @brief Set strict CRC validation mode per RFC 9639
+     * 
+     * Controls error handling behavior when CRC validation fails.
+     * In strict mode, frames with CRC errors are rejected completely.
+     * In permissive mode, frames with CRC errors are used but logged.
+     * 
+     * STRICT MODE (strict=true):
+     * - Frames with CRC errors are completely rejected
+     * - Silence is output for rejected frames
+     * - Provides maximum data integrity assurance
+     * - May cause audio dropouts with corrupted streams
+     * 
+     * PERMISSIVE MODE (strict=false, default):
+     * - Frames with CRC errors are used but logged as warnings
+     * - Audio playback continues with potentially corrupted data
+     * - Better user experience with slightly corrupted streams
+     * - RFC 9639 compliant error recovery strategy
+     * 
+     * @param strict true for strict mode, false for permissive mode
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * RFC 9639 COMPLIANCE:
+     * Both modes are RFC 9639 compliant. The specification allows decoders
+     * to choose appropriate error recovery strategies based on application
+     * requirements.
+     * 
+     * @see setCRCValidationEnabled() to enable/disable validation
+     * @see getCRCValidationStrict() to query current mode
+     */
+    void setCRCValidationStrict(bool strict);
+    
+    /**
+     * @brief Check if strict CRC validation mode is enabled
+     * 
+     * Returns whether the codec is operating in strict CRC validation mode.
+     * This affects how CRC validation failures are handled.
+     * 
+     * @return true if strict mode enabled, false for permissive mode
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * @see setCRCValidationStrict() for mode descriptions
+     */
+    bool getCRCValidationStrict() const;
+    
+    /**
+     * @brief Get current CRC error count
+     * 
+     * Returns the total number of CRC validation failures encountered
+     * during decoding. This includes both header and footer CRC errors.
+     * 
+     * @return Total CRC error count since codec initialization
+     * 
+     * @thread_safety Thread-safe. Uses atomic access for performance.
+     * 
+     * ERROR TRACKING:
+     * - Incremented for each CRC validation failure
+     * - Includes both header CRC-8 and footer CRC-16 errors
+     * - Used for automatic validation disabling threshold
+     * - Reset by reset() method
+     * 
+     * @see getStats() for comprehensive error breakdown
+     */
+    size_t getCRCErrorCount() const;
+    
+    /**
+     * @brief Set CRC error threshold for automatic validation disabling
+     * 
+     * Sets the maximum number of CRC errors before validation is automatically
+     * disabled. This prevents excessive performance impact from systematically
+     * corrupted streams while maintaining data integrity for good streams.
+     * 
+     * @param threshold Maximum CRC errors before auto-disable (0 = never disable)
+     * 
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * AUTOMATIC DISABLING BEHAVIOR:
+     * - When error count reaches threshold, validation is disabled
+     * - Prevents performance degradation from corrupted streams
+     * - Can be re-enabled manually with setCRCValidationEnabled(true)
+     * - Default threshold is 10 errors
+     * - Setting to 0 disables automatic disabling
+     * 
+     * PERFORMANCE CONSIDERATIONS:
+     * - Lower thresholds improve performance with corrupted streams
+     * - Higher thresholds provide better data integrity assurance
+     * - Consider stream quality and application requirements
+     * 
+     * @see setCRCValidationEnabled() to manually control validation
+     * @see getCRCErrorCount() to monitor current error count
+     */
+    void setCRCErrorThreshold(size_t threshold);
+    
+    /**
+     * @brief Get current sample position in stream
+     * 
+     * Returns the current playback position as a sample number from the
+     * beginning of the stream. This value is updated after each successful
+     * decode operation and is used for timing and seeking calculations.
+     * 
+     * @return Current sample position (0-based)
+     * 
+     * @thread_safety Thread-safe. Uses atomic variable for lock-free access.
+     * 
+     * @note This method uses atomic access for high-frequency reads without
+     *       lock overhead. The position is updated atomically after each
+     *       successful decode operation.
+     * 
+     * POSITION TRACKING:
+     * - Initialized to 0 at codec creation
+     * - Incremented by block_size after each decoded frame
+     * - Reset to 0 by reset() method
+     * - Maintained across variable block sizes
+     * - Used for AudioFrame timestamp calculation
+     */
     
     /**
      * @brief Get comprehensive codec performance statistics
@@ -747,11 +939,7 @@ public:
      * - Verify codec efficiency
      * - Monitor resource utilization
      * - Validate optimization effectiveness
-     * 
-     * @see FLACCodecStats for detailed field descriptions
-     * @see updatePerformanceStats_unlocked() for statistics update logic
      */
-    FLACCodecStats getStats() const;
     
     // Quality validation and accuracy testing interface
     
@@ -1017,6 +1205,12 @@ private:
     size_t m_input_queue_high_watermark = 24;                   // 75% of max queue size
     size_t m_input_queue_low_watermark = 8;                     // 25% of max queue size
     
+    // CRC validation configuration (protected by m_state_mutex)
+    bool m_crc_validation_enabled = true;                       // Enable CRC validation per RFC 9639
+    bool m_strict_crc_validation = false;                       // Strict mode: reject frames with CRC errors
+    size_t m_crc_error_threshold = 10;                          // Maximum CRC errors before disabling validation
+    bool m_crc_validation_disabled_due_to_errors = false;       // CRC validation disabled due to excessive errors
+    
     // Threading and asynchronous processing state (protected by m_thread_mutex)
     mutable std::mutex m_thread_mutex;                          // Protects threading state
     std::unique_ptr<std::thread> m_decoder_thread;              // Background decoder thread
@@ -1158,6 +1352,15 @@ private:
     bool handleDecoderStateInconsistency_unlocked();
     bool recreateDecoder_unlocked();
     bool resetDecoderForNewStream_unlocked();
+    
+    // CRC validation methods (RFC 9639 compliance - assume appropriate locks are held)
+    bool validateFrameCRC_unlocked(const uint8_t* frame_data, size_t frame_size);
+    uint8_t calculateFrameHeaderCRC_unlocked(const uint8_t* header_data, size_t header_size);
+    uint16_t calculateFrameFooterCRC_unlocked(const uint8_t* frame_data, size_t frame_size);
+    void handleCRCMismatch_unlocked(const char* crc_type, uint32_t expected, uint32_t calculated, 
+                                   const uint8_t* frame_data, size_t frame_size);
+    bool shouldValidateCRC_unlocked() const;
+    const char* getChannelAssignmentName(uint8_t channel_assignment) const;
     bool recoverFromOggError_unlocked();
     bool recoverFromDecoderMemoryError_unlocked();
     bool reinitializeDecoder_unlocked();
