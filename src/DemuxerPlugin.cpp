@@ -500,7 +500,7 @@ void* DemuxerPluginManager::getSymbol(void* handle, const std::string& symbol_na
 #ifdef __linux__
     return dlsym(handle, symbol_name.c_str());
 #elif defined(_WIN32)
-    return GetProcAddress(static_cast<HMODULE>(handle), symbol_name.c_str());
+    return reinterpret_cast<void*>(GetProcAddress(static_cast<HMODULE>(handle), symbol_name.c_str()));
 #else
     return dlsym(handle, symbol_name.c_str());
 #endif
