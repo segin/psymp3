@@ -51,11 +51,11 @@ public:
     
     /**
      * @brief Emit PropertiesChanged signal for MPRIS interface
-     * @param interface D-Bus interface name (e.g., "org.mpris.MediaPlayer2.Player")
+     * @param interface_name D-Bus interface name (e.g., "org.mpris.MediaPlayer2.Player")
      * @param changed_properties Map of property names to new values
      * @return Result indicating if signal was queued successfully
      */
-    Result<void> emitPropertiesChanged(const std::string& interface, 
+    Result<void> emitPropertiesChanged(const std::string& interface_name, 
                                      const std::map<std::string, DBusVariant>& changed_properties);
     
     /**
@@ -116,7 +116,7 @@ public:
 
 private:
     // Private implementations - assume locks are already held
-    Result<void> emitPropertiesChanged_unlocked(const std::string& interface, 
+    Result<void> emitPropertiesChanged_unlocked(const std::string& interface_name, 
                                               const std::map<std::string, DBusVariant>& changed_properties);
     Result<void> emitSeeked_unlocked(uint64_t position_us);
     Result<void> start_unlocked();
@@ -135,7 +135,7 @@ private:
     
     // Signal creation helpers
     Result<DBusMessagePtr> createPropertiesChangedMessage_unlocked(
-        const std::string& interface, 
+        const std::string& interface_name, 
         const std::map<std::string, DBusVariant>& changed_properties);
     Result<DBusMessagePtr> createSeekedMessage_unlocked(uint64_t position_us);
     
@@ -148,12 +148,12 @@ private:
     
     // Batching support
     struct BatchedPropertiesChanged {
-        std::string interface;
+        std::string m_interface;
         std::map<std::string, DBusVariant> properties;
         std::chrono::steady_clock::time_point timestamp;
     };
     
-    void addToBatch_unlocked(const std::string& interface, 
+    void addToBatch_unlocked(const std::string& interface_name, 
                            const std::map<std::string, DBusVariant>& properties);
     bool shouldFlushBatch_unlocked() const;
     void flushBatch_unlocked();

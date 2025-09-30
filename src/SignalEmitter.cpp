@@ -21,10 +21,10 @@ SignalEmitter::~SignalEmitter() {
     stop(false); // Don't wait for completion in destructor
 }
 
-Result<void> SignalEmitter::emitPropertiesChanged(const std::string& interface, 
+Result<void> SignalEmitter::emitPropertiesChanged(const std::string& interface_name, 
                                                 const std::map<std::string, DBusVariant>& changed_properties) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    return emitPropertiesChanged_unlocked(interface, changed_properties);
+    return emitPropertiesChanged_unlocked(interface_name, changed_properties);
 }
 
 Result<void> SignalEmitter::emitSeeked(uint64_t position_us) {
@@ -69,10 +69,10 @@ void SignalEmitter::resetStatistics() {
 
 // Private implementations - assume locks are already held
 
-Result<void> SignalEmitter::emitPropertiesChanged_unlocked(const std::string& interface, 
+Result<void> SignalEmitter::emitPropertiesChanged_unlocked(const std::string& interface_name, 
                                                          const std::map<std::string, DBusVariant>& changed_properties) {
 #ifndef HAVE_DBUS
-    (void)interface;
+    (void)interface_name;
     (void)changed_properties;
     return Result<void>::error("D-Bus support not compiled in");
 #else
@@ -85,7 +85,7 @@ Result<void> SignalEmitter::emitPropertiesChanged_unlocked(const std::string& in
     }
     
     // Add to batch for efficient emission
-    addToBatch_unlocked(interface, changed_properties);
+    addToBatch_unlocked(interface_name, changed_properties);
     
     // Check if we should flush the batch immediately
     if (shouldFlushBatch_unlocked()) {
@@ -269,10 +269,10 @@ void SignalEmitter::processBatchedSignals_unlocked() {
 // Signal creation helpers
 
 Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
-    const std::string& interface, 
+    const std::string& interface_name, 
     const std::map<std::string, DBusVariant>& changed_properties) {
 #ifndef HAVE_DBUS
-    (void)interface;
+    (void)interface_name;
     (void)changed_properties;
     return Result<DBusMessagePtr>::error("D-Bus support not compiled in");
 #else
@@ -294,7 +294,7 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
     dbus_message_iter_init_append(message.get(), &iter);
     
     // Argument 1: Interface name (string)
-    const char* interface_cstr = interface.c_str();
+    const char* interface_cstr = interface_name.c_str();
     if (!dbus_message_iter_append_basic(&iter, DBUS_TYPE_STRING, &interface_cstr)) {
         return Result<DBusMessagePtr>::error("Failed to append interface name to PropertiesChanged signal");
     }
@@ -509,10 +509,10 @@ void SignalEmitter::dropOldestSignals_unlocked(size_t count) {
 
 // Batching support
 
-void SignalEmitter::addToBatch_unlocked(const std::string& interface, 
+void SignalEmitter::addToBatch_unlocked(const std::string& interface_name, 
                                       const std::map<std::string, DBusVariant>& properties) {
-    auto& batch = m_batched_properties[interface];
-    batch.interface = interface;
+    auto& batch = m_batched_properties[interface_name];
+    batch.m_interface = interface_name;
     batch.timestamp = std::chrono::steady_clock::now();
     
     // Merge properties into batch
@@ -543,10 +543,10 @@ void SignalEmitter::flushBatch_unlocked() {
     }
     
     // Create signal functions for each batched interface
-    for (const auto& [interface, batch] : m_batched_properties) {
-        auto signal_func = [this, interface, properties = batch.properties]() {
+    for (const auto& [interface_name, batch] : m_batched_properties) {
+        auto signal_func = [this, interface_name = batch.m_interface, properties = batch.properties]() {
             std::lock_guard<std::mutex> lock(m_mutex);
-            auto message_result = createPropertiesChangedMessage_unlocked(interface, properties);
+            auto message_result = createPropertiesChangedMessage_unlocked(interface_name, properties);
             if (message_result.isSuccess()) {
                 auto send_result = sendSignalMessage_unlocked(message_result.getValue().get());
                 if (send_result.isSuccess()) {
