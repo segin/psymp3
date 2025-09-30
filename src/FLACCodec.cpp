@@ -5307,56 +5307,88 @@ void FLACCodec::processChannelAssignment_unlocked(const FLAC__Frame* frame, cons
     uint16_t channels = frame->header.channels;
     
     Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Processing channel assignment ", 
-              assignment, " with ", channels, " channels");
+              assignment, " with ", channels, " channels (RFC 9639 Table 16)");
     
-    // RFC 9639 validation: Independent channels (0-7) support 1-8 channels
+    // RFC 9639 Table 16: Channel assignment validation
+    // Values 0-7: Independent channels (assignment + 1 = number of channels)
+    // Values 8-10: Stereo modes (exactly 2 channels required)
+    // Values 11-15: Reserved (forbidden per RFC 9639)
+    
     if (assignment <= 7) {
-        // Independent channel assignment: assignment value + 1 = number of channels
-        if (channels != assignment + 1) {
-            Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Channel count mismatch for independent assignment ", 
-                      assignment, ": expected ", assignment + 1, " channels, got ", channels);
+        // RFC 9639: Independent channel assignment (0b0000 to 0b0111)
+        // Channel count = assignment value + 1 (supports 1-8 channels)
+        uint16_t expected_channels = assignment + 1;
+        
+        if (channels != expected_channels) {
+            Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] RFC 9639 violation: ", 
+                      "Independent assignment ", assignment, " requires ", expected_channels, 
+                      " channels, got ", channels);
             m_stats.error_count++;
             return;
         }
+        
+        // Validate channel count is within RFC 9639 limits (1-8 channels)
+        if (channels < 1 || channels > 8) {
+            Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] RFC 9639 violation: ", 
+                      "Channel count ", channels, " outside valid range (1-8)");
+            m_stats.error_count++;
+            return;
+        }
+        
         processIndependentChannels_unlocked(frame, buffer);
         return;
     }
     
-    // Handle stereo channel assignments (8-10) - all require exactly 2 channels
+    // RFC 9639: Stereo channel assignments (0b1000, 0b1001, 0b1010)
     if (assignment >= 8 && assignment <= 10) {
+        // All stereo modes require exactly 2 channels per RFC 9639
         if (channels != 2) {
-            Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Stereo assignment ", 
-                      assignment, " requires 2 channels, got ", channels);
+            Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] RFC 9639 violation: ", 
+                      "Stereo assignment ", assignment, " requires exactly 2 channels, got ", channels);
             m_stats.error_count++;
             return;
         }
+        
+        // Process specific stereo modes per RFC 9639 Section 4.2
+        switch (assignment) {
+            case 8:  // 0b1000: Left-Side stereo (FLAC__CHANNEL_ASSIGNMENT_LEFT_SIDE)
+                Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Processing left-side stereo per RFC 9639");
+                processLeftSideStereo_unlocked(frame, buffer);
+                break;
+                
+            case 9:  // 0b1001: Side-Right stereo (FLAC__CHANNEL_ASSIGNMENT_RIGHT_SIDE)
+                Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Processing side-right stereo per RFC 9639");
+                processRightSideStereo_unlocked(frame, buffer);
+                break;
+                
+            case 10: // 0b1010: Mid-Side stereo (FLAC__CHANNEL_ASSIGNMENT_MID_SIDE)
+                Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Processing mid-side stereo per RFC 9639");
+                processMidSideStereo_unlocked(frame, buffer);
+                break;
+                
+            default:
+                // This should never happen due to the range check above
+                Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Internal error: ", 
+                          "Unexpected stereo assignment ", assignment);
+                m_stats.error_count++;
+                return;
+        }
+        return;
     }
     
-    // Process specific channel assignments per RFC 9639
-    switch (assignment) {
-        case FLAC__CHANNEL_ASSIGNMENT_LEFT_SIDE:  // 8: Left-Side stereo
-            processLeftSideStereo_unlocked(frame, buffer);
-            break;
-        case FLAC__CHANNEL_ASSIGNMENT_RIGHT_SIDE: // 9: Side-Right stereo
-            processRightSideStereo_unlocked(frame, buffer);
-            break;
-        case FLAC__CHANNEL_ASSIGNMENT_MID_SIDE:   // 10: Mid-Side stereo
-            processMidSideStereo_unlocked(frame, buffer);
-            break;
-        default:
-            // RFC 9639: assignments 11-15 are reserved
-            if (assignment >= 11 && assignment <= 15) {
-                Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Reserved channel assignment: ", 
-                          assignment, " (RFC 9639 violation)");
-                m_stats.error_count++;
-                return;
-            } else {
-                Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Invalid channel assignment: ", 
-                          assignment);
-                m_stats.error_count++;
-                return;
-            }
+    // RFC 9639: Reserved channel assignments (0b1011 to 0b1111)
+    if (assignment >= 11 && assignment <= 15) {
+        Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] RFC 9639 violation: ", 
+                  "Reserved channel assignment ", assignment, " (0b", std::bitset<4>(assignment), 
+                  ") - forbidden per RFC 9639 Table 16");
+        m_stats.error_count++;
+        return;
     }
+    
+    // This should never happen - all possible 4-bit values are covered above
+    Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Internal error: ", 
+              "Invalid channel assignment ", assignment, " outside 4-bit range");
+    m_stats.error_count++;
 }
 
 void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
@@ -5364,41 +5396,87 @@ void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, co
     
     uint32_t block_size = frame->header.blocksize;
     uint16_t channels = frame->header.channels;
+    uint8_t assignment = frame->header.channel_assignment;
     
     // RFC 9639 validation: Independent channels support 1-8 channels
     if (channels < 1 || channels > 8) {
-        Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Invalid channel count per RFC 9639: ", 
-                  channels, " (valid range: 1-8)");
+        Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] RFC 9639 violation: ", 
+                  "Channel count ", channels, " outside valid range (1-8)");
         m_stats.error_count++;
         return;
     }
     
-    // Log channel configuration for debugging multi-channel support
-    const char* channel_config = "unknown";
-    switch (channels) {
-        case 1: channel_config = "mono"; break;
-        case 2: channel_config = "stereo (L, R)"; break;
-        case 3: channel_config = "3.0 (L, R, C)"; break;
-        case 4: channel_config = "4.0 (L, R, C, LFE)"; break;
-        case 5: channel_config = "5.0 (L, R, C, BL, BR)"; break;
-        case 6: channel_config = "5.1 (L, R, C, LFE, BL, BR)"; break;
-        case 7: channel_config = "6.1 (L, R, C, LFE, BC, SL, SR)"; break;
-        case 8: channel_config = "7.1 (L, R, C, LFE, BL, BR, SL, SR)"; break;
+    // RFC 9639 Table 16: Validate assignment matches channel count
+    if (assignment != channels - 1) {
+        Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] RFC 9639 violation: ", 
+                  "Assignment ", assignment, " doesn't match channel count ", channels, 
+                  " (expected assignment ", channels - 1, ")");
+        m_stats.error_count++;
+        return;
     }
     
-    Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Processing ", 
-              channels, " independent channels: ", channel_config);
+    // RFC 9639 Table 16: Log standard channel configurations
+    const char* rfc_description = "unknown";
+    
+    switch (channels) {
+        case 1: 
+            rfc_description = "1 channel: mono";
+            break;
+        case 2: 
+            rfc_description = "2 channels: left, right";
+            break;
+        case 3: 
+            rfc_description = "3 channels: left, right, center";
+            break;
+        case 4: 
+            rfc_description = "4 channels: front left, front right, back left, back right";
+            break;
+        case 5: 
+            rfc_description = "5 channels: front left, front right, front center, back/surround left, back/surround right";
+            break;
+        case 6: 
+            rfc_description = "6 channels: front left, front right, front center, LFE, back/surround left, back/surround right";
+            break;
+        case 7: 
+            rfc_description = "7 channels: front left, front right, front center, LFE, back center, side left, side right";
+            break;
+        case 8: 
+            rfc_description = "8 channels: front left, front right, front center, LFE, back left, back right, side left, side right";
+            break;
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] RFC 9639 independent channels: ", 
+              "assignment=", assignment, " (0b", std::bitset<4>(assignment), "), ", 
+              channels, " channels - ", rfc_description);
+    
+    // Validate buffer array has enough channels
+    if (!buffer) {
+        Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Null buffer array");
+        m_stats.error_count++;
+        return;
+    }
+    
+    // Validate each channel buffer exists
+    for (uint16_t ch = 0; ch < channels; ++ch) {
+        if (!buffer[ch]) {
+            Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Null buffer for channel ", ch);
+            m_stats.error_count++;
+            return;
+        }
+    }
     
     // Ensure output buffer has sufficient capacity
     size_t required_samples = static_cast<size_t>(block_size) * channels;
     if (m_output_buffer.capacity() < required_samples) {
         m_output_buffer.reserve(required_samples * 2);
         Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Expanded buffer for ", 
-                  channels, " channels");
+                  channels, " channels (", required_samples, " samples)");
     }
     m_output_buffer.resize(required_samples);
     
-    // Optimized convert and interleave samples with channel-specific optimizations
+    // RFC 9639 compliant independent channel processing
+    // Each channel is coded independently and interleaved in output
+    
     if (channels == 1) {
         // Mono optimization - direct conversion without interleaving overhead
         processMonoChannelOptimized_unlocked(buffer[0], block_size, frame->header.bits_per_sample);
@@ -5406,25 +5484,42 @@ void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, co
         // Stereo optimization - optimized interleaving with SIMD when available
         processStereoChannelsOptimized_unlocked(buffer[0], buffer[1], block_size, frame->header.bits_per_sample);
     } else {
-        // Multi-channel processing with optimized inner loops
+        // Multi-channel processing with optimized inner loops (3-8 channels)
         processMultiChannelOptimized_unlocked(buffer, channels, block_size, frame->header.bits_per_sample);
     }
     
     m_stats.conversion_operations++;
     
-    Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Processed ", 
-              block_size, " samples, ", channels, " channels");
+    Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Successfully processed ", 
+              block_size, " samples across ", channels, " independent channels");
 }
 
 void FLACCodec::processLeftSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
     std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
     
     uint32_t block_size = frame->header.blocksize;
+    uint8_t assignment = frame->header.channel_assignment;
     
-    // Ensure we have exactly 2 channels for stereo processing
+    // RFC 9639 validation: Left-side stereo requires exactly 2 channels
     if (frame->header.channels != 2) {
-        Debug::log("flac_codec", "[FLACCodec::processLeftSideStereo_unlocked] Invalid channel count for left-side stereo: ", 
-                  frame->header.channels);
+        Debug::log("flac_codec", "[FLACCodec::processLeftSideStereo_unlocked] RFC 9639 violation: ", 
+                  "Left-side stereo requires 2 channels, got ", frame->header.channels);
+        m_stats.error_count++;
+        return;
+    }
+    
+    // RFC 9639 validation: Assignment must be 8 (0b1000) for left-side stereo
+    if (assignment != 8) {
+        Debug::log("flac_codec", "[FLACCodec::processLeftSideStereo_unlocked] RFC 9639 violation: ", 
+                  "Expected assignment 8 for left-side stereo, got ", assignment);
+        m_stats.error_count++;
+        return;
+    }
+    
+    // Validate buffer pointers
+    if (!buffer || !buffer[0] || !buffer[1]) {
+        Debug::log("flac_codec", "[FLACCodec::processLeftSideStereo_unlocked] Invalid buffer pointers");
+        m_stats.error_count++;
         return;
     }
     
@@ -5434,13 +5529,23 @@ void FLACCodec::processLeftSideStereo_unlocked(const FLAC__Frame* frame, const F
     }
     m_output_buffer.resize(required_samples);
     
-    // Left-Side stereo reconstruction per RFC 9639: Left = buffer[0], Right = Left - Side
+    Debug::log("flac_codec", "[FLACCodec::processLeftSideStereo_unlocked] RFC 9639 left-side stereo: ", 
+              "buffer[0]=left, buffer[1]=side, formula: right = left - side");
+    
+    // RFC 9639 Section 4.2: Left-Side stereo reconstruction
+    // "The left subblock is coded, and the left and right subblocks are used to code a side subframe.
+    //  To decode, the right subblock is restored by subtracting the samples in the side subframe 
+    //  from the corresponding samples in the left subframe."
+    // 
+    // Stored: buffer[0] = left channel, buffer[1] = side channel (left - right)
+    // Reconstruction: left = buffer[0], right = left - side = buffer[0] - buffer[1]
+    
     for (uint32_t i = 0; i < block_size; ++i) {
-        FLAC__int32 left = buffer[0][i];
-        FLAC__int32 side = buffer[1][i];
-        FLAC__int32 right = left - side;
+        FLAC__int32 left = buffer[0][i];   // Left channel (stored directly)
+        FLAC__int32 side = buffer[1][i];   // Side channel (left - right)
+        FLAC__int32 right = left - side;   // RFC 9639: right = left - side
         
-        // Convert to 16-bit and store interleaved
+        // Convert to 16-bit and store interleaved (left, right, left, right, ...)
         int16_t left_16, right_16;
         switch (frame->header.bits_per_sample) {
             case 8:
@@ -5460,29 +5565,55 @@ void FLACCodec::processLeftSideStereo_unlocked(const FLAC__Frame* frame, const F
                 right_16 = convert32BitTo16Bit(right);
                 break;
             default:
-                left_16 = static_cast<int16_t>(left >> (frame->header.bits_per_sample - 16));
-                right_16 = static_cast<int16_t>(right >> (frame->header.bits_per_sample - 16));
+                // Generic bit depth handling for unusual bit depths
+                int shift = frame->header.bits_per_sample - 16;
+                if (shift > 0) {
+                    left_16 = static_cast<int16_t>(left >> shift);
+                    right_16 = static_cast<int16_t>(right >> shift);
+                } else {
+                    left_16 = static_cast<int16_t>(left << (-shift));
+                    right_16 = static_cast<int16_t>(right << (-shift));
+                }
                 break;
         }
         
+        // Store interleaved: [L, R, L, R, ...]
         m_output_buffer[i * 2] = left_16;
         m_output_buffer[i * 2 + 1] = right_16;
     }
     
     m_stats.conversion_operations++;
     
-    Debug::log("flac_codec", "[FLACCodec::processLeftSideStereo_unlocked] Processed ", 
-              block_size, " left-side stereo samples");
+    Debug::log("flac_codec", "[FLACCodec::processLeftSideStereo_unlocked] Successfully processed ", 
+              block_size, " left-side stereo samples per RFC 9639");
 }
 
 void FLACCodec::processRightSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
     std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
     
     uint32_t block_size = frame->header.blocksize;
+    uint8_t assignment = frame->header.channel_assignment;
     
+    // RFC 9639 validation: Right-side stereo requires exactly 2 channels
     if (frame->header.channels != 2) {
-        Debug::log("flac_codec", "[FLACCodec::processRightSideStereo_unlocked] Invalid channel count for right-side stereo: ", 
-                  frame->header.channels);
+        Debug::log("flac_codec", "[FLACCodec::processRightSideStereo_unlocked] RFC 9639 violation: ", 
+                  "Right-side stereo requires 2 channels, got ", frame->header.channels);
+        m_stats.error_count++;
+        return;
+    }
+    
+    // RFC 9639 validation: Assignment must be 9 (0b1001) for right-side stereo
+    if (assignment != 9) {
+        Debug::log("flac_codec", "[FLACCodec::processRightSideStereo_unlocked] RFC 9639 violation: ", 
+                  "Expected assignment 9 for right-side stereo, got ", assignment);
+        m_stats.error_count++;
+        return;
+    }
+    
+    // Validate buffer pointers
+    if (!buffer || !buffer[0] || !buffer[1]) {
+        Debug::log("flac_codec", "[FLACCodec::processRightSideStereo_unlocked] Invalid buffer pointers");
+        m_stats.error_count++;
         return;
     }
     
@@ -5492,11 +5623,17 @@ void FLACCodec::processRightSideStereo_unlocked(const FLAC__Frame* frame, const 
     }
     m_output_buffer.resize(required_samples);
     
-    // Side-Right stereo reconstruction per RFC 9639: Right = buffer[1], Left = Right + Side
+    Debug::log("flac_codec", "[FLACCodec::processRightSideStereo_unlocked] RFC 9639 right-side stereo: ", 
+              "buffer[0]=side, buffer[1]=right, formula: left = side + right");
+    
+    // RFC 9639 Right-Side stereo reconstruction: 
+    // Channel 0 contains side information (left - right)
+    // Channel 1 contains right channel
+    // Reconstruction: left = side + right, right = right
     for (uint32_t i = 0; i < block_size; ++i) {
-        FLAC__int32 side = buffer[0][i];
-        FLAC__int32 right = buffer[1][i];
-        FLAC__int32 left = right + side;
+        FLAC__int32 side = buffer[0][i];    // side = left - right
+        FLAC__int32 right = buffer[1][i];   // right channel
+        FLAC__int32 left = side + right;    // left = (left - right) + right = left
         
         // Convert to 16-bit and store interleaved
         int16_t left_16, right_16;
@@ -5529,18 +5666,36 @@ void FLACCodec::processRightSideStereo_unlocked(const FLAC__Frame* frame, const 
     
     m_stats.conversion_operations++;
     
-    Debug::log("flac_codec", "[FLACCodec::processRightSideStereo_unlocked] Processed ", 
-              block_size, " right-side stereo samples");
+    Debug::log("flac_codec", "[FLACCodec::processRightSideStereo_unlocked] Successfully processed ", 
+              block_size, " right-side stereo samples per RFC 9639");
 }
 
 void FLACCodec::processMidSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
     std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
     
     uint32_t block_size = frame->header.blocksize;
+    uint8_t assignment = frame->header.channel_assignment;
     
+    // RFC 9639 validation: Mid-side stereo requires exactly 2 channels
     if (frame->header.channels != 2) {
-        Debug::log("flac_codec", "[FLACCodec::processMidSideStereo_unlocked] Invalid channel count for mid-side stereo: ", 
-                  frame->header.channels);
+        Debug::log("flac_codec", "[FLACCodec::processMidSideStereo_unlocked] RFC 9639 violation: ", 
+                  "Mid-side stereo requires 2 channels, got ", frame->header.channels);
+        m_stats.error_count++;
+        return;
+    }
+    
+    // RFC 9639 validation: Assignment must be 10 (0b1010) for mid-side stereo
+    if (assignment != 10) {
+        Debug::log("flac_codec", "[FLACCodec::processMidSideStereo_unlocked] RFC 9639 violation: ", 
+                  "Expected assignment 10 for mid-side stereo, got ", assignment);
+        m_stats.error_count++;
+        return;
+    }
+    
+    // Validate buffer pointers
+    if (!buffer || !buffer[0] || !buffer[1]) {
+        Debug::log("flac_codec", "[FLACCodec::processMidSideStereo_unlocked] Invalid buffer pointers");
+        m_stats.error_count++;
         return;
     }
     
@@ -5550,21 +5705,24 @@ void FLACCodec::processMidSideStereo_unlocked(const FLAC__Frame* frame, const FL
     }
     m_output_buffer.resize(required_samples);
     
-    // Mid-Side stereo reconstruction per RFC 9639 Section 4.2
+    Debug::log("flac_codec", "[FLACCodec::processMidSideStereo_unlocked] RFC 9639 mid-side stereo: ", 
+              "buffer[0]=mid, buffer[1]=side, formula: left = (mid + side) >> 1, right = (mid - side) >> 1");
+    
+    // RFC 9639 Mid-Side stereo reconstruction:
+    // Channel 0 contains mid information (left + right) >> 1
+    // Channel 1 contains side information (left - right)
+    // Reconstruction: left = mid + (side >> 1), right = mid - (side >> 1)
+    // Note: RFC 9639 specifies special handling for odd side values
     for (uint32_t i = 0; i < block_size; ++i) {
-        FLAC__int32 mid = buffer[0][i];
-        FLAC__int32 side = buffer[1][i];
+        FLAC__int32 mid = buffer[0][i];    // mid = (left + right) >> 1
+        FLAC__int32 side = buffer[1][i];   // side = left - right
         
-        // Per RFC 9639: Mid samples must be shifted left by 1 bit first
-        // If side sample is odd, add 1 to mid after shifting
-        FLAC__int32 adjusted_mid = mid << 1;
-        if (side & 1) {
-            adjusted_mid += 1;
-        }
-        
-        // Reconstruct left and right channels per RFC 9639 specification
-        FLAC__int32 left = (adjusted_mid + side) >> 1;   // Left = (Mid + Side) >> 1
-        FLAC__int32 right = (adjusted_mid - side) >> 1;  // Right = (Mid - Side) >> 1
+        // RFC 9639 Mid-Side stereo reconstruction:
+        // The side channel has one extra bit of precision
+        // left = mid + (side >> 1) + (side & 1)
+        // right = mid - (side >> 1)
+        FLAC__int32 left = mid + (side >> 1) + (side & 1);
+        FLAC__int32 right = mid - (side >> 1);
         
         // Convert to 16-bit and store interleaved
         int16_t left_16, right_16;
@@ -5597,8 +5755,8 @@ void FLACCodec::processMidSideStereo_unlocked(const FLAC__Frame* frame, const FL
     
     m_stats.conversion_operations++;
     
-    Debug::log("flac_codec", "[FLACCodec::processMidSideStereo_unlocked] Processed ", 
-              block_size, " mid-side stereo samples");
+    Debug::log("flac_codec", "[FLACCodec::processMidSideStereo_unlocked] Successfully processed ", 
+              block_size, " mid-side stereo samples per RFC 9639");
 }
 
 // Optimized channel processing methods for performance

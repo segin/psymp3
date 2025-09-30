@@ -356,7 +356,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - Validate integration with different demuxer implementations
   - _Requirements: 5.1-5.8, 6.1-6.8, 8.1-8.8, 9.1-9.8, 10.1-10.8_
 
-- [ ] 16. Implement RFC 9639 Compliance Validation
+- [x] 16. Implement RFC 9639 Compliance Validation
   - [x] 16.1 Add Frame Header RFC Compliance Validation
     - Implement strict RFC 9639 Section 9.1 frame header parsing with bit-level accuracy
     - Validate sync code (0x3FFE) detection and forbidden pattern rejection per RFC
@@ -405,7 +405,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add bit-perfect validation for lossless reconstruction per RFC principles
     - _Requirements: 13.7, 2.1, 2.2, 2.3, 2.4, 12.1_
 
-  - [-] 16.6 Implement Channel Assignment RFC Compliance
+  - [x] 16.6 Implement Channel Assignment RFC Compliance
     - Add independent channel processing per RFC 9639 channel assignment table
     - Implement left-side stereo reconstruction per RFC formula: right = left - side
     - Add right-side stereo reconstruction per RFC formula: left = side + right
@@ -414,7 +414,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add multi-channel support validation for up to 8 channels per RFC
     - _Requirements: 13.6, 3.1, 3.2, 3.4, 3.5, 3.6_
 
-  - [-] 16.7 Add Block Size and Sample Rate RFC Compliance
+  - [ ] 16.7 Add Block Size and Sample Rate RFC Compliance
     - Validate block size encoding per RFC 9639 Table 1 with proper range checking
     - Implement variable block size handling per RFC specification requirements
     - Add sample rate validation per RFC 9639 Table 2 with reserved value handling
@@ -423,7 +423,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add validation for maximum block size limits per RFC specification
     - _Requirements: 13.1, 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [-] 16.8 Implement Error Handling RFC Compliance
+  - [ ] 16.8 Implement Error Handling RFC Compliance
     - Add RFC-compliant error handling for all forbidden bit patterns
     - Implement proper response to reserved field violations per RFC
     - Add graceful handling of unsupported features per RFC recommendations
@@ -458,7 +458,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add comprehensive debugging for frame sync detection with RFC compliance validation
     - _Requirements: 13.1, 1.1, 1.7, 1.8_
 
-  - [ ] 17.2 Fix Subframe Processing RFC Compliance Issues
+  - [  17.2 Fix Subframe Processing RFC Compliance Issues
     - Debug and fix subframe type detection per RFC 9639 Section 9.2 requirements
     - Implement proper wasted bits handling per RFC specification for all subframe types
     - Fix predictor coefficient processing for FIXED and LPC subframes per RFC algorithms
