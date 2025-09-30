@@ -986,11 +986,10 @@ bool FLACCodec::canDecode_unlocked(const StreamInfo& stream_info) const {
         return false;
     }
     
-    // RFC 9639 compliance validation - bit depth
-    // Per RFC 9639: 4-32 bits per sample supported
-    if (stream_info.bits_per_sample < 4 || stream_info.bits_per_sample > 32) {
-        Debug::log("flac_codec", "[FLACCodec::canDecode_unlocked] Invalid bit depth per RFC 9639: ", 
-                  stream_info.bits_per_sample, " bits (valid range: 4-32 bits)");
+    // RFC 9639 compliance validation - bit depth and sample format
+    if (!validateBitDepthRFC9639_unlocked(stream_info.bits_per_sample)) {
+        Debug::log("flac_codec", "[FLACCodec::canDecode_unlocked] RFC 9639 bit depth validation failed: ", 
+                  stream_info.bits_per_sample, " bits");
         return false;
     }
     
@@ -1053,11 +1052,10 @@ bool FLACCodec::configureFromStreamInfo_unlocked(const StreamInfo& stream_info) 
         return false;
     }
     
-    // RFC 9639 compliance validation - bit depth
-    // Per RFC 9639: FLAC can code for bit depths from 4 to 32 bits
-    if (m_bits_per_sample < 4 || m_bits_per_sample > 32) {
-        Debug::log("flac_codec", "[FLACCodec::configureFromStreamInfo_unlocked] Invalid bit depth per RFC 9639: ", 
-                  m_bits_per_sample, " bits (valid range: 4-32 bits)");
+    // RFC 9639 compliance validation - bit depth and sample format
+    if (!validateBitDepthRFC9639_unlocked(m_bits_per_sample)) {
+        Debug::log("flac_codec", "[FLACCodec::configureFromStreamInfo_unlocked] RFC 9639 bit depth validation failed: ", 
+                  m_bits_per_sample, " bits");
         return false;
     }
     
@@ -1162,11 +1160,10 @@ bool FLACCodec::validateConfiguration_unlocked() const {
                   m_channels, " channels (stereo decorrelation not applicable)");
     }
     
-    // RFC 9639 compliance validation - bit depth
-    // Per RFC 9639 Section 1: bit depths from 4 to 32 bits are supported
-    if (m_bits_per_sample < 4 || m_bits_per_sample > 32) {
-        Debug::log("flac_codec", "[FLACCodec::validateConfiguration_unlocked] RFC 9639 violation - Invalid bit depth: ", 
-                  m_bits_per_sample, " bits (valid range: 4-32 bits)");
+    // RFC 9639 compliance validation - bit depth and sample format
+    if (!validateBitDepthRFC9639_unlocked(m_bits_per_sample)) {
+        Debug::log("flac_codec", "[FLACCodec::validateConfiguration_unlocked] RFC 9639 bit depth validation failed: ", 
+                  m_bits_per_sample, " bits");
         return false;
     }
     
@@ -1696,10 +1693,17 @@ void FLACCodec::handleWriteCallback_unlocked(const FLAC__Frame* frame, const FLA
         // Update block size tracking for variable block size handling
         updateBlockSizeTracking_unlocked(frame->header.blocksize);
         
-        // Validate bit depth for RFC 9639 compliance
-        if (frame->header.bits_per_sample < 4 || frame->header.bits_per_sample > 32) [[unlikely]] {
-            Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] Invalid bit depth: ", 
-                      frame->header.bits_per_sample, " (RFC 9639 range: 4-32)");
+        // RFC 9639 bit depth and sample format compliance validation
+        if (!validateBitDepthRFC9639_unlocked(frame->header.bits_per_sample)) [[unlikely]] {
+            Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] RFC 9639 bit depth validation failed: ", 
+                      frame->header.bits_per_sample, " bits");
+            m_stats.error_count++;
+            return;
+        }
+        
+        // Validate sample format consistency between STREAMINFO and frame headers
+        if (!validateSampleFormatConsistency_unlocked(frame)) [[unlikely]] {
+            Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] Sample format consistency validation failed");
             m_stats.error_count++;
             return;
         }
@@ -1796,9 +1800,10 @@ void FLACCodec::handleMetadataCallback_unlocked(const FLAC__StreamMetadata* meta
                     return;
                 }
                 
-                if (info.bits_per_sample < 4 || info.bits_per_sample > 32) {
-                    Debug::log("flac_codec", "[FLACCodec::handleMetadataCallback_unlocked] Invalid bit depth in STREAMINFO: ", 
-                              info.bits_per_sample, " (RFC 9639 range: 4-32)");
+                // RFC 9639 bit depth validation for STREAMINFO
+                if (!validateBitDepthRFC9639_unlocked(info.bits_per_sample)) {
+                    Debug::log("flac_codec", "[FLACCodec::handleMetadataCallback_unlocked] RFC 9639 bit depth validation failed in STREAMINFO: ", 
+                              info.bits_per_sample, " bits");
                     return;
                 }
                 
@@ -5919,15 +5924,17 @@ void FLACCodec::processMultiChannelOptimized_unlocked(const FLAC__int32* const b
 // Bit depth conversion methods
 
 int16_t FLACCodec::convert8BitTo16Bit(FLAC__int32 sample) const {
-    // Optimized 8-bit to 16-bit conversion with proper sign extension
+    // RFC 9639 compliant 8-bit to 16-bit conversion with proper sign extension
     // Handle signed 8-bit sample range (-128 to 127) with proper sign extension
     // Scale to 16-bit range (-32768 to 32767) using efficient bit operations
     
-    // Ensure input is within valid 8-bit signed range
-    // FLAC samples are already sign-extended by libFLAC, but we validate range
-    if (sample < -128 || sample > 127) {
+    // Apply proper sign extension per RFC 9639 requirements
+    FLAC__int32 sign_extended = applyProperSignExtension_unlocked(sample, 8);
+    
+    // Ensure input is within valid 8-bit signed range after sign extension
+    if (sign_extended < -128 || sign_extended > 127) {
         // Clamp to valid 8-bit range to prevent overflow
-        sample = std::clamp(sample, -128, 127);
+        sign_extended = std::clamp(sign_extended, -128, 127);
     }
     
     // Efficient bit-shift upscaling for maximum performance
@@ -5935,18 +5942,28 @@ int16_t FLACCodec::convert8BitTo16Bit(FLAC__int32 sample) const {
     // This preserves the sign and provides proper scaling:
     // -128 << 8 = -32768 (minimum 16-bit value)
     // 127 << 8 = 32512 (near maximum, leaving headroom)
-    return static_cast<int16_t>(sample << 8);
+    int16_t result = static_cast<int16_t>(sign_extended << 8);
+    
+    // RFC 9639 overflow protection - ensure result is within 16-bit range
+    if (result < -32768 || result > 32767) {
+        result = static_cast<int16_t>(std::clamp(static_cast<int32_t>(result), -32768, 32767));
+    }
+    
+    return result;
 }
 
 int16_t FLACCodec::convert24BitTo16Bit(FLAC__int32 sample) const {
-    // High-quality 24-bit to 16-bit conversion with optimized downscaling and optional dithering
+    // RFC 9639 compliant 24-bit to 16-bit conversion with proper sign extension
     // Handle proper truncation or rounding with performance-optimized algorithms
     // Maintain audio quality while reducing bit depth using advanced techniques
     
+    // Apply proper sign extension per RFC 9639 requirements
+    FLAC__int32 sign_extended = applyProperSignExtension_unlocked(sample, 24);
+    
     // Validate 24-bit input range to prevent overflow
-    if (sample < -8388608 || sample > 8388607) {
+    if (sign_extended < -8388608 || sign_extended > 8388607) {
         // Clamp to valid 24-bit signed range
-        sample = std::clamp(sample, -8388608, 8388607);
+        sign_extended = std::clamp(sign_extended, -8388608, 8388607);
     }
     
 #ifdef ENABLE_DITHERING
@@ -5957,31 +5974,37 @@ int16_t FLACCodec::convert24BitTo16Bit(FLAC__int32 sample) const {
     static thread_local std::uniform_int_distribution<int> dither(-128, 127);
     
     // Apply triangular dither before downscaling
-    int32_t dithered = sample + dither(gen);
+    int32_t dithered = sign_extended + dither(gen);
     
     // Arithmetic right-shift for proper sign preservation and scaling
     int32_t scaled = dithered >> 8;
     
-    // Clamp to 16-bit range to prevent overflow from dithering
+    // RFC 9639 overflow protection - clamp to 16-bit range
     return static_cast<int16_t>(std::clamp(scaled, -32768, 32767));
 #else
     // Optimized truncation for maximum performance
     // Use arithmetic right shift to preserve sign and scale from 24-bit to 16-bit
     // This provides good quality while maintaining real-time performance
-    return static_cast<int16_t>(sample >> 8);
+    int32_t scaled = sign_extended >> 8;
+    
+    // RFC 9639 overflow protection - ensure result is within 16-bit range
+    return static_cast<int16_t>(std::clamp(scaled, -32768, 32767));
 #endif
 }
 
 int16_t FLACCodec::convert32BitTo16Bit(FLAC__int32 sample) const {
-    // Optimized 32-bit to 16-bit conversion with arithmetic right-shift scaling for performance
+    // RFC 9639 compliant 32-bit to 16-bit conversion with proper sign handling
     // Handle full 32-bit dynamic range conversion with overflow protection
     // Prevent clipping using efficient clamping operations and maintain signal integrity
+    
+    // Note: 32-bit samples are already properly sign-extended by definition
+    // but we validate the input for consistency with RFC 9639 requirements
     
     // Arithmetic right-shift scaling for performance using bit operations
     // Right shift by 16 bits scales from 32-bit to 16-bit range while preserving sign
     int32_t scaled = sample >> 16;
     
-    // Efficient clamping operations to prevent overflow and maintain signal integrity
+    // RFC 9639 overflow protection - efficient clamping operations
     // Use branchless clamping for better performance on modern CPUs
     // This ensures the result stays within valid 16-bit signed range (-32768 to 32767)
     
@@ -6034,6 +6057,45 @@ void FLACCodec::convertSamples_unlocked(const FLAC__int32* const buffer[], uint3
             convertSamplesGeneric_unlocked(buffer, block_size);
             break;
     }
+    
+    // RFC 9639 bit-perfect validation for lossless reconstruction (debug builds only)
+    #ifdef DEBUG
+    {
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        
+        // Create flattened original sample array for validation
+        std::vector<FLAC__int32> original_samples;
+        original_samples.reserve(required_samples);
+        
+        for (uint32_t sample = 0; sample < block_size; ++sample) {
+            for (uint16_t channel = 0; channel < m_channels; ++channel) {
+                original_samples.push_back(buffer[channel][sample]);
+            }
+        }
+        
+        // Validate bit-perfect reconstruction
+        if (!validateBitPerfectReconstruction_unlocked(original_samples.data(), 
+                                                       m_output_buffer.data(), 
+                                                       required_samples, 
+                                                       m_bits_per_sample)) {
+            Debug::log("flac_codec", "[convertSamples_unlocked] RFC 9639 bit-perfect validation failed for ", 
+                      m_bits_per_sample, "-bit samples");
+        }
+        
+        // Calculate audio quality metrics for validation
+        AudioQualityMetrics quality = calculateAudioQualityMetrics_unlocked(m_output_buffer.data(), 
+                                                                            required_samples, 
+                                                                            original_samples.data(), 
+                                                                            m_bits_per_sample);
+        
+        // Log quality metrics if they indicate potential issues
+        if (!quality.isGoodQuality()) {
+            Debug::log("flac_codec", "[convertSamples_unlocked] Audio quality warning - SNR: ", 
+                      quality.signal_to_noise_ratio_db, " dB, THD: ", quality.total_harmonic_distortion, 
+                      "%, Clipped: ", quality.clipped_samples);
+        }
+    }
+    #endif
     
     // Update conversion statistics for performance monitoring
     m_stats.conversion_operations++;
@@ -8550,6 +8612,382 @@ void FLACCodec::logThreadStatistics_unlocked() const {
     if (m_thread_exception_occurred) {
         Debug::log("flac_codec", "  - Exception message: ", m_thread_exception_message);
     }
+}
+
+// ============================================================================
+// RFC 9639 Bit Depth and Sample Format Compliance Validation
+// ============================================================================
+
+bool FLACCodec::validateBitDepthRFC9639_unlocked(uint16_t bits_per_sample) const {
+    // RFC 9639 Section 4.1: FLAC supports bit depths from 4 to 32 bits per sample
+    // This is the fundamental requirement for FLAC bit depth validation
+    
+    if (bits_per_sample < 4 || bits_per_sample > 32) {
+        Debug::log("flac_codec", "[validateBitDepthRFC9639_unlocked] RFC 9639 violation - Invalid bit depth: ", 
+                  bits_per_sample, " bits (RFC 9639 valid range: 4-32 bits)");
+        return false;
+    }
+    
+    // Additional validation for reserved bit depth values
+    if (!validateReservedBitDepthValues_unlocked(bits_per_sample)) {
+        Debug::log("flac_codec", "[validateBitDepthRFC9639_unlocked] Reserved bit depth value detected: ", 
+                  bits_per_sample, " bits");
+        return false;
+    }
+    
+    // Log validation success for debugging
+    Debug::log("flac_codec", "[validateBitDepthRFC9639_unlocked] RFC 9639 compliant bit depth: ", 
+              bits_per_sample, " bits");
+    
+    return true;
+}
+
+bool FLACCodec::validateSampleFormatConsistency_unlocked(const FLAC__Frame* frame) const {
+    // RFC 9639 Section 4: STREAMINFO must match frame header parameters
+    // This ensures consistent decoding throughout the stream
+    
+    if (!frame) {
+        Debug::log("flac_codec", "[validateSampleFormatConsistency_unlocked] Invalid frame pointer");
+        return false;
+    }
+    
+    // Validate bit depth consistency
+    if (frame->header.bits_per_sample != m_bits_per_sample) {
+        Debug::log("flac_codec", "[validateSampleFormatConsistency_unlocked] Bit depth mismatch - Frame: ", 
+                  frame->header.bits_per_sample, " bits, STREAMINFO: ", m_bits_per_sample, " bits");
+        return false;
+    }
+    
+    // Validate channel count consistency
+    if (frame->header.channels != m_channels) {
+        Debug::log("flac_codec", "[validateSampleFormatConsistency_unlocked] Channel count mismatch - Frame: ", 
+                  frame->header.channels, " channels, STREAMINFO: ", m_channels, " channels");
+        return false;
+    }
+    
+    // Validate sample rate consistency (if specified in frame)
+    if (frame->header.sample_rate != 0 && frame->header.sample_rate != m_sample_rate) {
+        Debug::log("flac_codec", "[validateSampleFormatConsistency_unlocked] Sample rate mismatch - Frame: ", 
+                  frame->header.sample_rate, " Hz, STREAMINFO: ", m_sample_rate, " Hz");
+        return false;
+    }
+    
+    // Additional RFC 9639 validation for frame parameters
+    if (!validateBitDepthRFC9639_unlocked(frame->header.bits_per_sample)) {
+        Debug::log("flac_codec", "[validateSampleFormatConsistency_unlocked] Frame bit depth fails RFC 9639 validation");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validateSampleFormatConsistency_unlocked] Sample format consistency validated - ", 
+              frame->header.bits_per_sample, " bits, ", frame->header.channels, " channels, ", 
+              frame->header.sample_rate, " Hz");
+    
+    return true;
+}
+
+bool FLACCodec::validateReservedBitDepthValues_unlocked(uint16_t bits_per_sample) const {
+    // RFC 9639 currently defines all values 4-32 as valid
+    // This method provides future-proofing for potential specification updates
+    
+    // Currently no reserved bit depth values in RFC 9639
+    // All values from 4 to 32 bits are valid per the specification
+    
+    // Future reserved values could be added here as the specification evolves
+    // For example, if certain bit depths become deprecated or reserved:
+    // if (bits_per_sample == FUTURE_RESERVED_VALUE) {
+    //     Debug::log("flac_codec", "[validateReservedBitDepthValues_unlocked] Reserved bit depth: ", bits_per_sample);
+    //     return false;
+    // }
+    
+    // Check for unusual bit depths that might indicate encoding issues
+    // While not reserved, these are uncommon and may indicate problems
+    static const uint16_t common_depths[] = {8, 16, 24, 32};
+    bool is_common = false;
+    
+    for (size_t i = 0; i < sizeof(common_depths) / sizeof(common_depths[0]); ++i) {
+        if (bits_per_sample == common_depths[i]) {
+            is_common = true;
+            break;
+        }
+    }
+    
+    if (!is_common) {
+        Debug::log("flac_codec", "[validateReservedBitDepthValues_unlocked] Uncommon bit depth detected: ", 
+                  bits_per_sample, " bits (may require special handling)");
+        // Note: This is not an error, just a warning for unusual bit depths
+    }
+    
+    return true; // All values 4-32 are currently valid per RFC 9639
+}
+
+FLAC__int32 FLACCodec::applyProperSignExtension_unlocked(FLAC__int32 sample, uint16_t source_bits) const {
+    // RFC 9639 Section 9.2: Proper sign extension for samples < 32 bits
+    // This ensures correct handling of signed sample values
+    
+    if (source_bits >= 32) {
+        // No sign extension needed for 32-bit samples
+        return sample;
+    }
+    
+    if (source_bits < 1) {
+        Debug::log("flac_codec", "[applyProperSignExtension_unlocked] Invalid source bit depth: ", source_bits);
+        return 0;
+    }
+    
+    // Calculate the sign bit position (0-based from LSB)
+    uint32_t sign_bit_pos = source_bits - 1;
+    uint32_t sign_bit_mask = 1U << sign_bit_pos;
+    
+    // Create mask for valid bits in the source sample
+    uint32_t valid_bits_mask = (1U << source_bits) - 1;
+    
+    // Mask off any invalid upper bits
+    uint32_t masked_sample = static_cast<uint32_t>(sample) & valid_bits_mask;
+    
+    // Check if the sign bit is set (negative value)
+    if (masked_sample & sign_bit_mask) {
+        // Negative value - extend sign bits to fill 32-bit value
+        // Create sign extension mask (all 1s in upper bits)
+        uint32_t sign_extend_mask = ~valid_bits_mask;
+        
+        // Apply sign extension
+        return static_cast<FLAC__int32>(masked_sample | sign_extend_mask);
+    } else {
+        // Positive value - upper bits should be 0 (already masked)
+        return static_cast<FLAC__int32>(masked_sample);
+    }
+}
+
+bool FLACCodec::validateBitPerfectReconstruction_unlocked(const FLAC__int32* original, 
+                                                          const int16_t* converted, 
+                                                          size_t sample_count, 
+                                                          uint16_t source_bits) const {
+    // RFC 9639 compliance: FLAC is lossless - validate reconstruction accuracy
+    
+    if (!original || !converted || sample_count == 0) {
+        Debug::log("flac_codec", "[validateBitPerfectReconstruction_unlocked] Invalid parameters");
+        return false;
+    }
+    
+    if (source_bits < 4 || source_bits > 32) {
+        Debug::log("flac_codec", "[validateBitPerfectReconstruction_unlocked] Invalid source bit depth: ", source_bits);
+        return false;
+    }
+    
+    size_t mismatch_count = 0;
+    size_t clipped_samples = 0;
+    double max_error = 0.0;
+    double total_squared_error = 0.0;
+    
+    for (size_t i = 0; i < sample_count; ++i) {
+        // Apply proper sign extension to original sample
+        FLAC__int32 sign_extended = applyProperSignExtension_unlocked(original[i], source_bits);
+        
+        // Calculate expected 16-bit value based on source bit depth
+        int16_t expected_16bit;
+        
+        switch (source_bits) {
+            case 8:
+                // 8-bit to 16-bit: upscale by left shift
+                expected_16bit = static_cast<int16_t>(std::clamp(sign_extended, -128, 127) << 8);
+                break;
+                
+            case 16:
+                // 16-bit to 16-bit: direct copy (should be bit-perfect)
+                expected_16bit = static_cast<int16_t>(std::clamp(sign_extended, -32768, 32767));
+                break;
+                
+            case 24:
+                // 24-bit to 16-bit: downscale by right shift
+                expected_16bit = static_cast<int16_t>(std::clamp(sign_extended >> 8, -32768, 32767));
+                break;
+                
+            case 32:
+                // 32-bit to 16-bit: downscale by right shift with overflow protection
+                expected_16bit = static_cast<int16_t>(std::clamp(sign_extended >> 16, -32768, 32767));
+                break;
+                
+            default:
+                // Generic conversion for unusual bit depths
+                if (source_bits < 16) {
+                    // Upscale to 16-bit
+                    int32_t upscaled = sign_extended << (16 - source_bits);
+                    expected_16bit = static_cast<int16_t>(std::clamp(upscaled, -32768, 32767));
+                } else {
+                    // Downscale to 16-bit
+                    int32_t downscaled = sign_extended >> (source_bits - 16);
+                    expected_16bit = static_cast<int16_t>(std::clamp(downscaled, -32768, 32767));
+                }
+                break;
+        }
+        
+        // Compare expected vs actual converted value
+        int16_t actual_16bit = converted[i];
+        
+        if (expected_16bit != actual_16bit) {
+            mismatch_count++;
+            
+            // Calculate error metrics
+            double error = std::abs(static_cast<double>(expected_16bit) - static_cast<double>(actual_16bit));
+            max_error = std::max(max_error, error);
+            total_squared_error += error * error;
+        }
+        
+        // Check for clipping
+        if (actual_16bit == -32768 || actual_16bit == 32767) {
+            // Verify this is legitimate clipping, not conversion error
+            if (source_bits > 16) {
+                int32_t original_scaled = sign_extended >> (source_bits - 16);
+                if (std::abs(original_scaled) < 32767) {
+                    clipped_samples++;
+                }
+            }
+        }
+    }
+    
+    // Calculate quality metrics
+    double error_rate = static_cast<double>(mismatch_count) / sample_count;
+    double rms_error = sample_count > 0 ? std::sqrt(total_squared_error / sample_count) : 0.0;
+    
+    // Determine if reconstruction is acceptable
+    bool is_bit_perfect = (mismatch_count == 0);
+    bool is_acceptable = false;
+    
+    if (source_bits == 16) {
+        // 16-bit source should be bit-perfect
+        is_acceptable = is_bit_perfect;
+    } else {
+        // Other bit depths: allow small conversion errors
+        is_acceptable = (error_rate < 0.001) && (max_error <= 1.0) && (clipped_samples == 0);
+    }
+    
+    // Log validation results
+    if (is_bit_perfect) {
+        Debug::log("flac_codec", "[validateBitPerfectReconstruction_unlocked] Bit-perfect reconstruction validated for ", 
+                  source_bits, "-bit source (", sample_count, " samples)");
+    } else if (is_acceptable) {
+        Debug::log("flac_codec", "[validateBitPerfectReconstruction_unlocked] Acceptable reconstruction quality for ", 
+                  source_bits, "-bit source - Error rate: ", error_rate * 100.0, "%, Max error: ", max_error, 
+                  ", RMS error: ", rms_error);
+    } else {
+        Debug::log("flac_codec", "[validateBitPerfectReconstruction_unlocked] Poor reconstruction quality for ", 
+                  source_bits, "-bit source - Error rate: ", error_rate * 100.0, "%, Max error: ", max_error, 
+                  ", RMS error: ", rms_error, ", Clipped: ", clipped_samples);
+    }
+    
+    return is_acceptable;
+}
+
+AudioQualityMetrics FLACCodec::calculateAudioQualityMetrics_unlocked(const int16_t* samples, 
+                                                                     size_t sample_count, 
+                                                                     const FLAC__int32* reference,
+                                                                     uint16_t reference_bits) const {
+    AudioQualityMetrics metrics;
+    
+    if (!samples || sample_count == 0) {
+        Debug::log("flac_codec", "[calculateAudioQualityMetrics_unlocked] Invalid parameters");
+        return metrics;
+    }
+    
+    // Calculate basic amplitude statistics
+    double sum = 0.0;
+    double sum_squares = 0.0;
+    int16_t min_sample = INT16_MAX;
+    int16_t max_sample = INT16_MIN;
+    size_t zero_crossings = 0;
+    size_t clipped_samples = 0;
+    
+    for (size_t i = 0; i < sample_count; ++i) {
+        int16_t sample = samples[i];
+        
+        // Basic statistics
+        sum += sample;
+        sum_squares += static_cast<double>(sample) * sample;
+        min_sample = std::min(min_sample, sample);
+        max_sample = std::max(max_sample, sample);
+        
+        // Zero crossing detection
+        if (i > 0 && ((samples[i-1] >= 0 && sample < 0) || (samples[i-1] < 0 && sample >= 0))) {
+            zero_crossings++;
+        }
+        
+        // Clipping detection
+        if (sample == -32768 || sample == 32767) {
+            clipped_samples++;
+        }
+    }
+    
+    // Calculate derived metrics
+    double mean = sum / sample_count;
+    // double variance = (sum_squares / sample_count) - (mean * mean); // Reserved for future use
+    double rms = std::sqrt(sum_squares / sample_count);
+    
+    // Normalize to 0.0-1.0 range
+    metrics.peak_amplitude = std::max(std::abs(min_sample), std::abs(max_sample)) / 32768.0;
+    metrics.rms_amplitude = rms / 32768.0;
+    metrics.dc_offset = std::abs(mean) / 32768.0 * 100.0; // As percentage
+    metrics.zero_crossings = zero_crossings;
+    metrics.clipped_samples = clipped_samples;
+    
+    // Calculate dynamic range
+    if (rms > 0.0) {
+        double peak = std::max(std::abs(min_sample), std::abs(max_sample));
+        metrics.dynamic_range_db = 20.0 * std::log10(peak / rms);
+    } else {
+        metrics.dynamic_range_db = 0.0;
+    }
+    
+    // Calculate SNR and THD if reference is provided
+    if (reference && reference_bits >= 4 && reference_bits <= 32) {
+        double signal_power = 0.0;
+        double noise_power = 0.0;
+        // double harmonic_power = 0.0; // Reserved for future FFT-based THD calculation
+        
+        for (size_t i = 0; i < sample_count; ++i) {
+            // Convert reference to 16-bit for comparison
+            FLAC__int32 ref_extended = applyProperSignExtension_unlocked(reference[i], reference_bits);
+            int16_t ref_16bit;
+            
+            if (reference_bits <= 16) {
+                ref_16bit = static_cast<int16_t>(ref_extended << (16 - reference_bits));
+            } else {
+                ref_16bit = static_cast<int16_t>(std::clamp(ref_extended >> (reference_bits - 16), -32768, 32767));
+            }
+            
+            // Calculate signal and noise power
+            double signal = static_cast<double>(ref_16bit);
+            double noise = static_cast<double>(samples[i]) - signal;
+            
+            signal_power += signal * signal;
+            noise_power += noise * noise;
+        }
+        
+        // Calculate SNR
+        if (noise_power > 0.0 && signal_power > 0.0) {
+            metrics.signal_to_noise_ratio_db = 10.0 * std::log10(signal_power / noise_power);
+        } else if (noise_power == 0.0) {
+            metrics.signal_to_noise_ratio_db = 120.0; // Theoretical maximum for 16-bit
+            metrics.bit_perfect = true;
+        }
+        
+        // Calculate THD (simplified - would need FFT for accurate measurement)
+        if (signal_power > 0.0) {
+            metrics.total_harmonic_distortion = std::sqrt(noise_power / signal_power) * 100.0;
+        }
+    } else {
+        // Estimate SNR based on bit depth
+        if (metrics.rms_amplitude > 0.0) {
+            // Theoretical SNR for 16-bit audio
+            metrics.signal_to_noise_ratio_db = 20.0 * std::log10(metrics.peak_amplitude / (1.0 / 65536.0));
+        }
+    }
+    
+    Debug::log("flac_codec", "[calculateAudioQualityMetrics_unlocked] Quality metrics - SNR: ", 
+              metrics.signal_to_noise_ratio_db, " dB, THD: ", metrics.total_harmonic_distortion, 
+              "%, Dynamic Range: ", metrics.dynamic_range_db, " dB, Peak: ", metrics.peak_amplitude, 
+              ", RMS: ", metrics.rms_amplitude, ", Clipped: ", clipped_samples);
+    
+    return metrics;
 }
 
 #endif // HAVE_FLAC

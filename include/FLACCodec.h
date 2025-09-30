@@ -731,6 +731,130 @@ public:
      */
     FLACCodecStats getStats() const;
     
+    // RFC 9639 compliance testing methods (public for unit testing)
+    
+    /**
+     * @brief Test method for RFC 9639 bit depth validation
+     * 
+     * Public wrapper for validateBitDepthRFC9639_unlocked() to enable unit testing
+     * of RFC 9639 bit depth compliance validation.
+     * 
+     * @param bits_per_sample Bit depth to validate (4-32 bits per RFC 9639)
+     * @return true if bit depth is valid per RFC 9639, false otherwise
+     * 
+     * @thread_safety Thread-safe
+     */
+    bool testValidateBitDepthRFC9639(uint16_t bits_per_sample) const {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        return validateBitDepthRFC9639_unlocked(bits_per_sample);
+    }
+    
+    /**
+     * @brief Test method for sample format consistency validation
+     * 
+     * Public wrapper for validateSampleFormatConsistency_unlocked() to enable
+     * unit testing of sample format consistency validation.
+     * 
+     * @param frame FLAC frame to validate against current codec configuration
+     * @return true if sample format is consistent, false if mismatch detected
+     * 
+     * @thread_safety Thread-safe
+     */
+    bool testValidateSampleFormatConsistency(const FLAC__Frame* frame) const {
+        std::lock_guard<std::mutex> lock(m_state_mutex);
+        return validateSampleFormatConsistency_unlocked(frame);
+    }
+    
+    /**
+     * @brief Test method for reserved bit depth values validation
+     * 
+     * Public wrapper for validateReservedBitDepthValues_unlocked() to enable
+     * unit testing of reserved bit depth value handling.
+     * 
+     * @param bits_per_sample Bit depth value to check for reserved status
+     * @return true if bit depth is not reserved, false if reserved value detected
+     * 
+     * @thread_safety Thread-safe
+     */
+    bool testValidateReservedBitDepthValues(uint16_t bits_per_sample) const {
+        return validateReservedBitDepthValues_unlocked(bits_per_sample);
+    }
+    
+    /**
+     * @brief Test method for proper sign extension
+     * 
+     * Public wrapper for applyProperSignExtension_unlocked() to enable
+     * unit testing of RFC 9639 compliant sign extension.
+     * 
+     * @param sample Raw sample value from FLAC decoder
+     * @param source_bits Actual bit depth of the sample (4-31 bits)
+     * @return Properly sign-extended 32-bit sample value
+     * 
+     * @thread_safety Thread-safe
+     */
+    FLAC__int32 testApplyProperSignExtension(FLAC__int32 sample, uint16_t source_bits) const {
+        return applyProperSignExtension_unlocked(sample, source_bits);
+    }
+    
+    /**
+     * @brief Test method for bit-perfect reconstruction validation
+     * 
+     * Public wrapper for validateBitPerfectReconstruction_unlocked() to enable
+     * unit testing of lossless reconstruction validation.
+     * 
+     * @param original Original FLAC samples before conversion
+     * @param converted Converted 16-bit PCM samples
+     * @param sample_count Number of samples to validate
+     * @param source_bits Original bit depth of FLAC samples
+     * @return true if reconstruction is bit-perfect within conversion limits
+     * 
+     * @thread_safety Thread-safe
+     */
+    bool testValidateBitPerfectReconstruction(const FLAC__int32* original, 
+                                              const int16_t* converted, 
+                                              size_t sample_count, 
+                                              uint16_t source_bits) const {
+        return validateBitPerfectReconstruction_unlocked(original, converted, sample_count, source_bits);
+    }
+    
+    /**
+     * @brief Test method for audio quality metrics calculation
+     * 
+     * Public wrapper for calculateAudioQualityMetrics_unlocked() to enable
+     * unit testing of audio quality analysis.
+     * 
+     * @param samples Converted 16-bit PCM samples to analyze
+     * @param sample_count Number of samples in the buffer
+     * @param reference Optional reference samples for comparison (original FLAC)
+     * @param reference_bits Bit depth of reference samples (if provided)
+     * @return AudioQualityMetrics structure with comprehensive quality analysis
+     * 
+     * @thread_safety Thread-safe
+     */
+    AudioQualityMetrics testCalculateAudioQualityMetrics(const int16_t* samples, 
+                                                         size_t sample_count, 
+                                                         const FLAC__int32* reference = nullptr,
+                                                         uint16_t reference_bits = 16) const {
+        return calculateAudioQualityMetrics_unlocked(samples, sample_count, reference, reference_bits);
+    }
+    
+    /**
+     * @brief Test method for bit depth conversion functions
+     * 
+     * Public wrappers for bit depth conversion methods to enable unit testing.
+     */
+    int16_t testConvert8BitTo16Bit(FLAC__int32 sample) const {
+        return convert8BitTo16Bit(sample);
+    }
+    
+    int16_t testConvert24BitTo16Bit(FLAC__int32 sample) const {
+        return convert24BitTo16Bit(sample);
+    }
+    
+    int16_t testConvert32BitTo16Bit(FLAC__int32 sample) const {
+        return convert32BitTo16Bit(sample);
+    }
+    
     // CRC Validation Control (RFC 9639 Compliance)
     
     /**
@@ -1322,6 +1446,198 @@ private:
     void convertSamples32BitNEONMono_unlocked(const FLAC__int32* input, uint32_t block_size);
     void convertSamples32BitNEONStereo_unlocked(const FLAC__int32* left, const FLAC__int32* right, uint32_t block_size);
 #endif
+    
+    // RFC 9639 bit depth and sample format compliance validation methods
+    
+    /**
+     * @brief Validate bit depth against RFC 9639 specification requirements
+     * 
+     * Validates that the specified bit depth is within the RFC 9639 FLAC specification
+     * range of 4-32 bits per sample. Also checks for reserved bit depth values that
+     * may be defined in future FLAC specification revisions.
+     * 
+     * @param bits_per_sample Bit depth to validate (4-32 bits per RFC 9639)
+     * @return true if bit depth is valid per RFC 9639, false otherwise
+     * 
+     * @thread_safety Assumes appropriate locks are held by caller
+     * 
+     * RFC 9639 COMPLIANCE:
+     * - Section 4.1: FLAC supports bit depths from 4 to 32 bits per sample
+     * - Reserved values: Currently all values 4-32 are valid, no reserved ranges
+     * - Future compatibility: Method designed to handle future reserved values
+     * 
+     * @see validateReservedBitDepthValues_unlocked() for reserved value checking
+     */
+    bool validateBitDepthRFC9639_unlocked(uint16_t bits_per_sample) const;
+    
+    /**
+     * @brief Validate sample format consistency between STREAMINFO and frame headers
+     * 
+     * Ensures that the bit depth specified in FLAC frame headers matches the
+     * bit depth from the STREAMINFO metadata block. This prevents decoding
+     * inconsistencies and ensures RFC 9639 compliance.
+     * 
+     * @param frame FLAC frame to validate against current codec configuration
+     * @return true if sample format is consistent, false if mismatch detected
+     * 
+     * @thread_safety Assumes m_state_mutex is held by caller
+     * 
+     * RFC 9639 COMPLIANCE:
+     * - Section 4: STREAMINFO must match frame header parameters
+     * - Bit depth consistency required throughout stream
+     * - Prevents decoder configuration mismatches
+     * 
+     * VALIDATION CHECKS:
+     * - Frame bit depth matches codec configuration (m_bits_per_sample)
+     * - Frame channel count matches codec configuration (m_channels)
+     * - Frame sample rate matches codec configuration (m_sample_rate)
+     * 
+     * @see handleMetadataCallback_unlocked() for STREAMINFO processing
+     */
+    bool validateSampleFormatConsistency_unlocked(const FLAC__Frame* frame) const;
+    
+    /**
+     * @brief Validate and handle reserved bit depth values per RFC 9639
+     * 
+     * Checks for bit depth values that may be reserved in the FLAC specification
+     * for future use. Currently RFC 9639 defines all values 4-32 as valid, but
+     * this method provides future-proofing for specification updates.
+     * 
+     * @param bits_per_sample Bit depth value to check for reserved status
+     * @return true if bit depth is not reserved, false if reserved value detected
+     * 
+     * @thread_safety Thread-safe (no state access required)
+     * 
+     * RFC 9639 COMPLIANCE:
+     * - Currently no reserved bit depth values in RFC 9639
+     * - Future-proofing for potential specification updates
+     * - Proper error handling for unsupported future formats
+     * 
+     * RESERVED VALUE HANDLING:
+     * - Log warning for reserved values
+     * - Return false to prevent decoding with unsupported formats
+     * - Maintain backward compatibility with current specification
+     */
+    bool validateReservedBitDepthValues_unlocked(uint16_t bits_per_sample) const;
+    
+    /**
+     * @brief Apply proper sign extension for samples less than 32 bits per RFC
+     * 
+     * Implements RFC 9639 compliant sign extension for FLAC samples with bit
+     * depths less than 32 bits. This ensures proper handling of signed sample
+     * values and prevents sign-related decoding errors.
+     * 
+     * @param sample Raw sample value from FLAC decoder
+     * @param source_bits Actual bit depth of the sample (4-31 bits)
+     * @return Properly sign-extended 32-bit sample value
+     * 
+     * @thread_safety Thread-safe (no state access required)
+     * 
+     * RFC 9639 COMPLIANCE:
+     * - Section 9.2: Proper sign extension for samples < 32 bits
+     * - Maintains signed sample representation
+     * - Prevents overflow in subsequent processing
+     * 
+     * SIGN EXTENSION ALGORITHM:
+     * 1. Calculate sign bit position for source bit depth
+     * 2. Check if sign bit is set (negative value)
+     * 3. If negative, extend sign bits to fill 32-bit value
+     * 4. If positive, ensure upper bits are cleared
+     * 
+     * PERFORMANCE OPTIMIZATION:
+     * - Bit manipulation operations for maximum speed
+     * - Branch-free implementation where possible
+     * - Optimized for common bit depths (8, 16, 24)
+     * 
+     * @see convert8BitTo16Bit() for 8-bit specific handling
+     * @see convert24BitTo16Bit() for 24-bit specific handling
+     * @see convert32BitTo16Bit() for 32-bit specific handling
+     */
+    FLAC__int32 applyProperSignExtension_unlocked(FLAC__int32 sample, uint16_t source_bits) const;
+    
+    /**
+     * @brief Validate bit-perfect reconstruction for lossless decoding per RFC
+     * 
+     * Validates that the decoded and converted samples maintain bit-perfect
+     * accuracy for lossless reconstruction. This is critical for FLAC's
+     * lossless compression guarantee per RFC 9639.
+     * 
+     * @param original Original FLAC samples before conversion
+     * @param converted Converted 16-bit PCM samples
+     * @param sample_count Number of samples to validate
+     * @param source_bits Original bit depth of FLAC samples
+     * @return true if reconstruction is bit-perfect within conversion limits
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * RFC 9639 COMPLIANCE:
+     * - FLAC is a lossless codec - no information loss during decoding
+     * - Bit-perfect reconstruction required for same bit depth
+     * - Conversion accuracy validation for different bit depths
+     * 
+     * VALIDATION CRITERIA:
+     * - Same bit depth: Exact bit-perfect match required
+     * - Different bit depth: Conversion accuracy within expected tolerance
+     * - No clipping or overflow in converted samples
+     * - Proper handling of dynamic range limitations
+     * 
+     * BIT-PERFECT VALIDATION:
+     * - 16-bit source: Exact match required (no conversion)
+     * - 8-bit source: Validate upscaling accuracy (sample << 8)
+     * - 24-bit source: Validate downscaling accuracy (sample >> 8)
+     * - 32-bit source: Validate downscaling with overflow protection
+     * 
+     * @see calculateAudioQualityMetrics_unlocked() for quality analysis
+     */
+    bool validateBitPerfectReconstruction_unlocked(const FLAC__int32* original, 
+                                                   const int16_t* converted, 
+                                                   size_t sample_count, 
+                                                   uint16_t source_bits) const;
+    
+    /**
+     * @brief Calculate comprehensive audio quality metrics for validation
+     * 
+     * Computes detailed audio quality metrics including SNR, THD, dynamic range,
+     * and bit-perfect validation. Used for validating codec accuracy and
+     * conversion quality per RFC 9639 lossless requirements.
+     * 
+     * @param samples Converted 16-bit PCM samples to analyze
+     * @param sample_count Number of samples in the buffer
+     * @param reference Optional reference samples for comparison (original FLAC)
+     * @param reference_bits Bit depth of reference samples (if provided)
+     * @return AudioQualityMetrics structure with comprehensive quality analysis
+     * 
+     * @thread_safety Thread-safe (no state modification)
+     * 
+     * QUALITY METRICS CALCULATED:
+     * - Signal-to-Noise Ratio (SNR) in decibels
+     * - Total Harmonic Distortion (THD) as percentage
+     * - Dynamic Range in decibels
+     * - Peak and RMS amplitude measurements
+     * - DC offset detection and measurement
+     * - Zero crossing analysis
+     * - Clipping detection and counting
+     * - Bit-perfect validation (when reference provided)
+     * 
+     * RFC 9639 COMPLIANCE VALIDATION:
+     * - Lossless decoding verification
+     * - Conversion accuracy assessment
+     * - Quality degradation detection
+     * - Performance impact measurement
+     * 
+     * USAGE SCENARIOS:
+     * - Codec accuracy validation during development
+     * - Quality regression testing
+     * - Performance optimization verification
+     * - Debugging audio quality issues
+     * 
+     * @see AudioQualityMetrics for detailed metric descriptions
+     * @see validateBitPerfectReconstruction_unlocked() for bit-perfect validation
+     */
+    AudioQualityMetrics calculateAudioQualityMetrics_unlocked(const int16_t* samples, 
+                                                              size_t sample_count, 
+                                                              const FLAC__int32* reference = nullptr,
+                                                              uint16_t reference_bits = 16) const;
     
     // Channel processing methods (assume m_buffer_mutex is held)
     void processChannelAssignment_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]);
