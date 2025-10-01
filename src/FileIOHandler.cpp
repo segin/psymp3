@@ -197,8 +197,9 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         }
         
         // Log warning for extremely large files that might cause issues
-        static const off_t LARGE_FILE_WARNING_SIZE = 1LL << 32; // 4GB
-        if (fileSize > LARGE_FILE_WARNING_SIZE) {
+        // Use 64-bit constant but compare safely to avoid overflow on 32-bit off_t platforms
+        static const int64_t LARGE_FILE_WARNING_SIZE = 1LL << 32; // 4GB
+        if (static_cast<int64_t>(fileSize) > LARGE_FILE_WARNING_SIZE) {
             Debug::log("io", "FileIOHandler::FileIOHandler() - Warning: Very large file (>4GB), ensure adequate system resources");
         }
     } else {
@@ -944,10 +945,11 @@ bool FileIOHandler::attemptErrorRecovery() {
         try {
             // Try to reopen the file
 #ifdef _WIN32
-            m_file_handle = _wfopen(m_file_path.toCWString(), L"rb");
+            FILE* new_file = _wfopen(m_file_path.toCWString(), L"rb");
+            m_file_handle.reset(new_file, true);
             
             // Enhanced Windows error handling for reopen
-            if (!m_file_handle) {
+            if (!m_file_handle.is_valid()) {
                 DWORD win_error = GetLastError();
                 Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Windows reopen failed, error: ", win_error);
             }
