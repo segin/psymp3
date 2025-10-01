@@ -180,18 +180,36 @@ FLAC__StreamDecoderWriteStatus FLACStreamDecoder::write_callback(const FLAC__Fra
     if (frame->header.blocksize == 0 || frame->header.blocksize > 65535) {
         Debug::log("flac_codec", "[FLACStreamDecoder::write_callback] Invalid block size: ", 
                   frame->header.blocksize, " (RFC 9639 range: 1-65535)");
+        
+        // Log RFC compliance violation
+        FLACRFCValidator::logRFCViolation("9.1.2", "Invalid block size", 
+                                        "Block size outside RFC 9639 valid range",
+                                        frame->header.number.sample_number);
+        
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
     
     if (frame->header.channels == 0 || frame->header.channels > 8) {
         Debug::log("flac_codec", "[FLACStreamDecoder::write_callback] Invalid channel count: ", 
                   frame->header.channels, " (RFC 9639 range: 1-8)");
+        
+        // Log RFC compliance violation
+        FLACRFCValidator::logRFCViolation("9.1.4", "Invalid channel count", 
+                                        "Channel count outside RFC 9639 valid range",
+                                        frame->header.number.sample_number);
+        
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
     
     if (frame->header.bits_per_sample < 4 || frame->header.bits_per_sample > 32) {
         Debug::log("flac_codec", "[FLACStreamDecoder::write_callback] Invalid bit depth: ", 
                   frame->header.bits_per_sample, " (RFC 9639 range: 4-32)");
+        
+        // Log RFC compliance violation
+        FLACRFCValidator::logRFCViolation("9.1.5", "Invalid sample size", 
+                                        "Sample size outside RFC 9639 valid range",
+                                        frame->header.number.sample_number);
+        
         return FLAC__STREAM_DECODER_WRITE_STATUS_ABORT;
     }
     

@@ -235,3 +235,4 @@ tests/test_flac_rfc_subframe_validation
 tests/test_entropy_coding_compilation
 tests/test_flac_bit_depth_validation_simple
 tests/test_flac_crc_validation
+test_opus_registration

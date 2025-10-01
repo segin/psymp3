@@ -28,6 +28,9 @@
 
 #ifdef HAVE_FLAC
 
+// Forward declaration for RFC compliance validator
+class FLACRFCComplianceValidator;
+
 // Forward declarations
 class FLACCodec;
 

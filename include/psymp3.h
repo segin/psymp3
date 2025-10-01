@@ -397,6 +397,7 @@ typedef struct bio_st BIO;
 #include "flac.h"
 #include "FLACDemuxer.h"
 #include "FLACCodec.h"
+#include "FLACRFCValidator.h"
 #include "FLACPerformanceBenchmark.h"
 #endif
 #include "ChainedStream.h"
