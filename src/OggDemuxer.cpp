@@ -2527,7 +2527,7 @@ uint64_t OggDemuxer::getLastGranulePosition() {
     
     while (chunk_size <= m_file_size && last_granule == 0) {
         size_t scan_size = std::min(chunk_size, m_file_size);
-        int64_t scan_start = std::max(0L, static_cast<int64_t>(m_file_size) - static_cast<int64_t>(scan_size));
+        int64_t scan_start = std::max(static_cast<int64_t>(0), static_cast<int64_t>(m_file_size) - static_cast<int64_t>(scan_size));
         
         Debug::log("ogg", "OggDemuxer: getLastGranulePosition - backward scan chunk_size=", scan_size, ", scan_start=", scan_start);
         
