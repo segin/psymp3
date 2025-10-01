@@ -476,9 +476,15 @@ FLACCodec::~FLACCodec() {
 // Public AudioCodec interface implementations (thread-safe with RAII guards)
 
 bool FLACCodec::initialize() {
-    Debug::log("flac_codec", "[FLACCodec::initialize] [ENTRY] Acquiring state lock");
-    std::lock_guard<std::mutex> lock(m_state_mutex);
-    Debug::log("flac_codec", "[FLACCodec::initialize] [LOCKED] State lock acquired, calling unlocked implementation");
+    Debug::log("flac_codec", "[FLACCodec::initialize] [ENTRY] Acquiring locks for initialization");
+    // Acquire locks in documented order to prevent deadlocks during initialization:
+    // 1. state_mutex (for codec state)
+    // 2. decoder_mutex (for libFLAC operations)
+    // 3. buffer_mutex (for callback buffer operations)
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    Debug::log("flac_codec", "[FLACCodec::initialize] [LOCKED] All locks acquired, calling unlocked implementation");
     
     try {
         bool result = initialize_unlocked();
@@ -1320,8 +1326,7 @@ bool FLACCodec::initializeFLACDecoder_unlocked() {
         // Initialize decoder state with comprehensive error checking and thread safety
         Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Initializing decoder state");
         
-        // Protect decoder initialization with mutex
-        std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+        // NOTE: decoder_mutex is already held by caller as per threading safety guidelines
         
         FLAC__StreamDecoderInitStatus init_status = m_decoder->init();
         
@@ -1379,12 +1384,10 @@ bool FLACCodec::initializeFLACDecoder_unlocked() {
         // Note: libFLAC handles most internal buffer management, but we ensure our buffers are ready
         try {
             // Ensure our output buffer is ready for maximum block size
+            // NOTE: buffer_mutex is already held by caller as per threading safety guidelines
             size_t max_output_samples = 65535 * m_channels; // RFC 9639 max block size * channels
-            {
-                std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-                if (m_output_buffer.capacity() < max_output_samples) {
-                    m_output_buffer.reserve(max_output_samples);
-                }
+            if (m_output_buffer.capacity() < max_output_samples) {
+                m_output_buffer.reserve(max_output_samples);
             }
             
             Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Output buffer prepared for ", 
