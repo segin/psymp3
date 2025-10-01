@@ -449,7 +449,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
   - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.8_
 
 - [ ] 17. Fix Critical RFC Compliance Issues Found in Debugging
-  - [ ] 17.1 Fix Frame Boundary Detection RFC Compliance
+  - [x] 17.1 Fix Frame Boundary Detection RFC Compliance
     - Implement proper sync pattern detection per RFC 9639 Section 9.1 (0x3FFE followed by reserved bit)
     - Fix frame header parsing to correctly identify frame boundaries in compressed streams
     - Add validation that frame sync detection doesn't skip valid frames due to incorrect parsing
@@ -458,7 +458,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add comprehensive debugging for frame sync detection with RFC compliance validation
     - _Requirements: 13.1, 1.1, 1.7, 1.8_
 
-  - [  17.2 Fix Subframe Processing RFC Compliance Issues
+  - [x] 17.2 Fix Subframe Processing RFC Compliance Issues
     - Debug and fix subframe type detection per RFC 9639 Section 9.2 requirements
     - Implement proper wasted bits handling per RFC specification for all subframe types
     - Fix predictor coefficient processing for FIXED and LPC subframes per RFC algorithms

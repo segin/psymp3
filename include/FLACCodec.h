@@ -1792,6 +1792,24 @@ private:
     bool validateWastedBitsFlag_unlocked(uint8_t wasted_bits_flag) const;
     uint8_t extractPredictorOrder_unlocked(uint8_t subframe_type_bits) const;
     
+    // RFC 9639 Section 9.2 Comprehensive Subframe Processing Validation (assume appropriate locks are held)
+    bool validateAndDebugSubframeProcessing_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) const;
+    bool validateSubframeData_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
+    void debugSubframeTypeDetection_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
+    bool validateSubframeWastedBits_unlocked(const FLAC__Frame* frame, unsigned channel) const;
+    bool validatePredictorProcessing_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
+    bool validateResidualDecoding_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
+    bool validateChannelReconstruction_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) const;
+    bool validateChannelAssignmentBitDepth_unlocked(const FLAC__Frame* frame) const;
+    bool validateWastedBitsHandling_unlocked(const FLAC__Frame* frame) const;
+    
+    // Helper methods for subframe processing validation (assume appropriate locks are held)
+    const char* getChannelAssignmentName_unlocked(uint8_t assignment) const;
+    double calculateSampleEntropy_unlocked(const FLAC__int32* samples, uint32_t count) const;
+    void analyzeFixedPredictorCharacteristics_unlocked(const FLAC__int32* samples, uint32_t count, unsigned channel) const;
+    void analyzeLPCPredictorCharacteristics_unlocked(const FLAC__int32* samples, uint32_t count, unsigned channel) const;
+    double calculateVariance_unlocked(const std::vector<int32_t>& values) const;
+    
     // RFC 9639 Section 9.2.5 Entropy Coding Compliance Validation (assume appropriate locks are held)
     bool validateEntropyCoding_unlocked(const uint8_t* residual_data, size_t data_size, 
                                        uint32_t block_size, uint8_t predictor_order) const;
