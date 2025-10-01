@@ -26,6 +26,15 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+// Cross-platform file size type for large file support
+#ifdef _WIN32
+    // Windows with MinGW: Use _off64_t for 64-bit file sizes
+    typedef _off64_t filesize_t;
+#else
+    // Unix/Linux: Use off_t (which may be 32-bit or 64-bit depending on compilation flags)
+    typedef off_t filesize_t;
+#endif
+
 /**
  * @brief Base IOHandler interface for unified I/O operations
  * 
@@ -129,7 +138,7 @@ protected:
      * @brief Get maximum file size supported on current platform
      * @return Maximum file size in bytes
      */
-    static off_t getMaxFileSize();
+    static filesize_t getMaxFileSize();
     
 public:
     /**

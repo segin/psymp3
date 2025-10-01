@@ -369,17 +369,17 @@ bool IOHandler::isRecoverableError(int error_code) {
     }
 }
 
-off_t IOHandler::getMaxFileSize() {
+filesize_t IOHandler::getMaxFileSize() {
     // Return maximum file size supported on current platform
 #ifdef _WIN32
-    // Windows supports very large files with 64-bit operations
+    // Windows with MinGW: Use _off64_t maximum for large file support
     return 0x7FFFFFFFFFFFFFFFLL;  // Maximum signed 64-bit value
 #else
-    // Unix/Linux - check if we have 64-bit off_t support
+    // Unix/Linux: Use native off_t maximum
     if (sizeof(off_t) == 8) {
         return 0x7FFFFFFFFFFFFFFFLL;  // Maximum signed 64-bit value
     } else {
-        return 0x7FFFFFFFL;           // Maximum signed 32-bit value
+        return 0x7FFFFFFF;  // Maximum signed 32-bit value
     }
 #endif
 }

@@ -190,8 +190,8 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         }
         
         // Check against platform maximum file size
-        off_t maxFileSize = getMaxFileSize();
-        if (fileSize > maxFileSize) {
+        filesize_t maxFileSize = getMaxFileSize();
+        if (static_cast<filesize_t>(fileSize) > maxFileSize) {
             Debug::log("io", "FileIOHandler::FileIOHandler() - Warning: File size exceeds platform maximum: ", 
                       fileSize, " > ", maxFileSize);
         }
