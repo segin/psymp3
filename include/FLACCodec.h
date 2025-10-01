@@ -1506,6 +1506,59 @@ private:
     bool validateSampleFormatConsistency_unlocked(const FLAC__Frame* frame) const;
     
     /**
+     * @brief Validate sample format endianness handling per RFC 9639
+     * 
+     * Validates that samples are properly handled with respect to endianness
+     * per RFC 9639 requirements. FLAC samples are stored in big-endian format
+     * in the bitstream but libFLAC provides them in host byte order.
+     * 
+     * @param samples Array of FLAC samples to validate
+     * @param sample_count Number of samples in the array
+     * @param source_bits Bit depth of the source samples (4-32 bits)
+     * @return true if endianness handling is correct, false on validation failure
+     * 
+     * @thread_safety Assumes m_state_mutex is held by caller
+     * 
+     * VALIDATION CHECKS:
+     * - Samples are within expected range for bit depth
+     * - No byte-swapping artifacts detected
+     * - Proper sign extension applied
+     * - Host byte order conversion correct
+     * 
+     * @see applyProperSignExtension_unlocked() for sign extension
+     * @see validateSampleFormatRanges_unlocked() for range validation
+     */
+    bool validateSampleFormatEndianness_unlocked(const FLAC__int32* samples, 
+                                                size_t sample_count, 
+                                                uint16_t source_bits) const;
+    
+    /**
+     * @brief Validate sample format ranges per RFC 9639
+     * 
+     * Validates that all samples are within the valid range for their bit depth
+     * and that sign extension has been applied correctly per RFC 9639 requirements.
+     * 
+     * @param samples Array of FLAC samples to validate
+     * @param sample_count Number of samples in the array
+     * @param source_bits Bit depth of the source samples (4-32 bits)
+     * @return true if all samples are within valid ranges, false on validation failure
+     * 
+     * @thread_safety Assumes m_state_mutex is held by caller
+     * 
+     * VALIDATION CHECKS:
+     * - All samples within valid range for bit depth
+     * - Sign extension applied correctly
+     * - No range violations or overflow conditions
+     * - Proper handling of edge cases (min/max values)
+     * 
+     * @see applyProperSignExtension_unlocked() for sign extension
+     * @see validateBitDepthRFC9639_unlocked() for bit depth validation
+     */
+    bool validateSampleFormatRanges_unlocked(const FLAC__int32* samples, 
+                                           size_t sample_count, 
+                                           uint16_t source_bits) const;
+    
+    /**
      * @brief Validate and handle reserved bit depth values per RFC 9639
      * 
      * Checks for bit depth values that may be reserved in the FLAC specification

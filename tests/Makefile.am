@@ -239,7 +239,7 @@ endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation test_flac_bit_depth_validation_simple
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation test_flac_bit_depth_validation_simple test_flac_sample_format_rfc9639_compliance
 endif
 
 # Test program sources and dependencies
@@ -2466,6 +2466,68 @@ test_flac_rfc_bit_depth_validation_LDADD = \
 test_flac_bit_depth_validation_simple_SOURCES = test_flac_bit_depth_validation_simple.cpp
 test_flac_bit_depth_validation_simple_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
 test_flac_bit_depth_validation_simple_LDADD = $(AM_LDFLAGS)
+
+# RFC 9639 sample format and bit depth compliance test
+test_flac_sample_format_rfc9639_compliance_SOURCES = test_flac_sample_format_rfc9639_compliance.cpp
+test_flac_sample_format_rfc9639_compliance_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_sample_format_rfc9639_compliance_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/flac.o \
+	$(top_builddir)/src/libmpg123.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/ModernStream.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/HTTPIOHandler.o \
+	$(top_builddir)/src/HTTPClient.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/CodecRegistration.o \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/MediaFactory.o \
+	$(top_builddir)/src/OggDemuxer.o \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/RawAudioDemuxer.o \
+	$(top_builddir)/src/ISODemuxer.o \
+	$(top_builddir)/src/ISODemuxerBoxParser.o \
+	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
+	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
+	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
+	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
+	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
+	$(top_builddir)/src/ISODemuxerStreamManager.o \
+	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
+	$(top_builddir)/src/ChunkDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(FLAC_LIBS) \
+	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
 
 # OggDemuxer performance test
 test_oggdemuxer_performance_SOURCES = test_oggdemuxer_performance.cpp
