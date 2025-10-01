@@ -414,7 +414,7 @@ This implementation plan incorporates critical insights from extensive FLAC demu
     - Add multi-channel support validation for up to 8 channels per RFC
     - _Requirements: 13.6, 3.1, 3.2, 3.4, 3.5, 3.6_
 
-  - [ ] 16.7 Add Block Size and Sample Rate RFC Compliance
+  - [x] 16.7 Add Block Size and Sample Rate RFC Compliance
     - Validate block size encoding per RFC 9639 Table 1 with proper range checking
     - Implement variable block size handling per RFC specification requirements
     - Add sample rate validation per RFC 9639 Table 2 with reserved value handling

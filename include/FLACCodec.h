@@ -1254,14 +1254,16 @@ private:
     uint16_t m_bits_per_sample = 0;
     uint64_t m_total_samples = 0;
     
+    // STREAMINFO block size constraints (protected by m_state_mutex)
+    uint32_t m_min_block_size = 0;  ///< Minimum block size from STREAMINFO
+    uint32_t m_max_block_size = 0;  ///< Maximum block size from STREAMINFO
+    
     // Decoding state (protected by m_state_mutex)
     std::atomic<uint64_t> m_current_sample{0};  ///< Atomic for fast reads
     uint32_t m_last_block_size = 0;
     bool m_stream_finished = false;
     
     // Variable block size handling (protected by m_state_mutex)
-    uint32_t m_min_block_size = 0;              ///< Minimum block size from STREAMINFO
-    uint32_t m_max_block_size = 0;              ///< Maximum block size from STREAMINFO
     bool m_variable_block_size = false;         ///< True if stream uses variable block sizes
     uint32_t m_current_block_size = 0;          ///< Current frame's block size
     
@@ -1745,6 +1747,22 @@ private:
     bool validateSampleRateBits_unlocked(uint8_t sample_rate_bits) const;
     bool validateChannelAssignment_unlocked(uint8_t channel_assignment) const;
     bool validateBitDepthBits_unlocked(uint8_t bit_depth_bits) const;
+    
+    // RFC 9639 block size and sample rate decoding methods (assume appropriate locks are held)
+    uint32_t decodeBlockSizeFromBits_unlocked(uint8_t block_size_bits, const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const;
+    uint32_t decodeSampleRateFromBits_unlocked(uint8_t sample_rate_bits, const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const;
+    
+    // RFC 9639 uncommon value decoding methods (assume appropriate locks are held)
+    uint32_t decodeUncommonBlockSize8Bit_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const;
+    uint32_t decodeUncommonBlockSize16Bit_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const;
+    uint32_t decodeUncommonSampleRate8BitKHz_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const;
+    uint32_t decodeUncommonSampleRate16BitHz_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const;
+    uint32_t decodeUncommonSampleRate16BitHzDiv10_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const;
+    
+    // RFC 9639 consistency validation methods (assume appropriate locks are held)
+    bool validateStreamInfoConsistency_unlocked(uint32_t frame_block_size, uint32_t frame_sample_rate) const;
+    bool validateBlockSizeRange_unlocked(uint32_t block_size) const;
+    bool validateSampleRateRange_unlocked(uint32_t sample_rate) const;
     
     // RFC 9639 Section 9.2 Subframe Type Compliance Validation (assume appropriate locks are held)
     bool validateSubframeType_unlocked(uint8_t subframe_type_bits) const;

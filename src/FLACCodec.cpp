@@ -4599,6 +4599,353 @@ bool FLACCodec::validateBitDepthBits_unlocked(uint8_t bit_depth_bits) const {
 }
 
 // ============================================================================
+// RFC 9639 Block Size and Sample Rate Decoding Implementation
+// ============================================================================
+
+uint32_t FLACCodec::decodeBlockSizeFromBits_unlocked(uint8_t block_size_bits, const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const {
+    // RFC 9639 Section 9.1.1 Table 14: Block Size Decoding
+    bytes_consumed = 0;
+    
+    switch (block_size_bits) {
+        case 0x0:
+            // Reserved - should have been caught in validation
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] ERROR: Reserved block size bits 0x0");
+            return 0;
+            
+        case 0x1:
+            // 192 samples
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 192 samples");
+            return 192;
+            
+        case 0x2: // 576 samples (144 * 2^2)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 576 samples");
+            return 576;
+            
+        case 0x3: // 1152 samples (144 * 2^3)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 1152 samples");
+            return 1152;
+            
+        case 0x4: // 2304 samples (144 * 2^4)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 2304 samples");
+            return 2304;
+            
+        case 0x5: // 4608 samples (144 * 2^5)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 4608 samples");
+            return 4608;
+            
+        case 0x6:
+            // Uncommon block size minus 1, stored as 8-bit number
+            return decodeUncommonBlockSize8Bit_unlocked(header_data, header_size, bytes_consumed);
+            
+        case 0x7:
+            // Uncommon block size minus 1, stored as 16-bit number
+            return decodeUncommonBlockSize16Bit_unlocked(header_data, header_size, bytes_consumed);
+            
+        case 0x8: // 256 samples (2^8)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 256 samples");
+            return 256;
+            
+        case 0x9: // 512 samples (2^9)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 512 samples");
+            return 512;
+            
+        case 0xA: // 1024 samples (2^10)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 1024 samples");
+            return 1024;
+            
+        case 0xB: // 2048 samples (2^11)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 2048 samples");
+            return 2048;
+            
+        case 0xC: // 4096 samples (2^12)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 4096 samples");
+            return 4096;
+            
+        case 0xD: // 8192 samples (2^13)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 8192 samples");
+            return 8192;
+            
+        case 0xE: // 16384 samples (2^14)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 16384 samples");
+            return 16384;
+            
+        case 0xF: // 32768 samples (2^15)
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] Fixed block size: 32768 samples");
+            return 32768;
+            
+        default:
+            // Should never reach here due to 4-bit mask
+            Debug::log("flac_codec", "[decodeBlockSizeFromBits_unlocked] ERROR: Invalid block size bits: 0x", 
+                      std::hex, static_cast<unsigned>(block_size_bits), std::dec);
+            return 0;
+    }
+}
+
+uint32_t FLACCodec::decodeSampleRateFromBits_unlocked(uint8_t sample_rate_bits, const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const {
+    // RFC 9639 Section 9.1.2 Table 15: Sample Rate Decoding
+    bytes_consumed = 0;
+    
+    switch (sample_rate_bits) {
+        case 0x0:
+            // Sample rate only stored in STREAMINFO metadata block
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Using STREAMINFO sample rate: ", m_sample_rate, " Hz");
+            return m_sample_rate; // Use STREAMINFO sample rate
+            
+        case 0x1:
+            // 88.2 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 88200 Hz");
+            return 88200;
+            
+        case 0x2:
+            // 176.4 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 176400 Hz");
+            return 176400;
+            
+        case 0x3:
+            // 192 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 192000 Hz");
+            return 192000;
+            
+        case 0x4:
+            // 8 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 8000 Hz");
+            return 8000;
+            
+        case 0x5:
+            // 16 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 16000 Hz");
+            return 16000;
+            
+        case 0x6:
+            // 22.05 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 22050 Hz");
+            return 22050;
+            
+        case 0x7:
+            // 24 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 24000 Hz");
+            return 24000;
+            
+        case 0x8:
+            // 32 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 32000 Hz");
+            return 32000;
+            
+        case 0x9:
+            // 44.1 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 44100 Hz");
+            return 44100;
+            
+        case 0xA:
+            // 48 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 48000 Hz");
+            return 48000;
+            
+        case 0xB:
+            // 96 kHz
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] Fixed sample rate: 96000 Hz");
+            return 96000;
+            
+        case 0xC:
+            // Uncommon sample rate in kHz, stored as 8-bit number
+            return decodeUncommonSampleRate8BitKHz_unlocked(header_data, header_size, bytes_consumed);
+            
+        case 0xD:
+            // Uncommon sample rate in Hz, stored as 16-bit number
+            return decodeUncommonSampleRate16BitHz_unlocked(header_data, header_size, bytes_consumed);
+            
+        case 0xE:
+            // Uncommon sample rate in Hz divided by 10, stored as 16-bit number
+            return decodeUncommonSampleRate16BitHzDiv10_unlocked(header_data, header_size, bytes_consumed);
+            
+        case 0xF:
+            // Forbidden - should have been caught in validation
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] ERROR: Forbidden sample rate bits 0xF");
+            return 0;
+            
+        default:
+            // Should never reach here due to 4-bit mask
+            Debug::log("flac_codec", "[decodeSampleRateFromBits_unlocked] ERROR: Invalid sample rate bits: 0x", 
+                      std::hex, static_cast<unsigned>(sample_rate_bits), std::dec);
+            return 0;
+    }
+}
+
+uint32_t FLACCodec::decodeUncommonBlockSize8Bit_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const {
+    // RFC 9639 Section 9.1.6: Uncommon block size minus 1, stored as 8-bit number
+    bytes_consumed = 0;
+    
+    if (!header_data || header_size < 1) {
+        Debug::log("flac_codec", "[decodeUncommonBlockSize8Bit_unlocked] ERROR: Insufficient header data");
+        return 0;
+    }
+    
+    uint8_t block_size_minus_1 = header_data[0];
+    uint32_t block_size = static_cast<uint32_t>(block_size_minus_1) + 1;
+    bytes_consumed = 1;
+    
+    // Validate block size per RFC 9639 (16-65535 samples)
+    if (block_size < 16 || block_size > 65535) {
+        Debug::log("flac_codec", "[decodeUncommonBlockSize8Bit_unlocked] ERROR: Block size ", block_size, 
+                  " outside RFC 9639 range (16-65535)");
+        return 0;
+    }
+    
+    Debug::log("flac_codec", "[decodeUncommonBlockSize8Bit_unlocked] Decoded 8-bit block size: ", block_size, " samples");
+    return block_size;
+}
+
+uint32_t FLACCodec::decodeUncommonBlockSize16Bit_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const {
+    // RFC 9639 Section 9.1.6: Uncommon block size minus 1, stored as 16-bit number
+    bytes_consumed = 0;
+    
+    if (!header_data || header_size < 2) {
+        Debug::log("flac_codec", "[decodeUncommonBlockSize16Bit_unlocked] ERROR: Insufficient header data");
+        return 0;
+    }
+    
+    // Read 16-bit big-endian value
+    uint16_t block_size_minus_1 = (static_cast<uint16_t>(header_data[0]) << 8) | header_data[1];
+    uint32_t block_size = static_cast<uint32_t>(block_size_minus_1) + 1;
+    bytes_consumed = 2;
+    
+    // Validate block size per RFC 9639 (16-65535 samples)
+    if (block_size < 16 || block_size > 65535) {
+        Debug::log("flac_codec", "[decodeUncommonBlockSize16Bit_unlocked] ERROR: Block size ", block_size, 
+                  " outside RFC 9639 range (16-65535)");
+        return 0;
+    }
+    
+    Debug::log("flac_codec", "[decodeUncommonBlockSize16Bit_unlocked] Decoded 16-bit block size: ", block_size, " samples");
+    return block_size;
+}
+
+uint32_t FLACCodec::decodeUncommonSampleRate8BitKHz_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const {
+    // RFC 9639 Section 9.1.7: Uncommon sample rate in kHz, stored as 8-bit number
+    bytes_consumed = 0;
+    
+    if (!header_data || header_size < 1) {
+        Debug::log("flac_codec", "[decodeUncommonSampleRate8BitKHz_unlocked] ERROR: Insufficient header data");
+        return 0;
+    }
+    
+    uint8_t sample_rate_khz = header_data[0];
+    uint32_t sample_rate = static_cast<uint32_t>(sample_rate_khz) * 1000;
+    bytes_consumed = 1;
+    
+    // Validate sample rate per RFC 9639 (1-655350 Hz)
+    if (sample_rate < 1 || sample_rate > 655350) {
+        Debug::log("flac_codec", "[decodeUncommonSampleRate8BitKHz_unlocked] ERROR: Sample rate ", sample_rate, 
+                  " Hz outside RFC 9639 range (1-655350)");
+        return 0;
+    }
+    
+    Debug::log("flac_codec", "[decodeUncommonSampleRate8BitKHz_unlocked] Decoded 8-bit kHz sample rate: ", sample_rate, " Hz");
+    return sample_rate;
+}
+
+uint32_t FLACCodec::decodeUncommonSampleRate16BitHz_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const {
+    // RFC 9639 Section 9.1.7: Uncommon sample rate in Hz, stored as 16-bit number
+    bytes_consumed = 0;
+    
+    if (!header_data || header_size < 2) {
+        Debug::log("flac_codec", "[decodeUncommonSampleRate16BitHz_unlocked] ERROR: Insufficient header data");
+        return 0;
+    }
+    
+    // Read 16-bit big-endian value
+    uint32_t sample_rate = (static_cast<uint32_t>(header_data[0]) << 8) | header_data[1];
+    bytes_consumed = 2;
+    
+    // Validate sample rate per RFC 9639 (1-655350 Hz)
+    if (sample_rate < 1 || sample_rate > 655350) {
+        Debug::log("flac_codec", "[decodeUncommonSampleRate16BitHz_unlocked] ERROR: Sample rate ", sample_rate, 
+                  " Hz outside RFC 9639 range (1-655350)");
+        return 0;
+    }
+    
+    Debug::log("flac_codec", "[decodeUncommonSampleRate16BitHz_unlocked] Decoded 16-bit Hz sample rate: ", sample_rate, " Hz");
+    return sample_rate;
+}
+
+uint32_t FLACCodec::decodeUncommonSampleRate16BitHzDiv10_unlocked(const uint8_t* header_data, size_t header_size, size_t& bytes_consumed) const {
+    // RFC 9639 Section 9.1.7: Uncommon sample rate in Hz divided by 10, stored as 16-bit number
+    bytes_consumed = 0;
+    
+    if (!header_data || header_size < 2) {
+        Debug::log("flac_codec", "[decodeUncommonSampleRate16BitHzDiv10_unlocked] ERROR: Insufficient header data");
+        return 0;
+    }
+    
+    // Read 16-bit big-endian value and multiply by 10
+    uint16_t sample_rate_div10 = (static_cast<uint16_t>(header_data[0]) << 8) | header_data[1];
+    uint32_t sample_rate = static_cast<uint32_t>(sample_rate_div10) * 10;
+    bytes_consumed = 2;
+    
+    // Validate sample rate per RFC 9639 (1-655350 Hz)
+    if (sample_rate < 1 || sample_rate > 655350) {
+        Debug::log("flac_codec", "[decodeUncommonSampleRate16BitHzDiv10_unlocked] ERROR: Sample rate ", sample_rate, 
+                  " Hz outside RFC 9639 range (1-655350)");
+        return 0;
+    }
+    
+    Debug::log("flac_codec", "[decodeUncommonSampleRate16BitHzDiv10_unlocked] Decoded 16-bit Hz/10 sample rate: ", sample_rate, " Hz");
+    return sample_rate;
+}
+
+bool FLACCodec::validateStreamInfoConsistency_unlocked(uint32_t frame_block_size, uint32_t frame_sample_rate) const {
+    // RFC 9639 Section 8.2: Validate consistency between STREAMINFO and frame header parameters
+    
+    // Validate block size against STREAMINFO constraints
+    if (m_min_block_size > 0 && frame_block_size < m_min_block_size) {
+        Debug::log("flac_codec", "[validateStreamInfoConsistency_unlocked] ERROR: Frame block size ", frame_block_size, 
+                  " below STREAMINFO minimum ", m_min_block_size);
+        return false;
+    }
+    
+    if (m_max_block_size > 0 && frame_block_size > m_max_block_size) {
+        Debug::log("flac_codec", "[validateStreamInfoConsistency_unlocked] ERROR: Frame block size ", frame_block_size, 
+                  " above STREAMINFO maximum ", m_max_block_size);
+        return false;
+    }
+    
+    // Validate sample rate consistency (only if frame specifies a rate)
+    if (frame_sample_rate != 0 && m_sample_rate != 0 && frame_sample_rate != m_sample_rate) {
+        Debug::log("flac_codec", "[validateStreamInfoConsistency_unlocked] WARNING: Frame sample rate ", frame_sample_rate, 
+                  " Hz differs from STREAMINFO ", m_sample_rate, " Hz");
+        // This is a warning, not an error - frame rate takes precedence per RFC 9639
+    }
+    
+    Debug::log("flac_codec", "[validateStreamInfoConsistency_unlocked] STREAMINFO consistency validated: block_size=", 
+              frame_block_size, ", sample_rate=", frame_sample_rate, " Hz");
+    return true;
+}
+
+bool FLACCodec::validateBlockSizeRange_unlocked(uint32_t block_size) const {
+    // RFC 9639 Section 9.1.1: Block size must be 16-65535 samples
+    if (block_size < 16 || block_size > 65535) {
+        Debug::log("flac_codec", "[validateBlockSizeRange_unlocked] ERROR: Block size ", block_size, 
+                  " outside RFC 9639 range (16-65535)");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validateBlockSizeRange_unlocked] Block size ", block_size, " within RFC 9639 range");
+    return true;
+}
+
+bool FLACCodec::validateSampleRateRange_unlocked(uint32_t sample_rate) const {
+    // RFC 9639 Section 8.2: Sample rate must be 1-655350 Hz
+    if (sample_rate < 1 || sample_rate > 655350) {
+        Debug::log("flac_codec", "[validateSampleRateRange_unlocked] ERROR: Sample rate ", sample_rate, 
+                  " Hz outside RFC 9639 range (1-655350)");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validateSampleRateRange_unlocked] Sample rate ", sample_rate, " Hz within RFC 9639 range");
+    return true;
+}
+
+// ============================================================================
 // RFC 9639 Section 9.2 Subframe Type Compliance Validation Implementation
 // ============================================================================
 
