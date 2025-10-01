@@ -212,6 +212,7 @@ inline int closeSocket(int sock) {
 #define _UNICODE
 #define UNICODE
 #include <windows.h>
+#include <psapi.h>
 #include <initguid.h>
 #include <tchar.h>
 #include <lm.h>
