@@ -1384,6 +1384,13 @@ private:
     void reset_unlocked();
     bool canDecode_unlocked(const StreamInfo& stream_info) const;
     
+    // RFC 9639 compliant frame boundary detection methods (assume locks are held)
+    bool validateFrameBoundary_unlocked(const uint8_t* data, size_t size);
+    bool isValidFrameSync_unlocked(const uint8_t* data, size_t size);
+    size_t findNextFrameSync_unlocked(const uint8_t* data, size_t size, size_t start_offset = 0);
+    bool validateFrameHeader_unlocked(const uint8_t* data, size_t size);
+    bool handleHighlyCompressedFrame_unlocked(const uint8_t* data, size_t size);
+    
     // Configuration and validation methods (assume m_state_mutex is held)
     bool configureFromStreamInfo_unlocked(const StreamInfo& stream_info);
     bool validateConfiguration_unlocked() const;

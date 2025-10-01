@@ -1510,31 +1510,57 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
     auto start_time = std::chrono::high_resolution_clock::now();
     
     try {
-        // Validate FLAC frame data (basic sync pattern check)
-        if (size >= 2) {
-            // Check for FLAC frame sync pattern (0xFF followed by 0xF8-0xFF)
-            if (data[0] == 0xFF && (data[1] & 0xF8) == 0xF8) {
-                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Valid FLAC frame sync pattern detected");
+        // Validate FLAC frame boundary using RFC 9639 compliant methods
+        if (!validateFrameBoundary_unlocked(data, size)) {
+            Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] RFC 9639 frame boundary validation failed");
+            
+            // Try to find the next valid frame sync pattern
+            size_t sync_offset = findNextFrameSync_unlocked(data, size);
+            if (sync_offset < size && sync_offset > 0) {
+                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Found potential sync pattern at offset ", sync_offset);
+                // Adjust data pointer and size to start from the sync pattern
+                data += sync_offset;
+                size -= sync_offset;
                 
-                // Perform CRC validation per RFC 9639 if enabled
-                if (shouldValidateCRC_unlocked()) {
-                    if (!validateFrameCRC_unlocked(data, size)) {
-                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Frame CRC validation failed");
-                        
-                        // In strict mode, reject the frame
-                        if (m_strict_crc_validation) {
-                            return false;
-                        }
-                        // In non-strict mode, continue processing but log the error
-                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Continuing with potentially corrupted frame data");
-                    } else {
-                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Frame CRC validation passed");
-                    }
+                // Re-validate the frame boundary from the new position
+                if (!validateFrameBoundary_unlocked(data, size)) {
+                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Frame boundary validation failed even after sync correction");
+                    // Continue anyway - might be metadata or partial frame
                 }
             } else {
-                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Warning: No FLAC sync pattern found");
+                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] No valid sync pattern found - continuing anyway");
                 // Continue anyway - might be metadata or partial frame
             }
+        } else {
+            Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] RFC 9639 frame boundary validation passed");
+        }
+        
+        // Perform CRC validation per RFC 9639 if enabled and we have sufficient data
+        if (shouldValidateCRC_unlocked() && size >= 4) {
+            if (!validateFrameCRC_unlocked(data, size)) {
+                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] RFC 9639 CRC validation failed");
+                
+                // Calculate expected and actual CRC for detailed error reporting
+                uint16_t expected_crc = 0;
+                uint16_t calculated_crc = 0;
+                if (size >= 2) {
+                    expected_crc = (static_cast<uint16_t>(data[size - 2]) << 8) | data[size - 1];
+                    calculated_crc = calculateFrameFooterCRC_unlocked(data, size);
+                }
+                
+                handleCRCMismatch_unlocked("Frame CRC-16", expected_crc, calculated_crc, data, size);
+                
+                if (m_strict_crc_validation) {
+                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Strict CRC mode: rejecting frame");
+                    return false;
+                } else {
+                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Permissive CRC mode: using frame despite CRC error");
+                }
+            } else {
+                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] RFC 9639 CRC validation passed");
+            }
+        } else if (shouldValidateCRC_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Frame too small for CRC validation (", size, " bytes)");
         }
         
         // Protect libFLAC decoder operations with dedicated mutex
@@ -2059,18 +2085,20 @@ AudioFrame FLACCodec::handleDecodingError_unlocked(const MediaChunk& chunk) {
     
     // Check if this looks like a corrupted FLAC frame
     if (!chunk.data.empty()) {
-        // Check for FLAC sync pattern (0xFF followed by 0xF8-0xFF)
+        // Check for RFC 9639 compliant FLAC sync pattern (0xFFF8 or 0xFFF9)
         if (chunk.data.size() >= 2) {
-            uint8_t sync1 = chunk.data[0];
-            uint8_t sync2 = chunk.data[1];
+            uint16_t sync_pattern = (static_cast<uint16_t>(chunk.data[0]) << 8) | chunk.data[1];
+            bool valid_sync = (sync_pattern == 0xFFF8) || (sync_pattern == 0xFFF9);
             
-            if (sync1 != 0xFF || (sync2 & 0xF8) != 0xF8) {
+            if (!valid_sync) {
                 is_sync_lost = true;
                 m_stats.sync_errors++;
-                Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Sync pattern lost - invalid frame header");
+                Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] RFC 9639 sync pattern lost - invalid frame header: 0x", 
+                          std::hex, std::uppercase, sync_pattern, std::nouppercase, std::dec, 
+                          " (expected 0xFFF8 or 0xFFF9)");
             } else {
                 is_corrupted_frame = true;
-                Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Frame appears corrupted despite valid sync");
+                Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Frame appears corrupted despite valid RFC 9639 sync pattern");
             }
         } else {
             is_sync_lost = true;
@@ -2201,21 +2229,37 @@ bool FLACCodec::recoverFromSyncLoss_unlocked(const MediaChunk& chunk) {
             m_decoder->clearInputBuffer();
         }
         
-        // Search for next valid FLAC sync pattern in the chunk
+        // Search for next valid RFC 9639 FLAC sync pattern in the chunk using enhanced detection
         if (!chunk.data.empty() && chunk.data.size() >= 2) {
-            for (size_t i = 0; i < chunk.data.size() - 1; ++i) {
-                if (chunk.data[i] == 0xFF && (chunk.data[i + 1] & 0xF8) == 0xF8) {
-                    Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Found potential sync at offset ", i);
+            size_t sync_offset = findNextFrameSync_unlocked(chunk.data.data(), chunk.data.size());
+            
+            if (sync_offset < chunk.data.size()) {
+                Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Found RFC 9639 sync pattern at offset ", sync_offset);
+                
+                // Validate the frame boundary at this position using comprehensive validation
+                if (validateFrameBoundary_unlocked(chunk.data.data() + sync_offset, chunk.data.size() - sync_offset)) {
+                    Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Frame boundary validation passed at sync offset");
                     
-                    // Validate this looks like a real frame header
-                    if (i + 4 < chunk.data.size()) {
-                        if (validateFrameHeader_unlocked(chunk.data.data() + i, chunk.data.size() - i)) {
-                            Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Valid frame header found at offset ", i);
-                            
-                            // Feed the data starting from the sync point
-                            if (m_decoder->feedData(chunk.data.data() + i, chunk.data.size() - i)) {
-                                Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Sync recovery successful");
-                                return true;
+                    // Feed the data starting from the sync point
+                    if (m_decoder->feedData(chunk.data.data() + sync_offset, chunk.data.size() - sync_offset)) {
+                        Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Sync recovery successful");
+                        return true;
+                    } else {
+                        Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Failed to feed data from sync position");
+                    }
+                } else {
+                    Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Frame boundary validation failed at sync offset ", sync_offset);
+                    
+                    // Try to find another sync pattern after this one
+                    if (sync_offset + 2 < chunk.data.size()) {
+                        size_t next_sync = findNextFrameSync_unlocked(chunk.data.data(), chunk.data.size(), sync_offset + 1);
+                        if (next_sync < chunk.data.size()) {
+                            Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Trying next sync pattern at offset ", next_sync);
+                            if (validateFrameBoundary_unlocked(chunk.data.data() + next_sync, chunk.data.size() - next_sync)) {
+                                if (m_decoder->feedData(chunk.data.data() + next_sync, chunk.data.size() - next_sync)) {
+                                    Debug::log("flac_codec", "[FLACCodec::recoverFromSyncLoss_unlocked] Sync recovery successful with second attempt");
+                                    return true;
+                                }
                             }
                         }
                     }
@@ -2427,8 +2471,11 @@ void FLACCodec::setErrorState_unlocked(bool error_state) {
 uint32_t FLACCodec::estimateBlockSizeFromChunk_unlocked(const MediaChunk& chunk) {
     // Try to extract block size from FLAC frame header if possible
     if (chunk.data.size() >= 4) {
-        // Check if this looks like a valid FLAC frame header
-        if (chunk.data[0] == 0xFF && (chunk.data[1] & 0xF8) == 0xF8) {
+        // Check if this looks like a valid RFC 9639 FLAC frame header
+        uint16_t sync_pattern = (static_cast<uint16_t>(chunk.data[0]) << 8) | chunk.data[1];
+        bool valid_sync = (sync_pattern == 0xFFF8) || (sync_pattern == 0xFFF9);
+        
+        if (valid_sync) {
             // Extract block size from frame header (RFC 9639 section 7.2)
             uint8_t block_size_bits = (chunk.data[2] & 0xF0) >> 4;
             
@@ -4315,8 +4362,11 @@ bool FLACCodec::isFrameComplete_unlocked(const uint8_t* data, size_t size) const
     // 2. Valid frame header
     // 3. Proper frame size matching the data
     
-    // Check sync pattern (RFC 9639 Section 9.2.1)
-    if (data[0] != 0xFF || (data[1] & 0xF8) != 0xF8) {
+    // Check RFC 9639 Section 9.1 sync pattern: 0b111111111111100 + blocking strategy bit
+    uint16_t sync_pattern = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    bool valid_sync = (sync_pattern == 0xFFF8) || (sync_pattern == 0xFFF9);
+    
+    if (!valid_sync) {
         return false;
     }
     
@@ -4335,8 +4385,11 @@ size_t FLACCodec::estimateFrameSize_unlocked(const uint8_t* data, size_t size) c
         return 0;
     }
     
-    // Check for FLAC sync pattern
-    if (data[0] != 0xFF || (data[1] & 0xF8) != 0xF8) {
+    // Check for RFC 9639 FLAC sync pattern
+    uint16_t sync_pattern = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    bool valid_sync = (sync_pattern == 0xFFF8) || (sync_pattern == 0xFFF9);
+    
+    if (!valid_sync) {
         return 0;
     }
     
@@ -9863,6 +9916,235 @@ AudioQualityMetrics FLACCodec::calculateAudioQualityMetrics_unlocked(const int16
               ", RMS: ", metrics.rms_amplitude, ", Clipped: ", clipped_samples);
     
     return metrics;
+}
+
+// ============================================================================
+// RFC 9639 Compliant Frame Boundary Detection Methods
+// ============================================================================
+
+bool FLACCodec::validateFrameBoundary_unlocked(const uint8_t* data, size_t size) {
+    if (!data || size < 2) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameBoundary_unlocked] Insufficient data for frame boundary validation");
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1: Frame MUST start with 15-bit sync code 0b111111111111100
+    // followed by blocking strategy bit (0 for fixed, 1 for variable block size)
+    uint16_t sync_pattern = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    bool valid_sync = (sync_pattern == 0xFFF8) || (sync_pattern == 0xFFF9);
+    
+    if (!valid_sync) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameBoundary_unlocked] Invalid RFC 9639 sync pattern: 0x", 
+                  std::hex, std::uppercase, sync_pattern, std::nouppercase, std::dec, 
+                  " (expected 0xFFF8 or 0xFFF9)");
+        return false;
+    }
+    
+    bool is_variable_block_size = (sync_pattern == 0xFFF9);
+    Debug::log("flac_codec", "[FLACCodec::validateFrameBoundary_unlocked] Valid RFC 9639 sync pattern: 0x", 
+              std::hex, std::uppercase, sync_pattern, std::nouppercase, std::dec, 
+              " (", (is_variable_block_size ? "variable" : "fixed"), " block size)");
+    
+    // For highly compressed frames (10-14 bytes), we need additional validation
+    if (size >= 10 && size <= 14) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameBoundary_unlocked] Highly compressed frame detected (", 
+                  size, " bytes) - performing enhanced validation");
+        return handleHighlyCompressedFrame_unlocked(data, size);
+    }
+    
+    // For larger frames, validate the frame header structure
+    if (size >= 4) {
+        return validateFrameHeader_unlocked(data, size);
+    }
+    
+    return true; // Basic sync pattern is valid
+}
+
+bool FLACCodec::isValidFrameSync_unlocked(const uint8_t* data, size_t size) {
+    if (!data || size < 2) {
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1: Check for exact sync pattern
+    uint16_t sync_pattern = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    return (sync_pattern == 0xFFF8) || (sync_pattern == 0xFFF9);
+}
+
+size_t FLACCodec::findNextFrameSync_unlocked(const uint8_t* data, size_t size, size_t start_offset) {
+    if (!data || size < 2 || start_offset >= size - 1) {
+        return size; // Not found
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::findNextFrameSync_unlocked] Searching for RFC 9639 sync pattern from offset ", start_offset);
+    
+    for (size_t i = start_offset; i < size - 1; ++i) {
+        uint16_t sync_pattern = (static_cast<uint16_t>(data[i]) << 8) | data[i + 1];
+        bool valid_sync = (sync_pattern == 0xFFF8) || (sync_pattern == 0xFFF9);
+        
+        if (valid_sync) {
+            bool is_variable_block_size = (sync_pattern == 0xFFF9);
+            Debug::log("flac_codec", "[FLACCodec::findNextFrameSync_unlocked] Found RFC 9639 sync pattern at offset ", i, 
+                      ": 0x", std::hex, std::uppercase, sync_pattern, std::nouppercase, std::dec, 
+                      " (", (is_variable_block_size ? "variable" : "fixed"), " block size)");
+            
+            // Additional validation for the frame header if we have enough data
+            if (i + 4 <= size && validateFrameHeader_unlocked(data + i, size - i)) {
+                return i;
+            } else if (i + 4 > size) {
+                // Not enough data to validate header, but sync pattern is correct
+                Debug::log("flac_codec", "[FLACCodec::findNextFrameSync_unlocked] Insufficient data for header validation at offset ", i);
+                return i;
+            }
+        }
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::findNextFrameSync_unlocked] No valid RFC 9639 sync pattern found");
+    return size; // Not found
+}
+
+bool FLACCodec::validateFrameHeader_unlocked(const uint8_t* data, size_t size) {
+    if (!data || size < 4) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameHeader_unlocked] Insufficient data for frame header validation");
+        return false;
+    }
+    
+    // Validate sync pattern first
+    if (!isValidFrameSync_unlocked(data, size)) {
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1: Validate frame header structure
+    uint8_t byte2 = data[2];
+    uint8_t byte3 = data[3];
+    
+    // Block size bits (4 bits in byte 2, upper nibble)
+    uint8_t block_size_bits = (byte2 & 0xF0) >> 4;
+    if (block_size_bits == 0x00) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameHeader_unlocked] Invalid block size bits: 0x00 is reserved");
+        return false;
+    }
+    
+    // Sample rate bits (4 bits in byte 2, lower nibble)
+    uint8_t sample_rate_bits = byte2 & 0x0F;
+    if (sample_rate_bits == 0x0F) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameHeader_unlocked] Invalid sample rate bits: 0x0F is invalid");
+        return false;
+    }
+    
+    // Channel assignment bits (4 bits in byte 3, upper nibble)
+    uint8_t channel_assignment = (byte3 & 0xF0) >> 4;
+    if (channel_assignment >= 0x0B && channel_assignment <= 0x0F) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameHeader_unlocked] Invalid channel assignment: 0x", 
+                  std::hex, std::uppercase, static_cast<uint32_t>(channel_assignment), std::nouppercase, std::dec, 
+                  " is reserved");
+        return false;
+    }
+    
+    // Sample size bits (3 bits in byte 3, bits 1-3)
+    uint8_t sample_size_bits = (byte3 & 0x0E) >> 1;
+    if (sample_size_bits == 0x03 || sample_size_bits == 0x07) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameHeader_unlocked] Invalid sample size bits: 0x", 
+                  std::hex, std::uppercase, static_cast<uint32_t>(sample_size_bits), std::nouppercase, std::dec, 
+                  " is reserved");
+        return false;
+    }
+    
+    // Reserved bit (bit 0 in byte 3) MUST be 0
+    if (byte3 & 0x01) {
+        Debug::log("flac_codec", "[FLACCodec::validateFrameHeader_unlocked] Reserved bit is set (MUST be 0 per RFC 9639)");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::validateFrameHeader_unlocked] Frame header validation passed");
+    Debug::log("flac_codec", "  Block size bits: 0x", std::hex, std::uppercase, static_cast<uint32_t>(block_size_bits), std::nouppercase, std::dec);
+    Debug::log("flac_codec", "  Sample rate bits: 0x", std::hex, std::uppercase, static_cast<uint32_t>(sample_rate_bits), std::nouppercase, std::dec);
+    Debug::log("flac_codec", "  Channel assignment: 0x", std::hex, std::uppercase, static_cast<uint32_t>(channel_assignment), std::nouppercase, std::dec);
+    Debug::log("flac_codec", "  Sample size bits: 0x", std::hex, std::uppercase, static_cast<uint32_t>(sample_size_bits), std::nouppercase, std::dec);
+    
+    return true;
+}
+
+bool FLACCodec::handleHighlyCompressedFrame_unlocked(const uint8_t* data, size_t size) {
+    if (!data || size < 10 || size > 14) {
+        Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Invalid size for highly compressed frame: ", size);
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Processing highly compressed FLAC frame (", size, " bytes)");
+    
+    // Validate basic frame header structure
+    if (!validateFrameHeader_unlocked(data, size)) {
+        Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Frame header validation failed");
+        return false;
+    }
+    
+    // For highly compressed frames, we need to be extra careful about frame boundaries
+    // These frames typically occur with:
+    // 1. Very small block sizes (16-64 samples)
+    // 2. Simple audio content (silence, constant values)
+    // 3. Efficient prediction (CONSTANT or VERBATIM subframes)
+    
+    // Check if the frame size is consistent with the block size indicated in the header
+    uint8_t block_size_bits = (data[2] & 0xF0) >> 4;
+    uint32_t expected_block_size = 0;
+    
+    switch (block_size_bits) {
+        case 0x01: expected_block_size = 192; break;
+        case 0x02: case 0x03: case 0x04: case 0x05:
+            expected_block_size = 576 << (block_size_bits - 2); break;
+        case 0x06: expected_block_size = 0; break; // Get from end of header
+        case 0x07: expected_block_size = 0; break; // Get from end of header
+        case 0x08: case 0x09: case 0x0A: case 0x0B: case 0x0C: case 0x0D: case 0x0E: case 0x0F:
+            expected_block_size = 256 << (block_size_bits - 8); break;
+        default:
+            Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Invalid block size bits: 0x", 
+                      std::hex, std::uppercase, static_cast<uint32_t>(block_size_bits), std::nouppercase, std::dec);
+            return false;
+    }
+    
+    if (expected_block_size > 0) {
+        Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Expected block size: ", expected_block_size, " samples");
+        
+        // For highly compressed frames, small block sizes are expected
+        if (expected_block_size > 1152) {
+            Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] WARNING: Large block size (", 
+                      expected_block_size, ") in highly compressed frame may indicate boundary detection error");
+        }
+    }
+    
+    // Check channel configuration for highly compressed frames
+    uint8_t channel_assignment = (data[3] & 0xF0) >> 4;
+    uint32_t num_channels = 0;
+    
+    if (channel_assignment <= 0x07) {
+        num_channels = channel_assignment + 1;
+    } else if (channel_assignment >= 0x08 && channel_assignment <= 0x0A) {
+        num_channels = 2; // Stereo modes
+    } else {
+        Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Invalid channel assignment: 0x", 
+                  std::hex, std::uppercase, static_cast<uint32_t>(channel_assignment), std::nouppercase, std::dec);
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Channel configuration: ", num_channels, " channels");
+    
+    // Validate that the frame size is reasonable for the content
+    // Highly compressed frames should have minimal overhead beyond the header
+    size_t min_frame_size = 4; // Sync + header
+    size_t max_frame_size = 14; // As specified in the task
+    
+    if (size < min_frame_size || size > max_frame_size) {
+        Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Frame size ", size, 
+                  " outside expected range [", min_frame_size, "-", max_frame_size, "] for highly compressed frame");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[FLACCodec::handleHighlyCompressedFrame_unlocked] Highly compressed frame validation passed");
+    Debug::log("flac_codec", "  Frame size: ", size, " bytes");
+    Debug::log("flac_codec", "  Block size: ", expected_block_size, " samples");
+    Debug::log("flac_codec", "  Channels: ", num_channels);
+    
+    return true;
 }
 
 #endif // HAVE_FLAC
