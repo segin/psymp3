@@ -1743,6 +1743,18 @@ private:
     bool validateFrameHeader_unlocked(const uint8_t* data, size_t size) const;
     
     // RFC 9639 compliance validation helper methods (assume appropriate locks are held)
+    bool validateRFC9639Compliance_unlocked(const uint8_t* data, size_t size) const;
+    bool checkForbiddenBitPatterns_unlocked(const uint8_t* frame_header) const;
+    bool validateReservedFields_unlocked(const uint8_t* frame_header) const;
+    bool handleUnsupportedFeatures_unlocked(const uint8_t* frame_header) const;
+    
+    // RFC 9639 compliant error handling and recovery methods
+    bool handleRFC9639Error_unlocked(FLAC__StreamDecoderErrorStatus status, const char* context);
+    bool recoverFromForbiddenPattern_unlocked(const uint8_t* data, size_t size);
+    bool recoverFromReservedFieldViolation_unlocked(const uint8_t* data, size_t size);
+    bool shouldTerminateStream_unlocked(FLAC__StreamDecoderErrorStatus status) const;
+    void logRFC9639Violation_unlocked(const char* violation_type, const char* rfc_section, 
+                                     const uint8_t* data, size_t offset) const;
     bool validateBlockSizeBits_unlocked(uint8_t block_size_bits) const;
     bool validateSampleRateBits_unlocked(uint8_t sample_rate_bits) const;
     bool validateChannelAssignment_unlocked(uint8_t channel_assignment) const;

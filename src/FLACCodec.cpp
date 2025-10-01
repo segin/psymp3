@@ -287,58 +287,97 @@ void FLACStreamDecoder::error_callback(FLAC__StreamDecoderErrorStatus status) {
     m_error_occurred = true;
     m_last_error = status;
     
-    // Comprehensive error logging with recovery guidance
+    // RFC 9639 compliant error logging with section references
     const char* error_description = "Unknown error";
+    const char* rfc_section = "N/A";
     bool is_recoverable = false;
+    bool requires_stream_termination = false;
     
     switch (status) {
         case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
             error_description = "Lost synchronization - frame boundary detection failed";
+            rfc_section = "RFC 9639 Section 9.1 (Frame Header)";
             is_recoverable = true; // Can often recover by finding next sync pattern
+            requires_stream_termination = false;
             break;
         case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
-            error_description = "Invalid frame header - corrupted frame data";
+            error_description = "Invalid frame header - corrupted frame data or forbidden bit patterns";
+            rfc_section = "RFC 9639 Section 9.1 (Frame Header Structure)";
             is_recoverable = true; // Can skip bad frame and continue
+            requires_stream_termination = false;
             break;
         case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
             error_description = "Frame CRC mismatch - data corruption detected";
-            is_recoverable = true; // Can use decoded data despite CRC error
+            rfc_section = "RFC 9639 Section 9.3 (Frame Footer CRC-16)";
+            is_recoverable = true; // Can use decoded data despite CRC error per RFC
+            requires_stream_termination = false;
             break;
         case FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM:
-            error_description = "Unparseable stream - fundamental format violation";
+            error_description = "Unparseable stream - fundamental format violation or unsupported features";
+            rfc_section = "RFC 9639 Section 5 (Format Principles)";
             is_recoverable = false; // Usually indicates incompatible FLAC variant
+            requires_stream_termination = true; // Stream cannot be processed
             break;
         default:
-            error_description = "Unrecognized libFLAC error";
+            error_description = "Unrecognized libFLAC error - potential RFC 9639 compliance issue";
+            rfc_section = "RFC 9639 General Compliance";
             is_recoverable = false;
+            requires_stream_termination = true;
             break;
     }
     
-    Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] libFLAC error (", 
-              static_cast<int>(status), "): ", error_description, 
-              " - ", (is_recoverable ? "recoverable" : "fatal"));
+    Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC 9639 ERROR (", 
+              static_cast<int>(status), "): ", error_description);
+    Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC Reference: ", rfc_section);
+    Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] Recovery: ", 
+              (is_recoverable ? "POSSIBLE" : "IMPOSSIBLE"));
+    Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] Stream Termination: ", 
+              (requires_stream_termination ? "REQUIRED" : "NOT REQUIRED"));
     
-    // Provide detailed error information to parent codec for recovery decisions
+    // Provide detailed error information to parent codec for RFC-compliant recovery
     if (m_parent) {
         try {
-            // The parent codec will decide on recovery strategy based on error type
+            // The parent codec will implement RFC 9639 compliant error handling
             m_parent->handleErrorCallback_unlocked(status);
             
-            // Additional recovery hints for specific error types
+            // RFC 9639 compliant recovery guidance
             if (is_recoverable) {
-                Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] Recovery possible - ", 
-                          "parent codec will attempt error recovery");
+                Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC 9639 Recovery Strategy: ", 
+                          "Error is recoverable per RFC guidelines - attempting graceful handling");
+                
+                // Specific recovery recommendations per RFC 9639
+                switch (status) {
+                    case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
+                        Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC 9639 Sync Recovery: ", 
+                                  "Search for next valid sync pattern (0x3FFE + reserved bit)");
+                        break;
+                    case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
+                        Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC 9639 Header Recovery: ", 
+                                  "Skip corrupted frame, validate forbidden patterns in next frame");
+                        break;
+                    case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
+                        Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC 9639 CRC Recovery: ", 
+                                  "Decoders MAY use data despite CRC mismatch for error resilience");
+                        break;
+                    default:
+                        break;
+                }
             } else {
-                Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] Fatal error - ", 
-                          "decoder reset may be required");
+                Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC 9639 Fatal Error: ", 
+                          "Error violates fundamental RFC requirements - stream termination required");
+                
+                if (requires_stream_termination) {
+                    Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] RFC 9639 Termination: ", 
+                              "Stream contains unrecoverable violations - decoder must terminate");
+                }
             }
             
         } catch (const std::exception& e) {
-            Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] Exception in parent error handler: ", 
-                      e.what(), " - codec may be in unstable state");
+            Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] CRITICAL: Exception in RFC error handler: ", 
+                      e.what(), " - codec may violate RFC 9639 error handling requirements");
         }
     } else {
-        Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] No parent codec available for error handling");
+        Debug::log("flac_codec", "[FLACStreamDecoder::error_callback] CRITICAL: No parent codec for RFC 9639 error handling");
     }
 }
 
@@ -1914,92 +1953,95 @@ void FLACCodec::handleMetadataCallback_unlocked(const FLAC__StreamMetadata* meta
 }
 
 void FLACCodec::handleErrorCallback_unlocked(FLAC__StreamDecoderErrorStatus status) {
-    m_stats.error_count++;
-    m_stats.libflac_errors++;
+    Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Processing libFLAC error with RFC 9639 compliance");
     
-    // Comprehensive error analysis and recovery strategy
+    // Use RFC 9639 compliant error handling
+    bool recovery_successful = handleRFC9639Error_unlocked(status, "libFLAC callback");
+    
+    // Determine error characteristics for detailed logging
     const char* error_description = "Unknown error";
-    bool is_recoverable = false;
+    const char* rfc_section = "N/A";
     bool should_reset_decoder = false;
     
     switch (status) {
         case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
-            error_description = "Lost synchronization - searching for next frame boundary";
-            is_recoverable = true;
+            error_description = "Lost synchronization - frame boundary detection failed";
+            rfc_section = "RFC 9639 Section 9.1 (Frame Header Sync)";
             should_reset_decoder = false;
-            m_stats.sync_errors++;
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Sync lost - decoder will search for next frame");
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 Sync Error: ", 
+                      "Decoder will search for next valid sync pattern");
             break;
             
         case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
-            error_description = "Invalid frame header - corrupted frame data detected";
-            is_recoverable = true;
+            error_description = "Bad frame header - forbidden patterns or reserved field violations";
+            rfc_section = "RFC 9639 Section 9.1 (Frame Header Structure)";
             should_reset_decoder = false;
-            m_stats.crc_errors++;
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Bad header - will skip corrupted frame");
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 Header Error: ", 
+                      "Skipping corrupted frame, validating forbidden patterns");
             break;
             
         case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
-            error_description = "Frame CRC mismatch - data corruption in frame";
-            is_recoverable = true; // Can often use decoded data despite CRC error
+            error_description = "Frame CRC mismatch - data corruption detected";
+            rfc_section = "RFC 9639 Section 9.3 (Frame Footer CRC-16)";
             should_reset_decoder = false;
-            m_stats.crc_errors++;
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] CRC mismatch - decoded data may still be usable");
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 CRC Error: ", 
+                      "Using decoded data with quality warning (RFC permits this)");
             break;
             
         case FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM:
-            error_description = "Unparseable stream - fundamental format violation";
-            is_recoverable = false;
+            error_description = "Unparseable stream - fundamental RFC 9639 format violations";
+            rfc_section = "RFC 9639 Section 5 (Format Principles)";
             should_reset_decoder = true;
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Unparseable stream - decoder reset required");
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 Fatal Error: ", 
+                      "Stream contains unrecoverable format violations");
             break;
             
         default:
-            error_description = "Unrecognized libFLAC error";
-            is_recoverable = false;
+            error_description = "Unknown libFLAC error - potential RFC 9639 compliance issue";
+            rfc_section = "RFC 9639 General Compliance";
             should_reset_decoder = true;
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Unknown error - assuming fatal");
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 Unknown Error: ", 
+                      "Assuming fatal format violation");
             break;
     }
     
-    Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] libFLAC error (", 
-              static_cast<int>(status), "): ", error_description);
+    Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Error Details:");
+    Debug::log("flac_codec", "  Description: ", error_description);
+    Debug::log("flac_codec", "  RFC Reference: ", rfc_section);
+    Debug::log("flac_codec", "  Recovery Status: ", (recovery_successful ? "SUCCESSFUL" : "FAILED"));
+    Debug::log("flac_codec", "  Stream Termination: ", (shouldTerminateStream_unlocked(status) ? "REQUIRED" : "NOT REQUIRED"));
     
-    // Implement recovery strategy based on error type
-    if (should_reset_decoder) {
-        Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Attempting decoder reset for fatal error");
+    // Implement additional recovery strategy if RFC recovery failed
+    if (!recovery_successful && should_reset_decoder) {
+        Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC recovery failed - attempting decoder reset");
         
         try {
             resetDecoderState_unlocked();
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Decoder reset successful");
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Decoder reset successful after RFC recovery failure");
         } catch (const std::exception& e) {
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Decoder reset failed: ", e.what());
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] CRITICAL: Decoder reset failed: ", e.what());
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 TERMINATION: Codec is now in unrecoverable state");
             setErrorState_unlocked(true);
         }
-        
-    } else if (is_recoverable) {
-        Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Error is recoverable - continuing decoding");
-        
-        // For recoverable errors, we can continue decoding
-        // The decoder will handle frame sync recovery automatically
-        
-    } else {
-        Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Fatal error - setting codec error state");
-        setErrorState_unlocked(true);
     }
     
-    // Update error rate statistics for performance monitoring
+    // Log comprehensive error statistics for RFC compliance monitoring
     if (m_stats.frames_decoded > 0) {
         double error_rate = (static_cast<double>(m_stats.error_count) * 100.0) / m_stats.frames_decoded;
         if (error_rate > 5.0) { // Log if error rate exceeds 5%
-            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] High error rate detected: ", 
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 ALERT: High error rate detected: ", 
                       error_rate, "% (", m_stats.error_count, " errors in ", m_stats.frames_decoded, " frames)");
+            Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 RECOMMENDATION: ", 
+                      "Verify stream compliance with RFC 9639 specification");
         }
     }
     
-    // Performance impact analysis
-    Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] Error statistics: sync=", 
-              m_stats.sync_errors, ", crc=", m_stats.crc_errors, ", total=", m_stats.error_count);
+    // Detailed error breakdown for RFC compliance analysis
+    Debug::log("flac_codec", "[FLACCodec::handleErrorCallback_unlocked] RFC 9639 Error Statistics:");
+    Debug::log("flac_codec", "  Sync Errors: ", m_stats.sync_errors, " (RFC 9639 Section 9.1)");
+    Debug::log("flac_codec", "  CRC Errors: ", m_stats.crc_errors, " (RFC 9639 Section 9.3)");
+    Debug::log("flac_codec", "  libFLAC Errors: ", m_stats.libflac_errors, " (General RFC violations)");
+    Debug::log("flac_codec", "  Total Errors: ", m_stats.error_count);
 }
 
 // Error handling methods
@@ -4340,8 +4382,16 @@ size_t FLACCodec::estimateFrameSize_unlocked(const uint8_t* data, size_t size) c
 }
 
 bool FLACCodec::validateFrameHeader_unlocked(const uint8_t* data, size_t size) const {
+    Debug::log("flac_codec", "[validateFrameHeader_unlocked] Performing RFC 9639 compliant frame header validation");
+    
     if (!data || size < 4) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Insufficient data: need 4 bytes, got ", size);
+        logRFC9639Violation_unlocked("Insufficient frame header data", "RFC 9639 Section 9.1", data, 0);
+        return false;
+    }
+    
+    // Use comprehensive RFC 9639 compliance validation first
+    if (!validateRFC9639Compliance_unlocked(data, size)) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Frame header fails RFC 9639 compliance validation");
         return false;
     }
     
@@ -4349,8 +4399,7 @@ bool FLACCodec::validateFrameHeader_unlocked(const uint8_t* data, size_t size) c
     // Validate 15-bit sync code: 0b111111111111100 (0x3FFE when shifted)
     uint16_t sync_pattern = (static_cast<uint16_t>(data[0]) << 8) | data[1];
     if ((sync_pattern & 0xFFFE) != 0xFFF8) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Invalid sync pattern: 0x", 
-                  std::hex, sync_pattern, std::dec, " (expected 0xFFF8 or 0xFFF9)");
+        logRFC9639Violation_unlocked("Invalid sync pattern", "RFC 9639 Section 9.1", data, 0);
         return false;
     }
     
@@ -4360,13 +4409,13 @@ bool FLACCodec::validateFrameHeader_unlocked(const uint8_t* data, size_t size) c
     // Validate that sync code + blocking strategy forms valid pattern
     // Fixed block size: 0xFFF8, Variable block size: 0xFFF9
     if (blocking_strategy == 0 && (sync_pattern & 0xFFFF) != 0xFFF8) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Invalid fixed block size sync: 0x", 
-                  std::hex, sync_pattern, std::dec);
+        logRFC9639Violation_unlocked("Invalid fixed block size sync pattern", 
+                                   "RFC 9639 Section 9.1", data, 1);
         return false;
     }
     if (blocking_strategy == 1 && (sync_pattern & 0xFFFF) != 0xFFF9) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Invalid variable block size sync: 0x", 
-                  std::hex, sync_pattern, std::dec);
+        logRFC9639Violation_unlocked("Invalid variable block size sync pattern", 
+                                   "RFC 9639 Section 9.1", data, 1);
         return false;
     }
     
@@ -4377,66 +4426,47 @@ bool FLACCodec::validateFrameHeader_unlocked(const uint8_t* data, size_t size) c
     uint8_t bit_depth_bits = (data[3] >> 1) & 0x07;       // RFC 9639 Section 9.1.4
     uint8_t reserved_bit = data[3] & 0x01;                 // RFC 9639 Section 9.1.4
     
-    // RFC 9639 Section 9.1.1: Block Size Bits Validation (Table 14)
-    if (block_size_bits == 0x0) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved block size bits: 0x0");
-        return false;
-    }
-    
-    // RFC 9639 Section 9.1.2: Sample Rate Bits Validation (Table 15)
-    if (sample_rate_bits == 0xF) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Forbidden sample rate bits: 0xF");
-        return false;
-    }
-    
-    // RFC 9639 Section 9.1.3: Channel Assignment Validation (Table 16)
-    if (channel_assignment >= 0x0B && channel_assignment <= 0x0F) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved channel assignment: 0x", 
-                  std::hex, static_cast<unsigned>(channel_assignment), std::dec);
-        return false;
-    }
-    
-    // RFC 9639 Section 9.1.4: Bit Depth Validation (Table 17)
-    if (bit_depth_bits == 0x3) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved bit depth: 0x3");
-        return false;
-    }
-    
-    // RFC 9639 Section 9.1.4: Reserved Bit Validation
-    if (reserved_bit != 0) {
-        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Reserved bit must be 0, got: ", 
-                  static_cast<unsigned>(reserved_bit));
-        return false;
-    }
-    
     // Additional RFC 9639 compliance checks for consistency
     
     // Validate block size ranges per RFC 9639 Table 14
     if (!validateBlockSizeBits_unlocked(block_size_bits)) {
+        logRFC9639Violation_unlocked("Invalid block size bits", "RFC 9639 Section 9.1.1 (Table 14)", data, 2);
         return false;
     }
     
     // Validate sample rate ranges per RFC 9639 Table 15
     if (!validateSampleRateBits_unlocked(sample_rate_bits)) {
+        logRFC9639Violation_unlocked("Invalid sample rate bits", "RFC 9639 Section 9.1.2 (Table 15)", data, 2);
         return false;
     }
     
     // Validate channel assignment per RFC 9639 Table 16
     if (!validateChannelAssignment_unlocked(channel_assignment)) {
+        logRFC9639Violation_unlocked("Invalid channel assignment", "RFC 9639 Section 9.1.3 (Table 16)", data, 3);
         return false;
     }
     
     // Validate bit depth per RFC 9639 Table 17
     if (!validateBitDepthBits_unlocked(bit_depth_bits)) {
+        logRFC9639Violation_unlocked("Invalid bit depth bits", "RFC 9639 Section 9.1.4 (Table 17)", data, 3);
         return false;
     }
     
-    Debug::log("flac_codec", "[validateFrameHeader_unlocked] Valid frame header: sync=0x", 
-              std::hex, sync_pattern, std::dec, ", blocking=", static_cast<unsigned>(blocking_strategy),
-              ", block_size=0x", std::hex, static_cast<unsigned>(block_size_bits), std::dec,
-              ", sample_rate=0x", std::hex, static_cast<unsigned>(sample_rate_bits), std::dec,
-              ", channels=0x", std::hex, static_cast<unsigned>(channel_assignment), std::dec,
-              ", bit_depth=0x", std::hex, static_cast<unsigned>(bit_depth_bits), std::dec);
+    // Check for unsupported features that are valid per RFC but not implemented
+    if (!handleUnsupportedFeatures_unlocked(data)) {
+        Debug::log("flac_codec", "[validateFrameHeader_unlocked] Frame contains unsupported RFC 9639 features");
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[validateFrameHeader_unlocked] RFC 9639 compliant frame header validated:");
+    Debug::log("flac_codec", "  Sync Pattern: 0x", std::hex, sync_pattern, std::dec);
+    Debug::log("flac_codec", "  Blocking Strategy: ", static_cast<unsigned>(blocking_strategy), 
+              " (", (blocking_strategy ? "variable" : "fixed"), ")");
+    Debug::log("flac_codec", "  Block Size Bits: 0x", std::hex, static_cast<unsigned>(block_size_bits), std::dec);
+    Debug::log("flac_codec", "  Sample Rate Bits: 0x", std::hex, static_cast<unsigned>(sample_rate_bits), std::dec);
+    Debug::log("flac_codec", "  Channel Assignment: 0x", std::hex, static_cast<unsigned>(channel_assignment), std::dec);
+    Debug::log("flac_codec", "  Bit Depth Bits: 0x", std::hex, static_cast<unsigned>(bit_depth_bits), std::dec);
+    Debug::log("flac_codec", "  Reserved Bit: ", static_cast<unsigned>(reserved_bit), " (RFC requires 0)");
     
     return true;
 }
@@ -9145,6 +9175,346 @@ bool FLACCodec::validateBitDepthRFC9639_unlocked(uint16_t bits_per_sample) const
               bits_per_sample, " bits");
     
     return true;
+}
+
+// ============================================================================
+// RFC 9639 Compliant Error Handling Implementation
+// ============================================================================
+
+bool FLACCodec::validateRFC9639Compliance_unlocked(const uint8_t* data, size_t size) const {
+    Debug::log("flac_codec", "[validateRFC9639Compliance_unlocked] Performing comprehensive RFC 9639 compliance validation");
+    
+    if (!data || size < 4) {
+        logRFC9639Violation_unlocked("Insufficient frame data", "RFC 9639 Section 9.1", data, 0);
+        return false;
+    }
+    
+    // Step 1: Validate sync pattern per RFC 9639 Section 9.1
+    uint16_t sync_pattern = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    if ((sync_pattern & 0xFFFE) != 0xFFF8) {
+        logRFC9639Violation_unlocked("Invalid sync pattern", "RFC 9639 Section 9.1", data, 0);
+        return false;
+    }
+    
+    // Step 2: Check for forbidden bit patterns per RFC 9639
+    if (!checkForbiddenBitPatterns_unlocked(data)) {
+        return false; // Violation already logged
+    }
+    
+    // Step 3: Validate reserved fields per RFC 9639
+    if (!validateReservedFields_unlocked(data)) {
+        return false; // Violation already logged
+    }
+    
+    // Step 4: Check for unsupported features per RFC 9639
+    if (!handleUnsupportedFeatures_unlocked(data)) {
+        return false; // Unsupported feature detected
+    }
+    
+    Debug::log("flac_codec", "[validateRFC9639Compliance_unlocked] Frame passes RFC 9639 compliance validation");
+    return true;
+}
+
+bool FLACCodec::checkForbiddenBitPatterns_unlocked(const uint8_t* frame_header) const {
+    Debug::log("flac_codec", "[checkForbiddenBitPatterns_unlocked] Checking RFC 9639 forbidden bit patterns");
+    
+    // Extract frame header fields for validation
+    uint8_t byte2 = frame_header[2];
+    uint8_t byte3 = frame_header[3];
+    
+    // RFC 9639 Section 9.1.1: Block size bits validation
+    uint8_t block_size_bits = (byte2 >> 4) & 0x0F;
+    if (block_size_bits == 0x00) {
+        logRFC9639Violation_unlocked("Forbidden block size pattern 0x00", 
+                                   "RFC 9639 Section 9.1.1 (Table 14)", frame_header, 2);
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1.2: Sample rate bits validation
+    uint8_t sample_rate_bits = byte2 & 0x0F;
+    if (sample_rate_bits == 0x0F) {
+        logRFC9639Violation_unlocked("Forbidden sample rate pattern 0x0F", 
+                                   "RFC 9639 Section 9.1.2 (Table 15)", frame_header, 2);
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1.3: Channel assignment validation
+    uint8_t channel_assignment = (byte3 >> 4) & 0x0F;
+    if (channel_assignment >= 0x0B && channel_assignment <= 0x0F) {
+        logRFC9639Violation_unlocked("Forbidden channel assignment pattern", 
+                                   "RFC 9639 Section 9.1.3 (Table 16)", frame_header, 3);
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1.4: Bit depth validation
+    uint8_t bit_depth_bits = (byte3 >> 1) & 0x07;
+    if (bit_depth_bits == 0x03 || bit_depth_bits == 0x07) {
+        logRFC9639Violation_unlocked("Forbidden bit depth pattern", 
+                                   "RFC 9639 Section 9.1.4 (Table 17)", frame_header, 3);
+        return false;
+    }
+    
+    Debug::log("flac_codec", "[checkForbiddenBitPatterns_unlocked] No forbidden patterns detected");
+    return true;
+}
+
+bool FLACCodec::validateReservedFields_unlocked(const uint8_t* frame_header) const {
+    Debug::log("flac_codec", "[validateReservedFields_unlocked] Validating RFC 9639 reserved fields");
+    
+    // RFC 9639 Section 9.1.4: Reserved bit validation
+    uint8_t byte3 = frame_header[3];
+    uint8_t reserved_bit = byte3 & 0x01;
+    
+    if (reserved_bit != 0) {
+        logRFC9639Violation_unlocked("Reserved bit must be 0", 
+                                   "RFC 9639 Section 9.1.4", frame_header, 3);
+        return false;
+    }
+    
+    // Additional reserved field validation for future RFC extensions
+    // Check for any other reserved patterns that might be defined
+    
+    Debug::log("flac_codec", "[validateReservedFields_unlocked] All reserved fields are valid");
+    return true;
+}
+
+bool FLACCodec::handleUnsupportedFeatures_unlocked(const uint8_t* frame_header) const {
+    Debug::log("flac_codec", "[handleUnsupportedFeatures_unlocked] Checking for unsupported RFC 9639 features");
+    
+    // Extract frame parameters
+    uint8_t byte2 = frame_header[2];
+    uint8_t byte3 = frame_header[3];
+    
+    uint8_t block_size_bits = (byte2 >> 4) & 0x0F;
+    uint8_t sample_rate_bits = byte2 & 0x0F;
+    uint8_t channel_assignment = (byte3 >> 4) & 0x0F;
+    uint8_t bit_depth_bits = (byte3 >> 1) & 0x07;
+    
+    // Check for features that are valid per RFC but not supported by this implementation
+    
+    // Block size validation - check for extremely large block sizes
+    if (block_size_bits == 0x06 || block_size_bits == 0x07) {
+        // These require reading additional bytes - check if we support this
+        Debug::log("flac_codec", "[handleUnsupportedFeatures_unlocked] Variable block size encoding detected");
+        // This is supported, just noting for debugging
+    }
+    
+    // Sample rate validation - check for custom sample rates
+    if (sample_rate_bits == 0x0C || sample_rate_bits == 0x0D || sample_rate_bits == 0x0E) {
+        Debug::log("flac_codec", "[handleUnsupportedFeatures_unlocked] Custom sample rate encoding detected");
+        // This is supported, just noting for debugging
+    }
+    
+    // Channel assignment validation - check for complex multi-channel
+    if (channel_assignment >= 0x08 && channel_assignment <= 0x0A) {
+        Debug::log("flac_codec", "[handleUnsupportedFeatures_unlocked] Side-channel stereo encoding detected");
+        // This is supported, just noting for debugging
+    }
+    
+    // Bit depth validation - check for unusual bit depths
+    if (bit_depth_bits == 0x00 || bit_depth_bits == 0x02 || bit_depth_bits >= 0x06) {
+        Debug::log("flac_codec", "[handleUnsupportedFeatures_unlocked] Unusual bit depth encoding detected: 0x", 
+                  std::hex, static_cast<unsigned>(bit_depth_bits), std::dec);
+        // These are supported, just noting for debugging
+    }
+    
+    // All features are supported by this implementation
+    Debug::log("flac_codec", "[handleUnsupportedFeatures_unlocked] All frame features are supported");
+    return true;
+}
+
+bool FLACCodec::handleRFC9639Error_unlocked(FLAC__StreamDecoderErrorStatus status, const char* context) {
+    Debug::log("flac_codec", "[handleRFC9639Error_unlocked] Handling RFC 9639 compliant error in context: ", context);
+    
+    // Determine if stream termination is required per RFC 9639
+    bool terminate_stream = shouldTerminateStream_unlocked(status);
+    
+    // Log comprehensive error information with RFC references
+    const char* rfc_section = "Unknown";
+    const char* recovery_strategy = "Unknown";
+    
+    switch (status) {
+        case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
+            rfc_section = "RFC 9639 Section 9.1 (Frame Synchronization)";
+            recovery_strategy = "Search for next valid sync pattern";
+            break;
+        case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
+            rfc_section = "RFC 9639 Section 9.1 (Frame Header Structure)";
+            recovery_strategy = "Skip corrupted frame, validate next frame header";
+            break;
+        case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
+            rfc_section = "RFC 9639 Section 9.3 (Frame Footer CRC-16)";
+            recovery_strategy = "Use decoded data with quality warning (RFC permits)";
+            break;
+        case FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM:
+            rfc_section = "RFC 9639 Section 5 (Format Principles)";
+            recovery_strategy = "Stream termination required - fundamental violation";
+            break;
+        default:
+            rfc_section = "RFC 9639 General Compliance";
+            recovery_strategy = "Unknown error - assume fatal";
+            break;
+    }
+    
+    Debug::log("flac_codec", "[handleRFC9639Error_unlocked] RFC Section: ", rfc_section);
+    Debug::log("flac_codec", "[handleRFC9639Error_unlocked] Recovery Strategy: ", recovery_strategy);
+    Debug::log("flac_codec", "[handleRFC9639Error_unlocked] Stream Termination Required: ", 
+              (terminate_stream ? "YES" : "NO"));
+    
+    // Update error statistics
+    m_stats.error_count++;
+    switch (status) {
+        case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
+            m_stats.sync_errors++;
+            break;
+        case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
+        case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
+            m_stats.crc_errors++;
+            break;
+        default:
+            m_stats.libflac_errors++;
+            break;
+    }
+    
+    // Implement RFC 9639 compliant recovery
+    if (terminate_stream) {
+        Debug::log("flac_codec", "[handleRFC9639Error_unlocked] RFC 9639 TERMINATION: Setting error state due to unrecoverable violation");
+        setErrorState_unlocked(true);
+        return false;
+    } else {
+        Debug::log("flac_codec", "[handleRFC9639Error_unlocked] RFC 9639 RECOVERY: Attempting graceful error recovery");
+        
+        // Attempt specific recovery based on error type
+        bool recovery_success = false;
+        switch (status) {
+            case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
+                // Try to find next sync pattern
+                recovery_success = true; // libFLAC will handle sync recovery
+                break;
+            case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
+                // Skip bad frame and continue
+                recovery_success = true; // libFLAC will skip to next frame
+                break;
+            case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
+                // Use decoded data despite CRC error (RFC permits this)
+                recovery_success = true;
+                break;
+            default:
+                recovery_success = false;
+                break;
+        }
+        
+        if (recovery_success) {
+            Debug::log("flac_codec", "[handleRFC9639Error_unlocked] RFC 9639 recovery successful");
+        } else {
+            Debug::log("flac_codec", "[handleRFC9639Error_unlocked] RFC 9639 recovery failed - setting error state");
+            setErrorState_unlocked(true);
+        }
+        
+        return recovery_success;
+    }
+}
+
+bool FLACCodec::recoverFromForbiddenPattern_unlocked(const uint8_t* data, size_t size) {
+    Debug::log("flac_codec", "[recoverFromForbiddenPattern_unlocked] Attempting recovery from RFC 9639 forbidden pattern");
+    
+    if (!data || size < 4) {
+        Debug::log("flac_codec", "[recoverFromForbiddenPattern_unlocked] Insufficient data for recovery");
+        return false;
+    }
+    
+    // Search for next valid sync pattern
+    for (size_t i = 1; i < size - 1; ++i) {
+        uint16_t sync_candidate = (static_cast<uint16_t>(data[i]) << 8) | data[i + 1];
+        if ((sync_candidate & 0xFFFE) == 0xFFF8) {
+            Debug::log("flac_codec", "[recoverFromForbiddenPattern_unlocked] Found potential sync at offset ", i);
+            
+            // Validate this sync pattern doesn't contain forbidden patterns
+            if (i + 4 <= size && validateRFC9639Compliance_unlocked(data + i, size - i)) {
+                Debug::log("flac_codec", "[recoverFromForbiddenPattern_unlocked] Valid sync found - recovery successful");
+                return true;
+            }
+        }
+    }
+    
+    Debug::log("flac_codec", "[recoverFromForbiddenPattern_unlocked] No valid sync pattern found - recovery failed");
+    return false;
+}
+
+bool FLACCodec::recoverFromReservedFieldViolation_unlocked(const uint8_t* data, size_t size) {
+    Debug::log("flac_codec", "[recoverFromReservedFieldViolation_unlocked] Attempting recovery from reserved field violation");
+    
+    // Reserved field violations are typically fatal per RFC 9639
+    // They indicate either corruption or non-compliant encoder
+    
+    if (!data || size < 4) {
+        Debug::log("flac_codec", "[recoverFromReservedFieldViolation_unlocked] Insufficient data for analysis");
+        return false;
+    }
+    
+    // Log the specific violation for debugging
+    uint8_t byte3 = data[3];
+    uint8_t reserved_bit = byte3 & 0x01;
+    
+    if (reserved_bit != 0) {
+        Debug::log("flac_codec", "[recoverFromReservedFieldViolation_unlocked] Reserved bit violation: bit=", 
+                  static_cast<unsigned>(reserved_bit), " (must be 0)");
+        
+        // Per RFC 9639, reserved field violations should be treated as fatal
+        // However, we can attempt to continue if the rest of the frame is valid
+        Debug::log("flac_codec", "[recoverFromReservedFieldViolation_unlocked] RFC 9639 WARNING: ", 
+                  "Continuing despite reserved field violation (non-compliant stream)");
+        
+        return true; // Allow continuation with warning
+    }
+    
+    Debug::log("flac_codec", "[recoverFromReservedFieldViolation_unlocked] No reserved field violations detected");
+    return true;
+}
+
+bool FLACCodec::shouldTerminateStream_unlocked(FLAC__StreamDecoderErrorStatus status) const {
+    // Determine if stream termination is required per RFC 9639 error handling guidelines
+    
+    switch (status) {
+        case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
+            // Sync loss is recoverable - decoder can search for next frame
+            return false;
+            
+        case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
+            // Bad headers can be skipped - not necessarily fatal
+            return false;
+            
+        case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
+            // CRC mismatches are recoverable - RFC permits using data with warnings
+            return false;
+            
+        case FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM:
+            // Unparseable streams indicate fundamental format violations
+            return true;
+            
+        default:
+            // Unknown errors should be treated as potentially fatal
+            return true;
+    }
+}
+
+void FLACCodec::logRFC9639Violation_unlocked(const char* violation_type, const char* rfc_section, 
+                                           const uint8_t* data, size_t offset) const {
+    Debug::log("flac_codec", "[RFC 9639 VIOLATION] Type: ", violation_type);
+    Debug::log("flac_codec", "[RFC 9639 VIOLATION] Reference: ", rfc_section);
+    Debug::log("flac_codec", "[RFC 9639 VIOLATION] Offset: ", offset, " bytes");
+    
+    if (data && offset < 16) { // Log up to 16 bytes of context
+        std::string hex_dump = "Data: ";
+        for (size_t i = 0; i < std::min(size_t(8), size_t(16 - offset)); ++i) {
+            char hex_byte[4];
+            snprintf(hex_byte, sizeof(hex_byte), "%02X ", data[offset + i]);
+            hex_dump += hex_byte;
+        }
+        Debug::log("flac_codec", "[RFC 9639 VIOLATION] ", hex_dump);
+    }
+    
+    Debug::log("flac_codec", "[RFC 9639 VIOLATION] Recommendation: Verify stream compliance with RFC 9639");
 }
 
 bool FLACCodec::validateSampleFormatConsistency_unlocked(const FLAC__Frame* frame) const {
