@@ -2069,6 +2069,9 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
         Debug::log("flac", "[findNextFrame] Conservative fallback frame created - size: ", frame.frame_size, 
                   " bytes, block_size: ", frame.block_size, " samples");
         
+        // CRITICAL: Advance current offset to prevent infinite loop
+        m_current_offset += frame.frame_size;
+        
         return true;
     }
     
