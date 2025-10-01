@@ -3344,4 +3344,37 @@ void OpusCodec::optimizeCacheEfficiency_unlocked()
     }
 }
 
+// ============================================================================
+// OpusCodecSupport Implementation
+// ============================================================================
+
+namespace OpusCodecSupport {
+
+void registerCodec() {
+    Debug::log("opus_codec", "[OpusCodecSupport::registerCodec] Registering Opus codec with AudioCodecFactory");
+    
+    AudioCodecFactory::registerCodec("opus", [](const StreamInfo& stream_info) -> std::unique_ptr<AudioCodec> {
+        if (isOpusStream(stream_info)) {
+            return std::make_unique<OpusCodec>(stream_info);
+        }
+        return nullptr;
+    });
+    
+    Debug::log("opus_codec", "[OpusCodecSupport::registerCodec] Opus codec registered successfully");
+}
+
+std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info) {
+    if (isOpusStream(stream_info)) {
+        return std::make_unique<OpusCodec>(stream_info);
+    }
+    return nullptr;
+}
+
+bool isOpusStream(const StreamInfo& stream_info) {
+    return stream_info.codec_name == "opus" && 
+           stream_info.codec_type == "audio";
+}
+
+} // namespace OpusCodecSupport
+
 #endif // HAVE_OGGDEMUXER

@@ -192,7 +192,7 @@
     - Validate output quality and accuracy against reference implementation
     - _Requirements: 12.1, 12.2, 12.4, 13.1, 13.2, 13.8_
 
-- [ ] 14. Register Codec with Factory System
+- [x] 14. Register Codec with Factory System
   - Register OpusCodec with AudioCodecFactory for "opus" codec name
   - Ensure proper codec selection and instantiation
   - Test factory integration with demuxer system

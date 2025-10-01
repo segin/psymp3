@@ -228,4 +228,32 @@ private:
     void maintainStreamingLatency_unlocked();
 };
 
+#ifdef HAVE_OGGDEMUXER
+
+/**
+ * @brief Opus codec support functions
+ */
+namespace OpusCodecSupport {
+    /**
+     * @brief Register Opus codec with AudioCodecFactory (conditional compilation)
+     */
+    void registerCodec();
+    
+    /**
+     * @brief Create Opus codec instance
+     * @param stream_info Stream information
+     * @return Unique pointer to OpusCodec or nullptr if not supported
+     */
+    std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info);
+    
+    /**
+     * @brief Check if stream is Opus format
+     * @param stream_info Stream information to check
+     * @return true if stream is Opus format
+     */
+    bool isOpusStream(const StreamInfo& stream_info);
+}
+
+#endif // HAVE_OGGDEMUXER
+
 #endif // OPUSCODEC_H

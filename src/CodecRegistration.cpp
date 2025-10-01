@@ -54,17 +54,10 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Vorbis codec disabled at compile time");
 #endif
 
-#ifdef HAVE_OPUS
-    CodecRegistry::registerCodec("opus", [](const StreamInfo& info) {
-        return std::make_unique<OpusCodec>(info);
-    });
+#ifdef HAVE_OGGDEMUXER
+    // Register the new container-agnostic Opus codec
+    OpusCodecSupport::registerCodec();
     Debug::log("codec", "registerAllCodecs: Registered Opus codec");
-    
-    // Also register the passthrough variant for Ogg containers
-    CodecRegistry::registerCodec("opus_passthrough", [](const StreamInfo& info) {
-        return std::make_unique<OpusPassthroughCodec>(info);
-    });
-    Debug::log("codec", "registerAllCodecs: Registered Opus passthrough codec");
 #else
     Debug::log("codec", "registerAllCodecs: Opus codec disabled at compile time");
 #endif
