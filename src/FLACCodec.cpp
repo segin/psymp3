@@ -859,7 +859,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
             }
         }
         
-        // Extract decoded samples
+        // Extract decoded samples (buffer lock already held by processFrameData_unlocked)
         AudioFrame result = extractDecodedSamples_unlocked();
         
         // Update performance statistics
@@ -1581,8 +1581,10 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
             Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Frame too small for CRC validation (", size, " bytes)");
         }
         
-        // Protect libFLAC decoder operations with dedicated mutex
+        // Acquire both decoder and buffer locks in consistent order to prevent deadlocks
+        // This ensures that when libFLAC calls our callbacks, both locks are already held
         std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
         
         // Ensure decoder is in valid state for processing
         auto decoder_state = m_decoder->get_state();
@@ -1599,7 +1601,8 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
             return false;
         }
         
-        // Process the frame through libFLAC (thread-safe with decoder lock)
+        // Process the frame through libFLAC (thread-safe with both locks held)
+        // The write callback will be called with both locks already acquired
         if (!m_decoder->process_single()) {
             FLAC__StreamDecoderState state = m_decoder->get_state();
             Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] libFLAC processing failed, state: ", 
@@ -1840,24 +1843,23 @@ void FLACCodec::handleWriteCallback_unlocked(const FLAC__Frame* frame, const FLA
         m_last_block_size = frame->header.blocksize;
         
         // Enhanced buffer management with flow control and backpressure
+        // NOTE: Both decoder_mutex and buffer_mutex are already held by caller
+        // as per threading safety guidelines for callback methods
         size_t required_samples = static_cast<size_t>(frame->header.blocksize) * frame->header.channels;
-        {
-            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+        
+        // Check buffer capacity and handle backpressure (locks already held)
+        if (!checkBufferCapacity_unlocked(required_samples)) {
+            handleBackpressure_unlocked(required_samples);
             
-            // Check buffer capacity and handle backpressure
+            // If still no space after backpressure handling, handle overflow
             if (!checkBufferCapacity_unlocked(required_samples)) {
-                handleBackpressure_unlocked(required_samples);
-                
-                // If still no space after backpressure handling, handle overflow
-                if (!checkBufferCapacity_unlocked(required_samples)) {
-                    handleBufferOverflow_unlocked();
-                    return; // Skip this frame to prevent buffer overflow
-                }
+                handleBufferOverflow_unlocked();
+                return; // Skip this frame to prevent buffer overflow
             }
-            
-            // Optimize buffer allocation based on stream characteristics
-            optimizeBufferAllocation_unlocked(required_samples);
         }
+        
+        // Optimize buffer allocation based on stream characteristics
+        optimizeBufferAllocation_unlocked(required_samples);
         
         // High-performance channel assignment processing with minimal overhead
         processChannelAssignment_unlocked(frame, buffer);
@@ -1977,9 +1979,9 @@ void FLACCodec::handleMetadataCallback_unlocked(const FLAC__StreamMetadata* meta
                 }
                 
                 // Performance optimization: pre-allocate buffers based on STREAMINFO
+                // NOTE: buffer_mutex is already held by caller for callback methods
                 if (info.max_blocksize > 0) {
                     size_t max_samples = static_cast<size_t>(info.max_blocksize) * info.channels;
-                    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
                     if (m_output_buffer.capacity() < max_samples) {
                         m_output_buffer.reserve(max_samples);
                         Debug::log("flac_codec", "[FLACCodec::handleMetadataCallback_unlocked] Pre-allocated output buffer: ", 
