@@ -54,15 +54,21 @@ Audio::Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex
  * and then closes the SDL audio device, ensuring a clean shutdown.
  */
 Audio::~Audio() {
+    // Stop playback first (this will notify buffer_cv if stopping)
     play(false);
-    if (m_active) {
-        m_active = false;
-        m_stream_cv.notify_all(); // Wake up if waiting for a new stream
-        m_buffer_cv.notify_all(); // Wake up if waiting for buffer space
-        if (m_decoder_thread.joinable()) {
-            m_decoder_thread.join();
-        }
+    
+    // Signal decoder thread to terminate
+    m_active = false;
+    
+    // Wake up decoder thread from all possible wait conditions
+    m_stream_cv.notify_all(); // Wake up if waiting for a new stream
+    m_buffer_cv.notify_all(); // Wake up if waiting for buffer space
+    
+    // Wait for decoder thread to finish
+    if (m_decoder_thread.joinable()) {
+        m_decoder_thread.join();
     }
+    
     SDL_CloseAudio();
 }
 
@@ -95,6 +101,12 @@ void Audio::setup() {
 void Audio::play(bool go) {
     m_playing = go;
     SDL_PauseAudio(go ? 0 : 1);
+    
+    // Notify decoder thread about playback state change
+    // This is critical for proper shutdown when play(false) is called
+    if (!go) {
+        m_buffer_cv.notify_all();
+    }
 }
 
 /**
@@ -208,35 +220,19 @@ void Audio::decoderThreadLoop() {
 
             size_t bytes_read = 0;
             bool eof = false;
+            Stream* validated_stream = nullptr;
+            
+            // CRITICAL SECTION: Minimize player mutex hold time
             {
-                // Lock the player mutex to synchronize with main thread operations like seeking.
+                // Lock the player mutex ONLY for stream validation (not during decoding)
                 std::lock_guard<std::mutex> lock(*m_player_mutex);
+                
                 // CRITICAL: Before using local_stream, verify it's still the active stream.
-                // If not, the main thread has changed it, and we must exit this inner loop.
                 Stream* current_stream = m_current_stream_raw_ptr.load();
                 if (local_stream == current_stream && current_stream != nullptr) {
                     // Double-check the stream is still valid by verifying it matches our owned stream
                     if (m_owned_stream.get() == current_stream) {
-                        bytes_read = local_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
-                        eof = local_stream->eof();
-                        
-                        size_t buffer_size = 0;
-                        {
-                            std::lock_guard<std::mutex> buf_lock(m_buffer_mutex);
-                            buffer_size = m_buffer.size();
-                        }
-                        
-                        Debug::log("audio", "Audio decoder thread: getData returned ", bytes_read, " bytes, eof=", eof, 
-                                           ", buffer_size=", buffer_size, " samples");
-                        
-                        // Check if we got 0 bytes - this could indicate various issues
-                        if (bytes_read == 0) {
-                            Debug::log("audio", "Audio decoder thread: Got 0 bytes from stream, eof=", eof, 
-                                               ", buffer_size=", buffer_size, " samples");
-                            if (eof) {
-                                Debug::log("audio", "Audio decoder thread: EOF detected, final buffer size=", buffer_size, " samples");
-                            }
-                        }
+                        validated_stream = local_stream; // Stream is valid for use
                     } else {
                         // Stream ownership has changed, break to re-evaluate
                         Debug::log("audio", "Audio decoder thread: Stream ownership changed, breaking");
@@ -246,6 +242,31 @@ void Audio::decoderThreadLoop() {
                     // Stream has changed. Break to re-evaluate in the outer loop.
                     Debug::log("audio", "Audio decoder thread: Stream changed, breaking to re-evaluate");
                     break;
+                }
+            }
+            // END CRITICAL SECTION - player mutex released
+            
+            // Perform decoding WITHOUT holding player mutex (prevents GUI deadlock)
+            if (validated_stream) {
+                bytes_read = validated_stream->getData(decode_chunk.size() * sizeof(int16_t), decode_chunk.data());
+                eof = validated_stream->eof();
+                
+                size_t buffer_size = 0;
+                {
+                    std::lock_guard<std::mutex> buf_lock(m_buffer_mutex);
+                    buffer_size = m_buffer.size();
+                }
+                
+                Debug::log("audio", "Audio decoder thread: getData returned ", bytes_read, " bytes, eof=", eof, 
+                                   ", buffer_size=", buffer_size, " samples");
+                
+                // Check if we got 0 bytes - this could indicate various issues
+                if (bytes_read == 0) {
+                    Debug::log("audio", "Audio decoder thread: Got 0 bytes from stream, eof=", eof, 
+                                       ", buffer_size=", buffer_size, " samples");
+                    if (eof) {
+                        Debug::log("audio", "Audio decoder thread: EOF detected, final buffer size=", buffer_size, " samples");
+                    }
                 }
             }
 

@@ -24,17 +24,33 @@ This document summarizes the threading safety improvements applied to the PsyMP3
 - Updated public methods to call unlocked versions when already holding locks
 - Maintained thread safety while preventing deadlocks
 
+### 2. Audio Class Destructor Deadlock Fix
+
+**Problem**: The `Audio` class destructor was hanging when trying to join the decoder thread due to missing condition variable notifications.
+
+**Files Modified**:
+- `src/audio.cpp` - Fixed `play()` method and destructor shutdown sequence
+
+**Specific Issues Fixed**:
+- `play(false)` was not notifying condition variables, causing decoder thread to hang
+- Destructor shutdown sequence was not properly coordinated
+- Decoder thread could wait indefinitely on condition variables during shutdown
+
+**Solution Applied**:
+- Added `m_buffer_cv.notify_all()` to `play()` method when stopping playback
+- Improved destructor shutdown sequence with proper notification order
+- Ensured decoder thread wakes up from all possible wait conditions during shutdown
+
 ### 2. Threading Pattern Verification
 
-**Created Test**: `tests/test_threading_pattern.cpp`
-- Demonstrates correct public/private lock pattern implementation
-- Shows anti-patterns that would cause deadlocks
-- Provides comprehensive threading guidelines
+**Created Tests**: 
+- `tests/test_threading_pattern.cpp` - Demonstrates correct public/private lock pattern implementation
+- `tests/test_audio_destructor_deadlock.cpp` - Verifies Audio destructor no longer deadlocks
 
 **Test Results**: 
-- Successfully completed 39,755+ operations across 4 concurrent threads
-- No deadlocks detected
-- Proper thread safety maintained
+- Threading pattern test: 39,755+ operations across 4 concurrent threads, no deadlocks
+- Audio destructor test: 5 Audio objects created/destroyed in 1009ms, no hangs
+- All tests pass with proper thread safety maintained
 
 ## Classes Already Following Correct Pattern
 
