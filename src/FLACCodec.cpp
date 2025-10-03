@@ -3562,21 +3562,19 @@ void FLACCodec::optimizeBufferSizes_unlocked() {
     optimal_input_buffer_size = std::min(optimal_input_buffer_size, max_memory_per_buffer);
     
     // Pre-allocate buffers with optimal sizes to avoid runtime allocations
-    {
-        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-        
-        // Reserve output buffer with alignment optimization
-        if (m_output_buffer.capacity() < optimal_output_buffer_size) {
-            m_output_buffer.reserve(optimal_output_buffer_size);
-            Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Output buffer reserved: ", 
-                      optimal_output_buffer_size, " samples (", 
-                      (optimal_output_buffer_size * sizeof(int16_t)) / 1024, " KB)");
-        }
-        
-        // Update buffer management parameters
-        m_preferred_buffer_size = optimal_output_buffer_size;
-        updateBufferWatermarks_unlocked();
+    // (buffer lock already held by caller)
+    
+    // Reserve output buffer with alignment optimization
+    if (m_output_buffer.capacity() < optimal_output_buffer_size) {
+        m_output_buffer.reserve(optimal_output_buffer_size);
+        Debug::log("flac_codec", "[FLACCodec::optimizeBufferSizes_unlocked] Output buffer reserved: ", 
+                  optimal_output_buffer_size, " samples (", 
+                  (optimal_output_buffer_size * sizeof(int16_t)) / 1024, " KB)");
     }
+    
+    // Update buffer management parameters
+    m_preferred_buffer_size = optimal_output_buffer_size;
+    updateBufferWatermarks_unlocked();
     
     // Reserve decode buffer for libFLAC processing
     if (m_decode_buffer.capacity() < optimal_decode_buffer_size) {
@@ -8900,14 +8898,11 @@ void FLACCodec::preAllocateForStandardSizes_unlocked() {
                       required_samples, " samples");
         }
         
-        // Pre-allocate output buffer (with buffer lock)
-        {
-            std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-            if (m_output_buffer.capacity() < required_samples) {
-                m_output_buffer.reserve(required_samples);
-                Debug::log("flac_codec", "[FLACCodec::preAllocateForStandardSizes_unlocked] Pre-allocated output buffer: ", 
-                          required_samples, " samples");
-            }
+        // Pre-allocate output buffer (buffer lock already held by caller)
+        if (m_output_buffer.capacity() < required_samples) {
+            m_output_buffer.reserve(required_samples);
+            Debug::log("flac_codec", "[FLACCodec::preAllocateForStandardSizes_unlocked] Pre-allocated output buffer: ", 
+                      required_samples, " samples");
         }
     }
 }
