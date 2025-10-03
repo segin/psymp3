@@ -237,3 +237,4 @@ tests/test_flac_bit_depth_validation_simple
 tests/test_flac_crc_validation
 test_opus_registration
 tests/test_flac_sample_format_rfc9639_compliance
+tests/test_flac_sample_format_rfc9639_compliance
