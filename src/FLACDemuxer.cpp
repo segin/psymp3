@@ -384,8 +384,9 @@ bool FLACDemuxer::parseContainer_unlocked()
     // Initialize position tracking to start of stream
     resetPositionTracking();
     
-    // Perform initial frame indexing if enabled
-    if (m_frame_indexing_enabled) {
+    // TEMPORARILY DISABLED: Initial frame indexing causes infinite loop
+    // TODO: Fix frame boundary detection before re-enabling
+    if (false && m_frame_indexing_enabled) {
         Debug::log("flac", "[parseContainer_unlocked] Starting initial frame indexing");
         if (performInitialFrameIndexing()) {
             Debug::log("flac", "[parseContainer_unlocked] Initial frame indexing completed successfully");
@@ -395,6 +396,8 @@ bool FLACDemuxer::parseContainer_unlocked()
         } else {
             Debug::log("flac", "[parseContainer_unlocked] Initial frame indexing failed, but continuing");
         }
+    } else {
+        Debug::log("flac", "[parseContainer_unlocked] Initial frame indexing disabled to prevent infinite loop");
     }
     
     Debug::log("flac", "[parseContainer_unlocked] FLAC container parsing completed successfully");
