@@ -113,12 +113,7 @@ long Playlist::entries(void)
 bool Playlist::setPosition(long position)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if(position >= 0 && static_cast<size_t>(position) < tracks.size()) {
-        m_position = position;
-        return true;
-    } else {
-        return false;
-    }
+    return setPosition_unlocked(position);
 }
 
 /**
@@ -129,8 +124,8 @@ bool Playlist::setPosition(long position)
 TagLib::String Playlist::setPositionAndJump(long position)
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    setPosition(position);
-    return getTrack(position);
+    setPosition_unlocked(position);
+    return getTrack_unlocked(position);
 }
 
 /**
@@ -141,11 +136,7 @@ TagLib::String Playlist::setPositionAndJump(long position)
 TagLib::String Playlist::getTrack(long position) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
-    if(position >= 0 && static_cast<size_t>(position) < tracks.size()) {
-        return tracks[position].GetFilePath();
-    } else {
-        return "";
-    }
+    return getTrack_unlocked(position);
 }
 
 /**
@@ -162,7 +153,7 @@ TagLib::String Playlist::next()
     if (static_cast<size_t>(m_position) >= tracks.size()) {
         m_position = 0; // Wrap around to the beginning
     }
-    return getTrack(m_position);
+    return getTrack_unlocked(m_position);
 }
 
 /**
@@ -180,7 +171,7 @@ TagLib::String Playlist::prev()
     } else {
         m_position = tracks.size() - 1; // Wrap around to the end
     }
-    return getTrack(m_position);
+    return getTrack_unlocked(m_position);
 }
 
 /**
@@ -201,7 +192,7 @@ TagLib::String Playlist::peekNext() const
         next_pos = 0; // Wrap around
     }
     
-    return getTrack(next_pos);
+    return getTrack_unlocked(next_pos);
 }
 
 /**
@@ -380,3 +371,31 @@ void Playlist::savePlaylist(TagLib::String path)
     std::cout << "Playlist saved to " << path.to8Bit(true) << std::endl;
 }
 
+// Private unlocked implementations - assume locks are already held
+
+/**
+ * @brief Private unlocked version of setPosition() - assumes m_mutex is already held.
+ * @param position The new zero-based index to set.
+ * @return `true` if the position was valid and set successfully, `false` otherwise.
+ */
+bool Playlist::setPosition_unlocked(long position) {
+    if(position >= 0 && static_cast<size_t>(position) < tracks.size()) {
+        m_position = position;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/**
+ * @brief Private unlocked version of getTrack() - assumes m_mutex is already held.
+ * @param position The zero-based index of the desired track.
+ * @return The file path of the track, or an empty string if the index is out of bounds.
+ */
+TagLib::String Playlist::getTrack_unlocked(long position) const {
+    if(position >= 0 && static_cast<size_t>(position) < tracks.size()) {
+        return tracks[position].GetFilePath();
+    } else {
+        return "";
+    }
+}

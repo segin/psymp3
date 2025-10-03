@@ -49,6 +49,12 @@ class Playlist
         void savePlaylist(TagLib::String path);
     protected:
     private:
+        // Private unlocked versions of public methods (assumes locks are already held)
+        // These methods should be used when calling from within already-locked contexts
+        // to prevent deadlocks and improve performance
+        bool setPosition_unlocked(long position);
+        TagLib::String getTrack_unlocked(long position) const;
+        
         std::vector<track> tracks;
         long m_position = 0;
         mutable std::recursive_mutex m_mutex;
