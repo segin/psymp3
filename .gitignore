@@ -242,3 +242,10 @@ tests/test_audio_destructor_deadlock
 tests/test_threading_pattern
 tests/test_flac_codec_deadlock_fix
 tests/test_flac_demuxer_deadlock_fix
+
+# Debug files and test artifacts in project root
+debug_*
+deadlock_*.log
+psymp3_test.log
+psymp3.log
+mingw.log
