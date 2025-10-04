@@ -517,6 +517,8 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/FLACRFCValidator.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/ChunkDemuxer.o \
 	$(top_builddir)/src/Demuxer.o \
 	$(FLAC_LIBS) \
@@ -547,6 +549,7 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
 	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
@@ -607,6 +610,7 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
 	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/OggDemuxer.o \
@@ -622,6 +626,7 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/FLACRFCValidator.o \
 	$(top_builddir)/src/ChunkDemuxer.o \
 	$(top_builddir)/src/Demuxer.o \
 	$(FLAC_LIBS) \
@@ -959,6 +964,7 @@ test_alaw_table_verification_LDADD = \
 	$(top_builddir)/src/PCMCodecs.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/libmpg123.o \
@@ -1815,6 +1821,7 @@ test_flac_codec_container_agnostic_LDADD = \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
 	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/stream.o \
@@ -1854,6 +1861,7 @@ test_flac_codec_streaminfo_only_LDADD = \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
 	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/stream.o \
@@ -2460,6 +2468,7 @@ test_flac_rfc_bit_depth_validation_LDADD = \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
 	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
 	$(FLAC_LIBS) \
