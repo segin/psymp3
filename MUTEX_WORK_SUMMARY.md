@@ -31,6 +31,20 @@ This document provides a comprehensive summary of all threading safety work comp
 - Improved destructor shutdown sequence
 - Ensured decoder thread wakes from all wait conditions
 
+### 3. ✅ FLAC Codec Threading Pattern Violations
+
+**Issue**: Multiple `_unlocked` methods incorrectly acquiring locks
+- `adaptBuffersForBlockSize_unlocked()` acquiring `m_buffer_mutex`
+- `convertSamplesGeneric_unlocked()` acquiring `m_buffer_mutex`
+- `extractDecodedSamples_unlocked()` acquiring `m_buffer_mutex`
+- Caused deadlocks during FLAC audio decoding after ~0.23 seconds
+
+**Solution**: Fixed public/private lock pattern violations
+- Removed all lock acquisitions from `_unlocked` methods
+- Updated methods to assume locks already held by caller
+- Added clear documentation of lock assumptions
+- Maintained thread safety while preventing deadlocks
+
 ## Threading Pattern Implementation
 
 ### Core Pattern: Public/Private Lock Pattern
@@ -83,6 +97,12 @@ All major classes with mutex usage were audited and confirmed to follow correct 
    - Tests multiple Audio object lifecycles
    - Result: 5 objects created/destroyed in 1009ms
    - Confirms deadlock fix effectiveness
+
+3. **`tests/test_flac_codec_deadlock_fix.cpp`**
+   - Verifies FLAC codec threading pattern fixes
+   - Tests concurrent decode operations and multiple instances
+   - Result: 3,017+ decode operations and 4,647+ multi-instance operations
+   - Confirms threading pattern violations are resolved
 
 ## Performance Impact
 
@@ -156,13 +176,16 @@ All major classes with mutex usage were audited and confirmed to follow correct 
 ### Before Fixes
 - ❌ Potential deadlocks in Playlist navigation
 - ❌ Audio destructor hanging on exit
+- ❌ FLAC codec deadlocks during decoding
+- ❌ Threading pattern violations in `_unlocked` methods
 - ❌ Inconsistent threading patterns
 - ❌ No threading safety tests
 
 ### After Fixes
 - ✅ Deadlock-free playlist operations
 - ✅ Clean Audio object destruction
-- ✅ Consistent public/private lock pattern
+- ✅ FLAC codec decoding without deadlocks
+- ✅ Consistent public/private lock pattern throughout
 - ✅ Comprehensive test coverage
 - ✅ Educational documentation
 - ✅ Performance maintained
