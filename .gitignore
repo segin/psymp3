@@ -238,3 +238,7 @@ tests/test_flac_crc_validation
 test_opus_registration
 tests/test_flac_sample_format_rfc9639_compliance
 tests/test_flac_sample_format_rfc9639_compliance
+tests/test_audio_destructor_deadlock
+tests/test_threading_pattern
+tests/test_flac_codec_deadlock_fix
+tests/test_flac_demuxer_deadlock_fix

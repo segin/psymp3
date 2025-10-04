@@ -552,7 +552,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
             Debug::log("flac", "[readChunk_unlocked] Frame header validation failed on attempt ", attempts);
             
             // Check if we've reached EOF (validation may have set EOF flag)
-            if (isEOF()) {
+            if (isEOF_unlocked()) {
                 Debug::log("flac", "[readChunk_unlocked] Reached EOF during validation");
                 return MediaChunk{};
             }

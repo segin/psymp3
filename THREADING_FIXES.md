@@ -60,17 +60,36 @@ This document summarizes the threading safety improvements applied to the PsyMP3
 - Maintained thread safety while preventing deadlocks
 - Added comments clarifying lock assumptions
 
+### 4. FLAC Demuxer Threading Pattern Violation
+
+**Problem**: The `readChunk_unlocked()` method was calling the public `isEOF()` method, violating the public/private lock pattern and causing deadlocks.
+
+**Files Modified**:
+- `src/FLACDemuxer.cpp` - Fixed `readChunk_unlocked()` method call
+
+**Specific Issues Fixed**:
+- `readChunk_unlocked()` was calling `isEOF()` which acquires `m_state_mutex`
+- Created deadlock when called from already-locked contexts
+- Violated public/private lock pattern in demuxer layer
+
+**Solution Applied**:
+- Changed `isEOF()` call to `isEOF_unlocked()` in `readChunk_unlocked()`
+- Maintained thread safety while preventing deadlocks
+- Ensured consistent public/private lock pattern throughout demuxer
+
 ### 2. Threading Pattern Verification
 
 **Created Tests**: 
 - `tests/test_threading_pattern.cpp` - Demonstrates correct public/private lock pattern implementation
 - `tests/test_audio_destructor_deadlock.cpp` - Verifies Audio destructor no longer deadlocks
 - `tests/test_flac_codec_deadlock_fix.cpp` - Verifies FLAC codec threading fixes
+- `tests/test_flac_demuxer_deadlock_fix.cpp` - Verifies FLAC demuxer threading fix
 
 **Test Results**: 
 - Threading pattern test: 39,755+ operations across 4 concurrent threads, no deadlocks
 - Audio destructor test: 5 Audio objects created/destroyed in 1009ms, no hangs
 - FLAC codec test: 3,017+ decode operations and 4,647+ multi-instance operations, no deadlocks
+- FLAC demuxer test: 3,292+ read operations and 2,619+ multi-instance operations, no deadlocks
 - All tests pass with proper thread safety maintained
 
 ## Classes Already Following Correct Pattern
