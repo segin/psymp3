@@ -6444,7 +6444,8 @@ void FLACCodec::processChannelAssignment_unlocked(const FLAC__Frame* frame, cons
 }
 
 void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
-    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    // NOTE: buffer_mutex is already held by caller (processFrameData_unlocked)
+    // as per threading safety guidelines for callback methods
     
     uint32_t block_size = frame->header.blocksize;
     uint16_t channels = frame->header.channels;
@@ -6547,7 +6548,8 @@ void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, co
 }
 
 void FLACCodec::processLeftSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
-    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    // NOTE: buffer_mutex is already held by caller (processFrameData_unlocked)
+    // as per threading safety guidelines for callback methods
     
     uint32_t block_size = frame->header.blocksize;
     uint8_t assignment = frame->header.channel_assignment;
@@ -6641,7 +6643,8 @@ void FLACCodec::processLeftSideStereo_unlocked(const FLAC__Frame* frame, const F
 }
 
 void FLACCodec::processRightSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
-    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    // NOTE: buffer_mutex is already held by caller (processFrameData_unlocked)
+    // as per threading safety guidelines for callback methods
     
     uint32_t block_size = frame->header.blocksize;
     uint8_t assignment = frame->header.channel_assignment;
@@ -6723,7 +6726,8 @@ void FLACCodec::processRightSideStereo_unlocked(const FLAC__Frame* frame, const 
 }
 
 void FLACCodec::processMidSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
-    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    // NOTE: buffer_mutex is already held by caller (processFrameData_unlocked)
+    // as per threading safety guidelines for callback methods
     
     uint32_t block_size = frame->header.blocksize;
     uint8_t assignment = frame->header.channel_assignment;
