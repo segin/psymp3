@@ -45,6 +45,18 @@ This document provides a comprehensive summary of all threading safety work comp
 - Added clear documentation of lock assumptions
 - Maintained thread safety while preventing deadlocks
 
+### 4. ✅ FLAC Demuxer Threading Pattern Violation
+
+**Issue**: `readChunk_unlocked()` method calling public `isEOF()` method
+- `readChunk_unlocked()` was calling `isEOF()` which acquires `m_state_mutex`
+- Created deadlock between audio decoder thread and main GUI thread
+- Violated public/private lock pattern in demuxer layer
+
+**Solution**: Fixed method call to use unlocked version
+- Changed `isEOF()` call to `isEOF_unlocked()` in `readChunk_unlocked()`
+- Maintained thread safety while preventing deadlocks
+- Ensured consistent public/private lock pattern throughout demuxer
+
 ## Threading Pattern Implementation
 
 ### Core Pattern: Public/Private Lock Pattern
@@ -103,6 +115,12 @@ All major classes with mutex usage were audited and confirmed to follow correct 
    - Tests concurrent decode operations and multiple instances
    - Result: 3,017+ decode operations and 4,647+ multi-instance operations
    - Confirms threading pattern violations are resolved
+
+4. **`tests/test_flac_demuxer_deadlock_fix.cpp`**
+   - Verifies FLAC demuxer threading pattern fix
+   - Tests concurrent read operations and multiple demuxer instances
+   - Result: 3,292+ read operations and 2,619+ multi-instance operations
+   - Confirms demuxer threading pattern violation is resolved
 
 ## Performance Impact
 
@@ -177,6 +195,7 @@ All major classes with mutex usage were audited and confirmed to follow correct 
 - ❌ Potential deadlocks in Playlist navigation
 - ❌ Audio destructor hanging on exit
 - ❌ FLAC codec deadlocks during decoding
+- ❌ FLAC demuxer deadlocks between threads
 - ❌ Threading pattern violations in `_unlocked` methods
 - ❌ Inconsistent threading patterns
 - ❌ No threading safety tests
@@ -185,6 +204,7 @@ All major classes with mutex usage were audited and confirmed to follow correct 
 - ✅ Deadlock-free playlist operations
 - ✅ Clean Audio object destruction
 - ✅ FLAC codec decoding without deadlocks
+- ✅ FLAC demuxer operations without deadlocks
 - ✅ Consistent public/private lock pattern throughout
 - ✅ Comprehensive test coverage
 - ✅ Educational documentation
