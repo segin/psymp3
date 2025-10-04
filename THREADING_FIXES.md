@@ -41,15 +41,36 @@ This document summarizes the threading safety improvements applied to the PsyMP3
 - Improved destructor shutdown sequence with proper notification order
 - Ensured decoder thread wakes up from all possible wait conditions during shutdown
 
+### 3. FLAC Codec Threading Pattern Violations
+
+**Problem**: Several `_unlocked` methods in `FLACCodec` were incorrectly acquiring locks, violating the public/private lock pattern and causing deadlocks during audio decoding.
+
+**Files Modified**:
+- `src/FLACCodec.cpp` - Fixed multiple `_unlocked` methods that were acquiring locks
+
+**Specific Issues Fixed**:
+- `adaptBuffersForBlockSize_unlocked()` was acquiring `m_buffer_mutex`
+- `convertSamplesGeneric_unlocked()` was acquiring `m_buffer_mutex`
+- `extractDecodedSamples_unlocked()` was acquiring `m_buffer_mutex`
+- These violations caused deadlocks when called from already-locked contexts
+
+**Solution Applied**:
+- Removed lock acquisitions from all `_unlocked` methods
+- Updated methods to assume locks are already held by caller
+- Maintained thread safety while preventing deadlocks
+- Added comments clarifying lock assumptions
+
 ### 2. Threading Pattern Verification
 
 **Created Tests**: 
 - `tests/test_threading_pattern.cpp` - Demonstrates correct public/private lock pattern implementation
 - `tests/test_audio_destructor_deadlock.cpp` - Verifies Audio destructor no longer deadlocks
+- `tests/test_flac_codec_deadlock_fix.cpp` - Verifies FLAC codec threading fixes
 
 **Test Results**: 
 - Threading pattern test: 39,755+ operations across 4 concurrent threads, no deadlocks
 - Audio destructor test: 5 Audio objects created/destroyed in 1009ms, no hangs
+- FLAC codec test: 3,017+ decode operations and 4,647+ multi-instance operations, no deadlocks
 - All tests pass with proper thread safety maintained
 
 ## Classes Already Following Correct Pattern

@@ -1690,7 +1690,7 @@ bool FLACCodec::feedDataToDecoder_unlocked(const uint8_t* data, size_t size) {
 }
 
 AudioFrame FLACCodec::extractDecodedSamples_unlocked() {
-    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    // Assumes buffer lock is already held by caller
     
     if (m_output_buffer.empty()) {
         Debug::log("flac_codec", "[FLACCodec::extractDecodedSamples_unlocked] No samples in buffer");
@@ -8113,8 +8113,7 @@ void FLACCodec::convertSamples32BitScalar_unlocked(const FLAC__int32* const buff
 }
 
 void FLACCodec::convertSamplesGeneric_unlocked(const FLAC__int32* const buffer[], uint32_t block_size) {
-    // Generic conversion for unusual bit depths
-    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    // Generic conversion for unusual bit depths (assumes buffer lock already held)
     
     size_t required_samples = static_cast<size_t>(block_size) * m_channels;
     if (m_output_buffer.capacity() < required_samples) {
@@ -8831,15 +8830,12 @@ void FLACCodec::adaptBuffersForBlockSize_unlocked(uint32_t block_size) {
                   new_capacity, " samples");
     }
     
-    // Ensure output buffer has sufficient capacity (with buffer lock)
-    {
-        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-        if (m_output_buffer.capacity() < required_samples) {
-            size_t new_capacity = required_samples * 2; // Over-allocate for future frames
-            m_output_buffer.reserve(new_capacity);
-            Debug::log("flac_codec", "[FLACCodec::adaptBuffersForBlockSize_unlocked] Expanded output buffer: ", 
-                      new_capacity, " samples");
-        }
+    // Ensure output buffer has sufficient capacity (assumes buffer lock already held)
+    if (m_output_buffer.capacity() < required_samples) {
+        size_t new_capacity = required_samples * 2; // Over-allocate for future frames
+        m_output_buffer.reserve(new_capacity);
+        Debug::log("flac_codec", "[FLACCodec::adaptBuffersForBlockSize_unlocked] Expanded output buffer: ", 
+                  new_capacity, " samples");
     }
 }
 
