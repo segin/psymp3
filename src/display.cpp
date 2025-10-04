@@ -2,7 +2,7 @@
  * display.h - SDL_Surface wrapper header for display window.
  * This also wraps SDL_gfx for primitives.
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
