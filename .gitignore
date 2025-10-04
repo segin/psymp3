@@ -249,3 +249,5 @@ deadlock_*.log
 psymp3_test.log
 psymp3.log
 mingw.log
+src/surface.cpp
+tests/test_flac_simple
