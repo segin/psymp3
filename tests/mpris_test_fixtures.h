@@ -10,6 +10,8 @@
 #ifndef MPRIS_TEST_FIXTURES_H
 #define MPRIS_TEST_FIXTURES_H
 
+#ifdef HAVE_DBUS
+
 #include "test_framework.h"
 #include "mock_player.h"
 #include "mock_dbus_connection.h"
@@ -394,4 +396,5 @@ public:
 
 } // namespace TestFramework
 
+#endif // HAVE_DBUS
 #endif // MPRIS_TEST_FIXTURES_H

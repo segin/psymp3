@@ -23,7 +23,10 @@ AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIB
 
 # Common test utilities library
 noinst_LIBRARIES = libtest_utilities.a
-libtest_utilities_a_SOURCES = test_framework.cpp test_rect_utilities.cpp test_framework_threading.cpp mock_dbus_connection.cpp mock_player.cpp mpris_test_fixtures.cpp
+libtest_utilities_a_SOURCES = test_framework.cpp test_rect_utilities.cpp test_framework_threading.cpp
+if HAVE_DBUS
+libtest_utilities_a_SOURCES += mock_dbus_connection.cpp mock_player.cpp mpris_test_fixtures.cpp
+endif
 libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 # Test harness executable and debug programs

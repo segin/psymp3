@@ -10,6 +10,8 @@
 #ifndef MOCK_DBUS_CONNECTION_H
 #define MOCK_DBUS_CONNECTION_H
 
+#ifdef HAVE_DBUS
+
 #include <string>
 #include <vector>
 #include <map>
@@ -347,4 +349,5 @@ private:
 
 } // namespace TestFramework
 
+#endif // HAVE_DBUS
 #endif // MOCK_DBUS_CONNECTION_H

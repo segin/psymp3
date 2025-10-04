@@ -8,6 +8,8 @@
  */
 
 #include "psymp3.h"
+
+#ifdef HAVE_DBUS
 #include "mock_dbus_connection.h"
 
 namespace TestFramework {
@@ -743,3 +745,5 @@ void MockDBusConnectionManager::setConnectionConfig(const MockDBusConnection::Co
 }
 
 } // namespace TestFramework
+
+#endif // HAVE_DBUS

@@ -10,6 +10,8 @@
 #ifndef MOCK_PLAYER_H
 #define MOCK_PLAYER_H
 
+#ifdef HAVE_DBUS
+
 #include <string>
 #include <vector>
 #include <functional>
@@ -323,4 +325,5 @@ public:
 
 } // namespace TestFramework
 
+#endif // HAVE_DBUS
 #endif // MOCK_PLAYER_H

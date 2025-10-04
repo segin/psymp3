@@ -8,6 +8,8 @@
  */
 
 #include "psymp3.h"
+
+#ifdef HAVE_DBUS
 #include "mock_player.h"
 
 namespace TestFramework {
@@ -688,3 +690,5 @@ std::unique_ptr<MockPlayer> MockPlayerFactory::createRealisticPlayer() {
 }
 
 } // namespace TestFramework
+
+#endif // HAVE_DBUS
