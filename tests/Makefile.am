@@ -18,6 +18,40 @@
 SUBDIRS = .
 
 # Common flags for all test programs
+
+# Common dependencies for codec tests
+COMMON_CODEC_DEPS = \
+	libtest_utilities.a \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/PCMCodecs.o \
+	$(top_builddir)/src/ALawCodec.o \
+	$(top_builddir)/src/MuLawCodec.o \
+	$(top_builddir)/src/OggCodecs.o \
+	$(top_builddir)/src/OpusCodec.o \
+	$(top_builddir)/src/vorbis.o \
+	$(top_builddir)/src/opus.o \
+	$(top_builddir)/src/libmpg123.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/DemuxedStream.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o
+
+# Common library links for codec tests
+COMMON_CODEC_LIBS = -logg -lvorbis -lvorbisenc -lmpg123
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS)
 AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS)
 
@@ -993,23 +1027,13 @@ test_alaw_table_verification_LDADD = \
 # A-law codec sample conversion test
 test_alaw_sample_conversion_SOURCES = test_alaw_sample_conversion.cpp
 test_alaw_sample_conversion_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
-test_alaw_sample_conversion_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
+test_alaw_sample_conversion_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
 # A-law codec conversion accuracy test
 test_alaw_conversion_accuracy_SOURCES = test_alaw_conversion_accuracy.cpp
 test_alaw_conversion_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
-test_alaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
+test_alaw_conversion_accuracy_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # μ-law codec conversion accuracy test
 test_mulaw_conversion_accuracy_SOURCES = test_mulaw_conversion_accuracy.cpp
@@ -1024,20 +1048,7 @@ test_codec_selection_validation_simple_LDADD = $(AM_LDFLAGS)
 # Codec performance test
 test_codec_performance_SOURCES = test_codec_performance.cpp
 test_codec_performance_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
-test_codec_performance_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(AM_LDFLAGS)
+test_codec_performance_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # Codec thread safety test
 test_codec_thread_safety_SOURCES = test_codec_thread_safety.cpp
