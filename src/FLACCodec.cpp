@@ -1693,9 +1693,12 @@ AudioFrame FLACCodec::extractDecodedSamples_unlocked() {
     // Assumes buffer lock is already held by caller
     
     if (m_output_buffer.empty()) {
-        Debug::log("flac_codec", "[FLACCodec::extractDecodedSamples_unlocked] No samples in buffer");
+        Debug::log("flac_codec", "[FLACCodec::extractDecodedSamples_unlocked] No samples in buffer - creating silence frame");
         handleBufferUnderrun_unlocked();
-        return AudioFrame();
+        
+        // Return a small silence frame to keep the audio pipeline flowing
+        // This prevents the audio system from stalling when no FLAC frames are decoded
+        return createSilenceFrame_unlocked(1024); // 1024 samples of silence
     }
     
     // Get current timestamp before updating position
