@@ -251,3 +251,51 @@ psymp3.log
 mingw.log
 src/surface.cpp
 tests/test_flac_simple
+
+# Additional FLAC test executables
+tests/test_flac_audio_output
+tests/test_flac_debug
+tests/test_flac_simple_debug
+tests/test_flac_deadlock_fix
+tests/test_flac_demuxer_deadlock_fix
+tests/test_flac_codec_deadlock_fix
+tests/test_playlist_threading
+
+# RFC compliance and validation tests
+tests/test_rfc_compliance_debugging_tools
+tests/test_flac_rfc9639_compliance_validator
+tests/test_midside_stereo_rfc9639
+tests/test_flac_subframe_processing_rfc9639
+tests/test_flac_frame_boundary_detection_rfc9639
+tests/test_flac_rfc9639_error_handling
+tests/test_flac_rfc_block_size_sample_rate_validation
+
+# Build system artifacts
+autom4te.cache/
+config.log
+config.status
+libtool
+.libs/
+*.la
+*.lo
+
+# Additional object files and dependencies
+**/*.Plo
+**/*.Tpo
+**/.dirstamp
+
+# Test output and temporary files
+tests/*.tmp
+tests/*.out
+tests/test_output_*
+tests/validation_results_*
+tests/mpris_*
+tests/static_analysis_report.txt
+tests/final_validation_report.html
+tests/mpris_performance_*.csv
+tests/mpris_regression_report.txt
+
+# Core executable in different locations
+psymp3
+src/psymp3
+./psymp3
