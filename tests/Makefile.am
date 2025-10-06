@@ -1043,7 +1043,7 @@ test_mulaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
 # Codec selection and validation test (simple)
 test_codec_selection_validation_simple_SOURCES = test_codec_selection_validation_simple.cpp
 test_codec_selection_validation_simple_CPPFLAGS = $(AM_CPPFLAGS)
-test_codec_selection_validation_simple_LDADD = $(AM_LDFLAGS)
+test_codec_selection_validation_simple_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # Codec performance test
 test_codec_performance_SOURCES = test_codec_performance.cpp
@@ -1053,38 +1053,12 @@ test_codec_performance_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LD
 # Codec thread safety test
 test_codec_thread_safety_SOURCES = test_codec_thread_safety.cpp
 test_codec_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
-test_codec_thread_safety_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(AM_LDFLAGS)
+test_codec_thread_safety_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # Codec concurrent instances test
 test_codec_concurrent_instances_SOURCES = test_codec_concurrent_instances.cpp
 test_codec_concurrent_instances_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
-test_codec_concurrent_instances_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(AM_LDFLAGS)
+test_codec_concurrent_instances_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # MPRIS types test (conditional on HAVE_DBUS)
 if HAVE_DBUS
