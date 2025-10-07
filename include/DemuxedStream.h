@@ -103,6 +103,9 @@ private:
     AudioFrame m_current_frame;
     size_t m_current_frame_offset = 0;  // Byte offset within current frame
     
+    // Thread synchronization for buffer access
+    mutable std::mutex m_buffer_mutex;
+    
     // Buffer limits to prevent memory exhaustion
     static constexpr size_t MAX_CHUNK_BUFFER_SIZE = 8;      // Max chunks in buffer
     static constexpr size_t MAX_CHUNK_BUFFER_BYTES = 256 * 1024; // Max 256KB total

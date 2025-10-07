@@ -151,13 +151,24 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         if (m_current_frame.samples.empty()) {
             // Empty frame could be from header processing or actual EOF
             // Check if we have more chunks to process before declaring EOF
-            Debug::log("demux", "DemuxedStream::getData: Empty frame - chunk_buffer.size()=", m_chunk_buffer.size(), 
+            size_t buffer_size = 0;
+            {
+                std::lock_guard<std::mutex> lock(m_buffer_mutex);
+                buffer_size = m_chunk_buffer.size();
+            }
+            Debug::log("demux", "DemuxedStream::getData: Empty frame - chunk_buffer.size()=", buffer_size, 
                                ", demuxer.isEOF()=", m_demuxer ? m_demuxer->isEOF() : true);
             
             // Try to get more chunks before declaring EOF
             fillChunkBuffer();
             
-            if (m_chunk_buffer.empty() && m_demuxer && m_demuxer->isEOF()) {
+            bool buffer_empty = false;
+            {
+                std::lock_guard<std::mutex> lock(m_buffer_mutex);
+                buffer_empty = m_chunk_buffer.empty();
+            }
+            
+            if (buffer_empty && m_demuxer && m_demuxer->isEOF()) {
                 // Truly at EOF - no more chunks and demuxer is done
                 // Use current position from frame timestamps, not sample counter
                 uint64_t current_time_ms = static_cast<uint64_t>(m_position);
@@ -167,7 +178,7 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
                 m_eof_reached = true;
                 m_eof = true;
                 break;
-            } else if (m_chunk_buffer.empty() && m_demuxer && !m_demuxer->isEOF()) {
+            } else if (buffer_empty && m_demuxer && !m_demuxer->isEOF()) {
                 // No chunks buffered but demuxer has more data - this shouldn't happen in normal operation
                 Debug::log("demux", "DemuxedStream::getData: Buffer empty but demuxer has more data - unexpected condition");
                 continue;
@@ -190,19 +201,36 @@ AudioFrame DemuxedStream::getNextFrame() {
     // Ensure we have buffered chunks to decode from
     fillChunkBuffer();
     
-    Debug::log("demux", "DemuxedStream::getNextFrame: After fillChunkBuffer, buffer size=", m_chunk_buffer.size());
+    size_t buffer_size_after_fill = 0;
+    {
+        std::lock_guard<std::mutex> lock(m_buffer_mutex);
+        buffer_size_after_fill = m_chunk_buffer.size();
+    }
+    Debug::log("demux", "DemuxedStream::getNextFrame: After fillChunkBuffer, buffer size=", buffer_size_after_fill);
     
-    Debug::log("demux", "DemuxedStream::getNextFrame: chunk_buffer size=", m_chunk_buffer.size(), 
+    Debug::log("demux", "DemuxedStream::getNextFrame: chunk_buffer size=", buffer_size_after_fill, 
                    ", demuxer EOF=", m_demuxer ? m_demuxer->isEOF() : true);
     
+    // Thread-safe access to chunk buffer
+    MediaChunk chunk;
+    size_t chunk_size = 0;
+    bool has_chunk = false;
+    
+    {
+        std::lock_guard<std::mutex> lock(m_buffer_mutex);
+        if (!m_chunk_buffer.empty()) {
+            chunk = std::move(m_chunk_buffer.front());
+            chunk_size = chunk.data.size();
+            m_chunk_buffer.pop();
+            
+            // Update memory tracking
+            m_current_buffer_bytes -= chunk_size;
+            has_chunk = true;
+        }
+    }
+    
     // If we have chunks, decode one on-demand
-    if (!m_chunk_buffer.empty()) {
-        MediaChunk chunk = std::move(m_chunk_buffer.front());
-        size_t chunk_size = chunk.data.size();
-        m_chunk_buffer.pop();
-        
-        // Update memory tracking
-        m_current_buffer_bytes -= chunk_size;
+    if (has_chunk) {
         
         // Special handling for Opus: if codec is initialized, and we get a header chunk,
         // it means it's a redundant header from seeking or re-initialization. Skip it.
@@ -290,15 +318,18 @@ void DemuxedStream::fillChunkBuffer() {
                   ", fullness: ", (float)temp_buffer.size() / max_chunks * 100, "%");
     }
     
-    // Transfer chunks from temp buffer to our queue
-    while (!temp_buffer.empty()) {
-        MediaChunk chunk = std::move(temp_buffer.front());
-        temp_buffer.pop();
-        
-        size_t chunk_size = chunk.data.size();
-        temp_buffer_bytes -= (sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t));
-        m_current_buffer_bytes += chunk_size;
-        m_chunk_buffer.push(std::move(chunk));
+    // Transfer chunks from temp buffer to our queue (thread-safe)
+    {
+        std::lock_guard<std::mutex> lock(m_buffer_mutex);
+        while (!temp_buffer.empty()) {
+            MediaChunk chunk = std::move(temp_buffer.front());
+            temp_buffer.pop();
+            
+            size_t chunk_size = chunk.data.size();
+            temp_buffer_bytes -= (sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t));
+            m_current_buffer_bytes += chunk_size;
+            m_chunk_buffer.push(std::move(chunk));
+        }
     }
 }
 
@@ -323,13 +354,16 @@ void DemuxedStream::seekTo(unsigned long pos) {
         return;
     }
     
-    // Clear chunk buffer and current frame
-    while (!m_chunk_buffer.empty()) {
-        m_chunk_buffer.pop();
+    // Thread-safe clearing of chunk buffer and current frame
+    {
+        std::lock_guard<std::mutex> lock(m_buffer_mutex);
+        while (!m_chunk_buffer.empty()) {
+            m_chunk_buffer.pop();
+        }
+        m_current_buffer_bytes = 0; // Reset memory tracking
+        m_current_frame = AudioFrame{};
+        m_current_frame_offset = 0;
     }
-    m_current_buffer_bytes = 0; // Reset memory tracking
-    m_current_frame = AudioFrame{};
-    m_current_frame_offset = 0;
     
     // Seek demuxer
     if (!m_demuxer->seekTo(pos)) {
@@ -385,11 +419,14 @@ bool DemuxedStream::switchToStream(uint32_t stream_id) {
         return false;
     }
     
-    // Clear current state
-    while (!m_chunk_buffer.empty()) {
-        m_chunk_buffer.pop();
+    // Clear current state (thread-safe)
+    {
+        std::lock_guard<std::mutex> lock(m_buffer_mutex);
+        while (!m_chunk_buffer.empty()) {
+            m_chunk_buffer.pop();
+        }
+        m_current_buffer_bytes = 0; // Reset memory tracking
     }
-    m_current_buffer_bytes = 0; // Reset memory tracking
     m_current_frame = AudioFrame{};
     m_current_frame_offset = 0;
     
