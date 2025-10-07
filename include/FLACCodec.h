@@ -1398,6 +1398,7 @@ private:
     bool configureFromStreamInfo_unlocked(const StreamInfo& stream_info);
     bool validateConfiguration_unlocked() const;
     bool initializeFLACDecoder_unlocked();
+    bool provideSyntheticStreamInfo_unlocked();
     void cleanupFLAC_unlocked();
     
     // Frame processing methods (assume appropriate locks are held)

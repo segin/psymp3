@@ -1374,6 +1374,13 @@ bool FLACCodec::initializeFLACDecoder_unlocked() {
         // Initialize decoder state and prepare for high-performance frame processing
         Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Preparing for high-performance frame processing");
         
+        // CRITICAL FIX: Provide STREAMINFO metadata to libFLAC
+        // The demuxer has already parsed metadata, but libFLAC needs STREAMINFO to decode frames
+        if (!provideSyntheticStreamInfo_unlocked()) {
+            Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Failed to provide synthetic STREAMINFO");
+            return false;
+        }
+        
         // Clear any previous error state
         if (m_decoder->hasError()) {
             Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Clearing previous decoder error state");
@@ -1439,6 +1446,49 @@ bool FLACCodec::initializeFLACDecoder_unlocked() {
             }
         }
         
+        return false;
+    }
+}
+
+bool FLACCodec::provideSyntheticStreamInfo_unlocked() {
+    Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Creating synthetic STREAMINFO metadata");
+    
+    try {
+        // Create a synthetic STREAMINFO metadata block based on StreamInfo parameters
+        // This is necessary because libFLAC expects to see STREAMINFO before decoding frames
+        // but the demuxer has already parsed and removed the metadata
+        
+        FLAC__StreamMetadata streaminfo;
+        streaminfo.type = FLAC__METADATA_TYPE_STREAMINFO;
+        streaminfo.is_last = true; // This will be the only metadata block we provide
+        streaminfo.length = FLAC__STREAM_METADATA_STREAMINFO_LENGTH;
+        
+        // Fill in the STREAMINFO data from our configuration
+        FLAC__StreamMetadata_StreamInfo& info = streaminfo.data.stream_info;
+        info.min_blocksize = 16;     // Minimum allowed by FLAC spec
+        info.max_blocksize = 65535;  // Maximum allowed by FLAC spec
+        info.min_framesize = 0;      // Unknown
+        info.max_framesize = 0;      // Unknown
+        info.sample_rate = m_sample_rate;
+        info.channels = m_channels;
+        info.bits_per_sample = m_bits_per_sample;
+        info.total_samples = m_total_samples;
+        
+        // Clear MD5 signature (we don't have it from the demuxer)
+        memset(info.md5sum, 0, 16);
+        
+        Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] STREAMINFO: ",
+                  info.sample_rate, "Hz, ", info.channels, " channels, ", 
+                  info.bits_per_sample, " bits, ", info.total_samples, " samples");
+        
+        // Manually call the metadata callback to provide STREAMINFO to libFLAC
+        handleMetadataCallback_unlocked(&streaminfo);
+        
+        Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Successfully provided synthetic STREAMINFO");
+        return true;
+        
+    } catch (const std::exception& e) {
+        Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Exception: ", e.what());
         return false;
     }
 }
