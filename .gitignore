@@ -260,6 +260,7 @@ tests/test_flac_deadlock_fix
 tests/test_flac_demuxer_deadlock_fix
 tests/test_flac_codec_deadlock_fix
 tests/test_playlist_threading
+tests/test_flac_seeking_crash
 
 # RFC compliance and validation tests
 tests/test_rfc_compliance_debugging_tools
