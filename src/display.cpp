@@ -35,7 +35,7 @@
 Display::Display() : Surface(SDL_SetVideoMode(640, 400, 16, SDL_HWSURFACE | SDL_DOUBLEBUF))
 {
     //ctor
-    std::cout << "Display::Display() got " << std::hex << getHandle() << std::endl;
+    Debug::log("display", "Display::Display() got 0x", std::hex, getHandle());
     SDL_WM_SetCaption("PsyMP3 " PSYMP3_VERSION, "PsyMP3");
 }
 
