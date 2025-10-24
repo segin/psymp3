@@ -538,6 +538,11 @@ private:
     // Private helper methods (assume appropriate locks are held)
     bool parseMetadataBlocks();
     bool parseMetadataBlockHeader(FLACMetadataBlock& block);
+    
+    // Frame size calculation and boundary detection
+    uint32_t calculateFrameSize(const FLACFrame& frame);
+    uint32_t findFrameEnd(const uint8_t* buffer, uint32_t buffer_size);
+    uint32_t findFrameEndFromFile(uint64_t frame_start_offset);
     bool parseStreamInfoBlock(const FLACMetadataBlock& block);
     bool parseSeekTableBlock(const FLACMetadataBlock& block);
     bool parseVorbisCommentBlock(const FLACMetadataBlock& block);
@@ -548,7 +553,6 @@ private:
     bool parseFrameHeader(FLACFrame& frame);
     bool validateFrameHeader(const FLACFrame& frame);
     bool validateFrameHeaderAt(uint64_t file_offset);
-    uint32_t calculateFrameSize(const FLACFrame& frame);
     
     bool readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data);
     void resetPositionTracking();

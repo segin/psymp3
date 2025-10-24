@@ -522,147 +522,69 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         return MediaChunk{};
     }
     
-    // Attempt to read a valid frame with error recovery
-    const int max_frame_read_attempts = 5;
-    int attempts = 0;
+    // Stream-based approach: provide sequential FLAC data to libFLAC (like fread)
+    // This matches how libFLAC expects to receive data in file_read_callback_
     
-    while (attempts < max_frame_read_attempts) {
-        attempts++;
-        
-        // Find the next FLAC frame
-        FLACFrame frame;
-        if (!findNextFrame(frame)) {
-            if (attempts == 1) {
-                Debug::log("flac", "[readChunk_unlocked] No FLAC frame found on first attempt");
-                Debug::log("flac", "[readChunk_unlocked] Current offset: ", m_current_offset, ", audio data offset: ", m_audio_data_offset);
-                
-                // Try to recover from lost frame sync
-                if (handleLostFrameSync()) {
-                    Debug::log("flac", "[readChunk_unlocked] Recovered from lost frame sync, retrying");
-                    continue;
-                }
-            }
-            
-            Debug::log("flac", "[readChunk_unlocked] No more FLAC frames found after ", attempts, " attempts");
+    Debug::log("flac", "[readChunk_unlocked] Reading sequential FLAC data from offset ", m_current_offset);
+    
+    // Read a reasonable chunk size - libFLAC will handle frame parsing
+    uint32_t chunk_size = 8192;  // 8KB chunks work well
+    
+    // Check if we have enough data left in file
+    if (m_file_size > 0) {
+        uint64_t bytes_available = m_file_size - m_current_offset;
+        if (bytes_available == 0) {
+            Debug::log("flac", "[readChunk_unlocked] Reached end of file");
             return MediaChunk{};
         }
-        
-        // Validate frame header for consistency
-        if (!validateFrameHeader(frame)) {
-            Debug::log("flac", "[readChunk_unlocked] Frame header validation failed on attempt ", attempts);
-            
-            // Check if we've reached EOF (validation may have set EOF flag)
-            if (isEOF_unlocked()) {
-                Debug::log("flac", "[readChunk_unlocked] Reached EOF during validation");
-                return MediaChunk{};
-            }
-            
-            // Try to skip this corrupted frame and find the next one
-            if (skipCorruptedFrame()) {
-                Debug::log("flac", "[readChunk_unlocked] Skipped corrupted frame, retrying");
-                continue;
-            } else {
-                Debug::log("flac", "[readChunk_unlocked] Failed to skip corrupted frame");
-                
-                // Try general frame error recovery
-                if (recoverFromFrameError()) {
-                    Debug::log("flac", "[readChunk_unlocked] Recovered from frame error, retrying");
-                    continue;
-                } else {
-                    Debug::log("flac", "[readChunk_unlocked] Frame error recovery failed");
-                    break;
-                }
-            }
+        if (chunk_size > bytes_available) {
+            chunk_size = static_cast<uint32_t>(bytes_available);
+            Debug::log("flac", "[readChunk_unlocked] Limited chunk size to available data: ", chunk_size, " bytes");
         }
-        
-        // Read the complete frame data
-        std::vector<uint8_t> frame_data;
-        if (!readFrameData(frame, frame_data)) {
-            Debug::log("flac", "[readChunk_unlocked] Failed to read FLAC frame data on attempt ", attempts);
-            
-            // Try to skip this frame and continue
-            if (skipCorruptedFrame()) {
-                Debug::log("flac", "[readChunk_unlocked] Skipped unreadable frame, retrying");
-                continue;
-            } else {
-                Debug::log("flac", "[readChunk_unlocked] Failed to skip unreadable frame");
-                
-                // Try general frame error recovery
-                if (recoverFromFrameError()) {
-                    Debug::log("flac", "[readChunk_unlocked] Recovered from read error, retrying");
-                    continue;
-                } else {
-                    Debug::log("flac", "[readChunk_unlocked] Read error recovery failed");
-                    break;
-                }
-            }
-        }
-        
-        // Validate frame CRC if possible
-        // TEMPORARILY DISABLED: CRC validation is failing due to frame boundary issues
-        // TODO: Fix frame boundary detection and re-enable CRC validation
-        bool crc_valid = true; // validateFrameCRC(frame, frame_data);
-        if (!crc_valid) {
-            Debug::log("flac", "[readChunk_unlocked] Frame CRC validation failed on attempt ", attempts);
-            
-            // Log CRC mismatch but attempt to use frame data anyway
-            Debug::log("flac", "[readChunk_unlocked] CRC mismatch detected, but using frame data anyway");
-            // Continue with the frame despite CRC error
-        }
-        
-        // Create MediaChunk with proper timing information
-        MediaChunk chunk(1, std::move(frame_data));  // stream_id = 1 for FLAC
-        // Use the frame's actual sample offset (calculated during parsing)
-        chunk.timestamp_samples = frame.sample_offset;
-        chunk.is_keyframe = true;  // All FLAC frames are independent
-        chunk.file_offset = frame.file_offset;
-        
-        // Add frame to index for future seeking (if indexing enabled)
-        if (m_frame_indexing_enabled) {
-            addFrameToIndex(frame.sample_offset, frame.file_offset, frame.block_size, static_cast<uint32_t>(chunk.data.size()));
-            m_frames_indexed_during_playback++;
-        }
-        
-        // Update position tracking - advance to next frame position
-        uint64_t next_sample_position = frame.sample_offset + frame.block_size;
-        uint64_t next_file_offset = frame.file_offset + chunk.data.size();
-        
-        // Use updatePositionTracking for consistency and validation
-        updatePositionTracking(next_sample_position, next_file_offset);
-        m_last_block_size = frame.block_size;
-        
-        Debug::log("flac", "[readChunk_unlocked] Successfully read FLAC frame: samples=", frame.sample_offset, 
-                  " block_size=", frame.block_size, " data_size=", chunk.data.size());
-        
-        // Prefetch next frame for network streams to reduce latency
-        if (m_is_network_stream) {
-            prefetchNextFrame();
-        }
-        
-        return chunk;
     }
     
-    // If we get here, all frame reading attempts failed
-    Debug::log("flac", "[readChunk_unlocked] All frame reading attempts failed, providing silence");
-    
-    // Provide silence output for completely unrecoverable frames
-    uint32_t silence_block_size = m_last_block_size > 0 ? m_last_block_size : 
-                                  (m_streaminfo.min_block_size > 0 ? m_streaminfo.min_block_size : 4096);
-    
-    MediaChunk silence_chunk = createSilenceChunk(silence_block_size);
-    if (!silence_chunk.data.empty()) {
-        Debug::log("flac", "[readChunk_unlocked] Provided silence chunk with ", silence_block_size, " samples");
-        
-        // Update position tracking to advance past the error
-        uint64_t next_sample_position = m_current_sample.load() + silence_block_size;
-        updatePositionTracking(next_sample_position, m_current_offset);
-        
-        return silence_chunk;
+    if (chunk_size < 10) {
+        Debug::log("flac", "[readChunk_unlocked] Insufficient data available");
+        return MediaChunk{};
     }
     
-    // Complete failure
-    reportError("Frame", "Failed to read FLAC frame after all recovery attempts");
-    return MediaChunk{};
+    // Seek to current position
+    if (m_handler->seek(static_cast<off_t>(m_current_offset), SEEK_SET) != 0) {
+        reportError("IO", "Failed to seek to position: " + std::to_string(m_current_offset));
+        return MediaChunk{};
+    }
+    
+    // Ensure buffer capacity
+    if (!ensureBufferCapacity(m_frame_buffer, chunk_size)) {
+        reportError("Memory", "Failed to allocate buffer of size " + std::to_string(chunk_size));
+        return MediaChunk{};
+    }
+    
+    // Read the chunk data (like fread in libFLAC)
+    size_t bytes_read = m_handler->read(m_frame_buffer.data(), 1, chunk_size);
+    if (bytes_read == 0) {
+        Debug::log("flac", "[readChunk_unlocked] No data read - likely end of file");
+        return MediaChunk{};
+    }
+    
+    Debug::log("flac", "[readChunk_unlocked] Read ", bytes_read, " bytes from position ", m_current_offset);
+    
+    // Copy the chunk data
+    std::vector<uint8_t> chunk_data(bytes_read);
+    std::memcpy(chunk_data.data(), m_frame_buffer.data(), bytes_read);
+    
+    // Create MediaChunk with sequential data
+    MediaChunk chunk(1, std::move(chunk_data));  // stream_id = 1 for FLAC
+    chunk.timestamp_samples = m_current_sample.load();  // Use current sample position
+    chunk.is_keyframe = true;  // All FLAC data is independent
+    chunk.file_offset = m_current_offset;
+    
+    // Advance position by the amount we actually read (like fread)
+    m_current_offset += bytes_read;
+    
+    Debug::log("flac", "[readChunk_unlocked] Successfully read FLAC chunk: ", bytes_read, " bytes, next position: ", m_current_offset);
+    
+    return chunk;
 }
 
 MediaChunk FLACDemuxer::readChunk(uint32_t stream_id)
@@ -1033,6 +955,56 @@ uint32_t FLACDemuxer::findFrameEnd(const uint8_t* buffer, uint32_t buffer_size)
     
     Debug::log("flac", "[findFrameEnd] No next frame found in search range");
     return 0;  // Couldn't find the exact boundary
+}
+
+uint32_t FLACDemuxer::findFrameEndFromFile(uint64_t frame_start_offset)
+{
+    Debug::log("flac", "[findFrameEndFromFile] Finding frame end starting from offset ", frame_start_offset);
+    
+    if (!m_handler) {
+        Debug::log("flac", "[findFrameEndFromFile] No IOHandler available");
+        return 0;
+    }
+    
+    // Read a reasonable chunk to search for the next frame
+    const uint32_t search_buffer_size = 32768;  // 32KB should cover most frame sizes
+    
+    // Ensure buffer capacity
+    if (!ensureBufferCapacity(m_frame_buffer, search_buffer_size)) {
+        Debug::log("flac", "[findFrameEndFromFile] Failed to allocate search buffer");
+        return 0;
+    }
+    
+    // Seek to frame start
+    if (m_handler->seek(static_cast<off_t>(frame_start_offset), SEEK_SET) != 0) {
+        Debug::log("flac", "[findFrameEndFromFile] Failed to seek to frame start");
+        return 0;
+    }
+    
+    // Read data for searching
+    size_t bytes_read = m_handler->read(m_frame_buffer.data(), 1, search_buffer_size);
+    if (bytes_read < 20) {  // Need at least 20 bytes to find next frame
+        Debug::log("flac", "[findFrameEndFromFile] Insufficient data for search: ", bytes_read, " bytes");
+        return 0;
+    }
+    
+    // Use the existing findFrameEnd method to search within the buffer
+    uint32_t frame_end_offset = findFrameEnd(m_frame_buffer.data(), static_cast<uint32_t>(bytes_read));
+    
+    if (frame_end_offset > 0) {
+        Debug::log("flac", "[findFrameEndFromFile] Found frame end at relative offset ", frame_end_offset);
+        return frame_end_offset;  // This is the frame size
+    }
+    
+    // If we couldn't find the end, use a conservative estimate
+    if (m_streaminfo.isValid() && m_streaminfo.max_frame_size > 0) {
+        uint32_t estimated_size = m_streaminfo.max_frame_size;
+        Debug::log("flac", "[findFrameEndFromFile] Using max frame size estimate: ", estimated_size, " bytes");
+        return estimated_size;
+    }
+    
+    Debug::log("flac", "[findFrameEndFromFile] Could not determine frame size");
+    return 0;
 }
 
 bool FLACDemuxer::parseMetadataBlockHeader(FLACMetadataBlock& block)
@@ -2046,12 +2018,12 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
         return true;
     }
     
-    // PERFORMANCE OPTIMIZATION 3: Reduced search scope to 256 bytes maximum (was 512)
-    const uint64_t MAX_SEARCH_SCOPE = 256;
+    // Use a reasonable search scope - FLAC frames can be large
+    const uint64_t MAX_SEARCH_SCOPE = 16384;  // 16KB should cover most frame sizes
     
     Debug::log("flac", "[findNextFrame] Frame not at current position, starting limited search (max ", MAX_SEARCH_SCOPE, " bytes)");
     
-    // PERFORMANCE OPTIMIZATION 4: Use larger buffer for fewer I/O operations
+    // Use larger buffer for fewer I/O operations
     const size_t EFFICIENT_BUFFER_SIZE = MAX_SEARCH_SCOPE;  // Read entire search scope at once
     if (!ensureBufferCapacity(m_sync_buffer, EFFICIENT_BUFFER_SIZE)) {
         reportError("Memory", "Failed to allocate sync search buffer");
@@ -2122,32 +2094,7 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
         }
     }
     
-    Debug::log("flac", "[findNextFrame] No valid FLAC frame found in limited search scope");
-    
-    // CRITICAL OPTIMIZATION: Conservative fallback using STREAMINFO minimum frame size when detection fails
-    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
-        Debug::log("flac", "[findNextFrame] Using conservative fallback with STREAMINFO minimum frame size: ", m_streaminfo.min_frame_size, " bytes");
-        
-        // Position at original search start and create a conservative frame estimate
-        frame.file_offset = m_current_offset;
-        frame.frame_size = m_streaminfo.min_frame_size;
-        frame.block_size = m_streaminfo.min_block_size;
-        frame.sample_rate = m_streaminfo.sample_rate;
-        frame.channels = m_streaminfo.channels;
-        frame.bits_per_sample = m_streaminfo.bits_per_sample;
-        frame.variable_block_size = (m_streaminfo.min_block_size != m_streaminfo.max_block_size);
-        frame.sample_offset = m_current_sample.load();
-        
-        Debug::log("flac", "[findNextFrame] Conservative fallback frame created - size: ", frame.frame_size, 
-                  " bytes, block_size: ", frame.block_size, " samples");
-        
-        // CRITICAL: Advance current offset to prevent infinite loop
-        m_current_offset += frame.frame_size;
-        
-        return true;
-    }
-    
-    Debug::log("flac", "[findNextFrame] No STREAMINFO available for conservative fallback");
+    Debug::log("flac", "[findNextFrame] No valid FLAC frame found in search scope");
     return false;
 }
 
@@ -2697,76 +2644,10 @@ bool FLACDemuxer::validateFrameHeaderAt(uint64_t file_offset)
 
 bool FLACDemuxer::readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data)
 {
-    Debug::log("flac", "[readFrameData] Reading FLAC data chunk for libFLAC internal parsing");
-    
-    if (!m_handler) {
-        reportError("IO", "No IOHandler available for reading");
-        return false;
-    }
-    
-    // Use sequential reading from current position instead of frame-based reading
-    // This lets libFLAC handle frame boundaries internally, which is more robust
-    uint64_t read_position = m_current_offset;
-    
-    // Read reasonable chunk sizes - libFLAC will parse multiple frames from each chunk
-    uint32_t chunk_size = 8192;  // 8KB chunks are efficient for FLAC
-    
-    // Use larger chunks if we know the maximum frame size
-    if (m_streaminfo.isValid() && m_streaminfo.max_frame_size > 0) {
-        // Read at least 2x max frame size to ensure we get complete frames
-        chunk_size = std::max(chunk_size, m_streaminfo.max_frame_size * 2);
-    }
-    
-    // Limit chunk size to available data
-    if (m_file_size > 0) {
-        uint64_t bytes_available = m_file_size - read_position;
-        if (bytes_available == 0) {
-            Debug::log("flac", "[readFrameData] Reached end of file");
-            return false;
-        }
-        if (chunk_size > bytes_available) {
-            chunk_size = static_cast<uint32_t>(bytes_available);
-            Debug::log("flac", "[readFrameData] Limited chunk size to available data: ", chunk_size, " bytes");
-        }
-    }
-    
-    if (chunk_size < 10) {
-        Debug::log("flac", "[readFrameData] Insufficient data available");
-        return false;
-    }
-    
-    // Seek to current position
-    if (m_handler->seek(static_cast<off_t>(read_position), SEEK_SET) != 0) {
-        reportError("IO", "Failed to seek to position: " + std::to_string(read_position));
-        return false;
-    }
-    
-    // Ensure buffer capacity
-    if (!ensureBufferCapacity(m_frame_buffer, chunk_size)) {
-        reportError("Memory", "Failed to allocate buffer of size " + std::to_string(chunk_size));
-        return false;
-    }
-    
-    // Read the chunk data
-    size_t bytes_read = m_handler->read(m_frame_buffer.data(), 1, chunk_size);
-    if (bytes_read == 0) {
-        Debug::log("flac", "[readFrameData] No data read - likely end of file");
-        return false;
-    }
-    
-    Debug::log("flac", "[readFrameData] Read ", bytes_read, " bytes from position ", read_position);
-    
-    // Copy the chunk data - libFLAC will handle all frame parsing internally
-    data.clear();
-    data.resize(bytes_read);
-    std::memcpy(data.data(), m_frame_buffer.data(), bytes_read);
-    
-    // Advance position by the amount we actually read
-    m_current_offset = read_position + bytes_read;
-    
-    Debug::log("flac", "[readFrameData] Successfully provided chunk: ", bytes_read, " bytes, next position: ", m_current_offset);
-    
-    return true;
+    // This method is no longer used with the stream-based approach
+    // readChunk_unlocked now provides sequential data directly to libFLAC
+    Debug::log("flac", "[readFrameData] Method not used in stream-based approach");
+    return false;
 }
 
 void FLACDemuxer::resetPositionTracking()
