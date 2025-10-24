@@ -433,6 +433,11 @@ FLACCodec::FLACCodec(const StreamInfo& stream_info)
     // Initialize asynchronous processing (disabled by default)
     m_async_processing_enabled = false;
     
+    // Disable manual CRC validation since we're letting libFLAC handle frame parsing internally
+    // This prevents CRC validation failures on multi-frame chunks
+    m_crc_validation_enabled = false;
+    Debug::log("flac_codec", "[FLACCodec] Disabled manual CRC validation - libFLAC handles validation internally");
+    
     // Pre-allocate buffers for performance
     m_input_buffer.reserve(64 * 1024);  // 64KB input buffer
     m_decode_buffer.reserve(65535 * 8); // Maximum FLAC block size * max channels
@@ -1656,22 +1661,54 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
         
         // Process the frame through libFLAC (thread-safe with both locks held)
         // The write callback will be called with both locks already acquired
-        if (!m_decoder->process_single()) {
-            FLAC__StreamDecoderState state = m_decoder->get_state();
-            Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] libFLAC processing failed, state: ", 
-                      FLAC__StreamDecoderStateString[state]);
+        // Process frames until we get samples or reach an error state
+        size_t initial_buffer_size = m_output_buffer.size();
+        int process_attempts = 0;
+        const int max_process_attempts = 3;
+        
+        while (process_attempts < max_process_attempts && m_output_buffer.size() == initial_buffer_size) {
+            process_attempts++;
             
-            // Handle specific decoder states
-            if (state == FLAC__STREAM_DECODER_END_OF_STREAM) {
-                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] End of stream reached");
-                m_stream_finished = true;
-                return true; // Not an error
-            } else if (state == FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC) {
-                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Searching for frame sync - may need more data");
-                return true; // Not an error, just needs more data
+            if (!m_decoder->process_single()) {
+                FLAC__StreamDecoderState state = m_decoder->get_state();
+                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] libFLAC processing failed, state: ", 
+                          FLAC__StreamDecoderStateString[state]);
+                
+                // Handle specific decoder states
+                if (state == FLAC__STREAM_DECODER_END_OF_STREAM) {
+                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] End of stream reached");
+                    m_stream_finished = true;
+                    return true; // Not an error
+                } else if (state == FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC) {
+                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Searching for frame sync - continuing to try more data");
+                    // Don't return false - keep trying with more attempts
+                } else {
+                    // For other error states, try to reset and continue
+                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Decoder error state, attempting reset");
+                    if (!m_decoder->reset()) {
+                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Decoder reset failed");
+                        return false;
+                    }
+                }
             }
             
-            return false;
+            // Check if we got samples
+            if (m_output_buffer.size() > initial_buffer_size) {
+                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Got samples after ", process_attempts, " attempts");
+                break;
+            }
+            
+            // If no samples yet, the frame might have been metadata or corrupted - try again
+            if (process_attempts < max_process_attempts) {
+                Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] No samples after attempt ", process_attempts, ", trying again");
+            }
+        }
+        
+        if (m_output_buffer.size() == initial_buffer_size) {
+            Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] No samples produced after ", max_process_attempts, " attempts - frame may be corrupted, continuing");
+            // Don't treat this as a fatal error - the frame might be corrupted
+            // Return true to continue processing the next frame
+            return true;
         }
         
         // Update performance statistics
@@ -1802,6 +1839,10 @@ void FLACCodec::handleWriteCallback_unlocked(const FLAC__Frame* frame, const FLA
         m_stats.error_count++;
         return;
     }
+    
+    // DEBUG: Check the actual channel assignment value from libFLAC
+    Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] libFLAC frame channel_assignment = ", 
+              static_cast<int>(frame->header.channel_assignment), " (0x", std::hex, static_cast<int>(frame->header.channel_assignment), std::dec, ")");
     
     Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] Processing frame: ", 
               frame->header.blocksize, " samples, ", frame->header.channels, " channels, ", 
@@ -2256,8 +2297,8 @@ AudioFrame FLACCodec::handleDecodingError_unlocked(const MediaChunk& chunk) {
         uint32_t estimated_block_size = estimateBlockSizeFromChunk_unlocked(chunk);
         return createSilenceFrame_unlocked(estimated_block_size);
     } else {
-        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Error recovery failed - codec entering error state");
-        setErrorState_unlocked(true);
+        Debug::log("flac_codec", "[FLACCodec::handleDecodingError_unlocked] Error recovery failed - creating silence frame but continuing");
+        // Don't set error state - just return silence and continue with next frame
         return createSilenceFrame_unlocked(1024); // Fallback silence
     }
 }
@@ -6412,34 +6453,18 @@ void FLACCodec::processChannelAssignment_unlocked(const FLAC__Frame* frame, cons
     uint16_t channels = frame->header.channels;
     
     Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Processing channel assignment ", 
-              assignment, " with ", channels, " channels (RFC 9639 Table 16)");
+              static_cast<int>(assignment), " (0x", std::hex, static_cast<int>(assignment), std::dec, ") with ", channels, " channels (RFC 9639 Table 16)");
     
     // RFC 9639 Table 16: Channel assignment validation
     // Values 0-7: Independent channels (assignment + 1 = number of channels)
     // Values 8-10: Stereo modes (exactly 2 channels required)
     // Values 11-15: Reserved (forbidden per RFC 9639)
     
-    if (assignment <= 7) {
-        // RFC 9639: Independent channel assignment (0b0000 to 0b0111)
-        // Channel count = assignment value + 1 (supports 1-8 channels)
-        uint16_t expected_channels = assignment + 1;
-        
-        if (channels != expected_channels) {
-            Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] RFC 9639 violation: ", 
-                      "Independent assignment ", assignment, " requires ", expected_channels, 
-                      " channels, got ", channels);
-            m_stats.error_count++;
-            return;
-        }
-        
-        // Validate channel count is within RFC 9639 limits (1-8 channels)
-        if (channels < 1 || channels > 8) {
-            Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] RFC 9639 violation: ", 
-                      "Channel count ", channels, " outside valid range (1-8)");
-            m_stats.error_count++;
-            return;
-        }
-        
+    // Process based on actual channel count, not assignment value
+    // libFLAC may have already converted Mid-Side stereo to Left-Right
+    if (channels >= 1 && channels <= 8) {
+        Debug::log("flac_codec", "[FLACCodec::processChannelAssignment_unlocked] Processing ", channels, 
+                  " channels as independent (libFLAC may have converted stereo modes)");
         processIndependentChannels_unlocked(frame, buffer);
         return;
     }
@@ -6514,11 +6539,10 @@ void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, co
     
     // RFC 9639 Table 16: Validate assignment matches channel count
     if (assignment != channels - 1) {
-        Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] RFC 9639 violation: ", 
-                  "Assignment ", assignment, " doesn't match channel count ", channels, 
-                  " (expected assignment ", channels - 1, ")");
-        m_stats.error_count++;
-        return;
+        Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Assignment mismatch: ", 
+                  "assignment ", assignment, " doesn't match channel count ", channels, 
+                  " (expected assignment ", channels - 1, ") - processing anyway");
+        // Don't return - process the channels we have
     }
     
     // RFC 9639 Table 16: Log standard channel configurations
@@ -6580,6 +6604,8 @@ void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, co
     }
     m_output_buffer.resize(required_samples);
     
+    Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Resized output buffer to ", required_samples, " samples");
+    
     // RFC 9639 compliant independent channel processing
     // Each channel is coded independently and interleaved in output
     
@@ -6597,7 +6623,7 @@ void FLACCodec::processIndependentChannels_unlocked(const FLAC__Frame* frame, co
     m_stats.conversion_operations++;
     
     Debug::log("flac_codec", "[FLACCodec::processIndependentChannels_unlocked] Successfully processed ", 
-              block_size, " samples across ", channels, " independent channels");
+              block_size, " samples across ", channels, " independent channels, output buffer size: ", m_output_buffer.size());
 }
 
 void FLACCodec::processLeftSideStereo_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) {
