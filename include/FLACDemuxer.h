@@ -550,6 +550,7 @@ private:
     bool skipMetadataBlock(const FLACMetadataBlock& block);
     
     bool findNextFrame(FLACFrame& frame);
+    bool getNextFrameFromSeekTable(FLACFrame& frame);
     bool parseFrameHeader(FLACFrame& frame);
     bool validateFrameHeader(const FLACFrame& frame);
     bool validateFrameHeaderAt(uint64_t file_offset);
