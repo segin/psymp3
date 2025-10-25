@@ -599,6 +599,10 @@ private:
     void setErrorState(bool error_state);
     bool getErrorState() const;
     
+    // RFC 9639 sync pattern validation methods
+    bool validateFrameSync_unlocked(const uint8_t* data, size_t size) const;
+    bool searchSyncPattern_unlocked(const uint8_t* buffer, size_t buffer_size, size_t& sync_offset) const;
+    
     // Error handling and recovery methods
     bool attemptStreamInfoRecovery();
     bool validateStreamInfoParameters() const;

@@ -954,6 +954,28 @@ bool FLACDemuxer::getNextFrameFromSeekTable(FLACFrame& frame)
     return false;
 }
 
+uint32_t FLACDemuxer::findFrameEnd(const uint8_t* buffer, uint32_t buffer_size)
+{
+    Debug::log("flac", "[findFrameEnd] Searching for frame end in buffer of size ", buffer_size);
+    
+    if (!buffer || buffer_size < 4) {
+        Debug::log("flac", "[findFrameEnd] Invalid buffer or insufficient size");
+        return 0;
+    }
+    
+    // Search for the next sync pattern starting from offset 4 (skip current frame's sync)
+    // We need to find the next frame's sync pattern to determine where current frame ends
+    for (uint32_t i = 4; i < buffer_size - 1; ++i) {
+        if (validateFrameSync_unlocked(buffer + i, buffer_size - i)) {
+            Debug::log("flac", "[findFrameEnd] Found next frame sync at offset ", i);
+            return i;  // This is where the current frame ends
+        }
+    }
+    
+    Debug::log("flac", "[findFrameEnd] No frame end found in buffer");
+    return 0;
+}
+
 uint32_t FLACDemuxer::findFrameEndFromFile(uint64_t frame_start_offset)
 {
     Debug::log("flac", "[findFrameEndFromFile] Finding frame end starting from offset ", frame_start_offset);
@@ -2098,10 +2120,13 @@ bool FLACDemuxer::parseFrameHeader(FLACFrame& frame)
         return false;
     }
     
-    // Verify sync code (14 bits: 11111111111110xx)
+    // Verify sync code (15 bits: 111111111111100 per RFC 9639 Section 9.1)
     uint16_t sync_code = (static_cast<uint16_t>(header_start[0]) << 8) | 
                         static_cast<uint16_t>(header_start[1]);
     
+    // RFC 9639: 15-bit sync code 0b111111111111100 followed by blocking strategy bit
+    // Valid patterns: 0xFFF8 (fixed block) or 0xFFF9 (variable block)
+    // Both patterns have the same upper 14 bits when masked with 0xFFFC
     if ((sync_code & 0xFFFC) != 0xFFF8) {
         Debug::log("flac", "Invalid sync code in frame header: 0x", std::hex, sync_code, std::dec);
         return false;
@@ -3725,12 +3750,10 @@ bool FLACDemuxer::handleLostFrameSync()
             break;
         }
         
-        // Look for potential FLAC sync codes
+        // Look for potential FLAC sync codes using RFC 9639 compliant validation
         for (size_t i = 0; i < bytes_read - 1; i++) {
-            uint16_t sync_candidate = (static_cast<uint16_t>(search_buffer[i]) << 8) | 
-                                     static_cast<uint16_t>(search_buffer[i + 1]);
-            
-            if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+            // Use RFC 9639 compliant sync pattern validation
+            if (validateFrameSync_unlocked(search_buffer.data() + i, bytes_read - i)) {
                 // Found potential sync, try to validate
                 uint64_t sync_position = start_position + bytes_searched + i;
                 
@@ -3857,12 +3880,11 @@ bool FLACDemuxer::validateFrameCRC(const FLACFrame& frame, const std::vector<uin
         return false;
     }
     
-    // Verify sync code at start of frame
+    // Verify sync code at start of frame using RFC 9639 compliant validation
     if (frame_data.size() >= 2) {
-        uint16_t sync_code = (static_cast<uint16_t>(frame_data[0]) << 8) | 
-                            static_cast<uint16_t>(frame_data[1]);
-        
-        if ((sync_code & 0xFFFC) != 0xFFF8) {
+        if (!validateFrameSync_unlocked(frame_data.data(), frame_data.size())) {
+            uint16_t sync_code = (static_cast<uint16_t>(frame_data[0]) << 8) | 
+                                static_cast<uint16_t>(frame_data[1]);
             Debug::log("flac", "Invalid sync code in frame data: 0x", std::hex, sync_code, std::dec);
             return false;
         }
@@ -4397,9 +4419,12 @@ bool FLACDemuxer::optimizedFrameSync(uint64_t start_offset, FLACFrame& frame)
                            (static_cast<uint32_t>(m_sync_buffer[i + 2]) << 8) |
                            static_cast<uint32_t>(m_sync_buffer[i + 3]);
             
-            // Check for FLAC sync pattern in the upper 16 bits
-            uint16_t sync_candidate = static_cast<uint16_t>(word >> 16);
-            if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+            // Check for FLAC sync pattern in the upper 16 bits using RFC 9639 validation
+            uint8_t sync_bytes[2] = {
+                static_cast<uint8_t>((word >> 24) & 0xFF),
+                static_cast<uint8_t>((word >> 16) & 0xFF)
+            };
+            if (validateFrameSync_unlocked(sync_bytes, 2)) {
                 // Found potential sync, validate frame
                 uint64_t sync_position = start_offset + bytes_searched + i;
                 
@@ -4415,8 +4440,9 @@ bool FLACDemuxer::optimizedFrameSync(uint64_t start_offset, FLACFrame& frame)
             }
             
             // Also check the next 16 bits (overlapping search)
-            sync_candidate = static_cast<uint16_t>(word & 0xFFFF);
-            if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+            sync_bytes[0] = static_cast<uint8_t>((word >> 16) & 0xFF);
+            sync_bytes[1] = static_cast<uint8_t>((word >> 8) & 0xFF);
+            if (validateFrameSync_unlocked(sync_bytes, 2)) {
                 uint64_t sync_position = start_offset + bytes_searched + i + 2;
                 
                 if (!m_handler->seek(sync_position, SEEK_SET)) {
@@ -4545,6 +4571,50 @@ void FLACDemuxer::setErrorState(bool error_state)
 bool FLACDemuxer::getErrorState() const
 {
     return m_error_state.load();
+}
+
+// RFC 9639 Sync Pattern Validation Methods
+
+bool FLACDemuxer::validateFrameSync_unlocked(const uint8_t* data, size_t size) const
+{
+    if (size < 2) {
+        return false;
+    }
+    
+    // RFC 9639 Section 9.1: 15-bit frame sync code 0b111111111111100 followed by blocking strategy bit
+    // Breaking down the 15-bit sync code: 0b111111111111100
+    // - 13 ones: 1111111111111
+    // - 2 zeros: 00
+    // Total: 15 bits
+    //
+    // With blocking strategy bit, the 16-bit patterns are:
+    // - Fixed block (strategy=0):    1111111111111000 = 0xFFF8  
+    // - Variable block (strategy=1): 1111111111111001 = 0xFFF9
+    
+    uint16_t sync_word = (static_cast<uint16_t>(data[0]) << 8) | static_cast<uint16_t>(data[1]);
+    
+    // Check for exact sync patterns (RFC 9639 compliant)
+    return (sync_word == 0xFFF8 || sync_word == 0xFFF9);
+}
+bool FLACDemuxer::searchSyncPattern_unlocked(const uint8_t* buffer, size_t buffer_size, size_t& sync_offset) const
+{
+    if (buffer_size < 2) {
+        return false;
+    }
+    
+    // Search for sync pattern byte by byte using RFC 9639 compliant validation
+    for (size_t i = 0; i <= buffer_size - 2; ++i) {
+        uint16_t sync_candidate = (static_cast<uint16_t>(buffer[i]) << 8) | 
+                                 static_cast<uint16_t>(buffer[i + 1]);
+        
+        // RFC 9639: Check for valid sync pattern
+        if ((sync_candidate & 0xFFFC) == 0xFFF8) {
+            sync_offset = i;
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 // Performance Optimization Methods
