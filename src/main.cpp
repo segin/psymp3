@@ -77,6 +77,7 @@ int main(int argc, char *argv[]) {
         {"decay", required_argument, 0, 0},
         {"test", no_argument, 0, 0},
         {"version", no_argument, 0, 'v'},
+        {"help", no_argument, 0, 'h'},
         {"debug", required_argument, 0, 0},
         {"logfile", required_argument, 0, 0},
         {"unattended-quit", no_argument, 0, 0},
@@ -85,7 +86,7 @@ int main(int argc, char *argv[]) {
 
     int opt;
     int option_index = 0;
-    while ((opt = getopt_long(argc, argv, "v", long_options, &option_index)) != -1) {
+    while ((opt = getopt_long(argc, argv, "vh", long_options, &option_index)) != -1) {
         if (opt == 0) {
             std::string option_name = long_options[option_index].name;
             if (option_name == "fft") {
@@ -120,6 +121,10 @@ int main(int argc, char *argv[]) {
             switch (opt) {
                 case 'v':
                     about_console();
+                    should_run = false;
+                    break;
+                case 'h':
+                    print_help();
                     should_run = false;
                     break;
                 case '?': // Invalid option

@@ -58,6 +58,48 @@ void about_console()
     std::cout << _about_message << std::endl;
 }
 
+/**
+ * @brief Prints GNU-style help information to the standard console output.
+ * 
+ * This function displays usage information, command-line options, and available
+ * debug channels in the standard GNU help format.
+ */
+void print_help()
+{
+    std::cout << "Usage: psymp3 [OPTION]... [FILE]...\n";
+    std::cout << "A multimedia player application supporting various audio formats.\n\n";
+    
+    std::cout << "Options:\n";
+    std::cout << "  -h, --help              display this help and exit\n";
+    std::cout << "  -v, --version           output version information and exit\n";
+    std::cout << "      --fft=MODE          set FFT mode (mat-og, vibe-1, neomat-in, neomat-out)\n";
+    std::cout << "      --scale=FACTOR      set scale factor for visualization\n";
+    std::cout << "      --decay=FACTOR      set decay factor for visualization\n";
+    std::cout << "      --test              enable automated test mode\n";
+    std::cout << "      --debug=CHANNELS    enable debug output for specified channels\n";
+    std::cout << "                          (comma-separated list or 'all')\n";
+    std::cout << "      --logfile=FILE      write debug output to specified file\n";
+    std::cout << "      --unattended-quit   quit automatically when playback ends\n\n";
+    
+    std::cout << "Available debug channels:\n";
+    std::cout << "  HTTPIOHandler, audio, chunk, codec, compliance, demux, demuxer,\n";
+    std::cout << "  display, error, flac, flac_benchmark, flac_codec, flac_rfc_validator,\n";
+    std::cout << "  font, http, io, iso, iso_compliance, lastfm, loader, lyrics, memory,\n";
+    std::cout << "  mp3, mpris, ogg, opus, opus_codec, performance, player, playlist,\n";
+    std::cout << "  plugin, raii, resource, spectrum, stream, streaming, system, test,\n";
+    std::cout << "  timer, vorbis, widget\n\n";
+    
+    std::cout << "Examples:\n";
+    std::cout << "  psymp3 song.mp3                    Play a single file\n";
+    std::cout << "  psymp3 --debug=flac,demux file.flac\n";
+    std::cout << "                                      Play with FLAC and demux debugging\n";
+    std::cout << "  psymp3 --debug=all --logfile=debug.log\n";
+    std::cout << "                                      Enable all debug channels with log file\n\n";
+    
+    std::cout << "Report bugs to: segin2005@gmail.com\n";
+    std::cout << "PsyMP3 home page: <https://github.com/segin/psymp3>\n";
+}
+
 #if defined(_WIN32)
 /**
  * @brief Displays the application's about information in a native Windows message box.

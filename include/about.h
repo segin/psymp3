@@ -25,6 +25,7 @@
 #define ABOUT_H_INCLUDED
 
 void about_console();
+void print_help();
 void about_ui(); // maybe one day...
 
 
