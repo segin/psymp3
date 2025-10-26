@@ -19,7 +19,7 @@ This implementation plan focuses on rebuilding the broken FLAC demuxer to achiev
   - Add sync pattern search in `searchSyncPattern()` with proper bit masking
   - _Requirements: 2.1_
 
-- [ ] 1.2 Fix frame boundary detection algorithm
+- [-] 1.2 Fix frame boundary detection algorithm
   - Rewrite `findNextFrame_unlocked()` to prevent infinite loops
   - Implement conservative frame size estimation using STREAMINFO min_frame_size
   - Add frame end detection using next sync pattern search

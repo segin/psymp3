@@ -890,6 +890,12 @@ uint64_t FLACDemuxer::getCurrentSample_unlocked() const
 
 uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
 {
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return calculateFrameSize_unlocked(frame);
+}
+
+uint32_t FLACDemuxer::calculateFrameSize_unlocked(const FLACFrame& frame)
+{
     // For FLAC files with extreme compression, use STREAMINFO minimum frame size directly
     // This avoids incorrect theoretical calculations that can be orders of magnitude wrong
     
@@ -898,7 +904,7 @@ uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
         // This is much more accurate than theoretical calculations for highly compressed files
         uint32_t streaminfo_min = m_streaminfo.min_frame_size;
         
-        Debug::log("flac", "[calculateFrameSize] Using STREAMINFO minimum frame size: ", streaminfo_min, 
+        Debug::log("flac", "[calculateFrameSize_unlocked] Using STREAMINFO minimum frame size: ", streaminfo_min, 
                   " bytes (", frame.block_size, " samples, ", frame.channels, " channels, ", frame.bits_per_sample, " bits)");
         
         return streaminfo_min;
@@ -908,7 +914,7 @@ uint32_t FLACDemuxer::calculateFrameSize(const FLACFrame& frame)
     // Based on the observation that some FLAC files can have extremely small frames (14 bytes)
     uint32_t conservative_estimate = 64;  // Conservative minimum
     
-    Debug::log("flac", "[calculateFrameSize] No STREAMINFO available, using conservative estimate: ", conservative_estimate, 
+    Debug::log("flac", "[calculateFrameSize_unlocked] No STREAMINFO available, using conservative estimate: ", conservative_estimate, 
               " bytes (", frame.block_size, " samples, ", frame.channels, " channels, ", frame.bits_per_sample, " bits)");
     
     return conservative_estimate;
@@ -920,8 +926,8 @@ bool FLACDemuxer::getNextFrameFromSeekTable(FLACFrame& frame)
     Debug::log("flac", "[getNextFrameFromSeekTable] Getting next frame from SEEKTABLE");
     
     if (m_seektable.empty()) {
-        Debug::log("flac", "[getNextFrameFromSeekTable] No SEEKTABLE available, falling back to findNextFrame");
-        return findNextFrame(frame);
+        Debug::log("flac", "[getNextFrameFromSeekTable] No SEEKTABLE available, falling back to findNextFrame_unlocked");
+        return findNextFrame_unlocked(frame);
     }
     
     // Find the next seek point based on current sample position
@@ -978,10 +984,16 @@ uint32_t FLACDemuxer::findFrameEnd(const uint8_t* buffer, uint32_t buffer_size)
 
 uint32_t FLACDemuxer::findFrameEndFromFile(uint64_t frame_start_offset)
 {
-    Debug::log("flac", "[findFrameEndFromFile] Finding frame end starting from offset ", frame_start_offset);
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    return findFrameEndFromFile_unlocked(frame_start_offset);
+}
+
+uint32_t FLACDemuxer::findFrameEndFromFile_unlocked(uint64_t frame_start_offset)
+{
+    Debug::log("flac", "[findFrameEndFromFile_unlocked] Finding frame end starting from offset ", frame_start_offset);
     
     if (!m_handler) {
-        Debug::log("flac", "[findFrameEndFromFile] No IOHandler available");
+        Debug::log("flac", "[findFrameEndFromFile_unlocked] No IOHandler available");
         return 0;
     }
     
@@ -990,20 +1002,20 @@ uint32_t FLACDemuxer::findFrameEndFromFile(uint64_t frame_start_offset)
     
     // Ensure buffer capacity
     if (!ensureBufferCapacity(m_frame_buffer, search_buffer_size)) {
-        Debug::log("flac", "[findFrameEndFromFile] Failed to allocate search buffer");
+        Debug::log("flac", "[findFrameEndFromFile_unlocked] Failed to allocate search buffer");
         return 0;
     }
     
     // Seek to frame start
     if (m_handler->seek(static_cast<off_t>(frame_start_offset), SEEK_SET) != 0) {
-        Debug::log("flac", "[findFrameEndFromFile] Failed to seek to frame start");
+        Debug::log("flac", "[findFrameEndFromFile_unlocked] Failed to seek to frame start");
         return 0;
     }
     
     // Read data for searching
     size_t bytes_read = m_handler->read(m_frame_buffer.data(), 1, search_buffer_size);
     if (bytes_read < 20) {  // Need at least 20 bytes to find next frame
-        Debug::log("flac", "[findFrameEndFromFile] Insufficient data for search: ", bytes_read, " bytes");
+        Debug::log("flac", "[findFrameEndFromFile_unlocked] Insufficient data for search: ", bytes_read, " bytes");
         return 0;
     }
     
@@ -1011,18 +1023,18 @@ uint32_t FLACDemuxer::findFrameEndFromFile(uint64_t frame_start_offset)
     uint32_t frame_end_offset = findFrameEnd(m_frame_buffer.data(), static_cast<uint32_t>(bytes_read));
     
     if (frame_end_offset > 0) {
-        Debug::log("flac", "[findFrameEndFromFile] Found frame end at relative offset ", frame_end_offset);
+        Debug::log("flac", "[findFrameEndFromFile_unlocked] Found frame end at relative offset ", frame_end_offset);
         return frame_end_offset;  // This is the frame size
     }
     
     // If we couldn't find the end, use a conservative estimate
     if (m_streaminfo.isValid() && m_streaminfo.max_frame_size > 0) {
         uint32_t estimated_size = m_streaminfo.max_frame_size;
-        Debug::log("flac", "[findFrameEndFromFile] Using max frame size estimate: ", estimated_size, " bytes");
+        Debug::log("flac", "[findFrameEndFromFile_unlocked] Using max frame size estimate: ", estimated_size, " bytes");
         return estimated_size;
     }
     
-    Debug::log("flac", "[findFrameEndFromFile] Could not determine frame size");
+    Debug::log("flac", "[findFrameEndFromFile_unlocked] Could not determine frame size");
     return 0;
 }
 
@@ -1975,7 +1987,13 @@ bool FLACDemuxer::skipMetadataBlock(const FLACMetadataBlock& block)
 
 bool FLACDemuxer::findNextFrame(FLACFrame& frame)
 {
-    Debug::log("flac", "[findNextFrame] Starting optimized FLAC frame sync search");
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    return findNextFrame_unlocked(frame);
+}
+
+bool FLACDemuxer::findNextFrame_unlocked(FLACFrame& frame)
+{
+    Debug::log("flac", "[findNextFrame_unlocked] Starting RFC 9639 compliant frame boundary detection");
     
     if (!m_handler) {
         reportError("IO", "No IOHandler available for frame sync detection");
@@ -1985,20 +2003,20 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     // Start searching from current position
     uint64_t search_start = m_current_offset;
     
-    Debug::log("flac", "[findNextFrame] Starting frame search from offset: ", search_start);
+    Debug::log("flac", "[findNextFrame_unlocked] Starting frame search from offset: ", search_start);
     
-    // PERFORMANCE OPTIMIZATION 1: Try to use cached frame position if available
+    // OPTIMIZATION 1: Try to use cached frame position if available
     if (m_frame_indexing_enabled && !m_frame_index.empty()) {
         const FLACFrameIndexEntry* cached_entry = m_frame_index.findBestEntry(m_current_sample.load());
         if (cached_entry && cached_entry->file_offset >= search_start) {
-            Debug::log("flac", "[findNextFrame] Using cached frame position from index: ", cached_entry->file_offset);
+            Debug::log("flac", "[findNextFrame_unlocked] Using cached frame position from index: ", cached_entry->file_offset);
             search_start = cached_entry->file_offset;
             
             // Seek to cached position
             if (m_handler->seek(static_cast<off_t>(search_start), SEEK_SET) == 0) {
                 frame.file_offset = search_start;
                 if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
-                    Debug::log("flac", "[findNextFrame] Valid FLAC frame found at cached position ", search_start);
+                    Debug::log("flac", "[findNextFrame_unlocked] Valid FLAC frame found at cached position ", search_start);
                     m_current_offset = search_start;
                     return true;
                 }
@@ -2006,17 +2024,26 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
         }
     }
     
-    // PERFORMANCE OPTIMIZATION 2: Use STREAMINFO-based position prediction
-    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0 && m_last_block_size > 0) {
-        // Predict next frame position based on minimum frame size
-        uint64_t predicted_offset = search_start + m_streaminfo.min_frame_size;
+    // OPTIMIZATION 2: Conservative frame size estimation using STREAMINFO min_frame_size
+    uint32_t conservative_frame_size = 64;  // Fallback minimum
+    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
+        conservative_frame_size = m_streaminfo.min_frame_size;
+        Debug::log("flac", "[findNextFrame_unlocked] Using STREAMINFO min_frame_size: ", conservative_frame_size, " bytes");
+    } else {
+        Debug::log("flac", "[findNextFrame_unlocked] No STREAMINFO min_frame_size, using conservative fallback: ", conservative_frame_size, " bytes");
+    }
+    
+    // OPTIMIZATION 3: Use conservative position prediction to avoid infinite loops
+    if (m_last_block_size > 0 && conservative_frame_size > 0) {
+        // Predict next frame position based on conservative frame size
+        uint64_t predicted_offset = search_start + conservative_frame_size;
         
-        Debug::log("flac", "[findNextFrame] Trying predicted frame position: ", predicted_offset);
+        Debug::log("flac", "[findNextFrame_unlocked] Trying predicted frame position: ", predicted_offset);
         
         if (m_handler->seek(static_cast<off_t>(predicted_offset), SEEK_SET) == 0) {
             frame.file_offset = predicted_offset;
             if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
-                Debug::log("flac", "[findNextFrame] Valid FLAC frame found at predicted position ", predicted_offset);
+                Debug::log("flac", "[findNextFrame_unlocked] Valid FLAC frame found at predicted position ", predicted_offset);
                 m_current_offset = predicted_offset;
                 return true;
             }
@@ -2032,65 +2059,104 @@ bool FLACDemuxer::findNextFrame(FLACFrame& frame)
     // Try to parse frame header at current position first
     frame.file_offset = search_start;
     if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
-        Debug::log("flac", "[findNextFrame] Valid FLAC frame found at current position ", search_start);
+        Debug::log("flac", "[findNextFrame_unlocked] Valid FLAC frame found at current position ", search_start);
         m_current_offset = search_start;
         return true;
     }
     
-    // Use a reasonable search scope - FLAC frames can be large
-    const uint64_t MAX_SEARCH_SCOPE = 16384;  // 16KB should cover most frame sizes
+    // INFINITE LOOP PREVENTION: Use configurable search window limits
+    const uint64_t MAX_SEARCH_SCOPE = std::min(static_cast<uint64_t>(8192), 
+                                               static_cast<uint64_t>(conservative_frame_size * 4));
     
-    Debug::log("flac", "[findNextFrame] Frame not at current position, starting limited search (max ", MAX_SEARCH_SCOPE, " bytes)");
+    Debug::log("flac", "[findNextFrame_unlocked] Frame not at current position, starting limited search (max ", MAX_SEARCH_SCOPE, " bytes)");
     
-    // Use larger buffer for fewer I/O operations
-    const size_t EFFICIENT_BUFFER_SIZE = MAX_SEARCH_SCOPE;  // Read entire search scope at once
-    if (!ensureBufferCapacity(m_sync_buffer, EFFICIENT_BUFFER_SIZE)) {
+    // Use efficient buffer size for search
+    const size_t SEARCH_BUFFER_SIZE = static_cast<size_t>(MAX_SEARCH_SCOPE);
+    if (!ensureBufferCapacity(m_sync_buffer, SEARCH_BUFFER_SIZE)) {
         reportError("Memory", "Failed to allocate sync search buffer");
         return false;
     }
     
-    // PERFORMANCE OPTIMIZATION 5: Single large read instead of multiple small reads
-    size_t bytes_read = m_handler->read(m_sync_buffer.data(), 1, EFFICIENT_BUFFER_SIZE);
+    // Single read operation to minimize I/O
+    size_t bytes_read = m_handler->read(m_sync_buffer.data(), 1, SEARCH_BUFFER_SIZE);
     
     if (bytes_read < 2) {
-        Debug::log("flac", "[findNextFrame] Insufficient data for sync search (", bytes_read, " bytes)");
+        Debug::log("flac", "[findNextFrame_unlocked] Insufficient data for sync search (", bytes_read, " bytes)");
         return false;
     }
     
-    // Simple byte-by-byte sync search like libFLAC's frame_sync_
-    // Look for 0xFF followed by 0xF8-0xFF (sync pattern)
-    for (size_t i = 0; i < bytes_read - 1; i++) {
-        if (m_sync_buffer[i] == 0xFF) {
-            uint8_t second_byte = m_sync_buffer[i + 1];
-            // Check if second byte matches FLAC sync pattern (0xF8-0xFF)
-            if ((second_byte >> 1) == 0x7C) {  // This gives 0xF8-0xFF range
-                uint64_t sync_position = search_start + i;
-                
-                Debug::log("flac", "[findNextFrame] Found FLAC sync pattern 0xFF", std::hex, (int)second_byte, 
-                          std::dec, " at position ", sync_position);
-                
-                // Seek to this position and try to parse frame header
-                if (m_handler->seek(static_cast<off_t>(sync_position), SEEK_SET) != 0) {
-                    Debug::log("flac", "[findNextFrame] Failed to seek to sync position");
-                    continue;
-                }
-                
-                // Store position in frame structure
-                frame.file_offset = sync_position;
-                
-                // Try to parse frame header at this position
-                if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
-                    Debug::log("flac", "[findNextFrame] Valid FLAC frame found at position ", sync_position);
-                    m_current_offset = sync_position;
-                    return true;
-                } else {
-                    Debug::log("flac", "[findNextFrame] Frame header validation failed at position ", sync_position);
-                }
+    // RFC 9639 compliant sync pattern search
+    size_t sync_offset;
+    if (searchSyncPattern_unlocked(m_sync_buffer.data(), bytes_read, sync_offset)) {
+        uint64_t sync_position = search_start + sync_offset;
+        
+        Debug::log("flac", "[findNextFrame_unlocked] Found RFC 9639 sync pattern at position ", sync_position);
+        
+        // Seek to this position and try to parse frame header
+        if (m_handler->seek(static_cast<off_t>(sync_position), SEEK_SET) != 0) {
+            Debug::log("flac", "[findNextFrame_unlocked] Failed to seek to sync position");
+            return false;
+        }
+        
+        // Store position in frame structure
+        frame.file_offset = sync_position;
+        
+        // Try to parse frame header at this position
+        if (parseFrameHeader(frame) && validateFrameHeader(frame)) {
+            Debug::log("flac", "[findNextFrame_unlocked] Valid FLAC frame found at position ", sync_position);
+            m_current_offset = sync_position;
+            
+            // Calculate frame size for boundary detection
+            uint32_t frame_size = calculateFrameSize_unlocked(frame);
+            if (frame_size > 0) {
+                frame.frame_size = frame_size;
+                Debug::log("flac", "[findNextFrame_unlocked] Frame size calculated: ", frame_size, " bytes");
+            }
+            
+            return true;
+        } else {
+            Debug::log("flac", "[findNextFrame_unlocked] Frame header validation failed at position ", sync_position);
+        }
+    }
+    
+    // FALLBACK STRATEGY 1: Try frame end detection using next sync pattern search
+    Debug::log("flac", "[findNextFrame_unlocked] Primary sync search failed, trying frame end detection");
+    
+    // Reset to search start
+    if (m_handler->seek(static_cast<off_t>(search_start), SEEK_SET) == 0) {
+        frame.file_offset = search_start;
+        
+        // Try to determine frame end using next sync pattern search
+        uint32_t frame_end_offset = findFrameEndFromFile_unlocked(search_start);
+        if (frame_end_offset > 0) {
+            frame.frame_size = frame_end_offset;
+            Debug::log("flac", "[findNextFrame_unlocked] Frame end detected at offset ", frame_end_offset, " from start");
+            
+            // Try to parse header again with known frame size
+            if (parseFrameHeader(frame)) {
+                Debug::log("flac", "[findNextFrame_unlocked] Frame found using end detection strategy");
+                m_current_offset = search_start;
+                return true;
             }
         }
     }
     
-    Debug::log("flac", "[findNextFrame] No valid FLAC frame found in search scope");
+    // FALLBACK STRATEGY 2: Use conservative frame size when frame end cannot be determined
+    Debug::log("flac", "[findNextFrame_unlocked] Frame end detection failed, using conservative fallback");
+    
+    if (m_handler->seek(static_cast<off_t>(search_start), SEEK_SET) == 0) {
+        frame.file_offset = search_start;
+        frame.frame_size = conservative_frame_size;
+        
+        // Try to parse header with conservative size
+        if (parseFrameHeader(frame)) {
+            Debug::log("flac", "[findNextFrame_unlocked] Frame found using conservative size fallback: ", conservative_frame_size, " bytes");
+            m_current_offset = search_start;
+            return true;
+        }
+    }
+    
+    Debug::log("flac", "[findNextFrame_unlocked] All frame boundary detection strategies failed");
     return false;
 }
 
@@ -2758,7 +2824,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
         FLACFrame frame;
         
         // Find the next frame
-        if (!findNextFrame(frame)) {
+        if (!findNextFrame_unlocked(frame)) {
             Debug::log("flac", "Failed to find next frame during seek refinement");
             break;
         }
@@ -2923,7 +2989,7 @@ bool FLACDemuxer::seekBinary(uint64_t target_sample)
                     break;
                 }
                 
-                if (findNextFrame(frame)) {
+                if (findNextFrame_unlocked(frame)) {
                     // Validate frame header for consistency
                     if (validateFrameHeader(frame)) {
                         found_frame = true;
@@ -3091,7 +3157,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
         FLACFrame frame;
         
         // Find the next frame
-        if (!findNextFrame(frame)) {
+        if (!findNextFrame_unlocked(frame)) {
             Debug::log("flac", "Failed to find next frame during linear search at sample ", current_sample);
             break;
         }
@@ -3340,7 +3406,7 @@ bool FLACDemuxer::performInitialFrameIndexing()
         FLACFrame frame;
         
         // Find the next frame
-        if (!findNextFrame(frame)) {
+        if (!findNextFrame_unlocked(frame)) {
             Debug::log("flac", "[performInitialFrameIndexing] No more frames found after indexing ", frames_indexed, " frames");
             break;
         }
@@ -3499,7 +3565,7 @@ bool FLACDemuxer::attemptStreamInfoRecovery()
     
     // Try to find and parse the first frame
     FLACFrame first_frame;
-    if (!findNextFrame(first_frame)) {
+    if (!findNextFrame_unlocked(first_frame)) {
         Debug::log("flac", "Could not find first FLAC frame for STREAMINFO recovery");
         // Restore position
         m_handler->seek(saved_position, SEEK_SET);
@@ -3655,7 +3721,7 @@ bool FLACDemuxer::recoverFromCorruptedMetadata()
     
     // Search for the first valid FLAC frame
     FLACFrame first_frame;
-    if (findNextFrame(first_frame)) {
+    if (findNextFrame_unlocked(first_frame)) {
         m_audio_data_offset = first_frame.file_offset;
         Debug::log("flac", "Found audio data start at offset: ", m_audio_data_offset);
         return true;
@@ -3678,7 +3744,7 @@ bool FLACDemuxer::resynchronizeToNextFrame()
     
     // Try to find the next valid frame
     FLACFrame frame;
-    if (findNextFrame(frame)) {
+    if (findNextFrame_unlocked(frame)) {
         Debug::log("flac", "Resynchronized to frame at offset ", frame.file_offset, 
                   " (searched from ", start_position, ")");
         
@@ -3839,7 +3905,7 @@ bool FLACDemuxer::skipCorruptedFrame()
         
         // Try to find a valid frame from this position
         FLACFrame test_frame;
-        if (findNextFrame(test_frame)) {
+        if (findNextFrame_unlocked(test_frame)) {
             Debug::log("flac", "[skipCorruptedFrame] Successfully skipped corrupted frame, found next frame at ", 
                       test_frame.file_offset);
             
@@ -4330,7 +4396,7 @@ bool FLACDemuxer::recoverFromFrameError()
     // Strategy 4: Try to find any valid FLAC frame in the remaining file
     if (m_handler->seek(current_pos, SEEK_SET)) {
         FLACFrame recovery_frame;
-        if (findNextFrame(recovery_frame)) {
+        if (findNextFrame_unlocked(recovery_frame)) {
             Debug::log("flac", "Found valid frame during general recovery");
             updatePositionTracking(recovery_frame.sample_offset, recovery_frame.file_offset);
             return true;

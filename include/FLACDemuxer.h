@@ -541,8 +541,10 @@ private:
     
     // Frame size calculation and boundary detection
     uint32_t calculateFrameSize(const FLACFrame& frame);
+    uint32_t calculateFrameSize_unlocked(const FLACFrame& frame);
     uint32_t findFrameEnd(const uint8_t* buffer, uint32_t buffer_size);
     uint32_t findFrameEndFromFile(uint64_t frame_start_offset);
+    uint32_t findFrameEndFromFile_unlocked(uint64_t frame_start_offset);
     bool parseStreamInfoBlock(const FLACMetadataBlock& block);
     bool parseSeekTableBlock(const FLACMetadataBlock& block);
     bool parseVorbisCommentBlock(const FLACMetadataBlock& block);
@@ -550,6 +552,7 @@ private:
     bool skipMetadataBlock(const FLACMetadataBlock& block);
     
     bool findNextFrame(FLACFrame& frame);
+    bool findNextFrame_unlocked(FLACFrame& frame);
     bool getNextFrameFromSeekTable(FLACFrame& frame);
     bool parseFrameHeader(FLACFrame& frame);
     bool validateFrameHeader(const FLACFrame& frame);
