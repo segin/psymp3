@@ -1212,7 +1212,7 @@ bool FLACDemuxer::parseMetadataBlocks()
             case FLACMetadataType::STREAMINFO:
                 block_type_name = "STREAMINFO";
                 Debug::log("flac", "[parseMetadataBlocks] Processing STREAMINFO block");
-                parse_success = parseStreamInfoBlock(block);
+                parse_success = parseStreamInfoBlock_unlocked(block);
                 if (parse_success) {
                     found_streaminfo = true;
                 } else {
@@ -1364,7 +1364,13 @@ bool FLACDemuxer::parseMetadataBlocks()
 
 bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
 {
-    Debug::log("flac", "[parseStreamInfoBlock] Parsing STREAMINFO block");
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return parseStreamInfoBlock_unlocked(block);
+}
+
+bool FLACDemuxer::parseStreamInfoBlock_unlocked(const FLACMetadataBlock& block)
+{
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] Parsing STREAMINFO block");
     
     if (!m_handler) {
         return false;
@@ -1376,8 +1382,6 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
         return false;
     }
     
-
-    
     // Read STREAMINFO data
     uint8_t data[34];
     if (m_handler->read(data, 1, 34) != 34) {
@@ -1385,72 +1389,72 @@ bool FLACDemuxer::parseStreamInfoBlock(const FLACMetadataBlock& block)
         return false;
     }
     
-    // Parse STREAMINFO fields (all big-endian)
+    // Parse STREAMINFO fields according to RFC 9639 bit layout
+    // All fields are in big-endian format
     
-    // Minimum block size (16 bits)
+    // Minimum block size (16 bits) - bytes 0-1
     m_streaminfo.min_block_size = (static_cast<uint16_t>(data[0]) << 8) | 
                                   static_cast<uint16_t>(data[1]);
     
-    // Maximum block size (16 bits)
+    // Maximum block size (16 bits) - bytes 2-3
     m_streaminfo.max_block_size = (static_cast<uint16_t>(data[2]) << 8) | 
                                   static_cast<uint16_t>(data[3]);
     
-
-    
-    // Minimum frame size (24 bits)
+    // Minimum frame size (24 bits) - bytes 4-6
     m_streaminfo.min_frame_size = (static_cast<uint32_t>(data[4]) << 16) |
                                   (static_cast<uint32_t>(data[5]) << 8) |
                                   static_cast<uint32_t>(data[6]);
     
-    // Maximum frame size (24 bits)
+    // Maximum frame size (24 bits) - bytes 7-9
     m_streaminfo.max_frame_size = (static_cast<uint32_t>(data[7]) << 16) |
                                   (static_cast<uint32_t>(data[8]) << 8) |
                                   static_cast<uint32_t>(data[9]);
     
+    // RFC 9639 Section 8.2: Packed fields in bytes 10-13
     // Sample rate (20 bits), channels (3 bits), bits per sample (5 bits)
-    // Packed across bytes 10-13 according to RFC 9639
+    // Total samples (36 bits) spans bytes 13-17
     
-
-    
-    // Sample rate (20 bits, big-endian) - bytes 10-12 + 4 bits of byte 13
+    // Sample rate (20 bits) - bytes 10-12 + upper 4 bits of byte 13
+    // Correct bit extraction: 20 bits total
     m_streaminfo.sample_rate = (static_cast<uint32_t>(data[10]) << 12) |
                                (static_cast<uint32_t>(data[11]) << 4) |
                                ((static_cast<uint32_t>(data[12]) >> 4) & 0x0F);
     
-    // Channels (3 bits) - bits 1-3 of byte 12, add 1
+    // Channels (3 bits) - bits 1-3 of byte 12 (after sample rate), then add 1
+    // Correct bit extraction: 3 bits from positions 1-3 of byte 12
     m_streaminfo.channels = ((data[12] >> 1) & 0x07) + 1;
     
-    // Bits per sample (5 bits) - bit 0 of byte 12 + bits 4-7 of byte 13, add 1
+    // Bits per sample (5 bits) - bit 0 of byte 12 + upper 4 bits of byte 13, then add 1
+    // Correct bit extraction: 1 bit from byte 12 + 4 bits from byte 13
     m_streaminfo.bits_per_sample = (((data[12] & 0x01) << 4) | ((data[13] >> 4) & 0x0F)) + 1;
     
-
-    
-    // Total samples (36 bits): bottom 4 bits of byte 13 + bytes 14-17
+    // Total samples (36 bits) - lower 4 bits of byte 13 + bytes 14-17
+    // Correct bit extraction: 4 bits from byte 13 + 32 bits from bytes 14-17
     m_streaminfo.total_samples = (static_cast<uint64_t>(data[13] & 0x0F) << 32) |
                                  (static_cast<uint64_t>(data[14]) << 24) |
                                  (static_cast<uint64_t>(data[15]) << 16) |
                                  (static_cast<uint64_t>(data[16]) << 8) |
                                  static_cast<uint64_t>(data[17]);
     
-    // MD5 signature (16 bytes)
+    // MD5 signature (16 bytes) - bytes 18-33
     std::memcpy(m_streaminfo.md5_signature, &data[18], 16);
     
-    // Validate parsed data
-    if (!m_streaminfo.isValid()) {
-        reportError("Format", "Invalid STREAMINFO data");
+    // Validate parsed data against RFC 9639 constraints
+    if (!validateStreamInfoParameters_unlocked()) {
+        reportError("Format", "STREAMINFO contains invalid parameters per RFC 9639");
         return false;
     }
     
-    Debug::log("flac", "[parseStreamInfoBlock] STREAMINFO parsed successfully:");
-    Debug::log("flac", "[parseStreamInfoBlock] Sample rate: ", m_streaminfo.sample_rate, " Hz");
-    Debug::log("flac", "[parseStreamInfoBlock] Channels: ", static_cast<int>(m_streaminfo.channels));
-    Debug::log("flac", "[parseStreamInfoBlock] Bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
-    Debug::log("flac", "[parseStreamInfoBlock] Total samples: ", m_streaminfo.total_samples);
-    Debug::log("flac", "[parseStreamInfoBlock] Duration: ", m_streaminfo.getDurationMs(), " ms");
-    Debug::log("flac", "[parseStreamInfoBlock] Block size range: ", m_streaminfo.min_block_size, "-", m_streaminfo.max_block_size);
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] STREAMINFO parsed successfully:");
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] Sample rate: ", m_streaminfo.sample_rate, " Hz");
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] Channels: ", static_cast<int>(m_streaminfo.channels));
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] Bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] Total samples: ", m_streaminfo.total_samples);
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] Duration: ", m_streaminfo.getDurationMs(), " ms");
+    Debug::log("flac", "[parseStreamInfoBlock_unlocked] Block size range: ", m_streaminfo.min_block_size, "-", m_streaminfo.max_block_size);
     
     if (m_streaminfo.min_frame_size > 0 && m_streaminfo.max_frame_size > 0) {
-        Debug::log("flac", "[parseStreamInfoBlock] Frame size range: ", m_streaminfo.min_frame_size, "-", m_streaminfo.max_frame_size);
+        Debug::log("flac", "[parseStreamInfoBlock_unlocked] Frame size range: ", m_streaminfo.min_frame_size, "-", m_streaminfo.max_frame_size);
     }
     
     return true;
@@ -3604,78 +3608,98 @@ bool FLACDemuxer::attemptStreamInfoRecovery()
 
 bool FLACDemuxer::validateStreamInfoParameters() const
 {
-    Debug::log("flac", "FLACDemuxer::validateStreamInfoParameters() - validating STREAMINFO");
+    std::lock_guard<std::mutex> metadata_lock(m_metadata_mutex);
+    return validateStreamInfoParameters_unlocked();
+}
+
+bool FLACDemuxer::validateStreamInfoParameters_unlocked() const
+{
+    Debug::log("flac", "[validateStreamInfoParameters_unlocked] Validating STREAMINFO per RFC 9639");
     
     // Check basic validity first
     if (!m_streaminfo.isValid()) {
-        Debug::log("flac", "STREAMINFO basic validation failed");
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] STREAMINFO basic validation failed");
         return false;
     }
     
-    // Additional reasonableness checks
+    // RFC 9639 Section 8.2 validation requirements
     
-    // Sample rate should be reasonable (8 Hz to 655350 Hz)
-    if (m_streaminfo.sample_rate < 8 || m_streaminfo.sample_rate > 655350) {
-        Debug::log("flac", "Invalid sample rate: ", m_streaminfo.sample_rate, " Hz");
+    // Sample rate validation (RFC 9639: must not be 0 for audio)
+    if (m_streaminfo.sample_rate == 0) {
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Invalid sample rate: 0 Hz (RFC 9639 violation)");
         return false;
     }
     
-    // Channels should be 1-8 (FLAC specification limit)
+    // Sample rate should be reasonable (1 Hz to 655350 Hz per 20-bit field)
+    if (m_streaminfo.sample_rate > 1048575) { // 2^20 - 1
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Sample rate exceeds 20-bit limit: ", m_streaminfo.sample_rate, " Hz");
+        return false;
+    }
+    
+    // Channels validation (RFC 9639: 1-8 channels, stored as channels-1 in 3 bits)
     if (m_streaminfo.channels < 1 || m_streaminfo.channels > 8) {
-        Debug::log("flac", "Invalid channel count: ", static_cast<int>(m_streaminfo.channels));
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Invalid channel count: ", static_cast<int>(m_streaminfo.channels), " (RFC 9639: 1-8 channels)");
         return false;
     }
     
-    // Bits per sample should be 4-32 (FLAC specification)
+    // Bits per sample validation (RFC 9639: 4-32 bits, stored as bits-1 in 5 bits)
     if (m_streaminfo.bits_per_sample < 4 || m_streaminfo.bits_per_sample > 32) {
-        Debug::log("flac", "Invalid bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Invalid bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample), " (RFC 9639: 4-32 bits)");
         return false;
     }
     
-    // Block sizes should be reasonable (16 to 65535 samples)
+    // Block size validation (RFC 9639: 16-65535 samples)
     if (m_streaminfo.min_block_size < 16 || m_streaminfo.min_block_size > 65535) {
-        Debug::log("flac", "Invalid minimum block size: ", m_streaminfo.min_block_size);
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Invalid minimum block size: ", m_streaminfo.min_block_size, " (RFC 9639: 16-65535)");
         return false;
     }
     
     if (m_streaminfo.max_block_size < 16 || m_streaminfo.max_block_size > 65535) {
-        Debug::log("flac", "Invalid maximum block size: ", m_streaminfo.max_block_size);
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Invalid maximum block size: ", m_streaminfo.max_block_size, " (RFC 9639: 16-65535)");
         return false;
     }
     
-    // Max block size should be >= min block size
+    // Max block size should be >= min block size (RFC 9639)
     if (m_streaminfo.max_block_size < m_streaminfo.min_block_size) {
-        Debug::log("flac", "Maximum block size (", m_streaminfo.max_block_size, 
-                  ") is less than minimum block size (", m_streaminfo.min_block_size, ")");
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Maximum block size (", m_streaminfo.max_block_size, 
+                  ") is less than minimum block size (", m_streaminfo.min_block_size, ") - RFC 9639 violation");
         return false;
     }
     
-    // Frame sizes (if specified) should be reasonable
+    // Frame sizes validation (if specified)
     if (m_streaminfo.min_frame_size > 0 && m_streaminfo.max_frame_size > 0) {
         if (m_streaminfo.max_frame_size < m_streaminfo.min_frame_size) {
-            Debug::log("flac", "Maximum frame size (", m_streaminfo.max_frame_size, 
+            Debug::log("flac", "[validateStreamInfoParameters_unlocked] Maximum frame size (", m_streaminfo.max_frame_size, 
                       ") is less than minimum frame size (", m_streaminfo.min_frame_size, ")");
             return false;
         }
         
-        // Frame sizes should not be unreasonably large (16MB limit)
-        if (m_streaminfo.max_frame_size > 16 * 1024 * 1024) {
-            Debug::log("flac", "Maximum frame size too large: ", m_streaminfo.max_frame_size, " bytes");
+        // Frame sizes should not exceed 24-bit field limit (16MB)
+        const uint32_t max_frame_size_limit = (1U << 24) - 1; // 24-bit field
+        if (m_streaminfo.max_frame_size > max_frame_size_limit) {
+            Debug::log("flac", "[validateStreamInfoParameters_unlocked] Maximum frame size exceeds 24-bit limit: ", m_streaminfo.max_frame_size, " bytes");
             return false;
         }
     }
     
-    // Total samples should be reasonable if specified
+    // Total samples validation (36-bit field allows up to 2^36-1 samples)
+    const uint64_t max_total_samples = (1ULL << 36) - 1;
+    if (m_streaminfo.total_samples > max_total_samples) {
+        Debug::log("flac", "[validateStreamInfoParameters_unlocked] Total samples exceeds 36-bit limit: ", m_streaminfo.total_samples);
+        return false;
+    }
+    
+    // Additional reasonableness check for total samples
     if (m_streaminfo.total_samples > 0) {
         // Check for reasonable duration (up to 24 hours at any sample rate)
         uint64_t max_reasonable_samples = static_cast<uint64_t>(m_streaminfo.sample_rate) * 24 * 3600;
         if (m_streaminfo.total_samples > max_reasonable_samples) {
-            Debug::log("flac", "Total samples seems unreasonably large: ", m_streaminfo.total_samples);
-            // This is just a warning, not a fatal error
+            Debug::log("flac", "[validateStreamInfoParameters_unlocked] Warning: Total samples seems unreasonably large: ", m_streaminfo.total_samples, " (>24 hours)");
+            // This is just a warning, not a fatal error for RFC compliance
         }
     }
     
-    Debug::log("flac", "STREAMINFO parameters validation passed");
+    Debug::log("flac", "[validateStreamInfoParameters_unlocked] STREAMINFO parameters validation passed (RFC 9639 compliant)");
     return true;
 }
 

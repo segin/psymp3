@@ -47,7 +47,7 @@ This implementation plan focuses on rebuilding the broken FLAC demuxer to achiev
   - Add comprehensive metadata block size and structure validation
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 2.1 Fix STREAMINFO parsing bit-field extraction
+- [x] 2.1 Fix STREAMINFO parsing bit-field extraction
   - Correct sample rate extraction (20 bits) in `parseStreamInfoBlock_unlocked()`
   - Fix channel count extraction (3 bits + 1) with proper bit masking
   - Correct bits per sample extraction (5 bits + 1) from packed fields

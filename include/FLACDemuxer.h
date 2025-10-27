@@ -546,6 +546,7 @@ private:
     uint32_t findFrameEndFromFile(uint64_t frame_start_offset);
     uint32_t findFrameEndFromFile_unlocked(uint64_t frame_start_offset);
     bool parseStreamInfoBlock(const FLACMetadataBlock& block);
+    bool parseStreamInfoBlock_unlocked(const FLACMetadataBlock& block);
     bool parseSeekTableBlock(const FLACMetadataBlock& block);
     bool parseVorbisCommentBlock(const FLACMetadataBlock& block);
     bool parsePictureBlock(const FLACMetadataBlock& block);
@@ -609,6 +610,7 @@ private:
     // Error handling and recovery methods
     bool attemptStreamInfoRecovery();
     bool validateStreamInfoParameters() const;
+    bool validateStreamInfoParameters_unlocked() const;
     bool recoverFromCorruptedMetadata();
     bool resynchronizeToNextFrame();
     void provideDefaultStreamInfo();
