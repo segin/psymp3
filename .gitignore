@@ -300,3 +300,5 @@ tests/mpris_regression_report.txt
 psymp3
 src/psymp3
 ./psymp3
+test_streaminfo_debug
+tests/test_streaminfo_bitfields
