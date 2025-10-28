@@ -6,39 +6,39 @@ This implementation plan converts the FLAC RFC 9639 compliance design into a ser
 
 ## Task List
 
-- [ ] 1. Implement Core Frame Boundary Detection
+- [x] 1. Implement Core Frame Boundary Detection
   - Create RFC 9639 compliant sync pattern validation
   - Implement robust frame size estimation and boundary detection
   - Add configurable search windows to prevent infinite loops
   - _Requirements: 2.1, 2.2, 2.3, 2.4_
 
-- [ ] 1.1 Create sync pattern validation methods
+- [x] 1.1 Create sync pattern validation methods
   - Implement `validateFrameSync_unlocked()` with 15-bit pattern (0b111111111111100)
   - Add `searchSyncPattern_unlocked()` with efficient byte-by-byte search
   - Create sync pattern validation with proper bit masking
   - _Requirements: 2.1_
 
-- [ ] 1.2 Implement frame boundary detection algorithm
+- [x] 1.2 Implement frame boundary detection algorithm
   - Create `findNextFrame_unlocked()` to prevent infinite loops
   - Add conservative frame size estimation using STREAMINFO hints
   - Implement frame end detection using next sync pattern search
   - Add fallback strategies when frame boundaries cannot be determined
   - _Requirements: 2.2, 2.4_
 
-- [ ] 1.3 Add frame size calculation and validation
+- [x] 1.3 Add frame size calculation and validation
   - Implement `calculateFrameSize_unlocked()` using STREAMINFO constraints
   - Create frame size estimation based on audio format parameters
   - Add frame size validation against min/max constraints
   - Implement fallback size estimation for missing STREAMINFO
   - _Requirements: 2.3, 2.4_
 
-- [ ] 2. Fix STREAMINFO Metadata Parsing
+- [x] 2. Fix STREAMINFO Metadata Parsing
   - Correct bit-field extraction errors in STREAMINFO parsing
   - Implement robust metadata block header parsing
   - Add STREAMINFO recovery mechanisms for corrupted blocks
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 2.1 Fix STREAMINFO bit-field extraction
+- [x] 2.1 Fix STREAMINFO bit-field extraction
   - Correct sample rate extraction (20 bits) in `parseStreamInfoBlock_unlocked()`
   - Fix channel count extraction (3 bits + 1) with proper bit masking
   - Fix bits per sample extraction (5 bits + 1) from packed fields
@@ -46,14 +46,14 @@ This implementation plan converts the FLAC RFC 9639 compliance design into a ser
   - Validate extracted values against RFC 9639 constraints
   - _Requirements: 1.3_
 
-- [ ] 2.2 Implement metadata block header parsing
+- [x] 2.2 Implement metadata block header parsing
   - Create `parseMetadataBlockHeader_unlocked()` for all block types
   - Add validation of block length fields and last-block flags
   - Implement metadata block size limits to prevent memory exhaustion
   - Add error recovery for corrupted block headers
   - _Requirements: 1.1, 1.2_
 
-- [ ] 2.3 Add STREAMINFO recovery mechanisms
+- [x] 2.3 Add STREAMINFO recovery mechanisms
   - Implement `attemptStreamInfoRecovery_unlocked()` to derive from first frame
   - Add validation of recovered STREAMINFO parameters
   - Create fallback STREAMINFO values for missing blocks
