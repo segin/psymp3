@@ -538,10 +538,14 @@ private:
     // Private helper methods (assume appropriate locks are held)
     bool parseMetadataBlocks();
     bool parseMetadataBlockHeader(FLACMetadataBlock& block);
+    bool parseMetadataBlockHeader_unlocked(FLACMetadataBlock& block);
     
     // Frame size calculation and boundary detection
     uint32_t calculateFrameSize(const FLACFrame& frame);
     uint32_t calculateFrameSize_unlocked(const FLACFrame& frame);
+    bool validateFrameSize_unlocked(uint32_t frame_size, const FLACFrame& frame) const;
+    uint32_t calculateTheoreticalMinFrameSize_unlocked(const FLACFrame& frame) const;
+    uint32_t calculateTheoreticalMaxFrameSize_unlocked(const FLACFrame& frame) const;
     uint32_t findFrameEnd(const uint8_t* buffer, uint32_t buffer_size);
     uint32_t findFrameEndFromFile(uint64_t frame_start_offset);
     uint32_t findFrameEndFromFile_unlocked(uint64_t frame_start_offset);
@@ -556,8 +560,16 @@ private:
     bool findNextFrame_unlocked(FLACFrame& frame);
     bool getNextFrameFromSeekTable(FLACFrame& frame);
     bool parseFrameHeader(FLACFrame& frame);
+    bool parseFrameHeader_unlocked(FLACFrame& frame);
     bool validateFrameHeader(const FLACFrame& frame);
+    bool validateFrameHeader_unlocked(const FLACFrame& frame);
     bool validateFrameHeaderAt(uint64_t file_offset);
+    
+    // UTF-8 decoding for frame/sample numbers
+    bool decodeUTF8Number_unlocked(uint64_t& number, uint8_t* raw_header, uint32_t& raw_header_len);
+    
+    // CRC calculation methods
+    uint8_t calculateHeaderCRC8_unlocked(const uint8_t* data, size_t length);
     
     bool readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data);
     void resetPositionTracking();
@@ -609,8 +621,12 @@ private:
     
     // Error handling and recovery methods
     bool attemptStreamInfoRecovery();
+    bool attemptStreamInfoRecovery_unlocked();
     bool validateStreamInfoParameters() const;
     bool validateStreamInfoParameters_unlocked() const;
+    bool validateRecoveredStreamInfo_unlocked() const;
+    void createFallbackStreamInfo_unlocked();
+    bool checkStreamInfoConsistency_unlocked(const FLACFrame& frame) const;
     bool recoverFromCorruptedMetadata();
     bool resynchronizeToNextFrame();
     void provideDefaultStreamInfo();
@@ -621,6 +637,11 @@ private:
     bool validateFrameCRC(const FLACFrame& frame, const std::vector<uint8_t>& frame_data);
     MediaChunk createSilenceChunk(uint32_t block_size);
     bool recoverFromFrameError();
+    
+    // Metadata validation methods
+    bool validateMetadataBlockLength_unlocked(FLACMetadataType type, uint32_t length) const;
+    const char* getMetadataBlockTypeName_unlocked(FLACMetadataType type) const;
+    bool recoverFromCorruptedBlockHeader_unlocked(FLACMetadataBlock& block);
     
     // Memory management methods
     void initializeBuffers();

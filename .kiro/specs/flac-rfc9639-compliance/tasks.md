@@ -60,14 +60,14 @@ This implementation plan converts the FLAC RFC 9639 compliance design into a ser
   - Implement STREAMINFO consistency checking across frames
   - _Requirements: 1.4_
 
-- [ ] 3. Implement RFC 9639 Frame Header Parsing
+- [x] 3. Implement RFC 9639 Frame Header Parsing
   - Fix frame header parsing for all RFC 9639 field combinations
   - Add UTF-8 decoding for frame/sample numbers
   - Implement complete frame header validation including reserved bits
   - Add support for variable vs. fixed block size strategies
   - _Requirements: 2.2, 6.2, 6.4, 7.4_
 
-- [ ] 3.1 Fix frame header field parsing
+- [x] 3.1 Fix frame header field parsing
   - Correct blocking strategy parsing in `parseFrameHeader_unlocked()`
   - Fix block size parsing for all encoding modes (direct, 8-bit, 16-bit)
   - Fix sample rate parsing for all encoding modes including custom rates
@@ -75,14 +75,14 @@ This implementation plan converts the FLAC RFC 9639 compliance design into a ser
   - Fix bit depth parsing for all valid bit depths
   - _Requirements: 2.2_
 
-- [ ] 3.2 Implement UTF-8 frame number decoding
+- [x] 3.2 Implement UTF-8 frame number decoding
   - Create `decodeUTF8Number_unlocked()` for frame/sample number parsing
   - Add UTF-8 sequence validation and error handling
   - Support 1-7 byte UTF-8 sequences per FLAC specification
   - Add bounds checking for decoded frame numbers
   - _Requirements: 2.2_
 
-- [ ] 3.3 Add comprehensive frame header validation
+- [x] 3.3 Add comprehensive frame header validation
   - Implement `validateFrameHeader_unlocked()` with complete checks
   - Add reserved bit validation (must be zero)
   - Validate frame header consistency with STREAMINFO
