@@ -294,6 +294,9 @@ private:
     bool checkGranularity(const FLACFrameIndexEntry& entry) const;
 };
 
+// Forward declarations
+class ErrorRecoveryManager;
+
 /**
  * @brief FLAC picture metadata information (memory-optimized)
  */
@@ -360,6 +363,13 @@ struct FLACPicture {
  */
 class FLACDemuxer : public Demuxer {
 public:
+    // CRC validation modes for RFC 9639 compliance
+    enum class CRCValidationMode {
+        DISABLED,    ///< No CRC validation (maximum performance)
+        ENABLED,     ///< CRC validation with error tolerance
+        STRICT       ///< Strict CRC validation - reject frames with CRC errors
+    };
+    
     // Memory management constants
     static constexpr size_t MAX_SEEK_TABLE_ENTRIES = 10000;     ///< Maximum seek table entries to prevent memory exhaustion
     static constexpr size_t MAX_VORBIS_COMMENTS = 1000;        ///< Maximum number of Vorbis comments
@@ -482,6 +492,139 @@ public:
      * @thread_safety Thread-safe
      */
     bool buildFrameIndex();
+    
+    /**
+     * @brief Set CRC validation mode for RFC 9639 compliance
+     * @param mode CRC validation mode (DISABLED/ENABLED/STRICT)
+     * @thread_safety Thread-safe
+     */
+    void setCRCValidationMode(CRCValidationMode mode);
+    
+    /**
+     * @brief Get current CRC validation mode
+     * @return Current CRC validation mode
+     * @thread_safety Thread-safe
+     */
+    CRCValidationMode getCRCValidationMode() const;
+    
+    /**
+     * @brief Set CRC error threshold for automatic validation disabling
+     * @param threshold Maximum CRC errors before disabling validation (0 = never disable)
+     * @thread_safety Thread-safe
+     */
+    void setCRCErrorThreshold(size_t threshold);
+    
+    /**
+     * @brief Get CRC validation statistics
+     * @return Structure containing CRC error counts and status
+     * @thread_safety Thread-safe
+     */
+    struct CRCValidationStats {
+        size_t crc8_errors = 0;
+        size_t crc16_errors = 0;
+        size_t total_errors = 0;
+        bool validation_disabled_due_to_errors = false;
+        CRCValidationMode current_mode = CRCValidationMode::ENABLED;
+    };
+    
+    CRCValidationStats getCRCValidationStats() const;
+    
+    /**
+     * @brief Reset CRC validation statistics and re-enable validation
+     * @thread_safety Thread-safe
+     */
+    void resetCRCValidationStats();
+    
+    /**
+     * @brief Get error recovery manager for advanced error handling
+     * @return Reference to error recovery manager
+     * @thread_safety Thread-safe
+     */
+    ErrorRecoveryManager& getErrorRecoveryManager();
+    
+    /**
+     * @brief Get error recovery manager (const version)
+     * @return Const reference to error recovery manager
+     * @thread_safety Thread-safe
+     */
+    const ErrorRecoveryManager& getErrorRecoveryManager() const;
+    
+    /**
+     * @brief Recover from lost sync pattern (public interface)
+     * @param search_start_offset File offset to start sync search
+     * @param recovered_offset Output parameter for recovered sync offset
+     * @return true if sync pattern was found and position recovered
+     * @thread_safety Thread-safe
+     */
+    bool recoverFromLostSync(uint64_t search_start_offset, uint64_t& recovered_offset);
+    
+    /**
+     * @brief Get sync loss recovery statistics
+     * @return Structure containing sync recovery statistics
+     * @thread_safety Thread-safe
+     */
+    struct SyncRecoveryStats {
+        size_t sync_loss_count = 0;
+        size_t sync_recovery_successes = 0;
+        size_t sync_recovery_failures = 0;
+        size_t total_sync_search_bytes = 0;
+        uint64_t last_sync_recovery_offset = 0;
+        
+        double getSuccessRate() const {
+            if (sync_loss_count == 0) return 0.0;
+            return (static_cast<double>(sync_recovery_successes) / sync_loss_count) * 100.0;
+        }
+    };
+    
+    SyncRecoveryStats getSyncRecoveryStats() const;
+    
+    /**
+     * @brief Detect and recover from frame corruption
+     * @param frame Frame to check for corruption
+     * @param frame_data Frame data for validation
+     * @return true if frame is valid or corruption was successfully handled
+     * @thread_safety Thread-safe
+     */
+    bool detectAndRecoverFromFrameCorruption(const FLACFrame& frame, const std::vector<uint8_t>& frame_data);
+    
+    /**
+     * @brief Detect and recover from metadata corruption
+     * @param block Metadata block to check for corruption
+     * @return true if block is valid or corruption was successfully handled
+     * @thread_safety Thread-safe
+     */
+    bool detectAndRecoverFromMetadataCorruption(const FLACMetadataBlock& block);
+    
+    /**
+     * @brief Get corruption detection and recovery statistics
+     * @return Structure containing corruption recovery statistics
+     * @thread_safety Thread-safe
+     */
+    struct CorruptionRecoveryStats {
+        size_t frame_corruption_count = 0;
+        size_t metadata_corruption_count = 0;
+        size_t frame_recovery_successes = 0;
+        size_t frame_recovery_failures = 0;
+        size_t metadata_recovery_successes = 0;
+        size_t metadata_recovery_failures = 0;
+        size_t total_corruption_skip_bytes = 0;
+        
+        double getFrameRecoverySuccessRate() const {
+            if (frame_corruption_count == 0) return 0.0;
+            return (static_cast<double>(frame_recovery_successes) / frame_corruption_count) * 100.0;
+        }
+        
+        double getMetadataRecoverySuccessRate() const {
+            if (metadata_corruption_count == 0) return 0.0;
+            return (static_cast<double>(metadata_recovery_successes) / metadata_corruption_count) * 100.0;
+        }
+        
+        size_t getTotalCorruptions() const {
+            return frame_corruption_count + metadata_corruption_count;
+        }
+    };
+    
+    CorruptionRecoveryStats getCorruptionRecoveryStats() const;
 
 private:
     // Thread safety - Lock acquisition order documented above
@@ -522,6 +665,32 @@ private:
     bool m_initial_indexing_complete = false;        ///< True if initial parsing-based indexing is complete
     size_t m_frames_indexed_during_parsing = 0;      ///< Number of frames indexed during initial parsing
     size_t m_frames_indexed_during_playback = 0;     ///< Number of frames indexed during playback
+    
+    // CRC validation configuration (protected by m_state_mutex)
+    CRCValidationMode m_crc_validation_mode = CRCValidationMode::ENABLED;  ///< CRC validation mode
+    size_t m_crc8_error_count = 0;                   ///< Count of CRC-8 header validation errors
+    size_t m_crc16_error_count = 0;                  ///< Count of CRC-16 frame validation errors
+    size_t m_crc_error_threshold = 10;               ///< Maximum CRC errors before disabling validation
+    bool m_crc_validation_disabled_due_to_errors = false;  ///< CRC validation disabled due to excessive errors
+    
+    // Error recovery system (protected by m_state_mutex)
+    std::unique_ptr<ErrorRecoveryManager> m_error_recovery_manager;  ///< Centralized error recovery management
+    
+    // Sync loss recovery statistics (protected by m_state_mutex)
+    size_t m_sync_loss_count = 0;                    ///< Number of sync losses encountered
+    size_t m_sync_recovery_successes = 0;            ///< Number of successful sync recoveries
+    size_t m_sync_recovery_failures = 0;             ///< Number of failed sync recoveries
+    size_t m_total_sync_search_bytes = 0;            ///< Total bytes searched for sync recovery
+    uint64_t m_last_sync_recovery_offset = 0;        ///< File offset of last successful sync recovery
+    
+    // Corruption detection and recovery statistics (protected by m_state_mutex)
+    size_t m_frame_corruption_count = 0;             ///< Number of corrupted frames detected
+    size_t m_metadata_corruption_count = 0;          ///< Number of corrupted metadata blocks detected
+    size_t m_frame_recovery_successes = 0;           ///< Number of successful frame corruption recoveries
+    size_t m_frame_recovery_failures = 0;            ///< Number of failed frame corruption recoveries
+    size_t m_metadata_recovery_successes = 0;        ///< Number of successful metadata corruption recoveries
+    size_t m_metadata_recovery_failures = 0;         ///< Number of failed metadata corruption recoveries
+    size_t m_total_corruption_skip_bytes = 0;        ///< Total bytes skipped due to corruption
     
     // Thread-safe public method implementations (assume locks are held)
     bool parseContainer_unlocked();
@@ -570,12 +739,28 @@ private:
     
     // CRC calculation methods
     uint8_t calculateHeaderCRC8_unlocked(const uint8_t* data, size_t length);
+    uint16_t calculateFrameCRC16_unlocked(const uint8_t* data, size_t length);
+    
+    // CRC validation methods
+    bool validateHeaderCRC8_unlocked(const uint8_t* data, size_t length, uint8_t expected_crc);
+    bool validateFrameCRC16_unlocked(const uint8_t* data, size_t length, uint16_t expected_crc);
+    
+    // CRC error recovery strategies
+    bool handleCRCError_unlocked(bool is_header_crc, const std::string& context);
+    bool shouldContinueAfterCRCError_unlocked() const;
     
     bool readFrameData(const FLACFrame& frame, std::vector<uint8_t>& data);
     void resetPositionTracking();
     void updatePositionTracking(uint64_t sample_position, uint64_t file_offset);
+    void updatePositionTracking_unlocked(uint64_t sample_position, uint64_t file_offset);
+    bool validateSamplePosition_unlocked(uint64_t sample_position) const;
+
+    bool recoverPositionAfterSeek_unlocked();
     
     bool seekWithTable(uint64_t target_sample);
+    bool seekWithTable_unlocked(uint64_t target_sample);
+    bool validateSeekTable_unlocked() const;
+    bool validateSeekPoint_unlocked(const FLACSeekPoint& point) const;
     
     /**
      * @brief Frame index-based seeking (preferred method for accurate seeking)
@@ -631,6 +816,21 @@ private:
     bool resynchronizeToNextFrame();
     void provideDefaultStreamInfo();
     
+    // Sync loss recovery methods
+    bool recoverFromLostSync_unlocked(uint64_t search_start_offset, uint64_t& recovered_offset);
+    bool searchSyncPatternWithExpansion_unlocked(uint64_t start_offset, size_t initial_window, uint64_t& found_offset);
+    bool validateSyncRecovery_unlocked(uint64_t sync_offset, FLACFrame& recovered_frame);
+    void updateSyncLossStatistics_unlocked(bool recovery_successful, size_t bytes_searched);
+    
+    // Corruption detection and recovery methods
+    bool detectFrameCorruption_unlocked(const FLACFrame& frame, const std::vector<uint8_t>& frame_data);
+    bool detectMetadataCorruption_unlocked(const FLACMetadataBlock& block);
+    bool skipCorruptedFrame_unlocked(uint64_t& next_frame_offset);
+    bool skipCorruptedMetadataBlock_unlocked(const FLACMetadataBlock& block, uint64_t& next_block_offset);
+    bool searchForNextValidFrame_unlocked(uint64_t start_offset, FLACFrame& found_frame);
+    bool searchForNextValidMetadataBlock_unlocked(uint64_t start_offset, FLACMetadataBlock& found_block);
+    void updateCorruptionStatistics_unlocked(bool is_frame_corruption, bool recovery_successful);
+    
     // Frame-level error recovery methods
     bool handleLostFrameSync();
     bool skipCorruptedFrame();
@@ -670,6 +870,269 @@ private:
     void addFrameToIndex(uint64_t sample_offset, uint64_t file_offset, uint32_t block_size, uint32_t frame_size = 0);
     void enableFrameIndexing(bool enable);
     void clearFrameIndex();
+};
+
+/**
+ * @brief FLAC-specific error types for enhanced error classification
+ */
+enum class FLACErrorType {
+    IO_ERROR,           ///< File reading/seeking failures
+    FORMAT_ERROR,       ///< Invalid FLAC format structure
+    RFC_VIOLATION,      ///< Non-compliance with RFC 9639
+    RESOURCE_ERROR,     ///< Memory/resource exhaustion
+    LOGIC_ERROR         ///< Internal consistency failures
+};
+
+/**
+ * @brief Error severity levels for recovery strategy selection
+ */
+enum class ErrorSeverity {
+    RECOVERABLE,        ///< Can continue processing normally
+    FRAME_SKIP,         ///< Skip current frame, continue with next
+    STREAM_RESET,       ///< Reset to known good state
+    FATAL               ///< Cannot continue processing
+};
+
+/**
+ * @brief Detailed error context for debugging and recovery
+ */
+struct ErrorContext {
+    FLACErrorType type;
+    ErrorSeverity severity;
+    std::string message;
+    std::string rfc_section;        ///< RFC 9639 section reference
+    uint64_t file_position;         ///< Byte position where error occurred
+    uint64_t sample_position;       ///< Sample position where error occurred
+    std::chrono::steady_clock::time_point timestamp;
+    
+    // Additional context details
+    std::map<std::string, std::string> details;
+    
+    ErrorContext() = default;
+    
+    ErrorContext(FLACErrorType t, ErrorSeverity s, const std::string& msg)
+        : type(t), severity(s), message(msg), file_position(0), sample_position(0),
+          timestamp(std::chrono::steady_clock::now()) {}
+};
+
+/**
+ * @brief Error statistics for monitoring and analysis
+ */
+struct ErrorStatistics {
+    // Error counts by type
+    size_t io_errors = 0;
+    size_t format_errors = 0;
+    size_t rfc_violations = 0;
+    size_t resource_errors = 0;
+    size_t logic_errors = 0;
+    
+    // Error counts by severity
+    size_t recoverable_errors = 0;
+    size_t frame_skip_errors = 0;
+    size_t stream_reset_errors = 0;
+    size_t fatal_errors = 0;
+    
+    // Recovery statistics
+    size_t successful_recoveries = 0;
+    size_t failed_recoveries = 0;
+    size_t recovery_attempts = 0;
+    
+    // Timing statistics
+    std::chrono::steady_clock::time_point first_error_time;
+    std::chrono::steady_clock::time_point last_error_time;
+    
+    ErrorStatistics() {
+        auto now = std::chrono::steady_clock::now();
+        first_error_time = now;
+        last_error_time = now;
+    }
+    
+    /**
+     * @brief Get total error count across all types
+     */
+    size_t getTotalErrors() const {
+        return io_errors + format_errors + rfc_violations + resource_errors + logic_errors;
+    }
+    
+    /**
+     * @brief Get recovery success rate as percentage
+     */
+    double getRecoverySuccessRate() const {
+        if (recovery_attempts == 0) return 0.0;
+        return (static_cast<double>(successful_recoveries) / recovery_attempts) * 100.0;
+    }
+};
+
+/**
+ * @brief Recovery strategy configuration
+ */
+struct RecoveryConfig {
+    // Sync loss recovery settings
+    bool enable_sync_recovery = true;
+    size_t max_sync_search_bytes = 64 * 1024;      ///< Maximum bytes to search for sync pattern
+    size_t sync_search_window_expansion = 1024;     ///< Bytes to expand search window on failure
+    size_t max_sync_recovery_attempts = 3;          ///< Maximum sync recovery attempts per error
+    
+    // CRC error recovery settings
+    bool enable_crc_recovery = true;
+    size_t crc_error_threshold = 10;                ///< CRC errors before disabling validation
+    bool strict_crc_mode = false;                   ///< Reject all frames with CRC errors
+    
+    // Metadata corruption recovery settings
+    bool enable_metadata_recovery = true;
+    size_t max_metadata_skip_bytes = 1024 * 1024;  ///< Maximum bytes to skip for metadata recovery
+    bool allow_streaminfo_recovery = true;          ///< Allow STREAMINFO recovery from first frame
+    
+    // General recovery settings
+    size_t max_recovery_attempts = 5;               ///< Maximum recovery attempts per error
+    size_t error_history_limit = 100;               ///< Maximum error records to keep
+    bool enable_fallback_mode = true;               ///< Enable fallback parsing mode
+    
+    RecoveryConfig() = default;
+};
+
+/**
+ * @brief Centralized error recovery manager for FLAC demuxer
+ * 
+ * This class provides centralized error handling and recovery for the FLAC demuxer,
+ * implementing sophisticated recovery strategies based on error type and severity.
+ * 
+ * @thread_safety This class is thread-safe. All public methods can be called
+ *                concurrently from multiple threads.
+ */
+class ErrorRecoveryManager {
+public:
+    ErrorRecoveryManager();
+    explicit ErrorRecoveryManager(const RecoveryConfig& config);
+    
+    /**
+     * @brief Handle an error with automatic recovery attempt
+     * @param context Error context information
+     * @param demuxer Pointer to demuxer for recovery operations
+     * @return true if error was handled successfully (recovery or acceptable failure)
+     */
+    bool handleError(const ErrorContext& context, FLACDemuxer* demuxer);
+    
+    /**
+     * @brief Handle an error with simplified parameters
+     * @param type Error type
+     * @param severity Error severity
+     * @param message Error message
+     * @param demuxer Pointer to demuxer for recovery operations
+     * @return true if error was handled successfully
+     */
+    bool handleError(FLACErrorType type, ErrorSeverity severity, 
+                    const std::string& message, FLACDemuxer* demuxer);
+    
+    /**
+     * @brief Recover from lost sync pattern
+     * @param demuxer Pointer to demuxer for recovery operations
+     * @param search_start_offset File offset to start sync search
+     * @return true if sync pattern was found and position recovered
+     */
+    bool recoverFromLostSync(FLACDemuxer* demuxer, uint64_t search_start_offset);
+    
+    /**
+     * @brief Recover from CRC validation errors
+     * @param demuxer Pointer to demuxer for recovery operations
+     * @param is_header_crc True if this is a header CRC error, false for frame CRC
+     * @return true if recovery was successful or error is acceptable
+     */
+    bool recoverFromCRCError(FLACDemuxer* demuxer, bool is_header_crc);
+    
+    /**
+     * @brief Recover from metadata corruption
+     * @param demuxer Pointer to demuxer for recovery operations
+     * @return true if recovery was successful
+     */
+    bool recoverFromMetadataCorruption(FLACDemuxer* demuxer);
+    
+    /**
+     * @brief Get current error statistics
+     * @return Copy of current error statistics
+     */
+    ErrorStatistics getErrorStatistics() const;
+    
+    /**
+     * @brief Reset error statistics and history
+     */
+    void resetErrorStatistics();
+    
+    /**
+     * @brief Update recovery configuration
+     * @param config New recovery configuration
+     */
+    void setRecoveryConfig(const RecoveryConfig& config);
+    
+    /**
+     * @brief Get current recovery configuration
+     * @return Copy of current recovery configuration
+     */
+    RecoveryConfig getRecoveryConfig() const;
+    
+    /**
+     * @brief Check if error recovery is enabled for a specific error type
+     * @param type Error type to check
+     * @return true if recovery is enabled for this error type
+     */
+    bool isRecoveryEnabled(FLACErrorType type) const;
+    
+    /**
+     * @brief Get error history for debugging and analysis
+     * @return Vector of recent error contexts (limited by config.error_history_limit)
+     */
+    std::vector<ErrorContext> getErrorHistory() const;
+
+private:
+    mutable std::mutex m_mutex;                     ///< Thread safety for all operations
+    RecoveryConfig m_config;                        ///< Recovery configuration
+    ErrorStatistics m_stats;                        ///< Error statistics
+    std::vector<ErrorContext> m_error_history;      ///< Recent error history
+    
+    /**
+     * @brief Select recovery strategy based on error context
+     * @param context Error context
+     * @return Recovery strategy to attempt
+     */
+    DemuxerErrorRecovery selectRecoveryStrategy(const ErrorContext& context) const;
+    
+    /**
+     * @brief Execute recovery strategy
+     * @param strategy Recovery strategy to execute
+     * @param context Error context
+     * @param demuxer Pointer to demuxer for recovery operations
+     * @return true if recovery was successful
+     */
+    bool executeRecoveryStrategy(DemuxerErrorRecovery strategy, 
+                                const ErrorContext& context, 
+                                FLACDemuxer* demuxer);
+    
+    /**
+     * @brief Update error statistics with new error
+     * @param context Error context
+     * @param recovery_successful True if recovery was successful
+     */
+    void updateStatistics(const ErrorContext& context, bool recovery_successful);
+    
+    /**
+     * @brief Add error to history (thread-safe)
+     * @param context Error context to add
+     */
+    void addToHistory(const ErrorContext& context);
+    
+    /**
+     * @brief Check if we should attempt recovery based on error history
+     * @param context Error context
+     * @return true if recovery should be attempted
+     */
+    bool shouldAttemptRecovery(const ErrorContext& context) const;
+    
+    /**
+     * @brief Get RFC 9639 section reference for error type
+     * @param type Error type
+     * @return RFC section reference string
+     */
+    std::string getRFCReference(FLACErrorType type) const;
 };
 
 #endif // FLACDEMUXER_H
