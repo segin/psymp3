@@ -28,6 +28,22 @@
 - **Parallel Builds**: Always use `make -j$(nproc)` to utilize all available CPU cores for faster compilation
 - This ensures proper dependency tracking and build consistency
 
+## Problem-Solving Philosophy
+
+### Core Principle: No Shortcuts When Things Go Wrong
+- **NEVER SIMPLIFY WHEN PROBLEMS OCCUR**: When encountering build failures, dependency issues, or complex technical problems, always pursue the complete and correct solution
+- **Fix Root Causes**: Always address the underlying issue rather than working around it with shortcuts or simplified approaches
+- **Dependency Resolution**: When dependencies are missing or broken, fix the dependency chain rather than disabling features
+- **Build System Issues**: When build system problems occur, fix the build configuration rather than bypassing it
+- **The Hard Path is Usually Correct**: Complex problems typically require comprehensive solutions - embrace the difficulty rather than avoiding it
+
+### Anti-Patterns to Avoid
+- Disabling features when dependencies fail to build
+- Commenting out problematic code instead of fixing it
+- Using workarounds instead of proper solutions
+- Simplifying requirements to avoid technical challenges
+- Taking shortcuts that create technical debt
+
 ## Version Control
 
 ### Git Best Practices
