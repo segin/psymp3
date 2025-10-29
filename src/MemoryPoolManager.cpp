@@ -428,7 +428,9 @@ bool MemoryPoolManager::isSafeToAllocate_unlocked(size_t requested_size, const s
     }
     
     // Check memory pressure level
-    if (m_memory_pressure_level > 90 && requested_size > 64 * 1024) {
+    // Note: In WSL environments, memory pressure calculation may be inaccurate due to dynamic memory allocation
+    // Consider adjusting threshold if experiencing issues in virtualized environments
+    if (m_memory_pressure_level > 95 && requested_size > 64 * 1024) {
         Debug::log("memory", "MemoryPoolManager::isSafeToAllocate_unlocked() - Critical memory pressure, rejecting large allocation: ", requested_size);
         return false;
     }
