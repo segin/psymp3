@@ -535,6 +535,65 @@ public:
      */
     void resetCRCValidationStats();
     
+    // RFC 9639 Streamable Subset Configuration (Section 7)
+    
+    /**
+     * @brief Streamable subset validation modes per RFC 9639 Section 7
+     */
+    enum class StreamableSubsetMode {
+        DISABLED,   ///< No streamable subset validation
+        ENABLED,    ///< Validate streamable subset constraints with warnings
+        STRICT      ///< Strict streamable subset validation with errors
+    };
+    
+    /**
+     * @brief Set streamable subset validation mode per RFC 9639 Section 7
+     * @param mode Streamable subset validation mode
+     * @thread_safety Thread-safe
+     * 
+     * RFC 9639 STREAMABLE SUBSET CONSTRAINTS:
+     * - Frame headers must not reference STREAMINFO for sample rate or bit depth
+     * - Maximum block size of 16384 samples
+     * - Maximum block size of 4608 samples for streams ≤48000 Hz
+     * - Sample rate and bit depth must be encoded in frame headers
+     */
+    void setStreamableSubsetMode(StreamableSubsetMode mode);
+    
+    /**
+     * @brief Get current streamable subset validation mode
+     * @return Current streamable subset validation mode
+     * @thread_safety Thread-safe
+     */
+    StreamableSubsetMode getStreamableSubsetMode() const;
+    
+    /**
+     * @brief Get streamable subset validation statistics
+     * @return Structure containing streamable subset validation statistics
+     * @thread_safety Thread-safe
+     */
+    struct StreamableSubsetStats {
+        size_t frames_validated = 0;
+        size_t violations_detected = 0;
+        size_t block_size_violations = 0;
+        size_t frame_header_dependency_violations = 0;
+        size_t sample_rate_encoding_violations = 0;
+        size_t bit_depth_encoding_violations = 0;
+        StreamableSubsetMode current_mode = StreamableSubsetMode::ENABLED;
+        
+        double getViolationRate() const {
+            if (frames_validated == 0) return 0.0;
+            return (static_cast<double>(violations_detected) / frames_validated) * 100.0;
+        }
+    };
+    
+    StreamableSubsetStats getStreamableSubsetStats() const;
+    
+    /**
+     * @brief Reset streamable subset validation statistics
+     * @thread_safety Thread-safe
+     */
+    void resetStreamableSubsetStats();
+    
     /**
      * @brief Get error recovery manager for advanced error handling
      * @return Reference to error recovery manager
@@ -625,6 +684,83 @@ public:
     };
     
     CorruptionRecoveryStats getCorruptionRecoveryStats() const;
+    
+    // Error Recovery Configuration
+    
+    /**
+     * @brief Error recovery configuration options
+     */
+    struct ErrorRecoveryConfig {
+        bool enable_sync_recovery = true;              ///< Enable sync pattern recovery
+        bool enable_crc_recovery = true;               ///< Enable CRC error recovery
+        bool enable_metadata_recovery = true;          ///< Enable metadata corruption recovery
+        bool enable_frame_skipping = true;             ///< Enable corrupted frame skipping
+        size_t max_recovery_attempts = 3;              ///< Maximum recovery attempts per error
+        size_t sync_search_limit_bytes = 64 * 1024;    ///< Maximum bytes to search for sync pattern
+        size_t corruption_skip_limit_bytes = 1024;     ///< Maximum bytes to skip for corruption recovery
+        double error_rate_threshold = 10.0;            ///< Error rate threshold for disabling recovery (%)
+        bool log_recovery_attempts = true;             ///< Log recovery attempts for debugging
+        bool strict_rfc_compliance = false;            ///< Strict RFC 9639 compliance mode
+    };
+    
+    /**
+     * @brief Set error recovery configuration
+     * @param config Error recovery configuration options
+     * @thread_safety Thread-safe
+     */
+    void setErrorRecoveryConfig(const ErrorRecoveryConfig& config);
+    
+    /**
+     * @brief Get current error recovery configuration
+     * @return Current error recovery configuration
+     * @thread_safety Thread-safe
+     */
+    ErrorRecoveryConfig getErrorRecoveryConfig() const;
+    
+    /**
+     * @brief Reset error recovery configuration to defaults
+     * @thread_safety Thread-safe
+     */
+    void resetErrorRecoveryConfig();
+    
+    /**
+     * @brief Thread safety validation results
+     */
+    struct ThreadSafetyValidation {
+        bool public_private_pattern_correct = false;   ///< Public/private lock pattern implemented correctly
+        bool lock_ordering_documented = false;         ///< Lock acquisition order documented
+        bool raii_guards_used = false;                 ///< RAII lock guards used consistently
+        bool atomic_operations_correct = false;        ///< Atomic operations used appropriately
+        bool no_callback_under_lock = false;           ///< No callbacks invoked while holding locks
+        bool exception_safety_maintained = false;      ///< Exception safety maintained
+        size_t public_methods_with_locks = 0;          ///< Number of public methods with proper locking
+        size_t private_unlocked_methods = 0;           ///< Number of private _unlocked methods
+        std::vector<std::string> violations;           ///< List of thread safety violations found
+        std::vector<std::string> recommendations;      ///< Recommendations for improvement
+        
+        bool isValid() const {
+            return public_private_pattern_correct && lock_ordering_documented && 
+                   raii_guards_used && atomic_operations_correct && 
+                   no_callback_under_lock && exception_safety_maintained;
+        }
+        
+        double getComplianceScore() const {
+            int total_checks = 6;
+            int passed_checks = 0;
+            if (public_private_pattern_correct) passed_checks++;
+            if (lock_ordering_documented) passed_checks++;
+            if (raii_guards_used) passed_checks++;
+            if (atomic_operations_correct) passed_checks++;
+            if (no_callback_under_lock) passed_checks++;
+            if (exception_safety_maintained) passed_checks++;
+            return (static_cast<double>(passed_checks) / total_checks) * 100.0;
+        }
+    };
+    
+    // Thread safety validation methods (public for testing)
+    ThreadSafetyValidation validateThreadSafety() const;
+    bool validateThreadSafetyImplementation() const;
+    void createThreadSafetyDocumentation() const;
 
 private:
     // Thread safety - Lock acquisition order documented above
@@ -673,6 +809,19 @@ private:
     size_t m_crc_error_threshold = 10;               ///< Maximum CRC errors before disabling validation
     bool m_crc_validation_disabled_due_to_errors = false;  ///< CRC validation disabled due to excessive errors
     
+    // Streamable subset validation configuration (protected by m_state_mutex)
+    StreamableSubsetMode m_streamable_subset_mode = StreamableSubsetMode::ENABLED;  ///< Streamable subset validation mode
+    size_t m_streamable_subset_frames_validated = 0;        ///< Number of frames validated for streamable subset
+    size_t m_streamable_subset_violations_detected = 0;     ///< Number of streamable subset violations detected
+    size_t m_streamable_subset_block_size_violations = 0;   ///< Number of block size violations
+    size_t m_streamable_subset_header_dependency_violations = 0;  ///< Number of frame header dependency violations
+    size_t m_streamable_subset_sample_rate_violations = 0;  ///< Number of sample rate encoding violations
+    size_t m_streamable_subset_bit_depth_violations = 0;    ///< Number of bit depth encoding violations
+    bool m_streamable_subset_disabled_due_to_errors = false; ///< Streamable subset validation disabled due to excessive errors
+    
+    // Error recovery configuration (protected by m_state_mutex)
+    ErrorRecoveryConfig m_error_recovery_config;            ///< Error recovery configuration options
+    
     // Error recovery system (protected by m_state_mutex)
     std::unique_ptr<ErrorRecoveryManager> m_error_recovery_manager;  ///< Centralized error recovery management
     
@@ -691,6 +840,32 @@ private:
     size_t m_metadata_recovery_successes = 0;        ///< Number of successful metadata corruption recoveries
     size_t m_metadata_recovery_failures = 0;         ///< Number of failed metadata corruption recoveries
     size_t m_total_corruption_skip_bytes = 0;        ///< Total bytes skipped due to corruption
+    
+    // Performance monitoring and optimization state (protected by m_state_mutex)
+    struct PerformanceStatistics {
+        uint64_t frames_parsed = 0;                      ///< Total frames parsed
+        uint64_t total_parse_time_us = 0;                ///< Total parsing time in microseconds
+        uint64_t min_parse_time_us = UINT64_MAX;         ///< Minimum frame parse time
+        uint64_t max_parse_time_us = 0;                  ///< Maximum frame parse time
+        uint64_t sync_searches = 0;                      ///< Number of sync pattern searches
+        uint64_t sync_search_time_us = 0;                ///< Total sync search time in microseconds
+        uint64_t buffer_reallocations = 0;               ///< Number of buffer reallocations
+        uint64_t cache_hits = 0;                         ///< Number of cache hits
+        uint64_t cache_misses = 0;                       ///< Number of cache misses
+        std::chrono::high_resolution_clock::time_point monitoring_start_time; ///< When monitoring started
+    } m_perf_stats;
+    
+    // Cached frame processing parameters for performance (protected by m_state_mutex)
+    uint8_t m_cached_bytes_per_sample = 0;              ///< Cached bytes per sample calculation
+    bool m_cached_is_fixed_block_size = false;          ///< Cached fixed block size flag
+    bool m_cached_is_high_sample_rate = false;          ///< Cached high sample rate flag
+    bool m_cached_is_multichannel = false;              ///< Cached multichannel flag
+    uint32_t m_cached_avg_frame_size = 0;               ///< Cached average frame size estimate
+    uint32_t m_cached_frame_size_variance = 0;          ///< Cached frame size variance estimate
+    
+    // Memory management state (protected by m_state_mutex)
+    size_t m_memory_limit_bytes = 64 * 1024 * 1024;     ///< Memory usage limit (64MB default)
+    size_t m_peak_memory_usage = 0;                     ///< Peak memory usage observed
     
     // Thread-safe public method implementations (assume locks are held)
     bool parseContainer_unlocked();
@@ -852,6 +1027,40 @@ private:
     void freeUnusedMemory();
     bool ensureBufferCapacity(std::vector<uint8_t>& buffer, size_t required_size) const;
     
+    // Enhanced memory management methods
+    void trackMemoryUsage();
+    void enforceMemoryLimits();
+    void shrinkBuffersToOptimalSize();
+    void setMemoryLimit(size_t limit_bytes);
+    size_t getMemoryLimit() const;
+    size_t getPeakMemoryUsage() const;
+    
+    /**
+     * @brief Memory usage statistics structure
+     */
+    struct MemoryUsageStats {
+        size_t current_usage = 0;              ///< Current total memory usage
+        size_t peak_usage = 0;                 ///< Peak memory usage observed
+        size_t memory_limit = 0;               ///< Configured memory limit
+        double utilization_percentage = 0.0;   ///< Memory utilization as percentage
+        
+        // Component breakdown
+        size_t seek_table_usage = 0;           ///< Memory used by seek table
+        size_t vorbis_comments_usage = 0;      ///< Memory used by Vorbis comments
+        size_t pictures_usage = 0;             ///< Memory used by embedded pictures
+        size_t frame_buffer_usage = 0;         ///< Memory used by frame buffer
+        size_t sync_buffer_usage = 0;          ///< Memory used by sync buffer
+        size_t readahead_buffer_usage = 0;     ///< Memory used by readahead buffer
+        size_t frame_index_usage = 0;          ///< Memory used by frame index
+    };
+    
+    MemoryUsageStats getMemoryUsageStats() const;
+    void logMemoryUsageStats() const;
+    
+
+    
+
+    
     // Performance optimization methods
     size_t findSeekPointIndex(uint64_t target_sample) const;
     bool optimizedFrameSync(uint64_t start_offset, FLACFrame& frame);
@@ -863,6 +1072,17 @@ private:
     void optimizeFrameProcessingPerformance();
     bool validatePerformanceOptimizations();
     void logPerformanceMetrics();
+    size_t calculateOptimalSyncBufferSize() const;
+    void cacheFrameProcessingParameters();
+    void initializePerformanceMonitoring();
+    
+    // Performance monitoring methods
+    void recordFrameParseTime(std::chrono::microseconds parse_time);
+    void recordSyncSearchTime(std::chrono::microseconds search_time);
+    void recordBufferReallocation();
+    void recordCacheHit();
+    void recordCacheMiss();
+    void logPerformanceStatistics() const;
     
     // Frame indexing methods
     bool performInitialFrameIndexing();

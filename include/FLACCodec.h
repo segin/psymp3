@@ -1852,7 +1852,7 @@ private:
     // RFC 9639 Section 9.2 Comprehensive Subframe Processing Validation (assume appropriate locks are held)
     bool validateAndDebugSubframeProcessing_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[]) const;
     bool validateSubframeData_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
-    void debugSubframeTypeDetection_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
+    void validateSubframeCompliance_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
     bool validateSubframeWastedBits_unlocked(const FLAC__Frame* frame, unsigned channel) const;
     bool validatePredictorProcessing_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;
     bool validateResidualDecoding_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const;

@@ -5367,8 +5367,7 @@ bool FLACCodec::validateAndDebugSubframeProcessing_unlocked(const FLAC__Frame* f
             all_valid = false;
         }
         
-        // Debug subframe type detection (inferred from libFLAC processing)
-        debugSubframeTypeDetection_unlocked(frame, buffer, ch);
+        validateSubframeCompliance_unlocked(frame, buffer, ch);
         
         // Validate wasted bits handling per RFC 9639 Section 9.2.2
         if (!validateSubframeWastedBits_unlocked(frame, ch)) {
@@ -5458,7 +5457,7 @@ bool FLACCodec::validateSubframeData_unlocked(const FLAC__Frame* frame, const FL
     return range_valid;
 }
 
-void FLACCodec::debugSubframeTypeDetection_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const {
+void FLACCodec::validateSubframeCompliance_unlocked(const FLAC__Frame* frame, const FLAC__int32* const buffer[], unsigned channel) const {
     if (!frame || !buffer || channel >= frame->header.channels || !buffer[channel]) {
         return;
     }
@@ -5466,38 +5465,34 @@ void FLACCodec::debugSubframeTypeDetection_unlocked(const FLAC__Frame* frame, co
     const FLAC__int32* channel_data = buffer[channel];
     uint32_t block_size = frame->header.blocksize;
     
-    Debug::log("flac_codec", "[debugSubframeTypeDetection_unlocked] RFC 9639 Section 9.2 subframe type analysis for channel ", channel);
+    Debug::log("flac_codec", "[validateSubframeCompliance_unlocked] RFC 9639 Section 9.2 subframe compliance validation for channel ", channel);
     
-    // Analyze decoded data to infer subframe type characteristics
-    // This helps debug subframe type detection issues
+    // Validate decoded samples are within expected bit depth range
+    uint16_t bits_per_sample = frame->header.bits_per_sample;
+    int32_t max_value = (1 << (bits_per_sample - 1)) - 1;
+    int32_t min_value = -(1 << (bits_per_sample - 1));
     
-    // Check for CONSTANT subframe characteristics
-    bool is_constant = true;
-    int32_t first_sample = channel_data[0];
-    for (uint32_t i = 1; i < block_size; ++i) {
-        if (channel_data[i] != first_sample) {
-            is_constant = false;
-            break;
+    for (uint32_t i = 0; i < block_size; ++i) {
+        if (channel_data[i] > max_value || channel_data[i] < min_value) {
+            Debug::log("flac_codec", "  RFC compliance violation: sample ", i, " value ", channel_data[i], 
+                      " exceeds bit depth range [", min_value, ", ", max_value, "]");
+            return;
         }
     }
     
-    if (is_constant) {
-        Debug::log("flac_codec", "  Subframe type analysis: CONSTANT detected (RFC 9639 Section 9.2.3)");
-        Debug::log("flac_codec", "  Constant value: ", first_sample);
+    // Validate block size compliance per RFC 9639 Section 9.1
+    if (block_size < 16 || block_size > 65535) {
+        Debug::log("flac_codec", "  RFC compliance violation: block size ", block_size, " outside valid range [16, 65535]");
         return;
     }
     
-    // Analyze for VERBATIM characteristics (high entropy, no clear patterns)
-    double entropy = calculateSampleEntropy_unlocked(channel_data, block_size);
-    Debug::log("flac_codec", "  Sample entropy: ", entropy, " (higher values suggest VERBATIM)");
+    // Validate channel assignment compliance
+    if (frame->header.channel_assignment > 10) {
+        Debug::log("flac_codec", "  RFC compliance violation: invalid channel assignment ", frame->header.channel_assignment);
+        return;
+    }
     
-    // Analyze for FIXED predictor characteristics
-    analyzeFixedPredictorCharacteristics_unlocked(channel_data, block_size, channel);
-    
-    // Analyze for LPC predictor characteristics
-    analyzeLPCPredictorCharacteristics_unlocked(channel_data, block_size, channel);
-    
-    Debug::log("flac_codec", "  Subframe type analysis complete for channel ", channel);
+    Debug::log("flac_codec", "  Subframe compliance validation passed for channel ", channel);
 }
 
 bool FLACCodec::validateSubframeWastedBits_unlocked(const FLAC__Frame* frame, unsigned channel) const {
