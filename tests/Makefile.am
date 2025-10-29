@@ -70,7 +70,7 @@ test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp tes
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_flac_audioframe_creation test_codec_detection test_error_handling
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_flac_audioframe_creation test_codec_detection test_error_handling test_flac_streamable_subset_real_files
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -276,7 +276,7 @@ endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation test_flac_bit_depth_validation_simple test_flac_sample_format_rfc9639_compliance test_flac_rfc9639_compliance_validator test_flac_audio_output test_flac_seeking_crash test_flac_audio_output_debug test_flac_codec_simple_debug test_streaminfo_real_files test_streaminfo_recovery
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_thread_safety_validation test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation test_flac_bit_depth_validation_simple test_flac_sample_format_rfc9639_compliance test_flac_rfc9639_compliance_validator test_flac_audio_output test_flac_seeking_crash test_flac_audio_output_debug test_flac_codec_simple_debug test_streaminfo_real_files test_streaminfo_recovery test_flac_streamable_subset_real_files
 endif
 
 # Test program sources and dependencies
@@ -1943,6 +1943,28 @@ $(top_builddir)/src/MediaFactory.o:
 # Simple FLAC codec quality validation test (minimal dependencies)
 test_flac_quality_simple_SOURCES = test_flac_quality_simple.cpp
 test_flac_quality_simple_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
+
+# FLAC thread safety validation test
+test_flac_thread_safety_validation_SOURCES = test_flac_thread_safety_validation.cpp
+test_flac_thread_safety_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_thread_safety_validation_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
 test_flac_quality_simple_LDADD = \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -3678,6 +3700,28 @@ test_flac_codec_simple_debug_LDADD = \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/FLACRFCValidator.o \
 	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# FLAC streamable subset real files test
+test_flac_streamable_subset_real_files_SOURCES = test_flac_streamable_subset_real_files.cpp
+test_flac_streamable_subset_real_files_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
+test_flac_streamable_subset_real_files_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/URI.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
