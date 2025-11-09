@@ -59,6 +59,25 @@ bool FLACStreamDecoder::feedData(const uint8_t* data, size_t size) {
     std::lock_guard<std::mutex> lock(m_input_mutex);
     
     try {
+        // Compact buffer: remove already-consumed data to prevent unbounded growth
+        if (m_buffer_position > 0) {
+            size_t remaining = m_input_buffer.size() - m_buffer_position;
+            if (remaining > 0) {
+                // Move unconsumed data to the beginning of the buffer
+                std::memmove(m_input_buffer.data(), 
+                           m_input_buffer.data() + m_buffer_position, 
+                           remaining);
+                m_input_buffer.resize(remaining);
+            } else {
+                // All data consumed, clear the buffer
+                m_input_buffer.clear();
+            }
+            m_buffer_position = 0;
+            
+            Debug::log("flac_codec", "[FLACStreamDecoder::feedData] Compacted buffer, ", 
+                      remaining, " bytes remaining");
+        }
+        
         // Ensure buffer has enough capacity
         if (m_input_buffer.size() + size > m_input_buffer.capacity()) {
             m_input_buffer.reserve(m_input_buffer.size() + size + INPUT_BUFFER_SIZE);
@@ -1456,40 +1475,106 @@ bool FLACCodec::initializeFLACDecoder_unlocked() {
 }
 
 bool FLACCodec::provideSyntheticStreamInfo_unlocked() {
-    Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Creating synthetic STREAMINFO metadata");
+    Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Creating synthetic FLAC stream header");
     
     try {
-        // Create a synthetic STREAMINFO metadata block based on StreamInfo parameters
-        // This is necessary because libFLAC expects to see STREAMINFO before decoding frames
-        // but the demuxer has already parsed and removed the metadata
+        // CRITICAL FIX: libFLAC stream decoder expects a complete FLAC stream starting with
+        // the "fLaC" marker and STREAMINFO metadata block. Since the demuxer has already
+        // parsed and removed this, we need to synthesize it and feed it to the decoder.
         
-        FLAC__StreamMetadata streaminfo;
-        streaminfo.type = FLAC__METADATA_TYPE_STREAMINFO;
-        streaminfo.is_last = true; // This will be the only metadata block we provide
-        streaminfo.length = FLAC__STREAM_METADATA_STREAMINFO_LENGTH;
+        // Create synthetic FLAC stream header: "fLaC" + STREAMINFO block
+        std::vector<uint8_t> synthetic_header;
+        synthetic_header.reserve(42); // 4 bytes marker + 4 bytes block header + 34 bytes STREAMINFO
         
-        // Fill in the STREAMINFO data from our configuration
-        FLAC__StreamMetadata_StreamInfo& info = streaminfo.data.stream_info;
-        info.min_blocksize = 16;     // Minimum allowed by FLAC spec
-        info.max_blocksize = 65535;  // Maximum allowed by FLAC spec
-        info.min_framesize = 0;      // Unknown
-        info.max_framesize = 0;      // Unknown
-        info.sample_rate = m_sample_rate;
-        info.channels = m_channels;
-        info.bits_per_sample = m_bits_per_sample;
-        info.total_samples = m_total_samples;
+        // 1. FLAC stream marker: "fLaC" (4 bytes)
+        synthetic_header.push_back('f');
+        synthetic_header.push_back('L');
+        synthetic_header.push_back('a');
+        synthetic_header.push_back('C');
         
-        // Clear MD5 signature (we don't have it from the demuxer)
-        memset(info.md5sum, 0, 16);
+        // 2. STREAMINFO metadata block header (4 bytes)
+        // Bit 0: is_last = 1 (this is the only metadata block)
+        // Bits 1-7: block_type = 0 (STREAMINFO)
+        // Bits 8-31: length = 34 bytes
+        synthetic_header.push_back(0x80); // is_last=1, type=0
+        synthetic_header.push_back(0x00); // length high byte
+        synthetic_header.push_back(0x00); // length mid byte
+        synthetic_header.push_back(0x22); // length low byte (34 decimal = 0x22 hex)
         
+        // 3. STREAMINFO data (34 bytes)
+        // min_blocksize (16 bits)
+        uint16_t min_blocksize = 16;
+        synthetic_header.push_back((min_blocksize >> 8) & 0xFF);
+        synthetic_header.push_back(min_blocksize & 0xFF);
+        
+        // max_blocksize (16 bits)
+        uint16_t max_blocksize = 65535;
+        synthetic_header.push_back((max_blocksize >> 8) & 0xFF);
+        synthetic_header.push_back(max_blocksize & 0xFF);
+        
+        // min_framesize (24 bits) - 0 = unknown
+        synthetic_header.push_back(0x00);
+        synthetic_header.push_back(0x00);
+        synthetic_header.push_back(0x00);
+        
+        // max_framesize (24 bits) - 0 = unknown
+        synthetic_header.push_back(0x00);
+        synthetic_header.push_back(0x00);
+        synthetic_header.push_back(0x00);
+        
+        // sample_rate (20 bits) + channels (3 bits) + bits_per_sample (5 bits)
+        // Packed into 28 bits total, then total_samples (36 bits)
+        uint32_t sample_rate = m_sample_rate;
+        uint8_t channels = m_channels - 1; // Stored as channels-1
+        uint8_t bits_per_sample = m_bits_per_sample - 1; // Stored as bps-1
+        uint64_t total_samples = m_total_samples;
+        
+        // Byte 0: sample_rate[19:12]
+        synthetic_header.push_back((sample_rate >> 12) & 0xFF);
+        
+        // Byte 1: sample_rate[11:4]
+        synthetic_header.push_back((sample_rate >> 4) & 0xFF);
+        
+        // Byte 2: sample_rate[3:0] (4 bits) + channels[2:0] (3 bits) + bps[4] (1 bit)
+        uint8_t byte2 = ((sample_rate & 0x0F) << 4) | ((channels & 0x07) << 1) | ((bits_per_sample >> 4) & 0x01);
+        synthetic_header.push_back(byte2);
+        
+        // Byte 3: bps[3:0] (4 bits) + total_samples[35:32] (4 bits)
+        uint8_t byte3 = ((bits_per_sample & 0x0F) << 4) | ((total_samples >> 32) & 0x0F);
+        synthetic_header.push_back(byte3);
+        
+        // Bytes 4-7: total_samples[31:0]
+        synthetic_header.push_back((total_samples >> 24) & 0xFF);
+        synthetic_header.push_back((total_samples >> 16) & 0xFF);
+        synthetic_header.push_back((total_samples >> 8) & 0xFF);
+        synthetic_header.push_back(total_samples & 0xFF);
+        
+        // MD5 signature (16 bytes) - all zeros since we don't have it
+        for (int i = 0; i < 16; i++) {
+            synthetic_header.push_back(0x00);
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Created ", 
+                  synthetic_header.size(), " byte synthetic header");
         Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] STREAMINFO: ",
-                  info.sample_rate, "Hz, ", info.channels, " channels, ", 
-                  info.bits_per_sample, " bits, ", info.total_samples, " samples");
+                  m_sample_rate, "Hz, ", m_channels, " channels, ", 
+                  m_bits_per_sample, " bits, ", m_total_samples, " samples");
         
-        // Manually call the metadata callback to provide STREAMINFO to libFLAC
-        handleMetadataCallback_unlocked(&streaminfo);
+        // Feed the synthetic header to the decoder
+        if (!m_decoder->feedData(synthetic_header.data(), synthetic_header.size())) {
+            Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Failed to feed synthetic header");
+            return false;
+        }
         
-        Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Successfully provided synthetic STREAMINFO");
+        // Process the metadata to move decoder past SEARCH_FOR_METADATA state
+        if (!m_decoder->process_until_end_of_metadata()) {
+            FLAC__StreamDecoderState state = m_decoder->get_state();
+            Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Failed to process metadata, state: ",
+                      FLAC__StreamDecoderStateString[state]);
+            // Continue anyway - decoder might still work
+        }
+        
+        Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Successfully provided synthetic FLAC stream header");
         return true;
         
     } catch (const std::exception& e) {
@@ -1680,8 +1765,10 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
                     m_stream_finished = true;
                     return true; // Not an error
                 } else if (state == FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC) {
-                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Searching for frame sync - continuing to try more data");
-                    // Don't return false - keep trying with more attempts
+                    Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Searching for frame sync - need more data");
+                    // Decoder needs more data to find sync pattern - return success and wait for next chunk
+                    // Don't keep calling process_single() as it won't help without more data
+                    return true;
                 } else {
                     // For other error states, try to reset and continue
                     Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Decoder error state, attempting reset");
