@@ -4556,7 +4556,7 @@ bool FLACDemuxer::shouldContinueAfterCRCError_unlocked() const
             Debug::log("flac_rfc_validator", "[shouldContinueAfterCRCError_unlocked] Tolerant mode: continuing despite CRC error");
             return true;
             
-        case CRCValidationMode::STRICT:
+        case CRCValidationMode::STRICT_MODE:
             // Reject frame in strict mode
             Debug::log("flac_rfc_validator", "[shouldContinueAfterCRCError_unlocked] Strict mode: rejecting frame due to CRC error");
             return false;
@@ -6762,7 +6762,7 @@ void FLACDemuxer::setStreamableSubsetMode(StreamableSubsetMode mode)
         case StreamableSubsetMode::ENABLED:
             mode_name = "ENABLED";
             break;
-        case StreamableSubsetMode::STRICT:
+        case StreamableSubsetMode::STRICT_MODE:
             mode_name = "STRICT";
             break;
     }

@@ -367,7 +367,7 @@ public:
     enum class CRCValidationMode {
         DISABLED,    ///< No CRC validation (maximum performance)
         ENABLED,     ///< CRC validation with error tolerance
-        STRICT       ///< Strict CRC validation - reject frames with CRC errors
+        STRICT_MODE  ///< Strict CRC validation - reject frames with CRC errors
     };
     
     // Memory management constants
@@ -543,7 +543,7 @@ public:
     enum class StreamableSubsetMode {
         DISABLED,   ///< No streamable subset validation
         ENABLED,    ///< Validate streamable subset constraints with warnings
-        STRICT      ///< Strict streamable subset validation with errors
+        STRICT_MODE ///< Strict streamable subset validation with errors
     };
     
     /**
