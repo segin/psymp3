@@ -170,14 +170,17 @@ fi
 AM_CONDITIONAL([HAVE_DBUS], [test "x$have_dbus" = "xyes"])
 
 # Test harness configuration
+# Detect Windows builds and disable testing by default unless explicitly enabled
 AC_ARG_ENABLE([test-harness],
   [AS_HELP_STRING([--enable-test-harness], [Build test harness @<:@default=yes on Unix, no on Windows@:>@])],
   [enable_test_harness=$enableval],
   [
-    # Default: enable on Unix/Linux, disable on Windows (due to Unix-specific system calls)
+    # Default: enable on Unix/Linux, disable on Windows
+    # Windows builds have issues with SDL_main wrapper in test programs
     case "$host_os" in
       mingw* | msys* | cygwin*)
         enable_test_harness=no
+        AC_MSG_NOTICE([Windows build detected - test harness disabled by default (use --enable-test-harness to override)])
         ;;
       *)
         enable_test_harness=yes
