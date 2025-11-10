@@ -905,6 +905,7 @@ private:
     bool getNextFrameFromSeekTable(FLACFrame& frame);
     bool parseFrameHeader(FLACFrame& frame);
     bool parseFrameHeader_unlocked(FLACFrame& frame);
+    bool parseFrameHeaderFromBuffer_unlocked(FLACFrame& frame, const uint8_t* buffer, size_t buffer_size, uint64_t file_offset);
     bool validateFrameHeader(const FLACFrame& frame);
     bool validateFrameHeader_unlocked(const FLACFrame& frame);
     bool validateFrameHeaderAt(uint64_t file_offset);
