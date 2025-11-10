@@ -17,7 +17,11 @@
 
 datadir=$(prefix)/@PACKAGE@/data
 
+if BUILD_TEST_HARNESS
 SUBDIRS = res src tests
+else
+SUBDIRS = res src
+endif
 
 # Include threading safety makefile
 include scripts/threading-safety-makefile.mk
