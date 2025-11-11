@@ -79,18 +79,38 @@ Audio::~Audio() {
  * of the current stream and registers the static `callback` function to be called by SDL.
  */
 void Audio::setup() {
-    SDL_AudioSpec fmt;
+    SDL_AudioSpec desired, obtained;
     // Use m_current_stream_raw_ptr to get rate and channels
-    fmt.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
-    fmt.format = AUDIO_S16; /* Always, I hope */
-    fmt.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
-    Debug::log("audio", "Audio::setup: channels: ", m_current_stream_raw_ptr.load()->getChannels());
-    fmt.samples = 512 * fmt.channels; /* 512 samples for fft */
-    fmt.callback = callback;
-    fmt.userdata = this;
-    if ( SDL_OpenAudio(&fmt, nullptr) < 0 ) {
+    desired.freq = m_rate = m_current_stream_raw_ptr.load()->getRate();
+    desired.format = AUDIO_S16; /* Always, I hope */
+    desired.channels = m_channels = m_current_stream_raw_ptr.load()->getChannels();
+    Debug::log("audio", "Audio::setup: Requested format - rate: ", desired.freq, "Hz, channels: ", desired.channels, ", format: AUDIO_S16");
+    desired.samples = 512 * desired.channels; /* 512 samples for fft */
+    desired.callback = callback;
+    desired.userdata = this;
+    
+    if ( SDL_OpenAudio(&desired, &obtained) < 0 ) {
         Debug::log("audio", "Unable to open audio: ", SDL_GetError());
         // throw;
+    } else {
+        // Log what SDL actually gave us
+        Debug::log("audio", "Audio::setup: Obtained format - rate: ", obtained.freq, "Hz, channels: ", (int)obtained.channels, 
+                  ", format: ", (obtained.format == AUDIO_S16 ? "AUDIO_S16" : "OTHER"), ", samples: ", obtained.samples);
+        
+        // Check for format mismatch
+        if (obtained.freq != desired.freq) {
+            Debug::log("audio", "WARNING: Sample rate mismatch! Requested ", desired.freq, "Hz but got ", obtained.freq, "Hz");
+        }
+        if (obtained.channels != desired.channels) {
+            Debug::log("audio", "WARNING: Channel count mismatch! Requested ", (int)desired.channels, " but got ", (int)obtained.channels);
+        }
+        if (obtained.format != desired.format) {
+            Debug::log("audio", "WARNING: Audio format mismatch! Requested AUDIO_S16 but got format ", obtained.format);
+        }
+        
+        // Update our stored values to match what SDL actually opened
+        m_rate = obtained.freq;
+        m_channels = obtained.channels;
     }
 }
 
