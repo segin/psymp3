@@ -54,7 +54,7 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Vorbis codec disabled at compile time");
 #endif
 
-#ifdef HAVE_OGGDEMUXER
+#ifdef HAVE_OPUS
     // Register the new container-agnostic Opus codec
     OpusCodecSupport::registerCodec();
     Debug::log("codec", "registerAllCodecs: Registered Opus codec");
