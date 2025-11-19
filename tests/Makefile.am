@@ -3733,4 +3733,13 @@ test_flac_streamable_subset_real_files_LDADD = \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+
+# Debug system test
+noinst_PROGRAMS += test_debug_system
+test_debug_system_SOURCES = test_debug_system.cpp
+test_debug_system_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_debug_system_LDADD = \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 endif

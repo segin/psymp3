@@ -17,6 +17,15 @@ bool Debug::m_log_to_file = false;
 
 void Debug::init(const std::string& logfile, const std::vector<std::string>& channels) {
     std::lock_guard<std::mutex> lock(m_mutex);
+    
+    // Clear previous state
+    m_enabled_channels.clear();
+    if (m_logfile.is_open()) {
+        m_logfile.close();
+    }
+    m_log_to_file = false;
+    
+    // Set up new state
     if (!logfile.empty()) {
         m_logfile.open(logfile, std::ios::out | std::ios::app);
         if (m_logfile.is_open()) {
@@ -31,14 +40,53 @@ void Debug::shutdown() {
     if (m_logfile.is_open()) {
         m_logfile.close();
     }
+    m_enabled_channels.clear();
+    m_log_to_file = false;
 }
 
 bool Debug::isChannelEnabled(const std::string& channel) {
     // A global "all" channel can enable all logging.
-    return m_enabled_channels.count("all") > 0 || m_enabled_channels.count(channel) > 0;
+    if (m_enabled_channels.count("all") > 0) {
+        return true;
+    }
+    
+    // Check for exact match
+    if (m_enabled_channels.count(channel) > 0) {
+        return true;
+    }
+    
+    // Check if this is a sub-channel (contains ':')
+    size_t colon_pos = channel.find(':');
+    if (colon_pos != std::string::npos) {
+        // This is a sub-channel like "flac:frame"
+        std::string parent_channel = channel.substr(0, colon_pos);
+        
+        // Check if parent channel is enabled (e.g., "flac" enables "flac:frame")
+        if (m_enabled_channels.count(parent_channel) > 0) {
+            return true;
+        }
+    } else {
+        // This is a parent channel like "flac"
+        // Check if any specific sub-channels are enabled
+        // If so, don't show parent channel messages unless parent is explicitly enabled
+        bool has_specific_subchannels = false;
+        for (const auto& enabled : m_enabled_channels) {
+            if (enabled.find(channel + ":") == 0) {
+                has_specific_subchannels = true;
+                break;
+            }
+        }
+        
+        // If specific sub-channels are enabled but not the parent, don't show parent messages
+        if (has_specific_subchannels) {
+            return false;
+        }
+    }
+    
+    return false;
 }
 
-void Debug::write(const std::string& channel, const std::string& message) {
+void Debug::write(const std::string& channel, const std::string& function, int line, const std::string& message) {
     auto now = std::chrono::system_clock::now();
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
     auto timer = std::chrono::system_clock::to_time_t(now);
@@ -46,7 +94,14 @@ void Debug::write(const std::string& channel, const std::string& message) {
 
     std::stringstream ss;
     ss << std::put_time(&bt, "%H:%M:%S") << '.' << std::dec << std::setfill('0') << std::setw(6) << us.count()
-       << " [" << channel << "]: " << message;
+       << " [" << channel << "]";
+    
+    // Add function and line if provided
+    if (!function.empty() && line > 0) {
+        ss << " [" << function << ":" << line << "]";
+    }
+    
+    ss << ": " << message;
 
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_log_to_file && m_logfile.is_open()) {

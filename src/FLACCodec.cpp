@@ -1122,6 +1122,33 @@ bool FLACCodec::configureFromStreamInfo_unlocked(const StreamInfo& stream_info) 
     m_bits_per_sample = stream_info.bits_per_sample;
     m_total_samples = stream_info.duration_samples;
     
+    // Extract block size information from codec_data if available
+    // Format: 8 bytes - 4 bytes min_block_size (big-endian), 4 bytes max_block_size (big-endian)
+    if (stream_info.codec_data.size() >= 8) {
+        m_min_block_size = (static_cast<uint32_t>(stream_info.codec_data[0]) << 24) |
+                          (static_cast<uint32_t>(stream_info.codec_data[1]) << 16) |
+                          (static_cast<uint32_t>(stream_info.codec_data[2]) << 8) |
+                          static_cast<uint32_t>(stream_info.codec_data[3]);
+        m_max_block_size = (static_cast<uint32_t>(stream_info.codec_data[4]) << 24) |
+                          (static_cast<uint32_t>(stream_info.codec_data[5]) << 16) |
+                          (static_cast<uint32_t>(stream_info.codec_data[6]) << 8) |
+                          static_cast<uint32_t>(stream_info.codec_data[7]);
+        
+        Debug::log("flac_codec", "[FLACCodec::configureFromStreamInfo_unlocked] Block sizes from demuxer: ",
+                  "min=", m_min_block_size, ", max=", m_max_block_size);
+        
+        // Detect variable block size
+        if (m_min_block_size != m_max_block_size) {
+            m_variable_block_size = true;
+            Debug::log("flac_codec", "[FLACCodec::configureFromStreamInfo_unlocked] Variable block size stream detected");
+        }
+    } else {
+        // Fallback to RFC 9639 defaults if codec_data not available
+        m_min_block_size = 16;
+        m_max_block_size = 65535;
+        Debug::log("flac_codec", "[FLACCodec::configureFromStreamInfo_unlocked] No block size info in codec_data, using RFC 9639 defaults");
+    }
+    
     // RFC 9639 compliance validation - sample rate
     // Per RFC 9639: FLAC can code for sample rates from 1 to 1048575 Hz
     // However, the streamable subset limits this to 655350 Hz
@@ -1502,13 +1529,13 @@ bool FLACCodec::provideSyntheticStreamInfo_unlocked() {
         synthetic_header.push_back(0x22); // length low byte (34 decimal = 0x22 hex)
         
         // 3. STREAMINFO data (34 bytes)
-        // min_blocksize (16 bits)
-        uint16_t min_blocksize = 16;
+        // min_blocksize (16 bits) - use actual value from demuxer, fallback to RFC 9639 minimum
+        uint16_t min_blocksize = (m_min_block_size > 0) ? static_cast<uint16_t>(m_min_block_size) : 16;
         synthetic_header.push_back((min_blocksize >> 8) & 0xFF);
         synthetic_header.push_back(min_blocksize & 0xFF);
         
-        // max_blocksize (16 bits)
-        uint16_t max_blocksize = 65535;
+        // max_blocksize (16 bits) - use actual value from demuxer, fallback to RFC 9639 maximum
+        uint16_t max_blocksize = (m_max_block_size > 0) ? static_cast<uint16_t>(m_max_block_size) : 65535;
         synthetic_header.push_back((max_blocksize >> 8) & 0xFF);
         synthetic_header.push_back(max_blocksize & 0xFF);
         
@@ -1559,6 +1586,8 @@ bool FLACCodec::provideSyntheticStreamInfo_unlocked() {
         Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] STREAMINFO: ",
                   m_sample_rate, "Hz, ", m_channels, " channels, ", 
                   m_bits_per_sample, " bits, ", m_total_samples, " samples");
+        Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Block sizes: min=",
+                  min_blocksize, ", max=", max_blocksize);
         
         // Feed the synthetic header to the decoder
         if (!m_decoder->feedData(synthetic_header.data(), synthetic_header.size())) {
@@ -8871,9 +8900,8 @@ std::vector<int16_t> FLACCodec::generateReferenceSamples_unlocked(const MediaChu
 void FLACCodec::initializeBlockSizeHandling_unlocked() {
     Debug::log("flac_codec", "[FLACCodec::initializeBlockSizeHandling_unlocked] Initializing block size handling");
     
-    // Initialize block size tracking with RFC 9639 defaults
-    m_min_block_size = 16;      // RFC 9639 minimum block size
-    m_max_block_size = 65535;   // RFC 9639 maximum block size
+    // Block size tracking will be initialized from StreamInfo codec_data
+    // or from libFLAC metadata callback
     m_variable_block_size = false;
     m_current_block_size = 0;
     m_preferred_block_size = 0;

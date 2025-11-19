@@ -990,6 +990,7 @@ private:
     bool checkStreamInfoConsistency_unlocked(const FLACFrame& frame) const;
     bool recoverFromCorruptedMetadata();
     bool resynchronizeToNextFrame();
+    bool resynchronizeToNextFrame_unlocked();
     void provideDefaultStreamInfo();
     
     // Sync loss recovery methods
@@ -1009,10 +1010,13 @@ private:
     
     // Frame-level error recovery methods
     bool handleLostFrameSync();
+    bool handleLostFrameSync_unlocked();
     bool skipCorruptedFrame();
+    bool skipCorruptedFrame_unlocked();
     bool validateFrameCRC(const FLACFrame& frame, const std::vector<uint8_t>& frame_data);
     MediaChunk createSilenceChunk(uint32_t block_size);
     bool recoverFromFrameError();
+    bool recoverFromFrameError_unlocked();
     
     // Metadata validation methods
     bool validateMetadataBlockLength_unlocked(FLACMetadataType type, uint32_t length) const;

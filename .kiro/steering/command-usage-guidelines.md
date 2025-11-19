@@ -59,12 +59,25 @@ Small head sizes like `head -10` provide insufficient context for debugging and 
 - **vorbis** - Vorbis format processing
 - **widget** - UI widget operations
 
+### Sub-Channel Support:
+Debug channels support sub-channels using colon notation (e.g., `flac:frame`, `audio:buffer`):
+- Enabling a parent channel (e.g., `flac`) enables all its sub-channels
+- You can enable specific sub-channels (e.g., `flac:metadata`) without enabling the parent
+- Sub-channels help reduce verbosity by filtering to specific subsystems
+
 ### Usage Examples:
 ```bash
 # CORRECT - Using actual debug channels
-./src/psymp3 --debug=flac,demux "file.flac" 2>&1 | head -50
-./src/psymp3 --debug=flac_codec,flac_rfc_validator "file.flac" 2>&1 | head -100
+./src/psymp3 --debug=flac,demux --logfile=debug.log "file.flac"
+./src/psymp3 --debug=flac_codec,flac_rfc_validator --logfile=debug.log "file.flac"
 ./src/psymp3 --debug=all --logfile=debug.log "file.flac"
+
+# Using sub-channels for granular control
+./src/psymp3 --debug=flac:frame,flac:metadata --logfile=debug.log "file.flac"
+./src/psymp3 --debug=audio:buffer,audio:playback --logfile=debug.log "file.flac"
+
+# Parent channel enables all sub-channels
+./src/psymp3 --debug=flac --logfile=debug.log "file.flac"  # Enables flac:frame, flac:metadata, etc.
 
 # FORBIDDEN - Using non-existent channels
 ./src/psymp3 --debug=flac_demuxer "file.flac"  # flac_demuxer does not exist!

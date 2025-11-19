@@ -3701,7 +3701,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
     }
     
     // Update position tracking to the seek point
-    updatePositionTracking(best_seek_point.sample_number, file_position);
+    updatePositionTracking_unlocked(best_seek_point.sample_number, file_position);
     
     FLAC_DEBUG("Seeked to file position ", file_position, 
               " (sample ", best_seek_point.sample_number, ")");
@@ -3744,7 +3744,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
             }
             
             // Update position tracking to this frame
-            updatePositionTracking(frame.sample_offset, frame.file_offset);
+            updatePositionTracking_unlocked(frame.sample_offset, frame.file_offset);
             
             return true;
         }
@@ -3756,7 +3756,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
                 FLAC_DEBUG("Failed to skip to next frame");
                 break;
             }
-            updatePositionTracking(frame_end_sample, next_frame_offset);
+            updatePositionTracking_unlocked(frame_end_sample, next_frame_offset);
         } else {
             // Frame size unknown, try to read the frame to advance position
             std::vector<uint8_t> frame_data;
@@ -3764,7 +3764,7 @@ bool FLACDemuxer::seekWithTable(uint64_t target_sample)
                 FLAC_DEBUG("Failed to read frame data during seek");
                 break;
             }
-            updatePositionTracking(frame_end_sample, m_current_offset);
+            updatePositionTracking_unlocked(frame_end_sample, m_current_offset);
         }
         
         current_sample = frame_end_sample;
@@ -3956,7 +3956,7 @@ bool FLACDemuxer::seekBinary(uint64_t target_sample)
             reportError("IO", "Failed to seek to best position at offset " + std::to_string(best_file_offset));
             // Fall through to fallback strategy below
         } else {
-            updatePositionTracking(best_sample, best_file_offset);
+            updatePositionTracking_unlocked(best_sample, best_file_offset);
             
             // Calculate final distance from target
             uint64_t sample_distance = (best_sample > target_sample) ? 
@@ -3985,7 +3985,7 @@ bool FLACDemuxer::seekBinary(uint64_t target_sample)
         return false;
     }
     
-    updatePositionTracking(0, m_audio_data_offset);
+    updatePositionTracking_unlocked(0, m_audio_data_offset);
     
     // Binary search failure is expected with compressed streams
     // Return success only if we were seeking to the beginning anyway
@@ -4044,7 +4044,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
         return false;
     }
     
-    updatePositionTracking(start_sample, start_offset);
+    updatePositionTracking_unlocked(start_sample, start_offset);
     
     // Linear search parameters
     const uint32_t max_frames_to_parse = 10000;  // Prevent runaway parsing
@@ -4082,7 +4082,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
             }
             
             // Update position tracking to this frame
-            updatePositionTracking(frame.sample_offset, frame.file_offset);
+            updatePositionTracking_unlocked(frame.sample_offset, frame.file_offset);
             
             FLAC_DEBUG("Linear seeking successful: positioned at sample ", 
                       frame.sample_offset, " (target was ", target_sample, ")");
@@ -4101,7 +4101,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
             }
             
             // Update position tracking to this frame
-            updatePositionTracking(frame.sample_offset, frame.file_offset);
+            updatePositionTracking_unlocked(frame.sample_offset, frame.file_offset);
             
             FLAC_DEBUG("Linear seeking successful: positioned at sample ", 
                       frame.sample_offset, " (closest to target ", target_sample, ")");
@@ -4118,7 +4118,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
                 FLAC_DEBUG("Failed to skip to next frame");
                 break;
             }
-            updatePositionTracking(current_sample, next_frame_offset);
+            updatePositionTracking_unlocked(current_sample, next_frame_offset);
         } else {
             // Frame size unknown, read the frame to advance position
             std::vector<uint8_t> frame_data;
@@ -4126,7 +4126,7 @@ bool FLACDemuxer::seekLinear(uint64_t target_sample)
                 FLAC_DEBUG("Failed to read frame data during linear search");
                 break;
             }
-            updatePositionTracking(current_sample, m_current_offset);
+            updatePositionTracking_unlocked(current_sample, m_current_offset);
         }
         
         // Progress logging for long searches
@@ -4228,7 +4228,7 @@ bool FLACDemuxer::seekWithIndex(uint64_t target_sample)
             return false;
         }
         
-        updatePositionTracking(containing_entry->sample_offset, containing_entry->file_offset);
+        updatePositionTracking_unlocked(containing_entry->sample_offset, containing_entry->file_offset);
         FLAC_DEBUG("[seekWithIndex] Index-based seeking successful (exact match)");
         return true;
     }
@@ -4250,7 +4250,7 @@ bool FLACDemuxer::seekWithIndex(uint64_t target_sample)
         return false;
     }
     
-    updatePositionTracking(best_entry->sample_offset, best_entry->file_offset);
+    updatePositionTracking_unlocked(best_entry->sample_offset, best_entry->file_offset);
     
     // If the best entry is close enough, consider it successful
     uint64_t distance = (target_sample > best_entry->sample_offset) ? 
@@ -5142,7 +5142,13 @@ bool FLACDemuxer::recoverFromCorruptedMetadata()
 
 bool FLACDemuxer::resynchronizeToNextFrame()
 {
-    FLAC_DEBUG("FLACDemuxer::resynchronizeToNextFrame() - attempting frame resynchronization");
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return resynchronizeToNextFrame_unlocked();
+}
+
+bool FLACDemuxer::resynchronizeToNextFrame_unlocked()
+{
+    FLAC_DEBUG("FLACDemuxer::resynchronizeToNextFrame_unlocked() - attempting frame resynchronization");
     
     if (!m_handler) {
         return false;
@@ -5158,7 +5164,7 @@ bool FLACDemuxer::resynchronizeToNextFrame()
                   " (searched from ", start_position, ")");
         
         // Update position tracking to the found frame
-        updatePositionTracking(frame.sample_offset, frame.file_offset);
+        updatePositionTracking_unlocked(frame.sample_offset, frame.file_offset);
         return true;
     }
     
@@ -5194,7 +5200,13 @@ void FLACDemuxer::provideDefaultStreamInfo()
 
 bool FLACDemuxer::handleLostFrameSync()
 {
-    FLAC_DEBUG("FLACDemuxer::handleLostFrameSync() - attempting to recover from lost frame sync");
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return handleLostFrameSync_unlocked();
+}
+
+bool FLACDemuxer::handleLostFrameSync_unlocked()
+{
+    FLAC_DEBUG("FLACDemuxer::handleLostFrameSync_unlocked() - attempting to recover from lost frame sync");
     
     if (!m_handler) {
         return false;
@@ -5204,7 +5216,7 @@ bool FLACDemuxer::handleLostFrameSync()
     int64_t start_position = m_handler->tell();
     
     // Try to resynchronize to the next valid frame
-    if (resynchronizeToNextFrame()) {
+    if (resynchronizeToNextFrame_unlocked()) {
         FLAC_DEBUG("Successfully recovered from lost frame sync");
         return true;
     }
@@ -5241,7 +5253,7 @@ bool FLACDemuxer::handleLostFrameSync()
                                   " after searching ", bytes_searched + i, " bytes");
                         
                         // Update position tracking
-                        updatePositionTracking(test_frame.sample_offset, sync_position);
+                        updatePositionTracking_unlocked(test_frame.sample_offset, sync_position);
                         return true;
                     }
                 }
@@ -5268,7 +5280,13 @@ bool FLACDemuxer::handleLostFrameSync()
 
 bool FLACDemuxer::skipCorruptedFrame()
 {
-    FLAC_DEBUG("[skipCorruptedFrame] Attempting to skip corrupted frame");
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return skipCorruptedFrame_unlocked();
+}
+
+bool FLACDemuxer::skipCorruptedFrame_unlocked()
+{
+    FLAC_DEBUG("[skipCorruptedFrame_unlocked] Attempting to skip corrupted frame");
     
     if (!m_handler) {
         return false;
@@ -5284,51 +5302,51 @@ bool FLACDemuxer::skipCorruptedFrame()
         // Use STREAMINFO minimum frame size directly - consistent with calculateFrameSize
         estimated_frame_size = m_streaminfo.min_frame_size;
         
-        FLAC_DEBUG("[skipCorruptedFrame] Using STREAMINFO minimum frame size: ", estimated_frame_size, " bytes");
+        FLAC_DEBUG("[skipCorruptedFrame_unlocked] Using STREAMINFO minimum frame size: ", estimated_frame_size, " bytes");
         
         // For fixed block size streams, this is the most accurate estimate
         if (m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
-            FLAC_DEBUG("[skipCorruptedFrame] Fixed block size stream - using minimum directly");
+            FLAC_DEBUG("[skipCorruptedFrame_unlocked] Fixed block size stream - using minimum directly");
         }
     } else {
         // Conservative fallback consistent with calculateFrameSize
         estimated_frame_size = 64;  // Conservative minimum that handles highly compressed frames
-        FLAC_DEBUG("[skipCorruptedFrame] No STREAMINFO available - using conservative fallback: ", estimated_frame_size, " bytes");
+        FLAC_DEBUG("[skipCorruptedFrame_unlocked] No STREAMINFO available - using conservative fallback: ", estimated_frame_size, " bytes");
     }
     
     // Try skipping by estimated frame size and look for next sync
     const int skip_attempts = 3;
     uint32_t skip_distance = estimated_frame_size / 4;  // Start with smaller skips to avoid overshooting
     
-    FLAC_DEBUG("[skipCorruptedFrame] Starting skip attempts with initial distance: ", skip_distance, " bytes");
+    FLAC_DEBUG("[skipCorruptedFrame_unlocked] Starting skip attempts with initial distance: ", skip_distance, " bytes");
     
     for (int attempt = 0; attempt < skip_attempts; attempt++) {
         uint64_t skip_position = start_position + skip_distance;
         
-        FLAC_DEBUG("[skipCorruptedFrame] Attempt ", attempt + 1, " - seeking to position: ", skip_position);
+        FLAC_DEBUG("[skipCorruptedFrame_unlocked] Attempt ", attempt + 1, " - seeking to position: ", skip_position);
         
         if (!m_handler->seek(skip_position, SEEK_SET)) {
-            FLAC_DEBUG("[skipCorruptedFrame] Failed to seek to skip position ", skip_position);
+            FLAC_DEBUG("[skipCorruptedFrame_unlocked] Failed to seek to skip position ", skip_position);
             break;
         }
         
         // Try to find a valid frame from this position
         FLACFrame test_frame;
         if (findNextFrame_unlocked(test_frame)) {
-            FLAC_DEBUG("[skipCorruptedFrame] Successfully skipped corrupted frame, found next frame at ", 
+            FLAC_DEBUG("[skipCorruptedFrame_unlocked] Successfully skipped corrupted frame, found next frame at ", 
                       test_frame.file_offset);
             
             // Update position tracking
-            updatePositionTracking(test_frame.sample_offset, test_frame.file_offset);
+            updatePositionTracking_unlocked(test_frame.sample_offset, test_frame.file_offset);
             return true;
         }
         
         // Increase skip distance for next attempt, but keep it reasonable
         skip_distance = std::min(skip_distance * 2, estimated_frame_size * 2);
-        FLAC_DEBUG("[skipCorruptedFrame] Frame not found, increasing skip distance to: ", skip_distance, " bytes");
+        FLAC_DEBUG("[skipCorruptedFrame_unlocked] Frame not found, increasing skip distance to: ", skip_distance, " bytes");
     }
     
-    FLAC_DEBUG("[skipCorruptedFrame] Failed to skip corrupted frame after ", skip_attempts, " attempts");
+    FLAC_DEBUG("[skipCorruptedFrame_unlocked] Failed to skip corrupted frame after ", skip_attempts, " attempts");
     
     // Restore original position
     m_handler->seek(start_position, SEEK_SET);
@@ -6054,7 +6072,13 @@ bool FLACDemuxer::ensureBufferCapacity(std::vector<uint8_t>& buffer, size_t requ
 
 bool FLACDemuxer::recoverFromFrameError()
 {
-    FLAC_DEBUG("FLACDemuxer::recoverFromFrameError() - attempting general frame error recovery");
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    return recoverFromFrameError_unlocked();
+}
+
+bool FLACDemuxer::recoverFromFrameError_unlocked()
+{
+    FLAC_DEBUG("FLACDemuxer::recoverFromFrameError_unlocked() - attempting general frame error recovery");
     
     if (!m_handler) {
         return false;
@@ -6063,13 +6087,13 @@ bool FLACDemuxer::recoverFromFrameError()
     // Try multiple recovery strategies
     
     // Strategy 1: Try to resynchronize to next frame
-    if (resynchronizeToNextFrame()) {
+    if (resynchronizeToNextFrame_unlocked()) {
         FLAC_DEBUG("Recovered using frame resynchronization");
         return true;
     }
     
     // Strategy 2: Try to handle lost frame sync
-    if (handleLostFrameSync()) {
+    if (handleLostFrameSync_unlocked()) {
         FLAC_DEBUG("Recovered using lost sync recovery");
         return true;
     }
@@ -6082,7 +6106,7 @@ bool FLACDemuxer::recoverFromFrameError()
         uint64_t skip_pos = current_pos + skip_amounts[i];
         
         if (m_handler->seek(skip_pos, SEEK_SET)) {
-            if (resynchronizeToNextFrame()) {
+            if (resynchronizeToNextFrame_unlocked()) {
                 FLAC_DEBUG("Recovered by skipping ", skip_amounts[i], " bytes");
                 return true;
             }
@@ -6094,7 +6118,7 @@ bool FLACDemuxer::recoverFromFrameError()
         FLACFrame recovery_frame;
         if (findNextFrame_unlocked(recovery_frame)) {
             FLAC_DEBUG("Found valid frame during general recovery");
-            updatePositionTracking(recovery_frame.sample_offset, recovery_frame.file_offset);
+            updatePositionTracking_unlocked(recovery_frame.sample_offset, recovery_frame.file_offset);
             return true;
         }
     }
