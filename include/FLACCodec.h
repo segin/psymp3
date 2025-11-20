@@ -28,11 +28,20 @@
 
 #ifdef HAVE_FLAC
 
-// Forward declaration for RFC compliance validator
-class FLACRFCComplianceValidator;
-
-// Forward declarations
-class FLACCodec;
+// Conditional compilation: Select FLAC decoder implementation at build time
+// Per RFC 9639 requirement 17: Build-time selection between native and libFLAC decoders
+#ifdef HAVE_NATIVE_FLAC
+    // Use native FLAC decoder (no libFLAC dependency)
+    // Include the native decoder header which defines FLACCodec
+    #include "NativeFLACCodec.h"
+#else
+    // Use libFLAC wrapper (requires libFLAC library)
+    // Forward declaration for RFC compliance validator
+    class FLACRFCComplianceValidator;
+    
+    // Forward declarations
+    class FLACCodec;
+#endif
 
 /**
  * @brief FLAC frame information extracted during decoding
@@ -426,6 +435,10 @@ private:
  *    - Implement buffer reuse strategies to minimize allocation overhead
  *    - Monitor memory fragmentation in long-running scenarios
  */
+
+#ifndef HAVE_NATIVE_FLAC
+// libFLAC wrapper implementation (only compiled when not using native decoder)
+
 class FLACCodec : public AudioCodec {
 public:
     explicit FLACCodec(const StreamInfo& stream_info);
@@ -2019,6 +2032,8 @@ private:
     FLACCodec(const FLACCodec&) = delete;
     FLACCodec& operator=(const FLACCodec&) = delete;
 };
+
+#endif // !HAVE_NATIVE_FLAC
 
 /**
  * @brief Conditional compilation support for FLAC codec

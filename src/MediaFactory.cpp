@@ -511,12 +511,16 @@ void MediaFactory::initializeDefaultFormats() {
             // This ensures proper frame boundary detection, CRC validation, and error recovery
             return std::make_unique<DemuxedStream>(TagLib::String(uri.c_str()));
         });
-    } else {
+    }
+#ifndef HAVE_NATIVE_FLAC
+    // Legacy Flac class fallback (only available when using libFLAC wrapper)
+    else {
         Debug::log("loader", "MediaFactory: Using legacy Flac codec for FLAC files (RFC 9639 compliance limited)");
         registerFormatInternal(flac_format, [](const std::string& uri, const ContentInfo& info) {
             return std::make_unique<Flac>(TagLib::String(uri.c_str()));
         });
     }
+#endif
 #endif
     
     // Register container formats that use demuxer registry
