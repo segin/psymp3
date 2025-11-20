@@ -396,6 +396,7 @@ typedef struct bio_st BIO;
 #include "wav.h"
 #ifdef HAVE_FLAC
 #include "flac.h"
+#include "FLACRFC9639.h"
 #include "FLACDemuxer.h"
 #include "FLACCodec.h"
 #include "FLACRFCValidator.h"

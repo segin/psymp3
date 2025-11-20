@@ -1,13 +1,149 @@
 # **FLAC DEMUXER IMPLEMENTATION PLAN - REVISED**
 
-## **Implementation Tasks Based on Real-World Lessons**
+## **Implementation Tasks Based on RFC 9639 Compliance and Real-World Lessons**
 
 **Key Implementation Priorities:**
-1. **Accurate frame size estimation** using STREAMINFO minimum frame size
-2. **Efficient frame boundary detection** with limited search scope
-3. **Thread-safe public/private method patterns** to prevent deadlocks
-4. **Comprehensive debug logging** with method identification tokens
-5. **Robust error recovery** for corrupted or incomplete streams
+1. **RFC 9639 compliance** with strict validation of forbidden patterns and reserved fields
+2. **Accurate frame size estimation** using STREAMINFO minimum frame size
+3. **Efficient frame boundary detection** with limited search scope
+4. **Thread-safe public/private method patterns** to prevent deadlocks
+5. **Comprehensive debug logging** with method identification tokens
+6. **Robust error recovery** for corrupted or incomplete streams
+
+- [x] 0. Implement RFC 9639 Compliance Foundation
+  - Create forbidden pattern detection system per RFC 9639 Table 1
+  - Implement big-endian integer parsing utilities (except Vorbis comments)
+  - Add CRC-8 and CRC-16 validation functions per RFC 9639 Sections 9.1.8, 9.3
+  - Create UTF-8-like coded number parser per RFC 9639 Section 9.1.5
+  - _Requirements: 1.1, 1.2, 2.1, 2.2, 15.1, 15.2, 16.1_
+
+Co  - Validate exact byte sequence 0x66 0x4C 0x61 0x43 (fLaC)
+  - Reject files with invalid stream markers immediately
+  - Log exact byte values found versus expected for debugging
+  - _Requirements: 1.1, 1.2, 1.3, 1.4_
+
+- [x] 0.2 Implement Metadata Block Header Parser (RFC 9639 Section 8.1)
+  - Parse 4-byte header: is_last flag (bit 7), block type (bits 0-6), length (24-bit big-endian)
+  - Detect and reject forbidden block type 127
+  - Handle reserved block types 7-126 by skipping gracefully
+  - Validate block length against file size
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 15.1_
+
+- [x] 0.3 Implement STREAMINFO Parser (RFC 9639 Section 8.2)
+  - Parse all 34 bytes with correct bit field extraction
+  - Extract u(16) min/max block size, u(24) min/max frame size
+  - Extract u(20) sample rate, u(3) channels-1, u(5) bit depth-1
+  - Extract u(36) total samples, u(128) MD5 checksum
+  - Validate min/max block size >= 16 (forbidden pattern)
+  - Validate min block size <= max block size
+  - Validate sample rate != 0 for audio streams
+  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11, 3.12, 3.13, 3.14, 3.15, 3.16, 3.17, 3.18, 3.19, 3.20_
+
+- [x] 0.4 Implement Frame Sync Code Detector (RFC 9639 Section 9.1)
+  - Search for 15-bit sync pattern 0b111111111111100
+  - Verify byte alignment of sync code
+  - Extract and validate blocking strategy bit (must not change mid-stream)
+  - Distinguish fixed block size (0xFFF8) from variable (0xFFF9)
+  - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7, 4.8_
+
+- [x] 0.5 Implement Block Size Bits Parser (RFC 9639 Section 9.1.1, Table 14)
+  - Parse 4-bit block size encoding
+  - Implement all 16 lookup table values (0b0000-0b1111)
+  - Handle uncommon block sizes (8-bit and 16-bit)
+  - Reject reserved pattern 0b0000
+  - Reject forbidden uncommon block size 65536
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 5.13, 5.14, 5.15, 5.16, 5.17, 5.18_
+
+- [x] 0.6 Implement Sample Rate Bits Parser (RFC 9639 Section 9.1.2)
+  - Parse 4-bit sample rate encoding
+  - Implement all 16 lookup table values
+  - Handle uncommon sample rates (kHz, Hz, tens of Hz)
+  - Reject forbidden pattern 0b1111
+  - Support STREAMINFO reference (0b0000) for non-streamable files
+  - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 6.12, 6.13, 6.14, 6.15, 6.16, 6.17_
+
+- [x] 0.7 Implement Channel Assignment Parser (RFC 9639 Section 9.1.3)
+  - Parse 4-bit channel encoding
+  - Support independent channels (0b0000-0b0111)
+  - Support left-side stereo (0b1000)
+  - Support right-side stereo (0b1001)
+  - Support mid-side stereo (0b1010)
+  - Reject reserved patterns (0b1011-0b1111)
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7_
+
+- [x] 0.8 Implement Bit Depth Parser (RFC 9639 Section 9.1.4)
+  - Parse 3-bit bit depth encoding
+  - Implement all 8 lookup table values
+  - Support STREAMINFO reference (0b000) for non-streamable files
+  - Reject reserved pattern 0b011
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9_
+
+- [x] 0.9 Implement Coded Number Parser (RFC 9639 Section 9.1.5)
+  - Parse UTF-8-like variable-length encoding (1-7 bytes)
+  - Support all byte length patterns (0b0xxxxxxx through 0b11111110)
+  - Interpret as frame number for fixed block size streams
+  - Interpret as sample number for variable block size streams
+  - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10_
+
+- [x] 0.10 Implement CRC Validation (RFC 9639 Sections 9.1.8, 9.3)
+  - Implement CRC-8 with polynomial 0x07 for frame headers
+  - Implement CRC-16 with polynomial 0x8005 for frame footers
+  - Validate frame header CRC-8 after parsing
+  - Validate frame footer CRC-16 after reading complete frame
+  - Log CRC mismatches with frame position
+  - Support strict mode that rejects on CRC failure
+  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
+
+- [x] 0.11 Implement SEEKTABLE Parser (RFC 9639 Section 8.5)
+  - Calculate seek point count as block_length / 18
+  - Parse u(64) sample number, u(64) byte offset, u(16) frame samples
+  - Detect placeholder seek points (0xFFFFFFFFFFFFFFFF)
+  - Validate seek points are sorted in ascending order
+  - Validate seek points are unique (except placeholders)
+  - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
+
+- [x] 0.12 Implement VORBIS_COMMENT Parser (RFC 9639 Section 8.6)
+  - Parse u(32) little-endian vendor string length
+  - Parse UTF-8 vendor string
+  - Parse u(32) little-endian field count
+  - Parse each field with u(32) little-endian length
+  - Split fields on first equals sign into name=value
+  - Validate field names (printable ASCII 0x20-0x7E except 0x3D)
+  - Implement case-insensitive field name comparison
+  - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8_
+
+- [x] 0.13 Implement PICTURE Parser (RFC 9639 Section 8.8)
+  - Parse u(32) picture type
+  - Parse u(32) media type length and ASCII string
+  - Parse u(32) description length and UTF-8 string
+  - Parse u(32) width, height, color depth, indexed colors
+  - Parse u(32) picture data length and binary data
+  - Handle URI format (media type "-->")
+  - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8, 14.9, 14.10, 14.11, 14.12_
+
+- [x] 0.14 Implement Forbidden Pattern Detection (RFC 9639 Section 5, Table 1)
+  - Reject metadata block type 127
+  - Reject STREAMINFO min/max block size < 16
+  - Reject sample rate bits 0b1111
+  - Reject uncommon block size 65536
+  - Log all forbidden pattern detections with context
+  - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5_
+
+- [x] 0.15 Implement Big-Endian Parsing (RFC 9639 Section 5)
+  - Create big-endian u(16), u(24), u(32), u(64) parsers
+  - Use big-endian for all metadata block fields
+  - Use big-endian for all STREAMINFO fields
+  - Use big-endian for all frame header fields
+  - Use little-endian ONLY for VORBIS_COMMENT lengths
+  - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5_
+
+- [x] 0.16 Implement Streamable Subset Detection (RFC 9639 Section 7)
+  - Mark stream as non-streamable if sample rate bits = 0b0000
+  - Mark stream as non-streamable if bit depth bits = 0b000
+  - Mark stream as non-streamable if max block size > 16384
+  - Mark stream as non-streamable if sample rate <= 48kHz and block size > 4608
+  - Mark stream as non-streamable if WAVEFORMATEXTENSIBLE_CHANNEL_MASK present
+  - _Requirements: 17.1, 17.2, 17.3, 17.4, 17.5_
 
 - [x] 1. Create FLACDemuxer Class Structure
   - Implement FLACDemuxer class inheriting from Demuxer base class
