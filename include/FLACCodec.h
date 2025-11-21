@@ -33,7 +33,7 @@
 #ifdef HAVE_NATIVE_FLAC
     // Use native FLAC decoder (no libFLAC dependency)
     // Include the native decoder header which defines FLACCodec
-    #include "NativeFLACCodec.h"
+    #include "codecs/flac/NativeFLACCodec.h"
 #else
     // Use libFLAC wrapper (requires libFLAC library)
     // Forward declaration for RFC compliance validator

@@ -25,6 +25,9 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 datadir=$(prefix)/share/psymp3/data
 
+# Subdirectories (conditionally built)
+SUBDIRS =
+
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
 psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS)
 
@@ -92,7 +95,9 @@ if HAVE_FLAC
 if HAVE_NATIVE_FLAC
 # Native FLAC decoder (no libFLAC dependency)
 # Note: flac.cpp is legacy code that requires libFLAC, so it's excluded when using native decoder
-psymp3_SOURCES += BitstreamReader.cpp CRCValidator.cpp FrameParser.cpp SubframeDecoder.cpp ResidualDecoder.cpp FLACDemuxer.cpp NativeFLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
+SUBDIRS += codecs
+psymp3_LDADD += codecs/flac/libnativeflac.a
+psymp3_SOURCES += FLACDemuxer.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
 else
 # libFLAC wrapper
 psymp3_SOURCES += flac.cpp FLACDemuxer.cpp FLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp

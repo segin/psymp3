@@ -113,11 +113,54 @@ All threading-related code changes must include:
 - **Build System Integration**: Codec availability should be determined at build time through configure checks
 - **Preprocessor Guards**: Use appropriate `#ifdef` guards around codec-specific code to ensure clean builds when dependencies are unavailable
 
+### Codec Directory Structure
+- **Source Organization**: Complex codec implementations should be organized as submodules in `src/codecs/<codec_name>/`
+- **Header Organization**: Codec headers should be placed in `include/codecs/<codec_name>/`
+- **Build System**: Each codec subdirectory should have its own `Makefile.am` that builds a convenience library
+- **Convenience Libraries**: Codec subdirectories build `libnative<codec>.la` convenience libraries that are linked into the main binary
+- **Conditional Building**: Use `SUBDIRS` with conditional compilation in parent `Makefile.am` to enable/disable codec builds
+
+### Native FLAC Codec Structure (Reference Pattern)
+The Native FLAC codec serves as the reference pattern for codec subdirectory organization:
+
+**Directory Structure:**
+```
+src/codecs/flac/          # Native FLAC codec implementation
+  ├── Makefile.am         # Builds libnativeflac.la convenience library
+  ├── BitstreamReader.cpp
+  ├── CRCValidator.cpp
+  ├── FrameParser.cpp
+  ├── SubframeDecoder.cpp
+  ├── ResidualDecoder.cpp
+  └── NativeFLACCodec.cpp
+
+include/codecs/flac/      # Native FLAC codec headers
+  ├── BitstreamReader.h
+  ├── CRCValidator.h
+  ├── FrameParser.h
+  ├── SubframeDecoder.h
+  ├── ResidualDecoder.h
+  └── NativeFLACCodec.h
+```
+
+**Build System Integration:**
+- `src/codecs/Makefile.am` conditionally includes codec subdirectories via `SUBDIRS`
+- `src/codecs/flac/Makefile.am` builds `libnativeflac.la` convenience library
+- `src/Makefile.am` links the convenience library: `psymp3_LDADD += codecs/flac/libnativeflac.la`
+- `configure.ac` includes all codec Makefiles in `AC_CONFIG_FILES`
+
+**Include Path Pattern:**
+- Headers are included with full path: `#include "codecs/flac/BitstreamReader.h"`
+- Master header `psymp3.h` includes codec headers conditionally based on build flags
+- Codec source files only include `psymp3.h` (master header rule)
+
 ### Codec Implementation Standards
 - Follow the established pluggable codec architecture
 - Ensure codec registration with MediaFactory is conditionally compiled
 - Maintain backward compatibility when adding new codec support
 - Test codec implementations with and without their dependencies available
+- Complex codecs with multiple components should follow the subdirectory pattern
+- Simple codec wrappers can remain in the main `src/` directory
 
 ### Format-Specific Development Guidelines
 
