@@ -30,6 +30,21 @@ void BitstreamReader::clearBuffer()
     m_total_bits_read = 0;
 }
 
+void BitstreamReader::discardReadBytes()
+{
+    // Remove bytes that have already been read from the buffer
+    // This helps manage memory for long streams
+    if (m_byte_position > 0) {
+        m_buffer.erase(m_buffer.begin(), m_buffer.begin() + m_byte_position);
+        m_byte_position = 0;
+    }
+}
+
+size_t BitstreamReader::getBufferSize() const
+{
+    return m_buffer.size();
+}
+
 size_t BitstreamReader::getAvailableBits() const
 {
     size_t bytes_remaining = m_buffer.size() - m_byte_position;

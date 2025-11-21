@@ -26,8 +26,10 @@ public:
     // Input management
     void feedData(const uint8_t* data, size_t size);
     void clearBuffer();
+    void discardReadBytes();  // Remove already-read bytes from buffer
     size_t getAvailableBits() const;
     size_t getAvailableBytes() const;
+    size_t getBufferSize() const;
     
     // Basic bit reading
     bool readBits(uint32_t& value, uint32_t bit_count);

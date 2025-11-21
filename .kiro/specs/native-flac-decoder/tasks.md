@@ -14,7 +14,7 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
   - Create typedef/using declaration for FLACCodec selection
   - _Requirements: 17_
 
-- [-] 2. Implement BitstreamReader class
+- [x] 2. Implement BitstreamReader class
   - [x] 2.1 Create BitstreamReader.h with class interface
     - Define bit buffer cache (64-bit)
     - Define position tracking members
@@ -31,7 +31,7 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Implement readUTF8() for UTF-8 coded numbers
     - Implement readRiceCode() for Rice-coded values
     - _Requirements: 1, 21, 32, 40_
-  - [ ] 2.4 Implement buffer management
+  - [x] 2.4 Implement buffer management
     - Implement feedData() for input buffering
     - Implement clearBuffer() for reset
     - Implement byte alignment functions
