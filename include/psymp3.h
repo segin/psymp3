@@ -401,6 +401,8 @@ typedef struct bio_st BIO;
 #ifdef HAVE_NATIVE_FLAC
 #include "BitstreamReader.h"
 #include "CRCValidator.h"
+#include "FrameParser.h"
+#include "SubframeDecoder.h"
 #endif
 #include "FLACCodec.h"
 #include "FLACRFCValidator.h"

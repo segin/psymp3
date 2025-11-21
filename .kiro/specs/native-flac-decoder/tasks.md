@@ -52,18 +52,18 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 2: Frame Parsing and Structure
 
-- [ ] 4. Implement FrameParser class
-  - [ ] 4.1 Create FrameParser.h with frame structures
+- [x] 4. Implement FrameParser class
+  - [x] 4.1 Create FrameParser.h with frame structures
     - Define FrameHeader struct
     - Define FrameFooter struct
     - Define ChannelAssignment enum
     - _Requirements: 2, 33_
-  - [ ] 4.2 Implement frame sync detection
+  - [x] 4.2 Implement frame sync detection
     - Implement findSync() to locate 0xFFF8-0xFFFF pattern
     - Validate sync pattern on byte boundary
     - Handle sync loss and recovery
     - _Requirements: 2, 33_
-  - [ ] 4.3 Implement frame header parsing
+  - [x] 4.3 Implement frame header parsing
     - Parse blocking strategy bit
     - Parse block size bits with lookup table
     - Parse sample rate bits with lookup table
@@ -71,28 +71,28 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Parse bit depth bits with lookup table
     - Parse reserved bit (must be 0)
     - _Requirements: 2, 22, 26, 27, 34_
-  - [ ] 4.4 Implement coded number parsing
+  - [x] 4.4 Implement coded number parsing
     - Parse UTF-8 coded frame/sample number
     - Handle 1-7 byte UTF-8 encoding
     - Validate coded number range
     - _Requirements: 2, 21_
-  - [ ] 4.5 Implement uncommon parameter handling
+  - [x] 4.5 Implement uncommon parameter handling
     - Parse 8-bit or 16-bit uncommon block size
     - Parse uncommon sample rate (kHz, Hz, Hz/10)
     - Validate against forbidden values
     - _Requirements: 2, 22_
-  - [ ] 4.6 Implement frame header CRC validation
+  - [x] 4.6 Implement frame header CRC validation
     - Compute CRC-8 over frame header
     - Validate against header CRC byte
     - Reject frame on CRC mismatch
     - _Requirements: 2, 8, 56_
-  - [ ] 4.7 Implement frame footer parsing
+  - [x] 4.7 Implement frame footer parsing
     - Align to byte boundary with zero padding
     - Parse 16-bit CRC-16
     - Validate complete frame CRC
     - _Requirements: 2, 8, 55, 56_
 
-- [ ] 5. Implement forbidden pattern detection
+- [x] 5. Implement forbidden pattern detection
   - Validate metadata block type != 127
   - Validate sample rate bits != 0b1111
   - Validate uncommon block size != 65536
@@ -102,35 +102,35 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 3: Subframe Decoding
 
-- [ ] 6. Implement SubframeDecoder class
-  - [ ] 6.1 Create SubframeDecoder.h with structures
+- [x] 6. Implement SubframeDecoder class
+  - [x] 6.1 Create SubframeDecoder.h with structures
     - Define SubframeType enum
     - Define SubframeHeader struct
     - Declare decoder interface
     - _Requirements: 3_
-  - [ ] 6.2 Implement subframe header parsing
+  - [x] 6.2 Implement subframe header parsing
     - Parse mandatory 0 bit
     - Parse 6-bit subframe type
     - Parse wasted bits flag and count
     - Calculate subframe bit depth
     - _Requirements: 3, 20, 36_
-  - [ ] 6.3 Implement CONSTANT subframe decoder
+  - [x] 6.3 Implement CONSTANT subframe decoder
     - Read single unencoded sample
     - Replicate to all block samples
     - Apply wasted bits padding
     - _Requirements: 3_
-  - [ ] 6.4 Implement VERBATIM subframe decoder
+  - [x] 6.4 Implement VERBATIM subframe decoder
     - Read unencoded samples sequentially
     - Handle subframe bit depth
     - Apply wasted bits padding
     - _Requirements: 3_
-  - [ ] 6.5 Implement FIXED predictor decoder
+  - [x] 6.5 Implement FIXED predictor decoder
     - Read warm-up samples (order 0-4)
     - Decode residual samples
     - Apply fixed predictor formulas
     - Reconstruct samples sequentially
     - _Requirements: 3, 4, 35, 54_
-  - [ ] 6.6 Implement LPC predictor decoder
+  - [x] 6.6 Implement LPC predictor decoder
     - Read warm-up samples
     - Parse coefficient precision (4-bit)
     - Parse prediction right shift (5-bit signed)
