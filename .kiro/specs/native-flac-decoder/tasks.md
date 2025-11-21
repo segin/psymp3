@@ -26,7 +26,7 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Implement cache refill mechanism
     - Handle big-endian bit ordering
     - _Requirements: 1, 39_
-  - [ ] 2.3 Implement special encoding readers
+  - [x] 2.3 Implement special encoding readers
     - Implement readUnary() for unary-coded values
     - Implement readUTF8() for UTF-8 coded numbers
     - Implement readRiceCode() for Rice-coded values

@@ -220,3 +220,228 @@ int32_t BitstreamReader::unfoldSigned(uint32_t folded)
         return static_cast<int32_t>(folded >> 1);
     }
 }
+
+// Unary decoding: count leading zeros until we hit a 1 bit
+bool BitstreamReader::readUnary(uint32_t& value)
+{
+    value = 0;
+    
+    // Read bits one at a time until we find a 1
+    while (true) {
+        if (!ensureBits(1)) {
+            return false;  // Ran out of data
+        }
+        
+        uint32_t bit = peekBits(1);
+        consumeBits(1);
+        
+        if (bit == 1) {
+            break;  // Found the terminating 1
+        }
+        
+        value++;
+        
+        // Sanity check: prevent infinite loops on corrupted data
+        if (value > 1000000) {
+            return false;  // Unreasonably large unary value
+        }
+    }
+    
+    return true;
+}
+
+// UTF-8 coded number decoding per RFC 9639
+bool BitstreamReader::readUTF8(uint64_t& value)
+{
+    // Read first byte to determine length
+    if (!ensureBits(8)) {
+        return false;
+    }
+    
+    uint32_t first_byte = peekBits(8);
+    
+    // Determine number of bytes based on leading bits
+    if ((first_byte & 0x80) == 0) {
+        // 0xxxxxxx - 1 byte (7 bits)
+        return readUTF8_1byte(value);
+    } else if ((first_byte & 0xE0) == 0xC0) {
+        // 110xxxxx - 2 bytes (11 bits)
+        return readUTF8_2byte(value);
+    } else if ((first_byte & 0xF0) == 0xE0) {
+        // 1110xxxx - 3 bytes (16 bits)
+        return readUTF8_3byte(value);
+    } else if ((first_byte & 0xF8) == 0xF0) {
+        // 11110xxx - 4 bytes (21 bits)
+        return readUTF8_4byte(value);
+    } else if ((first_byte & 0xFC) == 0xF8) {
+        // 111110xx - 5 bytes (26 bits)
+        return readUTF8_5byte(value);
+    } else if ((first_byte & 0xFE) == 0xFC) {
+        // 1111110x - 6 bytes (31 bits)
+        return readUTF8_6byte(value);
+    } else if (first_byte == 0xFE) {
+        // 11111110 - 7 bytes (36 bits)
+        return readUTF8_7byte(value);
+    } else {
+        // Invalid UTF-8 pattern
+        return false;
+    }
+}
+
+bool BitstreamReader::readUTF8_1byte(uint64_t& value)
+{
+    uint32_t byte;
+    if (!readBits(byte, 8)) {
+        return false;
+    }
+    
+    value = byte & 0x7F;
+    return true;
+}
+
+bool BitstreamReader::readUTF8_2byte(uint64_t& value)
+{
+    uint32_t byte1, byte2;
+    
+    if (!readBits(byte1, 8) || !readBits(byte2, 8)) {
+        return false;
+    }
+    
+    // Validate continuation byte
+    if ((byte2 & 0xC0) != 0x80) {
+        return false;
+    }
+    
+    value = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F);
+    return true;
+}
+
+bool BitstreamReader::readUTF8_3byte(uint64_t& value)
+{
+    uint32_t byte1, byte2, byte3;
+    
+    if (!readBits(byte1, 8) || !readBits(byte2, 8) || !readBits(byte3, 8)) {
+        return false;
+    }
+    
+    // Validate continuation bytes
+    if ((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80) {
+        return false;
+    }
+    
+    value = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F);
+    return true;
+}
+
+bool BitstreamReader::readUTF8_4byte(uint64_t& value)
+{
+    uint32_t byte1, byte2, byte3, byte4;
+    
+    if (!readBits(byte1, 8) || !readBits(byte2, 8) || 
+        !readBits(byte3, 8) || !readBits(byte4, 8)) {
+        return false;
+    }
+    
+    // Validate continuation bytes
+    if ((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || (byte4 & 0xC0) != 0x80) {
+        return false;
+    }
+    
+    value = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | 
+            ((byte3 & 0x3F) << 6) | (byte4 & 0x3F);
+    return true;
+}
+
+bool BitstreamReader::readUTF8_5byte(uint64_t& value)
+{
+    uint32_t byte1, byte2, byte3, byte4, byte5;
+    
+    if (!readBits(byte1, 8) || !readBits(byte2, 8) || 
+        !readBits(byte3, 8) || !readBits(byte4, 8) || !readBits(byte5, 8)) {
+        return false;
+    }
+    
+    // Validate continuation bytes
+    if ((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || 
+        (byte4 & 0xC0) != 0x80 || (byte5 & 0xC0) != 0x80) {
+        return false;
+    }
+    
+    value = ((byte1 & 0x03) << 24) | ((byte2 & 0x3F) << 18) | 
+            ((byte3 & 0x3F) << 12) | ((byte4 & 0x3F) << 6) | (byte5 & 0x3F);
+    return true;
+}
+
+bool BitstreamReader::readUTF8_6byte(uint64_t& value)
+{
+    uint32_t byte1, byte2, byte3, byte4, byte5, byte6;
+    
+    if (!readBits(byte1, 8) || !readBits(byte2, 8) || 
+        !readBits(byte3, 8) || !readBits(byte4, 8) || 
+        !readBits(byte5, 8) || !readBits(byte6, 8)) {
+        return false;
+    }
+    
+    // Validate continuation bytes
+    if ((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || 
+        (byte4 & 0xC0) != 0x80 || (byte5 & 0xC0) != 0x80 || (byte6 & 0xC0) != 0x80) {
+        return false;
+    }
+    
+    value = ((byte1 & 0x01) << 30) | ((byte2 & 0x3F) << 24) | 
+            ((byte3 & 0x3F) << 18) | ((byte4 & 0x3F) << 12) | 
+            ((byte5 & 0x3F) << 6) | (byte6 & 0x3F);
+    return true;
+}
+
+bool BitstreamReader::readUTF8_7byte(uint64_t& value)
+{
+    uint32_t byte1, byte2, byte3, byte4, byte5, byte6, byte7;
+    
+    if (!readBits(byte1, 8) || !readBits(byte2, 8) || 
+        !readBits(byte3, 8) || !readBits(byte4, 8) || 
+        !readBits(byte5, 8) || !readBits(byte6, 8) || !readBits(byte7, 8)) {
+        return false;
+    }
+    
+    // Validate continuation bytes
+    if ((byte2 & 0xC0) != 0x80 || (byte3 & 0xC0) != 0x80 || 
+        (byte4 & 0xC0) != 0x80 || (byte5 & 0xC0) != 0x80 || 
+        (byte6 & 0xC0) != 0x80 || (byte7 & 0xC0) != 0x80) {
+        return false;
+    }
+    
+    value = ((uint64_t)(byte2 & 0x3F) << 30) | ((byte3 & 0x3F) << 24) | 
+            ((byte4 & 0x3F) << 18) | ((byte5 & 0x3F) << 12) | 
+            ((byte6 & 0x3F) << 6) | (byte7 & 0x3F);
+    return true;
+}
+
+// Rice code decoding per RFC 9639
+bool BitstreamReader::readRiceCode(int32_t& value, uint32_t rice_param)
+{
+    // Rice code consists of:
+    // 1. Unary-coded quotient (q)
+    // 2. Binary-coded remainder (r) using rice_param bits
+    // Result: value = (q << rice_param) | r
+    
+    // Read unary quotient
+    uint32_t quotient;
+    if (!readUnary(quotient)) {
+        return false;
+    }
+    
+    // Read binary remainder
+    uint32_t remainder;
+    if (!readBits(remainder, rice_param)) {
+        return false;
+    }
+    
+    // Combine quotient and remainder
+    uint32_t folded = (quotient << rice_param) | remainder;
+    
+    // Apply zigzag decoding to get signed value
+    value = unfoldSigned(folded);
+    
+    return true;
+}
