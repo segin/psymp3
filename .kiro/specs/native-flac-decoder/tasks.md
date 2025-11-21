@@ -38,13 +38,13 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Track bit position for seeking
     - _Requirements: 1, 55_
 
-- [ ] 3. Implement CRCValidator class
-  - [ ] 3.1 Create CRC lookup tables
+- [x] 3. Implement CRCValidator class
+  - [x] 3.1 Create CRC lookup tables
     - Generate CRC-8 table with polynomial 0x07
     - Generate CRC-16 table with polynomial 0x8005
     - Implement static table initialization
     - _Requirements: 8, 56_
-  - [ ] 3.2 Implement CRC computation
+  - [x] 3.2 Implement CRC computation
     - Implement computeCRC8() for frame headers
     - Implement computeCRC16() for complete frames
     - Implement incremental CRC update methods
