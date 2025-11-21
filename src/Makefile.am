@@ -26,10 +26,10 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories (conditionally built)
-SUBDIRS =
+SUBDIRS = demuxers
 
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
-psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS)
+psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/pcm/libpcmcodecs.a
 
 # Optional codec flags and libraries
 if HAVE_FLAC
@@ -83,7 +83,7 @@ psymp3_SOURCES = \
  ISODemuxerMetadataExtractor.cpp ISODemuxerSampleTableManager.cpp ISODemuxerSeekingEngine.cpp ISODemuxerStreamManager.cpp \
  Label.cpp LastFM.cpp LayoutWidget.cpp lyrics.cpp LyricsWidget.cpp \
  main.cpp MainUIWidget.cpp MediaFactory.cpp mediafile.cpp MemoryOptimizer.cpp MemoryPoolManager.cpp MemoryTracker.cpp BoundedBuffer.cpp ModernStream.cpp \
- PCMCodecs.cpp persistentstorage.cpp player.cpp PlayerProgressBarWidget.cpp playlist.cpp \
+ persistentstorage.cpp player.cpp PlayerProgressBarWidget.cpp playlist.cpp \
  ProgressBarBracketWidget.cpp ProgressBarFrameWidget.cpp RawAudioDemuxer.cpp rect.cpp scrobble.cpp \
  song.cpp SpectrumAnalyzerWidget.cpp stream.cpp StreamingManager.cpp surface.cpp \
  system.cpp TagLibIOHandlerAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp ToastWidget.cpp \
@@ -92,20 +92,22 @@ psymp3_SOURCES = \
 
 # Optional codec sources
 if HAVE_FLAC
+psymp3_LDADD += demuxers/flac/libflacdemuxer.a
 if HAVE_NATIVE_FLAC
 # Native FLAC decoder (no libFLAC dependency)
 # Note: flac.cpp is legacy code that requires libFLAC, so it's excluded when using native decoder
 SUBDIRS += codecs
 psymp3_LDADD += codecs/flac/libnativeflac.a
-psymp3_SOURCES += FLACDemuxer.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
+psymp3_SOURCES += FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
 else
 # libFLAC wrapper
-psymp3_SOURCES += flac.cpp FLACDemuxer.cpp FLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
+psymp3_SOURCES += flac.cpp FLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
 endif
 endif
 
 if HAVE_MP3
-psymp3_SOURCES += libmpg123.cpp
+SUBDIRS += codecs
+psymp3_LDADD += codecs/mp3/libmp3codec.a
 endif
 
 if HAVE_VORBIS
@@ -120,21 +122,14 @@ psymp3_SOURCES += opus.cpp
 endif
 
 if HAVE_OGGDEMUXER
-psymp3_SOURCES += OggDemuxer.cpp OggCodecs.cpp
+psymp3_LDADD += demuxers/ogg/liboggdemuxer.a
+psymp3_SOURCES += OggCodecs.cpp
 endif
 
 if HAVE_DBUS
 psymp3_SOURCES += MPRISTypes.cpp DBusConnectionManager.cpp PropertyManager.cpp MethodHandler.cpp SignalEmitter.cpp MPRISManager.cpp
 endif
 
-# G.711 codec sources
-if HAVE_ALAW
-psymp3_SOURCES += ALawCodec.cpp
-endif
-
-if HAVE_MULAW
-psymp3_SOURCES += MuLawCodec.cpp
-endif
 endif
 
 # Windows resource file support

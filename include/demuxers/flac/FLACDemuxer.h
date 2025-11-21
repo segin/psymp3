@@ -26,6 +26,10 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace FLAC {
+
 /**
  * @brief FLAC metadata block types as defined in FLAC specification
  */
@@ -1359,5 +1363,9 @@ private:
      */
     std::string getRFCReference(FLACErrorType type) const;
 };
+
+} // namespace FLAC
+} // namespace Demuxer
+} // namespace PsyMP3
 
 #endif // FLACDEMUXER_H

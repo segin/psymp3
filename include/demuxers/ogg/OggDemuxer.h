@@ -29,6 +29,10 @@
 // OggDemuxer is built if any Ogg-based codec is enabled
 #ifdef HAVE_OGGDEMUXER
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Ogg {
+
 /**
  * @brief Ogg page header structure
  */
@@ -675,6 +679,10 @@ private:
     mutable int64_t m_offset = 0;               // Current file offset for page extraction
     mutable int64_t m_end = 0;                  // End boundary for page extraction
 };
+
+} // namespace Ogg
+} // namespace Demuxer
+} // namespace PsyMP3
 
 #endif // HAVE_OGGDEMUXER
 #endif // OGGDEMUXER_H

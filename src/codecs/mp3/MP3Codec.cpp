@@ -25,7 +25,9 @@
 
 #ifdef HAVE_MP3
 
-#ifdef HAVE_MP3
+namespace PsyMP3 {
+namespace Codec {
+namespace MP3 {
 
 // Callback functions for libmpg123 to read from our FILE* handle.
 // These must have C linkage and cannot be member functions.
@@ -155,6 +157,8 @@ bool Libmpg123::eof()
     return m_eof;
 }
 
-#endif // HAVE_MP3
+} // namespace MP3
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_MP3

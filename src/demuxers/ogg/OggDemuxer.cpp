@@ -12,6 +12,10 @@
 // OggDemuxer is built if HAVE_OGGDEMUXER is defined
 #ifdef HAVE_OGGDEMUXER
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Ogg {
+
 // Error codes following libvorbisfile/libopusfile patterns
 // Note: We use our own constants to avoid conflicts with system headers
 namespace OggErrorCodes {
@@ -4676,3 +4680,7 @@ bool OggDemuxer::detectInfiniteLoop_unlocked(const std::string& operation_name) 
     
     return false; // No infinite loop detected
 }
+
+} // namespace Ogg
+} // namespace Demuxer
+} // namespace PsyMP3

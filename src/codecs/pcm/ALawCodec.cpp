@@ -25,6 +25,10 @@
 
 #ifdef ENABLE_ALAW_CODEC
 
+namespace PsyMP3 {
+namespace Codec {
+namespace PCM {
+
 // Static member initialization
 bool ALawCodec::s_table_initialized = false;
 
@@ -428,5 +432,9 @@ void registerALawCodec() {
     
     Debug::log("codec", "ALawCodec: Successfully registered for codec names: alaw, pcm_alaw, g711_alaw");
 }
+
+} // namespace PCM
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // ENABLE_ALAW_CODEC

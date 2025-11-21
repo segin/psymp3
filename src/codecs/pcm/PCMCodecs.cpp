@@ -9,6 +9,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Codec {
+namespace PCM {
+
 // PCMCodec implementation
 PCMCodec::PCMCodec(const StreamInfo& stream_info) 
     : SimplePCMCodec(stream_info) {
@@ -181,4 +185,8 @@ void MP3PassthroughCodec::reset() {
 bool MP3PassthroughCodec::canDecode(const StreamInfo& stream_info) const {
     return stream_info.codec_name == "mp3";
 }
+
+} // namespace PCM
+} // namespace Codec
+} // namespace PsyMP3
 #endif

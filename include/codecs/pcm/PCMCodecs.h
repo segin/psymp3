@@ -26,6 +26,19 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+// Forward declarations for namespaced codec types
+namespace PsyMP3 {
+namespace Codec {
+namespace MP3 {
+    class Libmpg123;
+}
+}
+}
+
+namespace PsyMP3 {
+namespace Codec {
+namespace PCM {
+
 /**
  * @brief Linear PCM codec (8-bit, 16-bit, 24-bit, 32-bit integer and float)
  */
@@ -76,9 +89,13 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class Libmpg123* m_mp3_stream = nullptr;  // Forward declaration
+    PsyMP3::Codec::MP3::Libmpg123* m_mp3_stream = nullptr;  // Fully qualified
     std::vector<uint8_t> m_buffer;            // Accumulated data buffer
     bool m_header_written = false;
 };
+
+} // namespace PCM
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // PCMCODECS_H

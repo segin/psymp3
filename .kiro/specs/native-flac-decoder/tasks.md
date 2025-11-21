@@ -173,41 +173,41 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 5: Channel Processing
 
-- [ ] 8. Implement ChannelDecorrelator class
-  - [ ] 8.1 Create ChannelDecorrelator.h
+- [x] 8. Implement ChannelDecorrelator class
+  - [x] 8.1 Create ChannelDecorrelator.h
     - Define ChannelAssignment enum
     - Declare decorrelation methods
     - _Requirements: 7_
-  - [ ] 8.2 Implement stereo decorrelation
+  - [x] 8.2 Implement stereo decorrelation
     - Implement left-side decorrelation (right = left - side)
     - Implement right-side decorrelation (left = right + side)
     - Implement mid-side decorrelation with proper rounding
     - Handle mid-side odd sample reconstruction
     - _Requirements: 7_
-  - [ ] 8.3 Implement multi-channel support
+  - [x] 8.3 Implement multi-channel support
     - Handle independent channel assignment
     - Support 1-8 channels per RFC 9639
     - Validate channel count
     - _Requirements: 7, 26_
 
-- [ ] 9. Implement SampleReconstructor class
-  - [ ] 9.1 Create SampleReconstructor.h
+- [x] 9. Implement SampleReconstructor class
+  - [x] 9.1 Create SampleReconstructor.h
     - Declare bit depth conversion methods
     - Define output format (16-bit PCM)
     - _Requirements: 9, 10_
-  - [ ] 9.2 Implement bit depth conversion
+  - [x] 9.2 Implement bit depth conversion
     - Implement 16-bit passthrough (no conversion)
     - Implement 8-bit to 16-bit upscaling
     - Implement 24-bit to 16-bit downscaling with rounding
     - Implement 32-bit to 16-bit downscaling
     - Handle 4-12 bit and 20-bit depths
     - _Requirements: 9_
-  - [ ] 9.3 Implement sample interleaving
+  - [x] 9.3 Implement sample interleaving
     - Interleave channels for stereo output
     - Interleave multi-channel output
     - Ensure proper channel ordering
     - _Requirements: 10_
-  - [ ] 9.4 Implement output validation
+  - [x] 9.4 Implement output validation
     - Verify samples within 16-bit range
     - Prevent clipping during conversion
     - Validate sample count

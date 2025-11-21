@@ -1,5 +1,5 @@
 #
-# Makefile.am - automake input for Native FLAC codec
+# Makefile.am - automake input for Ogg demuxer
 # This file is part of PsyMP3.
 # Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
 #
@@ -10,7 +10,6 @@
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 # Use same flags as parent to ensure consistent compilation
-# Include all optional codec flags to match parent build environment
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -Wall -Werror
 
 # Add optional codec flags if available
@@ -34,14 +33,7 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libnativeflac.a
+noinst_LIBRARIES = liboggdemuxer.a
 
-libnativeflac_a_SOURCES = \
-	BitstreamReader.cpp \
-	CRCValidator.cpp \
-	FrameParser.cpp \
-	SubframeDecoder.cpp \
-	ResidualDecoder.cpp \
-	ChannelDecorrelator.cpp \
-	SampleReconstructor.cpp \
-	NativeFLACCodec.cpp
+liboggdemuxer_a_SOURCES = \
+	OggDemuxer.cpp

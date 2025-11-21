@@ -23,6 +23,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace FLAC {
+
 // Debug macro with line numbers for FLAC channel
 #define FLAC_DEBUG(...) Debug::log("flac", "[" + std::string(__FUNCTION__) + ":" + std::to_string(__LINE__) + "] ", __VA_ARGS__)
 
@@ -6885,3 +6889,7 @@ void FLACDemuxer::resetErrorRecoveryConfig()
     Debug::log("flac_rfc_validator", "[resetErrorRecoveryConfig] Log recovery attempts: ENABLED");
     Debug::log("flac_rfc_validator", "[resetErrorRecoveryConfig] Strict RFC compliance: DISABLED");
 }
+
+} // namespace FLAC
+} // namespace Demuxer
+} // namespace PsyMP3

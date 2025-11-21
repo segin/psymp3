@@ -28,6 +28,10 @@
 
 #ifdef HAVE_MP3
 
+namespace PsyMP3 {
+namespace Codec {
+namespace MP3 {
+
 class Libmpg123 : public Stream
 {
     public:
@@ -48,6 +52,10 @@ class Libmpg123 : public Stream
         std::unique_ptr<IOHandler> m_handler;
         mpg123_handle* m_mpg_handle = nullptr;
 };
+
+} // namespace MP3
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_MP3
 

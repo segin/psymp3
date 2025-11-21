@@ -25,6 +25,10 @@
 
 #ifdef ENABLE_MULAW_CODEC
 
+namespace PsyMP3 {
+namespace Codec {
+namespace PCM {
+
 // Static member initialization
 bool MuLawCodec::s_table_initialized = false;
 
@@ -424,5 +428,9 @@ void registerMuLawCodec() {
     
     Debug::log("codec", "MuLawCodec: Successfully registered for codec names: mulaw, pcm_mulaw, g711_mulaw");
 }
+
+} // namespace PCM
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // ENABLE_MULAW_CODEC

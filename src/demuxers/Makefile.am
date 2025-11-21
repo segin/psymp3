@@ -1,5 +1,5 @@
 #
-# Makefile.am - automake input for codecs subdirectory
+# Makefile.am - automake input for demuxers subdirectory
 # This file is part of PsyMP3.
 # Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
 #
@@ -7,20 +7,12 @@
 # the terms of the ISC License <https://opensource.org/licenses/ISC>
 #
 
-SUBDIRS = pcm
+SUBDIRS =
 
-if HAVE_NATIVE_FLAC
+if HAVE_FLAC
 SUBDIRS += flac
 endif
 
-if HAVE_OPUS
-SUBDIRS += opus
-endif
-
-if HAVE_VORBIS
-SUBDIRS += vorbis
-endif
-
-if HAVE_MP3
-SUBDIRS += mp3
+if HAVE_OGGDEMUXER
+SUBDIRS += ogg
 endif

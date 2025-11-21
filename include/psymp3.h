@@ -353,17 +353,24 @@ typedef struct bio_st BIO;
 #include "DemuxerRegistry.h"
 #include "CodecRegistration.h"
 #include "ChunkDemuxer.h"
-#include "PCMCodecs.h"
+#include "codecs/pcm/PCMCodecs.h"
+// Bring PCM codec types into global namespace for compatibility
+using PsyMP3::Codec::PCM::PCMCodec;
+using PsyMP3::Codec::PCM::MP3PassthroughCodec;
 #ifdef ENABLE_MULAW_CODEC
-#include "MuLawCodec.h"
+#include "codecs/pcm/MuLawCodec.h"
+using PsyMP3::Codec::PCM::MuLawCodec;
 #endif
 #ifdef ENABLE_ALAW_CODEC
-#include "ALawCodec.h"
+#include "codecs/pcm/ALawCodec.h"
+using PsyMP3::Codec::PCM::ALawCodec;
 #endif
 #include "DemuxedStream.h"
 #include "RawAudioDemuxer.h"
 #ifdef HAVE_OGGDEMUXER
-#include "OggDemuxer.h"
+#include "demuxers/ogg/OggDemuxer.h"
+// Bring Ogg demuxer types into global namespace for compatibility
+using PsyMP3::Demuxer::Ogg::OggDemuxer;
 #include "OggCodecs.h"
 #endif
 #include "ISODemuxerErrorRecovery.h"
@@ -384,7 +391,7 @@ typedef struct bio_st BIO;
 #include "DemuxerExtensibility.h"
 #include "FadingWidget.h"
 #ifdef HAVE_MP3
-#include "libmpg123w.h"
+#include "codecs/mp3/MP3Codec.h"
 #endif
 #ifdef HAVE_OGGDEMUXER
 #include "codecs/vorbis/VorbisCodec.h"
@@ -403,13 +410,18 @@ using PsyMP3::Codec::Opus::OpusComments;
 #ifdef HAVE_FLAC
 #include "flac.h"
 #include "FLACRFC9639.h"
-#include "FLACDemuxer.h"
+#include "demuxers/flac/FLACDemuxer.h"
+// Bring FLAC demuxer types into global namespace for compatibility
+using PsyMP3::Demuxer::FLAC::FLACDemuxer;
+using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 #ifdef HAVE_NATIVE_FLAC
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/CRCValidator.h"
 #include "codecs/flac/FrameParser.h"
 #include "codecs/flac/ResidualDecoder.h"
 #include "codecs/flac/SubframeDecoder.h"
+#include "codecs/flac/ChannelDecorrelator.h"
+#include "codecs/flac/SampleReconstructor.h"
 #include "codecs/flac/NativeFLACCodec.h"
 // Bring Native FLAC codec types into global namespace for compatibility
 using PsyMP3::Codec::FLAC::FLACCodec;
