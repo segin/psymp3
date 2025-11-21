@@ -33,6 +33,10 @@ AC_ARG_ENABLE([flac],
   [AS_HELP_STRING([--enable-flac], [Enable FLAC support @<:@default=yes@:>@])],
   [enable_flac=$enableval], [enable_flac=yes])
 
+AC_ARG_ENABLE([native-flac],
+  [AS_HELP_STRING([--enable-native-flac], [Use native FLAC decoder instead of libFLAC @<:@default=no@:>@])],
+  [enable_native_flac=$enableval], [enable_native_flac=no])
+
 AC_ARG_ENABLE([mp3],
   [AS_HELP_STRING([--enable-mp3], [Enable MP3 support @<:@default=yes@:>@])],
   [enable_mp3=$enableval], [enable_mp3=yes])
@@ -47,14 +51,26 @@ AC_ARG_ENABLE([opus],
 
 # Check for optional codec libraries
 have_flac=no
+have_native_flac=no
 have_mp3=no
 have_vorbis=no
 have_opus=no
 
 if test "x$enable_flac" = "xyes"; then
-  PKG_CHECK_MODULES([FLAC], [flac++], [have_flac=yes], [have_flac=no])
-  if test "x$have_flac" = "xyes"; then
+  if test "x$enable_native_flac" = "xyes"; then
+    # Use native FLAC decoder (no external dependency)
+    have_native_flac=yes
+    have_flac=yes
+    AC_DEFINE([HAVE_NATIVE_FLAC], [1], [Define to 1 if native FLAC decoder is enabled])
     AC_DEFINE([HAVE_FLAC], [1], [Define to 1 if FLAC support is enabled])
+    AC_MSG_NOTICE([Using native FLAC decoder (no libFLAC dependency)])
+  else
+    # Use libFLAC wrapper
+    PKG_CHECK_MODULES([FLAC], [flac++], [have_flac=yes], [have_flac=no])
+    if test "x$have_flac" = "xyes"; then
+      AC_DEFINE([HAVE_FLAC], [1], [Define to 1 if FLAC support is enabled])
+      AC_MSG_NOTICE([Using libFLAC wrapper for FLAC decoding])
+    fi
   fi
 fi
 
@@ -138,6 +154,7 @@ if test "x$enable_mulaw" = "xyes"; then
 fi
 
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
+AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
@@ -256,6 +273,11 @@ echo ""
 echo "Audio Codec Support:"
 echo "  MP3 (libmpg123):   $have_mp3"
 echo "  FLAC:              $have_flac"
+if test "x$have_native_flac" = "xyes"; then
+  echo "    Implementation:  Native (no libFLAC)"
+else
+  echo "    Implementation:  libFLAC wrapper"
+fi
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
 echo "  A-law (G.711):     $have_alaw"

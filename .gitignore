@@ -305,3 +305,4 @@ tests/test_streaminfo_bitfields
 tests/test_flac_streamable_subset_validation
 .gitignore
 tests/test_flac_thread_safety_validation
+tests/test_debug_system
