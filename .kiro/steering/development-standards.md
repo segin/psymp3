@@ -114,14 +114,18 @@ All threading-related code changes must include:
 - **Preprocessor Guards**: Use appropriate `#ifdef` guards around codec-specific code to ensure clean builds when dependencies are unavailable
 
 ### Codec Directory Structure
-- **Source Organization**: Complex codec implementations should be organized as submodules in `src/codecs/<codec_name>/`
+- **Source Organization**: Codec implementations should be organized as submodules in `src/codecs/<codec_name>/`
 - **Header Organization**: Codec headers should be placed in `include/codecs/<codec_name>/`
 - **Build System**: Each codec subdirectory should have its own `Makefile.am` that builds a convenience library
-- **Convenience Libraries**: Codec subdirectories build `libnative<codec>.la` convenience libraries that are linked into the main binary
+- **Convenience Libraries**: Codec subdirectories build `lib<codec>codec.a` static libraries that are linked into the main binary
 - **Conditional Building**: Use `SUBDIRS` with conditional compilation in parent `Makefile.am` to enable/disable codec builds
+- **Namespacing**: All codec classes should be in `PsyMP3::Codec::<CodecName>` namespace
+- **Backward Compatibility**: Use `using` declarations in `psymp3.h` to bring codec types into global namespace
 
-### Native FLAC Codec Structure (Reference Pattern)
-The Native FLAC codec serves as the reference pattern for codec subdirectory organization:
+### Codec Organization Examples
+
+#### Native FLAC Codec (Complex Multi-File Codec)
+The Native FLAC codec demonstrates organization for complex codecs with multiple components:
 
 **Directory Structure:**
 ```
@@ -145,14 +149,79 @@ include/codecs/flac/      # Native FLAC codec headers
 
 **Build System Integration:**
 - `src/codecs/Makefile.am` conditionally includes codec subdirectories via `SUBDIRS`
-- `src/codecs/flac/Makefile.am` builds `libnativeflac.la` convenience library
-- `src/Makefile.am` links the convenience library: `psymp3_LDADD += codecs/flac/libnativeflac.la`
+- `src/codecs/flac/Makefile.am` builds `libnativeflac.a` static library (7.5MB)
+- `src/Makefile.am` links the library: `psymp3_LDADD += codecs/flac/libnativeflac.a`
 - `configure.ac` includes all codec Makefiles in `AC_CONFIG_FILES`
+
+**Namespace Pattern:**
+```cpp
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+    class BitstreamReader { /* ... */ };
+    class CRCValidator { /* ... */ };
+    class FrameParser { /* ... */ };
+    class FLACCodec : public AudioCodec { /* ... */ };
+}}}
+```
 
 **Include Path Pattern:**
 - Headers are included with full path: `#include "codecs/flac/BitstreamReader.h"`
 - Master header `psymp3.h` includes codec headers conditionally based on build flags
 - Codec source files only include `psymp3.h` (master header rule)
+- Using declaration in `psymp3.h`: `using PsyMP3::Codec::FLAC::FLACCodec;`
+
+#### Opus Codec (Single-File Codec)
+The Opus codec demonstrates organization for simpler single-file codecs:
+
+**Directory Structure:**
+```
+src/codecs/opus/          # Opus codec implementation
+  ├── Makefile.am         # Builds libopuscodec.a (6.8MB)
+  └── OpusCodec.cpp
+
+include/codecs/opus/      # Opus codec headers
+  └── OpusCodec.h
+```
+
+**Namespace Pattern:**
+```cpp
+namespace PsyMP3 {
+namespace Codec {
+namespace Opus {
+    class OpusCodec : public AudioCodec { /* ... */ };
+    struct OpusHeader { /* ... */ };
+    namespace OpusCodecSupport { /* ... */ }
+}}}
+```
+
+**Using Declarations:**
+```cpp
+using PsyMP3::Codec::Opus::OpusCodec;
+using PsyMP3::Codec::Opus::OpusHeader;
+```
+
+#### Vorbis Codec (Wrapper Codec)
+The Vorbis codec demonstrates organization for library wrapper codecs:
+
+**Directory Structure:**
+```
+src/codecs/vorbis/        # Vorbis codec implementation
+  ├── Makefile.am         # Builds libvorbiscodec.a (890KB)
+  └── VorbisCodec.cpp
+
+include/codecs/vorbis/    # Vorbis codec headers
+  └── VorbisCodec.h
+```
+
+**Namespace Pattern:**
+```cpp
+namespace PsyMP3 {
+namespace Codec {
+namespace Vorbis {
+    class Vorbis : public Stream { /* ... */ };
+}}}
+```
 
 ### Codec Implementation Standards
 - Follow the established pluggable codec architecture
