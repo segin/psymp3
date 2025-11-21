@@ -20,7 +20,7 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Define position tracking members
     - Declare public interface methods
     - _Requirements: 1, 39_
-  - [ ] 2.2 Implement basic bit reading operations
+  - [x] 2.2 Implement basic bit reading operations
     - Implement readBits() for unsigned values
     - Implement readBitsSigned() for signed values
     - Implement cache refill mechanism
