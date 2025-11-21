@@ -1,5 +1,9 @@
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 /**
  * @file ResidualDecoder.cpp
  * @brief Implementation of FLAC residual decoder
@@ -237,3 +241,7 @@ bool ResidualDecoder::decodeEscapedPartition(int32_t* output, const PartitionInf
     
     return true;
 }
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3

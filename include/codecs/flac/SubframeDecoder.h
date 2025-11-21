@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <cstddef>
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 // Forward declarations
 class BitstreamReader;
 class ResidualDecoder;
@@ -169,5 +173,9 @@ private:
                           const int32_t* coeffs, uint32_t count, 
                           uint32_t order, int32_t shift);
 };
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // SUBFRAME_DECODER_H

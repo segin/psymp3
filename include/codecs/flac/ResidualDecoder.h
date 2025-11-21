@@ -4,6 +4,10 @@
 #include <cstdint>
 #include <vector>
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 // Forward declarations
 class BitstreamReader;
 
@@ -161,5 +165,9 @@ private:
         return value != INT32_MIN;
     }
 };
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // RESIDUAL_DECODER_H

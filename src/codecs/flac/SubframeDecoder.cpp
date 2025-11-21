@@ -1,5 +1,9 @@
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 SubframeDecoder::SubframeDecoder(BitstreamReader* reader, ResidualDecoder* residual)
     : m_reader(reader)
     , m_residual(residual)
@@ -487,3 +491,7 @@ void SubframeDecoder::applyLPCPredictor(int32_t* samples, const int32_t* residua
         samples[sample_idx] = static_cast<int32_t>(prediction) + residuals[i];
     }
 }
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3

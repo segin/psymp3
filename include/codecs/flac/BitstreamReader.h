@@ -5,6 +5,10 @@
 #include <cstddef>
 #include <vector>
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 /**
  * BitstreamReader - Efficient bit-level reading from byte-aligned input stream
  * 
@@ -86,5 +90,9 @@ private:
     // Rice code helpers
     int32_t unfoldSigned(uint32_t folded);
 };
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // BITSTREAMREADER_H

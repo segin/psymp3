@@ -1,5 +1,9 @@
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 /**
  * FrameParser Implementation
  * 
@@ -681,3 +685,7 @@ bool FrameParser::checkForbiddenBlockSize(uint32_t block_size) const
     }
     return true;
 }
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3

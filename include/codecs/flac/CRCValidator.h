@@ -13,6 +13,10 @@
 #include <cstdint>
 #include <cstddef>
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 /**
  * CRCValidator provides CRC-8 and CRC-16 checksum computation and validation
  * for FLAC frame integrity checking per RFC 9639.
@@ -134,5 +138,9 @@ private:
     // Initialize lookup tables (called once)
     static void initializeTables();
 };
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // CRCVALIDATOR_H

@@ -3,6 +3,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 // Initialize static members
 bool CRCValidator::s_tables_initialized = false;
 
@@ -167,3 +171,7 @@ uint16_t CRCValidator::getCRC16() const
 {
     return m_crc16;
 }
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3

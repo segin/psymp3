@@ -25,6 +25,10 @@
 
 #ifdef HAVE_NATIVE_FLAC
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 // ============================================================================
 // FLACCodec Implementation
 // ============================================================================
@@ -281,7 +285,7 @@ void registerCodec() {
     Debug::log("flac_codec", "[FLACCodecSupport::registerCodec] Registering native FLAC codec with AudioCodecFactory");
     
     AudioCodecFactory::registerCodec("flac", [](const StreamInfo& stream_info) -> std::unique_ptr<AudioCodec> {
-        if (isFLACStream(stream_info)) {
+        if (::FLACCodecSupport::isFLACStream(stream_info)) {
             return std::make_unique<FLACCodec>(stream_info);
         }
         return nullptr;
@@ -291,7 +295,7 @@ void registerCodec() {
 }
 
 std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info) {
-    if (isFLACStream(stream_info)) {
+    if (::FLACCodecSupport::isFLACStream(stream_info)) {
         return std::make_unique<FLACCodec>(stream_info);
     }
     return nullptr;
@@ -307,5 +311,9 @@ std::string getCodecInfo() {
 }
 
 } // namespace FLACCodecSupport
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_NATIVE_FLAC

@@ -28,6 +28,10 @@
 
 #ifdef HAVE_NATIVE_FLAC
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 /**
  * @brief Native FLAC decoder implementation without libFLAC dependency
  * 
@@ -210,6 +214,10 @@ private:
     FLACCodec(const FLACCodec&) = delete;
     FLACCodec& operator=(const FLACCodec&) = delete;
 };
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_NATIVE_FLAC
 

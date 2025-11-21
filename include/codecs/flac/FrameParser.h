@@ -3,6 +3,10 @@
 
 #include <cstdint>
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 // Forward declarations
 class BitstreamReader;
 class CRCValidator;
@@ -162,5 +166,9 @@ private:
     bool m_computing_header_crc;
     uint8_t m_computed_header_crc;
 };
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // FRAMEPARSER_H

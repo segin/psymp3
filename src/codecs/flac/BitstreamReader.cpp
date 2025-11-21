@@ -1,5 +1,9 @@
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Codec {
+namespace FLAC {
+
 BitstreamReader::BitstreamReader()
     : m_byte_position(0)
     , m_bit_position(0)
@@ -460,3 +464,7 @@ bool BitstreamReader::readRiceCode(int32_t& value, uint32_t rice_param)
     
     return true;
 }
+
+} // namespace FLAC
+} // namespace Codec
+} // namespace PsyMP3

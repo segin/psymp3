@@ -405,6 +405,8 @@ typedef struct bio_st BIO;
 #include "codecs/flac/ResidualDecoder.h"
 #include "codecs/flac/SubframeDecoder.h"
 #include "codecs/flac/NativeFLACCodec.h"
+// Bring Native FLAC codec types into global namespace for compatibility
+using PsyMP3::Codec::FLAC::FLACCodec;
 #endif
 #include "FLACCodec.h"
 #include "FLACRFCValidator.h"
