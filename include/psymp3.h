@@ -402,6 +402,7 @@ typedef struct bio_st BIO;
 #include "BitstreamReader.h"
 #include "CRCValidator.h"
 #include "FrameParser.h"
+#include "ResidualDecoder.h"
 #include "SubframeDecoder.h"
 #endif
 #include "FLACCodec.h"

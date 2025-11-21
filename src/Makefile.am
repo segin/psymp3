@@ -92,7 +92,7 @@ if HAVE_FLAC
 if HAVE_NATIVE_FLAC
 # Native FLAC decoder (no libFLAC dependency)
 # Note: flac.cpp is legacy code that requires libFLAC, so it's excluded when using native decoder
-psymp3_SOURCES += BitstreamReader.cpp CRCValidator.cpp FrameParser.cpp SubframeDecoder.cpp FLACDemuxer.cpp NativeFLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
+psymp3_SOURCES += BitstreamReader.cpp CRCValidator.cpp FrameParser.cpp SubframeDecoder.cpp ResidualDecoder.cpp FLACDemuxer.cpp NativeFLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
 else
 # libFLAC wrapper
 psymp3_SOURCES += flac.cpp FLACDemuxer.cpp FLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp

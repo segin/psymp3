@@ -141,31 +141,31 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 4: Residual Decoding
 
-- [ ] 7. Implement ResidualDecoder class
-  - [ ] 7.1 Create ResidualDecoder.h with structures
+- [x] 7. Implement ResidualDecoder class
+  - [x] 7.1 Create ResidualDecoder.h with structures
     - Define CodingMethod enum (4-bit/5-bit Rice)
     - Define PartitionInfo struct
     - Declare decoder interface
     - _Requirements: 6, 29_
-  - [ ] 7.2 Implement residual header parsing
+  - [x] 7.2 Implement residual header parsing
     - Parse 2-bit coding method
     - Parse 4-bit partition order
     - Calculate partition sample counts
     - Validate partition order constraints
     - _Requirements: 6, 29, 53_
-  - [ ] 7.3 Implement Rice code decoder
+  - [x] 7.3 Implement Rice code decoder
     - Decode unary quotient (count zeros)
     - Decode binary remainder
     - Compute folded residual value
     - Apply zigzag decoding to unfold
     - _Requirements: 6, 31, 32_
-  - [ ] 7.4 Implement partition decoder
+  - [x] 7.4 Implement partition decoder
     - Parse Rice parameter (4-bit or 5-bit)
     - Detect escape code (0b1111 or 0b11111)
     - Decode Rice-coded partition
     - Handle escaped partition with unencoded samples
     - _Requirements: 6, 29, 30_
-  - [ ] 7.5 Implement residual validation
+  - [x] 7.5 Implement residual validation
     - Verify residuals fit in 32-bit signed range
     - Reject most negative 32-bit value
     - Validate total residual count matches block size
