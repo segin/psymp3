@@ -26,6 +26,15 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+// Forward declarations for namespaced codec types
+namespace PsyMP3 {
+namespace Codec {
+namespace Opus {
+    class OpusCodec;
+}
+}
+}
+
 /**
  * @brief Vorbis passthrough codec
  * 
@@ -91,7 +100,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    std::unique_ptr<class OpusCodec> m_opus_codec;  // Forward declaration
+    std::unique_ptr<PsyMP3::Codec::Opus::OpusCodec> m_opus_codec;  // Fully qualified
 };
 
 /**

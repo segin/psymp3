@@ -26,6 +26,10 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace Codec {
+namespace Opus {
+
 /**
  * @brief Opus header structure for identification header parsing
  */
@@ -253,6 +257,10 @@ namespace OpusCodecSupport {
      */
     bool isOpusStream(const StreamInfo& stream_info);
 }
+
+} // namespace Opus
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_OGGDEMUXER
 

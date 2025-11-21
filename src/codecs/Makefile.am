@@ -12,3 +12,11 @@ SUBDIRS =
 if HAVE_NATIVE_FLAC
 SUBDIRS += flac
 endif
+
+if HAVE_OPUS
+SUBDIRS += opus
+endif
+
+if HAVE_VORBIS
+SUBDIRS += vorbis
+endif

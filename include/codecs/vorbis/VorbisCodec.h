@@ -26,6 +26,10 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+namespace PsyMP3 {
+namespace Codec {
+namespace Vorbis {
+
 /**
  * @brief Vorbis decoder class using DemuxedStream with OggDemuxer
  * 
@@ -80,6 +84,10 @@ private:
     bool processHeaderPacket(const std::vector<uint8_t>& packet_data);
     bool processSynthesis();
 };
+
+} // namespace Vorbis
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_OGGDEMUXER
 

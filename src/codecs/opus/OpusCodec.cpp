@@ -25,6 +25,10 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+namespace PsyMP3 {
+namespace Codec {
+namespace Opus {
+
 // Thread-local error state for concurrent operation (Requirement 8.8)
 thread_local std::string OpusCodec::tl_last_error;
 thread_local int OpusCodec::tl_last_opus_error = OPUS_OK;
@@ -3376,5 +3380,9 @@ bool isOpusStream(const StreamInfo& stream_info) {
 }
 
 } // namespace OpusCodecSupport
+
+} // namespace Opus
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_OGGDEMUXER

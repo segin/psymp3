@@ -109,11 +109,14 @@ psymp3_SOURCES += libmpg123.cpp
 endif
 
 if HAVE_VORBIS
-psymp3_SOURCES += vorbis.cpp
+SUBDIRS += codecs
+psymp3_LDADD += codecs/vorbis/libvorbiscodec.a
 endif
 
 if HAVE_OPUS
-psymp3_SOURCES += opus.cpp OpusCodec.cpp
+SUBDIRS += codecs
+psymp3_LDADD += codecs/opus/libopuscodec.a
+psymp3_SOURCES += opus.cpp
 endif
 
 if HAVE_OGGDEMUXER

@@ -25,6 +25,10 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+namespace PsyMP3 {
+namespace Codec {
+namespace Vorbis {
+
 // ========== Vorbis Stream Class ==========
 
 Vorbis::Vorbis(TagLib::String name) : Stream(name)
@@ -259,5 +263,9 @@ bool VorbisCodec::processSynthesis()
     
     return !m_output_buffer.empty();
 }
+
+} // namespace Vorbis
+} // namespace Codec
+} // namespace PsyMP3
 
 #endif // HAVE_OGGDEMUXER

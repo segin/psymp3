@@ -387,11 +387,17 @@ typedef struct bio_st BIO;
 #include "libmpg123w.h"
 #endif
 #ifdef HAVE_OGGDEMUXER
-#include "vorbisw.h"
+#include "codecs/vorbis/VorbisCodec.h"
+// Bring Vorbis codec types into global namespace for compatibility
+using PsyMP3::Codec::Vorbis::Vorbis;
 #endif
 #ifdef HAVE_OGGDEMUXER
 #include "opusw.h"
-#include "OpusCodec.h"
+#include "codecs/opus/OpusCodec.h"
+// Bring Opus codec types into global namespace for compatibility
+using PsyMP3::Codec::Opus::OpusCodec;
+using PsyMP3::Codec::Opus::OpusHeader;
+using PsyMP3::Codec::Opus::OpusComments;
 #endif
 #include "wav.h"
 #ifdef HAVE_FLAC
