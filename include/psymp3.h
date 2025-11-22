@@ -306,25 +306,56 @@ typedef struct bio_st BIO;
 #include "font.h"
 #include "truetype.h"
 #include "lyrics.h"
-#include "Widget.h"
+
+// Widget system - Foundation
+#include "widget/foundation/Widget.h"
+#include "widget/foundation/DrawableWidget.h"
+#include "widget/foundation/LayoutWidget.h"
+#include "widget/foundation/FadingWidget.h"
+
+// Widget system - Windowing
+#include "widget/windowing/TitlebarWidget.h"
+#include "widget/windowing/WindowFrameWidget.h"
+#include "widget/windowing/WindowWidget.h"
+#include "widget/windowing/TransparentWindowWidget.h"
+
+// Widget system - UI
+#include "widget/ui/ButtonWidget.h"
+#include "widget/ui/SpectrumAnalyzerWidget.h"
+#include "widget/ui/PlayerProgressBarWidget.h"
+#include "widget/ui/ProgressBarFrameWidget.h"
+#include "widget/ui/ProgressBarBracketWidget.h"
+#include "widget/ui/MainUIWidget.h"
+#include "widget/ui/ApplicationWidget.h"
+#include "widget/ui/ToastWidget.h"
+#include "widget/ui/LyricsWidget.h"
+
+// Bring widget types into global namespace for backward compatibility
+using PsyMP3::Widget::Foundation::Widget;
+using PsyMP3::Widget::Foundation::DrawableWidget;
+using PsyMP3::Widget::Foundation::LayoutWidget;
+using PsyMP3::Widget::Foundation::FadingWidget;
+using PsyMP3::Widget::Windowing::TitlebarWidget;
+using PsyMP3::Widget::Windowing::WindowFrameWidget;
+using PsyMP3::Widget::Windowing::WindowWidget;
+using PsyMP3::Widget::Windowing::WindowEvent;
+using PsyMP3::Widget::Windowing::WindowEventData;
+using PsyMP3::Widget::Windowing::TransparentWindowWidget;
+using PsyMP3::Widget::UI::ButtonWidget;
+using PsyMP3::Widget::UI::ButtonSymbol;
+using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;
+using PsyMP3::Widget::UI::PlayerProgressBarWidget;
+using PsyMP3::Widget::UI::ProgressBarFrameWidget;
+using PsyMP3::Widget::UI::ProgressBarLeftBracketWidget;
+using PsyMP3::Widget::UI::ProgressBarRightBracketWidget;
+using PsyMP3::Widget::UI::MainUIWidget;
+using PsyMP3::Widget::UI::ApplicationWidget;
+using PsyMP3::Widget::UI::ToastWidget;
+using PsyMP3::Widget::UI::LyricsWidget;
+
 #include "Label.h"
-#include "ButtonWidget.h"
-#include "DrawableWidget.h"
-#include "SpectrumAnalyzerWidget.h"
-#include "LayoutWidget.h"
-#include "PlayerProgressBarWidget.h"
-#include "ProgressBarFrameWidget.h"
-#include "ProgressBarBracketWidget.h"
-#include "MainUIWidget.h"
-#include "ApplicationWidget.h"
-#include "TitlebarWidget.h"
-#include "WindowFrameWidget.h"
-#include "WindowWidget.h"
 #include "ZOrder.h"
-#include "TransparentWindowWidget.h"
-#include "ToastWidget.h"
 #include "ToastNotification.h"
-#include "LyricsWidget.h"
 
 // I/O and utility components (needed by other components)
 #include "utility.h"
@@ -389,7 +420,6 @@ using PsyMP3::Demuxer::Ogg::OggDemuxer;
 #include "MediaFactory.h"
 #include "DemuxerPlugin.h"
 #include "DemuxerExtensibility.h"
-#include "FadingWidget.h"
 #ifdef HAVE_MP3
 #include "codecs/mp3/MP3Codec.h"
 #endif

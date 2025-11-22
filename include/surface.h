@@ -26,7 +26,14 @@
 #define SURFACE_H
 
 class Display;
-class Widget;
+
+// Forward declaration for Widget (now in namespace)
+namespace PsyMP3 {
+namespace Widget {
+namespace Foundation {
+    class Widget;
+}}}
+using PsyMP3::Widget::Foundation::Widget;
 
 class Surface
 {
