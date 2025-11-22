@@ -445,6 +445,7 @@ using PsyMP3::Codec::Opus::OpusComments;
 using PsyMP3::Demuxer::FLAC::FLACDemuxer;
 using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 #ifdef HAVE_NATIVE_FLAC
+#include "codecs/flac/FLACError.h"
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/CRCValidator.h"
 #include "codecs/flac/FrameParser.h"
@@ -452,9 +453,13 @@ using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 #include "codecs/flac/SubframeDecoder.h"
 #include "codecs/flac/ChannelDecorrelator.h"
 #include "codecs/flac/SampleReconstructor.h"
+#include "codecs/flac/MetadataParser.h"
+#include "codecs/flac/MD5Validator.h"
 #include "codecs/flac/NativeFLACCodec.h"
 // Bring Native FLAC codec types into global namespace for compatibility
 using PsyMP3::Codec::FLAC::FLACCodec;
+using PsyMP3::Codec::FLAC::FLACError;
+using PsyMP3::Codec::FLAC::FLACException;
 #endif
 #include "FLACCodec.h"
 #include "FLACRFCValidator.h"
@@ -471,8 +476,11 @@ using PsyMP3::Codec::FLAC::FLACCodec;
 #include "track.h"
 #include "song.h"
 #include "XMLUtil.h"
-#include "scrobble.h"
-#include "LastFM.h"
+
+// Last.fm scrobbling
+#include "lastfm/scrobble.h"
+#include "lastfm/LastFM.h"
+
 #include "playlist.h"
 #include "player.h"
 #include "MPRISTypes.h"

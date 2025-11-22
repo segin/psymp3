@@ -26,10 +26,10 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories (conditionally built)
-SUBDIRS = demuxers
+SUBDIRS = demuxers lastfm
 
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
-psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/pcm/libpcmcodecs.a
+psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/pcm/libpcmcodecs.a lastfm/liblastfm.a
 
 # Optional codec flags and libraries
 if HAVE_FLAC
@@ -81,10 +81,10 @@ psymp3_SOURCES = \
  RAIIFileHandle.cpp EnhancedAudioBufferPool.cpp EnhancedBufferPool.cpp \
  ISODemuxer.cpp ISODemuxerBoxParser.cpp ISODemuxerComplianceValidator.cpp ISODemuxerErrorRecovery.cpp ISODemuxerFragmentHandler.cpp \
  ISODemuxerMetadataExtractor.cpp ISODemuxerSampleTableManager.cpp ISODemuxerSeekingEngine.cpp ISODemuxerStreamManager.cpp \
- Label.cpp LastFM.cpp LayoutWidget.cpp lyrics.cpp LyricsWidget.cpp \
+ Label.cpp LayoutWidget.cpp lyrics.cpp LyricsWidget.cpp \
  main.cpp MainUIWidget.cpp MediaFactory.cpp mediafile.cpp MemoryOptimizer.cpp MemoryPoolManager.cpp MemoryTracker.cpp BoundedBuffer.cpp ModernStream.cpp \
  persistentstorage.cpp player.cpp PlayerProgressBarWidget.cpp playlist.cpp \
- ProgressBarBracketWidget.cpp ProgressBarFrameWidget.cpp RawAudioDemuxer.cpp rect.cpp scrobble.cpp \
+ ProgressBarBracketWidget.cpp ProgressBarFrameWidget.cpp RawAudioDemuxer.cpp rect.cpp \
  song.cpp SpectrumAnalyzerWidget.cpp stream.cpp StreamingManager.cpp surface.cpp \
  system.cpp TagLibIOHandlerAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp ToastWidget.cpp \
  track.cpp TransparentWindowWidget.cpp truetype.cpp URI.cpp utility.cpp \
