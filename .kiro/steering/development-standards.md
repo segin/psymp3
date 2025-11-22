@@ -2,6 +2,12 @@
 
 ## Code Organization
 
+### File Formatting Requirements
+- **MANDATORY**: Every source file (`.cpp`, `.h`, `.am`, etc.) MUST end with a blank line (final newline character)
+- **CRITICAL**: If a closing bracket or brace appears to be missing at the end of a file, it is likely due to the lack of a final newline
+- **Enforcement**: Always verify that files end with a blank line before committing
+- **Rationale**: POSIX compliance, proper text file format, prevents parsing issues and compiler warnings
+
 ### Header Inclusion Policy
 - **Master Header Rule**: All `.cpp` files should only include `psymp3.h` as the master header
 - All other system and library includes must go in the master header (`psymp3.h`)
@@ -12,6 +18,85 @@
 - **Resources**: Windows resource scripts, assets, fonts (like BitStream Vera Sans) go in `res/`
 - **Tests**: All test files go in `tests/`
 - **Headers**: Public headers go in `include/`
+
+### Modular Architecture
+PsyMP3 follows a modular architecture where major subsystems are organized into subdirectories with their own build systems:
+
+#### Subsystem Organization Pattern
+Each major subsystem should be organized as follows:
+- **Source Directory**: `src/<subsystem>/` contains implementation files
+- **Header Directory**: `include/<subsystem>/` contains public headers
+- **Build System**: Each subsystem has its own `Makefile.am` that builds a convenience library
+- **Convenience Libraries**: Subsystems build `lib<subsystem>.a` static libraries
+- **Subdirectories**: Complex subsystems may have further subdirectories (e.g., `src/io/http/`, `src/demuxer/iso/`)
+- **Namespacing**: All classes should be in appropriate namespaces (e.g., `PsyMP3::IO::`, `PsyMP3::Demuxer::ISO::`)
+- **Backward Compatibility**: Use `using` declarations in `psymp3.h` to bring types into global namespace where needed
+
+#### Established Subsystems
+
+##### Widget System (`src/widget/`, `include/widget/`)
+Organized into three layers:
+- **Foundation** (`widget/foundation/`): Base widget classes (Widget, DrawableWidget, LayoutWidget, FadingWidget)
+- **Windowing** (`widget/windowing/`): Window management (TitlebarWidget, WindowFrameWidget, WindowWidget, TransparentWindowWidget)
+- **UI** (`widget/ui/`): UI components (ButtonWidget, SpectrumAnalyzerWidget, PlayerProgressBarWidget, ToastWidget, ToastNotification, etc.)
+
+**Namespace**: `PsyMP3::Widget::Foundation::`, `PsyMP3::Widget::Windowing::`, `PsyMP3::Widget::UI::`
+
+##### Codec System (`src/codecs/`, `include/codecs/`)
+Organized by codec type with shared infrastructure:
+- **Core** (`codecs/`): Shared codec infrastructure (AudioCodec, CodecRegistry, CodecRegistration)
+- **PCM** (`codecs/pcm/`): PCM and G.711 codecs (PCMCodec, ALawCodec, MuLawCodec)
+- **FLAC** (`codecs/flac/`): Native FLAC decoder (BitstreamReader, FrameParser, NativeFLACCodec, etc.)
+- **Opus** (`codecs/opus/`): Opus codec wrapper (OpusCodec)
+- **Vorbis** (`codecs/vorbis/`): Vorbis codec wrapper (VorbisCodec)
+- **MP3** (`codecs/mp3/`): MP3 codec wrapper (MP3Codec)
+
+**Namespace**: `PsyMP3::Codec::`, `PsyMP3::Codec::PCM::`, `PsyMP3::Codec::FLAC::`, etc.
+
+##### Demuxer System (`src/demuxer/`, `include/demuxer/`)
+Organized by container format with shared infrastructure:
+- **Core** (`demuxer/`): Shared demuxer infrastructure (Demuxer, DemuxerFactory, DemuxerRegistry, MediaFactory, ChainedStream, etc.)
+- **ISO** (`demuxer/iso/`): ISO/MP4 container (ISODemuxer, ISODemuxerBoxParser, ISODemuxerSeekingEngine, etc.)
+- **RIFF** (`demuxer/riff/`): RIFF/WAV container (wav.cpp)
+- **Raw** (`demuxer/raw/`): Raw audio demuxer (RawAudioDemuxer)
+- **FLAC** (`demuxers/flac/`): FLAC container (FLACDemuxer) - Note: uses old `demuxers` directory
+- **Ogg** (`demuxers/ogg/`): Ogg container (OggDemuxer) - Note: uses old `demuxers` directory
+
+**Namespace**: `PsyMP3::Demuxer::`, `PsyMP3::Demuxer::ISO::`, `PsyMP3::Demuxer::RIFF::`, etc.
+
+##### I/O System (`src/io/`, `include/io/`)
+Organized by I/O handler type:
+- **Core** (`io/`): Base I/O infrastructure (IOHandler, TagLibIOHandlerAdapter, StreamingManager, URI)
+- **File** (`io/file/`): File I/O handler (FileIOHandler)
+- **HTTP** (`io/http/`): HTTP I/O handler (HTTPIOHandler, HTTPClient)
+
+**Namespace**: `PsyMP3::IO::`, `PsyMP3::IO::File::`, `PsyMP3::IO::HTTP::`
+
+##### Last.fm System (`src/lastfm/`, `include/lastfm/`)
+Last.fm scrobbling functionality:
+- **Core** (`lastfm/`): Scrobbling implementation (LastFM, Scrobble)
+
+**Namespace**: `PsyMP3::LastFM::`
+
+#### Modularization Guidelines
+When adding new subsystems or refactoring existing code:
+
+1. **Create Directory Structure**: Create both `src/<subsystem>/` and `include/<subsystem>/` directories
+2. **Use git mv**: Always use `git mv` to move files to preserve history
+3. **Create Makefile.am**: Each subsystem needs its own `Makefile.am` that builds a convenience library
+4. **Update Parent Makefile**: Add subsystem to `SUBDIRS` in parent `Makefile.am`
+5. **Update configure.ac**: Add subsystem Makefile to `AC_CONFIG_FILES`
+6. **Link Library**: Add subsystem library to `psymp3_LDADD` in `src/Makefile.am`
+7. **Update psymp3.h**: Update include paths to reference new locations
+8. **Add Namespaces**: Wrap classes in appropriate namespaces
+9. **Backward Compatibility**: Add `using` declarations in `psymp3.h` for commonly used types
+10. **Test Build**: Verify clean build with `./generate-configure.sh && ./configure && make -j$(nproc)`
+
+#### Convenience Library Naming
+- Core subsystem: `lib<subsystem>.a` (e.g., `libio.a`, `libdemuxer.a`, `libcodecs.a`)
+- Subsystem components: `lib<component><subsystem>.a` (e.g., `libfileio.a`, `libhttpio.a`, `libisodemuxer.a`)
+- Codec libraries: `lib<codec>codec.a` (e.g., `libflaccodec.a`, `libopuscodec.a`)
+- Demuxer libraries: `lib<format>demuxer.a` (e.g., `libflacdemuxer.a`, `liboggdemuxer.a`)
 
 ## Build System
 
