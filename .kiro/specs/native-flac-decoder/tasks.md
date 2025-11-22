@@ -404,68 +404,68 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 10: Testing and Validation
 
-- [ ] 19. Create unit tests
-  - [ ] 19.1 Test BitstreamReader
+- [x] 19. Create unit tests
+  - [x] 19.1 Test BitstreamReader
     - Test bit reading accuracy
     - Test unary decoding
     - Test UTF-8 number decoding
     - Test Rice code decoding
     - Test buffer management
-  - [ ] 19.2 Test FrameParser
+  - [x] 19.2 Test FrameParser
     - Test sync detection
     - Test header parsing
     - Test CRC validation
     - Test uncommon parameters
-  - [ ] 19.3 Test SubframeDecoder
+  - [x] 19.3 Test SubframeDecoder
     - Test CONSTANT subframe
     - Test VERBATIM subframe
     - Test FIXED predictors (orders 0-4)
     - Test LPC predictor
     - Test wasted bits handling
-  - [ ] 19.4 Test ResidualDecoder
+  - [x] 19.4 Test ResidualDecoder
     - Test Rice code decoding
     - Test partition handling
     - Test escaped partitions
     - Test zigzag encoding
-  - [ ] 19.5 Test ChannelDecorrelator
+  - [x] 19.5 Test ChannelDecorrelator
     - Test left-side stereo
     - Test right-side stereo
     - Test mid-side stereo
     - Test independent channels
-  - [ ] 19.6 Test SampleReconstructor
+  - [x] 19.6 Test SampleReconstructor
     - Test bit depth conversions
     - Test channel interleaving
     - Test sample validation
 
-- [ ] 20. Create integration tests
-  - [ ] 20.1 Test RFC example files
+- [x] 20. Create integration tests
+  - [x] 20.1 Test RFC example files
     - Decode example 1 from RFC Appendix D.1
     - Decode example 2 from RFC Appendix D.2
     - Decode example 3 from RFC Appendix D.3
     - Verify MD5 checksums match
-  - [ ] 20.2 Test real FLAC files
+  - [x] 20.2 Test real FLAC files
     - Test files from tests/data directory
     - Compare output with libFLAC
     - Verify bit-perfect decoding
-  - [ ] 20.3 Test container formats
+  - [x] 20.3 Test container formats
     - Test native FLAC files
     - Test Ogg FLAC streams
     - Test files from various encoders
-  - [ ] 20.4 Test edge cases
+  - [x] 20.4 Test edge cases
     - Test variable block sizes
     - Test uncommon bit depths
     - Test multi-channel audio
     - Test highly compressed frames
 
-- [ ] 21. Create performance tests
-  - [ ] 21.1 Benchmark against libFLAC
+- [x] 21. Create performance tests
+  - [x] 21.1 Benchmark against libFLAC
     - Test 44.1kHz/16-bit decoding speed
     - Test 96kHz/24-bit decoding speed
     - Measure CPU usage
-  - [ ] 21.2 Test memory usage
+  - [x] 21.2 Test memory usage
     - Measure peak memory consumption
     - Profile allocation patterns
-  - [ ] 21.3 Test threading
+  - [x] 21.3 Test threading
     - Test concurrent decoder instances
     - Measure lock contention
 

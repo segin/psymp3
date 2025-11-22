@@ -41,7 +41,7 @@ void registerAllCodecs() {
 
 #ifdef HAVE_VORBIS
     CodecRegistry::registerCodec("vorbis", [](const StreamInfo& info) {
-        return std::make_unique<VorbisCodec>(info);
+        return std::make_unique<PsyMP3::Codec::Vorbis::VorbisCodec>(info);
     });
     Debug::log("codec", "registerAllCodecs: Registered Vorbis codec");
     
@@ -55,18 +55,18 @@ void registerAllCodecs() {
 #endif
 
 #ifdef HAVE_OPUS
-    // Register the new container-agnostic Opus codec
-    OpusCodecSupport::registerCodec();
-    Debug::log("codec", "registerAllCodecs: Registered Opus codec");
+    // TODO: Register the new container-agnostic Opus codec after namespace refactoring
+    // OpusCodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: Opus codec registration pending namespace refactoring");
 #else
     Debug::log("codec", "registerAllCodecs: Opus codec disabled at compile time");
 #endif
 
     // FLAC codec registration
 #ifdef HAVE_FLAC
-    // Register the new container-agnostic FLAC codec
-    FLACCodecSupport::registerCodec();
-    Debug::log("codec", "registerAllCodecs: Registered FLAC codec");
+    // TODO: Register the new container-agnostic FLAC codec after namespace refactoring
+    // FLACCodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: FLAC codec registration pending namespace refactoring");
     
     // Register Ogg FLAC passthrough codec if Ogg support is available
 #ifdef HAVE_OGGDEMUXER

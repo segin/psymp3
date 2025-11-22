@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace Windowing {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 int WindowFrameWidget::s_next_z_order = 1;
 
 WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title)

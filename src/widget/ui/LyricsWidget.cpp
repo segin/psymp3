@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 LyricsWidget::LyricsWidget(Font* font, int width)
     : Widget()
     , m_font(font)

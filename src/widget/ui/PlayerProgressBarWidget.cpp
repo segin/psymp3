@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 PlayerProgressBarWidget::PlayerProgressBarWidget(int width, int height)
     : Widget()
     , m_width(width)

@@ -480,9 +480,10 @@ void MediaFactory::initializeDefaultFormats() {
     mp3_format.supports_seeking = true;
     mp3_format.description = "MPEG-1/2 Audio Layer II/III";
     
-    registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
-        return std::make_unique<Libmpg123>(TagLib::String(uri.c_str()));
-    });
+    // TODO: MP3 uses codec architecture, not legacy Stream
+    // registerFormatInternal(mp3_format, [](const std::string& uri, const ContentInfo& info) {
+    //     return std::make_unique<MP3Stream>(TagLib::String(uri.c_str()));
+    // });
 #endif
     
 #ifdef HAVE_FLAC

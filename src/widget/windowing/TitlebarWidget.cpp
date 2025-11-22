@@ -27,6 +27,8 @@ namespace PsyMP3 {
 namespace Widget {
 namespace Windowing {
 
+using Foundation::Widget;
+
 TitlebarWidget::TitlebarWidget(int width, int height, const std::string& title)
     : Widget()
     , m_title(title)

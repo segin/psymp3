@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 // Static instance for singleton
 std::unique_ptr<ApplicationWidget> ApplicationWidget::s_instance = nullptr;
 

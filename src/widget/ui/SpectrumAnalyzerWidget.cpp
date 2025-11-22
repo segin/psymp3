@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 SpectrumAnalyzerWidget::SpectrumAnalyzerWidget(int width, int height)
     : DrawableWidget(width, height)
     , m_visualization_mode(0)

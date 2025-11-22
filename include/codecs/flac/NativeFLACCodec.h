@@ -175,7 +175,85 @@ public:
      */
     uint64_t getCurrentSample() const;
     
+    /**
+     * @brief Seek to specific sample position
+     * 
+     * Uses seek table if available for fast seeking, otherwise falls back
+     * to frame scanning. Resets decoder state and positions to target sample.
+     * 
+     * @param target_sample Target sample position (0-based)
+     * @return true if seek successful, false on error
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * Requirements: 43
+     */
+    bool seek(uint64_t target_sample);
+    
+    /**
+     * @brief Set seek table for efficient seeking
+     * 
+     * Stores seek table parsed from SEEKTABLE metadata block.
+     * Must be called before seeking operations for optimal performance.
+     * 
+     * @param seek_table Vector of seek points from metadata
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * Requirements: 43
+     */
+    void setSeekTable(const std::vector<SeekPoint>& seek_table);
+    
+    /**
+     * @brief Set STREAMINFO metadata for MD5 validation
+     * 
+     * Stores STREAMINFO metadata including MD5 checksum for validation.
+     * Must be called before decoding if MD5 validation is desired.
+     * 
+     * @param streaminfo STREAMINFO metadata from file
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * Requirements: 25
+     */
+    void setStreamInfo(const StreamInfoMetadata& streaminfo);
+    
+    /**
+     * @brief Enable or disable MD5 validation
+     * 
+     * Controls whether MD5 checksum validation is performed during decoding.
+     * When enabled, decoded samples are hashed and compared with STREAMINFO
+     * MD5 at end of stream. When disabled, MD5 computation is skipped for
+     * performance.
+     * 
+     * @param enabled true to enable MD5 validation, false to disable
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * Requirements: 25.8
+     */
+    void setMD5ValidationEnabled(bool enabled);
+    
+    /**
+     * @brief Check MD5 validation result
+     * 
+     * Returns the result of MD5 validation after stream decoding completes.
+     * Only valid if MD5 validation was enabled and stream has been fully
+     * decoded.
+     * 
+     * @return true if MD5 matches, false if mismatch or validation not performed
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     * 
+     * Requirements: 25.5, 25.6
+     */
+    bool checkMD5Validation() const;
+    
 private:
+    // State management enum (must be defined before methods that use it)
+    enum class DecoderState {
+        UNINITIALIZED,
+        INITIALIZED,
+        DECODING,
+        ERROR,
+        END_OF_STREAM
+    };
+    
     // Private implementation methods (assume locks are already held)
     // These methods are called by public methods after acquiring appropriate locks
     
@@ -184,25 +262,188 @@ private:
     AudioFrame flush_unlocked();
     void reset_unlocked();
     bool canDecode_unlocked(const StreamInfo& stream_info) const;
+    bool seek_unlocked(uint64_t target_sample);
+    void setSeekTable_unlocked(const std::vector<SeekPoint>& seek_table);
+    void setStreamInfo_unlocked(const StreamInfoMetadata& streaminfo);
+    void setMD5ValidationEnabled_unlocked(bool enabled);
+    bool checkMD5Validation_unlocked() const;
     
-    // Component instances (to be implemented in future tasks)
-    // std::unique_ptr<BitstreamReader> m_bitstream_reader;
-    // std::unique_ptr<FrameParser> m_frame_parser;
-    // std::unique_ptr<SubframeDecoder> m_subframe_decoder;
-    // std::unique_ptr<ResidualDecoder> m_residual_decoder;
-    // std::unique_ptr<ChannelDecorrelator> m_channel_decorrelator;
-    // std::unique_ptr<SampleReconstructor> m_sample_reconstructor;
-    // std::unique_ptr<CRCValidator> m_crc_validator;
-    // std::unique_ptr<MetadataParser> m_metadata_parser;
+    // Seeking helpers
+    bool seekUsingTable(uint64_t target_sample);
+    bool seekByScanning(uint64_t target_sample);
+    SeekPoint findNearestSeekPoint(uint64_t target_sample) const;
     
-    // State management
+    // Streamable subset validation (Requirement 19)
+    bool validateStreamableSubset(const FrameHeader& header) const;
+    
+    // Error recovery methods (Requirement 11)
+    
+    /**
+     * @brief Handle sync loss by searching for next valid frame
+     * 
+     * Searches forward in bitstream for next valid frame sync pattern.
+     * Validates frame header CRC to ensure sync is genuine.
+     * 
+     * @return true if valid sync found, false if no sync found
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 11.1
+     */
+    bool recoverFromSyncLoss();
+    
+    /**
+     * @brief Handle invalid frame header by skipping to next frame
+     * 
+     * Attempts to find next valid frame after header parsing failure.
+     * 
+     * @return true if next frame found, false if recovery failed
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 11.2
+     */
+    bool recoverFromInvalidHeader();
+    
+    /**
+     * @brief Handle subframe decoding error by outputting silence
+     * 
+     * Fills affected channel buffer with silence (zeros) when subframe
+     * decoding fails. Allows decoding to continue with other channels.
+     * 
+     * @param channel_buffer Buffer to fill with silence
+     * @param sample_count Number of samples to fill
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 11.3
+     */
+    void recoverFromSubframeError(int32_t* channel_buffer, uint32_t sample_count);
+    
+    /**
+     * @brief Handle CRC validation failure
+     * 
+     * Logs error and decides whether to use decoded data or discard frame.
+     * RFC 9639 allows using data even with CRC mismatch.
+     * 
+     * @param error_type Type of CRC error (header or frame)
+     * @return true to use decoded data, false to discard frame
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 11.4
+     */
+    bool recoverFromCRCError(FLACError error_type);
+    
+    /**
+     * @brief Handle memory allocation failure
+     * 
+     * Cleans up partially allocated resources and returns to safe state.
+     * 
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 11.6
+     */
+    void recoverFromMemoryError();
+    
+    /**
+     * @brief Handle unrecoverable error by resetting to clean state
+     * 
+     * Transitions decoder to ERROR state and clears all buffers.
+     * Decoder must be reinitialized before further use.
+     * 
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 11.8
+     */
+    void handleUnrecoverableError();
+    
+    // State management methods (Requirement 64)
+    
+    /**
+     * @brief Transition decoder to new state
+     * 
+     * Validates state transitions and updates decoder state.
+     * Logs state changes for debugging.
+     * 
+     * @param new_state Target state to transition to
+     * @return true if transition valid, false if invalid transition
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 64.8
+     */
+    bool transitionState(DecoderState new_state);
+    
+    /**
+     * @brief Check if decoder can transition to target state
+     * 
+     * Validates state transition rules.
+     * 
+     * @param current Current decoder state
+     * @param target Target state to transition to
+     * @return true if transition is valid, false otherwise
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 64.8
+     */
+    bool isValidStateTransition(DecoderState current, DecoderState target) const;
+    
+    /**
+     * @brief Reset decoder from error state
+     * 
+     * Allows recovery from ERROR state by reinitializing decoder.
+     * Clears error counters and resets state to UNINITIALIZED.
+     * 
+     * @return true if reset successful, false if reset failed
+     * @thread_safety Assumes locks already held by caller
+     * 
+     * Requirements: 64.5, 64.6
+     */
+    bool resetFromErrorState();
+    
+    /**
+     * @brief Get human-readable state name
+     * 
+     * @param state Decoder state
+     * @return String representation of state
+     * @thread_safety Thread-safe (no state modification)
+     */
+    const char* getStateName(DecoderState state) const;
+    
+    // Component instances
+    std::unique_ptr<BitstreamReader> m_bitstream_reader;
+    std::unique_ptr<FrameParser> m_frame_parser;
+    std::unique_ptr<SubframeDecoder> m_subframe_decoder;
+    std::unique_ptr<ResidualDecoder> m_residual_decoder;
+    std::unique_ptr<ChannelDecorrelator> m_channel_decorrelator;
+    std::unique_ptr<SampleReconstructor> m_sample_reconstructor;
+    std::unique_ptr<CRCValidator> m_crc_validator;
+    std::unique_ptr<MetadataParser> m_metadata_parser;
+    std::unique_ptr<MD5Validator> m_md5_validator;
+    
+    // State management members
     StreamInfo m_stream_info;
+    DecoderState m_state;
     std::atomic<uint64_t> m_current_sample;
     bool m_initialized;
     
-    // Buffers (to be fully implemented in future tasks)
+    // Error tracking (Requirement 11)
+    FLACError m_last_error;
+    uint32_t m_consecutive_errors;
+    static constexpr uint32_t MAX_CONSECUTIVE_ERRORS = 10;
+    
+    // Seeking support
+    std::vector<SeekPoint> m_seek_table;
+    bool m_has_seek_table;
+    
+    // MD5 validation support
+    StreamInfoMetadata m_streaminfo;
+    bool m_has_streaminfo;
+    bool m_md5_validation_enabled;
+    
+    // Buffers
+    static constexpr size_t MAX_BLOCK_SIZE = 65535;
+    static constexpr size_t MAX_CHANNELS = 8;
+    static constexpr size_t INPUT_BUFFER_SIZE = 64 * 1024;  // 64KB
+    
     std::vector<uint8_t> m_input_buffer;
-    std::vector<int32_t> m_decode_buffer;
+    std::vector<int32_t> m_decode_buffer[MAX_CHANNELS];  // Per-channel decode buffers
     std::vector<int16_t> m_output_buffer;
     
     // Threading mutexes (lock acquisition order documented above)

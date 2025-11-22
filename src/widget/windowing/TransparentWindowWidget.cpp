@@ -27,6 +27,8 @@ namespace PsyMP3 {
 namespace Widget {
 namespace Windowing {
 
+using Foundation::DrawableWidget;
+
 TransparentWindowWidget::TransparentWindowWidget(int width, int height, float opacity, bool mouse_transparent)
     : DrawableWidget(width, height)
     , m_z_order(ZOrder::NORMAL)

@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 ButtonWidget::ButtonWidget(int width, int height, ButtonSymbol symbol)
     : Widget()
     , m_symbol(symbol)
@@ -297,4 +300,5 @@ void ButtonWidget::drawButtonSymbol(Surface& surface, ButtonSymbol symbol, bool 
 
 } // namespace UI
 } // namespace Widget
+} // namespace PsyMP3
 } // namespace PsyMP3

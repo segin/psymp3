@@ -3742,4 +3742,270 @@ test_debug_system_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
+# Native FLAC codec unit tests (conditional on HAVE_NATIVE_FLAC)
+if HAVE_NATIVE_FLAC
+check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit test_native_flac_rfc_examples test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading
+
+# BitstreamReader unit tests
+test_bitstream_reader_unit_SOURCES = test_bitstream_reader_unit.cpp
+test_bitstream_reader_unit_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_bitstream_reader_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# FrameParser unit tests
+test_frame_parser_unit_SOURCES = test_frame_parser_unit.cpp
+test_frame_parser_unit_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_frame_parser_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# SubframeDecoder unit tests
+test_subframe_decoder_unit_SOURCES = test_subframe_decoder_unit.cpp
+test_subframe_decoder_unit_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_subframe_decoder_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# ResidualDecoder unit tests
+test_residual_decoder_unit_SOURCES = test_residual_decoder_unit.cpp
+test_residual_decoder_unit_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_residual_decoder_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# ChannelDecorrelator unit tests
+test_channel_decorrelator_unit_SOURCES = test_channel_decorrelator_unit.cpp
+test_channel_decorrelator_unit_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_channel_decorrelator_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# SampleReconstructor unit tests
+test_sample_reconstructor_unit_SOURCES = test_sample_reconstructor_unit.cpp
+test_sample_reconstructor_unit_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_sample_reconstructor_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Integration test: RFC 9639 example files
+test_native_flac_rfc_examples_SOURCES = test_native_flac_rfc_examples.cpp
+test_native_flac_rfc_examples_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_native_flac_rfc_examples_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
+	$(top_builddir)/src/MediaFactory.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/CodecRegistration.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(AM_LDFLAGS)
+
+# Integration test: Real FLAC files
+test_native_flac_real_files_SOURCES = test_native_flac_real_files.cpp
+test_native_flac_real_files_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_native_flac_real_files_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
+	$(top_builddir)/src/MediaFactory.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/CodecRegistration.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(AM_LDFLAGS)
+
+# Integration test: Container formats
+test_native_flac_containers_SOURCES = test_native_flac_containers.cpp
+test_native_flac_containers_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_native_flac_containers_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/MediaFactory.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/CodecRegistration.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(AM_LDFLAGS) \
+	-logg
+
+# Integration test: Edge cases
+test_native_flac_edge_cases_SOURCES = test_native_flac_edge_cases.cpp
+test_native_flac_edge_cases_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_native_flac_edge_cases_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
+	$(top_builddir)/src/MediaFactory.o \
+	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/DemuxerRegistry.o \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/CodecRegistration.o \
+	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(AM_LDFLAGS)
+
+# Performance test: Benchmark against libFLAC
+test_native_flac_performance_benchmark_SOURCES = test_native_flac_performance_benchmark.cpp
+test_native_flac_performance_benchmark_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_native_flac_performance_benchmark_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(AM_LDFLAGS)
+
+# Performance test: Memory usage
+test_native_flac_memory_usage_SOURCES = test_native_flac_memory_usage.cpp
+test_native_flac_memory_usage_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_native_flac_memory_usage_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(AM_LDFLAGS)
+
+# Performance test: Threading
+test_native_flac_threading_SOURCES = test_native_flac_threading.cpp
+test_native_flac_threading_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
+test_native_flac_threading_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/CodecRegistry.o \
+	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(AM_LDFLAGS)
+
+endif
+
 endif

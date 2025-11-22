@@ -888,6 +888,9 @@ private:
     bool parseMetadataBlockHeader(FLACMetadataBlock& block);
     bool parseMetadataBlockHeader_unlocked(FLACMetadataBlock& block);
     
+    // ID3v2 tag skipping (Requirement 63)
+    bool skipID3v2Tags_unlocked();
+    
     // Frame size calculation and boundary detection
     uint32_t calculateFrameSize(const FLACFrame& frame);
     uint32_t calculateFrameSize_unlocked(const FLACFrame& frame);

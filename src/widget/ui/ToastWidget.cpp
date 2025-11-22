@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 ToastWidget::ToastWidget(const std::string& message, Font* font, int duration_ms)
     : TransparentWindowWidget(100, 50, 0.85f, true)  // Start with default size, 85% opacity, mouse-transparent
     , m_message(message)

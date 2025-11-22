@@ -26,10 +26,10 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories (conditionally built)
-SUBDIRS = demuxers lastfm
+SUBDIRS = demuxers lastfm io demuxer widget
 
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
-psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/pcm/libpcmcodecs.a lastfm/liblastfm.a
+psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/libcodecs.a codecs/pcm/libpcmcodecs.a lastfm/liblastfm.a io/libio.a io/file/libfileio.a io/http/libhttpio.a demuxer/libdemuxer.a demuxer/iso/libisodemuxer.a demuxer/riff/libriffdemuxer.a demuxer/raw/librawdemuxer.a widget/foundation/libwidgetfoundation.a widget/windowing/libwidgetwindowing.a widget/ui/libwidgetui.a
 
 # Optional codec flags and libraries
 if HAVE_FLAC
@@ -73,35 +73,31 @@ psymp3_SOURCES = psymp3.final.cpp
 else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
- about.cpp ApplicationWidget.cpp audio.cpp AudioCodec.cpp BufferPool.cpp ButtonWidget.cpp \
- ChainedStream.cpp ChunkDemuxer.cpp CodecRegistration.cpp CodecRegistry.cpp debug.cpp \
- DemuxedStream.cpp Demuxer.cpp DemuxerExtensibility.cpp DemuxerFactory.cpp DemuxerPlugin.cpp DemuxerRegistry.cpp display.cpp \
- DrawableWidget.cpp exceptions.cpp FadingWidget.cpp fft.cpp fft_draw.cpp \
- FileIOHandler.cpp font.cpp HTTPClient.cpp HTTPIOHandler.cpp IOHandler.cpp \
+ about.cpp audio.cpp BufferPool.cpp \
+ debug.cpp display.cpp \
+ exceptions.cpp fft.cpp fft_draw.cpp \
+ font.cpp \
  RAIIFileHandle.cpp EnhancedAudioBufferPool.cpp EnhancedBufferPool.cpp \
- ISODemuxer.cpp ISODemuxerBoxParser.cpp ISODemuxerComplianceValidator.cpp ISODemuxerErrorRecovery.cpp ISODemuxerFragmentHandler.cpp \
- ISODemuxerMetadataExtractor.cpp ISODemuxerSampleTableManager.cpp ISODemuxerSeekingEngine.cpp ISODemuxerStreamManager.cpp \
- Label.cpp LayoutWidget.cpp lyrics.cpp LyricsWidget.cpp \
- main.cpp MainUIWidget.cpp MediaFactory.cpp mediafile.cpp MemoryOptimizer.cpp MemoryPoolManager.cpp MemoryTracker.cpp BoundedBuffer.cpp ModernStream.cpp \
- persistentstorage.cpp player.cpp PlayerProgressBarWidget.cpp playlist.cpp \
- ProgressBarBracketWidget.cpp ProgressBarFrameWidget.cpp RawAudioDemuxer.cpp rect.cpp \
- song.cpp SpectrumAnalyzerWidget.cpp stream.cpp StreamingManager.cpp surface.cpp \
- system.cpp TagLibIOHandlerAdapter.cpp TitlebarWidget.cpp ToastNotification.cpp ToastWidget.cpp \
- track.cpp TransparentWindowWidget.cpp truetype.cpp URI.cpp utility.cpp \
- wav.cpp Widget.cpp WindowFrameWidget.cpp WindowWidget.cpp XMLUtil.cpp
+ Label.cpp lyrics.cpp \
+ main.cpp mediafile.cpp MemoryOptimizer.cpp MemoryPoolManager.cpp MemoryTracker.cpp BoundedBuffer.cpp \
+ persistentstorage.cpp player.cpp playlist.cpp \
+ rect.cpp \
+ song.cpp stream.cpp surface.cpp \
+ system.cpp \
+ track.cpp truetype.cpp utility.cpp \
+ XMLUtil.cpp
 
 # Optional codec sources
 if HAVE_FLAC
 psymp3_LDADD += demuxers/flac/libflacdemuxer.a
 if HAVE_NATIVE_FLAC
 # Native FLAC decoder (no libFLAC dependency)
-# Note: flac.cpp is legacy code that requires libFLAC, so it's excluded when using native decoder
 SUBDIRS += codecs
 psymp3_LDADD += codecs/flac/libnativeflac.a
-psymp3_SOURCES += FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
 else
 # libFLAC wrapper
-psymp3_SOURCES += flac.cpp FLACCodec.cpp FLACPerformanceBenchmark.cpp FLACRFCValidator.cpp FLACRFC9639.cpp
+SUBDIRS += codecs
+psymp3_LDADD += codecs/flac/libflaccodec.a
 endif
 endif
 
@@ -118,12 +114,10 @@ endif
 if HAVE_OPUS
 SUBDIRS += codecs
 psymp3_LDADD += codecs/opus/libopuscodec.a
-psymp3_SOURCES += opus.cpp
 endif
 
 if HAVE_OGGDEMUXER
 psymp3_LDADD += demuxers/ogg/liboggdemuxer.a
-psymp3_SOURCES += OggCodecs.cpp
 endif
 
 if HAVE_DBUS

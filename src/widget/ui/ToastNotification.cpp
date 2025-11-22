@@ -23,6 +23,12 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Widget {
+namespace UI {
+
+using Foundation::Widget;
+
 ToastNotification::ToastNotification(Font* font, const std::string& message, Uint32 visible_duration_ms, Uint32 fade_duration_ms)
     : Widget() // Call base class constructor
 {
@@ -129,3 +135,7 @@ void ToastNotification::BlitTo(Surface& target)
     this->SetAlpha(SDL_SRCALPHA, static_cast<Uint8>(alpha_f));
     Widget::BlitTo(target); // Call base class blit
 }
+} 
+// namespace UI
+} // namespace Widget
+} // namespace PsyMP3

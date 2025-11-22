@@ -296,6 +296,12 @@ bool FLACDemuxer::parseContainer_unlocked()
         return false;
     }
     
+    // Skip ID3v2 tags if present (Requirement 63)
+    if (!skipID3v2Tags_unlocked()) {
+        FLAC_DEBUG("[parseContainer_unlocked] Failed to skip ID3v2 tags");
+        return false;
+    }
+    
     // Validate fLaC stream marker (4 bytes) with enhanced error handling
     uint8_t marker[4];
     size_t bytes_read = m_handler->read(marker, 1, 4);
@@ -322,9 +328,7 @@ bool FLACDemuxer::parseContainer_unlocked()
         std::string found_marker(reinterpret_cast<char*>(marker), 4);
         
         // Check for common misidentifications
-        if (marker[0] == 'I' && marker[1] == 'D' && marker[2] == '3') {
-            reportError("Format", "File appears to be MP3 with ID3 tag, not FLAC");
-        } else if (marker[0] == 'O' && marker[1] == 'g' && marker[2] == 'g' && marker[3] == 'S') {
+        if (marker[0] == 'O' && marker[1] == 'g' && marker[2] == 'g' && marker[3] == 'S') {
             reportError("Format", "File appears to be Ogg container, not native FLAC");
         } else if (marker[0] == 'R' && marker[1] == 'I' && marker[2] == 'F' && marker[3] == 'F') {
             reportError("Format", "File appears to be RIFF/WAV container, not FLAC");
@@ -1435,6 +1439,128 @@ bool FLACDemuxer::parseMetadataBlockHeader_unlocked(FLACMetadataBlock& block)
     FLAC_DEBUG("[parseMetadataBlockHeader_unlocked]   Length: ", block.length, " bytes");
     FLAC_DEBUG("[parseMetadataBlockHeader_unlocked]   Data offset: ", block.data_offset);
     
+    return true;
+}
+
+/**
+ * @brief Skip ID3v2 tags at the beginning of the file
+ * 
+ * ID3v2 tags are sometimes prepended to FLAC files. This method detects and skips
+ * them to find the actual fLaC marker. Implements Requirement 63.
+ * 
+ * ID3v2 tag structure:
+ * - 3 bytes: "ID3" signature
+ * - 2 bytes: version (major, minor)
+ * - 1 byte: flags
+ * - 4 bytes: size (synchsafe integer - 7 bits per byte, MSB first)
+ * 
+ * @return true if no ID3v2 tags or all tags skipped successfully, false on error
+ * 
+ * Requirements: 63.1, 63.2, 63.3, 63.4, 63.5, 63.6, 63.7, 63.8
+ */
+bool FLACDemuxer::skipID3v2Tags_unlocked()
+{
+    FLAC_DEBUG("[skipID3v2Tags_unlocked] Checking for ID3v2 tags");
+    
+    if (!m_handler) {
+        reportError("IO", "No IOHandler available for ID3v2 tag skipping");
+        return false;
+    }
+    
+    // Keep track of how many ID3v2 tags we've skipped (Requirement 63.7)
+    int tags_skipped = 0;
+    const int MAX_ID3_TAGS = 10;  // Prevent infinite loop on malformed files
+    
+    while (tags_skipped < MAX_ID3_TAGS) {
+        // Get current position
+        int64_t current_pos = m_handler->tell();
+        if (current_pos < 0) {
+            reportError("IO", "Failed to get current file position");
+            return false;
+        }
+        
+        // Read potential ID3v2 header (10 bytes minimum)
+        uint8_t id3_header[10];
+        size_t bytes_read = m_handler->read(id3_header, 1, 10);
+        
+        if (bytes_read < 10) {
+            // Not enough data for ID3v2 header, seek back and continue
+            if (m_handler->seek(current_pos, SEEK_SET) != 0) {
+                reportError("IO", "Failed to seek back after reading potential ID3v2 header");
+                return false;
+            }
+            break;
+        }
+        
+        // Check for "ID3" signature (Requirement 63.1)
+        if (id3_header[0] != 'I' || id3_header[1] != 'D' || id3_header[2] != '3') {
+            // Not an ID3v2 tag, seek back to where we were
+            if (m_handler->seek(current_pos, SEEK_SET) != 0) {
+                reportError("IO", "Failed to seek back after checking for ID3v2 signature");
+                return false;
+            }
+            break;
+        }
+        
+        // Found ID3v2 tag
+        FLAC_DEBUG("[skipID3v2Tags_unlocked] Found ID3v2 tag at position ", current_pos);
+        
+        // Parse ID3v2 header (Requirement 63.2)
+        uint8_t major_version = id3_header[3];
+        uint8_t minor_version = id3_header[4];
+        uint8_t flags = id3_header[5];
+        
+        // Parse synchsafe integer size (4 bytes, 7 bits each, MSB first)
+        // Synchsafe integer: bit 7 of each byte is always 0
+        uint32_t tag_size = 0;
+        for (int i = 0; i < 4; i++) {
+            if (id3_header[6 + i] & 0x80) {
+                // Invalid synchsafe integer (Requirement 63.6)
+                FLAC_DEBUG("[skipID3v2Tags_unlocked] Malformed ID3v2 tag size (non-synchsafe), attempting to find fLaC marker");
+                // Try to find fLaC marker anyway
+                if (m_handler->seek(current_pos, SEEK_SET) != 0) {
+                    reportError("IO", "Failed to seek back after detecting malformed ID3v2 tag");
+                    return false;
+                }
+                break;
+            }
+            tag_size = (tag_size << 7) | (id3_header[6 + i] & 0x7F);
+        }
+        
+        // Check for footer flag (adds 10 bytes to total size)
+        bool has_footer = (flags & 0x10) != 0;
+        uint32_t total_tag_size = tag_size + 10;  // Header is 10 bytes
+        if (has_footer) {
+            total_tag_size += 10;  // Footer is also 10 bytes
+        }
+        
+        FLAC_DEBUG("[skipID3v2Tags_unlocked] ID3v2.", static_cast<int>(major_version), ".", 
+                  static_cast<int>(minor_version), " tag size: ", tag_size, " bytes (total with header: ", 
+                  total_tag_size, " bytes)");
+        
+        // Skip the tag (Requirement 63.3)
+        int64_t skip_to = current_pos + total_tag_size;
+        if (m_handler->seek(skip_to, SEEK_SET) != 0) {
+            reportError("IO", "Failed to skip ID3v2 tag of size " + std::to_string(total_tag_size));
+            return false;
+        }
+        
+        tags_skipped++;
+        FLAC_DEBUG("[skipID3v2Tags_unlocked] Skipped ID3v2 tag #", tags_skipped, ", now at position ", skip_to);
+    }
+    
+    if (tags_skipped >= MAX_ID3_TAGS) {
+        reportError("Format", "Too many ID3v2 tags detected (possible malformed file)");
+        return false;
+    }
+    
+    if (tags_skipped > 0) {
+        FLAC_DEBUG("[skipID3v2Tags_unlocked] Successfully skipped ", tags_skipped, " ID3v2 tag(s)");
+    } else {
+        FLAC_DEBUG("[skipID3v2Tags_unlocked] No ID3v2 tags found");
+    }
+    
+    // Now we should be positioned at the fLaC marker (Requirement 63.4, 63.5)
     return true;
 }
 

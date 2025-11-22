@@ -355,7 +355,7 @@ using PsyMP3::Widget::UI::LyricsWidget;
 
 #include "Label.h"
 #include "ZOrder.h"
-#include "ToastNotification.h"
+#include "widget/ui/ToastNotification.h"
 
 // I/O and utility components (needed by other components)
 #include "utility.h"
@@ -368,22 +368,33 @@ using PsyMP3::Widget::UI::LyricsWidget;
 #include "MemoryOptimizer.h"
 #include "MemoryPoolManager.h"
 #include "RAIIFileHandle.h"
-#include "HTTPClient.h"
-#include "IOHandler.h"
-#include "FileIOHandler.h"
-#include "HTTPIOHandler.h"
-#include "TagLibIOHandlerAdapter.h"
-#include "URI.h"
-#include "stream.h"
 
-// New demuxer/codec architecture
-#include "Demuxer.h"
-#include "DemuxerFactory.h"
-#include "AudioCodec.h"
-#include "CodecRegistry.h"
-#include "DemuxerRegistry.h"
-#include "CodecRegistration.h"
-#include "ChunkDemuxer.h"
+// I/O Handler subsystem - Base
+#include "io/http/HTTPClient.h"
+#include "io/IOHandler.h"
+#include "io/file/FileIOHandler.h"
+#include "io/http/HTTPIOHandler.h"
+#include "io/TagLibIOHandlerAdapter.h"
+#include "io/URI.h"
+#include "stream.h"
+#include "BoundedQueue.h"
+
+// Demuxer subsystem - Core (defines StreamInfo, MediaChunk, etc.)
+#include "demuxer/Demuxer.h"
+#include "demuxer/DemuxerFactory.h"
+#include "demuxer/MediaFactory.h"
+#include "demuxer/DemuxerRegistry.h"
+#include "demuxer/DemuxerPlugin.h"
+#include "demuxer/DemuxerExtensibility.h"
+#include "demuxer/ChunkDemuxer.h"
+
+// I/O Handler subsystem - Advanced (depends on Demuxer and BoundedQueue)
+#include "io/StreamingManager.h"
+
+// Codec architecture (depends on Demuxer types)
+#include "codecs/AudioCodec.h"
+#include "codecs/CodecRegistry.h"
+#include "codecs/CodecRegistration.h"
 #include "codecs/pcm/PCMCodecs.h"
 // Bring PCM codec types into global namespace for compatibility
 using PsyMP3::Codec::PCM::PCMCodec;
@@ -396,30 +407,30 @@ using PsyMP3::Codec::PCM::MuLawCodec;
 #include "codecs/pcm/ALawCodec.h"
 using PsyMP3::Codec::PCM::ALawCodec;
 #endif
-#include "DemuxedStream.h"
-#include "RawAudioDemuxer.h"
+#include "demuxer/DemuxedStream.h"
+
+// Demuxer subsystem - Raw Audio
+#include "demuxer/raw/RawAudioDemuxer.h"
+
+// Demuxer subsystem - Ogg
 #ifdef HAVE_OGGDEMUXER
 #include "demuxers/ogg/OggDemuxer.h"
 // Bring Ogg demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::Ogg::OggDemuxer;
-#include "OggCodecs.h"
+#include "codecs/OggCodecs.h"
 #endif
-#include "ISODemuxerErrorRecovery.h"
-#include "MemoryOptimizer.h"
-#include "BoundedQueue.h"
-#include "StreamingManager.h"
-#include "ISODemuxerBoxParser.h"
-#include "ISODemuxerSampleTableManager.h"
-#include "ISODemuxerFragmentHandler.h"
-#include "ISODemuxerMetadataExtractor.h"
-#include "ISODemuxerStreamManager.h"
-#include "ISODemuxerSeekingEngine.h"
-#include "ISODemuxerComplianceValidator.h"
-#include "ISODemuxer.h"
-#include "ModernStream.h"
-#include "MediaFactory.h"
-#include "DemuxerPlugin.h"
-#include "DemuxerExtensibility.h"
+
+// Demuxer subsystem - ISO/MP4
+#include "demuxer/iso/ISODemuxerErrorRecovery.h"
+#include "demuxer/iso/ISODemuxerBoxParser.h"
+#include "demuxer/iso/ISODemuxerSampleTableManager.h"
+#include "demuxer/iso/ISODemuxerFragmentHandler.h"
+#include "demuxer/iso/ISODemuxerMetadataExtractor.h"
+#include "demuxer/iso/ISODemuxerStreamManager.h"
+#include "demuxer/iso/ISODemuxerSeekingEngine.h"
+#include "demuxer/iso/ISODemuxerComplianceValidator.h"
+#include "demuxer/iso/ISODemuxer.h"
+#include "demuxer/ModernStream.h"
 #ifdef HAVE_MP3
 #include "codecs/mp3/MP3Codec.h"
 #endif
@@ -429,22 +440,23 @@ using PsyMP3::Demuxer::Ogg::OggDemuxer;
 using PsyMP3::Codec::Vorbis::Vorbis;
 #endif
 #ifdef HAVE_OGGDEMUXER
-#include "opusw.h"
+#include "codecs/opus/opusw.h"
 #include "codecs/opus/OpusCodec.h"
 // Bring Opus codec types into global namespace for compatibility
 using PsyMP3::Codec::Opus::OpusCodec;
 using PsyMP3::Codec::Opus::OpusHeader;
 using PsyMP3::Codec::Opus::OpusComments;
 #endif
-#include "wav.h"
+#include "demuxer/riff/wav.h"
 #ifdef HAVE_FLAC
-#include "flac.h"
-#include "FLACRFC9639.h"
+#include "codecs/flac/FLACRFC9639.h"
+#include "codecs/flac/FLACRFCValidator.h"
 #include "demuxers/flac/FLACDemuxer.h"
 // Bring FLAC demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::FLAC::FLACDemuxer;
 using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 #ifdef HAVE_NATIVE_FLAC
+// Native FLAC codec
 #include "codecs/flac/FLACError.h"
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/CRCValidator.h"
@@ -460,12 +472,15 @@ using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 using PsyMP3::Codec::FLAC::FLACCodec;
 using PsyMP3::Codec::FLAC::FLACError;
 using PsyMP3::Codec::FLAC::FLACException;
+#include "codecs/flac/FLACPerformanceBenchmark.h"
+#else
+// libFLAC wrapper codec
+#include "codecs/flac.h"
+#include "codecs/FLACCodec.h"
+#include "codecs/flac/FLACPerformanceBenchmark.h"
 #endif
-#include "FLACCodec.h"
-#include "FLACRFCValidator.h"
-#include "FLACPerformanceBenchmark.h"
 #endif
-#include "ChainedStream.h"
+#include "demuxer/ChainedStream.h"
 #include "nullstream.h"
 #include "mediafile.h"
 #include "fft.h"

@@ -39,9 +39,14 @@ noinst_LIBRARIES = libnativeflac.a
 libnativeflac_a_SOURCES = \
 	BitstreamReader.cpp \
 	CRCValidator.cpp \
+	FLACPerformanceBenchmark.cpp \
+	FLACRFC9639.cpp \
+	FLACRFCValidator.cpp \
 	FrameParser.cpp \
 	SubframeDecoder.cpp \
 	ResidualDecoder.cpp \
 	ChannelDecorrelator.cpp \
 	SampleReconstructor.cpp \
+	MetadataParser.cpp \
+	MD5Validator.cpp \
 	NativeFLACCodec.cpp

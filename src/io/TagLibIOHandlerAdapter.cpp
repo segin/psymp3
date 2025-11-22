@@ -22,9 +22,6 @@
  */
 
 #include "psymp3.h"
-#include "TagLibIOHandlerAdapter.h"
-#include <cstdio>
-#include <algorithm>
 
 TagLibIOHandlerAdapter::TagLibIOHandlerAdapter(std::unique_ptr<IOHandler> handler, 
                                            const TagLib::String& name, 

@@ -27,6 +27,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+using Foundation::Widget;
+using Foundation::DrawableWidget;
+
 ProgressBarFrameWidget::ProgressBarFrameWidget()
     : LayoutWidget(222, 16, true) // Use LayoutWidget as base with transparent background
     , m_progress_bar(nullptr)
