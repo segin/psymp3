@@ -260,9 +260,11 @@ bool BitstreamReader::readUnary(uint32_t& value)
         
         value++;
         
-        // Sanity check: prevent infinite loops on corrupted data
+        // DoS protection: prevent infinite loops on corrupted data (Requirement 48)
+        // Per ValidationUtils::MAX_UNARY_VALUE
         if (value > 1000000) {
-            return false;  // Unreasonably large unary value
+            Debug::log("flac_codec", "Unary value exceeds maximum (DoS protection): %u", value);
+            return false;  // Unreasonably large unary value - potential DoS attack
         }
     }
     

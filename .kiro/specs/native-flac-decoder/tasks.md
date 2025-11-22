@@ -215,20 +215,20 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 6: Metadata Parsing
 
-- [ ] 10. Implement MetadataParser class
-  - [ ] 10.1 Create MetadataParser.h with structures
+- [x] 10. Implement MetadataParser class
+  - [x] 10.1 Create MetadataParser.h with structures
     - Define MetadataType enum
     - Define StreamInfoMetadata struct
     - Define SeekPoint struct
     - Define VorbisComment struct
     - _Requirements: 41, 42_
-  - [ ] 10.2 Implement metadata block header parsing
+  - [x] 10.2 Implement metadata block header parsing
     - Parse 1-bit last-block flag
     - Parse 7-bit block type
     - Parse 24-bit block length
     - Reject forbidden type 127
     - _Requirements: 41_
-  - [ ] 10.3 Implement STREAMINFO parser
+  - [x] 10.3 Implement STREAMINFO parser
     - Parse minimum/maximum block size
     - Parse minimum/maximum frame size
     - Parse 20-bit sample rate
@@ -238,7 +238,7 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Parse 128-bit MD5 checksum
     - Validate constraints
     - _Requirements: 42, 58_
-  - [ ] 10.4 Implement seek table parser
+  - [x] 10.4 Implement seek table parser
     - Parse seek point count from block length
     - Parse 64-bit sample number per point
     - Parse 64-bit byte offset per point
@@ -246,7 +246,7 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Handle placeholder points (0xFFFFFFFFFFFFFFFF)
     - Validate ascending sample number order
     - _Requirements: 43_
-  - [ ] 10.5 Implement Vorbis comment parser
+  - [x] 10.5 Implement Vorbis comment parser
     - Parse 32-bit vendor string length (little-endian)
     - Parse UTF-8 vendor string
     - Parse 32-bit field count (little-endian)
@@ -254,17 +254,17 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Validate field name format (printable ASCII except =)
     - Support case-insensitive field name comparison
     - _Requirements: 44_
-  - [ ] 10.6 Implement padding and application block handling
+  - [x] 10.6 Implement padding and application block handling
     - Skip padding blocks (verify zeros)
     - Parse application ID (32-bit)
     - Skip or parse application data
     - _Requirements: 45_
-  - [ ] 10.7 Implement picture metadata parser
+  - [x] 10.7 Implement picture metadata parser
     - Parse picture type, MIME type, description
     - Parse width, height, depth, color count
     - Parse picture data length and data
     - _Requirements: 46_
-  - [ ] 10.8 Implement cuesheet metadata parser
+  - [x] 10.8 Implement cuesheet metadata parser
     - Parse media catalog number, lead-in
     - Parse CD flag and track count
     - Parse track offsets, numbers, ISRC
@@ -273,28 +273,28 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 7: Core Decoder Integration
 
-- [ ] 11. Implement NativeFLACDecoder main class
-  - [ ] 11.1 Create NativeFLACDecoder class structure
+- [x] 11. Implement NativeFLACCodec main class
+  - [x] 11.1 Create NativeFLACCodec class structure
     - Define member variables for all components
     - Define state management members
     - Define buffer members
     - Define threading mutexes
     - _Requirements: 14, 15, 64_
-  - [ ] 11.2 Implement AudioCodec interface methods
+  - [x] 11.2 Implement AudioCodec interface methods
     - Implement initialize() with lock acquisition
     - Implement decode() with lock acquisition
     - Implement flush() with lock acquisition
     - Implement reset() with lock acquisition
     - Implement canDecode() with lock acquisition
     - _Requirements: 14_
-  - [ ] 11.3 Implement unlocked internal methods
+  - [x] 11.3 Implement unlocked internal methods
     - Implement initialize_unlocked()
     - Implement decode_unlocked()
     - Implement flush_unlocked()
     - Implement reset_unlocked()
     - Implement canDecode_unlocked()
     - _Requirements: 13, 15_
-  - [ ] 11.4 Implement component initialization
+  - [x] 11.4 Implement component initialization
     - Create BitstreamReader instance
     - Create FrameParser instance
     - Create SubframeDecoder instance
@@ -304,14 +304,14 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Create CRCValidator instance
     - Create MetadataParser instance
     - _Requirements: 14_
-  - [ ] 11.5 Implement buffer allocation
+  - [x] 11.5 Implement buffer allocation
     - Allocate input buffer (64KB)
     - Allocate decode buffers per channel
     - Allocate output buffer
     - Base sizes on maximum block size
     - Handle allocation failures gracefully
     - _Requirements: 65_
-  - [ ] 11.6 Implement decode pipeline
+  - [x] 11.6 Implement decode pipeline
     - Feed input data to bitstream reader
     - Find and parse frame sync
     - Parse frame header
@@ -324,13 +324,13 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 8: Advanced Features
 
-- [ ] 12. Implement seeking support
+- [x] 12. Implement seeking support
   - Use seek table for fast seeking
   - Reset decoder state for seek
   - Support sample-accurate positioning
   - _Requirements: 43_
 
-- [ ] 13. Implement MD5 validation
+- [x] 13. Implement MD5 validation
   - Compute MD5 of decoded samples
   - Interleave channels for MD5 input
   - Use little-endian byte order
@@ -338,14 +338,14 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
   - Compare with STREAMINFO MD5
   - _Requirements: 25_
 
-- [ ] 14. Implement streamable subset support
+- [x] 14. Implement streamable subset support
   - Handle frames without STREAMINFO references
   - Extract sample rate from frame header
   - Extract bit depth from frame header
   - Support mid-stream synchronization
   - _Requirements: 19_
 
-- [ ] 15. Implement Ogg FLAC support
+- [x] 15. Implement Ogg FLAC support
   - Parse Ogg FLAC header packet
   - Verify 0x7F 0x46 0x4C 0x41 0x43 signature
   - Parse version number and header count
@@ -355,7 +355,7 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
   - Support chained Ogg streams
   - _Requirements: 49_
 
-- [ ] 16. Implement ID3v2 tag skipping
+- [x] 16. Implement ID3v2 tag skipping
   - Detect "ID3" signature at file start
   - Parse ID3v2 tag header for size
   - Skip tag bytes
@@ -364,38 +364,38 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
 
 ## Phase 9: Error Handling and Validation
 
-- [ ] 17. Implement error handling infrastructure
-  - [ ] 17.1 Define error types and exceptions
+- [x] 17. Implement error handling infrastructure
+  - [x] 17.1 Define error types and exceptions
     - Create FLACError enum
     - Create FLACException class
     - Define error messages
     - _Requirements: 11_
-  - [ ] 17.2 Implement error recovery
+  - [x] 17.2 Implement error recovery
     - Handle sync loss with frame search
     - Handle header CRC failure with skip
     - Handle frame CRC failure with warning
     - Handle subframe error with silence output
     - Handle memory errors with cleanup
     - _Requirements: 11_
-  - [ ] 17.3 Implement state management
+  - [x] 17.3 Implement state management
     - Track decoder state transitions
     - Handle error state
     - Support reset from error state
     - _Requirements: 64_
 
-- [ ] 18. Implement validation and security
-  - [ ] 18.1 Implement bounds checking
+- [x] 18. Implement validation and security
+  - [x] 18.1 Implement bounds checking
     - Validate all array accesses
     - Check buffer sizes before operations
     - Prevent integer overflow
     - _Requirements: 48_
-  - [ ] 18.2 Implement resource limits
+  - [x] 18.2 Implement resource limits
     - Enforce maximum block size
     - Limit partition order
     - Timeout sync search
     - Limit memory allocation
     - _Requirements: 48_
-  - [ ] 18.3 Implement input validation
+  - [x] 18.3 Implement input validation
     - Validate all header fields
     - Reject forbidden patterns
     - Check sample value ranges
