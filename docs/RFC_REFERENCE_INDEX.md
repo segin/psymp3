@@ -14,6 +14,23 @@ This document provides a comprehensive index of all audio codec and container fo
   - File: `docs/rfc3534.txt`
   - Description: Defines the MIME media type for Ogg files
 
+### ISO Base Media File Format (MP4)
+- **ISO/IEC 14496-12**: ISO Base Media File Format
+  - Description: Fundamental specification for ISO-based container formats (MP4, MOV, 3GP)
+
+- **ISO/IEC 14496-14**: MP4 File Format
+  - Description: Specific requirements for MP4 file format based on ISO Base Media File Format
+
+- **ISO/IEC 14496-15**: AVC File Format
+  - File: `docs/ISO_IEC_14496-15-AVC-format-2012.pdf`
+  - Summary: `docs/ISO_IEC_14496-15_AVC_SUMMARY.md`
+  - Description: Defines storage of H.264/AVC video in ISO-based containers
+
+- **RFC 4337**: MIME Type Registration for MPEG-4
+  - File: `docs/rfc4337.txt`
+  - Summary: `docs/RFC4337_MPEG4_MIME_SUMMARY.md`
+  - Description: Defines MIME types for MP4 files (video/mp4, audio/mp4, application/mp4)
+
 ## Audio Codecs
 
 ### FLAC (Free Lossless Audio Codec)
