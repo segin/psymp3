@@ -34,6 +34,8 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
+if HAVE_NATIVE_FLAC
+# Native FLAC decoder (no libFLAC dependency)
 noinst_LIBRARIES = libnativeflac.a
 
 libnativeflac_a_SOURCES = \
@@ -50,3 +52,13 @@ libnativeflac_a_SOURCES = \
 	MetadataParser.cpp \
 	MD5Validator.cpp \
 	NativeFLACCodec.cpp
+else
+# libFLAC wrapper
+noinst_LIBRARIES = libflaccodec.a
+
+# Add FLAC flags for libFLAC wrapper
+AM_CPPFLAGS += $(FLAC_CFLAGS)
+
+libflaccodec_a_SOURCES = \
+	LibFLACWrapper.cpp
+endif

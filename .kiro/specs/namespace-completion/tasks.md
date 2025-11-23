@@ -140,35 +140,35 @@
 - [x] 5. Checkpoint: Verify Phase 1 completion
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Phase 2: Fold demuxers/ directory into demuxer/
+- [x] 6. Phase 2: Fold demuxers/ directory into demuxer/
   - Move FLAC and Ogg demuxers from src/demuxers/ to src/demuxer/
   - Update build system to reflect new structure
   - Remove old demuxers/ directory
   - _Requirements: 11.1-11.6_
 
-- [ ] 6.1 Move FLAC demuxer to demuxer/ directory
+- [x] 6.1 Move FLAC demuxer to demuxer/ directory
   - Use `git mv src/demuxers/flac src/demuxer/flac` to preserve history
   - Verify namespace is already `PsyMP3::Demuxer::FLAC`
   - _Requirements: 11.1, 11.3_
 
-- [ ] 6.2 Move Ogg demuxer to demuxer/ directory
+- [x] 6.2 Move Ogg demuxer to demuxer/ directory
   - Use `git mv src/demuxers/ogg src/demuxer/ogg` to preserve history
   - Verify namespace is already `PsyMP3::Demuxer::Ogg`
   - _Requirements: 11.2, 11.3_
 
-- [ ] 6.3 Update demuxer build system
+- [x] 6.3 Update demuxer build system
   - Update `src/demuxer/Makefile.am` to add `flac` and `ogg` to SUBDIRS
   - Update `src/Makefile.am` to link `demuxer/flac/libflacdemuxer.a` and `demuxer/ogg/liboggdemuxer.a`
   - _Requirements: 11.5_
 
-- [ ] 6.4 Remove old demuxers/ directory
+- [x] 6.4 Remove old demuxers/ directory
   - Remove `src/demuxers/Makefile.am`
   - Remove `src/demuxers/` directory (should be empty)
   - Update `configure.ac` to remove references to `src/demuxers/`
   - Update parent Makefiles to remove demuxers references
   - _Requirements: 11.4, 11.6_
 
-- [ ] 6.5 Regenerate build system and verify
+- [x] 6.5 Regenerate build system and verify
   - Run `./generate-configure.sh`
   - Run `./configure`
   - Run `make -j$(nproc)` to verify full build succeeds

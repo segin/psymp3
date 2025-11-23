@@ -9,7 +9,7 @@
 
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
-SUBDIRS = iso riff raw
+SUBDIRS = iso riff raw flac ogg
 
 noinst_LIBRARIES = libdemuxer.a
 

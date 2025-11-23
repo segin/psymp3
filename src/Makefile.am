@@ -26,7 +26,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories (conditionally built)
-SUBDIRS = demuxers lastfm io demuxer widget
+SUBDIRS = lastfm io demuxer widget
 
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
 psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/libcodecs.a codecs/pcm/libpcmcodecs.a lastfm/liblastfm.a io/libio.a io/file/libfileio.a io/http/libhttpio.a demuxer/libdemuxer.a demuxer/iso/libisodemuxer.a demuxer/riff/libriffdemuxer.a demuxer/raw/librawdemuxer.a widget/foundation/libwidgetfoundation.a widget/windowing/libwidgetwindowing.a widget/ui/libwidgetui.a
@@ -89,7 +89,7 @@ psymp3_SOURCES = \
 
 # Optional codec sources
 if HAVE_FLAC
-psymp3_LDADD += demuxers/flac/libflacdemuxer.a
+psymp3_LDADD += demuxer/flac/libflacdemuxer.a
 if HAVE_NATIVE_FLAC
 # Native FLAC decoder (no libFLAC dependency)
 SUBDIRS += codecs
@@ -117,7 +117,7 @@ psymp3_LDADD += codecs/opus/libopuscodec.a
 endif
 
 if HAVE_OGGDEMUXER
-psymp3_LDADD += demuxers/ogg/liboggdemuxer.a
+psymp3_LDADD += demuxer/ogg/liboggdemuxer.a
 endif
 
 if HAVE_DBUS
