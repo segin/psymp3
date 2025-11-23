@@ -112,6 +112,7 @@ When adding new subsystems or refactoring existing code:
 - If already in the `src/` directory, use `make File.o` (omit the `-C src` portion)
 - **Parallel Builds**: Always use `make -j$(nproc)` to utilize all available CPU cores for faster compilation
 - This ensures proper dependency tracking and build consistency
+- **CRITICAL**: NEVER EVER EVER USE `tail` WITH `make`! This makes it nearly impossible to track build activity in real-time. Let make output flow naturally for proper monitoring
 
 ## Problem-Solving Philosophy
 
