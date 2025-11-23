@@ -1,347 +1,151 @@
 # **DEMUXER ARCHITECTURE IMPLEMENTATION PLAN**
 
-## **Implementation Tasks**
+## **Overview**
 
-- [x] 1. Create Base Demuxer Interface and Data Structures
-  - Implement Demuxer base class with pure virtual interface methods
-  - Create StreamInfo and MediaChunk data structures with comprehensive fields
-  - Add template helper methods for endianness handling (readLE, readBE, readFourCC)
-  - Implement constructor accepting unique_ptr<IOHandler> parameter
-  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10_
+This implementation plan focuses on completing the remaining work for the demuxer architecture. Most of the core infrastructure is already in place. The primary remaining task is completing the ISODemuxer implementation for MP4/M4A container support.
 
-- [x] 1.1 Define Core Data Structures
-  - Create StreamInfo structure with all required fields for audio/video/subtitle streams
-  - Implement MediaChunk structure with data, timing, and metadata fields
-  - Add proper constructors, copy/move semantics, and validation methods
-  - Ensure structures are efficiently copyable and memory-aligned
-  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10_
+## **Completed Work**
 
-- [x] 1.2 Implement Base Demuxer Class
-  - Create Demuxer base class with pure virtual interface methods
-  - Add protected member variables for common demuxer state
-  - Implement template helper methods for endianness conversion
-  - Add proper virtual destructor and resource management
-  - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10_
+The following components have been successfully implemented:
+- ✅ Base Demuxer interface and data structures (StreamInfo, MediaChunk)
+- ✅ DemuxerFactory with format detection and demuxer creation
+- ✅ OggDemuxer with full RFC 3533 compliance
+- ✅ ChunkDemuxer for RIFF/WAV and AIFF formats
+- ✅ RawAudioDemuxer for PCM, A-law, μ-law formats
+- ✅ MediaFactory with extensible format registration
+- ✅ DemuxedStream bridge for legacy Stream interface compatibility
+- ✅ Performance optimizations (memory management, I/O, CPU efficiency)
+- ✅ Error handling and robustness mechanisms
+- ✅ Thread safety with public/private lock pattern
+- ✅ Extensibility and plugin support architecture
+- ✅ PsyMP3 system integration (IOHandler, Debug logging, URI handling)
+- ✅ Comprehensive testing suite
+- ✅ API documentation and developer guides
+- ✅ Backward compatibility validation
 
-- [x] 2. Implement DemuxerFactory System
-  - Create DemuxerFactory class with static factory methods
-  - Implement probeFormat() method for magic byte detection
-  - Add createDemuxer() methods with and without file path hints
-  - Create format signature database for automatic detection
-  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9, 7.10_
+## **Remaining Implementation Tasks**
 
-- [x] 2.1 Add Format Detection Logic
-  - Implement magic byte detection for all supported container formats
-  - Add format signature database with priority-based matching
-  - Create probeFormat() method that examines file headers
-  - Handle ambiguous cases and provide fallback detection methods
-  - _Requirements: 7.1, 7.2, 7.3, 7.9, 7.10_
+- [ ] 1. Complete ISODemuxer Implementation
+  - Implement full ISO Base Media File Format (MP4/M4A) support
+  - Add hierarchical box structure parsing
+  - Implement sample table processing for seeking
+  - Support multiple tracks and codec detection
+  - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10_
 
-- [x] 2.2 Implement Demuxer Creation Logic
-  - Create factory methods that return appropriate demuxer instances
-  - Add error handling for unsupported formats and initialization failures
-  - Implement file path hint processing for raw audio format detection
-  - Add proper resource management and cleanup for failed creations
-  - _Requirements: 7.4, 7.5, 7.6, 7.7, 7.8_
+- [ ] 1.1 Implement Box Hierarchy Parser
+  - Create box header parsing (32-bit and 64-bit sizes)
+  - Implement recursive box tree navigation
+  - Add support for essential boxes (ftyp, moov, trak, mdia, stbl)
+  - Handle unknown boxes gracefully by skipping
+  - _Requirements: 5.1, 5.2_
 
-- [x] 3. Enhance Existing Demuxer Implementations
-  - Update OggDemuxer to fully comply with new interface requirements
-  - Enhance ChunkDemuxer with improved RIFF/AIFF support
-  - Complete ISODemuxer implementation for MP4/M4A files
-  - Improve RawAudioDemuxer with better format detection
-  - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10_
+- [ ] 1.2 Parse Movie and Track Metadata
+  - Extract movie header (mvhd) with timescale and duration
+  - Parse track headers (tkhd) for track information
+  - Extract media headers (mdhd) for media-specific timescales
+  - Identify and prioritize audio tracks over video tracks
+  - _Requirements: 5.3, 5.5_
 
-- [x] 3.1 Complete OggDemuxer Integration
-  - Ensure OggDemuxer implements all required Demuxer interface methods
-  - Add proper StreamInfo population with Ogg-specific metadata
-  - Implement MediaChunk creation with granule position information
-  - Add comprehensive error handling and recovery mechanisms
-  - _Requirements: 3.1, 3.2, 3.3, 3.10_
+- [ ] 1.3 Build Sample Tables
+  - Parse time-to-sample table (stts) for decode timestamps
+  - Parse sample-to-chunk table (stsc) for chunk mapping
+  - Parse sample size table (stsz/stz2) for sample sizes
+  - Parse chunk offset table (stco/co64) for file positions
+  - Build efficient lookup structures for seeking
+  - _Requirements: 5.4, 5.6_
 
-- [x] 3.2 Enhance ChunkDemuxer Capabilities
-  - Complete RIFF/WAV and AIFF format support in ChunkDemuxer
-  - Add proper endianness handling for different chunk formats
-  - Implement comprehensive metadata extraction from chunk headers
-  - Add support for various audio codecs within chunk containers
-  - _Requirements: 3.4, 3.5, 3.6, 3.10_
+- [ ] 1.4 Implement Codec Detection
+  - Parse sample description box (stsd) for codec information
+  - Map FourCC codes to codec names (mp4a→AAC, alac→ALAC, flac→FLAC, etc.)
+  - Extract codec-specific initialization data (esds, alac, dfLa boxes)
+  - Populate StreamInfo with complete codec information
+  - _Requirements: 5.8_
 
-- [ ] 3.3 Finalize ISODemuxer Implementation
-  - Complete MP4/M4A container parsing with full box hierarchy support
-  - Implement sample table processing for accurate seeking
-  - Add support for multiple tracks and codec detection
-  - Create efficient seeking using sample-to-chunk mapping
-  - _Requirements: 3.7, 3.8, 3.9, 3.10_
+- [ ] 1.5 Implement Sample-Based Seeking
+  - Convert timestamp to sample number using stts table
+  - Map sample to chunk using stsc table
+  - Calculate byte offset using stco/co64 table
+  - Extract sample data using stsz table
+  - Handle sync samples (stss) for video tracks
+  - _Requirements: 5.6, 5.7_
 
-- [x] 4. Create MediaFactory System
-  - Implement MediaFactory class with comprehensive format registration
-  - Add ContentInfo structure for format detection results
-  - Create MediaFormat structure for format capability description
-  - Implement extensible format registration and detection system
-  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 8.9, 8.10_
+- [ ] 1.6 Add Duration Calculation
+  - Calculate duration from track duration and timescale
+  - Handle multiple tracks with different timescales
+  - Convert to milliseconds for unified interface
+  - Support files with unknown duration (live streams)
+  - _Requirements: 5.9_
 
-- [x] 4.1 Implement Format Registration System
-  - Create MediaFormat structure with comprehensive format metadata
-  - Add format registration methods for dynamic format addition
-  - Implement priority-based format matching and selection
-  - Create lookup tables for efficient extension and MIME type mapping
-  - _Requirements: 8.1, 8.2, 8.3, 8.8_
+- [ ] 1.7 Implement Fragmented MP4 Support (Basic)
+  - Detect fragmented MP4 files (moof boxes)
+  - Parse movie fragment boxes for basic playback
+  - Handle fragment-based seeking (limited support)
+  - Provide foundation for future full fragmentation support
+  - _Requirements: 5.10_
 
-- [x] 4.2 Add Content Detection Pipeline
-  - Implement multi-stage content detection (extension, MIME, magic bytes)
-  - Create ContentInfo structure with confidence scoring
-  - Add content analysis methods for advanced format detection
-  - Implement fallback detection strategies for ambiguous cases
-  - _Requirements: 8.4, 8.5, 8.6, 8.7, 8.9, 8.10_
+- [ ] 1.8 Create ISODemuxer Unit Tests
+  - Test box parsing with various MP4/M4A files
+  - Verify sample table construction and lookup
+  - Test seeking accuracy with different codecs
+  - Validate multi-track handling
+  - Test fragmented MP4 basic support
+  - _Requirements: 5.1-5.10_
 
-- [x] 4.3 Create Stream Factory System
-  - Implement createStream() methods with automatic format detection
-  - Add createStreamWithMimeType() for HTTP streaming with MIME hints
-  - Create analyzeContent() methods for format analysis without stream creation
-  - Add proper error handling and unsupported format reporting
-  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7_
+- [ ] 1.9 Add ISODemuxer Integration Tests
+  - Test with real-world MP4/M4A files from various encoders
+  - Verify codec detection for AAC, ALAC, FLAC in MP4
+  - Test large file support (>2GB with 64-bit offsets)
+  - Validate metadata extraction from iTunes-style atoms
+  - Test error handling with corrupted MP4 files
+  - _Requirements: 5.1-5.10, 11.1-11.8_
 
-- [x] 5. Implement DemuxedStream Bridge
-  - Create DemuxedStream class implementing legacy Stream interface
-  - Add demuxer and codec integration for complete audio pipeline
-  - Implement buffering system for efficient chunk-to-PCM conversion
-  - Create position tracking and seeking coordination between components
-  - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9, 9.10_
+- [ ] 2. Integrate ISODemuxer with Factory System
+  - Register ISODemuxer with DemuxerFactory
+  - Add MP4 format signatures to detection system
+  - Test automatic format detection for MP4/M4A/MOV/3GP files
+  - Verify integration with DemuxedStream bridge
+  - _Requirements: 7.6, 8.1-8.10_
 
-- [x] 5.1 Implement Stream Interface Bridge
-  - Create DemuxedStream class inheriting from Stream base class
-  - Implement all required Stream interface methods (getData, seekTo, eof, getLength)
-  - Add proper initialization with demuxer and codec creation
-  - Ensure backward compatibility with existing Stream-based code
-  - _Requirements: 9.1, 9.2, 9.9, 9.10_
+- [ ] 2.1 Register MP4 Format Signatures
+  - Add ftyp box detection (various brand codes: isom, mp42, M4A, etc.)
+  - Handle different MP4 variants (MP4, M4A, MOV, 3GP)
+  - Set appropriate detection priority
+  - Test with ambiguous files
+  - _Requirements: 7.6_
 
-- [x] 5.2 Add Demuxer-Codec Integration
-  - Implement automatic demuxer selection based on file format
-  - Add codec selection and initialization based on stream information
-  - Create MediaChunk to AudioFrame conversion pipeline
-  - Handle multiple streams and stream switching capabilities
-  - _Requirements: 9.3, 9.4, 9.5, 9.6_
-
-- [x] 5.3 Implement Buffering and Position Tracking
-  - Create efficient buffering system for MediaChunk and AudioFrame data
-  - Add position tracking based on consumed samples rather than packet timestamps
-  - Implement seeking coordination between demuxer and codec components
-  - Handle EOF detection and stream completion properly
-  - _Requirements: 9.7, 9.8, 9.9, 9.10_
-
-- [x] 6. Add Performance Optimizations
-  - Implement efficient memory management with bounded buffers
-  - Add I/O optimization for both local files and network streams
-  - Create CPU-efficient parsing and processing algorithms
-  - Implement scalable architecture for large files and multiple streams
-  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6, 10.7, 10.8_
-
-- [x] 6.1 Optimize Memory Usage
-  - Implement streaming architecture that processes data incrementally
-  - Add bounded buffer management to prevent memory exhaustion
-  - Create efficient resource pooling and reuse strategies
-  - Use smart pointers and RAII for automatic resource management
-  - _Requirements: 10.1, 10.2, 10.6, 10.8_
-
-- [x] 6.2 Enhance I/O Performance
-  - Optimize for sequential access patterns in media files
-  - Add read-ahead buffering for network streams
-  - Implement efficient seeking strategies for different container formats
-  - Create cache management for frequently accessed metadata
-  - _Requirements: 10.3, 10.4, 10.7, 10.8_
-
-- [x] 6.3 Improve CPU Efficiency
-  - Optimize format detection with fast magic byte matching
-  - Create efficient parsing algorithms for common container formats
-  - Add threading support where beneficial for performance
-  - Optimize common code paths and handle edge cases separately
-  - _Requirements: 10.5, 10.6, 10.7, 10.8_
-
-- [x] 7. Implement Error Handling and Robustness
-  - Add comprehensive error handling for all demuxer operations
-  - Implement graceful degradation for corrupted or unusual files
-  - Create recovery mechanisms for various error conditions
-  - Add proper resource cleanup in all error paths
-  - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8_
-
-- [x] 7.1 Add Container-Level Error Handling
-  - Handle format detection failures with appropriate fallbacks
-  - Implement container parsing error recovery and continuation
-  - Add I/O error propagation and handling throughout the system
-  - Create memory allocation failure handling with proper cleanup
-  - _Requirements: 11.1, 11.2, 11.3, 11.8_
-
-- [x] 7.2 Implement Runtime Error Recovery
-  - Add corrupted data handling with section skipping and recovery
-  - Implement seeking error handling with range clamping and approximation
-  - Create stream error isolation to prevent affecting other streams
-  - Add threading error handling with proper synchronization
-  - _Requirements: 11.4, 11.5, 11.6, 11.7_
-
-- [x] 8. Add Thread Safety and Concurrency Support
-  - Implement proper synchronization for shared demuxer state
-  - Add thread-safe factory operations and format registration
-  - Create safe concurrent access patterns for demuxer instances
-  - Handle multi-threaded cleanup and resource management
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6, 12.7, 12.8_
-
-- [x] 8.1 Implement Demuxer Thread Safety
-  - Add synchronization for shared state in demuxer instances
-  - Implement thread-safe I/O operations through IOHandler coordination
-  - Create atomic operations for position and state tracking
-  - Handle concurrent seeking and reading operations safely
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 12.1, 12.2, 12.3, 12.7_
-
-- [x] 8.2 Add Factory Thread Safety
-  - Implement thread-safe format registration and lookup operations
-  - Add proper synchronization for factory method calls
-  - Create thread-safe error state propagation across components
-  - Handle concurrent factory operations and resource sharing
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 12.4, 12.5, 12.6, 12.8_
-
-- [x] 9. Create Extensibility and Plugin Support
-  - Implement dynamic format registration system for plugins
-  - Add custom demuxer and content detector support
-  - Create extensible metadata handling for format-specific information
-  - Design stable ABI for external plugin modules
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10_
-
-- [x] 9.1 Implement Plugin Architecture
-  - Create dynamic format registration system for runtime plugin loading
-  - Add custom demuxer implementation support through base interface
-  - Implement pluggable content detection algorithms
-  - Design stable ABI for external format support modules
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 13.1, 13.2, 13.3, 13.8_
-
-- [x] 9.2 Add Extensibility Features
-  - Create custom stream factory function support
-  - Add extensible IOHandler implementation registration
-  - Implement format-specific metadata extension mechanisms
-  - Create runtime configuration system for demuxer behavior
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 13.4, 13.5, 13.6, 13.7, 13.9, 13.10_
-
-- [x] 10. Ensure Integration and API Consistency
-  - Complete integration with IOHandler subsystem
-  - Add comprehensive PsyMP3 error reporting and logging integration
-  - Implement URI parsing and handling integration
-  - Ensure consistent API patterns across all demuxer components
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7, 14.8, 14.9, 14.10_
-
-- [x] 10.1 Complete IOHandler Integration
-  - Ensure all demuxers use IOHandler interface exclusively for I/O operations
-  - Test integration with both FileIOHandler and HTTPIOHandler implementations
-  - Add proper error propagation from IOHandler to demuxer layers
-  - Validate large file support and network streaming capabilities
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 14.1, 14.4, 14.7_
-
-- [x] 10.2 Add PsyMP3 System Integration
-  - Integrate with PsyMP3 Debug logging system using appropriate categories
-  - Use PsyMP3 exception hierarchy for consistent error reporting
-  - Add integration with URI parsing and handling components
-  - Ensure compatibility with TagLib::String parameters where needed
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 14.2, 14.3, 14.5, 14.6_
-
-- [x] 10.3 Ensure API Consistency
-  - Validate consistent method signatures and return types across demuxers
-  - Add comprehensive parameter validation and error checking
-  - Implement consistent resource management patterns throughout
-  - Create uniform configuration and settings handling
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 14.8, 14.9, 14.10_
-
-- [x] 11. Create Comprehensive Testing Suite
-  - Implement unit tests for all major demuxer architecture components
-  - Add integration tests with various file formats and I/O sources
-  - Create performance benchmarks and regression tests
-  - Test error handling and recovery scenarios thoroughly
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: All requirements validation_
-
-- [x] 11.1 Implement Unit Tests
-  - Test base Demuxer interface and data structure functionality
-  - Verify DemuxerFactory format detection and demuxer creation
-  - Test MediaFactory registration and content detection systems
-  - Validate DemuxedStream bridge functionality and compatibility
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 1.1-1.10, 7.1-7.10, 8.1-8.10, 9.1-9.10_
-
-- [x] 11.2 Add Integration Tests
-  - Test demuxer implementations with various container formats
-  - Verify IOHandler integration with different I/O sources
-  - Test multi-threaded scenarios and concurrent access patterns
-  - Validate error handling and recovery across component boundaries
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 3.1-3.10, 10.1-10.8, 11.1-11.8, 12.1-12.8_
-
-- [x] 11.3 Create Performance and Regression Tests
-  - Benchmark demuxer performance with large files and network streams
-  - Test memory usage and resource management under various conditions
-  - Create regression tests for previously fixed issues and edge cases
-  - Validate scalability with multiple concurrent streams and operations
-  - Create unit tests to verify all functionality
-  - Verify unit tests pass before completing task.
-  - _Requirements: 10.1-10.8, 11.1-11.8, 13.1-13.10, 14.1-14.10_
-
-- [x] 12. Documentation and Code Quality
-  - Add comprehensive inline documentation for all public interfaces
-  - Create developer documentation for extending the demuxer architecture
-  - Document integration patterns and best practices
-  - Ensure code follows PsyMP3 style guidelines and conventions
-  - _Requirements: 14.8, 14.9, 14.10_
-
-- [x] 12.1 Create API Documentation
-  - Document all public classes, methods, and data structures
-  - Add usage examples and integration patterns
-  - Explain error handling and recovery mechanisms
-  - Document thread safety considerations and limitations
-  - _Requirements: 14.8, 14.9, 14.10_
-
-- [x] 12.2 Add Developer Guide
-  - Create guide for implementing new demuxer types
-  - Document plugin development and format registration
-  - Explain architecture design decisions and trade-offs
-  - Provide troubleshooting guide for common integration issues
-  - _Requirements: 13.1-13.10, 14.1-14.10_
-
-- [x] 13. Validate Backward Compatibility ✅ **COMPLETED**
-  - ✅ Ensure existing PsyMP3 functionality continues to work unchanged
-  - ✅ Test DemuxedStream bridge with all current audio file types
-  - ✅ Validate performance meets or exceeds current implementation
-  - ✅ Verify metadata extraction and seeking behavior consistency
+- [ ] 2.2 Test End-to-End MP4 Playback
+  - Verify MP4/M4A files play through DemuxedStream
+  - Test seeking accuracy in MP4 files
+  - Validate metadata extraction from MP4 containers
+  - Ensure performance meets requirements
   - _Requirements: 9.1-9.10, 14.1-14.10_
-  - **Implementation Notes:** All backward compatibility validated through comprehensive testing. DemuxedStream bridge working correctly with all supported formats. Performance meets requirements. Metadata extraction and seeking behavior consistent with existing implementation.
 
-- [x] 13.1 Test Legacy Compatibility
-  - Verify all currently supported file formats continue to work
-  - Test existing Stream interface usage patterns through DemuxedStream
-  - Validate metadata extraction matches current implementation results
-  - Ensure seeking accuracy and performance meet current standards
-  - _Requirements: 9.1, 9.2, 9.9, 9.10_
+- [ ] 3. Final Validation and Documentation
+  - Update API documentation with ISODemuxer details
+  - Add MP4 format examples to developer guide
+  - Run full test suite to ensure no regressions
+  - Validate all requirements are met
+  - _Requirements: All requirements_
 
-- [x] 13.2 Performance Validation
-  - Benchmark new architecture against current implementation
-  - Measure memory usage and ensure reasonable resource consumption
-  - Test with large files and various network conditions
-  - Validate that new features don't impact existing performance
-  - _Requirements: 10.1-10.8, 14.1-14.10_
+- [ ] 3.1 Update Documentation
+  - Document ISODemuxer public API
+  - Add MP4 box structure reference
+  - Provide examples of MP4 demuxing
+  - Document limitations and future enhancements
+  - _Requirements: 14.8, 14.9, 14.10_
+
+- [ ] 3.2 Run Comprehensive Test Suite
+  - Execute all unit tests
+  - Run integration tests with all formats
+  - Perform performance benchmarks
+  - Validate thread safety
+  - Test backward compatibility
+  - _Requirements: All requirements_
+
+- [ ] 3.3 Final Requirements Validation
+  - Verify all 14 requirement sections are satisfied
+  - Confirm all 20 correctness properties are testable
+  - Validate error handling meets specifications
+  - Ensure thread safety compliance
+  - Document any known limitations
+  - _Requirements: All requirements_
