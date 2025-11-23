@@ -357,6 +357,9 @@ using PsyMP3::Widget::UI::LyricsWidget;
 #include "ZOrder.h"
 #include "widget/ui/ToastNotification.h"
 
+// Bring ToastNotification into global namespace after its header is included
+using PsyMP3::Widget::UI::ToastNotification;
+
 // I/O and utility components (needed by other components)
 #include "utility.h"
 #include "system.h"
@@ -376,6 +379,15 @@ using PsyMP3::Widget::UI::LyricsWidget;
 #include "io/http/HTTPIOHandler.h"
 #include "io/TagLibIOHandlerAdapter.h"
 #include "io/URI.h"
+
+// Using declarations for I/O classes for backward compatibility
+using PsyMP3::IO::IOHandler;
+using PsyMP3::IO::File::FileIOHandler;
+using PsyMP3::IO::HTTP::HTTPIOHandler;
+using PsyMP3::IO::HTTP::HTTPClient;
+using PsyMP3::IO::TagLibIOHandlerAdapter;
+using PsyMP3::IO::URI;
+
 #include "stream.h"
 #include "BoundedQueue.h"
 
@@ -388,8 +400,24 @@ using PsyMP3::Widget::UI::LyricsWidget;
 #include "demuxer/DemuxerExtensibility.h"
 #include "demuxer/ChunkDemuxer.h"
 
+// Using declarations for core demuxer types (needed by other headers)
+using PsyMP3::Demuxer::Demuxer;
+using PsyMP3::Demuxer::StreamInfo;
+using PsyMP3::Demuxer::MediaChunk;
+using PsyMP3::Demuxer::DemuxerError;
+using PsyMP3::Demuxer::DemuxerErrorRecovery;
+using PsyMP3::Demuxer::BufferPool;
+using PsyMP3::Demuxer::ChunkDemuxer;
+using PsyMP3::Demuxer::Chunk;
+using PsyMP3::Demuxer::FormatSignature;
+using PsyMP3::Demuxer::DemuxerFactory;
+using PsyMP3::Demuxer::DemuxerRegistry;
+
 // I/O Handler subsystem - Advanced (depends on Demuxer and BoundedQueue)
 #include "io/StreamingManager.h"
+
+// Using declaration for StreamingManager (after include)
+using PsyMP3::IO::StreamingManager;
 
 // Codec architecture (depends on Demuxer types)
 #include "codecs/AudioCodec.h"
@@ -481,6 +509,12 @@ using PsyMP3::Codec::FLAC::FLACException;
 #endif
 #endif
 #include "demuxer/ChainedStream.h"
+
+// Using declarations for stream types (after their headers are included)
+using PsyMP3::Demuxer::DemuxedStream;
+using PsyMP3::Demuxer::ModernStream;
+using PsyMP3::Demuxer::ChainedStream;
+
 #include "nullstream.h"
 #include "mediafile.h"
 #include "fft.h"
@@ -495,6 +529,10 @@ using PsyMP3::Codec::FLAC::FLACException;
 // Last.fm scrobbling
 #include "lastfm/scrobble.h"
 #include "lastfm/LastFM.h"
+
+// Using declarations for backward compatibility
+using PsyMP3::LastFM::LastFM;
+using PsyMP3::LastFM::Scrobble;
 
 #include "playlist.h"
 #include "player.h"

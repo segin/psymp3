@@ -30,6 +30,9 @@ namespace PsyMP3 {
 namespace Codec {
 namespace Vorbis {
 
+// Bring demuxer types into this namespace
+using PsyMP3::Demuxer::DemuxedStream;
+
 /**
  * @brief Vorbis decoder class using DemuxedStream with OggDemuxer
  * 

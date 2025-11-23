@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 /**
  * @brief Information about a media stream within a container
  * 
@@ -890,6 +893,10 @@ protected:
 private:
 };
 
+} // namespace Demuxer
+} // namespace PsyMP3
+
 // DemuxerFactory class moved to DemuxerFactory.h
 
 #endif // DEMUXER_H
+

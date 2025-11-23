@@ -67,14 +67,14 @@ std::unique_ptr<Stream> MediaFile::open(TagLib::String name) {
             }
         }
         
-        auto stream = MediaFactory::createStream(uri);
+        auto stream = PsyMP3::Demuxer::MediaFactory::createStream(uri);
         Debug::log("loader", "MediaFile::open successfully created stream for: ", uri);
         return stream;
         
-    } catch (const UnsupportedMediaException& e) {
+    } catch (const PsyMP3::Demuxer::UnsupportedMediaException& e) {
         Debug::log("demuxer", "MediaFile::open UnsupportedMediaException: ", e.what());
         throw InvalidMediaException(e.what());
-    } catch (const ContentDetectionException& e) {
+    } catch (const PsyMP3::Demuxer::ContentDetectionException& e) {
         Debug::log("demuxer", "MediaFile::open ContentDetectionException: ", e.what());
         throw InvalidMediaException(e.what());
     } catch (const std::exception& e) {
@@ -86,21 +86,23 @@ std::unique_ptr<Stream> MediaFile::open(TagLib::String name) {
 std::unique_ptr<Stream> MediaFile::openByMimeType(TagLib::String name, const std::string& mime_type) {
     try {
         std::string uri = name.to8Bit(true);
-        return MediaFactory::createStreamWithMimeType(uri, mime_type);
+        return PsyMP3::Demuxer::MediaFactory::createStreamWithMimeType(uri, mime_type);
         
-    } catch (const UnsupportedMediaException& e) {
+    } catch (const PsyMP3::Demuxer::UnsupportedMediaException& e) {
         throw InvalidMediaException(e.what());
-    } catch (const ContentDetectionException& e) {
+    } catch (const PsyMP3::Demuxer::ContentDetectionException& e) {
         throw InvalidMediaException(e.what());
     } catch (const std::exception& e) {
         throw InvalidMediaException("Failed to open media file: " + std::string(e.what()));
     }
+    // Unreachable - all paths throw or return
+    return nullptr;
 }
 
 std::string MediaFile::detectMimeType(TagLib::String name) {
     try {
         std::string uri = name.to8Bit(true);
-        ContentInfo info = MediaFactory::analyzeContent(uri);
+        PsyMP3::Demuxer::ContentInfo info = PsyMP3::Demuxer::MediaFactory::analyzeContent(uri);
         return info.mime_type;
     } catch (const std::exception&) {
         return "";
@@ -108,24 +110,24 @@ std::string MediaFile::detectMimeType(TagLib::String name) {
 }
 
 std::string MediaFile::extensionToMimeType(const std::string& extension) {
-    return MediaFactory::extensionToMimeType(extension);
+    return PsyMP3::Demuxer::MediaFactory::extensionToMimeType(extension);
 }
 
 std::string MediaFile::mimeTypeToExtension(const std::string& mime_type) {
-    return MediaFactory::mimeTypeToExtension(mime_type);
+    return PsyMP3::Demuxer::MediaFactory::mimeTypeToExtension(mime_type);
 }
 
 bool MediaFile::supportsExtension(const std::string& extension) {
-    return MediaFactory::supportsExtension(extension);
+    return PsyMP3::Demuxer::MediaFactory::supportsExtension(extension);
 }
 
 bool MediaFile::supportsMimeType(const std::string& mime_type) {
-    return MediaFactory::supportsMimeType(mime_type);
+    return PsyMP3::Demuxer::MediaFactory::supportsMimeType(mime_type);
 }
 
 std::vector<std::string> MediaFile::getSupportedExtensions() {
     std::vector<std::string> all_extensions;
-    auto formats = MediaFactory::getSupportedFormats();
+    auto formats = PsyMP3::Demuxer::MediaFactory::getSupportedFormats();
     
     for (const auto& format : formats) {
         all_extensions.insert(all_extensions.end(), 
@@ -138,7 +140,7 @@ std::vector<std::string> MediaFile::getSupportedExtensions() {
 
 std::vector<std::string> MediaFile::getSupportedMimeTypes() {
     std::vector<std::string> all_mime_types;
-    auto formats = MediaFactory::getSupportedFormats();
+    auto formats = PsyMP3::Demuxer::MediaFactory::getSupportedFormats();
     
     for (const auto& format : formats) {
         all_mime_types.insert(all_mime_types.end(), 

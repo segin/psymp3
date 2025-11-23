@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // DemuxerRegistry implementation
 DemuxerRegistry& DemuxerRegistry::getInstance() {
     static DemuxerRegistry instance;
@@ -321,3 +324,6 @@ DemuxerRegistration::DemuxerRegistration(const std::string& format_id,
         registry.registerSignature(signature);
     }
 }
+
+} // namespace Demuxer
+} // namespace PsyMP3

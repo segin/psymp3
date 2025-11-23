@@ -24,6 +24,10 @@
 #ifndef RAWAUDIODEMUXER_H
 #define RAWAUDIODEMUXER_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Raw {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -146,4 +150,8 @@ private:
     static const std::map<std::string, RawAudioConfig> s_extension_map;
 };
 
+
+} // namespace Raw
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // RAWAUDIODEMUXER_H

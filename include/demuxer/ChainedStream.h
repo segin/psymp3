@@ -24,6 +24,9 @@
 #ifndef CHAINEDSTREAM_H
 #define CHAINEDSTREAM_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 class ChainedStream : public Stream
 {
 public:
@@ -56,4 +59,7 @@ private:
     unsigned long long m_samples_played_in_previous_tracks;
 };
 
+
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // CHAINEDSTREAM_H

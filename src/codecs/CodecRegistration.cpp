@@ -101,26 +101,26 @@ void registerAllDemuxers() {
     Debug::log("demuxer", "registerAllDemuxers: Registered RIFF demuxer");
     
     DemuxerRegistry::getInstance().registerDemuxer("aiff", [](std::unique_ptr<IOHandler> handler) {
-        return std::make_unique<ChunkDemuxer>(std::move(handler));
+        return std::make_unique<PsyMP3::Demuxer::ChunkDemuxer>(std::move(handler));
     }, "AIFF", {"aiff", "aif"});
     Debug::log("demuxer", "registerAllDemuxers: Registered AIFF demuxer");
     
     DemuxerRegistry::getInstance().registerDemuxer("mp4", [](std::unique_ptr<IOHandler> handler) {
-        return std::make_unique<ISODemuxer>(std::move(handler));
+        return std::make_unique<PsyMP3::Demuxer::ISO::ISODemuxer>(std::move(handler));
     }, "MP4/ISO", {"mp4", "m4a", "mov"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MP4/ISO demuxer");
     
     DemuxerRegistry::getInstance().registerDemuxer("raw_audio", [](std::unique_ptr<IOHandler> handler) {
         // Note: RawAudioDemuxer needs file path for format detection
         // This factory will need to be enhanced when MediaFactory is updated
-        return std::make_unique<RawAudioDemuxer>(std::move(handler), "");
+        return std::make_unique<PsyMP3::Demuxer::Raw::RawAudioDemuxer>(std::move(handler), "");
     }, "Raw Audio", {"pcm", "raw"});
     Debug::log("demuxer", "registerAllDemuxers: Registered raw audio demuxer");
 
     // FLAC demuxer registration
 #ifdef HAVE_FLAC
     DemuxerRegistry::getInstance().registerDemuxer("flac", [](std::unique_ptr<IOHandler> handler) {
-        return std::make_unique<FLACDemuxer>(std::move(handler));
+        return std::make_unique<PsyMP3::Demuxer::FLAC::FLACDemuxer>(std::move(handler));
     }, "FLAC", {"flac"});
     Debug::log("demuxer", "registerAllDemuxers: Registered FLAC demuxer");
 #else
@@ -131,7 +131,7 @@ void registerAllDemuxers() {
     // This flag is set when any Ogg-compatible codec is available (Vorbis, Opus, or FLAC+Ogg)
 #ifdef HAVE_OGGDEMUXER
     DemuxerRegistry::getInstance().registerDemuxer("ogg", [](std::unique_ptr<IOHandler> handler) {
-        return std::make_unique<OggDemuxer>(std::move(handler));
+        return std::make_unique<PsyMP3::Demuxer::Ogg::OggDemuxer>(std::move(handler));
     }, "Ogg", {"ogg", "oga", "ogv", "ogx"});
     
     std::string ogg_codecs = "OggDemuxer registered with support for: ";

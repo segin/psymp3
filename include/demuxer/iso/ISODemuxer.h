@@ -10,6 +10,10 @@
 #ifndef ISODEMUXER_H
 #define ISODEMUXER_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // All necessary headers are included via psymp3.h
 
 /**
@@ -449,4 +453,8 @@ private:
                                                    std::function<bool()> fallbackStrategy = nullptr);
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXER_H

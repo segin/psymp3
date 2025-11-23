@@ -24,6 +24,9 @@
 #ifndef DEMUXER_PLUGIN_H
 #define DEMUXER_PLUGIN_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -450,4 +453,7 @@ private:
         } \
     }
 
+
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // DEMUXER_PLUGIN_H

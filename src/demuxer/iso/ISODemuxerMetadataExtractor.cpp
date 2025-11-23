@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 
 std::map<std::string, std::string> ISODemuxerMetadataExtractor::ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size) {
     std::map<std::string, std::string> metadata;
@@ -272,3 +275,6 @@ uint64_t ISODemuxerMetadataExtractor::ReadUInt64BE(std::shared_ptr<IOHandler> io
            (static_cast<uint64_t>(bytes[6]) << 8) |
            static_cast<uint64_t>(bytes[7]);
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

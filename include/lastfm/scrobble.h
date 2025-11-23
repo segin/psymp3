@@ -24,6 +24,9 @@
 #ifndef SCROBBLE_H
 #define SCROBBLE_H
 
+namespace PsyMP3 {
+namespace LastFM {
+
 class Scrobble
 {
 public:
@@ -71,4 +74,8 @@ private:
     time_t m_timestamp;  // When the track was played (for scrobbling)
 };
 
+} // namespace LastFM
+} // namespace PsyMP3
+
 #endif // SCROBBLE_H
+

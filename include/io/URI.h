@@ -24,6 +24,9 @@
 #ifndef URI_H
 #define URI_H
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief A simple class for parsing and handling Uniform Resource Identifiers (URIs).
  *
@@ -55,5 +58,8 @@ private:
     TagLib::String m_scheme;
     TagLib::String m_path;
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // URI_H

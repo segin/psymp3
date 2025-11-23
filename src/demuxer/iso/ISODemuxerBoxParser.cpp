@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 
 ISODemuxerBoxParser::ISODemuxerBoxParser(std::shared_ptr<IOHandler> io) : io(io), fileSize(0) {
     // Get file size for validation
@@ -1129,3 +1132,7 @@ void ISODemuxerBoxParser::ApplyTelephonyDefaults(AudioTrackInfo& track, const st
         track.bitsPerSample = 8;
     }
 }
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

@@ -26,6 +26,10 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+namespace HTTP {
+
 /**
  * @brief HTTP streaming I/O handler with range request support
  * 
@@ -334,5 +338,9 @@ private:
      */
     void cleanupOnError(const std::string& context);
 };
+
+} // namespace HTTP
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // HTTPIOHANDLER_H

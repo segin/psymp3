@@ -10,6 +10,10 @@
 #ifndef ISODEMUXERMETADATAEXTRACTOR_H
 #define ISODEMUXERMETADATAEXTRACTOR_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -35,4 +39,8 @@ private:
     uint64_t ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset);
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXERMETADATAEXTRACTOR_H

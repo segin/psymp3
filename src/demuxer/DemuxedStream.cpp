@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id) 
     : Stream(), m_current_stream_id(preferred_stream_id) {
     m_path = path;
@@ -549,3 +552,6 @@ TagLib::String DemuxedStream::getAlbum() {
     // Fall back to base class implementation (TagLib)
     return Stream::getAlbum();
 }
+
+} // namespace Demuxer
+} // namespace PsyMP3

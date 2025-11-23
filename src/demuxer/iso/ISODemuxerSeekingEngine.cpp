@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 
 bool ISODemuxerSeekingEngine::SeekToTimestamp(double timestamp, AudioTrackInfo& track, ISODemuxerSampleTableManager& sampleTables) {
     if (timestamp < 0.0) {
@@ -94,3 +97,6 @@ bool ISODemuxerSeekingEngine::ValidateSeekPosition(uint64_t sampleIndex, const A
     // Additional validation could be added here
     return true;
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

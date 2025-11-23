@@ -59,7 +59,7 @@ public:
      * @param font Font to use for text rendering
      * @param duration_ms Auto-dismiss timeout in milliseconds
      */
-    ToastWidget(const std::string& message, Font* font, int duration_ms = DURATION_SHORT);
+    ToastWidget(const std::string& message, ::Font* font, int duration_ms = DURATION_SHORT);
     
     /**
      * @brief Virtual destructor.
@@ -127,11 +127,11 @@ protected:
      * @param padding Additional padding around text
      * @return Required size as Rect (width and height only)
      */
-    static Rect calculateSize(const std::string& message, Font* font, int padding = 16);
+    static Rect calculateSize(const std::string& message, ::Font* font, int padding = 16);
 
 private:
     std::string m_message;
-    Font* m_font;
+    ::Font* m_font;
     int m_duration_ms;
     std::chrono::steady_clock::time_point m_start_time;
     std::function<void(ToastWidget*)> m_on_dismiss;

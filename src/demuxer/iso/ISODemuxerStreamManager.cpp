@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 
 void ISODemuxerStreamManager::AddAudioTrack(const AudioTrackInfo& track) {
     tracks.push_back(track);
@@ -130,3 +133,6 @@ void ISODemuxerStreamManager::prefetchSample(uint64_t offset, size_t size) {
     // For streaming sources, this would initiate prefetching
     // Stub implementation for now
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

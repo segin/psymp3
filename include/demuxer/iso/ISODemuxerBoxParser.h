@@ -10,6 +10,10 @@
 #ifndef ISODEMUXERBOXPARSER_H
 #define ISODEMUXERBOXPARSER_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -80,4 +84,8 @@ private:
     bool IsContainerBox(uint32_t boxType);
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXERBOXPARSER_H

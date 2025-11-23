@@ -26,6 +26,10 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+namespace File {
+
 /**
  * @brief Concrete IOHandler implementation for local file access
  * 
@@ -317,5 +321,9 @@ private:
      */
     std::string detectFileSystemType();
 };
+
+} // namespace File
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // FILEIOHANDLER_H

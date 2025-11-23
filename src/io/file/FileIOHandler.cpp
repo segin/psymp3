@@ -23,6 +23,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+namespace File {
+
 /**
  * @brief Constructs a FileIOHandler for a given local file path.
  *
@@ -1912,3 +1916,7 @@ void FileIOHandler::ensureSafeDestructorCleanup() noexcept {
         updateErrorState(0);
     }
 }
+
+} // namespace File
+} // namespace IO
+} // namespace PsyMP3

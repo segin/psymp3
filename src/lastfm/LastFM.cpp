@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace LastFM {
+
 LastFM::LastFM() :
     m_config_file(System::getStoragePath().to8Bit(true) + "/lastfm.conf"),
     m_cache_file(System::getStoragePath().to8Bit(true) + "/scrobble_cache.xml")
@@ -565,3 +568,6 @@ std::string LastFM::md5Hash(const std::string& input)
     EVP_MD_CTX_free(ctx);
     return "";
 }
+
+} // namespace LastFM
+} // namespace PsyMP3

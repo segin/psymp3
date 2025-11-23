@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 /**
  * @brief Format signature for efficient detection
  */
@@ -116,5 +119,8 @@ private:
     // Private unlocked version for internal use
     static void registerSignature_unlocked(const FormatSignature& signature);
 };
+
+} // namespace Demuxer
+} // namespace PsyMP3
 
 #endif // DEMUXER_FACTORY_H

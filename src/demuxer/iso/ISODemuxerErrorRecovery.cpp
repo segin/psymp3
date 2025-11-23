@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 #include <algorithm>
 #include <chrono>
 #include <thread>
@@ -769,3 +772,6 @@ std::string ISODemuxerErrorRecovery::BoxTypeToString(uint32_t boxType) {
     
     return result;
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

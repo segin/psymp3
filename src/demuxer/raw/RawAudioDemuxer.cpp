@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Raw {
 
 // Extension to configuration mapping
 const std::map<std::string, RawAudioConfig> RawAudioDetector::s_extension_map = {
@@ -254,3 +257,6 @@ std::optional<RawAudioConfig> RawAudioDetector::detectRawAudio(const std::string
     
     return std::nullopt;
 }
+} // namespace Raw
+} // namespace Demuxer
+} // namespace PsyMP3

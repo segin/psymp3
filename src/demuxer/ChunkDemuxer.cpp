@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 ChunkDemuxer::ChunkDemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)) {
     m_current_stream_id = 0;
@@ -983,3 +986,5 @@ bool ChunkDemuxer::handleChunkSizeError(Chunk& chunk) {
     
     return false;
 }
+} // namespace Demuxer
+} // namespace PsyMP3

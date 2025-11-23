@@ -37,30 +37,30 @@
   - Verify no compilation errors or warnings
   - _Requirements: 7.1-7.5_
 
-- [ ] 2. Phase 1: Add namespaces to IO subsystem files
+- [-] 2. Phase 1: Add namespaces to IO subsystem files
   - Add proper `PsyMP3::IO::HTTP` namespace to HTTP handler
   - Verify master header inclusion pattern
   - Ensure files end with newline
   - _Requirements: 1.3, 2.12, 3.1-3.4, 6.1-6.7_
 
-- [ ] 2.1 Add namespace to HTTP IO handler
+- [x] 2.1 Add namespace to HTTP IO handler
   - Add `PsyMP3::IO::HTTP` namespace to `src/io/http/HTTPIOHandler.cpp`
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - _Requirements: 1.3, 2.12, 3.1, 6.1-6.7_
 
-- [ ] 2.2 Verify IO subsystem builds cleanly
+- [-] 2.2 Verify IO subsystem builds cleanly
   - Run `make -C src/io clean && make -C src/io -j$(nproc)`
   - Verify no compilation errors or warnings
   - _Requirements: 7.1-7.5_
 
-- [ ] 3. Phase 1: Add namespaces to Demuxer subsystem files
+- [-] 3. Phase 1: Add namespaces to Demuxer subsystem files
   - Add proper `PsyMP3::Demuxer::<Component>` namespaces to demuxer subdirectories
   - Verify master header inclusion pattern
   - Ensure files end with newline
   - _Requirements: 1.2, 2.6-2.8, 3.1-3.4, 6.1-6.7_
 
-- [ ] 3.1 Add namespace to ISO demuxer files
+- [x] 3.1 Add namespace to ISO demuxer files
   - Add `PsyMP3::Demuxer::ISO` namespace to `src/demuxer/iso/ISODemuxer.cpp`
   - Add `PsyMP3::Demuxer::ISO` namespace to `src/demuxer/iso/ISODemuxerBoxParser.cpp`
   - Add `PsyMP3::Demuxer::ISO` namespace to `src/demuxer/iso/ISODemuxerComplianceValidator.cpp`
@@ -74,30 +74,30 @@
   - Ensure proper namespace closure with comments
   - _Requirements: 1.2, 2.6, 3.1, 6.1-6.7_
 
-- [ ] 3.2 Add namespace to RIFF demuxer files
+- [x] 3.2 Add namespace to RIFF demuxer files
   - Add `PsyMP3::Demuxer::RIFF` namespace to `src/demuxer/riff/wav.cpp`
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - _Requirements: 1.2, 2.7, 3.1, 6.1-6.7_
 
-- [ ] 3.3 Add namespace to Raw demuxer files
+- [x] 3.3 Add namespace to Raw demuxer files
   - Add `PsyMP3::Demuxer::Raw` namespace to `src/demuxer/raw/RawAudioDemuxer.cpp`
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - _Requirements: 1.2, 2.8, 3.1, 6.1-6.7_
 
-- [ ] 3.4 Verify Demuxer subsystem builds cleanly
+- [x] 3.4 Verify Demuxer subsystem builds cleanly
   - Run `make -C src/demuxer clean && make -C src/demuxer -j$(nproc)`
   - Verify no compilation errors or warnings
   - _Requirements: 7.1-7.5_
 
-- [ ] 4. Phase 1: Add namespaces to Widget subsystem files
+- [x] 4. Phase 1: Add namespaces to Widget subsystem files
   - Add proper `PsyMP3::Widget::<Component>` namespaces to widget subdirectories
   - Verify master header inclusion pattern
   - Ensure files end with newline
   - _Requirements: 1.4, 2.13-2.15, 3.1-3.4, 6.1-6.7_
 
-- [ ] 4.1 Add namespace to Widget Foundation files
+- [x] 4.1 Add namespace to Widget Foundation files
   - Add `PsyMP3::Widget::Foundation` namespace to `src/widget/foundation/Widget.cpp`
   - Add `PsyMP3::Widget::Foundation` namespace to `src/widget/foundation/DrawableWidget.cpp`
   - Add `PsyMP3::Widget::Foundation` namespace to `src/widget/foundation/LayoutWidget.cpp`
@@ -107,7 +107,7 @@
   - Ensure proper namespace closure with comments
   - _Requirements: 1.4, 2.13, 3.1, 6.1-6.7_
 
-- [ ] 4.2 Add namespace to Widget Windowing files
+- [x] 4.2 Add namespace to Widget Windowing files
   - Add `PsyMP3::Widget::Windowing` namespace to `src/widget/windowing/TitlebarWidget.cpp`
   - Add `PsyMP3::Widget::Windowing` namespace to `src/widget/windowing/WindowFrameWidget.cpp`
   - Add `PsyMP3::Widget::Windowing` namespace to `src/widget/windowing/WindowWidget.cpp`
@@ -117,7 +117,7 @@
   - Ensure proper namespace closure with comments
   - _Requirements: 1.4, 2.14, 3.1, 6.1-6.7_
 
-- [ ] 4.3 Add namespace to Widget UI files
+- [x] 4.3 Add namespace to Widget UI files
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/ButtonWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/SpectrumAnalyzerWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/PlayerProgressBarWidget.cpp`
@@ -132,12 +132,12 @@
   - Ensure proper namespace closure with comments
   - _Requirements: 1.4, 2.15, 3.1, 6.1-6.7_
 
-- [ ] 4.4 Verify Widget subsystem builds cleanly
+- [x] 4.4 Verify Widget subsystem builds cleanly
   - Run `make -C src/widget clean && make -C src/widget -j$(nproc)`
   - Verify no compilation errors or warnings
   - _Requirements: 7.1-7.5_
 
-- [ ] 5. Checkpoint: Verify Phase 1 completion
+- [x] 5. Checkpoint: Verify Phase 1 completion
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Phase 2: Fold demuxers/ directory into demuxer/

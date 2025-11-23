@@ -24,10 +24,16 @@
 #ifndef ISO_DEMUXER_ERROR_RECOVERY_H
 #define ISO_DEMUXER_ERROR_RECOVERY_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
+// Bring IO types into this namespace
+using PsyMP3::IO::IOHandler;
+
 // Forward declarations
-class IOHandler;
 struct SampleTableInfo;
 struct AudioTrackInfo;
 struct BoxHeader;
@@ -126,4 +132,8 @@ private:
     std::string BoxTypeToString(uint32_t boxType);
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISO_DEMUXER_ERROR_RECOVERY_H

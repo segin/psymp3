@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 
 // FragmentHandler implementation
 
@@ -1005,3 +1008,6 @@ void ISODemuxerFragmentHandler::FillMissingFragmentGaps() {
     
     fragments = std::move(completeFragments);
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

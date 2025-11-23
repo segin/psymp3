@@ -24,6 +24,9 @@
 #ifndef DEMUXEDSTREAM_H
 #define DEMUXEDSTREAM_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -162,4 +165,7 @@ private:
     void updateStreamProperties();
 };
 
+
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // DEMUXEDSTREAM_H

@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 #include <algorithm>
 #include <numeric>
 
@@ -990,3 +993,6 @@ bool ISODemuxerSampleTableManager::ValidateTableConsistencyDetailed() {
     
     return true;
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

@@ -10,6 +10,10 @@
 #ifndef ISODEMUXERFRAGMENTHANDLER_H
 #define ISODEMUXERFRAGMENTHANDLER_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -122,4 +126,8 @@ private:
     void FillMissingFragmentGaps();
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXERFRAGMENTHANDLER_H

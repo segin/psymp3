@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 // Cross-platform file size type for large file support
 #ifdef _WIN32
     // Windows with MinGW: Use _off64_t for 64-bit file sizes
@@ -308,5 +311,8 @@ private:
     static size_t s_active_handlers;
     static std::chrono::steady_clock::time_point s_last_memory_warning;
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // IOHANDLER_H

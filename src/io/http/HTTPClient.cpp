@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace IO {
+namespace HTTP {
 
 // Thread-safe RAII wrapper for global curl initialization with proper cleanup
 class CurlLifecycleManager {
@@ -558,3 +561,6 @@ void HTTPClient::Connection::close() {
     }
     keep_alive = false;
 }
+} // namespace HTTP
+} // namespace IO
+} // namespace PsyMP3

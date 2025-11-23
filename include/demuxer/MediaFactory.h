@@ -10,6 +10,9 @@
 #ifndef MEDIAFACTORY_H
 #define MEDIAFACTORY_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -155,4 +158,7 @@ public:
         : std::runtime_error(message) {}
 };
 
+
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // MEDIAFACTORY_H

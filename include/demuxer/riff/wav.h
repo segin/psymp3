@@ -24,6 +24,10 @@
 #ifndef WAVSTREAM_H
 #define WAVSTREAM_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace RIFF {
+
 // No direct includes - all includes should be in psymp3.h
 class WaveStream : public Stream {
 public:
@@ -54,4 +58,8 @@ private:
     uint32_t m_bytes_read_from_data = 0;
 };
 
+
+} // namespace RIFF
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // WAVSTREAM_H

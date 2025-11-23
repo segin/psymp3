@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 TagLibIOHandlerAdapter::TagLibIOHandlerAdapter(std::unique_ptr<IOHandler> handler, 
                                            const TagLib::String& name, 
                                            bool read_only)
@@ -187,3 +190,6 @@ int TagLibIOHandlerAdapter::convertSeekPosition(Position p) const
             return SEEK_SET;
     }
 }
+
+} // namespace IO
+} // namespace PsyMP3

@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 Demuxer::Demuxer(std::unique_ptr<IOHandler> handler) 
     : m_handler(std::move(handler)) {
     // Validate handler
@@ -96,4 +99,6 @@ BufferPool::PoolStats BufferPool::getStats() const {
     return stats;
 }
 
+} // namespace Demuxer
+} // namespace PsyMP3
 // DemuxerFactory implementation moved to DemuxerFactory.cpp

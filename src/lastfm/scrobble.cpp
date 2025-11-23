@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace LastFM {
+
 Scrobble::Scrobble(const track& rhs) :
     m_artist(rhs.GetArtist().to8Bit(true)),
     m_title(rhs.GetTitle().to8Bit(true)),
@@ -96,3 +99,6 @@ bool Scrobble::operator!=(const Scrobble& other) const
 {
     return !(*this == other);
 }
+
+} // namespace LastFM
+} // namespace PsyMP3

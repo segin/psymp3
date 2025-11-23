@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // Static member definitions
 std::map<std::string, MediaFactory::FormatRegistration> MediaFactory::s_formats;
 std::map<std::string, std::string> MediaFactory::s_extension_to_format;
@@ -1043,3 +1046,6 @@ std::unique_ptr<IOHandler> MediaFactory::createIOHandler(const std::string& uri)
         return std::make_unique<FileIOHandler>(uri);
     }
 }
+
+} // namespace Demuxer
+} // namespace PsyMP3

@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 /**
  * @brief Registry for demuxer implementations with optimized lookup
  */
@@ -150,5 +153,8 @@ public:
                        const std::vector<std::string>& extensions,
                        const std::vector<FormatSignature>& signatures = {});
 };
+
+} // namespace Demuxer
+} // namespace PsyMP3
 
 #endif // DEMUXER_REGISTRY_H

@@ -10,6 +10,10 @@
 #ifndef ISODEMUXERSTREAMMANAGER_H
 #define ISODEMUXERSTREAMMANAGER_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -44,4 +48,8 @@ private:
     uint64_t m_movie_box_offset = 0;
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXERSTREAMMANAGER_H

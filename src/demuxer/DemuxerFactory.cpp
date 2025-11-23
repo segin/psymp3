@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // Static member initialization
 std::map<std::string, DemuxerFactory::DemuxerFactoryFunc> DemuxerFactory::s_demuxer_factories;
 std::vector<FormatSignature> DemuxerFactory::s_signatures;
@@ -397,3 +400,6 @@ std::string DemuxerFactory::detectFormatFromExtension(const std::string& file_pa
     
     return ""; // Unknown extension
 }
+
+} // namespace Demuxer
+} // namespace PsyMP3

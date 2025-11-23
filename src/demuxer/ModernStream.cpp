@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 ModernStream::ModernStream(const TagLib::String& name) 
     : Stream(name), m_file_name(name) {
 }
@@ -74,3 +77,6 @@ bool ModernStream::eof() {
     
     return m_demuxed_stream->eof();
 }
+
+} // namespace Demuxer
+} // namespace PsyMP3

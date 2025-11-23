@@ -27,6 +27,10 @@
 // All external headers included via psymp3.h
 // Forward declarations handled in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+namespace HTTP {
+
 /**
  * @brief Simple HTTP client with Keep-Alive support for basic GET/POST operations
  * 
@@ -177,5 +181,9 @@ private:
                                    const std::map<std::string, std::string>& headers,
                                    int timeoutSeconds);
 };
+
+} // namespace HTTP
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // HTTPCLIENT_H

@@ -55,6 +55,9 @@
   using TagLibRemoveLength = unsigned long;
 #endif
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Adapter class that allows TagLib to use our IOHandler system.
  * 
@@ -113,5 +116,8 @@ private:
      */
     int convertSeekPosition(Position p) const;
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // TAGLIBIOHANDLERADAPTER_H

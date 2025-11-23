@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace LastFM {
+
 /**
  * @brief Last.fm audioscrobbler client using the legacy 1.2 submissions API
  * 
@@ -124,5 +127,8 @@ public:
      */
     bool isConfigured() const;
 };
+
+} // namespace LastFM
+} // namespace PsyMP3
 
 #endif // LASTFM_H

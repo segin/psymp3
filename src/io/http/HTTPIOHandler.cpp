@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace IO {
+namespace HTTP {
 
 HTTPIOHandler::HTTPIOHandler(const std::string& url) 
     : m_url(url) {
@@ -1358,3 +1361,6 @@ void HTTPIOHandler::cleanupOnError(const std::string& context) {
         updateMemoryUsage(0);
     }
 }
+} // namespace HTTP
+} // namespace IO
+} // namespace PsyMP3

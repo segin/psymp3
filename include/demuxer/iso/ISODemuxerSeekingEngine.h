@@ -10,6 +10,10 @@
 #ifndef ISODEMUXERSEEKINGENGINE_H
 #define ISODEMUXERSEEKINGENGINE_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -28,4 +32,8 @@ private:
     bool ValidateSeekPosition(uint64_t sampleIndex, const AudioTrackInfo& track, ISODemuxerSampleTableManager& sampleTables);
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXERSEEKINGENGINE_H

@@ -31,8 +31,6 @@ namespace Widget {
 namespace UI {
 
 // Forward declarations to avoid circular includes
-class Font;
-class LyricsFile;
 class Surface;
 
 /**
@@ -50,13 +48,13 @@ public:
      * @param font Pointer to the font to use for rendering
      * @param width Width of the widget area
      */
-    LyricsWidget(Font* font, int width);
+    LyricsWidget(::Font* font, int width);
     
     /**
      * @brief Sets the lyrics to display.
      * @param lyrics Shared pointer to the lyrics file
      */
-    void setLyrics(std::shared_ptr<LyricsFile> lyrics);
+    void setLyrics(std::shared_ptr<::LyricsFile> lyrics);
     
     /**
      * @brief Updates the widget for the current playback position.
@@ -82,8 +80,8 @@ public:
     void BlitTo(Surface& target) override;
 
 private:
-    Font* m_font;                               ///< Non-owning pointer to font
-    std::shared_ptr<LyricsFile> m_lyrics;       ///< Current lyrics file
+    ::Font* m_font;                             ///< Non-owning pointer to font
+    std::shared_ptr<::LyricsFile> m_lyrics;     ///< Current lyrics file
     unsigned int m_last_update_time;            ///< Last update time to avoid unnecessary redraws
     int m_widget_width;                         ///< Width of the widget area
     

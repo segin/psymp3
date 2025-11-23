@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 #ifdef __linux__
 #include <dlfcn.h>
 #include <dirent.h>
@@ -668,3 +671,6 @@ PluginLoader::~PluginLoader() {
         DemuxerPluginManager::getInstance().unloadPlugin(m_plugin_name);
     }
 }
+
+} // namespace Demuxer
+} // namespace PsyMP3

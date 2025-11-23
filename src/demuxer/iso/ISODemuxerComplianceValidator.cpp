@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 
 ISODemuxerComplianceValidator::ISODemuxerComplianceValidator(std::shared_ptr<IOHandler> io) 
     : io(io), fileSize(0) {
@@ -532,3 +535,6 @@ bool ISODemuxerComplianceValidator::ValidateTrackCompliance(const AudioTrackInfo
     CodecValidationResult result = ValidateCodecConfiguration(track);
     return result.isValid;
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3

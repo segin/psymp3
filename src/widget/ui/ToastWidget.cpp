@@ -123,7 +123,7 @@ void ToastWidget::draw(Surface& surface)
     }
 }
 
-Rect ToastWidget::calculateSize(const std::string& message, Font* font, int padding)
+::Rect ToastWidget::calculateSize(const std::string& message, ::Font* font, int padding)
 {
     if (!font || message.empty()) {
         return Rect(0, 0, 100, 50); // Minimum default size
@@ -359,7 +359,7 @@ void ToastWidget::applyRelativeOpacity(Surface& surface, float opacity)
     
     SDL_UnlockSurface(sdl_surface);
 }
-} /
-/ namespace UI
+
+} // namespace UI
 } // namespace Widget
 } // namespace PsyMP3

@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // DemuxerConfig implementation
 bool DemuxerConfig::loadFromFile(const std::string& config_file) {
     // Implementation would parse JSON/INI/XML config file
@@ -780,3 +783,5 @@ std::map<std::string, std::string> mergeConfigMaps(
 }
 
 } // namespace ExtensibilityUtils
+} // namespace Demuxer
+} // namespace PsyMP3

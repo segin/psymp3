@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Constructs a URI object by parsing a URI string.
  *
@@ -73,3 +76,6 @@ TagLib::String URI::path() const
 {
     return m_path;
 }
+
+} // namespace IO
+} // namespace PsyMP3

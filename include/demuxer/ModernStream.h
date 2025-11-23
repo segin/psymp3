@@ -10,6 +10,9 @@
 #ifndef MODERNSTREAM_H
 #define MODERNSTREAM_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -43,4 +46,7 @@ private:
     bool initializeAudioChain(const TagLib::String& name);
 };
 
+
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // MODERNSTREAM_H

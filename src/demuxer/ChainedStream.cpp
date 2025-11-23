@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 /**
  * @brief Constructs a ChainedStream from a vector of file paths.
  *
@@ -294,3 +297,6 @@ void ChainedStream::seekTo(unsigned long pos)
     m_sposition = getSPosition();
     m_position = getPosition();
 }
+
+} // namespace Demuxer
+} // namespace PsyMP3

@@ -301,4 +301,3 @@ void ButtonWidget::drawButtonSymbol(Surface& surface, ButtonSymbol symbol, bool 
 } // namespace UI
 } // namespace Widget
 } // namespace PsyMP3
-} // namespace PsyMP3

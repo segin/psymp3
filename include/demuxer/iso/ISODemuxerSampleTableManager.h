@@ -10,6 +10,10 @@
 #ifndef ISODEMUXERSAMPLETABLEMANAGER_H
 #define ISODEMUXERSAMPLETABLEMANAGER_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -163,4 +167,8 @@ private:
     uint32_t GetSamplesPerChunkForIndex(size_t chunkIndex, const std::vector<uint32_t>& samplesPerChunk);
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXERSAMPLETABLEMANAGER_H

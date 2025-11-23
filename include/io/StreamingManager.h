@@ -26,6 +26,14 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
+// Bring demuxer types into this namespace
+using PsyMP3::Demuxer::Demuxer;
+using PsyMP3::Demuxer::StreamInfo;
+using PsyMP3::Demuxer::MediaChunk;
+
 /**
  * @brief Advanced streaming manager with memory optimization
  * 
@@ -164,5 +172,8 @@ private:
     // Calculate chunk memory usage
     static size_t calculateChunkMemory(const MediaChunk& chunk);
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // STREAMING_MANAGER_H

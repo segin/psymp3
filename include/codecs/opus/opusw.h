@@ -26,6 +26,9 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+// Bring demuxer types into global namespace for this header
+using PsyMP3::Demuxer::DemuxedStream;
+
 /**
  * @brief Opus decoder class using DemuxedStream with generic demuxer support
  * 

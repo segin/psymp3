@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 // Static member initialization
 std::mutex IOHandler::s_memory_mutex;
 size_t IOHandler::s_total_memory_usage = 0;
@@ -777,3 +780,6 @@ void IOHandler::safeErrorPropagation(int error_code, const std::string& error_me
     
     Debug::log("error", "IOHandler::safeErrorPropagation() - Error propagation completed safely");
 }
+
+} // namespace IO
+} // namespace PsyMP3

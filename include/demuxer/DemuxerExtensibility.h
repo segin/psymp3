@@ -24,6 +24,9 @@
 #ifndef DEMUXER_EXTENSIBILITY_H
 #define DEMUXER_EXTENSIBILITY_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -566,4 +569,7 @@ namespace ExtensibilityUtils {
     std::string convertToConfigString(const T& value);
 }
 
+
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // DEMUXER_EXTENSIBILITY_H

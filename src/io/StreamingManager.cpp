@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 // Default buffer sizes
 static constexpr size_t DEFAULT_MAX_CHUNKS = 32;
 static constexpr size_t DEFAULT_MAX_BYTES = 1024 * 1024; // 1MB
@@ -381,3 +384,6 @@ size_t StreamingManager::calculateChunkMemory(const MediaChunk& chunk) {
     
     return base_size + data_size;
 }
+
+} // namespace IO
+} // namespace PsyMP3

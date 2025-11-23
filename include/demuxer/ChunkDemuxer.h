@@ -24,6 +24,9 @@
 #ifndef CHUNKDEMUXER_H
 #define CHUNKDEMUXER_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -297,4 +300,7 @@ private:
     mutable long m_last_valid_chunk_position = 0;
 };
 
+
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // CHUNKDEMUXER_H

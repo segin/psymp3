@@ -10,6 +10,10 @@
 #ifndef ISODEMUXERCOMPLIANCEVALIDATOR_H
 #define ISODEMUXERCOMPLIANCEVALIDATOR_H
 
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -113,4 +117,8 @@ private:
     bool ValidateBitsPerSample(uint16_t bits, const std::string& codecType);
 };
 
+
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
 #endif // ISODEMUXERCOMPLIANCEVALIDATOR_H

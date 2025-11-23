@@ -145,10 +145,10 @@ void LyricsWidget::rebuildSurface()
     }
 }
 
-std::unique_ptr<Surface> LyricsWidget::createLyricsSurface()
+std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
 {
     if (!m_font || (!hasLyrics() && m_current_line_text.empty())) {
-        return std::make_unique<Surface>(1, 1, true);
+        return std::make_unique<::Surface>(1, 1, true);
     }
     
     const int LINE_SPACING = 6;

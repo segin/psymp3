@@ -22,6 +22,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace RIFF {
 
 // RIFF FourCC codes (in little-endian)
 constexpr uint32_t RIFF_ID = 0x46464952; // "RIFF"
@@ -319,3 +322,6 @@ void WaveStream::seekTo(unsigned long pos) {
 bool WaveStream::eof() {
     return m_eof;
 }
+} // namespace RIFF
+} // namespace Demuxer
+} // namespace PsyMP3

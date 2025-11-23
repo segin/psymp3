@@ -26,12 +26,16 @@
 
 // No direct includes - all includes should be in psymp3.h
 
-class ToastNotification : public Widget
+namespace PsyMP3 {
+namespace Widget {
+namespace UI {
+
+class ToastNotification : public Foundation::Widget
 {
 public:
-    ToastNotification(Font* font, const std::string& message, Uint32 visible_duration_ms, Uint32 fade_duration_ms = 350);
+    ToastNotification(::Font* font, const std::string& message, Uint32 visible_duration_ms, Uint32 fade_duration_ms = 350);
     bool isExpired() const;
-    void BlitTo(Surface& target);
+    void BlitTo(::Surface& target);
     void startFadeOut(); // Force immediate fade-out for smooth replacement
 
 private:
@@ -47,8 +51,12 @@ private:
     Uint32 m_expiration_time;
     Uint32 m_fade_duration;
     Uint32 m_visible_duration;
-    Font* m_font; // Non-owning pointer to the global font
+    ::Font* m_font; // Non-owning pointer to the global font
 
 };
+
+} // namespace UI
+} // namespace Widget
+} // namespace PsyMP3
 
 #endif // TOASTNOTIFICATION_H

@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+namespace PsyMP3 {
+namespace Demuxer {
+namespace ISO {
 
 ISODemuxer::ISODemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)), selectedTrackIndex(-1), currentSampleIndex(0) {
@@ -1527,3 +1530,6 @@ void ISODemuxer::ReportError(const std::string& errorType, const std::string& me
     // Could also integrate with PsyMP3's error reporting system here
     // For now, errors are logged through ISODemuxerErrorRecovery
 }
+} // namespace ISO
+} // namespace Demuxer
+} // namespace PsyMP3
