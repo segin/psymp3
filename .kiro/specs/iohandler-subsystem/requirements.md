@@ -12,6 +12,24 @@ The implementation must support:
 - **Efficient buffering** for network sources
 - **Thread-safe operations** where applicable
 
+## **Glossary**
+
+- **IOHandler**: Base interface class providing unified abstraction for reading media data from various sources
+- **FileIOHandler**: Concrete implementation of IOHandler for accessing local filesystem files
+- **HTTPIOHandler**: Concrete implementation of IOHandler for streaming media over HTTP/HTTPS protocols
+- **HTTPClient**: HTTP client library providing GET, POST, HEAD, and range request functionality
+- **Demuxer**: Component that parses container formats and extracts media streams
+- **PsyMP3**: The media player application that uses the IOHandler subsystem
+- **RAII**: Resource Acquisition Is Initialization - C++ programming idiom for automatic resource management
+- **Range Request**: HTTP feature allowing retrieval of specific byte ranges from a resource
+- **libcurl**: Cross-platform library for HTTP/HTTPS operations
+- **TagLib**: Library for reading and editing audio file metadata
+- **InvalidMediaException**: Exception type thrown when media files cannot be opened or processed
+- **Unicode**: Character encoding standard supporting international text (UTF-8, UTF-16)
+- **SSL/TLS**: Secure Sockets Layer/Transport Layer Security protocols for encrypted connections
+- **POSIX**: Portable Operating System Interface standard for Unix-like systems
+- **off_t**: Data type for file offsets supporting large files (64-bit on modern systems)
+
 ## **Requirements**
 
 ### **Requirement 1: IOHandler Base Interface**
