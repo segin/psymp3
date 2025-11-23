@@ -1,12 +1,12 @@
 # Implementation Plan
 
-- [ ] 1. Phase 1: Add namespaces to Codec subsystem files
+- [x] 1. Phase 1: Add namespaces to Codec subsystem files
   - Add proper `PsyMP3::Codec::<Component>` namespaces to files already in codec subdirectories
   - Verify master header inclusion pattern
   - Ensure files end with newline
   - _Requirements: 1.1, 2.1-2.5, 3.1-3.4, 6.1-6.7_
 
-- [ ] 1.1 Add namespace to PCM codec files
+- [x] 1.1 Add namespace to PCM codec files
   - Add `PsyMP3::Codec::PCM` namespace to `src/codecs/pcm/PCMCodec.cpp`
   - Add `PsyMP3::Codec::PCM` namespace to `src/codecs/pcm/ALawCodec.cpp`
   - Add `PsyMP3::Codec::PCM` namespace to `src/codecs/pcm/MuLawCodec.cpp`
@@ -14,25 +14,25 @@
   - Ensure proper namespace closure with comments
   - _Requirements: 1.1, 2.4, 3.1, 6.1-6.7_
 
-- [ ] 1.2 Add namespace to Opus codec files
+- [x] 1.2 Add namespace to Opus codec files
   - Add `PsyMP3::Codec::Opus` namespace to `src/codecs/opus/OpusCodec.cpp`
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - _Requirements: 1.1, 2.2, 3.1, 6.1-6.7_
 
-- [ ] 1.3 Add namespace to Vorbis codec files
+- [x] 1.3 Add namespace to Vorbis codec files
   - Add `PsyMP3::Codec::Vorbis` namespace to `src/codecs/vorbis/VorbisCodec.cpp`
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - _Requirements: 1.1, 2.3, 3.1, 6.1-6.7_
 
-- [ ] 1.4 Add namespace to MP3 codec files
+- [x] 1.4 Add namespace to MP3 codec files
   - Add `PsyMP3::Codec::MP3` namespace to `src/codecs/mp3/MP3Codec.cpp`
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - _Requirements: 1.1, 2.5, 3.1, 6.1-6.7_
 
-- [ ] 1.5 Verify Codec subsystem builds cleanly
+- [x] 1.5 Verify Codec subsystem builds cleanly
   - Run `make -C src/codecs clean && make -C src/codecs -j$(nproc)`
   - Verify no compilation errors or warnings
   - _Requirements: 7.1-7.5_
