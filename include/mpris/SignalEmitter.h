@@ -1,8 +1,8 @@
 #ifndef SIGNALEMITTER_H
 #define SIGNALEMITTER_H
 
-#include "MPRISTypes.h"
-#include "DBusConnectionManager.h"
+#include "mpris/MPRISTypes.h"
+#include "mpris/DBusConnectionManager.h"
 #include <mutex>
 #include <thread>
 #include <queue>

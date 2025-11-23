@@ -442,7 +442,7 @@ using PsyMP3::Codec::PCM::ALawCodec;
 
 // Demuxer subsystem - Ogg
 #ifdef HAVE_OGGDEMUXER
-#include "demuxers/ogg/OggDemuxer.h"
+#include "demuxer/ogg/OggDemuxer.h"
 // Bring Ogg demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::Ogg::OggDemuxer;
 #include "codecs/OggCodecs.h"
@@ -479,7 +479,7 @@ using PsyMP3::Codec::Opus::OpusComments;
 #ifdef HAVE_FLAC
 #include "codecs/flac/FLACRFC9639.h"
 #include "codecs/flac/FLACRFCValidator.h"
-#include "demuxers/flac/FLACDemuxer.h"
+#include "demuxer/flac/FLACDemuxer.h"
 // Bring FLAC demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::FLAC::FLACDemuxer;
 using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
@@ -536,13 +536,13 @@ using PsyMP3::LastFM::Scrobble;
 
 #include "playlist.h"
 #include "player.h"
-#include "MPRISTypes.h"
-#include "MPRISDebugMacros.h"
-#include "DBusConnectionManager.h"
-#include "PropertyManager.h"
-#include "MethodHandler.h"
-#include "SignalEmitter.h"
-#include "MPRISManager.h"
+#include "mpris/MPRISTypes.h"
+#include "mpris/MPRISDebugMacros.h"
+#include "mpris/DBusConnectionManager.h"
+#include "mpris/PropertyManager.h"
+#include "mpris/MethodHandler.h"
+#include "mpris/SignalEmitter.h"
+#include "mpris/MPRISManager.h"
 
 // Portable branch prediction macros
 

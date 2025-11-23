@@ -1,7 +1,7 @@
 #ifndef DBUSCONNECTIONMANAGER_H
 #define DBUSCONNECTIONMANAGER_H
 
-#include "MPRISTypes.h"
+#include "mpris/MPRISTypes.h"
 #include <mutex>
 #include <chrono>
 #include <atomic>
