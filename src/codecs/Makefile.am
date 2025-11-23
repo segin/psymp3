@@ -18,7 +18,8 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 libcodecs_a_SOURCES = \
 	AudioCodec.cpp \
 	CodecRegistration.cpp \
-	CodecRegistry.cpp
+	CodecRegistry.cpp \
+	OggCodecs.cpp
 
 if HAVE_NATIVE_FLAC
 SUBDIRS += flac

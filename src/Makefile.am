@@ -29,39 +29,117 @@ datadir=$(prefix)/share/psymp3/data
 SUBDIRS = lastfm mpris io demuxer widget
 
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
-psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/libcodecs.a codecs/pcm/libpcmcodecs.a lastfm/liblastfm.a mpris/libmpris.a io/libio.a io/file/libfileio.a io/http/libhttpio.a demuxer/libdemuxer.a demuxer/iso/libisodemuxer.a demuxer/riff/libriffdemuxer.a demuxer/raw/librawdemuxer.a widget/foundation/libwidgetfoundation.a widget/windowing/libwidgetwindowing.a widget/ui/libwidgetui.a
 
-# Optional codec flags and libraries
+# Optional codec flags
 if HAVE_FLAC
 if !HAVE_NATIVE_FLAC
-# Only link libFLAC if not using native decoder
 AM_CPPFLAGS += $(FLAC_CFLAGS)
-psymp3_LDADD += $(FLAC_LIBS)
 endif
 endif
 
 if HAVE_MP3
 AM_CPPFLAGS += $(LIBMPG123_CFLAGS)
-psymp3_LDADD += $(LIBMPG123_LIBS)
 endif
 
 if HAVE_VORBIS
 AM_CPPFLAGS += $(VORBIS_CFLAGS)
-psymp3_LDADD += $(VORBIS_LIBS)
 endif
 
 if HAVE_OPUS
 AM_CPPFLAGS += $(OPUS_CFLAGS)
-psymp3_LDADD += $(OPUS_LIBS)
 endif
 
 if HAVE_OGG
 AM_CPPFLAGS += $(OGG_CFLAGS)
-psymp3_LDADD += $(OGG_LIBS)
 endif
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
+endif
+
+# Define optional codec/demuxer libraries
+CODEC_LIBS =
+DEMUXER_LIBS =
+
+if HAVE_FLAC
+DEMUXER_LIBS += demuxer/flac/libflacdemuxer.a
+if HAVE_NATIVE_FLAC
+CODEC_LIBS += codecs/flac/libnativeflac.a
+else
+CODEC_LIBS += codecs/flac/libflaccodec.a
+endif
+endif
+
+if HAVE_MP3
+CODEC_LIBS += codecs/mp3/libmp3codec.a
+endif
+
+if HAVE_VORBIS
+CODEC_LIBS += codecs/vorbis/libvorbiscodec.a
+endif
+
+if HAVE_OPUS
+CODEC_LIBS += codecs/opus/libopuscodec.a
+endif
+
+if HAVE_OGGDEMUXER
+DEMUXER_LIBS += demuxer/ogg/liboggdemuxer.a
+endif
+
+# Libraries must be ordered so that libraries depending on others come first
+# The linker processes libraries left-to-right, resolving symbols from later libraries
+# Order: high-level (widgets, specific codecs/demuxers) -> mid-level (demuxer core, I/O, lastfm, mpris) -> low-level (codec core) -> system libs
+# Note: Libraries with circular dependencies must appear multiple times
+psymp3_LDADD = \
+	widget/ui/libwidgetui.a \
+	widget/windowing/libwidgetwindowing.a \
+	widget/foundation/libwidgetfoundation.a \
+	demuxer/libdemuxer.a \
+	io/http/libhttpio.a \
+	io/file/libfileio.a \
+	io/libio.a \
+	lastfm/liblastfm.a \
+	mpris/libmpris.a \
+	codecs/libcodecs.a \
+	$(CODEC_LIBS) \
+	$(DEMUXER_LIBS) \
+	demuxer/iso/libisodemuxer.a \
+	demuxer/riff/libriffdemuxer.a \
+	demuxer/raw/librawdemuxer.a \
+	demuxer/libdemuxer.a \
+	codecs/pcm/libpcmcodecs.a \
+	codecs/libcodecs.a \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(OPENSSL_LIBS) \
+	$(CURL_LIBS) \
+	$(WINSOCK_LIBS)
+
+# Optional codec system libraries (must come after our libraries)
+if HAVE_FLAC
+if !HAVE_NATIVE_FLAC
+psymp3_LDADD += $(FLAC_LIBS)
+endif
+endif
+
+if HAVE_MP3
+psymp3_LDADD += $(LIBMPG123_LIBS)
+endif
+
+if HAVE_VORBIS
+psymp3_LDADD += $(VORBIS_LIBS)
+endif
+
+if HAVE_OPUS
+psymp3_LDADD += $(OPUS_LIBS)
+endif
+
+if HAVE_OGG
+psymp3_LDADD += $(OGG_LIBS)
+endif
+
+if HAVE_DBUS
 psymp3_LDADD += $(DBUS_LIBS)
 endif
 
@@ -87,40 +165,22 @@ psymp3_SOURCES = \
  track.cpp truetype.cpp utility.cpp \
  XMLUtil.cpp
 
-# Optional codec sources
+# Optional codec subdirectories
 if HAVE_FLAC
-psymp3_LDADD += demuxer/flac/libflacdemuxer.a
-if HAVE_NATIVE_FLAC
-# Native FLAC decoder (no libFLAC dependency)
 SUBDIRS += codecs
-psymp3_LDADD += codecs/flac/libnativeflac.a
-else
-# libFLAC wrapper
-SUBDIRS += codecs
-psymp3_LDADD += codecs/flac/libflaccodec.a
-endif
 endif
 
 if HAVE_MP3
 SUBDIRS += codecs
-psymp3_LDADD += codecs/mp3/libmp3codec.a
 endif
 
 if HAVE_VORBIS
 SUBDIRS += codecs
-psymp3_LDADD += codecs/vorbis/libvorbiscodec.a
 endif
 
 if HAVE_OPUS
 SUBDIRS += codecs
-psymp3_LDADD += codecs/opus/libopuscodec.a
 endif
-
-if HAVE_OGGDEMUXER
-psymp3_LDADD += demuxer/ogg/liboggdemuxer.a
-endif
-
-# MPRIS sources now in mpris/ subdirectory
 
 endif
 

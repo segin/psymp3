@@ -60,5 +60,6 @@ noinst_LIBRARIES = libflaccodec.a
 AM_CPPFLAGS += $(FLAC_CFLAGS)
 
 libflaccodec_a_SOURCES = \
+	FLACCodec.cpp \
 	LibFLACWrapper.cpp
 endif

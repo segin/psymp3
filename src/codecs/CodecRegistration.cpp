@@ -19,14 +19,14 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Registered PCM codec");
     
 #ifdef ENABLE_ALAW_CODEC
-    registerALawCodec();
+    PsyMP3::Codec::PCM::registerALawCodec();
     Debug::log("codec", "registerAllCodecs: Registered A-law codec");
 #else
     Debug::log("codec", "registerAllCodecs: A-law codec disabled at compile time");
 #endif
     
 #ifdef ENABLE_MULAW_CODEC
-    registerMuLawCodec();
+    PsyMP3::Codec::PCM::registerMuLawCodec();
     Debug::log("codec", "registerAllCodecs: Registered μ-law codec");
 #else
     Debug::log("codec", "registerAllCodecs: μ-law codec disabled at compile time");

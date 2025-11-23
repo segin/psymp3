@@ -12,11 +12,12 @@
 // OggCodecs are built if any Ogg-based codec is enabled
 #ifdef HAVE_OGGDEMUXER
 
+#ifdef HAVE_VORBIS
 // VorbisPassthroughCodec implementation - now redirects to VorbisCodec
 VorbisPassthroughCodec::VorbisPassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
     // Create the actual VorbisCodec
-    m_vorbis_codec = std::make_unique<VorbisCodec>(stream_info);
+    m_vorbis_codec = std::make_unique<PsyMP3::Codec::Vorbis::VorbisCodec>(stream_info);
 }
 
 VorbisPassthroughCodec::~VorbisPassthroughCodec() {
@@ -43,6 +44,7 @@ void VorbisPassthroughCodec::reset() {
 bool VorbisPassthroughCodec::canDecode(const StreamInfo& stream_info) const {
     return stream_info.codec_name == "vorbis";
 }
+#endif // HAVE_VORBIS
 
 // OggFLACPassthroughCodec implementation
 OggFLACPassthroughCodec::OggFLACPassthroughCodec(const StreamInfo& stream_info) 

@@ -440,11 +440,31 @@ using PsyMP3::Codec::PCM::ALawCodec;
 // Demuxer subsystem - Raw Audio
 #include "demuxer/raw/RawAudioDemuxer.h"
 
+// Codec includes needed by OggCodecs.h (must come before OggCodecs.h)
+#ifdef HAVE_VORBIS
+#include "codecs/vorbis/VorbisCodec.h"
+// Bring Vorbis codec types into global namespace for compatibility
+using PsyMP3::Codec::Vorbis::Vorbis;
+using PsyMP3::Codec::Vorbis::VorbisCodec;
+#endif
+#ifdef HAVE_OPUS
+#include "codecs/opus/opusw.h"
+#include "codecs/opus/OpusCodec.h"
+// Bring Opus codec types into global namespace for compatibility
+using PsyMP3::Codec::Opus::OpusCodec;
+using PsyMP3::Codec::Opus::OpusHeader;
+#endif
+
 // Demuxer subsystem - Ogg
 #ifdef HAVE_OGGDEMUXER
 #include "demuxer/ogg/OggDemuxer.h"
 // Bring Ogg demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::Ogg::OggDemuxer;
+// OggCodecs.h needs full definitions of codec types - include them here
+// These must be included regardless of individual codec flags since OggCodecs references them
+#include "codecs/vorbis/VorbisCodec.h"
+#include "codecs/opus/opusw.h"
+#include "codecs/opus/OpusCodec.h"
 #include "codecs/OggCodecs.h"
 #endif
 
@@ -462,17 +482,7 @@ using PsyMP3::Demuxer::Ogg::OggDemuxer;
 #ifdef HAVE_MP3
 #include "codecs/mp3/MP3Codec.h"
 #endif
-#ifdef HAVE_OGGDEMUXER
-#include "codecs/vorbis/VorbisCodec.h"
-// Bring Vorbis codec types into global namespace for compatibility
-using PsyMP3::Codec::Vorbis::Vorbis;
-#endif
-#ifdef HAVE_OGGDEMUXER
-#include "codecs/opus/opusw.h"
-#include "codecs/opus/OpusCodec.h"
-// Bring Opus codec types into global namespace for compatibility
-using PsyMP3::Codec::Opus::OpusCodec;
-using PsyMP3::Codec::Opus::OpusHeader;
+#ifdef HAVE_OPUS
 using PsyMP3::Codec::Opus::OpusComments;
 #endif
 #include "demuxer/riff/wav.h"

@@ -15,14 +15,17 @@
 #include "test_framework.h"
 #include "mock_player.h"
 #include "mock_dbus_connection.h"
+#include "mpris/MPRISManager.h"
+#include "mpris/PropertyManager.h"
+#include "mpris/MethodHandler.h"
 #include <memory>
 #include <vector>
 #include <functional>
 
-// Forward declarations
-class MPRISManager;
-class PropertyManager;
-class MethodHandler;
+// Bring MPRIS types into scope for tests
+using PsyMP3::MPRIS::MPRISManager;
+using PsyMP3::MPRIS::PropertyManager;
+using PsyMP3::MPRIS::MethodHandler;
 
 namespace TestFramework {
 

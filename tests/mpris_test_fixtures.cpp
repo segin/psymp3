@@ -11,12 +11,6 @@
 #include "mpris_test_fixtures.h"
 #include "test_framework_threading.h"
 
-#ifdef HAVE_DBUS
-#include "MPRISManager.h"
-#include "PropertyManager.h"
-#include "MethodHandler.h"
-#endif
-
 namespace TestFramework {
 
 // MPRISTestFixture implementation
