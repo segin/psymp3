@@ -21,8 +21,8 @@ MPRISManager::MPRISManager(Player* player)
     // Logging system now integrated with PsyMP3 debug system
     
     // Initialize error logging system with default handler
-    MPRISTypes::ErrorLogger::getInstance().setDefaultLogHandler();
-    MPRISTypes::ErrorLogger::getInstance().setLogLevel(MPRISTypes::ErrorLogger::LogLevel::Warning);
+    PsyMP3::MPRIS::ErrorLogger::getInstance().setDefaultLogHandler();
+    PsyMP3::MPRIS::ErrorLogger::getInstance().setLogLevel(PsyMP3::MPRIS::ErrorLogger::LogLevel::Warning);
     
     // Configure error recovery system
     configureErrorRecovery_unlocked();
@@ -42,7 +42,7 @@ MPRISManager::~MPRISManager() {
     logInfo_unlocked("MPRISManager destroyed");
 }
 
-MPRISTypes::Result<void> MPRISManager::initialize() {
+PsyMP3::MPRIS::Result<void> MPRISManager::initialize() {
     std::lock_guard<std::mutex> lock(m_mutex);
     return initialize_unlocked();
 }
@@ -57,7 +57,7 @@ void MPRISManager::updateMetadata(const std::string& artist, const std::string& 
     updateMetadata_unlocked(artist, title, album);
 }
 
-void MPRISManager::updatePlaybackStatus(MPRISTypes::PlaybackStatus status) {
+void MPRISManager::updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus status) {
     std::lock_guard<std::mutex> lock(m_mutex);
     updatePlaybackStatus_unlocked(status);
 }
@@ -92,17 +92,17 @@ void MPRISManager::setAutoReconnect(bool enable) {
     setAutoReconnect_unlocked(enable);
 }
 
-MPRISTypes::Result<void> MPRISManager::reconnect() {
+PsyMP3::MPRIS::Result<void> MPRISManager::reconnect() {
     std::lock_guard<std::mutex> lock(m_mutex);
     return reconnect_unlocked();
 }
 
-MPRISTypes::GracefulDegradationManager::DegradationLevel MPRISManager::getDegradationLevel() const {
+PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel MPRISManager::getDegradationLevel() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return getDegradationLevel_unlocked();
 }
 
-void MPRISManager::setDegradationLevel(MPRISTypes::GracefulDegradationManager::DegradationLevel level) {
+void MPRISManager::setDegradationLevel(PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel level) {
     std::lock_guard<std::mutex> lock(m_mutex);
     setDegradationLevel_unlocked(level);
 }
@@ -112,12 +112,12 @@ bool MPRISManager::isFeatureAvailable(const std::string& feature) const {
     return isFeatureAvailable_unlocked(feature);
 }
 
-MPRISTypes::ErrorLogger::ErrorStats MPRISManager::getErrorStats() const {
+PsyMP3::MPRIS::ErrorLogger::ErrorStats MPRISManager::getErrorStats() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return getErrorStats_unlocked();
 }
 
-MPRISTypes::ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats() const {
+PsyMP3::MPRIS::ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return getRecoveryStats_unlocked();
 }
@@ -127,29 +127,29 @@ void MPRISManager::resetStats() {
     resetStats_unlocked();
 }
 
-void MPRISManager::setLogLevel(MPRISTypes::ErrorLogger::LogLevel level) {
+void MPRISManager::setLogLevel(PsyMP3::MPRIS::ErrorLogger::LogLevel level) {
     std::lock_guard<std::mutex> lock(m_mutex);
     setLogLevel_unlocked(level);
 }
 
-void MPRISManager::reportErrorToPlayer(const MPRISTypes::MPRISError& error) {
+void MPRISManager::reportErrorToPlayer(const PsyMP3::MPRIS::MPRISError& error) {
     std::lock_guard<std::mutex> lock(m_mutex);
     reportErrorToPlayer_unlocked(error);
 }
 
 // Private implementations
 
-MPRISTypes::Result<void> MPRISManager::initialize_unlocked() {
+PsyMP3::MPRIS::Result<void> MPRISManager::initialize_unlocked() {
     MPRIS_MEASURE_LOCK("MPRISManager::initialize");
     
     if (m_initialized.load()) {
         MPRIS_LOG_DEBUG("MPRISManager", "Already initialized, returning success");
-        return MPRISTypes::Result<void>::success();
+        return PsyMP3::MPRIS::Result<void>::success();
     }
     
     if (m_shutdown_requested.load()) {
         MPRIS_LOG_ERROR("MPRISManager", "Cannot initialize after shutdown requested");
-        return MPRISTypes::Result<void>::error("Cannot initialize after shutdown requested");
+        return PsyMP3::MPRIS::Result<void>::error("Cannot initialize after shutdown requested");
     }
     
     MPRIS_LOG_INFO("MPRISManager", "Initializing MPRIS system");
@@ -187,7 +187,7 @@ MPRISTypes::Result<void> MPRISManager::initialize_unlocked() {
     
     MPRIS_LOG_INFO("MPRISManager", "MPRIS system initialized successfully");
     logInfo_unlocked("MPRIS system initialized successfully");
-    return MPRISTypes::Result<void>::success();
+    return PsyMP3::MPRIS::Result<void>::success();
 }
 
 void MPRISManager::shutdown_unlocked() {
@@ -237,18 +237,18 @@ void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std:
         MPRIS_LOG_DEBUG("MPRISManager", "Metadata updated successfully");
     } catch (const std::exception& e) {
         MPRIS_LOG_ERROR("MPRISManager", "Failed to update metadata: " + std::string(e.what()));
-        MPRISTypes::MPRISError error(
-            MPRISTypes::MPRISError::Category::PlayerState,
-            MPRISTypes::MPRISError::Severity::Warning,
+        PsyMP3::MPRIS::MPRISError error(
+            PsyMP3::MPRIS::MPRISError::Category::PlayerState,
+            PsyMP3::MPRIS::MPRISError::Severity::Warning,
             "Failed to update metadata: " + std::string(e.what()),
             "updateMetadata",
-            MPRISTypes::MPRISError::RecoveryStrategy::Retry
+            PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Retry
         );
         handleError_unlocked(error);
     }
 }
 
-void MPRISManager::updatePlaybackStatus_unlocked(MPRISTypes::PlaybackStatus status) {
+void MPRISManager::updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status) {
     if (!isInitialized_unlocked() || !m_properties) {
         return;
     }
@@ -259,12 +259,12 @@ void MPRISManager::updatePlaybackStatus_unlocked(MPRISTypes::PlaybackStatus stat
         m_properties->updatePlaybackStatus(status);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
-        MPRISTypes::MPRISError error(
-            MPRISTypes::MPRISError::Category::PlayerState,
-            MPRISTypes::MPRISError::Severity::Error,
+        PsyMP3::MPRIS::MPRISError error(
+            PsyMP3::MPRIS::MPRISError::Category::PlayerState,
+            PsyMP3::MPRIS::MPRISError::Severity::Error,
             "Failed to update playback status: " + std::string(e.what()),
             "updatePlaybackStatus",
-            MPRISTypes::MPRISError::RecoveryStrategy::Retry
+            PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Retry
         );
         handleError_unlocked(error);
     }
@@ -305,23 +305,23 @@ void MPRISManager::notifySeeked_unlocked(uint64_t position_us) {
         if (isFeatureAvailable_unlocked("signal_emission")) {
             auto result = m_signals->emitSeeked(position_us);
             if (!result.isSuccess()) {
-                MPRISTypes::MPRISError error(
-                    MPRISTypes::MPRISError::Category::Protocol,
-                    MPRISTypes::MPRISError::Severity::Warning,
+                PsyMP3::MPRIS::MPRISError error(
+                    PsyMP3::MPRIS::MPRISError::Category::Protocol,
+                    PsyMP3::MPRIS::MPRISError::Severity::Warning,
                     "Failed to emit Seeked signal: " + result.getError(),
                     "notifySeeked",
-                    MPRISTypes::MPRISError::RecoveryStrategy::Retry
+                    PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Retry
                 );
                 handleError_unlocked(error);
             }
         }
     } catch (const std::exception& e) {
-        MPRISTypes::MPRISError error(
-            MPRISTypes::MPRISError::Category::Protocol,
-            MPRISTypes::MPRISError::Severity::Error,
+        PsyMP3::MPRIS::MPRISError error(
+            PsyMP3::MPRIS::MPRISError::Category::Protocol,
+            PsyMP3::MPRIS::MPRISError::Severity::Error,
             "Failed to notify seek: " + std::string(e.what()),
             "notifySeeked",
-            MPRISTypes::MPRISError::RecoveryStrategy::Reconnect
+            PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Reconnect
         );
         handleError_unlocked(error);
     }
@@ -346,9 +346,9 @@ void MPRISManager::setAutoReconnect_unlocked(bool enable) {
     }
 }
 
-MPRISTypes::Result<void> MPRISManager::reconnect_unlocked() {
+PsyMP3::MPRIS::Result<void> MPRISManager::reconnect_unlocked() {
     if (!m_connection) {
-        return MPRISTypes::Result<void>::error("No connection manager available");
+        return PsyMP3::MPRIS::Result<void>::error("No connection manager available");
     }
     
     logInfo_unlocked("Attempting manual reconnection");
@@ -364,32 +364,32 @@ MPRISTypes::Result<void> MPRISManager::reconnect_unlocked() {
     return result;
 }
 
-MPRISTypes::Result<void> MPRISManager::initializeComponents_unlocked() {
+PsyMP3::MPRIS::Result<void> MPRISManager::initializeComponents_unlocked() {
     try {
         // Initialize connection manager
         m_initialization_phase = InitializationPhase::Connection;
-        m_connection = std::make_unique<MPRISTypes::DBusConnectionManager>();
+        m_connection = std::make_unique<PsyMP3::MPRIS::DBusConnectionManager>();
         if (!m_connection) {
-            return MPRISTypes::Result<void>::error("Failed to create DBusConnectionManager");
+            return PsyMP3::MPRIS::Result<void>::error("Failed to create DBusConnectionManager");
         }
         
         // Initialize property manager
         m_initialization_phase = InitializationPhase::Properties;
-        m_properties = std::make_unique<PropertyManager>(m_player);
+        m_properties = std::make_unique<PsyMP3::MPRIS::PropertyManager>(m_player);
         if (!m_properties) {
-            return MPRISTypes::Result<void>::error("Failed to create PropertyManager");
+            return PsyMP3::MPRIS::Result<void>::error("Failed to create PropertyManager");
         }
         
         // Initialize method handler (skip if player is null for testing)
         m_initialization_phase = InitializationPhase::Methods;
         if (m_player) {
             try {
-                m_methods = std::make_unique<MethodHandler>(m_player, m_properties.get());
+                m_methods = std::make_unique<PsyMP3::MPRIS::MethodHandler>(m_player, m_properties.get());
                 if (!m_methods) {
-                    return MPRISTypes::Result<void>::error("Failed to create MethodHandler");
+                    return PsyMP3::MPRIS::Result<void>::error("Failed to create MethodHandler");
                 }
             } catch (const std::exception& e) {
-                return MPRISTypes::Result<void>::error("MethodHandler creation failed: " + std::string(e.what()));
+                return PsyMP3::MPRIS::Result<void>::error("MethodHandler creation failed: " + std::string(e.what()));
             }
         } else {
             logInfo_unlocked("Skipping MethodHandler creation - no Player instance");
@@ -397,16 +397,16 @@ MPRISTypes::Result<void> MPRISManager::initializeComponents_unlocked() {
         
         // Initialize signal emitter
         m_initialization_phase = InitializationPhase::Signals;
-        m_signals = std::make_unique<MPRISTypes::SignalEmitter>(m_connection.get());
+        m_signals = std::make_unique<PsyMP3::MPRIS::SignalEmitter>(m_connection.get());
         if (!m_signals) {
-            return MPRISTypes::Result<void>::error("Failed to create SignalEmitter");
+            return PsyMP3::MPRIS::Result<void>::error("Failed to create SignalEmitter");
         }
         
         logInfo_unlocked("All components initialized successfully");
-        return MPRISTypes::Result<void>::success();
+        return PsyMP3::MPRIS::Result<void>::success();
         
     } catch (const std::exception& e) {
-        return MPRISTypes::Result<void>::error("Exception during component initialization: " + std::string(e.what()));
+        return PsyMP3::MPRIS::Result<void>::error("Exception during component initialization: " + std::string(e.what()));
     }
 }
 
@@ -450,9 +450,9 @@ void MPRISManager::shutdownComponents_unlocked() {
     m_initialization_phase = InitializationPhase::None;
 }
 
-MPRISTypes::Result<void> MPRISManager::establishDBusConnection_unlocked() {
+PsyMP3::MPRIS::Result<void> MPRISManager::establishDBusConnection_unlocked() {
     if (!m_connection) {
-        return MPRISTypes::Result<void>::error("Connection manager not initialized");
+        return PsyMP3::MPRIS::Result<void>::error("Connection manager not initialized");
     }
     
     auto result = m_connection->connect();
@@ -464,21 +464,21 @@ MPRISTypes::Result<void> MPRISManager::establishDBusConnection_unlocked() {
     if (m_signals) {
         auto signal_result = m_signals->start();
         if (!signal_result.isSuccess()) {
-            return MPRISTypes::Result<void>::error("Failed to start signal emitter: " + signal_result.getError());
+            return PsyMP3::MPRIS::Result<void>::error("Failed to start signal emitter: " + signal_result.getError());
         }
     }
     
-    return MPRISTypes::Result<void>::success();
+    return PsyMP3::MPRIS::Result<void>::success();
 }
 
-MPRISTypes::Result<void> MPRISManager::registerDBusService_unlocked() {
+PsyMP3::MPRIS::Result<void> MPRISManager::registerDBusService_unlocked() {
     if (!m_connection || !m_connection->isConnected()) {
-        return MPRISTypes::Result<void>::error("Not connected to D-Bus");
+        return PsyMP3::MPRIS::Result<void>::error("Not connected to D-Bus");
     }
     
     DBusConnection* conn = m_connection->getConnection();
     if (!conn) {
-        return MPRISTypes::Result<void>::error("Invalid D-Bus connection");
+        return PsyMP3::MPRIS::Result<void>::error("Invalid D-Bus connection");
     }
     
     m_initialization_phase = InitializationPhase::Registration;
@@ -493,20 +493,20 @@ MPRISTypes::Result<void> MPRISManager::registerDBusService_unlocked() {
     if (dbus_error_is_set(&error)) {
         std::string error_msg = "Failed to request D-Bus name: " + std::string(error.message);
         dbus_error_free(&error);
-        return MPRISTypes::Result<void>::error(error_msg);
+        return PsyMP3::MPRIS::Result<void>::error(error_msg);
     }
     
     if (result != DBUS_REQUEST_NAME_REPLY_PRIMARY_OWNER) {
-        return MPRISTypes::Result<void>::error("Failed to become primary owner of D-Bus name");
+        return PsyMP3::MPRIS::Result<void>::error("Failed to become primary owner of D-Bus name");
     }
     
     // Register object path with method handler
     if (!dbus_connection_register_object_path(conn, DBUS_OBJECT_PATH, nullptr, nullptr)) {
-        return MPRISTypes::Result<void>::error("Failed to register D-Bus object path");
+        return PsyMP3::MPRIS::Result<void>::error("Failed to register D-Bus object path");
     }
     
     logInfo_unlocked("D-Bus service registered successfully");
-    return MPRISTypes::Result<void>::success();
+    return PsyMP3::MPRIS::Result<void>::success();
 }
 
 void MPRISManager::unregisterDBusService_unlocked() {
@@ -584,16 +584,16 @@ void MPRISManager::setLastError_unlocked(const std::string& error) {
 
 void MPRISManager::logError_unlocked(const std::string& context, const std::string& error) {
     // Use the comprehensive error logging system
-    MPRISTypes::ErrorLogger::getInstance().logError(error, "MPRISManager::" + context);
+    PsyMP3::MPRIS::ErrorLogger::getInstance().logError(error, "MPRISManager::" + context);
     
     // Also report to degradation manager for auto-degradation
-    MPRISTypes::MPRISError mpris_error(MPRISTypes::MPRISError::Category::Internal, error);
+    PsyMP3::MPRIS::MPRISError mpris_error(PsyMP3::MPRIS::MPRISError::Category::Internal, error);
     m_degradation_manager.reportError(mpris_error);
 }
 
 void MPRISManager::logInfo_unlocked(const std::string& message) {
     // Use the comprehensive error logging system
-    MPRISTypes::ErrorLogger::getInstance().logInfo(message, "MPRISManager");
+    PsyMP3::MPRIS::ErrorLogger::getInstance().logInfo(message, "MPRISManager");
 }
 
 void MPRISManager::emitPropertyChanges_unlocked() {
@@ -642,11 +642,11 @@ void MPRISManager::updateComponentStates_unlocked() {
 
 // Error handling and recovery method implementations
 
-MPRISTypes::GracefulDegradationManager::DegradationLevel MPRISManager::getDegradationLevel_unlocked() const {
+PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel MPRISManager::getDegradationLevel_unlocked() const {
     return m_degradation_manager.getDegradationLevel();
 }
 
-void MPRISManager::setDegradationLevel_unlocked(MPRISTypes::GracefulDegradationManager::DegradationLevel level) {
+void MPRISManager::setDegradationLevel_unlocked(PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel level) {
     m_degradation_manager.setDegradationLevel(level);
     logInfo_unlocked("Degradation level set to " + std::to_string(static_cast<int>(level)));
 }
@@ -655,26 +655,26 @@ bool MPRISManager::isFeatureAvailable_unlocked(const std::string& feature) const
     return m_degradation_manager.isFeatureAvailable(feature);
 }
 
-MPRISTypes::ErrorLogger::ErrorStats MPRISManager::getErrorStats_unlocked() const {
-    return MPRISTypes::ErrorLogger::getInstance().getErrorStats();
+PsyMP3::MPRIS::ErrorLogger::ErrorStats MPRISManager::getErrorStats_unlocked() const {
+    return PsyMP3::MPRIS::ErrorLogger::getInstance().getErrorStats();
 }
 
-MPRISTypes::ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats_unlocked() const {
+PsyMP3::MPRIS::ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats_unlocked() const {
     return m_recovery_manager.getRecoveryStats();
 }
 
 void MPRISManager::resetStats_unlocked() {
-    MPRISTypes::ErrorLogger::getInstance().resetErrorStats();
+    PsyMP3::MPRIS::ErrorLogger::getInstance().resetErrorStats();
     m_recovery_manager.resetRecoveryStats();
     logInfo_unlocked("Error and recovery statistics reset");
 }
 
-void MPRISManager::setLogLevel_unlocked(MPRISTypes::ErrorLogger::LogLevel level) {
-    MPRISTypes::ErrorLogger::getInstance().setLogLevel(level);
+void MPRISManager::setLogLevel_unlocked(PsyMP3::MPRIS::ErrorLogger::LogLevel level) {
+    PsyMP3::MPRIS::ErrorLogger::getInstance().setLogLevel(level);
     logInfo_unlocked("Log level set to " + std::to_string(static_cast<int>(level)));
 }
 
-void MPRISManager::reportErrorToPlayer_unlocked(const MPRISTypes::MPRISError& error) {
+void MPRISManager::reportErrorToPlayer_unlocked(const PsyMP3::MPRIS::MPRISError& error) {
     if (!m_player) {
         return; // No player to report to
     }
@@ -683,28 +683,28 @@ void MPRISManager::reportErrorToPlayer_unlocked(const MPRISTypes::MPRISError& er
     std::string user_message;
     
     switch (error.getCategory()) {
-        case MPRISTypes::MPRISError::Category::Connection:
+        case PsyMP3::MPRIS::MPRISError::Category::Connection:
             user_message = "Media control integration temporarily unavailable";
             break;
-        case MPRISTypes::MPRISError::Category::Message:
+        case PsyMP3::MPRIS::MPRISError::Category::Message:
             user_message = "Media control communication error";
             break;
-        case MPRISTypes::MPRISError::Category::PlayerState:
+        case PsyMP3::MPRIS::MPRISError::Category::PlayerState:
             user_message = "Media control state synchronization issue";
             break;
-        case MPRISTypes::MPRISError::Category::Threading:
+        case PsyMP3::MPRIS::MPRISError::Category::Threading:
             user_message = "Media control system error - restarting";
             break;
-        case MPRISTypes::MPRISError::Category::Resource:
+        case PsyMP3::MPRIS::MPRISError::Category::Resource:
             user_message = "Media control resource limitation";
             break;
-        case MPRISTypes::MPRISError::Category::Protocol:
+        case PsyMP3::MPRIS::MPRISError::Category::Protocol:
             user_message = "Media control protocol error";
             break;
-        case MPRISTypes::MPRISError::Category::Configuration:
+        case PsyMP3::MPRIS::MPRISError::Category::Configuration:
             user_message = "Media control configuration issue";
             break;
-        case MPRISTypes::MPRISError::Category::Internal:
+        case PsyMP3::MPRIS::MPRISError::Category::Internal:
             user_message = "Internal media control error";
             break;
         default:
@@ -713,7 +713,7 @@ void MPRISManager::reportErrorToPlayer_unlocked(const MPRISTypes::MPRISError& er
     }
     
     // Only report critical and fatal errors to user to avoid spam
-    if (error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+    if (error.getSeverity() >= PsyMP3::MPRIS::MPRISError::Severity::Critical) {
         // In a real implementation, this would call a Player method to show user notification
         // For now, we'll log it as a user-facing message
         logError_unlocked("reportErrorToPlayer", "User notification: " + user_message);
@@ -723,9 +723,9 @@ void MPRISManager::reportErrorToPlayer_unlocked(const MPRISTypes::MPRISError& er
     }
 }
 
-void MPRISManager::handleError_unlocked(const MPRISTypes::MPRISError& error) {
+void MPRISManager::handleError_unlocked(const PsyMP3::MPRIS::MPRISError& error) {
     // Log the error
-    MPRISTypes::ErrorLogger::getInstance().logError(error);
+    PsyMP3::MPRIS::ErrorLogger::getInstance().logError(error);
     
     // Report to degradation manager
     m_degradation_manager.reportError(error);
@@ -734,27 +734,27 @@ void MPRISManager::handleError_unlocked(const MPRISTypes::MPRISError& error) {
     bool recovery_attempted = attemptErrorRecovery_unlocked(error);
     
     // Report to player if necessary
-    if (!recovery_attempted || error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+    if (!recovery_attempted || error.getSeverity() >= PsyMP3::MPRIS::MPRISError::Severity::Critical) {
         reportErrorToPlayer_unlocked(error);
     }
     
     // Handle specific error categories
     switch (error.getCategory()) {
-        case MPRISTypes::MPRISError::Category::Connection:
+        case PsyMP3::MPRIS::MPRISError::Category::Connection:
             handleConnectionLoss_unlocked();
             break;
             
-        case MPRISTypes::MPRISError::Category::Threading:
+        case PsyMP3::MPRIS::MPRISError::Category::Threading:
             // Threading errors are serious - consider shutdown
-            if (error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+            if (error.getSeverity() >= PsyMP3::MPRIS::MPRISError::Severity::Critical) {
                 logError_unlocked("handleError", "Critical threading error - initiating shutdown");
                 shutdown_unlocked();
             }
             break;
             
-        case MPRISTypes::MPRISError::Category::Internal:
+        case PsyMP3::MPRIS::MPRISError::Category::Internal:
             // Internal errors may require component reset
-            if (error.getSeverity() >= MPRISTypes::MPRISError::Severity::Critical) {
+            if (error.getSeverity() >= PsyMP3::MPRIS::MPRISError::Severity::Critical) {
                 logError_unlocked("handleError", "Critical internal error - resetting components");
                 shutdownComponents_unlocked();
                 // Attempt to reinitialize after a delay
@@ -768,8 +768,8 @@ void MPRISManager::handleError_unlocked(const MPRISTypes::MPRISError& error) {
     }
 }
 
-bool MPRISManager::attemptErrorRecovery_unlocked(const MPRISTypes::MPRISError& error) {
-    if (error.getRecoveryStrategy() == MPRISTypes::MPRISError::RecoveryStrategy::None) {
+bool MPRISManager::attemptErrorRecovery_unlocked(const PsyMP3::MPRIS::MPRISError& error) {
+    if (error.getRecoveryStrategy() == PsyMP3::MPRIS::MPRISError::RecoveryStrategy::None) {
         return false; // No recovery possible
     }
     
@@ -791,7 +791,7 @@ void MPRISManager::configureErrorRecovery_unlocked() {
     
     // Reconnect strategy - attempt D-Bus reconnection
     m_recovery_manager.setRecoveryAction(
-        MPRISTypes::MPRISError::RecoveryStrategy::Reconnect,
+        PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Reconnect,
         [this]() -> bool {
             auto result = reconnect_unlocked();
             return result.isSuccess();
@@ -800,7 +800,7 @@ void MPRISManager::configureErrorRecovery_unlocked() {
     
     // Reset strategy - reset components
     m_recovery_manager.setRecoveryAction(
-        MPRISTypes::MPRISError::RecoveryStrategy::Reset,
+        PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Reset,
         [this]() -> bool {
             try {
                 shutdownComponents_unlocked();
@@ -821,7 +821,7 @@ void MPRISManager::configureErrorRecovery_unlocked() {
     
     // Restart strategy - full restart
     m_recovery_manager.setRecoveryAction(
-        MPRISTypes::MPRISError::RecoveryStrategy::Restart,
+        PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Restart,
         [this]() -> bool {
             try {
                 shutdown_unlocked();
@@ -836,12 +836,12 @@ void MPRISManager::configureErrorRecovery_unlocked() {
     
     // Degrade strategy - enable graceful degradation
     m_recovery_manager.setRecoveryAction(
-        MPRISTypes::MPRISError::RecoveryStrategy::Degrade,
+        PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Degrade,
         [this]() -> bool {
             auto current_level = m_degradation_manager.getDegradationLevel();
-            auto new_level = static_cast<MPRISTypes::GracefulDegradationManager::DegradationLevel>(
+            auto new_level = static_cast<PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel>(
                 std::min(static_cast<int>(current_level) + 1, 
-                        static_cast<int>(MPRISTypes::GracefulDegradationManager::DegradationLevel::Disabled))
+                        static_cast<int>(PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel::Disabled))
             );
             
             if (new_level != current_level) {
@@ -856,7 +856,7 @@ void MPRISManager::configureErrorRecovery_unlocked() {
     
     // Retry strategy - simple retry (handled by recovery manager automatically)
     m_recovery_manager.setRecoveryAction(
-        MPRISTypes::MPRISError::RecoveryStrategy::Retry,
+        PsyMP3::MPRIS::MPRISError::RecoveryStrategy::Retry,
         [this]() -> bool {
             // For retry strategy, we don't do anything special here
             // The recovery manager handles the retry logic
@@ -871,19 +871,19 @@ void MPRISManager::configureErrorRecovery_unlocked() {
 MPRISManager::MPRISManager(Player* player) : m_player(player) {}
 MPRISManager::~MPRISManager() {}
 
-MPRISTypes::Result<void> MPRISManager::initialize() {
-    return MPRISTypes::Result<void>::error("D-Bus support not compiled in");
+PsyMP3::MPRIS::Result<void> MPRISManager::initialize() {
+    return PsyMP3::MPRIS::Result<void>::error("D-Bus support not compiled in");
 }
 
 void MPRISManager::shutdown() {}
 void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&) {}
-void MPRISManager::updatePlaybackStatus(MPRISTypes::PlaybackStatus) {}
+void MPRISManager::updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus) {}
 void MPRISManager::updatePosition(uint64_t) {}
 void MPRISManager::notifySeeked(uint64_t) {}
 bool MPRISManager::isInitialized() const { return false; }
 bool MPRISManager::isConnected() const { return false; }
 std::string MPRISManager::getLastError() const { return "D-Bus support not compiled in"; }
 void MPRISManager::setAutoReconnect(bool) {}
-MPRISTypes::Result<void> MPRISManager::reconnect() { return MPRISTypes::Result<void>::error("D-Bus support not compiled in"); }
+PsyMP3::MPRIS::Result<void> MPRISManager::reconnect() { return PsyMP3::MPRIS::Result<void>::error("D-Bus support not compiled in"); }
 
 #endif // HAVE_DBUS

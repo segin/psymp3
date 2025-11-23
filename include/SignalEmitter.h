@@ -15,7 +15,8 @@
 struct DBusConnection;
 struct DBusMessage;
 
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
 
 /**
  * @brief Sends MPRIS property change signals asynchronously
@@ -194,6 +195,6 @@ private:
     static constexpr const char* DBUS_OBJECT_PATH = "/org/mpris/MediaPlayer2";
 };
 
-} // namespace MPRISTypes
-
+} // namespace MPRIS
+} // namespace PsyMP3
 #endif // SIGNALEMITTER_H

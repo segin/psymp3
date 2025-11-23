@@ -26,10 +26,10 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories (conditionally built)
-SUBDIRS = lastfm io demuxer widget
+SUBDIRS = lastfm mpris io demuxer widget
 
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
-psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/libcodecs.a codecs/pcm/libpcmcodecs.a lastfm/liblastfm.a io/libio.a io/file/libfileio.a io/http/libhttpio.a demuxer/libdemuxer.a demuxer/iso/libisodemuxer.a demuxer/riff/libriffdemuxer.a demuxer/raw/librawdemuxer.a widget/foundation/libwidgetfoundation.a widget/windowing/libwidgetwindowing.a widget/ui/libwidgetui.a
+psymp3_LDADD = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(OPENSSL_LIBS) $(CURL_LIBS) $(WINSOCK_LIBS) codecs/libcodecs.a codecs/pcm/libpcmcodecs.a lastfm/liblastfm.a mpris/libmpris.a io/libio.a io/file/libfileio.a io/http/libhttpio.a demuxer/libdemuxer.a demuxer/iso/libisodemuxer.a demuxer/riff/libriffdemuxer.a demuxer/raw/librawdemuxer.a widget/foundation/libwidgetfoundation.a widget/windowing/libwidgetwindowing.a widget/ui/libwidgetui.a
 
 # Optional codec flags and libraries
 if HAVE_FLAC
@@ -120,9 +120,7 @@ if HAVE_OGGDEMUXER
 psymp3_LDADD += demuxer/ogg/liboggdemuxer.a
 endif
 
-if HAVE_DBUS
-psymp3_SOURCES += MPRISTypes.cpp DBusConnectionManager.cpp PropertyManager.cpp MethodHandler.cpp SignalEmitter.cpp MPRISManager.cpp
-endif
+# MPRIS sources now in mpris/ subdirectory
 
 endif
 

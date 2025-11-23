@@ -22,7 +22,8 @@
 struct DBusConnection;
 struct DBusMessage;
 
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
 
 // Error handling system
 
@@ -526,6 +527,6 @@ PlaybackStatus stringToPlaybackStatus(const std::string& str);
 std::string loopStatusToString(LoopStatus status);
 LoopStatus stringToLoopStatus(const std::string& str);
 
-} // namespace MPRISTypes
-
+} // namespace MPRIS
+} // namespace PsyMP3
 #endif // MPRISTYPES_H

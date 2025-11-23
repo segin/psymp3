@@ -4,15 +4,16 @@
 // Forward declarations
 class Player;
 
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
     class DBusConnectionManager;
     class SignalEmitter;
+    class PropertyManager;
+    class MethodHandler;
     enum class PlaybackStatus;
     template<typename T> class Result;
 }
-
-class PropertyManager;
-class MethodHandler;
+}
 
 /**
  * MPRISManager - Central coordinator for MPRIS D-Bus integration
@@ -51,7 +52,7 @@ public:
      * Initialize MPRIS system and establish D-Bus connection
      * @return Result indicating success or error message
      */
-    MPRISTypes::Result<void> initialize();
+    PsyMP3::MPRIS::Result<void> initialize();
     
     /**
      * Shutdown MPRIS system and clean up all resources
@@ -70,7 +71,7 @@ public:
      * Update playback status
      * @param status New playback status
      */
-    void updatePlaybackStatus(MPRISTypes::PlaybackStatus status);
+    void updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus status);
     
     /**
      * Update current position
@@ -112,19 +113,19 @@ public:
      * Manually attempt reconnection to D-Bus
      * @return Result indicating success or error message
      */
-    MPRISTypes::Result<void> reconnect();
+    PsyMP3::MPRIS::Result<void> reconnect();
     
     /**
      * Get current degradation level
      * @return Current degradation level
      */
-    MPRISTypes::GracefulDegradationManager::DegradationLevel getDegradationLevel() const;
+    PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel getDegradationLevel() const;
     
     /**
      * Set degradation level manually
      * @param level New degradation level
      */
-    void setDegradationLevel(MPRISTypes::GracefulDegradationManager::DegradationLevel level);
+    void setDegradationLevel(PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel level);
     
     /**
      * Check if a specific feature is available at current degradation level
@@ -137,13 +138,13 @@ public:
      * Get error statistics
      * @return Current error statistics
      */
-    MPRISTypes::ErrorLogger::ErrorStats getErrorStats() const;
+    PsyMP3::MPRIS::ErrorLogger::ErrorStats getErrorStats() const;
     
     /**
      * Get recovery statistics
      * @return Current recovery statistics
      */
-    MPRISTypes::ErrorRecoveryManager::RecoveryStats getRecoveryStats() const;
+    PsyMP3::MPRIS::ErrorRecoveryManager::RecoveryStats getRecoveryStats() const;
     
     /**
      * Reset error and recovery statistics
@@ -154,49 +155,49 @@ public:
      * Configure error logging level
      * @param level New logging level
      */
-    void setLogLevel(MPRISTypes::ErrorLogger::LogLevel level);
+    void setLogLevel(PsyMP3::MPRIS::ErrorLogger::LogLevel level);
     
     /**
      * Report error to Player for user notification
      * @param error Error to report
      */
-    void reportErrorToPlayer(const MPRISTypes::MPRISError& error);
+    void reportErrorToPlayer(const PsyMP3::MPRIS::MPRISError& error);
 
 private:
     // Private implementations - assume locks are already held
     
-    MPRISTypes::Result<void> initialize_unlocked();
+    PsyMP3::MPRIS::Result<void> initialize_unlocked();
     void shutdown_unlocked();
     void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album);
-    void updatePlaybackStatus_unlocked(MPRISTypes::PlaybackStatus status);
+    void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     void notifySeeked_unlocked(uint64_t position_us);
     bool isInitialized_unlocked() const;
     bool isConnected_unlocked() const;
     std::string getLastError_unlocked() const;
     void setAutoReconnect_unlocked(bool enable);
-    MPRISTypes::Result<void> reconnect_unlocked();
+    PsyMP3::MPRIS::Result<void> reconnect_unlocked();
     
     // Error handling and recovery methods
-    MPRISTypes::GracefulDegradationManager::DegradationLevel getDegradationLevel_unlocked() const;
-    void setDegradationLevel_unlocked(MPRISTypes::GracefulDegradationManager::DegradationLevel level);
+    PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel getDegradationLevel_unlocked() const;
+    void setDegradationLevel_unlocked(PsyMP3::MPRIS::GracefulDegradationManager::DegradationLevel level);
     bool isFeatureAvailable_unlocked(const std::string& feature) const;
-    MPRISTypes::ErrorLogger::ErrorStats getErrorStats_unlocked() const;
-    MPRISTypes::ErrorRecoveryManager::RecoveryStats getRecoveryStats_unlocked() const;
+    PsyMP3::MPRIS::ErrorLogger::ErrorStats getErrorStats_unlocked() const;
+    PsyMP3::MPRIS::ErrorRecoveryManager::RecoveryStats getRecoveryStats_unlocked() const;
     void resetStats_unlocked();
-    void setLogLevel_unlocked(MPRISTypes::ErrorLogger::LogLevel level);
-    void reportErrorToPlayer_unlocked(const MPRISTypes::MPRISError& error);
+    void setLogLevel_unlocked(PsyMP3::MPRIS::ErrorLogger::LogLevel level);
+    void reportErrorToPlayer_unlocked(const PsyMP3::MPRIS::MPRISError& error);
     
     // Error handling utilities
-    void handleError_unlocked(const MPRISTypes::MPRISError& error);
-    bool attemptErrorRecovery_unlocked(const MPRISTypes::MPRISError& error);
+    void handleError_unlocked(const PsyMP3::MPRIS::MPRISError& error);
+    bool attemptErrorRecovery_unlocked(const PsyMP3::MPRIS::MPRISError& error);
     void configureErrorRecovery_unlocked();
     
     // Internal component management
-    MPRISTypes::Result<void> initializeComponents_unlocked();
+    PsyMP3::MPRIS::Result<void> initializeComponents_unlocked();
     void shutdownComponents_unlocked();
-    MPRISTypes::Result<void> establishDBusConnection_unlocked();
-    MPRISTypes::Result<void> registerDBusService_unlocked();
+    PsyMP3::MPRIS::Result<void> establishDBusConnection_unlocked();
+    PsyMP3::MPRIS::Result<void> registerDBusService_unlocked();
     void unregisterDBusService_unlocked();
     
     // Connection monitoring and recovery
@@ -220,14 +221,14 @@ private:
     Player* m_player;
     
     // MPRIS components (owned)
-    std::unique_ptr<MPRISTypes::DBusConnectionManager> m_connection;
-    std::unique_ptr<PropertyManager> m_properties;
-    std::unique_ptr<MethodHandler> m_methods;
-    std::unique_ptr<MPRISTypes::SignalEmitter> m_signals;
+    std::unique_ptr<PsyMP3::MPRIS::DBusConnectionManager> m_connection;
+    std::unique_ptr<PsyMP3::MPRIS::PropertyManager> m_properties;
+    std::unique_ptr<PsyMP3::MPRIS::MethodHandler> m_methods;
+    std::unique_ptr<PsyMP3::MPRIS::SignalEmitter> m_signals;
     
     // Error handling and recovery systems
-    MPRISTypes::ErrorRecoveryManager m_recovery_manager;
-    MPRISTypes::GracefulDegradationManager m_degradation_manager;
+    PsyMP3::MPRIS::ErrorRecoveryManager m_recovery_manager;
+    PsyMP3::MPRIS::GracefulDegradationManager m_degradation_manager;
     
     // State management
     std::atomic<bool> m_initialized{false};

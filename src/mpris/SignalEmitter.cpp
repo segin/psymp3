@@ -1,13 +1,7 @@
 #include "psymp3.h"
 
-#ifdef HAVE_DBUS
-#include <dbus/dbus.h>
-#endif
-
-#include <algorithm>
-#include <sstream>
-
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
 
 SignalEmitter::SignalEmitter(DBusConnectionManager* connection)
     : m_connection(connection)
@@ -573,4 +567,5 @@ void SignalEmitter::flushBatch_unlocked() {
     m_signal_cv.notify_one();
 }
 
-} // namespace MPRISTypes
+} // namespace MPRIS
+} // namespace PsyMP3

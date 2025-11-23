@@ -1,13 +1,7 @@
 #include "psymp3.h"
 
-#ifdef HAVE_DBUS
-#include <dbus/dbus.h>
-#endif
-
-#include <algorithm>
-#include <sstream>
-
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
 
 DBusConnectionManager::DBusConnectionManager() 
     : m_connection(nullptr)
@@ -285,4 +279,5 @@ void DBusConnectionManager::updateReconnectAttemptTime_unlocked() {
     m_last_reconnect_attempt = std::chrono::steady_clock::now();
 }
 
-} // namespace MPRISTypes
+} // namespace MPRIS
+} // namespace PsyMP3

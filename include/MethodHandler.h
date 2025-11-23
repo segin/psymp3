@@ -8,13 +8,20 @@
 
 // Forward declarations
 class Player;
-class PropertyManager;
 struct DBusConnection;
 struct DBusMessage;
 
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
+    class PropertyManager;
+}
+}
+
+namespace PsyMP3 {
+namespace MPRIS {
     struct DBusVariant;
     template<typename T> class Result;
+}
 }
 
 // D-Bus handler result type
@@ -41,6 +48,10 @@ enum DBusHandlerResult {
  * 2. PropertyManager locks (when calling PropertyManager methods)
  * 3. Player locks (when calling Player methods)
  */
+
+namespace PsyMP3 {
+namespace MPRIS {
+
 class MethodHandler {
 public:
     /**
@@ -102,17 +113,17 @@ private:
                                 const std::string& error_name, const std::string& error_message);
     
     // Input validation helpers
-    MPRISTypes::Result<int64_t> validateSeekOffset_unlocked(int64_t offset);
-    MPRISTypes::Result<uint64_t> validatePosition_unlocked(uint64_t position_us);
-    MPRISTypes::Result<std::string> validateTrackId_unlocked(const std::string& track_id);
+    PsyMP3::MPRIS::Result<int64_t> validateSeekOffset_unlocked(int64_t offset);
+    PsyMP3::MPRIS::Result<uint64_t> validatePosition_unlocked(uint64_t position_us);
+    PsyMP3::MPRIS::Result<std::string> validateTrackId_unlocked(const std::string& track_id);
     
     // D-Bus message parsing helpers
-    MPRISTypes::Result<int64_t> parseSeekArguments_unlocked(DBusMessage* message);
-    MPRISTypes::Result<std::pair<std::string, uint64_t>> parseSetPositionArguments_unlocked(DBusMessage* message);
-    MPRISTypes::Result<std::pair<std::string, std::string>> parsePropertyArguments_unlocked(DBusMessage* message);
+    PsyMP3::MPRIS::Result<int64_t> parseSeekArguments_unlocked(DBusMessage* message);
+    PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>> parseSetPositionArguments_unlocked(DBusMessage* message);
+    PsyMP3::MPRIS::Result<std::pair<std::string, std::string>> parsePropertyArguments_unlocked(DBusMessage* message);
     
     // Property value serialization for D-Bus responses
-    void appendVariantToMessage_unlocked(DBusMessage* reply, const MPRISTypes::DBusVariant& variant);
+    void appendVariantToMessage_unlocked(DBusMessage* reply, const PsyMP3::MPRIS::DBusVariant& variant);
     void appendPropertyToMessage_unlocked(DBusMessage* reply, const std::string& property_name);
     void appendAllPropertiesToMessage_unlocked(DBusMessage* reply, const std::string& interface_name);
     
@@ -148,4 +159,6 @@ private:
     static constexpr uint64_t MAX_POSITION_US = 86400000000ULL; // 24 hours in microseconds
 };
 
+} // namespace MPRIS
+} // namespace PsyMP3
 #endif // METHODHANDLER_H

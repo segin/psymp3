@@ -1,10 +1,7 @@
 #include "psymp3.h"
 
-#ifdef HAVE_DBUS
-#include <dbus/dbus.h>
-#endif
-
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
 
 // DBusVariant string conversion
 std::string DBusVariant::toString() const {
@@ -752,4 +749,5 @@ void GracefulDegradationManager::cleanupOldErrors() {
     }
 }
 
-} // namespace MPRISTypes
+} // namespace MPRIS
+} // namespace PsyMP3

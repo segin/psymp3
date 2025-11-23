@@ -10,7 +10,8 @@
 struct DBusConnection;
 struct DBusError;
 
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
 
 /**
  * @brief Manages D-Bus connection lifecycle with automatic error recovery
@@ -126,6 +127,6 @@ private:
     static constexpr const char* DBUS_OBJECT_PATH = "/org/mpris/MediaPlayer2";
 };
 
-} // namespace MPRISTypes
-
+} // namespace MPRIS
+} // namespace PsyMP3
 #endif // DBUSCONNECTIONMANAGER_H

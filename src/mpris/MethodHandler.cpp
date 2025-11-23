@@ -1,5 +1,8 @@
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace MPRIS {
+
 #ifdef HAVE_DBUS
 
 MethodHandler::MethodHandler(Player* player, PropertyManager* properties)
@@ -639,60 +642,60 @@ void MethodHandler::sendErrorReply_unlocked(DBusConnection* connection, DBusMess
 
 // Input validation helpers
 
-MPRISTypes::Result<int64_t> MethodHandler::validateSeekOffset_unlocked(int64_t offset) {
+PsyMP3::MPRIS::Result<int64_t> MethodHandler::validateSeekOffset_unlocked(int64_t offset) {
     if (std::abs(offset) > MAX_SEEK_OFFSET_US) {
-        return MPRISTypes::Result<int64_t>::error("Seek offset too large (max 1 hour)");
+        return PsyMP3::MPRIS::Result<int64_t>::error("Seek offset too large (max 1 hour)");
     }
-    return MPRISTypes::Result<int64_t>::success(offset);
+    return PsyMP3::MPRIS::Result<int64_t>::success(offset);
 }
 
-MPRISTypes::Result<uint64_t> MethodHandler::validatePosition_unlocked(uint64_t position_us) {
+PsyMP3::MPRIS::Result<uint64_t> MethodHandler::validatePosition_unlocked(uint64_t position_us) {
     if (position_us > MAX_POSITION_US) {
-        return MPRISTypes::Result<uint64_t>::error("Position too large (max 24 hours)");
+        return PsyMP3::MPRIS::Result<uint64_t>::error("Position too large (max 24 hours)");
     }
-    return MPRISTypes::Result<uint64_t>::success(position_us);
+    return PsyMP3::MPRIS::Result<uint64_t>::success(position_us);
 }
 
-MPRISTypes::Result<std::string> MethodHandler::validateTrackId_unlocked(const std::string& track_id) {
+PsyMP3::MPRIS::Result<std::string> MethodHandler::validateTrackId_unlocked(const std::string& track_id) {
     if (track_id.empty()) {
-        return MPRISTypes::Result<std::string>::error("Track ID cannot be empty");
+        return PsyMP3::MPRIS::Result<std::string>::error("Track ID cannot be empty");
     }
     
     // Basic validation - track ID should be a valid object path or URI
     if (track_id.find_first_of(" \t\n\r") != std::string::npos) {
-        return MPRISTypes::Result<std::string>::error("Track ID contains invalid characters");
+        return PsyMP3::MPRIS::Result<std::string>::error("Track ID contains invalid characters");
     }
     
-    return MPRISTypes::Result<std::string>::success(track_id);
+    return PsyMP3::MPRIS::Result<std::string>::success(track_id);
 }
 
 // D-Bus message parsing helpers
 
-MPRISTypes::Result<int64_t> MethodHandler::parseSeekArguments_unlocked(DBusMessage* message) {
+PsyMP3::MPRIS::Result<int64_t> MethodHandler::parseSeekArguments_unlocked(DBusMessage* message) {
     DBusMessageIter args;
     if (!dbus_message_iter_init(message, &args)) {
-        return MPRISTypes::Result<int64_t>::error("Missing arguments for Seek method");
+        return PsyMP3::MPRIS::Result<int64_t>::error("Missing arguments for Seek method");
     }
     
     if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_INT64) {
-        return MPRISTypes::Result<int64_t>::error("Seek offset must be an int64 value");
+        return PsyMP3::MPRIS::Result<int64_t>::error("Seek offset must be an int64 value");
     }
     
     dbus_int64_t offset;
     dbus_message_iter_get_basic(&args, &offset);
     
-    return MPRISTypes::Result<int64_t>::success(static_cast<int64_t>(offset));
+    return PsyMP3::MPRIS::Result<int64_t>::success(static_cast<int64_t>(offset));
 }
 
-MPRISTypes::Result<std::pair<std::string, uint64_t>> MethodHandler::parseSetPositionArguments_unlocked(DBusMessage* message) {
+PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>> MethodHandler::parseSetPositionArguments_unlocked(DBusMessage* message) {
     DBusMessageIter args;
     if (!dbus_message_iter_init(message, &args)) {
-        return MPRISTypes::Result<std::pair<std::string, uint64_t>>::error("Missing arguments for SetPosition method");
+        return PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>>::error("Missing arguments for SetPosition method");
     }
     
     // First argument: track ID (object path)
     if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_OBJECT_PATH) {
-        return MPRISTypes::Result<std::pair<std::string, uint64_t>>::error("First argument must be track ID object path");
+        return PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>>::error("First argument must be track ID object path");
     }
     
     const char* track_id_cstr;
@@ -701,29 +704,29 @@ MPRISTypes::Result<std::pair<std::string, uint64_t>> MethodHandler::parseSetPosi
     
     // Second argument: position in microseconds
     if (!dbus_message_iter_next(&args) || dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_INT64) {
-        return MPRISTypes::Result<std::pair<std::string, uint64_t>>::error("Second argument must be position int64 value");
+        return PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>>::error("Second argument must be position int64 value");
     }
     
     dbus_int64_t position;
     dbus_message_iter_get_basic(&args, &position);
     
     if (position < 0) {
-        return MPRISTypes::Result<std::pair<std::string, uint64_t>>::error("Position cannot be negative");
+        return PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>>::error("Position cannot be negative");
     }
     
-    return MPRISTypes::Result<std::pair<std::string, uint64_t>>::success(
+    return PsyMP3::MPRIS::Result<std::pair<std::string, uint64_t>>::success(
         std::make_pair(track_id, static_cast<uint64_t>(position)));
 }
 
-MPRISTypes::Result<std::pair<std::string, std::string>> MethodHandler::parsePropertyArguments_unlocked(DBusMessage* message) {
+PsyMP3::MPRIS::Result<std::pair<std::string, std::string>> MethodHandler::parsePropertyArguments_unlocked(DBusMessage* message) {
     DBusMessageIter args;
     if (!dbus_message_iter_init(message, &args)) {
-        return MPRISTypes::Result<std::pair<std::string, std::string>>::error("Missing arguments for property method");
+        return PsyMP3::MPRIS::Result<std::pair<std::string, std::string>>::error("Missing arguments for property method");
     }
     
     // First argument: interface name
     if (dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_STRING) {
-        return MPRISTypes::Result<std::pair<std::string, std::string>>::error("First argument must be interface name string");
+        return PsyMP3::MPRIS::Result<std::pair<std::string, std::string>>::error("First argument must be interface name string");
     }
     
     const char* interface_name;
@@ -731,13 +734,13 @@ MPRISTypes::Result<std::pair<std::string, std::string>> MethodHandler::parseProp
     
     // Second argument: property name
     if (!dbus_message_iter_next(&args) || dbus_message_iter_get_arg_type(&args) != DBUS_TYPE_STRING) {
-        return MPRISTypes::Result<std::pair<std::string, std::string>>::error("Second argument must be property name string");
+        return PsyMP3::MPRIS::Result<std::pair<std::string, std::string>>::error("Second argument must be property name string");
     }
     
     const char* property_name;
     dbus_message_iter_get_basic(&args, &property_name);
     
-    return MPRISTypes::Result<std::pair<std::string, std::string>>::success(
+    return PsyMP3::MPRIS::Result<std::pair<std::string, std::string>>::success(
         std::make_pair(std::string(interface_name), std::string(property_name)));
 }
 
@@ -747,12 +750,12 @@ MPRISTypes::Result<std::pair<std::string, std::string>> MethodHandler::parseProp
 
 // Property value serialization for D-Bus responses
 
-void MethodHandler::appendVariantToMessage_unlocked(DBusMessage* reply, const MPRISTypes::DBusVariant& variant) {
+void MethodHandler::appendVariantToMessage_unlocked(DBusMessage* reply, const PsyMP3::MPRIS::DBusVariant& variant) {
     DBusMessageIter args, variant_iter;
     dbus_message_iter_init_append(reply, &args);
     
     switch (variant.type) {
-        case MPRISTypes::DBusVariant::String: {
+        case PsyMP3::MPRIS::DBusVariant::String: {
             dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s", &variant_iter);
             const std::string& str_val = variant.get<std::string>();
             const char* str_cstr = str_val.c_str();
@@ -760,7 +763,7 @@ void MethodHandler::appendVariantToMessage_unlocked(DBusMessage* reply, const MP
             dbus_message_iter_close_container(&args, &variant_iter);
             break;
         }
-        case MPRISTypes::DBusVariant::StringArray: {
+        case PsyMP3::MPRIS::DBusVariant::StringArray: {
             dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "as", &variant_iter);
             DBusMessageIter array_iter;
             dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY, "s", &array_iter);
@@ -775,28 +778,28 @@ void MethodHandler::appendVariantToMessage_unlocked(DBusMessage* reply, const MP
             dbus_message_iter_close_container(&args, &variant_iter);
             break;
         }
-        case MPRISTypes::DBusVariant::Int64: {
+        case PsyMP3::MPRIS::DBusVariant::Int64: {
             dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "x", &variant_iter);
             dbus_int64_t int_val = static_cast<dbus_int64_t>(variant.get<int64_t>());
             dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_INT64, &int_val);
             dbus_message_iter_close_container(&args, &variant_iter);
             break;
         }
-        case MPRISTypes::DBusVariant::UInt64: {
+        case PsyMP3::MPRIS::DBusVariant::UInt64: {
             dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "t", &variant_iter);
             dbus_uint64_t uint_val = static_cast<dbus_uint64_t>(variant.get<uint64_t>());
             dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_UINT64, &uint_val);
             dbus_message_iter_close_container(&args, &variant_iter);
             break;
         }
-        case MPRISTypes::DBusVariant::Double: {
+        case PsyMP3::MPRIS::DBusVariant::Double: {
             dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "d", &variant_iter);
             double double_val = variant.get<double>();
             dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE, &double_val);
             dbus_message_iter_close_container(&args, &variant_iter);
             break;
         }
-        case MPRISTypes::DBusVariant::Boolean: {
+        case PsyMP3::MPRIS::DBusVariant::Boolean: {
             dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b", &variant_iter);
             dbus_bool_t bool_val = variant.get<bool>() ? TRUE : FALSE;
             dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
@@ -835,7 +838,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(DBusMessage* reply, const s
             
             // Append the variant value
             switch (value.type) {
-                case MPRISTypes::DBusVariant::String: {
+                case PsyMP3::MPRIS::DBusVariant::String: {
                     dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s", &entry_variant_iter);
                     const std::string& str_val = value.get<std::string>();
                     const char* str_cstr = str_val.c_str();
@@ -843,7 +846,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(DBusMessage* reply, const s
                     dbus_message_iter_close_container(&entry_iter, &entry_variant_iter);
                     break;
                 }
-                case MPRISTypes::DBusVariant::StringArray: {
+                case PsyMP3::MPRIS::DBusVariant::StringArray: {
                     dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "as", &entry_variant_iter);
                     DBusMessageIter array_iter;
                     dbus_message_iter_open_container(&entry_variant_iter, DBUS_TYPE_ARRAY, "s", &array_iter);
@@ -858,7 +861,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(DBusMessage* reply, const s
                     dbus_message_iter_close_container(&entry_iter, &entry_variant_iter);
                     break;
                 }
-                case MPRISTypes::DBusVariant::Int64: {
+                case PsyMP3::MPRIS::DBusVariant::Int64: {
                     dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "x", &entry_variant_iter);
                     dbus_int64_t int_val = static_cast<dbus_int64_t>(value.get<int64_t>());
                     dbus_message_iter_append_basic(&entry_variant_iter, DBUS_TYPE_INT64, &int_val);
@@ -1075,3 +1078,6 @@ void MethodHandler::logValidationError_unlocked(const std::string& method_name, 
 }
 
 #endif // HAVE_DBUS
+
+} // namespace MPRIS
+} // namespace PsyMP3

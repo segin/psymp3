@@ -174,20 +174,20 @@
   - Run `make -j$(nproc)` to verify full build succeeds
   - _Requirements: 7.3-7.5_
 
-- [ ] 7. Phase 3: Create MPRIS subsystem
+- [x] 7. Phase 3: Create MPRIS subsystem
   - Create new MPRIS subsystem directory structure
   - Move MPRIS-related files from src/ root
   - Add proper namespaces
   - Update build system
   - _Requirements: 8.1-8.5_
 
-- [ ] 7.1 Create MPRIS subsystem structure
+- [x] 7.1 Create MPRIS subsystem structure
   - Create `src/mpris/` directory
   - Create `src/mpris/Makefile.am` for building `libmpris.a`
   - Add source files list: MPRISManager.cpp, DBusConnectionManager.cpp, MPRISTypes.cpp, MethodHandler.cpp, PropertyManager.cpp, SignalEmitter.cpp
   - _Requirements: 8.1_
 
-- [ ] 7.2 Move MPRIS files to new subsystem
+- [x] 7.2 Move MPRIS files to new subsystem
   - Use `git mv src/MPRISManager.cpp src/mpris/MPRISManager.cpp`
   - Use `git mv src/DBusConnectionManager.cpp src/mpris/DBusConnectionManager.cpp`
   - Use `git mv src/MPRISTypes.cpp src/mpris/MPRISTypes.cpp`
@@ -196,20 +196,20 @@
   - Use `git mv src/SignalEmitter.cpp src/mpris/SignalEmitter.cpp`
   - _Requirements: 8.2_
 
-- [ ] 7.3 Add namespaces to MPRIS files
+- [x] 7.3 Add namespaces to MPRIS files
   - Add `PsyMP3::MPRIS` namespace to all moved MPRIS files
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - Ensure files end with newline
   - _Requirements: 8.3, 3.1, 6.1-6.7_
 
-- [ ] 7.4 Update build system for MPRIS
+- [x] 7.4 Update build system for MPRIS
   - Add `src/mpris/Makefile` to `AC_CONFIG_FILES` in `configure.ac`
   - Add `mpris` to SUBDIRS in `src/Makefile.am`
   - Add `mpris/libmpris.a` to `psymp3_LDADD` in `src/Makefile.am`
   - _Requirements: 8.4_
 
-- [ ] 7.5 Verify MPRIS subsystem builds
+- [x] 7.5 Verify MPRIS subsystem builds
   - Run `./generate-configure.sh && ./configure`
   - Run `make -C src/mpris -j$(nproc)`
   - Verify no compilation errors

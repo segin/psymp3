@@ -10,10 +10,12 @@
 // Forward declarations
 class Player;
 
-namespace MPRISTypes {
+namespace PsyMP3 {
+namespace MPRIS {
     enum class PlaybackStatus;
     struct DBusVariant;
     struct MPRISMetadata;
+}
 }
 
 /**
@@ -27,6 +29,10 @@ namespace MPRISTypes {
  * 1. PropertyManager::m_mutex (this class)
  * 2. Player locks (when calling into Player methods)
  */
+
+namespace PsyMP3 {
+namespace MPRIS {
+
 class PropertyManager {
 public:
     /**
@@ -54,7 +60,7 @@ public:
      * Update cached playback status
      * @param status New playback status
      */
-    void updatePlaybackStatus(MPRISTypes::PlaybackStatus status);
+    void updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus status);
     
     /**
      * Update cached position with current timestamp
@@ -72,7 +78,7 @@ public:
      * Get current metadata as D-Bus dictionary
      * @return Map of metadata properties for D-Bus response
      */
-    std::map<std::string, MPRISTypes::DBusVariant> getMetadata() const;
+    std::map<std::string, PsyMP3::MPRIS::DBusVariant> getMetadata() const;
     
     /**
      * Get current position with timestamp-based interpolation
@@ -119,17 +125,17 @@ public:
      * Get all MPRIS properties as D-Bus dictionary
      * @return Complete property map for D-Bus GetAll response
      */
-    std::map<std::string, MPRISTypes::DBusVariant> getAllProperties() const;
+    std::map<std::string, PsyMP3::MPRIS::DBusVariant> getAllProperties() const;
 
 private:
     // Private implementations - assume locks are already held
     
     void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album);
-    void updatePlaybackStatus_unlocked(MPRISTypes::PlaybackStatus status);
+    void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     
     std::string getPlaybackStatus_unlocked() const;
-    std::map<std::string, MPRISTypes::DBusVariant> getMetadata_unlocked() const;
+    std::map<std::string, PsyMP3::MPRIS::DBusVariant> getMetadata_unlocked() const;
     uint64_t getPosition_unlocked() const;
     uint64_t getLength_unlocked() const;
     
@@ -139,10 +145,10 @@ private:
     bool canControl_unlocked() const;
     
     void clearMetadata_unlocked();
-    std::map<std::string, MPRISTypes::DBusVariant> getAllProperties_unlocked() const;
+    std::map<std::string, PsyMP3::MPRIS::DBusVariant> getAllProperties_unlocked() const;
     
     // Helper methods for property conversion
-    MPRISTypes::MPRISMetadata buildMetadataStruct_unlocked() const;
+    PsyMP3::MPRIS::MPRISMetadata buildMetadataStruct_unlocked() const;
     uint64_t interpolatePosition_unlocked() const;
     
     // Thread synchronization
@@ -160,7 +166,7 @@ private:
     std::string m_art_url;
     
     // Playback state with atomic access for lock-free reads where safe
-    std::atomic<MPRISTypes::PlaybackStatus> m_status;
+    std::atomic<PsyMP3::MPRIS::PlaybackStatus> m_status;
     
     // Position tracking with timestamp-based interpolation
     uint64_t m_position_us;
@@ -176,4 +182,6 @@ private:
     bool m_metadata_valid;
 };
 
+} // namespace MPRIS
+} // namespace PsyMP3
 #endif // PROPERTYMANAGER_H

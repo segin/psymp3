@@ -1,9 +1,12 @@
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace MPRIS {
+
 PropertyManager::PropertyManager(Player* player)
     : m_player(player)
     , m_length_us(0)
-    , m_status(MPRISTypes::PlaybackStatus::Stopped)
+    , m_status(PsyMP3::MPRIS::PlaybackStatus::Stopped)
     , m_position_us(0)
     , m_position_timestamp(std::chrono::steady_clock::now())
     , m_can_go_next(false)
@@ -25,7 +28,7 @@ void PropertyManager::updateMetadata(const std::string& artist, const std::strin
     updateMetadata_unlocked(artist, title, album);
 }
 
-void PropertyManager::updatePlaybackStatus(MPRISTypes::PlaybackStatus status) {
+void PropertyManager::updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus status) {
     std::lock_guard<std::mutex> lock(m_mutex);
     updatePlaybackStatus_unlocked(status);
 }
@@ -40,7 +43,7 @@ std::string PropertyManager::getPlaybackStatus() const {
     return getPlaybackStatus_unlocked();
 }
 
-std::map<std::string, MPRISTypes::DBusVariant> PropertyManager::getMetadata() const {
+std::map<std::string, PsyMP3::MPRIS::DBusVariant> PropertyManager::getMetadata() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return getMetadata_unlocked();
 }
@@ -80,7 +83,7 @@ void PropertyManager::clearMetadata() {
     clearMetadata_unlocked();
 }
 
-std::map<std::string, MPRISTypes::DBusVariant> PropertyManager::getAllProperties() const {
+std::map<std::string, PsyMP3::MPRIS::DBusVariant> PropertyManager::getAllProperties() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return getAllProperties_unlocked();
 }
@@ -104,7 +107,7 @@ void PropertyManager::updateMetadata_unlocked(const std::string& artist, const s
     // For now, we'll leave m_length_us as is or set it separately
 }
 
-void PropertyManager::updatePlaybackStatus_unlocked(MPRISTypes::PlaybackStatus status) {
+void PropertyManager::updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status) {
     m_status.store(status, std::memory_order_relaxed);
     
     // Update position timestamp when status changes to maintain accurate interpolation
@@ -117,11 +120,11 @@ void PropertyManager::updatePosition_unlocked(uint64_t position_us) {
 }
 
 std::string PropertyManager::getPlaybackStatus_unlocked() const {
-    return MPRISTypes::playbackStatusToString(m_status.load(std::memory_order_relaxed));
+    return PsyMP3::MPRIS::playbackStatusToString(m_status.load(std::memory_order_relaxed));
 }
 
-std::map<std::string, MPRISTypes::DBusVariant> PropertyManager::getMetadata_unlocked() const {
-    MPRISTypes::MPRISMetadata metadata = buildMetadataStruct_unlocked();
+std::map<std::string, PsyMP3::MPRIS::DBusVariant> PropertyManager::getMetadata_unlocked() const {
+    PsyMP3::MPRIS::MPRISMetadata metadata = buildMetadataStruct_unlocked();
     return metadata.toDBusDict();
 }
 
@@ -162,48 +165,48 @@ void PropertyManager::clearMetadata_unlocked() {
     m_metadata_valid = false;
 }
 
-std::map<std::string, MPRISTypes::DBusVariant> PropertyManager::getAllProperties_unlocked() const {
-    std::map<std::string, MPRISTypes::DBusVariant> properties;
+std::map<std::string, PsyMP3::MPRIS::DBusVariant> PropertyManager::getAllProperties_unlocked() const {
+    std::map<std::string, PsyMP3::MPRIS::DBusVariant> properties;
     
     // Playback status
-    properties["PlaybackStatus"] = MPRISTypes::DBusVariant(getPlaybackStatus_unlocked());
+    properties["PlaybackStatus"] = PsyMP3::MPRIS::DBusVariant(getPlaybackStatus_unlocked());
     
     // Loop status (for now, always None)
-    properties["LoopStatus"] = MPRISTypes::DBusVariant(MPRISTypes::loopStatusToString(MPRISTypes::LoopStatus::None));
+    properties["LoopStatus"] = PsyMP3::MPRIS::DBusVariant(PsyMP3::MPRIS::loopStatusToString(PsyMP3::MPRIS::LoopStatus::None));
     
     // Rate (playback rate, always 1.0 for now)
-    properties["Rate"] = MPRISTypes::DBusVariant(1.0);
+    properties["Rate"] = PsyMP3::MPRIS::DBusVariant(1.0);
     
     // Shuffle (not implemented, always false)
-    properties["Shuffle"] = MPRISTypes::DBusVariant(false);
+    properties["Shuffle"] = PsyMP3::MPRIS::DBusVariant(false);
     
     // Metadata
     auto metadata_dict = getMetadata_unlocked();
-    properties["Metadata"] = MPRISTypes::DBusVariant(std::string("metadata_dict")); // TODO: Handle dict-in-dict properly
+    properties["Metadata"] = PsyMP3::MPRIS::DBusVariant(std::string("metadata_dict")); // TODO: Handle dict-in-dict properly
     
     // Volume (not implemented, use 1.0)
-    properties["Volume"] = MPRISTypes::DBusVariant(1.0);
+    properties["Volume"] = PsyMP3::MPRIS::DBusVariant(1.0);
     
     // Position
-    properties["Position"] = MPRISTypes::DBusVariant(static_cast<int64_t>(getPosition_unlocked()));
+    properties["Position"] = PsyMP3::MPRIS::DBusVariant(static_cast<int64_t>(getPosition_unlocked()));
     
     // Minimum and maximum rates
-    properties["MinimumRate"] = MPRISTypes::DBusVariant(1.0);
-    properties["MaximumRate"] = MPRISTypes::DBusVariant(1.0);
+    properties["MinimumRate"] = PsyMP3::MPRIS::DBusVariant(1.0);
+    properties["MaximumRate"] = PsyMP3::MPRIS::DBusVariant(1.0);
     
     // Control capabilities
-    properties["CanGoNext"] = MPRISTypes::DBusVariant(canGoNext_unlocked());
-    properties["CanGoPrevious"] = MPRISTypes::DBusVariant(canGoPrevious_unlocked());
-    properties["CanPlay"] = MPRISTypes::DBusVariant(canControl_unlocked());
-    properties["CanPause"] = MPRISTypes::DBusVariant(canControl_unlocked());
-    properties["CanSeek"] = MPRISTypes::DBusVariant(canSeek_unlocked());
-    properties["CanControl"] = MPRISTypes::DBusVariant(canControl_unlocked());
+    properties["CanGoNext"] = PsyMP3::MPRIS::DBusVariant(canGoNext_unlocked());
+    properties["CanGoPrevious"] = PsyMP3::MPRIS::DBusVariant(canGoPrevious_unlocked());
+    properties["CanPlay"] = PsyMP3::MPRIS::DBusVariant(canControl_unlocked());
+    properties["CanPause"] = PsyMP3::MPRIS::DBusVariant(canControl_unlocked());
+    properties["CanSeek"] = PsyMP3::MPRIS::DBusVariant(canSeek_unlocked());
+    properties["CanControl"] = PsyMP3::MPRIS::DBusVariant(canControl_unlocked());
     
     return properties;
 }
 
-MPRISTypes::MPRISMetadata PropertyManager::buildMetadataStruct_unlocked() const {
-    MPRISTypes::MPRISMetadata metadata;
+PsyMP3::MPRIS::MPRISMetadata PropertyManager::buildMetadataStruct_unlocked() const {
+    PsyMP3::MPRIS::MPRISMetadata metadata;
     
     if (m_metadata_valid) {
         metadata.artist = m_artist;
@@ -219,7 +222,7 @@ MPRISTypes::MPRISMetadata PropertyManager::buildMetadataStruct_unlocked() const 
 
 uint64_t PropertyManager::interpolatePosition_unlocked() const {
     // If we're playing, interpolate position based on elapsed time since last update
-    if (m_status.load(std::memory_order_relaxed) == MPRISTypes::PlaybackStatus::Playing) {
+    if (m_status.load(std::memory_order_relaxed) == PsyMP3::MPRIS::PlaybackStatus::Playing) {
         auto now = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - m_position_timestamp);
         
@@ -236,3 +239,6 @@ uint64_t PropertyManager::interpolatePosition_unlocked() const {
     // If paused or stopped, return the last known position
     return m_position_us;
 }
+
+} // namespace MPRIS
+} // namespace PsyMP3
