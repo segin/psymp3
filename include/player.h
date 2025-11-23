@@ -27,7 +27,11 @@
 // No direct includes - all includes should be in psymp3.h
 
 #ifdef HAVE_DBUS
-class MPRISManager;
+namespace PsyMP3 {
+namespace MPRIS {
+    class MPRISManager;
+}
+}
 #endif
 
 // A struct to hold options parsed from the command line.
@@ -68,7 +72,7 @@ class Player
 {
     public:
         friend class System;
-        friend class MPRISManager;
+        friend class PsyMP3::MPRIS::MPRISManager;
         Player();
         ~Player();
         void Run(const PlayerOptions& options);
@@ -164,7 +168,7 @@ class Player
         std::unique_ptr<std::mutex> mutex;
         std::unique_ptr<System> system;
 #ifdef HAVE_DBUS
-        std::unique_ptr<MPRISManager> m_mpris_manager;  // MPRIS integration for desktop media controls
+        std::unique_ptr<PsyMP3::MPRIS::MPRISManager> m_mpris_manager;  // MPRIS integration for desktop media controls
 #endif
         struct atdata ATdata;
         int scalefactor = 2;

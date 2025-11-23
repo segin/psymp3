@@ -27,6 +27,10 @@ namespace MPRIS {
  * 2. Component locks (DBusConnectionManager, PropertyManager, etc.)
  * 3. Player locks (when calling Player methods)
  */
+
+namespace PsyMP3 {
+namespace MPRIS {
+
 class MPRISManager {
 public:
     /**
@@ -260,4 +264,6 @@ private:
     InitializationPhase m_initialization_phase{InitializationPhase::None};
 };
 
+} // namespace MPRIS
+} // namespace PsyMP3
 #endif // MPRISMANAGER_H

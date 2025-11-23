@@ -53,7 +53,7 @@ Player::Player() {
     m_track_scrobbled = false;
     
 #ifdef HAVE_DBUS
-    m_mpris_manager = std::make_unique<MPRISManager>(this);
+    m_mpris_manager = std::make_unique<PsyMP3::MPRIS::MPRISManager>(this);
     auto init_result = m_mpris_manager->initialize();
     if (!init_result.isSuccess()) {
         Debug::log("mpris", "MPRIS initialization failed: ", init_result.getError());
@@ -377,7 +377,7 @@ bool Player::stop(void) {
 
 #ifdef HAVE_DBUS
     if (m_mpris_manager) {
-        m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+        m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Stopped);
     }
 #endif
 #ifdef _WIN32
@@ -401,7 +401,7 @@ bool Player::pause(void) {
         state = PlayerState::Paused;
 #ifdef HAVE_DBUS
         if (m_mpris_manager) {
-            m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+            m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Paused);
         }
 #endif
         // Clear Last.fm now playing status when pausing
@@ -437,7 +437,7 @@ bool Player::play(void) {
         state = PlayerState::Playing;
 #ifdef HAVE_DBUS
         if (m_mpris_manager) {
-            m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+            m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
         }
 #endif
         // Re-set Last.fm now playing status when resuming from pause
@@ -1278,7 +1278,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             
 #ifdef HAVE_DBUS
             if (m_mpris_manager) {
-                m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+                m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
                 if (stream) {
                     m_mpris_manager->updateMetadata(
                         stream->getArtist().to8Bit(true), 
