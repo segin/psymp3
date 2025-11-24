@@ -37,6 +37,5 @@ noinst_LIBRARIES = libpcmcodecs.a
 
 libpcmcodecs_a_SOURCES = \
 	PCMCodecs.cpp \
-	SimplePCMCodec.cpp \
 	ALawCodec.cpp \
 	MuLawCodec.cpp
