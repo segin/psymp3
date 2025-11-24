@@ -92,7 +92,7 @@
   - Add validation for A-law compatible parameters
   - _Requirements: 9.6, 10.2, 10.6, 10.7_
 
-- [ ] 8.1 Write property test for codec selection exclusivity
+- [x] 8.1 Write property test for codec selection exclusivity
   - **Property 4: Codec Selection Exclusivity**
   - **Validates: Requirements 9.6, 10.5, 10.6**
 
@@ -248,5 +248,5 @@
   - Benchmark against reference implementations
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.7, 5.8_
 
-- [-] 22. Checkpoint - Ensure all tests pass
+- [x] 22. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
