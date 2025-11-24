@@ -224,7 +224,7 @@
   - Write tests for various sample rates (8, 16, 32, 48 kHz)
   - _Requirements: 9.2, 9.3, 9.4, 9.5, 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 20. Create thread safety tests
+- [x] 20. Create thread safety tests
   - Write tests for concurrent codec instance creation
   - Write tests for concurrent decode operations on different instances
   - Write tests for concurrent access to shared lookup tables
@@ -233,7 +233,7 @@
   - Write tests for cleanup during concurrent operations
   - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.7_
 
-- [ ] 20.1 Write property test for thread safety independence
+- [x] 20.1 Write property test for thread safety independence
   - **Property 7: Thread Safety Independence**
   - **Validates: Requirements 11.1, 11.2**
 
@@ -248,5 +248,5 @@
   - Benchmark against reference implementations
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.7, 5.8_
 
-- [x] 22. Checkpoint - Ensure all tests pass
+- [ ] 22. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
