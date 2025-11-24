@@ -36,14 +36,7 @@ endif
 noinst_LIBRARIES = libpcmcodecs.a
 
 libpcmcodecs_a_SOURCES = \
-	PCMCodecs.cpp
-
-# Add A-law codec if enabled
-if HAVE_ALAW
-libpcmcodecs_a_SOURCES += ALawCodec.cpp
-endif
-
-# Add μ-law codec if enabled
-if HAVE_MULAW
-libpcmcodecs_a_SOURCES += MuLawCodec.cpp
-endif
+	PCMCodecs.cpp \
+	SimplePCMCodec.cpp \
+	ALawCodec.cpp \
+	MuLawCodec.cpp
