@@ -306,3 +306,6 @@ tests/test_flac_streamable_subset_validation
 .gitignore
 tests/test_flac_thread_safety_validation
 tests/test_debug_system
+tests/test_alaw_codec_properties
+tests/test_mulaw_alaw_parameter_handling
+tests/test_mulaw_codec_properties
