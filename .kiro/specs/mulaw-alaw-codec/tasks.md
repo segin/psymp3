@@ -204,7 +204,7 @@
   - Write tests for MediaFactory codec selection
   - _Requirements: 10.5, 10.6, 10.7_
 
-- [ ] 18. Create unit tests for error handling
+- [x] 18. Create unit tests for error handling
   - Write tests for null chunk data handling
   - Write tests for zero-size chunk handling
   - Write tests for invalid StreamInfo parameters
