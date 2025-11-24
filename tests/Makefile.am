@@ -293,7 +293,7 @@ check_PROGRAMS += test_codec_selection_validation_simple test_mulaw_alaw_codec_s
 check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
 
 # SimplePCMCodec integration tests
-check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
+check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration test_mulaw_alaw_integration
 
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
@@ -1461,6 +1461,18 @@ test_simplepcmcodec_real_integration_LDADD = $(AM_LDFLAGS)
 test_simplepcmcodec_comprehensive_integration_SOURCES = test_simplepcmcodec_comprehensive_integration.cpp
 test_simplepcmcodec_comprehensive_integration_CPPFLAGS = $(AM_CPPFLAGS)
 test_simplepcmcodec_comprehensive_integration_LDADD = $(AM_LDFLAGS)
+
+# μ-law/A-law codec integration tests with SimplePCMCodec
+test_mulaw_alaw_integration_SOURCES = test_mulaw_alaw_integration.cpp
+test_mulaw_alaw_integration_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_mulaw_alaw_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
 
 # μ-law codec property-based tests (standalone, minimal dependencies)
 test_mulaw_codec_properties_SOURCES = test_mulaw_codec_properties.cpp

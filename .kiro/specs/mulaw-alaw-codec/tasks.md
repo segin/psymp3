@@ -214,7 +214,7 @@
   - Write tests verifying error recovery and state consistency
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.8_
 
-- [ ] 19. Create integration tests with SimplePCMCodec
+- [x] 19. Create integration tests with SimplePCMCodec
   - Write tests for initialize() with various StreamInfo configurations
   - Write tests for decode() with different MediaChunk sizes
   - Write tests for decode() with VoIP-typical small packets
