@@ -309,3 +309,4 @@ tests/test_debug_system
 tests/test_alaw_codec_properties
 tests/test_mulaw_alaw_parameter_handling
 tests/test_mulaw_codec_properties
+tests/test_mulaw_alaw_error_state_consistency

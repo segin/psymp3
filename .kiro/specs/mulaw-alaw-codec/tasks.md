@@ -248,5 +248,5 @@
   - Benchmark against reference implementations
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.7, 5.8_
 
-- [ ] 22. Checkpoint - Ensure all tests pass
+- [-] 22. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
