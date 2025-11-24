@@ -113,6 +113,7 @@ When adding new subsystems or refactoring existing code:
 - **Parallel Builds**: Always use `make -j$(nproc)` to utilize all available CPU cores for faster compilation
 - This ensures proper dependency tracking and build consistency
 - **CRITICAL**: NEVER EVER EVER USE `tail` WITH `make`! This makes it nearly impossible to track build activity in real-time. Let make output flow naturally for proper monitoring
+- **Output Piping**: DO NOT attempt to optimize the context window by piping output into `tail`, `head`, or similar commands unless the user explicitly asks for this behavior. Full output is essential for proper debugging and understanding build issues. Truncating output can hide critical error messages and context needed to diagnose problems.
 
 ## Problem-Solving Philosophy
 
