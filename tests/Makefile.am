@@ -113,11 +113,10 @@ debug_dual_flac_SOURCES = debug_dual_flac.cpp
 debug_dual_flac_CPPFLAGS = $(AM_CPPFLAGS)
 debug_dual_flac_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -137,11 +136,10 @@ debug_flac_seeking_SOURCES = debug_flac_seeking.cpp
 debug_flac_seeking_CPPFLAGS = $(AM_CPPFLAGS)
 debug_flac_seeking_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -157,9 +155,8 @@ test_iohandler_seek_comprehensive_SOURCES = test_iohandler_seek_comprehensive.cp
 test_iohandler_seek_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
 test_iohandler_seek_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -175,9 +172,8 @@ test_iohandler_buffer_analysis_SOURCES = test_iohandler_buffer_analysis.cpp
 test_iohandler_buffer_analysis_CPPFLAGS = $(AM_CPPFLAGS)
 test_iohandler_buffer_analysis_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -193,9 +189,8 @@ test_debug_iohandler_position_SOURCES = test_debug_iohandler_position.cpp
 test_debug_iohandler_position_CPPFLAGS = $(AM_CPPFLAGS)
 test_debug_iohandler_position_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -211,9 +206,8 @@ test_seek_deadlock_SOURCES = test_seek_deadlock.cpp
 test_seek_deadlock_CPPFLAGS = $(AM_CPPFLAGS)
 test_seek_deadlock_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -229,11 +223,10 @@ test_flac_frame_indexing_SOURCES = test_flac_frame_indexing.cpp
 test_flac_frame_indexing_CPPFLAGS = $(AM_CPPFLAGS)
 test_flac_frame_indexing_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -360,19 +353,10 @@ test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o 
 
 test_iso_fragment_handler_SOURCES = test_iso_fragment_handler.cpp
 test_iso_fragment_handler_LDADD = \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -386,19 +370,10 @@ test_iso_fragment_handler_LDADD = \
 
 test_iso_fragmented_mp4_SOURCES = test_iso_fragmented_mp4.cpp
 test_iso_fragmented_mp4_LDADD = \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -412,9 +387,8 @@ test_iso_fragmented_mp4_LDADD = \
 
 test_iohandler_integration_simple_SOURCES = test_iohandler_integration_simple.cpp
 test_iohandler_integration_simple_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -428,9 +402,8 @@ test_iohandler_integration_simple_LDADD = libtest_utilities.a \
 
 test_iohandler_minimal_SOURCES = test_iohandler_minimal.cpp
 test_iohandler_minimal_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -444,9 +417,8 @@ test_iohandler_minimal_LDADD = libtest_utilities.a \
 
 test_iohandler_basic_SOURCES = test_iohandler_basic.cpp
 test_iohandler_basic_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -460,9 +432,8 @@ test_iohandler_basic_LDADD = libtest_utilities.a \
 
 test_integration_verification_SOURCES = test_integration_verification.cpp
 test_integration_verification_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -476,10 +447,9 @@ test_integration_verification_LDADD = libtest_utilities.a \
 
 test_iohandler_demuxer_integration_SOURCES = test_iohandler_demuxer_integration.cpp
 test_iohandler_demuxer_integration_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
