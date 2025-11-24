@@ -468,7 +468,7 @@ test_psymp3_system_integration_SOURCES = test_psymp3_system_integration.cpp
 test_psymp3_system_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(AM_LDFLAGS)
 
 test_api_consistency_SOURCES = test_api_consistency.cpp
@@ -477,8 +477,8 @@ test_api_consistency_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 # Demuxer architecture unit tests
 test_demuxer_unit_SOURCES = test_demuxer_unit.cpp
 test_demuxer_unit_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/BufferPool.o \
 	$(top_builddir)/src/EnhancedBufferPool.o \
 	$(top_builddir)/src/BoundedBuffer.o \
@@ -492,8 +492,8 @@ test_demuxer_unit_LDADD = libtest_utilities.a \
 
 test_demuxer_factory_unit_SOURCES = test_demuxer_factory_unit.cpp
 test_demuxer_factory_unit_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/BufferPool.o \
 	$(top_builddir)/src/EnhancedBufferPool.o \
@@ -508,7 +508,7 @@ test_demuxer_factory_unit_LDADD = libtest_utilities.a \
 
 test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
 test_media_factory_unit_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MediaFactory.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/debug.o \
@@ -525,7 +525,7 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/ModernStream.o \
@@ -536,7 +536,7 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
@@ -544,8 +544,8 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/OggCodecs.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
 	$(top_builddir)/src/RawAudioDemuxer.o \
 	$(top_builddir)/src/ISODemuxer.o \
 	$(top_builddir)/src/ISODemuxerBoxParser.o \
@@ -560,15 +560,15 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/FLACRFCValidator.o \
 	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/ChunkDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
 test_demuxed_stream_unit_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/stream.o \
@@ -578,10 +578,10 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/rect.o \
@@ -601,8 +601,8 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 # Integration tests
 test_demuxer_integration_SOURCES = test_demuxer_integration.cpp
 test_demuxer_integration_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/BufferPool.o \
 	$(top_builddir)/src/EnhancedBufferPool.o \
@@ -616,7 +616,7 @@ test_demuxer_integration_LDADD = libtest_utilities.a \
 
 test_media_factory_integration_SOURCES = test_media_factory_integration.cpp
 test_media_factory_integration_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MediaFactory.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/debug.o \
@@ -633,7 +633,7 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/ModernStream.o \
@@ -644,7 +644,7 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
@@ -653,8 +653,8 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
 	$(top_builddir)/src/RawAudioDemuxer.o \
 	$(top_builddir)/src/ISODemuxer.o \
 	$(top_builddir)/src/ISODemuxerBoxParser.o \
@@ -668,7 +668,7 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/FLACRFCValidator.o \
 	$(top_builddir)/src/ChunkDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
@@ -676,8 +676,8 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 # Performance and regression tests
 test_demuxer_performance_SOURCES = test_demuxer_performance.cpp
 test_demuxer_performance_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/BufferPool.o \
 	$(top_builddir)/src/EnhancedBufferPool.o \
@@ -692,11 +692,11 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 # IOHandler backward compatibility and performance validation tests
 test_iohandler_legacy_compatibility_SOURCES = test_iohandler_legacy_compatibility.cpp
 test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -711,11 +711,11 @@ test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \
 
 test_iohandler_performance_validation_SOURCES = test_iohandler_performance_validation.cpp
 test_iohandler_performance_validation_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -734,11 +734,10 @@ test_page_extraction_SOURCES = test_page_extraction.cpp
 test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_page_extraction_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -757,11 +756,11 @@ test_bisection_search_SOURCES = test_bisection_search.cpp
 test_bisection_search_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_bisection_search_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -780,11 +779,11 @@ test_granule_arithmetic_SOURCES = test_granule_arithmetic.cpp
 test_granule_arithmetic_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_granule_arithmetic_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -803,11 +802,11 @@ test_codec_detection_SOURCES = test_codec_detection.cpp
 test_codec_detection_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_codec_detection_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -826,11 +825,11 @@ test_duration_calculation_SOURCES = test_duration_calculation.cpp
 test_duration_calculation_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
 test_duration_calculation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -849,11 +848,11 @@ test_time_conversion_SOURCES = test_time_conversion.cpp
 test_time_conversion_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
 test_time_conversion_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -872,11 +871,11 @@ test_data_streaming_SOURCES = test_data_streaming.cpp
 test_data_streaming_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
 test_data_streaming_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -895,11 +894,11 @@ test_memory_safety_SOURCES = test_memory_safety.cpp
 test_memory_safety_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
 test_memory_safety_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -918,11 +917,11 @@ test_error_handling_SOURCES = test_error_handling.cpp
 test_error_handling_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_error_handling_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -944,11 +943,11 @@ test_seeking_integration_SOURCES = test_seeking_integration.cpp
 test_seeking_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_seeking_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -970,11 +969,11 @@ test_ogg_demuxer_integration_SOURCES = test_ogg_demuxer_integration.cpp
 test_ogg_demuxer_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_ogg_demuxer_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
@@ -1011,13 +1010,13 @@ test_alaw_table_verification_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/EnhancedAudioBufferPool.o \
@@ -1228,21 +1227,6 @@ $(top_builddir)/src/rect.o:
 
 # Build rules for OggDemuxer test dependencies
 if HAVE_OGGDEMUXER
-$(top_builddir)/src/OggDemuxer.o:
-	$(MAKE) -C $(top_builddir)/src OggDemuxer.o
-
-$(top_builddir)/src/Demuxer.o:
-	$(MAKE) -C $(top_builddir)/src Demuxer.o
-
-$(top_builddir)/src/IOHandler.o:
-	$(MAKE) -C $(top_builddir)/src IOHandler.o
-
-$(top_builddir)/src/FileIOHandler.o:
-	$(MAKE) -C $(top_builddir)/src FileIOHandler.o
-
-$(top_builddir)/src/URI.o:
-	$(MAKE) -C $(top_builddir)/src URI.o
-
 $(top_builddir)/src/debug.o:
 	$(MAKE) -C $(top_builddir)/src debug.o
 
@@ -1352,15 +1336,15 @@ test_system_wide_threading_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/surface.o \
 	$(top_builddir)/src/BufferPool.o \
 	$(top_builddir)/src/EnhancedBufferPool.o \
 	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -1381,15 +1365,15 @@ test_threading_performance_regression_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/surface.o \
 	$(top_builddir)/src/BufferPool.o \
 	$(top_builddir)/src/EnhancedBufferPool.o \
 	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -1433,10 +1417,10 @@ test_audio_thread_safety_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/BufferPool.o \
@@ -1518,11 +1502,11 @@ if HAVE_FLAC
 test_flac_demuxer_simple_SOURCES = test_flac_demuxer_simple.cpp
 test_flac_demuxer_simple_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_demuxer_simple_LDADD = \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1539,11 +1523,11 @@ test_flac_demuxer_simple_LDADD = \
 test_flac_real_file_SOURCES = test_flac_real_file.cpp
 test_flac_real_file_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_real_file_LDADD = \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1560,11 +1544,11 @@ test_flac_real_file_LDADD = \
 test_streaminfo_real_files_SOURCES = test_streaminfo_real_files.cpp
 test_streaminfo_real_files_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_streaminfo_real_files_LDADD = \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1581,11 +1565,11 @@ test_streaminfo_real_files_LDADD = \
 test_streaminfo_recovery_SOURCES = test_streaminfo_recovery.cpp
 test_streaminfo_recovery_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_streaminfo_recovery_LDADD = \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1602,11 +1586,11 @@ test_streaminfo_recovery_LDADD = \
 test_flac_diagnostic_SOURCES = test_flac_diagnostic.cpp
 test_flac_diagnostic_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_diagnostic_LDADD = \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1623,9 +1607,9 @@ test_flac_diagnostic_LDADD = \
 test_iohandler_deadlock_SOURCES = test_iohandler_deadlock.cpp
 test_iohandler_deadlock_CPPFLAGS = $(AM_CPPFLAGS)
 test_iohandler_deadlock_LDADD = \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1642,11 +1626,11 @@ test_flac_demuxer_compatibility_SOURCES = test_flac_demuxer_compatibility.cpp
 test_flac_demuxer_compatibility_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_demuxer_compatibility_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1667,11 +1651,11 @@ test_flac_demuxer_performance_SOURCES = test_flac_demuxer_performance.cpp
 test_flac_demuxer_performance_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_demuxer_performance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1689,13 +1673,13 @@ test_flac_compatibility_integration_SOURCES = test_flac_compatibility_integratio
 test_flac_compatibility_integration_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_compatibility_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/MediaFactory.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1713,11 +1697,11 @@ test_flac_demuxer_thread_safety_SOURCES = test_flac_demuxer_thread_safety.cpp
 test_flac_demuxer_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_demuxer_thread_safety_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1735,11 +1719,11 @@ test_flac_demuxer_unit_comprehensive_SOURCES = test_flac_demuxer_unit_comprehens
 test_flac_demuxer_unit_comprehensive_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_demuxer_unit_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1758,11 +1742,11 @@ test_flac_demuxer_integration_comprehensive_SOURCES = test_flac_demuxer_integrat
 test_flac_demuxer_integration_comprehensive_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_demuxer_integration_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1781,11 +1765,11 @@ test_flac_demuxer_unit_fixed_SOURCES = test_flac_demuxer_unit_fixed.cpp
 test_flac_demuxer_unit_fixed_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_demuxer_unit_fixed_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1804,11 +1788,11 @@ test_flac_index_based_seeking_SOURCES = test_flac_index_based_seeking.cpp
 test_flac_index_based_seeking_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_index_based_seeking_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1873,12 +1857,12 @@ test_flac_codec_container_agnostic_LDADD = \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1913,7 +1897,7 @@ test_flac_codec_streaminfo_only_LDADD = \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -1928,7 +1912,7 @@ test_flac_codec_streaminfo_only_LDADD = \
 	$(AM_LDFLAGS)
 
 # Build rules for FLAC demuxer test dependencies
-$(top_builddir)/src/FLACDemuxer.o:
+$(top_builddir)/src/demuxer/flac/libflacdemuxer.a:
 	$(MAKE) -C $(top_builddir)/src FLACDemuxer.o
 
 $(top_builddir)/src/FLACCodec.o:
@@ -1965,11 +1949,11 @@ test_flac_thread_safety_validation_SOURCES = test_flac_thread_safety_validation.
 test_flac_thread_safety_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_thread_safety_validation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
@@ -2003,10 +1987,10 @@ test_iohandler_thread_safety_comprehensive_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/BufferPool.o \
@@ -2023,10 +2007,10 @@ test_iohandler_memory_deadlock_prevention_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/BufferPool.o \
@@ -2072,11 +2056,11 @@ test_frame_size_estimation_consistency_SOURCES = test_frame_size_estimation_cons
 test_frame_size_estimation_consistency_CPPFLAGS = $(AM_CPPFLAGS)
 test_frame_size_estimation_consistency_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2124,9 +2108,9 @@ test_flac_codec_compatibility_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/EnhancedAudioBufferPool.o \
@@ -2146,12 +2130,12 @@ test_flac_codec_integration_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 
 test_flac_codec_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/EnhancedAudioBufferPool.o \
@@ -2248,11 +2232,11 @@ test_flac_binary_search_limitations_SOURCES = test_flac_binary_search_limitation
 test_flac_binary_search_limitations_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_binary_search_limitations_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2273,7 +2257,7 @@ test_flac_codec_threading_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
 	$(top_builddir)/src/EnhancedAudioBufferPool.o \
@@ -2293,11 +2277,11 @@ test_flac_demuxer_threading_SOURCES = test_flac_demuxer_threading.cpp
 test_flac_demuxer_threading_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_demuxer_threading_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2316,11 +2300,11 @@ test_flac_performance_optimization_SOURCES = test_flac_performance_optimization.
 test_flac_performance_optimization_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_performance_optimization_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2339,11 +2323,11 @@ test_flac_performance_with_real_files_SOURCES = test_flac_performance_with_real_
 test_flac_performance_with_real_files_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_performance_with_real_files_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2362,11 +2346,11 @@ test_flac_comprehensive_validation_SOURCES = test_flac_comprehensive_validation.
 test_flac_comprehensive_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_comprehensive_validation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2385,11 +2369,11 @@ test_flac_rfc_compliance_SOURCES = test_flac_rfc_compliance.cpp
 test_flac_rfc_compliance_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_rfc_compliance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2420,9 +2404,9 @@ test_flac_rfc_subframe_validation_LDADD = \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2453,9 +2437,9 @@ test_flac_rfc_entropy_coding_validation_LDADD = \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -2553,11 +2537,11 @@ test_flac_sample_format_rfc9639_compliance_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/ModernStream.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
@@ -2578,8 +2562,8 @@ test_flac_sample_format_rfc9639_compliance_LDADD = \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
 	$(top_builddir)/src/RawAudioDemuxer.o \
 	$(top_builddir)/src/ISODemuxer.o \
 	$(top_builddir)/src/ISODemuxerBoxParser.o \
@@ -2591,7 +2575,7 @@ test_flac_sample_format_rfc9639_compliance_LDADD = \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/ChunkDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
@@ -2601,11 +2585,11 @@ test_oggdemuxer_performance_SOURCES = test_oggdemuxer_performance.cpp
 test_oggdemuxer_performance_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_oggdemuxer_performance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
@@ -2629,11 +2613,11 @@ test_oggdemuxer_comprehensive_SOURCES = test_oggdemuxer_comprehensive.cpp
 test_oggdemuxer_comprehensive_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_oggdemuxer_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
@@ -2668,15 +2652,15 @@ test_opus_codec_core_decoding_LDADD = \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -2710,9 +2694,9 @@ test_opus_codec_error_handling_LDADD = \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -2740,17 +2724,17 @@ test_opus_integration_LDADD = \
 	$(top_builddir)/src/OggCodecs.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -2778,17 +2762,17 @@ test_opus_compatibility_performance_LDADD = \
 	$(top_builddir)/src/OggCodecs.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/OggDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3056,10 +3040,10 @@ test_iso_compliance_comprehensive_LDADD = \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3084,10 +3068,10 @@ test_iso_compliance_edge_cases_LDADD = \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3112,10 +3096,10 @@ test_iso_codec_compliance_LDADD = \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3142,10 +3126,10 @@ test_iso_comprehensive_integration_simple_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3170,10 +3154,10 @@ test_iso_encoder_compatibility_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3198,10 +3182,10 @@ test_iso_fragmented_streaming_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3226,10 +3210,10 @@ test_iso_seeking_accuracy_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3254,10 +3238,10 @@ test_iso_compliance_minimal_LDADD = \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3282,10 +3266,10 @@ test_iso_compliance_validation_LDADD = \
 	$(top_builddir)/src/ISODemuxerStreamManager.o \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3311,10 +3295,10 @@ test_iso_comprehensive_integration_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3340,10 +3324,10 @@ test_iso_flac_integration_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3368,10 +3352,10 @@ test_iso_flac_support_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3397,10 +3381,10 @@ test_iso_performance_optimization_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3425,10 +3409,10 @@ test_iso_sample_table_optimization_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3453,10 +3437,10 @@ test_iso_sample_table_simple_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3491,10 +3475,10 @@ test_iso_metadata_extraction_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3519,10 +3503,10 @@ test_iso_telephony_codecs_LDADD = \
 	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
 	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3552,20 +3536,20 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/libmpg123.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/ModernStream.o \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3611,13 +3595,13 @@ test_flac_audio_output_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3651,13 +3635,13 @@ test_flac_seeking_crash_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3678,13 +3662,13 @@ test_flac_audio_output_debug_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
 test_flac_audio_output_debug_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/FLACDemuxer.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
 	$(top_builddir)/src/FLACRFCValidator.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3722,11 +3706,11 @@ test_flac_streamable_subset_real_files_SOURCES = test_flac_streamable_subset_rea
 test_flac_streamable_subset_real_files_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
 test_flac_streamable_subset_real_files_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACDemuxer.o \
-	$(top_builddir)/src/Demuxer.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/MemoryPoolManager.o \
@@ -3829,12 +3813,12 @@ test_native_flac_rfc_examples_LDADD = \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/CodecRegistration.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3856,12 +3840,12 @@ test_native_flac_real_files_LDADD = \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/CodecRegistration.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3884,12 +3868,12 @@ test_native_flac_containers_LDADD = \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/CodecRegistration.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3912,12 +3896,12 @@ test_native_flac_edge_cases_LDADD = \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/CodecRegistration.o \
-	$(top_builddir)/src/Demuxer.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3940,10 +3924,10 @@ test_native_flac_performance_benchmark_LDADD = \
 	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3968,10 +3952,10 @@ test_native_flac_memory_usage_LDADD = \
 	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3996,10 +3980,10 @@ test_native_flac_threading_LDADD = \
 	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/IOHandler.o \
-	$(top_builddir)/src/FileIOHandler.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/URI.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
