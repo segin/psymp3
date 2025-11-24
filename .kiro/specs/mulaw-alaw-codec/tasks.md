@@ -187,7 +187,7 @@
   - Add conditional compilation guards matching codec availability
   - _Requirements: 9.1_
 
-- [ ] 16. Create unit tests for conversion accuracy
+- [x] 16. Create unit tests for conversion accuracy
   - Write test verifying all 256 μ-law values convert correctly
   - Write test verifying all 256 A-law values convert correctly
   - Write test comparing against ITU-T reference implementations
@@ -196,7 +196,7 @@
   - Write tests for specific known input/output pairs from ITU-T test vectors
   - _Requirements: 6.3, 6.4, 6.5_
 
-- [ ] 17. Create unit tests for codec selection
+- [x] 17. Create unit tests for codec selection
   - Write tests for MuLawCodec canDecode() with various StreamInfo
   - Write tests for ALawCodec canDecode() with various StreamInfo
   - Write tests verifying codec_name variants (mulaw, pcm_mulaw, g711_mulaw)

@@ -287,7 +287,7 @@ check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_
 check_PROGRAMS += test_mulaw_conversion_accuracy
 
 # Codec selection and validation tests
-check_PROGRAMS += test_codec_selection_validation_simple
+check_PROGRAMS += test_codec_selection_validation_simple test_mulaw_alaw_codec_selection test_mulaw_alaw_error_handling
 
 # Performance and thread safety tests
 check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
@@ -1481,6 +1481,16 @@ test_mulaw_alaw_parameter_handling_LDADD = $(AM_LDFLAGS)
 test_mulaw_alaw_error_state_consistency_SOURCES = test_mulaw_alaw_error_state_consistency.cpp
 test_mulaw_alaw_error_state_consistency_CPPFLAGS = $(AM_CPPFLAGS)
 test_mulaw_alaw_error_state_consistency_LDADD = $(AM_LDFLAGS)
+
+# μ-law/A-law codec selection unit tests (standalone, minimal dependencies)
+test_mulaw_alaw_codec_selection_SOURCES = test_mulaw_alaw_codec_selection.cpp
+test_mulaw_alaw_codec_selection_CPPFLAGS = $(AM_CPPFLAGS)
+test_mulaw_alaw_codec_selection_LDADD = $(AM_LDFLAGS)
+
+# μ-law/A-law error handling unit tests (standalone, minimal dependencies)
+test_mulaw_alaw_error_handling_SOURCES = test_mulaw_alaw_error_handling.cpp
+test_mulaw_alaw_error_handling_CPPFLAGS = $(AM_CPPFLAGS)
+test_mulaw_alaw_error_handling_LDADD = $(AM_LDFLAGS)
 
 # Conditional codec compilation test
 test_conditional_codec_compilation_SOURCES = test_conditional_codec_compilation.cpp
