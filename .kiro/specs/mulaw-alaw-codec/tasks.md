@@ -146,7 +146,7 @@
   - **Property 10: Raw Stream Default Parameters**
   - **Validates: Requirements 3.2, 3.5, 7.7**
 
-- [ ] 12. Implement comprehensive error handling
+- [x] 12. Implement comprehensive error handling
   - Add initialization error handling for unsupported formats
   - Add validation for invalid StreamInfo parameters
   - Implement runtime error recovery for corrupted data
@@ -157,11 +157,11 @@
   - Add Debug::log() calls for all error conditions
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6, 8.7, 8.8, 9.7_
 
-- [ ] 12.1 Write property test for error state consistency
+- [x] 12.1 Write property test for error state consistency
   - **Property 8: Error State Consistency**
   - **Validates: Requirements 8.8**
 
-- [ ] 13. Implement MediaFactory registration
+- [x] 13. Implement MediaFactory registration
   - Create registerMuLawCodec() function with ENABLE_MULAW_CODEC guards
   - Register MuLawCodec for "mulaw" and "pcm_mulaw" codec names
   - Create registerALawCodec() function with ENABLE_ALAW_CODEC guards
@@ -170,7 +170,7 @@
   - Ensure conditional compilation allows independent codec enabling
   - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.8_
 
-- [ ] 14. Add Debug logging integration
+- [x] 14. Add Debug logging integration
   - Add Debug::log() calls for codec initialization status
   - Add Debug::log() calls for format detection and validation
   - Add Debug::log() calls for parameter extraction
