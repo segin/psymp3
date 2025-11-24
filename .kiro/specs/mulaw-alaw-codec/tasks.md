@@ -58,7 +58,7 @@
   - **Property 3: Silence Value Handling**
   - **Validates: Requirements 1.6, 6.6**
 
-- [ ] 6. Generate ITU-T G.711 compliant A-law lookup table
+- [x] 6. Generate ITU-T G.711 compliant A-law lookup table
   - Implement initializeALawTable() static method
   - Generate all 256 A-law to PCM conversion values according to ITU-T G.711 specification
   - Ensure A-law closest-to-silence value 0x55 maps to PCM value -8
@@ -66,15 +66,15 @@
   - Initialize static const ALAW_TO_PCM[256] array
   - _Requirements: 2.1, 2.3, 2.6, 6.2, 6.4_
 
-- [ ] 6.1 Write property test for A-law lookup table completeness
+- [x] 6.1 Write property test for A-law lookup table completeness
   - **Property 2: Lookup Table Completeness**
   - **Validates: Requirements 2.7**
 
-- [ ] 6.2 Write property test for A-law ITU-T G.711 conversion accuracy
+- [x] 6.2 Write property test for A-law ITU-T G.711 conversion accuracy
   - **Property 1: ITU-T G.711 Conversion Accuracy**
   - **Validates: Requirements 2.1, 6.2, 6.4**
 
-- [ ] 6.3 Write property test for A-law silence value handling
+- [x] 6.3 Write property test for A-law silence value handling
   - **Property 3: Silence Value Handling**
   - **Validates: Requirements 2.6, 6.6**
 

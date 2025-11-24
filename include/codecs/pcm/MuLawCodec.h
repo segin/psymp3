@@ -35,13 +35,13 @@ namespace PCM {
  * 
  * Decodes μ-law compressed audio data into 16-bit PCM samples according to
  * ITU-T G.711 specification. Used primarily for North American telephony
- * systems and VoIP applications.
+ * systems and international telecommunications.
  * 
  * Features:
  * - ITU-T G.711 μ-law compliant decoding
  * - Lookup table-based conversion for optimal performance
  * - Support for 8 kHz telephony standard and other sample rates
- * - Proper handling of μ-law silence encoding (0xFF)
+ * - Proper handling of μ-law silence encoding (0xFF maps to 0)
  * - Multi-channel support with sample interleaving
  */
 class MuLawCodec : public SimplePCMCodec {

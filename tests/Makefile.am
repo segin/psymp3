@@ -288,7 +288,7 @@ check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithm
 endif
 
 # A-law codec tests
-check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy
+check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties
 
 # μ-law codec tests
 check_PROGRAMS += test_mulaw_conversion_accuracy
@@ -1526,6 +1526,11 @@ test_simplepcmcodec_comprehensive_integration_LDADD = $(AM_LDFLAGS)
 test_mulaw_codec_properties_SOURCES = test_mulaw_codec_properties.cpp
 test_mulaw_codec_properties_CPPFLAGS = $(AM_CPPFLAGS)
 test_mulaw_codec_properties_LDADD = $(AM_LDFLAGS)
+
+# A-law codec property-based tests (standalone, minimal dependencies)
+test_alaw_codec_properties_SOURCES = test_alaw_codec_properties.cpp
+test_alaw_codec_properties_CPPFLAGS = $(AM_CPPFLAGS)
+test_alaw_codec_properties_LDADD = $(AM_LDFLAGS)
 
 # Conditional codec compilation test
 test_conditional_codec_compilation_SOURCES = test_conditional_codec_compilation.cpp

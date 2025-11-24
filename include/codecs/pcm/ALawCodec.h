@@ -34,8 +34,8 @@ namespace PCM {
  * @brief A-law (G.711 A-law) audio codec
  * 
  * Decodes A-law compressed audio data into 16-bit PCM samples according to
- * ITU-T G.711 specification. Used primarily for European telephony
- * systems and international telecommunications.
+ * ITU-T G.711 specification. Used primarily for European telephony systems
+ * and international telecommunications.
  * 
  * Features:
  * - ITU-T G.711 A-law compliant decoding

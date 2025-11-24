@@ -270,13 +270,17 @@ size_t MuLawCodec::convertSamples(const std::vector<uint8_t>& input_data,
     }
     
     try {
-        // Ensure output vector has sufficient capacity
+        // Ensure output vector has sufficient capacity for optimal performance
         // Use try-catch to handle potential memory allocation failures
         output_samples.reserve(input_samples);
         output_samples.clear();
         
         // Convert each μ-law sample to 16-bit PCM using lookup table
         // All 8-bit values (0x00-0xFF) are valid μ-law inputs
+        // For multi-channel audio, samples are processed in interleaved order:
+        // Mono: [sample0, sample1, sample2, ...]
+        // Stereo: [L0, R0, L1, R1, L2, R2, ...]
+        // This maintains proper channel interleaving in the output
         for (size_t i = 0; i < input_samples; ++i) {
             const uint8_t mulaw_sample = input_data[i];
             
@@ -340,8 +344,8 @@ void MuLawCodec::initializeMuLawTable() {
             uint8_t mulaw_sample = static_cast<uint8_t>(i);
             
             // ITU-T G.711 μ-law decoding algorithm
-            // Step 1: Invert all bits (one's complement)
-            uint8_t complement = ~mulaw_sample;
+            // Step 1: Invert all bits (XOR with 0xFF)
+            uint8_t complement = mulaw_sample ^ 0xFF;
             
             // Step 2: Extract sign bit (bit 7)
             bool sign = (complement & 0x80) != 0;
@@ -356,14 +360,14 @@ void MuLawCodec::initializeMuLawTable() {
             int16_t linear;
             if (exponent == 0) {
                 // Segment 0: linear region
-                linear = 33 + 2 * mantissa;
+                linear = 16 + 2 * mantissa;
             } else {
                 // Segments 1-7: logarithmic regions
-                linear = (33 + 2 * mantissa) << exponent;
+                linear = (16 + 2 * mantissa) << exponent;
             }
             
             // Step 6: Apply sign
-            if (sign) {
+            if (!sign) {
                 linear = -linear;
             }
             
@@ -379,18 +383,18 @@ void MuLawCodec::initializeMuLawTable() {
             Debug::log("codec", "MuLawCodec: Warning - μ-law silence value (0xFF) computed as ", MULAW_TO_PCM[0xFF], ", expected 0");
         }
         
-        // Validate sign bit handling - values 0x00-0x7F should be negative
+        // Validate sign bit handling - values with bit 7 clear (0x00-0x7F) should be negative
         if (MULAW_TO_PCM[0x00] >= 0 || MULAW_TO_PCM[0x7F] >= 0) {
             Debug::log("codec", "MuLawCodec: Warning - μ-law sign bit handling incorrect for negative range (0x00=", MULAW_TO_PCM[0x00], ", 0x7F=", MULAW_TO_PCM[0x7F], ")");
         }
         
-        // Validate sign bit handling - values 0x80-0xFE should be positive  
+        // Validate sign bit handling - values with bit 7 set (0x80-0xFE) should be positive
         if (MULAW_TO_PCM[0x80] <= 0 || MULAW_TO_PCM[0xFE] <= 0) {
             Debug::log("codec", "MuLawCodec: Warning - μ-law sign bit handling incorrect for positive range (0x80=", MULAW_TO_PCM[0x80], ", 0xFE=", MULAW_TO_PCM[0xFE], ")");
         }
         
         // Log some key computed values for verification
-        Debug::log("codec", "MuLawCodec: Key computed values - 0x00=", MULAW_TO_PCM[0x00], ", 0x7F=", MULAW_TO_PCM[0x7F], ", 0x80=", MULAW_TO_PCM[0x80], ", 0xFF=", MULAW_TO_PCM[0xFF]);
+        Debug::log("codec", "MuLawCodec: Key computed values - 0x00=", MULAW_TO_PCM[0x00], ", 0x80=", MULAW_TO_PCM[0x80], ", 0xFE=", MULAW_TO_PCM[0xFE], ", 0xFF=", MULAW_TO_PCM[0xFF]);
         
         // Performance metrics
         auto end_time = std::chrono::high_resolution_clock::now();

@@ -344,11 +344,11 @@ void ALawCodec::initializeALawTable() {
             uint8_t alaw_sample = static_cast<uint8_t>(i);
             
             // ITU-T G.711 A-law decoding algorithm
-            // Step 1: Apply even-bit inversion (XOR with 0x55)
+            // Step 1: Invert all bits (XOR with 0x55 for even-bit inversion)
             uint8_t complement = alaw_sample ^ 0x55;
             
-            // Step 2: Extract sign bit (bit 7, but inverted logic for A-law)
-            bool sign = (complement & 0x80) == 0;
+            // Step 2: Extract sign bit (bit 7)
+            bool sign = (complement & 0x80) != 0;
             
             // Step 3: Extract exponent (bits 6-4)
             uint8_t exponent = (complement & 0x70) >> 4;
@@ -360,14 +360,14 @@ void ALawCodec::initializeALawTable() {
             int16_t linear;
             if (exponent == 0) {
                 // Segment 0: linear region
-                linear = 16 + 2 * mantissa;
+                linear = 8 * (2 * mantissa + 1);
             } else {
                 // Segments 1-7: logarithmic regions
-                linear = (16 + 2 * mantissa) << exponent;
+                linear = (8 * (2 * mantissa + 33)) << (exponent - 1);
             }
             
             // Step 6: Apply sign
-            if (sign) {
+            if (!sign) {
                 linear = -linear;
             }
             
