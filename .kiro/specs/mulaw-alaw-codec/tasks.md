@@ -130,7 +130,7 @@
   - **Property 6: Multi-channel Interleaving Consistency**
   - **Validates: Requirements 7.6**
 
-- [ ] 11. Implement parameter handling and defaults
+- [x] 11. Implement parameter handling and defaults
   - Add logic to extract sample rate from StreamInfo (default to 8 kHz for raw streams)
   - Add logic to extract channel count from StreamInfo (default to mono for raw streams)
   - Support sample rates: 8 kHz, 16 kHz, 32 kHz, 48 kHz
@@ -138,11 +138,11 @@
   - Validate parameter ranges and reject unsupported configurations
   - _Requirements: 1.4, 1.5, 2.4, 2.5, 3.2, 3.3, 3.5, 7.1, 7.2, 7.3, 7.4, 7.5, 7.7, 7.8_
 
-- [ ] 11.1 Write property test for container parameter preservation
+- [x] 11.1 Write property test for container parameter preservation
   - **Property 9: Container Parameter Preservation**
   - **Validates: Requirements 4.8, 7.5**
 
-- [ ] 11.2 Write property test for raw stream default parameters
+- [x] 11.2 Write property test for raw stream default parameters
   - **Property 10: Raw Stream Default Parameters**
   - **Validates: Requirements 3.2, 3.5, 7.7**
 
