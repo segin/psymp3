@@ -998,35 +998,21 @@ test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
 test_alaw_table_verification_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
 test_alaw_table_verification_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/libmpg123.o \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	-logg -lvorbis -lvorbisenc -lmpg123 -lopus \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/RAIIFileHandle.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # A-law codec sample conversion test
