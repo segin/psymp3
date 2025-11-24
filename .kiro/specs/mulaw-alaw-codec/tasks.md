@@ -85,7 +85,7 @@
   - Add validation for μ-law compatible parameters
   - _Requirements: 9.6, 10.1, 10.5, 10.7_
 
-- [-] 8. Implement ALawCodec canDecode validation
+- [x] 8. Implement ALawCodec canDecode validation
   - Implement canDecode() method to check StreamInfo codec_name
   - Return true for "alaw", "pcm_alaw", and "g711_alaw" codec names
   - Return false for all other codec names including μ-law variants
@@ -96,7 +96,7 @@
   - **Property 4: Codec Selection Exclusivity**
   - **Validates: Requirements 9.6, 10.5, 10.6**
 
-- [-] 9. Implement MuLawCodec sample conversion
+- [x] 9. Implement MuLawCodec sample conversion
   - Override convertSamples() method in MuLawCodec
   - Use MULAW_TO_PCM lookup table for 8-bit to 16-bit conversion
   - Process samples sequentially for optimal cache utilization
@@ -105,15 +105,15 @@
   - Support variable chunk sizes for VoIP packet processing
   - _Requirements: 1.2, 1.8, 3.4, 3.7, 5.1, 5.5, 7.6_
 
-- [ ] 9.1 Write property test for μ-law sample count preservation
+- [x] 9.1 Write property test for μ-law sample count preservation
   - **Property 5: Sample Count Preservation**
   - **Validates: Requirements 1.2**
 
-- [ ] 9.2 Write property test for μ-law multi-channel interleaving
+- [x] 9.2 Write property test for μ-law multi-channel interleaving
   - **Property 6: Multi-channel Interleaving Consistency**
   - **Validates: Requirements 7.6**
 
-- [ ] 10. Implement ALawCodec sample conversion
+- [x] 10. Implement ALawCodec sample conversion
   - Override convertSamples() method in ALawCodec
   - Use ALAW_TO_PCM lookup table for 8-bit to 16-bit conversion
   - Process samples sequentially for optimal cache utilization
@@ -122,11 +122,11 @@
   - Support variable chunk sizes for VoIP packet processing
   - _Requirements: 2.2, 2.8, 3.4, 3.7, 5.1, 5.5, 7.6_
 
-- [ ] 10.1 Write property test for A-law sample count preservation
+- [x] 10.1 Write property test for A-law sample count preservation
   - **Property 5: Sample Count Preservation**
   - **Validates: Requirements 2.2**
 
-- [ ] 10.2 Write property test for A-law multi-channel interleaving
+- [x] 10.2 Write property test for A-law multi-channel interleaving
   - **Property 6: Multi-channel Interleaving Consistency**
   - **Validates: Requirements 7.6**
 
@@ -180,7 +180,7 @@
   - Verify thread-safe logging operations
   - _Requirements: 9.7, 9.8, 11.7_
 
-- [ ] 15. Update psymp3.h master header
+- [x] 15. Update psymp3.h master header
   - Add conditional includes for PCM codec headers
   - Add using declarations for MuLawCodec and ALawCodec in global namespace
   - Ensure includes use full path: "codecs/pcm/MuLawCodec.h"
