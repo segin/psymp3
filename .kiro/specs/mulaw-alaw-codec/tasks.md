@@ -9,7 +9,7 @@
   - Add conditional compilation support with ENABLE_MULAW_CODEC and ENABLE_ALAW_CODEC flags
   - _Requirements: 9.1, 10.8, 12.7_
 
-- [ ] 2. Implement SimplePCMCodec base class
+- [x] 2. Implement SimplePCMCodec base class
   - Create `include/codecs/pcm/SimplePCMCodec.h` with base class interface
   - Create `src/codecs/pcm/SimplePCMCodec.cpp` with common PCM codec functionality
   - Implement AudioCodec interface methods (initialize, decode, flush, reset)
@@ -18,7 +18,7 @@
   - Add namespace `PsyMP3::Codec::PCM::`
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-- [ ] 3. Implement MuLawCodec class structure
+- [x] 3. Implement MuLawCodec class structure
   - Create `include/codecs/pcm/MuLawCodec.h` with MuLawCodec class declaration
   - Create `src/codecs/pcm/MuLawCodec.cpp` with class implementation
   - Inherit from SimplePCMCodec base class
@@ -28,7 +28,7 @@
   - Add static const MULAW_TO_PCM[256] lookup table declaration
   - _Requirements: 1.1, 9.1, 9.2, 10.1_
 
-- [ ] 4. Implement ALawCodec class structure
+- [x] 4. Implement ALawCodec class structure
   - Create `include/codecs/pcm/ALawCodec.h` with ALawCodec class declaration
   - Create `src/codecs/pcm/ALawCodec.cpp` with class implementation
   - Inherit from SimplePCMCodec base class
@@ -38,7 +38,7 @@
   - Add static const ALAW_TO_PCM[256] lookup table declaration
   - _Requirements: 2.1, 9.1, 9.2, 10.2_
 
-- [ ] 5. Generate ITU-T G.711 compliant μ-law lookup table
+- [x] 5. Generate ITU-T G.711 compliant μ-law lookup table
   - Implement initializeMuLawTable() static method
   - Generate all 256 μ-law to PCM conversion values according to ITU-T G.711 specification
   - Ensure μ-law silence value 0xFF maps to PCM value 0
@@ -46,15 +46,15 @@
   - Initialize static const MULAW_TO_PCM[256] array
   - _Requirements: 1.1, 1.3, 1.6, 6.1, 6.4_
 
-- [ ] 5.1 Write property test for μ-law lookup table completeness
+- [x] 5.1 Write property test for μ-law lookup table completeness
   - **Property 2: Lookup Table Completeness**
   - **Validates: Requirements 1.7**
 
-- [ ] 5.2 Write property test for μ-law ITU-T G.711 conversion accuracy
+- [x] 5.2 Write property test for μ-law ITU-T G.711 conversion accuracy
   - **Property 1: ITU-T G.711 Conversion Accuracy**
   - **Validates: Requirements 1.1, 6.1, 6.4**
 
-- [ ] 5.3 Write property test for μ-law silence value handling
+- [x] 5.3 Write property test for μ-law silence value handling
   - **Property 3: Silence Value Handling**
   - **Validates: Requirements 1.6, 6.6**
 
@@ -78,14 +78,14 @@
   - **Property 3: Silence Value Handling**
   - **Validates: Requirements 2.6, 6.6**
 
-- [ ] 7. Implement MuLawCodec canDecode validation
+- [x] 7. Implement MuLawCodec canDecode validation
   - Implement canDecode() method to check StreamInfo codec_name
   - Return true for "mulaw", "pcm_mulaw", and "g711_mulaw" codec names
   - Return false for all other codec names including A-law variants
   - Add validation for μ-law compatible parameters
   - _Requirements: 9.6, 10.1, 10.5, 10.7_
 
-- [ ] 8. Implement ALawCodec canDecode validation
+- [-] 8. Implement ALawCodec canDecode validation
   - Implement canDecode() method to check StreamInfo codec_name
   - Return true for "alaw", "pcm_alaw", and "g711_alaw" codec names
   - Return false for all other codec names including μ-law variants
@@ -96,7 +96,7 @@
   - **Property 4: Codec Selection Exclusivity**
   - **Validates: Requirements 9.6, 10.5, 10.6**
 
-- [ ] 9. Implement MuLawCodec sample conversion
+- [-] 9. Implement MuLawCodec sample conversion
   - Override convertSamples() method in MuLawCodec
   - Use MULAW_TO_PCM lookup table for 8-bit to 16-bit conversion
   - Process samples sequentially for optimal cache utilization
