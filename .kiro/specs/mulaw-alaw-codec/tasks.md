@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Set up PCM codec module structure
+- [x] 1. Set up PCM codec module structure
   - Create `src/codecs/pcm/` and `include/codecs/pcm/` directories
   - Create `src/codecs/pcm/Makefile.am` to build `libpcmcodecs.a` convenience library
   - Update `src/codecs/Makefile.am` to include pcm subdirectory in SUBDIRS
