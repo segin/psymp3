@@ -61,5 +61,6 @@ AM_CPPFLAGS += $(FLAC_CFLAGS)
 
 libflaccodec_a_SOURCES = \
 	FLACCodec.cpp \
+	FLACRFCValidator.cpp \
 	LibFLACWrapper.cpp
 endif

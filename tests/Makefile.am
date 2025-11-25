@@ -50,6 +50,9 @@ endif
 
 # Common library set for tests (mirrors main binary linking)
 # Order: high-level -> mid-level -> low-level -> system libs
+# Note: Libraries that USE symbols must come BEFORE libraries that DEFINE them
+# libcodecs.a uses symbols from libpcmcodecs.a and CODEC_LIBS, so it comes first
+# We list libraries multiple times to handle circular dependencies
 COMMON_TEST_LIBS = \
 	libtest_utilities.a \
 	$(top_builddir)/src/widget/ui/libwidgetui.a \
@@ -62,14 +65,18 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/lastfm/liblastfm.a \
 	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(CODEC_LIBS) \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
-	$(top_builddir)/src/codecs/libcodecs.a
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a
 
 # Minimal library set for simple tests (I/O, demuxer core, codecs)
 MINIMAL_TEST_LIBS = \
@@ -78,9 +85,31 @@ MINIMAL_TEST_LIBS = \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(CODEC_LIBS) \
 	$(DEMUXER_LIBS) \
-	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/io/libio.a
+
+# Common object files needed by tests (not in libraries)
+# These are standalone .o files from src/ that tests commonly need
+COMMON_TEST_OBJS = \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(top_builddir)/src/BufferPool.o \
+	$(top_builddir)/src/EnhancedBufferPool.o \
+	$(top_builddir)/src/EnhancedAudioBufferPool.o \
+	$(top_builddir)/src/BoundedBuffer.o \
+	$(top_builddir)/src/MemoryOptimizer.o \
+	$(top_builddir)/src/RAIIFileHandle.o
 
 # Legacy variable for backward compatibility (deprecated - use COMMON_TEST_LIBS)
 COMMON_CODEC_DEPS = \
@@ -2119,17 +2148,8 @@ test_frame_size_estimation_consistency_LDADD = \
 test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
 test_flac_audioframe_creation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_audioframe_creation_LDADD = \
+	$(COMMON_TEST_OBJS) \
 	$(COMMON_TEST_LIBS) \
-	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
 	$(FREETYPE_LIBS) \
