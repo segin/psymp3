@@ -30,6 +30,9 @@ namespace PsyMP3 {
 namespace Codec {
 namespace PCM {
 
+// Make SimplePCMCodec available in this namespace
+using ::SimplePCMCodec;
+
 /**
  * @brief μ-law (G.711 μ-law) audio codec
  * 

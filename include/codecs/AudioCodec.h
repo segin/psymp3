@@ -193,6 +193,9 @@ private:
     static std::map<std::string, CodecFactoryFunc> s_codec_factories;
 };
 
+namespace PsyMP3 {
+namespace Codec {
+
 /**
  * @brief Base class for simple PCM-based codecs
  * 
@@ -223,5 +226,11 @@ protected:
      */
     virtual size_t getBytesPerInputSample() const = 0;
 };
+
+} // namespace Codec
+} // namespace PsyMP3
+
+// Backward compatibility alias
+using SimplePCMCodec = PsyMP3::Codec::SimplePCMCodec;
 
 #endif // AUDIOCODEC_H

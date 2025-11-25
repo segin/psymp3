@@ -237,7 +237,7 @@
   - **Property 7: Thread Safety Independence**
   - **Validates: Requirements 11.1, 11.2**
 
-- [ ] 21. Create performance tests
+- [x] 21. Create performance tests
   - Write tests measuring decoding performance vs real-time requirements
   - Write tests for 8 kHz, 16 kHz, 32 kHz, and 48 kHz sample rates
   - Write tests for multi-channel processing efficiency
@@ -248,5 +248,5 @@
   - Benchmark against reference implementations
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.7, 5.8_
 
-- [ ] 22. Checkpoint - Ensure all tests pass
+- [x] 22. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.

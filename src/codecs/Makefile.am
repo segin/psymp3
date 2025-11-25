@@ -21,7 +21,7 @@ libcodecs_a_SOURCES = \
 	CodecRegistry.cpp \
 	OggCodecs.cpp
 
-if HAVE_NATIVE_FLAC
+if HAVE_FLAC
 SUBDIRS += flac
 endif
 

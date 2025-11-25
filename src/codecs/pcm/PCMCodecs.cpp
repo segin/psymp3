@@ -11,6 +11,47 @@
 
 namespace PsyMP3 {
 namespace Codec {
+
+// SimplePCMCodec implementation
+SimplePCMCodec::SimplePCMCodec(const StreamInfo& stream_info) 
+    : AudioCodec(stream_info) {
+}
+
+bool SimplePCMCodec::initialize() {
+    m_initialized = true;
+    return true;
+}
+
+AudioFrame SimplePCMCodec::decode(const MediaChunk& chunk) {
+    AudioFrame frame;
+    
+    if (chunk.data.empty()) {
+        return frame; // Empty frame
+    }
+    
+    // Set frame properties
+    frame.sample_rate = m_stream_info.sample_rate;
+    frame.channels = m_stream_info.channels;
+    frame.timestamp_samples = chunk.timestamp_samples;
+    
+    // Convert samples
+    convertSamples(chunk.data, frame.samples);
+    
+    return frame;
+}
+
+AudioFrame SimplePCMCodec::flush() {
+    // Simple PCM codecs don't buffer data
+    return AudioFrame{}; // Empty frame
+}
+
+void SimplePCMCodec::reset() {
+    // Simple PCM codecs don't have state to reset
+}
+
+} // namespace Codec
+
+namespace Codec {
 namespace PCM {
 
 // PCMCodec implementation

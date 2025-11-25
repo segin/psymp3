@@ -310,3 +310,7 @@ tests/test_alaw_codec_properties
 tests/test_mulaw_alaw_parameter_handling
 tests/test_mulaw_codec_properties
 tests/test_mulaw_alaw_error_state_consistency
+tests/test_mulaw_alaw_error_handling
+tests/test_mulaw_alaw_integration
+tests/test_mulaw_alaw_performance
+tests/test_mulaw_alaw_thread_safety_properties

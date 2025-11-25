@@ -25,27 +25,27 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
     
     // Built-in codec fallbacks
     if (stream_info.codec_name == "pcm") {
-        auto codec = std::make_unique<PCMCodec>(stream_info);
+        auto codec = std::make_unique<PsyMP3::Codec::PCM::PCMCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
 #ifdef ENABLE_ALAW_CODEC
     } else if (stream_info.codec_name == "alaw") {
-        auto codec = std::make_unique<ALawCodec>(stream_info);
+        auto codec = std::make_unique<PsyMP3::Codec::PCM::ALawCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
 #endif
 #ifdef ENABLE_MULAW_CODEC
     } else if (stream_info.codec_name == "mulaw") {
-        auto codec = std::make_unique<MuLawCodec>(stream_info);
+        auto codec = std::make_unique<PsyMP3::Codec::PCM::MuLawCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
 #endif
 #ifdef HAVE_MP3
     } else if (stream_info.codec_name == "mp3") {
-        auto codec = std::make_unique<MP3PassthroughCodec>(stream_info);
+        auto codec = std::make_unique<PsyMP3::Codec::PCM::MP3PassthroughCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
         }
@@ -95,39 +95,3 @@ void AudioCodecFactory::registerCodec(const std::string& codec_name, CodecFactor
     s_codec_factories[codec_name] = factory_func;
 }
 
-// SimplePCMCodec implementation
-SimplePCMCodec::SimplePCMCodec(const StreamInfo& stream_info) 
-    : AudioCodec(stream_info) {
-}
-
-bool SimplePCMCodec::initialize() {
-    m_initialized = true;
-    return true;
-}
-
-AudioFrame SimplePCMCodec::decode(const MediaChunk& chunk) {
-    AudioFrame frame;
-    
-    if (chunk.data.empty()) {
-        return frame; // Empty frame
-    }
-    
-    // Set frame properties
-    frame.sample_rate = m_stream_info.sample_rate;
-    frame.channels = m_stream_info.channels;
-    frame.timestamp_samples = chunk.timestamp_samples;
-    
-    // Convert samples
-    convertSamples(chunk.data, frame.samples);
-    
-    return frame;
-}
-
-AudioFrame SimplePCMCodec::flush() {
-    // Simple PCM codecs don't buffer data
-    return AudioFrame{}; // Empty frame
-}
-
-void SimplePCMCodec::reset() {
-    // Simple PCM codecs don't have state to reset
-}

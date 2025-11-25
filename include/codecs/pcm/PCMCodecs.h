@@ -39,6 +39,9 @@ namespace PsyMP3 {
 namespace Codec {
 namespace PCM {
 
+// Make SimplePCMCodec available in this namespace
+using PsyMP3::Codec::SimplePCMCodec;
+
 /**
  * @brief Linear PCM codec (8-bit, 16-bit, 24-bit, 32-bit integer and float)
  */
