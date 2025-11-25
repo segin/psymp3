@@ -2582,6 +2582,21 @@ test_flac_bit_depth_validation_simple_SOURCES = test_flac_bit_depth_validation_s
 test_flac_bit_depth_validation_simple_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
 test_flac_bit_depth_validation_simple_LDADD = $(AM_LDFLAGS)
 
+# FLAC security validation tests
+test_flac_security_validation_SOURCES = test_flac_security_validation.cpp
+test_flac_security_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_security_validation_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/MemoryPoolManager.o \
+	$(top_builddir)/src/MemoryTracker.o \
+	$(AM_LDFLAGS)
+
 # RFC 9639 sample format and bit depth compliance test
 test_flac_sample_format_rfc9639_compliance_SOURCES = test_flac_sample_format_rfc9639_compliance.cpp
 test_flac_sample_format_rfc9639_compliance_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
@@ -3797,7 +3812,7 @@ test_debug_system_LDADD = \
 
 # Native FLAC codec unit tests (conditional on HAVE_NATIVE_FLAC)
 if HAVE_NATIVE_FLAC
-check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit test_native_flac_rfc_examples test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading
+check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit test_native_flac_rfc_examples test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading test_flac_security_validation
 
 # BitstreamReader unit tests
 test_bitstream_reader_unit_SOURCES = test_bitstream_reader_unit.cpp

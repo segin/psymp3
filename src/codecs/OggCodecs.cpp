@@ -52,7 +52,8 @@ OggFLACPassthroughCodec::OggFLACPassthroughCodec(const StreamInfo& stream_info)
 }
 
 OggFLACPassthroughCodec::~OggFLACPassthroughCodec() {
-    delete m_flac_stream;
+    // m_flac_stream is a forward-declared incomplete type and is never allocated
+    // No cleanup needed
 }
 
 bool OggFLACPassthroughCodec::initialize() {
@@ -96,10 +97,8 @@ void OggFLACPassthroughCodec::reset() {
     m_buffer.clear();
     m_headers_written = false;
     
-    if (m_flac_stream) {
-        delete m_flac_stream;
-        m_flac_stream = nullptr;
-    }
+    // m_flac_stream is a forward-declared incomplete type and is never allocated
+    // No cleanup needed
 }
 
 bool OggFLACPassthroughCodec::canDecode(const StreamInfo& stream_info) const {

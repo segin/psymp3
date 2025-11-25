@@ -106,7 +106,7 @@ void test_frame_parser_validation() {
     FrameParser parser(&reader, &crc);
     
     // Test 2.1: Invalid block size (0)
-    FrameParser::FrameHeader header;
+    FrameHeader header;
     header.block_size = 0;
     header.sample_rate = 44100;
     header.channels = 2;
