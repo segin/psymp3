@@ -469,16 +469,16 @@ This implementation plan breaks down the native FLAC decoder into discrete, mana
     - Test concurrent decoder instances
     - Measure lock contention
 
-- [ ] 22. Security testing
-  - [ ] 22.1 Fuzz testing
+- [x] 22. Security testing
+  - [x] 22.1 Fuzz testing
     - Run AFL fuzzer on decoder
     - Run libFuzzer on decoder
     - Test with malformed files
-  - [ ] 22.2 Sanitizer testing
+  - [x] 22.2 Sanitizer testing
     - Build with AddressSanitizer
     - Build with UndefinedBehaviorSanitizer
     - Build with ThreadSanitizer
-  - [ ] 22.3 Security audit
+  - [x] 22.3 Security audit
     - Review bounds checking
     - Review resource limits
     - Review error handling

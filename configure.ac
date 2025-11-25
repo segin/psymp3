@@ -207,6 +207,53 @@ AC_ARG_ENABLE([test-harness],
 
 AM_CONDITIONAL([BUILD_TEST_HARNESS], [test "x$enable_test_harness" = "xyes"])
 
+# Sanitizer support for security testing
+AC_ARG_ENABLE([asan],
+  [AS_HELP_STRING([--enable-asan], [Enable AddressSanitizer for memory error detection @<:@default=no@:>@])],
+  [enable_asan=$enableval],
+  [enable_asan=no])
+
+AC_ARG_ENABLE([ubsan],
+  [AS_HELP_STRING([--enable-ubsan], [Enable UndefinedBehaviorSanitizer for undefined behavior detection @<:@default=no@:>@])],
+  [enable_ubsan=$enableval],
+  [enable_ubsan=no])
+
+AC_ARG_ENABLE([tsan],
+  [AS_HELP_STRING([--enable-tsan], [Enable ThreadSanitizer for thread safety detection @<:@default=no@:>@])],
+  [enable_tsan=$enableval],
+  [enable_tsan=no])
+
+# Apply sanitizer flags
+SANITIZER_FLAGS=""
+
+if test "x$enable_asan" = "xyes"; then
+  SANITIZER_FLAGS="$SANITIZER_FLAGS -fsanitize=address -fno-omit-frame-pointer"
+  AC_DEFINE([ENABLE_ASAN], [1], [Define to 1 if AddressSanitizer is enabled])
+  AC_MSG_NOTICE([AddressSanitizer enabled])
+fi
+
+if test "x$enable_ubsan" = "xyes"; then
+  SANITIZER_FLAGS="$SANITIZER_FLAGS -fsanitize=undefined -fno-omit-frame-pointer"
+  AC_DEFINE([ENABLE_UBSAN], [1], [Define to 1 if UndefinedBehaviorSanitizer is enabled])
+  AC_MSG_NOTICE([UndefinedBehaviorSanitizer enabled])
+fi
+
+if test "x$enable_tsan" = "xyes"; then
+  SANITIZER_FLAGS="$SANITIZER_FLAGS -fsanitize=thread -fno-omit-frame-pointer"
+  AC_DEFINE([ENABLE_TSAN], [1], [Define to 1 if ThreadSanitizer is enabled])
+  AC_MSG_NOTICE([ThreadSanitizer enabled])
+fi
+
+if test -n "$SANITIZER_FLAGS"; then
+  CXXFLAGS="$CXXFLAGS $SANITIZER_FLAGS"
+  CFLAGS="$CFLAGS $SANITIZER_FLAGS"
+  LDFLAGS="$LDFLAGS $SANITIZER_FLAGS"
+fi
+
+AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
+AM_CONDITIONAL([ENABLE_UBSAN], [test "x$enable_ubsan" = "xyes"])
+AM_CONDITIONAL([ENABLE_TSAN], [test "x$enable_tsan" = "xyes"])
+
 # Release build optimization
 AC_ARG_ENABLE([release],
   [AS_HELP_STRING([--enable-release], [Enable release build optimizations (no debug symbols) @<:@default=no@:>@])],
@@ -294,6 +341,11 @@ echo "  MPRIS (D-Bus):     $have_dbus"
 echo "  Test Harness:      $enable_test_harness"
 echo "  Release Build:     $enable_release"
 echo "  Final Build:       $enable_final"
+echo ""
+echo "Security Testing:"
+echo "  AddressSanitizer:  $enable_asan"
+echo "  UBSanitizer:       $enable_ubsan"
+echo "  ThreadSanitizer:   $enable_tsan"
 echo ""
 echo "=========================================="
 echo ""
