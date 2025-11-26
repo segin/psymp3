@@ -26,7 +26,7 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories (conditionally built)
-SUBDIRS = lastfm mpris io demuxer widget
+SUBDIRS = lastfm mpris util io demuxer widget
 
 AM_CPPFLAGS = $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) -DPSYMP3_DATADIR='"$(datadir)"' -Wall -Werror
 
@@ -100,6 +100,7 @@ psymp3_LDADD = \
 	io/libio.a \
 	lastfm/liblastfm.a \
 	mpris/libmpris.a \
+	util/libutil.a \
 	codecs/libcodecs.a \
 	$(CODEC_LIBS) \
 	$(DEMUXER_LIBS) \
@@ -162,8 +163,7 @@ psymp3_SOURCES = \
  rect.cpp \
  song.cpp stream.cpp surface.cpp \
  system.cpp \
- track.cpp truetype.cpp utility.cpp \
- XMLUtil.cpp
+ track.cpp truetype.cpp utility.cpp
 
 # Optional codec subdirectories
 if HAVE_FLAC

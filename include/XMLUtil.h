@@ -24,6 +24,9 @@
 #ifndef XMLUTIL_H
 #define XMLUTIL_H
 
+namespace PsyMP3 {
+namespace XML {
+
 /**
  * @brief Simple XML utility class for basic parsing and generation
  * 
@@ -130,5 +133,8 @@ private:
      */
     static std::string getIndent(int level);
 };
+
+} // namespace XML
+} // namespace PsyMP3
 
 #endif // XMLUTIL_H
