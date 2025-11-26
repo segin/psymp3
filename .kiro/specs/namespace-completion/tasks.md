@@ -128,6 +128,7 @@
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/LyricsWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/VisualizerWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/EqualizerWidget.cpp`
+  - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/Label.cpp`
   - Verify master header inclusion for all files
   - Ensure proper namespace closure with comments
   - _Requirements: 1.4, 2.15, 3.1, 6.1-6.7_
@@ -284,20 +285,20 @@
   - Verify no compilation errors
   - _Requirements: 7.1-7.5_
 
-- [-] 11. Phase 4: Move buffer pool files to IO subsystem
+- [x] 11. Phase 4: Move buffer pool files to IO subsystem
   - Move buffer-related files from src/ root to src/io/
   - Add proper namespaces
   - Update build system
   - _Requirements: 9.2-9.5_
 
-- [ ] 11.1 Move buffer pool files
+- [x] 11.1 Move buffer pool files
   - Use `git mv src/BufferPool.cpp src/io/BufferPool.cpp`
   - Use `git mv src/EnhancedBufferPool.cpp src/io/EnhancedBufferPool.cpp`
   - Use `git mv src/EnhancedAudioBufferPool.cpp src/io/EnhancedAudioBufferPool.cpp`
   - Use `git mv src/BoundedBuffer.cpp src/io/BoundedBuffer.cpp`
   - _Requirements: 9.2, 9.4_
 
-- [ ] 11.2 Add namespaces to buffer pool files
+- [x] 11.2 Add namespaces to buffer pool files
   - Add `PsyMP3::IO` namespace to BufferPool.cpp
   - Add `PsyMP3::IO` namespace to EnhancedBufferPool.cpp
   - Add `PsyMP3::IO` namespace to EnhancedAudioBufferPool.cpp
@@ -306,12 +307,12 @@
   - Ensure proper namespace closure with comments
   - _Requirements: 9.2, 3.1, 6.1-6.7_
 
-- [ ] 11.3 Update IO build system for buffer files
+- [x] 11.3 Update IO build system for buffer files
   - Add buffer pool files to `libio_a_SOURCES` in `src/io/Makefile.am`
   - Remove references from `src/Makefile.am`
   - _Requirements: 9.5_
 
-- [ ] 11.4 Verify buffer pool files build
+- [x] 11.4 Verify buffer pool files build
   - Run `make -C src/io -j$(nproc)`
   - Verify no compilation errors
   - _Requirements: 7.1-7.5_
