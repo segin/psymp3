@@ -53,7 +53,7 @@ public:
 ```cpp
 struct OggStream {
     uint32_t serial_number;
-    std::string codec_name;        // "vorbis", "opus", "flac", "speex"
+    std::string codec_name;        // "vorbis", "opus", "flac", "speex", "theora"
     std::string codec_type;        // "audio", "video", "subtitle"
     
     // Header management
@@ -61,13 +61,23 @@ struct OggStream {
     bool headers_complete;
     bool headers_sent;
     size_t next_header_index;
+    uint16_t expected_header_count; // FLAC-in-Ogg: from identification header (0 = unknown)
     
     // Audio properties
     uint32_t sample_rate;
     uint16_t channels;
     uint32_t bitrate;
     uint64_t total_samples;
-    uint64_t pre_skip;  // Opus-specific
+    uint64_t pre_skip;              // Opus-specific: samples to discard at start
+    uint8_t bits_per_sample;        // FLAC-specific: bit depth
+    
+    // FLAC-in-Ogg specific
+    uint8_t flac_mapping_version_major;  // Should be 1
+    uint8_t flac_mapping_version_minor;  // Should be 0
+    uint16_t flac_min_block_size;
+    uint16_t flac_max_block_size;
+    uint32_t flac_min_frame_size;
+    uint32_t flac_max_frame_size;
     
     // Metadata
     std::string artist, title, album;
@@ -75,6 +85,10 @@ struct OggStream {
     // Packet buffering
     std::deque<OggPacket> m_packet_queue;
     uint64_t total_samples_processed;
+    
+    // Page sequence tracking
+    uint32_t last_page_sequence;    // For detecting page loss
+    bool page_sequence_initialized;
 };
 
 struct OggPacket {
@@ -139,11 +153,22 @@ struct OggPacket {
 - Uses 48kHz granule rate regardless of output sample rate
 - Handle header parsing errors like libopusfile (return OP_EBADHEADER)
 
-**FLAC (Following Ogg FLAC specification)**:
-- Identification header: `\x7fFLAC` signature validation
-- Extract embedded STREAMINFO metadata block from identification header
-- Single header contains all necessary information (sample rate, channels, total samples)
-- Granule positions are sample-based (like Vorbis)
+**FLAC-in-Ogg (Following RFC 9639 Section 10.1)**:
+- Identification header: `\x7fFLAC` (0x7F 0x46 0x4C 0x41 0x43) 5-byte signature validation
+- **First packet structure (51 bytes total)**:
+  - 5 bytes: Signature `\x7fFLAC`
+  - 2 bytes: Mapping version (0x01 0x00 for version 1.0)
+  - 2 bytes: Header packet count (big-endian, 0 = unknown)
+  - 4 bytes: fLaC signature (0x664C6143)
+  - 4 bytes: Metadata block header for STREAMINFO
+  - 34 bytes: STREAMINFO metadata block
+- **First page is always exactly 79 bytes** (27-byte header + 1 lacing value + 51-byte packet)
+- **Header packets**: One or more metadata blocks following identification
+- **First header packet SHOULD be Vorbis comment** for historic compatibility
+- **Audio packets**: Each packet contains exactly one FLAC frame
+- **Granule positions**: Sample count (interchannel samples), 0 for header pages
+- **Special granule value**: 0xFFFFFFFFFFFFFFFF when no packet completes on page
+- **Chaining**: Audio property changes require new stream (EOS followed by BOS)
 - Must be distinguished from native FLAC files (different container format)
 
 **Unknown Codecs**:
@@ -151,7 +176,57 @@ struct OggPacket {
 - Skip unknown streams without affecting other streams
 - Log codec signature for debugging purposes
 
-### **3. Seeking Component (Following ov_pcm_seek_page/op_pcm_seek_page Patterns)**
+### **3. FLAC-in-Ogg Handler Component (Following RFC 9639 Section 10.1)**
+
+**Purpose**: Handle FLAC audio encapsulated in Ogg containers per RFC 9639 Section 10.1
+
+**Key Methods**:
+- `bool parseFLACInOggHeader(OggStream& stream, const OggPacket& packet)`: Parse identification header
+- `bool extractFLACStreamInfo(OggStream& stream, const uint8_t* data, size_t size)`: Extract STREAMINFO
+- `uint64_t flacGranuleToSamples(uint64_t granule)`: Granule position interpretation
+
+**FLAC-in-Ogg Identification Header Structure**:
+```cpp
+struct FLACInOggHeader {
+    uint8_t signature[5];      // "\x7fFLAC" (0x7F 0x46 0x4C 0x41 0x43)
+    uint8_t version_major;     // 0x01 for version 1.0
+    uint8_t version_minor;     // 0x00 for version 1.0
+    uint16_t header_count;     // Big-endian, 0 = unknown
+    uint8_t flac_signature[4]; // "fLaC" (0x66 0x4C 0x61 0x43)
+    uint8_t metadata_header[4]; // Metadata block header
+    uint8_t streaminfo[34];    // STREAMINFO metadata block
+};
+// Total: 51 bytes, first page always 79 bytes
+```
+
+**STREAMINFO Extraction**:
+- Minimum block size (16 bits)
+- Maximum block size (16 bits)
+- Minimum frame size (24 bits)
+- Maximum frame size (24 bits)
+- Sample rate (20 bits)
+- Number of channels minus 1 (3 bits)
+- Bits per sample minus 1 (5 bits)
+- Total samples (36 bits)
+- MD5 signature (128 bits)
+
+**Granule Position Handling**:
+- Header pages: Granule position MUST be 0
+- Audio pages with completed packet: Sample count at end of last completed packet
+- Audio pages without completed packet: 0xFFFFFFFFFFFFFFFF
+- Sample numbering: Interchannel samples (not per-channel)
+
+**Version Handling**:
+- Version 1.0 (0x01 0x00): Fully supported
+- Unknown versions: Log warning, attempt parsing, may fail gracefully
+
+**Error Conditions**:
+- Invalid signature: Return OP_ENOTFORMAT
+- Unsupported version: Return OP_EVERSION (or equivalent)
+- Malformed STREAMINFO: Return OP_EBADHEADER
+- First page not 79 bytes: Log warning, continue parsing
+
+### **4. Seeking Component (Following ov_pcm_seek_page/op_pcm_seek_page Patterns)**
 
 **Purpose**: Implement efficient timestamp-based seeking identical to reference implementations
 
@@ -186,7 +261,7 @@ struct OggPacket {
 - **FLAC**: Granule = sample number at end of packet (same as Vorbis)
 - **Invalid (-1)**: Handle like reference implementations (continue searching)
 
-### **4. Duration Calculation Component (Following op_get_last_page Patterns)**
+### **5. Duration Calculation Component (Following op_get_last_page Patterns)**
 
 **Purpose**: Determine total file duration using reference implementation patterns
 
@@ -213,9 +288,12 @@ struct OggPacket {
 **Granule-to-Time Conversion**:
 - **Vorbis**: Direct sample count / sample_rate conversion
 - **Opus**: Use opus_granule_sample() equivalent logic (48kHz granule rate, account for pre-skip)
-- **FLAC**: Direct sample count / sample_rate conversion (like Vorbis)
+- **FLAC-in-Ogg**: Direct sample count / sample_rate conversion (like Vorbis)
+  - Sample rate from STREAMINFO metadata block
+  - Total samples from STREAMINFO if available (36-bit field)
+  - Granule position represents interchannel sample count
 
-### **5. Granule Position Arithmetic Component (Following libopusfile Patterns)**
+### **6. Granule Position Arithmetic Component (Following libopusfile Patterns)**
 
 **Purpose**: Handle granule position calculations with overflow protection
 
@@ -240,7 +318,7 @@ struct OggPacket {
 - Detect underflow conditions
 - Maintain proper ordering semantics
 
-### **6. Data Streaming Component (Following Reference Implementation Patterns)**
+### **7. Data Streaming Component (Following Reference Implementation Patterns)**
 
 **Purpose**: Provide continuous packet streaming for playback using reference patterns
 
@@ -284,6 +362,82 @@ File → IOHandler → ogg_sync_state → ogg_page → ogg_stream_state → ogg_
 Timestamp → Target Granule → Bisection Search → Page Position → Stream Reset → Continue Streaming
 ```
 
+## **Correctness Properties**
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: OggS Capture Pattern Validation
+*For any* byte sequence, the demuxer SHALL accept it as a valid Ogg page start if and only if the first 4 bytes are exactly "OggS" (0x4f 0x67 0x67 0x53).
+**Validates: Requirements 1.1**
+
+### Property 2: Page Version Validation
+*For any* Ogg page header, the demuxer SHALL accept it as valid if and only if the stream_structure_version byte is 0.
+**Validates: Requirements 1.2**
+
+### Property 3: Page Size Bounds
+*For any* Ogg page, the demuxer SHALL reject it as invalid if the total page size exceeds 65,307 bytes.
+**Validates: Requirements 1.11**
+
+### Property 4: Lacing Value Interpretation
+*For any* segment table, the demuxer SHALL interpret a lacing value of 255 as packet continuation and a lacing value less than 255 as packet termination.
+**Validates: Requirements 2.4, 2.5, 13.6**
+
+### Property 5: Codec Signature Detection
+*For any* BOS packet, the demuxer SHALL correctly identify the codec type based on the magic bytes: "\x01vorbis" for Vorbis, "OpusHead" for Opus, "\x7fFLAC" for FLAC, "Speex   " for Speex, "\x80theora" for Theora.
+**Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6**
+
+### Property 6: FLAC-in-Ogg Header Structure
+*For any* valid FLAC-in-Ogg stream, the first page SHALL be exactly 79 bytes and the identification header SHALL contain the 5-byte signature, 2-byte version, 2-byte header count, 4-byte fLaC signature, 4-byte metadata header, and 34-byte STREAMINFO.
+**Validates: Requirements 4.9, 5.2**
+
+### Property 7: Page Sequence Tracking
+*For any* logical bitstream, the demuxer SHALL detect and report when page sequence numbers are non-consecutive (indicating page loss).
+**Validates: Requirements 1.6, 6.8**
+
+### Property 8: Grouped Stream Ordering
+*For any* grouped Ogg bitstream, all BOS pages SHALL appear before any data pages.
+**Validates: Requirements 3.7**
+
+### Property 9: Chained Stream Detection
+*For any* chained Ogg bitstream, the demuxer SHALL detect stream boundaries where an EOS page is immediately followed by a BOS page.
+**Validates: Requirements 3.8**
+
+### Property 10: Granule Position Arithmetic Safety
+*For any* granule position operations, the demuxer SHALL:
+- Detect overflow when adding to granule positions
+- Handle wraparound correctly when subtracting granule positions
+- Maintain proper ordering when comparing granule positions
+- Treat -1 as invalid/unset
+**Validates: Requirements 12.1, 12.2, 12.3, 12.4**
+
+### Property 11: Invalid Granule Handling
+*For any* page with granule position -1, the demuxer SHALL continue searching for valid granule positions rather than treating -1 as a valid position.
+**Validates: Requirements 7.10, 9.9**
+
+### Property 12: Multi-Page Packet Reconstruction
+*For any* packet spanning multiple pages, the demuxer SHALL correctly reconstruct the complete packet by accumulating segments across pages using continuation flags.
+**Validates: Requirements 13.1, 2.7**
+
+### Property 13: Seeking Accuracy
+*For any* seek operation to a target timestamp, the demuxer SHALL land on a page whose granule position is at or before the target, and the next page's granule position is after the target.
+**Validates: Requirements 7.1**
+
+### Property 14: Duration Calculation Consistency
+*For any* Ogg stream, the calculated duration SHALL equal (last_granule_position - pre_skip) / sample_rate for Opus, or last_granule_position / sample_rate for Vorbis and FLAC-in-Ogg.
+**Validates: Requirements 8.6, 8.7, 8.8**
+
+### Property 15: Bounded Queue Memory
+*For any* packet buffering operation, the demuxer SHALL enforce queue size limits to prevent unbounded memory growth.
+**Validates: Requirements 10.2**
+
+### Property 16: Thread Safety
+*For any* concurrent access to the demuxer from multiple threads, shared state modifications SHALL be protected by appropriate synchronization primitives.
+**Validates: Requirements 11.1**
+
+### Property 17: Position Reporting Consistency
+*For any* position query, the demuxer SHALL return timestamps in milliseconds, calculated consistently from granule positions using codec-specific sample rates.
+**Validates: Requirements 14.4**
+
 ## **Error Handling (Following Reference Implementation Patterns)**
 
 ### **Container Level Errors (libvorbisfile/libopusfile Patterns)**
@@ -321,12 +475,34 @@ Timestamp → Target Granule → Bisection Search → Page Position → Stream R
 
 ## **Testing Strategy**
 
+### **Dual Testing Approach**
+This implementation uses both unit tests and property-based tests:
+- **Unit tests** verify specific examples, edge cases, and error conditions
+- **Property-based tests** verify universal properties that should hold across all inputs
+- Together they provide comprehensive coverage: unit tests catch concrete bugs, property tests verify general correctness
+
+### **Property-Based Testing Framework**
+- **Library**: RapidCheck (C++ property-based testing library)
+- **Minimum iterations**: 100 per property test
+- **Test annotation format**: `// **Feature: ogg-demuxer-fix, Property N: <property_text>**`
+
 ### **Unit Tests**
-- **Codec detection**: Test signature recognition for all supported codecs
+- **Codec detection**: Test signature recognition for all supported codecs (Vorbis, Opus, FLAC, Speex, Theora)
 - **Header parsing**: Verify correct extraction of audio parameters and metadata
 - **Granule conversion**: Test time conversion accuracy for all codec types
 - **Packet reconstruction**: Test handling of packets spanning multiple pages
 - **Error conditions**: Test graceful handling of corrupted data
+- **FLAC-in-Ogg specifics**: Test 79-byte first page, STREAMINFO extraction, version validation
+
+### **Property-Based Tests**
+Each correctness property from the design document SHALL be implemented as a property-based test:
+- **Property 1-3**: Page structure validation properties
+- **Property 4**: Lacing value interpretation property
+- **Property 5-6**: Codec detection and FLAC-in-Ogg header properties
+- **Property 7-9**: Stream multiplexing properties
+- **Property 10-11**: Granule position arithmetic properties
+- **Property 12-13**: Packet reconstruction and seeking properties
+- **Property 14-17**: Duration, memory, threading, and position properties
 
 ### **Integration Tests**
 - **File format compatibility**: Test with various Ogg file types and encoders
@@ -334,6 +510,7 @@ Timestamp → Target Granule → Bisection Search → Page Position → Stream R
 - **Stream switching**: Test handling of multiplexed streams
 - **Memory management**: Verify no leaks during normal and error conditions
 - **Performance**: Test with large files and network streams
+- **FLAC-in-Ogg integration**: Test with real .oga files containing FLAC audio
 
 ### **Regression Tests**
 - **Known problematic files**: Maintain test suite of previously failing files
