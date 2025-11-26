@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Enhanced audio buffer pool for memory optimization
  * 
@@ -159,7 +162,10 @@ private:
     void performPeriodicCleanup();
 };
 
+} // namespace IO
+} // namespace PsyMP3
+
 // Alias for backward compatibility
-using AudioBufferPool = EnhancedAudioBufferPool;
+using AudioBufferPool = PsyMP3::IO::EnhancedAudioBufferPool;
 
 #endif // ENHANCEDAUDIOBUFFERPOOL_H

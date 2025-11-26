@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 void IOBufferPool::Buffer::release() {
     if (m_data && m_pool) {
         m_pool->release(m_data, m_size);
@@ -910,3 +913,6 @@ float IOBufferPool::getMemoryUsagePercent() const {
     
     return static_cast<float>(m_current_pool_size) / static_cast<float>(m_effective_max_pool_size) * 100.0f;
 }
+
+} // namespace IO
+} // namespace PsyMP3

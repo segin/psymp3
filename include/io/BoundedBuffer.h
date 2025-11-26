@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Bounded buffer for memory-safe I/O operations
  * 
@@ -271,5 +274,8 @@ private:
     // Component name for memory pool manager
     static constexpr const char* COMPONENT_NAME = "circular_buffer";
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // BOUNDEDBUFFER_H

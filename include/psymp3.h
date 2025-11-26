@@ -363,10 +363,10 @@ using PsyMP3::Widget::UI::ToastNotification;
 // I/O and utility components (needed by other components)
 #include "utility.h"
 #include "system.h"
-#include "BufferPool.h"
-#include "BoundedBuffer.h"
-#include "EnhancedBufferPool.h"
-#include "EnhancedAudioBufferPool.h"
+#include "io/BufferPool.h"
+#include "io/BoundedBuffer.h"
+#include "io/EnhancedBufferPool.h"
+#include "io/EnhancedAudioBufferPool.h"
 #include "io/MemoryTracker.h"
 #include "io/MemoryOptimizer.h"
 #include "io/MemoryPoolManager.h"
@@ -406,12 +406,17 @@ using PsyMP3::Demuxer::StreamInfo;
 using PsyMP3::Demuxer::MediaChunk;
 using PsyMP3::Demuxer::DemuxerError;
 using PsyMP3::Demuxer::DemuxerErrorRecovery;
-using PsyMP3::Demuxer::BufferPool;
 using PsyMP3::Demuxer::ChunkDemuxer;
 using PsyMP3::Demuxer::Chunk;
 using PsyMP3::Demuxer::FormatSignature;
 using PsyMP3::Demuxer::DemuxerFactory;
 using PsyMP3::Demuxer::DemuxerRegistry;
+
+// I/O buffer pool types (backward compatibility)
+using PsyMP3::IO::IOBufferPool;
+using PsyMP3::IO::BoundedBuffer;
+using PsyMP3::IO::EnhancedBufferPool;
+using PsyMP3::IO::EnhancedAudioBufferPool;
 
 // I/O Handler subsystem - Advanced (depends on Demuxer and BoundedQueue)
 #include "io/StreamingManager.h"

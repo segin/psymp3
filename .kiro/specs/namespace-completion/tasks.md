@@ -284,7 +284,7 @@
   - Verify no compilation errors
   - _Requirements: 7.1-7.5_
 
-- [ ] 11. Phase 4: Move buffer pool files to IO subsystem
+- [-] 11. Phase 4: Move buffer pool files to IO subsystem
   - Move buffer-related files from src/ root to src/io/
   - Add proper namespaces
   - Update build system

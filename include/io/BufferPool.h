@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Memory pool for efficient buffer allocation and reuse
  * 
@@ -293,5 +296,8 @@ private:
      */
     static std::string memoryPressureLevelToString(MemoryPressureLevel level);
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // BUFFERPOOL_H

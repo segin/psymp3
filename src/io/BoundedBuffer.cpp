@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 // BoundedBuffer implementation
 
 BoundedBuffer::BoundedBuffer(size_t max_size, size_t initial_size) 
@@ -352,3 +355,6 @@ std::map<std::string, size_t> BoundedCircularBuffer::getStats() const {
     
     return stats;
 }
+
+} // namespace IO
+} // namespace PsyMP3

@@ -22,4 +22,8 @@ libio_a_SOURCES = \
 	URI.cpp \
 	MemoryPoolManager.cpp \
 	MemoryOptimizer.cpp \
-	MemoryTracker.cpp
+	MemoryTracker.cpp \
+	BufferPool.cpp \
+	EnhancedBufferPool.cpp \
+	EnhancedAudioBufferPool.cpp \
+	BoundedBuffer.cpp

@@ -152,13 +152,13 @@ psymp3_SOURCES = psymp3.final.cpp
 else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
- about.cpp audio.cpp BufferPool.cpp \
+ about.cpp audio.cpp \
  debug.cpp display.cpp \
  exceptions.cpp fft.cpp fft_draw.cpp \
  font.cpp \
- RAIIFileHandle.cpp EnhancedAudioBufferPool.cpp EnhancedBufferPool.cpp \
+ RAIIFileHandle.cpp \
  Label.cpp lyrics.cpp \
- main.cpp mediafile.cpp BoundedBuffer.cpp \
+ main.cpp mediafile.cpp \
  persistentstorage.cpp player.cpp playlist.cpp \
  rect.cpp \
  song.cpp stream.cpp surface.cpp \
