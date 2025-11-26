@@ -353,7 +353,11 @@ using PsyMP3::Widget::UI::ApplicationWidget;
 using PsyMP3::Widget::UI::ToastWidget;
 using PsyMP3::Widget::UI::LyricsWidget;
 
-#include "Label.h"
+#include "widget/ui/Label.h"
+
+// Bring Label into global namespace for backward compatibility
+using PsyMP3::Widget::UI::Label;
+
 #include "ZOrder.h"
 #include "widget/ui/ToastNotification.h"
 
@@ -417,6 +421,9 @@ using PsyMP3::IO::IOBufferPool;
 using PsyMP3::IO::BoundedBuffer;
 using PsyMP3::IO::EnhancedBufferPool;
 using PsyMP3::IO::EnhancedAudioBufferPool;
+using PsyMP3::IO::MemoryTracker;
+using PsyMP3::IO::MemoryOptimizer;
+using PsyMP3::IO::MemoryPoolManager;
 
 // I/O Handler subsystem - Advanced (depends on Demuxer and BoundedQueue)
 #include "io/StreamingManager.h"
