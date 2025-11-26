@@ -30,6 +30,7 @@
 
 #include <cstdint>
 #include <ostream>
+#include <bitset>
 
 // defines
 #define PSYMP3_VERSION "2-CURRENT"
