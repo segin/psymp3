@@ -423,28 +423,28 @@
   - Verify no compilation errors or warnings
   - _Requirements: 12.6, 7.1-7.5_
 
-- [ ] 16. Final verification and cleanup
+- [x] 16. Final verification and cleanup
   - Perform full project build
   - Update backward compatibility declarations
   - Verify git history preservation
   - _Requirements: 4.1-4.4, 5.1-5.5, 7.4_
 
-- [ ] 16.1 Add backward compatibility using declarations
+- [x] 16.1 Add backward compatibility using declarations
   - Update `psymp3.h` with `using` declarations for commonly-used namespaced types
   - Add declarations for IO, Demuxer, Codec, Widget types
   - Document purpose of each using declaration
   - _Requirements: 4.1-4.3_
 
-- [ ] 16.2 Full project build verification
+- [x] 16.2 Full project build verification
   - Run `make clean`
   - Run `make -j$(nproc)`
   - Verify entire project builds without errors or warnings
   - _Requirements: 5.4, 7.4_
 
-- [ ] 16.3 Verify git history preservation
+- [x] 16.3 Verify git history preservation
   - For each moved file, run `git log --follow <file>` to verify history
   - Confirm commits before moves are visible
   - _Requirements: 9.4, 11.1-11.2_
 
-- [ ] 16.4 Final checkpoint
+- [x] 16.4 Final checkpoint
   - Ensure all tests pass, ask the user if questions arise.

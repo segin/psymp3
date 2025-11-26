@@ -571,6 +571,65 @@ using PsyMP3::LastFM::Scrobble;
 #include "mpris/SignalEmitter.h"
 #include "mpris/MPRISManager.h"
 
+// ============================================================================
+// Backward Compatibility Using Declarations
+// ============================================================================
+// The following using declarations bring commonly-used namespaced types into
+// the global namespace to maintain backward compatibility with existing code
+// that was written before the namespace migration. These declarations allow
+// code to use types like "IOHandler" instead of "PsyMP3::IO::IOHandler".
+
+// IO Subsystem - Memory Management (already declared above)
+// using PsyMP3::IO::MemoryPoolManager;
+// using PsyMP3::IO::MemoryOptimizer;
+// using PsyMP3::IO::MemoryTracker;
+
+// IO Subsystem - Buffer Management (already declared above)
+// using PsyMP3::IO::BoundedBuffer;
+// using PsyMP3::IO::EnhancedBufferPool;
+// using PsyMP3::IO::EnhancedAudioBufferPool;
+
+// Demuxer Subsystem - ISO/MP4 Helper Classes
+using PsyMP3::Demuxer::ISO::BoxParser;
+using PsyMP3::Demuxer::ISO::ComplianceValidator;
+using PsyMP3::Demuxer::ISO::ErrorRecovery;
+using PsyMP3::Demuxer::ISO::FragmentHandler;
+using PsyMP3::Demuxer::ISO::MetadataExtractor;
+using PsyMP3::Demuxer::ISO::SampleTableManager;
+using PsyMP3::Demuxer::ISO::SeekingEngine;
+using PsyMP3::Demuxer::ISO::StreamManager;
+using PsyMP3::Demuxer::ISO::ISODemuxer;
+
+// Demuxer Subsystem - Raw Audio
+using PsyMP3::Demuxer::Raw::RawAudioDemuxer;
+
+// Widget Subsystem - Foundation Layer (already declared above)
+// using PsyMP3::Widget::Foundation::Widget;
+// using PsyMP3::Widget::Foundation::DrawableWidget;
+// using PsyMP3::Widget::Foundation::LayoutWidget;
+// using PsyMP3::Widget::Foundation::FadingWidget;
+
+// Widget Subsystem - Windowing Layer (already declared above)
+// using PsyMP3::Widget::Windowing::TitlebarWidget;
+// using PsyMP3::Widget::Windowing::WindowFrameWidget;
+// using PsyMP3::Widget::Windowing::WindowWidget;
+// using PsyMP3::Widget::Windowing::TransparentWindowWidget;
+
+// Widget Subsystem - UI Layer (already declared above)
+// using PsyMP3::Widget::UI::ButtonWidget;
+// using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;
+// using PsyMP3::Widget::UI::PlayerProgressBarWidget;
+// using PsyMP3::Widget::UI::ToastWidget;
+// using PsyMP3::Widget::UI::ToastNotification;
+// using PsyMP3::Widget::UI::Label;
+
+// MPRIS Subsystem
+using PsyMP3::MPRIS::MPRISManager;
+using PsyMP3::MPRIS::DBusConnectionManager;
+using PsyMP3::MPRIS::MethodHandler;
+using PsyMP3::MPRIS::PropertyManager;
+using PsyMP3::MPRIS::SignalEmitter;
+
 // Portable branch prediction macros
 
 #ifdef DEBUG
