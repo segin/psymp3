@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 MemoryPoolManager& MemoryPoolManager::getInstance() {
     static MemoryPoolManager instance;
     static std::mutex init_mutex;
@@ -740,3 +743,6 @@ void MemoryPoolManager::updateMemoryPressureLevelFromCallback(int new_pressure_l
     
     Debug::log("memory", "MemoryPoolManager::updateMemoryPressureLevelFromCallback() - Updated pressure level to ", new_pressure_level);
 }
+
+} // namespace IO
+} // namespace PsyMP3

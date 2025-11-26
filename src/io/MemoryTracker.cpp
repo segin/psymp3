@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 MemoryTracker& MemoryTracker::getInstance() {
     static MemoryTracker instance;
     return instance;
@@ -306,3 +309,6 @@ void MemoryTracker::calculateMemoryTrend() {
     float memory_diff_mb = static_cast<float>(newest.second - oldest.second) / (1024 * 1024);
     m_stats.memory_usage_trend = memory_diff_mb / time_diff;
 }
+
+} // namespace IO
+} // namespace PsyMP3

@@ -158,7 +158,7 @@ psymp3_SOURCES = \
  font.cpp \
  RAIIFileHandle.cpp EnhancedAudioBufferPool.cpp EnhancedBufferPool.cpp \
  Label.cpp lyrics.cpp \
- main.cpp mediafile.cpp MemoryOptimizer.cpp MemoryPoolManager.cpp MemoryTracker.cpp BoundedBuffer.cpp \
+ main.cpp mediafile.cpp BoundedBuffer.cpp \
  persistentstorage.cpp player.cpp playlist.cpp \
  rect.cpp \
  song.cpp stream.cpp surface.cpp \

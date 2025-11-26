@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Memory pool management for I/O operations
  * 
@@ -332,5 +335,8 @@ private:
      */
     size_t getMaxBuffersPerPool() const;
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // MEMORYPOOLMANAGER_H

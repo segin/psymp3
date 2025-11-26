@@ -19,4 +19,7 @@ libio_a_SOURCES = \
 	IOHandler.cpp \
 	StreamingManager.cpp \
 	TagLibIOHandlerAdapter.cpp \
-	URI.cpp
+	URI.cpp \
+	MemoryPoolManager.cpp \
+	MemoryOptimizer.cpp \
+	MemoryTracker.cpp

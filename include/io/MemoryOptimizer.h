@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Memory optimization for I/O operations
  * 
@@ -215,5 +218,8 @@ private:
                                      MemoryPressureLevel pressure_level,
                                      bool sequential) const;
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // MEMORYOPTIMIZER_H

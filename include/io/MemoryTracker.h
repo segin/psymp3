@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief Memory usage tracking and pressure monitoring
  * 
@@ -155,5 +158,8 @@ private:
      */
     void calculateMemoryTrend();
 };
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // MEMORYTRACKER_H

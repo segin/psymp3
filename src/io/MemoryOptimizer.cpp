@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 MemoryOptimizer& MemoryOptimizer::getInstance() {
     static MemoryOptimizer instance;
     return instance;
@@ -383,3 +386,6 @@ size_t MemoryOptimizer::calculateOptimalBufferSize(size_t base_size,
     
     return optimal_size;
 }
+
+} // namespace IO
+} // namespace PsyMP3

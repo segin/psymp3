@@ -367,9 +367,9 @@ using PsyMP3::Widget::UI::ToastNotification;
 #include "BoundedBuffer.h"
 #include "EnhancedBufferPool.h"
 #include "EnhancedAudioBufferPool.h"
-#include "MemoryTracker.h"
-#include "MemoryOptimizer.h"
-#include "MemoryPoolManager.h"
+#include "io/MemoryTracker.h"
+#include "io/MemoryOptimizer.h"
+#include "io/MemoryPoolManager.h"
 #include "RAIIFileHandle.h"
 
 // I/O Handler subsystem - Base
