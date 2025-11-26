@@ -12,7 +12,7 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
 
-ISODemuxerComplianceValidator::ISODemuxerComplianceValidator(std::shared_ptr<IOHandler> io) 
+ComplianceValidator::ComplianceValidator(std::shared_ptr<IOHandler> io) 
     : io(io), fileSize(0) {
     if (io) {
         io->seek(0, SEEK_END);
@@ -21,11 +21,11 @@ ISODemuxerComplianceValidator::ISODemuxerComplianceValidator(std::shared_ptr<IOH
     }
 }
 
-ISODemuxerComplianceValidator::~ISODemuxerComplianceValidator() {
+ComplianceValidator::~ComplianceValidator() {
     // Cleanup if needed
 }
 
-BoxSizeValidationResult ISODemuxerComplianceValidator::ValidateBoxStructure(uint32_t boxType, 
+BoxSizeValidationResult ComplianceValidator::ValidateBoxStructure(uint32_t boxType, 
                                                                            uint64_t size, 
                                                                            uint64_t offset, 
                                                                            uint64_t containerSize) {
@@ -90,7 +90,7 @@ BoxSizeValidationResult ISODemuxerComplianceValidator::ValidateBoxStructure(uint
     return result;
 }
 
-bool ISODemuxerComplianceValidator::Validate32BitBoxSize(uint32_t size, uint64_t offset, uint64_t containerSize) {
+bool ComplianceValidator::Validate32BitBoxSize(uint32_t size, uint64_t offset, uint64_t containerSize) {
     // Size = 1 is reserved for extended size indication, invalid for 32-bit validation
     if (size == 1) {
         return false;
@@ -114,7 +114,7 @@ bool ISODemuxerComplianceValidator::Validate32BitBoxSize(uint32_t size, uint64_t
     return true;
 }
 
-bool ISODemuxerComplianceValidator::Validate64BitBoxSize(uint64_t size, uint64_t offset, uint64_t containerSize) {
+bool ComplianceValidator::Validate64BitBoxSize(uint64_t size, uint64_t offset, uint64_t containerSize) {
     // Zero size is valid (extends to end)
     if (size == 0) {
         return true;
@@ -133,7 +133,7 @@ bool ISODemuxerComplianceValidator::Validate64BitBoxSize(uint64_t size, uint64_t
     return true;
 }
 
-TimestampValidationResult ISODemuxerComplianceValidator::ValidateTimestamp(uint64_t timestamp, uint32_t timescale) {
+TimestampValidationResult ComplianceValidator::ValidateTimestamp(uint64_t timestamp, uint32_t timescale) {
     TimestampValidationResult result;
     
     result.hasValidTimescale = ValidateTimescale(timescale);
@@ -156,7 +156,7 @@ TimestampValidationResult ISODemuxerComplianceValidator::ValidateTimestamp(uint6
     return result;
 }
 
-TimestampValidationResult ISODemuxerComplianceValidator::ValidateTimestampConfiguration(uint64_t timestamp, uint32_t timescale, uint64_t duration) {
+TimestampValidationResult ComplianceValidator::ValidateTimestampConfiguration(uint64_t timestamp, uint32_t timescale, uint64_t duration) {
     TimestampValidationResult result;
     
     result.hasValidTimescale = ValidateTimescale(timescale);
@@ -186,7 +186,7 @@ TimestampValidationResult ISODemuxerComplianceValidator::ValidateTimestampConfig
     return result;
 }
 
-bool ISODemuxerComplianceValidator::ValidateTimescale(uint32_t timescale) {
+bool ComplianceValidator::ValidateTimescale(uint32_t timescale) {
     // Timescale must be non-zero
     if (timescale == 0) {
         return false;
@@ -203,7 +203,7 @@ bool ISODemuxerComplianceValidator::ValidateTimescale(uint32_t timescale) {
     return true;
 }
 
-CodecValidationResult ISODemuxerComplianceValidator::ValidateCodecConfiguration(const AudioTrackInfo& track) {
+CodecValidationResult ComplianceValidator::ValidateCodecConfiguration(const AudioTrackInfo& track) {
     CodecValidationResult result;
     result.codecType = track.codecType;
     
@@ -227,7 +227,7 @@ CodecValidationResult ISODemuxerComplianceValidator::ValidateCodecConfiguration(
     return result;
 }
 
-bool ISODemuxerComplianceValidator::ValidateAACConfiguration(const AudioTrackInfo& track) {
+bool ComplianceValidator::ValidateAACConfiguration(const AudioTrackInfo& track) {
     // Validate sample rate
     if (!ValidateSampleRate(track.sampleRate, "aac")) {
         return false;
@@ -246,7 +246,7 @@ bool ISODemuxerComplianceValidator::ValidateAACConfiguration(const AudioTrackInf
     return true;
 }
 
-bool ISODemuxerComplianceValidator::ValidateALACConfiguration(const AudioTrackInfo& track) {
+bool ComplianceValidator::ValidateALACConfiguration(const AudioTrackInfo& track) {
     // Validate sample rate
     if (!ValidateSampleRate(track.sampleRate, "alac")) {
         return false;
@@ -265,7 +265,7 @@ bool ISODemuxerComplianceValidator::ValidateALACConfiguration(const AudioTrackIn
     return true;
 }
 
-bool ISODemuxerComplianceValidator::ValidateTelephonyCodecConfiguration(const AudioTrackInfo& track) {
+bool ComplianceValidator::ValidateTelephonyCodecConfiguration(const AudioTrackInfo& track) {
     // Telephony codecs have strict requirements
     
     // Sample rate must be 8kHz for telephony
@@ -286,7 +286,7 @@ bool ISODemuxerComplianceValidator::ValidateTelephonyCodecConfiguration(const Au
     return true;
 }
 
-bool ISODemuxerComplianceValidator::ValidatePCMConfiguration(const AudioTrackInfo& track) {
+bool ComplianceValidator::ValidatePCMConfiguration(const AudioTrackInfo& track) {
     // Validate sample rate
     if (!ValidateSampleRate(track.sampleRate, "pcm")) {
         return false;
@@ -305,7 +305,7 @@ bool ISODemuxerComplianceValidator::ValidatePCMConfiguration(const AudioTrackInf
     return true;
 }
 
-bool ISODemuxerComplianceValidator::ValidateSampleTableConsistency(const SampleTableInfo& sampleTable) {
+bool ComplianceValidator::ValidateSampleTableConsistency(const SampleTableInfo& sampleTable) {
     // Check that all required tables are present and consistent
     
     if (sampleTable.chunkOffsets.empty()) {
@@ -346,13 +346,13 @@ bool ISODemuxerComplianceValidator::ValidateSampleTableConsistency(const SampleT
     return true;
 }
 
-bool ISODemuxerComplianceValidator::ValidateSampleDistribution(const SampleTableInfo& sampleTable) {
+bool ComplianceValidator::ValidateSampleDistribution(const SampleTableInfo& sampleTable) {
     // This test expects irregular sample distribution to be valid after fixing
     // The original implementation was too strict
     return true; // Allow irregular distributions
 }
 
-bool ISODemuxerComplianceValidator::ValidateContainerFormat(const std::string& brand) {
+bool ComplianceValidator::ValidateContainerFormat(const std::string& brand) {
     // Validate known container brands
     const std::vector<std::string> validBrands = {
         "isom", "mp41", "mp42", "M4A ", "M4V ", "qt  ", 
@@ -362,7 +362,7 @@ bool ISODemuxerComplianceValidator::ValidateContainerFormat(const std::string& b
     return std::find(validBrands.begin(), validBrands.end(), brand) != validBrands.end();
 }
 
-ComplianceValidationResult ISODemuxerComplianceValidator::ValidateFile() {
+ComplianceValidationResult ComplianceValidator::ValidateFile() {
     ComplianceValidationResult result;
     
     // This is a placeholder implementation
@@ -375,12 +375,12 @@ ComplianceValidationResult ISODemuxerComplianceValidator::ValidateFile() {
 
 // Helper methods
 
-bool ISODemuxerComplianceValidator::IsValidBoxType(uint32_t boxType) {
+bool ComplianceValidator::IsValidBoxType(uint32_t boxType) {
     // All non-zero box types are considered valid for basic validation
     return boxType != 0;
 }
 
-bool ISODemuxerComplianceValidator::IsContainerBox(uint32_t boxType) {
+bool ComplianceValidator::IsContainerBox(uint32_t boxType) {
     const std::vector<uint32_t> containerBoxes = {
         BOX_MOOV, BOX_TRAK, BOX_MDIA, BOX_MINF, BOX_STBL, BOX_UDTA, BOX_META
     };
@@ -388,7 +388,7 @@ bool ISODemuxerComplianceValidator::IsContainerBox(uint32_t boxType) {
     return std::find(containerBoxes.begin(), containerBoxes.end(), boxType) != containerBoxes.end();
 }
 
-uint64_t ISODemuxerComplianceValidator::GetMinimumBoxSize(uint32_t boxType, bool is64Bit) {
+uint64_t ComplianceValidator::GetMinimumBoxSize(uint32_t boxType, bool is64Bit) {
     // Basic header size
     uint64_t headerSize = is64Bit ? 16 : 8;
     
@@ -405,12 +405,12 @@ uint64_t ISODemuxerComplianceValidator::GetMinimumBoxSize(uint32_t boxType, bool
     }
 }
 
-bool ISODemuxerComplianceValidator::ValidateBoxAlignment(uint64_t offset) {
+bool ComplianceValidator::ValidateBoxAlignment(uint64_t offset) {
     // Most boxes should be aligned to 4-byte boundaries
     return (offset % 4) == 0;
 }
 
-bool ISODemuxerComplianceValidator::ValidateAACProfile(const std::vector<uint8_t>& config) {
+bool ComplianceValidator::ValidateAACProfile(const std::vector<uint8_t>& config) {
     // Basic AAC configuration validation
     if (config.size() < 2) {
         return false;
@@ -423,7 +423,7 @@ bool ISODemuxerComplianceValidator::ValidateAACProfile(const std::vector<uint8_t
     return profile >= 1 && profile <= 4; // AAC Main, LC, SSR, LTP
 }
 
-bool ISODemuxerComplianceValidator::ValidateALACMagicCookie(const std::vector<uint8_t>& config) {
+bool ComplianceValidator::ValidateALACMagicCookie(const std::vector<uint8_t>& config) {
     // ALAC magic cookie should start with specific bytes
     if (config.size() < 4) {
         return false; // This is what the test expects to fail
@@ -436,7 +436,7 @@ bool ISODemuxerComplianceValidator::ValidateALACMagicCookie(const std::vector<ui
     return std::memcmp(config.data(), alacMagic, 4) == 0;
 }
 
-bool ISODemuxerComplianceValidator::ValidateSampleRate(uint32_t sampleRate, const std::string& codecType) {
+bool ComplianceValidator::ValidateSampleRate(uint32_t sampleRate, const std::string& codecType) {
     if (sampleRate == 0) {
         return false;
     }
@@ -455,7 +455,7 @@ bool ISODemuxerComplianceValidator::ValidateSampleRate(uint32_t sampleRate, cons
     return sampleRate >= 8000 && sampleRate <= 192000;
 }
 
-bool ISODemuxerComplianceValidator::ValidateChannelCount(uint16_t channels, const std::string& codecType) {
+bool ComplianceValidator::ValidateChannelCount(uint16_t channels, const std::string& codecType) {
     if (channels == 0) {
         return false;
     }
@@ -464,7 +464,7 @@ bool ISODemuxerComplianceValidator::ValidateChannelCount(uint16_t channels, cons
     return channels <= 8;
 }
 
-bool ISODemuxerComplianceValidator::ValidateBitsPerSample(uint16_t bits, const std::string& codecType) {
+bool ComplianceValidator::ValidateBitsPerSample(uint16_t bits, const std::string& codecType) {
     if (bits == 0) {
         return false;
     }
@@ -479,13 +479,13 @@ bool ISODemuxerComplianceValidator::ValidateBitsPerSample(uint16_t bits, const s
     return std::find(validBits.begin(), validBits.end(), bits) != validBits.end();
 }
 
-ComplianceValidationResult ISODemuxerComplianceValidator::GetComplianceReport() const {
+ComplianceValidationResult ComplianceValidator::GetComplianceReport() const {
     ComplianceValidationResult result;
     result.isCompliant = true;
     return result;
 }
 
-bool ISODemuxerComplianceValidator::ValidateBoxNesting(uint32_t parentType, uint32_t childType) {
+bool ComplianceValidator::ValidateBoxNesting(uint32_t parentType, uint32_t childType) {
     // Define valid parent-child relationships
     const std::map<uint32_t, std::vector<uint32_t>> validNesting = {
         {BOX_MOOV, {BOX_MVHD, BOX_TRAK, BOX_UDTA, BOX_META, BOX_IODS}},
@@ -504,7 +504,7 @@ bool ISODemuxerComplianceValidator::ValidateBoxNesting(uint32_t parentType, uint
     return std::find(validChildren.begin(), validChildren.end(), childType) != validChildren.end();
 }
 
-std::string ISODemuxerComplianceValidator::BoxTypeToString(uint32_t boxType) {
+std::string ComplianceValidator::BoxTypeToString(uint32_t boxType) {
     char fourcc[5] = {0};
     fourcc[0] = (boxType >> 24) & 0xFF;
     fourcc[1] = (boxType >> 16) & 0xFF;
@@ -513,11 +513,11 @@ std::string ISODemuxerComplianceValidator::BoxTypeToString(uint32_t boxType) {
     return std::string(fourcc);
 }
 
-bool ISODemuxerComplianceValidator::ValidateContainerCompliance(const std::vector<uint8_t>& data, const std::string& brand) {
+bool ComplianceValidator::ValidateContainerCompliance(const std::vector<uint8_t>& data, const std::string& brand) {
     return ValidateContainerFormat(brand);
 }
 
-bool ISODemuxerComplianceValidator::ValidateCodecDataIntegrity(const std::string& codecType, const std::vector<uint8_t>& codecData, const AudioTrackInfo& track) {
+bool ComplianceValidator::ValidateCodecDataIntegrity(const std::string& codecType, const std::vector<uint8_t>& codecData, const AudioTrackInfo& track) {
     if (codecType == "aac") {
         return ValidateAACProfile(codecData);
     } else if (codecType == "alac") {
@@ -531,7 +531,7 @@ bool ISODemuxerComplianceValidator::ValidateCodecDataIntegrity(const std::string
     return true; // Allow unknown codecs
 }
 
-bool ISODemuxerComplianceValidator::ValidateTrackCompliance(const AudioTrackInfo& track) {
+bool ComplianceValidator::ValidateTrackCompliance(const AudioTrackInfo& track) {
     CodecValidationResult result = ValidateCodecConfiguration(track);
     return result.isValid;
 }

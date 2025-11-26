@@ -483,14 +483,14 @@ using PsyMP3::Demuxer::Ogg::OggPacket;
 #endif
 
 // Demuxer subsystem - ISO/MP4
-#include "demuxer/iso/ISODemuxerErrorRecovery.h"
-#include "demuxer/iso/ISODemuxerBoxParser.h"
-#include "demuxer/iso/ISODemuxerSampleTableManager.h"
-#include "demuxer/iso/ISODemuxerFragmentHandler.h"
-#include "demuxer/iso/ISODemuxerMetadataExtractor.h"
-#include "demuxer/iso/ISODemuxerStreamManager.h"
-#include "demuxer/iso/ISODemuxerSeekingEngine.h"
-#include "demuxer/iso/ISODemuxerComplianceValidator.h"
+#include "demuxer/iso/ErrorRecovery.h"
+#include "demuxer/iso/BoxParser.h"
+#include "demuxer/iso/SampleTableManager.h"
+#include "demuxer/iso/FragmentHandler.h"
+#include "demuxer/iso/MetadataExtractor.h"
+#include "demuxer/iso/StreamManager.h"
+#include "demuxer/iso/SeekingEngine.h"
+#include "demuxer/iso/ComplianceValidator.h"
 #include "demuxer/iso/ISODemuxer.h"
 #include "demuxer/ModernStream.h"
 #ifdef HAVE_MP3

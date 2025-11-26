@@ -12,7 +12,7 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
 
-bool ISODemuxerSeekingEngine::SeekToTimestamp(double timestamp, AudioTrackInfo& track, ISODemuxerSampleTableManager& sampleTables) {
+bool SeekingEngine::SeekToTimestamp(double timestamp, AudioTrackInfo& track, SampleTableManager& sampleTables) {
     if (timestamp < 0.0) {
         return false;
     }
@@ -34,7 +34,7 @@ bool ISODemuxerSeekingEngine::SeekToTimestamp(double timestamp, AudioTrackInfo& 
     return true;
 }
 
-uint64_t ISODemuxerSeekingEngine::BinarySearchTimeToSample(double timestamp, const std::vector<ISODemuxerSampleTableManager::SampleInfo>& samples) {
+uint64_t SeekingEngine::BinarySearchTimeToSample(double timestamp, const std::vector<SampleTableManager::SampleInfo>& samples) {
     if (samples.empty()) {
         return 0;
     }
@@ -65,7 +65,7 @@ uint64_t ISODemuxerSeekingEngine::BinarySearchTimeToSample(double timestamp, con
     return left;
 }
 
-uint64_t ISODemuxerSeekingEngine::FindNearestSyncSample(uint64_t targetSampleIndex, ISODemuxerSampleTableManager& sampleTables) {
+uint64_t SeekingEngine::FindNearestSyncSample(uint64_t targetSampleIndex, SampleTableManager& sampleTables) {
     // Get sample info to check if target is already a sync sample
     auto sampleInfo = sampleTables.GetSampleInfo(targetSampleIndex);
     
@@ -85,7 +85,7 @@ uint64_t ISODemuxerSeekingEngine::FindNearestSyncSample(uint64_t targetSampleInd
     return 0;
 }
 
-bool ISODemuxerSeekingEngine::ValidateSeekPosition(uint64_t sampleIndex, const AudioTrackInfo& track, ISODemuxerSampleTableManager& sampleTables) {
+bool SeekingEngine::ValidateSeekPosition(uint64_t sampleIndex, const AudioTrackInfo& track, SampleTableManager& sampleTables) {
     // Get sample info to validate the position
     auto sampleInfo = sampleTables.GetSampleInfo(sampleIndex);
     

@@ -1,5 +1,5 @@
 /*
- * ISODemuxerSampleTableManager.h - Sample table manager for efficient sample lookups
+ * SampleTableManager.h - Sample table manager for efficient sample lookups
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -7,8 +7,8 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#ifndef ISODEMUXERSAMPLETABLEMANAGER_H
-#define ISODEMUXERSAMPLETABLEMANAGER_H
+#ifndef SAMPLETABLEMANAGER_H
+#define SAMPLETABLEMANAGER_H
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -19,7 +19,7 @@ namespace ISO {
 /**
  * @brief Sample table manager for efficient sample lookups with performance optimizations
  */
-class ISODemuxerSampleTableManager {
+class SampleTableManager {
 public:
     struct SampleInfo {
         uint64_t offset;
@@ -28,8 +28,8 @@ public:
         bool isKeyframe;
     };
     
-    ISODemuxerSampleTableManager() = default;
-    ~ISODemuxerSampleTableManager() = default;
+    SampleTableManager() = default;
+    ~SampleTableManager() = default;
     
     bool BuildSampleTables(const SampleTableInfo& rawTables);
     SampleInfo GetSampleInfo(uint64_t sampleIndex);
@@ -171,4 +171,4 @@ private:
 } // namespace ISO
 } // namespace Demuxer
 } // namespace PsyMP3
-#endif // ISODEMUXERSAMPLETABLEMANAGER_H
+#endif // SAMPLETABLEMANAGER_H

@@ -1,5 +1,5 @@
 /*
- * ISODemuxerFragmentHandler.h - Fragment handler for fragmented MP4 support
+ * FragmentHandler.h - Fragment handler for fragmented MP4 support
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -7,8 +7,8 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#ifndef ISODEMUXERFRAGMENTHANDLER_H
-#define ISODEMUXERFRAGMENTHANDLER_H
+#ifndef FRAGMENTHANDLER_H
+#define FRAGMENTHANDLER_H
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -57,10 +57,10 @@ struct MovieFragmentInfo {
 /**
  * @brief Fragment handler for fragmented MP4 support
  */
-class ISODemuxerFragmentHandler {
+class FragmentHandler {
 public:
-    ISODemuxerFragmentHandler() = default;
-    ~ISODemuxerFragmentHandler() = default;
+    FragmentHandler() = default;
+    ~FragmentHandler() = default;
     
     // Core fragment processing
     bool ProcessMovieFragment(uint64_t moofOffset, std::shared_ptr<IOHandler> io);
@@ -130,4 +130,4 @@ private:
 } // namespace ISO
 } // namespace Demuxer
 } // namespace PsyMP3
-#endif // ISODEMUXERFRAGMENTHANDLER_H
+#endif // FRAGMENTHANDLER_H

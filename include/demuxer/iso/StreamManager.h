@@ -1,5 +1,5 @@
 /*
- * ISODemuxerStreamManager.h - Stream manager for audio track management
+ * StreamManager.h - Stream manager for audio track management
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -7,8 +7,8 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#ifndef ISODEMUXERSTREAMMANAGER_H
-#define ISODEMUXERSTREAMMANAGER_H
+#ifndef STREAMMANAGER_H
+#define STREAMMANAGER_H
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -19,10 +19,10 @@ namespace ISO {
 /**
  * @brief Stream manager for audio track management
  */
-class ISODemuxerStreamManager {
+class StreamManager {
 public:
-    ISODemuxerStreamManager() = default;
-    ~ISODemuxerStreamManager() = default;
+    StreamManager() = default;
+    ~StreamManager() = default;
     
     // Audio track management
     void AddAudioTrack(const AudioTrackInfo& track);
@@ -52,4 +52,4 @@ private:
 } // namespace ISO
 } // namespace Demuxer
 } // namespace PsyMP3
-#endif // ISODEMUXERSTREAMMANAGER_H
+#endif // STREAMMANAGER_H

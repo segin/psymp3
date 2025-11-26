@@ -95,21 +95,15 @@ MINIMAL_TEST_LIBS = \
 
 # Common object files needed by tests (not in libraries)
 # These are standalone .o files from src/ that tests commonly need
+# Note: Memory management files (MemoryPoolManager, MemoryTracker, BufferPool, etc.)
+# are now part of libio.a and should be linked via $(top_builddir)/src/io/libio.a
 COMMON_TEST_OBJS = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(top_builddir)/src/RAIIFileHandle.o
+	$(top_builddir)/src/exceptions.o
 
 # Legacy variable for backward compatibility (deprecated - use COMMON_TEST_LIBS)
 COMMON_CODEC_DEPS = \
@@ -148,13 +142,6 @@ debug_dual_flac_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 debug_bit_extraction_SOURCES = debug_bit_extraction.cpp
@@ -171,13 +158,6 @@ debug_flac_seeking_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iohandler_seek_comprehensive_SOURCES = test_iohandler_seek_comprehensive.cpp
@@ -188,13 +168,6 @@ test_iohandler_seek_comprehensive_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iohandler_buffer_analysis_SOURCES = test_iohandler_buffer_analysis.cpp
@@ -205,13 +178,6 @@ test_iohandler_buffer_analysis_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_debug_iohandler_position_SOURCES = test_debug_iohandler_position.cpp
@@ -222,13 +188,6 @@ test_debug_iohandler_position_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_seek_deadlock_SOURCES = test_seek_deadlock.cpp
@@ -239,13 +198,6 @@ test_seek_deadlock_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_flac_frame_indexing_SOURCES = test_flac_frame_indexing.cpp
@@ -258,13 +210,6 @@ test_flac_frame_indexing_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # Individual test executables
@@ -388,13 +333,6 @@ test_iso_fragment_handler_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_fragmented_mp4_SOURCES = test_iso_fragmented_mp4.cpp
@@ -405,13 +343,6 @@ test_iso_fragmented_mp4_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iohandler_integration_simple_SOURCES = test_iohandler_integration_simple.cpp
@@ -420,13 +351,6 @@ test_iohandler_integration_simple_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iohandler_minimal_SOURCES = test_iohandler_minimal.cpp
@@ -435,13 +359,6 @@ test_iohandler_minimal_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iohandler_basic_SOURCES = test_iohandler_basic.cpp
@@ -450,13 +367,6 @@ test_iohandler_basic_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_integration_verification_SOURCES = test_integration_verification.cpp
@@ -465,13 +375,6 @@ test_integration_verification_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iohandler_demuxer_integration_SOURCES = test_iohandler_demuxer_integration.cpp
@@ -481,13 +384,6 @@ test_iohandler_demuxer_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iohandler_demuxer_integration_simple_SOURCES = test_iohandler_demuxer_integration_simple.cpp
@@ -508,12 +404,6 @@ test_demuxer_unit_SOURCES = test_demuxer_unit.cpp
 test_demuxer_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -524,12 +414,6 @@ test_demuxer_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -543,11 +427,6 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/CodecRegistration.o \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/DemuxerRegistry.o \
@@ -555,8 +434,6 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/ModernStream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/AudioCodec.o \
@@ -565,7 +442,6 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
@@ -601,16 +477,9 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/rect.o \
@@ -619,7 +488,6 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/PCMCodecs.o \
 	$(top_builddir)/src/OggCodecs.o \
 	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/vorbis.o \
 	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/debug.o \
@@ -633,11 +501,6 @@ test_demuxer_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -651,11 +514,6 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/CodecRegistration.o \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/DemuxerRegistry.o \
@@ -663,8 +521,6 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/ModernStream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/AudioCodec.o \
@@ -673,7 +529,6 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
@@ -708,11 +563,6 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -725,16 +575,8 @@ test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	-lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
@@ -747,13 +589,6 @@ test_iohandler_performance_validation_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	-lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
@@ -769,13 +604,6 @@ test_page_extraction_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
@@ -792,13 +620,6 @@ test_bisection_search_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
@@ -815,13 +636,6 @@ test_granule_arithmetic_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
@@ -838,13 +652,6 @@ test_codec_detection_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) $(VORBIS_LIBS) $(OPUS_LIBS) $(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -861,13 +668,6 @@ test_duration_calculation_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
@@ -884,13 +684,6 @@ test_time_conversion_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
@@ -907,13 +700,6 @@ test_data_streaming_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
@@ -930,13 +716,6 @@ test_memory_safety_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
@@ -953,13 +732,6 @@ test_error_handling_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
@@ -979,13 +751,6 @@ test_seeking_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
@@ -1007,13 +772,6 @@ test_ogg_demuxer_integration_LDADD = \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
@@ -1039,14 +797,6 @@ test_alaw_table_verification_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	-lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg \
 	$(AM_LDFLAGS)
 
@@ -1088,9 +838,6 @@ test_mulaw_alaw_performance_LDADD = \
 	$(top_builddir)/src/codecs/opus/libopuscodec.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	-lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg \
@@ -1274,26 +1021,12 @@ $(top_builddir)/src/debug.o:
 $(top_builddir)/src/exceptions.o:
 	$(MAKE) -C $(top_builddir)/src exceptions.o
 
-$(top_builddir)/src/MemoryPoolManager.o:
-	$(MAKE) -C $(top_builddir)/src MemoryPoolManager.o
 
-$(top_builddir)/src/MemoryTracker.o:
-	$(MAKE) -C $(top_builddir)/src MemoryTracker.o
 
-$(top_builddir)/src/BufferPool.o:
-	$(MAKE) -C $(top_builddir)/src BufferPool.o
 
-$(top_builddir)/src/EnhancedBufferPool.o:
-	$(MAKE) -C $(top_builddir)/src EnhancedBufferPool.o
 
-$(top_builddir)/src/BoundedBuffer.o:
-	$(MAKE) -C $(top_builddir)/src BoundedBuffer.o
 
-$(top_builddir)/src/RAIIFileHandle.o:
-	$(MAKE) -C $(top_builddir)/src RAIIFileHandle.o
 
-$(top_builddir)/src/MemoryOptimizer.o:
-	$(MAKE) -C $(top_builddir)/src MemoryOptimizer.o
 
 $(top_builddir)/src/HTTPIOHandler.o:
 	$(MAKE) -C $(top_builddir)/src HTTPIOHandler.o
@@ -1379,12 +1112,7 @@ test_system_wide_threading_integration_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/surface.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -1395,8 +1123,6 @@ test_system_wide_threading_integration_LDADD = \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # Threading performance regression test
@@ -1408,12 +1134,7 @@ test_threading_performance_regression_LDADD = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/surface.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -1424,8 +1145,6 @@ test_threading_performance_regression_LDADD = \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # Simple codec performance test (minimal dependencies)
@@ -1462,13 +1181,6 @@ test_audio_thread_safety_LDADD = \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # Audio threading pattern test (simpler test without SDL dependencies)
@@ -1522,9 +1234,6 @@ test_mulaw_alaw_integration_SOURCES = test_mulaw_alaw_integration.cpp
 test_mulaw_alaw_integration_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
 test_mulaw_alaw_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -1582,13 +1291,6 @@ test_flac_demuxer_simple_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1603,13 +1305,6 @@ test_flac_real_file_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1624,13 +1319,6 @@ test_streaminfo_real_files_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1645,13 +1333,6 @@ test_streaminfo_recovery_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1666,13 +1347,6 @@ test_flac_diagnostic_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1685,13 +1359,6 @@ test_iohandler_deadlock_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # FLAC demuxer compatibility test
@@ -1706,13 +1373,6 @@ test_flac_demuxer_compatibility_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -1731,13 +1391,6 @@ test_flac_demuxer_performance_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1755,13 +1408,6 @@ test_flac_compatibility_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1777,13 +1423,6 @@ test_flac_demuxer_thread_safety_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1799,13 +1438,6 @@ test_flac_demuxer_unit_comprehensive_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -1822,13 +1454,6 @@ test_flac_demuxer_integration_comprehensive_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -1845,13 +1470,6 @@ test_flac_demuxer_unit_fixed_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -1868,13 +1486,6 @@ test_flac_index_based_seeking_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -1896,16 +1507,8 @@ test_flac_codec_minimal_container_agnostic_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1916,7 +1519,6 @@ test_flac_codec_container_agnostic_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -1938,13 +1540,6 @@ test_flac_codec_container_agnostic_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus \
 	$(AM_LDFLAGS)
@@ -1956,7 +1551,6 @@ test_flac_codec_streaminfo_only_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -1973,13 +1567,6 @@ test_flac_codec_streaminfo_only_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus \
 	$(AM_LDFLAGS)
@@ -1992,8 +1579,6 @@ $(top_builddir)/src/FLACCodec.o:
 	$(MAKE) -C $(top_builddir)/src FLACCodec.o
 
 # Additional build rules for FLAC tests (non-duplicated)
-$(top_builddir)/src/EnhancedAudioBufferPool.o:
-	$(MAKE) -C $(top_builddir)/src EnhancedAudioBufferPool.o
 
 $(top_builddir)/src/OggCodecs.o:
 	$(MAKE) -C $(top_builddir)/src OggCodecs.o
@@ -2027,13 +1612,6 @@ test_flac_thread_safety_validation_LDADD = \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -2064,13 +1642,6 @@ test_iohandler_thread_safety_comprehensive_LDADD = \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # IOHandler memory deadlock prevention test
@@ -2084,13 +1655,6 @@ test_iohandler_memory_deadlock_prevention_LDADD = \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # MemoryPoolManager integration test
@@ -2098,8 +1662,6 @@ test_memory_pool_manager_integration_SOURCES = test_memory_pool_manager_integrat
 test_memory_pool_manager_integration_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
 test_memory_pool_manager_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -2109,8 +1671,6 @@ test_memory_pool_manager_thread_safety_comprehensive_SOURCES = test_memory_pool_
 test_memory_pool_manager_thread_safety_comprehensive_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
 test_memory_pool_manager_thread_safety_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -2119,8 +1679,6 @@ test_memory_pool_manager_thread_safety_comprehensive_LDADD = \
 test_memory_pool_manager_basic_threading_SOURCES = test_memory_pool_manager_basic_threading.cpp
 test_memory_pool_manager_basic_threading_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
 test_memory_pool_manager_basic_threading_LDADD = \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -2136,13 +1694,6 @@ test_frame_size_estimation_consistency_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 # FLAC AudioFrame creation test
 test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
@@ -2175,14 +1726,6 @@ test_flac_codec_compatibility_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -2200,14 +1743,6 @@ test_flac_codec_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -2303,13 +1838,6 @@ test_flac_binary_search_limitations_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2322,14 +1850,6 @@ test_flac_codec_threading_safety_LDADD = \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -2348,13 +1868,6 @@ test_flac_demuxer_threading_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2371,13 +1884,6 @@ test_flac_performance_optimization_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2394,13 +1900,6 @@ test_flac_performance_with_real_files_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2417,13 +1916,6 @@ test_flac_comprehensive_validation_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2440,13 +1932,6 @@ test_flac_rfc_compliance_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2458,7 +1943,6 @@ test_flac_rfc_subframe_validation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -2473,13 +1957,6 @@ test_flac_rfc_subframe_validation_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2491,7 +1968,6 @@ test_flac_rfc_entropy_coding_validation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/DemuxedStream.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -2506,13 +1982,6 @@ test_flac_rfc_entropy_coding_validation_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
@@ -2559,13 +2028,6 @@ test_flac_rfc_bit_depth_validation_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -2593,8 +2055,6 @@ test_flac_security_validation_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
 	$(AM_LDFLAGS)
 
 # RFC 9639 sample format and bit depth compliance test
@@ -2621,7 +2081,6 @@ test_flac_sample_format_rfc9639_compliance_LDADD = \
 	$(top_builddir)/src/HTTPIOHandler.o \
 	$(top_builddir)/src/HTTPClient.o \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
@@ -2629,13 +2088,6 @@ test_flac_sample_format_rfc9639_compliance_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/CodecRegistration.o \
 	$(top_builddir)/src/CodecRegistry.o \
 	$(top_builddir)/src/DemuxerRegistry.o \
@@ -2673,13 +2125,6 @@ test_oggdemuxer_performance_LDADD = \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
@@ -2701,13 +2146,6 @@ test_oggdemuxer_comprehensive_LDADD = \
 	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
@@ -2722,7 +2160,6 @@ test_opus_codec_core_decoding_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -2743,13 +2180,6 @@ test_opus_codec_core_decoding_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(AM_LDFLAGS)
@@ -2760,7 +2190,6 @@ test_opus_codec_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -2779,13 +2208,6 @@ test_opus_codec_error_handling_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(AM_LDFLAGS)
@@ -2796,7 +2218,6 @@ test_opus_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -2817,13 +2238,6 @@ test_opus_integration_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(AM_LDFLAGS)
@@ -2834,7 +2248,6 @@ test_opus_compatibility_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/OpusCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -2855,13 +2268,6 @@ test_opus_compatibility_performance_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(AM_LDFLAGS)
@@ -3125,13 +2531,6 @@ test_iso_compliance_comprehensive_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(AM_LDFLAGS)
 
@@ -3153,13 +2552,6 @@ test_iso_compliance_edge_cases_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(AM_LDFLAGS)
 
@@ -3181,13 +2573,6 @@ test_iso_codec_compliance_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(top_builddir)/src/rect.o \
 	$(AM_LDFLAGS)
 
@@ -3211,13 +2596,6 @@ test_iso_comprehensive_integration_simple_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_encoder_compatibility_SOURCES = test_iso_encoder_compatibility.cpp
@@ -3239,13 +2617,6 @@ test_iso_encoder_compatibility_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_fragmented_streaming_SOURCES = test_iso_fragmented_streaming.cpp
@@ -3267,13 +2638,6 @@ test_iso_fragmented_streaming_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_seeking_accuracy_SOURCES = test_iso_seeking_accuracy.cpp
@@ -3295,13 +2659,6 @@ test_iso_seeking_accuracy_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 # Additional ISO Demuxer Compliance Tests
 test_iso_compliance_minimal_SOURCES = test_iso_compliance_minimal.cpp
@@ -3323,13 +2680,6 @@ test_iso_compliance_minimal_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_compliance_validation_SOURCES = test_iso_compliance_validation.cpp
@@ -3351,13 +2701,6 @@ test_iso_compliance_validation_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # Additional ISO Demuxer Integration Tests
@@ -3380,13 +2723,6 @@ test_iso_comprehensive_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # ISO Demuxer FLAC Integration Tests
@@ -3409,13 +2745,6 @@ test_iso_flac_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_flac_support_SOURCES = test_iso_flac_support.cpp
@@ -3437,13 +2766,6 @@ test_iso_flac_support_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # ISO Demuxer Performance and Optimization Tests
@@ -3466,13 +2788,6 @@ test_iso_performance_optimization_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_sample_table_optimization_SOURCES = test_iso_sample_table_optimization.cpp
@@ -3494,13 +2809,6 @@ test_iso_sample_table_optimization_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_sample_table_simple_SOURCES = test_iso_sample_table_simple.cpp
@@ -3522,13 +2830,6 @@ test_iso_sample_table_simple_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # ISO Demuxer Additional Tests
@@ -3560,13 +2861,6 @@ test_iso_metadata_extraction_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 test_iso_telephony_codecs_SOURCES = test_iso_telephony_codecs.cpp
@@ -3588,13 +2882,6 @@ test_iso_telephony_codecs_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(AM_LDFLAGS)
 
 # RFC 9639 compliance validator test
@@ -3606,7 +2893,6 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 	$(top_builddir)/src/FLACRFCValidator.o \
 	$(top_builddir)/src/FLACCodec.o \
 	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(top_builddir)/src/ALawCodec.o \
 	$(top_builddir)/src/MuLawCodec.o \
 	$(top_builddir)/src/PCMCodecs.o \
@@ -3631,13 +2917,6 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
@@ -3683,14 +2962,6 @@ test_flac_audio_output_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lopus \
 	$(AM_LDFLAGS)
@@ -3723,14 +2994,6 @@ test_flac_seeking_crash_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lopus \
 	$(AM_LDFLAGS)
@@ -3750,13 +3013,6 @@ test_flac_audio_output_debug_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -3770,13 +3026,6 @@ test_flac_codec_simple_debug_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -3792,13 +3041,6 @@ test_flac_streamable_subset_real_files_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/BoundedBuffer.o \
-	$(top_builddir)/src/RAIIFileHandle.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -3896,15 +3138,10 @@ test_native_flac_rfc_examples_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
 	$(AM_LDFLAGS)
 
 # Integration test: Real FLAC files
@@ -3923,15 +3160,10 @@ test_native_flac_real_files_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
 	$(AM_LDFLAGS)
 
 # Integration test: Container formats
@@ -3951,15 +3183,10 @@ test_native_flac_containers_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
 	$(AM_LDFLAGS) \
 	-logg
 
@@ -3979,15 +3206,10 @@ test_native_flac_edge_cases_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
 	$(AM_LDFLAGS)
 
 # Performance test: Benchmark against libFLAC
@@ -4005,17 +3227,10 @@ test_native_flac_performance_benchmark_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(AM_LDFLAGS)
 
 # Performance test: Memory usage
@@ -4033,17 +3248,10 @@ test_native_flac_memory_usage_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(AM_LDFLAGS)
 
 # Performance test: Threading
@@ -4061,17 +3269,10 @@ test_native_flac_threading_LDADD = \
 	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/RAIIFileHandle.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/MemoryPoolManager.o \
-	$(top_builddir)/src/MemoryTracker.o \
-	$(top_builddir)/src/MemoryOptimizer.o \
-	$(top_builddir)/src/BufferPool.o \
-	$(top_builddir)/src/EnhancedBufferPool.o \
-	$(top_builddir)/src/EnhancedAudioBufferPool.o \
 	$(AM_LDFLAGS)
 
 endif

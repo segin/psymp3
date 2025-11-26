@@ -15,11 +15,11 @@ AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_
 
 libisodemuxer_a_SOURCES = \
 	ISODemuxer.cpp \
-	ISODemuxerBoxParser.cpp \
-	ISODemuxerComplianceValidator.cpp \
-	ISODemuxerErrorRecovery.cpp \
-	ISODemuxerFragmentHandler.cpp \
-	ISODemuxerMetadataExtractor.cpp \
-	ISODemuxerSampleTableManager.cpp \
-	ISODemuxerSeekingEngine.cpp \
-	ISODemuxerStreamManager.cpp
+	BoxParser.cpp \
+	ComplianceValidator.cpp \
+	ErrorRecovery.cpp \
+	FragmentHandler.cpp \
+	MetadataExtractor.cpp \
+	SampleTableManager.cpp \
+	SeekingEngine.cpp \
+	StreamManager.cpp

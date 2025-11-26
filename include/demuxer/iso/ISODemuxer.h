@@ -219,15 +219,15 @@ public:
     
 private:
     // Core components as per design
-    std::unique_ptr<ISODemuxerBoxParser> boxParser;
-    std::unique_ptr<ISODemuxerSampleTableManager> sampleTables;
-    std::unique_ptr<ISODemuxerFragmentHandler> fragmentHandler;
-    std::unique_ptr<ISODemuxerMetadataExtractor> metadataExtractor;
-    std::unique_ptr<ISODemuxerStreamManager> streamManager;
-    std::unique_ptr<ISODemuxerSeekingEngine> seekingEngine;
-    std::unique_ptr<ISODemuxerStreamManager> streamingManager;
-    std::unique_ptr<ISODemuxerErrorRecovery> errorRecovery;
-    std::unique_ptr<ISODemuxerComplianceValidator> complianceValidator;
+    std::unique_ptr<BoxParser> boxParser;
+    std::unique_ptr<SampleTableManager> sampleTables;
+    std::unique_ptr<FragmentHandler> fragmentHandler;
+    std::unique_ptr<MetadataExtractor> metadataExtractor;
+    std::unique_ptr<StreamManager> streamManager;
+    std::unique_ptr<SeekingEngine> seekingEngine;
+    std::unique_ptr<StreamManager> streamingManager;
+    std::unique_ptr<ErrorRecovery> errorRecovery;
+    std::unique_ptr<ComplianceValidator> complianceValidator;
     
     // Audio track management
     std::vector<AudioTrackInfo> audioTracks;
@@ -292,7 +292,7 @@ private:
      * @return MediaChunk with extracted sample data
      */
     MediaChunk ExtractSampleData(uint32_t stream_id, const AudioTrackInfo& track, 
-                                const ISODemuxerSampleTableManager::SampleInfo& sampleInfo);
+                                const SampleTableManager::SampleInfo& sampleInfo);
     
     /**
      * @brief Apply codec-specific processing to extracted sample data

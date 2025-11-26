@@ -1,5 +1,5 @@
 /*
- * ISODemuxerBoxParser.h - ISO box structure parser
+ * BoxParser.h - ISO box structure parser
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -7,8 +7,8 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#ifndef ISODEMUXERBOXPARSER_H
-#define ISODEMUXERBOXPARSER_H
+#ifndef BOXPARSER_H
+#define BOXPARSER_H
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -31,10 +31,10 @@ struct BoxHeader {
 /**
  * @brief Box parser component for recursive ISO box structure parsing
  */
-class ISODemuxerBoxParser {
+class BoxParser {
 public:
-    explicit ISODemuxerBoxParser(std::shared_ptr<IOHandler> io);
-    ~ISODemuxerBoxParser() = default;
+    explicit BoxParser(std::shared_ptr<IOHandler> io);
+    ~BoxParser() = default;
     
     bool ParseMovieBox(uint64_t offset, uint64_t size);
     bool ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
@@ -88,4 +88,4 @@ private:
 } // namespace ISO
 } // namespace Demuxer
 } // namespace PsyMP3
-#endif // ISODEMUXERBOXPARSER_H
+#endif // BOXPARSER_H

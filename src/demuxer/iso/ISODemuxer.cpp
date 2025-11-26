@@ -28,15 +28,15 @@ void ISODemuxer::initializeComponents() {
         // since it's owned by the unique_ptr in the base class
     });
     
-    boxParser = std::make_unique<ISODemuxerBoxParser>(sharedHandler);
-    sampleTables = std::make_unique<ISODemuxerSampleTableManager>();
-    fragmentHandler = std::make_unique<ISODemuxerFragmentHandler>();
-    metadataExtractor = std::make_unique<ISODemuxerMetadataExtractor>();
-    streamManager = std::make_unique<ISODemuxerStreamManager>();
-    seekingEngine = std::make_unique<ISODemuxerSeekingEngine>();
-    streamingManager = std::make_unique<ISODemuxerStreamManager>();
-    errorRecovery = std::make_unique<ISODemuxerErrorRecovery>(sharedHandler);
-    complianceValidator = std::make_unique<ISODemuxerComplianceValidator>(sharedHandler);
+    boxParser = std::make_unique<BoxParser>(sharedHandler);
+    sampleTables = std::make_unique<SampleTableManager>();
+    fragmentHandler = std::make_unique<FragmentHandler>();
+    metadataExtractor = std::make_unique<MetadataExtractor>();
+    streamManager = std::make_unique<StreamManager>();
+    seekingEngine = std::make_unique<SeekingEngine>();
+    streamingManager = std::make_unique<StreamManager>();
+    errorRecovery = std::make_unique<ErrorRecovery>(sharedHandler);
+    complianceValidator = std::make_unique<ComplianceValidator>(sharedHandler);
     
     // Initialize memory management integration (Requirement 8.8)
     InitializeMemoryManagement();
@@ -557,7 +557,7 @@ MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
     }
     
     // Get sample information for current position with error handling
-    ISODemuxerSampleTableManager::SampleInfo sampleInfo;
+    SampleTableManager::SampleInfo sampleInfo;
     try {
         sampleInfo = sampleTables->GetSampleInfo(track->currentSampleIndex);
     } catch (const std::exception& e) {
@@ -873,7 +873,7 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
 }
 
 MediaChunk ISODemuxer::ExtractSampleData(uint32_t stream_id, const AudioTrackInfo& track, 
-                                         const ISODemuxerSampleTableManager::SampleInfo& sampleInfo) {
+                                         const SampleTableManager::SampleInfo& sampleInfo) {
     MediaChunk chunk;
     chunk.stream_id = stream_id;
     chunk.timestamp_samples = track.currentSampleIndex;

@@ -1,5 +1,5 @@
 /*
- * ISODemuxerMetadataExtractor.h - Metadata extractor for iTunes/ISO metadata parsing
+ * MetadataExtractor.h - Metadata extractor for iTunes/ISO metadata parsing
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -7,8 +7,8 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#ifndef ISODEMUXERMETADATAEXTRACTOR_H
-#define ISODEMUXERMETADATAEXTRACTOR_H
+#ifndef METADATAEXTRACTOR_H
+#define METADATAEXTRACTOR_H
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -19,10 +19,10 @@ namespace ISO {
 /**
  * @brief Metadata extractor for iTunes/ISO metadata parsing
  */
-class ISODemuxerMetadataExtractor {
+class MetadataExtractor {
 public:
-    ISODemuxerMetadataExtractor() = default;
-    ~ISODemuxerMetadataExtractor() = default;
+    MetadataExtractor() = default;
+    ~MetadataExtractor() = default;
     
     std::map<std::string, std::string> ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size);
     
@@ -43,4 +43,4 @@ private:
 } // namespace ISO
 } // namespace Demuxer
 } // namespace PsyMP3
-#endif // ISODEMUXERMETADATAEXTRACTOR_H
+#endif // METADATAEXTRACTOR_H

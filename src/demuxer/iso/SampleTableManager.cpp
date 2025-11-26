@@ -15,7 +15,7 @@ namespace ISO {
 #include <numeric>
 
 // Enhanced lazy-loaded sample size table implementation (Requirement 8.1)
-void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadIfNeeded() const {
+void SampleTableManager::LazyLoadedSampleSizes::LoadIfNeeded() const {
     if (isLoaded || !io) {
         return;
     }
@@ -81,7 +81,7 @@ void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadIfNeeded() const {
     isLoaded = true;
 }
 
-void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadChunkedSampleSizes() const {
+void SampleTableManager::LazyLoadedSampleSizes::LoadChunkedSampleSizes() const {
     // Chunked loading for memory-constrained environments
     // Load samples in chunks and cache recently accessed chunks
     constexpr size_t CHUNK_SIZE = 256; // 256 samples per chunk
@@ -93,7 +93,7 @@ void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadChunkedSampleSizes
     isLoaded = true;
 }
 
-void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadChunk(size_t chunkIndex) const {
+void SampleTableManager::LazyLoadedSampleSizes::LoadChunk(size_t chunkIndex) const {
     if (!io || tableOffset == 0) return;
     
     size_t startSample = chunkIndex * chunkSize;
@@ -144,7 +144,7 @@ void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::LoadChunk(size_t chunk
     }
 }
 
-void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::EvictOldestChunk() const {
+void SampleTableManager::LazyLoadedSampleSizes::EvictOldestChunk() const {
     if (sampleChunks.empty()) return;
     
     auto oldestIt = sampleChunks.begin();
@@ -160,7 +160,7 @@ void ISODemuxerSampleTableManager::LazyLoadedSampleSizes::EvictOldestChunk() con
     sampleChunks.erase(oldestIt);
 }
 
-uint32_t ISODemuxerSampleTableManager::LazyLoadedSampleSizes::GetSize(uint64_t sampleIndex) const {
+uint32_t SampleTableManager::LazyLoadedSampleSizes::GetSize(uint64_t sampleIndex) const {
     if (isCompressed) {
         return fixedSize;
     }
@@ -192,7 +192,7 @@ uint32_t ISODemuxerSampleTableManager::LazyLoadedSampleSizes::GetSize(uint64_t s
     return fixedSize > 0 ? fixedSize : 1024; // Default fallback
 }
 
-bool ISODemuxerSampleTableManager::BuildSampleTables(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildSampleTables(const SampleTableInfo& rawTables) {
     // Build optimized sample tables with memory efficiency (Requirements 8.1, 8.2, 8.3)
     
     // Build compressed sample-to-chunk mapping (Requirement 8.2)
@@ -226,7 +226,7 @@ bool ISODemuxerSampleTableManager::BuildSampleTables(const SampleTableInfo& rawT
 }
 
 // Enhanced compressed sample-to-chunk mapping implementation (Requirement 8.2)
-bool ISODemuxerSampleTableManager::BuildOptimizedChunkTable(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildOptimizedChunkTable(const SampleTableInfo& rawTables) {
     if (rawTables.chunkOffsets.empty() || rawTables.sampleToChunkEntries.empty()) {
         return false;
     }
@@ -316,7 +316,7 @@ bool ISODemuxerSampleTableManager::BuildOptimizedChunkTable(const SampleTableInf
 }
 
 // Enhanced optimized time-to-sample lookup with binary search structures (Requirement 8.3)
-bool ISODemuxerSampleTableManager::BuildOptimizedTimeTable(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildOptimizedTimeTable(const SampleTableInfo& rawTables) {
     if (rawTables.sampleTimes.empty()) {
         return false;
     }
@@ -396,7 +396,7 @@ bool ISODemuxerSampleTableManager::BuildOptimizedTimeTable(const SampleTableInfo
     return !optimizedTimeTable.empty();
 }
 
-void ISODemuxerSampleTableManager::BuildHierarchicalTimeIndex() {
+void SampleTableManager::BuildHierarchicalTimeIndex() {
     if (optimizedTimeTable.empty()) return;
     
     // Build hierarchical index for faster binary search on large tables
@@ -417,7 +417,7 @@ void ISODemuxerSampleTableManager::BuildHierarchicalTimeIndex() {
 }
 
 // Lazy-loaded sample size table implementation (Requirement 8.1)
-bool ISODemuxerSampleTableManager::BuildLazyLoadedSampleSizeTable(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildLazyLoadedSampleSizeTable(const SampleTableInfo& rawTables) {
     if (rawTables.sampleSizes.empty()) {
         return false;
     }
@@ -459,7 +459,7 @@ bool ISODemuxerSampleTableManager::BuildLazyLoadedSampleSizeTable(const SampleTa
     return true;
 }
 
-bool ISODemuxerSampleTableManager::ValidateTableConsistency() {
+bool SampleTableManager::ValidateTableConsistency() {
     // Validate that compressed chunk table is consistent
     if (compressedChunkTable.empty()) {
         return false;
@@ -490,7 +490,7 @@ bool ISODemuxerSampleTableManager::ValidateTableConsistency() {
     return true;
 }
 
-ISODemuxerSampleTableManager::SampleInfo ISODemuxerSampleTableManager::GetSampleInfo(uint64_t sampleIndex) {
+SampleTableManager::SampleInfo SampleTableManager::GetSampleInfo(uint64_t sampleIndex) {
     SampleInfo info = {};
     
     // Find chunk information using compressed mapping
@@ -515,7 +515,7 @@ ISODemuxerSampleTableManager::SampleInfo ISODemuxerSampleTableManager::GetSample
     return info;
 }
 
-uint64_t ISODemuxerSampleTableManager::TimeToSample(double timestamp) {
+uint64_t SampleTableManager::TimeToSample(double timestamp) {
     if (optimizedTimeTable.empty()) {
         return 0;
     }
@@ -582,7 +582,7 @@ uint64_t ISODemuxerSampleTableManager::TimeToSample(double timestamp) {
     return it->sampleIndex;
 }
 
-double ISODemuxerSampleTableManager::SampleToTime(uint64_t sampleIndex) {
+double SampleTableManager::SampleToTime(uint64_t sampleIndex) {
     if (optimizedTimeTable.empty()) {
         return 0.0;
     }
@@ -614,7 +614,7 @@ double ISODemuxerSampleTableManager::SampleToTime(uint64_t sampleIndex) {
 }
 
 // Enhanced memory management and optimization methods (Requirements 8.1, 8.2, 8.7, 8.8)
-void ISODemuxerSampleTableManager::OptimizeMemoryUsage() {
+void SampleTableManager::OptimizeMemoryUsage() {
     if (!memoryOptimizationEnabled) {
         return;
     }
@@ -669,7 +669,7 @@ void ISODemuxerSampleTableManager::OptimizeMemoryUsage() {
     }
 }
 
-void ISODemuxerSampleTableManager::OptimizeForCriticalMemoryPressure() {
+void SampleTableManager::OptimizeForCriticalMemoryPressure() {
     // Critical memory pressure - use most aggressive optimizations
     
     // Force chunked mode for sample sizes if not already enabled
@@ -704,7 +704,7 @@ void ISODemuxerSampleTableManager::OptimizeForCriticalMemoryPressure() {
     }
 }
 
-void ISODemuxerSampleTableManager::OptimizeForHighMemoryPressure() {
+void SampleTableManager::OptimizeForHighMemoryPressure() {
     // High memory pressure - moderate optimizations
     
     // Switch to chunked mode with smaller chunks
@@ -729,7 +729,7 @@ void ISODemuxerSampleTableManager::OptimizeForHighMemoryPressure() {
     }
 }
 
-void ISODemuxerSampleTableManager::OptimizeForNormalMemoryPressure() {
+void SampleTableManager::OptimizeForNormalMemoryPressure() {
     // Normal memory pressure - light optimizations
     
     // Reduce chunk cache size moderately
@@ -740,11 +740,11 @@ void ISODemuxerSampleTableManager::OptimizeForNormalMemoryPressure() {
     }
 }
 
-size_t ISODemuxerSampleTableManager::GetMemoryFootprint() const {
+size_t SampleTableManager::GetMemoryFootprint() const {
     return estimatedMemoryUsage;
 }
 
-void ISODemuxerSampleTableManager::CalculateMemoryFootprint() const {
+void SampleTableManager::CalculateMemoryFootprint() const {
     estimatedMemoryUsage = 0;
     
     // Compressed chunk table
@@ -784,11 +784,11 @@ void ISODemuxerSampleTableManager::CalculateMemoryFootprint() const {
     estimatedMemoryUsage += timeTable.capacity() * sizeof(TimeToSampleEntry);
     
     // Add base object overhead
-    estimatedMemoryUsage += sizeof(ISODemuxerSampleTableManager);
+    estimatedMemoryUsage += sizeof(SampleTableManager);
 }
 
 // Private helper methods
-const ISODemuxerSampleTableManager::CompressedChunkInfo* ISODemuxerSampleTableManager::FindCompressedChunkForSample(uint64_t sampleIndex) const {
+const SampleTableManager::CompressedChunkInfo* SampleTableManager::FindCompressedChunkForSample(uint64_t sampleIndex) const {
     for (const auto& chunk : compressedChunkTable) {
         if (sampleIndex >= chunk.firstSample && 
             sampleIndex < chunk.firstSample + chunk.totalSamples) {
@@ -798,11 +798,11 @@ const ISODemuxerSampleTableManager::CompressedChunkInfo* ISODemuxerSampleTableMa
     return nullptr;
 }
 
-uint32_t ISODemuxerSampleTableManager::GetSampleSize(uint64_t sampleIndex) const {
+uint32_t SampleTableManager::GetSampleSize(uint64_t sampleIndex) const {
     return sampleSizes.GetSize(sampleIndex);
 }
 
-uint32_t ISODemuxerSampleTableManager::GetSampleDuration(uint64_t sampleIndex) const {
+uint32_t SampleTableManager::GetSampleDuration(uint64_t sampleIndex) const {
     // Find duration from optimized time table
     for (const auto& entry : optimizedTimeTable) {
         if (sampleIndex >= entry.sampleIndex && 
@@ -814,7 +814,7 @@ uint32_t ISODemuxerSampleTableManager::GetSampleDuration(uint64_t sampleIndex) c
     return 1024; // Default duration
 }
 
-bool ISODemuxerSampleTableManager::IsSyncSample(uint64_t sampleIndex) const {
+bool SampleTableManager::IsSyncSample(uint64_t sampleIndex) const {
     if (syncSamples.empty()) {
         return true; // All samples are sync samples if no sync table
     }
@@ -824,7 +824,7 @@ bool ISODemuxerSampleTableManager::IsSyncSample(uint64_t sampleIndex) const {
 }
 
 // Legacy compatibility methods for fallback
-void ISODemuxerSampleTableManager::EnsureChunkTableLoaded() const {
+void SampleTableManager::EnsureChunkTableLoaded() const {
     if (chunkTableLoaded || compressedChunkTable.empty()) {
         return;
     }
@@ -846,7 +846,7 @@ void ISODemuxerSampleTableManager::EnsureChunkTableLoaded() const {
     chunkTableLoaded = true;
 }
 
-ISODemuxerSampleTableManager::ChunkInfo* ISODemuxerSampleTableManager::FindChunkForSample(uint64_t sampleIndex) const {
+SampleTableManager::ChunkInfo* SampleTableManager::FindChunkForSample(uint64_t sampleIndex) const {
     EnsureChunkTableLoaded();
     
     for (auto& chunk : chunkTable) {
@@ -858,7 +858,7 @@ ISODemuxerSampleTableManager::ChunkInfo* ISODemuxerSampleTableManager::FindChunk
     return nullptr;
 }
 
-bool ISODemuxerSampleTableManager::BuildChunkTable(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildChunkTable(const SampleTableInfo& rawTables) {
     // Legacy method - build traditional chunk table
     if (rawTables.chunkOffsets.empty() || rawTables.sampleToChunkEntries.empty()) {
         return false;
@@ -895,7 +895,7 @@ bool ISODemuxerSampleTableManager::BuildChunkTable(const SampleTableInfo& rawTab
     return !chunkTable.empty();
 }
 
-bool ISODemuxerSampleTableManager::BuildTimeTable(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildTimeTable(const SampleTableInfo& rawTables) {
     // Legacy method - build traditional time table
     if (rawTables.sampleTimes.empty()) {
         return false;
@@ -923,12 +923,12 @@ bool ISODemuxerSampleTableManager::BuildTimeTable(const SampleTableInfo& rawTabl
     return !timeTable.empty();
 }
 
-bool ISODemuxerSampleTableManager::BuildSampleSizeTable(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildSampleSizeTable(const SampleTableInfo& rawTables) {
     // Legacy method - just calls the optimized version
     return BuildLazyLoadedSampleSizeTable(rawTables);
 }
 
-bool ISODemuxerSampleTableManager::BuildExpandedSampleToChunkMapping(const SampleTableInfo& rawTables, 
+bool SampleTableManager::BuildExpandedSampleToChunkMapping(const SampleTableInfo& rawTables, 
                                                                     std::vector<uint32_t>& expandedMapping) {
     if (rawTables.sampleToChunkEntries.empty()) {
         return false;
@@ -956,7 +956,7 @@ bool ISODemuxerSampleTableManager::BuildExpandedSampleToChunkMapping(const Sampl
     return !expandedMapping.empty();
 }
 
-uint32_t ISODemuxerSampleTableManager::GetSamplesPerChunkForIndex(size_t chunkIndex, const std::vector<uint32_t>& samplesPerChunk) {
+uint32_t SampleTableManager::GetSamplesPerChunkForIndex(size_t chunkIndex, const std::vector<uint32_t>& samplesPerChunk) {
     if (chunkIndex < samplesPerChunk.size()) {
         return samplesPerChunk[chunkIndex];
     }
@@ -964,7 +964,7 @@ uint32_t ISODemuxerSampleTableManager::GetSamplesPerChunkForIndex(size_t chunkIn
 }
 
 // Additional methods from old SampleTableManager implementation
-bool ISODemuxerSampleTableManager::ValidateTableConsistencyDetailed() {
+bool SampleTableManager::ValidateTableConsistencyDetailed() {
     // Validate that all sample tables are consistent with each other
     if (compressedChunkTable.empty() || optimizedTimeTable.empty()) {
         return false;

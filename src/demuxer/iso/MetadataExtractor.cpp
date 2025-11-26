@@ -12,7 +12,7 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
 
-std::map<std::string, std::string> ISODemuxerMetadataExtractor::ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size) {
+std::map<std::string, std::string> MetadataExtractor::ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size) {
     std::map<std::string, std::string> metadata;
     if (!io || size < 8) {
         return metadata;
@@ -23,7 +23,7 @@ std::map<std::string, std::string> ISODemuxerMetadataExtractor::ExtractMetadata(
     return metadata;
 }
 
-bool ISODemuxerMetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
+bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
     uint64_t currentOffset = offset;
     uint64_t endOffset = offset + size;
     
@@ -75,7 +75,7 @@ bool ISODemuxerMetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, ui
     return true;
 }
 
-bool ISODemuxerMetadataExtractor::ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
+bool MetadataExtractor::ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
     if (size < 4) {
         return false;
     }
@@ -88,7 +88,7 @@ bool ISODemuxerMetadataExtractor::ParseMetaBox(std::shared_ptr<IOHandler> io, ui
     return ParseUdtaBox(io, dataOffset, dataSize, metadata);
 }
 
-bool ISODemuxerMetadataExtractor::ParseIlstBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
+bool MetadataExtractor::ParseIlstBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
     uint64_t currentOffset = offset;
     uint64_t endOffset = offset + size;
     
@@ -116,7 +116,7 @@ bool ISODemuxerMetadataExtractor::ParseIlstBox(std::shared_ptr<IOHandler> io, ui
     return true;
 }
 
-bool ISODemuxerMetadataExtractor::ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, uint32_t atomType, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
+bool MetadataExtractor::ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, uint32_t atomType, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
     std::string key;
     
     // Map atom types to metadata keys
@@ -205,7 +205,7 @@ bool ISODemuxerMetadataExtractor::ParseiTunesMetadataAtom(std::shared_ptr<IOHand
     return true;
 }
 
-std::string ISODemuxerMetadataExtractor::ExtractTextMetadata(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size) {
+std::string MetadataExtractor::ExtractTextMetadata(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size) {
     if (!io || size == 0 || size > 65536) { // Reasonable limit for text metadata
         return "";
     }
@@ -238,7 +238,7 @@ std::string ISODemuxerMetadataExtractor::ExtractTextMetadata(std::shared_ptr<IOH
     return result.substr(start, end - start + 1);
 }
 
-uint32_t ISODemuxerMetadataExtractor::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+uint32_t MetadataExtractor::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
     if (!io) {
         return 0;
     }
@@ -255,7 +255,7 @@ uint32_t ISODemuxerMetadataExtractor::ReadUInt32BE(std::shared_ptr<IOHandler> io
            static_cast<uint32_t>(bytes[3]);
 }
 
-uint64_t ISODemuxerMetadataExtractor::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
+uint64_t MetadataExtractor::ReadUInt64BE(std::shared_ptr<IOHandler> io, uint64_t offset) {
     if (!io) {
         return 0;
     }

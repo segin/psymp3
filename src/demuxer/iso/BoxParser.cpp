@@ -12,7 +12,7 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
 
-ISODemuxerBoxParser::ISODemuxerBoxParser(std::shared_ptr<IOHandler> io) : io(io), fileSize(0) {
+BoxParser::BoxParser(std::shared_ptr<IOHandler> io) : io(io), fileSize(0) {
     // Get file size for validation
     if (io) {
         io->seek(0, SEEK_END);
@@ -21,7 +21,7 @@ ISODemuxerBoxParser::ISODemuxerBoxParser(std::shared_ptr<IOHandler> io) : io(io)
     }
 }
 
-BoxHeader ISODemuxerBoxParser::ReadBoxHeader(uint64_t offset) {
+BoxHeader BoxParser::ReadBoxHeader(uint64_t offset) {
     BoxHeader header = {};
     
     if (!io || offset >= fileSize) {
@@ -87,7 +87,7 @@ BoxHeader ISODemuxerBoxParser::ReadBoxHeader(uint64_t offset) {
     return header;
 }
 
-bool ISODemuxerBoxParser::ValidateBoxSize(const BoxHeader& header, uint64_t containerSize) {
+bool BoxParser::ValidateBoxSize(const BoxHeader& header, uint64_t containerSize) {
     // Check if box size is valid
     if (header.size == 0) {
         return false;
@@ -125,7 +125,7 @@ bool ISODemuxerBoxParser::ValidateBoxSize(const BoxHeader& header, uint64_t cont
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseBoxRecursively(uint64_t offset, uint64_t size, 
+bool BoxParser::ParseBoxRecursively(uint64_t offset, uint64_t size, 
                                    std::function<bool(const BoxHeader&, uint64_t)> handler) {
     uint64_t currentOffset = offset;
     uint64_t endOffset = offset + size;
@@ -239,7 +239,7 @@ bool ISODemuxerBoxParser::ParseBoxRecursively(uint64_t offset, uint64_t size,
     return true;
 }
 
-bool ISODemuxerBoxParser::IsContainerBox(uint32_t boxType) {
+bool BoxParser::IsContainerBox(uint32_t boxType) {
     switch (boxType) {
         case BOX_MOOV:
         case BOX_TRAK:
@@ -260,7 +260,7 @@ bool ISODemuxerBoxParser::IsContainerBox(uint32_t boxType) {
     }
 }
 
-uint32_t ISODemuxerBoxParser::ReadUInt32BE(uint64_t offset) {
+uint32_t BoxParser::ReadUInt32BE(uint64_t offset) {
     if (!io || offset + 4 > fileSize) {
         return 0;
     }
@@ -278,7 +278,7 @@ uint32_t ISODemuxerBoxParser::ReadUInt32BE(uint64_t offset) {
            static_cast<uint32_t>(bytes[3]);
 }
 
-uint64_t ISODemuxerBoxParser::ReadUInt64BE(uint64_t offset) {
+uint64_t BoxParser::ReadUInt64BE(uint64_t offset) {
     if (!io || offset + 8 > fileSize) {
         return 0;
     }
@@ -300,7 +300,7 @@ uint64_t ISODemuxerBoxParser::ReadUInt64BE(uint64_t offset) {
            static_cast<uint64_t>(bytes[7]);
 }
 
-std::string ISODemuxerBoxParser::BoxTypeToString(uint32_t boxType) {
+std::string BoxParser::BoxTypeToString(uint32_t boxType) {
     std::string result(4, '\0');
     result[0] = static_cast<char>((boxType >> 24) & 0xFF);
     result[1] = static_cast<char>((boxType >> 16) & 0xFF);
@@ -309,13 +309,13 @@ std::string ISODemuxerBoxParser::BoxTypeToString(uint32_t boxType) {
     return result;
 }
 
-bool ISODemuxerBoxParser::SkipUnknownBox(const BoxHeader& header) {
+bool BoxParser::SkipUnknownBox(const BoxHeader& header) {
     // For unknown boxes, we simply skip them by returning true
     // The recursive parser will automatically move to the next box
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
+bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
     // Parse movie box recursively to find tracks
     return ParseBoxRecursively(offset, size, [this](const BoxHeader& header, uint64_t boxOffset) {
         switch (header.type) {
@@ -334,7 +334,7 @@ bool ISODemuxerBoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
     });
 }
 
-bool ISODemuxerBoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
     // Parse track box recursively to extract audio track information
     bool foundAudio = false;
     SampleTableInfo sampleTables;
@@ -368,7 +368,7 @@ bool ISODemuxerBoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTra
     return foundAudio;
 }
 
-bool ISODemuxerBoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+bool BoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
     // Parse sample table box recursively to extract all sample table atoms
     bool hasRequiredTables = false;
     bool hasStts = false, hasStsc = false, hasStsz = false, hasStco = false;
@@ -423,7 +423,7 @@ bool ISODemuxerBoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, Sa
     return hasRequiredTables;
 }
 
-bool ISODemuxerBoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType) {
+bool BoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType) {
     if (size < 8) {
         return false;
     }
@@ -463,12 +463,12 @@ bool ISODemuxerBoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio) {
+bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio) {
     SampleTableInfo dummyTables; // Not used in this version
     return ParseMediaBoxWithSampleTables(offset, size, track, foundAudio, dummyTables);
 }
 
-bool ISODemuxerBoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables) {
+bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables) {
     std::string handlerType;
     bool handlerParsed = false;
     
@@ -542,7 +542,7 @@ bool ISODemuxerBoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_
     });
 }
 
-bool ISODemuxerBoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType) {
+bool BoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType) {
     if (size < 24) {
         return false;
     }
@@ -595,7 +595,7 @@ bool ISODemuxerBoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::s
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
     if (size < 16) {
         return false;
     }
@@ -719,7 +719,7 @@ bool ISODemuxerBoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t si
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+bool BoxParser::ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
     if (size < 8) {
         return false;
     }
@@ -759,7 +759,7 @@ bool ISODemuxerBoxParser::ParseTimeToSampleBox(uint64_t offset, uint64_t size, S
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+bool BoxParser::ParseSampleToChunkBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
     if (size < 8) {
         return false;
     }
@@ -800,7 +800,7 @@ bool ISODemuxerBoxParser::ParseSampleToChunkBox(uint64_t offset, uint64_t size, 
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseSampleSizeBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+bool BoxParser::ParseSampleSizeBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
     if (size < 12) {
         return false;
     }
@@ -839,7 +839,7 @@ bool ISODemuxerBoxParser::ParseSampleSizeBox(uint64_t offset, uint64_t size, Sam
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseChunkOffsetBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, bool is64Bit) {
+bool BoxParser::ParseChunkOffsetBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, bool is64Bit) {
     if (size < 8) {
         return false;
     }
@@ -883,7 +883,7 @@ bool ISODemuxerBoxParser::ParseChunkOffsetBox(uint64_t offset, uint64_t size, Sa
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseSyncSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+bool BoxParser::ParseSyncSampleBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
     if (size < 8) {
         return false;
     }
@@ -922,7 +922,7 @@ bool ISODemuxerBoxParser::ParseSyncSampleBox(uint64_t offset, uint64_t size, Sam
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
+bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
     // Parse fragmented MP4 boxes (moof, mfra, sidx)
     BoxHeader header = ReadBoxHeader(offset);
     
@@ -941,21 +941,21 @@ bool ISODemuxerBoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
     }
 }
 
-bool ISODemuxerBoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
     // Placeholder for AAC configuration parsing
     // This would parse the Elementary Stream Descriptor (ESDS) box
     // to extract AAC-specific configuration data
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
     // Placeholder for ALAC configuration parsing
     // This would parse the ALAC magic cookie to extract
     // ALAC-specific configuration data
     return true;
 }
 
-bool ISODemuxerBoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
     // Parse FLAC configuration from dfLa box (FLAC-in-MP4 specification)
     // The dfLa box contains FLAC metadata blocks without the 'fLaC' signature
     
@@ -1073,7 +1073,7 @@ bool ISODemuxerBoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size,
     return false;
 }
 
-bool ISODemuxerBoxParser::ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType) {
+bool BoxParser::ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType) {
     // Set codec type
     track.codecType = codecType;
     
@@ -1084,7 +1084,7 @@ bool ISODemuxerBoxParser::ConfigureTelephonyCodec(AudioTrackInfo& track, const s
     return ValidateTelephonyParameters(track);
 }
 
-bool ISODemuxerBoxParser::ValidateTelephonyParameters(AudioTrackInfo& track) {
+bool BoxParser::ValidateTelephonyParameters(AudioTrackInfo& track) {
     // Validate sample rate (telephony codecs typically use 8kHz)
     if (track.sampleRate != 8000) {
         // Allow some flexibility but warn about non-standard rates
@@ -1112,7 +1112,7 @@ bool ISODemuxerBoxParser::ValidateTelephonyParameters(AudioTrackInfo& track) {
     return true;
 }
 
-void ISODemuxerBoxParser::ApplyTelephonyDefaults(AudioTrackInfo& track, const std::string& codecType) {
+void BoxParser::ApplyTelephonyDefaults(AudioTrackInfo& track, const std::string& codecType) {
     // Apply standard telephony defaults if parameters are not set
     if (track.sampleRate == 0) {
         track.sampleRate = 8000; // Standard telephony sample rate

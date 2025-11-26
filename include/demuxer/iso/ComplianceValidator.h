@@ -1,5 +1,5 @@
 /*
- * ISODemuxerComplianceValidator.h - ISO compliance validation component
+ * ComplianceValidator.h - ISO compliance validation component
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -7,8 +7,8 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
-#ifndef ISODEMUXERCOMPLIANCEVALIDATOR_H
-#define ISODEMUXERCOMPLIANCEVALIDATOR_H
+#ifndef COMPLIANCEVALIDATOR_H
+#define COMPLIANCEVALIDATOR_H
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -58,10 +58,10 @@ struct ComplianceValidationResult {
 /**
  * @brief ISO compliance validation component
  */
-class ISODemuxerComplianceValidator {
+class ComplianceValidator {
 public:
-    explicit ISODemuxerComplianceValidator(std::shared_ptr<IOHandler> io);
-    ~ISODemuxerComplianceValidator();
+    explicit ComplianceValidator(std::shared_ptr<IOHandler> io);
+    ~ComplianceValidator();
     
     // Box structure validation
     BoxSizeValidationResult ValidateBoxStructure(uint32_t boxType, uint64_t size, 
@@ -121,4 +121,4 @@ private:
 } // namespace ISO
 } // namespace Demuxer
 } // namespace PsyMP3
-#endif // ISODEMUXERCOMPLIANCEVALIDATOR_H
+#endif // COMPLIANCEVALIDATOR_H
