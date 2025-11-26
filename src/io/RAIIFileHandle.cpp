@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace IO {
+
 // RAIIFileHandle implementation
 
 RAIIFileHandle::RAIIFileHandle() noexcept : m_file(nullptr), m_owns_handle(false) {
@@ -223,3 +226,6 @@ RAIIFileHandle make_file_handle(const wchar_t* filename, const wchar_t* mode) {
     return handle;
 }
 #endif
+
+} // namespace IO
+} // namespace PsyMP3

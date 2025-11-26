@@ -26,4 +26,5 @@ libio_a_SOURCES = \
 	BufferPool.cpp \
 	EnhancedBufferPool.cpp \
 	EnhancedAudioBufferPool.cpp \
-	BoundedBuffer.cpp
+	BoundedBuffer.cpp \
+	RAIIFileHandle.cpp

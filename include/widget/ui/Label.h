@@ -26,6 +26,10 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace Widget {
+namespace UI {
+
 class Label : public Widget
 {
     public:
@@ -40,5 +44,9 @@ class Label : public Widget
         SDL_Color m_color;
         std::unique_ptr<Surface> m_text_surface;
 };
+
+} // namespace UI
+} // namespace Widget
+} // namespace PsyMP3
 
 #endif // LABEL_H

@@ -26,6 +26,9 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace IO {
+
 /**
  * @brief RAII wrapper for FILE* handles with automatic cleanup
  * 
@@ -171,5 +174,8 @@ RAIIFileHandle make_file_handle(const char* filename, const char* mode);
  */
 RAIIFileHandle make_file_handle(const wchar_t* filename, const wchar_t* mode);
 #endif
+
+} // namespace IO
+} // namespace PsyMP3
 
 #endif // RAIIFILEHANDLE_H

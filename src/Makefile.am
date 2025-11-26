@@ -156,8 +156,7 @@ psymp3_SOURCES = \
  debug.cpp display.cpp \
  exceptions.cpp fft.cpp fft_draw.cpp \
  font.cpp \
- RAIIFileHandle.cpp \
- Label.cpp lyrics.cpp \
+ lyrics.cpp \
  main.cpp mediafile.cpp \
  persistentstorage.cpp player.cpp playlist.cpp \
  rect.cpp \

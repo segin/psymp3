@@ -42,6 +42,7 @@ libwidgetui_a_SOURCES = \
 	ProgressBarBracketWidget.cpp \
 	ProgressBarFrameWidget.cpp \
 	SpectrumAnalyzerWidget.cpp \
+	Label.cpp \
 	LyricsWidget.cpp \
 	ToastWidget.cpp \
 	ToastNotification.cpp

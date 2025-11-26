@@ -23,6 +23,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Widget {
+namespace UI {
+
 Label::Label(Font* font, const Rect& position, const TagLib::String& initial_text, SDL_Color color)
     : Widget(Surface(), position), // Initialize base Widget with an empty surface and a position
       m_font(font),
@@ -54,3 +58,7 @@ void Label::setText(const TagLib::String& text)
     // Notify parent that this widget needs repainting
     invalidate();
 }
+
+} // namespace UI
+} // namespace Widget
+} // namespace PsyMP3
