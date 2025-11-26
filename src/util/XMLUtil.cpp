@@ -9,6 +9,9 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace XML {
+
 XMLUtil::Element XMLUtil::parseXML(const std::string& xml) {
     size_t pos = 0;
     skipWhitespace(xml, pos);
@@ -293,3 +296,6 @@ std::map<std::string, std::string> XMLUtil::parseAttributes(const std::string& a
 std::string XMLUtil::getIndent(int level) {
     return std::string(level * 2, ' '); // 2 spaces per level
 }
+
+} // namespace XML
+} // namespace PsyMP3

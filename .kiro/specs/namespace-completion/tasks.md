@@ -215,37 +215,37 @@
   - Verify no compilation errors
   - _Requirements: 8.5, 7.1-7.5_
 
-- [ ] 8. Phase 3: Create Util subsystem
+- [x] 8. Phase 3: Create Util subsystem
   - Create new Util subsystem directory structure
   - Move utility files from src/ root
   - Add proper namespaces
   - Update build system
   - _Requirements: 8.1, 8.4-8.5_
 
-- [ ] 8.1 Create Util subsystem structure
+- [x] 8.1 Create Util subsystem structure
   - Create `src/util/` directory
   - Create `src/util/Makefile.am` for building `libutil.a`
   - Add source files list: XMLUtil.cpp
   - _Requirements: 8.4_
 
-- [ ] 8.2 Move utility files to new subsystem
+- [x] 8.2 Move utility files to new subsystem
   - Use `git mv src/XMLUtil.cpp src/util/XMLUtil.cpp`
   - _Requirements: 8.2_
 
-- [ ] 8.3 Add namespaces to Util files
+- [x] 8.3 Add namespaces to Util files
   - Add `PsyMP3::Util` namespace to XMLUtil.cpp
   - Verify master header inclusion
   - Ensure proper namespace closure with comments
   - Ensure file ends with newline
   - _Requirements: 8.5, 3.1, 6.1-6.7_
 
-- [ ] 8.4 Update build system for Util
+- [x] 8.4 Update build system for Util
   - Add `src/util/Makefile` to `AC_CONFIG_FILES` in `configure.ac`
   - Add `util` to SUBDIRS in `src/Makefile.am`
   - Add `util/libutil.a` to `psymp3_LDADD` in `src/Makefile.am`
   - _Requirements: 8.4_
 
-- [ ] 8.5 Verify Util subsystem builds
+- [x] 8.5 Verify Util subsystem builds
   - Run `./generate-configure.sh && ./configure`
   - Run `make -C src/util -j$(nproc)`
   - Verify no compilation errors

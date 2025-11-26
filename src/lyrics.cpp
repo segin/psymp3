@@ -21,7 +21,20 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+// GCC 13 has a known bug where it generates false-positive "may be used
+// uninitialized" warnings in libstdc++ <regex> internals when -O2 is enabled.
+// This is a compiler/library bug, not a code issue. Suppress it here.
+// See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105562
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 13
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+
 #include "psymp3.h"
+
+#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 13
+#pragma GCC diagnostic pop
+#endif
 
 bool LyricsFile::loadFromFile(const std::string& file_path) {
     clear();
@@ -111,11 +124,71 @@ bool LyricsFile::loadFromFile(const std::string& file_path) {
     }
 }
 
+// Helper to parse LRC timestamp: [mm:ss.xx] or [m:ss.xx]
+// Returns true if valid, sets minutes, seconds, centiseconds, and end_pos (position after ']')
+static bool parseLRCTimestamp(const std::string& line, size_t start,
+                               int& minutes, int& seconds, int& centiseconds, size_t& end_pos) {
+    if (start >= line.size() || line[start] != '[') return false;
+    
+    size_t pos = start + 1;
+    
+    // Parse minutes (1-2 digits)
+    size_t min_start = pos;
+    while (pos < line.size() && std::isdigit(line[pos])) pos++;
+    if (pos == min_start || pos - min_start > 2) return false;
+    minutes = std::stoi(line.substr(min_start, pos - min_start));
+    
+    // Expect ':'
+    if (pos >= line.size() || line[pos] != ':') return false;
+    pos++;
+    
+    // Parse seconds (exactly 2 digits)
+    if (pos + 2 > line.size() || !std::isdigit(line[pos]) || !std::isdigit(line[pos + 1])) return false;
+    seconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
+    pos += 2;
+    
+    // Expect '.'
+    if (pos >= line.size() || line[pos] != '.') return false;
+    pos++;
+    
+    // Parse centiseconds (exactly 2 digits)
+    if (pos + 2 > line.size() || !std::isdigit(line[pos]) || !std::isdigit(line[pos + 1])) return false;
+    centiseconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
+    pos += 2;
+    
+    // Expect ']'
+    if (pos >= line.size() || line[pos] != ']') return false;
+    pos++;
+    
+    end_pos = pos;
+    return true;
+}
+
+// Helper to parse LRC metadata: [xx:value] where xx is 2 lowercase letters
+// Returns true if valid, sets tag, value
+static bool parseLRCMetadata(const std::string& line, std::string& tag, std::string& value) {
+    if (line.size() < 5 || line[0] != '[') return false;
+    
+    // Check for 2-letter tag
+    if (!std::isalpha(line[1]) || !std::isalpha(line[2])) return false;
+    if (line[3] != ':') return false;
+    
+    // Find closing bracket
+    size_t close = line.find(']', 4);
+    if (close == std::string::npos) return false;
+    
+    // Make sure there's nothing after the closing bracket (metadata lines are standalone)
+    if (close != line.size() - 1) return false;
+    
+    tag = line.substr(1, 2);
+    std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
+    value = line.substr(4, close - 4);
+    return true;
+}
+
 bool LyricsFile::parseLRC(const std::string& content) {
     // LRC format: [mm:ss.xx]Lyric text
     // Also supports metadata: [ti:Title], [ar:Artist], etc.
-    std::regex lrc_timestamp_pattern(R"(\[(\d{1,2}):(\d{2})\.(\d{2})\](.*))", std::regex::icase);
-    std::regex lrc_metadata_pattern(R"(\[([a-z]{2}):(.+)\])", std::regex::icase);
     
     std::istringstream stream(content);
     std::string line;
@@ -128,18 +201,18 @@ bool LyricsFile::parseLRC(const std::string& content) {
         
         if (line.empty()) continue;
         
-        std::smatch matches;
+        int minutes, seconds, centiseconds;
+        size_t end_pos;
         
         // Try to match timestamp format
-        if (std::regex_match(line, matches, lrc_timestamp_pattern)) {
-            int minutes = std::stoi(matches[1]);
-            int seconds = std::stoi(matches[2]);
-            int centiseconds = std::stoi(matches[3]);
-            std::string lyric_text = matches[4];
+        if (parseLRCTimestamp(line, 0, minutes, seconds, centiseconds, end_pos)) {
+            std::string lyric_text = line.substr(end_pos);
             
             // Trim lyric text
             lyric_text.erase(0, lyric_text.find_first_not_of(" \t"));
-            lyric_text.erase(lyric_text.find_last_not_of(" \t") + 1);
+            if (!lyric_text.empty()) {
+                lyric_text.erase(lyric_text.find_last_not_of(" \t") + 1);
+            }
             
             unsigned int timestamp_ms = (minutes * 60 + seconds) * 1000 + centiseconds * 10;
             
@@ -149,17 +222,16 @@ bool LyricsFile::parseLRC(const std::string& content) {
             m_has_timing = true;
         }
         // Try to match metadata format
-        else if (std::regex_match(line, matches, lrc_metadata_pattern)) {
-            std::string tag = matches[1];
-            std::string value = matches[2];
-            
-            std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
-            if (tag == "ti") {
-                m_title = value;
-            } else if (tag == "ar") {
-                m_artist = value;
+        else {
+            std::string tag, value;
+            if (parseLRCMetadata(line, tag, value)) {
+                if (tag == "ti") {
+                    m_title = value;
+                } else if (tag == "ar") {
+                    m_artist = value;
+                }
+                // Ignore other metadata for now
             }
-            // Ignore other metadata for now
         }
     }
     

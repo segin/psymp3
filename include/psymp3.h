@@ -96,7 +96,6 @@ enum class LoopMode {
 #include <shared_mutex>
 #include <queue>
 #include <random>
-#include <regex>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -537,6 +536,9 @@ using PsyMP3::Demuxer::ChainedStream;
 #include "track.h"
 #include "song.h"
 #include "XMLUtil.h"
+
+// Using declarations for backward compatibility - XML subsystem
+using PsyMP3::XML::XMLUtil;
 
 // Last.fm scrobbling
 #include "lastfm/scrobble.h"
