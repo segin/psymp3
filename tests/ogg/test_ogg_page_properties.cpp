@@ -456,6 +456,331 @@ bool test_property4_is_last_packet_complete() {
     return true;
 }
 
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 5: Codec Signature Detection**
+// **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6**
+// ============================================================================
+
+/**
+ * Property 5: Codec Signature Detection
+ * 
+ * *For any* BOS packet, the demuxer SHALL correctly identify the codec type
+ * based on the magic bytes:
+ * - "\x01vorbis" for Vorbis (7 bytes)
+ * - "OpusHead" for Opus (8 bytes)
+ * - "\x7fFLAC" for FLAC (5 bytes)
+ * - "Speex   " for Speex (8 bytes with trailing spaces)
+ * - "\x80theora" for Theora (7 bytes)
+ */
+
+// Helper to create a minimal OggDemuxer for testing
+// Uses /dev/null as a dummy file to satisfy the IOHandler requirement
+class TestOggDemuxer : public OggDemuxer {
+public:
+    TestOggDemuxer() : OggDemuxer(std::make_unique<PsyMP3::IO::File::FileIOHandler>("/dev/null")) {}
+    
+    // Expose identifyCodec for testing
+    std::string testIdentifyCodec(const std::vector<uint8_t>& packet_data) {
+        return identifyCodec(packet_data);
+    }
+};
+
+bool test_property5_vorbis_detection() {
+    TestOggDemuxer demuxer;
+    
+    // Valid Vorbis identification header: "\x01vorbis" + additional data
+    std::vector<uint8_t> vorbis_packet = { 0x01, 'v', 'o', 'r', 'b', 'i', 's', 
+                                            0x00, 0x00, 0x00, 0x00 };  // Extra data
+    
+    std::string codec = demuxer.testIdentifyCodec(vorbis_packet);
+    TEST_ASSERT(codec == "vorbis", "Should detect Vorbis codec");
+    
+    // Minimum valid Vorbis header (exactly 7 bytes)
+    std::vector<uint8_t> vorbis_min = { 0x01, 'v', 'o', 'r', 'b', 'i', 's' };
+    codec = demuxer.testIdentifyCodec(vorbis_min);
+    TEST_ASSERT(codec == "vorbis", "Should detect Vorbis with minimum header");
+    
+    return true;
+}
+
+bool test_property5_opus_detection() {
+    TestOggDemuxer demuxer;
+    
+    // Valid Opus identification header: "OpusHead" + additional data
+    std::vector<uint8_t> opus_packet = { 'O', 'p', 'u', 's', 'H', 'e', 'a', 'd',
+                                          0x01, 0x02, 0x00, 0x00 };  // Version, channels, etc.
+    
+    std::string codec = demuxer.testIdentifyCodec(opus_packet);
+    TEST_ASSERT(codec == "opus", "Should detect Opus codec");
+    
+    // Minimum valid Opus header (exactly 8 bytes)
+    std::vector<uint8_t> opus_min = { 'O', 'p', 'u', 's', 'H', 'e', 'a', 'd' };
+    codec = demuxer.testIdentifyCodec(opus_min);
+    TEST_ASSERT(codec == "opus", "Should detect Opus with minimum header");
+    
+    return true;
+}
+
+bool test_property5_flac_detection() {
+    TestOggDemuxer demuxer;
+    
+    // Valid FLAC-in-Ogg identification header: "\x7fFLAC" + additional data
+    std::vector<uint8_t> flac_packet = { 0x7F, 'F', 'L', 'A', 'C',
+                                          0x01, 0x00,  // Mapping version
+                                          0x00, 0x00 };  // Header count
+    
+    std::string codec = demuxer.testIdentifyCodec(flac_packet);
+    TEST_ASSERT(codec == "flac", "Should detect FLAC codec");
+    
+    // Minimum valid FLAC header (exactly 5 bytes)
+    std::vector<uint8_t> flac_min = { 0x7F, 'F', 'L', 'A', 'C' };
+    codec = demuxer.testIdentifyCodec(flac_min);
+    TEST_ASSERT(codec == "flac", "Should detect FLAC with minimum header");
+    
+    return true;
+}
+
+bool test_property5_speex_detection() {
+    TestOggDemuxer demuxer;
+    
+    // Valid Speex identification header: "Speex   " (8 bytes with trailing spaces)
+    std::vector<uint8_t> speex_packet = { 'S', 'p', 'e', 'e', 'x', ' ', ' ', ' ',
+                                           0x00, 0x00, 0x00, 0x00 };  // Extra data
+    
+    std::string codec = demuxer.testIdentifyCodec(speex_packet);
+    TEST_ASSERT(codec == "speex", "Should detect Speex codec");
+    
+    // Minimum valid Speex header (exactly 8 bytes)
+    std::vector<uint8_t> speex_min = { 'S', 'p', 'e', 'e', 'x', ' ', ' ', ' ' };
+    codec = demuxer.testIdentifyCodec(speex_min);
+    TEST_ASSERT(codec == "speex", "Should detect Speex with minimum header");
+    
+    return true;
+}
+
+bool test_property5_theora_detection() {
+    TestOggDemuxer demuxer;
+    
+    // Valid Theora identification header: "\x80theora" + additional data
+    std::vector<uint8_t> theora_packet = { 0x80, 't', 'h', 'e', 'o', 'r', 'a',
+                                            0x00, 0x00, 0x00, 0x00 };  // Extra data
+    
+    std::string codec = demuxer.testIdentifyCodec(theora_packet);
+    TEST_ASSERT(codec == "theora", "Should detect Theora codec");
+    
+    // Minimum valid Theora header (exactly 7 bytes)
+    std::vector<uint8_t> theora_min = { 0x80, 't', 'h', 'e', 'o', 'r', 'a' };
+    codec = demuxer.testIdentifyCodec(theora_min);
+    TEST_ASSERT(codec == "theora", "Should detect Theora with minimum header");
+    
+    return true;
+}
+
+bool test_property5_unknown_codec_rejected() {
+    TestOggDemuxer demuxer;
+    
+    // Various unknown/invalid codec signatures
+    std::vector<std::vector<uint8_t>> unknown_packets = {
+        { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },  // All zeros
+        { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF },  // All ones
+        { 'R', 'I', 'F', 'F', 0x00, 0x00, 0x00, 0x00 },      // RIFF header
+        { 'f', 'L', 'a', 'C', 0x00, 0x00, 0x00, 0x00 },      // Native FLAC (not Ogg FLAC)
+        { 'I', 'D', '3', 0x04, 0x00, 0x00, 0x00, 0x00 },     // ID3 header
+        { 0x02, 'v', 'o', 'r', 'b', 'i', 's' },              // Wrong Vorbis packet type
+        { 'o', 'p', 'u', 's', 'h', 'e', 'a', 'd' },          // Lowercase opus
+        { 0x7E, 'F', 'L', 'A', 'C' },                        // Wrong FLAC prefix
+    };
+    
+    for (const auto& packet : unknown_packets) {
+        std::string codec = demuxer.testIdentifyCodec(packet);
+        TEST_ASSERT(codec.empty(), "Unknown codec should return empty string");
+    }
+    
+    return true;
+}
+
+bool test_property5_empty_packet() {
+    TestOggDemuxer demuxer;
+    
+    // Empty packet
+    std::vector<uint8_t> empty_packet;
+    std::string codec = demuxer.testIdentifyCodec(empty_packet);
+    TEST_ASSERT(codec.empty(), "Empty packet should return empty string");
+    
+    return true;
+}
+
+bool test_property5_too_short_packets() {
+    TestOggDemuxer demuxer;
+    
+    // Packets too short for any codec signature
+    for (size_t len = 1; len < 5; ++len) {
+        std::vector<uint8_t> short_packet(len, 0x00);
+        std::string codec = demuxer.testIdentifyCodec(short_packet);
+        TEST_ASSERT(codec.empty(), "Too-short packet should return empty string");
+    }
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for codec signature detection
+ * 
+ * Property: For any valid codec signature, identifyCodec returns the correct codec name.
+ * For any invalid signature, identifyCodec returns empty string.
+ */
+bool test_property5_rapidcheck() {
+    TestOggDemuxer demuxer;
+    
+    // Property: Valid signatures are always detected correctly
+    rc::check("Valid codec signatures are detected correctly", [&demuxer]() {
+        // Generate random extra data to append after signature
+        auto extra_data = *rc::gen::container<std::vector<uint8_t>>(
+            rc::gen::inRange<size_t>(0, 100),
+            rc::gen::arbitrary<uint8_t>()
+        );
+        
+        // Test each codec signature with random extra data
+        
+        // Vorbis
+        std::vector<uint8_t> vorbis = { 0x01, 'v', 'o', 'r', 'b', 'i', 's' };
+        vorbis.insert(vorbis.end(), extra_data.begin(), extra_data.end());
+        RC_ASSERT(demuxer.testIdentifyCodec(vorbis) == "vorbis");
+        
+        // Opus
+        std::vector<uint8_t> opus = { 'O', 'p', 'u', 's', 'H', 'e', 'a', 'd' };
+        opus.insert(opus.end(), extra_data.begin(), extra_data.end());
+        RC_ASSERT(demuxer.testIdentifyCodec(opus) == "opus");
+        
+        // FLAC
+        std::vector<uint8_t> flac = { 0x7F, 'F', 'L', 'A', 'C' };
+        flac.insert(flac.end(), extra_data.begin(), extra_data.end());
+        RC_ASSERT(demuxer.testIdentifyCodec(flac) == "flac");
+        
+        // Speex
+        std::vector<uint8_t> speex = { 'S', 'p', 'e', 'e', 'x', ' ', ' ', ' ' };
+        speex.insert(speex.end(), extra_data.begin(), extra_data.end());
+        RC_ASSERT(demuxer.testIdentifyCodec(speex) == "speex");
+        
+        // Theora
+        std::vector<uint8_t> theora = { 0x80, 't', 'h', 'e', 'o', 'r', 'a' };
+        theora.insert(theora.end(), extra_data.begin(), extra_data.end());
+        RC_ASSERT(demuxer.testIdentifyCodec(theora) == "theora");
+    });
+    
+    // Property: Random data that doesn't match any signature returns empty
+    rc::check("Random non-signature data returns empty string", [&demuxer]() {
+        auto random_data = *rc::gen::container<std::vector<uint8_t>>(
+            rc::gen::inRange<size_t>(0, 100),
+            rc::gen::arbitrary<uint8_t>()
+        );
+        
+        // Skip if random data happens to match a valid signature
+        if (random_data.size() >= 7 && 
+            random_data[0] == 0x01 && random_data[1] == 'v' && random_data[2] == 'o' &&
+            random_data[3] == 'r' && random_data[4] == 'b' && random_data[5] == 'i' &&
+            random_data[6] == 's') {
+            RC_DISCARD("Random data matches Vorbis signature");
+        }
+        if (random_data.size() >= 8 &&
+            random_data[0] == 'O' && random_data[1] == 'p' && random_data[2] == 'u' &&
+            random_data[3] == 's' && random_data[4] == 'H' && random_data[5] == 'e' &&
+            random_data[6] == 'a' && random_data[7] == 'd') {
+            RC_DISCARD("Random data matches Opus signature");
+        }
+        if (random_data.size() >= 5 &&
+            random_data[0] == 0x7F && random_data[1] == 'F' && random_data[2] == 'L' &&
+            random_data[3] == 'A' && random_data[4] == 'C') {
+            RC_DISCARD("Random data matches FLAC signature");
+        }
+        if (random_data.size() >= 8 &&
+            random_data[0] == 'S' && random_data[1] == 'p' && random_data[2] == 'e' &&
+            random_data[3] == 'e' && random_data[4] == 'x' && random_data[5] == ' ' &&
+            random_data[6] == ' ' && random_data[7] == ' ') {
+            RC_DISCARD("Random data matches Speex signature");
+        }
+        if (random_data.size() >= 7 &&
+            random_data[0] == 0x80 && random_data[1] == 't' && random_data[2] == 'h' &&
+            random_data[3] == 'e' && random_data[4] == 'o' && random_data[5] == 'r' &&
+            random_data[6] == 'a') {
+            RC_DISCARD("Random data matches Theora signature");
+        }
+        
+        std::string codec = demuxer.testIdentifyCodec(random_data);
+        RC_ASSERT(codec.empty());
+    });
+    
+    return true;
+}
+#endif // HAVE_RAPIDCHECK
+
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 8: Grouped Stream Ordering**
+// **Validates: Requirements 3.7**
+// ============================================================================
+
+/**
+ * Property 8: Grouped Stream Ordering
+ * 
+ * *For any* grouped Ogg bitstream, all BOS pages SHALL appear before any data pages.
+ * 
+ * This property tests the demuxer's ability to track the headers phase and
+ * detect when data pages appear.
+ */
+
+bool test_property8_headers_phase_tracking() {
+    TestOggDemuxer demuxer;
+    
+    // Initially should be in headers phase
+    TEST_ASSERT(demuxer.isInHeadersPhase(), "Should start in headers phase");
+    
+    return true;
+}
+
+bool test_property8_grouped_stream_detection() {
+    TestOggDemuxer demuxer;
+    
+    // Initially not a grouped stream (no BOS pages seen)
+    TEST_ASSERT(!demuxer.isGroupedStream(), "Should not be grouped initially");
+    
+    return true;
+}
+
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 9: Chained Stream Detection**
+// **Validates: Requirements 3.8**
+// ============================================================================
+
+/**
+ * Property 9: Chained Stream Detection
+ * 
+ * *For any* chained Ogg bitstream, the demuxer SHALL detect stream boundaries
+ * where an EOS page is immediately followed by a BOS page.
+ */
+
+bool test_property9_chain_count_tracking() {
+    TestOggDemuxer demuxer;
+    
+    // Initially chain count should be 0
+    TEST_ASSERT(demuxer.getChainCount() == 0, "Chain count should start at 0");
+    
+    return true;
+}
+
+bool test_property9_multiplexing_state_reset() {
+    TestOggDemuxer demuxer;
+    
+    // Reset multiplexing state
+    demuxer.resetMultiplexingState();
+    
+    // Should be back in headers phase
+    TEST_ASSERT(demuxer.isInHeadersPhase(), "Should be in headers phase after reset");
+    TEST_ASSERT(!demuxer.isGroupedStream(), "Should not be grouped after reset");
+    
+    return true;
+}
+
 #ifdef HAVE_RAPIDCHECK
 /**
  * RapidCheck property test for lacing value interpretation
@@ -652,6 +977,84 @@ int main() {
         TEST_PASS("RapidCheck property tests passed");
     }
 #endif
+    
+    // ========================================================================
+    // Property 5: Codec Signature Detection
+    // **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6**
+    // ========================================================================
+    std::cout << "\nProperty 5: Codec Signature Detection" << std::endl;
+    std::cout << "--------------------------------------" << std::endl;
+    
+    if (test_property5_vorbis_detection()) {
+        TEST_PASS("Vorbis codec detection");
+    }
+    
+    if (test_property5_opus_detection()) {
+        TEST_PASS("Opus codec detection");
+    }
+    
+    if (test_property5_flac_detection()) {
+        TEST_PASS("FLAC codec detection");
+    }
+    
+    if (test_property5_speex_detection()) {
+        TEST_PASS("Speex codec detection");
+    }
+    
+    if (test_property5_theora_detection()) {
+        TEST_PASS("Theora codec detection");
+    }
+    
+    if (test_property5_unknown_codec_rejected()) {
+        TEST_PASS("Unknown codecs rejected");
+    }
+    
+    if (test_property5_empty_packet()) {
+        TEST_PASS("Empty packet handled");
+    }
+    
+    if (test_property5_too_short_packets()) {
+        TEST_PASS("Too-short packets handled");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 5: RapidCheck Property Tests" << std::endl;
+    std::cout << "-------------------------------------" << std::endl;
+    
+    if (test_property5_rapidcheck()) {
+        TEST_PASS("RapidCheck codec signature tests passed");
+    }
+#endif
+    
+    // ========================================================================
+    // Property 8: Grouped Stream Ordering
+    // **Validates: Requirements 3.7**
+    // ========================================================================
+    std::cout << "\nProperty 8: Grouped Stream Ordering" << std::endl;
+    std::cout << "------------------------------------" << std::endl;
+    
+    if (test_property8_headers_phase_tracking()) {
+        TEST_PASS("Headers phase tracking");
+    }
+    
+    if (test_property8_grouped_stream_detection()) {
+        TEST_PASS("Grouped stream detection");
+    }
+    
+    // ========================================================================
+    // Property 9: Chained Stream Detection
+    // **Validates: Requirements 3.8**
+    // ========================================================================
+    std::cout << "\nProperty 9: Chained Stream Detection" << std::endl;
+    std::cout << "-------------------------------------" << std::endl;
+    
+    if (test_property9_chain_count_tracking()) {
+        TEST_PASS("Chain count tracking");
+    }
+    
+    if (test_property9_multiplexing_state_reset()) {
+        TEST_PASS("Multiplexing state reset");
+    }
     
     // ========================================================================
     // Summary

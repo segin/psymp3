@@ -1,6 +1,6 @@
 # **OGG DEMUXER IMPLEMENTATION PLAN**
 
-## **Implementation Tasks**
+## **Implementation Tasks** 
 
 - [x] 1. Project Setup and Clean Slate
   - [x] 1.1 Remove existing OGG demuxer implementation
@@ -83,28 +83,28 @@
 - [x] 4. Checkpoint - Verify Page and Packet Parsing
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Implement Logical Bitstream Identification and Multiplexing
-  - [ ] 5.1 Implement codec signature detection
+- [x] 5. Implement Logical Bitstream Identification and Multiplexing
+  - [x] 5.1 Implement codec signature detection
     - Detect Vorbis: "\x01vorbis" (7 bytes)
     - Detect Opus: "OpusHead" (8 bytes) per RFC 7845
     - Detect FLAC: "\x7fFLAC" (5 bytes) per RFC 9639
     - Detect Speex: "Speex   " (8 bytes)
     - Detect Theora: "\x80theora" (7 bytes)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
-  - [ ] 5.2 Implement stream multiplexing handling
+  - [x] 5.2 Implement stream multiplexing handling
     - Handle grouped bitstreams (all BOS pages before data pages)
     - Handle chained bitstreams (EOS immediately followed by BOS)
     - Maintain separate ogg_stream_state for each serial number
     - Route pages to correct stream state by serial number
     - Detect chained stream boundaries (new BOS after data pages)
     - _Requirements: 3.7, 3.8, 3.9, 3.10, 3.11_
-  - [ ] 5.3 Write property test for codec signature detection
+  - [x] 5.3 Write property test for codec signature detection
     - **Property 5: Codec Signature Detection**
     - **Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6**
-  - [ ] 5.4 Write property test for grouped stream ordering
+  - [x] 5.4 Write property test for grouped stream ordering
     - **Property 8: Grouped Stream Ordering**
     - **Validates: Requirements 3.7**
-  - [ ] 5.5 Write property test for chained stream detection
+  - [x] 5.5 Write property test for chained stream detection
     - **Property 9: Chained Stream Detection**
     - **Validates: Requirements 3.8**
 

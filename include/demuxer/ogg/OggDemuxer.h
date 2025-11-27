@@ -457,6 +457,19 @@ public:
     bool parseSpeexHeaders(OggStream& stream, const OggPacket& packet);
     std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_streams; }
     
+    // Stream multiplexing handling (RFC 3533 Section 4)
+    // Grouped bitstreams: all BOS pages appear before any data pages
+    // Chained bitstreams: EOS immediately followed by BOS
+    bool processPage(ogg_page* page);
+    bool handleBOSPage(ogg_page* page, uint32_t serial_number);
+    bool handleEOSPage(ogg_page* page, uint32_t serial_number);
+    bool handleDataPage(ogg_page* page, uint32_t serial_number);
+    bool isChainedStreamBoundary(ogg_page* page, uint32_t serial_number) const;
+    bool isGroupedStream() const { return m_bos_serial_numbers.size() > 1; }
+    bool isInHeadersPhase() const { return m_in_headers_phase; }
+    uint32_t getChainCount() const { return m_chain_count; }
+    void resetMultiplexingState();
+    
     // Duration calculation methods
     uint64_t getLastGranulePosition();
     uint64_t scanBufferForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size);
@@ -599,6 +612,15 @@ private:
     mutable bool m_fallback_mode = false;
     mutable std::set<uint32_t> m_corrupted_streams;
     mutable long m_last_valid_position = 0;
+    
+    // Stream multiplexing state (RFC 3533 Section 4)
+    // Grouped bitstreams: all BOS pages appear before any data pages
+    // Chained bitstreams: EOS immediately followed by BOS
+    bool m_in_headers_phase = true;           // True until first data page seen
+    bool m_seen_data_page = false;            // True after first non-BOS page with data
+    std::set<uint32_t> m_bos_serial_numbers;  // Serial numbers from BOS pages in current group
+    std::set<uint32_t> m_eos_serial_numbers;  // Serial numbers that have seen EOS
+    uint32_t m_chain_count = 0;               // Number of chained streams detected
     
     // Page extraction constants (following libvorbisfile patterns)
     static constexpr size_t CHUNKSIZE = 65536;

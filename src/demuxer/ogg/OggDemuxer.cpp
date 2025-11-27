@@ -585,7 +585,111 @@ uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) cons
     return 0;
 }
 
+/**
+ * @brief Identify codec type from BOS packet magic bytes
+ * 
+ * Following RFC 3533 Section 4 and reference implementation patterns:
+ * - Vorbis: "\x01vorbis" (7 bytes) - vorbis_synthesis_idheader() pattern
+ * - Opus: "OpusHead" (8 bytes) - opus_head_parse() pattern per RFC 7845
+ * - FLAC: "\x7fFLAC" (5 bytes) - RFC 9639 Section 10.1
+ * - Speex: "Speex   " (8 bytes with trailing spaces)
+ * - Theora: "\x80theora" (7 bytes)
+ * 
+ * @param packet_data First packet data from BOS page
+ * @return Codec name string ("vorbis", "opus", "flac", "speex", "theora") or empty if unknown
+ * 
+ * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6
+ */
 std::string OggDemuxer::identifyCodec(const std::vector<uint8_t>& packet_data) {
+    if (packet_data.empty()) {
+        Debug::log("ogg", "identifyCodec: Empty packet data");
+        return "";
+    }
+    
+    // Vorbis identification: "\x01vorbis" (7 bytes)
+    // First byte is packet type (0x01 = identification header)
+    // Followed by "vorbis" magic string
+    if (packet_data.size() >= 7) {
+        if (packet_data[0] == 0x01 &&
+            packet_data[1] == 'v' &&
+            packet_data[2] == 'o' &&
+            packet_data[3] == 'r' &&
+            packet_data[4] == 'b' &&
+            packet_data[5] == 'i' &&
+            packet_data[6] == 's') {
+            Debug::log("ogg", "identifyCodec: Detected Vorbis stream");
+            return "vorbis";
+        }
+    }
+    
+    // Opus identification: "OpusHead" (8 bytes) per RFC 7845 Section 5.1
+    if (packet_data.size() >= 8) {
+        if (packet_data[0] == 'O' &&
+            packet_data[1] == 'p' &&
+            packet_data[2] == 'u' &&
+            packet_data[3] == 's' &&
+            packet_data[4] == 'H' &&
+            packet_data[5] == 'e' &&
+            packet_data[6] == 'a' &&
+            packet_data[7] == 'd') {
+            Debug::log("ogg", "identifyCodec: Detected Opus stream");
+            return "opus";
+        }
+    }
+    
+    // FLAC-in-Ogg identification: "\x7fFLAC" (5 bytes) per RFC 9639 Section 10.1
+    // 0x7F followed by "FLAC"
+    if (packet_data.size() >= 5) {
+        if (packet_data[0] == 0x7F &&
+            packet_data[1] == 'F' &&
+            packet_data[2] == 'L' &&
+            packet_data[3] == 'A' &&
+            packet_data[4] == 'C') {
+            Debug::log("ogg", "identifyCodec: Detected FLAC-in-Ogg stream");
+            return "flac";
+        }
+    }
+    
+    // Speex identification: "Speex   " (8 bytes with trailing spaces)
+    if (packet_data.size() >= 8) {
+        if (packet_data[0] == 'S' &&
+            packet_data[1] == 'p' &&
+            packet_data[2] == 'e' &&
+            packet_data[3] == 'e' &&
+            packet_data[4] == 'x' &&
+            packet_data[5] == ' ' &&
+            packet_data[6] == ' ' &&
+            packet_data[7] == ' ') {
+            Debug::log("ogg", "identifyCodec: Detected Speex stream");
+            return "speex";
+        }
+    }
+    
+    // Theora identification: "\x80theora" (7 bytes)
+    // First byte is packet type (0x80 = identification header)
+    // Followed by "theora" magic string
+    if (packet_data.size() >= 7) {
+        if (packet_data[0] == 0x80 &&
+            packet_data[1] == 't' &&
+            packet_data[2] == 'h' &&
+            packet_data[3] == 'e' &&
+            packet_data[4] == 'o' &&
+            packet_data[5] == 'r' &&
+            packet_data[6] == 'a') {
+            Debug::log("ogg", "identifyCodec: Detected Theora stream");
+            return "theora";
+        }
+    }
+    
+    // Unknown codec - log first few bytes for debugging
+    if (packet_data.size() >= 4) {
+        Debug::log("ogg", "identifyCodec: Unknown codec, first bytes: 0x%02x 0x%02x 0x%02x 0x%02x",
+                   packet_data[0], packet_data[1], packet_data[2], packet_data[3]);
+    } else {
+        Debug::log("ogg", "identifyCodec: Unknown codec, packet too small (%zu bytes)",
+                   packet_data.size());
+    }
+    
     return "";
 }
 
@@ -603,6 +707,405 @@ bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
 
 bool OggDemuxer::parseSpeexHeaders(OggStream& stream, const OggPacket& packet) {
     return false;
+}
+
+// ============================================================================
+// Stream Multiplexing Handling (RFC 3533 Section 4)
+// ============================================================================
+
+/**
+ * @brief Process an Ogg page and route to appropriate handler
+ * 
+ * Following RFC 3533 Section 4:
+ * - Grouped bitstreams: all BOS pages appear before any data pages
+ * - Chained bitstreams: EOS immediately followed by BOS
+ * 
+ * @param page Pointer to ogg_page structure
+ * @return true on success, false on error
+ * 
+ * Requirements: 3.7, 3.8, 3.9, 3.10, 3.11
+ */
+bool OggDemuxer::processPage(ogg_page* page) {
+    if (!page || !pageIsValid(page)) {
+        Debug::log("ogg", "processPage: Invalid page");
+        return false;
+    }
+    
+    uint32_t serial_number = pageSerialNo(page);
+    bool is_bos = pageBOS(page);
+    bool is_eos = pageEOS(page);
+    
+    Debug::log("ogg", "processPage: serial=0x%08x, BOS=%d, EOS=%d, granule=%lld",
+               serial_number, is_bos, is_eos,
+               static_cast<long long>(pageGranulePos(page)));
+    
+    // Handle BOS (Beginning of Stream) pages
+    if (is_bos) {
+        return handleBOSPage(page, serial_number);
+    }
+    
+    // Handle EOS (End of Stream) pages
+    if (is_eos) {
+        return handleEOSPage(page, serial_number);
+    }
+    
+    // Handle regular data pages
+    return handleDataPage(page, serial_number);
+}
+
+/**
+ * @brief Handle a BOS (Beginning of Stream) page
+ * 
+ * Following RFC 3533 Section 4:
+ * - BOS pages contain codec identification in first packet
+ * - For grouped streams, all BOS pages appear before any data pages
+ * - For chained streams, BOS appears after EOS of previous chain
+ * 
+ * @param page Pointer to ogg_page structure
+ * @param serial_number Serial number of the stream
+ * @return true on success, false on error
+ * 
+ * Requirements: 3.1-3.6, 3.7, 3.8, 3.11
+ */
+bool OggDemuxer::handleBOSPage(ogg_page* page, uint32_t serial_number) {
+    Debug::log("ogg", "handleBOSPage: Processing BOS page for serial 0x%08x", serial_number);
+    
+    // Check for duplicate serial numbers (error condition per Requirements 4.14)
+    if (m_bos_serial_numbers.count(serial_number) > 0) {
+        Debug::log("ogg", "handleBOSPage: Duplicate serial number 0x%08x detected", serial_number);
+        // This is an error condition - return OP_EBADHEADER equivalent
+        return false;
+    }
+    
+    // Check if this is a chained stream boundary
+    if (isChainedStreamBoundary(page, serial_number)) {
+        Debug::log("ogg", "handleBOSPage: Detected chained stream boundary, chain %u",
+                   m_chain_count + 1);
+        
+        // Reset state for new chain
+        m_chain_count++;
+        m_bos_serial_numbers.clear();
+        m_eos_serial_numbers.clear();
+        m_in_headers_phase = true;
+        m_seen_data_page = false;
+        
+        // Clean up old stream states for the previous chain
+        // Keep the ogg_stream_state structures but reset them
+        for (auto& [old_serial, ogg_stream] : m_ogg_streams) {
+            ogg_stream_reset(&ogg_stream);
+        }
+    }
+    
+    // Record this BOS serial number
+    m_bos_serial_numbers.insert(serial_number);
+    
+    // Initialize ogg_stream_state for this serial number if not exists
+    auto ogg_stream_it = m_ogg_streams.find(serial_number);
+    if (ogg_stream_it == m_ogg_streams.end()) {
+        ogg_stream_state new_stream;
+        if (ogg_stream_init(&new_stream, static_cast<int>(serial_number)) != 0) {
+            Debug::log("ogg", "handleBOSPage: Failed to init ogg_stream_state for 0x%08x",
+                       serial_number);
+            return false;
+        }
+        m_ogg_streams[serial_number] = new_stream;
+        ogg_stream_it = m_ogg_streams.find(serial_number);
+    }
+    
+    // Submit page to stream state using ogg_stream_pagein()
+    if (ogg_stream_pagein(&ogg_stream_it->second, page) != 0) {
+        Debug::log("ogg", "handleBOSPage: ogg_stream_pagein() failed for serial 0x%08x",
+                   serial_number);
+        return false;
+    }
+    
+    // Extract the first packet to identify codec
+    ogg_packet ogg_pkt;
+    int ret = ogg_stream_packetout(&ogg_stream_it->second, &ogg_pkt);
+    
+    if (ret != 1) {
+        Debug::log("ogg", "handleBOSPage: Failed to extract identification packet");
+        return false;
+    }
+    
+    // Create packet data vector for codec identification
+    std::vector<uint8_t> packet_data(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+    
+    // Identify codec from magic bytes
+    std::string codec_name = identifyCodec(packet_data);
+    
+    if (codec_name.empty()) {
+        Debug::log("ogg", "handleBOSPage: Unknown codec for serial 0x%08x", serial_number);
+        // Skip unknown streams per Requirements 4.11
+        // Don't fail, just don't create an OggStream for it
+        return true;
+    }
+    
+    // Create or update OggStream for this serial number
+    OggStream& stream = m_streams[serial_number];
+    stream.serial_number = serial_number;
+    stream.codec_name = codec_name;
+    stream.codec_type = "audio";  // Default to audio for now
+    stream.headers_complete = false;
+    stream.headers_sent = false;
+    stream.next_header_index = 0;
+    stream.page_sequence_initialized = false;
+    stream.last_page_sequence = pageSequenceNo(page);
+    stream.page_sequence_initialized = true;
+    
+    // Store the identification packet as first header packet
+    OggPacket header_packet;
+    header_packet.stream_id = serial_number;
+    header_packet.data = std::move(packet_data);
+    header_packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+    header_packet.is_first_packet = true;
+    header_packet.is_last_packet = false;
+    header_packet.is_continued = false;
+    stream.header_packets.push_back(std::move(header_packet));
+    
+    // Set expected header count based on codec
+    if (codec_name == "vorbis") {
+        stream.expected_header_count = 3;  // Identification, comment, setup
+    } else if (codec_name == "opus") {
+        stream.expected_header_count = 2;  // OpusHead, OpusTags
+    } else if (codec_name == "flac") {
+        // FLAC-in-Ogg: header count is in the identification header
+        // Will be parsed in parseFLACHeaders()
+        stream.expected_header_count = 0;  // Unknown until parsed
+    } else if (codec_name == "speex") {
+        stream.expected_header_count = 2;  // Header, comment
+    } else if (codec_name == "theora") {
+        stream.expected_header_count = 3;  // Identification, comment, setup
+        stream.codec_type = "video";
+    }
+    
+    Debug::log("ogg", "handleBOSPage: Created stream 0x%08x, codec=%s, expected_headers=%u",
+               serial_number, codec_name.c_str(), stream.expected_header_count);
+    
+    return true;
+}
+
+/**
+ * @brief Handle an EOS (End of Stream) page
+ * 
+ * Following RFC 3533 Section 4:
+ * - EOS marks the end of a logical bitstream
+ * - May be a nil page (header only, no content)
+ * - For chained streams, EOS is immediately followed by BOS
+ * 
+ * @param page Pointer to ogg_page structure
+ * @param serial_number Serial number of the stream
+ * @return true on success, false on error
+ * 
+ * Requirements: 1.13, 1.14, 3.8
+ */
+bool OggDemuxer::handleEOSPage(ogg_page* page, uint32_t serial_number) {
+    Debug::log("ogg", "handleEOSPage: Processing EOS page for serial 0x%08x", serial_number);
+    
+    // Record that this stream has seen EOS
+    m_eos_serial_numbers.insert(serial_number);
+    
+    // Check if this is a nil EOS page (header only, no content)
+    bool is_nil_eos = (pageBodySize(page) == 0);
+    if (is_nil_eos) {
+        Debug::log("ogg", "handleEOSPage: Nil EOS page (header only) for serial 0x%08x",
+                   serial_number);
+    }
+    
+    // Submit page to stream state
+    auto ogg_stream_it = m_ogg_streams.find(serial_number);
+    if (ogg_stream_it != m_ogg_streams.end()) {
+        if (ogg_stream_pagein(&ogg_stream_it->second, page) != 0) {
+            Debug::log("ogg", "handleEOSPage: ogg_stream_pagein() failed for serial 0x%08x",
+                       serial_number);
+            // Continue anyway - EOS is important to record
+        }
+        
+        // Extract any remaining packets
+        ogg_packet ogg_pkt;
+        while (ogg_stream_packetout(&ogg_stream_it->second, &ogg_pkt) == 1) {
+            auto stream_it = m_streams.find(serial_number);
+            if (stream_it != m_streams.end()) {
+                OggPacket packet;
+                packet.stream_id = serial_number;
+                packet.data.assign(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+                packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+                packet.is_first_packet = false;
+                packet.is_last_packet = (ogg_pkt.e_o_s != 0);
+                packet.is_continued = false;
+                
+                stream_it->second.m_packet_queue.push_back(std::move(packet));
+                
+                // Update max granule seen
+                if (ogg_pkt.granulepos >= 0 &&
+                    static_cast<uint64_t>(ogg_pkt.granulepos) > m_max_granule_seen) {
+                    m_max_granule_seen = static_cast<uint64_t>(ogg_pkt.granulepos);
+                }
+            }
+        }
+    }
+    
+    // Update page sequence tracking
+    auto stream_it = m_streams.find(serial_number);
+    if (stream_it != m_streams.end()) {
+        uint32_t page_seq = pageSequenceNo(page);
+        if (stream_it->second.page_sequence_initialized) {
+            if (page_seq != stream_it->second.last_page_sequence + 1) {
+                Debug::log("ogg", "handleEOSPage: Page loss detected for serial 0x%08x "
+                           "(expected %u, got %u)", serial_number,
+                           stream_it->second.last_page_sequence + 1, page_seq);
+            }
+        }
+        stream_it->second.last_page_sequence = page_seq;
+    }
+    
+    // Check if all streams in the group have seen EOS
+    if (m_eos_serial_numbers.size() == m_bos_serial_numbers.size()) {
+        Debug::log("ogg", "handleEOSPage: All streams in group have reached EOS");
+    }
+    
+    return true;
+}
+
+/**
+ * @brief Handle a regular data page (not BOS or EOS)
+ * 
+ * Following RFC 3533 Section 4:
+ * - Route page to correct stream state by serial number
+ * - Track page sequence for loss detection
+ * - Extract packets using ogg_stream_packetout()
+ * 
+ * @param page Pointer to ogg_page structure
+ * @param serial_number Serial number of the stream
+ * @return true on success, false on error
+ * 
+ * Requirements: 3.9, 3.10, 6.1, 6.8
+ */
+bool OggDemuxer::handleDataPage(ogg_page* page, uint32_t serial_number) {
+    // Mark that we've seen a data page (no longer in headers phase)
+    if (!m_seen_data_page) {
+        m_seen_data_page = true;
+        m_in_headers_phase = false;
+        Debug::log("ogg", "handleDataPage: First data page seen, exiting headers phase");
+    }
+    
+    // Check if we have a stream state for this serial number
+    auto ogg_stream_it = m_ogg_streams.find(serial_number);
+    if (ogg_stream_it == m_ogg_streams.end()) {
+        Debug::log("ogg", "handleDataPage: Unknown serial 0x%08x, skipping page", serial_number);
+        return true;  // Skip unknown streams
+    }
+    
+    // Submit page to stream state using ogg_stream_pagein()
+    if (ogg_stream_pagein(&ogg_stream_it->second, page) != 0) {
+        Debug::log("ogg", "handleDataPage: ogg_stream_pagein() failed for serial 0x%08x",
+                   serial_number);
+        return false;
+    }
+    
+    // Track page sequence for loss detection (Requirements 1.6, 6.8)
+    auto stream_it = m_streams.find(serial_number);
+    if (stream_it != m_streams.end()) {
+        OggStream& stream = stream_it->second;
+        uint32_t page_seq = pageSequenceNo(page);
+        
+        if (stream.page_sequence_initialized) {
+            if (page_seq != stream.last_page_sequence + 1) {
+                Debug::log("ogg", "handleDataPage: Page loss detected for serial 0x%08x "
+                           "(expected %u, got %u)", serial_number,
+                           stream.last_page_sequence + 1, page_seq);
+            }
+        }
+        stream.last_page_sequence = page_seq;
+        stream.page_sequence_initialized = true;
+        
+        // Extract packets using ogg_stream_packetout()
+        ogg_packet ogg_pkt;
+        while (ogg_stream_packetout(&ogg_stream_it->second, &ogg_pkt) == 1) {
+            OggPacket packet;
+            packet.stream_id = serial_number;
+            packet.data.assign(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+            packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+            packet.is_first_packet = (ogg_pkt.b_o_s != 0);
+            packet.is_last_packet = (ogg_pkt.e_o_s != 0);
+            packet.is_continued = false;  // libogg handles continuation internally
+            
+            // Check if this is a header packet or data packet
+            if (!stream.headers_complete) {
+                // Still collecting headers
+                stream.header_packets.push_back(std::move(packet));
+                
+                // Check if we have all expected headers
+                if (stream.expected_header_count > 0 &&
+                    stream.header_packets.size() >= stream.expected_header_count) {
+                    stream.headers_complete = true;
+                    Debug::log("ogg", "handleDataPage: Headers complete for serial 0x%08x "
+                               "(%zu headers)", serial_number, stream.header_packets.size());
+                }
+            } else {
+                // Data packet - add to queue
+                stream.m_packet_queue.push_back(std::move(packet));
+                
+                // Update max granule seen
+                if (ogg_pkt.granulepos >= 0 &&
+                    static_cast<uint64_t>(ogg_pkt.granulepos) > m_max_granule_seen) {
+                    m_max_granule_seen = static_cast<uint64_t>(ogg_pkt.granulepos);
+                }
+            }
+        }
+    }
+    
+    return true;
+}
+
+/**
+ * @brief Check if a BOS page indicates a chained stream boundary
+ * 
+ * Following RFC 3533 Section 4:
+ * - Chained streams: EOS immediately followed by BOS
+ * - A new BOS after data pages indicates a chained stream boundary
+ * 
+ * @param page Pointer to ogg_page structure (must be BOS)
+ * @param serial_number Serial number of the stream
+ * @return true if this is a chained stream boundary
+ * 
+ * Requirements: 3.8, 3.11
+ */
+bool OggDemuxer::isChainedStreamBoundary(ogg_page* page, uint32_t serial_number) const {
+    // A BOS page is a chained stream boundary if:
+    // 1. We've already seen data pages (not in initial headers phase)
+    // 2. OR all streams in the current group have seen EOS
+    
+    if (m_seen_data_page) {
+        // We've seen data pages, so a new BOS indicates a chain
+        Debug::log("ogg", "isChainedStreamBoundary: BOS after data pages - chain detected");
+        return true;
+    }
+    
+    if (!m_eos_serial_numbers.empty() && 
+        m_eos_serial_numbers.size() == m_bos_serial_numbers.size()) {
+        // All streams have seen EOS, new BOS starts a chain
+        Debug::log("ogg", "isChainedStreamBoundary: BOS after all EOS - chain detected");
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * @brief Reset multiplexing state for a new file or chain
+ * 
+ * Clears all multiplexing tracking state to prepare for parsing
+ * a new file or handling a new chain in a chained stream.
+ */
+void OggDemuxer::resetMultiplexingState() {
+    m_in_headers_phase = true;
+    m_seen_data_page = false;
+    m_bos_serial_numbers.clear();
+    m_eos_serial_numbers.clear();
+    // Don't reset m_chain_count - it tracks total chains seen
+    
+    Debug::log("ogg", "resetMultiplexingState: Multiplexing state reset");
 }
 
 uint64_t OggDemuxer::getLastGranulePosition() {
@@ -1347,8 +1850,24 @@ bool OggDemuxer::enableFallbackMode() const {
     return false;
 }
 
+/**
+ * @brief Check if data starts with a specific signature
+ * 
+ * @param data Data buffer to check
+ * @param signature Null-terminated signature string to match
+ * @return true if data starts with signature
+ */
 bool OggDemuxer::hasSignature(const std::vector<uint8_t>& data, const char* signature) {
-    return false;
+    if (!signature || data.empty()) {
+        return false;
+    }
+    
+    size_t sig_len = std::strlen(signature);
+    if (data.size() < sig_len) {
+        return false;
+    }
+    
+    return std::memcmp(data.data(), signature, sig_len) == 0;
 }
 
 bool OggDemuxer::validateOggPage(const ogg_page* page) {
