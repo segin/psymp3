@@ -186,6 +186,33 @@ fi
 
 AM_CONDITIONAL([HAVE_DBUS], [test "x$have_dbus" = "xyes"])
 
+# RapidCheck property-based testing library (optional)
+AC_ARG_ENABLE([rapidcheck],
+  [AS_HELP_STRING([--enable-rapidcheck], [Enable RapidCheck property-based testing @<:@default=auto@:>@])],
+  [enable_rapidcheck=$enableval],
+  [enable_rapidcheck=auto])
+
+have_rapidcheck=no
+if test "x$enable_rapidcheck" != "xno"; then
+  # Check for RapidCheck headers and library
+  AC_CHECK_HEADERS([rapidcheck.h], [have_rapidcheck_headers=yes], [have_rapidcheck_headers=no])
+  if test "x$have_rapidcheck_headers" = "xyes"; then
+    AC_CHECK_LIB([rapidcheck], [main], [have_rapidcheck=yes], [have_rapidcheck=no])
+  fi
+  
+  if test "x$have_rapidcheck" = "xyes"; then
+    AC_DEFINE([HAVE_RAPIDCHECK], [1], [Define to 1 if RapidCheck is available])
+    RAPIDCHECK_LIBS="-lrapidcheck"
+    AC_SUBST([RAPIDCHECK_LIBS])
+  else
+    if test "x$enable_rapidcheck" = "xyes"; then
+      AC_MSG_ERROR([RapidCheck was requested but not found. Install librapidcheck-dev or use --disable-rapidcheck])
+    fi
+  fi
+fi
+
+AM_CONDITIONAL([HAVE_RAPIDCHECK], [test "x$have_rapidcheck" = "xyes"])
+
 # Test harness configuration
 # Detect Windows builds and disable testing by default unless explicitly enabled
 AC_ARG_ENABLE([test-harness],
@@ -339,6 +366,7 @@ echo ""
 echo "Optional Features:"
 echo "  MPRIS (D-Bus):     $have_dbus"
 echo "  Test Harness:      $enable_test_harness"
+echo "  RapidCheck (PBT):  $have_rapidcheck"
 echo "  Release Build:     $enable_release"
 echo "  Final Build:       $enable_final"
 echo ""

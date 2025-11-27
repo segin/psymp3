@@ -254,6 +254,11 @@ if HAVE_OGGDEMUXER
 check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming test_error_handling test_memory_safety test_seeking_integration test_ogg_demuxer_integration test_oggdemuxer_performance test_oggdemuxer_comprehensive test_opus_codec_core_decoding test_opus_codec_error_handling test_opus_integration test_opus_compatibility_performance
 endif
 
+# RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
+if HAVE_RAPIDCHECK
+check_PROGRAMS += test_rapidcheck_setup
+endif
+
 # A-law codec tests
 check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties
 
@@ -3277,4 +3282,16 @@ test_native_flac_threading_LDADD = \
 
 endif
 
+endif
+
+# RapidCheck property-based testing setup test
+if HAVE_RAPIDCHECK
+test_rapidcheck_setup_SOURCES = ogg/test_rapidcheck_setup.cpp
+test_rapidcheck_setup_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_rapidcheck_setup_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(RAPIDCHECK_LIBS) \
+	$(AM_LDFLAGS)
 endif
