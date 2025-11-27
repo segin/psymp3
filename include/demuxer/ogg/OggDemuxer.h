@@ -28,6 +28,33 @@ namespace Demuxer {
 namespace Ogg {
 
 /**
+ * @brief Maximum Ogg page size per RFC 3533
+ * Header (27 bytes) + max segments (255) + max segment data (255 * 255 = 65025)
+ * Total: 27 + 255 + 65025 = 65307 bytes
+ */
+static constexpr size_t OGG_PAGE_SIZE_MAX = 65307;
+
+/**
+ * @brief Minimum Ogg page header size (fixed portion)
+ */
+static constexpr size_t OGG_PAGE_HEADER_MIN_SIZE = 27;
+
+/**
+ * @brief Maximum number of segments per page
+ */
+static constexpr size_t OGG_MAX_SEGMENTS = 255;
+
+/**
+ * @brief OggS capture pattern as 32-bit value (little-endian: "OggS")
+ */
+static constexpr uint32_t OGG_CAPTURE_PATTERN = 0x5367674F;  // "OggS" in little-endian
+
+/**
+ * @brief OggS capture pattern bytes
+ */
+static constexpr uint8_t OGG_CAPTURE_BYTES[4] = { 0x4F, 0x67, 0x67, 0x53 };  // "OggS"
+
+/**
  * @brief Ogg page header structure (RFC 3533 Section 6)
  */
 struct OggPageHeader {
@@ -48,6 +75,288 @@ struct OggPageHeader {
     bool isContinuedPacket() const { return header_type & CONTINUED_PACKET; }
     bool isFirstPage() const { return header_type & FIRST_PAGE; }
     bool isLastPage() const { return header_type & LAST_PAGE; }
+};
+
+/**
+ * @brief Complete Ogg page structure with segment table and body data
+ * 
+ * This structure represents a complete Ogg page as defined in RFC 3533 Section 6.
+ * It includes the header, segment table (lacing values), and body data.
+ */
+struct OggPage {
+    OggPageHeader header;
+    std::vector<uint8_t> segment_table;  // Lacing values (0-255 entries)
+    std::vector<uint8_t> body;           // Page body data
+    
+    // Calculated values
+    size_t header_size;                  // 27 + number of segments
+    size_t body_size;                    // Sum of lacing values
+    size_t total_size;                   // header_size + body_size
+    
+    /**
+     * @brief Validate the OggS capture pattern
+     * @return true if capture pattern is valid "OggS" (0x4f676753)
+     */
+    bool validateCapturePattern() const {
+        return header.capture_pattern[0] == 0x4F &&  // 'O'
+               header.capture_pattern[1] == 0x67 &&  // 'g'
+               header.capture_pattern[2] == 0x67 &&  // 'g'
+               header.capture_pattern[3] == 0x53;    // 'S'
+    }
+    
+    /**
+     * @brief Validate the stream structure version
+     * @return true if version is 0 (only valid version per RFC 3533)
+     */
+    bool validateVersion() const {
+        return header.version == 0;
+    }
+    
+    /**
+     * @brief Check if this is a BOS (Beginning of Stream) page
+     * @return true if FIRST_PAGE flag (0x02) is set
+     */
+    bool isBOS() const {
+        return header.isFirstPage();
+    }
+    
+    /**
+     * @brief Check if this is an EOS (End of Stream) page
+     * @return true if LAST_PAGE flag (0x04) is set
+     */
+    bool isEOS() const {
+        return header.isLastPage();
+    }
+    
+    /**
+     * @brief Check if this page continues a packet from the previous page
+     * @return true if CONTINUED_PACKET flag (0x01) is set
+     */
+    bool isContinued() const {
+        return header.isContinuedPacket();
+    }
+    
+    /**
+     * @brief Check if this is a nil EOS page (header only, no content)
+     * @return true if EOS flag is set and body is empty
+     */
+    bool isNilEOS() const {
+        return isEOS() && body.empty();
+    }
+    
+    /**
+     * @brief Validate page size is within RFC 3533 limits
+     * @return true if total_size <= 65307 bytes
+     */
+    bool validatePageSize() const {
+        return total_size <= OGG_PAGE_SIZE_MAX;
+    }
+    
+    /**
+     * @brief Get the granule position from the page header
+     * @return 64-bit granule position (codec-specific timing value)
+     */
+    uint64_t getGranulePosition() const {
+        return header.granule_position;
+    }
+    
+    /**
+     * @brief Get the serial number identifying the logical bitstream
+     * @return 32-bit serial number
+     */
+    uint32_t getSerialNumber() const {
+        return header.serial_number;
+    }
+    
+    /**
+     * @brief Get the page sequence number for this logical bitstream
+     * @return 32-bit page sequence number
+     */
+    uint32_t getPageSequence() const {
+        return header.page_sequence;
+    }
+    
+    /**
+     * @brief Calculate header size from segment count
+     * @return Header size = 27 + number_of_segments
+     */
+    size_t calculateHeaderSize() const {
+        return OGG_PAGE_HEADER_MIN_SIZE + header.page_segments;
+    }
+    
+    /**
+     * @brief Calculate body size from segment table (sum of lacing values)
+     * @return Sum of all lacing values in segment table
+     */
+    size_t calculateBodySize() const {
+        size_t size = 0;
+        for (uint8_t lacing_value : segment_table) {
+            size += lacing_value;
+        }
+        return size;
+    }
+    
+    /**
+     * @brief Reset page to empty state
+     */
+    void clear() {
+        std::memset(&header, 0, sizeof(header));
+        segment_table.clear();
+        body.clear();
+        header_size = 0;
+        body_size = 0;
+        total_size = 0;
+    }
+};
+
+/**
+ * @brief Ogg page parser for RFC 3533 compliant page extraction
+ * 
+ * This class provides static methods for parsing Ogg pages from raw byte data.
+ * It follows the exact patterns from libvorbisfile and libopusfile reference
+ * implementations.
+ */
+class OggPageParser {
+public:
+    /**
+     * @brief Parse error codes
+     */
+    enum class ParseResult {
+        SUCCESS = 0,           // Page parsed successfully
+        NEED_MORE_DATA = 1,    // Not enough data to parse page
+        INVALID_CAPTURE = -1,  // Invalid "OggS" capture pattern
+        INVALID_VERSION = -2,  // Invalid stream structure version
+        INVALID_SIZE = -3,     // Page size exceeds maximum
+        CRC_MISMATCH = -4,     // CRC32 checksum validation failed
+        CORRUPT_DATA = -5      // General data corruption
+    };
+    
+    /**
+     * @brief Validate OggS capture pattern at given position
+     * @param data Pointer to data buffer
+     * @param size Size of data buffer
+     * @param offset Offset to check for capture pattern
+     * @return true if "OggS" pattern found at offset
+     */
+    static bool validateCapturePattern(const uint8_t* data, size_t size, size_t offset = 0);
+    
+    /**
+     * @brief Validate stream structure version
+     * @param version Version byte from page header
+     * @return true if version is 0 (only valid version)
+     */
+    static bool validateVersion(uint8_t version);
+    
+    /**
+     * @brief Parse header type flags
+     * @param flags Header type byte
+     * @param is_continued Output: true if continuation flag set
+     * @param is_bos Output: true if BOS flag set
+     * @param is_eos Output: true if EOS flag set
+     */
+    static void parseHeaderFlags(uint8_t flags, bool& is_continued, bool& is_bos, bool& is_eos);
+    
+    /**
+     * @brief Parse a complete Ogg page from raw data
+     * @param data Pointer to data buffer
+     * @param size Size of data buffer
+     * @param page Output: Parsed page structure
+     * @param bytes_consumed Output: Number of bytes consumed from buffer
+     * @return ParseResult indicating success or error type
+     */
+    static ParseResult parsePage(const uint8_t* data, size_t size, OggPage& page, size_t& bytes_consumed);
+    
+    /**
+     * @brief Calculate page size from header and segment table
+     * @param data Pointer to data buffer (must contain at least header)
+     * @param size Size of data buffer
+     * @param page_size Output: Total page size if calculable
+     * @return true if page size could be calculated
+     */
+    static bool calculatePageSize(const uint8_t* data, size_t size, size_t& page_size);
+    
+    /**
+     * @brief Calculate CRC32 checksum for page validation
+     * @param data Pointer to page data
+     * @param size Size of page data
+     * @return CRC32 checksum using polynomial 0x04c11db7
+     */
+    static uint32_t calculateCRC32(const uint8_t* data, size_t size);
+    
+    /**
+     * @brief Validate page CRC32 checksum
+     * @param data Pointer to complete page data
+     * @param size Size of page data
+     * @return true if CRC32 checksum is valid
+     */
+    static bool validateCRC32(const uint8_t* data, size_t size);
+    
+    /**
+     * @brief Find next OggS capture pattern in buffer
+     * @param data Pointer to data buffer
+     * @param size Size of data buffer
+     * @param start_offset Offset to start searching from
+     * @return Offset of next "OggS" pattern, or -1 if not found
+     */
+    static int64_t findNextCapturePattern(const uint8_t* data, size_t size, size_t start_offset = 0);
+    
+    /**
+     * @brief Parse segment table to extract packet boundaries
+     * 
+     * RFC 3533 Section 5: Lacing values indicate packet boundaries:
+     * - Value of 255: packet continues in next segment
+     * - Value < 255: packet ends (final segment of packet)
+     * - Value of 0 after 255: packet is exactly multiple of 255 bytes
+     * 
+     * @param segment_table Segment table (lacing values)
+     * @param packet_offsets Output: byte offsets where each packet starts in body
+     * @param packet_sizes Output: size of each packet
+     * @param packet_complete Output: true if packet is complete (not continued)
+     */
+    static void parseSegmentTable(const std::vector<uint8_t>& segment_table,
+                                  std::vector<size_t>& packet_offsets,
+                                  std::vector<size_t>& packet_sizes,
+                                  std::vector<bool>& packet_complete);
+    
+    /**
+     * @brief Calculate number of complete packets in segment table
+     * @param segment_table Segment table (lacing values)
+     * @return Number of complete packets
+     */
+    static size_t countCompletePackets(const std::vector<uint8_t>& segment_table);
+    
+    /**
+     * @brief Check if last packet in segment table is complete
+     * @param segment_table Segment table (lacing values)
+     * @return true if last packet is complete (last lacing value < 255)
+     */
+    static bool isLastPacketComplete(const std::vector<uint8_t>& segment_table);
+    
+    /**
+     * @brief Get lacing value interpretation
+     * @param lacing_value Lacing value from segment table
+     * @return true if this lacing value indicates packet continuation (value == 255)
+     */
+    static bool isPacketContinuation(uint8_t lacing_value) {
+        return lacing_value == 255;
+    }
+    
+    /**
+     * @brief Get lacing value interpretation
+     * @param lacing_value Lacing value from segment table
+     * @return true if this lacing value indicates packet termination (value < 255)
+     */
+    static bool isPacketTermination(uint8_t lacing_value) {
+        return lacing_value < 255;
+    }
+    
+private:
+    // CRC32 lookup table (polynomial 0x04c11db7)
+    static const uint32_t s_crc_lookup[256];
+    
+    // Initialize CRC lookup table
+    static void initCRCTable();
+    static bool s_crc_table_initialized;
 };
 
 /**
@@ -298,6 +607,101 @@ private:
     // Page extraction state
     mutable int64_t m_offset = 0;
     mutable int64_t m_end = 0;
+    
+public:
+    // ========================================================================
+    // Page Header Field Extraction (RFC 3533 Section 6)
+    // These methods wrap libogg functions for compatibility
+    // ========================================================================
+    
+    /**
+     * @brief Extract granule position from an ogg_page
+     * Wrapper for ogg_page_granulepos()
+     * @param page Pointer to ogg_page structure
+     * @return 64-bit granule position, or -1 if invalid
+     */
+    static int64_t pageGranulePos(const ogg_page* page);
+    
+    /**
+     * @brief Extract serial number from an ogg_page
+     * Wrapper for ogg_page_serialno()
+     * @param page Pointer to ogg_page structure
+     * @return 32-bit serial number
+     */
+    static uint32_t pageSerialNo(const ogg_page* page);
+    
+    /**
+     * @brief Extract page sequence number from an ogg_page
+     * @param page Pointer to ogg_page structure
+     * @return 32-bit page sequence number
+     */
+    static uint32_t pageSequenceNo(const ogg_page* page);
+    
+    /**
+     * @brief Check if page is BOS (Beginning of Stream)
+     * Wrapper for ogg_page_bos()
+     * @param page Pointer to ogg_page structure
+     * @return true if BOS flag is set
+     */
+    static bool pageBOS(const ogg_page* page);
+    
+    /**
+     * @brief Check if page is EOS (End of Stream)
+     * Wrapper for ogg_page_eos()
+     * @param page Pointer to ogg_page structure
+     * @return true if EOS flag is set
+     */
+    static bool pageEOS(const ogg_page* page);
+    
+    /**
+     * @brief Check if page continues a packet from previous page
+     * Wrapper for ogg_page_continued()
+     * @param page Pointer to ogg_page structure
+     * @return true if continuation flag is set
+     */
+    static bool pageContinued(const ogg_page* page);
+    
+    /**
+     * @brief Get number of segments in page
+     * @param page Pointer to ogg_page structure
+     * @return Number of segments (0-255)
+     */
+    static uint8_t pageSegments(const ogg_page* page);
+    
+    /**
+     * @brief Calculate page header size
+     * @param page Pointer to ogg_page structure
+     * @return Header size = 27 + number_of_segments
+     */
+    static size_t pageHeaderSize(const ogg_page* page);
+    
+    /**
+     * @brief Calculate page body size
+     * @param page Pointer to ogg_page structure
+     * @return Sum of lacing values
+     */
+    static size_t pageBodySize(const ogg_page* page);
+    
+    /**
+     * @brief Calculate total page size
+     * @param page Pointer to ogg_page structure
+     * @return header_size + body_size
+     */
+    static size_t pageTotalSize(const ogg_page* page);
+    
+    /**
+     * @brief Validate page CRC32 checksum
+     * @param page Pointer to ogg_page structure
+     * @return true if CRC32 is valid
+     */
+    static bool pageValidateCRC(const ogg_page* page);
+    
+    /**
+     * @brief Check if page has valid structure
+     * @param page Pointer to ogg_page structure
+     * @return true if page structure is valid
+     */
+    static bool pageIsValid(const ogg_page* page);
 };
 
 } // namespace Ogg

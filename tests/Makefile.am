@@ -3295,3 +3295,24 @@ test_rapidcheck_setup_LDADD = \
 	$(RAPIDCHECK_LIBS) \
 	$(AM_LDFLAGS)
 endif
+
+# OggDemuxer property-based tests (RFC 3533 compliance)
+# Works with or without RapidCheck - falls back to exhaustive unit tests
+if HAVE_OGGDEMUXER
+check_PROGRAMS += test_ogg_page_properties
+test_ogg_page_properties_SOURCES = ogg/test_ogg_page_properties.cpp
+test_ogg_page_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17
+test_ogg_page_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+if HAVE_RAPIDCHECK
+test_ogg_page_properties_LDADD += $(RAPIDCHECK_LIBS)
+endif
+endif

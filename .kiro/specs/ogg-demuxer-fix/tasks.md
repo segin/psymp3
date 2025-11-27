@@ -24,37 +24,37 @@
     - _Requirements: All_
 
 - [ ] 2. Implement Core Ogg Page Structure Parsing (RFC 3533 Section 6)
-  - [ ] 2.1 Implement OggPage structure and parsing
+  - [x] 2.1 Implement OggPage structure and parsing
     - Define OggPage struct with all RFC 3533 fields
     - Implement "OggS" capture pattern validation (0x4f676753)
     - Implement stream_structure_version validation (must be 0)
     - Implement header type flags parsing (0x01, 0x02, 0x04)
     - _Requirements: 1.1, 1.2, 1.3_
-  - [ ] 2.2 Implement page header field extraction
+  - [x] 2.2 Implement page header field extraction
     - Extract 64-bit granule position using ogg_page_granulepos()
     - Extract 32-bit serial number using ogg_page_serialno()
     - Extract 32-bit page sequence number
     - Implement CRC32 validation (polynomial 0x04c11db7)
     - _Requirements: 1.4, 1.5, 1.6, 1.7_
-  - [ ] 2.3 Implement segment table parsing
+  - [x] 2.3 Implement segment table parsing
     - Parse number_page_segments (0-255)
     - Parse lacing values array
     - Calculate header_size = number_page_segments + 27
     - Calculate page_size = header_size + sum(lacing_values)
     - Validate page size <= 65,307 bytes
     - _Requirements: 1.8, 1.9, 1.10, 1.11_
-  - [ ] 2.4 Implement BOS/EOS detection
+  - [x] 2.4 Implement BOS/EOS detection
     - Implement ogg_page_bos() equivalent
     - Implement ogg_page_eos() equivalent
     - Handle nil EOS pages (header only with EOS flag)
     - _Requirements: 1.12, 1.13, 1.14_
-  - [ ] 2.5 Write property test for OggS capture pattern validation
+  - [x] 2.5 Write property test for OggS capture pattern validation
     - **Property 1: OggS Capture Pattern Validation**
     - **Validates: Requirements 1.1**
-  - [ ] 2.6 Write property test for page version validation
+  - [x] 2.6 Write property test for page version validation
     - **Property 2: Page Version Validation**
     - **Validates: Requirements 1.2**
-  - [ ] 2.7 Write property test for page size bounds
+  - [x] 2.7 Write property test for page size bounds
     - **Property 3: Page Size Bounds**
     - **Validates: Requirements 1.11**
 
