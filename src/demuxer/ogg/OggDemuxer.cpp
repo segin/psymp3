@@ -638,11 +638,197 @@ bool OggDemuxer::examinePacketsAtPosition(int64_t file_offset, uint32_t stream_i
     return false;
 }
 
+/**
+ * @brief Fill packet queue for a specific stream
+ * 
+ * Following libvorbisfile patterns:
+ * - Read pages and submit to appropriate stream state
+ * - Extract packets using ogg_stream_packetout()
+ * - Handle packet continuation across pages
+ * 
+ * @param target_stream_id Stream ID to fill queue for
+ */
 void OggDemuxer::fillPacketQueue(uint32_t target_stream_id) {
+    std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+    
+    // Check if stream exists
+    auto stream_it = m_streams.find(target_stream_id);
+    if (stream_it == m_streams.end()) {
+        Debug::log("ogg", "fillPacketQueue: Stream 0x%08x not found", target_stream_id);
+        return;
+    }
+    
+    OggStream& stream = stream_it->second;
+    
+    // Check queue limits
+    if (stream.m_packet_queue.size() >= m_max_packet_queue_size) {
+        Debug::log("ogg", "fillPacketQueue: Queue full for stream 0x%08x (%zu packets)",
+                   target_stream_id, stream.m_packet_queue.size());
+        return;
+    }
+    
+    // Read pages until we have enough packets or hit EOF
+    ogg_page page;
+    while (stream.m_packet_queue.size() < m_max_packet_queue_size && !m_eof) {
+        int ret = getNextPage(&page, -1);
+        
+        if (ret <= 0) {
+            if (ret == 0) {
+                m_eof = true;
+            }
+            break;
+        }
+        
+        // Get serial number of this page
+        uint32_t page_serial = pageSerialNo(&page);
+        
+        // Check if we have a stream state for this serial
+        auto ogg_stream_it = m_ogg_streams.find(page_serial);
+        if (ogg_stream_it == m_ogg_streams.end()) {
+            // New stream - initialize stream state
+            ogg_stream_state new_stream;
+            if (ogg_stream_init(&new_stream, static_cast<int>(page_serial)) != 0) {
+                Debug::log("ogg", "fillPacketQueue: Failed to init stream state for 0x%08x",
+                           page_serial);
+                continue;
+            }
+            m_ogg_streams[page_serial] = new_stream;
+            ogg_stream_it = m_ogg_streams.find(page_serial);
+        }
+        
+        // Submit page to stream state using ogg_stream_pagein()
+        if (ogg_stream_pagein(&ogg_stream_it->second, &page) != 0) {
+            Debug::log("ogg", "fillPacketQueue: ogg_stream_pagein() failed for serial 0x%08x",
+                       page_serial);
+            continue;
+        }
+        
+        // Track page sequence for loss detection
+        auto app_stream_it = m_streams.find(page_serial);
+        if (app_stream_it != m_streams.end()) {
+            OggStream& app_stream = app_stream_it->second;
+            uint32_t page_seq = pageSequenceNo(&page);
+            
+            if (app_stream.page_sequence_initialized) {
+                if (page_seq != app_stream.last_page_sequence + 1) {
+                    Debug::log("ogg", "Page loss detected: expected seq %u, got %u for stream 0x%08x",
+                               app_stream.last_page_sequence + 1, page_seq, page_serial);
+                }
+            }
+            app_stream.last_page_sequence = page_seq;
+            app_stream.page_sequence_initialized = true;
+        }
+        
+        // Extract packets from this page using ogg_stream_packetout()
+        ogg_packet ogg_pkt;
+        while (ogg_stream_packetout(&ogg_stream_it->second, &ogg_pkt) == 1) {
+            // Only queue packets for the target stream
+            if (page_serial == target_stream_id) {
+                OggPacket packet;
+                packet.stream_id = page_serial;
+                packet.data.assign(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+                packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+                packet.is_first_packet = (ogg_pkt.b_o_s != 0);
+                packet.is_last_packet = (ogg_pkt.e_o_s != 0);
+                packet.is_continued = false;  // libogg handles continuation internally
+                
+                stream.m_packet_queue.push_back(std::move(packet));
+                
+                Debug::log("ogg", "Queued packet: stream 0x%08x, size %zu, granule %lld",
+                           page_serial, ogg_pkt.bytes,
+                           static_cast<long long>(ogg_pkt.granulepos));
+                
+                // Update max granule seen
+                if (ogg_pkt.granulepos >= 0 && 
+                    static_cast<uint64_t>(ogg_pkt.granulepos) > m_max_granule_seen) {
+                    m_max_granule_seen = static_cast<uint64_t>(ogg_pkt.granulepos);
+                }
+            }
+        }
+    }
 }
 
+/**
+ * @brief Fetch and process a single packet
+ * 
+ * Following libvorbisfile _fetch_and_process_packet() pattern:
+ * - Get next page if needed
+ * - Submit to stream state
+ * - Extract packet
+ * 
+ * @return 1 on success, 0 on EOF, -1 on error, -2 on hole (missing data)
+ */
 int OggDemuxer::fetchAndProcessPacket() {
-    return 0;
+    ogg_page page;
+    ogg_packet packet;
+    
+    while (true) {
+        // Try to get a packet from any active stream
+        for (auto& [serial, ogg_stream] : m_ogg_streams) {
+            int ret = ogg_stream_packetout(&ogg_stream, &packet);
+            
+            if (ret == 1) {
+                // Got a packet
+                auto stream_it = m_streams.find(serial);
+                if (stream_it != m_streams.end()) {
+                    OggPacket ogg_pkt;
+                    ogg_pkt.stream_id = serial;
+                    ogg_pkt.data.assign(packet.packet, packet.packet + packet.bytes);
+                    ogg_pkt.granule_position = static_cast<uint64_t>(packet.granulepos);
+                    ogg_pkt.is_first_packet = (packet.b_o_s != 0);
+                    ogg_pkt.is_last_packet = (packet.e_o_s != 0);
+                    ogg_pkt.is_continued = false;
+                    
+                    std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+                    stream_it->second.m_packet_queue.push_back(std::move(ogg_pkt));
+                }
+                return 1;
+            }
+            
+            if (ret == -1) {
+                // Hole in data (missing packets)
+                Debug::log("ogg", "fetchAndProcessPacket: Hole detected in stream 0x%08x", serial);
+                return -2;
+            }
+            
+            // ret == 0: Need more data
+        }
+        
+        // Need to read another page
+        int page_ret = getNextPage(&page, -1);
+        
+        if (page_ret == 0) {
+            // EOF
+            return 0;
+        }
+        
+        if (page_ret < 0) {
+            // Error
+            return -1;
+        }
+        
+        // Submit page to appropriate stream
+        uint32_t page_serial = pageSerialNo(&page);
+        auto ogg_stream_it = m_ogg_streams.find(page_serial);
+        
+        if (ogg_stream_it == m_ogg_streams.end()) {
+            // New stream - initialize
+            ogg_stream_state new_stream;
+            if (ogg_stream_init(&new_stream, static_cast<int>(page_serial)) != 0) {
+                Debug::log("ogg", "fetchAndProcessPacket: Failed to init stream 0x%08x",
+                           page_serial);
+                continue;
+            }
+            m_ogg_streams[page_serial] = new_stream;
+            ogg_stream_it = m_ogg_streams.find(page_serial);
+        }
+        
+        // Submit page using ogg_stream_pagein()
+        if (ogg_stream_pagein(&ogg_stream_it->second, &page) != 0) {
+            Debug::log("ogg", "fetchAndProcessPacket: ogg_stream_pagein() failed");
+            continue;
+        }
+    }
 }
 
 int OggDemuxer::granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta) {
@@ -657,37 +843,445 @@ int OggDemuxer::granposCmp(int64_t gp_a, int64_t gp_b) {
     return 0;
 }
 
-int OggDemuxer::getNextPage(ogg_page* page, int64_t boundary) {
-    return 0;
-}
-
-int OggDemuxer::getPrevPage(ogg_page* page) {
-    return 0;
-}
-
-int OggDemuxer::getPrevPageSerial(ogg_page* page, uint32_t serial_number) {
-    return 0;
-}
-
+/**
+ * @brief Get data from IOHandler into ogg_sync_state buffer
+ * 
+ * Following libvorbisfile _get_data() pattern:
+ * - Request buffer from ogg_sync_buffer()
+ * - Read data from IOHandler
+ * - Report bytes read via ogg_sync_wrote()
+ * 
+ * @param bytes_requested Number of bytes to request (0 = use READSIZE)
+ * @return Number of bytes read, 0 on EOF, -1 on error
+ */
 int OggDemuxer::getData(size_t bytes_requested) {
-    return 0;
+    if (bytes_requested == 0) {
+        bytes_requested = READSIZE;
+    }
+    
+    // Request buffer from libogg sync state
+    char* buffer = ogg_sync_buffer(&m_sync_state, static_cast<long>(bytes_requested));
+    if (!buffer) {
+        Debug::log("ogg", "ogg_sync_buffer() failed to allocate %zu bytes", bytes_requested);
+        return -1;
+    }
+    
+    // Read data from IOHandler
+    if (!m_handler) {
+        Debug::log("ogg", "getData: No IOHandler available");
+        return -1;
+    }
+    
+    size_t bytes_read = m_handler->read(buffer, 1, bytes_requested);
+    
+    // Report bytes read to libogg
+    if (ogg_sync_wrote(&m_sync_state, static_cast<long>(bytes_read)) != 0) {
+        Debug::log("ogg", "ogg_sync_wrote() failed for %zu bytes", bytes_read);
+        return -1;
+    }
+    
+    // Track total bytes read for performance monitoring
+    m_bytes_read_total += bytes_read;
+    
+    if (bytes_read == 0) {
+        // EOF reached
+        m_eof = true;
+        return 0;
+    }
+    
+    return static_cast<int>(bytes_read);
 }
 
+/**
+ * @brief Get next Ogg page from stream using ogg_sync_pageseek()
+ * 
+ * Following libvorbisfile _get_next_page() pattern:
+ * - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
+ * - Handle negative returns (skipped bytes) for error recovery
+ * - Request more data when needed
+ * 
+ * @param page Output: Pointer to ogg_page structure to fill
+ * @param boundary Maximum bytes to search (-1 = no limit)
+ * @return Bytes consumed on success, 0 on EOF, -1 on error, -2 on boundary reached
+ */
+int OggDemuxer::getNextPage(ogg_page* page, int64_t boundary) {
+    if (!page) {
+        return -1;
+    }
+    
+    int64_t bytes_searched = 0;
+    
+    while (boundary < 0 || bytes_searched < boundary) {
+        // Use ogg_sync_pageseek() for page discovery
+        // This is the correct function per libvorbisfile patterns
+        long ret = ogg_sync_pageseek(&m_sync_state, page);
+        
+        if (ret > 0) {
+            // Page found successfully
+            // ret is the number of bytes consumed (page size)
+            m_offset += ret;
+            
+            Debug::log("ogg", "getNextPage: Found page at offset %lld, size %ld, "
+                       "serial 0x%08x, granule %lld",
+                       static_cast<long long>(m_offset - ret),
+                       ret,
+                       pageSerialNo(page),
+                       static_cast<long long>(pageGranulePos(page)));
+            
+            return static_cast<int>(ret);
+        }
+        
+        if (ret < 0) {
+            // Negative return: skipped bytes (corrupted data or sync loss)
+            // The absolute value is the number of bytes skipped
+            long skipped = -ret;
+            m_offset += skipped;
+            bytes_searched += skipped;
+            
+            Debug::log("ogg", "getNextPage: Skipped %ld bytes (sync loss/corruption)", skipped);
+            
+            // Continue searching for next valid page
+            continue;
+        }
+        
+        // ret == 0: Need more data
+        // Check if we've hit the boundary
+        if (boundary >= 0 && bytes_searched >= boundary) {
+            Debug::log("ogg", "getNextPage: Boundary reached after %lld bytes",
+                       static_cast<long long>(bytes_searched));
+            return -2;  // Boundary reached
+        }
+        
+        // Request more data from IOHandler
+        int data_ret = getData(READSIZE);
+        
+        if (data_ret < 0) {
+            Debug::log("ogg", "getNextPage: getData() failed");
+            return -1;  // Error
+        }
+        
+        if (data_ret == 0) {
+            Debug::log("ogg", "getNextPage: EOF reached");
+            return 0;  // EOF
+        }
+        
+        bytes_searched += data_ret;
+    }
+    
+    // Boundary reached without finding page
+    return -2;
+}
+
+/**
+ * @brief Get previous page by scanning backwards
+ * 
+ * Following libvorbisfile _get_prev_page() pattern:
+ * - Use chunk-based backward scanning with CHUNKSIZE increments
+ * - Seek backwards, read forward to find pages
+ * - Return the last complete page found in the chunk
+ * 
+ * @param page Output: Pointer to ogg_page structure to fill
+ * @return Offset of page found, -1 on error
+ */
+int OggDemuxer::getPrevPage(ogg_page* page) {
+    if (!page || !m_handler) {
+        return -1;
+    }
+    
+    int64_t begin = m_offset;
+    int64_t end = begin;
+    int64_t ret = -1;
+    int64_t offset = -1;
+    
+    while (offset == -1) {
+        // Move begin backwards by CHUNKSIZE
+        begin -= CHUNKSIZE;
+        if (begin < 0) {
+            begin = 0;
+        }
+        
+        // Seek to begin position
+        if (!m_handler->seek(begin, SEEK_SET)) {
+            Debug::log("ogg", "getPrevPage: Seek to %lld failed", 
+                       static_cast<long long>(begin));
+            return -1;
+        }
+        
+        // Reset sync state for fresh scanning
+        ogg_sync_reset(&m_sync_state);
+        m_offset = begin;
+        
+        // Scan forward to find pages
+        while (m_offset < end) {
+            ret = getNextPage(page, end - m_offset);
+            
+            if (ret < 0) {
+                // Error or boundary reached
+                break;
+            }
+            
+            if (ret == 0) {
+                // EOF - shouldn't happen in middle of file
+                break;
+            }
+            
+            // Found a page - remember its offset
+            offset = m_offset - ret;
+        }
+        
+        // If we've searched back to beginning and found nothing, fail
+        if (begin == 0 && offset == -1) {
+            Debug::log("ogg", "getPrevPage: No page found searching back to beginning");
+            return -1;
+        }
+    }
+    
+    // Seek back to the found page and re-read it
+    if (!m_handler->seek(offset, SEEK_SET)) {
+        Debug::log("ogg", "getPrevPage: Final seek to %lld failed",
+                   static_cast<long long>(offset));
+        return -1;
+    }
+    
+    ogg_sync_reset(&m_sync_state);
+    m_offset = offset;
+    
+    ret = getNextPage(page, CHUNKSIZE);
+    if (ret <= 0) {
+        Debug::log("ogg", "getPrevPage: Failed to re-read page at offset %lld",
+                   static_cast<long long>(offset));
+        return -1;
+    }
+    
+    Debug::log("ogg", "getPrevPage: Found page at offset %lld",
+               static_cast<long long>(offset));
+    
+    return static_cast<int>(offset);
+}
+
+/**
+ * @brief Get previous page with specific serial number
+ * 
+ * Following libopusfile _get_prev_page_serial() pattern:
+ * - Scan backwards looking for pages with matching serial number
+ * - Skip pages from other streams
+ * 
+ * @param page Output: Pointer to ogg_page structure to fill
+ * @param serial_number Serial number to match
+ * @return Offset of page found, -1 on error
+ */
+int OggDemuxer::getPrevPageSerial(ogg_page* page, uint32_t serial_number) {
+    if (!page || !m_handler) {
+        return -1;
+    }
+    
+    int64_t begin = m_offset;
+    int64_t end = begin;
+    int64_t best_offset = -1;
+    
+    while (best_offset == -1) {
+        // Move begin backwards by CHUNKSIZE
+        begin -= CHUNKSIZE;
+        if (begin < 0) {
+            begin = 0;
+        }
+        
+        // Seek to begin position
+        if (!m_handler->seek(begin, SEEK_SET)) {
+            Debug::log("ogg", "getPrevPageSerial: Seek to %lld failed",
+                       static_cast<long long>(begin));
+            return -1;
+        }
+        
+        // Reset sync state for fresh scanning
+        ogg_sync_reset(&m_sync_state);
+        m_offset = begin;
+        
+        // Scan forward to find pages with matching serial
+        while (m_offset < end) {
+            int ret = getNextPage(page, end - m_offset);
+            
+            if (ret <= 0) {
+                break;
+            }
+            
+            // Check if this page has the serial number we want
+            if (pageSerialNo(page) == serial_number) {
+                best_offset = m_offset - ret;
+            }
+        }
+        
+        // If we've searched back to beginning and found nothing, fail
+        if (begin == 0 && best_offset == -1) {
+            Debug::log("ogg", "getPrevPageSerial: No page with serial 0x%08x found",
+                       serial_number);
+            return -1;
+        }
+    }
+    
+    // Seek back to the found page and re-read it
+    if (!m_handler->seek(best_offset, SEEK_SET)) {
+        Debug::log("ogg", "getPrevPageSerial: Final seek to %lld failed",
+                   static_cast<long long>(best_offset));
+        return -1;
+    }
+    
+    ogg_sync_reset(&m_sync_state);
+    m_offset = best_offset;
+    
+    int ret = getNextPage(page, CHUNKSIZE);
+    if (ret <= 0) {
+        Debug::log("ogg", "getPrevPageSerial: Failed to re-read page at offset %lld",
+                   static_cast<long long>(best_offset));
+        return -1;
+    }
+    
+    Debug::log("ogg", "getPrevPageSerial: Found page with serial 0x%08x at offset %lld",
+               serial_number, static_cast<long long>(best_offset));
+    
+    return static_cast<int>(best_offset);
+}
+
+/**
+ * @brief Clean up all libogg structures
+ * 
+ * Must be called with appropriate locks held.
+ */
 void OggDemuxer::cleanupLiboggStructures_unlocked() {
+    // Clear all stream states
+    for (auto& [serial, ogg_stream] : m_ogg_streams) {
+        ogg_stream_clear(&ogg_stream);
+    }
+    m_ogg_streams.clear();
+    
+    // Reset sync state
+    ogg_sync_reset(&m_sync_state);
+    
+    Debug::log("ogg", "cleanupLiboggStructures_unlocked: Cleaned up all libogg structures");
 }
 
+/**
+ * @brief Validate buffer size against memory limits
+ * 
+ * Implements bounds checking to prevent memory exhaustion per Requirements 2.9.
+ * 
+ * @param requested_size Size being requested
+ * @param operation_name Name of operation for logging
+ * @return true if size is acceptable, false if it would exceed limits
+ */
 bool OggDemuxer::validateBufferSize(size_t requested_size, const char* operation_name) {
+    // Check against maximum page size (RFC 3533 limit)
+    if (requested_size > OGG_PAGE_SIZE_MAX) {
+        Debug::log("ogg", "%s: Requested size %zu exceeds max page size %zu",
+                   operation_name, requested_size, OGG_PAGE_SIZE_MAX);
+        return false;
+    }
+    
+    // Check against total memory limit
+    size_t current_usage = m_total_memory_usage.load();
+    if (current_usage + requested_size > m_max_memory_usage) {
+        Debug::log("ogg", "%s: Would exceed memory limit (current: %zu, requested: %zu, max: %zu)",
+                   operation_name, current_usage, requested_size, m_max_memory_usage);
+        return false;
+    }
+    
     return true;
 }
 
+/**
+ * @brief Enforce packet queue size limits
+ * 
+ * Implements bounded queues to prevent memory exhaustion per Requirements 10.2.
+ * Removes oldest packets when queue exceeds limit.
+ * 
+ * @param stream_id Stream to enforce limits on
+ * @return true if queue is within limits, false if packets were dropped
+ */
 bool OggDemuxer::enforcePacketQueueLimits_unlocked(uint32_t stream_id) {
-    return true;
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        return true;
+    }
+    
+    OggStream& stream = stream_it->second;
+    bool dropped = false;
+    
+    while (stream.m_packet_queue.size() > m_max_packet_queue_size) {
+        // Remove oldest packet
+        if (!stream.m_packet_queue.empty()) {
+            size_t packet_size = stream.m_packet_queue.front().data.size();
+            stream.m_packet_queue.pop_front();
+            
+            // Update memory tracking
+            if (m_total_memory_usage >= packet_size) {
+                m_total_memory_usage -= packet_size;
+            }
+            
+            dropped = true;
+        }
+    }
+    
+    if (dropped) {
+        Debug::log("ogg", "enforcePacketQueueLimits: Dropped packets from stream 0x%08x "
+                   "(queue size now %zu)", stream_id, stream.m_packet_queue.size());
+    }
+    
+    return !dropped;
 }
 
+/**
+ * @brief Reset sync state after a seek operation
+ * 
+ * Following libvorbisfile patterns:
+ * - Use ogg_sync_reset() to clear buffered data
+ * - Reset internal offset tracking
+ */
 void OggDemuxer::resetSyncStateAfterSeek_unlocked() {
+    ogg_sync_reset(&m_sync_state);
+    
+    // Clear any partial packet data in stream states
+    for (auto& [serial, ogg_stream] : m_ogg_streams) {
+        ogg_stream_reset(&ogg_stream);
+    }
+    
+    Debug::log("ogg", "resetSyncStateAfterSeek_unlocked: Reset sync and stream states");
 }
 
+/**
+ * @brief Reset stream state for a specific stream
+ * 
+ * Following libvorbisfile patterns:
+ * - Use ogg_stream_reset_serialno() for stream switching
+ * - Clear packet queue
+ * 
+ * @param stream_id Stream to reset
+ * @param new_serial_number New serial number (or same to just reset)
+ */
 void OggDemuxer::resetStreamState_unlocked(uint32_t stream_id, uint32_t new_serial_number) {
+    auto ogg_stream_it = m_ogg_streams.find(stream_id);
+    if (ogg_stream_it != m_ogg_streams.end()) {
+        // Use ogg_stream_reset_serialno() per Requirements 14.10
+        ogg_stream_reset_serialno(&ogg_stream_it->second, static_cast<int>(new_serial_number));
+    }
+    
+    // Clear application-level stream state
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it != m_streams.end()) {
+        OggStream& stream = stream_it->second;
+        
+        // Update memory tracking before clearing queue
+        for (const auto& packet : stream.m_packet_queue) {
+            if (m_total_memory_usage >= packet.data.size()) {
+                m_total_memory_usage -= packet.data.size();
+            }
+        }
+        
+        stream.m_packet_queue.clear();
+        stream.page_sequence_initialized = false;
+    }
+    
+    Debug::log("ogg", "resetStreamState_unlocked: Reset stream 0x%08x with serial 0x%08x",
+               stream_id, new_serial_number);
 }
 
 bool OggDemuxer::performMemoryAudit_unlocked() {

@@ -23,7 +23,7 @@
     - Run `make clean && make -j$(nproc)` to verify clean build state
     - _Requirements: All_
 
-- [ ] 2. Implement Core Ogg Page Structure Parsing (RFC 3533 Section 6)
+- [x] 2. Implement Core Ogg Page Structure Parsing (RFC 3533 Section 6)
   - [x] 2.1 Implement OggPage structure and parsing
     - Define OggPage struct with all RFC 3533 fields
     - Implement "OggS" capture pattern validation (0x4f676753)
@@ -58,25 +58,25 @@
     - **Property 3: Page Size Bounds**
     - **Validates: Requirements 1.11**
 
-- [ ] 3. Implement Segment and Packet Encapsulation (RFC 3533 Section 5)
-  - [ ] 3.1 Implement libogg integration for page extraction
+- [x] 3. Implement Segment and Packet Encapsulation (RFC 3533 Section 5)
+  - [x] 3.1 Implement libogg integration for page extraction
     - Initialize ogg_sync_state properly
     - Implement ogg_sync_pageseek() usage for page discovery
     - Implement ogg_sync_pageout() for page extraction
     - _Requirements: 2.1_
-  - [ ] 3.2 Implement packet reconstruction
+  - [x] 3.2 Implement packet reconstruction
     - Implement ogg_stream_pagein() for page submission
     - Implement ogg_stream_packetout() for packet extraction
     - Handle lacing value interpretation (255 = continuation, <255 = termination)
     - Handle packets exactly 255 bytes (terminating lacing value of 0)
     - _Requirements: 2.2, 2.3, 2.4, 2.5_
-  - [ ] 3.3 Implement multi-page packet handling
+  - [x] 3.3 Implement multi-page packet handling
     - Handle zero-length packets (nil packets)
     - Accumulate segments across pages using continuation flag
     - Extract all complete packets from pages in segment order
     - Implement bounds checking to prevent memory exhaustion
     - _Requirements: 2.6, 2.7, 2.8, 2.9_
-  - [ ] 3.4 Write property test for lacing value interpretation
+  - [x] 3.4 Write property test for lacing value interpretation
     - **Property 4: Lacing Value Interpretation**
     - **Validates: Requirements 2.4, 2.5, 13.6**
 

@@ -486,7 +486,8 @@ void test_vorbis_header_parsing() {
     
     result = demuxer.parseVorbisHeaders(streams[1], setup_packet);
     ASSERT_TRUE(result, "Vorbis setup header should parse successfully");
-    ASSERT_TRUE(!streams[1].codec_setup_data.empty(), "Vorbis setup data should not be empty");
+    // Note: codec_setup_data was removed from OggStream - setup headers are stored in header_packets
+    ASSERT_TRUE(!streams[1].header_packets.empty(), "Vorbis header packets should not be empty");
 #endif
 }
 
