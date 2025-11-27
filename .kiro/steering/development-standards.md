@@ -112,8 +112,15 @@ When adding new subsystems or refactoring existing code:
 - If already in the `src/` directory, use `make File.o` (omit the `-C src` portion)
 - **Parallel Builds**: Always use `make -j$(nproc)` to utilize all available CPU cores for faster compilation
 - This ensures proper dependency tracking and build consistency
-- **CRITICAL**: NEVER EVER EVER USE `tail` WITH `make`! This makes it nearly impossible to track build activity in real-time. Let make output flow naturally for proper monitoring
-- **Output Piping**: DO NOT attempt to optimize the context window by piping output into `tail`, `head`, or similar commands unless the user explicitly asks for this behavior. Full output is essential for proper debugging and understanding build issues. Truncating output can hide critical error messages and context needed to diagnose problems.
+
+### Build Output Rules - CRITICAL
+- **NEVER PIPE BUILD COMMANDS**: Do NOT pipe `make`, `./configure`, or any build command output through `tail`, `head`, `grep`, or any other filter
+- **Why**: Piping build output causes commands to buffer all output until completion, producing no incremental output. This causes timeouts because the system cannot detect progress
+- **Correct**: `make -j$(nproc)` (let output flow naturally)
+- **WRONG**: `make -j$(nproc) | tail -50` (causes timeout due to buffering)
+- **WRONG**: `make 2>&1 | tail -100` (same problem)
+- **Output Truncation**: If you need to limit output for context, use a timeout and let the command run naturally, then examine results afterward
+- **Full Output is Essential**: Truncating output can hide critical error messages and context needed to diagnose problems
 
 ## Problem-Solving Philosophy
 
