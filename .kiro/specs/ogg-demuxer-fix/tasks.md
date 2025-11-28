@@ -167,7 +167,7 @@
     - Handle version mismatch gracefully
     - _Requirements: 5.3, 5.4, 5.5, 5.9_
 
-- [ ] 8. Checkpoint - Verify Header Processing
+- [-] 8. Checkpoint - Verify Header Processing
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Implement Data Packet Streaming

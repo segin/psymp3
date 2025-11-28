@@ -277,7 +277,12 @@ bool testGetNextPageWithBoundary() {
         ogg_page page;
         int result = demuxer.getNextPage(&page, 100);  // Boundary at 100 bytes
         
-        ASSERT(result >= -1, "Should return reasonable result");
+        // getNextPage returns:
+        // - Bytes consumed on success (> 0)
+        // - 0 on EOF
+        // - -1 on error
+        // - -2 on boundary reached
+        ASSERT(result >= -2, "Should return reasonable result (-2 to positive)");
         
         if (result > 0) {
             ASSERT(ogg_page_serialno(&page) == 12345U, "Check serial number");
