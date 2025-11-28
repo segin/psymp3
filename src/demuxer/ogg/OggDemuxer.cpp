@@ -2260,16 +2260,228 @@ int OggDemuxer::fetchAndProcessPacket() {
     }
 }
 
+// ============================================================================
+// Safe Granule Position Arithmetic (Following libopusfile Patterns)
+// Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6
+// ============================================================================
+
+/**
+ * @brief Safe granule position addition with overflow detection
+ * 
+ * Following libopusfile's op_granpos_add() pattern:
+ * - Detects overflow that would wrap past -1 (invalid value)
+ * - Handles positive and negative granule position ranges
+ * - Returns appropriate error codes on overflow
+ * 
+ * Granule position range organization:
+ * [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
+ * 
+ * @param dst_gp Output: Result of addition (set to -1 on error)
+ * @param src_gp Source granule position
+ * @param delta Value to add (can be negative for subtraction)
+ * @return 0 on success, -1 on error (null pointer, invalid input, or overflow)
+ * 
+ * Requirements: 12.1, 12.4, 12.5, 12.6
+ */
 int OggDemuxer::granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta) {
+    // Check for null pointer
+    if (dst_gp == nullptr) {
+        Debug::log("ogg", "granposAdd: NULL destination pointer");
+        return -1;
+    }
+    
+    // Check for invalid source granule position (-1)
+    // Per libopusfile: -1 is the invalid/unset granule position
+    if (src_gp == -1) {
+        *dst_gp = -1;
+        return -1;
+    }
+    
+    // Perform the addition
+    int64_t result = src_gp + static_cast<int64_t>(delta);
+    
+    // Check for overflow that wraps to -1 (invalid)
+    if (result == -1) {
+        // Result is the invalid value - this is an overflow condition
+        *dst_gp = -1;
+        return -1;
+    }
+    
+    // Check for overflow: if delta is positive and result is less than src_gp,
+    // or if delta is negative and result is greater than src_gp
+    // (accounting for the special granule position ordering)
+    
+    if (delta > 0) {
+        // Adding positive value
+        // Overflow if result wrapped around (became smaller or negative when src was positive)
+        if (src_gp >= 0 && result < src_gp) {
+            // Wrapped from positive to negative range
+            // In granule ordering, this is valid (negative > positive)
+            // But we need to check if we wrapped past -1
+            
+            // If src_gp was positive and result is negative (not -1), 
+            // we've wrapped into the "larger" negative range
+            // This is actually valid in granule position space
+            *dst_gp = result;
+            return 0;
+        }
+        if (src_gp < 0 && src_gp != -1 && result >= 0) {
+            // Wrapped from negative back to positive - this means we passed -1
+            *dst_gp = -1;
+            return -1;
+        }
+    } else if (delta < 0) {
+        // Adding negative value (subtraction)
+        // Underflow if result wrapped around
+        if (src_gp < 0 && src_gp != -1 && result > src_gp) {
+            // Wrapped from negative to more negative (or positive)
+            // Check if we passed -1
+            if (result >= 0 || result == -1) {
+                *dst_gp = -1;
+                return -1;
+            }
+        }
+        if (src_gp >= 0 && result > src_gp) {
+            // Wrapped from positive to negative
+            // This is valid as long as result != -1
+            *dst_gp = result;
+            return 0;
+        }
+    }
+    
+    *dst_gp = result;
     return 0;
 }
 
+/**
+ * @brief Safe granule position subtraction with wraparound handling
+ * 
+ * Following libopusfile's op_granpos_diff() pattern:
+ * - Handles wraparound from positive to negative values
+ * - Detects underflow conditions
+ * - Maintains proper ordering semantics
+ * 
+ * @param delta Output: Difference (gp_a - gp_b), set to 0 on error
+ * @param gp_a First granule position
+ * @param gp_b Second granule position
+ * @return 0 on success, -1 on error (null pointer, invalid input, or overflow)
+ * 
+ * Requirements: 12.2, 12.4, 12.5, 12.6
+ */
 int OggDemuxer::granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b) {
+    // Check for null pointer
+    if (delta == nullptr) {
+        Debug::log("ogg", "granposDiff: NULL delta pointer");
+        return -1;
+    }
+    
+    // Check for invalid granule positions (-1)
+    if (gp_a == -1 || gp_b == -1) {
+        *delta = 0;
+        return -1;
+    }
+    
+    // Calculate the difference
+    // Need to handle potential overflow when subtracting
+    
+    // Check for overflow: INT64_MAX - INT64_MIN would overflow
+    // We need to detect when the subtraction would overflow
+    
+    // If gp_a and gp_b have opposite signs and the magnitude is too large
+    if (gp_a >= 0 && gp_b < 0) {
+        // gp_a is positive, gp_b is negative
+        // gp_a - gp_b = gp_a + |gp_b|
+        // This can overflow if |gp_b| is large
+        if (gp_b == INT64_MIN) {
+            // Special case: -INT64_MIN overflows
+            *delta = 0;
+            return -1;
+        }
+        int64_t abs_gp_b = -gp_b;
+        if (gp_a > INT64_MAX - abs_gp_b) {
+            // Would overflow
+            *delta = 0;
+            return -1;
+        }
+    } else if (gp_a < 0 && gp_b >= 0) {
+        // gp_a is negative, gp_b is positive
+        // gp_a - gp_b = -(|gp_a| + gp_b)
+        // This can underflow if both are large
+        if (gp_a == INT64_MIN) {
+            // Special case
+            *delta = 0;
+            return -1;
+        }
+        int64_t abs_gp_a = -gp_a;
+        if (gp_b > INT64_MAX - abs_gp_a) {
+            // Would underflow
+            *delta = 0;
+            return -1;
+        }
+    }
+    
+    // Perform the subtraction
+    *delta = gp_a - gp_b;
     return 0;
 }
 
+/**
+ * @brief Safe granule position comparison with proper ordering
+ * 
+ * Following libopusfile's op_granpos_cmp() pattern:
+ * - Handles the special granule position ordering where negative values
+ *   (except -1) are considered greater than positive values
+ * - Treats -1 as invalid/unset (less than all valid values)
+ * 
+ * Granule position ordering:
+ * -1 (invalid) < 0 < 1 < ... < INT64_MAX < INT64_MIN < ... < -2
+ * 
+ * @param gp_a First granule position
+ * @param gp_b Second granule position
+ * @return -1 if gp_a < gp_b, 0 if gp_a == gp_b, 1 if gp_a > gp_b
+ * 
+ * Requirements: 12.3, 12.4
+ */
 int OggDemuxer::granposCmp(int64_t gp_a, int64_t gp_b) {
-    return 0;
+    // Handle invalid granule positions (-1)
+    // -1 is considered less than all valid values
+    if (gp_a == -1 && gp_b == -1) {
+        return 0;  // Both invalid, considered equal
+    }
+    if (gp_a == -1) {
+        return -1;  // Invalid is less than valid
+    }
+    if (gp_b == -1) {
+        return 1;   // Valid is greater than invalid
+    }
+    
+    // Both are valid granule positions
+    // In granule position space:
+    // - Positive values (0 to INT64_MAX) come first
+    // - Negative values (INT64_MIN to -2) come after (are "larger")
+    
+    // Check if both have the same sign
+    bool a_negative = (gp_a < 0);
+    bool b_negative = (gp_b < 0);
+    
+    if (a_negative == b_negative) {
+        // Same sign - normal comparison
+        if (gp_a < gp_b) return -1;
+        if (gp_a > gp_b) return 1;
+        return 0;
+    }
+    
+    // Different signs
+    // In granule position ordering: negative (except -1) > positive
+    if (a_negative) {
+        // gp_a is negative, gp_b is positive (or zero)
+        // Negative values are "larger" in granule space
+        return 1;
+    } else {
+        // gp_a is positive (or zero), gp_b is negative
+        // Positive values are "smaller" in granule space
+        return -1;
+    }
 }
 
 /**
@@ -3246,8 +3458,10 @@ uint32_t OggDemuxer::getFlacFrameSampleCount(const OggPacket& packet) const {
     }
 }
 
+// ============================================================================
 } // namespace Ogg
 } // namespace Demuxer
 } // namespace PsyMP3
 
 #endif // HAVE_OGGDEMUXER
+

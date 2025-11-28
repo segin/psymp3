@@ -191,8 +191,8 @@
     - **Property 12: Multi-Page Packet Reconstruction**
     - **Validates: Requirements 13.1, 2.7**
 
-- [ ] 10. Implement Granule Position Arithmetic (Following libopusfile)
-  - [ ] 10.1 Implement safe granule position operations
+- [x] 10. Implement Granule Position Arithmetic (Following libopusfile)
+  - [x] 10.1 Implement safe granule position operations
     - Implement granposAdd() with overflow detection
     - Implement granposDiff() with wraparound handling
     - Implement granposCmp() with proper ordering
@@ -200,15 +200,15 @@
     - Handle granule position wraparound to negative
     - Return appropriate error codes on overflow
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
-  - [ ] 10.2 Implement codec-specific granule handling
+  - [x] 10.2 Implement codec-specific granule handling
     - Opus: Account for pre-skip in all calculations
     - Vorbis: Use sample-based interpretation
     - FLAC: Use sample-based interpretation like Vorbis
     - _Requirements: 12.7, 12.8, 12.9_
-  - [ ] 10.3 Write property test for granule position arithmetic safety
+  - [x] 10.3 Write property test for granule position arithmetic safety
     - **Property 10: Granule Position Arithmetic Safety**
     - **Validates: Requirements 12.1, 12.2, 12.3, 12.4**
-  - [ ] 10.4 Write property test for invalid granule handling
+  - [x] 10.4 Write property test for invalid granule handling
     - **Property 11: Invalid Granule Handling**
     - **Validates: Requirements 7.10, 9.9**
 

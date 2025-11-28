@@ -1685,6 +1685,386 @@ bool test_property4_rapidcheck() {
 }
 #endif // HAVE_RAPIDCHECK
 
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 10: Granule Position Arithmetic Safety**
+// **Validates: Requirements 12.1, 12.2, 12.3, 12.4**
+// ============================================================================
+
+/**
+ * Property 10: Granule Position Arithmetic Safety
+ * 
+ * *For any* granule position operations, the demuxer SHALL:
+ * - Detect overflow when adding to granule positions
+ * - Handle wraparound correctly when subtracting granule positions
+ * - Maintain proper ordering when comparing granule positions
+ * - Treat -1 as invalid/unset
+ */
+
+bool test_property10_granpos_add_valid_inputs() {
+    TestOggDemuxer demuxer;
+    int64_t result;
+    
+    // Test normal addition
+    if (demuxer.granposAdd(&result, 1000, 500) != 0) return false;
+    TEST_ASSERT(result == 1500, "granposAdd(1000, 500) should equal 1500");
+    
+    // Test addition with zero delta
+    if (demuxer.granposAdd(&result, 1000, 0) != 0) return false;
+    TEST_ASSERT(result == 1000, "granposAdd(1000, 0) should equal 1000");
+    
+    // Test negative delta (subtraction)
+    if (demuxer.granposAdd(&result, 1000, -200) != 0) return false;
+    TEST_ASSERT(result == 800, "granposAdd(1000, -200) should equal 800");
+    
+    // Test large values
+    if (demuxer.granposAdd(&result, INT64_MAX - 1000, 500) != 0) return false;
+    TEST_ASSERT(result == INT64_MAX - 500, "granposAdd near INT64_MAX should work");
+    
+    return true;
+}
+
+bool test_property10_granpos_add_invalid_source() {
+    TestOggDemuxer demuxer;
+    int64_t result;
+    
+    // Test invalid source granule position (-1)
+    int ret = demuxer.granposAdd(&result, -1, 500);
+    TEST_ASSERT(ret != 0, "granposAdd with -1 source should return error");
+    TEST_ASSERT(result == -1, "granposAdd with -1 source should set result to -1");
+    
+    return true;
+}
+
+bool test_property10_granpos_add_null_pointer() {
+    TestOggDemuxer demuxer;
+    
+    // Test NULL pointer
+    int ret = demuxer.granposAdd(nullptr, 1000, 500);
+    TEST_ASSERT(ret != 0, "granposAdd with NULL pointer should return error");
+    
+    return true;
+}
+
+bool test_property10_granpos_diff_valid_inputs() {
+    TestOggDemuxer demuxer;
+    int64_t delta;
+    
+    // Test normal subtraction
+    if (demuxer.granposDiff(&delta, 1500, 1000) != 0) return false;
+    TEST_ASSERT(delta == 500, "granposDiff(1500, 1000) should equal 500");
+    
+    // Test reverse subtraction (negative result)
+    if (demuxer.granposDiff(&delta, 1000, 1500) != 0) return false;
+    TEST_ASSERT(delta == -500, "granposDiff(1000, 1500) should equal -500");
+    
+    // Test equal values
+    if (demuxer.granposDiff(&delta, 1000, 1000) != 0) return false;
+    TEST_ASSERT(delta == 0, "granposDiff(1000, 1000) should equal 0");
+    
+    return true;
+}
+
+bool test_property10_granpos_diff_invalid_inputs() {
+    TestOggDemuxer demuxer;
+    int64_t delta;
+    
+    // Test invalid granule positions (-1)
+    int ret = demuxer.granposDiff(&delta, -1, 1000);
+    TEST_ASSERT(ret != 0, "granposDiff with -1 first arg should return error");
+    TEST_ASSERT(delta == 0, "granposDiff with -1 should set delta to 0");
+    
+    ret = demuxer.granposDiff(&delta, 1000, -1);
+    TEST_ASSERT(ret != 0, "granposDiff with -1 second arg should return error");
+    
+    ret = demuxer.granposDiff(&delta, -1, -1);
+    TEST_ASSERT(ret != 0, "granposDiff with both -1 should return error");
+    
+    return true;
+}
+
+bool test_property10_granpos_diff_null_pointer() {
+    TestOggDemuxer demuxer;
+    
+    // Test NULL pointer
+    int ret = demuxer.granposDiff(nullptr, 1000, 500);
+    TEST_ASSERT(ret != 0, "granposDiff with NULL pointer should return error");
+    
+    return true;
+}
+
+bool test_property10_granpos_cmp_valid_inputs() {
+    TestOggDemuxer demuxer;
+    
+    // Test equal values
+    TEST_ASSERT(demuxer.granposCmp(1000, 1000) == 0, "granposCmp(1000, 1000) should equal 0");
+    
+    // Test less than
+    TEST_ASSERT(demuxer.granposCmp(500, 1000) == -1, "granposCmp(500, 1000) should equal -1");
+    
+    // Test greater than
+    TEST_ASSERT(demuxer.granposCmp(1000, 500) == 1, "granposCmp(1000, 500) should equal 1");
+    
+    // Test zero
+    TEST_ASSERT(demuxer.granposCmp(0, 0) == 0, "granposCmp(0, 0) should equal 0");
+    TEST_ASSERT(demuxer.granposCmp(0, 1000) == -1, "granposCmp(0, 1000) should equal -1");
+    TEST_ASSERT(demuxer.granposCmp(1000, 0) == 1, "granposCmp(1000, 0) should equal 1");
+    
+    return true;
+}
+
+bool test_property10_granpos_cmp_wraparound_ordering() {
+    TestOggDemuxer demuxer;
+    
+    // In granule position ordering: negative values (INT64_MIN to -2) > positive values (0 to INT64_MAX)
+    // -1 is invalid and considered less than all valid values
+    
+    // Test negative > positive
+    TEST_ASSERT(demuxer.granposCmp(-1000, 1000) == 1, "Negative should be > positive in granule ordering");
+    TEST_ASSERT(demuxer.granposCmp(-2, INT64_MAX) == 1, "-2 should be > INT64_MAX in granule ordering");
+    
+    // Test positive < negative
+    TEST_ASSERT(demuxer.granposCmp(1000, -1000) == -1, "Positive should be < negative in granule ordering");
+    TEST_ASSERT(demuxer.granposCmp(INT64_MAX, -2) == -1, "INT64_MAX should be < -2 in granule ordering");
+    
+    // Test within negative range
+    TEST_ASSERT(demuxer.granposCmp(-500, -1000) == 1, "-500 should be > -1000 in granule ordering");
+    TEST_ASSERT(demuxer.granposCmp(-1000, -500) == -1, "-1000 should be < -500 in granule ordering");
+    
+    // Test boundary conditions
+    TEST_ASSERT(demuxer.granposCmp(INT64_MAX, INT64_MIN) == -1, "INT64_MAX should be < INT64_MIN in granule ordering");
+    TEST_ASSERT(demuxer.granposCmp(INT64_MIN, INT64_MAX) == 1, "INT64_MIN should be > INT64_MAX in granule ordering");
+    
+    return true;
+}
+
+bool test_property10_granpos_cmp_invalid_handling() {
+    TestOggDemuxer demuxer;
+    
+    // Test both invalid (-1)
+    TEST_ASSERT(demuxer.granposCmp(-1, -1) == 0, "Both -1 should be equal");
+    
+    // Test one invalid
+    TEST_ASSERT(demuxer.granposCmp(-1, 1000) == -1, "-1 should be < valid value");
+    TEST_ASSERT(demuxer.granposCmp(1000, -1) == 1, "Valid value should be > -1");
+    
+    // Test invalid vs zero
+    TEST_ASSERT(demuxer.granposCmp(-1, 0) == -1, "-1 should be < 0");
+    TEST_ASSERT(demuxer.granposCmp(0, -1) == 1, "0 should be > -1");
+    
+    return true;
+}
+
+bool test_property10_arithmetic_consistency() {
+    TestOggDemuxer demuxer;
+    int64_t result, delta;
+    
+    // Test add/subtract consistency
+    int64_t original = 50000;
+    int32_t offset = 1000;
+    
+    // Add offset
+    if (demuxer.granposAdd(&result, original, offset) != 0) return false;
+    
+    // Subtract offset back
+    if (demuxer.granposAdd(&result, result, -offset) != 0) return false;
+    TEST_ASSERT(result == original, "Add then subtract should return original");
+    
+    // Test diff/add consistency
+    int64_t gp_a = 60000;
+    int64_t gp_b = 40000;
+    
+    // Calculate difference
+    if (demuxer.granposDiff(&delta, gp_a, gp_b) != 0) return false;
+    
+    // Add difference to gp_b should give gp_a
+    if (demuxer.granposAdd(&result, gp_b, static_cast<int32_t>(delta)) != 0) return false;
+    TEST_ASSERT(result == gp_a, "Diff then add should return original");
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for granule position arithmetic safety
+ * 
+ * Property: For any valid granule positions and deltas, arithmetic operations
+ * maintain consistency and detect overflow/invalid conditions.
+ */
+bool test_property10_rapidcheck() {
+    TestOggDemuxer demuxer;
+    bool all_passed = true;
+    
+    // Property: granposAdd with valid inputs produces consistent results
+    rc::check("granposAdd consistency", [&demuxer]() {
+        // Generate valid granule positions (not -1)
+        auto gp = *rc::gen::suchThat(rc::gen::arbitrary<int64_t>(), [](int64_t v) {
+            return v != -1;
+        });
+        
+        // Generate small deltas to avoid overflow
+        auto delta = *rc::gen::inRange<int32_t>(-10000, 10000);
+        
+        int64_t result;
+        int ret = demuxer.granposAdd(&result, gp, delta);
+        
+        // If operation succeeded, verify result
+        if (ret == 0) {
+            RC_ASSERT(result != -1);  // Result should not be invalid
+            RC_ASSERT(result == gp + delta);  // Result should be correct
+        }
+    });
+    
+    // Property: granposCmp is consistent with arithmetic
+    rc::check("granposCmp consistency", [&demuxer]() {
+        // Generate valid granule positions (not -1)
+        auto gp_a = *rc::gen::suchThat(rc::gen::arbitrary<int64_t>(), [](int64_t v) {
+            return v != -1;
+        });
+        auto gp_b = *rc::gen::suchThat(rc::gen::arbitrary<int64_t>(), [](int64_t v) {
+            return v != -1;
+        });
+        
+        int cmp = demuxer.granposCmp(gp_a, gp_b);
+        
+        // Verify comparison is valid (-1, 0, or 1)
+        RC_ASSERT(cmp >= -1 && cmp <= 1);
+        
+        // Verify reflexivity
+        RC_ASSERT(demuxer.granposCmp(gp_a, gp_a) == 0);
+        
+        // Verify antisymmetry
+        RC_ASSERT(demuxer.granposCmp(gp_a, gp_b) == -demuxer.granposCmp(gp_b, gp_a));
+    });
+    
+    // Property: -1 is always treated as invalid
+    rc::check("-1 is always invalid", [&demuxer]() {
+        auto valid_gp = *rc::gen::suchThat(rc::gen::arbitrary<int64_t>(), [](int64_t v) {
+            return v != -1;
+        });
+        auto delta = *rc::gen::arbitrary<int32_t>();
+        
+        int64_t result;
+        
+        // granposAdd with -1 source should fail
+        RC_ASSERT(demuxer.granposAdd(&result, -1, delta) != 0);
+        
+        // granposDiff with -1 should fail
+        int64_t diff_result;
+        RC_ASSERT(demuxer.granposDiff(&diff_result, -1, valid_gp) != 0);
+        RC_ASSERT(demuxer.granposDiff(&diff_result, valid_gp, -1) != 0);
+        
+        // granposCmp with -1 should treat it as less than valid values
+        RC_ASSERT(demuxer.granposCmp(-1, valid_gp) == -1);
+        RC_ASSERT(demuxer.granposCmp(valid_gp, -1) == 1);
+    });
+    
+    return all_passed;
+}
+#endif // HAVE_RAPIDCHECK
+
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 11: Invalid Granule Handling**
+// **Validates: Requirements 7.10, 9.9**
+// ============================================================================
+
+/**
+ * Property 11: Invalid Granule Handling
+ * 
+ * *For any* page with granule position -1, the demuxer SHALL continue searching
+ * for valid granule positions rather than treating -1 as a valid position.
+ */
+
+bool test_property11_invalid_granule_detection() {
+    TestOggDemuxer demuxer;
+    
+    // Test that -1 is recognized as invalid in all arithmetic operations
+    int64_t result;
+    
+    // granposAdd should fail with -1 source
+    TEST_ASSERT(demuxer.granposAdd(&result, -1, 100) != 0, 
+                "granposAdd should fail with -1 source");
+    
+    // granposDiff should fail with -1 inputs
+    int64_t delta;
+    TEST_ASSERT(demuxer.granposDiff(&delta, -1, 100) != 0,
+                "granposDiff should fail with -1 first arg");
+    TEST_ASSERT(demuxer.granposDiff(&delta, 100, -1) != 0,
+                "granposDiff should fail with -1 second arg");
+    
+    return true;
+}
+
+bool test_property11_invalid_granule_comparison() {
+    TestOggDemuxer demuxer;
+    
+    // Test that -1 is treated as less than all valid values
+    // This ensures seeking continues past pages with -1 granule
+    
+    TEST_ASSERT(demuxer.granposCmp(-1, 0) == -1, "-1 should be < 0");
+    TEST_ASSERT(demuxer.granposCmp(-1, 1) == -1, "-1 should be < 1");
+    TEST_ASSERT(demuxer.granposCmp(-1, INT64_MAX) == -1, "-1 should be < INT64_MAX");
+    TEST_ASSERT(demuxer.granposCmp(-1, INT64_MIN) == -1, "-1 should be < INT64_MIN");
+    TEST_ASSERT(demuxer.granposCmp(-1, -2) == -1, "-1 should be < -2");
+    
+    // Reverse comparisons
+    TEST_ASSERT(demuxer.granposCmp(0, -1) == 1, "0 should be > -1");
+    TEST_ASSERT(demuxer.granposCmp(1, -1) == 1, "1 should be > -1");
+    TEST_ASSERT(demuxer.granposCmp(INT64_MAX, -1) == 1, "INT64_MAX should be > -1");
+    TEST_ASSERT(demuxer.granposCmp(INT64_MIN, -1) == 1, "INT64_MIN should be > -1");
+    TEST_ASSERT(demuxer.granposCmp(-2, -1) == 1, "-2 should be > -1");
+    
+    return true;
+}
+
+bool test_property11_invalid_granule_equality() {
+    TestOggDemuxer demuxer;
+    
+    // Two invalid granule positions should be considered equal
+    TEST_ASSERT(demuxer.granposCmp(-1, -1) == 0, "Two -1 values should be equal");
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for invalid granule handling
+ * 
+ * Property: -1 is always treated as invalid and less than all valid granule positions.
+ */
+bool test_property11_rapidcheck() {
+    TestOggDemuxer demuxer;
+    
+    // Property: -1 is less than all valid granule positions
+    rc::check("-1 is less than all valid granule positions", [&demuxer]() {
+        auto valid_gp = *rc::gen::suchThat(rc::gen::arbitrary<int64_t>(), [](int64_t v) {
+            return v != -1;
+        });
+        
+        // -1 should always be less than valid granule position
+        RC_ASSERT(demuxer.granposCmp(-1, valid_gp) == -1);
+        RC_ASSERT(demuxer.granposCmp(valid_gp, -1) == 1);
+    });
+    
+    // Property: Operations with -1 always fail
+    rc::check("Operations with -1 always fail", [&demuxer]() {
+        auto valid_gp = *rc::gen::suchThat(rc::gen::arbitrary<int64_t>(), [](int64_t v) {
+            return v != -1;
+        });
+        auto delta = *rc::gen::arbitrary<int32_t>();
+        
+        int64_t result;
+        int64_t diff_result;
+        
+        // All operations with -1 should fail
+        RC_ASSERT(demuxer.granposAdd(&result, -1, delta) != 0);
+        RC_ASSERT(demuxer.granposDiff(&diff_result, -1, valid_gp) != 0);
+        RC_ASSERT(demuxer.granposDiff(&diff_result, valid_gp, -1) != 0);
+    });
+    
+    return true;
+}
+#endif // HAVE_RAPIDCHECK
+
 #endif // HAVE_OGGDEMUXER
 
 int main() {
@@ -2028,6 +2408,90 @@ int main() {
     
     if (test_property6_rapidcheck()) {
         TEST_PASS("RapidCheck FLAC header tests passed");
+    }
+#endif
+    
+    // ========================================================================
+    // Property 10: Granule Position Arithmetic Safety
+    // **Validates: Requirements 12.1, 12.2, 12.3, 12.4**
+    // ========================================================================
+    std::cout << "\nProperty 10: Granule Position Arithmetic Safety" << std::endl;
+    std::cout << "------------------------------------------------" << std::endl;
+    
+    if (test_property10_granpos_add_valid_inputs()) {
+        TEST_PASS("granposAdd with valid inputs");
+    }
+    
+    if (test_property10_granpos_add_invalid_source()) {
+        TEST_PASS("granposAdd with invalid source (-1)");
+    }
+    
+    if (test_property10_granpos_add_null_pointer()) {
+        TEST_PASS("granposAdd with NULL pointer");
+    }
+    
+    if (test_property10_granpos_diff_valid_inputs()) {
+        TEST_PASS("granposDiff with valid inputs");
+    }
+    
+    if (test_property10_granpos_diff_invalid_inputs()) {
+        TEST_PASS("granposDiff with invalid inputs (-1)");
+    }
+    
+    if (test_property10_granpos_diff_null_pointer()) {
+        TEST_PASS("granposDiff with NULL pointer");
+    }
+    
+    if (test_property10_granpos_cmp_valid_inputs()) {
+        TEST_PASS("granposCmp with valid inputs");
+    }
+    
+    if (test_property10_granpos_cmp_wraparound_ordering()) {
+        TEST_PASS("granposCmp wraparound ordering");
+    }
+    
+    if (test_property10_granpos_cmp_invalid_handling()) {
+        TEST_PASS("granposCmp invalid (-1) handling");
+    }
+    
+    if (test_property10_arithmetic_consistency()) {
+        TEST_PASS("Arithmetic consistency");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 10: RapidCheck Property Tests" << std::endl;
+    std::cout << "--------------------------------------" << std::endl;
+    
+    if (test_property10_rapidcheck()) {
+        TEST_PASS("RapidCheck granule arithmetic tests passed");
+    }
+#endif
+    
+    // ========================================================================
+    // Property 11: Invalid Granule Handling
+    // **Validates: Requirements 7.10, 9.9**
+    // ========================================================================
+    std::cout << "\nProperty 11: Invalid Granule Handling" << std::endl;
+    std::cout << "-------------------------------------" << std::endl;
+    
+    if (test_property11_invalid_granule_detection()) {
+        TEST_PASS("Invalid granule detection");
+    }
+    
+    if (test_property11_invalid_granule_comparison()) {
+        TEST_PASS("Invalid granule comparison");
+    }
+    
+    if (test_property11_invalid_granule_equality()) {
+        TEST_PASS("Invalid granule equality");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 11: RapidCheck Property Tests" << std::endl;
+    std::cout << "--------------------------------------" << std::endl;
+    
+    if (test_property11_rapidcheck()) {
+        TEST_PASS("RapidCheck invalid granule tests passed");
     }
 #endif
     
