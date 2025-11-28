@@ -590,6 +590,83 @@ public:
      */
     uint32_t getFlacFrameSampleCount(const OggPacket& packet) const;
     
+    // ========================================================================
+    // Thread Safety: Public/Private Lock Pattern (Requirements 11.1-11.7)
+    // ========================================================================
+    // Public methods acquire locks and call _unlocked versions
+    // Private _unlocked methods assume locks are already held
+    // This prevents deadlocks when public methods call other public methods
+    
+    /**
+     * @brief Read next chunk from a specific stream (private implementation without lock)
+     * Assumes m_packet_queue_mutex is already held by caller.
+     * Requirements: 6.1, 6.2, 6.3, 6.4
+     */
+    MediaChunk readChunk_unlocked(uint32_t stream_id);
+    
+    /**
+     * @brief Seek to a specific timestamp in milliseconds (private implementation without lock)
+     * Assumes m_ogg_state_mutex is already held by caller.
+     * Requirements: 7.1, 7.6, 7.7, 7.8
+     */
+    bool seekTo_unlocked(uint64_t timestamp_ms);
+    
+    /**
+     * @brief Fill packet queue for a stream (private implementation without lock)
+     * Assumes m_packet_queue_mutex is already held by caller.
+     * Requirements: 6.1, 6.2, 6.3, 6.4
+     */
+    void fillPacketQueue_unlocked(uint32_t target_stream_id);
+    
+    /**
+     * @brief Seek to a page with target granule position (private implementation without lock)
+     * Assumes m_ogg_state_mutex is already held by caller.
+     * Requirements: 7.1, 7.2, 7.11
+     */
+    bool seekToPage_unlocked(uint64_t target_granule, uint32_t stream_id);
+    
+    /**
+     * @brief Set error state for thread-safe propagation to other threads
+     * Uses atomic operations to safely propagate errors across threads.
+     * Requirements: 11.7
+     * @param error_code Error code to propagate
+     */
+    void setErrorState_unlocked(int error_code) {
+        m_error_state.store(true, std::memory_order_release);
+        m_error_code.store(error_code, std::memory_order_release);
+        Debug::log("ogg", "Error state set: code=%d", error_code);
+    }
+    
+    /**
+     * @brief Check if error state has been set by another thread
+     * Uses atomic operations for thread-safe error checking.
+     * Requirements: 11.7
+     * @return true if error state is set
+     */
+    bool hasErrorState() const {
+        return m_error_state.load(std::memory_order_acquire);
+    }
+    
+    /**
+     * @brief Get the current error code
+     * Uses atomic operations for thread-safe error code retrieval.
+     * Requirements: 11.7
+     * @return Current error code
+     */
+    int getErrorCode() const {
+        return m_error_code.load(std::memory_order_acquire);
+    }
+    
+    /**
+     * @brief Clear error state
+     * Uses atomic operations for thread-safe error state clearing.
+     * Requirements: 11.7
+     */
+    void clearErrorState() {
+        m_error_state.store(false, std::memory_order_release);
+        m_error_code.store(0, std::memory_order_release);
+    }
+    
     // Memory and resource management
     void cleanupLiboggStructures_unlocked();
     bool validateBufferSize(size_t requested_size, const char* operation_name);
@@ -675,6 +752,11 @@ private:
     std::atomic<uint32_t> m_cache_hits{0};
     std::atomic<uint32_t> m_cache_misses{0};
     
+    // Error state propagation (Requirements 11.7)
+    // Atomic flag for thread-safe error state propagation
+    std::atomic<bool> m_error_state{false};
+    std::atomic<int> m_error_code{0};
+    
     // Page cache
     struct CachedPage {
         int64_t file_offset;
@@ -695,9 +777,22 @@ private:
     mutable std::vector<SeekHint> m_seek_hints;
     mutable std::mutex m_seek_hints_mutex;
     
+    // ========================================================================
+    // Thread Safety: Lock Acquisition Order (to prevent deadlocks)
+    // ========================================================================
+    // Lock acquisition order (MUST be followed consistently):
+    // 1. m_ogg_state_mutex (acquired first for seeking and state changes)
+    // 2. m_packet_queue_mutex (acquired second for packet queue operations)
+    // 3. m_page_cache_mutex (acquired third for page cache operations)
+    // 4. m_seek_hints_mutex (acquired fourth for seek hint operations)
+    //
+    // CRITICAL: Always acquire locks in this order to prevent deadlocks.
+    // Never acquire a lock that comes later in the order while holding
+    // a lock that comes earlier.
+    
     // Thread safety
-    mutable std::mutex m_ogg_state_mutex;
-    mutable std::mutex m_packet_queue_mutex;
+    mutable std::mutex m_ogg_state_mutex;      // Protects: m_streams, m_ogg_streams, m_sync_state, seeking state
+    mutable std::mutex m_packet_queue_mutex;   // Protects: packet queues in m_streams
     
     // Error recovery state
     mutable bool m_fallback_mode = false;

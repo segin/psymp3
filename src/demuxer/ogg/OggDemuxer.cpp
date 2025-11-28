@@ -528,11 +528,28 @@ OggDemuxer::OggDemuxer(std::unique_ptr<IOHandler> handler)
 OggDemuxer::~OggDemuxer() {
     Debug::log("ogg", "OggDemuxer destructor - cleaning up resources");
     
-    // Clean up libogg structures
-    for (auto& [stream_id, ogg_stream] : m_ogg_streams) {
-        ogg_stream_clear(&ogg_stream);
-    }
-    ogg_sync_clear(&m_sync_state);
+    // Acquire locks to ensure no operations are in progress (Requirements 11.6)
+    // Lock acquisition order: m_ogg_state_mutex first, then m_packet_queue_mutex
+    std::lock_guard<std::mutex> state_lock(m_ogg_state_mutex);
+    std::lock_guard<std::mutex> queue_lock(m_packet_queue_mutex);
+    
+    // Ensure no operations are in progress before destruction (Requirements 11.6)
+    // All locks are now held, so no other threads can access shared state
+    
+    // Clean up performance caches (Requirements 11.6)
+    cleanupPerformanceCaches_unlocked();
+    
+    // Clean up libogg structures (Requirements 11.6)
+    cleanupLiboggStructures_unlocked();
+    
+    // Clear all streams
+    m_streams.clear();
+    
+    // Clear error state
+    m_fallback_mode = false;
+    m_corrupted_streams.clear();
+    
+    Debug::log("ogg", "OggDemuxer destructor - cleanup complete");
 }
 
 bool OggDemuxer::parseContainer() {
@@ -583,7 +600,7 @@ MediaChunk OggDemuxer::readChunk() {
 }
 
 /**
- * @brief Read next chunk from a specific stream
+ * @brief Read next chunk from a specific stream (public API with lock)
  * 
  * Following libvorbisfile patterns:
  * - Maintain packet order within the logical bitstream (Requirements 6.1)
@@ -594,15 +611,28 @@ MediaChunk OggDemuxer::readChunk() {
  * @param stream_id Stream to read from
  * @return MediaChunk containing packet data, or empty chunk on EOF/error
  * 
- * Requirements: 6.1, 6.2, 6.3, 6.4
+ * Requirements: 6.1, 6.2, 6.3, 6.4, 11.1, 11.4
  */
 MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
-    
+    return readChunk_unlocked(stream_id);
+}
+
+/**
+ * @brief Read next chunk from a specific stream (private implementation without lock)
+ * 
+ * Assumes m_packet_queue_mutex is already held by caller.
+ * 
+ * @param stream_id Stream to read from
+ * @return MediaChunk containing packet data, or empty chunk on EOF/error
+ * 
+ * Requirements: 6.1, 6.2, 6.3, 6.4
+ */
+MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     // Check if stream exists
     auto stream_it = m_streams.find(stream_id);
     if (stream_it == m_streams.end()) {
-        Debug::log("ogg", "readChunk: Stream 0x%08x not found", stream_id);
+        Debug::log("ogg", "readChunk_unlocked: Stream 0x%08x not found", stream_id);
         return MediaChunk{};
     }
     
@@ -625,7 +655,7 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
             // Mark headers as sent when all are delivered
             if (stream.next_header_index >= stream.header_packets.size()) {
                 stream.headers_sent = true;
-                Debug::log("ogg", "readChunk: All %zu headers sent for stream 0x%08x",
+                Debug::log("ogg", "readChunk_unlocked: All %zu headers sent for stream 0x%08x",
                            stream.header_packets.size(), stream_id);
             }
             
@@ -635,26 +665,23 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     
     // Check if we need to fill the queue
     if (stream.m_packet_queue.empty() && !m_eof) {
-        // Release lock temporarily to fill queue
-        // Note: This is safe because fillPacketQueue acquires its own lock
-        m_packet_queue_mutex.unlock();
-        fillPacketQueue(stream_id);
-        m_packet_queue_mutex.lock();
+        // Note: fillPacketQueue_unlocked expects m_packet_queue_mutex to be held
+        fillPacketQueue_unlocked(stream_id);
         
-        // Re-check stream iterator after re-acquiring lock
+        // Re-check stream iterator after filling queue
         stream_it = m_streams.find(stream_id);
         if (stream_it == m_streams.end()) {
             return MediaChunk{};
         }
     }
     
-    // Get reference again after potential re-lock
+    // Get reference again after potential queue fill
     OggStream& stream_ref = m_streams[stream_id];
     
     // Check if queue is still empty
     if (stream_ref.m_packet_queue.empty()) {
         if (m_eof) {
-            Debug::log("ogg", "readChunk: EOF reached for stream 0x%08x", stream_id);
+            Debug::log("ogg", "readChunk_unlocked: EOF reached for stream 0x%08x", stream_id);
         }
         return MediaChunk{};
     }
@@ -687,14 +714,14 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     chunk.timestamp_samples = timestamp_samples;
     chunk.is_keyframe = true;  // Audio packets are typically all keyframes
     
-    Debug::log("ogg", "readChunk: Returned packet from stream 0x%08x, size %zu, granule %llu",
+    Debug::log("ogg", "readChunk_unlocked: Returned packet from stream 0x%08x, size %zu, granule %llu",
                stream_id, chunk.data.size(), static_cast<unsigned long long>(packet.granule_position));
     
     return chunk;
 }
 
 /**
- * @brief Seek to a specific timestamp in milliseconds
+ * @brief Seek to a specific timestamp in milliseconds (public API with lock)
  * 
  * Following libvorbisfile ov_pcm_seek() and libopusfile op_pcm_seek() patterns:
  * - Convert timestamp to target granule position
@@ -705,11 +732,24 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
  * @param timestamp_ms Target timestamp in milliseconds
  * @return true on success, false on failure
  * 
- * Requirements: 7.1, 7.6, 7.7, 7.8
+ * Requirements: 7.1, 7.6, 7.7, 7.8, 11.1, 11.2
  */
 bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
     std::lock_guard<std::mutex> lock(m_ogg_state_mutex);
-    
+    return seekTo_unlocked(timestamp_ms);
+}
+
+/**
+ * @brief Seek to a specific timestamp in milliseconds (private implementation without lock)
+ * 
+ * Assumes m_ogg_state_mutex is already held by caller.
+ * 
+ * @param timestamp_ms Target timestamp in milliseconds
+ * @return true on success, false on failure
+ * 
+ * Requirements: 7.1, 7.6, 7.7, 7.8
+ */
+bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
     // Find the primary audio stream
     uint32_t audio_stream_id = 0;
     bool found_audio = false;
@@ -723,20 +763,20 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
     }
     
     if (!found_audio) {
-        Debug::log("ogg", "seekTo: No audio stream available for seeking");
+        Debug::log("ogg", "seekTo_unlocked: No audio stream available for seeking");
         return false;
     }
     
     // Convert timestamp to target granule position
     uint64_t target_granule = msToGranule(timestamp_ms, audio_stream_id);
     
-    Debug::log("ogg", "seekTo: Seeking to %llu ms (granule %llu) in stream 0x%08x",
+    Debug::log("ogg", "seekTo_unlocked: Seeking to %llu ms (granule %llu) in stream 0x%08x",
                static_cast<unsigned long long>(timestamp_ms),
                static_cast<unsigned long long>(target_granule),
                audio_stream_id);
     
     // Perform page-level seeking using bisection search
-    bool result = seekToPage(target_granule, audio_stream_id);
+    bool result = seekToPage_unlocked(target_granule, audio_stream_id);
     
     if (result) {
         // Track seek operation for performance monitoring
@@ -745,10 +785,10 @@ bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
         // Clear EOF flag since we've repositioned
         m_eof = false;
         
-        Debug::log("ogg", "seekTo: Successfully seeked to %llu ms", 
+        Debug::log("ogg", "seekTo_unlocked: Successfully seeked to %llu ms", 
                    static_cast<unsigned long long>(timestamp_ms));
     } else {
-        Debug::log("ogg", "seekTo: Failed to seek to %llu ms",
+        Debug::log("ogg", "seekTo_unlocked: Failed to seek to %llu ms",
                    static_cast<unsigned long long>(timestamp_ms));
     }
     
@@ -2595,7 +2635,29 @@ uint64_t OggDemuxer::getLastGranuleFromHeaders() {
 }
 
 /**
- * @brief Seek to a page containing the target granule position using bisection search
+ * @brief Seek to a page containing the target granule position using bisection search (public API with lock)
+ * 
+ * Following libvorbisfile ov_pcm_seek_page() and libopusfile op_pcm_seek_page() patterns:
+ * - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
+ * - Implement proper interval management and boundary conditions
+ * - Switch to linear scanning when interval becomes small
+ * - Use ogg_stream_packetpeek() to examine packets without consuming
+ * 
+ * @param target_granule Target granule position to seek to
+ * @param stream_id Stream ID to seek within
+ * @return true on success, false on failure
+ * 
+ * Requirements: 7.1, 7.2, 7.11, 11.1, 11.2
+ */
+bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id) {
+    std::lock_guard<std::mutex> lock(m_ogg_state_mutex);
+    return seekToPage_unlocked(target_granule, stream_id);
+}
+
+/**
+ * @brief Seek to a page containing the target granule position using bisection search (private implementation without lock)
+ * 
+ * Assumes m_ogg_state_mutex is already held by caller.
  * 
  * Following libvorbisfile ov_pcm_seek_page() and libopusfile op_pcm_seek_page() patterns:
  * - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
@@ -2609,7 +2671,7 @@ uint64_t OggDemuxer::getLastGranuleFromHeaders() {
  * 
  * Requirements: 7.1, 7.2, 7.11
  */
-bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id) {
+bool OggDemuxer::seekToPage_unlocked(uint64_t target_granule, uint32_t stream_id) {
     if (!m_handler) {
         Debug::log("ogg", "seekToPage: No IOHandler available");
         return false;
@@ -2934,7 +2996,7 @@ bool OggDemuxer::examinePacketsAtPosition(int64_t file_offset, uint32_t stream_i
 }
 
 /**
- * @brief Fill packet queue for a specific stream
+ * @brief Fill packet queue for a specific stream (public API with lock)
  * 
  * Following libvorbisfile patterns:
  * - Read pages and submit to appropriate stream state
@@ -2942,14 +3004,33 @@ bool OggDemuxer::examinePacketsAtPosition(int64_t file_offset, uint32_t stream_i
  * - Handle packet continuation across pages
  * 
  * @param target_stream_id Stream ID to fill queue for
+ * 
+ * Requirements: 6.1, 6.2, 6.3, 6.4, 11.1, 11.4
  */
 void OggDemuxer::fillPacketQueue(uint32_t target_stream_id) {
     std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
-    
+    fillPacketQueue_unlocked(target_stream_id);
+}
+
+/**
+ * @brief Fill packet queue for a specific stream (private implementation without lock)
+ * 
+ * Assumes m_packet_queue_mutex is already held by caller.
+ * 
+ * Following libvorbisfile patterns:
+ * - Read pages and submit to appropriate stream state
+ * - Extract packets using ogg_stream_packetout()
+ * - Handle packet continuation across pages
+ * 
+ * @param target_stream_id Stream ID to fill queue for
+ * 
+ * Requirements: 6.1, 6.2, 6.3, 6.4
+ */
+void OggDemuxer::fillPacketQueue_unlocked(uint32_t target_stream_id) {
     // Check if stream exists
     auto stream_it = m_streams.find(target_stream_id);
     if (stream_it == m_streams.end()) {
-        Debug::log("ogg", "fillPacketQueue: Stream 0x%08x not found", target_stream_id);
+        Debug::log("ogg", "fillPacketQueue_unlocked: Stream 0x%08x not found", target_stream_id);
         return;
     }
     
@@ -2957,7 +3038,7 @@ void OggDemuxer::fillPacketQueue(uint32_t target_stream_id) {
     
     // Check queue limits
     if (stream.m_packet_queue.size() >= m_max_packet_queue_size) {
-        Debug::log("ogg", "fillPacketQueue: Queue full for stream 0x%08x (%zu packets)",
+        Debug::log("ogg", "fillPacketQueue_unlocked: Queue full for stream 0x%08x (%zu packets)",
                    target_stream_id, stream.m_packet_queue.size());
         return;
     }

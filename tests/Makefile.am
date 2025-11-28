@@ -3315,4 +3315,24 @@ test_ogg_page_properties_LDADD = \
 if HAVE_RAPIDCHECK
 test_ogg_page_properties_LDADD += $(RAPIDCHECK_LIBS)
 endif
+
+# OggDemuxer thread safety property-based tests
+# **Feature: ogg-demuxer-fix, Property 16: Thread Safety**
+# **Validates: Requirements 11.1**
+check_PROGRAMS += test_ogg_thread_safety
+test_ogg_thread_safety_SOURCES = ogg/test_ogg_thread_safety.cpp
+test_ogg_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
+test_ogg_thread_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+if HAVE_RAPIDCHECK
+test_ogg_thread_safety_LDADD += $(RAPIDCHECK_LIBS)
+endif
 endif
