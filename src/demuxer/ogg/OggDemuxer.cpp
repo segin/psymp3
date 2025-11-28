@@ -693,8 +693,66 @@ MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
     return chunk;
 }
 
+/**
+ * @brief Seek to a specific timestamp in milliseconds
+ * 
+ * Following libvorbisfile ov_pcm_seek() and libopusfile op_pcm_seek() patterns:
+ * - Convert timestamp to target granule position
+ * - Use bisection search to find the target page
+ * - Reset stream state after seek
+ * - Do NOT resend header packets (decoder maintains state)
+ * 
+ * @param timestamp_ms Target timestamp in milliseconds
+ * @return true on success, false on failure
+ * 
+ * Requirements: 7.1, 7.6, 7.7, 7.8
+ */
 bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
-    return false;
+    std::lock_guard<std::mutex> lock(m_ogg_state_mutex);
+    
+    // Find the primary audio stream
+    uint32_t audio_stream_id = 0;
+    bool found_audio = false;
+    
+    for (const auto& [serial, stream] : m_streams) {
+        if (stream.codec_type == "audio" && stream.headers_complete) {
+            audio_stream_id = serial;
+            found_audio = true;
+            break;
+        }
+    }
+    
+    if (!found_audio) {
+        Debug::log("ogg", "seekTo: No audio stream available for seeking");
+        return false;
+    }
+    
+    // Convert timestamp to target granule position
+    uint64_t target_granule = msToGranule(timestamp_ms, audio_stream_id);
+    
+    Debug::log("ogg", "seekTo: Seeking to %llu ms (granule %llu) in stream 0x%08x",
+               static_cast<unsigned long long>(timestamp_ms),
+               static_cast<unsigned long long>(target_granule),
+               audio_stream_id);
+    
+    // Perform page-level seeking using bisection search
+    bool result = seekToPage(target_granule, audio_stream_id);
+    
+    if (result) {
+        // Track seek operation for performance monitoring
+        m_seek_operations++;
+        
+        // Clear EOF flag since we've repositioned
+        m_eof = false;
+        
+        Debug::log("ogg", "seekTo: Successfully seeked to %llu ms", 
+                   static_cast<unsigned long long>(timestamp_ms));
+    } else {
+        Debug::log("ogg", "seekTo: Failed to seek to %llu ms",
+                   static_cast<unsigned long long>(timestamp_ms));
+    }
+    
+    return result;
 }
 
 /**
@@ -2059,12 +2117,343 @@ uint64_t OggDemuxer::getLastGranuleFromHeaders() {
     return 0;
 }
 
+/**
+ * @brief Seek to a page containing the target granule position using bisection search
+ * 
+ * Following libvorbisfile ov_pcm_seek_page() and libopusfile op_pcm_seek_page() patterns:
+ * - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
+ * - Implement proper interval management and boundary conditions
+ * - Switch to linear scanning when interval becomes small
+ * - Use ogg_stream_packetpeek() to examine packets without consuming
+ * 
+ * @param target_granule Target granule position to seek to
+ * @param stream_id Stream ID to seek within
+ * @return true on success, false on failure
+ * 
+ * Requirements: 7.1, 7.2, 7.11
+ */
 bool OggDemuxer::seekToPage(uint64_t target_granule, uint32_t stream_id) {
-    return false;
+    if (!m_handler) {
+        Debug::log("ogg", "seekToPage: No IOHandler available");
+        return false;
+    }
+    
+    // Check if stream exists
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        Debug::log("ogg", "seekToPage: Stream 0x%08x not found", stream_id);
+        return false;
+    }
+    
+    OggStream& stream = stream_it->second;
+    
+    // Get file size for boundary checking
+    if (m_file_size == 0) {
+        int64_t current_pos = m_handler->tell();
+        if (m_handler->seek(0, SEEK_END)) {
+            m_file_size = static_cast<uint64_t>(m_handler->tell());
+            m_handler->seek(current_pos, SEEK_SET);
+        }
+        if (m_file_size == 0) {
+            Debug::log("ogg", "seekToPage: Cannot determine file size");
+            return false;
+        }
+    }
+    
+    Debug::log("ogg", "seekToPage: Seeking to granule %llu in stream 0x%08x (file size: %llu)",
+               static_cast<unsigned long long>(target_granule),
+               stream_id,
+               static_cast<unsigned long long>(m_file_size));
+    
+    // Initialize bisection interval
+    // begin: start of data (after headers)
+    // end: end of file
+    int64_t begin = 0;
+    int64_t end = static_cast<int64_t>(m_file_size);
+    int64_t best_offset = -1;
+    int64_t best_granule = -1;
+    
+    // Minimum interval size before switching to linear scan
+    // Following libvorbisfile pattern: use CHUNKSIZE as threshold
+    static constexpr int64_t MIN_BISECTION_INTERVAL = CHUNKSIZE;
+    
+    // Maximum iterations to prevent infinite loops
+    static constexpr int MAX_ITERATIONS = 50;
+    int iterations = 0;
+    
+    ogg_page page;
+    
+    // Bisection search loop
+    while (end - begin > MIN_BISECTION_INTERVAL && iterations < MAX_ITERATIONS) {
+        iterations++;
+        
+        // Calculate bisection point
+        int64_t bisect = begin + (end - begin) / 2;
+        
+        Debug::log("ogg", "seekToPage: Bisection iteration %d: begin=%lld, bisect=%lld, end=%lld",
+                   iterations,
+                   static_cast<long long>(begin),
+                   static_cast<long long>(bisect),
+                   static_cast<long long>(end));
+        
+        // Seek to bisection point
+        if (!m_handler->seek(bisect, SEEK_SET)) {
+            Debug::log("ogg", "seekToPage: Seek to bisect point %lld failed",
+                       static_cast<long long>(bisect));
+            return false;
+        }
+        
+        // Reset sync state for fresh page scanning
+        ogg_sync_reset(&m_sync_state);
+        m_offset = bisect;
+        
+        // Find the next page with matching serial number
+        bool found_page = false;
+        int64_t page_offset = -1;
+        int64_t page_granule = -1;
+        
+        // Scan forward to find a page with the target serial number
+        int64_t scan_limit = end - bisect;
+        int64_t bytes_scanned = 0;
+        
+        while (bytes_scanned < scan_limit) {
+            int ret = getNextPage(&page, scan_limit - bytes_scanned);
+            
+            if (ret <= 0) {
+                // No more pages found in this range
+                break;
+            }
+            
+            bytes_scanned += ret;
+            
+            // Check if this page belongs to our target stream
+            uint32_t page_serial = pageSerialNo(&page);
+            if (page_serial == stream_id) {
+                int64_t granule = pageGranulePos(&page);
+                
+                // Skip pages with invalid granule position (-1)
+                // Per Requirements 7.10: continue searching when granule is -1
+                if (granule != -1) {
+                    found_page = true;
+                    page_offset = m_offset - ret;
+                    page_granule = granule;
+                    break;
+                }
+            }
+        }
+        
+        if (!found_page) {
+            // No valid page found in upper half, search lower half
+            end = bisect;
+            Debug::log("ogg", "seekToPage: No page found, narrowing to [%lld, %lld]",
+                       static_cast<long long>(begin),
+                       static_cast<long long>(end));
+            continue;
+        }
+        
+        Debug::log("ogg", "seekToPage: Found page at offset %lld with granule %lld",
+                   static_cast<long long>(page_offset),
+                   static_cast<long long>(page_granule));
+        
+        // Compare granule position with target
+        int cmp = granposCmp(page_granule, static_cast<int64_t>(target_granule));
+        
+        if (cmp < 0) {
+            // Page granule is before target - search upper half
+            begin = page_offset + pageTotalSize(&page);
+            
+            // Remember this as a potential best position (before target)
+            if (best_offset == -1 || page_granule > best_granule) {
+                best_offset = page_offset;
+                best_granule = page_granule;
+            }
+            
+            Debug::log("ogg", "seekToPage: Granule %lld < target %llu, narrowing to [%lld, %lld]",
+                       static_cast<long long>(page_granule),
+                       static_cast<unsigned long long>(target_granule),
+                       static_cast<long long>(begin),
+                       static_cast<long long>(end));
+        } else if (cmp > 0) {
+            // Page granule is after target - search lower half
+            end = page_offset;
+            
+            Debug::log("ogg", "seekToPage: Granule %lld > target %llu, narrowing to [%lld, %lld]",
+                       static_cast<long long>(page_granule),
+                       static_cast<unsigned long long>(target_granule),
+                       static_cast<long long>(begin),
+                       static_cast<long long>(end));
+        } else {
+            // Exact match found
+            best_offset = page_offset;
+            best_granule = page_granule;
+            Debug::log("ogg", "seekToPage: Exact match found at offset %lld",
+                       static_cast<long long>(page_offset));
+            break;
+        }
+    }
+    
+    // Switch to linear scanning for small intervals
+    // Per Requirements 7.11: switch to linear scanning when interval becomes small
+    if (end - begin <= MIN_BISECTION_INTERVAL && best_offset == -1) {
+        Debug::log("ogg", "seekToPage: Switching to linear scan in [%lld, %lld]",
+                   static_cast<long long>(begin),
+                   static_cast<long long>(end));
+        
+        if (!m_handler->seek(begin, SEEK_SET)) {
+            Debug::log("ogg", "seekToPage: Linear scan seek failed");
+            return false;
+        }
+        
+        ogg_sync_reset(&m_sync_state);
+        m_offset = begin;
+        
+        // Linear scan to find the best page
+        while (m_offset < end) {
+            int ret = getNextPage(&page, end - m_offset);
+            
+            if (ret <= 0) {
+                break;
+            }
+            
+            uint32_t page_serial = pageSerialNo(&page);
+            if (page_serial == stream_id) {
+                int64_t granule = pageGranulePos(&page);
+                
+                if (granule != -1) {
+                    int cmp = granposCmp(granule, static_cast<int64_t>(target_granule));
+                    
+                    if (cmp <= 0) {
+                        // This page is at or before target
+                        best_offset = m_offset - ret;
+                        best_granule = granule;
+                    }
+                    
+                    if (cmp >= 0) {
+                        // This page is at or after target - stop scanning
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // If no suitable page found, try to find any page before the target
+    if (best_offset == -1) {
+        Debug::log("ogg", "seekToPage: No suitable page found, trying backward scan");
+        
+        // Use backward scanning to find a page
+        if (!m_handler->seek(end, SEEK_SET)) {
+            return false;
+        }
+        m_offset = end;
+        
+        int prev_ret = getPrevPageSerial(&page, stream_id);
+        if (prev_ret >= 0) {
+            best_offset = prev_ret;
+            best_granule = pageGranulePos(&page);
+        }
+    }
+    
+    if (best_offset == -1) {
+        Debug::log("ogg", "seekToPage: Failed to find any suitable page");
+        return false;
+    }
+    
+    Debug::log("ogg", "seekToPage: Final position: offset %lld, granule %lld (target was %llu)",
+               static_cast<long long>(best_offset),
+               static_cast<long long>(best_granule),
+               static_cast<unsigned long long>(target_granule));
+    
+    // Seek to the best position and reset state
+    if (!m_handler->seek(best_offset, SEEK_SET)) {
+        Debug::log("ogg", "seekToPage: Final seek to %lld failed",
+                   static_cast<long long>(best_offset));
+        return false;
+    }
+    
+    // Reset sync state after seek (Requirements 14.9)
+    resetSyncStateAfterSeek_unlocked();
+    m_offset = best_offset;
+    
+    // Clear packet queues for all streams
+    // Do NOT resend headers (Requirements 7.6)
+    for (auto& [serial, app_stream] : m_streams) {
+        std::lock_guard<std::mutex> queue_lock(m_packet_queue_mutex);
+        app_stream.m_packet_queue.clear();
+        // Note: headers_sent remains true - we don't resend headers after seek
+    }
+    
+    // Update stream position tracking
+    if (best_granule >= 0) {
+        stream.total_samples_processed = static_cast<uint64_t>(best_granule);
+    }
+    
+    // Cache this seek position for future use
+    uint64_t timestamp_ms = granuleToMs(static_cast<uint64_t>(best_granule), stream_id);
+    addSeekHint_unlocked(timestamp_ms, best_offset, static_cast<uint64_t>(best_granule));
+    
+    return true;
 }
 
+/**
+ * @brief Examine packets at a specific file position without consuming them
+ * 
+ * Following libvorbisfile pattern using ogg_stream_packetpeek():
+ * - Seek to position
+ * - Read page and submit to stream state
+ * - Use packetpeek to examine without consuming
+ * 
+ * @param file_offset File offset to examine
+ * @param stream_id Stream ID to examine
+ * @param granule_position Output: granule position found
+ * @return true if valid granule found, false otherwise
+ * 
+ * Requirements: 7.2
+ */
 bool OggDemuxer::examinePacketsAtPosition(int64_t file_offset, uint32_t stream_id, uint64_t& granule_position) {
-    return false;
+    if (!m_handler) {
+        return false;
+    }
+    
+    // Seek to the specified position
+    if (!m_handler->seek(file_offset, SEEK_SET)) {
+        Debug::log("ogg", "examinePacketsAtPosition: Seek to %lld failed",
+                   static_cast<long long>(file_offset));
+        return false;
+    }
+    
+    // Reset sync state
+    ogg_sync_reset(&m_sync_state);
+    m_offset = file_offset;
+    
+    // Find a page with the target serial number
+    ogg_page page;
+    int ret = getNextPage(&page, CHUNKSIZE);
+    
+    if (ret <= 0) {
+        return false;
+    }
+    
+    // Check if this page belongs to our target stream
+    if (pageSerialNo(&page) != stream_id) {
+        return false;
+    }
+    
+    // Get granule position from page
+    int64_t granule = pageGranulePos(&page);
+    
+    // Check for invalid granule position
+    if (granule == -1) {
+        return false;
+    }
+    
+    granule_position = static_cast<uint64_t>(granule);
+    
+    Debug::log("ogg", "examinePacketsAtPosition: Found granule %llu at offset %lld",
+               static_cast<unsigned long long>(granule_position),
+               static_cast<long long>(file_offset));
+    
+    return true;
 }
 
 /**

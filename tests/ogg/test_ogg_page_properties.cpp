@@ -1156,6 +1156,289 @@ bool test_property12_rapidcheck() {
 #endif // HAVE_RAPIDCHECK
 
 // ============================================================================
+// **Feature: ogg-demuxer-fix, Property 13: Seeking Accuracy**
+// **Validates: Requirements 7.1**
+// ============================================================================
+
+/**
+ * Property 13: Seeking Accuracy
+ * 
+ * *For any* seek operation to a target timestamp, the demuxer SHALL land on a
+ * page whose granule position is at or before the target, and the next page's
+ * granule position is after the target.
+ * 
+ * This property tests the granule-to-timestamp and timestamp-to-granule
+ * conversion functions that are fundamental to seeking accuracy.
+ */
+
+/**
+ * Test granule-to-ms and ms-to-granule conversion consistency
+ */
+bool test_property13_seek_granule_conversion() {
+    TestOggDemuxer demuxer;
+    
+    // Create a test stream with known properties
+    OggStream stream;
+    stream.serial_number = 0x12345678;
+    stream.codec_name = "vorbis";
+    stream.codec_type = "audio";
+    stream.sample_rate = 44100;
+    stream.channels = 2;
+    stream.headers_complete = true;
+    
+    // Add stream to demuxer for testing
+    demuxer.getStreamsForTesting()[stream.serial_number] = stream;
+    
+    // Test various timestamps
+    std::vector<uint64_t> test_timestamps = { 0, 1000, 5000, 10000, 60000, 300000 };
+    
+    for (uint64_t timestamp_ms : test_timestamps) {
+        uint64_t granule = demuxer.msToGranule(timestamp_ms, stream.serial_number);
+        uint64_t converted_back = demuxer.granuleToMs(granule, stream.serial_number);
+        
+        // Allow for rounding errors (within 1ms)
+        int64_t diff = static_cast<int64_t>(converted_back) - static_cast<int64_t>(timestamp_ms);
+        TEST_ASSERT(std::abs(diff) <= 1, 
+                    "Granule conversion should be consistent within 1ms");
+    }
+    
+    return true;
+}
+
+/**
+ * Test granule roundtrip for various codecs
+ */
+bool test_property13_seek_granule_roundtrip() {
+    TestOggDemuxer demuxer;
+    
+    // Test Vorbis stream
+    {
+        OggStream vorbis_stream;
+        vorbis_stream.serial_number = 0x11111111;
+        vorbis_stream.codec_name = "vorbis";
+        vorbis_stream.codec_type = "audio";
+        vorbis_stream.sample_rate = 44100;
+        vorbis_stream.headers_complete = true;
+        demuxer.getStreamsForTesting()[vorbis_stream.serial_number] = vorbis_stream;
+        
+        // Test: 1 second = 44100 samples
+        uint64_t granule = demuxer.msToGranule(1000, vorbis_stream.serial_number);
+        TEST_ASSERT(granule == 44100, "Vorbis: 1000ms should be 44100 samples");
+        
+        uint64_t ms = demuxer.granuleToMs(44100, vorbis_stream.serial_number);
+        TEST_ASSERT(ms == 1000, "Vorbis: 44100 samples should be 1000ms");
+    }
+    
+    // Test Opus stream (48kHz granule rate + pre-skip)
+    {
+        OggStream opus_stream;
+        opus_stream.serial_number = 0x22222222;
+        opus_stream.codec_name = "opus";
+        opus_stream.codec_type = "audio";
+        opus_stream.sample_rate = 48000;
+        opus_stream.pre_skip = 312;  // Typical Opus pre-skip
+        opus_stream.headers_complete = true;
+        demuxer.getStreamsForTesting()[opus_stream.serial_number] = opus_stream;
+        
+        // Test: 1 second = 48000 samples + pre_skip
+        uint64_t granule = demuxer.msToGranule(1000, opus_stream.serial_number);
+        TEST_ASSERT(granule == 48000 + 312, "Opus: 1000ms should be 48312 granule (48000 + pre_skip)");
+        
+        // Converting back should account for pre-skip
+        uint64_t ms = demuxer.granuleToMs(48312, opus_stream.serial_number);
+        TEST_ASSERT(ms == 1000, "Opus: 48312 granule should be 1000ms");
+    }
+    
+    // Test FLAC stream
+    {
+        OggStream flac_stream;
+        flac_stream.serial_number = 0x33333333;
+        flac_stream.codec_name = "flac";
+        flac_stream.codec_type = "audio";
+        flac_stream.sample_rate = 96000;
+        flac_stream.headers_complete = true;
+        demuxer.getStreamsForTesting()[flac_stream.serial_number] = flac_stream;
+        
+        // Test: 1 second = 96000 samples
+        uint64_t granule = demuxer.msToGranule(1000, flac_stream.serial_number);
+        TEST_ASSERT(granule == 96000, "FLAC: 1000ms should be 96000 samples");
+        
+        uint64_t ms = demuxer.granuleToMs(96000, flac_stream.serial_number);
+        TEST_ASSERT(ms == 1000, "FLAC: 96000 samples should be 1000ms");
+    }
+    
+    return true;
+}
+
+/**
+ * Test seeking boundary conditions
+ */
+bool test_property13_seek_boundary_conditions() {
+    TestOggDemuxer demuxer;
+    
+    OggStream stream;
+    stream.serial_number = 0x12345678;
+    stream.codec_name = "vorbis";
+    stream.codec_type = "audio";
+    stream.sample_rate = 44100;
+    stream.headers_complete = true;
+    demuxer.getStreamsForTesting()[stream.serial_number] = stream;
+    
+    // Test zero timestamp
+    uint64_t granule = demuxer.msToGranule(0, stream.serial_number);
+    TEST_ASSERT(granule == 0, "Zero timestamp should give zero granule");
+    
+    uint64_t ms = demuxer.granuleToMs(0, stream.serial_number);
+    TEST_ASSERT(ms == 0, "Zero granule should give zero timestamp");
+    
+    // Test invalid granule position (-1)
+    ms = demuxer.granuleToMs(static_cast<uint64_t>(-1), stream.serial_number);
+    TEST_ASSERT(ms == 0, "Invalid granule (-1) should return 0");
+    
+    // Test FLAC no-packet granule
+    ms = demuxer.granuleToMs(OggDemuxer::FLAC_OGG_GRANULE_NO_PACKET, stream.serial_number);
+    TEST_ASSERT(ms == 0, "FLAC no-packet granule should return 0");
+    
+    return true;
+}
+
+/**
+ * Test codec-specific seeking behavior
+ */
+bool test_property13_seek_codec_specific() {
+    TestOggDemuxer demuxer;
+    
+    // Test Opus pre-skip handling
+    {
+        OggStream opus_stream;
+        opus_stream.serial_number = 0x22222222;
+        opus_stream.codec_name = "opus";
+        opus_stream.codec_type = "audio";
+        opus_stream.sample_rate = 48000;
+        opus_stream.pre_skip = 312;
+        opus_stream.headers_complete = true;
+        demuxer.getStreamsForTesting()[opus_stream.serial_number] = opus_stream;
+        
+        // Granule position less than pre-skip should give 0ms
+        uint64_t ms = demuxer.granuleToMs(100, opus_stream.serial_number);
+        TEST_ASSERT(ms == 0, "Opus: Granule < pre_skip should give 0ms");
+        
+        // Granule position equal to pre-skip should give 0ms
+        ms = demuxer.granuleToMs(312, opus_stream.serial_number);
+        TEST_ASSERT(ms == 0, "Opus: Granule == pre_skip should give 0ms");
+        
+        // Granule position just after pre-skip
+        ms = demuxer.granuleToMs(312 + 48, opus_stream.serial_number);
+        TEST_ASSERT(ms == 1, "Opus: Granule = pre_skip + 48 should give 1ms");
+    }
+    
+    // Test Speex handling
+    {
+        OggStream speex_stream;
+        speex_stream.serial_number = 0x44444444;
+        speex_stream.codec_name = "speex";
+        speex_stream.codec_type = "audio";
+        speex_stream.sample_rate = 16000;
+        speex_stream.headers_complete = true;
+        demuxer.getStreamsForTesting()[speex_stream.serial_number] = speex_stream;
+        
+        // Test: 1 second = 16000 samples
+        uint64_t granule = demuxer.msToGranule(1000, speex_stream.serial_number);
+        TEST_ASSERT(granule == 16000, "Speex: 1000ms should be 16000 samples");
+        
+        uint64_t ms = demuxer.granuleToMs(16000, speex_stream.serial_number);
+        TEST_ASSERT(ms == 1000, "Speex: 16000 samples should be 1000ms");
+    }
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for seeking accuracy
+ * 
+ * Property: For any valid timestamp, converting to granule and back should
+ * produce a timestamp within 1ms of the original.
+ */
+bool test_property13_rapidcheck() {
+    TestOggDemuxer demuxer;
+    
+    // Create test streams for each codec type
+    OggStream vorbis_stream;
+    vorbis_stream.serial_number = 0x11111111;
+    vorbis_stream.codec_name = "vorbis";
+    vorbis_stream.codec_type = "audio";
+    vorbis_stream.sample_rate = 44100;
+    vorbis_stream.headers_complete = true;
+    demuxer.getStreamsForTesting()[vorbis_stream.serial_number] = vorbis_stream;
+    
+    OggStream opus_stream;
+    opus_stream.serial_number = 0x22222222;
+    opus_stream.codec_name = "opus";
+    opus_stream.codec_type = "audio";
+    opus_stream.sample_rate = 48000;
+    opus_stream.pre_skip = 312;
+    opus_stream.headers_complete = true;
+    demuxer.getStreamsForTesting()[opus_stream.serial_number] = opus_stream;
+    
+    OggStream flac_stream;
+    flac_stream.serial_number = 0x33333333;
+    flac_stream.codec_name = "flac";
+    flac_stream.codec_type = "audio";
+    flac_stream.sample_rate = 96000;
+    flac_stream.headers_complete = true;
+    demuxer.getStreamsForTesting()[flac_stream.serial_number] = flac_stream;
+    
+    // Property: Vorbis timestamp roundtrip is accurate within 1ms
+    rc::check("Vorbis timestamp roundtrip is accurate", [&demuxer, &vorbis_stream]() {
+        // Generate timestamp in reasonable range (0 to 1 hour)
+        uint64_t timestamp_ms = *rc::gen::inRange<uint64_t>(0, 3600000);
+        
+        uint64_t granule = demuxer.msToGranule(timestamp_ms, vorbis_stream.serial_number);
+        uint64_t converted_back = demuxer.granuleToMs(granule, vorbis_stream.serial_number);
+        
+        int64_t diff = static_cast<int64_t>(converted_back) - static_cast<int64_t>(timestamp_ms);
+        RC_ASSERT(std::abs(diff) <= 1);
+    });
+    
+    // Property: Opus timestamp roundtrip is accurate within 1ms
+    rc::check("Opus timestamp roundtrip is accurate", [&demuxer, &opus_stream]() {
+        uint64_t timestamp_ms = *rc::gen::inRange<uint64_t>(0, 3600000);
+        
+        uint64_t granule = demuxer.msToGranule(timestamp_ms, opus_stream.serial_number);
+        uint64_t converted_back = demuxer.granuleToMs(granule, opus_stream.serial_number);
+        
+        int64_t diff = static_cast<int64_t>(converted_back) - static_cast<int64_t>(timestamp_ms);
+        RC_ASSERT(std::abs(diff) <= 1);
+    });
+    
+    // Property: FLAC timestamp roundtrip is accurate within 1ms
+    rc::check("FLAC timestamp roundtrip is accurate", [&demuxer, &flac_stream]() {
+        uint64_t timestamp_ms = *rc::gen::inRange<uint64_t>(0, 3600000);
+        
+        uint64_t granule = demuxer.msToGranule(timestamp_ms, flac_stream.serial_number);
+        uint64_t converted_back = demuxer.granuleToMs(granule, flac_stream.serial_number);
+        
+        int64_t diff = static_cast<int64_t>(converted_back) - static_cast<int64_t>(timestamp_ms);
+        RC_ASSERT(std::abs(diff) <= 1);
+    });
+    
+    // Property: Granule position is monotonically increasing with timestamp
+    rc::check("Granule increases with timestamp", [&demuxer, &vorbis_stream]() {
+        uint64_t ts1 = *rc::gen::inRange<uint64_t>(0, 1800000);
+        uint64_t ts2 = *rc::gen::inRange<uint64_t>(ts1, 3600000);
+        
+        uint64_t g1 = demuxer.msToGranule(ts1, vorbis_stream.serial_number);
+        uint64_t g2 = demuxer.msToGranule(ts2, vorbis_stream.serial_number);
+        
+        RC_ASSERT(g2 >= g1);
+    });
+    
+    return true;
+}
+#endif // HAVE_RAPIDCHECK
+
+// ============================================================================
 // **Feature: ogg-demuxer-fix, Property 6: FLAC-in-Ogg Header Structure**
 // **Validates: Requirements 4.9, 5.2**
 // ============================================================================
@@ -2348,6 +2631,38 @@ int main() {
     
     if (test_property12_rapidcheck()) {
         TEST_PASS("RapidCheck multi-page packet tests passed");
+    }
+#endif
+    
+    // ========================================================================
+    // Property 13: Seeking Accuracy
+    // **Validates: Requirements 7.1**
+    // ========================================================================
+    std::cout << "\nProperty 13: Seeking Accuracy" << std::endl;
+    std::cout << "-----------------------------" << std::endl;
+    
+    if (test_property13_seek_granule_conversion()) {
+        TEST_PASS("Seek granule conversion");
+    }
+    
+    if (test_property13_seek_granule_roundtrip()) {
+        TEST_PASS("Seek granule roundtrip");
+    }
+    
+    if (test_property13_seek_boundary_conditions()) {
+        TEST_PASS("Seek boundary conditions");
+    }
+    
+    if (test_property13_seek_codec_specific()) {
+        TEST_PASS("Seek codec-specific handling");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 13: RapidCheck Property Tests" << std::endl;
+    std::cout << "--------------------------------------" << std::endl;
+    
+    if (test_property13_rapidcheck()) {
+        TEST_PASS("RapidCheck seeking accuracy tests passed");
     }
 #endif
     

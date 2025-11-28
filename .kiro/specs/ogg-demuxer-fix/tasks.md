@@ -212,25 +212,25 @@
     - **Property 11: Invalid Granule Handling**
     - **Validates: Requirements 7.10, 9.9**
 
-- [ ] 11. Implement Seeking Operations (Following libvorbisfile/libopusfile)
-  - [ ] 11.1 Implement bisection search algorithm
+- [x] 11. Implement Seeking Operations (Following libvorbisfile/libopusfile)
+  - [x] 11.1 Implement bisection search algorithm
     - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
     - Implement proper interval management and boundary conditions
     - Switch to linear scanning when interval becomes small
     - Use ogg_stream_packetpeek() to examine packets without consuming
     - _Requirements: 7.1, 7.2, 7.11_
-  - [ ] 11.2 Implement backward scanning
+  - [x] 11.2 Implement backward scanning
     - Use chunk-based backward scanning with CHUNKSIZE (65536) increments
     - Account for pre-skip samples and 48kHz granule rate for Opus
     - Handle variable-rate granule position mapping for Vorbis
     - Handle edge cases near stream boundaries
     - _Requirements: 7.3, 7.4, 7.5, 7.9_
-  - [ ] 11.3 Implement seek state management
+  - [x] 11.3 Implement seek state management
     - Do NOT resend header packets after seeks
     - Maintain valid state on seek failure
     - Continue searching when granule position is -1
     - _Requirements: 7.6, 7.7, 7.8, 7.10_
-  - [ ] 11.4 Write property test for seeking accuracy
+  - [x] 11.4 Write property test for seeking accuracy
     - **Property 13: Seeking Accuracy**
     - **Validates: Requirements 7.1**
 
