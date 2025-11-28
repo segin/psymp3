@@ -693,20 +693,583 @@ std::string OggDemuxer::identifyCodec(const std::vector<uint8_t>& packet_data) {
     return "";
 }
 
+/**
+ * @brief Parse Vorbis header packets
+ * 
+ * Following libvorbisfile patterns (vorbis_synthesis_idheader, vorbis_synthesis_headerin):
+ * - Identification header: "\x01vorbis" signature, extract sample rate, channels, bitrate
+ * - Comment header: "\x03vorbis" signature with UTF-8 metadata
+ * - Setup header: "\x05vorbis" signature with codec setup data
+ * - Requires all 3 headers for complete initialization
+ * 
+ * @param stream OggStream to update with parsed header data
+ * @param packet Header packet to parse
+ * @return true on success, false on error
+ * 
+ * Requirements: 4.1, 4.2, 4.3
+ */
 bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) {
-    return false;
+    const std::vector<uint8_t>& data = packet.data;
+    
+    if (data.size() < 7) {
+        Debug::log("ogg", "parseVorbisHeaders: Packet too small (%zu bytes)", data.size());
+        return false;
+    }
+    
+    // Check packet type byte and "vorbis" signature
+    uint8_t packet_type = data[0];
+    
+    // Validate "vorbis" signature (bytes 1-6)
+    if (data[1] != 'v' || data[2] != 'o' || data[3] != 'r' ||
+        data[4] != 'b' || data[5] != 'i' || data[6] != 's') {
+        Debug::log("ogg", "parseVorbisHeaders: Invalid vorbis signature");
+        return false;
+    }
+    
+    switch (packet_type) {
+        case 0x01: {
+            // Identification header (Requirements 4.1)
+            // Minimum size: 7 (signature) + 23 (header fields) = 30 bytes
+            if (data.size() < 30) {
+                Debug::log("ogg", "parseVorbisHeaders: Identification header too small");
+                return false;
+            }
+            
+            // Parse Vorbis identification header fields (little-endian)
+            // Offset 7: vorbis_version (4 bytes) - must be 0
+            uint32_t vorbis_version = readLE<uint32_t>(data, 7);
+            if (vorbis_version != 0) {
+                Debug::log("ogg", "parseVorbisHeaders: Unsupported vorbis version %u", vorbis_version);
+                return false;
+            }
+            
+            // Offset 11: audio_channels (1 byte)
+            stream.channels = data[11];
+            if (stream.channels == 0) {
+                Debug::log("ogg", "parseVorbisHeaders: Invalid channel count 0");
+                return false;
+            }
+            
+            // Offset 12: audio_sample_rate (4 bytes)
+            stream.sample_rate = readLE<uint32_t>(data, 12);
+            if (stream.sample_rate == 0) {
+                Debug::log("ogg", "parseVorbisHeaders: Invalid sample rate 0");
+                return false;
+            }
+            
+            // Offset 16: bitrate_maximum (4 bytes)
+            // Offset 20: bitrate_nominal (4 bytes)
+            stream.bitrate = readLE<uint32_t>(data, 20);  // Use nominal bitrate
+            
+            // Offset 24: bitrate_minimum (4 bytes)
+            // Offset 28: blocksize_0 and blocksize_1 (1 byte combined)
+            // Offset 29: framing_flag (1 byte) - must have bit 0 set
+            
+            uint8_t framing = data[29];
+            if ((framing & 0x01) == 0) {
+                Debug::log("ogg", "parseVorbisHeaders: Invalid framing flag");
+                return false;
+            }
+            
+            Debug::log("ogg", "parseVorbisHeaders: Identification header - "
+                       "channels=%u, sample_rate=%u, bitrate=%u",
+                       stream.channels, stream.sample_rate, stream.bitrate);
+            
+            return true;
+        }
+        
+        case 0x03: {
+            // Comment header (Requirements 4.2)
+            // Parse Vorbis comment header for metadata
+            if (data.size() < 11) {  // 7 (signature) + 4 (vendor length)
+                Debug::log("ogg", "parseVorbisHeaders: Comment header too small");
+                return false;
+            }
+            
+            size_t offset = 7;  // After signature
+            
+            // Vendor string length (4 bytes, little-endian)
+            uint32_t vendor_length = readLE<uint32_t>(data, offset);
+            offset += 4;
+            
+            if (offset + vendor_length > data.size()) {
+                Debug::log("ogg", "parseVorbisHeaders: Vendor string exceeds packet");
+                return false;
+            }
+            
+            // Skip vendor string
+            offset += vendor_length;
+            
+            // User comment list length (4 bytes)
+            if (offset + 4 > data.size()) {
+                Debug::log("ogg", "parseVorbisHeaders: Missing comment count");
+                return false;
+            }
+            
+            uint32_t comment_count = readLE<uint32_t>(data, offset);
+            offset += 4;
+            
+            // Parse each comment
+            for (uint32_t i = 0; i < comment_count && offset + 4 <= data.size(); ++i) {
+                uint32_t comment_length = readLE<uint32_t>(data, offset);
+                offset += 4;
+                
+                if (offset + comment_length > data.size()) {
+                    Debug::log("ogg", "parseVorbisHeaders: Comment %u exceeds packet", i);
+                    break;
+                }
+                
+                // Parse comment as "TAG=value" (UTF-8)
+                std::string comment(reinterpret_cast<const char*>(data.data() + offset), 
+                                    comment_length);
+                offset += comment_length;
+                
+                // Find '=' separator
+                size_t eq_pos = comment.find('=');
+                if (eq_pos != std::string::npos) {
+                    std::string tag = comment.substr(0, eq_pos);
+                    std::string value = comment.substr(eq_pos + 1);
+                    
+                    // Convert tag to uppercase for comparison
+                    for (char& c : tag) {
+                        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                    }
+                    
+                    if (tag == "ARTIST") {
+                        stream.artist = value;
+                    } else if (tag == "TITLE") {
+                        stream.title = value;
+                    } else if (tag == "ALBUM") {
+                        stream.album = value;
+                    }
+                }
+            }
+            
+            Debug::log("ogg", "parseVorbisHeaders: Comment header - "
+                       "artist='%s', title='%s', album='%s'",
+                       stream.artist.c_str(), stream.title.c_str(), stream.album.c_str());
+            
+            return true;
+        }
+        
+        case 0x05: {
+            // Setup header (Requirements 4.3)
+            // Just validate signature - the actual setup data is preserved in header_packets
+            Debug::log("ogg", "parseVorbisHeaders: Setup header (%zu bytes)", data.size());
+            return true;
+        }
+        
+        default:
+            Debug::log("ogg", "parseVorbisHeaders: Unknown packet type 0x%02x", packet_type);
+            return false;
+    }
 }
 
+/**
+ * @brief Parse FLAC-in-Ogg header packets (RFC 9639 Section 10.1)
+ * 
+ * FLAC-in-Ogg identification header structure (51 bytes):
+ * - 5 bytes: Signature "\x7fFLAC" (0x7F 0x46 0x4C 0x41 0x43)
+ * - 2 bytes: Mapping version (0x01 0x00 for version 1.0)
+ * - 2 bytes: Header packet count (big-endian, 0 = unknown)
+ * - 4 bytes: fLaC signature (0x66 0x4C 0x61 0x43)
+ * - 4 bytes: Metadata block header for STREAMINFO
+ * - 34 bytes: STREAMINFO metadata block
+ * 
+ * First page is always exactly 79 bytes (27 header + 1 lacing + 51 packet)
+ * 
+ * @param stream OggStream to update with parsed header data
+ * @param packet Header packet to parse
+ * @return true on success, false on error
+ * 
+ * Requirements: 4.6, 4.7, 4.8, 4.9, 4.10
+ */
 bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
-    return false;
+    const std::vector<uint8_t>& data = packet.data;
+    
+    // Check if this is the identification header or a metadata block
+    if (data.size() >= 5 && data[0] == 0x7F &&
+        data[1] == 'F' && data[2] == 'L' && data[3] == 'A' && data[4] == 'C') {
+        
+        // FLAC-in-Ogg identification header (Requirements 4.6, 4.7, 4.8, 4.9)
+        // Minimum size: 51 bytes
+        if (data.size() < 51) {
+            Debug::log("ogg", "parseFLACHeaders: Identification header too small (%zu bytes, need 51)",
+                       data.size());
+            return false;
+        }
+        
+        // Verify mapping version (Requirements 4.7)
+        stream.flac_mapping_version_major = data[5];
+        stream.flac_mapping_version_minor = data[6];
+        
+        if (stream.flac_mapping_version_major != 1 || stream.flac_mapping_version_minor != 0) {
+            Debug::log("ogg", "parseFLACHeaders: Unsupported mapping version %u.%u (expected 1.0)",
+                       stream.flac_mapping_version_major, stream.flac_mapping_version_minor);
+            // Handle gracefully per Requirements 5.3 - continue but warn
+        }
+        
+        // Extract header packet count (big-endian) (Requirements 4.8)
+        stream.expected_header_count = (static_cast<uint16_t>(data[7]) << 8) | data[8];
+        if (stream.expected_header_count == 0) {
+            // 0 means unknown number of header packets
+            Debug::log("ogg", "parseFLACHeaders: Unknown header packet count");
+        } else {
+            Debug::log("ogg", "parseFLACHeaders: Expecting %u header packets", 
+                       stream.expected_header_count);
+        }
+        
+        // Verify fLaC signature at offset 9 (Requirements 4.8)
+        if (data[9] != 'f' || data[10] != 'L' || data[11] != 'a' || data[12] != 'C') {
+            Debug::log("ogg", "parseFLACHeaders: Missing fLaC signature");
+            return false;
+        }
+        
+        // Parse metadata block header at offset 13 (4 bytes)
+        // Bit 7 of first byte: last-metadata-block flag
+        // Bits 0-6: block type (should be 0 for STREAMINFO)
+        uint8_t block_type = data[13] & 0x7F;
+        if (block_type != 0) {
+            Debug::log("ogg", "parseFLACHeaders: Expected STREAMINFO block type 0, got %u", block_type);
+            return false;
+        }
+        
+        // Block length (24 bits big-endian) - should be 34 for STREAMINFO
+        uint32_t block_length = (static_cast<uint32_t>(data[14]) << 16) |
+                                (static_cast<uint32_t>(data[15]) << 8) |
+                                data[16];
+        if (block_length != 34) {
+            Debug::log("ogg", "parseFLACHeaders: STREAMINFO block length %u, expected 34", block_length);
+            return false;
+        }
+        
+        // Parse STREAMINFO at offset 17 (34 bytes)
+        // Bytes 0-1: minimum block size (16 bits big-endian)
+        stream.flac_min_block_size = (static_cast<uint16_t>(data[17]) << 8) | data[18];
+        
+        // Bytes 2-3: maximum block size (16 bits big-endian)
+        stream.flac_max_block_size = (static_cast<uint16_t>(data[19]) << 8) | data[20];
+        
+        // Bytes 4-6: minimum frame size (24 bits big-endian)
+        stream.flac_min_frame_size = (static_cast<uint32_t>(data[21]) << 16) |
+                                     (static_cast<uint32_t>(data[22]) << 8) |
+                                     data[23];
+        
+        // Bytes 7-9: maximum frame size (24 bits big-endian)
+        stream.flac_max_frame_size = (static_cast<uint32_t>(data[24]) << 16) |
+                                     (static_cast<uint32_t>(data[25]) << 8) |
+                                     data[26];
+        
+        // Bytes 10-13: sample rate (20 bits), channels (3 bits), bits per sample (5 bits)
+        // Sample rate: bits 0-19 of bytes 10-12 (big-endian, upper 20 bits)
+        uint32_t sr_ch_bps = (static_cast<uint32_t>(data[27]) << 24) |
+                             (static_cast<uint32_t>(data[28]) << 16) |
+                             (static_cast<uint32_t>(data[29]) << 8) |
+                             data[30];
+        
+        stream.sample_rate = (sr_ch_bps >> 12) & 0xFFFFF;  // Upper 20 bits
+        stream.channels = ((sr_ch_bps >> 9) & 0x07) + 1;   // Next 3 bits + 1
+        stream.bits_per_sample = ((sr_ch_bps >> 4) & 0x1F) + 1;  // Next 5 bits + 1
+        
+        // Bytes 14-17: total samples (36 bits, upper 4 bits in byte 13)
+        // Lower 32 bits in bytes 14-17
+        uint64_t total_samples_low = (static_cast<uint64_t>(data[31]) << 24) |
+                                     (static_cast<uint64_t>(data[32]) << 16) |
+                                     (static_cast<uint64_t>(data[33]) << 8) |
+                                     data[34];
+        uint64_t total_samples_high = sr_ch_bps & 0x0F;  // Lower 4 bits of sr_ch_bps
+        stream.total_samples = (total_samples_high << 32) | total_samples_low;
+        
+        // MD5 signature is at bytes 18-33 (16 bytes) - we don't need to parse it
+        
+        Debug::log("ogg", "parseFLACHeaders: FLAC-in-Ogg identification - "
+                   "sample_rate=%u, channels=%u, bits_per_sample=%u, total_samples=%llu",
+                   stream.sample_rate, stream.channels, stream.bits_per_sample,
+                   static_cast<unsigned long long>(stream.total_samples));
+        
+        return true;
+    }
+    
+    // Check for Vorbis comment metadata block (Requirements 4.10)
+    // FLAC metadata blocks start with a 4-byte header
+    if (data.size() >= 4) {
+        uint8_t block_type = data[0] & 0x7F;
+        uint32_t block_length = (static_cast<uint32_t>(data[1]) << 16) |
+                                (static_cast<uint32_t>(data[2]) << 8) |
+                                data[3];
+        
+        if (block_type == 4 && data.size() >= 4 + block_length) {
+            // Vorbis comment block (type 4)
+            // Parse vendor string and comments similar to Vorbis
+            size_t offset = 4;  // After block header
+            
+            if (offset + 4 > data.size()) {
+                return true;  // Empty comment block is valid
+            }
+            
+            // Vendor string length (4 bytes, little-endian)
+            uint32_t vendor_length = readLE<uint32_t>(data, offset);
+            offset += 4;
+            
+            if (offset + vendor_length > data.size()) {
+                Debug::log("ogg", "parseFLACHeaders: Vendor string exceeds block");
+                return true;  // Continue anyway
+            }
+            
+            offset += vendor_length;
+            
+            // Comment count (4 bytes, little-endian)
+            if (offset + 4 > data.size()) {
+                return true;
+            }
+            
+            uint32_t comment_count = readLE<uint32_t>(data, offset);
+            offset += 4;
+            
+            // Parse comments
+            for (uint32_t i = 0; i < comment_count && offset + 4 <= data.size(); ++i) {
+                uint32_t comment_length = readLE<uint32_t>(data, offset);
+                offset += 4;
+                
+                if (offset + comment_length > data.size()) {
+                    break;
+                }
+                
+                std::string comment(reinterpret_cast<const char*>(data.data() + offset),
+                                    comment_length);
+                offset += comment_length;
+                
+                size_t eq_pos = comment.find('=');
+                if (eq_pos != std::string::npos) {
+                    std::string tag = comment.substr(0, eq_pos);
+                    std::string value = comment.substr(eq_pos + 1);
+                    
+                    for (char& c : tag) {
+                        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                    }
+                    
+                    if (tag == "ARTIST") {
+                        stream.artist = value;
+                    } else if (tag == "TITLE") {
+                        stream.title = value;
+                    } else if (tag == "ALBUM") {
+                        stream.album = value;
+                    }
+                }
+            }
+            
+            Debug::log("ogg", "parseFLACHeaders: Vorbis comment - "
+                       "artist='%s', title='%s', album='%s'",
+                       stream.artist.c_str(), stream.title.c_str(), stream.album.c_str());
+        }
+        
+        return true;
+    }
+    
+    return true;
 }
 
+/**
+ * @brief Parse Opus header packets (RFC 7845)
+ * 
+ * OpusHead identification header structure (19+ bytes):
+ * - 8 bytes: "OpusHead" signature
+ * - 1 byte: Version (must be 1)
+ * - 1 byte: Channel count
+ * - 2 bytes: Pre-skip (little-endian)
+ * - 4 bytes: Input sample rate (little-endian)
+ * - 2 bytes: Output gain (little-endian, Q7.8 dB)
+ * - 1 byte: Channel mapping family
+ * - Optional: Channel mapping table (if mapping family != 0)
+ * 
+ * OpusTags comment header:
+ * - 8 bytes: "OpusTags" signature
+ * - Vorbis comment format metadata
+ * 
+ * @param stream OggStream to update with parsed header data
+ * @param packet Header packet to parse
+ * @return true on success, false on error
+ * 
+ * Requirements: 4.4, 4.5
+ */
 bool OggDemuxer::parseOpusHeaders(OggStream& stream, const OggPacket& packet) {
+    const std::vector<uint8_t>& data = packet.data;
+    
+    if (data.size() < 8) {
+        Debug::log("ogg", "parseOpusHeaders: Packet too small (%zu bytes)", data.size());
+        return false;
+    }
+    
+    // Check for OpusHead identification header (Requirements 4.4)
+    if (data[0] == 'O' && data[1] == 'p' && data[2] == 'u' && data[3] == 's' &&
+        data[4] == 'H' && data[5] == 'e' && data[6] == 'a' && data[7] == 'd') {
+        
+        // OpusHead header - minimum 19 bytes
+        if (data.size() < 19) {
+            Debug::log("ogg", "parseOpusHeaders: OpusHead too small (%zu bytes, need 19)",
+                       data.size());
+            return false;
+        }
+        
+        // Version (offset 8) - must be 1
+        uint8_t version = data[8];
+        if (version != 1) {
+            Debug::log("ogg", "parseOpusHeaders: Unsupported Opus version %u", version);
+            return false;
+        }
+        
+        // Channel count (offset 9)
+        stream.channels = data[9];
+        if (stream.channels == 0) {
+            Debug::log("ogg", "parseOpusHeaders: Invalid channel count 0");
+            return false;
+        }
+        
+        // Pre-skip (offset 10-11, little-endian)
+        stream.pre_skip = readLE<uint16_t>(data, 10);
+        
+        // Input sample rate (offset 12-15, little-endian)
+        // Note: Opus always uses 48kHz internally, this is the original sample rate
+        uint32_t input_sample_rate = readLE<uint32_t>(data, 12);
+        stream.sample_rate = 48000;  // Opus granule position is always at 48kHz
+        
+        // Output gain (offset 16-17, little-endian, Q7.8 dB)
+        // int16_t output_gain = readLE<int16_t>(data, 16);
+        
+        // Channel mapping family (offset 18)
+        uint8_t mapping_family = data[18];
+        
+        // If mapping family != 0, there's a channel mapping table
+        if (mapping_family != 0) {
+            // Mapping table: stream_count (1), coupled_count (1), mapping[channels]
+            size_t expected_size = 19 + 2 + stream.channels;
+            if (data.size() < expected_size) {
+                Debug::log("ogg", "parseOpusHeaders: OpusHead with mapping too small");
+                return false;
+            }
+        }
+        
+        Debug::log("ogg", "parseOpusHeaders: OpusHead - channels=%u, pre_skip=%llu, "
+                   "input_sample_rate=%u, mapping_family=%u",
+                   stream.channels, static_cast<unsigned long long>(stream.pre_skip),
+                   input_sample_rate, mapping_family);
+        
+        return true;
+    }
+    
+    // Check for OpusTags comment header (Requirements 4.5)
+    if (data[0] == 'O' && data[1] == 'p' && data[2] == 'u' && data[3] == 's' &&
+        data[4] == 'T' && data[5] == 'a' && data[6] == 'g' && data[7] == 's') {
+        
+        // OpusTags header - parse Vorbis comment format
+        if (data.size() < 16) {  // 8 (signature) + 4 (vendor length) + 4 (comment count)
+            Debug::log("ogg", "parseOpusHeaders: OpusTags too small");
+            return true;  // Empty tags is valid
+        }
+        
+        size_t offset = 8;  // After signature
+        
+        // Vendor string length (4 bytes, little-endian)
+        uint32_t vendor_length = readLE<uint32_t>(data, offset);
+        offset += 4;
+        
+        if (offset + vendor_length > data.size()) {
+            Debug::log("ogg", "parseOpusHeaders: Vendor string exceeds packet");
+            return true;  // Continue anyway
+        }
+        
+        offset += vendor_length;
+        
+        // Comment count (4 bytes, little-endian)
+        if (offset + 4 > data.size()) {
+            return true;
+        }
+        
+        uint32_t comment_count = readLE<uint32_t>(data, offset);
+        offset += 4;
+        
+        // Parse comments
+        for (uint32_t i = 0; i < comment_count && offset + 4 <= data.size(); ++i) {
+            uint32_t comment_length = readLE<uint32_t>(data, offset);
+            offset += 4;
+            
+            if (offset + comment_length > data.size()) {
+                break;
+            }
+            
+            std::string comment(reinterpret_cast<const char*>(data.data() + offset),
+                                comment_length);
+            offset += comment_length;
+            
+            size_t eq_pos = comment.find('=');
+            if (eq_pos != std::string::npos) {
+                std::string tag = comment.substr(0, eq_pos);
+                std::string value = comment.substr(eq_pos + 1);
+                
+                for (char& c : tag) {
+                    c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+                }
+                
+                if (tag == "ARTIST") {
+                    stream.artist = value;
+                } else if (tag == "TITLE") {
+                    stream.title = value;
+                } else if (tag == "ALBUM") {
+                    stream.album = value;
+                }
+            }
+        }
+        
+        Debug::log("ogg", "parseOpusHeaders: OpusTags - artist='%s', title='%s', album='%s'",
+                   stream.artist.c_str(), stream.title.c_str(), stream.album.c_str());
+        
+        return true;
+    }
+    
+    Debug::log("ogg", "parseOpusHeaders: Unknown Opus header type");
     return false;
 }
 
+/**
+ * @brief Parse Speex header packets
+ * 
+ * Speex identification header:
+ * - 8 bytes: "Speex   " signature (with trailing spaces)
+ * - Header fields for sample rate, channels, etc.
+ * 
+ * @param stream OggStream to update with parsed header data
+ * @param packet Header packet to parse
+ * @return true on success, false on error
+ */
 bool OggDemuxer::parseSpeexHeaders(OggStream& stream, const OggPacket& packet) {
-    return false;
+    const std::vector<uint8_t>& data = packet.data;
+    
+    if (data.size() < 80) {  // Speex header is 80 bytes
+        Debug::log("ogg", "parseSpeexHeaders: Packet too small (%zu bytes)", data.size());
+        return false;
+    }
+    
+    // Verify "Speex   " signature
+    if (data[0] != 'S' || data[1] != 'p' || data[2] != 'e' || data[3] != 'e' ||
+        data[4] != 'x' || data[5] != ' ' || data[6] != ' ' || data[7] != ' ') {
+        Debug::log("ogg", "parseSpeexHeaders: Invalid Speex signature");
+        return false;
+    }
+    
+    // Parse Speex header fields
+    // Offset 36: sample rate (4 bytes, little-endian)
+    stream.sample_rate = readLE<uint32_t>(data, 36);
+    
+    // Offset 48: number of channels (4 bytes, little-endian)
+    stream.channels = static_cast<uint16_t>(readLE<uint32_t>(data, 48));
+    
+    // Offset 52: bitrate (4 bytes, little-endian)
+    stream.bitrate = readLE<uint32_t>(data, 52);
+    
+    Debug::log("ogg", "parseSpeexHeaders: sample_rate=%u, channels=%u, bitrate=%u",
+               stream.sample_rate, stream.channels, stream.bitrate);
+    
+    return true;
 }
 
 // ============================================================================
@@ -856,12 +1419,12 @@ bool OggDemuxer::handleBOSPage(ogg_page* page, uint32_t serial_number) {
     // Store the identification packet as first header packet
     OggPacket header_packet;
     header_packet.stream_id = serial_number;
-    header_packet.data = std::move(packet_data);
+    header_packet.data = packet_data;  // Copy for storage
     header_packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
     header_packet.is_first_packet = true;
     header_packet.is_last_packet = false;
     header_packet.is_continued = false;
-    stream.header_packets.push_back(std::move(header_packet));
+    stream.header_packets.push_back(header_packet);
     
     // Set expected header count based on codec
     if (codec_name == "vorbis") {
@@ -877,6 +1440,30 @@ bool OggDemuxer::handleBOSPage(ogg_page* page, uint32_t serial_number) {
     } else if (codec_name == "theora") {
         stream.expected_header_count = 3;  // Identification, comment, setup
         stream.codec_type = "video";
+    }
+    
+    // Parse the identification header to extract codec parameters
+    // This is done after setting expected_header_count so FLAC can update it
+    bool parse_result = false;
+    if (codec_name == "vorbis") {
+        parse_result = parseVorbisHeaders(stream, header_packet);
+    } else if (codec_name == "opus") {
+        parse_result = parseOpusHeaders(stream, header_packet);
+    } else if (codec_name == "flac") {
+        parse_result = parseFLACHeaders(stream, header_packet);
+        // FLAC-in-Ogg: expected_header_count is now set from the identification header
+        // Add 1 for the identification header itself
+        if (stream.expected_header_count > 0) {
+            stream.expected_header_count += 1;
+        }
+    } else if (codec_name == "speex") {
+        parse_result = parseSpeexHeaders(stream, header_packet);
+    }
+    
+    if (!parse_result) {
+        Debug::log("ogg", "handleBOSPage: Failed to parse identification header for %s",
+                   codec_name.c_str());
+        // Continue anyway - we have the raw header data
     }
     
     Debug::log("ogg", "handleBOSPage: Created stream 0x%08x, codec=%s, expected_headers=%u",
@@ -1032,12 +1619,44 @@ bool OggDemuxer::handleDataPage(ogg_page* page, uint32_t serial_number) {
             
             // Check if this is a header packet or data packet
             if (!stream.headers_complete) {
-                // Still collecting headers
-                stream.header_packets.push_back(std::move(packet));
+                // Still collecting headers - store the packet
+                stream.header_packets.push_back(packet);
+                
+                // Parse the header packet to extract metadata
+                // (First header was already parsed in handleBOSPage)
+                if (stream.header_packets.size() > 1) {
+                    bool parse_result = false;
+                    if (stream.codec_name == "vorbis") {
+                        parse_result = parseVorbisHeaders(stream, packet);
+                    } else if (stream.codec_name == "opus") {
+                        parse_result = parseOpusHeaders(stream, packet);
+                    } else if (stream.codec_name == "flac") {
+                        parse_result = parseFLACHeaders(stream, packet);
+                    } else if (stream.codec_name == "speex") {
+                        // Speex comment header uses Vorbis comment format
+                        // Just store it, no special parsing needed
+                        parse_result = true;
+                    }
+                    
+                    if (!parse_result) {
+                        Debug::log("ogg", "handleDataPage: Failed to parse header %zu for %s",
+                                   stream.header_packets.size(), stream.codec_name.c_str());
+                        // Continue anyway - we have the raw header data
+                    }
+                }
                 
                 // Check if we have all expected headers
-                if (stream.expected_header_count > 0 &&
-                    stream.header_packets.size() >= stream.expected_header_count) {
+                // For FLAC with unknown header count (0), check for last-metadata-block flag
+                bool headers_done = false;
+                if (stream.expected_header_count > 0) {
+                    headers_done = (stream.header_packets.size() >= stream.expected_header_count);
+                } else if (stream.codec_name == "flac" && packet.data.size() >= 4) {
+                    // FLAC: Check if this is the last metadata block
+                    // Bit 7 of first byte indicates last-metadata-block
+                    headers_done = (packet.data[0] & 0x80) != 0;
+                }
+                
+                if (headers_done) {
                     stream.headers_complete = true;
                     Debug::log("ogg", "handleDataPage: Headers complete for serial 0x%08x "
                                "(%zu headers)", serial_number, stream.header_packets.size());

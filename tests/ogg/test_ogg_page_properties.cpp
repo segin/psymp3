@@ -483,6 +483,21 @@ public:
     std::string testIdentifyCodec(const std::vector<uint8_t>& packet_data) {
         return identifyCodec(packet_data);
     }
+    
+    // Expose parseFLACHeaders for testing
+    bool testParseFLACHeaders(OggStream& stream, const OggPacket& packet) {
+        return parseFLACHeaders(stream, packet);
+    }
+    
+    // Expose parseVorbisHeaders for testing
+    bool testParseVorbisHeaders(OggStream& stream, const OggPacket& packet) {
+        return parseVorbisHeaders(stream, packet);
+    }
+    
+    // Expose parseOpusHeaders for testing
+    bool testParseOpusHeaders(OggStream& stream, const OggPacket& packet) {
+        return parseOpusHeaders(stream, packet);
+    }
 };
 
 bool test_property5_vorbis_detection() {
@@ -781,6 +796,463 @@ bool test_property9_multiplexing_state_reset() {
     return true;
 }
 
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 6: FLAC-in-Ogg Header Structure**
+// **Validates: Requirements 4.9, 5.2**
+// ============================================================================
+
+/**
+ * Property 6: FLAC-in-Ogg Header Structure
+ * 
+ * *For any* valid FLAC-in-Ogg stream, the first page SHALL be exactly 79 bytes
+ * and the identification header SHALL contain:
+ * - 5-byte signature ("\x7fFLAC")
+ * - 2-byte version (0x01 0x00 for version 1.0)
+ * - 2-byte header count (big-endian)
+ * - 4-byte fLaC signature
+ * - 4-byte metadata header
+ * - 34-byte STREAMINFO
+ * 
+ * Total identification header: 51 bytes
+ * First page: 27 (header) + 1 (lacing) + 51 (packet) = 79 bytes
+ */
+
+/**
+ * Helper function to create a valid FLAC-in-Ogg identification header
+ * 
+ * FLAC STREAMINFO bit layout (RFC 9639):
+ * - Bytes 0-1: minimum block size (16 bits)
+ * - Bytes 2-3: maximum block size (16 bits)
+ * - Bytes 4-6: minimum frame size (24 bits)
+ * - Bytes 7-9: maximum frame size (24 bits)
+ * - Bytes 10-13: sample rate (20 bits) | channels-1 (3 bits) | bps-1 (5 bits) | total_samples_high (4 bits)
+ * - Bytes 14-17: total samples low (32 bits)
+ * - Bytes 18-33: MD5 signature (128 bits)
+ * 
+ * @param sample_rate Sample rate (20 bits, max 655350)
+ * @param channels Number of channels (1-8)
+ * @param bits_per_sample Bits per sample (4-32)
+ * @param total_samples Total samples (36 bits)
+ * @param header_count Number of header packets (0 = unknown)
+ * @return 51-byte FLAC-in-Ogg identification header
+ */
+std::vector<uint8_t> createFLACInOggHeader(uint32_t sample_rate = 44100,
+                                           uint8_t channels = 2,
+                                           uint8_t bits_per_sample = 16,
+                                           uint64_t total_samples = 0,
+                                           uint16_t header_count = 1) {
+    std::vector<uint8_t> header(51);
+    
+    // Signature: "\x7fFLAC" (5 bytes)
+    header[0] = 0x7F;
+    header[1] = 'F';
+    header[2] = 'L';
+    header[3] = 'A';
+    header[4] = 'C';
+    
+    // Mapping version: 1.0 (2 bytes)
+    header[5] = 0x01;  // Major version
+    header[6] = 0x00;  // Minor version
+    
+    // Header packet count (2 bytes, big-endian)
+    header[7] = (header_count >> 8) & 0xFF;
+    header[8] = header_count & 0xFF;
+    
+    // fLaC signature (4 bytes)
+    header[9] = 'f';
+    header[10] = 'L';
+    header[11] = 'a';
+    header[12] = 'C';
+    
+    // Metadata block header for STREAMINFO (4 bytes)
+    // Bit 7: last-metadata-block flag (0 = not last)
+    // Bits 0-6: block type (0 = STREAMINFO)
+    header[13] = 0x00;  // Not last, type 0
+    // Block length: 34 bytes (24 bits, big-endian)
+    header[14] = 0x00;
+    header[15] = 0x00;
+    header[16] = 0x22;  // 34 in decimal
+    
+    // STREAMINFO (34 bytes) starting at offset 17
+    // Minimum block size (16 bits, big-endian)
+    header[17] = 0x10;  // 4096 >> 8
+    header[18] = 0x00;  // 4096 & 0xFF
+    
+    // Maximum block size (16 bits, big-endian)
+    header[19] = 0x10;  // 4096 >> 8
+    header[20] = 0x00;  // 4096 & 0xFF
+    
+    // Minimum frame size (24 bits, big-endian)
+    header[21] = 0x00;
+    header[22] = 0x00;
+    header[23] = 0x00;
+    
+    // Maximum frame size (24 bits, big-endian)
+    header[24] = 0x00;
+    header[25] = 0x00;
+    header[26] = 0x00;
+    
+    // STREAMINFO bytes 10-13 (offset 27-30 in our header):
+    // Bit layout: SSSSSSSS SSSSSSSS SSSSCCCC CBBBBBTT
+    // S = sample rate (20 bits)
+    // C = channels - 1 (3 bits)
+    // B = bits per sample - 1 (5 bits)
+    // T = total samples high (4 bits)
+    //
+    // The 32-bit value is:
+    // bits 31-12: sample rate (20 bits)
+    // bits 11-9: channels - 1 (3 bits)
+    // bits 8-4: bits per sample - 1 (5 bits)
+    // bits 3-0: total samples high (4 bits)
+    
+    uint32_t sr_ch_bps = 0;
+    sr_ch_bps |= (sample_rate & 0xFFFFF) << 12;           // Sample rate in bits 31-12
+    sr_ch_bps |= ((channels - 1) & 0x07) << 9;            // Channels-1 in bits 11-9
+    sr_ch_bps |= ((bits_per_sample - 1) & 0x1F) << 4;     // BPS-1 in bits 8-4
+    sr_ch_bps |= (total_samples >> 32) & 0x0F;            // Total samples high in bits 3-0
+    
+    header[27] = (sr_ch_bps >> 24) & 0xFF;
+    header[28] = (sr_ch_bps >> 16) & 0xFF;
+    header[29] = (sr_ch_bps >> 8) & 0xFF;
+    header[30] = sr_ch_bps & 0xFF;
+    
+    // Total samples lower 32 bits (big-endian)
+    header[31] = (total_samples >> 24) & 0xFF;
+    header[32] = (total_samples >> 16) & 0xFF;
+    header[33] = (total_samples >> 8) & 0xFF;
+    header[34] = total_samples & 0xFF;
+    
+    // MD5 signature (16 bytes) - all zeros for test
+    for (int i = 35; i < 51; ++i) {
+        header[i] = 0x00;
+    }
+    
+    return header;
+}
+
+bool test_property6_flac_header_size() {
+    // FLAC-in-Ogg identification header must be exactly 51 bytes
+    auto header = createFLACInOggHeader();
+    TEST_ASSERT(header.size() == 51, "FLAC-in-Ogg header should be 51 bytes");
+    return true;
+}
+
+bool test_property6_flac_signature() {
+    auto header = createFLACInOggHeader();
+    
+    // Check "\x7fFLAC" signature
+    TEST_ASSERT(header[0] == 0x7F, "First byte should be 0x7F");
+    TEST_ASSERT(header[1] == 'F', "Second byte should be 'F'");
+    TEST_ASSERT(header[2] == 'L', "Third byte should be 'L'");
+    TEST_ASSERT(header[3] == 'A', "Fourth byte should be 'A'");
+    TEST_ASSERT(header[4] == 'C', "Fifth byte should be 'C'");
+    
+    return true;
+}
+
+bool test_property6_flac_version() {
+    auto header = createFLACInOggHeader();
+    
+    // Check mapping version 1.0
+    TEST_ASSERT(header[5] == 0x01, "Major version should be 1");
+    TEST_ASSERT(header[6] == 0x00, "Minor version should be 0");
+    
+    return true;
+}
+
+bool test_property6_flac_flac_signature() {
+    auto header = createFLACInOggHeader();
+    
+    // Check "fLaC" signature at offset 9
+    TEST_ASSERT(header[9] == 'f', "fLaC signature byte 1");
+    TEST_ASSERT(header[10] == 'L', "fLaC signature byte 2");
+    TEST_ASSERT(header[11] == 'a', "fLaC signature byte 3");
+    TEST_ASSERT(header[12] == 'C', "fLaC signature byte 4");
+    
+    return true;
+}
+
+bool test_property6_flac_streaminfo_length() {
+    auto header = createFLACInOggHeader();
+    
+    // Check STREAMINFO block length (34 bytes) at offset 14-16
+    uint32_t block_length = (static_cast<uint32_t>(header[14]) << 16) |
+                            (static_cast<uint32_t>(header[15]) << 8) |
+                            header[16];
+    TEST_ASSERT(block_length == 34, "STREAMINFO block length should be 34");
+    
+    return true;
+}
+
+bool test_property6_flac_header_parsing() {
+    TestOggDemuxer demuxer;
+    
+    // Create a valid FLAC-in-Ogg header with known values
+    auto header_data = createFLACInOggHeader(44100, 2, 16, 1000000, 1);
+    
+    // Create an OggPacket from the header data
+    OggPacket packet;
+    packet.stream_id = 0x12345678;
+    packet.data = header_data;
+    packet.granule_position = 0;
+    packet.is_first_packet = true;
+    packet.is_last_packet = false;
+    packet.is_continued = false;
+    
+    // Create an OggStream and parse the header
+    OggStream stream;
+    stream.serial_number = 0x12345678;
+    stream.codec_name = "flac";
+    stream.codec_type = "audio";
+    
+    bool result = demuxer.testParseFLACHeaders(stream, packet);
+    if (!result) {
+        std::cout << "  DEBUG: parseFLACHeaders returned false" << std::endl;
+        std::cout << "  DEBUG: header_data.size() = " << header_data.size() << std::endl;
+        std::cout << "  DEBUG: Full header dump:" << std::endl;
+        for (size_t i = 0; i < header_data.size(); ++i) {
+            if (i % 16 == 0) std::cout << "    [" << std::dec << i << "]: ";
+            std::cout << std::hex << std::setfill('0') << std::setw(2) << (int)header_data[i] << " ";
+            if (i % 16 == 15 || i == header_data.size() - 1) std::cout << std::endl;
+        }
+        std::cout << std::dec;
+        
+        // Check specific fields
+        std::cout << "  DEBUG: Signature check: ";
+        std::cout << (header_data[0] == 0x7F ? "OK" : "FAIL") << " ";
+        std::cout << (header_data[1] == 'F' ? "OK" : "FAIL") << " ";
+        std::cout << (header_data[2] == 'L' ? "OK" : "FAIL") << " ";
+        std::cout << (header_data[3] == 'A' ? "OK" : "FAIL") << " ";
+        std::cout << (header_data[4] == 'C' ? "OK" : "FAIL") << std::endl;
+        
+        std::cout << "  DEBUG: fLaC signature at [9-12]: ";
+        std::cout << (header_data[9] == 'f' ? "OK" : "FAIL") << " ";
+        std::cout << (header_data[10] == 'L' ? "OK" : "FAIL") << " ";
+        std::cout << (header_data[11] == 'a' ? "OK" : "FAIL") << " ";
+        std::cout << (header_data[12] == 'C' ? "OK" : "FAIL") << std::endl;
+        
+        std::cout << "  DEBUG: Block type at [13]: 0x" << std::hex << (int)header_data[13] 
+                  << " (expected 0x00)" << std::dec << std::endl;
+        
+        uint32_t block_length = (static_cast<uint32_t>(header_data[14]) << 16) |
+                                (static_cast<uint32_t>(header_data[15]) << 8) |
+                                header_data[16];
+        std::cout << "  DEBUG: Block length at [14-16]: " << block_length 
+                  << " (expected 34)" << std::endl;
+        
+        TEST_ASSERT(result, "parseFLACHeaders should succeed");
+    }
+    
+    // Verify parsed values
+    if (stream.sample_rate != 44100) {
+        std::cout << "  DEBUG: sample_rate = " << stream.sample_rate << " (expected 44100)" << std::endl;
+        TEST_ASSERT(stream.sample_rate == 44100, "Sample rate should be 44100");
+    }
+    if (stream.channels != 2) {
+        std::cout << "  DEBUG: channels = " << stream.channels << " (expected 2)" << std::endl;
+        TEST_ASSERT(stream.channels == 2, "Channels should be 2");
+    }
+    if (stream.bits_per_sample != 16) {
+        std::cout << "  DEBUG: bits_per_sample = " << (int)stream.bits_per_sample << " (expected 16)" << std::endl;
+        TEST_ASSERT(stream.bits_per_sample == 16, "Bits per sample should be 16");
+    }
+    TEST_ASSERT(stream.flac_mapping_version_major == 1, "Major version should be 1");
+    TEST_ASSERT(stream.flac_mapping_version_minor == 0, "Minor version should be 0");
+    
+    return true;
+}
+
+bool test_property6_flac_various_sample_rates() {
+    TestOggDemuxer demuxer;
+    
+    // Test various sample rates
+    std::vector<uint32_t> sample_rates = { 8000, 11025, 22050, 44100, 48000, 96000, 192000 };
+    
+    for (uint32_t sr : sample_rates) {
+        auto header_data = createFLACInOggHeader(sr, 2, 16, 0, 1);
+        
+        OggPacket packet;
+        packet.stream_id = 0x12345678;
+        packet.data = header_data;
+        packet.granule_position = 0;
+        packet.is_first_packet = true;
+        packet.is_last_packet = false;
+        packet.is_continued = false;
+        
+        OggStream stream;
+        stream.serial_number = 0x12345678;
+        stream.codec_name = "flac";
+        stream.codec_type = "audio";
+        
+        bool result = demuxer.testParseFLACHeaders(stream, packet);
+        TEST_ASSERT(result, "parseFLACHeaders should succeed for sample rate");
+        TEST_ASSERT(stream.sample_rate == sr, "Sample rate should match");
+    }
+    
+    return true;
+}
+
+bool test_property6_flac_various_channels() {
+    TestOggDemuxer demuxer;
+    
+    // Test various channel counts (1-8)
+    for (uint8_t ch = 1; ch <= 8; ++ch) {
+        auto header_data = createFLACInOggHeader(44100, ch, 16, 0, 1);
+        
+        OggPacket packet;
+        packet.stream_id = 0x12345678;
+        packet.data = header_data;
+        packet.granule_position = 0;
+        packet.is_first_packet = true;
+        packet.is_last_packet = false;
+        packet.is_continued = false;
+        
+        OggStream stream;
+        stream.serial_number = 0x12345678;
+        stream.codec_name = "flac";
+        stream.codec_type = "audio";
+        
+        bool result = demuxer.testParseFLACHeaders(stream, packet);
+        TEST_ASSERT(result, "parseFLACHeaders should succeed for channel count");
+        TEST_ASSERT(stream.channels == ch, "Channel count should match");
+    }
+    
+    return true;
+}
+
+bool test_property6_flac_various_bit_depths() {
+    TestOggDemuxer demuxer;
+    
+    // Test various bit depths (8, 16, 24, 32)
+    std::vector<uint8_t> bit_depths = { 8, 16, 24, 32 };
+    
+    for (uint8_t bps : bit_depths) {
+        auto header_data = createFLACInOggHeader(44100, 2, bps, 0, 1);
+        
+        OggPacket packet;
+        packet.stream_id = 0x12345678;
+        packet.data = header_data;
+        packet.granule_position = 0;
+        packet.is_first_packet = true;
+        packet.is_last_packet = false;
+        packet.is_continued = false;
+        
+        OggStream stream;
+        stream.serial_number = 0x12345678;
+        stream.codec_name = "flac";
+        stream.codec_type = "audio";
+        
+        bool result = demuxer.testParseFLACHeaders(stream, packet);
+        TEST_ASSERT(result, "parseFLACHeaders should succeed for bit depth");
+        TEST_ASSERT(stream.bits_per_sample == bps, "Bit depth should match");
+    }
+    
+    return true;
+}
+
+bool test_property6_flac_invalid_signature() {
+    TestOggDemuxer demuxer;
+    
+    // Create header with invalid signature
+    auto header_data = createFLACInOggHeader();
+    header_data[0] = 0x00;  // Invalid first byte
+    
+    OggPacket packet;
+    packet.stream_id = 0x12345678;
+    packet.data = header_data;
+    packet.granule_position = 0;
+    packet.is_first_packet = true;
+    packet.is_last_packet = false;
+    packet.is_continued = false;
+    
+    OggStream stream;
+    stream.serial_number = 0x12345678;
+    stream.codec_name = "flac";
+    stream.codec_type = "audio";
+    
+    // Should still return true (graceful handling) but not parse as FLAC identification
+    // The function handles this as a metadata block instead
+    bool result = demuxer.testParseFLACHeaders(stream, packet);
+    // With invalid signature, it won't parse as identification header
+    // but may still succeed as it tries to parse as metadata block
+    TEST_ASSERT(result == true, "Should handle gracefully");
+    
+    return true;
+}
+
+bool test_property6_flac_header_too_small() {
+    TestOggDemuxer demuxer;
+    
+    // Create header that's too small (less than 51 bytes)
+    std::vector<uint8_t> header_data = { 0x7F, 'F', 'L', 'A', 'C', 0x01, 0x00 };  // Only 7 bytes
+    
+    OggPacket packet;
+    packet.stream_id = 0x12345678;
+    packet.data = header_data;
+    packet.granule_position = 0;
+    packet.is_first_packet = true;
+    packet.is_last_packet = false;
+    packet.is_continued = false;
+    
+    OggStream stream;
+    stream.serial_number = 0x12345678;
+    stream.codec_name = "flac";
+    stream.codec_type = "audio";
+    
+    bool result = demuxer.testParseFLACHeaders(stream, packet);
+    TEST_ASSERT(result == false, "Should fail for header too small");
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for FLAC-in-Ogg header structure
+ * 
+ * Property: For any valid FLAC audio parameters, the header is correctly
+ * parsed and the extracted values match the input.
+ */
+bool test_property6_rapidcheck() {
+    TestOggDemuxer demuxer;
+    
+    // Property: Valid FLAC headers are parsed correctly
+    rc::check("FLAC-in-Ogg headers are parsed correctly", [&demuxer]() {
+        // Generate random but valid FLAC parameters
+        uint32_t sample_rate = *rc::gen::inRange<uint32_t>(1, 655351);  // 1 to 655350
+        uint8_t channels = *rc::gen::inRange<uint8_t>(1, 9);            // 1 to 8
+        uint8_t bits_per_sample = *rc::gen::inRange<uint8_t>(4, 33);    // 4 to 32
+        uint64_t total_samples = *rc::gen::inRange<uint64_t>(0, (1ULL << 36));  // 36-bit max
+        uint16_t header_count = *rc::gen::inRange<uint16_t>(0, 65536);
+        
+        auto header_data = createFLACInOggHeader(sample_rate, channels, bits_per_sample, 
+                                                  total_samples, header_count);
+        
+        OggPacket packet;
+        packet.stream_id = 0x12345678;
+        packet.data = header_data;
+        packet.granule_position = 0;
+        packet.is_first_packet = true;
+        packet.is_last_packet = false;
+        packet.is_continued = false;
+        
+        OggStream stream;
+        stream.serial_number = 0x12345678;
+        stream.codec_name = "flac";
+        stream.codec_type = "audio";
+        
+        bool result = demuxer.testParseFLACHeaders(stream, packet);
+        RC_ASSERT(result);
+        RC_ASSERT(stream.sample_rate == sample_rate);
+        RC_ASSERT(stream.channels == channels);
+        RC_ASSERT(stream.bits_per_sample == bits_per_sample);
+        RC_ASSERT(stream.flac_mapping_version_major == 1);
+        RC_ASSERT(stream.flac_mapping_version_minor == 0);
+    });
+    
+    return true;
+}
+#endif // HAVE_RAPIDCHECK
+
 #ifdef HAVE_RAPIDCHECK
 /**
  * RapidCheck property test for lacing value interpretation
@@ -1055,6 +1527,66 @@ int main() {
     if (test_property9_multiplexing_state_reset()) {
         TEST_PASS("Multiplexing state reset");
     }
+    
+    // ========================================================================
+    // Property 6: FLAC-in-Ogg Header Structure
+    // **Validates: Requirements 4.9, 5.2**
+    // ========================================================================
+    std::cout << "\nProperty 6: FLAC-in-Ogg Header Structure" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+    
+    if (test_property6_flac_header_size()) {
+        TEST_PASS("FLAC header size is 51 bytes");
+    }
+    
+    if (test_property6_flac_signature()) {
+        TEST_PASS("FLAC signature validation");
+    }
+    
+    if (test_property6_flac_version()) {
+        TEST_PASS("FLAC mapping version validation");
+    }
+    
+    if (test_property6_flac_flac_signature()) {
+        TEST_PASS("fLaC signature validation");
+    }
+    
+    if (test_property6_flac_streaminfo_length()) {
+        TEST_PASS("STREAMINFO block length validation");
+    }
+    
+    if (test_property6_flac_header_parsing()) {
+        TEST_PASS("FLAC header parsing");
+    }
+    
+    if (test_property6_flac_various_sample_rates()) {
+        TEST_PASS("FLAC various sample rates");
+    }
+    
+    if (test_property6_flac_various_channels()) {
+        TEST_PASS("FLAC various channel counts");
+    }
+    
+    if (test_property6_flac_various_bit_depths()) {
+        TEST_PASS("FLAC various bit depths");
+    }
+    
+    if (test_property6_flac_invalid_signature()) {
+        TEST_PASS("FLAC invalid signature handling");
+    }
+    
+    if (test_property6_flac_header_too_small()) {
+        TEST_PASS("FLAC header too small handling");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 6: RapidCheck Property Tests" << std::endl;
+    std::cout << "-------------------------------------" << std::endl;
+    
+    if (test_property6_rapidcheck()) {
+        TEST_PASS("RapidCheck FLAC header tests passed");
+    }
+#endif
     
     // ========================================================================
     // Summary

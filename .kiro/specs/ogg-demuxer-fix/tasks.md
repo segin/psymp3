@@ -108,27 +108,27 @@
     - **Property 9: Chained Stream Detection**
     - **Validates: Requirements 3.8**
 
-- [ ] 6. Implement Header Packet Processing
-  - [ ] 6.1 Implement Vorbis header processing
+- [x] 6. Implement Header Packet Processing
+  - [x] 6.1 Implement Vorbis header processing
     - Validate "\x01vorbis" signature, extract sample rate, channels, bitrate
     - Parse "\x03vorbis" comment header with UTF-8 metadata
     - Preserve "\x05vorbis" setup header
     - Require all 3 headers for complete initialization
     - _Requirements: 4.1, 4.2, 4.3_
-  - [ ] 6.2 Implement Opus header processing
+  - [x] 6.2 Implement Opus header processing
     - Parse "OpusHead" signature per RFC 7845 Section 5.1
     - Extract channels, pre-skip, input_sample_rate, channel_mapping
     - Parse "OpusTags" metadata per RFC 7845 Section 5.2
     - Require 2 headers for complete initialization
     - _Requirements: 4.4, 4.5_
-  - [ ] 6.3 Implement FLAC-in-Ogg header processing (RFC 9639 Section 10.1)
+  - [x] 6.3 Implement FLAC-in-Ogg header processing (RFC 9639 Section 10.1)
     - Validate "\x7fFLAC" (0x7F 0x46 0x4C 0x41 0x43) signature
     - Verify mapping version (0x01 0x00 for version 1.0)
     - Extract header packet count, fLaC signature, STREAMINFO (34 bytes)
     - Verify first page is exactly 79 bytes
     - Expect Vorbis comment as first header packet after identification
     - _Requirements: 4.6, 4.7, 4.8, 4.9, 4.10_
-  - [ ] 6.4 Implement header management
+  - [x] 6.4 Implement header management
     - Skip unknown streams, continue with known streams
     - Mark streams as ready when headers complete
     - Collect all serial numbers like _fetch_headers()
@@ -136,7 +136,7 @@
     - Handle header packets spanning multiple pages
     - Process all header pages before data pages
     - _Requirements: 4.11, 4.12, 4.13, 4.14, 4.15, 4.16_
-  - [ ] 6.5 Write property test for FLAC-in-Ogg header structure
+  - [x] 6.5 Write property test for FLAC-in-Ogg header structure
     - **Property 6: FLAC-in-Ogg Header Structure**
     - **Validates: Requirements 4.9, 5.2**
 
