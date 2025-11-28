@@ -418,4 +418,143 @@ MediaChunk → Packet Validation → vorbis_synthesis → vorbis_synthesis_block
 - Manage libvorbis structure lifecycle properly
 - Utilize libvorbis error reporting and recovery
 
+## **Correctness Properties**
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+Based on the prework analysis of acceptance criteria, the following correctness properties have been identified:
+
+### Property 1: Header Sequence Validation
+*For any* sequence of Vorbis header packets, the VorbisCodec shall accept only the correct sequence (identification → comment → setup) and reject any other ordering.
+**Validates: Requirements 1.1**
+
+### Property 2: Identification Header Field Extraction
+*For any* valid Vorbis identification header, the extracted values (version, channels, rate, bitrate_upper, bitrate_nominal, bitrate_lower) shall match the values encoded in the header packet.
+**Validates: Requirements 1.2**
+
+### Property 3: Corrupted Packet Recovery
+*For any* stream containing corrupted audio packets interspersed with valid packets, the VorbisCodec shall skip corrupted packets and successfully decode subsequent valid packets.
+**Validates: Requirements 1.8, 8.3**
+
+### Property 4: Error Code Handling
+*For any* libvorbis error code (OV_ENOTVORBIS, OV_EBADHEADER, OV_EFAULT, OV_EINVAL), the VorbisCodec shall handle it according to the specified recovery strategy without crashing.
+**Validates: Requirements 2.6**
+
+### Property 5: Reset Preserves Headers
+*For any* initialized VorbisCodec, calling reset() shall clear synthesis state while preserving header information, allowing continued decoding without re-sending headers.
+**Validates: Requirements 2.7, 6.4**
+
+### Property 6: Block Size Constraint
+*For any* valid Vorbis stream, the block sizes extracted from the identification header shall satisfy: blocksize_0 <= blocksize_1, and both shall be powers of 2 in the range [64, 8192].
+**Validates: Requirements 4.1, 4.2**
+
+### Property 7: Flush Outputs Remaining Samples
+*For any* VorbisCodec with buffered samples, calling flush() shall return an AudioFrame containing all remaining decoded samples.
+**Validates: Requirements 4.8, 7.5, 11.4**
+
+### Property 8: Channel Count Consistency
+*For any* valid Vorbis stream with N channels, all decoded AudioFrames shall contain samples with exactly N interleaved channels.
+**Validates: Requirements 5.1, 5.2, 5.3, 5.5**
+
+### Property 9: Channel Interleaving Correctness
+*For any* multi-channel Vorbis stream, the output samples shall be correctly interleaved in Vorbis channel order (L, R for stereo; FL, FC, FR, RL, RR, LFE for 5.1, etc.).
+**Validates: Requirements 5.5, 5.7**
+
+### Property 10: Container-Agnostic Decoding
+*For any* valid Vorbis packet data, the VorbisCodec shall decode it identically regardless of whether it came from OggDemuxer or any other source providing MediaChunk data.
+**Validates: Requirements 6.1, 6.3**
+
+### Property 11: Bounded Buffer Size
+*For any* sequence of decoded packets, the internal output buffer size shall never exceed the configured maximum (e.g., 2 seconds of audio at maximum sample rate and channels).
+**Validates: Requirements 7.2, 7.4**
+
+### Property 12: Incremental Processing
+*For any* Vorbis stream, the VorbisCodec shall process packets one at a time without requiring access to future packets or the complete file.
+**Validates: Requirements 7.1**
+
+### Property 13: Instance Independence
+*For any* two VorbisCodec instances decoding different streams concurrently, the decoding of one stream shall not affect the output of the other.
+**Validates: Requirements 10.1, 10.2**
+
+### Property 14: Concurrent Initialization Safety
+*For any* number of VorbisCodec instances being initialized concurrently, all initializations shall complete successfully without data corruption or crashes.
+**Validates: Requirements 10.5**
+
+### Property 15: MediaChunk to AudioFrame Conversion
+*For any* valid MediaChunk containing Vorbis audio data, the VorbisCodec shall produce an AudioFrame with correct sample_rate, channels, and non-empty samples vector.
+**Validates: Requirements 11.3**
+
+### Property 16: Reset Clears State
+*For any* VorbisCodec in any state, calling reset() shall clear all internal buffers and return the codec to a state ready for decoding from a new position.
+**Validates: Requirements 7.6, 11.5**
+
+## **Testing Strategy**
+
+### **Dual Testing Approach**
+
+The VorbisCodec implementation requires both unit tests and property-based tests to ensure comprehensive coverage:
+
+- **Unit tests** verify specific examples, edge cases, and error conditions
+- **Property-based tests** verify universal properties that should hold across all inputs
+- Together they provide comprehensive coverage: unit tests catch concrete bugs, property tests verify general correctness
+
+### **Property-Based Testing Framework**
+
+The implementation shall use **RapidCheck** as the property-based testing library for C++. RapidCheck provides:
+- Automatic test case generation
+- Shrinking of failing cases to minimal counterexamples
+- Integration with existing test frameworks
+
+Each property-based test shall:
+- Run a minimum of **100 iterations** to ensure adequate coverage
+- Be tagged with a comment explicitly referencing the correctness property: `// **Feature: vorbis-codec, Property N: property_text**`
+- Use smart generators that constrain inputs to valid Vorbis data structures
+
+### **Unit Testing Requirements**
+
+Unit tests shall cover:
+- Specific examples demonstrating correct behavior (e.g., decoding known Vorbis files)
+- Edge cases (empty packets, maximum channel counts, extreme block sizes)
+- Error conditions (corrupted headers, invalid packets, memory failures)
+- Integration points with OggDemuxer and DemuxedStream
+
+### **Test Categories**
+
+1. **Header Processing Tests**
+   - Valid header sequence acceptance
+   - Invalid header sequence rejection
+   - Field extraction accuracy
+   - Error code handling
+
+2. **Audio Decoding Tests**
+   - PCM output format verification
+   - Channel interleaving correctness
+   - Block size handling
+   - Overlap-add correctness (via libvorbis)
+
+3. **Error Handling Tests**
+   - Corrupted packet recovery
+   - Error code interpretation
+   - State reset on errors
+
+4. **Thread Safety Tests**
+   - Concurrent instance operation
+   - Concurrent initialization
+   - Instance independence verification
+
+5. **Integration Tests**
+   - OggDemuxer integration
+   - DemuxedStream bridge compatibility
+   - Real Vorbis file decoding
+
+### **Test Data Generation**
+
+Property-based tests shall use generators for:
+- Valid Vorbis identification headers with random but valid parameters
+- Valid Vorbis comment headers with random metadata
+- Random but valid audio packet sequences
+- Corrupted packets (bit flips, truncation, invalid signatures)
+- Various channel configurations (1-8 channels)
+- Various quality levels (-1 to 10)
+
 This design provides efficient, accurate Vorbis decoding that works with any container format while maintaining compatibility with existing functionality and integrating cleanly with the modern codec architecture.

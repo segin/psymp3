@@ -4,8 +4,8 @@
   - Implement VorbisCodec class inheriting from AudioCodec base class
   - Add private member variables for libvorbis structures (info, comment, dsp_state, block)
   - Implement constructor accepting StreamInfo parameter
-  - Add destructor with proper libvorbis cleanup
-  - _Requirements: 11.1, 11.2_
+  - Add destructor with proper libvorbis cleanup (vorbis_block_clear, vorbis_dsp_clear, vorbis_comment_clear, vorbis_info_clear)
+  - _Requirements: 11.1, 2.8_
 
 - [ ] 2. Implement Core AudioCodec Interface Methods
   - [ ] 2.1 Implement initialize() method
@@ -13,13 +13,13 @@
     - Extract Vorbis parameters from StreamInfo (channels, sample rate, codec data)
     - Set up internal buffers and state variables
     - Return success/failure status
-    - _Requirements: 11.2, 6.2_
+    - _Requirements: 2.1, 11.2, 6.2_
 
   - [ ] 2.2 Implement canDecode() method
     - Check if StreamInfo contains "vorbis" codec name
     - Validate basic Vorbis stream parameters
     - Return boolean indicating decode capability
-    - _Requirements: 11.6_
+    - _Requirements: 11.6, 6.6_
 
   - [ ] 2.3 Implement getCodecName() method
     - Return "vorbis" string identifier
@@ -29,193 +29,200 @@
   - [ ] 3.1 Create header packet detection and routing
     - Implement processHeaderPacket() method to route header types
     - Add header packet counter and state tracking (3 headers required)
-    - Validate header packet sequence (ID, comment, setup)
-    - _Requirements: 1.1, 1.2, 1.3, 1.4_
+    - Validate header packet sequence (identification \x01vorbis, comment \x03vorbis, setup \x05vorbis)
+    - _Requirements: 1.1, 2.2_
 
-  - [ ] 3.2 Implement Vorbis identification header parsing
+  - [ ] 3.2 Write property test for header sequence validation
+    - **Property 1: Header Sequence Validation**
+    - **Validates: Requirements 1.1**
+
+  - [ ] 3.3 Implement Vorbis identification header parsing
     - Create processIdentificationHeader() using vorbis_synthesis_headerin()
-    - Extract sample rate, channels, bitrate bounds, and block sizes
+    - Extract version, channels, rate, bitrate_upper, bitrate_nominal, bitrate_lower from vorbis_info
     - Store configuration parameters for decoder initialization
     - Validate parameters against Vorbis specification limits
-    - _Requirements: 1.2, 2.1, 3.4, 4.1, 4.2_
+    - _Requirements: 1.2, 2.2, 4.1, 4.2_
 
-  - [ ] 3.3 Implement comment header processing
+  - [ ] 3.4 Write property test for identification header field extraction
+    - **Property 2: Identification Header Field Extraction**
+    - **Validates: Requirements 1.2**
+
+  - [ ] 3.5 Implement comment header processing
     - Create processCommentHeader() using vorbis_synthesis_headerin()
     - Validate comment header structure without processing metadata
-    - Make header data available to demuxer for metadata extraction
-    - _Requirements: 1.3, 14.1, 14.2, 14.4_
+    - Make vorbis_comment data available to demuxer for metadata extraction
+    - _Requirements: 1.3, 14.1, 14.2_
 
-  - [ ] 3.4 Implement setup header processing
+  - [ ] 3.6 Implement setup header processing
     - Create processSetupHeader() using vorbis_synthesis_headerin()
     - Initialize decoder with codebook and floor/residue configurations
     - Complete libvorbis decoder initialization after all headers
-    - _Requirements: 1.4, 2.1_
+    - _Requirements: 1.4, 2.3_
+
+  - [ ] 3.7 Write property test for block size constraint
+    - **Property 6: Block Size Constraint**
+    - **Validates: Requirements 4.1, 4.2**
 
 - [ ] 4. Implement libvorbis Decoder Integration
   - [ ] 4.1 Create libvorbis decoder initialization
     - Initialize vorbis_dsp_state using vorbis_synthesis_init() after headers
     - Initialize vorbis_block using vorbis_block_init() for packet processing
     - Handle decoder initialization errors and cleanup
-    - _Requirements: 2.1, 2.4, 2.5_
+    - _Requirements: 2.3, 2.4, 2.5_
 
   - [ ] 4.2 Implement decoder state management
     - Add proper cleanup in destructor (vorbis_block_clear, vorbis_dsp_clear, etc.)
-    - Implement reset() method by reinitializing libvorbis state for seeking
+    - Implement reset() method using vorbis_synthesis_restart() for seeking
     - Handle decoder state validation and error recovery
-    - _Requirements: 2.5, 2.7, 8.7_
+    - _Requirements: 2.7, 2.8, 8.7_
 
-- [ ] 5. Implement Audio Packet Decoding
-  - [ ] 5.1 Create main decode() method implementation
+  - [ ] 4.3 Write property test for reset preserves headers
+    - **Property 5: Reset Preserves Headers**
+    - **Validates: Requirements 2.7, 6.4**
+
+- [ ] 5. Checkpoint - Verify header processing works
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 6. Implement Audio Packet Decoding
+  - [ ] 6.1 Create main decode() method implementation
     - Route header packets to header processing system
     - Route audio packets to audio decoding system
     - Handle empty packets and end-of-stream conditions
     - Return appropriate AudioFrame or empty frame
     - _Requirements: 11.3, 1.5, 6.1_
 
-  - [ ] 5.2 Implement audio packet decoding core
+  - [ ] 6.2 Implement audio packet decoding core
     - Create decodeAudioPacket() using vorbis_synthesis() and vorbis_synthesis_blockin()
-    - Extract PCM samples using vorbis_synthesis_pcmout()
-    - Handle variable block sizes and overlap-add processing correctly
+    - Extract PCM samples using vorbis_synthesis_pcmout() and vorbis_synthesis_read()
+    - Handle variable block sizes via vorbis_info_blocksize()
     - Convert float samples to 16-bit PCM format
-    - _Requirements: 1.5, 1.7, 4.1, 4.2, 4.3, 4.4_
+    - _Requirements: 1.5, 1.6, 2.4, 2.5_
 
-  - [ ] 5.3 Add packet validation and error handling
+  - [ ] 6.3 Write property test for MediaChunk to AudioFrame conversion
+    - **Property 15: MediaChunk to AudioFrame Conversion**
+    - **Validates: Requirements 11.3**
+
+  - [ ] 6.4 Add packet validation and error handling
     - Implement validateVorbisPacket() for basic packet validation
     - Handle corrupted packets by skipping and continuing
     - Implement handleVorbisError() for libvorbis error code processing
-    - Output silence for failed frames while maintaining stream continuity
-    - _Requirements: 8.2, 8.3, 8.4, 1.8_
+    - _Requirements: 1.8, 8.1, 8.2, 8.3_
 
-- [ ] 6. Implement Float to PCM Conversion
-  - [ ] 6.1 Create float to 16-bit PCM conversion system
+  - [ ] 6.5 Write property test for corrupted packet recovery
+    - **Property 3: Corrupted Packet Recovery**
+    - **Validates: Requirements 1.8, 8.3**
+
+  - [ ] 6.6 Write property test for error code handling
+    - **Property 4: Error Code Handling**
+    - **Validates: Requirements 2.6**
+
+- [ ] 7. Implement Float to PCM Conversion
+  - [ ] 7.1 Create float to 16-bit PCM conversion system
     - Implement convertFloatToPCM() method for libvorbis float output
-    - Handle proper clamping and scaling for 16-bit range
+    - Handle proper clamping (-1.0 to 1.0 → -32768 to 32767) and scaling
     - Interleave channels correctly during conversion
-    - Optimize conversion for performance
     - _Requirements: 1.5, 5.1, 5.2_
 
-  - [ ] 6.2 Add channel interleaving and formatting
+  - [ ] 7.2 Add channel interleaving and formatting
     - Process multi-channel float arrays into interleaved 16-bit output
     - Handle channel mapping according to Vorbis conventions
     - Ensure proper sample alignment and channel ordering
-    - _Requirements: 5.1, 5.2, 5.5, 5.7_
+    - _Requirements: 5.5, 5.7_
 
-- [ ] 7. Implement Variable Bitrate and Quality Handling
-  - [ ] 7.1 Add support for different bitrate modes
-    - Handle constant bitrate Vorbis streams efficiently
-    - Support variable bitrate streams with changing bitrates
-    - Process quality-based encoding (quality levels -1 to 10)
-    - Adapt to bitrate changes seamlessly within streams
-    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.8_
+  - [ ] 7.3 Write property test for channel count consistency
+    - **Property 8: Channel Count Consistency**
+    - **Validates: Requirements 5.1, 5.2, 5.3, 5.5**
 
-  - [ ] 7.2 Implement quality level and bitrate bound handling
-    - Support all Vorbis quality levels from -1 to 10
-    - Handle minimum, nominal, and maximum bitrate settings
-    - Maintain audio fidelity for high-quality streams
-    - Handle bandwidth limitations gracefully for low-bitrate streams
-    - _Requirements: 3.5, 3.6, 3.7_
+  - [ ] 7.4 Write property test for channel interleaving correctness
+    - **Property 9: Channel Interleaving Correctness**
+    - **Validates: Requirements 5.5, 5.7**
 
-- [ ] 8. Implement Block Size and Windowing Support
-  - [ ] 8.1 Add variable block size handling
-    - Support short blocks (64-2048 samples) and long blocks (128-8192 samples)
-    - Handle block size transitions (short-to-long and long-to-short)
-    - Let libvorbis handle windowing and overlap-add processing
-    - Manage decoder delay and latency correctly
-    - _Requirements: 4.1, 4.2, 4.5, 4.6_
+- [ ] 8. Checkpoint - Verify basic decoding works
+  - Ensure all tests pass, ask the user if questions arise.
 
-  - [ ] 8.2 Implement proper overlap-add processing
-    - Ensure libvorbis handles windowing functions correctly
-    - Process overlapping portions of adjacent blocks properly
-    - Handle initial and final block overlap correctly
-    - Output remaining samples from final overlap during flush
-    - _Requirements: 4.3, 4.4, 4.7, 4.8_
-
-- [ ] 9. Implement Multi-Channel Support
-  - [ ] 9.1 Add channel configuration handling
-    - Support mono and stereo Vorbis streams
-    - Handle multi-channel Vorbis (up to 255 channels as per specification)
-    - Process channel coupling (magnitude/angle pairs) correctly
-    - Validate channel configurations and report errors for unsupported setups
-    - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.8_
-
-  - [ ] 9.2 Implement channel mapping and ordering
-    - Follow Vorbis channel ordering conventions for multi-channel output
-    - Provide properly interleaved channel data in AudioFrame
-    - Handle channel count changes appropriately (shouldn't happen in practice)
-    - _Requirements: 5.5, 5.6, 5.7_
-
-- [ ] 10. Implement Streaming and Buffering
-  - [ ] 10.1 Create output buffer management
-    - Implement bounded output buffers to prevent memory exhaustion
+- [ ] 9. Implement Streaming and Buffering
+  - [ ] 9.1 Create output buffer management
+    - Implement bounded output buffers (max 2 seconds at 48kHz stereo)
     - Handle buffer overflow with appropriate backpressure
     - Process packets incrementally without requiring complete file access
     - _Requirements: 7.1, 7.2, 7.4_
 
-  - [ ] 10.2 Add streaming support and buffer flushing
+  - [ ] 9.2 Write property test for bounded buffer size
+    - **Property 11: Bounded Buffer Size**
+    - **Validates: Requirements 7.2, 7.4**
+
+  - [ ] 9.3 Write property test for incremental processing
+    - **Property 12: Incremental Processing**
+    - **Validates: Requirements 7.1**
+
+  - [ ] 9.4 Add streaming support and buffer flushing
     - Implement flush() method to output remaining decoded samples
     - Handle partial packet data gracefully
-    - Maintain consistent latency and throughput for continuous streaming
     - Clear all internal buffers during reset operations
-    - _Requirements: 7.3, 7.5, 7.6, 7.8_
+    - _Requirements: 7.3, 7.5, 7.6_
+
+  - [ ] 9.5 Write property test for flush outputs remaining samples
+    - **Property 7: Flush Outputs Remaining Samples**
+    - **Validates: Requirements 4.8, 7.5, 11.4**
+
+  - [ ] 9.6 Write property test for reset clears state
+    - **Property 16: Reset Clears State**
+    - **Validates: Requirements 7.6, 11.5**
+
+- [ ] 10. Implement Container-Agnostic Operation
+  - [ ] 10.1 Ensure container-agnostic decoding
+    - Decode based on packet data only, not container details
+    - Work with MediaChunk data regardless of source
+    - Reset state without requiring container-specific operations
+    - _Requirements: 6.1, 6.3, 6.4_
+
+  - [ ] 10.2 Write property test for container-agnostic decoding
+    - **Property 10: Container-Agnostic Decoding**
+    - **Validates: Requirements 6.1, 6.3**
 
 - [ ] 11. Implement Error Handling and Recovery
   - [ ] 11.1 Create comprehensive error handling system
-    - Handle invalid header packets with proper error reporting
-    - Implement graceful handling of memory allocation failures
-    - Validate input parameters and reject invalid data appropriately
-    - Interpret libvorbis error codes and handle appropriately
-    - _Requirements: 8.1, 8.4, 8.5, 8.6_
+    - Handle OV_ENOTVORBIS by rejecting packet as not Vorbis data
+    - Handle OV_EBADHEADER by rejecting initialization
+    - Handle OV_EFAULT by resetting decoder state
+    - Throw BadFormatException on memory allocation failures
+    - _Requirements: 8.1, 8.2, 8.5, 8.6_
 
   - [ ] 11.2 Add error recovery and state management
-    - Reset decoder state when encountering unrecoverable errors
-    - Skip corrupted packets and continue processing
-    - Output silence for synthesis failures
-    - Provide clear error reporting through PsyMP3's error mechanisms
-    - _Requirements: 8.2, 8.3, 8.7, 8.8, 11.7_
+    - Skip corrupted packets (vorbis_synthesis returns non-zero) and continue
+    - Log errors via vorbis_synthesis_blockin failures
+    - Call vorbis_synthesis_restart() on state inconsistency
+    - Report errors through PsyMP3's Debug logging system
+    - _Requirements: 8.3, 8.4, 8.7, 8.8_
 
-- [ ] 12. Implement Performance Optimizations
-  - [ ] 12.1 Optimize memory usage and CPU efficiency
-    - Use appropriately sized buffers for maximum block size
-    - Leverage libvorbis optimizations and SIMD support
-    - Minimize allocation overhead and memory fragmentation
-    - Optimize float to PCM conversion performance
-    - _Requirements: 9.1, 9.2, 9.3, 9.6_
-
-  - [ ] 12.2 Add efficient processing for common cases
-    - Optimize for standard quality levels and bitrates
-    - Handle variable bitrate changes efficiently
-    - Optimize memory access patterns for cache efficiency
-    - Process overlap-add efficiently through libvorbis
-    - _Requirements: 9.4, 9.5, 9.7, 9.8_
+- [ ] 12. Checkpoint - Verify error handling works
+  - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 13. Implement Thread Safety
   - [ ] 13.1 Ensure thread-safe codec operation
     - Maintain independent libvorbis state per codec instance
-    - Use appropriate synchronization for shared resources
+    - Use appropriate synchronization for shared resources if any
     - Handle concurrent initialization and cleanup safely
-    - Ensure thread-safe usage of libvorbis functions
-    - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
+    - _Requirements: 10.1, 10.2, 10.3, 10.5, 10.6_
 
-  - [ ] 13.2 Add thread-safe error handling and logging
+  - [ ] 13.2 Write property test for instance independence
+    - **Property 13: Instance Independence**
+    - **Validates: Requirements 10.1, 10.2**
+
+  - [ ] 13.3 Write property test for concurrent initialization safety
+    - **Property 14: Concurrent Initialization Safety**
+    - **Validates: Requirements 10.5**
+
+  - [ ] 13.4 Add thread-safe error handling and logging
     - Implement thread-safe error state management
     - Use PsyMP3's thread-safe Debug logging system
-    - Ensure proper cleanup before codec destruction
-    - _Requirements: 10.7, 10.8, 11.8_
+    - _Requirements: 10.7, 10.8_
 
-- [ ] 14. Create Comprehensive Unit Tests
-  - [ ] 14.1 Test core decoding functionality
-    - Write tests for Vorbis header processing (ID, comment, setup headers)
-    - Test audio packet decoding with various quality levels and bitrates
-    - Verify float to PCM conversion correctness
-    - Test variable block size handling and overlap-add processing
-    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 3.1, 3.2, 4.1, 4.2_
-
-  - [ ] 14.2 Test error handling and edge cases
-    - Test handling of corrupted packets and invalid headers
-    - Verify error recovery and decoder state reset functionality
-    - Test memory allocation failure scenarios
-    - Verify thread safety with concurrent codec instances
-    - _Requirements: 8.1, 8.2, 8.7, 10.1, 10.2_
+- [ ] 14. Register Codec with Factory System
+  - Register VorbisCodec with AudioCodecFactory for "vorbis" codec name
+  - Ensure proper codec selection and instantiation
+  - Test factory integration with demuxer system
+  - _Requirements: 11.6_
 
 - [ ] 15. Integration Testing and Validation
   - [ ] 15.1 Test integration with demuxer architecture
@@ -228,12 +235,9 @@
   - [ ] 15.2 Validate compatibility and performance
     - Test with various Vorbis files from different encoders (oggenc, etc.)
     - Verify equivalent or better performance than existing implementation
-    - Test all quality levels and encoding configurations
+    - Test all quality levels (-1 to 10) and encoding configurations
     - Validate output quality and accuracy against libvorbis reference
     - _Requirements: 12.1, 12.2, 12.4, 13.1, 13.2, 13.8_
 
-- [ ] 16. Register Codec with Factory System
-  - Register VorbisCodec with AudioCodecFactory for "vorbis" codec name
-  - Ensure proper codec selection and instantiation
-  - Test factory integration with demuxer system
-  - _Requirements: 11.6_
+- [ ] 16. Final Checkpoint - Make sure all tests are passing
+  - Ensure all tests pass, ask the user if questions arise.

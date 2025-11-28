@@ -12,6 +12,28 @@ The implementation must support:
 - **Sample-accurate seeking support** through decoder reset capabilities
 - **Thread-safe operation** for multi-threaded playback scenarios
 
+## **Glossary**
+
+- **VorbisCodec**: The audio codec component that decodes Vorbis bitstream data into PCM audio samples
+- **libvorbis**: The reference Vorbis decoder library providing vorbis_info, vorbis_dsp_state, and related structures
+- **Vorbis Packet**: A unit of compressed Vorbis audio data extracted from an Ogg container
+- **Header Packet**: One of three initialization packets (identification, comment, setup) required before audio decoding
+- **Identification Header**: First header packet containing sample rate, channels, bitrate bounds, and block sizes
+- **Comment Header**: Second header packet containing metadata (vendor string, user comments)
+- **Setup Header**: Third header packet containing codebook and floor/residue configurations
+- **PCM**: Pulse Code Modulation - uncompressed digital audio representation
+- **AudioFrame**: Output structure containing decoded PCM samples with metadata
+- **MediaChunk**: Input structure containing compressed Vorbis packet data
+- **StreamInfo**: Configuration structure containing stream parameters for codec initialization
+- **Block Size**: The number of samples in a Vorbis audio block (short: 64-2048, long: 128-8192)
+- **Overlap-Add**: Signal reconstruction technique combining overlapping windowed blocks
+- **VBR**: Variable Bitrate - encoding mode where bitrate varies based on audio complexity
+- **CBR**: Constant Bitrate - encoding mode with fixed bitrate throughout the stream
+- **Quality Level**: Vorbis encoding quality parameter ranging from -1 to 10
+- **Channel Coupling**: Vorbis stereo encoding technique using magnitude/angle representation
+- **OggDemuxer**: The demuxer component that extracts Vorbis packets from Ogg containers
+- **DemuxedStream**: Bridge interface connecting demuxers to codecs in PsyMP3 architecture
+
 ## **Requirements**
 
 ### **Requirement 1: Vorbis Bitstream Decoding**
@@ -20,14 +42,14 @@ The implementation must support:
 
 #### **Acceptance Criteria**
 
-1. **WHEN** receiving Vorbis header packets **THEN** the codec **SHALL** process identification, comment, and setup headers in sequence
-2. **WHEN** processing identification header **THEN** the codec **SHALL** extract sample rate, channels, bitrate bounds, and block sizes
-3. **WHEN** processing comment header **THEN** the codec **SHALL** extract Vorbis comments for metadata (handled by demuxer)
-4. **WHEN** processing setup header **THEN** the codec **SHALL** initialize decoder with codebook and floor/residue configurations
-5. **WHEN** decoding audio packets **THEN** the codec **SHALL** decode complete Vorbis frames into PCM samples
-6. **WHEN** handling variable block sizes **THEN** the codec **SHALL** support both short and long blocks as specified
-7. **WHEN** processing overlapped frames **THEN** the codec **SHALL** apply proper windowing and overlap-add reconstruction
-8. **WHEN** frame validation fails **THEN** the codec **SHALL** handle corrupted packets gracefully
+1. **WHEN** receiving Vorbis header packets **THEN** the VorbisCodec **SHALL** process identification (\x01vorbis), comment (\x03vorbis), and setup (\x05vorbis) headers in sequence
+2. **WHEN** processing identification header **THEN** the VorbisCodec **SHALL** extract version, channels, rate, bitrate_upper, bitrate_nominal, bitrate_lower from vorbis_info structure
+3. **WHEN** processing comment header **THEN** the VorbisCodec **SHALL** validate header structure and make vorbis_comment data available
+4. **WHEN** processing setup header **THEN** the VorbisCodec **SHALL** complete codec_setup initialization via vorbis_synthesis_headerin()
+5. **WHEN** decoding audio packets **THEN** the VorbisCodec **SHALL** decode complete Vorbis frames into interleaved 16-bit PCM samples
+6. **WHEN** handling variable block sizes **THEN** the VorbisCodec **SHALL** support both short blocks (zo=0) and long blocks (zo=1) via vorbis_info_blocksize()
+7. **WHEN** processing overlapped frames **THEN** the VorbisCodec **SHALL** delegate windowing and overlap-add reconstruction to libvorbis
+8. **WHEN** frame validation fails **THEN** the VorbisCodec **SHALL** skip corrupted packets and continue with next packet
 
 ### **Requirement 2: libvorbis Integration**
 
@@ -35,14 +57,14 @@ The implementation must support:
 
 #### **Acceptance Criteria**
 
-1. **WHEN** initializing decoder **THEN** the codec **SHALL** use libvorbis vorbis_info and vorbis_dsp_state structures
-2. **WHEN** processing headers **THEN** the codec **SHALL** use vorbis_synthesis_headerin for header validation
-3. **WHEN** decoding packets **THEN** the codec **SHALL** use vorbis_synthesis and vorbis_synthesis_blockin
-4. **WHEN** extracting PCM **THEN** the codec **SHALL** use vorbis_synthesis_pcmout for sample retrieval
-5. **WHEN** managing decoder state **THEN** the codec **SHALL** properly initialize and cleanup libvorbis structures
-6. **WHEN** handling errors **THEN** the codec **SHALL** interpret libvorbis error codes appropriately
-7. **WHEN** resetting decoder **THEN** the codec **SHALL** reinitialize libvorbis state for seeking
-8. **WHEN** processing end-of-stream **THEN** the codec **SHALL** handle libvorbis cleanup properly
+1. **WHEN** initializing decoder **THEN** the VorbisCodec **SHALL** use vorbis_info_init() and vorbis_comment_init() to initialize libvorbis structures
+2. **WHEN** processing headers **THEN** the VorbisCodec **SHALL** use vorbis_synthesis_headerin() for all three header packets (identification, comment, setup)
+3. **WHEN** all headers are processed **THEN** the VorbisCodec **SHALL** use vorbis_synthesis_init() and vorbis_block_init() to initialize the synthesis engine
+4. **WHEN** decoding audio packets **THEN** the VorbisCodec **SHALL** use vorbis_synthesis() followed by vorbis_synthesis_blockin()
+5. **WHEN** extracting PCM samples **THEN** the VorbisCodec **SHALL** use vorbis_synthesis_pcmout() and vorbis_synthesis_read() to retrieve and consume samples
+6. **WHEN** handling libvorbis errors **THEN** the VorbisCodec **SHALL** interpret error codes (OV_EREAD, OV_EFAULT, OV_EINVAL, OV_ENOTVORBIS, OV_EBADHEADER) appropriately
+7. **WHEN** resetting decoder for seeking **THEN** the VorbisCodec **SHALL** use vorbis_synthesis_restart() to reset synthesis state without reinitializing headers
+8. **WHEN** destroying decoder **THEN** the VorbisCodec **SHALL** call vorbis_block_clear(), vorbis_dsp_clear(), vorbis_comment_clear(), and vorbis_info_clear() in reverse initialization order
 
 ### **Requirement 3: Variable Bitrate and Quality Handling**
 
@@ -65,14 +87,14 @@ The implementation must support:
 
 #### **Acceptance Criteria**
 
-1. **WHEN** processing short blocks **THEN** the codec **SHALL** handle 64-2048 sample blocks as specified
-2. **WHEN** processing long blocks **THEN** the codec **SHALL** handle 128-8192 sample blocks as specified
-3. **WHEN** applying windowing **THEN** the codec **SHALL** use proper Vorbis window functions
-4. **WHEN** performing overlap-add **THEN** the codec **SHALL** correctly combine overlapping portions of adjacent blocks
-5. **WHEN** handling block transitions **THEN** the codec **SHALL** manage short-to-long and long-to-short transitions
-6. **WHEN** managing decoder delay **THEN** the codec **SHALL** account for overlap-add latency
-7. **WHEN** starting streams **THEN** the codec **SHALL** handle initial block overlap correctly
-8. **WHEN** ending streams **THEN** the codec **SHALL** output remaining samples from final overlap
+1. **WHEN** processing short blocks **THEN** the VorbisCodec **SHALL** handle blocksize_0 values (power of 2 from 64 to 8192 samples) as specified in identification header
+2. **WHEN** processing long blocks **THEN** the VorbisCodec **SHALL** handle blocksize_1 values (power of 2 from 64 to 8192 samples, where blocksize_1 >= blocksize_0) as specified in identification header
+3. **WHEN** applying windowing **THEN** the VorbisCodec **SHALL** delegate to libvorbis for proper Vorbis window function application via vorbis_synthesis()
+4. **WHEN** performing overlap-add **THEN** the VorbisCodec **SHALL** delegate to libvorbis for correct 50% overlap combination via vorbis_synthesis_blockin()
+5. **WHEN** handling block transitions **THEN** the VorbisCodec **SHALL** allow libvorbis to manage short-to-long and long-to-short window transitions
+6. **WHEN** managing decoder delay **THEN** the VorbisCodec **SHALL** account for overlap-add latency inherent in libvorbis synthesis
+7. **WHEN** starting streams **THEN** the VorbisCodec **SHALL** handle initial block overlap correctly (first block produces no output)
+8. **WHEN** ending streams **THEN** the VorbisCodec **SHALL** call flush() to output remaining samples from final overlap buffer
 
 ### **Requirement 5: Channel Configuration Support**
 
@@ -125,14 +147,14 @@ The implementation must support:
 
 #### **Acceptance Criteria**
 
-1. **WHEN** encountering invalid header packets **THEN** the codec **SHALL** reject initialization and report errors
-2. **WHEN** packet validation fails **THEN** the codec **SHALL** skip corrupted packets and continue
-3. **WHEN** synthesis fails **THEN** the codec **SHALL** output silence for affected frames
-4. **WHEN** libvorbis reports errors **THEN** the codec **SHALL** interpret and handle error conditions appropriately
-5. **WHEN** memory allocation fails **THEN** the codec **SHALL** return appropriate error codes
-6. **WHEN** invalid parameters are encountered **THEN** the codec **SHALL** validate inputs and reject invalid data
-7. **WHEN** decoder state becomes inconsistent **THEN** the codec **SHALL** reset to a known good state
-8. **WHEN** unrecoverable errors occur **THEN** the codec **SHALL** report errors clearly and stop processing
+1. **WHEN** vorbis_synthesis_headerin() returns OV_ENOTVORBIS **THEN** the VorbisCodec **SHALL** reject the packet as not Vorbis data
+2. **WHEN** vorbis_synthesis_headerin() returns OV_EBADHEADER **THEN** the VorbisCodec **SHALL** reject initialization due to corrupted header
+3. **WHEN** vorbis_synthesis() returns non-zero **THEN** the VorbisCodec **SHALL** skip the corrupted packet and continue with next packet
+4. **WHEN** vorbis_synthesis_blockin() returns non-zero **THEN** the VorbisCodec **SHALL** log the error and attempt recovery
+5. **WHEN** OV_EFAULT is returned **THEN** the VorbisCodec **SHALL** reset decoder state due to internal inconsistency
+6. **WHEN** memory allocation fails **THEN** the VorbisCodec **SHALL** throw BadFormatException with descriptive message
+7. **WHEN** decoder state becomes inconsistent **THEN** the VorbisCodec **SHALL** call vorbis_synthesis_restart() to reset to known good state
+8. **WHEN** unrecoverable errors occur **THEN** the VorbisCodec **SHALL** report errors through PsyMP3's Debug logging system and stop processing
 
 ### **Requirement 9: Performance and Optimization**
 
