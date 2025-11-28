@@ -1,6 +1,6 @@
 # **OGG DEMUXER IMPLEMENTATION PLAN**
 
-## **Implementation Tasks** 
+## **Implementation Tasks** `
 
 - [x] 1. Project Setup and Clean Slate
   - [x] 1.1 Remove existing OGG demuxer implementation
@@ -234,14 +234,14 @@
     - **Property 13: Seeking Accuracy**
     - **Validates: Requirements 7.1**
 
-- [ ] 12. Implement Duration Calculation (Following op_get_last_page)
-  - [ ] 12.1 Implement backward scanning for last granule
+- [x] 12. Implement Duration Calculation (Following op_get_last_page)
+  - [x] 12.1 Implement backward scanning for last granule
     - Use op_get_last_page() and _get_prev_page_serial() patterns
     - Prefer header-provided total sample counts
     - Use chunk-based scanning with exponentially increasing chunk sizes
     - Use longest stream for duration in multiplexed files
     - _Requirements: 8.1, 8.2, 8.3, 8.4_
-  - [ ] 12.2 Implement granule-to-time conversion
+  - [x] 12.2 Implement granule-to-time conversion
     - Opus: Use opus_granule_sample() equivalent with 48kHz rate
     - Vorbis: Use granule position as sample count at codec sample rate
     - FLAC-in-Ogg: Use granule position as sample count like Vorbis
@@ -249,7 +249,7 @@
     - Handle file beginning boundary gracefully
     - Use best available granule for truncated/corrupted files
     - _Requirements: 8.5, 8.6, 8.7, 8.8, 8.9, 8.10, 8.11_
-  - [ ] 12.3 Write property test for duration calculation consistency
+  - [x] 12.3 Write property test for duration calculation consistency
     - **Property 14: Duration Calculation Consistency**
     - **Validates: Requirements 8.6, 8.7, 8.8**
 

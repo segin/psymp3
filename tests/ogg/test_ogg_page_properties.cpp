@@ -2348,6 +2348,353 @@ bool test_property11_rapidcheck() {
 }
 #endif // HAVE_RAPIDCHECK
 
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 14: Duration Calculation Consistency**
+// **Validates: Requirements 8.6, 8.7, 8.8**
+// ============================================================================
+
+/**
+ * Property 14: Duration Calculation Consistency
+ * 
+ * *For any* Ogg stream, the calculated duration SHALL equal:
+ * - Opus: (last_granule_position - pre_skip) / 48000 * 1000 ms
+ * - Vorbis: last_granule_position / sample_rate * 1000 ms
+ * - FLAC-in-Ogg: last_granule_position / sample_rate * 1000 ms
+ */
+
+/**
+ * Test Opus duration calculation
+ * 
+ * Opus uses 48kHz granule rate and requires pre-skip subtraction.
+ * Formula: duration_ms = (granule - pre_skip) * 1000 / 48000
+ * 
+ * Requirements: 8.6
+ */
+bool test_property14_opus_duration_calculation() {
+    TestOggDemuxer demuxer;
+    
+    // Set up an Opus stream
+    OggStream opus_stream;
+    opus_stream.serial_number = 0x12345678;
+    opus_stream.codec_name = "opus";
+    opus_stream.codec_type = "audio";
+    opus_stream.sample_rate = 48000;  // Opus always uses 48kHz granule rate
+    opus_stream.channels = 2;
+    opus_stream.pre_skip = 312;  // Typical Opus pre-skip
+    opus_stream.headers_complete = true;
+    
+    demuxer.getStreamsForTesting()[opus_stream.serial_number] = opus_stream;
+    
+    // Test case 1: 48000 samples (1 second) with pre-skip
+    // granule = 48000 + 312 = 48312
+    // duration = (48312 - 312) * 1000 / 48000 = 1000 ms
+    uint64_t granule1 = 48312;
+    uint64_t duration1 = demuxer.granuleToMs(granule1, opus_stream.serial_number);
+    TEST_ASSERT(duration1 == 1000, "Opus 1 second should be 1000 ms");
+    
+    // Test case 2: 480000 samples (10 seconds) with pre-skip
+    // granule = 480000 + 312 = 480312
+    // duration = (480312 - 312) * 1000 / 48000 = 10000 ms
+    uint64_t granule2 = 480312;
+    uint64_t duration2 = demuxer.granuleToMs(granule2, opus_stream.serial_number);
+    TEST_ASSERT(duration2 == 10000, "Opus 10 seconds should be 10000 ms");
+    
+    // Test case 3: Granule less than pre-skip should return 0
+    uint64_t granule3 = 100;  // Less than pre_skip (312)
+    uint64_t duration3 = demuxer.granuleToMs(granule3, opus_stream.serial_number);
+    TEST_ASSERT(duration3 == 0, "Opus granule < pre_skip should return 0");
+    
+    // Test case 4: Granule exactly equal to pre-skip should return 0
+    uint64_t granule4 = 312;
+    uint64_t duration4 = demuxer.granuleToMs(granule4, opus_stream.serial_number);
+    TEST_ASSERT(duration4 == 0, "Opus granule == pre_skip should return 0");
+    
+    return true;
+}
+
+/**
+ * Test Vorbis duration calculation
+ * 
+ * Vorbis uses granule position as direct sample count at codec sample rate.
+ * Formula: duration_ms = granule * 1000 / sample_rate
+ * 
+ * Requirements: 8.7
+ */
+bool test_property14_vorbis_duration_calculation() {
+    TestOggDemuxer demuxer;
+    
+    // Set up a Vorbis stream at 44100 Hz
+    OggStream vorbis_stream;
+    vorbis_stream.serial_number = 0x87654321;
+    vorbis_stream.codec_name = "vorbis";
+    vorbis_stream.codec_type = "audio";
+    vorbis_stream.sample_rate = 44100;
+    vorbis_stream.channels = 2;
+    vorbis_stream.pre_skip = 0;  // Vorbis has no pre-skip
+    vorbis_stream.headers_complete = true;
+    
+    demuxer.getStreamsForTesting()[vorbis_stream.serial_number] = vorbis_stream;
+    
+    // Test case 1: 44100 samples (1 second)
+    // duration = 44100 * 1000 / 44100 = 1000 ms
+    uint64_t granule1 = 44100;
+    uint64_t duration1 = demuxer.granuleToMs(granule1, vorbis_stream.serial_number);
+    TEST_ASSERT(duration1 == 1000, "Vorbis 44100 samples should be 1000 ms");
+    
+    // Test case 2: 441000 samples (10 seconds)
+    // duration = 441000 * 1000 / 44100 = 10000 ms
+    uint64_t granule2 = 441000;
+    uint64_t duration2 = demuxer.granuleToMs(granule2, vorbis_stream.serial_number);
+    TEST_ASSERT(duration2 == 10000, "Vorbis 441000 samples should be 10000 ms");
+    
+    // Test case 3: Different sample rate (48000 Hz)
+    OggStream vorbis_48k;
+    vorbis_48k.serial_number = 0x11111111;
+    vorbis_48k.codec_name = "vorbis";
+    vorbis_48k.codec_type = "audio";
+    vorbis_48k.sample_rate = 48000;
+    vorbis_48k.channels = 2;
+    vorbis_48k.headers_complete = true;
+    
+    demuxer.getStreamsForTesting()[vorbis_48k.serial_number] = vorbis_48k;
+    
+    // 48000 samples at 48000 Hz = 1 second
+    uint64_t granule3 = 48000;
+    uint64_t duration3 = demuxer.granuleToMs(granule3, vorbis_48k.serial_number);
+    TEST_ASSERT(duration3 == 1000, "Vorbis 48000 samples at 48kHz should be 1000 ms");
+    
+    return true;
+}
+
+/**
+ * Test FLAC-in-Ogg duration calculation
+ * 
+ * FLAC-in-Ogg uses granule position as direct sample count (like Vorbis).
+ * Formula: duration_ms = granule * 1000 / sample_rate
+ * 
+ * Requirements: 8.8
+ */
+bool test_property14_flac_duration_calculation() {
+    TestOggDemuxer demuxer;
+    
+    // Set up a FLAC stream at 44100 Hz
+    OggStream flac_stream;
+    flac_stream.serial_number = 0xF1AC1234;
+    flac_stream.codec_name = "flac";
+    flac_stream.codec_type = "audio";
+    flac_stream.sample_rate = 44100;
+    flac_stream.channels = 2;
+    flac_stream.bits_per_sample = 16;
+    flac_stream.headers_complete = true;
+    
+    demuxer.getStreamsForTesting()[flac_stream.serial_number] = flac_stream;
+    
+    // Test case 1: 44100 samples (1 second)
+    uint64_t granule1 = 44100;
+    uint64_t duration1 = demuxer.granuleToMs(granule1, flac_stream.serial_number);
+    TEST_ASSERT(duration1 == 1000, "FLAC 44100 samples should be 1000 ms");
+    
+    // Test case 2: 441000 samples (10 seconds)
+    uint64_t granule2 = 441000;
+    uint64_t duration2 = demuxer.granuleToMs(granule2, flac_stream.serial_number);
+    TEST_ASSERT(duration2 == 10000, "FLAC 441000 samples should be 10000 ms");
+    
+    // Test case 3: High sample rate (96000 Hz)
+    OggStream flac_96k;
+    flac_96k.serial_number = 0xF1AC9600;
+    flac_96k.codec_name = "flac";
+    flac_96k.codec_type = "audio";
+    flac_96k.sample_rate = 96000;
+    flac_96k.channels = 2;
+    flac_96k.bits_per_sample = 24;
+    flac_96k.headers_complete = true;
+    
+    demuxer.getStreamsForTesting()[flac_96k.serial_number] = flac_96k;
+    
+    // 96000 samples at 96000 Hz = 1 second
+    uint64_t granule3 = 96000;
+    uint64_t duration3 = demuxer.granuleToMs(granule3, flac_96k.serial_number);
+    TEST_ASSERT(duration3 == 1000, "FLAC 96000 samples at 96kHz should be 1000 ms");
+    
+    return true;
+}
+
+/**
+ * Test that invalid granule positions return zero duration
+ * 
+ * Requirements: 8.9
+ */
+bool test_property14_invalid_granule_returns_zero() {
+    TestOggDemuxer demuxer;
+    
+    // Set up a stream
+    OggStream stream;
+    stream.serial_number = 0xDEADBEEF;
+    stream.codec_name = "vorbis";
+    stream.codec_type = "audio";
+    stream.sample_rate = 44100;
+    stream.headers_complete = true;
+    
+    demuxer.getStreamsForTesting()[stream.serial_number] = stream;
+    
+    // Test -1 (invalid granule position)
+    uint64_t duration1 = demuxer.granuleToMs(static_cast<uint64_t>(-1), stream.serial_number);
+    TEST_ASSERT(duration1 == 0, "Invalid granule (-1) should return 0");
+    
+    // Test FLAC no-packet marker (0xFFFFFFFFFFFFFFFF)
+    uint64_t duration2 = demuxer.granuleToMs(0xFFFFFFFFFFFFFFFFULL, stream.serial_number);
+    TEST_ASSERT(duration2 == 0, "FLAC no-packet marker should return 0");
+    
+    return true;
+}
+
+/**
+ * Test that zero sample rate returns zero duration
+ * 
+ * Requirements: 8.9
+ */
+bool test_property14_zero_sample_rate_returns_zero() {
+    TestOggDemuxer demuxer;
+    
+    // Set up a stream with zero sample rate (invalid)
+    OggStream stream;
+    stream.serial_number = 0xBADBAD00;
+    stream.codec_name = "vorbis";
+    stream.codec_type = "audio";
+    stream.sample_rate = 0;  // Invalid!
+    stream.headers_complete = true;
+    
+    demuxer.getStreamsForTesting()[stream.serial_number] = stream;
+    
+    // Any granule with zero sample rate should return 0
+    uint64_t duration = demuxer.granuleToMs(44100, stream.serial_number);
+    TEST_ASSERT(duration == 0, "Zero sample rate should return 0 duration");
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for duration calculation consistency
+ * 
+ * Property 14: Duration Calculation Consistency
+ * *For any* Ogg stream, the calculated duration SHALL equal:
+ * - Opus: (last_granule_position - pre_skip) / 48000 * 1000 ms
+ * - Vorbis: last_granule_position / sample_rate * 1000 ms
+ * - FLAC-in-Ogg: last_granule_position / sample_rate * 1000 ms
+ */
+bool test_property14_rapidcheck() {
+    TestOggDemuxer demuxer;
+    bool all_passed = true;
+    
+    // Property: Opus duration calculation is consistent
+    rc::check("Opus duration = (granule - pre_skip) * 1000 / 48000", [&demuxer]() {
+        // Generate random pre-skip (typical range 0-1000)
+        auto pre_skip = *rc::gen::inRange<uint64_t>(0, 1000);
+        
+        // Generate random granule position (must be >= pre_skip to avoid underflow)
+        auto granule = *rc::gen::inRange<uint64_t>(pre_skip, 10000000);
+        
+        // Set up Opus stream
+        OggStream opus_stream;
+        opus_stream.serial_number = 0x12345678;
+        opus_stream.codec_name = "opus";
+        opus_stream.codec_type = "audio";
+        opus_stream.sample_rate = 48000;
+        opus_stream.pre_skip = pre_skip;
+        opus_stream.headers_complete = true;
+        
+        demuxer.getStreamsForTesting()[opus_stream.serial_number] = opus_stream;
+        
+        // Calculate expected duration
+        uint64_t expected_samples = granule - pre_skip;
+        uint64_t expected_ms = (expected_samples * 1000) / 48000;
+        
+        // Get actual duration
+        uint64_t actual_ms = demuxer.granuleToMs(granule, opus_stream.serial_number);
+        
+        RC_ASSERT(actual_ms == expected_ms);
+    });
+    
+    // Property: Vorbis duration calculation is consistent
+    rc::check("Vorbis duration = granule * 1000 / sample_rate", [&demuxer]() {
+        // Generate random sample rate (common rates)
+        auto sample_rate = *rc::gen::element<uint32_t>(8000, 11025, 16000, 22050, 
+                                                        32000, 44100, 48000, 96000);
+        
+        // Generate random granule position
+        auto granule = *rc::gen::inRange<uint64_t>(0, 100000000);
+        
+        // Set up Vorbis stream
+        OggStream vorbis_stream;
+        vorbis_stream.serial_number = 0x87654321;
+        vorbis_stream.codec_name = "vorbis";
+        vorbis_stream.codec_type = "audio";
+        vorbis_stream.sample_rate = sample_rate;
+        vorbis_stream.headers_complete = true;
+        
+        demuxer.getStreamsForTesting()[vorbis_stream.serial_number] = vorbis_stream;
+        
+        // Calculate expected duration
+        uint64_t expected_ms = (granule * 1000) / sample_rate;
+        
+        // Get actual duration
+        uint64_t actual_ms = demuxer.granuleToMs(granule, vorbis_stream.serial_number);
+        
+        RC_ASSERT(actual_ms == expected_ms);
+    });
+    
+    // Property: FLAC duration calculation is consistent (same as Vorbis)
+    rc::check("FLAC duration = granule * 1000 / sample_rate", [&demuxer]() {
+        // Generate random sample rate (common FLAC rates)
+        auto sample_rate = *rc::gen::element<uint32_t>(44100, 48000, 88200, 96000, 176400, 192000);
+        
+        // Generate random granule position
+        auto granule = *rc::gen::inRange<uint64_t>(0, 100000000);
+        
+        // Set up FLAC stream
+        OggStream flac_stream;
+        flac_stream.serial_number = 0xF1AC1234;
+        flac_stream.codec_name = "flac";
+        flac_stream.codec_type = "audio";
+        flac_stream.sample_rate = sample_rate;
+        flac_stream.headers_complete = true;
+        
+        demuxer.getStreamsForTesting()[flac_stream.serial_number] = flac_stream;
+        
+        // Calculate expected duration
+        uint64_t expected_ms = (granule * 1000) / sample_rate;
+        
+        // Get actual duration
+        uint64_t actual_ms = demuxer.granuleToMs(granule, flac_stream.serial_number);
+        
+        RC_ASSERT(actual_ms == expected_ms);
+    });
+    
+    // Property: Invalid granule always returns 0
+    rc::check("Invalid granule returns 0", [&demuxer]() {
+        auto sample_rate = *rc::gen::element<uint32_t>(44100, 48000, 96000);
+        
+        OggStream stream;
+        stream.serial_number = 0xDEADBEEF;
+        stream.codec_name = "vorbis";
+        stream.codec_type = "audio";
+        stream.sample_rate = sample_rate;
+        stream.headers_complete = true;
+        
+        demuxer.getStreamsForTesting()[stream.serial_number] = stream;
+        
+        // -1 (as uint64_t) should return 0
+        RC_ASSERT(demuxer.granuleToMs(static_cast<uint64_t>(-1), stream.serial_number) == 0);
+        
+        // FLAC no-packet marker should return 0
+        RC_ASSERT(demuxer.granuleToMs(0xFFFFFFFFFFFFFFFFULL, stream.serial_number) == 0);
+    });
+    
+    return all_passed;
+}
+#endif // HAVE_RAPIDCHECK
+
 #endif // HAVE_OGGDEMUXER
 
 int main() {
@@ -2807,6 +3154,42 @@ int main() {
     
     if (test_property11_rapidcheck()) {
         TEST_PASS("RapidCheck invalid granule tests passed");
+    }
+#endif
+    
+    // ========================================================================
+    // Property 14: Duration Calculation Consistency
+    // **Validates: Requirements 8.6, 8.7, 8.8**
+    // ========================================================================
+    std::cout << "\nProperty 14: Duration Calculation Consistency" << std::endl;
+    std::cout << "----------------------------------------------" << std::endl;
+    
+    if (test_property14_opus_duration_calculation()) {
+        TEST_PASS("Opus duration calculation");
+    }
+    
+    if (test_property14_vorbis_duration_calculation()) {
+        TEST_PASS("Vorbis duration calculation");
+    }
+    
+    if (test_property14_flac_duration_calculation()) {
+        TEST_PASS("FLAC duration calculation");
+    }
+    
+    if (test_property14_invalid_granule_returns_zero()) {
+        TEST_PASS("Invalid granule returns zero duration");
+    }
+    
+    if (test_property14_zero_sample_rate_returns_zero()) {
+        TEST_PASS("Zero sample rate returns zero duration");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 14: RapidCheck Property Tests" << std::endl;
+    std::cout << "--------------------------------------" << std::endl;
+    
+    if (test_property14_rapidcheck()) {
+        TEST_PASS("RapidCheck duration calculation tests passed");
     }
 #endif
     

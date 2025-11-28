@@ -789,8 +789,66 @@ bool OggDemuxer::isEOF() const {
     return false;
 }
 
+/**
+ * @brief Get total duration of the file in milliseconds
+ * 
+ * Following libvorbisfile and libopusfile patterns:
+ * - Opus: Use opus_granule_sample() equivalent with 48kHz rate (Requirements 8.6)
+ * - Vorbis: Use granule position as sample count at codec sample rate (Requirements 8.7)
+ * - FLAC-in-Ogg: Use granule position as sample count like Vorbis (Requirements 8.8)
+ * - Report unknown duration (0) rather than incorrect values (Requirements 8.9)
+ * - Handle file beginning boundary gracefully (Requirements 8.10)
+ * - Use best available granule for truncated/corrupted files (Requirements 8.11)
+ * 
+ * @return Duration in milliseconds, or 0 if unknown
+ * 
+ * Requirements: 8.5, 8.6, 8.7, 8.8, 8.9, 8.10, 8.11
+ */
 uint64_t OggDemuxer::getDuration() const {
-    return 0;
+    // Find the primary audio stream
+    const OggStream* primary_stream = nullptr;
+    uint32_t primary_serial = 0;
+    uint64_t longest_duration_samples = 0;
+    
+    for (const auto& [serial, stream] : m_streams) {
+        if (stream.codec_type == "audio" && stream.headers_complete) {
+            // For multiplexed files, use the longest stream (Requirements 8.4)
+            // Estimate duration from total_samples if available
+            uint64_t stream_samples = stream.total_samples;
+            if (stream_samples == 0) {
+                // Use tracked max granule as fallback
+                stream_samples = m_max_granule_seen;
+            }
+            
+            if (stream_samples > longest_duration_samples || primary_stream == nullptr) {
+                longest_duration_samples = stream_samples;
+                primary_stream = &stream;
+                primary_serial = serial;
+            }
+        }
+    }
+    
+    if (!primary_stream) {
+        Debug::log("ogg", "getDuration: No audio stream available");
+        return 0;  // Unknown duration (Requirements 8.9)
+    }
+    
+    // Get the last granule position
+    // Note: getLastGranulePosition() is not const, so we use cached values
+    uint64_t last_granule = m_max_granule_seen;
+    
+    // Prefer header-provided total samples if available
+    if (primary_stream->total_samples > 0) {
+        last_granule = primary_stream->total_samples;
+    }
+    
+    if (last_granule == 0) {
+        Debug::log("ogg", "getDuration: No granule position available");
+        return 0;  // Unknown duration (Requirements 8.9)
+    }
+    
+    // Convert granule to milliseconds using codec-specific logic
+    return granuleToMs(last_granule, primary_serial);
 }
 
 /**
@@ -2092,29 +2150,448 @@ void OggDemuxer::resetMultiplexingState() {
     Debug::log("ogg", "resetMultiplexingState: Multiplexing state reset");
 }
 
+/**
+ * @brief Get the last valid granule position in the file
+ * 
+ * Following libopusfile op_get_last_page() and libvorbisfile patterns:
+ * - First check header-provided total sample counts (preferred)
+ * - Then use tracked maximum granule position during parsing
+ * - Finally scan backwards from end of file to find last valid granule
+ * - Use chunk-based scanning with exponentially increasing chunk sizes
+ * 
+ * @return Last valid granule position, or 0 if unknown
+ * 
+ * Requirements: 8.1, 8.2, 8.3, 8.4
+ */
 uint64_t OggDemuxer::getLastGranulePosition() {
-    return 0;
+    Debug::log("ogg", "getLastGranulePosition: Starting duration calculation");
+    
+    // Priority 1: Check header-provided total sample counts (Requirements 8.2)
+    // This is the most reliable source when available
+    uint64_t header_granule = getLastGranuleFromHeaders();
+    if (header_granule > 0) {
+        Debug::log("ogg", "getLastGranulePosition: Using header-provided total samples: %llu",
+                   static_cast<unsigned long long>(header_granule));
+        return header_granule;
+    }
+    
+    // Priority 2: Use tracked maximum granule position during parsing
+    // This is available if we've already parsed some of the file
+    if (m_max_granule_seen > 0) {
+        Debug::log("ogg", "getLastGranulePosition: Using tracked max granule: %llu",
+                   static_cast<unsigned long long>(m_max_granule_seen));
+        // Note: This may not be the actual last granule if we haven't parsed the whole file
+        // Continue to backward scanning for more accurate result
+    }
+    
+    // Priority 3: Scan backwards from end of file (Requirements 8.1, 8.3)
+    // Following op_get_last_page() pattern
+    if (!m_handler) {
+        Debug::log("ogg", "getLastGranulePosition: No IOHandler available");
+        return m_max_granule_seen;
+    }
+    
+    // Get file size if not already known
+    if (m_file_size == 0) {
+        int64_t current_pos = m_handler->tell();
+        if (m_handler->seek(0, SEEK_END)) {
+            m_file_size = static_cast<uint64_t>(m_handler->tell());
+            m_handler->seek(current_pos, SEEK_SET);
+        }
+        if (m_file_size == 0) {
+            Debug::log("ogg", "getLastGranulePosition: Cannot determine file size");
+            return m_max_granule_seen;
+        }
+    }
+    
+    Debug::log("ogg", "getLastGranulePosition: File size is %llu bytes",
+               static_cast<unsigned long long>(m_file_size));
+    
+    // Find the primary audio stream for serial number preference
+    uint32_t preferred_serial = 0;
+    bool has_preferred_serial = false;
+    uint64_t longest_duration = 0;
+    
+    for (const auto& [serial, stream] : m_streams) {
+        if (stream.codec_type == "audio" && stream.headers_complete) {
+            // For multiplexed files, use the longest stream (Requirements 8.4)
+            if (stream.total_samples > longest_duration) {
+                longest_duration = stream.total_samples;
+                preferred_serial = serial;
+                has_preferred_serial = true;
+            } else if (!has_preferred_serial) {
+                preferred_serial = serial;
+                has_preferred_serial = true;
+            }
+        }
+    }
+    
+    Debug::log("ogg", "getLastGranulePosition: Preferred stream 0x%08x (has_preferred=%d)",
+               preferred_serial, has_preferred_serial ? 1 : 0);
+    
+    // Backward scanning with exponentially increasing chunk sizes
+    // Following libopusfile pattern: start with CHUNKSIZE, increase up to larger sizes
+    static constexpr size_t INITIAL_CHUNK_SIZE = CHUNKSIZE;  // 65536
+    static constexpr size_t MAX_CHUNK_SIZE = CHUNKSIZE * 4;  // 262144
+    static constexpr int MAX_SCAN_ITERATIONS = 10;
+    
+    int64_t scan_end = static_cast<int64_t>(m_file_size);
+    size_t current_chunk_size = INITIAL_CHUNK_SIZE;
+    uint64_t best_granule = 0;
+    int iterations = 0;
+    
+    while (scan_end > 0 && iterations < MAX_SCAN_ITERATIONS) {
+        iterations++;
+        
+        // Calculate scan start position
+        int64_t scan_start = scan_end - static_cast<int64_t>(current_chunk_size);
+        if (scan_start < 0) {
+            scan_start = 0;
+        }
+        
+        Debug::log("ogg", "getLastGranulePosition: Scanning chunk [%lld, %lld] (size %zu)",
+                   static_cast<long long>(scan_start),
+                   static_cast<long long>(scan_end),
+                   current_chunk_size);
+        
+        // Scan this chunk for the last valid granule
+        uint64_t chunk_granule = scanBackwardForLastGranule(scan_start, 
+                                                            static_cast<size_t>(scan_end - scan_start));
+        
+        if (chunk_granule > 0) {
+            // Found a valid granule - check if it's better than what we have
+            if (chunk_granule > best_granule) {
+                best_granule = chunk_granule;
+                Debug::log("ogg", "getLastGranulePosition: Found granule %llu in chunk",
+                           static_cast<unsigned long long>(best_granule));
+            }
+            
+            // If we found a granule in the last chunk, we're done
+            if (scan_end == static_cast<int64_t>(m_file_size)) {
+                break;
+            }
+        }
+        
+        // Move to previous chunk
+        scan_end = scan_start;
+        
+        // Exponentially increase chunk size for efficiency
+        if (current_chunk_size < MAX_CHUNK_SIZE) {
+            current_chunk_size *= 2;
+            if (current_chunk_size > MAX_CHUNK_SIZE) {
+                current_chunk_size = MAX_CHUNK_SIZE;
+            }
+        }
+        
+        // If we've reached the beginning of the file, stop
+        if (scan_start == 0) {
+            break;
+        }
+    }
+    
+    // Use the best granule found, or fall back to tracked max
+    if (best_granule > 0) {
+        // Update tracked max if we found something better
+        if (best_granule > m_max_granule_seen) {
+            m_max_granule_seen = best_granule;
+        }
+        Debug::log("ogg", "getLastGranulePosition: Final result: %llu",
+                   static_cast<unsigned long long>(best_granule));
+        return best_granule;
+    }
+    
+    Debug::log("ogg", "getLastGranulePosition: Using tracked max: %llu",
+               static_cast<unsigned long long>(m_max_granule_seen));
+    return m_max_granule_seen;
 }
 
+/**
+ * @brief Scan a buffer for the last valid granule position
+ * 
+ * Scans through a buffer looking for Ogg pages and extracts the last
+ * valid granule position found.
+ * 
+ * @param buffer Buffer containing Ogg data
+ * @param buffer_size Size of data in buffer
+ * @return Last valid granule position found, or 0 if none
+ */
 uint64_t OggDemuxer::scanBufferForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size) {
-    return 0;
+    if (buffer.empty() || buffer_size == 0) {
+        return 0;
+    }
+    
+    uint64_t last_granule = 0;
+    size_t offset = 0;
+    
+    // Scan through buffer looking for OggS capture patterns
+    while (offset + OGG_PAGE_HEADER_MIN_SIZE <= buffer_size) {
+        // Look for OggS capture pattern
+        int64_t pattern_offset = OggPageParser::findNextCapturePattern(
+            buffer.data(), buffer_size, offset);
+        
+        if (pattern_offset < 0) {
+            break;  // No more pages found
+        }
+        
+        offset = static_cast<size_t>(pattern_offset);
+        
+        // Try to parse the page
+        OggPage page;
+        size_t bytes_consumed = 0;
+        OggPageParser::ParseResult result = OggPageParser::parsePage(
+            buffer.data() + offset, buffer_size - offset, page, bytes_consumed);
+        
+        if (result == OggPageParser::ParseResult::SUCCESS) {
+            // Check if this page has a valid granule position
+            uint64_t granule = page.getGranulePosition();
+            
+            // Skip invalid granule positions (-1 as unsigned, or FLAC no-packet marker)
+            if (granule != static_cast<uint64_t>(-1) && 
+                !isFlacOggNoPacketGranule(granule)) {
+                last_granule = granule;
+            }
+            
+            offset += bytes_consumed;
+        } else if (result == OggPageParser::ParseResult::NEED_MORE_DATA) {
+            // Incomplete page at end of buffer
+            break;
+        } else {
+            // Invalid page - skip past the capture pattern and continue
+            offset += 4;
+        }
+    }
+    
+    return last_granule;
 }
 
+/**
+ * @brief Scan backwards from a position to find the last valid granule
+ * 
+ * Following libopusfile _get_prev_page_serial() pattern:
+ * - Seek to scan_start position
+ * - Read forward through the chunk
+ * - Track the last valid granule position found
+ * 
+ * @param scan_start Starting position for the scan
+ * @param scan_size Size of region to scan
+ * @return Last valid granule position found, or 0 if none
+ * 
+ * Requirements: 8.1, 8.3
+ */
 uint64_t OggDemuxer::scanBackwardForLastGranule(int64_t scan_start, size_t scan_size) {
-    return 0;
+    if (!m_handler || scan_size == 0) {
+        return 0;
+    }
+    
+    // Save current position
+    int64_t saved_pos = m_handler->tell();
+    int64_t saved_offset = m_offset;
+    
+    // Seek to scan start
+    if (!m_handler->seek(scan_start, SEEK_SET)) {
+        Debug::log("ogg", "scanBackwardForLastGranule: Seek to %lld failed",
+                   static_cast<long long>(scan_start));
+        return 0;
+    }
+    
+    // Reset sync state for fresh scanning
+    ogg_sync_reset(&m_sync_state);
+    m_offset = scan_start;
+    
+    uint64_t last_granule = 0;
+    int64_t scan_end = scan_start + static_cast<int64_t>(scan_size);
+    
+    // Scan forward through the chunk, tracking the last valid granule
+    ogg_page page;
+    while (m_offset < scan_end) {
+        int ret = getNextPage(&page, scan_end - m_offset);
+        
+        if (ret <= 0) {
+            break;  // No more pages or error
+        }
+        
+        // Get granule position from this page
+        int64_t granule = pageGranulePos(&page);
+        
+        // Check for valid granule position
+        // Skip -1 (no packets finish on page) and FLAC no-packet marker
+        if (granule >= 0 && !isFlacOggNoPacketGranule(static_cast<uint64_t>(granule))) {
+            last_granule = static_cast<uint64_t>(granule);
+        }
+    }
+    
+    // Restore original position
+    m_handler->seek(saved_pos, SEEK_SET);
+    ogg_sync_reset(&m_sync_state);
+    m_offset = saved_offset;
+    
+    return last_granule;
 }
 
+/**
+ * @brief Scan a chunk for the last granule, optionally preferring a specific serial
+ * 
+ * @param buffer Buffer containing Ogg data
+ * @param buffer_size Size of data in buffer
+ * @param preferred_serial Serial number to prefer (for multiplexed files)
+ * @param has_preferred_serial true if preferred_serial is valid
+ * @return Last valid granule position found, or 0 if none
+ * 
+ * Requirements: 8.4
+ */
 uint64_t OggDemuxer::scanChunkForLastGranule(const std::vector<uint8_t>& buffer, size_t buffer_size, 
                                              uint32_t preferred_serial, bool has_preferred_serial) {
-    return 0;
+    if (buffer.empty() || buffer_size == 0) {
+        return 0;
+    }
+    
+    uint64_t last_granule = 0;
+    uint64_t preferred_granule = 0;
+    size_t offset = 0;
+    
+    // Scan through buffer looking for OggS capture patterns
+    while (offset + OGG_PAGE_HEADER_MIN_SIZE <= buffer_size) {
+        // Look for OggS capture pattern
+        int64_t pattern_offset = OggPageParser::findNextCapturePattern(
+            buffer.data(), buffer_size, offset);
+        
+        if (pattern_offset < 0) {
+            break;  // No more pages found
+        }
+        
+        offset = static_cast<size_t>(pattern_offset);
+        
+        // Try to parse the page
+        OggPage page;
+        size_t bytes_consumed = 0;
+        OggPageParser::ParseResult result = OggPageParser::parsePage(
+            buffer.data() + offset, buffer_size - offset, page, bytes_consumed);
+        
+        if (result == OggPageParser::ParseResult::SUCCESS) {
+            // Check if this page has a valid granule position
+            uint64_t granule = page.getGranulePosition();
+            
+            // Skip invalid granule positions
+            if (granule != static_cast<uint64_t>(-1) && 
+                !isFlacOggNoPacketGranule(granule)) {
+                
+                // Track last granule from any stream
+                last_granule = granule;
+                
+                // Track last granule from preferred stream
+                if (has_preferred_serial && page.getSerialNumber() == preferred_serial) {
+                    preferred_granule = granule;
+                }
+            }
+            
+            offset += bytes_consumed;
+        } else if (result == OggPageParser::ParseResult::NEED_MORE_DATA) {
+            break;
+        } else {
+            offset += 4;
+        }
+    }
+    
+    // Prefer the granule from the preferred stream if available
+    if (has_preferred_serial && preferred_granule > 0) {
+        return preferred_granule;
+    }
+    
+    return last_granule;
 }
 
+/**
+ * @brief Scan forward from a position to find the last valid granule
+ * 
+ * Used when backward scanning fails or for verification.
+ * 
+ * @param start_position Starting position for the scan
+ * @return Last valid granule position found, or 0 if none
+ */
 uint64_t OggDemuxer::scanForwardForLastGranule(int64_t start_position) {
-    return 0;
+    if (!m_handler) {
+        return 0;
+    }
+    
+    // Save current position
+    int64_t saved_pos = m_handler->tell();
+    int64_t saved_offset = m_offset;
+    
+    // Seek to start position
+    if (!m_handler->seek(start_position, SEEK_SET)) {
+        return 0;
+    }
+    
+    // Reset sync state
+    ogg_sync_reset(&m_sync_state);
+    m_offset = start_position;
+    
+    uint64_t last_granule = 0;
+    
+    // Scan forward until EOF
+    ogg_page page;
+    while (true) {
+        int ret = getNextPage(&page, -1);  // No boundary
+        
+        if (ret <= 0) {
+            break;  // EOF or error
+        }
+        
+        // Get granule position
+        int64_t granule = pageGranulePos(&page);
+        
+        if (granule >= 0 && !isFlacOggNoPacketGranule(static_cast<uint64_t>(granule))) {
+            last_granule = static_cast<uint64_t>(granule);
+        }
+    }
+    
+    // Restore original position
+    m_handler->seek(saved_pos, SEEK_SET);
+    ogg_sync_reset(&m_sync_state);
+    m_offset = saved_offset;
+    
+    return last_granule;
 }
 
+/**
+ * @brief Get last granule position from header-provided total sample counts
+ * 
+ * Some codecs provide total sample count in their headers:
+ * - FLAC: STREAMINFO contains total_samples (36 bits)
+ * - Opus: May have R128_TRACK_GAIN or similar metadata
+ * - Vorbis: No standard total sample count in headers
+ * 
+ * @return Total samples from headers, or 0 if not available
+ * 
+ * Requirements: 8.2
+ */
 uint64_t OggDemuxer::getLastGranuleFromHeaders() {
-    return 0;
+    uint64_t best_total = 0;
+    
+    for (const auto& [serial, stream] : m_streams) {
+        if (stream.codec_type != "audio" || !stream.headers_complete) {
+            continue;
+        }
+        
+        // FLAC-in-Ogg: STREAMINFO contains total_samples
+        if (stream.codec_name == "flac" && stream.total_samples > 0) {
+            Debug::log("ogg", "getLastGranuleFromHeaders: FLAC stream 0x%08x has total_samples=%llu",
+                       serial, static_cast<unsigned long long>(stream.total_samples));
+            
+            // For multiplexed files, use the longest stream (Requirements 8.4)
+            if (stream.total_samples > best_total) {
+                best_total = stream.total_samples;
+            }
+        }
+        
+        // Vorbis: No standard total sample count in headers
+        // Would need to scan to end of file
+        
+        // Opus: No standard total sample count in headers
+        // R128_TRACK_GAIN doesn't provide duration
+    }
+    
+    return best_total;
 }
 
 /**
