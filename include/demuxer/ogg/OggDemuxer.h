@@ -873,6 +873,171 @@ public:
      * @return Total number of packets in all queues
      */
     size_t getTotalQueuedPackets() const;
+    
+    // ========================================================================
+    // Task 14: Error Handling and Robustness
+    // ========================================================================
+    
+    // ========================================================================
+    // Task 14.1: Container-Level Error Handling (Requirements 9.1, 9.2, 9.3, 9.4)
+    // ========================================================================
+    
+    /**
+     * @brief Skip corrupted pages using ogg_sync_pageseek() negative returns
+     * 
+     * Following libvorbisfile patterns:
+     * - ogg_sync_pageseek() returns negative value for bytes to skip on corruption
+     * - Skip those bytes and continue searching for next valid page
+     * - Rely on libogg's internal CRC validation
+     * 
+     * @param bytes_skipped Output: number of bytes skipped
+     * @return true if corrupted data was skipped
+     * 
+     * Requirements: 9.1, 9.2
+     */
+    bool skipCorruptedPages_unlocked(size_t& bytes_skipped);
+    
+    /**
+     * @brief Handle missing packets (page loss detected via sequence numbers)
+     * 
+     * Per RFC 3533 Section 6: page sequence numbers detect page loss
+     * Returns OV_HOLE/OP_HOLE equivalent for missing packets
+     * 
+     * @param stream_id Stream ID where loss occurred
+     * @param expected_seq Expected sequence number
+     * @param actual_seq Actual sequence number from page
+     * 
+     * Requirements: 9.3
+     */
+    void reportPageLoss_unlocked(uint32_t stream_id, uint32_t expected_seq, uint32_t actual_seq);
+    
+    /**
+     * @brief Handle codec identification failures
+     * 
+     * When BOS packet doesn't match known codec signatures, return OP_ENOTFORMAT
+     * and continue scanning for other streams
+     * 
+     * @param stream_id Stream ID with unknown codec
+     * @param packet_data BOS packet data
+     * @return true to continue processing other streams
+     * 
+     * Requirements: 9.4
+     */
+    bool handleCodecIdentificationFailure_unlocked(uint32_t stream_id, 
+                                                   const std::vector<uint8_t>& packet_data);
+    
+    // ========================================================================
+    // Task 14.2: Resource Error Handling (Requirements 9.5, 9.6, 9.7, 9.8)
+    // ========================================================================
+    
+    /**
+     * @brief Handle memory allocation failures
+     * 
+     * Returns OP_EFAULT/OV_EFAULT equivalent for memory allocation failures
+     * 
+     * @param requested_size Size that failed to allocate
+     * @param context Context description
+     * @return false (memory failures are not recoverable)
+     * 
+     * Requirements: 9.5
+     */
+    bool handleMemoryAllocationFailure_unlocked(size_t requested_size, 
+                                                const std::string& context);
+    
+    /**
+     * @brief Handle I/O failures
+     * 
+     * Returns OP_EREAD/OV_EREAD equivalent for I/O failures
+     * 
+     * @param operation Description of the I/O operation that failed
+     * @return false (I/O failures are not recoverable)
+     * 
+     * Requirements: 9.6
+     */
+    bool handleIOFailure_unlocked(const std::string& operation);
+    
+    /**
+     * @brief Clamp seeks to valid ranges
+     * 
+     * Ensure seek operations don't go beyond file boundaries
+     * 
+     * @param requested_position Requested seek position
+     * @return Clamped position within valid range
+     * 
+     * Requirements: 9.7
+     */
+    uint64_t clampSeekPosition_unlocked(uint64_t requested_position);
+    
+    /**
+     * @brief Parse what's possible from malformed metadata
+     * 
+     * When metadata is malformed, extract what we can and continue
+     * Following opus_tags_parse() patterns
+     * 
+     * @param stream Stream to update with extracted metadata
+     * @param metadata_packet Malformed metadata packet
+     * @return true to continue processing
+     * 
+     * Requirements: 9.8
+     */
+    bool parsePartialMetadata_unlocked(OggStream& stream, 
+                                       const std::vector<uint8_t>& metadata_packet);
+    
+    // ========================================================================
+    // Task 14.3: Stream Error Handling (Requirements 9.9, 9.10, 9.11, 9.12)
+    // ========================================================================
+    
+    /**
+     * @brief Handle invalid granule position (-1)
+     * 
+     * Per RFC 3533 Section 6: granule position -1 means no packets finish on page
+     * Continue searching for valid granule positions
+     * 
+     * @param stream_id Stream ID with invalid granule
+     * @param granule_position Granule position value
+     * @return true if granule is invalid (should continue searching)
+     * 
+     * Requirements: 9.9
+     */
+    bool handleInvalidGranulePosition_unlocked(uint32_t stream_id, uint64_t granule_position);
+    
+    /**
+     * @brief Handle unexpected stream end
+     * 
+     * Returns OP_EBADLINK/OV_EBADLINK equivalent for unexpected stream end
+     * 
+     * @param stream_id Stream ID that ended unexpectedly
+     * @return false (stream end is not recoverable)
+     * 
+     * Requirements: 9.10
+     */
+    bool handleUnexpectedStreamEnd_unlocked(uint32_t stream_id);
+    
+    /**
+     * @brief Fall back to linear search on bisection failure
+     * 
+     * When bisection search fails, fall back to linear forward scanning
+     * Following libvorbisfile/libopusfile patterns
+     * 
+     * @param target_granule Target granule position to find
+     * @param stream_id Stream ID to search
+     * @return true if target was found using linear search
+     * 
+     * Requirements: 9.11
+     */
+    bool fallbackToLinearSearch_unlocked(uint64_t target_granule, uint32_t stream_id);
+    
+    /**
+     * @brief Use OP_PAGE_SIZE_MAX bounds checking
+     * 
+     * Validate page sizes against RFC 3533 maximum (65307 bytes)
+     * 
+     * @param page Page to validate
+     * @return true if page size is within bounds
+     * 
+     * Requirements: 9.12
+     */
+    bool validatePageSizeBounds_unlocked(const ogg_page* page);
 };
 
 } // namespace Ogg

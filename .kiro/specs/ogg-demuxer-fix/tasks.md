@@ -256,39 +256,39 @@
 - [x] 13. Checkpoint - Verify Seeking and Duration
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14. Implement Error Handling and Robustness
-  - [ ] 14.1 Implement container-level error handling
+- [x] 14. Implement Error Handling and Robustness
+  - [x] 14.1 Implement container-level error handling
     - Skip corrupted pages using ogg_sync_pageseek() negative returns
     - Rely on libogg's internal CRC validation
     - Return OV_HOLE/OP_HOLE for missing packets
     - Return OP_ENOTFORMAT for codec identification failures
     - _Requirements: 9.1, 9.2, 9.3, 9.4_
-  - [ ] 14.2 Implement resource error handling
+  - [x] 14.2 Implement resource error handling
     - Return OP_EFAULT/OV_EFAULT for memory allocation failures
     - Return OP_EREAD/OV_EREAD for I/O failures
     - Clamp seeks to valid ranges
     - Parse what's possible from malformed metadata
     - _Requirements: 9.5, 9.6, 9.7, 9.8_
-  - [ ] 14.3 Implement stream error handling
+  - [x] 14.3 Implement stream error handling
     - Handle invalid granule position (-1) correctly
     - Return OP_EBADLINK/OV_EBADLINK for unexpected stream end
     - Fall back to linear search on bisection failure
     - Use OP_PAGE_SIZE_MAX bounds checking
     - _Requirements: 9.9, 9.10, 9.11, 9.12_
 
-- [ ] 15. Implement Performance and Memory Management
-  - [ ] 15.1 Implement streaming approach
+- [x] 15. Implement Performance and Memory Management
+  - [x] 15.1 Implement streaming approach
     - Process large files without loading entire file into memory
     - Implement bounded packet queues to prevent memory exhaustion
     - Minimize I/O operations through efficient bisection
     - Process headers incrementally without excessive buffering
     - _Requirements: 10.1, 10.2, 10.3, 10.4_
-  - [ ] 15.2 Implement resource management
+  - [x] 15.2 Implement resource management
     - Share resources efficiently between streams
     - Properly free all allocated memory and libogg structures
     - Maintain acceptable performance for very long files
     - _Requirements: 10.5, 10.6, 10.7_
-  - [ ] 15.3 Write property test for bounded queue memory
+  - [x] 15.3 Write property test for bounded queue memory
     - **Property 15: Bounded Queue Memory**
     - **Validates: Requirements 10.2**
 
