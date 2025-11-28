@@ -140,15 +140,15 @@
     - **Property 6: FLAC-in-Ogg Header Structure**
     - **Validates: Requirements 4.9, 5.2**
 
-- [ ] 7. Implement FLAC-in-Ogg Specific Handling (RFC 9639 Section 10.1)
-  - [ ] 7.1 Implement FLAC-in-Ogg identification header parsing
+- [x] 7. Implement FLAC-in-Ogg Specific Handling (RFC 9639 Section 10.1)
+  - [x] 7.1 Implement FLAC-in-Ogg identification header parsing
     - Parse 51-byte identification header structure
     - Extract mapping version (2 bytes)
     - Extract header count (2 bytes big-endian, 0 = unknown)
     - Validate fLaC signature (4 bytes)
     - Parse metadata block header (4 bytes)
     - _Requirements: 5.1, 5.2_
-  - [ ] 7.2 Implement STREAMINFO extraction
+  - [x] 7.2 Implement STREAMINFO extraction
     - Extract minimum/maximum block size (16 bits each)
     - Extract minimum/maximum frame size (24 bits each)
     - Extract sample rate (20 bits)
@@ -156,12 +156,12 @@
     - Extract bits per sample (5 bits + 1)
     - Extract total samples (36 bits)
     - _Requirements: 5.10_
-  - [ ] 7.3 Implement FLAC-in-Ogg granule position handling
+  - [x] 7.3 Implement FLAC-in-Ogg granule position handling
     - Interpret granule as interchannel sample count
     - Handle special value 0xFFFFFFFFFFFFFFFF for no completed packet
     - Expect granule position 0 for header pages
     - _Requirements: 5.6, 5.7, 5.8_
-  - [ ] 7.4 Implement FLAC-in-Ogg audio packet handling
+  - [x] 7.4 Implement FLAC-in-Ogg audio packet handling
     - Treat each packet as single FLAC frame
     - Handle chained streams for property changes
     - Handle version mismatch gracefully

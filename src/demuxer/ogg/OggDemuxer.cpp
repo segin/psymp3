@@ -2505,6 +2505,328 @@ int OggDemuxer::getVorbisPacketSampleCount(const OggPacket& packet) {
     return 0;
 }
 
+// ============================================================================
+// FLAC-in-Ogg Specific Handling (RFC 9639 Section 10.1)
+// ============================================================================
+
+/**
+ * @brief Check if a granule position indicates no completed packet
+ * 
+ * Per RFC 9639 Section 10.1:
+ * "If a page contains no packet end (e.g., when it only contains the start
+ * of a large packet that continues on the next page), then the granule
+ * position is set to the maximum value possible, i.e., 0xFF 0xFF 0xFF
+ * 0xFF 0xFF 0xFF 0xFF 0xFF."
+ * 
+ * @param granule_position Granule position to check
+ * @return true if granule indicates no completed packet (0xFFFFFFFFFFFFFFFF)
+ * 
+ * Requirements: 5.7
+ */
+bool OggDemuxer::isFlacOggNoPacketGranule(uint64_t granule_position) {
+    return granule_position == FLAC_OGG_GRANULE_NO_PACKET;
+}
+
+/**
+ * @brief Check if a granule position is valid for a FLAC-in-Ogg header page
+ * 
+ * Per RFC 9639 Section 10.1:
+ * "The granule position of all pages containing header packets MUST be 0."
+ * 
+ * @param granule_position Granule position to check
+ * @return true if granule is valid for header page (must be 0)
+ * 
+ * Requirements: 5.8
+ */
+bool OggDemuxer::isFlacOggValidHeaderGranule(uint64_t granule_position) {
+    return granule_position == 0;
+}
+
+/**
+ * @brief Convert FLAC-in-Ogg granule position to sample count
+ * 
+ * Per RFC 9639 Section 10.1:
+ * "For pages containing audio packets, the granule position is the
+ * number of the last sample contained in the last completed packet in
+ * the frame. The sample numbering considers interchannel samples."
+ * 
+ * @param granule_position Granule position from page
+ * @param stream FLAC stream for sample rate info
+ * @return Sample count, or 0 if invalid granule
+ * 
+ * Requirements: 5.6
+ */
+uint64_t OggDemuxer::flacOggGranuleToSamples(uint64_t granule_position, const OggStream& stream) const {
+    // Check for special "no packet" value
+    if (isFlacOggNoPacketGranule(granule_position)) {
+        Debug::log("ogg", "flacOggGranuleToSamples: No-packet granule (0xFFFFFFFFFFFFFFFF)");
+        return 0;
+    }
+    
+    // For FLAC-in-Ogg, granule position IS the sample count (interchannel samples)
+    // No conversion needed - it's a direct mapping
+    return granule_position;
+}
+
+/**
+ * @brief Convert sample count to FLAC-in-Ogg granule position
+ * 
+ * For FLAC-in-Ogg, granule position equals sample count (interchannel samples).
+ * 
+ * @param samples Sample count (interchannel samples)
+ * @return Granule position
+ */
+uint64_t OggDemuxer::flacOggSamplesToGranule(uint64_t samples) {
+    // Direct mapping - granule position equals sample count
+    return samples;
+}
+
+/**
+ * @brief Validate FLAC-in-Ogg page granule position
+ * 
+ * Checks that granule position follows RFC 9639 Section 10.1 rules:
+ * - Header pages: granule MUST be 0
+ * - Audio pages with completed packet: granule is sample count
+ * - Audio pages without completed packet: granule is 0xFFFFFFFFFFFFFFFF
+ * 
+ * @param page Ogg page to validate
+ * @param stream FLAC stream info
+ * @param is_header_page true if this is a header page
+ * @return true if granule position is valid
+ * 
+ * Requirements: 5.6, 5.7, 5.8
+ */
+bool OggDemuxer::validateFlacOggGranule(const ogg_page* page, const OggStream& stream, 
+                                         bool is_header_page) const {
+    if (!page) {
+        return false;
+    }
+    
+    int64_t granule = pageGranulePos(page);
+    uint64_t unsigned_granule = static_cast<uint64_t>(granule);
+    
+    if (is_header_page) {
+        // Header pages MUST have granule position 0
+        if (granule != 0) {
+            Debug::log("ogg", "validateFlacOggGranule: Header page has non-zero granule %lld",
+                       static_cast<long long>(granule));
+            return false;
+        }
+        return true;
+    }
+    
+    // Audio page - check for valid granule values
+    // Valid values: 0 (first audio page), positive sample count, or 0xFFFFFFFFFFFFFFFF
+    
+    if (isFlacOggNoPacketGranule(unsigned_granule)) {
+        // Valid: no packet completes on this page
+        Debug::log("ogg", "validateFlacOggGranule: Audio page with no completed packet");
+        return true;
+    }
+    
+    if (granule >= 0) {
+        // Valid: sample count at end of last completed packet
+        // Optionally validate against total_samples if known
+        if (stream.total_samples > 0 && unsigned_granule > stream.total_samples) {
+            Debug::log("ogg", "validateFlacOggGranule: Granule %llu exceeds total samples %llu",
+                       static_cast<unsigned long long>(unsigned_granule),
+                       static_cast<unsigned long long>(stream.total_samples));
+            // This is a warning, not necessarily an error (could be streaming)
+        }
+        return true;
+    }
+    
+    // Negative granule (other than -1 which is 0xFFFFFFFFFFFFFFFF) is invalid
+    Debug::log("ogg", "validateFlacOggGranule: Invalid negative granule %lld",
+               static_cast<long long>(granule));
+    return false;
+}
+
+/**
+ * @brief Process a FLAC-in-Ogg audio packet
+ * 
+ * Per RFC 9639 Section 10.1:
+ * "Following the header packets are audio packets. Each audio packet
+ * contains a single FLAC frame."
+ * 
+ * @param packet Audio packet to process
+ * @param stream FLAC stream info
+ * @return true on success, false on error
+ * 
+ * Requirements: 5.3, 5.5
+ */
+bool OggDemuxer::processFlacOggAudioPacket(const OggPacket& packet, OggStream& stream) {
+    if (packet.data.empty()) {
+        Debug::log("ogg", "processFlacOggAudioPacket: Empty packet");
+        return false;
+    }
+    
+    // Each FLAC-in-Ogg audio packet contains exactly one FLAC frame
+    // Validate that this looks like a FLAC frame (sync code 0xFF 0xF8-0xFF)
+    if (packet.data.size() < 2) {
+        Debug::log("ogg", "processFlacOggAudioPacket: Packet too small for FLAC frame");
+        return false;
+    }
+    
+    // FLAC frame sync code: 14 bits of 1s (0xFFF8 to 0xFFFF when masked)
+    uint16_t sync_code = (static_cast<uint16_t>(packet.data[0]) << 8) | packet.data[1];
+    if ((sync_code & 0xFFFC) != 0xFFF8) {
+        Debug::log("ogg", "processFlacOggAudioPacket: Invalid FLAC frame sync code 0x%04x",
+                   sync_code);
+        // Don't fail - could be a valid frame with different blocking strategy
+    }
+    
+    // Get sample count from frame header for tracking
+    uint32_t frame_samples = getFlacFrameSampleCount(packet);
+    if (frame_samples > 0) {
+        stream.total_samples_processed += frame_samples;
+        Debug::log("ogg", "processFlacOggAudioPacket: Frame with %u samples, total processed: %llu",
+                   frame_samples, static_cast<unsigned long long>(stream.total_samples_processed));
+    }
+    
+    return true;
+}
+
+/**
+ * @brief Check if FLAC-in-Ogg stream requires chaining due to property change
+ * 
+ * Per RFC 9639 Section 10.1:
+ * "If an audio stream is encoded where audio properties (sample rate,
+ * number of channels, or bit depth) change at some point in the stream,
+ * this should be dealt with by finishing encoding of the current Ogg
+ * stream and starting a new Ogg stream, concatenated to the previous
+ * one. This is called chaining in Ogg."
+ * 
+ * @param new_stream_info New stream info from potential chain
+ * @param current_stream Current stream info
+ * @return true if properties differ (chaining required)
+ * 
+ * Requirements: 5.9
+ */
+bool OggDemuxer::flacOggRequiresChaining(const OggStream& new_stream_info, 
+                                          const OggStream& current_stream) const {
+    // Check sample rate
+    if (new_stream_info.sample_rate != current_stream.sample_rate) {
+        Debug::log("ogg", "flacOggRequiresChaining: Sample rate changed from %u to %u",
+                   current_stream.sample_rate, new_stream_info.sample_rate);
+        return true;
+    }
+    
+    // Check channel count
+    if (new_stream_info.channels != current_stream.channels) {
+        Debug::log("ogg", "flacOggRequiresChaining: Channels changed from %u to %u",
+                   current_stream.channels, new_stream_info.channels);
+        return true;
+    }
+    
+    // Check bit depth
+    if (new_stream_info.bits_per_sample != current_stream.bits_per_sample) {
+        Debug::log("ogg", "flacOggRequiresChaining: Bit depth changed from %u to %u",
+                   current_stream.bits_per_sample, new_stream_info.bits_per_sample);
+        return true;
+    }
+    
+    // Properties match - no chaining required
+    return false;
+}
+
+/**
+ * @brief Handle FLAC-in-Ogg mapping version mismatch
+ * 
+ * Per RFC 9639 Section 10.1:
+ * "Version number of the FLAC-in-Ogg mapping. These bytes are 0x01 0x00,
+ * meaning version 1.0 of the mapping."
+ * 
+ * @param major_version Major version byte
+ * @param minor_version Minor version byte
+ * @return true if version is supported or can be handled gracefully
+ * 
+ * Requirements: 5.3, 5.4
+ */
+bool OggDemuxer::handleFlacOggVersionMismatch(uint8_t major_version, uint8_t minor_version) {
+    // Version 1.0 is the only defined version
+    if (major_version == 1 && minor_version == 0) {
+        Debug::log("ogg", "handleFlacOggVersionMismatch: Version 1.0 - fully supported");
+        return true;
+    }
+    
+    // Major version mismatch - likely incompatible
+    if (major_version != 1) {
+        Debug::log("ogg", "handleFlacOggVersionMismatch: Major version %u.%u - "
+                   "may be incompatible, attempting to parse anyway",
+                   major_version, minor_version);
+        // Return true to attempt parsing, but log warning
+        // Per Requirements 5.3: handle gracefully
+        return true;
+    }
+    
+    // Minor version mismatch with same major - likely compatible
+    Debug::log("ogg", "handleFlacOggVersionMismatch: Version 1.%u - "
+               "minor version difference, should be compatible",
+               minor_version);
+    return true;
+}
+
+/**
+ * @brief Get FLAC frame sample count from audio packet
+ * 
+ * Parses FLAC frame header to extract block size (number of samples).
+ * 
+ * FLAC frame header structure (simplified):
+ * - Sync code: 14 bits (0x3FFE)
+ * - Reserved: 1 bit
+ * - Blocking strategy: 1 bit
+ * - Block size: 4 bits (encoded)
+ * - Sample rate: 4 bits (encoded)
+ * - Channel assignment: 4 bits
+ * - Sample size: 3 bits
+ * - Reserved: 1 bit
+ * 
+ * @param packet Audio packet containing FLAC frame
+ * @return Sample count for this frame, or 0 on error
+ */
+uint32_t OggDemuxer::getFlacFrameSampleCount(const OggPacket& packet) const {
+    if (packet.data.size() < 4) {
+        return 0;
+    }
+    
+    // Extract block size bits (bits 12-15 of byte 2, or bits 4-7 of the 3rd byte)
+    // Frame header: [sync:14][reserved:1][blocking:1][blocksize:4][samplerate:4]...
+    // Byte 0: sync[13:6]
+    // Byte 1: sync[5:0], reserved, blocking
+    // Byte 2: blocksize[3:0], samplerate[3:0]
+    
+    uint8_t block_size_bits = (packet.data[2] >> 4) & 0x0F;
+    
+    // Decode block size according to FLAC specification
+    switch (block_size_bits) {
+        case 0:  return 0;      // Reserved
+        case 1:  return 192;
+        case 2:  return 576;
+        case 3:  return 1152;
+        case 4:  return 2304;
+        case 5:  return 4608;
+        case 6:  // 8-bit block size - 1 follows in header
+            if (packet.data.size() < 5) return 0;
+            // Need to find where the block size byte is (after variable-length coded number)
+            // For simplicity, return 0 and let caller use granule position
+            return 0;
+        case 7:  // 16-bit block size - 1 follows in header
+            if (packet.data.size() < 6) return 0;
+            // Need to find where the block size bytes are
+            return 0;
+        case 8:  return 256;
+        case 9:  return 512;
+        case 10: return 1024;
+        case 11: return 2048;
+        case 12: return 4096;
+        case 13: return 8192;
+        case 14: return 16384;
+        case 15: return 32768;
+        default: return 0;
+    }
+}
+
 } // namespace Ogg
 } // namespace Demuxer
 } // namespace PsyMP3

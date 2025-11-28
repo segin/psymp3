@@ -499,6 +499,97 @@ public:
     int getPrevPageSerial(ogg_page* page, uint32_t serial_number);
     int getData(size_t bytes_requested = 0);
     
+    // ========================================================================
+    // FLAC-in-Ogg Specific Handling (RFC 9639 Section 10.1)
+    // ========================================================================
+    
+    /**
+     * @brief Special granule position value indicating no completed packet on page
+     * Per RFC 9639 Section 10.1: 0xFFFFFFFFFFFFFFFF
+     */
+    static constexpr uint64_t FLAC_OGG_GRANULE_NO_PACKET = 0xFFFFFFFFFFFFFFFFULL;
+    
+    /**
+     * @brief Check if a granule position indicates no completed packet
+     * Per RFC 9639 Section 10.1: granule position 0xFFFFFFFFFFFFFFFF means
+     * no packet completes on this page
+     * @param granule_position Granule position to check
+     * @return true if granule indicates no completed packet
+     */
+    static bool isFlacOggNoPacketGranule(uint64_t granule_position);
+    
+    /**
+     * @brief Check if a granule position is valid for a FLAC-in-Ogg header page
+     * Per RFC 9639 Section 10.1: header pages MUST have granule position 0
+     * @param granule_position Granule position to check
+     * @return true if granule is valid for header page (must be 0)
+     */
+    static bool isFlacOggValidHeaderGranule(uint64_t granule_position);
+    
+    /**
+     * @brief Convert FLAC-in-Ogg granule position to sample count
+     * Per RFC 9639 Section 10.1: granule position is interchannel sample count
+     * @param granule_position Granule position from page
+     * @param stream FLAC stream for sample rate info
+     * @return Sample count, or 0 if invalid granule
+     */
+    uint64_t flacOggGranuleToSamples(uint64_t granule_position, const OggStream& stream) const;
+    
+    /**
+     * @brief Convert sample count to FLAC-in-Ogg granule position
+     * @param samples Sample count (interchannel samples)
+     * @return Granule position
+     */
+    static uint64_t flacOggSamplesToGranule(uint64_t samples);
+    
+    /**
+     * @brief Validate FLAC-in-Ogg page granule position
+     * Checks that granule position follows RFC 9639 Section 10.1 rules:
+     * - Header pages: granule MUST be 0
+     * - Audio pages with completed packet: granule is sample count
+     * - Audio pages without completed packet: granule is 0xFFFFFFFFFFFFFFFF
+     * @param page Ogg page to validate
+     * @param stream FLAC stream info
+     * @param is_header_page true if this is a header page
+     * @return true if granule position is valid
+     */
+    bool validateFlacOggGranule(const ogg_page* page, const OggStream& stream, bool is_header_page) const;
+    
+    /**
+     * @brief Process a FLAC-in-Ogg audio packet
+     * Per RFC 9639 Section 10.1: each packet contains exactly one FLAC frame
+     * @param packet Audio packet to process
+     * @param stream FLAC stream info
+     * @return true on success, false on error
+     */
+    bool processFlacOggAudioPacket(const OggPacket& packet, OggStream& stream);
+    
+    /**
+     * @brief Check if FLAC-in-Ogg stream requires chaining due to property change
+     * Per RFC 9639 Section 10.1: audio property changes require new stream
+     * @param new_stream_info New stream info from potential chain
+     * @param current_stream Current stream info
+     * @return true if properties differ (chaining required)
+     */
+    bool flacOggRequiresChaining(const OggStream& new_stream_info, const OggStream& current_stream) const;
+    
+    /**
+     * @brief Handle FLAC-in-Ogg mapping version mismatch
+     * Per RFC 9639 Section 10.1: version 1.0 (0x01 0x00) is expected
+     * @param major_version Major version byte
+     * @param minor_version Minor version byte
+     * @return true if version is supported or can be handled gracefully
+     */
+    bool handleFlacOggVersionMismatch(uint8_t major_version, uint8_t minor_version);
+    
+    /**
+     * @brief Get FLAC frame sample count from audio packet
+     * Parses FLAC frame header to extract block size
+     * @param packet Audio packet containing FLAC frame
+     * @return Sample count for this frame, or 0 on error
+     */
+    uint32_t getFlacFrameSampleCount(const OggPacket& packet) const;
+    
     // Memory and resource management
     void cleanupLiboggStructures_unlocked();
     bool validateBufferSize(size_t requested_size, const char* operation_name);
