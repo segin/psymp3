@@ -797,6 +797,365 @@ bool test_property9_multiplexing_state_reset() {
 }
 
 // ============================================================================
+// **Feature: ogg-demuxer-fix, Property 7: Page Sequence Tracking**
+// **Validates: Requirements 1.6, 6.8**
+// ============================================================================
+
+/**
+ * Property 7: Page Sequence Tracking
+ * 
+ * *For any* logical bitstream, the demuxer SHALL detect and report when page
+ * sequence numbers are non-consecutive (indicating page loss).
+ * 
+ * RFC 3533 Section 6: Page sequence numbers are monotonically increasing
+ * per logical bitstream. Non-consecutive sequence numbers indicate page loss.
+ */
+
+bool test_property7_no_page_loss() {
+    TestOggDemuxer demuxer;
+    
+    // Consecutive sequence numbers should report no loss
+    uint32_t stream_id = 0x12345678;
+    
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 0, 0) == 0, "Same sequence should report no loss");
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 0, 1) == 1, "Sequence 0->1 should report 1 page loss");
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 1, 2) == 1, "Sequence 1->2 should report 1 page loss");
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 100, 101) == 1, "Sequence 100->101 should report 1 page loss");
+    
+    return true;
+}
+
+bool test_property7_page_loss_detection() {
+    TestOggDemuxer demuxer;
+    
+    uint32_t stream_id = 0x12345678;
+    
+    // Test various page loss scenarios
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 0, 2) == 2, "Sequence 0->2 should report 2 pages lost");
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 0, 5) == 5, "Sequence 0->5 should report 5 pages lost");
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 10, 20) == 10, "Sequence 10->20 should report 10 pages lost");
+    TEST_ASSERT(demuxer.detectPageLoss(stream_id, 100, 200) == 100, "Sequence 100->200 should report 100 pages lost");
+    
+    return true;
+}
+
+bool test_property7_granule_minus_one() {
+    // Test that granule position -1 is correctly identified as "no packets finish on page"
+    TEST_ASSERT(OggDemuxer::isNoPacketGranule(-1), "Granule -1 should indicate no packets finish");
+    TEST_ASSERT(!OggDemuxer::isNoPacketGranule(0), "Granule 0 should NOT indicate no packets finish");
+    TEST_ASSERT(!OggDemuxer::isNoPacketGranule(1), "Granule 1 should NOT indicate no packets finish");
+    TEST_ASSERT(!OggDemuxer::isNoPacketGranule(1000000), "Large granule should NOT indicate no packets finish");
+    
+    return true;
+}
+
+bool test_property7_stream_eos_tracking() {
+    TestOggDemuxer demuxer;
+    
+    uint32_t stream_id = 0x12345678;
+    
+    // Initially stream should not be at EOS
+    TEST_ASSERT(!demuxer.isStreamEOS(stream_id), "Stream should not be EOS initially");
+    
+    return true;
+}
+
+bool test_property7_packet_queue_tracking() {
+    TestOggDemuxer demuxer;
+    
+    uint32_t stream_id = 0x12345678;
+    
+    // Initially queue should be empty
+    TEST_ASSERT(demuxer.getQueuedPacketCount(stream_id) == 0, "Queue should be empty initially");
+    TEST_ASSERT(demuxer.getTotalQueuedPackets() == 0, "Total queue should be empty initially");
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for page sequence tracking
+ * 
+ * Property: For any expected and actual sequence numbers, detectPageLoss
+ * correctly calculates the number of lost pages.
+ */
+bool test_property7_rapidcheck() {
+    TestOggDemuxer demuxer;
+    
+    // Property: Page loss calculation is correct
+    rc::check("Page loss calculation is correct", [&demuxer]() {
+        uint32_t stream_id = *rc::gen::arbitrary<uint32_t>();
+        uint32_t expected_seq = *rc::gen::inRange<uint32_t>(0, 1000000);
+        uint32_t actual_seq = *rc::gen::inRange<uint32_t>(expected_seq, expected_seq + 1000);
+        
+        uint32_t loss = demuxer.detectPageLoss(stream_id, expected_seq, actual_seq);
+        
+        // Loss should equal the difference
+        RC_ASSERT(loss == actual_seq - expected_seq);
+    });
+    
+    // Property: Granule -1 always indicates no packets finish
+    rc::check("Granule -1 indicates no packets finish", []() {
+        RC_ASSERT(OggDemuxer::isNoPacketGranule(-1));
+    });
+    
+    // Property: Non-negative granules do not indicate no packets finish
+    rc::check("Non-negative granules indicate packets finish", []() {
+        int64_t granule = *rc::gen::inRange<int64_t>(0, INT64_MAX);
+        RC_ASSERT(!OggDemuxer::isNoPacketGranule(granule));
+    });
+    
+    return true;
+}
+#endif // HAVE_RAPIDCHECK
+
+// ============================================================================
+// **Feature: ogg-demuxer-fix, Property 12: Multi-Page Packet Reconstruction**
+// **Validates: Requirements 13.1, 2.7**
+// ============================================================================
+
+/**
+ * Property 12: Multi-Page Packet Reconstruction
+ * 
+ * *For any* packet spanning multiple pages, the demuxer SHALL correctly
+ * reconstruct the complete packet by accumulating segments across pages
+ * using continuation flags.
+ * 
+ * RFC 3533 Section 5:
+ * - Packets are divided into 255-byte segments
+ * - Lacing value of 255 indicates continuation
+ * - Lacing value < 255 indicates packet termination
+ * - Continuation flag (0x01) indicates first packet continues from previous page
+ */
+
+bool test_property12_single_page_packet() {
+    // Test that a packet fitting in a single page is correctly identified
+    // Segment table: { 100 } = single complete packet of 100 bytes
+    std::vector<uint8_t> segment_table = { 100 };
+    
+    std::vector<size_t> packet_offsets;
+    std::vector<size_t> packet_sizes;
+    std::vector<bool> packet_complete;
+    
+    OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+    
+    TEST_ASSERT(packet_offsets.size() == 1, "Should have 1 packet");
+    TEST_ASSERT(packet_sizes[0] == 100, "Packet should be 100 bytes");
+    TEST_ASSERT(packet_complete[0] == true, "Packet should be complete");
+    
+    return true;
+}
+
+bool test_property12_multi_segment_packet() {
+    // Test packet spanning multiple segments within a single page
+    // Segment table: { 255, 255, 100 } = single packet of 610 bytes
+    std::vector<uint8_t> segment_table = { 255, 255, 100 };
+    
+    std::vector<size_t> packet_offsets;
+    std::vector<size_t> packet_sizes;
+    std::vector<bool> packet_complete;
+    
+    OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+    
+    TEST_ASSERT(packet_offsets.size() == 1, "Should have 1 packet");
+    TEST_ASSERT(packet_sizes[0] == 610, "Packet should be 610 bytes (255+255+100)");
+    TEST_ASSERT(packet_complete[0] == true, "Packet should be complete");
+    
+    return true;
+}
+
+bool test_property12_continued_packet() {
+    // Test packet that continues to next page
+    // Segment table: { 255, 255 } = packet continues (510 bytes so far)
+    std::vector<uint8_t> segment_table = { 255, 255 };
+    
+    std::vector<size_t> packet_offsets;
+    std::vector<size_t> packet_sizes;
+    std::vector<bool> packet_complete;
+    
+    OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+    
+    TEST_ASSERT(packet_offsets.size() == 1, "Should have 1 packet");
+    TEST_ASSERT(packet_sizes[0] == 510, "Packet should be 510 bytes so far");
+    TEST_ASSERT(packet_complete[0] == false, "Packet should NOT be complete (continues)");
+    
+    return true;
+}
+
+bool test_property12_continuation_flag_detection() {
+    // Test that continuation flag is correctly detected
+    OggPage page;
+    
+    // Page with continuation flag set
+    page.header.header_type = OggPageHeader::CONTINUED_PACKET;
+    TEST_ASSERT(page.isContinued(), "Page should be marked as continued");
+    
+    // Page without continuation flag
+    page.header.header_type = 0;
+    TEST_ASSERT(!page.isContinued(), "Page should NOT be marked as continued");
+    
+    // Page with other flags but not continuation
+    page.header.header_type = OggPageHeader::FIRST_PAGE | OggPageHeader::LAST_PAGE;
+    TEST_ASSERT(!page.isContinued(), "Page with BOS/EOS should NOT be marked as continued");
+    
+    // Page with all flags including continuation
+    page.header.header_type = OggPageHeader::CONTINUED_PACKET | OggPageHeader::LAST_PAGE;
+    TEST_ASSERT(page.isContinued(), "Page with continuation+EOS should be marked as continued");
+    
+    return true;
+}
+
+bool test_property12_exact_255_multiple() {
+    // Test packet that is exactly 255 bytes (needs terminating 0)
+    // Segment table: { 255, 0 } = packet of exactly 255 bytes
+    std::vector<uint8_t> segment_table = { 255, 0 };
+    
+    std::vector<size_t> packet_offsets;
+    std::vector<size_t> packet_sizes;
+    std::vector<bool> packet_complete;
+    
+    OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+    
+    TEST_ASSERT(packet_offsets.size() == 1, "Should have 1 packet");
+    TEST_ASSERT(packet_sizes[0] == 255, "Packet should be exactly 255 bytes");
+    TEST_ASSERT(packet_complete[0] == true, "Packet should be complete (terminated by 0)");
+    
+    return true;
+}
+
+bool test_property12_exact_510_multiple() {
+    // Test packet that is exactly 510 bytes (2 * 255, needs terminating 0)
+    // Segment table: { 255, 255, 0 } = packet of exactly 510 bytes
+    std::vector<uint8_t> segment_table = { 255, 255, 0 };
+    
+    std::vector<size_t> packet_offsets;
+    std::vector<size_t> packet_sizes;
+    std::vector<bool> packet_complete;
+    
+    OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+    
+    TEST_ASSERT(packet_offsets.size() == 1, "Should have 1 packet");
+    TEST_ASSERT(packet_sizes[0] == 510, "Packet should be exactly 510 bytes");
+    TEST_ASSERT(packet_complete[0] == true, "Packet should be complete (terminated by 0)");
+    
+    return true;
+}
+
+bool test_property12_multiple_packets_with_continuation() {
+    // Test multiple packets where one continues to next page
+    // Segment table: { 100, 255, 255 } = 
+    //   Packet 1: 100 bytes (complete)
+    //   Packet 2: 510 bytes (continues)
+    std::vector<uint8_t> segment_table = { 100, 255, 255 };
+    
+    std::vector<size_t> packet_offsets;
+    std::vector<size_t> packet_sizes;
+    std::vector<bool> packet_complete;
+    
+    OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+    
+    TEST_ASSERT(packet_offsets.size() == 2, "Should have 2 packets");
+    TEST_ASSERT(packet_sizes[0] == 100, "Packet 1 should be 100 bytes");
+    TEST_ASSERT(packet_complete[0] == true, "Packet 1 should be complete");
+    TEST_ASSERT(packet_sizes[1] == 510, "Packet 2 should be 510 bytes so far");
+    TEST_ASSERT(packet_complete[1] == false, "Packet 2 should NOT be complete");
+    
+    return true;
+}
+
+bool test_property12_large_packet_simulation() {
+    // Simulate a large packet that would span multiple pages
+    // Maximum segments per page is 255, each can be up to 255 bytes
+    // So max packet per page is 255 * 255 = 65025 bytes
+    
+    // Create segment table with all 255s (maximum continuation)
+    std::vector<uint8_t> segment_table(255, 255);
+    
+    std::vector<size_t> packet_offsets;
+    std::vector<size_t> packet_sizes;
+    std::vector<bool> packet_complete;
+    
+    OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+    
+    TEST_ASSERT(packet_offsets.size() == 1, "Should have 1 packet");
+    TEST_ASSERT(packet_sizes[0] == 255 * 255, "Packet should be 65025 bytes");
+    TEST_ASSERT(packet_complete[0] == false, "Packet should continue to next page");
+    
+    return true;
+}
+
+#ifdef HAVE_RAPIDCHECK
+/**
+ * RapidCheck property test for multi-page packet reconstruction
+ * 
+ * Property: For any valid segment table, the total packet data size equals
+ * the sum of all lacing values.
+ */
+bool test_property12_rapidcheck() {
+    // Property: Total packet size equals sum of lacing values
+    rc::check("Total packet size equals sum of lacing values", []() {
+        // Generate random segment table
+        auto segment_table = *rc::gen::container<std::vector<uint8_t>>(
+            rc::gen::inRange<size_t>(1, 255),
+            rc::gen::inRange<uint8_t>(0, 255)
+        );
+        
+        std::vector<size_t> packet_offsets;
+        std::vector<size_t> packet_sizes;
+        std::vector<bool> packet_complete;
+        
+        OggPageParser::parseSegmentTable(segment_table, packet_offsets, packet_sizes, packet_complete);
+        
+        // Sum of all packet sizes should equal sum of all lacing values
+        size_t total_packet_size = 0;
+        for (size_t size : packet_sizes) {
+            total_packet_size += size;
+        }
+        
+        size_t total_lacing = 0;
+        for (uint8_t lv : segment_table) {
+            total_lacing += lv;
+        }
+        
+        RC_ASSERT(total_packet_size == total_lacing);
+    });
+    
+    // Property: Lacing value 255 always means continuation
+    rc::check("Lacing value 255 always means continuation", []() {
+        RC_ASSERT(OggPageParser::isPacketContinuation(255));
+        RC_ASSERT(!OggPageParser::isPacketTermination(255));
+    });
+    
+    // Property: Lacing value < 255 always means termination
+    rc::check("Lacing value < 255 always means termination", []() {
+        uint8_t lv = *rc::gen::inRange<uint8_t>(0, 254);
+        RC_ASSERT(OggPageParser::isPacketTermination(lv));
+        RC_ASSERT(!OggPageParser::isPacketContinuation(lv));
+    });
+    
+    // Property: Number of complete packets equals count of lacing values < 255
+    rc::check("Complete packet count equals terminating lacing values", []() {
+        auto segment_table = *rc::gen::container<std::vector<uint8_t>>(
+            rc::gen::inRange<size_t>(1, 100),
+            rc::gen::inRange<uint8_t>(0, 255)
+        );
+        
+        size_t expected_complete = 0;
+        for (uint8_t lv : segment_table) {
+            if (lv < 255) {
+                expected_complete++;
+            }
+        }
+        
+        size_t actual_complete = OggPageParser::countCompletePackets(segment_table);
+        RC_ASSERT(actual_complete == expected_complete);
+    });
+    
+    return true;
+}
+#endif // HAVE_RAPIDCHECK
+
+// ============================================================================
 // **Feature: ogg-demuxer-fix, Property 6: FLAC-in-Ogg Header Structure**
 // **Validates: Requirements 4.9, 5.2**
 // ============================================================================
@@ -1527,6 +1886,90 @@ int main() {
     if (test_property9_multiplexing_state_reset()) {
         TEST_PASS("Multiplexing state reset");
     }
+    
+    // ========================================================================
+    // Property 7: Page Sequence Tracking
+    // **Validates: Requirements 1.6, 6.8**
+    // ========================================================================
+    std::cout << "\nProperty 7: Page Sequence Tracking" << std::endl;
+    std::cout << "----------------------------------" << std::endl;
+    
+    if (test_property7_no_page_loss()) {
+        TEST_PASS("No page loss detection");
+    }
+    
+    if (test_property7_page_loss_detection()) {
+        TEST_PASS("Page loss detection");
+    }
+    
+    if (test_property7_granule_minus_one()) {
+        TEST_PASS("Granule -1 handling");
+    }
+    
+    if (test_property7_stream_eos_tracking()) {
+        TEST_PASS("Stream EOS tracking");
+    }
+    
+    if (test_property7_packet_queue_tracking()) {
+        TEST_PASS("Packet queue tracking");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 7: RapidCheck Property Tests" << std::endl;
+    std::cout << "-------------------------------------" << std::endl;
+    
+    if (test_property7_rapidcheck()) {
+        TEST_PASS("RapidCheck page sequence tests passed");
+    }
+#endif
+    
+    // ========================================================================
+    // Property 12: Multi-Page Packet Reconstruction
+    // **Validates: Requirements 13.1, 2.7**
+    // ========================================================================
+    std::cout << "\nProperty 12: Multi-Page Packet Reconstruction" << std::endl;
+    std::cout << "---------------------------------------------" << std::endl;
+    
+    if (test_property12_single_page_packet()) {
+        TEST_PASS("Single page packet");
+    }
+    
+    if (test_property12_multi_segment_packet()) {
+        TEST_PASS("Multi-segment packet");
+    }
+    
+    if (test_property12_continued_packet()) {
+        TEST_PASS("Continued packet");
+    }
+    
+    if (test_property12_continuation_flag_detection()) {
+        TEST_PASS("Continuation flag detection");
+    }
+    
+    if (test_property12_exact_255_multiple()) {
+        TEST_PASS("Exact 255-byte multiple packet");
+    }
+    
+    if (test_property12_exact_510_multiple()) {
+        TEST_PASS("Exact 510-byte multiple packet");
+    }
+    
+    if (test_property12_multiple_packets_with_continuation()) {
+        TEST_PASS("Multiple packets with continuation");
+    }
+    
+    if (test_property12_large_packet_simulation()) {
+        TEST_PASS("Large packet simulation");
+    }
+    
+#ifdef HAVE_RAPIDCHECK
+    std::cout << "\nProperty 12: RapidCheck Property Tests" << std::endl;
+    std::cout << "--------------------------------------" << std::endl;
+    
+    if (test_property12_rapidcheck()) {
+        TEST_PASS("RapidCheck multi-page packet tests passed");
+    }
+#endif
     
     // ========================================================================
     // Property 6: FLAC-in-Ogg Header Structure

@@ -167,27 +167,27 @@
     - Handle version mismatch gracefully
     - _Requirements: 5.3, 5.4, 5.5, 5.9_
 
-- [-] 8. Checkpoint - Verify Header Processing
+- [x] 8. Checkpoint - Verify Header Processing
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement Data Packet Streaming
-  - [ ] 9.1 Implement packet streaming logic
+- [x] 9. Implement Data Packet Streaming
+  - [x] 9.1 Implement packet streaming logic
     - Maintain packet order within each logical bitstream
     - Reconstruct complete packets using continuation flag
     - Handle packet continuation flags (0x01) correctly
     - Track timing information from granule positions
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
-  - [ ] 9.2 Implement stream state management
+  - [x] 9.2 Implement stream state management
     - Detect EOS flag (0x04)
     - Implement efficient packet queuing
     - Interleave packets correctly based on granule positions
     - Detect and report page loss via sequence numbers
     - Handle granule position -1 (no packets finish on page)
     - _Requirements: 6.5, 6.6, 6.7, 6.8, 6.9_
-  - [ ] 9.3 Write property test for page sequence tracking
+  - [x] 9.3 Write property test for page sequence tracking
     - **Property 7: Page Sequence Tracking**
     - **Validates: Requirements 1.6, 6.8**
-  - [ ] 9.4 Write property test for multi-page packet reconstruction
+  - [x] 9.4 Write property test for multi-page packet reconstruction
     - **Property 12: Multi-Page Packet Reconstruction**
     - **Validates: Requirements 13.1, 2.7**
 

@@ -815,6 +815,64 @@ public:
      * @return true if page structure is valid
      */
     static bool pageIsValid(const ogg_page* page);
+    
+    // ========================================================================
+    // Stream State Management (Requirements 6.5, 6.6, 6.7, 6.8, 6.9)
+    // ========================================================================
+    
+    /**
+     * @brief Check if a granule position indicates no packets finish on this page
+     * Per RFC 3533 Section 6: granule position -1 means no packets finish on this page
+     * @param granule_position Granule position to check
+     * @return true if granule indicates no completed packets
+     * 
+     * Requirements: 6.9
+     */
+    static bool isNoPacketGranule(int64_t granule_position);
+    
+    /**
+     * @brief Check if page loss has occurred for a stream
+     * @param stream_id Stream ID to check
+     * @param expected_seq Expected sequence number
+     * @param actual_seq Actual sequence number from page
+     * @return Number of pages lost (0 if no loss)
+     * 
+     * Requirements: 6.8
+     */
+    uint32_t detectPageLoss(uint32_t stream_id, uint32_t expected_seq, uint32_t actual_seq) const;
+    
+    /**
+     * @brief Report page loss for error handling
+     * @param stream_id Stream ID where loss occurred
+     * @param pages_lost Number of pages lost
+     * 
+     * Requirements: 6.8
+     */
+    void reportPageLoss(uint32_t stream_id, uint32_t pages_lost);
+    
+    /**
+     * @brief Check if a stream has reached EOS
+     * @param stream_id Stream ID to check
+     * @return true if stream has received EOS page
+     * 
+     * Requirements: 6.5
+     */
+    bool isStreamEOS(uint32_t stream_id) const;
+    
+    /**
+     * @brief Get the number of packets queued for a stream
+     * @param stream_id Stream ID to check
+     * @return Number of packets in queue
+     * 
+     * Requirements: 6.6
+     */
+    size_t getQueuedPacketCount(uint32_t stream_id) const;
+    
+    /**
+     * @brief Get total packets queued across all streams
+     * @return Total number of packets in all queues
+     */
+    size_t getTotalQueuedPackets() const;
 };
 
 } // namespace Ogg

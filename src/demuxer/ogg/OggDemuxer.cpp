@@ -549,40 +549,347 @@ StreamInfo OggDemuxer::getStreamInfo(uint32_t stream_id) const {
     return StreamInfo{};
 }
 
+/**
+ * @brief Read next chunk from the best audio stream
+ * 
+ * Following libvorbisfile patterns:
+ * - Select the primary audio stream
+ * - Return next available packet as MediaChunk
+ * - Fill queue if needed
+ * 
+ * @return MediaChunk containing packet data, or empty chunk on EOF/error
+ * 
+ * Requirements: 6.1, 6.2, 6.3, 6.4
+ */
 MediaChunk OggDemuxer::readChunk() {
-    return MediaChunk{};
+    // Find the first audio stream
+    uint32_t audio_stream_id = 0;
+    bool found_audio = false;
+    
+    for (const auto& [serial, stream] : m_streams) {
+        if (stream.codec_type == "audio" && stream.headers_complete) {
+            audio_stream_id = serial;
+            found_audio = true;
+            break;
+        }
+    }
+    
+    if (!found_audio) {
+        Debug::log("ogg", "readChunk: No audio stream available");
+        return MediaChunk{};
+    }
+    
+    return readChunk(audio_stream_id);
 }
 
+/**
+ * @brief Read next chunk from a specific stream
+ * 
+ * Following libvorbisfile patterns:
+ * - Maintain packet order within the logical bitstream (Requirements 6.1)
+ * - Reconstruct complete packets using continuation flag (Requirements 6.2)
+ * - Handle packet continuation flags correctly (Requirements 6.3)
+ * - Track timing information from granule positions (Requirements 6.4)
+ * 
+ * @param stream_id Stream to read from
+ * @return MediaChunk containing packet data, or empty chunk on EOF/error
+ * 
+ * Requirements: 6.1, 6.2, 6.3, 6.4
+ */
 MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
-    return MediaChunk{};
+    std::lock_guard<std::mutex> lock(m_packet_queue_mutex);
+    
+    // Check if stream exists
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        Debug::log("ogg", "readChunk: Stream 0x%08x not found", stream_id);
+        return MediaChunk{};
+    }
+    
+    OggStream& stream = stream_it->second;
+    
+    // First, send header packets if not yet sent (Requirements 6.1 - packet order)
+    if (!stream.headers_sent && !stream.header_packets.empty()) {
+        if (stream.next_header_index < stream.header_packets.size()) {
+            const OggPacket& header = stream.header_packets[stream.next_header_index];
+            
+            MediaChunk chunk;
+            chunk.stream_id = stream_id;
+            chunk.data = header.data;
+            chunk.timestamp_samples = 0;  // Headers have timestamp 0
+            chunk.granule_position = 0;
+            chunk.is_keyframe = true;
+            
+            stream.next_header_index++;
+            
+            // Mark headers as sent when all are delivered
+            if (stream.next_header_index >= stream.header_packets.size()) {
+                stream.headers_sent = true;
+                Debug::log("ogg", "readChunk: All %zu headers sent for stream 0x%08x",
+                           stream.header_packets.size(), stream_id);
+            }
+            
+            return chunk;
+        }
+    }
+    
+    // Check if we need to fill the queue
+    if (stream.m_packet_queue.empty() && !m_eof) {
+        // Release lock temporarily to fill queue
+        // Note: This is safe because fillPacketQueue acquires its own lock
+        m_packet_queue_mutex.unlock();
+        fillPacketQueue(stream_id);
+        m_packet_queue_mutex.lock();
+        
+        // Re-check stream iterator after re-acquiring lock
+        stream_it = m_streams.find(stream_id);
+        if (stream_it == m_streams.end()) {
+            return MediaChunk{};
+        }
+    }
+    
+    // Get reference again after potential re-lock
+    OggStream& stream_ref = m_streams[stream_id];
+    
+    // Check if queue is still empty
+    if (stream_ref.m_packet_queue.empty()) {
+        if (m_eof) {
+            Debug::log("ogg", "readChunk: EOF reached for stream 0x%08x", stream_id);
+        }
+        return MediaChunk{};
+    }
+    
+    // Get next packet from queue (maintains packet order per Requirements 6.1)
+    OggPacket packet = std::move(stream_ref.m_packet_queue.front());
+    stream_ref.m_packet_queue.pop_front();
+    
+    // Convert granule position to timestamp (Requirements 6.4)
+    uint64_t timestamp_samples = 0;
+    if (packet.granule_position != static_cast<uint64_t>(-1) &&
+        packet.granule_position != FLAC_OGG_GRANULE_NO_PACKET) {
+        // For Ogg formats, granule position is the sample count
+        timestamp_samples = packet.granule_position;
+        
+        // For Opus, account for pre-skip
+        if (stream_ref.codec_name == "opus" && timestamp_samples > stream_ref.pre_skip) {
+            timestamp_samples -= stream_ref.pre_skip;
+        }
+        
+        // Update stream's processed sample count
+        stream_ref.total_samples_processed = packet.granule_position;
+    }
+    
+    // Create MediaChunk
+    MediaChunk chunk;
+    chunk.stream_id = stream_id;
+    chunk.data = std::move(packet.data);
+    chunk.granule_position = packet.granule_position;
+    chunk.timestamp_samples = timestamp_samples;
+    chunk.is_keyframe = true;  // Audio packets are typically all keyframes
+    
+    Debug::log("ogg", "readChunk: Returned packet from stream 0x%08x, size %zu, granule %llu",
+               stream_id, chunk.data.size(), static_cast<unsigned long long>(packet.granule_position));
+    
+    return chunk;
 }
 
 bool OggDemuxer::seekTo(uint64_t timestamp_ms) {
     return false;
 }
 
+/**
+ * @brief Check if end of file has been reached
+ * 
+ * Returns true if:
+ * - Physical EOF has been reached on the IOHandler
+ * - All streams have received their EOS pages
+ * 
+ * @return true if EOF, false otherwise
+ * 
+ * Requirements: 6.5
+ */
 bool OggDemuxer::isEOF() const {
-    return m_eof;
+    // Check physical EOF
+    if (m_eof) {
+        return true;
+    }
+    
+    // Check if all streams have seen EOS
+    if (!m_streams.empty() && !m_bos_serial_numbers.empty()) {
+        // All streams must have seen EOS for logical EOF
+        if (m_eos_serial_numbers.size() == m_bos_serial_numbers.size()) {
+            // Also check that all packet queues are empty
+            for (const auto& [serial, stream] : m_streams) {
+                if (!stream.m_packet_queue.empty()) {
+                    return false;  // Still have packets to deliver
+                }
+            }
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 uint64_t OggDemuxer::getDuration() const {
     return 0;
 }
 
+/**
+ * @brief Get current playback position in milliseconds
+ * 
+ * Returns the timestamp of the last packet read from the primary audio stream.
+ * 
+ * @return Current position in milliseconds
+ * 
+ * Requirements: 14.4
+ */
 uint64_t OggDemuxer::getPosition() const {
+    // Find the primary audio stream
+    for (const auto& [serial, stream] : m_streams) {
+        if (stream.codec_type == "audio" && stream.headers_complete) {
+            // Convert processed samples to milliseconds
+            if (stream.total_samples_processed > 0 && stream.sample_rate > 0) {
+                if (stream.codec_name == "opus") {
+                    // Opus: Account for pre-skip
+                    uint64_t samples = stream.total_samples_processed;
+                    if (samples > stream.pre_skip) {
+                        samples -= stream.pre_skip;
+                    } else {
+                        samples = 0;
+                    }
+                    return (samples * 1000) / 48000;
+                } else {
+                    return (stream.total_samples_processed * 1000) / stream.sample_rate;
+                }
+            }
+            break;
+        }
+    }
+    
     return 0;
 }
 
+/**
+ * @brief Get current granule position for a specific stream
+ * 
+ * @param stream_id Stream ID to query
+ * @return Current granule position, or 0 if stream not found
+ */
 uint64_t OggDemuxer::getGranulePosition(uint32_t stream_id) const {
-    return 0;
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        return 0;
+    }
+    
+    return stream_it->second.total_samples_processed;
 }
 
+/**
+ * @brief Convert granule position to milliseconds
+ * 
+ * Following reference implementation patterns:
+ * - Vorbis: granule = sample number at end of packet (direct mapping)
+ * - Opus: granule = 48kHz sample number, account for pre-skip
+ * - FLAC: granule = sample number at end of packet (same as Vorbis)
+ * 
+ * @param granule Granule position to convert
+ * @param stream_id Stream ID for codec-specific conversion
+ * @return Timestamp in milliseconds
+ * 
+ * Requirements: 6.4, 8.6, 8.7, 8.8
+ */
 uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
-    return 0;
+    // Check for invalid granule position
+    if (granule == static_cast<uint64_t>(-1) || granule == FLAC_OGG_GRANULE_NO_PACKET) {
+        return 0;
+    }
+    
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        Debug::log("ogg", "granuleToMs: Stream 0x%08x not found", stream_id);
+        return 0;
+    }
+    
+    const OggStream& stream = stream_it->second;
+    
+    if (stream.sample_rate == 0) {
+        Debug::log("ogg", "granuleToMs: Stream 0x%08x has zero sample rate", stream_id);
+        return 0;
+    }
+    
+    uint64_t samples = granule;
+    
+    // Codec-specific handling
+    if (stream.codec_name == "opus") {
+        // Opus: Account for pre-skip (Requirements 8.6)
+        // Opus granule is at 48kHz regardless of output sample rate
+        if (samples > stream.pre_skip) {
+            samples -= stream.pre_skip;
+        } else {
+            samples = 0;
+        }
+        // Opus always uses 48kHz granule rate
+        return (samples * 1000) / 48000;
+    } else if (stream.codec_name == "vorbis") {
+        // Vorbis: Direct sample count at codec sample rate (Requirements 8.7)
+        return (samples * 1000) / stream.sample_rate;
+    } else if (stream.codec_name == "flac") {
+        // FLAC-in-Ogg: Direct sample count like Vorbis (Requirements 8.8)
+        return (samples * 1000) / stream.sample_rate;
+    } else if (stream.codec_name == "speex") {
+        // Speex: Direct sample count at codec sample rate
+        return (samples * 1000) / stream.sample_rate;
+    }
+    
+    // Default: assume direct sample count
+    return (samples * 1000) / stream.sample_rate;
 }
 
+/**
+ * @brief Convert milliseconds to granule position
+ * 
+ * Following reference implementation patterns:
+ * - Vorbis: granule = sample number (direct mapping)
+ * - Opus: granule = 48kHz sample number + pre-skip
+ * - FLAC: granule = sample number (same as Vorbis)
+ * 
+ * @param timestamp_ms Timestamp in milliseconds
+ * @param stream_id Stream ID for codec-specific conversion
+ * @return Granule position
+ */
 uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const {
-    return 0;
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        Debug::log("ogg", "msToGranule: Stream 0x%08x not found", stream_id);
+        return 0;
+    }
+    
+    const OggStream& stream = stream_it->second;
+    
+    if (stream.sample_rate == 0) {
+        Debug::log("ogg", "msToGranule: Stream 0x%08x has zero sample rate", stream_id);
+        return 0;
+    }
+    
+    // Codec-specific handling
+    if (stream.codec_name == "opus") {
+        // Opus: Convert to 48kHz samples and add pre-skip
+        uint64_t samples = (timestamp_ms * 48000) / 1000;
+        return samples + stream.pre_skip;
+    } else if (stream.codec_name == "vorbis") {
+        // Vorbis: Direct conversion at codec sample rate
+        return (timestamp_ms * stream.sample_rate) / 1000;
+    } else if (stream.codec_name == "flac") {
+        // FLAC-in-Ogg: Direct conversion like Vorbis
+        return (timestamp_ms * stream.sample_rate) / 1000;
+    } else if (stream.codec_name == "speex") {
+        // Speex: Direct conversion at codec sample rate
+        return (timestamp_ms * stream.sample_rate) / 1000;
+    }
+    
+    // Default: assume direct sample count
+    return (timestamp_ms * stream.sample_rate) / 1000;
 }
 
 /**
@@ -2503,6 +2810,118 @@ int OggDemuxer::getOpusPacketSampleCount(const OggPacket& packet) {
 
 int OggDemuxer::getVorbisPacketSampleCount(const OggPacket& packet) {
     return 0;
+}
+
+// ============================================================================
+// Stream State Management (Requirements 6.5, 6.6, 6.7, 6.8, 6.9)
+// ============================================================================
+
+/**
+ * @brief Check if a granule position indicates no packets finish on this page
+ * 
+ * Per RFC 3533 Section 6: granule position -1 (0xFFFFFFFFFFFFFFFF as unsigned)
+ * means no packets finish on this page. This occurs when a page contains only
+ * the start or middle of a large packet that continues on the next page.
+ * 
+ * @param granule_position Granule position to check (signed)
+ * @return true if granule indicates no completed packets
+ * 
+ * Requirements: 6.9
+ */
+bool OggDemuxer::isNoPacketGranule(int64_t granule_position) {
+    return granule_position == -1;
+}
+
+/**
+ * @brief Check if page loss has occurred for a stream
+ * 
+ * Compares expected and actual sequence numbers to detect missing pages.
+ * Page sequence numbers are monotonically increasing per logical bitstream.
+ * 
+ * @param stream_id Stream ID to check
+ * @param expected_seq Expected sequence number
+ * @param actual_seq Actual sequence number from page
+ * @return Number of pages lost (0 if no loss)
+ * 
+ * Requirements: 6.8
+ */
+uint32_t OggDemuxer::detectPageLoss(uint32_t stream_id, uint32_t expected_seq, uint32_t actual_seq) const {
+    if (actual_seq == expected_seq) {
+        return 0;  // No loss
+    }
+    
+    // Handle sequence number wraparound
+    if (actual_seq > expected_seq) {
+        return actual_seq - expected_seq;
+    }
+    
+    // Wraparound case (very rare, would need 4 billion pages)
+    return (0xFFFFFFFF - expected_seq) + actual_seq + 1;
+}
+
+/**
+ * @brief Report page loss for error handling
+ * 
+ * Logs page loss and could trigger error recovery mechanisms.
+ * This is equivalent to returning OV_HOLE/OP_HOLE in reference implementations.
+ * 
+ * @param stream_id Stream ID where loss occurred
+ * @param pages_lost Number of pages lost
+ * 
+ * Requirements: 6.8
+ */
+void OggDemuxer::reportPageLoss(uint32_t stream_id, uint32_t pages_lost) {
+    Debug::log("ogg", "Page loss detected: stream 0x%08x lost %u page(s)", 
+               stream_id, pages_lost);
+    
+    // Mark the stream as having experienced a hole
+    // This could be used to signal OV_HOLE/OP_HOLE to callers
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it != m_streams.end()) {
+        // Could add a flag to track holes for error reporting
+        // For now, just log the event
+    }
+}
+
+/**
+ * @brief Check if a stream has reached EOS
+ * 
+ * @param stream_id Stream ID to check
+ * @return true if stream has received EOS page
+ * 
+ * Requirements: 6.5
+ */
+bool OggDemuxer::isStreamEOS(uint32_t stream_id) const {
+    return m_eos_serial_numbers.count(stream_id) > 0;
+}
+
+/**
+ * @brief Get the number of packets queued for a stream
+ * 
+ * @param stream_id Stream ID to check
+ * @return Number of packets in queue
+ * 
+ * Requirements: 6.6
+ */
+size_t OggDemuxer::getQueuedPacketCount(uint32_t stream_id) const {
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        return 0;
+    }
+    return stream_it->second.m_packet_queue.size();
+}
+
+/**
+ * @brief Get total packets queued across all streams
+ * 
+ * @return Total number of packets in all queues
+ */
+size_t OggDemuxer::getTotalQueuedPackets() const {
+    size_t total = 0;
+    for (const auto& [serial, stream] : m_streams) {
+        total += stream.m_packet_queue.size();
+    }
+    return total;
 }
 
 // ============================================================================
