@@ -345,20 +345,20 @@
     - **Property 17: Position Reporting Consistency**
     - **Validates: Requirements 14.4**
 
-- [ ] 20. Comprehensive Integration Testing
-  - [ ] 20.1 Test with all codec types
+- [x] 20. Comprehensive Integration Testing
+  - [x] 20.1 Test with all codec types
     - Test Vorbis files with various encoders and quality settings
     - Test Opus files with various encoders and quality settings
     - Test FLAC-in-Ogg files (.oga) with various encoders
     - Test Speex files if available
     - _Requirements: All codec requirements_
-  - [ ] 20.2 Test seeking and duration
+  - [x] 20.2 Test seeking and duration
     - Test seeking accuracy across different file sizes
     - Test duration calculation for all codec types
     - Test seeking near stream boundaries
     - Test seeking in chained and grouped streams
     - _Requirements: 7.1-7.11, 8.1-8.11_
-  - [ ] 20.3 Test error handling
+  - [x] 20.3 Test error handling
     - Test with corrupted and malformed files
     - Test memory management and resource cleanup
     - Test performance with large files

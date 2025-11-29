@@ -251,7 +251,7 @@ check_PROGRAMS = \
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming test_error_handling test_memory_safety test_seeking_integration test_ogg_demuxer_integration test_oggdemuxer_performance test_oggdemuxer_comprehensive test_opus_codec_core_decoding test_opus_codec_error_handling test_opus_integration test_opus_compatibility_performance
+check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming test_error_handling test_memory_safety test_seeking_integration test_ogg_demuxer_integration test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration test_opus_codec_core_decoding test_opus_codec_error_handling test_opus_integration test_opus_compatibility_performance
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
@@ -2149,6 +2149,27 @@ test_oggdemuxer_comprehensive_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/DemuxerRegistry.o \
 	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(OGG_LIBS) \
+	$(VORBIS_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+# OggDemuxer comprehensive integration test (Task 20)
+test_ogg_comprehensive_integration_SOURCES = test_ogg_comprehensive_integration.cpp
+test_ogg_comprehensive_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_ogg_comprehensive_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/DemuxerRegistry.o \
+	$(top_builddir)/src/demuxer/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
