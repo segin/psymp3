@@ -420,41 +420,220 @@ struct OggStream {
  * @brief Ogg container demuxer using libogg
  * 
  * This demuxer implements RFC 3533 compliant Ogg container parsing with support for:
- * - Ogg Vorbis (.ogg)
- * - Ogg Opus (.opus, .oga)
- * - FLAC-in-Ogg (.oga) per RFC 9639 Section 10.1
- * - Ogg Speex (.spx)
+ * - Ogg Vorbis (.ogg) - Vorbis I Specification
+ * - Ogg Opus (.opus, .oga) - RFC 7845
+ * - FLAC-in-Ogg (.oga) - RFC 9639 Section 10.1
+ * - Ogg Speex (.spx) - Speex Specification
+ * - Ogg Theora (.ogv) - Theora Specification (video, detected but not decoded)
  * 
  * The implementation follows the exact behavior patterns of libvorbisfile and libopusfile
  * reference implementations for seeking, granule position handling, and error recovery.
+ * 
+ * ## Thread Safety
+ * 
+ * This class follows PsyMP3's public/private lock pattern:
+ * - Public methods acquire locks and call private `_unlocked` implementations
+ * - Private methods perform work without acquiring locks
+ * - Lock acquisition order: m_ogg_state_mutex → m_packet_queue_mutex → m_page_cache_mutex
+ * 
+ * ## Usage Example
+ * 
+ * ```cpp
+ * auto handler = std::make_unique<FileIOHandler>("audio.ogg");
+ * OggDemuxer demuxer(std::move(handler));
+ * 
+ * if (demuxer.parseContainer()) {
+ *     auto streams = demuxer.getStreams();
+ *     while (!demuxer.isEOF()) {
+ *         MediaChunk chunk = demuxer.readChunk();
+ *         // Process chunk...
+ *     }
+ * }
+ * ```
+ * 
+ * ## RFC Compliance
+ * 
+ * - RFC 3533: Ogg Encapsulation Format Version 0
+ * - RFC 7845: Ogg Encapsulation for Opus Audio Codec
+ * - RFC 9639 Section 10.1: FLAC-in-Ogg Encapsulation
+ * 
+ * @see docs/ogg-demuxer-developer-guide.md for detailed documentation
  */
 class OggDemuxer : public Demuxer {
 public:
+    /**
+     * @brief Construct an OggDemuxer with the given I/O handler
+     * @param handler Unique pointer to IOHandler for file/network access
+     * @note The demuxer takes ownership of the handler
+     */
     explicit OggDemuxer(std::unique_ptr<IOHandler> handler);
+    
+    /**
+     * @brief Destructor - cleans up libogg structures and releases resources
+     * @note Thread-safe: acquires all locks before cleanup
+     */
     ~OggDemuxer();
     
-    // Demuxer interface implementation
+    // ========================================================================
+    // Demuxer Interface Implementation
+    // ========================================================================
+    
+    /**
+     * @brief Parse the Ogg container and identify all streams
+     * 
+     * Reads pages sequentially to identify all logical bitstreams, parse codec
+     * headers, and calculate duration. Following libvorbisfile patterns.
+     * 
+     * @return true if container was successfully parsed with at least one stream
+     * @note Thread-safe: acquires m_ogg_state_mutex
+     */
     bool parseContainer() override;
+    
+    /**
+     * @brief Get information about all streams in the container
+     * @return Vector of StreamInfo objects for each complete stream
+     */
     std::vector<StreamInfo> getStreams() const override;
+    
+    /**
+     * @brief Get information about a specific stream
+     * @param stream_id Serial number of the stream
+     * @return StreamInfo for the stream, or empty StreamInfo if not found
+     */
     StreamInfo getStreamInfo(uint32_t stream_id) const override;
+    
+    /**
+     * @brief Read next chunk from the primary audio stream
+     * @return MediaChunk containing packet data, or empty chunk on EOF/error
+     * @note Thread-safe: acquires m_packet_queue_mutex
+     */
     MediaChunk readChunk() override;
+    
+    /**
+     * @brief Read next chunk from a specific stream
+     * @param stream_id Serial number of the stream to read from
+     * @return MediaChunk containing packet data, or empty chunk on EOF/error
+     * @note Thread-safe: acquires m_packet_queue_mutex
+     */
     MediaChunk readChunk(uint32_t stream_id) override;
+    
+    /**
+     * @brief Seek to a specific timestamp
+     * 
+     * Uses bisection search following ov_pcm_seek_page/op_pcm_seek_page patterns.
+     * 
+     * @param timestamp_ms Target timestamp in milliseconds
+     * @return true if seek was successful
+     * @note Thread-safe: acquires m_ogg_state_mutex
+     */
     bool seekTo(uint64_t timestamp_ms) override;
+    
+    /**
+     * @brief Check if end of file has been reached
+     * @return true if EOF reached on all streams
+     */
     bool isEOF() const override;
+    
+    /**
+     * @brief Get total duration of the file
+     * @return Duration in milliseconds, or 0 if unknown
+     */
     uint64_t getDuration() const override;
+    
+    /**
+     * @brief Get current playback position
+     * @return Position in milliseconds
+     */
     uint64_t getPosition() const override;
+    
+    /**
+     * @brief Get current granule position for a stream
+     * @param stream_id Serial number of the stream
+     * @return Granule position, or 0 if stream not found
+     */
     uint64_t getGranulePosition(uint32_t stream_id) const override;
     
-    // Time conversion methods
+    // ========================================================================
+    // Time Conversion Methods
+    // ========================================================================
+    
+    /**
+     * @brief Convert granule position to milliseconds
+     * 
+     * Handles codec-specific granule interpretation:
+     * - Vorbis/FLAC: granule = sample count, time = granule * 1000 / sample_rate
+     * - Opus: granule = 48kHz sample count, time = (granule - pre_skip) * 1000 / 48000
+     * 
+     * @param granule Granule position to convert
+     * @param stream_id Serial number of the stream
+     * @return Time in milliseconds
+     */
     uint64_t granuleToMs(uint64_t granule, uint32_t stream_id) const;
+    
+    /**
+     * @brief Convert milliseconds to granule position
+     * @param timestamp_ms Time in milliseconds
+     * @param stream_id Serial number of the stream
+     * @return Granule position
+     */
     uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const;
     
-    // Codec detection and header processing
+    // ========================================================================
+    // Codec Detection and Header Processing
+    // ========================================================================
+    
+    /**
+     * @brief Identify codec type from BOS packet data
+     * 
+     * Detects codecs by magic signature:
+     * - Vorbis: "\x01vorbis" (7 bytes)
+     * - Opus: "OpusHead" (8 bytes)
+     * - FLAC: "\x7fFLAC" (5 bytes)
+     * - Speex: "Speex   " (8 bytes)
+     * - Theora: "\x80theora" (7 bytes)
+     * 
+     * @param packet_data BOS packet data
+     * @return Codec name string, or empty string if unknown
+     */
     std::string identifyCodec(const std::vector<uint8_t>& packet_data);
+    
+    /**
+     * @brief Parse Vorbis header packets
+     * @param stream Stream to update with parsed information
+     * @param packet Header packet to parse
+     * @return true if header was successfully parsed
+     */
     bool parseVorbisHeaders(OggStream& stream, const OggPacket& packet);
+    
+    /**
+     * @brief Parse FLAC-in-Ogg header packets (RFC 9639 Section 10.1)
+     * @param stream Stream to update with parsed information
+     * @param packet Header packet to parse
+     * @return true if header was successfully parsed
+     */
     bool parseFLACHeaders(OggStream& stream, const OggPacket& packet);
+    
+    /**
+     * @brief Parse Opus header packets (RFC 7845)
+     * @param stream Stream to update with parsed information
+     * @param packet Header packet to parse
+     * @return true if header was successfully parsed
+     */
     bool parseOpusHeaders(OggStream& stream, const OggPacket& packet);
+    
+    /**
+     * @brief Parse Speex header packets
+     * @param stream Stream to update with parsed information
+     * @param packet Header packet to parse
+     * @return true if header was successfully parsed
+     */
     bool parseSpeexHeaders(OggStream& stream, const OggPacket& packet);
+    
+    /**
+     * @brief Get streams map for testing purposes
+     * @return Reference to internal streams map
+     * @note For testing only - not part of public API
+     */
     std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_streams; }
     
     // Stream multiplexing handling (RFC 3533 Section 4)

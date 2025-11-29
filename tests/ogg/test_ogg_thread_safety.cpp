@@ -315,19 +315,23 @@ bool testErrorStatePropagation() {
     auto handler = std::make_unique<MockIOHandler>();
     OggDemuxer demuxer(std::move(handler));
     
+    std::atomic<bool> error_set{false};
     std::atomic<bool> error_detected_by_thread{false};
     
     // Thread 1: Set error state
-    std::thread error_setter([&demuxer]() {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    std::thread error_setter([&demuxer, &error_set]() {
         // Simulate error detection
         demuxer.setErrorState_unlocked(-1);
+        error_set.store(true, std::memory_order_release);
     });
     
     // Thread 2: Check error state
-    std::thread error_checker([&demuxer, &error_detected_by_thread]() {
-        // Wait a bit for error to be set
-        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    std::thread error_checker([&demuxer, &error_set, &error_detected_by_thread]() {
+        // Wait for error to be set with polling
+        int max_attempts = 100;
+        while (!error_set.load(std::memory_order_acquire) && max_attempts-- > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
         
         // Check if error state is visible
         if (demuxer.hasErrorState()) {

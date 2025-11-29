@@ -651,10 +651,12 @@ bool test_property5_rapidcheck() {
     // Property: Valid signatures are always detected correctly
     rc::check("Valid codec signatures are detected correctly", [&demuxer]() {
         // Generate random extra data to append after signature
-        auto extra_data = *rc::gen::container<std::vector<uint8_t>>(
-            rc::gen::inRange<size_t>(0, 100),
-            rc::gen::arbitrary<uint8_t>()
-        );
+        size_t extra_size = *rc::gen::inRange<size_t>(0, 100);
+        std::vector<uint8_t> extra_data;
+        extra_data.reserve(extra_size);
+        for (size_t i = 0; i < extra_size; ++i) {
+            extra_data.push_back(*rc::gen::arbitrary<uint8_t>());
+        }
         
         // Test each codec signature with random extra data
         
@@ -686,10 +688,12 @@ bool test_property5_rapidcheck() {
     
     // Property: Random data that doesn't match any signature returns empty
     rc::check("Random non-signature data returns empty string", [&demuxer]() {
-        auto random_data = *rc::gen::container<std::vector<uint8_t>>(
-            rc::gen::inRange<size_t>(0, 100),
-            rc::gen::arbitrary<uint8_t>()
-        );
+        size_t random_size = *rc::gen::inRange<size_t>(0, 100);
+        std::vector<uint8_t> random_data;
+        random_data.reserve(random_size);
+        for (size_t i = 0; i < random_size; ++i) {
+            random_data.push_back(*rc::gen::arbitrary<uint8_t>());
+        }
         
         // Skip if random data happens to match a valid signature
         if (random_data.size() >= 7 && 
@@ -1095,10 +1099,12 @@ bool test_property12_rapidcheck() {
     // Property: Total packet size equals sum of lacing values
     rc::check("Total packet size equals sum of lacing values", []() {
         // Generate random segment table
-        auto segment_table = *rc::gen::container<std::vector<uint8_t>>(
-            rc::gen::inRange<size_t>(1, 255),
-            rc::gen::inRange<uint8_t>(0, 255)
-        );
+        size_t table_size = *rc::gen::inRange<size_t>(1, 255);
+        std::vector<uint8_t> segment_table;
+        segment_table.reserve(table_size);
+        for (size_t i = 0; i < table_size; ++i) {
+            segment_table.push_back(*rc::gen::inRange<uint8_t>(0, 255));
+        }
         
         std::vector<size_t> packet_offsets;
         std::vector<size_t> packet_sizes;
@@ -1135,10 +1141,12 @@ bool test_property12_rapidcheck() {
     
     // Property: Number of complete packets equals count of lacing values < 255
     rc::check("Complete packet count equals terminating lacing values", []() {
-        auto segment_table = *rc::gen::container<std::vector<uint8_t>>(
-            rc::gen::inRange<size_t>(1, 100),
-            rc::gen::inRange<uint8_t>(0, 255)
-        );
+        size_t table_size = *rc::gen::inRange<size_t>(1, 100);
+        std::vector<uint8_t> segment_table;
+        segment_table.reserve(table_size);
+        for (size_t i = 0; i < table_size; ++i) {
+            segment_table.push_back(*rc::gen::inRange<uint8_t>(0, 255));
+        }
         
         size_t expected_complete = 0;
         for (uint8_t lv : segment_table) {
@@ -1864,7 +1872,7 @@ bool test_property6_rapidcheck() {
         uint8_t channels = *rc::gen::inRange<uint8_t>(1, 9);            // 1 to 8
         uint8_t bits_per_sample = *rc::gen::inRange<uint8_t>(4, 33);    // 4 to 32
         uint64_t total_samples = *rc::gen::inRange<uint64_t>(0, (1ULL << 36));  // 36-bit max
-        uint16_t header_count = *rc::gen::inRange<uint16_t>(0, 65536);
+        uint16_t header_count = *rc::gen::inRange<uint16_t>(0, 65535);
         
         auto header_data = createFLACInOggHeader(sample_rate, channels, bits_per_sample, 
                                                   total_samples, header_count);
@@ -1930,10 +1938,12 @@ bool test_property4_rapidcheck() {
     // Property: segment table parsing produces correct packet boundaries
     rc::check("Segment table parsing produces valid packet boundaries", []() {
         // Generate random segment table (0-255 segments)
-        auto segment_table = *rc::gen::container<std::vector<uint8_t>>(
-            rc::gen::inRange<size_t>(0, 256),
-            rc::gen::arbitrary<uint8_t>()
-        );
+        size_t table_size = *rc::gen::inRange<size_t>(0, 256);
+        std::vector<uint8_t> segment_table;
+        segment_table.reserve(table_size);
+        for (size_t i = 0; i < table_size; ++i) {
+            segment_table.push_back(*rc::gen::arbitrary<uint8_t>());
+        }
         
         std::vector<size_t> packet_offsets;
         std::vector<size_t> packet_sizes;
