@@ -31,11 +31,11 @@
     - **Property 2: URL Encoding Round-Trip**
     - **Validates: Requirements 2.2**
 
-- [ ] 3. Checkpoint - Verify optimizations compile and basic functionality works
+- [x] 3. Checkpoint - Verify optimizations compile and basic functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 4. Implement Lazy Debug Logging
-  - [ ] 4.1 Add DEBUG_LOG_LAZY macro to debug.h
+- [-] 4. Implement Lazy Debug Logging
+  - [x] 4.1 Add DEBUG_LOG_LAZY macro to debug.h
     - Macro checks isChannelEnabled() before evaluating arguments
     - Use do-while(0) pattern for safe macro expansion
     - _Requirements: 3.1, 3.3_
@@ -47,20 +47,20 @@
     - **Property 3: Debug Logging Lazy Evaluation**
     - **Validates: Requirements 3.1, 3.3**
 
-- [ ] 5. Optimize Submission Thread Behavior
-  - [ ] 5.1 Add exponential backoff state and logic
+- [-] 5. Optimize Submission Thread Behavior
+  - [x] 5.1 Add exponential backoff state and logic
     - Add m_backoff_seconds member variable
     - Add resetBackoff() and increaseBackoff() methods
     - Implement backoff in submissionThreadLoop()
     - _Requirements: 4.3_
-  - [ ] 5.2 Verify condition variable blocking behavior
+  - [x] 5.2 Verify condition variable blocking behavior
     - Review wait() predicate to ensure no spurious wakeups cause spinning
     - Add backoff wait after failed submissions
     - _Requirements: 4.1, 4.4_
-  - [ ] 5.3 Write property test for exponential backoff progression
+  - [x] 5.3 Write property test for exponential backoff progression
     - **Property 5: Exponential Backoff Progression**
     - **Validates: Requirements 4.3**
-  - [ ] 5.4 Write property test for scrobble batching
+  - [x] 5.4 Write property test for scrobble batching
     - **Property 4: Scrobble Batching Correctness**
     - **Validates: Requirements 4.2**
 

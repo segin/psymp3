@@ -66,6 +66,15 @@ private:
     int m_handshake_attempts = 0;
     bool m_handshake_permanently_failed = false;
     
+    // Exponential backoff state (Requirements 4.3)
+    int m_backoff_seconds = 0;
+    static constexpr int INITIAL_BACKOFF_SECONDS = 60;  // Start at 1 minute
+    static constexpr int MAX_BACKOFF_SECONDS = 3600;    // Cap at 1 hour
+    
+    // Backoff management methods
+    void resetBackoff();
+    void increaseBackoff();
+    
     // Configuration and cache management
     void readConfig();
     void writeConfig();

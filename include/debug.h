@@ -17,6 +17,9 @@ public:
     static void init(const std::string& logfile, const std::vector<std::string>& channels);
     static void shutdown();
 
+    // Check if a debug channel is enabled (O(1) lookup)
+    static bool isChannelEnabled(const std::string& channel);
+
     // Basic logging without location info
     template<typename... Args>
     static inline void log(const std::string& channel, Args&&... args) {
@@ -42,7 +45,6 @@ public:
     }
 
 private:
-    static bool isChannelEnabled(const std::string& channel);
     static void write(const std::string& channel, const std::string& function, int line, const std::string& message);
 
     static std::ofstream m_logfile;
@@ -53,5 +55,14 @@ private:
 
 // Convenience macro for logging with location info
 #define DEBUG_LOG(channel, ...) Debug::log(channel, __FUNCTION__, __LINE__, __VA_ARGS__)
+
+// Lazy evaluation macro - checks if channel is enabled before evaluating arguments
+// This prevents string formatting overhead when logging is disabled (Requirements 3.1, 3.3)
+#define DEBUG_LOG_LAZY(channel, ...) \
+    do { \
+        if (Debug::isChannelEnabled(channel)) { \
+            Debug::log(channel, __VA_ARGS__); \
+        } \
+    } while(0)
 
 #endif // DEBUG_H

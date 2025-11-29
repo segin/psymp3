@@ -16,16 +16,16 @@ LastFM::LastFM() :
     m_config_file(System::getStoragePath().to8Bit(true) + "/lastfm.conf"),
     m_cache_file(System::getStoragePath().to8Bit(true) + "/scrobble_cache.xml")
 {
-    Debug::log("lastfm", "Initializing Last.fm scrobbler");
-    Debug::log("lastfm", "Config file: ", m_config_file);
-    Debug::log("lastfm", "Cache file: ", m_cache_file);
+    DEBUG_LOG_LAZY("lastfm", "Initializing Last.fm scrobbler");
+    DEBUG_LOG_LAZY("lastfm", "Config file: ", m_config_file);
+    DEBUG_LOG_LAZY("lastfm", "Cache file: ", m_cache_file);
     
     readConfig();
     loadScrobbles();
     
     // Start background submission thread
     m_submission_thread = std::thread(&LastFM::submissionThreadLoop, this);
-    Debug::log("lastfm", "Background submission thread started");
+    DEBUG_LOG_LAZY("lastfm", "Background submission thread started");
 }
 
 LastFM::~LastFM()
@@ -45,10 +45,10 @@ LastFM::~LastFM()
 
 void LastFM::readConfig()
 {
-    Debug::log("lastfm", "Reading configuration from ", m_config_file);
+    DEBUG_LOG_LAZY("lastfm", "Reading configuration from ", m_config_file);
     std::ifstream config(m_config_file);
     if (!config.is_open()) {
-        Debug::log("lastfm", "Config file not found - Last.fm not configured");
+        DEBUG_LOG_LAZY("lastfm", "Config file not found - Last.fm not configured");
         return;
     }
     
@@ -64,29 +64,29 @@ void LastFM::readConfig()
         
         if (key == "username") {
             m_username = value;
-            Debug::log("lastfm", "Username loaded: ", m_username);
+            DEBUG_LOG_LAZY("lastfm", "Username loaded: ", m_username);
         } else if (key == "password") {
             m_password = value;
-            Debug::log("lastfm", "Password loaded (", m_password.length(), " characters)");
+            DEBUG_LOG_LAZY("lastfm", "Password loaded (", m_password.length(), " characters)");
         } else if (key == "session_key") {
             m_session_key = value;
-            Debug::log("lastfm", "Session key loaded: ", m_session_key.substr(0, 8), "...");
+            DEBUG_LOG_LAZY("lastfm", "Session key loaded: ", m_session_key.substr(0, 8), "...");
         } else if (key == "now_playing_url") {
             m_nowplaying_url = value;
-            Debug::log("lastfm", "Now playing URL loaded: ", m_nowplaying_url);
+            DEBUG_LOG_LAZY("lastfm", "Now playing URL loaded: ", m_nowplaying_url);
         } else if (key == "submission_url") {
             m_submission_url = value;
-            Debug::log("lastfm", "Submission URL loaded: ", m_submission_url);
+            DEBUG_LOG_LAZY("lastfm", "Submission URL loaded: ", m_submission_url);
         }
     }
     
     if (isConfigured()) {
         // Cache the password hash to avoid redundant computation (Requirements 1.3)
         m_password_hash = md5Hash(m_password);
-        Debug::log("lastfm", "Password hash cached for auth token generation");
-        Debug::log("lastfm", "Configuration complete - scrobbling enabled");
+        DEBUG_LOG_LAZY("lastfm", "Password hash cached for auth token generation");
+        DEBUG_LOG_LAZY("lastfm", "Configuration complete - scrobbling enabled");
     } else {
-        Debug::log("lastfm", "Missing username or password - scrobbling disabled");
+        DEBUG_LOG_LAZY("lastfm", "Missing username or password - scrobbling disabled");
     }
 }
 
@@ -95,7 +95,7 @@ void LastFM::writeConfig()
     System::createStoragePath();
     std::ofstream config(m_config_file);
     if (!config.is_open()) {
-        Debug::log("lastfm", "Failed to write config file: ", m_config_file);
+        DEBUG_LOG_LAZY("lastfm", "Failed to write config file: ", m_config_file);
         return;
     }
     
@@ -127,10 +127,10 @@ std::string LastFM::getSessionKey()
     }
     
     m_handshake_attempts++;
-    Debug::log("lastfm", "Failed to obtain session key from all hosts. Attempt #", m_handshake_attempts);
+    DEBUG_LOG_LAZY("lastfm", "Failed to obtain session key from all hosts. Attempt #", m_handshake_attempts);
 
     if (m_handshake_attempts >= 3) {
-        Debug::log("lastfm", "Exceeded handshake retry limit. Disabling for this session.");
+        DEBUG_LOG_LAZY("lastfm", "Exceeded handshake retry limit. Disabling for this session.");
         m_handshake_permanently_failed = true;
     }
 
@@ -140,7 +140,7 @@ std::string LastFM::getSessionKey()
 bool LastFM::performHandshake(int host_index)
 {
     if (m_username.empty() || m_password.empty()) {
-        Debug::log("lastfm", "Username or password not configured");
+        DEBUG_LOG_LAZY("lastfm", "Username or password not configured");
         return false;
     }
     
@@ -170,12 +170,12 @@ bool LastFM::performHandshake(int host_index)
     url += "&a=";
     url += auth_token;
     
-    Debug::log("lastfm", "Performing handshake with ", m_api_hosts[host_index]);
+    DEBUG_LOG_LAZY("lastfm", "Performing handshake with ", m_api_hosts[host_index]);
     
     HTTPClient::Response response = HTTPClient::get(url, {{"Host", m_api_hosts[host_index]}}, 10); // 10 second timeout
     
     if (!response.success) {
-        Debug::log("lastfm", "Handshake failed - ", response.statusMessage);
+        DEBUG_LOG_LAZY("lastfm", "Handshake failed - ", response.statusMessage);
         return false;
     }
     
@@ -194,15 +194,15 @@ bool LastFM::performHandshake(int host_index)
             m_session_key = sessionKey;
             m_nowplaying_url = nowPlayingUrl;
             m_submission_url = submissionUrl;
-            Debug::log("lastfm", "Handshake successful. Session Key: ", m_session_key);
-            Debug::log("lastfm", "Now Playing URL: ", m_nowplaying_url);
-            Debug::log("lastfm", "Submission URL: ", m_submission_url);
+            DEBUG_LOG_LAZY("lastfm", "Handshake successful. Session Key: ", m_session_key);
+            DEBUG_LOG_LAZY("lastfm", "Now Playing URL: ", m_nowplaying_url);
+            DEBUG_LOG_LAZY("lastfm", "Submission URL: ", m_submission_url);
             return true;
         }
     } else if (status.substr(0, 6) == "FAILED") {
-        Debug::log("lastfm", "Handshake failed - ", status);
+        DEBUG_LOG_LAZY("lastfm", "Handshake failed - ", status);
     } else {
-        Debug::log("lastfm", "Unexpected handshake response: ", status);
+        DEBUG_LOG_LAZY("lastfm", "Unexpected handshake response: ", status);
     }
     
     return false;
@@ -236,14 +236,14 @@ void LastFM::loadScrobbles()
                 Scrobble scrobble = Scrobble::fromXML(scrobbleXML);
                 m_scrobbles.push(scrobble);
             } catch (const std::exception& e) {
-                Debug::log("lastfm", "Failed to parse cached scrobble: ", e.what());
+                DEBUG_LOG_LAZY("lastfm", "Failed to parse cached scrobble: ", e.what());
             }
         }
         
-        Debug::log("lastfm", "Loaded ", m_scrobbles.size(), " cached scrobbles");
+        DEBUG_LOG_LAZY("lastfm", "Loaded ", m_scrobbles.size(), " cached scrobbles");
         
     } catch (const std::exception& e) {
-        Debug::log("lastfm", "Failed to parse scrobble cache XML: ", e.what());
+        DEBUG_LOG_LAZY("lastfm", "Failed to parse scrobble cache XML: ", e.what());
     }
 }
 
@@ -258,7 +258,7 @@ void LastFM::saveScrobbles()
     System::createStoragePath();
     std::ofstream cache(m_cache_file);
     if (!cache.is_open()) {
-        Debug::log("lastfm", "Failed to write cache file: ", m_cache_file);
+        DEBUG_LOG_LAZY("lastfm", "Failed to write cache file: ", m_cache_file);
         return;
     }
     
@@ -274,7 +274,7 @@ void LastFM::saveScrobbles()
             XMLUtil::Element scrobbleElement = XMLUtil::parseXML(scrobbleXML);
             root.children.push_back(scrobbleElement);
         } catch (const std::exception& e) {
-            Debug::log("lastfm", "Failed to serialize scrobble: ", e.what());
+            DEBUG_LOG_LAZY("lastfm", "Failed to serialize scrobble: ", e.what());
         }
         temp_queue.pop();
     }
@@ -283,7 +283,7 @@ void LastFM::saveScrobbles()
     cache << "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
     cache << XMLUtil::generateXML(root) << "\n";
     
-    Debug::log("lastfm", "Saved ", m_scrobbles.size(), " scrobbles to cache");
+    DEBUG_LOG_LAZY("lastfm", "Saved ", m_scrobbles.size(), " scrobbles to cache");
 }
 
 void LastFM::submissionThreadLoop()
@@ -292,9 +292,20 @@ void LastFM::submissionThreadLoop()
     
     while (!m_shutdown) {
         std::unique_lock<std::mutex> lock(m_scrobble_mutex);
-        m_submission_cv.wait(lock, [this] { 
-            return (!m_scrobbles.empty() && !m_handshake_permanently_failed) || m_shutdown; 
-        });
+        
+        // Wait for scrobbles or shutdown, with backoff timeout (Requirements 4.1, 4.4)
+        if (m_backoff_seconds > 0) {
+            // If in backoff, wait with timeout instead of indefinitely
+            auto timeout = std::chrono::seconds(m_backoff_seconds);
+            m_submission_cv.wait_for(lock, timeout, [this] { 
+                return (!m_scrobbles.empty() && !m_handshake_permanently_failed) || m_shutdown; 
+            });
+        } else {
+            // Normal wait when not in backoff
+            m_submission_cv.wait(lock, [this] { 
+                return (!m_scrobbles.empty() && !m_handshake_permanently_failed) || m_shutdown; 
+            });
+        }
         
         if (m_shutdown) break;
         
@@ -310,10 +321,27 @@ void LastFM::submissionThreadLoop()
     }
 }
 
+void LastFM::resetBackoff()
+{
+    m_backoff_seconds = 0;
+    DEBUG_LOG_LAZY("lastfm", "Backoff reset - normal submission resumed");
+}
+
+void LastFM::increaseBackoff()
+{
+    if (m_backoff_seconds == 0) {
+        m_backoff_seconds = INITIAL_BACKOFF_SECONDS;
+    } else {
+        m_backoff_seconds = std::min(m_backoff_seconds * 2, MAX_BACKOFF_SECONDS);
+    }
+    DEBUG_LOG_LAZY("lastfm", "Backoff increased to ", m_backoff_seconds, " seconds");
+}
+
 void LastFM::submitSavedScrobbles()
 {
     if ((m_session_key.empty() || m_submission_url.empty()) && getSessionKey().empty()) {
-        Debug::log("lastfm", "Cannot submit scrobbles without valid session key and submission URL");
+        DEBUG_LOG_LAZY("lastfm", "Cannot submit scrobbles without valid session key and submission URL");
+        increaseBackoff();  // Apply backoff on failure (Requirements 4.3)
         return;
     }
     
@@ -335,13 +363,15 @@ void LastFM::submitSavedScrobbles()
             m_scrobbles.pop();
             submitted++;
         } else {
-            Debug::log("lastfm", "Failed to submit scrobble, keeping in cache");
+            DEBUG_LOG_LAZY("lastfm", "Failed to submit scrobble, keeping in cache");
+            increaseBackoff();  // Apply backoff on failure (Requirements 4.3)
             break; // Don't try more if this one failed
         }
     }
     
     if (submitted > 0) {
-        Debug::log("lastfm", "Successfully submitted ", submitted, " scrobbles");
+        DEBUG_LOG_LAZY("lastfm", "Successfully submitted ", submitted, " scrobbles");
+        resetBackoff();  // Reset backoff on successful submission (Requirements 4.3)
         saveScrobbles(); // Update cache
     }
 }
@@ -350,7 +380,7 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
                            const std::string& album, int length, time_t timestamp)
 {
     if (m_session_key.empty()) {
-        Debug::log("lastfm", "No session key available for scrobble submission");
+        DEBUG_LOG_LAZY("lastfm", "No session key available for scrobble submission");
         return false;
     }
     
@@ -379,7 +409,7 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     
     // Use submission URL from handshake response
     if (m_submission_url.empty()) {
-        Debug::log("lastfm", "No submission URL available");
+        DEBUG_LOG_LAZY("lastfm", "No submission URL available");
         return false;
     }
     
@@ -392,10 +422,10 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
         std::getline(responseStream, status);
         
         if (status == "OK") {
-            Debug::log("lastfm", "Scrobble submitted successfully: ", artist, " - ", title);
+            DEBUG_LOG_LAZY("lastfm", "Scrobble submitted successfully: ", artist, " - ", title);
             return true;
         } else if (status.substr(0, 6) == "FAILED") {
-            Debug::log("lastfm", "Scrobble submission failed - ", status);
+            DEBUG_LOG_LAZY("lastfm", "Scrobble submission failed - ", status);
             // Clear session for authentication failures
             if (status.find("BADAUTH") != std::string::npos) {
                 m_session_key.clear(); // Force re-authentication
@@ -403,10 +433,10 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
                 m_nowplaying_url.clear();
             }
         } else {
-            Debug::log("lastfm", "Unexpected scrobble response: ", status);
+            DEBUG_LOG_LAZY("lastfm", "Unexpected scrobble response: ", status);
         }
     } else {
-        Debug::log("lastfm", "HTTP error during scrobble submission: ", response.statusMessage);
+        DEBUG_LOG_LAZY("lastfm", "HTTP error during scrobble submission: ", response.statusMessage);
     }
     
     return false;
@@ -416,15 +446,15 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
 bool LastFM::setNowPlaying(const track& track)
 {
     if (!isConfigured()) {
-        Debug::log("lastfm", "Cannot set now playing - not configured");
+        DEBUG_LOG_LAZY("lastfm", "Cannot set now playing - not configured");
         return false;
     }
     
-    Debug::log("lastfm", "Setting now playing: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+    DEBUG_LOG_LAZY("lastfm", "Setting now playing: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
     
     // Ensure we have valid session and now playing URL
     if ((m_session_key.empty() || m_nowplaying_url.empty()) && getSessionKey().empty()) {
-        Debug::log("lastfm", "Cannot set now playing without valid session key and now playing URL");
+        DEBUG_LOG_LAZY("lastfm", "Cannot set now playing without valid session key and now playing URL");
         return false;
     }
     
@@ -449,7 +479,7 @@ bool LastFM::setNowPlaying(const track& track)
     
     // Use now playing URL from handshake response
     if (m_nowplaying_url.empty()) {
-        Debug::log("lastfm", "No now playing URL available");
+        DEBUG_LOG_LAZY("lastfm", "No now playing URL available");
         return false;
     }
     
@@ -462,10 +492,10 @@ bool LastFM::setNowPlaying(const track& track)
         std::getline(responseStream, status);
         
         if (status == "OK") {
-            Debug::log("lastfm", "Now playing submitted successfully: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+            DEBUG_LOG_LAZY("lastfm", "Now playing submitted successfully: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
             return true;
         } else if (status.substr(0, 6) == "FAILED") {
-            Debug::log("lastfm", "Now playing submission failed - ", status);
+            DEBUG_LOG_LAZY("lastfm", "Now playing submission failed - ", status);
             // Clear session for authentication failures
             if (status.find("BADAUTH") != std::string::npos) {
                 m_session_key.clear(); // Force re-authentication
@@ -473,10 +503,10 @@ bool LastFM::setNowPlaying(const track& track)
                 m_nowplaying_url.clear();
             }
         } else {
-            Debug::log("lastfm", "Unexpected now playing response: ", status);
+            DEBUG_LOG_LAZY("lastfm", "Unexpected now playing response: ", status);
         }
     } else {
-        Debug::log("lastfm", "HTTP error during now playing submission: ", response.statusMessage);
+        DEBUG_LOG_LAZY("lastfm", "HTTP error during now playing submission: ", response.statusMessage);
     }
     
     return false;
@@ -485,15 +515,15 @@ bool LastFM::setNowPlaying(const track& track)
 bool LastFM::unsetNowPlaying()
 {
     if (!isConfigured()) {
-        Debug::log("lastfm", "Cannot unset now playing - not configured");
+        DEBUG_LOG_LAZY("lastfm", "Cannot unset now playing - not configured");
         return false;
     }
     
-    Debug::log("lastfm", "Clearing now playing status");
+    DEBUG_LOG_LAZY("lastfm", "Clearing now playing status");
     
     // Ensure we have valid session and now playing URL
     if ((m_session_key.empty() || m_nowplaying_url.empty()) && getSessionKey().empty()) {
-        Debug::log("lastfm", "Cannot unset now playing without valid session key and now playing URL");
+        DEBUG_LOG_LAZY("lastfm", "Cannot unset now playing without valid session key and now playing URL");
         return false;
     }
     
@@ -508,7 +538,7 @@ bool LastFM::unsetNowPlaying()
     
     // Use now playing URL from handshake response
     if (m_nowplaying_url.empty()) {
-        Debug::log("lastfm", "No now playing URL available");
+        DEBUG_LOG_LAZY("lastfm", "No now playing URL available");
         return false;
     }
     
@@ -521,10 +551,10 @@ bool LastFM::unsetNowPlaying()
         std::getline(responseStream, status);
         
         if (status == "OK") {
-            Debug::log("lastfm", "Now playing status cleared successfully");
+            DEBUG_LOG_LAZY("lastfm", "Now playing status cleared successfully");
             return true;
         } else if (status.substr(0, 6) == "FAILED") {
-            Debug::log("lastfm", "Failed to clear now playing status - ", status);
+            DEBUG_LOG_LAZY("lastfm", "Failed to clear now playing status - ", status);
             // Clear session for authentication failures
             if (status.find("BADAUTH") != std::string::npos) {
                 m_session_key.clear(); // Force re-authentication
@@ -532,10 +562,10 @@ bool LastFM::unsetNowPlaying()
                 m_nowplaying_url.clear();
             }
         } else {
-            Debug::log("lastfm", "Unexpected response when clearing now playing: ", status);
+            DEBUG_LOG_LAZY("lastfm", "Unexpected response when clearing now playing: ", status);
         }
     } else {
-        Debug::log("lastfm", "HTTP error when clearing now playing: ", response.statusMessage);
+        DEBUG_LOG_LAZY("lastfm", "HTTP error when clearing now playing: ", response.statusMessage);
     }
     
     return false;
