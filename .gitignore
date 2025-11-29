@@ -328,3 +328,4 @@ tests/test_lastfm_scrobble_cache_roundtrip_properties
 tests/test_lastfm_config_backward_compatibility
 tests/test_lastfm_config_roundtrip_properties
 tests/test_streaminfo_debug
+tests/test_lastfm_thread_safety_properties
