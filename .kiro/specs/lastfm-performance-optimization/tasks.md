@@ -34,20 +34,20 @@
 - [x] 3. Checkpoint - Verify optimizations compile and basic functionality works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [-] 4. Implement Lazy Debug Logging
+- [x] 4. Implement Lazy Debug Logging
   - [x] 4.1 Add DEBUG_LOG_LAZY macro to debug.h
     - Macro checks isChannelEnabled() before evaluating arguments
     - Use do-while(0) pattern for safe macro expansion
     - _Requirements: 3.1, 3.3_
-  - [ ] 4.2 Replace Debug::log calls in LastFM.cpp with DEBUG_LOG_LAZY
+  - [x] 4.2 Replace Debug::log calls in LastFM.cpp with DEBUG_LOG_LAZY
     - Update all log calls to use new macro
     - Preserve existing log messages and channels
     - _Requirements: 3.4_
-  - [ ] 4.3 Write property test for lazy evaluation
+  - [x] 4.3 Write property test for lazy evaluation
     - **Property 3: Debug Logging Lazy Evaluation**
     - **Validates: Requirements 3.1, 3.3**
 
-- [-] 5. Optimize Submission Thread Behavior
+- [x] 5. Optimize Submission Thread Behavior
   - [x] 5.1 Add exponential backoff state and logic
     - Add m_backoff_seconds member variable
     - Add resetBackoff() and increaseBackoff() methods

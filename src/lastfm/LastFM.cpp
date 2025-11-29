@@ -574,7 +574,7 @@ bool LastFM::unsetNowPlaying()
 bool LastFM::scrobbleTrack(const track& track)
 {
     if (!isConfigured()) {
-        Debug::log("lastfm", "Cannot scrobble - not configured");
+        DEBUG_LOG_LAZY("lastfm", "Cannot scrobble - not configured");
         return false;
     }
     
@@ -584,8 +584,8 @@ bool LastFM::scrobbleTrack(const track& track)
     std::lock_guard<std::mutex> lock(m_scrobble_mutex);
     m_scrobbles.push(scrobble);
     
-    Debug::log("lastfm", "Added scrobble to queue: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
-    Debug::log("lastfm", "Queue size: ", m_scrobbles.size());
+    DEBUG_LOG_LAZY("lastfm", "Added scrobble to queue: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+    DEBUG_LOG_LAZY("lastfm", "Queue size: ", m_scrobbles.size());
     
     // Notify submission thread
     m_submission_cv.notify_one();
