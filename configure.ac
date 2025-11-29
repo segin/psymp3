@@ -195,10 +195,13 @@ AC_ARG_ENABLE([rapidcheck],
 have_rapidcheck=no
 if test "x$enable_rapidcheck" != "xno"; then
   # Check for RapidCheck headers and library
+  # RapidCheck is a C++ library, so we need to use C++ compiler for the check
+  AC_LANG_PUSH([C++])
   AC_CHECK_HEADERS([rapidcheck.h], [have_rapidcheck_headers=yes], [have_rapidcheck_headers=no])
   if test "x$have_rapidcheck_headers" = "xyes"; then
     AC_CHECK_LIB([rapidcheck], [main], [have_rapidcheck=yes], [have_rapidcheck=no])
   fi
+  AC_LANG_POP([C++])
   
   if test "x$have_rapidcheck" = "xyes"; then
     AC_DEFINE([HAVE_RAPIDCHECK], [1], [Define to 1 if RapidCheck is available])

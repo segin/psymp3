@@ -552,18 +552,285 @@ OggDemuxer::~OggDemuxer() {
     Debug::log("ogg", "OggDemuxer destructor - cleanup complete");
 }
 
+/**
+ * @brief Parse the Ogg container and identify all streams
+ * 
+ * Following libvorbisfile and libopusfile patterns:
+ * - Read pages sequentially using ogg_sync_pageout()
+ * - Process BOS pages to identify streams and codecs
+ * - Parse header packets for each stream
+ * - Mark streams as ready when all headers are received
+ * 
+ * @return true if container was successfully parsed, false on error
+ * 
+ * Requirements: 14.1, 14.5, 14.8
+ */
 bool OggDemuxer::parseContainer() {
-    Debug::log("ogg", "OggDemuxer::parseContainer - placeholder implementation");
-    // TODO: Implement RFC 3533 compliant page parsing
-    return false;
+    Debug::log("ogg", "OggDemuxer::parseContainer - starting RFC 3533 compliant parsing");
+    
+    // Acquire lock for state changes
+    std::lock_guard<std::mutex> lock(m_ogg_state_mutex);
+    
+    // Get file size for duration calculation
+    if (m_handler) {
+        m_handler->seek(0, SEEK_END);
+        m_file_size = static_cast<uint64_t>(m_handler->tell());
+        m_handler->seek(0, SEEK_SET);
+        Debug::log("ogg", "parseContainer: File size = %llu bytes", 
+                   static_cast<unsigned long long>(m_file_size));
+    }
+    
+    // Reset state
+    m_streams.clear();
+    m_ogg_streams.clear();
+    m_bos_serial_numbers.clear();
+    m_eos_serial_numbers.clear();
+    m_in_headers_phase = true;
+    m_seen_data_page = false;
+    m_chain_count = 0;
+    m_max_granule_seen = 0;
+    m_eof = false;
+    
+    // Reset libogg sync state
+    ogg_sync_reset(&m_sync_state);
+    
+    // Read and process pages until all headers are complete
+    ogg_page page;
+    int max_header_pages = 1000;  // Prevent infinite loops
+    int pages_read = 0;
+    bool all_headers_complete = false;
+    
+    while (!all_headers_complete && pages_read < max_header_pages) {
+        // Get next page
+        int result = getNextPage(&page, -1);
+        
+        if (result < 0) {
+            if (result == -3) {
+                // EOF reached
+                Debug::log("ogg", "parseContainer: EOF reached after %d pages", pages_read);
+                break;
+            }
+            Debug::log("ogg", "parseContainer: Error reading page: %d", result);
+            break;
+        }
+        
+        pages_read++;
+        
+        // Process the page
+        if (!processPage(&page)) {
+            Debug::log("ogg", "parseContainer: Failed to process page %d", pages_read);
+            // Continue trying to read more pages
+        }
+        
+        // Check if all headers are complete
+        if (!m_streams.empty()) {
+            all_headers_complete = true;
+            for (const auto& [serial, stream] : m_streams) {
+                if (!stream.headers_complete) {
+                    all_headers_complete = false;
+                    break;
+                }
+            }
+        }
+        
+        // Also stop if we've seen data pages and have at least one complete stream
+        if (m_seen_data_page && !m_streams.empty()) {
+            bool has_complete_stream = false;
+            for (const auto& [serial, stream] : m_streams) {
+                if (stream.headers_complete) {
+                    has_complete_stream = true;
+                    break;
+                }
+            }
+            if (has_complete_stream) {
+                Debug::log("ogg", "parseContainer: Data pages started, stopping header parsing");
+                break;
+            }
+        }
+    }
+    
+    if (m_streams.empty()) {
+        Debug::log("ogg", "parseContainer: No streams found");
+        return false;
+    }
+    
+    // Mark any streams with enough headers as complete
+    for (auto& [serial, stream] : m_streams) {
+        if (!stream.headers_complete) {
+            // Check if we have minimum required headers
+            size_t min_headers = 1;  // At least identification header
+            if (stream.codec_name == "vorbis") {
+                min_headers = 3;  // Vorbis requires all 3 headers
+            } else if (stream.codec_name == "opus") {
+                min_headers = 2;  // Opus requires 2 headers
+            } else if (stream.codec_name == "flac") {
+                min_headers = 1;  // FLAC can work with just identification
+            }
+            
+            if (stream.header_packets.size() >= min_headers) {
+                stream.headers_complete = true;
+                Debug::log("ogg", "parseContainer: Stream 0x%08x marked complete with %zu headers",
+                           serial, stream.header_packets.size());
+            }
+        }
+    }
+    
+    // Calculate duration using backward scanning
+    uint64_t last_granule = getLastGranulePosition();
+    if (last_granule > 0) {
+        m_max_granule_seen = last_granule;
+        
+        // Find primary audio stream for duration calculation
+        for (const auto& [serial, stream] : m_streams) {
+            if (stream.codec_type == "audio" && stream.headers_complete) {
+                m_duration_ms = granuleToMs(last_granule, serial);
+                Debug::log("ogg", "parseContainer: Duration = %llu ms (granule %llu)",
+                           static_cast<unsigned long long>(m_duration_ms),
+                           static_cast<unsigned long long>(last_granule));
+                break;
+            }
+        }
+    }
+    
+    // Reset to beginning for playback
+    m_handler->seek(0, SEEK_SET);
+    ogg_sync_reset(&m_sync_state);
+    
+    // Reset stream states for playback
+    for (auto& [serial, ogg_stream] : m_ogg_streams) {
+        ogg_stream_reset(&ogg_stream);
+    }
+    
+    // Re-read header pages to populate stream states
+    pages_read = 0;
+    while (pages_read < max_header_pages) {
+        int result = getNextPage(&page, -1);
+        if (result < 0) break;
+        
+        pages_read++;
+        
+        uint32_t serial = pageSerialNo(&page);
+        auto ogg_stream_it = m_ogg_streams.find(serial);
+        if (ogg_stream_it != m_ogg_streams.end()) {
+            ogg_stream_pagein(&ogg_stream_it->second, &page);
+        }
+        
+        // Stop when we've re-read all header pages
+        if (!pageBOS(&page) && m_seen_data_page) {
+            break;
+        }
+    }
+    
+    m_parsed = true;
+    
+    Debug::log("ogg", "parseContainer: Successfully parsed %zu streams", m_streams.size());
+    return true;
 }
 
+/**
+ * @brief Get information about all streams in the container
+ * 
+ * Returns StreamInfo structures populated with accurate codec data
+ * from the parsed Ogg streams.
+ * 
+ * @return Vector of StreamInfo objects, one for each stream
+ * 
+ * Requirements: 14.1, 14.2
+ */
 std::vector<StreamInfo> OggDemuxer::getStreams() const {
-    return {};
+    std::vector<StreamInfo> result;
+    
+    for (const auto& [serial, stream] : m_streams) {
+        if (!stream.headers_complete) {
+            continue;  // Skip incomplete streams
+        }
+        
+        StreamInfo info;
+        info.stream_id = serial;
+        info.codec_type = stream.codec_type;
+        info.codec_name = stream.codec_name;
+        info.sample_rate = stream.sample_rate;
+        info.channels = stream.channels;
+        info.bits_per_sample = stream.bits_per_sample;
+        info.bitrate = stream.bitrate;
+        
+        // Duration information
+        if (stream.total_samples > 0 && stream.sample_rate > 0) {
+            info.duration_samples = stream.total_samples;
+            info.duration_ms = (stream.total_samples * 1000) / stream.sample_rate;
+        } else if (m_duration_ms > 0) {
+            info.duration_ms = m_duration_ms;
+            if (stream.sample_rate > 0) {
+                info.duration_samples = (m_duration_ms * stream.sample_rate) / 1000;
+            }
+        }
+        
+        // Metadata
+        info.artist = stream.artist;
+        info.title = stream.title;
+        info.album = stream.album;
+        
+        // Codec-specific data (header packets)
+        // For Ogg formats, we store all header packets concatenated
+        for (const auto& header : stream.header_packets) {
+            info.codec_data.insert(info.codec_data.end(), 
+                                   header.data.begin(), header.data.end());
+        }
+        
+        result.push_back(std::move(info));
+    }
+    
+    return result;
 }
 
+/**
+ * @brief Get information about a specific stream
+ * 
+ * @param stream_id Stream ID to query
+ * @return StreamInfo for the stream, or empty StreamInfo if not found
+ * 
+ * Requirements: 14.2
+ */
 StreamInfo OggDemuxer::getStreamInfo(uint32_t stream_id) const {
-    return StreamInfo{};
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        return StreamInfo{};
+    }
+    
+    const OggStream& stream = stream_it->second;
+    
+    StreamInfo info;
+    info.stream_id = stream_id;
+    info.codec_type = stream.codec_type;
+    info.codec_name = stream.codec_name;
+    info.sample_rate = stream.sample_rate;
+    info.channels = stream.channels;
+    info.bits_per_sample = stream.bits_per_sample;
+    info.bitrate = stream.bitrate;
+    
+    // Duration information
+    if (stream.total_samples > 0 && stream.sample_rate > 0) {
+        info.duration_samples = stream.total_samples;
+        info.duration_ms = (stream.total_samples * 1000) / stream.sample_rate;
+    } else if (m_duration_ms > 0) {
+        info.duration_ms = m_duration_ms;
+        if (stream.sample_rate > 0) {
+            info.duration_samples = (m_duration_ms * stream.sample_rate) / 1000;
+        }
+    }
+    
+    // Metadata
+    info.artist = stream.artist;
+    info.title = stream.title;
+    info.album = stream.album;
+    
+    // Codec-specific data
+    for (const auto& header : stream.header_packets) {
+        info.codec_data.insert(info.codec_data.end(),
+                               header.data.begin(), header.data.end());
+    }
+    
+    return info;
 }
 
 /**
@@ -3742,8 +4009,9 @@ void OggDemuxer::cleanupLiboggStructures_unlocked() {
     }
     m_ogg_streams.clear();
     
-    // Reset sync state
-    ogg_sync_reset(&m_sync_state);
+    // Clear sync state (proper cleanup for destructor)
+    // ogg_sync_clear frees internal buffers allocated by ogg_sync_init
+    ogg_sync_clear(&m_sync_state);
     
     Debug::log("ogg", "cleanupLiboggStructures_unlocked: Cleaned up all libogg structures");
 }

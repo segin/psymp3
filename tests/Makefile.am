@@ -3335,4 +3335,24 @@ test_ogg_thread_safety_LDADD = \
 if HAVE_RAPIDCHECK
 test_ogg_thread_safety_LDADD += $(RAPIDCHECK_LIBS)
 endif
+
+# OggDemuxer position reporting consistency property-based tests
+# **Feature: ogg-demuxer-fix, Property 17: Position Reporting Consistency**
+# **Validates: Requirements 14.4**
+check_PROGRAMS += test_position_reporting_property
+test_position_reporting_property_SOURCES = ogg/test_position_reporting_property.cpp
+test_position_reporting_property_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17
+test_position_reporting_property_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) \
+	$(AM_LDFLAGS)
+if HAVE_RAPIDCHECK
+test_position_reporting_property_LDADD += $(RAPIDCHECK_LIBS)
+endif
 endif
