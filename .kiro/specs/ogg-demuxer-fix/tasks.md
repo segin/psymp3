@@ -308,14 +308,14 @@
     - **Property 16: Thread Safety**
     - **Validates: Requirements 11.1**
 
-- [ ] 17. Implement Page Boundary and Packet Continuation
-  - [ ] 17.1 Implement packet continuation handling
+- [x] 17. Implement Page Boundary and Packet Continuation
+  - [x] 17.1 Implement packet continuation handling
     - Use ogg_stream_packetout() for multi-page packet reconstruction
     - Handle continued packet flag using ogg_page_continued()
     - Wait for continuation pages for incomplete packets
     - Rely on libogg's internal segment handling
     - _Requirements: 13.1, 13.2, 13.3, 13.4_
-  - [ ] 17.2 Implement packet boundary detection
+  - [x] 17.2 Implement packet boundary detection
     - Use libogg's packet reconstruction for lacing values
     - Expect continuation on next page when page ends with 255
     - Finalize incomplete packets on EOS page

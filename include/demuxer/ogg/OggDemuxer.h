@@ -970,6 +970,142 @@ public:
     size_t getTotalQueuedPackets() const;
     
     // ========================================================================
+    // Task 17: Page Boundary and Packet Continuation (RFC 3533 Section 5)
+    // ========================================================================
+    
+    // ========================================================================
+    // Task 17.1: Packet Continuation Handling (Requirements 13.1, 13.2, 13.3, 13.4)
+    // ========================================================================
+    
+    /**
+     * @brief Extract packets from a page using ogg_stream_packetout()
+     * 
+     * Following libogg patterns for multi-page packet reconstruction:
+     * - Use ogg_stream_packetout() which handles continuation internally
+     * - libogg accumulates segments across pages automatically
+     * - Returns complete packets only when all segments are received
+     * 
+     * @param stream_id Stream ID to extract packets from
+     * @param packets Output: vector of extracted packets
+     * @return Number of complete packets extracted
+     * 
+     * Requirements: 13.1, 13.4
+     */
+    size_t extractPacketsFromStream_unlocked(uint32_t stream_id, 
+                                             std::vector<OggPacket>& packets);
+    
+    /**
+     * @brief Check if a page has the continued packet flag set
+     * 
+     * Per RFC 3533 Section 6: header_type bit 0 (0x01) indicates
+     * the first packet on this page is continued from the previous page.
+     * 
+     * @param page Pointer to ogg_page structure
+     * @return true if continuation flag is set
+     * 
+     * Requirements: 13.2
+     */
+    static bool hasPacketContinuation(const ogg_page* page);
+    
+    /**
+     * @brief Wait for continuation pages for incomplete packets
+     * 
+     * When a packet spans multiple pages, libogg's ogg_stream_packetout()
+     * returns 0 until all continuation pages are received. This method
+     * reads additional pages until the packet is complete.
+     * 
+     * @param stream_id Stream ID with incomplete packet
+     * @param max_pages Maximum pages to read while waiting
+     * @return true if continuation pages were successfully read
+     * 
+     * Requirements: 13.3
+     */
+    bool waitForContinuationPages_unlocked(uint32_t stream_id, size_t max_pages = 10);
+    
+    /**
+     * @brief Check if stream has an incomplete packet waiting for continuation
+     * 
+     * Uses ogg_stream_packetpeek() to check if there's a partial packet
+     * in the stream state waiting for more data.
+     * 
+     * @param stream_id Stream ID to check
+     * @return true if there's an incomplete packet
+     * 
+     * Requirements: 13.3
+     */
+    bool hasIncompletePacket_unlocked(uint32_t stream_id) const;
+    
+    // ========================================================================
+    // Task 17.2: Packet Boundary Detection (Requirements 13.5, 13.6, 13.7)
+    // ========================================================================
+    
+    /**
+     * @brief Check if page ends with a lacing value of 255 (packet continues)
+     * 
+     * Per RFC 3533 Section 5: A lacing value of 255 indicates the packet
+     * continues in the next segment. If the last lacing value is 255,
+     * the packet continues on the next page.
+     * 
+     * @param page Pointer to ogg_page structure
+     * @return true if last lacing value is 255 (packet continues)
+     * 
+     * Requirements: 13.6
+     */
+    static bool pageEndsWithContinuation(const ogg_page* page);
+    
+    /**
+     * @brief Get packet boundary information from page segment table
+     * 
+     * Analyzes the segment table to determine:
+     * - Number of complete packets on this page
+     * - Whether first packet is continued from previous page
+     * - Whether last packet continues to next page
+     * 
+     * @param page Pointer to ogg_page structure
+     * @param complete_packets Output: number of complete packets
+     * @param first_continued Output: true if first packet is continued
+     * @param last_continues Output: true if last packet continues
+     * 
+     * Requirements: 13.5, 13.6
+     */
+    static void analyzePacketBoundaries(const ogg_page* page,
+                                        size_t& complete_packets,
+                                        bool& first_continued,
+                                        bool& last_continues);
+    
+    /**
+     * @brief Finalize incomplete packets on EOS page
+     * 
+     * Per RFC 3533: When an EOS page is received, any incomplete packet
+     * in the stream state should be finalized and delivered, even if
+     * it would normally require more continuation data.
+     * 
+     * @param stream_id Stream ID with EOS page
+     * @return Number of packets finalized
+     * 
+     * Requirements: 13.7
+     */
+    size_t finalizeIncompletePacketsOnEOS_unlocked(uint32_t stream_id);
+    
+    /**
+     * @brief Process a page and extract all available packets
+     * 
+     * Combines page submission and packet extraction:
+     * 1. Submit page to stream state using ogg_stream_pagein()
+     * 2. Extract all complete packets using ogg_stream_packetout()
+     * 3. Handle continuation flags and EOS appropriately
+     * 
+     * @param page Pointer to ogg_page structure
+     * @param stream_id Stream ID for the page
+     * @param packets Output: vector of extracted packets
+     * @return Number of packets extracted, or -1 on error
+     * 
+     * Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7
+     */
+    int processPageAndExtractPackets_unlocked(ogg_page* page, uint32_t stream_id,
+                                              std::vector<OggPacket>& packets);
+    
+    // ========================================================================
     // Task 14: Error Handling and Robustness
     // ========================================================================
     

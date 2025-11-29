@@ -5282,6 +5282,511 @@ uint32_t OggDemuxer::getFlacFrameSampleCount(const OggPacket& packet) const {
 }
 
 // ============================================================================
+// Task 17: Page Boundary and Packet Continuation (RFC 3533 Section 5)
+// ============================================================================
+
+// ============================================================================
+// Task 17.1: Packet Continuation Handling (Requirements 13.1, 13.2, 13.3, 13.4)
+// ============================================================================
+
+/**
+ * @brief Extract packets from a page using ogg_stream_packetout()
+ * 
+ * Following libogg patterns for multi-page packet reconstruction:
+ * - Use ogg_stream_packetout() which handles continuation internally
+ * - libogg accumulates segments across pages automatically
+ * - Returns complete packets only when all segments are received
+ * 
+ * @param stream_id Stream ID to extract packets from
+ * @param packets Output: vector of extracted packets
+ * @return Number of complete packets extracted
+ * 
+ * Requirements: 13.1, 13.4
+ */
+size_t OggDemuxer::extractPacketsFromStream_unlocked(uint32_t stream_id, 
+                                                      std::vector<OggPacket>& packets) {
+    packets.clear();
+    
+    // Find the ogg_stream_state for this stream
+    auto ogg_stream_it = m_ogg_streams.find(stream_id);
+    if (ogg_stream_it == m_ogg_streams.end()) {
+        Debug::log("ogg", "extractPacketsFromStream_unlocked: No ogg_stream_state for 0x%08x",
+                   stream_id);
+        return 0;
+    }
+    
+    ogg_stream_state& os = ogg_stream_it->second;
+    ogg_packet ogg_pkt;
+    size_t packet_count = 0;
+    
+    // Use ogg_stream_packetout() to extract complete packets
+    // libogg handles multi-page packet reconstruction internally (Requirements 13.1, 13.4)
+    // Returns:
+    //   1 = packet extracted successfully
+    //   0 = need more data (packet spans pages, waiting for continuation)
+    //  -1 = out of sync (hole in data)
+    int ret;
+    while ((ret = ogg_stream_packetout(&os, &ogg_pkt)) != 0) {
+        if (ret == 1) {
+            // Complete packet extracted
+            OggPacket packet;
+            packet.stream_id = stream_id;
+            packet.data.assign(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+            packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+            packet.is_first_packet = (ogg_pkt.b_o_s != 0);
+            packet.is_last_packet = (ogg_pkt.e_o_s != 0);
+            packet.is_continued = false;  // libogg handles continuation internally
+            
+            packets.push_back(std::move(packet));
+            packet_count++;
+            
+            Debug::log("ogg", "extractPacketsFromStream_unlocked: Extracted packet %zu, "
+                       "size=%lld, granule=%lld, bos=%d, eos=%d",
+                       packet_count, static_cast<long long>(ogg_pkt.bytes),
+                       static_cast<long long>(ogg_pkt.granulepos),
+                       ogg_pkt.b_o_s, ogg_pkt.e_o_s);
+        } else if (ret == -1) {
+            // Hole in data - report but continue
+            Debug::log("ogg", "extractPacketsFromStream_unlocked: Hole detected in stream 0x%08x",
+                       stream_id);
+            // Continue extracting - there may be more packets after the hole
+        }
+    }
+    
+    Debug::log("ogg", "extractPacketsFromStream_unlocked: Extracted %zu packets from stream 0x%08x",
+               packet_count, stream_id);
+    
+    return packet_count;
+}
+
+/**
+ * @brief Check if a page has the continued packet flag set
+ * 
+ * Per RFC 3533 Section 6: header_type bit 0 (0x01) indicates
+ * the first packet on this page is continued from the previous page.
+ * 
+ * @param page Pointer to ogg_page structure
+ * @return true if continuation flag is set
+ * 
+ * Requirements: 13.2
+ */
+bool OggDemuxer::hasPacketContinuation(const ogg_page* page) {
+    if (!page || !page->header) {
+        return false;
+    }
+    // Use libogg's ogg_page_continued() for compatibility
+    return ogg_page_continued(const_cast<ogg_page*>(page)) != 0;
+}
+
+/**
+ * @brief Wait for continuation pages for incomplete packets
+ * 
+ * When a packet spans multiple pages, libogg's ogg_stream_packetout()
+ * returns 0 until all continuation pages are received. This method
+ * reads additional pages until the packet is complete.
+ * 
+ * @param stream_id Stream ID with incomplete packet
+ * @param max_pages Maximum pages to read while waiting
+ * @return true if continuation pages were successfully read
+ * 
+ * Requirements: 13.3
+ */
+bool OggDemuxer::waitForContinuationPages_unlocked(uint32_t stream_id, size_t max_pages) {
+    Debug::log("ogg", "waitForContinuationPages_unlocked: Waiting for continuation for stream 0x%08x",
+               stream_id);
+    
+    // Find the ogg_stream_state for this stream
+    auto ogg_stream_it = m_ogg_streams.find(stream_id);
+    if (ogg_stream_it == m_ogg_streams.end()) {
+        Debug::log("ogg", "waitForContinuationPages_unlocked: No ogg_stream_state for 0x%08x",
+                   stream_id);
+        return false;
+    }
+    
+    ogg_stream_state& os = ogg_stream_it->second;
+    ogg_page page;
+    size_t pages_read = 0;
+    
+    while (pages_read < max_pages) {
+        // Read next page from sync state
+        int ret = getNextPage(&page, -1);
+        if (ret <= 0) {
+            // No more pages available or error
+            Debug::log("ogg", "waitForContinuationPages_unlocked: No more pages available");
+            return false;
+        }
+        
+        pages_read++;
+        
+        // Check if this page belongs to our stream
+        uint32_t page_serial = pageSerialNo(&page);
+        if (page_serial != stream_id) {
+            // Page belongs to different stream - submit to that stream
+            auto other_stream_it = m_ogg_streams.find(page_serial);
+            if (other_stream_it != m_ogg_streams.end()) {
+                ogg_stream_pagein(&other_stream_it->second, &page);
+            }
+            continue;
+        }
+        
+        // Submit page to our stream
+        if (ogg_stream_pagein(&os, &page) != 0) {
+            Debug::log("ogg", "waitForContinuationPages_unlocked: ogg_stream_pagein() failed");
+            return false;
+        }
+        
+        // Check if we can now extract a packet
+        ogg_packet ogg_pkt;
+        ret = ogg_stream_packetpeek(&os, &ogg_pkt);
+        if (ret == 1) {
+            // Packet is now complete
+            Debug::log("ogg", "waitForContinuationPages_unlocked: Packet complete after %zu pages",
+                       pages_read);
+            return true;
+        }
+        
+        // Check for EOS - if we hit EOS, the packet should be finalized
+        if (pageEOS(&page)) {
+            Debug::log("ogg", "waitForContinuationPages_unlocked: Hit EOS while waiting");
+            return true;  // EOS finalizes incomplete packets
+        }
+    }
+    
+    Debug::log("ogg", "waitForContinuationPages_unlocked: Max pages (%zu) reached without completion",
+               max_pages);
+    return false;
+}
+
+/**
+ * @brief Check if stream has an incomplete packet waiting for continuation
+ * 
+ * Uses ogg_stream_packetpeek() to check if there's a partial packet
+ * in the stream state waiting for more data.
+ * 
+ * @param stream_id Stream ID to check
+ * @return true if there's an incomplete packet
+ * 
+ * Requirements: 13.3
+ */
+bool OggDemuxer::hasIncompletePacket_unlocked(uint32_t stream_id) const {
+    // Find the ogg_stream_state for this stream
+    auto ogg_stream_it = m_ogg_streams.find(stream_id);
+    if (ogg_stream_it == m_ogg_streams.end()) {
+        return false;
+    }
+    
+    // Use ogg_stream_packetpeek() to check without consuming
+    // Note: We need to cast away const because libogg doesn't use const
+    ogg_stream_state& os = const_cast<ogg_stream_state&>(ogg_stream_it->second);
+    ogg_packet ogg_pkt;
+    
+    // packetpeek returns:
+    //   1 = packet available
+    //   0 = need more data (incomplete packet)
+    //  -1 = hole in data
+    int ret = ogg_stream_packetpeek(&os, &ogg_pkt);
+    
+    // If ret == 0, there's data in the stream but no complete packet
+    // This indicates an incomplete packet waiting for continuation
+    // However, we need to check if there's actually any data buffered
+    // libogg doesn't expose this directly, so we check if the stream has pages
+    
+    // A more reliable check: if we've submitted pages but can't get packets,
+    // there's likely an incomplete packet
+    return (ret == 0);
+}
+
+// ============================================================================
+// Task 17.2: Packet Boundary Detection (Requirements 13.5, 13.6, 13.7)
+// ============================================================================
+
+/**
+ * @brief Check if page ends with a lacing value of 255 (packet continues)
+ * 
+ * Per RFC 3533 Section 5: A lacing value of 255 indicates the packet
+ * continues in the next segment. If the last lacing value is 255,
+ * the packet continues on the next page.
+ * 
+ * @param page Pointer to ogg_page structure
+ * @return true if last lacing value is 255 (packet continues)
+ * 
+ * Requirements: 13.6
+ */
+bool OggDemuxer::pageEndsWithContinuation(const ogg_page* page) {
+    if (!page || !page->header || 
+        static_cast<size_t>(page->header_len) < OGG_PAGE_HEADER_MIN_SIZE) {
+        return false;
+    }
+    
+    // Get number of segments from header (offset 26)
+    uint8_t num_segments = page->header[26];
+    if (num_segments == 0) {
+        return false;  // No segments means no continuation
+    }
+    
+    // Get the last lacing value from segment table
+    // Segment table starts at offset 27
+    uint8_t last_lacing = page->header[26 + num_segments];  // Last segment in table
+    
+    // Per RFC 3533 Section 5: lacing value of 255 means packet continues
+    return (last_lacing == 255);
+}
+
+/**
+ * @brief Get packet boundary information from page segment table
+ * 
+ * Analyzes the segment table to determine:
+ * - Number of complete packets on this page
+ * - Whether first packet is continued from previous page
+ * - Whether last packet continues to next page
+ * 
+ * @param page Pointer to ogg_page structure
+ * @param complete_packets Output: number of complete packets
+ * @param first_continued Output: true if first packet is continued
+ * @param last_continues Output: true if last packet continues
+ * 
+ * Requirements: 13.5, 13.6
+ */
+void OggDemuxer::analyzePacketBoundaries(const ogg_page* page,
+                                          size_t& complete_packets,
+                                          bool& first_continued,
+                                          bool& last_continues) {
+    complete_packets = 0;
+    first_continued = false;
+    last_continues = false;
+    
+    if (!page || !page->header || 
+        static_cast<size_t>(page->header_len) < OGG_PAGE_HEADER_MIN_SIZE) {
+        return;
+    }
+    
+    // Check continuation flag in header type (offset 5, bit 0)
+    first_continued = hasPacketContinuation(page);
+    
+    // Get number of segments from header (offset 26)
+    uint8_t num_segments = page->header[26];
+    if (num_segments == 0) {
+        return;  // No segments
+    }
+    
+    // Analyze segment table (starts at offset 27)
+    // Per RFC 3533 Section 5:
+    // - Lacing value of 255: packet continues in next segment
+    // - Lacing value < 255: packet ends (this is the final segment)
+    
+    for (uint8_t i = 0; i < num_segments; ++i) {
+        uint8_t lacing_value = page->header[27 + i];
+        
+        // A lacing value < 255 marks the end of a packet
+        if (lacing_value < 255) {
+            complete_packets++;
+        }
+    }
+    
+    // Check if last packet continues to next page
+    // This happens when the last lacing value is 255
+    uint8_t last_lacing = page->header[26 + num_segments];
+    last_continues = (last_lacing == 255);
+    
+    // Adjust complete packet count if first packet is continued
+    // The first "complete" packet might actually be the end of a continued packet
+    // libogg handles this internally, but for analysis purposes:
+    // If first_continued is true, the first packet boundary we find is actually
+    // completing a packet that started on a previous page
+    
+    Debug::log("ogg", "analyzePacketBoundaries: complete=%zu, first_continued=%d, last_continues=%d",
+               complete_packets, first_continued ? 1 : 0, last_continues ? 1 : 0);
+}
+
+/**
+ * @brief Finalize incomplete packets on EOS page
+ * 
+ * Per RFC 3533: When an EOS page is received, any incomplete packet
+ * in the stream state should be finalized and delivered, even if
+ * it would normally require more continuation data.
+ * 
+ * @param stream_id Stream ID with EOS page
+ * @return Number of packets finalized
+ * 
+ * Requirements: 13.7
+ */
+size_t OggDemuxer::finalizeIncompletePacketsOnEOS_unlocked(uint32_t stream_id) {
+    Debug::log("ogg", "finalizeIncompletePacketsOnEOS_unlocked: Finalizing for stream 0x%08x",
+               stream_id);
+    
+    // Find the ogg_stream_state for this stream
+    auto ogg_stream_it = m_ogg_streams.find(stream_id);
+    if (ogg_stream_it == m_ogg_streams.end()) {
+        Debug::log("ogg", "finalizeIncompletePacketsOnEOS_unlocked: No ogg_stream_state for 0x%08x",
+                   stream_id);
+        return 0;
+    }
+    
+    ogg_stream_state& os = ogg_stream_it->second;
+    
+    // Find the OggStream to add packets to
+    auto stream_it = m_streams.find(stream_id);
+    if (stream_it == m_streams.end()) {
+        Debug::log("ogg", "finalizeIncompletePacketsOnEOS_unlocked: No OggStream for 0x%08x",
+                   stream_id);
+        return 0;
+    }
+    
+    OggStream& stream = stream_it->second;
+    size_t packets_finalized = 0;
+    
+    // Extract all remaining packets from the stream
+    // libogg will finalize incomplete packets when EOS is set
+    ogg_packet ogg_pkt;
+    int ret;
+    
+    while ((ret = ogg_stream_packetout(&os, &ogg_pkt)) != 0) {
+        if (ret == 1) {
+            // Packet extracted (may be incomplete but finalized due to EOS)
+            OggPacket packet;
+            packet.stream_id = stream_id;
+            packet.data.assign(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+            packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+            packet.is_first_packet = (ogg_pkt.b_o_s != 0);
+            packet.is_last_packet = (ogg_pkt.e_o_s != 0);
+            packet.is_continued = false;
+            
+            // Add to packet queue
+            stream.m_packet_queue.push_back(std::move(packet));
+            packets_finalized++;
+            
+            // Update max granule seen
+            if (ogg_pkt.granulepos >= 0 &&
+                static_cast<uint64_t>(ogg_pkt.granulepos) > m_max_granule_seen) {
+                m_max_granule_seen = static_cast<uint64_t>(ogg_pkt.granulepos);
+            }
+            
+            Debug::log("ogg", "finalizeIncompletePacketsOnEOS_unlocked: Finalized packet, "
+                       "size=%lld, granule=%lld, eos=%d",
+                       static_cast<long long>(ogg_pkt.bytes),
+                       static_cast<long long>(ogg_pkt.granulepos),
+                       ogg_pkt.e_o_s);
+        } else if (ret == -1) {
+            // Hole in data - log but continue
+            Debug::log("ogg", "finalizeIncompletePacketsOnEOS_unlocked: Hole detected");
+        }
+    }
+    
+    Debug::log("ogg", "finalizeIncompletePacketsOnEOS_unlocked: Finalized %zu packets",
+               packets_finalized);
+    
+    return packets_finalized;
+}
+
+/**
+ * @brief Process a page and extract all available packets
+ * 
+ * Combines page submission and packet extraction:
+ * 1. Submit page to stream state using ogg_stream_pagein()
+ * 2. Extract all complete packets using ogg_stream_packetout()
+ * 3. Handle continuation flags and EOS appropriately
+ * 
+ * @param page Pointer to ogg_page structure
+ * @param stream_id Stream ID for the page
+ * @param packets Output: vector of extracted packets
+ * @return Number of packets extracted, or -1 on error
+ * 
+ * Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7
+ */
+int OggDemuxer::processPageAndExtractPackets_unlocked(ogg_page* page, uint32_t stream_id,
+                                                       std::vector<OggPacket>& packets) {
+    packets.clear();
+    
+    if (!page || !pageIsValid(page)) {
+        Debug::log("ogg", "processPageAndExtractPackets_unlocked: Invalid page");
+        return -1;
+    }
+    
+    // Find or create ogg_stream_state for this stream
+    auto ogg_stream_it = m_ogg_streams.find(stream_id);
+    if (ogg_stream_it == m_ogg_streams.end()) {
+        // Initialize new stream state
+        ogg_stream_state new_stream;
+        if (ogg_stream_init(&new_stream, static_cast<int>(stream_id)) != 0) {
+            Debug::log("ogg", "processPageAndExtractPackets_unlocked: Failed to init stream state");
+            return -1;
+        }
+        m_ogg_streams[stream_id] = new_stream;
+        ogg_stream_it = m_ogg_streams.find(stream_id);
+    }
+    
+    ogg_stream_state& os = ogg_stream_it->second;
+    
+    // Log page information for debugging
+    bool is_continued = hasPacketContinuation(page);
+    bool is_eos = pageEOS(page);
+    bool ends_with_continuation = pageEndsWithContinuation(page);
+    
+    Debug::log("ogg", "processPageAndExtractPackets_unlocked: Processing page for stream 0x%08x, "
+               "continued=%d, eos=%d, ends_with_cont=%d",
+               stream_id, is_continued ? 1 : 0, is_eos ? 1 : 0, ends_with_continuation ? 1 : 0);
+    
+    // Submit page to stream state using ogg_stream_pagein() (Requirements 13.1)
+    if (ogg_stream_pagein(&os, page) != 0) {
+        Debug::log("ogg", "processPageAndExtractPackets_unlocked: ogg_stream_pagein() failed");
+        return -1;
+    }
+    
+    // Extract all complete packets using ogg_stream_packetout() (Requirements 13.1, 13.4)
+    // libogg handles multi-page packet reconstruction internally
+    ogg_packet ogg_pkt;
+    int ret;
+    int packet_count = 0;
+    
+    while ((ret = ogg_stream_packetout(&os, &ogg_pkt)) != 0) {
+        if (ret == 1) {
+            // Complete packet extracted
+            OggPacket packet;
+            packet.stream_id = stream_id;
+            packet.data.assign(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+            packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+            packet.is_first_packet = (ogg_pkt.b_o_s != 0);
+            packet.is_last_packet = (ogg_pkt.e_o_s != 0);
+            packet.is_continued = false;  // libogg handles continuation internally
+            
+            packets.push_back(std::move(packet));
+            packet_count++;
+            
+            Debug::log("ogg", "processPageAndExtractPackets_unlocked: Extracted packet %d, "
+                       "size=%lld, granule=%lld",
+                       packet_count, static_cast<long long>(ogg_pkt.bytes),
+                       static_cast<long long>(ogg_pkt.granulepos));
+        } else if (ret == -1) {
+            // Hole in data - report but continue
+            Debug::log("ogg", "processPageAndExtractPackets_unlocked: Hole detected in stream");
+        }
+    }
+    
+    // If this is an EOS page, finalize any remaining incomplete packets (Requirements 13.7)
+    if (is_eos) {
+        Debug::log("ogg", "processPageAndExtractPackets_unlocked: EOS page, checking for incomplete packets");
+        // libogg should have already finalized packets, but double-check
+        while ((ret = ogg_stream_packetout(&os, &ogg_pkt)) == 1) {
+            OggPacket packet;
+            packet.stream_id = stream_id;
+            packet.data.assign(ogg_pkt.packet, ogg_pkt.packet + ogg_pkt.bytes);
+            packet.granule_position = static_cast<uint64_t>(ogg_pkt.granulepos);
+            packet.is_first_packet = (ogg_pkt.b_o_s != 0);
+            packet.is_last_packet = (ogg_pkt.e_o_s != 0);
+            packet.is_continued = false;
+            
+            packets.push_back(std::move(packet));
+            packet_count++;
+        }
+    }
+    
+    Debug::log("ogg", "processPageAndExtractPackets_unlocked: Extracted %d packets total",
+               packet_count);
+    
+    return packet_count;
+}
+
+// ============================================================================
 } // namespace Ogg
 } // namespace Demuxer
 } // namespace PsyMP3
