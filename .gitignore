@@ -314,3 +314,8 @@ tests/test_mulaw_alaw_error_handling
 tests/test_mulaw_alaw_integration
 tests/test_mulaw_alaw_performance
 tests/test_mulaw_alaw_thread_safety_properties
+tests/test_ogg_page_properties
+tests/test_ogg_thread_safety
+tests/test_ogg_page_properties
+tests/test_position_reporting_property
+tests/test_ogg_comprehensive_integration
