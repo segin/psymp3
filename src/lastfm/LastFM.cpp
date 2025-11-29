@@ -81,6 +81,9 @@ void LastFM::readConfig()
     }
     
     if (isConfigured()) {
+        // Cache the password hash to avoid redundant computation (Requirements 1.3)
+        m_password_hash = md5Hash(m_password);
+        Debug::log("lastfm", "Password hash cached for auth token generation");
         Debug::log("lastfm", "Configuration complete - scrobbling enabled");
     } else {
         Debug::log("lastfm", "Missing username or password - scrobbling disabled");
@@ -142,9 +145,15 @@ bool LastFM::performHandshake(int host_index)
     }
     
     // Generate timestamp and auth token (double MD5 as per API spec)
+    // Use cached password hash to avoid redundant computation (Requirements 1.3)
     time_t timestamp = time(nullptr);
-    std::string password_hash = md5Hash(m_password);
-    std::string auth_token = md5Hash(password_hash + std::to_string(timestamp));
+    
+    // Ensure password hash is cached (in case config was modified)
+    if (m_password_hash.empty()) {
+        m_password_hash = md5Hash(m_password);
+    }
+    
+    std::string auth_token = md5Hash(m_password_hash + std::to_string(timestamp));
     
     // Build handshake URL (use root path as per API spec)
     std::string url = "http://" + m_api_hosts[host_index] + ":" + std::to_string(m_api_ports[host_index]) + 
@@ -545,7 +554,10 @@ std::string LastFM::urlEncode(const std::string& input)
 
 std::string LastFM::md5Hash(const std::string& input)
 {
-    // Proper MD5 implementation using modern OpenSSL EVP interface
+    // Optimized MD5 implementation using lookup table for hex conversion
+    // instead of iostream formatting (Requirements 1.1, 1.2)
+    static constexpr char hex_chars[] = "0123456789abcdef";
+    
     EVP_MD_CTX* ctx = EVP_MD_CTX_new();
     if (!ctx) return "";
     
@@ -556,13 +568,18 @@ std::string LastFM::md5Hash(const std::string& input)
         EVP_DigestUpdate(ctx, input.c_str(), input.length()) &&
         EVP_DigestFinal_ex(ctx, hash, &hash_len)) {
         
-        std::ostringstream hexHash;
+        // Pre-allocate output string (MD5 is always 16 bytes = 32 hex chars)
+        std::string result;
+        result.reserve(32);
+        
+        // Convert bytes to hex using lookup table and bit shifting
         for (unsigned int i = 0; i < hash_len; i++) {
-            hexHash << std::hex << std::setw(2) << std::setfill('0') << static_cast<unsigned int>(hash[i]);
+            result += hex_chars[(hash[i] >> 4) & 0x0F];
+            result += hex_chars[hash[i] & 0x0F];
         }
         
         EVP_MD_CTX_free(ctx);
-        return hexHash.str();
+        return result;
     }
     
     EVP_MD_CTX_free(ctx);

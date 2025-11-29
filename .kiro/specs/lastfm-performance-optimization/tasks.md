@@ -1,15 +1,15 @@
 # Implementation Plan
 
-- [ ] 1. Optimize MD5 Hash Function
-  - [ ] 1.1 Replace iostream-based hex formatting with lookup table implementation
+- [x] 1. Optimize MD5 Hash Function
+  - [x] 1.1 Replace iostream-based hex formatting with lookup table implementation
     - Add static constexpr hex_chars lookup table
     - Use reserve(32) for output string
     - Convert bytes using bit shifting and table lookup
     - _Requirements: 1.1, 1.2_
-  - [ ] 1.2 Write property test for MD5 hash correctness
+  - [x] 1.2 Write property test for MD5 hash correctness
     - **Property 1: MD5 Hash Correctness**
     - **Validates: Requirements 1.1, 1.2**
-  - [ ] 1.3 Add cached password hash to avoid redundant computation
+  - [x] 1.3 Add cached password hash to avoid redundant computation
     - Store m_password_hash member variable
     - Compute once in readConfig() or on first use
     - Reuse in performHandshake() for auth token generation

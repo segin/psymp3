@@ -41,6 +41,7 @@ private:
     std::string m_session_key;
     std::string m_username;
     std::string m_password;
+    std::string m_password_hash;  // Cached MD5 hash of password (Requirements 1.3)
     std::string m_config_file;
     std::string m_cache_file;
     
