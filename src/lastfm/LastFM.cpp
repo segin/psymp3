@@ -155,10 +155,20 @@ bool LastFM::performHandshake(int host_index)
     
     std::string auth_token = md5Hash(m_password_hash + std::to_string(timestamp));
     
-    // Build handshake URL (use root path as per API spec)
-    std::string url = "http://" + m_api_hosts[host_index] + ":" + std::to_string(m_api_ports[host_index]) + 
-                     "/?hs=true&p=1.2.1&c=psy&v=3.0&u=" + HTTPClient::urlEncode(m_username) + 
-                     "&t=" + std::to_string(timestamp) + "&a=" + auth_token;
+    // Build handshake URL using efficient string concatenation (Requirements 2.3)
+    std::string url;
+    url.reserve(256);  // Pre-allocate reasonable size for URL
+    
+    url += "http://";
+    url += m_api_hosts[host_index];
+    url += ":";
+    url += std::to_string(m_api_ports[host_index]);
+    url += "/?hs=true&p=1.2.1&c=psy&v=3.0&u=";
+    url += HTTPClient::urlEncode(m_username);
+    url += "&t=";
+    url += std::to_string(timestamp);
+    url += "&a=";
+    url += auth_token;
     
     Debug::log("lastfm", "Performing handshake with ", m_api_hosts[host_index]);
     
@@ -345,17 +355,27 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     }
     
     // Build POST data for Last.fm 1.2 scrobble API
-    std::ostringstream postData;
-    postData << "s=" << HTTPClient::urlEncode(m_session_key);
-    postData << "&a[0]=" << HTTPClient::urlEncode(artist);
-    postData << "&t[0]=" << HTTPClient::urlEncode(title);
-    postData << "&i[0]=" << timestamp;
-    postData << "&o[0]=P"; // Source: P = chosen by user
-    postData << "&r[0]="; // Rating (empty)
-    postData << "&l[0]=" << length;
-    postData << "&b[0]=" << HTTPClient::urlEncode(album);
-    postData << "&n[0]="; // Track number (empty)
-    postData << "&m[0]=" << md5Hash(artist + title); // MusicBrainz ID (using hash as fallback)
+    // Use string concatenation with reserve() instead of ostringstream (Requirements 2.1, 2.4)
+    std::string postData;
+    postData.reserve(512);  // Pre-allocate reasonable size for POST data
+    
+    postData += "s=";
+    postData += HTTPClient::urlEncode(m_session_key);
+    postData += "&a[0]=";
+    postData += HTTPClient::urlEncode(artist);
+    postData += "&t[0]=";
+    postData += HTTPClient::urlEncode(title);
+    postData += "&i[0]=";
+    postData += std::to_string(timestamp);
+    postData += "&o[0]=P";  // Source: P = chosen by user
+    postData += "&r[0]=";   // Rating (empty)
+    postData += "&l[0]=";
+    postData += std::to_string(length);
+    postData += "&b[0]=";
+    postData += HTTPClient::urlEncode(album);
+    postData += "&n[0]=";   // Track number (empty)
+    postData += "&m[0]=";
+    postData += md5Hash(artist + title);  // MusicBrainz ID (using hash as fallback)
     
     // Use submission URL from handshake response
     if (m_submission_url.empty()) {
@@ -363,7 +383,7 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
         return false;
     }
     
-    HTTPClient::Response response = HTTPClient::post(m_submission_url, postData.str(), 
+    HTTPClient::Response response = HTTPClient::post(m_submission_url, postData, 
                                                     "application/x-www-form-urlencoded", {}, 10);
         
     if (response.success) {
@@ -409,14 +429,23 @@ bool LastFM::setNowPlaying(const track& track)
     }
     
     // Build POST data for Last.fm 1.2 now playing API
-    std::ostringstream postData;
-    postData << "s=" << HTTPClient::urlEncode(m_session_key);
-    postData << "&a=" << HTTPClient::urlEncode(track.GetArtist().to8Bit(true));
-    postData << "&t=" << HTTPClient::urlEncode(track.GetTitle().to8Bit(true));
-    postData << "&b=" << HTTPClient::urlEncode(track.GetAlbum().to8Bit(true));
-    postData << "&l=" << track.GetLen();
-    postData << "&n="; // Track number (empty - not available in track class)
-    postData << "&m=" << md5Hash(track.GetArtist().to8Bit(true) + track.GetTitle().to8Bit(true)); // MusicBrainz ID fallback
+    // Use string concatenation with reserve() instead of ostringstream (Requirements 2.1, 2.4)
+    std::string postData;
+    postData.reserve(512);  // Pre-allocate reasonable size for POST data
+    
+    postData += "s=";
+    postData += HTTPClient::urlEncode(m_session_key);
+    postData += "&a=";
+    postData += HTTPClient::urlEncode(track.GetArtist().to8Bit(true));
+    postData += "&t=";
+    postData += HTTPClient::urlEncode(track.GetTitle().to8Bit(true));
+    postData += "&b=";
+    postData += HTTPClient::urlEncode(track.GetAlbum().to8Bit(true));
+    postData += "&l=";
+    postData += std::to_string(track.GetLen());
+    postData += "&n=";  // Track number (empty - not available in track class)
+    postData += "&m=";
+    postData += md5Hash(track.GetArtist().to8Bit(true) + track.GetTitle().to8Bit(true));  // MusicBrainz ID fallback
     
     // Use now playing URL from handshake response
     if (m_nowplaying_url.empty()) {
@@ -424,7 +453,7 @@ bool LastFM::setNowPlaying(const track& track)
         return false;
     }
     
-    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData.str(), 
+    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData, 
                                                     "application/x-www-form-urlencoded", {}, 10);
         
     if (response.success) {
@@ -469,8 +498,13 @@ bool LastFM::unsetNowPlaying()
     }
     
     // Build POST data with only session key (empty now playing)
-    std::ostringstream postData;
-    postData << "s=" << HTTPClient::urlEncode(m_session_key) << "&a=&t=";
+    // Use string concatenation instead of ostringstream (Requirements 2.1, 2.4)
+    std::string postData;
+    postData.reserve(128);  // Pre-allocate for small POST data
+    
+    postData += "s=";
+    postData += HTTPClient::urlEncode(m_session_key);
+    postData += "&a=&t=";
     
     // Use now playing URL from handshake response
     if (m_nowplaying_url.empty()) {
@@ -478,7 +512,7 @@ bool LastFM::unsetNowPlaying()
         return false;
     }
     
-    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData.str(), 
+    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData, 
                                                     "application/x-www-form-urlencoded", {}, 10);
         
     if (response.success) {

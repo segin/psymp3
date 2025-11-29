@@ -15,19 +15,19 @@
     - Reuse in performHandshake() for auth token generation
     - _Requirements: 1.3_
 
-- [ ] 2. Optimize String Building for HTTP Requests
-  - [ ] 2.1 Refactor submitScrobble() to use string concatenation
+- [x] 2. Optimize String Building for HTTP Requests
+  - [x] 2.1 Refactor submitScrobble() to use string concatenation
     - Replace ostringstream with std::string
     - Use reserve(512) for POST data buffer
     - Use += operator for concatenation
     - _Requirements: 2.1, 2.4_
-  - [ ] 2.2 Refactor setNowPlaying() to use string concatenation
+  - [x] 2.2 Refactor setNowPlaying() to use string concatenation
     - Same pattern as submitScrobble()
     - _Requirements: 2.1, 2.4_
-  - [ ] 2.3 Refactor performHandshake() URL building
+  - [x] 2.3 Refactor performHandshake() URL building
     - Use string concatenation for URL construction
     - _Requirements: 2.3_
-  - [ ] 2.4 Write property test for URL encoding round-trip
+  - [x] 2.4 Write property test for URL encoding round-trip
     - **Property 2: URL Encoding Round-Trip**
     - **Validates: Requirements 2.2**
 
