@@ -265,11 +265,18 @@ void LastFM::saveScrobbles()
     // Create root element for scrobbles collection
     XMLUtil::Element root("scrobbles");
     
+    // Pre-allocate children vector to reduce allocations (Requirements 5.2)
+    root.children.reserve(m_scrobbles.size());
+    
+    // Reuse string buffer across iterations to minimize allocations (Requirements 5.2)
+    std::string scrobbleXML;
+    scrobbleXML.reserve(512);  // Pre-allocate reasonable size for scrobble XML
+    
     // Create a copy of the queue to iterate through
     std::queue<Scrobble> temp_queue = m_scrobbles;
     while (!temp_queue.empty()) {
         // Parse the scrobble's XML and add it as a child element
-        std::string scrobbleXML = temp_queue.front().toXML();
+        scrobbleXML = temp_queue.front().toXML();  // Reuse buffer
         try {
             XMLUtil::Element scrobbleElement = XMLUtil::parseXML(scrobbleXML);
             root.children.push_back(scrobbleElement);
@@ -578,11 +585,11 @@ bool LastFM::scrobbleTrack(const track& track)
         return false;
     }
     
-    // Add to queue for background submission
+    // Add to queue for background submission using move semantics (Requirements 5.1)
     Scrobble scrobble(track);
     
     std::lock_guard<std::mutex> lock(m_scrobble_mutex);
-    m_scrobbles.push(scrobble);
+    m_scrobbles.push(std::move(scrobble));  // Use move semantics to avoid copy
     
     DEBUG_LOG_LAZY("lastfm", "Added scrobble to queue: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
     DEBUG_LOG_LAZY("lastfm", "Queue size: ", m_scrobbles.size());

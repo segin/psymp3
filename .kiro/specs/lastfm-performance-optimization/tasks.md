@@ -64,19 +64,19 @@
     - **Property 4: Scrobble Batching Correctness**
     - **Validates: Requirements 4.2**
 
-- [ ] 6. Checkpoint - Verify thread behavior and backoff logic
+- [x] 6. Checkpoint - Verify thread behavior and backoff logic
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Optimize Memory Allocations
-  - [ ] 7.1 Add move semantics to Scrobble queue operations
+- [x] 7. Optimize Memory Allocations
+  - [x] 7.1 Add move semantics to Scrobble queue operations
     - Use std::move when pushing to queue
     - Use emplace where possible
     - _Requirements: 5.1_
-  - [ ] 7.2 Optimize XML serialization buffer reuse
+  - [x] 7.2 Optimize XML serialization buffer reuse
     - Pre-allocate string buffers in saveScrobbles()
     - Reuse buffers across iterations
     - _Requirements: 5.2_
-  - [ ] 7.3 Write property test for scrobble cache round-trip
+  - [x] 7.3 Write property test for scrobble cache round-trip
     - **Property 6: Scrobble Cache Round-Trip**
     - **Validates: Requirements 5.2, 6.3, 6.4**
 
