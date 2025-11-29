@@ -80,12 +80,12 @@
     - **Property 6: Scrobble Cache Round-Trip**
     - **Validates: Requirements 5.2, 6.3, 6.4**
 
-- [ ] 8. Verify API Compatibility
-  - [ ] 8.1 Test configuration file backward compatibility
+- [x] 8. Verify API Compatibility
+  - [x] 8.1 Test configuration file backward compatibility
     - Verify existing config files parse correctly
     - Verify written config files maintain format
     - _Requirements: 6.1, 6.2_
-  - [ ] 8.2 Write property test for configuration round-trip
+  - [x] 8.2 Write property test for configuration round-trip
     - **Property 7: Configuration Round-Trip**
     - **Validates: Requirements 6.2**
 
