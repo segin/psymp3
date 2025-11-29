@@ -34,6 +34,37 @@ namespace LastFM {
  * 
  * Provides scrobbling functionality with XML-based local caching for failed
  * submissions. Implements background batch processing without limits.
+ * 
+ * Threading Safety (Requirements 7.1, 7.2, 7.4):
+ * This class follows the public/private lock pattern for thread safety.
+ * All public methods that access shared state acquire locks and call
+ * corresponding _unlocked private implementations.
+ * 
+ * Lock acquisition order (to prevent deadlocks):
+ * 1. m_scrobble_mutex - protects:
+ *    - m_scrobbles queue (enqueue/dequeue operations)
+ *    - m_backoff_seconds (exponential backoff state)
+ *    - Cache file operations (saveScrobbles_unlocked)
+ * 
+ * Thread-safe public methods:
+ * - scrobbleTrack() - adds to queue, notifies submission thread
+ * - getCachedScrobbleCount() - returns queue size
+ * - forceSubmission() - triggers immediate submission
+ * - saveScrobbles() - persists queue to cache file
+ * 
+ * Thread-safe internal operations:
+ * - submissionThreadLoop() - background thread, acquires lock for queue access
+ * - submitSavedScrobbles() - acquires lock for batch extraction
+ * 
+ * Non-locking methods (read immutable config or perform network I/O):
+ * - isConfigured() - reads config set at construction
+ * - setNowPlaying(), unsetNowPlaying() - network I/O only
+ * - submitScrobble() - network I/O only
+ * 
+ * Graceful shutdown (Requirements 7.3):
+ * - Destructor sets m_shutdown flag and notifies condition variable
+ * - Submission thread exits cleanly
+ * - Pending scrobbles are saved to cache before destruction
  */
 class LastFM {
 private:
@@ -71,18 +102,19 @@ private:
     static constexpr int INITIAL_BACKOFF_SECONDS = 60;  // Start at 1 minute
     static constexpr int MAX_BACKOFF_SECONDS = 3600;    // Cap at 1 hour
     
-    // Backoff management methods
-    void resetBackoff();
-    void increaseBackoff();
+    // Backoff management methods (called with lock held)
+    void resetBackoff_unlocked();
+    void increaseBackoff_unlocked();
     
     // Configuration and cache management
     void readConfig();
     void writeConfig();
     std::string getSessionKey();
-    void loadScrobbles();
-    void saveScrobbles();
+    void loadScrobbles();  // Called only from constructor (single-threaded)
+    void saveScrobbles();  // Public wrapper acquires lock
+    void saveScrobbles_unlocked();  // Assumes lock is held
     
-    // Network operations
+    // Network operations (no lock needed - pure network I/O)
     bool submitScrobble(const std::string& artist, const std::string& title, 
                        const std::string& album, int length, time_t timestamp);
     
@@ -90,6 +122,13 @@ private:
     void submissionThreadLoop();
     void submitSavedScrobbles();
     bool performHandshake(int host_index);
+    
+    // Queue access helpers (assumes lock is held)
+    size_t getQueueSize_unlocked() const;
+    bool isQueueEmpty_unlocked() const;
+    
+    // Scrobble queue operations (assumes lock is held)
+    void scrobbleTrack_unlocked(Scrobble&& scrobble);
     
     // URL encoding and utilities
     std::string urlEncode(const std::string& input);

@@ -30,7 +30,7 @@ LastFM::LastFM() :
 
 LastFM::~LastFM()
 {
-    // Signal shutdown and wait for thread to finish
+    // Signal shutdown and wait for thread to finish (Requirements 7.3)
     m_shutdown = true;
     m_submission_cv.notify_all();
     
@@ -38,9 +38,12 @@ LastFM::~LastFM()
         m_submission_thread.join();
     }
     
-    // Save any remaining scrobbles to cache
+    // Save any remaining scrobbles to cache (Requirements 7.3)
+    // Use public saveScrobbles() which acquires lock for thread safety
     saveScrobbles();
     writeConfig();
+    
+    DEBUG_LOG_LAZY("lastfm", "LastFM shutdown complete, pending scrobbles saved");
 }
 
 void LastFM::readConfig()
@@ -249,6 +252,13 @@ void LastFM::loadScrobbles()
 
 void LastFM::saveScrobbles()
 {
+    std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+    saveScrobbles_unlocked();
+}
+
+void LastFM::saveScrobbles_unlocked()
+{
+    // Assumes m_scrobble_mutex is held by caller
     if (m_scrobbles.empty()) {
         // Remove cache file if no scrobbles
         std::remove(m_cache_file.c_str());
@@ -328,13 +338,13 @@ void LastFM::submissionThreadLoop()
     }
 }
 
-void LastFM::resetBackoff()
+void LastFM::resetBackoff_unlocked()
 {
     m_backoff_seconds = 0;
     DEBUG_LOG_LAZY("lastfm", "Backoff reset - normal submission resumed");
 }
 
-void LastFM::increaseBackoff()
+void LastFM::increaseBackoff_unlocked()
 {
     if (m_backoff_seconds == 0) {
         m_backoff_seconds = INITIAL_BACKOFF_SECONDS;
@@ -344,11 +354,22 @@ void LastFM::increaseBackoff()
     DEBUG_LOG_LAZY("lastfm", "Backoff increased to ", m_backoff_seconds, " seconds");
 }
 
+size_t LastFM::getQueueSize_unlocked() const
+{
+    return m_scrobbles.size();
+}
+
+bool LastFM::isQueueEmpty_unlocked() const
+{
+    return m_scrobbles.empty();
+}
+
 void LastFM::submitSavedScrobbles()
 {
     if ((m_session_key.empty() || m_submission_url.empty()) && getSessionKey().empty()) {
         DEBUG_LOG_LAZY("lastfm", "Cannot submit scrobbles without valid session key and submission URL");
-        increaseBackoff();  // Apply backoff on failure (Requirements 4.3)
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        increaseBackoff_unlocked();  // Apply backoff on failure (Requirements 4.3)
         return;
     }
     
@@ -357,29 +378,64 @@ void LastFM::submitSavedScrobbles()
     const int batch_size = 5;
     int submitted = 0;
     
-    std::lock_guard<std::mutex> lock(m_scrobble_mutex);
-    while (!m_scrobbles.empty() && submitted < batch_size) {
-        const Scrobble& scrobble = m_scrobbles.front();
-        
-        // Submit scrobble using current session URL
+    // Collect scrobbles to submit while holding lock, then release lock for network I/O
+    // This prevents holding the lock during potentially slow network operations
+    std::vector<Scrobble> to_submit;
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        while (!isQueueEmpty_unlocked() && static_cast<int>(to_submit.size()) < batch_size) {
+            to_submit.push_back(m_scrobbles.front());
+            m_scrobbles.pop();
+        }
+    }
+    
+    // Submit without holding lock (network I/O can be slow)
+    std::vector<Scrobble> failed_scrobbles;
+    for (const auto& scrobble : to_submit) {
         bool success = submitScrobble(scrobble.getArtistStr(), scrobble.getTitleStr(), 
                                      scrobble.getAlbumStr(), scrobble.GetLen(), 
                                      scrobble.getTimestamp());
         
         if (success) {
-            m_scrobbles.pop();
             submitted++;
         } else {
             DEBUG_LOG_LAZY("lastfm", "Failed to submit scrobble, keeping in cache");
-            increaseBackoff();  // Apply backoff on failure (Requirements 4.3)
+            // Keep this and all remaining scrobbles for retry
+            failed_scrobbles.push_back(scrobble);
             break; // Don't try more if this one failed
         }
     }
     
-    if (submitted > 0) {
-        DEBUG_LOG_LAZY("lastfm", "Successfully submitted ", submitted, " scrobbles");
-        resetBackoff();  // Reset backoff on successful submission (Requirements 4.3)
-        saveScrobbles(); // Update cache
+    // Re-queue failed scrobbles and any remaining ones we didn't try
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        
+        // Add back failed scrobbles to front of queue (they should be retried first)
+        // We need to rebuild the queue with failed items at front
+        if (!failed_scrobbles.empty()) {
+            std::queue<Scrobble> new_queue;
+            for (auto& s : failed_scrobbles) {
+                new_queue.push(std::move(s));
+            }
+            // Add remaining items from to_submit that weren't tried
+            size_t failed_idx = failed_scrobbles.size();
+            for (size_t i = submitted + failed_idx; i < to_submit.size(); ++i) {
+                new_queue.push(std::move(to_submit[i]));
+            }
+            // Add existing queue items
+            while (!m_scrobbles.empty()) {
+                new_queue.push(std::move(m_scrobbles.front()));
+                m_scrobbles.pop();
+            }
+            m_scrobbles = std::move(new_queue);
+            increaseBackoff_unlocked();  // Apply backoff on failure (Requirements 4.3)
+        }
+        
+        if (submitted > 0) {
+            DEBUG_LOG_LAZY("lastfm", "Successfully submitted ", submitted, " scrobbles");
+            resetBackoff_unlocked();  // Reset backoff on successful submission (Requirements 4.3)
+            saveScrobbles_unlocked(); // Update cache
+        }
     }
 }
 
@@ -578,6 +634,12 @@ bool LastFM::unsetNowPlaying()
     return false;
 }
 
+void LastFM::scrobbleTrack_unlocked(Scrobble&& scrobble)
+{
+    // Assumes m_scrobble_mutex is held by caller (Requirements 7.2)
+    m_scrobbles.push(std::move(scrobble));  // Use move semantics to avoid copy
+}
+
 bool LastFM::scrobbleTrack(const track& track)
 {
     if (!isConfigured()) {
@@ -588,13 +650,14 @@ bool LastFM::scrobbleTrack(const track& track)
     // Add to queue for background submission using move semantics (Requirements 5.1)
     Scrobble scrobble(track);
     
-    std::lock_guard<std::mutex> lock(m_scrobble_mutex);
-    m_scrobbles.push(std::move(scrobble));  // Use move semantics to avoid copy
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        scrobbleTrack_unlocked(std::move(scrobble));  // Use _unlocked variant (Requirements 7.2)
+    }
     
     DEBUG_LOG_LAZY("lastfm", "Added scrobble to queue: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
-    DEBUG_LOG_LAZY("lastfm", "Queue size: ", m_scrobbles.size());
     
-    // Notify submission thread
+    // Notify submission thread (outside lock to avoid holding lock during notification)
     m_submission_cv.notify_one();
     
     return true;
@@ -603,14 +666,18 @@ bool LastFM::scrobbleTrack(const track& track)
 size_t LastFM::getCachedScrobbleCount() const
 {
     std::lock_guard<std::mutex> lock(m_scrobble_mutex);
-    return m_scrobbles.size();
+    return getQueueSize_unlocked();
 }
 
 void LastFM::forceSubmission()
 {
-    if (!m_scrobbles.empty()) {
-        m_submission_cv.notify_one();
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        if (isQueueEmpty_unlocked()) {
+            return;
+        }
     }
+    m_submission_cv.notify_one();
 }
 
 bool LastFM::isConfigured() const

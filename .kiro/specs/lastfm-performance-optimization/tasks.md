@@ -89,15 +89,15 @@
     - **Property 7: Configuration Round-Trip**
     - **Validates: Requirements 6.2**
 
-- [ ] 9. Thread Safety Verification
-  - [ ] 9.1 Review and document lock acquisition order
+- [x] 9. Thread Safety Verification
+  - [x] 9.1 Review and document lock acquisition order
     - Ensure public/private lock pattern is followed
     - Add _unlocked variants where missing
     - _Requirements: 7.2_
-  - [ ] 9.2 Verify graceful shutdown behavior
+  - [x] 9.2 Verify graceful shutdown behavior
     - Test that pending scrobbles are saved on shutdown
     - _Requirements: 7.3_
-  - [ ] 9.3 Write property test for thread-safe queue operations
+  - [x] 9.3 Write property test for thread-safe queue operations
     - **Property 8: Thread-Safe Queue Operations**
     - **Validates: Requirements 7.1, 7.4**
 
