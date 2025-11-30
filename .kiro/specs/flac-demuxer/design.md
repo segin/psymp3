@@ -93,8 +93,11 @@ enum FLACMetadataType {
 - `bool parseMetadataBlocks()`: Process all metadata blocks with forbidden pattern detection
 - `bool parseMetadataBlockHeader(FLACMetadataBlock& block)`: Parse 4-byte header per RFC 9639 Section 8.1
 - `bool parseStreamInfo(const FLACMetadataBlock& block)`: Parse STREAMINFO per RFC 9639 Section 8.2
+- `bool parsePadding(const FLACMetadataBlock& block)`: Skip PADDING per RFC 9639 Section 8.3
+- `bool parseApplication(const FLACMetadataBlock& block)`: Skip APPLICATION per RFC 9639 Section 8.4
 - `bool parseSeekTable(const FLACMetadataBlock& block)`: Parse SEEKTABLE per RFC 9639 Section 8.5
 - `bool parseVorbisComment(const FLACMetadataBlock& block)`: Parse comments per RFC 9639 Section 8.6
+- `bool parseCuesheet(const FLACMetadataBlock& block)`: Parse CUESHEET per RFC 9639 Section 8.7
 - `bool parsePicture(const FLACMetadataBlock& block)`: Parse PICTURE per RFC 9639 Section 8.8
 
 **RFC 9639 Compliance Requirements**:
@@ -178,6 +181,42 @@ enum FLACMetadataType {
 - **Standard Fields**: TITLE, ARTIST, ALBUM (not formally defined but widely recognized)
 - **Special Field**: WAVEFORMATEXTENSIBLE_CHANNEL_MASK for non-default channel ordering
 - **Note**: Little-endian encoding is exception to FLAC's big-endian rule (for Vorbis compatibility)
+
+**PADDING Processing (RFC 9639 Section 8.3)**:
+- **Purpose**: Allow metadata editing without rewriting entire file
+- **Content**: Arbitrary padding bytes (typically zeros)
+- **Processing**: Skip block_length bytes without parsing
+- **Multiple Blocks**: Multiple PADDING blocks are allowed
+- **Usage**: Reserved space for future metadata additions
+
+**APPLICATION Processing (RFC 9639 Section 8.4)**:
+- **u(32)** Application ID (registered with FLAC maintainers)
+- **Binary data** Application-specific data (block_length - 4 bytes)
+- **Processing**: Skip unrecognized application blocks
+- **Multiple Blocks**: Multiple APPLICATION blocks are allowed
+- **Usage**: Third-party application data storage
+
+**CUESHEET Processing (RFC 9639 Section 8.7)**:
+- **u(128)** Media catalog number (ASCII, padded with NUL)
+- **u(64)** Number of lead-in samples
+- **u(1)** CD-DA flag (1 if corresponds to CD-DA)
+- **u(7+258*8)** Reserved bits (must be zero)
+- **u(8)** Number of tracks (must be >= 1)
+- **Per Track**:
+  - **u(64)** Track offset in samples
+  - **u(8)** Track number (1-99 for CD-DA, 170 for lead-out)
+  - **u(12*8)** Track ISRC (ASCII, padded with NUL)
+  - **u(1)** Track type (0=audio, 1=non-audio)
+  - **u(1)** Pre-emphasis flag
+  - **u(6+13*8)** Reserved bits (must be zero)
+  - **u(8)** Number of track index points
+  - **Per Index Point**:
+    - **u(64)** Offset in samples relative to track start
+    - **u(8)** Index point number
+    - **u(3*8)** Reserved bits (must be zero)
+- **Validation**: At least 1 track required (lead-out)
+- **Validation**: For CD-DA, max 100 tracks (99 + lead-out)
+- **Usage**: CD-DA track and index information
 
 **PICTURE Processing (RFC 9639 Section 8.8)**:
 - **u(32)** Picture type (0-20 defined, see RFC 9639 Table 13)
@@ -269,6 +308,7 @@ Byte N+:  CRC-8 (1 byte): header checksum with polynomial 0x07
 - 0b101: 20 bits
 - 0b110: 24 bits
 - 0b111: 32 bits
+- **Reserved Bit**: Bit 0 of byte 3 MUST be zero (log warning if non-zero)
 
 **Coded Number (RFC 9639 Section 9.1.5)**:
 - UTF-8-like variable-length encoding (1-7 bytes)
@@ -377,6 +417,102 @@ Timestamp → Target Sample → Seek Strategy Selection → File Position → Fr
 ```
 File Position → Sync Search → Header Parse → Frame Size → Complete Frame Read → MediaChunk
 ```
+
+## **Correctness Properties**
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: Stream Marker Validation
+*For any* 4-byte sequence at the start of a file, the FLAC Demuxer SHALL accept only the exact sequence 0x66 0x4C 0x61 0x43 (fLaC) and reject all other sequences without crashing.
+**Validates: Requirements 1.2, 1.3**
+
+### Property 2: Metadata Block Header Bit Extraction
+*For any* metadata block header byte, extracting bit 7 SHALL produce the correct is_last flag, and extracting bits 0-6 SHALL produce the correct block type value.
+**Validates: Requirements 2.2, 2.3**
+
+### Property 3: Forbidden Block Type Detection
+*For any* metadata block with type 127, the FLAC Demuxer SHALL reject the stream as a forbidden pattern.
+**Validates: Requirements 2.4, 18.1**
+
+### Property 4: STREAMINFO Block Size Validation
+*For any* STREAMINFO block with minimum block size < 16 or maximum block size < 16, the FLAC Demuxer SHALL reject the stream as a forbidden pattern.
+**Validates: Requirements 3.6, 3.7**
+
+### Property 5: STREAMINFO Block Size Ordering
+*For any* STREAMINFO block where minimum block size exceeds maximum block size, the FLAC Demuxer SHALL reject the stream.
+**Validates: Requirements 3.8**
+
+### Property 6: Frame Sync Code Detection
+*For any* byte sequence, the FLAC Demuxer SHALL correctly identify the 15-bit sync pattern 0b111111111111100 at byte-aligned positions.
+**Validates: Requirements 4.1, 4.2**
+
+### Property 7: Blocking Strategy Consistency
+*For any* FLAC stream, if the blocking strategy bit changes mid-stream, the FLAC Demuxer SHALL reject the stream.
+**Validates: Requirements 4.8**
+
+### Property 8: Reserved Block Size Pattern Detection
+*For any* frame header with block size bits equal to 0b0000, the FLAC Demuxer SHALL reject as a reserved pattern.
+**Validates: Requirements 5.2**
+
+### Property 9: Forbidden Block Size Detection
+*For any* frame header with uncommon block size equal to 65536, the FLAC Demuxer SHALL reject as a forbidden pattern.
+**Validates: Requirements 5.18**
+
+### Property 10: Forbidden Sample Rate Detection
+*For any* frame header with sample rate bits equal to 0b1111, the FLAC Demuxer SHALL reject as a forbidden pattern.
+**Validates: Requirements 6.17**
+
+### Property 11: Reserved Channel Bits Detection
+*For any* frame header with channel bits in range 0b1011-0b1111, the FLAC Demuxer SHALL reject as a reserved pattern.
+**Validates: Requirements 7.7**
+
+### Property 12: Reserved Bit Depth Detection
+*For any* frame header with bit depth bits equal to 0b011, the FLAC Demuxer SHALL reject as a reserved pattern.
+**Validates: Requirements 8.5**
+
+### Property 13: CRC-8 Calculation Correctness
+*For any* frame header data, the CRC-8 calculation using polynomial 0x07 SHALL produce the correct checksum value.
+**Validates: Requirements 10.2**
+
+### Property 14: CRC-16 Calculation Correctness
+*For any* frame data, the CRC-16 calculation using polynomial 0x8005 SHALL produce the correct checksum value.
+**Validates: Requirements 11.3**
+
+### Property 15: Seek Point Placeholder Detection
+*For any* seek point with sample number equal to 0xFFFFFFFFFFFFFFFF, the FLAC Demuxer SHALL treat it as a placeholder.
+**Validates: Requirements 12.5**
+
+### Property 16: Endianness Handling
+*For any* metadata field, the FLAC Demuxer SHALL use big-endian byte order except for VORBIS_COMMENT lengths which SHALL use little-endian byte order.
+**Validates: Requirements 19.1, 19.4, 13.1**
+
+### Property 17: CUESHEET Track Count Validation
+*For any* CUESHEET block with number of tracks less than 1, the FLAC Demuxer SHALL reject as invalid.
+**Validates: Requirements 16.6**
+
+### Property 18: Frame Size Estimation
+*For any* FLAC stream with valid STREAMINFO, the frame size estimation SHALL use the STREAMINFO minimum frame size as the primary estimate.
+**Validates: Requirements 21.1**
+
+### Property 19: Frame Boundary Search Limit
+*For any* frame boundary detection operation, the search scope SHALL be limited to 512 bytes maximum.
+**Validates: Requirements 21.3**
+
+### Property 20: Duration Calculation
+*For any* FLAC stream with valid STREAMINFO, the duration calculation SHALL use total samples divided by sample rate.
+**Validates: Requirements 23.1, 23.4**
+
+### Property 21: Error Recovery - Sync Resynchronization
+*For any* stream where frame sync is lost, the FLAC Demuxer SHALL resynchronize to the next valid sync code.
+**Validates: Requirements 24.4**
+
+### Property 22: Thread Safety - Lock Pattern
+*For any* public method call, the FLAC Demuxer SHALL acquire locks before calling private _unlocked implementations, and internal method calls SHALL use _unlocked versions.
+**Validates: Requirements 28.1, 28.2**
+
+### Property 23: Debug Logging Format
+*For any* debug log message, the FLAC Demuxer SHALL include method-specific identification tokens.
+**Validates: Requirements 29.1**
 
 ## **CRC Validation (RFC 9639 Sections 9.1.8, 9.3)**
 

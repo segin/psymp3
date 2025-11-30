@@ -219,6 +219,8 @@ The implementation must support:
 7. IF bit depth bits are 0b101, THEN THE FLAC Demuxer SHALL set bit depth to 20 bits
 8. IF bit depth bits are 0b110, THEN THE FLAC Demuxer SHALL set bit depth to 24 bits
 9. IF bit depth bits are 0b111, THEN THE FLAC Demuxer SHALL set bit depth to 32 bits
+10. WHEN reading reserved bit, THE FLAC Demuxer SHALL extract bit 0 of frame byte 3
+11. IF reserved bit is not 0, THEN THE FLAC Demuxer SHALL log warning and continue processing
 
 ### **Requirement 9: Frame Header Coded Number Parsing (RFC 9639 Section 9.1.5)**
 
@@ -295,7 +297,44 @@ The implementation must support:
 7. WHEN comparing field names, THE FLAC Demuxer SHALL use case-insensitive comparison
 8. WHEN field name contains characters outside 0x20-0x7E or equals 0x3D, THEN THE FLAC Demuxer SHALL reject field
 
-### **Requirement 14: PICTURE Block Parsing (RFC 9639 Section 8.8)**
+### **Requirement 14: PADDING Block Handling (RFC 9639 Section 8.3)**
+
+**User Story:** As a FLAC parser, I want to handle padding blocks correctly, so that I can skip arbitrary padding without affecting stream parsing.
+
+#### **Acceptance Criteria**
+
+1. WHEN encountering PADDING Block, THE FLAC Demuxer SHALL read block length from header
+2. WHEN processing PADDING Block, THE FLAC Demuxer SHALL skip exactly block_length bytes
+3. WHEN multiple PADDING Blocks exist, THE FLAC Demuxer SHALL handle each independently
+4. WHEN PADDING Block contains non-zero bytes, THE FLAC Demuxer SHALL ignore content and continue
+
+### **Requirement 15: APPLICATION Block Handling (RFC 9639 Section 8.4)**
+
+**User Story:** As a FLAC parser, I want to handle application blocks correctly, so that third-party application data does not disrupt stream parsing.
+
+#### **Acceptance Criteria**
+
+1. WHEN encountering APPLICATION Block, THE FLAC Demuxer SHALL read u(32) application ID
+2. WHEN processing APPLICATION Block, THE FLAC Demuxer SHALL read remaining block_length minus 4 bytes as application data
+3. WHEN APPLICATION Block is unrecognized, THE FLAC Demuxer SHALL skip the block and continue
+4. WHEN multiple APPLICATION Blocks exist, THE FLAC Demuxer SHALL handle each independently
+
+### **Requirement 16: CUESHEET Block Parsing (RFC 9639 Section 8.7)**
+
+**User Story:** As a FLAC parser, I want to parse cuesheet blocks correctly, so that I can extract CD-DA track and index information when present.
+
+#### **Acceptance Criteria**
+
+1. WHEN encountering CUESHEET Block, THE FLAC Demuxer SHALL read u(128) media catalog number
+2. WHEN reading CUESHEET Block, THE FLAC Demuxer SHALL read u(64) number of lead-in samples
+3. WHEN reading CUESHEET Block, THE FLAC Demuxer SHALL read u(1) CD-DA flag
+4. WHEN reading CUESHEET Block, THE FLAC Demuxer SHALL skip u(7+258*8) reserved bits
+5. WHEN reading CUESHEET Block, THE FLAC Demuxer SHALL read u(8) number of tracks
+6. IF number of tracks is less than 1, THEN THE FLAC Demuxer SHALL reject as invalid
+7. IF CD-DA flag is set and number of tracks exceeds 100, THEN THE FLAC Demuxer SHALL reject as invalid
+8. WHEN CUESHEET Block is present, THE FLAC Demuxer SHALL store track information for potential use
+
+### **Requirement 17: PICTURE Block Parsing (RFC 9639 Section 8.8)**
 
 **User Story:** As a FLAC parser, I want to parse picture blocks correctly, so that I can extract embedded artwork.
 
@@ -314,7 +353,7 @@ The implementation must support:
 11. WHEN reading picture data, THE FLAC Demuxer SHALL read binary data of specified length
 12. IF media type is "-->", THEN THE FLAC Demuxer SHALL treat picture data as URI
 
-### **Requirement 15: Forbidden Pattern Detection (RFC 9639 Section 5, Table 1)**
+### **Requirement 18: Forbidden Pattern Detection (RFC 9639 Section 5, Table 1)**
 
 **User Story:** As a FLAC parser, I want to detect all forbidden patterns per RFC 9639, so that I can reject invalid streams.
 
@@ -326,7 +365,7 @@ The implementation must support:
 4. IF frame sample rate bits are 0b1111, THEN THE FLAC Demuxer SHALL reject as forbidden
 5. IF uncommon block size equals 65536, THEN THE FLAC Demuxer SHALL reject as forbidden
 
-### **Requirement 16: Big-Endian Integer Parsing (RFC 9639 Section 5)**
+### **Requirement 19: Big-Endian Integer Parsing (RFC 9639 Section 5)**
 
 **User Story:** As a FLAC parser, I want to parse all integers as big-endian except Vorbis comment fields, so that I comply with RFC 9639 encoding rules.
 
@@ -338,7 +377,7 @@ The implementation must support:
 4. WHEN reading VORBIS_COMMENT lengths, THE FLAC Demuxer SHALL use little-endian byte order
 5. WHEN reading seek point fields, THE FLAC Demuxer SHALL use big-endian byte order
 
-### **Requirement 17: Streamable Subset Compliance (RFC 9639 Section 7)**
+### **Requirement 20: Streamable Subset Compliance (RFC 9639 Section 7)**
 
 **User Story:** As a FLAC parser, I want to detect streamable subset violations, so that I can warn about streams that may not be decodable without seeking.
 
@@ -350,9 +389,7 @@ The implementation must support:
 4. IF sample rate is 48000 Hz or less and block size exceeds 4608, THEN THE FLAC Demuxer SHALL mark stream as non-streamable
 5. WHEN WAVEFORMATEXTENSIBLE_CHANNEL_MASK is present, THE FLAC Demuxer SHALL mark stream as non-streamable
 
-## **Requirements**
-
-### **Requirement 18: Accurate Frame Size Estimation and Efficient Boundary Detection**
+### **Requirement 21: Accurate Frame Size Estimation and Efficient Boundary Detection**
 
 **User Story:** As a FLAC codec, I want to receive properly formatted FLAC frame data with minimal I/O overhead, so that I can decode audio samples efficiently even from highly compressed streams.
 
@@ -367,7 +404,7 @@ The implementation must support:
 7. WHEN streaming frames, THE FLAC Demuxer SHALL maintain accurate sample position tracking
 8. WHEN providing frame data, THE FLAC Demuxer SHALL include complete frames with proper MediaChunk formatting
 
-### **Requirement 19: Seeking Operations with SEEKTABLE Support**
+### **Requirement 22: Seeking Operations with SEEKTABLE Support**
 
 **User Story:** As a media player, I want to seek to specific timestamps in FLAC files using seek tables, so that users can navigate through audio content efficiently.
 
@@ -382,7 +419,7 @@ The implementation must support:
 7. WHERE frame indexing is implemented, THE FLAC Demuxer SHALL support frame indexing during initial parsing
 8. WHEN using seek points, THE FLAC Demuxer SHALL add byte offset to first frame header position
 
-### **Requirement 20: Duration and Position Tracking**
+### **Requirement 23: Duration and Position Tracking**
 
 **User Story:** As a media player, I want accurate duration and position information for FLAC files, so that I can display progress and enable seeking.
 
@@ -397,7 +434,7 @@ The implementation must support:
 7. IF position is unknown, THEN THE FLAC Demuxer SHALL return zero as default value
 8. WHEN handling files exceeding 4GB, THE FLAC Demuxer SHALL use 64-bit integers to prevent overflow
 
-### **Requirement 21: Error Handling and Robustness**
+### **Requirement 24: Error Handling and Robustness**
 
 **User Story:** As a media player, I want robust error handling in FLAC parsing, so that corrupted or unusual files don't crash the application.
 
@@ -412,7 +449,7 @@ The implementation must support:
 7. IF memory allocation fails, THEN THE FLAC Demuxer SHALL return appropriate error codes
 8. IF I/O operations fail, THEN THE FLAC Demuxer SHALL handle read errors and EOF conditions without crashing
 
-### **Requirement 22: Performance Optimization Based on Real-World Lessons**
+### **Requirement 25: Performance Optimization Based on Real-World Lessons**
 
 **User Story:** As a media player, I want efficient FLAC processing with minimal I/O overhead, so that highly compressed files can be processed without performance degradation.
 
@@ -427,7 +464,7 @@ The implementation must support:
 7. WHEN debugging performance, THE FLAC Demuxer SHALL provide method-specific logging tokens for identification
 8. WHEN processing sequential frames, THE FLAC Demuxer SHALL maintain consistent performance across frame types
 
-### **Requirement 23: Integration with Demuxer Architecture**
+### **Requirement 26: Integration with Demuxer Architecture**
 
 **User Story:** As a PsyMP3 component, I want the FLAC demuxer to integrate seamlessly with the existing demuxer architecture, so that it works consistently with other format demuxers.
 
@@ -442,7 +479,7 @@ The implementation must support:
 7. WHEN reporting errors, THE FLAC Demuxer SHALL use consistent error codes and messages
 8. WHEN working with FLACCodec, THE FLAC Demuxer SHALL provide compatible frame data format
 
-### **Requirement 24: Compatibility with Existing FLAC Implementation**
+### **Requirement 27: Compatibility with Existing FLAC Implementation**
 
 **User Story:** As a PsyMP3 user, I want the new FLAC demuxer to maintain compatibility with existing FLAC playback, so that my FLAC files continue to work without issues.
 
@@ -457,7 +494,7 @@ The implementation must support:
 7. WHEN integrating with Stream interface, THE FLAC Demuxer SHALL work through DemuxedStream bridge
 8. WHEN performance is measured, THE FLAC Demuxer SHALL provide comparable or better performance
 
-### **Requirement 25: Thread Safety Using Public/Private Lock Pattern**
+### **Requirement 28: Thread Safety Using Public/Private Lock Pattern**
 
 **User Story:** As a multi-threaded media player, I want thread-safe FLAC demuxing operations using proven patterns, so that seeking and reading can occur concurrently without deadlocks.
 
@@ -472,7 +509,7 @@ The implementation must support:
 7. WHEN handling errors, THE FLAC Demuxer SHALL use atomic error state flags for thread-safe propagation
 8. WHEN debugging threading issues, THE FLAC Demuxer SHALL provide clear method identification for lock analysis
 
-### **Requirement 26: Debug Logging and Troubleshooting Support**
+### **Requirement 29: Debug Logging and Troubleshooting Support**
 
 **User Story:** As a developer debugging FLAC issues, I want comprehensive logging with method identification, so that I can quickly identify which code paths are executing and causing problems.
 
