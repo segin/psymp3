@@ -35,23 +35,25 @@ std::string DBusVariant::toString() const {
 std::map<std::string, DBusVariant> MPRISMetadata::toDBusDict() const {
     std::map<std::string, DBusVariant> dict;
     
+    // Use insert() instead of operator[] to avoid ARM ABI warning about
+    // parameter passing changes in GCC 7.1 for std::map with complex value types
     if (!artist.empty()) {
-        dict["xesam:artist"] = DBusVariant(std::vector<std::string>{artist});
+        dict.insert(std::make_pair(std::string("xesam:artist"), DBusVariant(std::vector<std::string>{artist})));
     }
     if (!title.empty()) {
-        dict["xesam:title"] = DBusVariant(std::string(title));
+        dict.insert(std::make_pair(std::string("xesam:title"), DBusVariant(std::string(title))));
     }
     if (!album.empty()) {
-        dict["xesam:album"] = DBusVariant(std::string(album));
+        dict.insert(std::make_pair(std::string("xesam:album"), DBusVariant(std::string(album))));
     }
     if (!track_id.empty()) {
-        dict["mpris:trackid"] = DBusVariant(std::string(track_id));
+        dict.insert(std::make_pair(std::string("mpris:trackid"), DBusVariant(std::string(track_id))));
     }
     if (length_us > 0) {
-        dict["mpris:length"] = DBusVariant(static_cast<int64_t>(length_us));
+        dict.insert(std::make_pair(std::string("mpris:length"), DBusVariant(static_cast<int64_t>(length_us))));
     }
     if (!art_url.empty()) {
-        dict["mpris:artUrl"] = DBusVariant(std::string(art_url));
+        dict.insert(std::make_pair(std::string("mpris:artUrl"), DBusVariant(std::string(art_url))));
     }
     
     return dict;

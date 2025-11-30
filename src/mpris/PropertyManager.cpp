@@ -168,39 +168,42 @@ void PropertyManager::clearMetadata_unlocked() {
 std::map<std::string, PsyMP3::MPRIS::DBusVariant> PropertyManager::getAllProperties_unlocked() const {
     std::map<std::string, PsyMP3::MPRIS::DBusVariant> properties;
     
+    // Use insert() instead of operator[] to avoid ARM ABI warning about
+    // parameter passing changes in GCC 7.1 for std::map with complex value types
+    
     // Playback status
-    properties["PlaybackStatus"] = PsyMP3::MPRIS::DBusVariant(getPlaybackStatus_unlocked());
+    properties.insert(std::make_pair(std::string("PlaybackStatus"), PsyMP3::MPRIS::DBusVariant(getPlaybackStatus_unlocked())));
     
     // Loop status (for now, always None)
-    properties["LoopStatus"] = PsyMP3::MPRIS::DBusVariant(PsyMP3::MPRIS::loopStatusToString(PsyMP3::MPRIS::LoopStatus::None));
+    properties.insert(std::make_pair(std::string("LoopStatus"), PsyMP3::MPRIS::DBusVariant(PsyMP3::MPRIS::loopStatusToString(PsyMP3::MPRIS::LoopStatus::None))));
     
     // Rate (playback rate, always 1.0 for now)
-    properties["Rate"] = PsyMP3::MPRIS::DBusVariant(1.0);
+    properties.insert(std::make_pair(std::string("Rate"), PsyMP3::MPRIS::DBusVariant(1.0)));
     
     // Shuffle (not implemented, always false)
-    properties["Shuffle"] = PsyMP3::MPRIS::DBusVariant(false);
+    properties.insert(std::make_pair(std::string("Shuffle"), PsyMP3::MPRIS::DBusVariant(false)));
     
     // Metadata
     auto metadata_dict = getMetadata_unlocked();
-    properties["Metadata"] = PsyMP3::MPRIS::DBusVariant(std::string("metadata_dict")); // TODO: Handle dict-in-dict properly
+    properties.insert(std::make_pair(std::string("Metadata"), PsyMP3::MPRIS::DBusVariant(std::string("metadata_dict")))); // TODO: Handle dict-in-dict properly
     
     // Volume (not implemented, use 1.0)
-    properties["Volume"] = PsyMP3::MPRIS::DBusVariant(1.0);
+    properties.insert(std::make_pair(std::string("Volume"), PsyMP3::MPRIS::DBusVariant(1.0)));
     
     // Position
-    properties["Position"] = PsyMP3::MPRIS::DBusVariant(static_cast<int64_t>(getPosition_unlocked()));
+    properties.insert(std::make_pair(std::string("Position"), PsyMP3::MPRIS::DBusVariant(static_cast<int64_t>(getPosition_unlocked()))));
     
     // Minimum and maximum rates
-    properties["MinimumRate"] = PsyMP3::MPRIS::DBusVariant(1.0);
-    properties["MaximumRate"] = PsyMP3::MPRIS::DBusVariant(1.0);
+    properties.insert(std::make_pair(std::string("MinimumRate"), PsyMP3::MPRIS::DBusVariant(1.0)));
+    properties.insert(std::make_pair(std::string("MaximumRate"), PsyMP3::MPRIS::DBusVariant(1.0)));
     
     // Control capabilities
-    properties["CanGoNext"] = PsyMP3::MPRIS::DBusVariant(canGoNext_unlocked());
-    properties["CanGoPrevious"] = PsyMP3::MPRIS::DBusVariant(canGoPrevious_unlocked());
-    properties["CanPlay"] = PsyMP3::MPRIS::DBusVariant(canControl_unlocked());
-    properties["CanPause"] = PsyMP3::MPRIS::DBusVariant(canControl_unlocked());
-    properties["CanSeek"] = PsyMP3::MPRIS::DBusVariant(canSeek_unlocked());
-    properties["CanControl"] = PsyMP3::MPRIS::DBusVariant(canControl_unlocked());
+    properties.insert(std::make_pair(std::string("CanGoNext"), PsyMP3::MPRIS::DBusVariant(canGoNext_unlocked())));
+    properties.insert(std::make_pair(std::string("CanGoPrevious"), PsyMP3::MPRIS::DBusVariant(canGoPrevious_unlocked())));
+    properties.insert(std::make_pair(std::string("CanPlay"), PsyMP3::MPRIS::DBusVariant(canControl_unlocked())));
+    properties.insert(std::make_pair(std::string("CanPause"), PsyMP3::MPRIS::DBusVariant(canControl_unlocked())));
+    properties.insert(std::make_pair(std::string("CanSeek"), PsyMP3::MPRIS::DBusVariant(canSeek_unlocked())));
+    properties.insert(std::make_pair(std::string("CanControl"), PsyMP3::MPRIS::DBusVariant(canControl_unlocked())));
     
     return properties;
 }
