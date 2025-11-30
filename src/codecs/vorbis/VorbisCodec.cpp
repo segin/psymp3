@@ -273,6 +273,7 @@ bool VorbisCodec::initialize()
     m_error_state.store(false);
     m_last_error.clear();
     m_output_buffer.clear();
+    m_backpressure_active = false;  // Reset backpressure state (Requirement 7.6)
     
     // Extract Vorbis parameters from StreamInfo (Requirement 11.2, 6.2)
     // These will be overwritten when we process the identification header,
@@ -455,8 +456,11 @@ void VorbisCodec::reset()
         Debug::log("vorbis", "Vorbis synthesis restarted for seeking");
     }
     
-    // Clear internal buffers (Requirement 7.6)
+    // Clear internal buffers (Requirement 7.6, 11.5)
     m_output_buffer.clear();
+    
+    // Reset backpressure state (Requirement 7.6)
+    m_backpressure_active = false;
     
     // Reset position tracking but keep decoder configuration
     m_samples_decoded.store(0);
@@ -464,7 +468,7 @@ void VorbisCodec::reset()
     m_error_state.store(false);
     m_last_error.clear();
     
-    Debug::log("vorbis", "VorbisCodec::reset completed");
+    Debug::log("vorbis", "VorbisCodec::reset completed - all buffers cleared");
 }
 
 // ========== Private Implementation Methods ==========
@@ -660,24 +664,39 @@ bool VorbisCodec::synthesizeBlock_unlocked()
     float **pcm_channels;
     int samples_available;
     
-    // Prevent buffer from growing too large (memory leak protection) (Requirement 7.2)
-    constexpr size_t MAX_BUFFER_SIZE = 48000 * 2 * 2; // 2 seconds of stereo at 48kHz
-    if (m_output_buffer.size() > MAX_BUFFER_SIZE) {
-        Debug::log("vorbis", "Buffer too large (", m_output_buffer.size(), "), clearing to prevent memory leak");
-        m_output_buffer.clear();
+    // Update backpressure state before processing (Requirement 7.4)
+    updateBackpressureState_unlocked();
+    
+    // If backpressure is active, don't process more samples
+    if (m_backpressure_active) {
+        Debug::log("vorbis", "Backpressure active, buffer at ", getBufferFillPercent_unlocked(), "% - deferring processing");
+        return !m_output_buffer.empty();
     }
     
     // Get available PCM samples using vorbis_synthesis_pcmout (Requirement 2.5)
     while ((samples_available = vorbis_synthesis_pcmout(&m_vorbis_dsp, &pcm_channels)) > 0) {
         int channels = m_vorbis_info.channels;
         
-        // Prevent excessive accumulation (Requirement 7.4)
-        if (m_output_buffer.size() + (samples_available * channels) > MAX_BUFFER_SIZE) {
-            Debug::log("vorbis", "Would exceed buffer limit, processing partial samples");
-            samples_available = (MAX_BUFFER_SIZE - m_output_buffer.size()) / channels;
+        // Check if we can accept more samples (Requirement 7.2, 7.4)
+        if (!canAcceptMoreSamples_unlocked()) {
+            Debug::log("vorbis", "Buffer full at ", m_output_buffer.size(), " samples, applying backpressure");
+            m_backpressure_active = true;
+            break;
+        }
+        
+        // Calculate how many samples we can actually accept
+        size_t space_available = MAX_BUFFER_SAMPLES - m_output_buffer.size();
+        size_t samples_to_process = static_cast<size_t>(samples_available) * static_cast<size_t>(channels);
+        
+        if (samples_to_process > space_available) {
+            // Partial processing - only take what we can fit
+            samples_available = static_cast<int>(space_available / channels);
             if (samples_available <= 0) {
-                break; // Buffer is full enough
+                Debug::log("vorbis", "No space for even one sample, buffer full");
+                m_backpressure_active = true;
+                break;
             }
+            Debug::log("vorbis", "Partial processing: ", samples_available, " samples (space limited)");
         }
         
         // Convert float samples to 16-bit PCM (Requirement 1.5)
@@ -691,9 +710,60 @@ bool VorbisCodec::synthesizeBlock_unlocked()
         
         // Tell libvorbis we consumed these samples (Requirement 2.5)
         vorbis_synthesis_read(&m_vorbis_dsp, samples_available);
+        
+        // Update backpressure state after adding samples
+        updateBackpressureState_unlocked();
     }
     
     return !m_output_buffer.empty();
+}
+
+// ========== Streaming and Buffer Management Methods ==========
+
+bool VorbisCodec::canAcceptMoreSamples_unlocked() const
+{
+    // Check if buffer has room for more samples (Requirement 7.2, 7.4)
+    return m_output_buffer.size() < MAX_BUFFER_SAMPLES;
+}
+
+int VorbisCodec::getBufferFillPercent_unlocked() const
+{
+    if (MAX_BUFFER_SAMPLES == 0) return 0;
+    return static_cast<int>((m_output_buffer.size() * 100) / MAX_BUFFER_SAMPLES);
+}
+
+void VorbisCodec::updateBackpressureState_unlocked()
+{
+    // Hysteresis-based backpressure control (Requirement 7.4)
+    // - Activate backpressure when buffer exceeds high water mark
+    // - Deactivate backpressure when buffer drops below low water mark
+    // This prevents rapid on/off cycling
+    
+    if (m_backpressure_active) {
+        // Currently in backpressure mode - check if we can release
+        if (m_output_buffer.size() < BUFFER_LOW_WATER_MARK) {
+            m_backpressure_active = false;
+            Debug::log("vorbis", "Backpressure released, buffer at ", getBufferFillPercent_unlocked(), "%");
+        }
+    } else {
+        // Not in backpressure mode - check if we need to activate
+        if (m_output_buffer.size() >= BUFFER_HIGH_WATER_MARK) {
+            m_backpressure_active = true;
+            Debug::log("vorbis", "Backpressure activated, buffer at ", getBufferFillPercent_unlocked(), "%");
+        }
+    }
+}
+
+size_t VorbisCodec::getBufferSize() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_output_buffer.size();
+}
+
+bool VorbisCodec::isBackpressureActive() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_backpressure_active;
 }
 
 void VorbisCodec::convertFloatToPCM_unlocked(float** pcm, int samples, AudioFrame& frame)
@@ -919,6 +989,7 @@ void VorbisCodec::resetDecoderState_unlocked()
     m_error_state.store(false);
     m_last_error.clear();
     m_output_buffer.clear();
+    m_backpressure_active = false;  // Reset backpressure state (Requirement 7.6)
     
     Debug::log("vorbis", "Decoder state reset completed");
 }

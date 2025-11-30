@@ -137,35 +137,35 @@
     - **Property 9: Channel Interleaving Correctness**
     - **Validates: Requirements 5.5, 5.7**
 
-- [ ] 8. Checkpoint - Verify basic decoding works
+- [x] 8. Checkpoint - Verify basic decoding works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 9. Implement Streaming and Buffering
-  - [ ] 9.1 Create output buffer management
+- [x] 9. Implement Streaming and Buffering
+  - [x] 9.1 Create output buffer management
     - Implement bounded output buffers (max 2 seconds at 48kHz stereo)
     - Handle buffer overflow with appropriate backpressure
     - Process packets incrementally without requiring complete file access
     - _Requirements: 7.1, 7.2, 7.4_
 
-  - [ ] 9.2 Write property test for bounded buffer size
+  - [x] 9.2 Write property test for bounded buffer size
     - **Property 11: Bounded Buffer Size**
     - **Validates: Requirements 7.2, 7.4**
 
-  - [ ] 9.3 Write property test for incremental processing
+  - [x] 9.3 Write property test for incremental processing
     - **Property 12: Incremental Processing**
     - **Validates: Requirements 7.1**
 
-  - [ ] 9.4 Add streaming support and buffer flushing
+  - [x] 9.4 Add streaming support and buffer flushing
     - Implement flush() method to output remaining decoded samples
     - Handle partial packet data gracefully
     - Clear all internal buffers during reset operations
     - _Requirements: 7.3, 7.5, 7.6_
 
-  - [ ] 9.5 Write property test for flush outputs remaining samples
+  - [x] 9.5 Write property test for flush outputs remaining samples
     - **Property 7: Flush Outputs Remaining Samples**
     - **Validates: Requirements 4.8, 7.5, 11.4**
 
-  - [ ] 9.6 Write property test for reset clears state
+  - [x] 9.6 Write property test for reset clears state
     - **Property 16: Reset Clears State**
     - **Validates: Requirements 7.6, 11.5**
 

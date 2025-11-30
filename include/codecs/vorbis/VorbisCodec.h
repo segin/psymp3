@@ -146,8 +146,17 @@ private:
     bool m_decoder_initialized = false;
     
     // ========== Decoding buffers ==========
+    // Requirements: 7.1, 7.2, 7.4
     std::vector<int16_t> m_output_buffer;
     float** m_pcm_channels = nullptr;
+    
+    // ========== Streaming and buffer management ==========
+    // Requirements: 7.1, 7.2, 7.4
+    // Maximum buffer size: 2 seconds at 48kHz stereo = 48000 * 2 * 2 = 192000 samples
+    static constexpr size_t MAX_BUFFER_SAMPLES = 48000 * 2 * 2;  // 2 seconds at max rate
+    static constexpr size_t BUFFER_HIGH_WATER_MARK = MAX_BUFFER_SAMPLES * 3 / 4;  // 75% full
+    static constexpr size_t BUFFER_LOW_WATER_MARK = MAX_BUFFER_SAMPLES / 4;  // 25% full
+    bool m_backpressure_active = false;  // True when buffer is too full
     
     // ========== Block size handling ==========
     // Requirements: 4.1, 4.2
@@ -205,10 +214,55 @@ public:
     static void interleaveChannels(float** pcm, int samples, int channels, 
                                    std::vector<int16_t>& output);
     
+    // ========== Buffer status methods (public for testing and integration) ==========
+    /**
+     * @brief Get current buffer size in samples
+     * @return Number of samples currently in the output buffer
+     * 
+     * Requirements: 7.2, 7.4
+     */
+    size_t getBufferSize() const;
+    
+    /**
+     * @brief Get maximum buffer size in samples
+     * @return Maximum number of samples the buffer can hold
+     * 
+     * Requirements: 7.2
+     */
+    static constexpr size_t getMaxBufferSize() { return MAX_BUFFER_SAMPLES; }
+    
+    /**
+     * @brief Check if backpressure is currently active
+     * @return true if buffer is too full and backpressure is being applied
+     * 
+     * Requirements: 7.4
+     */
+    bool isBackpressureActive() const;
+    
 private:
     
     // ========== Block size and windowing (private unlocked methods) ==========
     void handleVariableBlockSizes_unlocked(const vorbis_block* block);
+    
+    // ========== Streaming and buffer management (private unlocked methods) ==========
+    // Requirements: 7.1, 7.2, 7.4
+    /**
+     * @brief Check if buffer has room for more samples
+     * @return true if buffer can accept more samples, false if backpressure should be applied
+     */
+    bool canAcceptMoreSamples_unlocked() const;
+    
+    /**
+     * @brief Get current buffer fill level as a percentage
+     * @return Buffer fill percentage (0-100)
+     */
+    int getBufferFillPercent_unlocked() const;
+    
+    /**
+     * @brief Apply backpressure logic based on buffer state
+     * Updates m_backpressure_active based on high/low water marks
+     */
+    void updateBackpressureState_unlocked();
     
     // ========== Utility methods (private unlocked methods) ==========
     bool validateVorbisPacket_unlocked(const std::vector<uint8_t>& packet_data);

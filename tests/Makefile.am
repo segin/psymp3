@@ -989,6 +989,34 @@ test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
+
+# Vorbis Streaming Property Tests
+# **Feature: vorbis-codec, Property 11: Bounded Buffer Size**
+# **Feature: vorbis-codec, Property 12: Incremental Processing**
+# **Feature: vorbis-codec, Property 7: Flush Outputs Remaining Samples**
+# **Feature: vorbis-codec, Property 16: Reset Clears State**
+# **Validates: Requirements 7.1, 7.2, 7.4, 7.5, 7.6, 4.8, 11.4, 11.5**
+check_PROGRAMS += test_vorbis_streaming_properties
+test_vorbis_streaming_properties_SOURCES = test_vorbis_streaming_properties.cpp
+test_vorbis_streaming_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
+test_vorbis_streaming_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(AM_LDFLAGS)
 endif
 
 
