@@ -111,15 +111,15 @@
     - Handle unrecognized application blocks gracefully
     - _Requirements: 15.1-15.4_
 
-- [ ] 8. Implement SEEKTABLE Block Parsing (RFC 9639 Section 8.5)
-  - [ ] 8.1 Implement parseSeekTable method
+- [x] 8. Implement SEEKTABLE Block Parsing (RFC 9639 Section 8.5)
+  - [x] 8.1 Implement parseSeekTable method
     - Calculate seek point count as block_length divided by 18
     - Parse u64 sample number, u64 byte offset, u16 frame samples per point
     - Detect placeholder seek points with value 0xFFFFFFFFFFFFFFFF
     - Validate seek points are sorted in ascending order
     - _Requirements: 12.1-12.8_
 
-- [ ] 8.2 Write property test for seek point placeholder detection
+- [x] 8.2 Write property test for seek point placeholder detection
   - **Property 15: Seek Point Placeholder Detection**
   - **Validates: Requirements 12.5**
 

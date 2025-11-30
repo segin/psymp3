@@ -728,31 +728,39 @@ bool FLACDemuxer::parseStreamInfoBlock_unlocked(const FLACMetadataBlock& block)
 
 bool FLACDemuxer::parseSeekTableBlock_unlocked(const FLACMetadataBlock& block)
 {
-    FLAC_DEBUG("Parsing SEEKTABLE block");
+    FLAC_DEBUG("[parseSeekTable] Parsing SEEKTABLE block (RFC 9639 Section 8.5)");
     
-    // Each seek point is 18 bytes
+    // Requirement 12.1: Calculate seek point count as block_length divided by 18
+    // RFC 9639 Section 8.5: Each seek point is exactly 18 bytes
     if (block.length % 18 != 0) {
-        FLAC_DEBUG("Invalid SEEKTABLE length, skipping");
+        FLAC_DEBUG("[parseSeekTable] Invalid SEEKTABLE length: ", block.length, 
+                   " bytes (not divisible by 18)");
         skipMetadataBlock_unlocked(block);
         return false;
     }
     
     size_t num_points = block.length / 18;
-    FLAC_DEBUG("SEEKTABLE contains ", num_points, " seek points");
+    FLAC_DEBUG("[parseSeekTable] SEEKTABLE contains ", num_points, " seek points");
     
     m_seektable.clear();
     m_seektable.reserve(num_points);
     
+    // Track for sorting validation (Requirement 12.6)
+    uint64_t last_sample_number = 0;
+    bool is_sorted = true;
+    bool found_placeholder = false;
+    size_t placeholder_count = 0;
+    
     for (size_t i = 0; i < num_points; ++i) {
         uint8_t data[18];
         if (m_handler->read(data, 1, 18) != 18) {
-            FLAC_DEBUG("Failed to read seek point ", i);
+            FLAC_DEBUG("[parseSeekTable] Failed to read seek point ", i);
             break;
         }
         
         FLACSeekPoint point;
         
-        // u64 sample number (big-endian)
+        // Requirement 12.2: Parse u64 sample number (big-endian per RFC 9639 Section 5)
         point.sample_number = (static_cast<uint64_t>(data[0]) << 56) |
                                (static_cast<uint64_t>(data[1]) << 48) |
                                (static_cast<uint64_t>(data[2]) << 40) |
@@ -762,7 +770,7 @@ bool FLACDemuxer::parseSeekTableBlock_unlocked(const FLACMetadataBlock& block)
                                (static_cast<uint64_t>(data[6]) << 8) |
                                data[7];
         
-        // u64 stream offset (big-endian)
+        // Requirement 12.3: Parse u64 byte offset from first frame header (big-endian)
         point.stream_offset = (static_cast<uint64_t>(data[8]) << 56) |
                                (static_cast<uint64_t>(data[9]) << 48) |
                                (static_cast<uint64_t>(data[10]) << 40) |
@@ -772,16 +780,55 @@ bool FLACDemuxer::parseSeekTableBlock_unlocked(const FLACMetadataBlock& block)
                                (static_cast<uint64_t>(data[14]) << 8) |
                                data[15];
         
-        // u16 frame samples (big-endian)
+        // Requirement 12.4: Parse u16 number of samples in target frame (big-endian)
         point.frame_samples = (static_cast<uint16_t>(data[16]) << 8) | data[17];
         
-        // Skip placeholder seek points (sample_number = 0xFFFFFFFFFFFFFFFF)
-        if (!point.isPlaceholder()) {
-            m_seektable.push_back(point);
+        // Requirement 12.5: Detect placeholder seek points with value 0xFFFFFFFFFFFFFFFF
+        // RFC 9639 Section 8.5: "A placeholder point MUST have the sample number value 
+        // 0xFFFFFFFFFFFFFFFF"
+        if (point.isPlaceholder()) {
+            found_placeholder = true;
+            placeholder_count++;
+            FLAC_DEBUG("[parseSeekTable] Seek point ", i, ": placeholder (0xFFFFFFFFFFFFFFFF)");
+            // Don't add placeholders to the usable seektable
+            continue;
         }
+        
+        // RFC 9639 Section 8.5: Placeholders must all occur at end of table
+        // If we find a non-placeholder after a placeholder, log warning
+        if (found_placeholder) {
+            FLAC_DEBUG("[parseSeekTable] WARNING: Non-placeholder seek point found after placeholder at index ", i);
+        }
+        
+        // Requirement 12.6: Validate seek points are sorted in ascending order by sample number
+        // RFC 9639 Section 8.5: "Seek points within a table MUST be sorted in ascending order 
+        // by sample number"
+        if (!m_seektable.empty() && point.sample_number <= last_sample_number) {
+            is_sorted = false;
+            FLAC_DEBUG("[parseSeekTable] WARNING: Seek point ", i, " (sample ", point.sample_number,
+                       ") is not in ascending order (previous: ", last_sample_number, ")");
+        }
+        
+        last_sample_number = point.sample_number;
+        
+        FLAC_DEBUG("[parseSeekTable] Seek point ", i, ": sample=", point.sample_number,
+                   ", offset=", point.stream_offset, ", frame_samples=", point.frame_samples);
+        
+        m_seektable.push_back(point);
     }
     
-    FLAC_DEBUG("Loaded ", m_seektable.size(), " valid seek points");
+    // Requirement 12.7: If seek points are not sorted, log warning but continue processing
+    // RFC 9639 allows decoders to continue even with unsorted seek tables
+    if (!is_sorted) {
+        FLAC_DEBUG("[parseSeekTable] WARNING: SEEKTABLE seek points are not sorted in ascending order");
+        FLAC_DEBUG("[parseSeekTable] Continuing with unsorted seek table (RFC 9639 allows this)");
+    }
+    
+    FLAC_DEBUG("[parseSeekTable] Loaded ", m_seektable.size(), " valid seek points");
+    if (placeholder_count > 0) {
+        FLAC_DEBUG("[parseSeekTable] Skipped ", placeholder_count, " placeholder seek points");
+    }
+    
     return true;
 }
 
