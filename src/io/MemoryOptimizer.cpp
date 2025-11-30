@@ -348,7 +348,11 @@ void MemoryOptimizer::updateMemoryPressureLevel(MemoryPressureLevel new_level) {
 
 bool MemoryOptimizer::getSystemMemoryInfo(size_t& total_memory, size_t& available_memory) const {
     // This is a simplified implementation - in practice, you'd use platform-specific APIs
-    total_memory = 8ULL * 1024 * 1024 * 1024; // 8GB default
+    // Use a conservative default that works on both 32-bit and 64-bit systems
+    // On 32-bit systems, size_t max is ~4GB, so we use 1GB as a safe default
+    // On 64-bit systems, this is still a reasonable conservative estimate
+    constexpr size_t DEFAULT_MEMORY = static_cast<size_t>(1024) * 1024 * 1024; // 1GB default
+    total_memory = DEFAULT_MEMORY;
     available_memory = total_memory / 2;    // 50% available default
     return true;
 }

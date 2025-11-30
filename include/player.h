@@ -72,7 +72,9 @@ class Player
 {
     public:
         friend class System;
+#ifdef HAVE_DBUS
         friend class PsyMP3::MPRIS::MPRISManager;
+#endif
         Player();
         ~Player();
         void Run(const PlayerOptions& options);
