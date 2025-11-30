@@ -198,9 +198,15 @@ VorbisCodec::VorbisCodec(const StreamInfo& stream_info) : AudioCodec(stream_info
 {
     Debug::log("vorbis", "VorbisCodec constructor called");
     
-    // Initialize libvorbis structures (Requirement 2.1)
-    vorbis_info_init(&m_vorbis_info);
-    vorbis_comment_init(&m_vorbis_comment);
+    // Note: libvorbis structures are initialized in initialize() method (Requirement 2.1)
+    // This follows the pattern where constructor sets up member variables,
+    // and initialize() performs the actual codec setup
+    
+    // Zero-initialize libvorbis structures (will be properly initialized in initialize())
+    std::memset(&m_vorbis_info, 0, sizeof(m_vorbis_info));
+    std::memset(&m_vorbis_comment, 0, sizeof(m_vorbis_comment));
+    std::memset(&m_vorbis_dsp, 0, sizeof(m_vorbis_dsp));
+    std::memset(&m_vorbis_block, 0, sizeof(m_vorbis_block));
     
     // Initialize atomic variables
     m_samples_decoded.store(0);
@@ -217,12 +223,6 @@ VorbisCodec::VorbisCodec(const StreamInfo& stream_info) : AudioCodec(stream_info
     m_block_size_long = 0;
     m_pcm_channels = nullptr;
     
-    // Reserve buffer space for efficiency (minimize allocation overhead)
-    // Maximum Vorbis block size is 8192 samples per channel
-    constexpr size_t MAX_VORBIS_BLOCK_SIZE = 8192;
-    constexpr size_t INITIAL_MAX_CHANNELS = 8;
-    m_output_buffer.reserve(MAX_VORBIS_BLOCK_SIZE * INITIAL_MAX_CHANNELS);
-    
     Debug::log("vorbis", "VorbisCodec constructor completed");
 }
 
@@ -237,7 +237,10 @@ VorbisCodec::~VorbisCodec()
     std::lock_guard<std::mutex> lock(m_mutex);
     
     // Clean up libvorbis structures in reverse initialization order (Requirement 2.8)
-    cleanupVorbisStructures_unlocked();
+    // Only cleanup if initialize() was called (m_initialized is set)
+    if (m_initialized) {
+        cleanupVorbisStructures_unlocked();
+    }
     
     // Clear output buffer
     m_output_buffer.clear();
@@ -253,6 +256,15 @@ bool VorbisCodec::initialize()
     
     Debug::log("vorbis", "VorbisCodec::initialize called");
     
+    // Clean up any existing state first (Requirement 2.8)
+    if (m_decoder_initialized) {
+        cleanupVorbisStructures_unlocked();
+    }
+    
+    // Initialize libvorbis structures (Requirement 2.1)
+    vorbis_info_init(&m_vorbis_info);
+    vorbis_comment_init(&m_vorbis_comment);
+    
     // Reset state for fresh initialization
     m_header_packets_received = 0;
     m_decoder_initialized = false;
@@ -262,6 +274,34 @@ bool VorbisCodec::initialize()
     m_last_error.clear();
     m_output_buffer.clear();
     
+    // Extract Vorbis parameters from StreamInfo (Requirement 11.2, 6.2)
+    // These will be overwritten when we process the identification header,
+    // but we can use them as hints for buffer allocation
+    if (m_stream_info.sample_rate > 0) {
+        m_sample_rate = m_stream_info.sample_rate;
+        Debug::log("vorbis", "Using StreamInfo sample_rate hint: ", m_sample_rate);
+    }
+    if (m_stream_info.channels > 0) {
+        m_channels = m_stream_info.channels;
+        Debug::log("vorbis", "Using StreamInfo channels hint: ", m_channels);
+    }
+    
+    // Set up internal buffers and state variables
+    // Reserve buffer space based on expected configuration
+    // Maximum Vorbis block size is 8192 samples per channel
+    constexpr size_t MAX_VORBIS_BLOCK_SIZE = 8192;
+    size_t expected_channels = m_channels > 0 ? m_channels : 2; // Default to stereo
+    m_output_buffer.reserve(MAX_VORBIS_BLOCK_SIZE * expected_channels);
+    
+    // Process codec_data if available (may contain pre-extracted headers)
+    // This is useful when headers are stored in container metadata
+    if (!m_stream_info.codec_data.empty()) {
+        Debug::log("vorbis", "StreamInfo contains codec_data of size: ", 
+                   m_stream_info.codec_data.size());
+        // Note: codec_data processing is handled during decode() when headers arrive
+        // The demuxer typically sends headers as separate packets
+    }
+    
     m_initialized = true;
     
     Debug::log("vorbis", "VorbisCodec::initialize completed successfully");
@@ -270,8 +310,40 @@ bool VorbisCodec::initialize()
 
 bool VorbisCodec::canDecode(const StreamInfo& stream_info) const
 {
-    // Thread-safe read-only operation, no lock needed
-    return stream_info.codec_name == "vorbis";
+    // Thread-safe read-only operation, no lock needed (Requirement 11.6, 6.6)
+    
+    // Check if StreamInfo contains "vorbis" codec name
+    if (stream_info.codec_name != "vorbis") {
+        return false;
+    }
+    
+    // Validate basic Vorbis stream parameters
+    // Note: Some parameters may be 0 if not yet known from headers
+    // We only reject clearly invalid configurations
+    
+    // If sample_rate is specified, it must be valid (Vorbis supports 1-200000 Hz)
+    if (stream_info.sample_rate > 0) {
+        if (stream_info.sample_rate > 200000) {
+            Debug::log("vorbis", "canDecode: Invalid sample rate ", stream_info.sample_rate);
+            return false;
+        }
+    }
+    
+    // If channels is specified, it must be valid (Vorbis supports 1-255 channels)
+    if (stream_info.channels > 0) {
+        if (stream_info.channels > 255) {
+            Debug::log("vorbis", "canDecode: Invalid channel count ", stream_info.channels);
+            return false;
+        }
+    }
+    
+    // Codec type should be "audio" if specified
+    if (!stream_info.codec_type.empty() && stream_info.codec_type != "audio") {
+        Debug::log("vorbis", "canDecode: Not an audio stream, type=", stream_info.codec_type);
+        return false;
+    }
+    
+    return true;
 }
 
 AudioFrame VorbisCodec::decode(const MediaChunk& chunk)
@@ -773,13 +845,20 @@ void VorbisCodec::cleanupVorbisStructures_unlocked()
     Debug::log("vorbis", "cleanupVorbisStructures_unlocked called");
     
     // Clean up in reverse order of initialization (Requirement 2.8)
+    // vorbis_block_clear and vorbis_dsp_clear must only be called if synthesis was initialized
     if (m_decoder_initialized) {
         vorbis_block_clear(&m_vorbis_block);
         vorbis_dsp_clear(&m_vorbis_dsp);
         m_decoder_initialized = false;
     }
+    
+    // vorbis_comment_clear and vorbis_info_clear are safe to call on initialized structures
+    // They check internal state before freeing
     vorbis_comment_clear(&m_vorbis_comment);
     vorbis_info_clear(&m_vorbis_info);
+    
+    // Reset header count since structures are cleared
+    m_header_packets_received = 0;
     
     Debug::log("vorbis", "Vorbis structures cleaned up");
 }
