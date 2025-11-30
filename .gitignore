@@ -334,3 +334,4 @@ tests/test_vorbis_audio_decoding_properties
 tests/test_vorbis_channel_properties
 tests/test_vorbis_streaming_properties
 tests/test_vorbis_container_agnostic_properties
+tests/test_vorbis_thread_safety_properties

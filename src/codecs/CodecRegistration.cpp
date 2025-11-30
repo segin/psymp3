@@ -40,12 +40,17 @@ void registerAllCodecs() {
 #endif
 
 #ifdef HAVE_VORBIS
+    // Register the new container-agnostic VorbisCodec with AudioCodecFactory
+    PsyMP3::Codec::Vorbis::VorbisCodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: Registered VorbisCodec with AudioCodecFactory");
+    
+    // Also register with CodecRegistry for compatibility
     CodecRegistry::registerCodec("vorbis", [](const StreamInfo& info) {
         return std::make_unique<PsyMP3::Codec::Vorbis::VorbisCodec>(info);
     });
-    Debug::log("codec", "registerAllCodecs: Registered Vorbis codec");
+    Debug::log("codec", "registerAllCodecs: Registered Vorbis codec with CodecRegistry");
     
-    // Also register the passthrough variant for Ogg containers
+    // Also register the passthrough variant for Ogg containers (legacy support)
     CodecRegistry::registerCodec("vorbis_passthrough", [](const StreamInfo& info) {
         return std::make_unique<VorbisPassthroughCodec>(info);
     });

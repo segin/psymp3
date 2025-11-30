@@ -218,7 +218,7 @@
     - Use PsyMP3's thread-safe Debug logging system
     - _Requirements: 10.7, 10.8_
 
-- [ ] 14. Register Codec with Factory System
+- [x] 14. Register Codec with Factory System
   - Register VorbisCodec with AudioCodecFactory for "vorbis" codec name
   - Ensure proper codec selection and instantiation
   - Test factory integration with demuxer system
