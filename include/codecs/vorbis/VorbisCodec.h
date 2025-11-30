@@ -168,16 +168,32 @@ private:
     std::atomic<uint64_t> m_granule_position{0};
     
     // ========== Error handling ==========
-    // Requirements: 8.1, 8.2, 8.3
+    // Thread-safe error state management (Requirements: 8.1, 8.2, 8.3, 10.7, 10.8)
+    // - m_error_state: atomic for lock-free reads via isInErrorState()
+    // - m_last_error: protected by m_mutex for thread-safe access
+    // - All error logging uses PsyMP3's thread-safe Debug system
     std::atomic<bool> m_error_state{false};
     std::string m_last_error;
     
     // ========== Threading safety ==========
     // Following public/private lock pattern per threading-safety-guidelines.md
+    // 
+    // Thread Safety Guarantees (Requirements: 10.1, 10.2, 10.3, 10.5, 10.6):
+    // - Each VorbisCodec instance maintains independent libvorbis state
+    // - Multiple codec instances can operate concurrently without interference
+    // - All public methods are thread-safe via mutex protection
+    // - Atomic variables used for frequently-read state (error_state, samples_decoded)
+    // - Destructor acquires lock to ensure no operations in progress during cleanup
+    //
     // Lock acquisition order (to prevent deadlocks):
     // 1. VorbisCodec::m_mutex (instance-level lock)
     // Note: VorbisCodec only uses a single mutex, so no deadlock concerns within this class
-    // Requirements: 10.1, 10.2, 10.3
+    // External callers should not hold other locks when calling VorbisCodec methods
+    //
+    // Thread-safe error handling (Requirements: 10.7, 10.8):
+    // - m_error_state is atomic for lock-free reads via isInErrorState()
+    // - m_last_error is protected by m_mutex for thread-safe access
+    // - Debug logging uses PsyMP3's thread-safe Debug system
     mutable std::mutex m_mutex;
     
     // ========== Header processing (private unlocked methods) ==========
@@ -252,9 +268,18 @@ public:
      * @brief Check if codec is in error state
      * @return true if a fatal error has occurred
      * 
-     * Requirements: 8.1, 8.2
+     * Thread-safe: Uses atomic read, no lock required.
+     * Requirements: 8.1, 8.2, 10.7
      */
     bool isInErrorState() const;
+    
+    /**
+     * @brief Clear the error state (for error recovery)
+     * 
+     * Thread-safe: Uses atomic write and mutex for error message.
+     * Requirements: 10.7
+     */
+    void clearErrorState();
     
 private:
     

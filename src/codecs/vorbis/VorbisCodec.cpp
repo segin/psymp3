@@ -824,7 +824,17 @@ std::string VorbisCodec::getLastError() const
 
 bool VorbisCodec::isInErrorState() const
 {
+    // Thread-safe: atomic read, no lock required (Requirement 10.7)
     return m_error_state.load();
+}
+
+void VorbisCodec::clearErrorState()
+{
+    // Thread-safe error state clearing (Requirement 10.7)
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_error_state.store(false);
+    m_last_error.clear();
+    Debug::log("vorbis", "Error state cleared");
 }
 
 void VorbisCodec::convertFloatToPCM_unlocked(float** pcm, int samples, AudioFrame& frame)

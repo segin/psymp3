@@ -3571,5 +3571,32 @@ test_vorbis_container_agnostic_properties_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
 	$(AM_LDFLAGS)
+
+# Vorbis Thread Safety Property Tests
+# **Feature: vorbis-codec, Property 13: Instance Independence**
+# **Feature: vorbis-codec, Property 14: Concurrent Initialization Safety**
+# **Validates: Requirements 10.1, 10.2, 10.5**
+check_PROGRAMS += test_vorbis_thread_safety_properties
+test_vorbis_thread_safety_properties_SOURCES = test_vorbis_thread_safety_properties.cpp
+test_vorbis_thread_safety_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
+test_vorbis_thread_safety_properties_LDFLAGS = -pthread
+test_vorbis_thread_safety_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(AM_LDFLAGS)
 endif
 
