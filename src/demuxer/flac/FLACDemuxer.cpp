@@ -490,6 +490,10 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 break;
                 
             case FLACMetadataType::PADDING:
+                // Requirement 14.1-14.4: Handle PADDING blocks per RFC 9639 Section 8.3
+                parsePaddingBlock_unlocked(block);
+                break;
+                
             case FLACMetadataType::APPLICATION:
             case FLACMetadataType::CUESHEET:
             case FLACMetadataType::PICTURE:
@@ -861,6 +865,43 @@ bool FLACDemuxer::parseVorbisCommentBlock_unlocked(const FLACMetadataBlock& bloc
     }
     
     FLAC_DEBUG("Parsed ", m_vorbis_comments.size(), " Vorbis comments");
+    return true;
+}
+
+// ============================================================================
+// PADDING Block Handling (RFC 9639 Section 8.3)
+// ============================================================================
+
+bool FLACDemuxer::parsePaddingBlock_unlocked(const FLACMetadataBlock& block)
+{
+    FLAC_DEBUG("[parsePadding] Parsing PADDING block (RFC 9639 Section 8.3)");
+    
+    // Requirement 14.1: Read block length from header
+    // The block length is already available in block.length from parseMetadataBlockHeader_unlocked
+    FLAC_DEBUG("[parsePadding] PADDING block length: ", block.length, " bytes");
+    
+    // Requirement 14.2: Skip exactly block_length bytes
+    // RFC 9639 Section 8.3: "The padding, n bits set to 0"
+    // Note: Per Requirement 14.4, we ignore content even if non-zero bytes are present
+    if (block.length > 0) {
+        if (m_handler->seek(static_cast<off_t>(block.length), SEEK_CUR) != 0) {
+            FLAC_DEBUG("[parsePadding] Failed to skip ", block.length, " bytes of padding");
+            reportError("IO", "Failed to skip PADDING block data");
+            return false;
+        }
+        FLAC_DEBUG("[parsePadding] Skipped ", block.length, " bytes of padding");
+    } else {
+        FLAC_DEBUG("[parsePadding] Zero-length PADDING block (valid but unusual)");
+    }
+    
+    // Requirement 14.3: Handle multiple PADDING blocks
+    // This is handled by the caller (parseMetadataBlocks_unlocked) which calls this method
+    // for each PADDING block encountered in the stream
+    
+    // Requirement 14.4: When PADDING Block contains non-zero bytes, ignore content and continue
+    // We don't read the content at all - we just skip it, so non-zero bytes are automatically ignored
+    
+    FLAC_DEBUG("[parsePadding] PADDING block processed successfully");
     return true;
 }
 
