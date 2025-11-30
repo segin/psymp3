@@ -213,6 +213,88 @@ MediaChunk → Header Detection → ID Header Processing → Comment Header Proc
 MediaChunk → Packet Validation → libopus Decoding → Pre-skip Application → Gain Application → AudioFrame
 ```
 
+## **Correctness Properties**
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: Header Parsing Round-Trip Consistency
+
+*For any* valid OpusHead header bytes with channel count, pre-skip, and output gain values, parsing the header and extracting these fields should produce values identical to the original encoded values.
+
+**Validates: Requirements 1.2, 16.1, 16.2, 16.3**
+
+### Property 2: Pre-skip Sample Removal Accuracy
+
+*For any* valid pre-skip value N and decoded audio stream, exactly N samples should be discarded from the beginning of the decoded output before any samples are returned to the caller.
+
+**Validates: Requirements 1.7, 5.1**
+
+### Property 3: Output Gain Application Correctness
+
+*For any* output gain value G (in Q7.8 format) and input sample S, the output sample should equal S * pow(10, G/(20.0*256)), clamped to the valid 16-bit range.
+
+**Validates: Requirements 5.2, 13.4**
+
+### Property 4: Header Sequence Validation
+
+*For any* sequence of header packets, the codec should accept identification header followed by comment header, and reject any other ordering (comment before identification, duplicate headers, or missing headers).
+
+**Validates: Requirements 1.1, 16.7**
+
+### Property 5: Corrupted Packet Resilience
+
+*For any* corrupted or invalid Opus packet, the codec should not crash, should skip the packet, and should output silence or use PLC for the affected frame duration while continuing to process subsequent packets.
+
+**Validates: Requirements 1.8, 8.2, 8.3**
+
+### Property 6: Invalid Header Rejection
+
+*For any* invalid OpusHead header (wrong signature, unsupported version, invalid channel count, or malformed structure), the codec should reject initialization and report an appropriate error.
+
+**Validates: Requirements 8.1, 16.8**
+
+### Property 7: Reset State Consistency
+
+*For any* codec instance that has processed headers and audio packets, calling reset() should restore the pre-skip counter to the original header value and clear internal buffers, allowing the codec to correctly process packets from any stream position.
+
+**Validates: Requirements 15.1, 15.4**
+
+### Property 8: Thread Instance Independence
+
+*For any* two codec instances decoding the same or different streams concurrently, the decoded output from each instance should be identical to what would be produced by sequential decoding of the same input.
+
+**Validates: Requirements 10.1, 10.2**
+
+### Property 9: Variable Frame Size Support
+
+*For any* valid Opus packet with frame duration D (where D is 2.5, 5, 10, 20, 40, or 60 ms), the decoded output should contain exactly D * 48 samples per channel.
+
+**Validates: Requirements 1.5, 3.6**
+
+### Property 10: TOC Byte Parsing Correctness
+
+*For any* valid TOC byte, parsing should correctly extract the configuration (bits 3-7), stereo flag (bit 2), and frame count code (bits 0-1) per RFC 6716 Section 3.1.
+
+**Validates: Requirements 17.1, 17.2, 17.3, 17.4**
+
+### Property 11: End Trimming Accuracy
+
+*For any* end-of-stream with specified end position P, the total output samples should equal P minus the pre-skip value, with excess samples from the final packet discarded.
+
+**Validates: Requirements 18.1, 18.2, 18.3**
+
+### Property 12: PLC Sample Count Consistency
+
+*For any* missing packet with expected duration D, invoking packet loss concealment should produce exactly D * 48 samples per channel, maintaining correct timing.
+
+**Validates: Requirements 20.1, 20.4**
+
+### Property 13: Comment Header Structure Validation
+
+*For any* OpusTags header, the codec should validate that vendor string length and comment entry lengths do not exceed packet boundaries, rejecting malformed headers.
+
+**Validates: Requirements 1.3, 14.2, 16.5, 16.6**
+
 ## **Error Handling**
 
 ### **Initialization Errors**
@@ -278,5 +360,44 @@ MediaChunk → Packet Validation → libopus Decoding → Pre-skip Application �
 - Handle libopus API correctly and efficiently
 - Manage libopus decoder lifecycle properly
 - Utilize libopus error reporting and recovery
+
+## **Testing Strategy**
+
+### **Property-Based Testing**
+
+The implementation will use **RapidCheck** as the property-based testing library, consistent with other PsyMP3 codec tests.
+
+**Configuration:**
+- Minimum 100 iterations per property test
+- Each property test must be tagged with: `**Feature: opus-codec, Property {number}: {property_text}**`
+
+**Property Test Coverage:**
+1. Header parsing round-trip tests with generated OpusHead bytes
+2. Pre-skip removal tests with various pre-skip values (0 to 65535)
+3. Output gain application tests with Q7.8 gain values (-32768 to 32767)
+4. Header sequence validation with permutations of header packets
+5. Corrupted packet handling with bit-flipped and truncated packets
+6. Reset state consistency tests with decode-reset-decode sequences
+7. Thread independence tests with concurrent codec instances
+8. TOC byte parsing tests with all valid configuration values
+9. End trimming tests with various end positions
+10. PLC sample count tests with simulated packet loss
+
+### **Unit Testing**
+
+Unit tests complement property tests by verifying specific examples and edge cases:
+
+- **Header Parsing**: Test with known-good OpusHead/OpusTags packets
+- **Mode Detection**: Test SILK, CELT, and Hybrid mode identification
+- **Channel Configurations**: Test mono, stereo, and surround configurations
+- **Error Conditions**: Test specific error codes and recovery paths
+- **Integration**: Test with real Opus files from various encoders
+
+### **Integration Testing**
+
+- Test OpusCodec with OggDemuxer using real Opus files
+- Test seeking behavior with reset() and pre-roll
+- Test MediaChunk to AudioFrame conversion pipeline
+- Test DemuxedStream bridge integration
 
 This design provides efficient, accurate Opus decoding that works with any container format while maintaining compatibility with existing functionality and integrating cleanly with the modern codec architecture.

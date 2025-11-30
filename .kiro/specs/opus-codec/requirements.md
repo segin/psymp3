@@ -12,6 +12,31 @@ The implementation must support:
 - **Sample-accurate seeking support** through decoder reset capabilities
 - **Thread-safe operation** for multi-threaded playback scenarios
 
+## **Glossary**
+
+- **Opus**: A lossy audio coding format developed by the IETF, defined in RFC 6716, designed for interactive speech and audio transmission over the Internet
+- **SILK**: Speech-optimized encoding mode within Opus, derived from Skype's SILK codec, optimized for voice at lower bitrates
+- **CELT**: Music-optimized encoding mode within Opus, based on the CELT codec, optimized for general audio at higher bitrates
+- **Hybrid Mode**: Opus encoding mode that combines SILK for low frequencies and CELT for high frequencies
+- **Pre-skip**: Number of samples at 48kHz to discard from the decoder output at the beginning of playback, specified in the Opus identification header
+- **Output Gain**: A Q7.8 fixed-point gain value in dB to apply to the decoded output, specified in the Opus identification header
+- **OpusCodec**: The PsyMP3 component that implements the AudioCodec interface for Opus bitstream decoding
+- **libopus**: The reference Opus codec library providing encoding and decoding functionality
+- **AudioCodec**: The PsyMP3 base class interface for audio codec implementations
+- **MediaChunk**: A PsyMP3 data structure containing demuxed packet data for codec processing
+- **AudioFrame**: A PsyMP3 data structure containing decoded PCM audio samples
+- **StreamInfo**: A PsyMP3 data structure containing stream configuration parameters
+- **OggDemuxer**: The PsyMP3 component that extracts Opus packets from Ogg containers
+- **DemuxedStream**: The PsyMP3 bridge interface connecting demuxers to codecs
+- **PCM**: Pulse Code Modulation, the uncompressed digital audio format output by the codec
+- **Channel Mapping Family**: Opus specification for how audio channels are ordered and coupled in multi-channel streams
+- **TOC Byte**: Table of Contents byte at the start of each Opus packet that encodes configuration, stereo flag, and frame count
+- **End Trimming**: The process of discarding samples from the final packet to achieve precise stream end position per RFC 7845 Section 4.4
+- **Pre-roll**: The 80ms (3840 samples at 48kHz) of audio that should be decoded before a seek target to ensure decoder convergence per RFC 7845 Section 4.6
+- **PLC**: Packet Loss Concealment, the process of generating replacement audio when packets are missing or corrupted
+- **FEC**: Forward Error Correction, redundant data in Opus packets that can be used to recover previous lost packets
+- **Granule Position**: The Ogg container's timestamp field representing PCM sample position at 48kHz
+
 ## **Requirements**
 
 ### **Requirement 1: Opus Bitstream Decoding**
@@ -215,11 +240,110 @@ The implementation must support:
 
 #### **Acceptance Criteria**
 
-1. **WHEN** processing comment headers **THEN** the codec **SHALL** make header data available to demuxer
-2. **WHEN** header validation occurs **THEN** the codec **SHALL** validate comment header structure
-3. **WHEN** initializing **THEN** the codec **SHALL** not directly process metadata (handled by demuxer)
-4. **WHEN** providing header data **THEN** the codec **SHALL** ensure comment header is accessible
-5. **WHEN** handling encoding **THEN** the codec **SHALL** support UTF-8 encoded comments (via demuxer)
-6. **WHEN** processing vendor strings **THEN** the codec **SHALL** handle encoder identification
-7. **WHEN** validating headers **THEN** the codec **SHALL** ensure both headers are present and valid
-8. **WHEN** reporting stream info **THEN** the codec **SHALL** coordinate with demuxer for metadata population
+1. **WHEN** processing comment headers **THEN** THE OpusCodec **SHALL** make header data available to demuxer
+2. **WHEN** header validation occurs **THEN** THE OpusCodec **SHALL** validate comment header structure
+3. **WHEN** initializing **THEN** THE OpusCodec **SHALL** not directly process metadata (handled by demuxer)
+4. **WHEN** providing header data **THEN** THE OpusCodec **SHALL** ensure comment header is accessible
+5. **WHEN** handling encoding **THEN** THE OpusCodec **SHALL** support UTF-8 encoded comments (via demuxer)
+6. **WHEN** processing vendor strings **THEN** THE OpusCodec **SHALL** handle encoder identification
+7. **WHEN** validating headers **THEN** THE OpusCodec **SHALL** ensure both headers are present and valid
+8. **WHEN** reporting stream info **THEN** THE OpusCodec **SHALL** coordinate with demuxer for metadata population
+
+### **Requirement 15: Decoder State Consistency**
+
+**User Story:** As a seeking operation, I want the decoder to maintain consistent state after reset, so that playback resumes correctly from any position.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** reset() is called **THEN** THE OpusCodec **SHALL** restore pre-skip counter to original header value
+2. **WHEN** reset() is called **THEN** THE OpusCodec **SHALL** clear all internal buffers without deallocating memory
+3. **WHEN** reset() is called **THEN** THE OpusCodec **SHALL** reset libopus decoder state using opus_decoder_ctl(OPUS_RESET_STATE)
+4. **WHEN** reset() completes **THEN** THE OpusCodec **SHALL** be ready to decode packets from any stream position
+5. **WHEN** decoding after reset **THEN** THE OpusCodec **SHALL** process headers if they are re-sent by demuxer
+6. **WHEN** decoding after reset **THEN** THE OpusCodec **SHALL** apply pre-skip correctly to first decoded frames
+7. **WHEN** multiple resets occur **THEN** THE OpusCodec **SHALL** maintain consistent behavior across all resets
+8. **WHEN** reset fails **THEN** THE OpusCodec **SHALL** fall back to full decoder reinitialization
+
+### **Requirement 16: Header Parsing Accuracy**
+
+**User Story:** As an Opus decoder, I want accurate header parsing, so that stream parameters are correctly extracted and applied.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** parsing OpusHead header **THEN** THE OpusCodec **SHALL** extract all fields in correct byte order (little-endian)
+2. **WHEN** parsing pre-skip value **THEN** THE OpusCodec **SHALL** interpret it as 16-bit unsigned little-endian integer
+3. **WHEN** parsing output gain **THEN** THE OpusCodec **SHALL** interpret it as 16-bit signed little-endian Q7.8 fixed-point value
+4. **WHEN** parsing channel mapping **THEN** THE OpusCodec **SHALL** validate stream count against channel count
+5. **WHEN** parsing OpusTags header **THEN** THE OpusCodec **SHALL** validate vendor string length before reading
+6. **WHEN** parsing comment entries **THEN** THE OpusCodec **SHALL** validate each entry length before reading
+7. **WHEN** header parsing succeeds **THEN** THE OpusCodec **SHALL** store all parameters for decoder configuration
+8. **WHEN** header parsing fails **THEN** THE OpusCodec **SHALL** report specific parsing error and reject stream
+
+
+### **Requirement 17: TOC Byte Parsing and Frame Configuration**
+
+**User Story:** As an Opus decoder, I want to correctly parse the Table of Contents (TOC) byte from each packet, so that I can determine the correct decoding configuration for each frame.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** receiving an Opus packet **THEN** THE OpusCodec **SHALL** parse the TOC byte to extract configuration, stereo flag, and frame count code per RFC 6716 Section 3.1
+2. **WHEN** parsing TOC configuration bits **THEN** THE OpusCodec **SHALL** correctly identify SILK-only (0-15), Hybrid (16-19), and CELT-only (20-31) modes
+3. **WHEN** parsing TOC stereo flag **THEN** THE OpusCodec **SHALL** correctly identify mono (0) or stereo (1) channel configuration
+4. **WHEN** parsing frame count code **THEN** THE OpusCodec **SHALL** correctly determine the number of frames in the packet (1, 2, or variable)
+5. **WHEN** TOC indicates invalid configuration **THEN** THE OpusCodec **SHALL** reject the packet and report an error
+6. **WHEN** frame duration changes between packets **THEN** THE OpusCodec **SHALL** handle the transition seamlessly
+7. **WHEN** bandwidth changes between packets **THEN** THE OpusCodec **SHALL** adapt decoding parameters accordingly
+8. **WHEN** validating TOC byte **THEN** THE OpusCodec **SHALL** ensure the configuration is valid per RFC 6716 Section 3.1
+
+### **Requirement 18: End Trimming Support**
+
+**User Story:** As a media player, I want the Opus codec to support end trimming, so that streams can end at precise sample positions that are not frame boundaries.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** the demuxer signals end-of-stream with trimming information **THEN** THE OpusCodec **SHALL** discard samples beyond the specified end position per RFC 7845 Section 4.4
+2. **WHEN** calculating final output samples **THEN** THE OpusCodec **SHALL** use granule position to determine exact sample count
+3. **WHEN** end trimming is required **THEN** THE OpusCodec **SHALL** decode the full final packet and trim excess samples
+4. **WHEN** no end trimming is specified **THEN** THE OpusCodec **SHALL** output all decoded samples from the final packet
+5. **WHEN** trimming samples **THEN** THE OpusCodec **SHALL** ensure no audio artifacts at the trim point
+6. **WHEN** end position is before pre-skip completion **THEN** THE OpusCodec **SHALL** handle the edge case gracefully
+
+### **Requirement 19: Seeking Pre-roll Support**
+
+**User Story:** As a media player, I want the Opus codec to support seeking with proper pre-roll, so that audio output is correct immediately after seeking.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** seeking occurs **THEN** THE OpusCodec **SHALL** support decoding at least 3840 samples (80ms) of pre-roll before the seek target per RFC 7845 Section 4.6
+2. **WHEN** pre-roll decoding is performed **THEN** THE OpusCodec **SHALL** discard pre-roll samples and only output samples from the seek target onwards
+3. **WHEN** seek target is within 80ms of stream start **THEN** THE OpusCodec **SHALL** decode from the beginning and apply normal pre-skip
+4. **WHEN** reset() is called for seeking **THEN** THE OpusCodec **SHALL** clear decoder state to allow proper pre-roll convergence
+5. **WHEN** pre-roll is insufficient **THEN** THE OpusCodec **SHALL** still produce output but may have reduced quality for initial samples
+6. **WHEN** coordinating with demuxer **THEN** THE OpusCodec **SHALL** accept pre-roll packets without outputting audio until seek target is reached
+
+### **Requirement 20: Packet Loss Concealment**
+
+**User Story:** As a media player handling network streams, I want the Opus codec to conceal packet loss gracefully, so that audio playback continues smoothly despite missing data.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** a packet is missing or corrupted **THEN** THE OpusCodec **SHALL** use libopus packet loss concealment (PLC) to generate replacement audio
+2. **WHEN** invoking PLC **THEN** THE OpusCodec **SHALL** call opus_decode with NULL packet data and appropriate frame size
+3. **WHEN** multiple consecutive packets are lost **THEN** THE OpusCodec **SHALL** continue PLC for each missing packet duration
+4. **WHEN** packet loss is detected **THEN** THE OpusCodec **SHALL** maintain correct sample timing and position tracking
+5. **WHEN** recovering from packet loss **THEN** THE OpusCodec **SHALL** seamlessly transition back to normal decoding
+6. **WHEN** PLC generates audio **THEN** THE OpusCodec **SHALL** apply the same gain and channel processing as normal decoded audio
+7. **WHEN** excessive packet loss occurs **THEN** THE OpusCodec **SHALL** output silence rather than degraded PLC audio
+
+### **Requirement 21: Forward Error Correction Support**
+
+**User Story:** As a media player, I want the Opus codec to utilize Forward Error Correction (FEC) when available, so that packet loss can be recovered using redundant data.
+
+#### **Acceptance Criteria**
+
+1. **WHEN** FEC data is available in a subsequent packet **THEN** THE OpusCodec **SHALL** use it to recover the previous lost packet per RFC 6716
+2. **WHEN** decoding with FEC **THEN** THE OpusCodec **SHALL** call opus_decode with the FEC flag set appropriately
+3. **WHEN** FEC recovery is successful **THEN** THE OpusCodec **SHALL** output the recovered audio instead of PLC-generated audio
+4. **WHEN** FEC data is not available **THEN** THE OpusCodec **SHALL** fall back to standard PLC
+5. **WHEN** FEC is used **THEN** THE OpusCodec **SHALL** maintain correct timing and sample alignment
+6. **WHEN** partial FEC recovery is possible **THEN** THE OpusCodec **SHALL** use available FEC data and PLC for remaining gaps
