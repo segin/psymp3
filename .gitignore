@@ -330,3 +330,4 @@ tests/test_lastfm_config_roundtrip_properties
 tests/test_streaminfo_debug
 tests/test_lastfm_thread_safety_properties
 tests/test_vorbis_header_sequence_properties
+tests/test_vorbis_audio_decoding_properties

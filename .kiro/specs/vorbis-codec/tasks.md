@@ -83,36 +83,36 @@
 - [x] 5. Checkpoint - Verify header processing works
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Implement Audio Packet Decoding
-  - [ ] 6.1 Create main decode() method implementation
+- [x] 6. Implement Audio Packet Decoding
+  - [x] 6.1 Create main decode() method implementation
     - Route header packets to header processing system
     - Route audio packets to audio decoding system
     - Handle empty packets and end-of-stream conditions
     - Return appropriate AudioFrame or empty frame
     - _Requirements: 11.3, 1.5, 6.1_
 
-  - [ ] 6.2 Implement audio packet decoding core
+  - [x] 6.2 Implement audio packet decoding core
     - Create decodeAudioPacket() using vorbis_synthesis() and vorbis_synthesis_blockin()
     - Extract PCM samples using vorbis_synthesis_pcmout() and vorbis_synthesis_read()
     - Handle variable block sizes via vorbis_info_blocksize()
     - Convert float samples to 16-bit PCM format
     - _Requirements: 1.5, 1.6, 2.4, 2.5_
 
-  - [ ] 6.3 Write property test for MediaChunk to AudioFrame conversion
+  - [x] 6.3 Write property test for MediaChunk to AudioFrame conversion
     - **Property 15: MediaChunk to AudioFrame Conversion**
     - **Validates: Requirements 11.3**
 
-  - [ ] 6.4 Add packet validation and error handling
+  - [x] 6.4 Add packet validation and error handling
     - Implement validateVorbisPacket() for basic packet validation
     - Handle corrupted packets by skipping and continuing
     - Implement handleVorbisError() for libvorbis error code processing
     - _Requirements: 1.8, 8.1, 8.2, 8.3_
 
-  - [ ] 6.5 Write property test for corrupted packet recovery
+  - [x] 6.5 Write property test for corrupted packet recovery
     - **Property 3: Corrupted Packet Recovery**
     - **Validates: Requirements 1.8, 8.3**
 
-  - [ ] 6.6 Write property test for error code handling
+  - [x] 6.6 Write property test for error code handling
     - **Property 4: Error Code Handling**
     - **Validates: Requirements 2.6**
 
