@@ -271,7 +271,7 @@ typedef struct bio_st BIO;
 #endif
 #ifdef HAVE_OGGDEMUXER
 #include <opus/opus.h>
-#include <opus/opusfile.h>
+#include <opus/opus_multistream.h>
 #endif
 #include <taglib/tag.h>
 #include <taglib/fileref.h>
