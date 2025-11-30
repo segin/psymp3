@@ -9204,69 +9204,9 @@ void FLACCodec::maintainOutputTiming_unlocked(uint32_t block_size) {
     }
 }
 
-void FLACCodec::adaptiveBufferResize_unlocked(uint32_t block_size) {
-    if (!m_adaptive_buffering_enabled) {
-        return;
-    }
-    
-    Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Adaptive buffer resize for block size: ", 
-              block_size);
-    
-    // Calculate new buffer size with some headroom for future block size variations
-    size_t required_samples = static_cast<size_t>(block_size) * m_channels;
-    
-    // Add headroom based on observed block size variation
-    double variation_factor = 1.5; // Default 50% headroom
-    if (m_largest_block_seen > 0 && m_smallest_block_seen < UINT32_MAX) {
-        double size_ratio = static_cast<double>(m_largest_block_seen) / m_smallest_block_seen;
-        variation_factor = std::min(3.0, std::max(1.2, size_ratio * 1.1)); // 20% to 300% headroom
-    }
-    
-    size_t target_capacity = static_cast<size_t>(required_samples * variation_factor);
-    
-    Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Target capacity: ", 
-              target_capacity, " samples (variation_factor=", variation_factor, ")");
-    
-    // Resize decode buffer if needed
-    if (m_decode_buffer.capacity() < target_capacity) {
-        m_decode_buffer.reserve(target_capacity);
-        Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Resized decode buffer: ", 
-                  target_capacity, " samples");
-    }
-    
-    // Resize output buffer if needed (with buffer lock)
-    {
-        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-        if (m_output_buffer.capacity() < target_capacity) {
-            m_output_buffer.reserve(target_capacity);
-            Debug::log("flac_codec", "[FLACCodec::adaptiveBufferResize_unlocked] Resized output buffer: ", 
-                      target_capacity, " samples");
-        }
-    }
-}
-
-bool FLACCodec::requiresBufferReallocation_unlocked(uint32_t block_size) const {
-    size_t required_samples = static_cast<size_t>(block_size) * m_channels;
-    
-    // Check if current buffers are insufficient
-    bool decode_buffer_insufficient = m_decode_buffer.capacity() < required_samples;
-    
-    bool output_buffer_insufficient = false;
-    {
-        std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
-        output_buffer_insufficient = m_output_buffer.capacity() < required_samples;
-    }
-    
-    bool reallocation_needed = decode_buffer_insufficient || output_buffer_insufficient;
-    
-    if (reallocation_needed) {
-        Debug::log("flac_codec", "[FLACCodec::requiresBufferReallocation_unlocked] Reallocation needed: ",
-                  "required=", required_samples, ", decode_capacity=", m_decode_buffer.capacity(),
-                  ", output_capacity=", m_output_buffer.capacity());
-    }
-    
-    return reallocation_needed;
-}
+// Note: adaptiveBufferResize_unlocked(size_t) and requiresBufferReallocation_unlocked(size_t)
+// are implemented earlier in this file. On 32-bit systems, uint32_t == size_t, so we don't
+// provide separate uint32_t overloads to avoid duplicate symbol errors.
 
 void FLACCodec::optimizeForVariableBlockSizes_unlocked() {
     Debug::log("flac_codec", "[FLACCodec::optimizeForVariableBlockSizes_unlocked] Optimizing for variable block sizes");

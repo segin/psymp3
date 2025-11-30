@@ -2024,8 +2024,9 @@ private:
     void handleBlockSizeTransition_unlocked(uint32_t old_size, uint32_t new_size);
     void smoothBlockSizeTransition_unlocked(uint32_t new_block_size);
     void maintainOutputTiming_unlocked(uint32_t block_size);
-    void adaptiveBufferResize_unlocked(uint32_t block_size);
-    bool requiresBufferReallocation_unlocked(uint32_t block_size) const;
+    // Note: adaptiveBufferResize_unlocked and requiresBufferReallocation_unlocked
+    // are declared above with size_t parameter - on 32-bit systems uint32_t == size_t
+    // so we don't redeclare them here to avoid overload conflicts
     void optimizeForVariableBlockSizes_unlocked();
     
     // Prevent copying

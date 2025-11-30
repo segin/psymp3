@@ -80,7 +80,7 @@
     - **Property 5: Reset Preserves Headers**
     - **Validates: Requirements 2.7, 6.4**
 
-- [ ] 5. Checkpoint - Verify header processing works
+- [x] 5. Checkpoint - Verify header processing works
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Implement Audio Packet Decoding
