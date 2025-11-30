@@ -30,7 +30,7 @@
     - Add placeholder implementations returning appropriate defaults
     - _Requirements: 26.1, 26.2, 26.3_
 
-- [ ] 1.4 Write property test for stream marker validation
+- [-] 1.4 Write property test for stream marker validation
   - **Property 1: Stream Marker Validation**
   - **Validates: Requirements 1.2, 1.3**
 
