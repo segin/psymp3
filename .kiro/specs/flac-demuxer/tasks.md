@@ -46,7 +46,7 @@
     - Log exact byte values found versus expected
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [x] 3. Implement Metadata Block Header Parsing (RFC 9639 Section sudo apt install nsolid -y
+- [x] 3. Implement Metadata Block Header Parsing (RFC 9639 Section sudo apt install nsolid -yl
   - [x] 3.1 Implement parseMetadataBlockHeader method
     - Read 4-byte header
     - Extract bit 7 as is_last flag
@@ -66,8 +66,8 @@
   - **Property 3: Forbidden Block Type Detection**
   - **Validates: Requirements 2.4, 18.1**
 
-- [ ] 4. Implement STREAMINFO Block Parsing (RFC 9639 Section 8.2)
-  - [ ] 4.1 Implement parseStreamInfo method
+- [x] 4. Implement STREAMINFO Block Parsing (RFC 9639 Section 8.2)
+  - [x] 4.1 Implement parseStreamInfo method
     - Verify STREAMINFO is first metadata block
     - Read exactly 34 bytes of data
     - Extract u16 min and max block size big-endian
@@ -75,18 +75,18 @@
     - Extract u20 sample rate, u3 channels-1, u5 bit depth-1
     - Extract u36 total samples, u128 MD5 checksum
     - _Requirements: 3.1-3.5, 3.9, 3.10, 3.13, 3.15-3.17, 3.19_
-  - [ ] 4.2 Implement STREAMINFO validation
+  - [x] 4.2 Implement STREAMINFO validation
     - Reject if min or max block size less than 16
     - Reject if min block size exceeds max block size
     - Reject if sample rate is 0 for audio streams
     - Handle unknown values for frame size 0, total samples 0, MD5 all zeros
     - _Requirements: 3.6-3.8, 3.11, 3.12, 3.14, 3.18, 3.20_
 
-- [ ] 4.3 Write property test for STREAMINFO block size validation
+- [x] 4.3 Write property test for STREAMINFO block size validation
   - **Property 4: STREAMINFO Block Size Validation**
   - **Validates: Requirements 3.6, 3.7**
 
-- [ ] 4.4 Write property test for STREAMINFO block size ordering
+- [x] 4.4 Write property test for STREAMINFO block size ordering
   - **Property 5: STREAMINFO Block Size Ordering**
   - **Validates: Requirements 3.8**
 

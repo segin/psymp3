@@ -427,6 +427,7 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
     FLAC_DEBUG("Parsing metadata blocks");
     
     bool found_streaminfo = false;
+    bool is_first_block = true;  // Track if this is the first metadata block
     bool is_last = false;
     
     while (!is_last) {
@@ -440,11 +441,23 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
         is_last = block.is_last;
         
         FLAC_DEBUG("Metadata block: type=", static_cast<int>(block.type), 
-                   ", length=", block.length, ", is_last=", is_last);
+                   ", length=", block.length, ", is_last=", is_last,
+                   ", is_first=", is_first_block);
         
         // Process block based on type
         // RFC 9639 Section 8.1: Block types 0-6 are defined, 7-126 are reserved, 127 is forbidden
         uint8_t raw_type = static_cast<uint8_t>(block.type);
+        
+        // Requirement 3.1, 3.2: STREAMINFO must be the first metadata block
+        // RFC 9639 Section 8.2: "The STREAMINFO block MUST be the first metadata block"
+        if (is_first_block) {
+            if (block.type != FLACMetadataType::STREAMINFO) {
+                FLAC_DEBUG("First metadata block is not STREAMINFO (type=", 
+                           static_cast<int>(raw_type), ") - rejecting stream");
+                reportError("Format", "STREAMINFO must be the first metadata block (RFC 9639 Section 8.2)");
+                return false;
+            }
+        }
         
         // Requirement 2.4, 18.1: Block type 127 is forbidden (already checked in parseMetadataBlockHeader_unlocked)
         // Requirement 2.13: Reserved block types 7-126 should be skipped
@@ -452,6 +465,7 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
             FLAC_DEBUG("Skipping reserved metadata block type ", static_cast<int>(raw_type), 
                        " (length=", block.length, " bytes)");
             skipMetadataBlock_unlocked(block);
+            is_first_block = false;
             continue;
         }
         
@@ -491,6 +505,8 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 skipMetadataBlock_unlocked(block);
                 break;
         }
+        
+        is_first_block = false;  // After processing any block, it's no longer the first
     }
     
     // RFC 9639: STREAMINFO must be first metadata block
@@ -553,37 +569,60 @@ bool FLACDemuxer::parseMetadataBlockHeader_unlocked(FLACMetadataBlock& block)
 
 bool FLACDemuxer::parseStreamInfoBlock_unlocked(const FLACMetadataBlock& block)
 {
-    FLAC_DEBUG("Parsing STREAMINFO block");
+    FLAC_DEBUG("[parseStreamInfo] Parsing STREAMINFO block (RFC 9639 Section 8.2)");
     
+    // Requirement 3.3: Read exactly 34 bytes of data
     // RFC 9639 Section 8.2: STREAMINFO is exactly 34 bytes
     if (block.length != 34) {
-        reportError("Format", "Invalid STREAMINFO length: " + std::to_string(block.length));
+        FLAC_DEBUG("[parseStreamInfo] Invalid STREAMINFO length: ", block.length, " (expected 34)");
+        reportError("Format", "Invalid STREAMINFO length: " + std::to_string(block.length) + " (expected 34)");
         return false;
     }
     
     uint8_t data[34];
     if (m_handler->read(data, 1, 34) != 34) {
+        FLAC_DEBUG("[parseStreamInfo] Failed to read 34 bytes of STREAMINFO data");
         reportError("IO", "Failed to read STREAMINFO data");
         return false;
     }
     
-    // Parse STREAMINFO fields (all big-endian)
+    // Parse STREAMINFO fields (all big-endian per RFC 9639 Section 5)
+    
+    // Requirement 3.4: Extract u(16) minimum block size big-endian
     // Bytes 0-1: minimum block size (u16)
     m_streaminfo.min_block_size = (static_cast<uint16_t>(data[0]) << 8) | data[1];
+    FLAC_DEBUG("[parseStreamInfo] min_block_size: ", m_streaminfo.min_block_size);
     
+    // Requirement 3.5: Extract u(16) maximum block size big-endian
     // Bytes 2-3: maximum block size (u16)
     m_streaminfo.max_block_size = (static_cast<uint16_t>(data[2]) << 8) | data[3];
+    FLAC_DEBUG("[parseStreamInfo] max_block_size: ", m_streaminfo.max_block_size);
     
+    // Requirement 3.9: Extract u(24) minimum frame size big-endian
     // Bytes 4-6: minimum frame size (u24)
     m_streaminfo.min_frame_size = (static_cast<uint32_t>(data[4]) << 16) |
                                    (static_cast<uint32_t>(data[5]) << 8) |
                                    data[6];
+    // Requirement 3.11: If minimum frame size is 0, treat as unknown
+    if (m_streaminfo.min_frame_size == 0) {
+        FLAC_DEBUG("[parseStreamInfo] min_frame_size: 0 (unknown)");
+    } else {
+        FLAC_DEBUG("[parseStreamInfo] min_frame_size: ", m_streaminfo.min_frame_size);
+    }
     
+    // Requirement 3.10: Extract u(24) maximum frame size big-endian
     // Bytes 7-9: maximum frame size (u24)
     m_streaminfo.max_frame_size = (static_cast<uint32_t>(data[7]) << 16) |
                                    (static_cast<uint32_t>(data[8]) << 8) |
                                    data[9];
+    // Requirement 3.12: If maximum frame size is 0, treat as unknown
+    if (m_streaminfo.max_frame_size == 0) {
+        FLAC_DEBUG("[parseStreamInfo] max_frame_size: 0 (unknown)");
+    } else {
+        FLAC_DEBUG("[parseStreamInfo] max_frame_size: ", m_streaminfo.max_frame_size);
+    }
     
+    // Requirement 3.13: Extract u(20) sample rate big-endian
     // Bytes 10-13: sample rate (u20), channels-1 (u3), bits_per_sample-1 (u5)
     // Byte 10: sample_rate[19:12]
     // Byte 11: sample_rate[11:4]
@@ -593,44 +632,85 @@ bool FLACDemuxer::parseStreamInfoBlock_unlocked(const FLACMetadataBlock& block)
     m_streaminfo.sample_rate = (static_cast<uint32_t>(data[10]) << 12) |
                                 (static_cast<uint32_t>(data[11]) << 4) |
                                 (data[12] >> 4);
+    FLAC_DEBUG("[parseStreamInfo] sample_rate: ", m_streaminfo.sample_rate, " Hz");
     
+    // Requirement 3.15: Extract u(3) channels-1 and add 1
     m_streaminfo.channels = ((data[12] >> 1) & 0x07) + 1;
+    FLAC_DEBUG("[parseStreamInfo] channels: ", static_cast<int>(m_streaminfo.channels));
     
+    // Requirement 3.16: Extract u(5) bits_per_sample-1 and add 1
     m_streaminfo.bits_per_sample = (((data[12] & 0x01) << 4) | (data[13] >> 4)) + 1;
+    FLAC_DEBUG("[parseStreamInfo] bits_per_sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
     
+    // Requirement 3.17: Extract u(36) total samples big-endian
     // Bytes 13-17: total samples (u36)
     m_streaminfo.total_samples = (static_cast<uint64_t>(data[13] & 0x0F) << 32) |
                                   (static_cast<uint64_t>(data[14]) << 24) |
                                   (static_cast<uint64_t>(data[15]) << 16) |
                                   (static_cast<uint64_t>(data[16]) << 8) |
                                   data[17];
+    // Requirement 3.18: If total samples is 0, treat stream length as unknown
+    if (m_streaminfo.total_samples == 0) {
+        FLAC_DEBUG("[parseStreamInfo] total_samples: 0 (unknown duration)");
+    } else {
+        FLAC_DEBUG("[parseStreamInfo] total_samples: ", m_streaminfo.total_samples);
+    }
     
+    // Requirement 3.19: Extract 128-bit MD5 checksum
     // Bytes 18-33: MD5 signature (128 bits)
     std::memcpy(m_streaminfo.md5_signature, &data[18], 16);
     
-    // RFC 9639 Table 1: min/max block size < 16 is forbidden
-    if (m_streaminfo.min_block_size < 16) {
-        reportError("Format", "Forbidden: min_block_size < 16");
-        return false;
+    // Requirement 3.20: If MD5 checksum is all zeros, treat as unavailable
+    bool md5_available = false;
+    for (int i = 0; i < 16; ++i) {
+        if (m_streaminfo.md5_signature[i] != 0) {
+            md5_available = true;
+            break;
+        }
     }
-    if (m_streaminfo.max_block_size < 16) {
-        reportError("Format", "Forbidden: max_block_size < 16");
+    if (md5_available) {
+        FLAC_DEBUG("[parseStreamInfo] MD5 signature present");
+    } else {
+        FLAC_DEBUG("[parseStreamInfo] MD5 signature: all zeros (unavailable)");
+    }
+    
+    // ========================================================================
+    // STREAMINFO Validation (Requirements 3.6-3.8, 3.14)
+    // ========================================================================
+    
+    // Requirement 3.6: Reject if minimum block size < 16 (RFC 9639 Table 1 forbidden pattern)
+    if (m_streaminfo.min_block_size < 16) {
+        FLAC_DEBUG("[parseStreamInfo] REJECTED: min_block_size (", m_streaminfo.min_block_size, 
+                   ") < 16 - forbidden pattern per RFC 9639 Table 1");
+        reportError("Format", "Forbidden: min_block_size < 16 (RFC 9639 Table 1)");
         return false;
     }
     
-    // Validate min <= max
+    // Requirement 3.7: Reject if maximum block size < 16 (RFC 9639 Table 1 forbidden pattern)
+    if (m_streaminfo.max_block_size < 16) {
+        FLAC_DEBUG("[parseStreamInfo] REJECTED: max_block_size (", m_streaminfo.max_block_size, 
+                   ") < 16 - forbidden pattern per RFC 9639 Table 1");
+        reportError("Format", "Forbidden: max_block_size < 16 (RFC 9639 Table 1)");
+        return false;
+    }
+    
+    // Requirement 3.8: Reject if minimum block size exceeds maximum block size
     if (m_streaminfo.min_block_size > m_streaminfo.max_block_size) {
+        FLAC_DEBUG("[parseStreamInfo] REJECTED: min_block_size (", m_streaminfo.min_block_size, 
+                   ") > max_block_size (", m_streaminfo.max_block_size, ")");
         reportError("Format", "Invalid: min_block_size > max_block_size");
         return false;
     }
     
+    // Requirement 3.14: Reject if sample rate is 0 for audio streams
     // RFC 9639: sample rate must not be 0 for audio streams
     if (m_streaminfo.sample_rate == 0) {
-        reportError("Format", "Invalid: sample_rate is 0");
+        FLAC_DEBUG("[parseStreamInfo] REJECTED: sample_rate is 0 - invalid for audio streams");
+        reportError("Format", "Invalid: sample_rate is 0 (RFC 9639 Section 8.2)");
         return false;
     }
     
-    FLAC_DEBUG("STREAMINFO parsed successfully");
+    FLAC_DEBUG("[parseStreamInfo] STREAMINFO parsed and validated successfully");
     return true;
 }
 
