@@ -228,8 +228,8 @@ OggPageParser::ParseResult OggPageParser::parsePage(const uint8_t* data, size_t 
     
     // Validate CRC32 checksum
     if (!validateCRC32(data, page.total_size)) {
-        Debug::log("ogg", "CRC32 validation failed for page at offset, expected: 0x%08x", 
-                   page.header.checksum);
+        Debug::log("ogg", "CRC32 validation failed for page at offset, expected: 0x", 
+                   std::hex, page.header.checksum, std::dec);
         return ParseResult::CRC_MISMATCH;
     }
     
@@ -573,11 +573,16 @@ bool OggDemuxer::parseContainer() {
     
     // Get file size for duration calculation
     if (m_handler) {
-        m_handler->seek(0, SEEK_END);
+        if (m_handler->seek(0, SEEK_END) != 0) {
+            Debug::log("ogg", "parseContainer: Failed to seek to end for file size");
+            return false;
+        }
         m_file_size = static_cast<uint64_t>(m_handler->tell());
-        m_handler->seek(0, SEEK_SET);
-        Debug::log("ogg", "parseContainer: File size = %llu bytes", 
-                   static_cast<unsigned long long>(m_file_size));
+        if (m_handler->seek(0, SEEK_SET) != 0) {
+            Debug::log("ogg", "parseContainer: Failed to seek to beginning");
+            return false;
+        }
+        Debug::log("ogg", "parseContainer: File size = ", m_file_size, " bytes");
     }
     
     // Reset state
@@ -607,10 +612,10 @@ bool OggDemuxer::parseContainer() {
         if (result < 0) {
             if (result == -3) {
                 // EOF reached
-                Debug::log("ogg", "parseContainer: EOF reached after %d pages", pages_read);
+                Debug::log("ogg", "parseContainer: EOF reached after ", pages_read, " pages");
                 break;
             }
-            Debug::log("ogg", "parseContainer: Error reading page: %d", result);
+            Debug::log("ogg", "parseContainer: Error reading page: ", result);
             break;
         }
         
@@ -618,7 +623,7 @@ bool OggDemuxer::parseContainer() {
         
         // Process the page
         if (!processPage(&page)) {
-            Debug::log("ogg", "parseContainer: Failed to process page %d", pages_read);
+            Debug::log("ogg", "parseContainer: Failed to process page ", pages_read);
             // Continue trying to read more pages
         }
         
@@ -669,8 +674,7 @@ bool OggDemuxer::parseContainer() {
             
             if (stream.header_packets.size() >= min_headers) {
                 stream.headers_complete = true;
-                Debug::log("ogg", "parseContainer: Stream 0x%08x marked complete with %zu headers",
-                           serial, stream.header_packets.size());
+                Debug::log("ogg", "parseContainer: Stream 0x", std::hex, serial, std::dec, " marked complete with ", stream.header_packets.size(), " headers");
             }
         }
     }
@@ -684,16 +688,17 @@ bool OggDemuxer::parseContainer() {
         for (const auto& [serial, stream] : m_streams) {
             if (stream.codec_type == "audio" && stream.headers_complete) {
                 m_duration_ms = granuleToMs(last_granule, serial);
-                Debug::log("ogg", "parseContainer: Duration = %llu ms (granule %llu)",
-                           static_cast<unsigned long long>(m_duration_ms),
-                           static_cast<unsigned long long>(last_granule));
+                Debug::log("ogg", "parseContainer: Duration = ", m_duration_ms, " ms (granule ", last_granule, ")");
                 break;
             }
         }
     }
     
     // Reset to beginning for playback
-    m_handler->seek(0, SEEK_SET);
+    if (m_handler->seek(0, SEEK_SET) != 0) {
+        Debug::log("ogg", "parseContainer: Failed to reset to beginning for playback");
+        return false;
+    }
     ogg_sync_reset(&m_sync_state);
     
     // Reset stream states for playback
@@ -723,7 +728,7 @@ bool OggDemuxer::parseContainer() {
     
     m_parsed = true;
     
-    Debug::log("ogg", "parseContainer: Successfully parsed %zu streams", m_streams.size());
+    Debug::log("ogg", "parseContainer: Successfully parsed ", m_streams.size(), " streams");
     return true;
 }
 
@@ -899,7 +904,7 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     // Check if stream exists
     auto stream_it = m_streams.find(stream_id);
     if (stream_it == m_streams.end()) {
-        Debug::log("ogg", "readChunk_unlocked: Stream 0x%08x not found", stream_id);
+        Debug::log("ogg", "readChunk_unlocked: Stream 0x", std::hex, stream_id, std::dec, " not found");
         return MediaChunk{};
     }
     
@@ -922,8 +927,7 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
             // Mark headers as sent when all are delivered
             if (stream.next_header_index >= stream.header_packets.size()) {
                 stream.headers_sent = true;
-                Debug::log("ogg", "readChunk_unlocked: All %zu headers sent for stream 0x%08x",
-                           stream.header_packets.size(), stream_id);
+                Debug::log("ogg", "readChunk_unlocked: All ", stream.header_packets.size(), " headers sent for stream 0x", std::hex, stream_id, std::dec);
             }
             
             return chunk;
@@ -948,7 +952,7 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     // Check if queue is still empty
     if (stream_ref.m_packet_queue.empty()) {
         if (m_eof) {
-            Debug::log("ogg", "readChunk_unlocked: EOF reached for stream 0x%08x", stream_id);
+            Debug::log("ogg", "readChunk_unlocked: EOF reached for stream 0x", std::hex, stream_id, std::dec);
         }
         return MediaChunk{};
     }
@@ -981,8 +985,7 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     chunk.timestamp_samples = timestamp_samples;
     chunk.is_keyframe = true;  // Audio packets are typically all keyframes
     
-    Debug::log("ogg", "readChunk_unlocked: Returned packet from stream 0x%08x, size %zu, granule %llu",
-               stream_id, chunk.data.size(), static_cast<unsigned long long>(packet.granule_position));
+    Debug::log("ogg", "readChunk_unlocked: Returned packet from stream 0x", std::hex, stream_id, std::dec, ", size ", chunk.data.size(), ", granule ", packet.granule_position);
     
     return chunk;
 }
@@ -1037,10 +1040,8 @@ bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
     // Convert timestamp to target granule position
     uint64_t target_granule = msToGranule(timestamp_ms, audio_stream_id);
     
-    Debug::log("ogg", "seekTo_unlocked: Seeking to %llu ms (granule %llu) in stream 0x%08x",
-               static_cast<unsigned long long>(timestamp_ms),
-               static_cast<unsigned long long>(target_granule),
-               audio_stream_id);
+    Debug::log("ogg", "seekTo_unlocked: Seeking to ", timestamp_ms, " ms (granule ", 
+               target_granule, ") in stream 0x", std::hex, audio_stream_id, std::dec);
     
     // Perform page-level seeking using bisection search
     bool result = seekToPage_unlocked(target_granule, audio_stream_id);
@@ -1052,11 +1053,9 @@ bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
         // Clear EOF flag since we've repositioned
         m_eof = false;
         
-        Debug::log("ogg", "seekTo_unlocked: Successfully seeked to %llu ms", 
-                   static_cast<unsigned long long>(timestamp_ms));
+        Debug::log("ogg", "seekTo_unlocked: Successfully seeked to ", timestamp_ms, " ms");
     } else {
-        Debug::log("ogg", "seekTo_unlocked: Failed to seek to %llu ms",
-                   static_cast<unsigned long long>(timestamp_ms));
+        Debug::log("ogg", "seekTo_unlocked: Failed to seek to ", timestamp_ms, " ms");
     }
     
     return result;
@@ -1230,14 +1229,14 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     
     auto stream_it = m_streams.find(stream_id);
     if (stream_it == m_streams.end()) {
-        Debug::log("ogg", "granuleToMs: Stream 0x%08x not found", stream_id);
+        Debug::log("ogg", "granuleToMs: Stream 0x", std::hex, stream_id, std::dec, " not found");
         return 0;
     }
     
     const OggStream& stream = stream_it->second;
     
     if (stream.sample_rate == 0) {
-        Debug::log("ogg", "granuleToMs: Stream 0x%08x has zero sample rate", stream_id);
+        Debug::log("ogg", "granuleToMs: Stream 0x", std::hex, stream_id, std::dec, " has zero sample rate");
         return 0;
     }
     
@@ -1284,14 +1283,14 @@ uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
 uint64_t OggDemuxer::msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const {
     auto stream_it = m_streams.find(stream_id);
     if (stream_it == m_streams.end()) {
-        Debug::log("ogg", "msToGranule: Stream 0x%08x not found", stream_id);
+        Debug::log("ogg", "msToGranule: Stream 0x", std::hex, stream_id, std::dec, " not found");
         return 0;
     }
     
     const OggStream& stream = stream_it->second;
     
     if (stream.sample_rate == 0) {
-        Debug::log("ogg", "msToGranule: Stream 0x%08x has zero sample rate", stream_id);
+        Debug::log("ogg", "msToGranule: Stream 0x", std::hex, stream_id, std::dec, " has zero sample rate");
         return 0;
     }
     
@@ -1413,11 +1412,11 @@ std::string OggDemuxer::identifyCodec(const std::vector<uint8_t>& packet_data) {
     
     // Unknown codec - log first few bytes for debugging
     if (packet_data.size() >= 4) {
-        Debug::log("ogg", "identifyCodec: Unknown codec, first bytes: 0x%02x 0x%02x 0x%02x 0x%02x",
-                   packet_data[0], packet_data[1], packet_data[2], packet_data[3]);
+        Debug::log("ogg", "identifyCodec: Unknown codec, first bytes: 0x", 
+                   std::hex, static_cast<int>(packet_data[0]), " 0x", static_cast<int>(packet_data[1]),
+                   " 0x", static_cast<int>(packet_data[2]), " 0x", static_cast<int>(packet_data[3]), std::dec);
     } else {
-        Debug::log("ogg", "identifyCodec: Unknown codec, packet too small (%zu bytes)",
-                   packet_data.size());
+        Debug::log("ogg", "identifyCodec: Unknown codec, packet too small (", packet_data.size(), " bytes)");
     }
     
     return "";
@@ -1442,7 +1441,7 @@ bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) 
     const std::vector<uint8_t>& data = packet.data;
     
     if (data.size() < 7) {
-        Debug::log("ogg", "parseVorbisHeaders: Packet too small (%zu bytes)", data.size());
+        Debug::log("ogg", "parseVorbisHeaders: Packet too small (", data.size(), " bytes)");
         return false;
     }
     
@@ -1469,7 +1468,7 @@ bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) 
             // Offset 7: vorbis_version (4 bytes) - must be 0
             uint32_t vorbis_version = readLE<uint32_t>(data, 7);
             if (vorbis_version != 0) {
-                Debug::log("ogg", "parseVorbisHeaders: Unsupported vorbis version %u", vorbis_version);
+                Debug::log("ogg", "parseVorbisHeaders: Unsupported vorbis version ", vorbis_version);
                 return false;
             }
             
@@ -1545,7 +1544,7 @@ bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) 
                 offset += 4;
                 
                 if (offset + comment_length > data.size()) {
-                    Debug::log("ogg", "parseVorbisHeaders: Comment %u exceeds packet", i);
+                    Debug::log("ogg", "parseVorbisHeaders: Comment ", i, " exceeds packet");
                     break;
                 }
                 
@@ -1575,9 +1574,8 @@ bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) 
                 }
             }
             
-            Debug::log("ogg", "parseVorbisHeaders: Comment header - "
-                       "artist='%s', title='%s', album='%s'",
-                       stream.artist.c_str(), stream.title.c_str(), stream.album.c_str());
+            Debug::log("ogg", "parseVorbisHeaders: Comment header - artist='", 
+                       stream.artist, "', title='", stream.title, "', album='", stream.album, "'");
             
             return true;
         }
@@ -1585,12 +1583,12 @@ bool OggDemuxer::parseVorbisHeaders(OggStream& stream, const OggPacket& packet) 
         case 0x05: {
             // Setup header (Requirements 4.3)
             // Just validate signature - the actual setup data is preserved in header_packets
-            Debug::log("ogg", "parseVorbisHeaders: Setup header (%zu bytes)", data.size());
+            Debug::log("ogg", "parseVorbisHeaders: Setup header (", data.size(), " bytes)");
             return true;
         }
         
         default:
-            Debug::log("ogg", "parseVorbisHeaders: Unknown packet type 0x%02x", packet_type);
+            Debug::log("ogg", "parseVorbisHeaders: Unknown packet type 0x", std::hex, static_cast<int>(packet_type), std::dec);
             return false;
     }
 }
@@ -1624,8 +1622,7 @@ bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
         // FLAC-in-Ogg identification header (Requirements 4.6, 4.7, 4.8, 4.9)
         // Minimum size: 51 bytes
         if (data.size() < 51) {
-            Debug::log("ogg", "parseFLACHeaders: Identification header too small (%zu bytes, need 51)",
-                       data.size());
+            Debug::log("ogg", "parseFLACHeaders: Identification header too small (", data.size(), " bytes, need 51)");
             return false;
         }
         
@@ -1634,8 +1631,9 @@ bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
         stream.flac_mapping_version_minor = data[6];
         
         if (stream.flac_mapping_version_major != 1 || stream.flac_mapping_version_minor != 0) {
-            Debug::log("ogg", "parseFLACHeaders: Unsupported mapping version %u.%u (expected 1.0)",
-                       stream.flac_mapping_version_major, stream.flac_mapping_version_minor);
+            Debug::log("ogg", "parseFLACHeaders: Unsupported mapping version ", 
+                       static_cast<int>(stream.flac_mapping_version_major), ".", 
+                       static_cast<int>(stream.flac_mapping_version_minor), " (expected 1.0)");
             // Handle gracefully per Requirements 5.3 - continue but warn
         }
         
@@ -1645,8 +1643,7 @@ bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
             // 0 means unknown number of header packets
             Debug::log("ogg", "parseFLACHeaders: Unknown header packet count");
         } else {
-            Debug::log("ogg", "parseFLACHeaders: Expecting %u header packets", 
-                       stream.expected_header_count);
+            Debug::log("ogg", "parseFLACHeaders: Expecting ", stream.expected_header_count, " header packets");
         }
         
         // Verify fLaC signature at offset 9 (Requirements 4.8)
@@ -1660,7 +1657,7 @@ bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
         // Bits 0-6: block type (should be 0 for STREAMINFO)
         uint8_t block_type = data[13] & 0x7F;
         if (block_type != 0) {
-            Debug::log("ogg", "parseFLACHeaders: Expected STREAMINFO block type 0, got %u", block_type);
+            Debug::log("ogg", "parseFLACHeaders: Expected STREAMINFO block type 0, got ", static_cast<int>(block_type));
             return false;
         }
         
@@ -1669,7 +1666,7 @@ bool OggDemuxer::parseFLACHeaders(OggStream& stream, const OggPacket& packet) {
                                 (static_cast<uint32_t>(data[15]) << 8) |
                                 data[16];
         if (block_length != 34) {
-            Debug::log("ogg", "parseFLACHeaders: STREAMINFO block length %u, expected 34", block_length);
+            Debug::log("ogg", "parseFLACHeaders: STREAMINFO block length ", block_length, ", expected 34");
             return false;
         }
         
@@ -2028,9 +2025,7 @@ bool OggDemuxer::processPage(ogg_page* page) {
     bool is_bos = pageBOS(page);
     bool is_eos = pageEOS(page);
     
-    Debug::log("ogg", "processPage: serial=0x%08x, BOS=%d, EOS=%d, granule=%lld",
-               serial_number, is_bos, is_eos,
-               static_cast<long long>(pageGranulePos(page)));
+    Debug::log("ogg", "processPage: serial=0x", std::hex, serial_number, std::dec, ", BOS=", is_bos, ", EOS=", is_eos, ", granule=", pageGranulePos(page));
     
     // Handle BOS (Beginning of Stream) pages
     if (is_bos) {
@@ -2061,7 +2056,7 @@ bool OggDemuxer::processPage(ogg_page* page) {
  * Requirements: 3.1-3.6, 3.7, 3.8, 3.11
  */
 bool OggDemuxer::handleBOSPage(ogg_page* page, uint32_t serial_number) {
-    Debug::log("ogg", "handleBOSPage: Processing BOS page for serial 0x%08x", serial_number);
+    Debug::log("ogg", "handleBOSPage: Processing BOS page for serial 0x", std::hex, serial_number, std::dec);
     
     // Check for duplicate serial numbers (error condition per Requirements 4.14)
     if (m_bos_serial_numbers.count(serial_number) > 0) {
@@ -2196,8 +2191,7 @@ bool OggDemuxer::handleBOSPage(ogg_page* page, uint32_t serial_number) {
         // Continue anyway - we have the raw header data
     }
     
-    Debug::log("ogg", "handleBOSPage: Created stream 0x%08x, codec=%s, expected_headers=%u",
-               serial_number, codec_name.c_str(), stream.expected_header_count);
+    Debug::log("ogg", "handleBOSPage: Created stream 0x", std::hex, serial_number, std::dec, ", codec=", codec_name, ", expected_headers=", stream.expected_header_count);
     
     return true;
 }
@@ -2388,8 +2382,7 @@ bool OggDemuxer::handleDataPage(ogg_page* page, uint32_t serial_number) {
                 
                 if (headers_done) {
                     stream.headers_complete = true;
-                    Debug::log("ogg", "handleDataPage: Headers complete for serial 0x%08x "
-                               "(%zu headers)", serial_number, stream.header_packets.size());
+                    Debug::log("ogg", "handleDataPage: Headers complete for serial 0x", std::hex, serial_number, std::dec, " (", stream.header_packets.size(), " headers)");
                 }
             } else {
                 // Data packet - add to queue
@@ -2501,7 +2494,7 @@ uint64_t OggDemuxer::getLastGranulePosition() {
     // Get file size if not already known
     if (m_file_size == 0) {
         int64_t current_pos = m_handler->tell();
-        if (m_handler->seek(0, SEEK_END)) {
+        if (m_handler->seek(0, SEEK_END) == 0) {
             m_file_size = static_cast<uint64_t>(m_handler->tell());
             m_handler->seek(current_pos, SEEK_SET);
         }
@@ -2511,8 +2504,7 @@ uint64_t OggDemuxer::getLastGranulePosition() {
         }
     }
     
-    Debug::log("ogg", "getLastGranulePosition: File size is %llu bytes",
-               static_cast<unsigned long long>(m_file_size));
+    Debug::log("ogg", "getLastGranulePosition: File size is ", m_file_size, " bytes");
     
     // Find the primary audio stream for serial number preference
     uint32_t preferred_serial = 0;
@@ -2533,8 +2525,7 @@ uint64_t OggDemuxer::getLastGranulePosition() {
         }
     }
     
-    Debug::log("ogg", "getLastGranulePosition: Preferred stream 0x%08x (has_preferred=%d)",
-               preferred_serial, has_preferred_serial ? 1 : 0);
+    Debug::log("ogg", "getLastGranulePosition: Preferred stream 0x", std::hex, preferred_serial, std::dec, " (has_preferred=", (has_preferred_serial ? 1 : 0), ")");
     
     // Backward scanning with exponentially increasing chunk sizes
     // Following libopusfile pattern: start with CHUNKSIZE, increase up to larger sizes
@@ -2556,10 +2547,7 @@ uint64_t OggDemuxer::getLastGranulePosition() {
             scan_start = 0;
         }
         
-        Debug::log("ogg", "getLastGranulePosition: Scanning chunk [%lld, %lld] (size %zu)",
-                   static_cast<long long>(scan_start),
-                   static_cast<long long>(scan_end),
-                   current_chunk_size);
+        Debug::log("ogg", "getLastGranulePosition: Scanning chunk [", scan_start, ", ", scan_end, "] (size ", current_chunk_size, ")");
         
         // Scan this chunk for the last valid granule
         uint64_t chunk_granule = scanBackwardForLastGranule(scan_start, 
@@ -2569,8 +2557,7 @@ uint64_t OggDemuxer::getLastGranulePosition() {
             // Found a valid granule - check if it's better than what we have
             if (chunk_granule > best_granule) {
                 best_granule = chunk_granule;
-                Debug::log("ogg", "getLastGranulePosition: Found granule %llu in chunk",
-                           static_cast<unsigned long long>(best_granule));
+                Debug::log("ogg", "getLastGranulePosition: Found granule ", best_granule, " in chunk");
             }
             
             // If we found a granule in the last chunk, we're done
@@ -2602,13 +2589,11 @@ uint64_t OggDemuxer::getLastGranulePosition() {
         if (best_granule > m_max_granule_seen) {
             m_max_granule_seen = best_granule;
         }
-        Debug::log("ogg", "getLastGranulePosition: Final result: %llu",
-                   static_cast<unsigned long long>(best_granule));
+        Debug::log("ogg", "getLastGranulePosition: Final result: ", best_granule);
         return best_granule;
     }
     
-    Debug::log("ogg", "getLastGranulePosition: Using tracked max: %llu",
-               static_cast<unsigned long long>(m_max_granule_seen));
+    Debug::log("ogg", "getLastGranulePosition: Using tracked max: ", m_max_granule_seen);
     return m_max_granule_seen;
 }
 
@@ -2695,9 +2680,8 @@ uint64_t OggDemuxer::scanBackwardForLastGranule(int64_t scan_start, size_t scan_
     int64_t saved_offset = m_offset;
     
     // Seek to scan start
-    if (!m_handler->seek(scan_start, SEEK_SET)) {
-        Debug::log("ogg", "scanBackwardForLastGranule: Seek to %lld failed",
-                   static_cast<long long>(scan_start));
+    if (m_handler->seek(scan_start, SEEK_SET) != 0) {
+        Debug::log("ogg", "scanBackwardForLastGranule: Seek to ", scan_start, " failed");
         return 0;
     }
     
@@ -2727,8 +2711,10 @@ uint64_t OggDemuxer::scanBackwardForLastGranule(int64_t scan_start, size_t scan_
         }
     }
     
-    // Restore original position
-    m_handler->seek(saved_pos, SEEK_SET);
+    // Restore original position (best effort - don't fail if restore fails)
+    if (m_handler->seek(saved_pos, SEEK_SET) != 0) {
+        Debug::log("ogg", "scanBackwardForLastGranule: Warning - failed to restore position");
+    }
     ogg_sync_reset(&m_sync_state);
     m_offset = saved_offset;
     
@@ -2825,7 +2811,7 @@ uint64_t OggDemuxer::scanForwardForLastGranule(int64_t start_position) {
     int64_t saved_offset = m_offset;
     
     // Seek to start position
-    if (!m_handler->seek(start_position, SEEK_SET)) {
+    if (m_handler->seek(start_position, SEEK_SET) != 0) {
         return 0;
     }
     
@@ -2852,8 +2838,10 @@ uint64_t OggDemuxer::scanForwardForLastGranule(int64_t start_position) {
         }
     }
     
-    // Restore original position
-    m_handler->seek(saved_pos, SEEK_SET);
+    // Restore original position (best effort - don't fail if restore fails)
+    if (m_handler->seek(saved_pos, SEEK_SET) != 0) {
+        Debug::log("ogg", "scanForwardForLastGranule: Warning - failed to restore position");
+    }
     ogg_sync_reset(&m_sync_state);
     m_offset = saved_offset;
     
@@ -2956,7 +2944,7 @@ bool OggDemuxer::seekToPage_unlocked(uint64_t target_granule, uint32_t stream_id
     // Get file size for boundary checking
     if (m_file_size == 0) {
         int64_t current_pos = m_handler->tell();
-        if (m_handler->seek(0, SEEK_END)) {
+        if (m_handler->seek(0, SEEK_END) == 0) {
             m_file_size = static_cast<uint64_t>(m_handler->tell());
             m_handler->seek(current_pos, SEEK_SET);
         }
@@ -3003,7 +2991,7 @@ bool OggDemuxer::seekToPage_unlocked(uint64_t target_granule, uint32_t stream_id
                    static_cast<long long>(end));
         
         // Seek to bisection point
-        if (!m_handler->seek(bisect, SEEK_SET)) {
+        if (m_handler->seek(bisect, SEEK_SET) != 0) {
             Debug::log("ogg", "seekToPage: Seek to bisect point %lld failed",
                        static_cast<long long>(bisect));
             return false;
@@ -3105,7 +3093,7 @@ bool OggDemuxer::seekToPage_unlocked(uint64_t target_granule, uint32_t stream_id
                    static_cast<long long>(begin),
                    static_cast<long long>(end));
         
-        if (!m_handler->seek(begin, SEEK_SET)) {
+        if (m_handler->seek(begin, SEEK_SET) != 0) {
             Debug::log("ogg", "seekToPage: Linear scan seek failed");
             return false;
         }
@@ -3148,7 +3136,7 @@ bool OggDemuxer::seekToPage_unlocked(uint64_t target_granule, uint32_t stream_id
         Debug::log("ogg", "seekToPage: No suitable page found, trying backward scan");
         
         // Use backward scanning to find a page
-        if (!m_handler->seek(end, SEEK_SET)) {
+        if (m_handler->seek(end, SEEK_SET) != 0) {
             return false;
         }
         m_offset = end;
@@ -3171,7 +3159,7 @@ bool OggDemuxer::seekToPage_unlocked(uint64_t target_granule, uint32_t stream_id
                static_cast<unsigned long long>(target_granule));
     
     // Seek to the best position and reset state
-    if (!m_handler->seek(best_offset, SEEK_SET)) {
+    if (m_handler->seek(best_offset, SEEK_SET) != 0) {
         Debug::log("ogg", "seekToPage: Final seek to %lld failed",
                    static_cast<long long>(best_offset));
         return false;
@@ -3222,7 +3210,7 @@ bool OggDemuxer::examinePacketsAtPosition(int64_t file_offset, uint32_t stream_i
     }
     
     // Seek to the specified position
-    if (!m_handler->seek(file_offset, SEEK_SET)) {
+    if (m_handler->seek(file_offset, SEEK_SET) != 0) {
         Debug::log("ogg", "examinePacketsAtPosition: Seek to %lld failed",
                    static_cast<long long>(file_offset));
         return false;
@@ -3776,12 +3764,8 @@ int OggDemuxer::getNextPage(ogg_page* page, int64_t boundary) {
             // ret is the number of bytes consumed (page size)
             m_offset += ret;
             
-            Debug::log("ogg", "getNextPage: Found page at offset %lld, size %ld, "
-                       "serial 0x%08x, granule %lld",
-                       static_cast<long long>(m_offset - ret),
-                       ret,
-                       pageSerialNo(page),
-                       static_cast<long long>(pageGranulePos(page)));
+            Debug::log("ogg", "getNextPage: Found page at offset ", (m_offset - ret), ", size ", ret, 
+                       ", serial 0x", std::hex, pageSerialNo(page), std::dec, ", granule ", pageGranulePos(page));
             
             return static_cast<int>(ret);
         }
@@ -3793,7 +3777,7 @@ int OggDemuxer::getNextPage(ogg_page* page, int64_t boundary) {
             m_offset += skipped;
             bytes_searched += skipped;
             
-            Debug::log("ogg", "getNextPage: Skipped %ld bytes (sync loss/corruption)", skipped);
+            Debug::log("ogg", "getNextPage: Skipped ", skipped, " bytes (resyncing to page boundary)");
             
             // Continue searching for next valid page
             continue;
@@ -3802,8 +3786,7 @@ int OggDemuxer::getNextPage(ogg_page* page, int64_t boundary) {
         // ret == 0: Need more data
         // Check if we've hit the boundary
         if (boundary >= 0 && bytes_searched >= boundary) {
-            Debug::log("ogg", "getNextPage: Boundary reached after %lld bytes",
-                       static_cast<long long>(bytes_searched));
+            Debug::log("ogg", "getNextPage: Boundary reached after ", bytes_searched, " bytes");
             return -2;  // Boundary reached
         }
         
@@ -3856,7 +3839,7 @@ int OggDemuxer::getPrevPage(ogg_page* page) {
         }
         
         // Seek to begin position
-        if (!m_handler->seek(begin, SEEK_SET)) {
+        if (m_handler->seek(begin, SEEK_SET) != 0) {
             Debug::log("ogg", "getPrevPage: Seek to %lld failed", 
                        static_cast<long long>(begin));
             return -1;
@@ -3892,7 +3875,7 @@ int OggDemuxer::getPrevPage(ogg_page* page) {
     }
     
     // Seek back to the found page and re-read it
-    if (!m_handler->seek(offset, SEEK_SET)) {
+    if (m_handler->seek(offset, SEEK_SET) != 0) {
         Debug::log("ogg", "getPrevPage: Final seek to %lld failed",
                    static_cast<long long>(offset));
         return -1;
@@ -3942,7 +3925,7 @@ int OggDemuxer::getPrevPageSerial(ogg_page* page, uint32_t serial_number) {
         }
         
         // Seek to begin position
-        if (!m_handler->seek(begin, SEEK_SET)) {
+        if (m_handler->seek(begin, SEEK_SET) != 0) {
             Debug::log("ogg", "getPrevPageSerial: Seek to %lld failed",
                        static_cast<long long>(begin));
             return -1;
@@ -3975,7 +3958,7 @@ int OggDemuxer::getPrevPageSerial(ogg_page* page, uint32_t serial_number) {
     }
     
     // Seek back to the found page and re-read it
-    if (!m_handler->seek(best_offset, SEEK_SET)) {
+    if (m_handler->seek(best_offset, SEEK_SET) != 0) {
         Debug::log("ogg", "getPrevPageSerial: Final seek to %lld failed",
                    static_cast<long long>(best_offset));
         return -1;
@@ -4782,7 +4765,9 @@ uint64_t OggDemuxer::clampSeekPosition_unlocked(uint64_t requested_position) {
     }
     
     long file_size = m_handler->tell();
-    m_handler->seek(current_pos, SEEK_SET);  // Restore position
+    if (m_handler->seek(current_pos, SEEK_SET) != 0) {  // Restore position
+        Debug::log("ogg", "clampSeekPosition_unlocked: Warning - failed to restore position");
+    }
     
     if (file_size <= 0) {
         return 0;
@@ -5037,7 +5022,9 @@ bool OggDemuxer::resetInternalState() const {
     
     // Reset file position
     if (m_handler) {
-        m_handler->seek(0, SEEK_SET);
+        if (m_handler->seek(0, SEEK_SET) != 0) {
+            Debug::log("ogg", "resetInternalState: Warning - failed to reset file position");
+        }
     }
     
     // Reset tracking variables (using mutable members)

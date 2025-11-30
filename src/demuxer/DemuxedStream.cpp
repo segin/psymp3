@@ -145,11 +145,8 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
         m_current_frame = std::move(getNextFrame());
         m_current_frame_offset = 0;
         
-        // Update samples consumed based on frame timestamp when we get a new frame
-        if (!m_current_frame.samples.empty()) {
-            // Use frame timestamp to update position, not output buffer counting
-            m_samples_consumed = m_current_frame.timestamp_samples + m_current_frame.getSampleFrameCount();
-        }
+        // Note: m_samples_consumed is now updated inside getNextFrame() 
+        // based on granule positions or incremental counting
         
         if (m_current_frame.samples.empty()) {
             // Empty frame could be from header processing or actual EOF
@@ -245,11 +242,20 @@ AudioFrame DemuxedStream::getNextFrame() {
         AudioFrame frame = m_codec->decode(chunk);
         if (!frame.samples.empty()) {
             // Correct timestamp calculation for Ogg
+            // For Ogg Vorbis, granule position is only valid on the last packet of each page
+            // Most packets have granule -1, so we need to track samples incrementally
             if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
+                // Valid granule position - this is the sample count at END of this packet
+                // So timestamp at start of packet = granule - samples_in_this_frame
                 frame.timestamp_samples = chunk.granule_position - frame.getSampleFrameCount();
+                // Update our tracking to match the authoritative granule position
+                m_samples_consumed = chunk.granule_position;
             } else {
-                // Fallback for non-Ogg or header packets
+                // No valid granule - use incremental tracking
+                // timestamp_samples is where this frame STARTS
                 frame.timestamp_samples = m_samples_consumed;
+                // Update consumed count by adding samples from this frame
+                m_samples_consumed += frame.getSampleFrameCount();
             }
             frame.timestamp_ms = (frame.timestamp_samples * 1000) / m_rate;
             
