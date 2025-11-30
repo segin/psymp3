@@ -376,31 +376,45 @@ uint64_t FLACDemuxer::getPosition_unlocked() const
 
 bool FLACDemuxer::validateStreamMarker_unlocked()
 {
-    FLAC_DEBUG("Validating fLaC stream marker");
+    FLAC_DEBUG("Validating fLaC stream marker (RFC 9639 Section 6)");
     
+    // Requirement 1.1: Read first 4 bytes of file
     uint8_t marker[4];
     size_t bytes_read = m_handler->read(marker, 1, 4);
     
     if (bytes_read < 4) {
+        FLAC_DEBUG("File too small - only read ", bytes_read, " bytes, expected 4");
         reportError("Format", "File too small - cannot read stream marker");
         return false;
     }
     
-    // RFC 9639 Section 6: Stream marker must be 0x66 0x4C 0x61 0x43 ("fLaC")
-    if (marker[0] != 0x66 || marker[1] != 0x4C || 
-        marker[2] != 0x61 || marker[3] != 0x43) {
+    // Requirement 1.2: Verify bytes equal 0x66 0x4C 0x61 0x43 ("fLaC")
+    // RFC 9639 Section 6: Stream marker must be exactly these 4 bytes
+    static constexpr uint8_t EXPECTED_MARKER[4] = {0x66, 0x4C, 0x61, 0x43};
+    
+    if (marker[0] != EXPECTED_MARKER[0] || marker[1] != EXPECTED_MARKER[1] || 
+        marker[2] != EXPECTED_MARKER[2] || marker[3] != EXPECTED_MARKER[3]) {
         
-        FLAC_DEBUG("Invalid marker: 0x", std::hex, 
+        // Requirement 1.5: Log exact byte values found versus expected
+        FLAC_DEBUG("Stream marker validation FAILED");
+        FLAC_DEBUG("  Expected: 0x66 0x4C 0x61 0x43 ('f' 'L' 'a' 'C')");
+        FLAC_DEBUG("  Found:    0x", std::hex, 
                    static_cast<int>(marker[0]), " 0x",
                    static_cast<int>(marker[1]), " 0x",
                    static_cast<int>(marker[2]), " 0x",
-                   static_cast<int>(marker[3]), std::dec);
+                   static_cast<int>(marker[3]), std::dec,
+                   " ('", static_cast<char>(marker[0] >= 32 && marker[0] < 127 ? marker[0] : '.'),
+                   "' '", static_cast<char>(marker[1] >= 32 && marker[1] < 127 ? marker[1] : '.'),
+                   "' '", static_cast<char>(marker[2] >= 32 && marker[2] < 127 ? marker[2] : '.'),
+                   "' '", static_cast<char>(marker[3] >= 32 && marker[3] < 127 ? marker[3] : '.'), "')");
         
+        // Requirement 1.3: Reject invalid markers without crashing
         reportError("Format", "Invalid FLAC stream marker - not a FLAC file");
         return false;
     }
     
-    FLAC_DEBUG("Valid fLaC stream marker found");
+    // Requirement 1.4: When stream marker is valid, proceed to metadata block parsing
+    FLAC_DEBUG("Valid fLaC stream marker found at file offset 0");
     return true;
 }
 
