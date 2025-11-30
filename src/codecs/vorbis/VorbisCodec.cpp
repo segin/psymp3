@@ -699,22 +699,105 @@ bool VorbisCodec::synthesizeBlock_unlocked()
 void VorbisCodec::convertFloatToPCM_unlocked(float** pcm, int samples, AudioFrame& frame)
 {
     // Convert libvorbis float output to 16-bit PCM (Requirement 1.5, 5.1, 5.2)
+    // libvorbis outputs float samples in the range [-1.0, 1.0]
+    // We convert to 16-bit signed PCM in the range [-32768, 32767]
+    
     frame.sample_rate = m_sample_rate;
     frame.channels = m_channels;
     frame.samples.clear();
-    frame.samples.reserve(samples * m_channels);
     
-    // Interleave channels and convert to 16-bit (Requirement 5.5, 5.7)
+    // Early return for edge cases
+    if (samples <= 0 || m_channels <= 0 || pcm == nullptr) {
+        Debug::log("vorbis", "convertFloatToPCM_unlocked: Invalid parameters - samples=", 
+                   samples, " channels=", m_channels);
+        return;
+    }
+    
+    // Use the static interleaveChannels helper for the actual conversion
+    // This handles proper channel interleaving according to Vorbis conventions
+    // (Requirement 5.5, 5.7)
+    interleaveChannels(pcm, samples, m_channels, frame.samples);
+    
+    // Verify output consistency (Requirement 5.1, 5.2, 5.3, 5.5)
+    // The number of samples should be exactly samples * channels
+    const size_t expected_samples = static_cast<size_t>(samples) * static_cast<size_t>(m_channels);
+    if (frame.samples.size() != expected_samples) {
+        Debug::log("vorbis", "WARNING: Sample count mismatch - expected ", expected_samples,
+                   " got ", frame.samples.size());
+    }
+}
+
+// ========== Static Float to PCM Conversion Helpers ==========
+
+int16_t VorbisCodec::floatToInt16(float sample)
+{
+    // Convert a single float sample to 16-bit PCM with proper clamping
+    // (Requirement 1.5, 5.1, 5.2)
+    //
+    // libvorbis outputs float samples nominally in [-1.0, 1.0]
+    // We convert to 16-bit signed PCM in [-32768, 32767]
+    //
+    // Clamping is essential because:
+    // 1. libvorbis can produce samples slightly outside [-1.0, 1.0] due to
+    //    floating-point precision in the MDCT and windowing operations
+    // 2. Some encoders may produce slightly out-of-range values
+    // 3. Prevents integer overflow during conversion
+    
+    // Clamp to valid range first
+    if (sample > 1.0f) {
+        sample = 1.0f;
+    } else if (sample < -1.0f) {
+        sample = -1.0f;
+    }
+    
+    // Scale to 16-bit range
+    // Using 32767.0f ensures positive samples map to [0, 32767]
+    // and negative samples map to [-32767, 0]
+    // The asymmetry of int16_t (-32768 to 32767) means -1.0f maps to -32767,
+    // not -32768, which is standard practice for audio conversion
+    int32_t scaled = static_cast<int32_t>(sample * 32767.0f);
+    
+    // Final safety clamp (handles floating-point edge cases)
+    if (scaled > 32767) {
+        scaled = 32767;
+    } else if (scaled < -32768) {
+        scaled = -32768;
+    }
+    
+    return static_cast<int16_t>(scaled);
+}
+
+void VorbisCodec::interleaveChannels(float** pcm, int samples, int channels,
+                                     std::vector<int16_t>& output)
+{
+    // Interleave multi-channel float arrays into 16-bit PCM output
+    // (Requirement 5.5, 5.7)
+    //
+    // Vorbis channel ordering (from specification):
+    // - 1 channel:  mono
+    // - 2 channels: left, right
+    // - 3 channels: left, center, right
+    // - 4 channels: front left, front right, rear left, rear right
+    // - 5 channels: front left, center, front right, rear left, rear right
+    // - 6 channels: front left, center, front right, rear left, rear right, LFE
+    // - 7 channels: front left, center, front right, side left, side right, rear center, LFE
+    // - 8 channels: front left, center, front right, side left, side right, rear left, rear right, LFE
+    //
+    // The output is interleaved: [ch0_s0, ch1_s0, ..., chN_s0, ch0_s1, ch1_s1, ...]
+    
+    if (samples <= 0 || channels <= 0 || pcm == nullptr) {
+        return;
+    }
+    
+    // Reserve exact space needed
+    const size_t total_samples = static_cast<size_t>(samples) * static_cast<size_t>(channels);
+    output.clear();
+    output.reserve(total_samples);
+    
+    // Interleave: for each sample position, output all channels in order
     for (int i = 0; i < samples; i++) {
-        for (int ch = 0; ch < m_channels; ch++) {
-            float sample = pcm[ch][i];
-            
-            // Clamp to [-1.0, 1.0] range and convert to 16-bit
-            if (sample > 1.0f) sample = 1.0f;
-            if (sample < -1.0f) sample = -1.0f;
-            
-            int16_t sample_16 = static_cast<int16_t>(sample * 32767.0f);
-            frame.samples.push_back(sample_16);
+        for (int ch = 0; ch < channels; ch++) {
+            output.push_back(floatToInt16(pcm[ch][i]));
         }
     }
 }

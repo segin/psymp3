@@ -182,6 +182,31 @@ private:
     bool synthesizeBlock_unlocked();
     void convertFloatToPCM_unlocked(float** pcm, int samples, AudioFrame& frame);
     
+public:
+    // ========== Float to PCM conversion helpers (public for testing) ==========
+    /**
+     * @brief Convert a single float sample to 16-bit PCM with proper clamping
+     * @param sample Float sample in range [-1.0, 1.0]
+     * @return 16-bit signed PCM sample in range [-32768, 32767]
+     * 
+     * Requirements: 1.5, 5.1, 5.2
+     */
+    static int16_t floatToInt16(float sample);
+    
+    /**
+     * @brief Interleave multi-channel float arrays into 16-bit PCM output
+     * @param pcm Array of float channel pointers from libvorbis
+     * @param samples Number of samples per channel
+     * @param channels Number of channels
+     * @param output Output vector for interleaved 16-bit samples
+     * 
+     * Requirements: 5.5, 5.7
+     */
+    static void interleaveChannels(float** pcm, int samples, int channels, 
+                                   std::vector<int16_t>& output);
+    
+private:
+    
     // ========== Block size and windowing (private unlocked methods) ==========
     void handleVariableBlockSizes_unlocked(const vorbis_block* block);
     

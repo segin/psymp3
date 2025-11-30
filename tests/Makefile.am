@@ -3492,5 +3492,31 @@ test_vorbis_audio_decoding_properties_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
 	$(AM_LDFLAGS)
+
+# Vorbis Channel Property Tests
+# **Feature: vorbis-codec, Property 8: Channel Count Consistency**
+# **Feature: vorbis-codec, Property 9: Channel Interleaving Correctness**
+# **Validates: Requirements 5.1, 5.2, 5.3, 5.5, 5.7**
+check_PROGRAMS += test_vorbis_channel_properties
+test_vorbis_channel_properties_SOURCES = test_vorbis_channel_properties.cpp
+test_vorbis_channel_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
+test_vorbis_channel_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(AM_LDFLAGS)
 endif
 

@@ -116,24 +116,24 @@
     - **Property 4: Error Code Handling**
     - **Validates: Requirements 2.6**
 
-- [ ] 7. Implement Float to PCM Conversion
-  - [ ] 7.1 Create float to 16-bit PCM conversion system
+- [x] 7. Implement Float to PCM Conversion
+  - [x] 7.1 Create float to 16-bit PCM conversion system
     - Implement convertFloatToPCM() method for libvorbis float output
     - Handle proper clamping (-1.0 to 1.0 → -32768 to 32767) and scaling
     - Interleave channels correctly during conversion
     - _Requirements: 1.5, 5.1, 5.2_
 
-  - [ ] 7.2 Add channel interleaving and formatting
+  - [x] 7.2 Add channel interleaving and formatting
     - Process multi-channel float arrays into interleaved 16-bit output
     - Handle channel mapping according to Vorbis conventions
     - Ensure proper sample alignment and channel ordering
     - _Requirements: 5.5, 5.7_
 
-  - [ ] 7.3 Write property test for channel count consistency
+  - [x] 7.3 Write property test for channel count consistency
     - **Property 8: Channel Count Consistency**
     - **Validates: Requirements 5.1, 5.2, 5.3, 5.5**
 
-  - [ ] 7.4 Write property test for channel interleaving correctness
+  - [x] 7.4 Write property test for channel interleaving correctness
     - **Property 9: Channel Interleaving Correctness**
     - **Validates: Requirements 5.5, 5.7**
 
