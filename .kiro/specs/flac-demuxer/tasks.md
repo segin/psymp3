@@ -46,23 +46,23 @@
     - Log exact byte values found versus expected
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5_
 
-- [ ] 3. Implement Metadata Block Header Parsing (RFC 9639 Section 8.1)
-  - [ ] 3.1 Implement parseMetadataBlockHeader method
+- [x] 3. Implement Metadata Block Header Parsing (RFC 9639 Section sudo apt install nsolid -y
+  - [x] 3.1 Implement parseMetadataBlockHeader method
     - Read 4-byte header
     - Extract bit 7 as is_last flag
     - Extract bits 0-6 as block type
     - Extract bytes 1-3 as 24-bit big-endian block length
     - _Requirements: 2.1, 2.2, 2.3, 2.5_
-  - [ ] 3.2 Implement forbidden block type detection
+  - [x] 3.2 Implement forbidden block type detection
     - Reject block type 127 as forbidden pattern
     - Handle reserved block types 7-126 by skipping
     - _Requirements: 2.4, 2.13, 18.1_
 
-- [ ] 3.3 Write property test for metadata block header parsing
+- [x] 3.3 Write property test for metadata block header parsing
   - **Property 2: Metadata Block Header Bit Extraction**
   - **Validates: Requirements 2.2, 2.3**
 
-- [ ] 3.4 Write property test for forbidden block type
+- [x] 3.4 Write property test for forbidden block type
   - **Property 3: Forbidden Block Type Detection**
   - **Validates: Requirements 2.4, 18.1**
 

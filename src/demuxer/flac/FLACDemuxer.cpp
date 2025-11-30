@@ -443,6 +443,18 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                    ", length=", block.length, ", is_last=", is_last);
         
         // Process block based on type
+        // RFC 9639 Section 8.1: Block types 0-6 are defined, 7-126 are reserved, 127 is forbidden
+        uint8_t raw_type = static_cast<uint8_t>(block.type);
+        
+        // Requirement 2.4, 18.1: Block type 127 is forbidden (already checked in parseMetadataBlockHeader_unlocked)
+        // Requirement 2.13: Reserved block types 7-126 should be skipped
+        if (raw_type >= 7 && raw_type <= 126) {
+            FLAC_DEBUG("Skipping reserved metadata block type ", static_cast<int>(raw_type), 
+                       " (length=", block.length, " bytes)");
+            skipMetadataBlock_unlocked(block);
+            continue;
+        }
+        
         switch (block.type) {
             case FLACMetadataType::STREAMINFO:
                 if (found_streaminfo) {
@@ -467,8 +479,15 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
             case FLACMetadataType::APPLICATION:
             case FLACMetadataType::CUESHEET:
             case FLACMetadataType::PICTURE:
+                // Skip known but unprocessed blocks
+                FLAC_DEBUG("Skipping metadata block type ", static_cast<int>(raw_type), 
+                           " (length=", block.length, " bytes)");
+                skipMetadataBlock_unlocked(block);
+                break;
+                
             default:
-                // Skip unhandled blocks
+                // Should not reach here due to reserved type check above
+                FLAC_DEBUG("Unexpected metadata block type ", static_cast<int>(raw_type));
                 skipMetadataBlock_unlocked(block);
                 break;
         }
@@ -489,33 +508,40 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
 
 bool FLACDemuxer::parseMetadataBlockHeader_unlocked(FLACMetadataBlock& block)
 {
-    // RFC 9639 Section 8.1: 4-byte header
+    // RFC 9639 Section 8.1: 4-byte metadata block header
+    // Requirement 2.1: Read 4 bytes
     uint8_t header[4];
     
     if (m_handler->read(header, 1, 4) != 4) {
+        FLAC_DEBUG("Failed to read 4-byte metadata block header");
         return false;
     }
     
-    // Bit 7 of byte 0: is_last flag
+    // Requirement 2.2: Extract bit 7 as is_last flag
     block.is_last = (header[0] & 0x80) != 0;
     
-    // Bits 0-6 of byte 0: block type
+    // Requirement 2.3: Extract bits 0-6 as block type
     uint8_t type = header[0] & 0x7F;
     
-    // RFC 9639 Table 1: Block type 127 is forbidden
+    // Requirement 2.4, 18.1: RFC 9639 Table 1 - Block type 127 is forbidden
     if (type == 127) {
-        reportError("Format", "Forbidden metadata block type 127");
+        FLAC_DEBUG("Forbidden metadata block type 127 detected - rejecting stream");
+        reportError("Format", "Forbidden metadata block type 127 (RFC 9639 Table 1)");
         return false;
     }
     
     block.type = static_cast<FLACMetadataType>(type);
     
-    // Bytes 1-3: 24-bit big-endian block length
+    // Requirement 2.5: Extract bytes 1-3 as 24-bit big-endian block length
     block.length = (static_cast<uint32_t>(header[1]) << 16) |
                    (static_cast<uint32_t>(header[2]) << 8) |
                    static_cast<uint32_t>(header[3]);
     
     block.data_offset = static_cast<uint64_t>(m_handler->tell());
+    
+    FLAC_DEBUG("Parsed metadata block header: type=", static_cast<int>(type),
+               ", is_last=", block.is_last, ", length=", block.length,
+               ", data_offset=", block.data_offset);
     
     return true;
 }
