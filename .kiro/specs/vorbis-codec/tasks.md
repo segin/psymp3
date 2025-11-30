@@ -63,20 +63,20 @@
     - **Property 6: Block Size Constraint**
     - **Validates: Requirements 4.1, 4.2**
 
-- [ ] 4. Implement libvorbis Decoder Integration
-  - [ ] 4.1 Create libvorbis decoder initialization
+- [x] 4. Implement libvorbis Decoder Integration
+  - [x] 4.1 Create libvorbis decoder initialization
     - Initialize vorbis_dsp_state using vorbis_synthesis_init() after headers
     - Initialize vorbis_block using vorbis_block_init() for packet processing
     - Handle decoder initialization errors and cleanup
     - _Requirements: 2.3, 2.4, 2.5_
 
-  - [ ] 4.2 Implement decoder state management
+  - [x] 4.2 Implement decoder state management
     - Add proper cleanup in destructor (vorbis_block_clear, vorbis_dsp_clear, etc.)
     - Implement reset() method using vorbis_synthesis_restart() for seeking
     - Handle decoder state validation and error recovery
     - _Requirements: 2.7, 2.8, 8.7_
 
-  - [ ] 4.3 Write property test for reset preserves headers
+  - [x] 4.3 Write property test for reset preserves headers
     - **Property 5: Reset Preserves Headers**
     - **Validates: Requirements 2.7, 6.4**
 
