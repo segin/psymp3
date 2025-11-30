@@ -495,6 +495,10 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 break;
                 
             case FLACMetadataType::APPLICATION:
+                // Requirement 15.1-15.4: Handle APPLICATION blocks per RFC 9639 Section 8.4
+                parseApplicationBlock_unlocked(block);
+                break;
+                
             case FLACMetadataType::CUESHEET:
             case FLACMetadataType::PICTURE:
                 // Skip known but unprocessed blocks
@@ -902,6 +906,78 @@ bool FLACDemuxer::parsePaddingBlock_unlocked(const FLACMetadataBlock& block)
     // We don't read the content at all - we just skip it, so non-zero bytes are automatically ignored
     
     FLAC_DEBUG("[parsePadding] PADDING block processed successfully");
+    return true;
+}
+
+// ============================================================================
+// APPLICATION Block Handling (RFC 9639 Section 8.4)
+// ============================================================================
+
+bool FLACDemuxer::parseApplicationBlock_unlocked(const FLACMetadataBlock& block)
+{
+    FLAC_DEBUG("[parseApplication] Parsing APPLICATION block (RFC 9639 Section 8.4)");
+    
+    // Requirement 15.1: Read u32 application ID
+    // RFC 9639 Section 8.4: "A 32-bit identifier. Registered application IDs can be found
+    // at https://xiph.org/flac/id.html"
+    if (block.length < 4) {
+        FLAC_DEBUG("[parseApplication] APPLICATION block too small: ", block.length, 
+                   " bytes (minimum 4 bytes for application ID)");
+        // Still skip whatever data exists
+        if (block.length > 0) {
+            m_handler->seek(static_cast<off_t>(block.length), SEEK_CUR);
+        }
+        return true;  // Gracefully handle malformed blocks
+    }
+    
+    uint8_t app_id_bytes[4];
+    if (m_handler->read(app_id_bytes, 1, 4) != 4) {
+        FLAC_DEBUG("[parseApplication] Failed to read application ID");
+        reportError("IO", "Failed to read APPLICATION block ID");
+        return false;
+    }
+    
+    // Application ID is 4 bytes, typically ASCII characters
+    // Log it as both hex and ASCII for debugging
+    uint32_t app_id = (static_cast<uint32_t>(app_id_bytes[0]) << 24) |
+                      (static_cast<uint32_t>(app_id_bytes[1]) << 16) |
+                      (static_cast<uint32_t>(app_id_bytes[2]) << 8) |
+                      static_cast<uint32_t>(app_id_bytes[3]);
+    
+    // Convert to printable ASCII for logging (replace non-printable with '.')
+    char app_id_str[5] = {0};
+    for (int i = 0; i < 4; ++i) {
+        app_id_str[i] = (app_id_bytes[i] >= 32 && app_id_bytes[i] < 127) 
+                        ? static_cast<char>(app_id_bytes[i]) : '.';
+    }
+    
+    FLAC_DEBUG("[parseApplication] Application ID: 0x", std::hex, app_id, std::dec,
+               " ('", app_id_str, "')");
+    
+    // Requirement 15.2: Skip remaining block_length minus 4 bytes
+    // RFC 9639 Section 8.4: "Application data whose contents are defined by the application"
+    uint32_t remaining_bytes = block.length - 4;
+    
+    if (remaining_bytes > 0) {
+        FLAC_DEBUG("[parseApplication] Skipping ", remaining_bytes, " bytes of application data");
+        if (m_handler->seek(static_cast<off_t>(remaining_bytes), SEEK_CUR) != 0) {
+            FLAC_DEBUG("[parseApplication] Failed to skip application data");
+            reportError("IO", "Failed to skip APPLICATION block data");
+            return false;
+        }
+    } else {
+        FLAC_DEBUG("[parseApplication] No application data (ID only)");
+    }
+    
+    // Requirement 15.3: Handle unrecognized application blocks gracefully
+    // We don't attempt to interpret the application data - we just log and skip it
+    // This allows the demuxer to work with any APPLICATION block regardless of the ID
+    
+    // Requirement 15.4: Handle multiple APPLICATION blocks
+    // This is handled by the caller (parseMetadataBlocks_unlocked) which calls this method
+    // for each APPLICATION block encountered in the stream
+    
+    FLAC_DEBUG("[parseApplication] APPLICATION block processed successfully");
     return true;
 }
 

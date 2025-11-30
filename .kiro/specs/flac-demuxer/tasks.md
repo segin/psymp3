@@ -104,8 +104,8 @@
     - Handle multiple PADDING blocks
     - _Requirements: 14.1-14.4_
 
-- [ ] 7. Implement APPLICATION Block Handling (RFC 9639 Section 8.4)
-  - [ ] 7.1 Implement parseApplication method
+- [x] 7. Implement APPLICATION Block Handling (RFC 9639 Section 8.4)
+  - [x] 7.1 Implement parseApplication method
     - Read u32 application ID
     - Skip remaining block_length minus 4 bytes
     - Handle unrecognized application blocks gracefully

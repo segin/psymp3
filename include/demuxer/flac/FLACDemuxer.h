@@ -209,6 +209,7 @@ private:
     bool parseSeekTableBlock_unlocked(const FLACMetadataBlock& block);
     bool parseVorbisCommentBlock_unlocked(const FLACMetadataBlock& block);
     bool parsePaddingBlock_unlocked(const FLACMetadataBlock& block);
+    bool parseApplicationBlock_unlocked(const FLACMetadataBlock& block);
     bool skipMetadataBlock_unlocked(const FLACMetadataBlock& block);
     
     bool findNextFrame_unlocked(FLACFrame& frame);
