@@ -3438,3 +3438,33 @@ if HAVE_RAPIDCHECK
 test_position_reporting_property_LDADD += $(RAPIDCHECK_LIBS)
 endif
 endif
+
+# VorbisCodec header sequence property-based tests
+# **Feature: vorbis-codec, Property 1: Header Sequence Validation**
+# **Feature: vorbis-codec, Property 2: Identification Header Field Extraction**
+# **Feature: vorbis-codec, Property 6: Block Size Constraint**
+# **Validates: Requirements 1.1, 1.2, 4.1, 4.2**
+if HAVE_OGGDEMUXER
+check_PROGRAMS += test_vorbis_header_sequence_properties
+test_vorbis_header_sequence_properties_SOURCES = test_vorbis_header_sequence_properties.cpp
+test_vorbis_header_sequence_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
+test_vorbis_header_sequence_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(AM_LDFLAGS)
+endif
+
