@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Create VorbisCodec Class Structure
+- [-] 1. Create VorbisCodec Class Structure
   - Implement VorbisCodec class inheriting from AudioCodec base class
   - Add private member variables for libvorbis structures (info, comment, dsp_state, block)
   - Implement constructor accepting StreamInfo parameter
