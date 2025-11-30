@@ -38,8 +38,8 @@
 
 ## Phase 2: Container Parsing
 
-- [-] 2. Implement Stream Marker Validation (RFC 9639 Section 6)
-  - [-] 2.1 Implement validateStreamMarker method
+- [x] 2. Implement Stream Marker Validation (RFC 9639 Section 6)
+  - [x] 2.1 Implement validateStreamMarker method
     - Read first 4 bytes of file
     - Verify bytes equal 0x66 0x4C 0x61 0x43
     - Reject invalid markers without crashing
