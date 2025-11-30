@@ -169,14 +169,14 @@
     - **Property 16: Reset Clears State**
     - **Validates: Requirements 7.6, 11.5**
 
-- [ ] 10. Implement Container-Agnostic Operation
-  - [ ] 10.1 Ensure container-agnostic decoding
+- [x] 10. Implement Container-Agnostic Operation
+  - [x] 10.1 Ensure container-agnostic decoding
     - Decode based on packet data only, not container details
     - Work with MediaChunk data regardless of source
     - Reset state without requiring container-specific operations
     - _Requirements: 6.1, 6.3, 6.4_
 
-  - [ ] 10.2 Write property test for container-agnostic decoding
+  - [x] 10.2 Write property test for container-agnostic decoding
     - **Property 10: Container-Agnostic Decoding**
     - **Validates: Requirements 6.1, 6.3**
 
