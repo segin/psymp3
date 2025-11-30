@@ -239,6 +239,23 @@ public:
      */
     bool isBackpressureActive() const;
     
+    // ========== Error status methods (public for testing and integration) ==========
+    /**
+     * @brief Get the last error message
+     * @return String describing the last error that occurred
+     * 
+     * Requirements: 8.8
+     */
+    std::string getLastError() const;
+    
+    /**
+     * @brief Check if codec is in error state
+     * @return true if a fatal error has occurred
+     * 
+     * Requirements: 8.1, 8.2
+     */
+    bool isInErrorState() const;
+    
 private:
     
     // ========== Block size and windowing (private unlocked methods) ==========

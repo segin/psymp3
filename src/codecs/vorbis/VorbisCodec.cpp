@@ -292,7 +292,19 @@ bool VorbisCodec::initialize()
     // Maximum Vorbis block size is 8192 samples per channel
     constexpr size_t MAX_VORBIS_BLOCK_SIZE = 8192;
     size_t expected_channels = m_channels > 0 ? m_channels : 2; // Default to stereo
-    m_output_buffer.reserve(MAX_VORBIS_BLOCK_SIZE * expected_channels);
+    
+    // Handle memory allocation failures (Requirement 8.6)
+    try {
+        m_output_buffer.reserve(MAX_VORBIS_BLOCK_SIZE * expected_channels);
+    } catch (const std::bad_alloc& e) {
+        m_last_error = "Memory allocation failed during initialization: " + std::string(e.what());
+        Debug::log("vorbis", m_last_error);
+        Debug::log("error", "VorbisCodec: ", m_last_error);
+        // Clean up partially initialized state
+        vorbis_comment_clear(&m_vorbis_comment);
+        vorbis_info_clear(&m_vorbis_info);
+        throw BadFormatException(m_last_error);
+    }
     
     // Process codec_data if available (may contain pre-extracted headers)
     // This is useful when headers are stored in container metadata
@@ -376,17 +388,27 @@ AudioFrame VorbisCodec::decode(const MediaChunk& chunk)
             
             // After all 3 headers, initialize synthesis (Requirement 2.3)
             if (m_header_packets_received == 3) {
-                if (vorbis_synthesis_init(&m_vorbis_dsp, &m_vorbis_info) != 0) {
+                // Initialize synthesis - handle memory allocation failures (Requirement 8.6)
+                int synth_result = vorbis_synthesis_init(&m_vorbis_dsp, &m_vorbis_info);
+                if (synth_result != 0) {
                     m_error_state.store(true);
-                    m_last_error = "Failed to initialize Vorbis synthesis";
+                    m_last_error = "Failed to initialize Vorbis synthesis (error: " + 
+                                   std::to_string(synth_result) + ")";
                     Debug::log("vorbis", m_last_error);
+                    Debug::log("error", "VorbisCodec: ", m_last_error);
+                    // Memory allocation failure during synthesis init
                     throw BadFormatException(m_last_error);
                 }
-                if (vorbis_block_init(&m_vorbis_dsp, &m_vorbis_block) != 0) {
+                
+                int block_result = vorbis_block_init(&m_vorbis_dsp, &m_vorbis_block);
+                if (block_result != 0) {
                     vorbis_dsp_clear(&m_vorbis_dsp);
                     m_error_state.store(true);
-                    m_last_error = "Failed to initialize Vorbis block";
+                    m_last_error = "Failed to initialize Vorbis block (error: " + 
+                                   std::to_string(block_result) + ")";
                     Debug::log("vorbis", m_last_error);
+                    Debug::log("error", "VorbisCodec: ", m_last_error);
+                    // Memory allocation failure during block init
                     throw BadFormatException(m_last_error);
                 }
                 m_decoder_initialized = true;
@@ -612,6 +634,7 @@ AudioFrame VorbisCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& p
     // Validate packet before decoding (Requirement 1.8)
     if (!validateVorbisPacket_unlocked(packet_data)) {
         Debug::log("vorbis", "Invalid Vorbis packet, skipping");
+        // Skip corrupted packet and continue (Requirement 8.3)
         return frame;
     }
     
@@ -625,6 +648,7 @@ AudioFrame VorbisCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& p
     packet.packetno = m_header_packets_received + m_samples_decoded.load();
     
     // Decode the packet using vorbis_synthesis (Requirement 2.4)
+    // Skip corrupted packets (vorbis_synthesis returns non-zero) and continue (Requirement 8.3)
     int synthesis_result = vorbis_synthesis(&m_vorbis_block, &packet);
     
     if (synthesis_result == 0) {
@@ -635,13 +659,39 @@ AudioFrame VorbisCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& p
             // Extract PCM samples (Requirement 2.5)
             synthesizeBlock_unlocked();
         } else {
-            Debug::log("vorbis", "vorbis_synthesis_blockin failed: ", blockin_result);
+            // Log errors via vorbis_synthesis_blockin failures (Requirement 8.4)
+            Debug::log("vorbis", "vorbis_synthesis_blockin failed with error: ", blockin_result);
+            Debug::log("error", "VorbisCodec: vorbis_synthesis_blockin failed (", blockin_result, ")");
+            
+            // Check if this indicates state inconsistency
+            if (blockin_result == OV_EFAULT) {
+                // Call vorbis_synthesis_restart() on state inconsistency (Requirement 8.7)
+                Debug::log("vorbis", "State inconsistency detected, calling vorbis_synthesis_restart()");
+                vorbis_synthesis_restart(&m_vorbis_dsp);
+                m_output_buffer.clear();
+                m_backpressure_active = false;
+            }
+            
             handleVorbisError_unlocked(blockin_result);
         }
-    } else if (synthesis_result != OV_ENOTAUDIO) {
+    } else if (synthesis_result == OV_ENOTAUDIO) {
         // OV_ENOTAUDIO means this packet doesn't contain audio (e.g., metadata)
-        // Other errors indicate corrupted packets (Requirement 8.3)
-        Debug::log("vorbis", "vorbis_synthesis failed: ", synthesis_result);
+        // This is not an error, just skip silently
+        Debug::log("vorbis", "Non-audio packet received, skipping");
+    } else {
+        // Corrupted packet - skip and continue (Requirement 8.3)
+        Debug::log("vorbis", "vorbis_synthesis failed with error: ", synthesis_result, " - skipping corrupted packet");
+        Debug::log("error", "VorbisCodec: Corrupted packet skipped (vorbis_synthesis error: ", synthesis_result, ")");
+        
+        // Check for state inconsistency errors that require reset (Requirement 8.7)
+        if (synthesis_result == OV_EFAULT) {
+            Debug::log("vorbis", "State inconsistency detected in synthesis, calling vorbis_synthesis_restart()");
+            vorbis_synthesis_restart(&m_vorbis_dsp);
+            m_output_buffer.clear();
+            m_backpressure_active = false;
+        }
+        
+        // Log the error but don't throw - we continue with next packet
         handleVorbisError_unlocked(synthesis_result);
     }
     
@@ -766,6 +816,17 @@ bool VorbisCodec::isBackpressureActive() const
     return m_backpressure_active;
 }
 
+std::string VorbisCodec::getLastError() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_last_error;
+}
+
+bool VorbisCodec::isInErrorState() const
+{
+    return m_error_state.load();
+}
+
 void VorbisCodec::convertFloatToPCM_unlocked(float** pcm, int samples, AudioFrame& frame)
 {
     // Convert libvorbis float output to 16-bit PCM (Requirement 1.5, 5.1, 5.2)
@@ -786,7 +847,16 @@ void VorbisCodec::convertFloatToPCM_unlocked(float** pcm, int samples, AudioFram
     // Use the static interleaveChannels helper for the actual conversion
     // This handles proper channel interleaving according to Vorbis conventions
     // (Requirement 5.5, 5.7)
-    interleaveChannels(pcm, samples, m_channels, frame.samples);
+    // Handle memory allocation failures (Requirement 8.6)
+    try {
+        interleaveChannels(pcm, samples, m_channels, frame.samples);
+    } catch (const std::bad_alloc& e) {
+        m_last_error = "Memory allocation failed during PCM conversion: " + std::string(e.what());
+        Debug::log("vorbis", m_last_error);
+        Debug::log("error", "VorbisCodec: ", m_last_error);
+        frame.samples.clear();
+        throw BadFormatException(m_last_error);
+    }
     
     // Verify output consistency (Requirement 5.1, 5.2, 5.3, 5.5)
     // The number of samples should be exactly samples * channels
@@ -911,57 +981,89 @@ bool VorbisCodec::validateVorbisPacket_unlocked(const std::vector<uint8_t>& pack
 void VorbisCodec::handleVorbisError_unlocked(int vorbis_error)
 {
     // Handle libvorbis error codes (Requirement 2.6, 8.1-8.7)
+    // This method implements comprehensive error handling per Requirements 8.1, 8.2, 8.5, 8.6
+    // 
+    // Error handling strategy:
+    // - Fatal errors (OV_EBADHEADER, OV_EVERSION): Set error state and throw BadFormatException
+    // - Recoverable errors (OV_ENOTVORBIS, OV_EINVAL): Log and continue (skip packet)
+    // - State errors (OV_EFAULT): Reset decoder state and continue
+    // - All errors: Report through PsyMP3's Debug logging system (Requirement 8.8)
+    
     switch (vorbis_error) {
         case OV_ENOTVORBIS:
-            // Not Vorbis data (Requirement 8.1)
-            m_last_error = "Not Vorbis data (OV_ENOTVORBIS)";
+            // Not Vorbis data - reject packet (Requirement 8.1)
+            // This error indicates the packet is not valid Vorbis data
+            // We log the error but continue - this is a per-packet rejection
+            m_last_error = "Not Vorbis data (OV_ENOTVORBIS) - packet rejected";
             Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: ", m_last_error);
+            // Note: We don't set m_error_state here because this is a per-packet
+            // rejection, not a fatal codec error. The codec can continue with
+            // subsequent valid packets (Requirement 8.3).
             break;
             
         case OV_EBADHEADER:
-            // Corrupted header (Requirement 8.2)
-            m_last_error = "Bad Vorbis header (OV_EBADHEADER)";
+            // Corrupted header - reject initialization (Requirement 8.2)
+            // This is a fatal error during header processing
+            m_last_error = "Bad Vorbis header (OV_EBADHEADER) - initialization rejected";
             m_error_state.store(true);
             Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: FATAL - ", m_last_error);
+            // Throw exception to signal initialization failure
+            throw BadFormatException(m_last_error);
             break;
             
         case OV_EFAULT:
-            // Internal error - reset decoder state (Requirement 8.5)
-            m_last_error = "Internal Vorbis error (OV_EFAULT)";
-            Debug::log("vorbis", m_last_error, " - attempting recovery");
-            if (m_decoder_initialized) {
-                vorbis_synthesis_restart(&m_vorbis_dsp);
-            }
+            // Internal error - reset decoder state (Requirement 8.5, 8.7)
+            // This indicates internal inconsistency in libvorbis state
+            m_last_error = "Internal Vorbis error (OV_EFAULT) - resetting decoder state";
+            Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: ", m_last_error);
+            // Attempt recovery by restarting synthesis (Requirement 8.7)
+            // Note: The actual vorbis_synthesis_restart() call is done in the caller
+            // (decodeAudioPacket_unlocked) to avoid double-reset
+            // Clear output buffer to ensure clean state
+            m_output_buffer.clear();
+            m_backpressure_active = false;
             break;
             
         case OV_EINVAL:
-            // Invalid data
-            m_last_error = "Invalid Vorbis data (OV_EINVAL)";
+            // Invalid data - skip packet and continue (Requirement 8.3)
+            m_last_error = "Invalid Vorbis data (OV_EINVAL) - packet skipped";
             Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: ", m_last_error);
             break;
             
         case OV_EREAD:
-            // Read error
-            m_last_error = "Vorbis read error (OV_EREAD)";
+            // Read error - typically I/O related, skip and continue
+            m_last_error = "Vorbis read error (OV_EREAD) - packet skipped";
             Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: ", m_last_error);
             break;
             
         case OV_EIMPL:
-            // Unimplemented feature
+            // Unimplemented feature - this is a codec limitation
+            // Report through Debug logging system (Requirement 8.8)
             m_last_error = "Unimplemented Vorbis feature (OV_EIMPL)";
             Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: ", m_last_error);
             break;
             
         case OV_EVERSION:
-            // Version mismatch
-            m_last_error = "Vorbis version mismatch (OV_EVERSION)";
+            // Version mismatch - incompatible Vorbis version
+            // This is a fatal error - the stream cannot be decoded
+            m_last_error = "Vorbis version mismatch (OV_EVERSION) - stream incompatible";
+            m_error_state.store(true);
             Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: FATAL - ", m_last_error);
+            throw BadFormatException(m_last_error);
             break;
             
         default:
-            // Unknown error
+            // Unknown error - log and continue (Requirement 8.8)
             m_last_error = "Unknown Vorbis error: " + std::to_string(vorbis_error);
             Debug::log("vorbis", m_last_error);
+            Debug::log("error", "VorbisCodec: ", m_last_error);
             break;
     }
 }

@@ -180,15 +180,15 @@
     - **Property 10: Container-Agnostic Decoding**
     - **Validates: Requirements 6.1, 6.3**
 
-- [ ] 11. Implement Error Handling and Recovery
-  - [ ] 11.1 Create comprehensive error handling system
+- [x] 11. Implement Error Handling and Recovery
+  - [x] 11.1 Create comprehensive error handling system
     - Handle OV_ENOTVORBIS by rejecting packet as not Vorbis data
     - Handle OV_EBADHEADER by rejecting initialization
     - Handle OV_EFAULT by resetting decoder state
     - Throw BadFormatException on memory allocation failures
     - _Requirements: 8.1, 8.2, 8.5, 8.6_
 
-  - [ ] 11.2 Add error recovery and state management
+  - [x] 11.2 Add error recovery and state management
     - Skip corrupted packets (vorbis_synthesis returns non-zero) and continue
     - Log errors via vorbis_synthesis_blockin failures
     - Call vorbis_synthesis_restart() on state inconsistency
