@@ -335,3 +335,7 @@ tests/test_vorbis_channel_properties
 tests/test_vorbis_streaming_properties
 tests/test_vorbis_container_agnostic_properties
 tests/test_vorbis_thread_safety_properties
+
+# Vorbis integration and compatibility tests
+tests/test_vorbis_demuxer_integration
+tests/test_vorbis_compatibility_performance

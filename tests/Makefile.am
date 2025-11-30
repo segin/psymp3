@@ -1017,6 +1017,56 @@ test_vorbis_streaming_properties_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
 	$(AM_LDFLAGS)
+
+# Vorbis Demuxer Integration Tests
+# Task 15.1: Test integration with demuxer architecture
+# **Validates: Requirements 6.1, 6.3, 11.3, 11.4, 12.8**
+check_PROGRAMS += test_vorbis_demuxer_integration
+test_vorbis_demuxer_integration_SOURCES = test_vorbis_demuxer_integration.cpp
+test_vorbis_demuxer_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
+test_vorbis_demuxer_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(AM_LDFLAGS)
+
+# Vorbis Compatibility and Performance Tests
+# Task 15.2: Validate compatibility and performance
+# **Validates: Requirements 12.1, 12.2, 12.4, 13.1, 13.2, 13.8**
+check_PROGRAMS += test_vorbis_compatibility_performance
+test_vorbis_compatibility_performance_SOURCES = test_vorbis_compatibility_performance.cpp
+test_vorbis_compatibility_performance_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
+test_vorbis_compatibility_performance_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
+	$(AM_LDFLAGS)
 endif
 
 
