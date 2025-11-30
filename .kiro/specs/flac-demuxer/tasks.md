@@ -14,23 +14,23 @@
 
 ## Phase 1: Core Infrastructure
 
-- [ ] 1. Create FLACDemuxer Class Structure
-  - [ ] 1.1 Define FLACDemuxer class inheriting from Demuxer base class
+- [-] 1. Create FLACDemuxer Class Structure
+  - [x] 1.1 Define FLACDemuxer class inheriting from Demuxer base class
     - Add private member variables for FLAC container state and metadata
     - Implement constructor accepting unique_ptr of IOHandler
     - Add destructor with proper resource cleanup
     - _Requirements: 26.1, 26.5_
-  - [ ] 1.2 Define FLAC Data Structures
+  - [x] 1.2 Define FLAC Data Structures
     - Create FLACMetadataBlock structure with type, is_last, length, data_offset
     - Define FLACFrame structure with sample_offset, file_offset, block_size, frame_size
     - Add FLACMetadataType enum for block types 0-6
     - _Requirements: 2.6-2.12_
-  - [ ] 1.3 Implement Basic Demuxer Interface
+  - [x] 1.3 Implement Basic Demuxer Interface
     - Implement all pure virtual methods from Demuxer base class
     - Add placeholder implementations returning appropriate defaults
     - _Requirements: 26.1, 26.2, 26.3_
 
-- [ ]* 1.4 Write property test for stream marker validation
+- [ ] 1.4 Write property test for stream marker validation
   - **Property 1: Stream Marker Validation**
   - **Validates: Requirements 1.2, 1.3**
 
@@ -58,11 +58,11 @@
     - Handle reserved block types 7-126 by skipping
     - _Requirements: 2.4, 2.13, 18.1_
 
-- [ ]* 3.3 Write property test for metadata block header parsing
+- [ ] 3.3 Write property test for metadata block header parsing
   - **Property 2: Metadata Block Header Bit Extraction**
   - **Validates: Requirements 2.2, 2.3**
 
-- [ ]* 3.4 Write property test for forbidden block type
+- [ ] 3.4 Write property test for forbidden block type
   - **Property 3: Forbidden Block Type Detection**
   - **Validates: Requirements 2.4, 18.1**
 
@@ -82,11 +82,11 @@
     - Handle unknown values for frame size 0, total samples 0, MD5 all zeros
     - _Requirements: 3.6-3.8, 3.11, 3.12, 3.14, 3.18, 3.20_
 
-- [ ]* 4.3 Write property test for STREAMINFO block size validation
+- [ ] 4.3 Write property test for STREAMINFO block size validation
   - **Property 4: STREAMINFO Block Size Validation**
   - **Validates: Requirements 3.6, 3.7**
 
-- [ ]* 4.4 Write property test for STREAMINFO block size ordering
+- [ ] 4.4 Write property test for STREAMINFO block size ordering
   - **Property 5: STREAMINFO Block Size Ordering**
   - **Validates: Requirements 3.8**
 
@@ -119,7 +119,7 @@
     - Validate seek points are sorted in ascending order
     - _Requirements: 12.1-12.8_
 
-- [ ]* 8.2 Write property test for seek point placeholder detection
+- [ ] 8.2 Write property test for seek point placeholder detection
   - **Property 15: Seek Point Placeholder Detection**
   - **Validates: Requirements 12.5**
 
@@ -133,7 +133,7 @@
     - Validate field names use printable ASCII 0x20-0x7E except 0x3D
     - _Requirements: 13.1-13.8_
 
-- [ ]* 9.2 Write property test for endianness handling
+- [ ] 9.2 Write property test for endianness handling
   - **Property 16: Endianness Handling**
   - **Validates: Requirements 19.1, 19.4, 13.1**
 
@@ -146,7 +146,7 @@
     - Validate CD-DA track count is at most 100
     - _Requirements: 16.1-16.8_
 
-- [ ]* 10.2 Write property test for CUESHEET track count validation
+- [ ] 10.2 Write property test for CUESHEET track count validation
   - **Property 17: CUESHEET Track Count Validation**
   - **Validates: Requirements 16.6**
 
@@ -179,11 +179,11 @@
     - Reject if blocking strategy changes mid-stream
     - _Requirements: 4.3-4.8_
 
-- [ ]* 13.3 Write property test for frame sync code detection
+- [ ] 13.3 Write property test for frame sync code detection
   - **Property 6: Frame Sync Code Detection**
   - **Validates: Requirements 4.1, 4.2**
 
-- [ ]* 13.4 Write property test for blocking strategy consistency
+- [ ] 13.4 Write property test for blocking strategy consistency
   - **Property 7: Blocking Strategy Consistency**
   - **Validates: Requirements 4.8**
 
@@ -196,11 +196,11 @@
     - Reject forbidden uncommon block size 65536
     - _Requirements: 5.1-5.18_
 
-- [ ]* 14.2 Write property test for reserved block size pattern
+- [ ] 14.2 Write property test for reserved block size pattern
   - **Property 8: Reserved Block Size Pattern Detection**
   - **Validates: Requirements 5.2**
 
-- [ ]* 14.3 Write property test for forbidden block size
+- [ ] 14.3 Write property test for forbidden block size
   - **Property 9: Forbidden Block Size Detection**
   - **Validates: Requirements 5.18**
 
@@ -212,7 +212,7 @@
     - Reject forbidden pattern 0b1111
     - _Requirements: 6.1-6.17_
 
-- [ ]* 15.2 Write property test for forbidden sample rate
+- [ ] 15.2 Write property test for forbidden sample rate
   - **Property 10: Forbidden Sample Rate Detection**
   - **Validates: Requirements 6.17**
 
@@ -224,7 +224,7 @@
     - Reject reserved patterns 0b1011-0b1111
     - _Requirements: 7.1-7.7_
 
-- [ ]* 16.2 Write property test for reserved channel bits
+- [ ] 16.2 Write property test for reserved channel bits
   - **Property 11: Reserved Channel Bits Detection**
   - **Validates: Requirements 7.7**
 
@@ -236,7 +236,7 @@
     - Validate reserved bit at bit 0 is zero
     - _Requirements: 8.1-8.11_
 
-- [ ]* 17.2 Write property test for reserved bit depth
+- [ ] 17.2 Write property test for reserved bit depth
   - **Property 12: Reserved Bit Depth Detection**
   - **Validates: Requirements 8.5**
 
@@ -267,7 +267,7 @@
     - Support strict mode rejection
     - _Requirements: 10.4-10.6_
 
-- [ ]* 20.3 Write property test for CRC-8 calculation
+- [ ] 20.3 Write property test for CRC-8 calculation
   - **Property 13: CRC-8 Calculation Correctness**
   - **Validates: Requirements 10.2**
 
@@ -284,7 +284,7 @@
     - Support strict mode rejection
     - _Requirements: 11.1, 11.6-11.8_
 
-- [ ]* 21.3 Write property test for CRC-16 calculation
+- [ ] 21.3 Write property test for CRC-16 calculation
   - **Property 14: CRC-16 Calculation Correctness**
   - **Validates: Requirements 11.3**
 
@@ -304,11 +304,11 @@
     - Add debug logging with calculateFrameSize token
     - _Requirements: 21.1, 21.2, 21.5, 25.1, 25.4_
 
-- [ ]* 23.2 Write property test for frame size estimation
+- [ ] 23.2 Write property test for frame size estimation
   - **Property 18: Frame Size Estimation**
   - **Validates: Requirements 21.1**
 
-- [ ]* 23.3 Write property test for frame boundary search limit
+- [ ] 23.3 Write property test for frame boundary search limit
   - **Property 19: Frame Boundary Search Limit**
   - **Validates: Requirements 21.3**
 
@@ -340,7 +340,7 @@
     - Use 64-bit integers for large files
     - _Requirements: 23.1, 23.2, 23.4, 23.8_
 
-- [ ]* 26.2 Write property test for duration calculation
+- [ ] 26.2 Write property test for duration calculation
   - **Property 20: Duration Calculation**
   - **Validates: Requirements 23.1, 23.4**
 
@@ -381,7 +381,7 @@
     - Return appropriate error codes on allocation failure
     - _Requirements: 24.4-24.8_
 
-- [ ]* 29.3 Write property test for sync resynchronization
+- [ ] 29.3 Write property test for sync resynchronization
   - **Property 21: Error Recovery - Sync Resynchronization**
   - **Validates: Requirements 24.4**
 
@@ -406,7 +406,7 @@
     - Use atomic error state flags
     - _Requirements: 28.5-28.7_
 
-- [ ]* 31.3 Write property test for thread safety lock pattern
+- [ ] 31.3 Write property test for thread safety lock pattern
   - **Property 22: Thread Safety - Lock Pattern**
   - **Validates: Requirements 28.1, 28.2**
 
@@ -425,7 +425,7 @@
     - Log seeking strategy selection and outcomes
     - _Requirements: 29.1-29.8_
 
-- [ ]* 33.2 Write property test for debug logging format
+- [ ] 33.2 Write property test for debug logging format
   - **Property 23: Debug Logging Format**
   - **Validates: Requirements 29.1**
 
