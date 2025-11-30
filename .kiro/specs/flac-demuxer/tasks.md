@@ -90,7 +90,7 @@
   - **Property 5: STREAMINFO Block Size Ordering**
   - **Validates: Requirements 3.8**
 
-- [ ] 5. Checkpoint
+- [x] 5. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
