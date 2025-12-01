@@ -428,6 +428,32 @@ private:
      */
     bool parseChannelBits_unlocked(uint8_t bits, uint8_t& channels, FLACChannelMode& mode);
     
+    /**
+     * @brief Parse bit depth bits from frame header per RFC 9639 Section 9.1.4
+     * 
+     * Implements Requirements 8.1-8.11:
+     * - Extracts bits 1-3 of frame byte 3
+     * - Implements all 8 lookup table values
+     * - Rejects reserved pattern 0b011
+     * - Validates reserved bit at bit 0 is zero (logs warning if non-zero)
+     * 
+     * RFC 9639 Bit Depth Encoding:
+     *   0b000: Get from STREAMINFO (non-streamable subset)
+     *   0b001: 8 bits per sample
+     *   0b010: 12 bits per sample
+     *   0b011: Reserved (reject)
+     *   0b100: 16 bits per sample
+     *   0b101: 20 bits per sample
+     *   0b110: 24 bits per sample
+     *   0b111: 32 bits per sample
+     * 
+     * @param bits The 3-bit bit depth code (bits 1-3 of frame byte 3)
+     * @param reserved_bit The reserved bit (bit 0 of frame byte 3) - must be 0
+     * @param bit_depth Output: the decoded bit depth (4-32 bits per sample)
+     * @return true if bit depth is valid, false if reserved pattern detected
+     */
+    bool parseBitDepthBits_unlocked(uint8_t bits, uint8_t reserved_bit, uint8_t& bit_depth);
+    
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;
 };

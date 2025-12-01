@@ -3734,3 +3734,11 @@ test_flac_channel_bits_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
 test_flac_channel_bits_properties_LDFLAGS = 
 test_flac_channel_bits_properties_LDADD = 
 
+# **Feature: flac-demuxer, Property 12: Reserved Bit Depth Detection**
+# **Validates: Requirements 8.5**
+check_PROGRAMS += test_flac_bit_depth_bits_properties
+test_flac_bit_depth_bits_properties_SOURCES = test_flac_bit_depth_bits_properties.cpp
+test_flac_bit_depth_bits_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_bit_depth_bits_properties_LDFLAGS = 
+test_flac_bit_depth_bits_properties_LDADD = 
+

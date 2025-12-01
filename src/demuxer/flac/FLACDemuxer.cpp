@@ -2162,23 +2162,17 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
     
     // ========================================================================
     // Parse bit depth (RFC 9639 Section 9.1.4)
-    // Requirements 8.2-8.9
+    // Requirements 8.1-8.11 - Using dedicated parseBitDepthBits_unlocked method
     // ========================================================================
     
-    switch (bit_depth_bits) {
-        case 0x00:                                    // Requirement 8.2: Get from STREAMINFO
-            frame.bits_per_sample = m_streaminfo.bits_per_sample;
-            break;
-        case 0x01: frame.bits_per_sample = 8; break;  // Requirement 8.3
-        case 0x02: frame.bits_per_sample = 12; break; // Requirement 8.4
-        // 0x03 is reserved and already rejected above
-        case 0x04: frame.bits_per_sample = 16; break; // Requirement 8.6
-        case 0x05: frame.bits_per_sample = 20; break; // Requirement 8.7
-        case 0x06: frame.bits_per_sample = 24; break; // Requirement 8.8
-        case 0x07: frame.bits_per_sample = 32; break; // Requirement 8.9
-        default:
-            frame.bits_per_sample = m_streaminfo.bits_per_sample;
-            break;
+    // Note: Reserved pattern 0b011 is already rejected above in the validation section.
+    // The parseBitDepthBits_unlocked method provides the complete implementation with
+    // proper reserved bit validation and logging.
+    if (!parseBitDepthBits_unlocked(bit_depth_bits, reserved_bit, frame.bits_per_sample)) {
+        // This should not happen since we already validated above, but handle it
+        FLAC_DEBUG("[parseFrameHeader] parseBitDepthBits_unlocked failed for bits 0x",
+                   std::hex, static_cast<int>(bit_depth_bits), std::dec);
+        return false;
     }
     
     // Set sample offset based on current position
@@ -2693,6 +2687,115 @@ bool FLACDemuxer::parseChannelBits_unlocked(uint8_t bits, uint8_t& channels, FLA
         FLAC_DEBUG("[parseChannelBits] Mid-side stereo: 2 channels (0b1010)");
     }
     // 0x0B-0x0F are reserved and already rejected above
+    
+    return true;
+}
+
+
+// ============================================================================
+// Bit Depth Bits Parser (RFC 9639 Section 9.1.4)
+// ============================================================================
+
+/**
+ * @brief Parse bit depth bits from frame header per RFC 9639 Section 9.1.4
+ * 
+ * Implements Requirements 8.1-8.11 for bit depth decoding.
+ * 
+ * RFC 9639 Bit Depth Encoding:
+ *   0b000: Get from STREAMINFO (non-streamable subset)
+ *   0b001: 8 bits per sample
+ *   0b010: 12 bits per sample
+ *   0b011: Reserved (reject)
+ *   0b100: 16 bits per sample
+ *   0b101: 20 bits per sample
+ *   0b110: 24 bits per sample
+ *   0b111: 32 bits per sample
+ * 
+ * @param bits The 3-bit bit depth code (bits 1-3 of frame byte 3)
+ * @param reserved_bit The reserved bit (bit 0 of frame byte 3) - must be 0
+ * @param bit_depth Output: the decoded bit depth (4-32 bits per sample)
+ * @return true if bit depth is valid, false if reserved pattern detected
+ */
+bool FLACDemuxer::parseBitDepthBits_unlocked(uint8_t bits, uint8_t reserved_bit, uint8_t& bit_depth)
+{
+    FLAC_DEBUG("[parseBitDepthBits] Parsing bit depth bits: 0b",
+               ((bits >> 2) & 1), ((bits >> 1) & 1), (bits & 1),
+               " (0x", std::hex, static_cast<int>(bits), std::dec, ")");
+    
+    // Requirement 8.10, 8.11: Validate reserved bit at bit 0 of frame byte 3
+    // RFC 9639 Section 9.1.4: "A reserved bit. It MUST have value 0"
+    if (reserved_bit != 0) {
+        FLAC_DEBUG("[parseBitDepthBits] WARNING: Reserved bit is non-zero (",
+                   static_cast<int>(reserved_bit), ") - continuing per Requirement 8.11");
+        // Per Requirement 8.11: Log warning and continue processing
+    }
+    
+    // Requirement 8.5: Reserved bit depth pattern 0b011
+    // RFC 9639 Table 1: Bit depth bits 0b011 is reserved
+    if (bits == 0x03) {
+        FLAC_DEBUG("[parseBitDepthBits] REJECTED: Reserved bit depth pattern 0b011 (Requirement 8.5)");
+        return false;
+    }
+    
+    // Requirement 8.1: Extract bits 1-3 of frame byte 3 for bit depth
+    // (Already done by caller - bits parameter contains the extracted value)
+    
+    switch (bits) {
+        // Requirement 8.2: 0b000 = Get from STREAMINFO
+        // RFC 9639 Section 9.1.4: "Get sample size in bits from STREAMINFO metadata block"
+        // Note: This makes the stream non-streamable subset compliant
+        case 0x00:
+            bit_depth = m_streaminfo.bits_per_sample;
+            FLAC_DEBUG("[parseBitDepthBits] Bit depth from STREAMINFO: ", 
+                       static_cast<int>(bit_depth), " bits (0b000)");
+            break;
+            
+        // Requirement 8.3: 0b001 = 8 bits per sample
+        case 0x01:
+            bit_depth = 8;
+            FLAC_DEBUG("[parseBitDepthBits] Bit depth: 8 bits (0b001)");
+            break;
+            
+        // Requirement 8.4: 0b010 = 12 bits per sample
+        case 0x02:
+            bit_depth = 12;
+            FLAC_DEBUG("[parseBitDepthBits] Bit depth: 12 bits (0b010)");
+            break;
+            
+        // 0b011 is reserved and already rejected above (Requirement 8.5)
+            
+        // Requirement 8.6: 0b100 = 16 bits per sample
+        case 0x04:
+            bit_depth = 16;
+            FLAC_DEBUG("[parseBitDepthBits] Bit depth: 16 bits (0b100)");
+            break;
+            
+        // Requirement 8.7: 0b101 = 20 bits per sample
+        case 0x05:
+            bit_depth = 20;
+            FLAC_DEBUG("[parseBitDepthBits] Bit depth: 20 bits (0b101)");
+            break;
+            
+        // Requirement 8.8: 0b110 = 24 bits per sample
+        case 0x06:
+            bit_depth = 24;
+            FLAC_DEBUG("[parseBitDepthBits] Bit depth: 24 bits (0b110)");
+            break;
+            
+        // Requirement 8.9: 0b111 = 32 bits per sample
+        case 0x07:
+            bit_depth = 32;
+            FLAC_DEBUG("[parseBitDepthBits] Bit depth: 32 bits (0b111)");
+            break;
+            
+        default:
+            // Should never reach here since we handle all 8 values (0-7)
+            // and 0b011 is already rejected
+            FLAC_DEBUG("[parseBitDepthBits] Unexpected bit depth bits: 0x",
+                       std::hex, static_cast<int>(bits), std::dec);
+            bit_depth = m_streaminfo.bits_per_sample;
+            break;
+    }
     
     return true;
 }

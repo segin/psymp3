@@ -228,15 +228,15 @@
   - **Property 11: Reserved Channel Bits Detection**
   - **Validates: Requirements 7.7**
 
-- [ ] 17. Implement Bit Depth Parser (RFC 9639 Section 9.1.4)
-  - [ ] 17.1 Implement parseBitDepthBits method
+- [x] 17. Implement Bit Depth Parser (RFC 9639 Section 9.1.4)
+  - [x] 17.1 Implement parseBitDepthBits method
     - Extract bits 1-3 of frame byte 3
     - Implement all 8 lookup table values
     - Reject reserved pattern 0b011
     - Validate reserved bit at bit 0 is zero
     - _Requirements: 8.1-8.11_
 
-- [ ] 17.2 Write property test for reserved bit depth
+- [x] 17.2 Write property test for reserved bit depth
   - **Property 12: Reserved Bit Depth Detection**
   - **Validates: Requirements 8.5**
 
