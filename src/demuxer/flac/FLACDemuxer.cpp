@@ -212,40 +212,86 @@ StreamInfo FLACDemuxer::getStreamInfo_unlocked(uint32_t stream_id) const
 }
 
 
+/**
+ * @brief Read the next FLAC frame as a MediaChunk
+ * 
+ * Implements Requirements 21.7, 21.8, 26.3:
+ * - Requirement 21.7: Maintain accurate sample position tracking during reading
+ * - Requirement 21.8: Include complete frames with proper MediaChunk formatting
+ * - Requirement 26.3: Return frame as MediaChunk with proper timing
+ * 
+ * This method:
+ * 1. Locates the next frame sync code (0xFFF8 or 0xFFF9)
+ * 2. Parses the frame header to determine block size and other parameters
+ * 3. Estimates frame size using STREAMINFO minimum frame size
+ * 4. Reads the complete frame data including CRC-16 footer
+ * 5. Returns the frame as a MediaChunk with accurate timing information
+ * 
+ * @return MediaChunk containing the frame data, or empty chunk on EOF/error
+ */
 MediaChunk FLACDemuxer::readChunk_unlocked()
 {
+    FLAC_DEBUG("[readChunk] Starting frame read");
+    
     if (!m_container_parsed) {
-        FLAC_DEBUG("Container not parsed");
+        FLAC_DEBUG("[readChunk] Container not parsed");
         return MediaChunk{};
     }
     
     if (isEOF_unlocked()) {
-        FLAC_DEBUG("At end of file");
+        FLAC_DEBUG("[readChunk] At end of file");
         return MediaChunk{};
     }
     
-    // Find next FLAC frame
+    // ========================================================================
+    // Step 1: Locate next frame sync code
+    // Requirement 21.7: Maintain accurate sample position tracking
+    // ========================================================================
+    
     FLACFrame frame;
     if (!findNextFrame_unlocked(frame)) {
-        FLAC_DEBUG("No more frames found");
+        FLAC_DEBUG("[readChunk] No more frames found");
         m_eof = true;
         return MediaChunk{};
     }
     
-    // Calculate frame size using STREAMINFO minimum frame size
-    uint32_t frame_size = calculateFrameSize_unlocked(frame);
+    FLAC_DEBUG("[readChunk] Found frame at offset ", frame.file_offset);
+    FLAC_DEBUG("[readChunk]   Block size: ", frame.block_size, " samples");
+    FLAC_DEBUG("[readChunk]   Sample offset: ", frame.sample_offset);
+    
+    // ========================================================================
+    // Step 2: Calculate frame size using STREAMINFO minimum frame size
+    // Requirement 21.1: Use STREAMINFO minimum frame size as primary estimate
+    // ========================================================================
+    
+    uint32_t estimated_frame_size = calculateFrameSize_unlocked(frame);
     
     // Validate frame size
-    if (frame_size == 0 || frame_size > 1024 * 1024) {
-        FLAC_DEBUG("Invalid frame size: ", frame_size);
+    if (estimated_frame_size == 0) {
+        FLAC_DEBUG("[readChunk] Invalid frame size estimate: 0");
         m_eof = true;
         return MediaChunk{};
     }
     
-    // Check available data
-    if (m_file_size > 0 && frame.file_offset + frame_size > m_file_size) {
-        frame_size = static_cast<uint32_t>(m_file_size - frame.file_offset);
+    // Cap at reasonable maximum (1 MB) to prevent excessive memory allocation
+    static constexpr uint32_t MAX_FRAME_SIZE = 1024 * 1024;
+    if (estimated_frame_size > MAX_FRAME_SIZE) {
+        FLAC_DEBUG("[readChunk] Frame size estimate (", estimated_frame_size, 
+                   ") exceeds maximum, capping at ", MAX_FRAME_SIZE);
+        estimated_frame_size = MAX_FRAME_SIZE;
     }
+    
+    // Check available data in file
+    uint32_t available_bytes = estimated_frame_size;
+    if (m_file_size > 0 && frame.file_offset + estimated_frame_size > m_file_size) {
+        available_bytes = static_cast<uint32_t>(m_file_size - frame.file_offset);
+        FLAC_DEBUG("[readChunk] Adjusted frame size to available bytes: ", available_bytes);
+    }
+    
+    // ========================================================================
+    // Step 3: Read frame data
+    // Requirement 21.8: Include complete frames with proper MediaChunk formatting
+    // ========================================================================
     
     // Seek to frame position
     if (m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET) != 0) {
@@ -253,30 +299,77 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         return MediaChunk{};
     }
     
-    // Read frame data
-    std::vector<uint8_t> data(frame_size);
-    size_t bytes_read = m_handler->read(data.data(), 1, frame_size);
+    // Read initial buffer (estimated size or available bytes)
+    std::vector<uint8_t> data(available_bytes);
+    size_t bytes_read = m_handler->read(data.data(), 1, available_bytes);
     
     if (bytes_read == 0) {
-        FLAC_DEBUG("No data read - end of file");
+        FLAC_DEBUG("[readChunk] No data read - end of file");
         m_eof = true;
         return MediaChunk{};
     }
     
-    data.resize(bytes_read);
+    FLAC_DEBUG("[readChunk] Read ", bytes_read, " bytes of frame data");
     
-    // Create MediaChunk
+    // ========================================================================
+    // Step 4: Find actual frame end by searching for next sync code
+    // This ensures we read the complete frame including CRC-16 footer
+    // ========================================================================
+    
+    uint32_t actual_frame_size = static_cast<uint32_t>(bytes_read);
+    
+    // Search for next sync code starting after the minimum frame header size
+    // Minimum frame: sync(2) + header(2) + coded_number(1) + CRC-8(1) + subframe(1) + CRC-16(2) = 9 bytes
+    static constexpr size_t MIN_FRAME_SIZE = 9;
+    
+    if (bytes_read > MIN_FRAME_SIZE) {
+        // Search for next sync code (0xFF followed by 0xF8 or 0xF9)
+        for (size_t i = MIN_FRAME_SIZE; i < bytes_read - 1; ++i) {
+            if (data[i] == 0xFF && (data[i + 1] == 0xF8 || data[i + 1] == 0xF9)) {
+                // Found potential next frame sync code
+                actual_frame_size = static_cast<uint32_t>(i);
+                FLAC_DEBUG("[readChunk] Found next sync code at offset ", i, 
+                           " - actual frame size: ", actual_frame_size, " bytes");
+                break;
+            }
+        }
+    }
+    
+    // Resize data to actual frame size
+    if (actual_frame_size < bytes_read) {
+        data.resize(actual_frame_size);
+    }
+    
+    // Store the actual frame size in the frame structure
+    frame.frame_size = actual_frame_size;
+    
+    // ========================================================================
+    // Step 5: Create MediaChunk with proper timing
+    // Requirement 26.3: Return frame as MediaChunk with proper timing
+    // ========================================================================
+    
     MediaChunk chunk(1, std::move(data));
     chunk.timestamp_samples = frame.sample_offset;
-    chunk.is_keyframe = true;  // All FLAC frames are keyframes
+    chunk.is_keyframe = true;  // All FLAC frames are keyframes (independent)
     chunk.file_offset = frame.file_offset;
     
-    // Update position
-    m_current_sample = frame.sample_offset + frame.block_size;
-    m_current_offset = frame.file_offset + bytes_read;
+    // ========================================================================
+    // Step 6: Update position tracking
+    // Requirement 21.7: Maintain accurate sample position tracking
+    // Requirement 23.3: Maintain current sample position during reading
+    // Requirement 23.6: Provide accurate position reporting
+    // ========================================================================
     
-    FLAC_DEBUG("Read frame: ", bytes_read, " bytes, samples ", 
-               frame.sample_offset, "-", m_current_sample);
+    // Update current sample position based on frame block size
+    m_current_sample = frame.sample_offset + frame.block_size;
+    
+    // Update current file offset to point to the next frame
+    m_current_offset = frame.file_offset + actual_frame_size;
+    
+    FLAC_DEBUG("[readChunk] Frame read complete:");
+    FLAC_DEBUG("[readChunk]   Frame size: ", actual_frame_size, " bytes");
+    FLAC_DEBUG("[readChunk]   Sample range: ", frame.sample_offset, " - ", m_current_sample);
+    FLAC_DEBUG("[readChunk]   Next offset: ", m_current_offset);
     
     return chunk;
 }

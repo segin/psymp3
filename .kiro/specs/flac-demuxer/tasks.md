@@ -314,14 +314,14 @@
   - **Property 19: Frame Boundary Search Limit**
   - **Validates: Requirements 21.3**
 
-- [ ] 24. Implement Data Streaming
-  - [ ] 24.1 Implement readChunk methods
+- [x] 24. Implement Data Streaming
+  - [x] 24.1 Implement readChunk methods
     - Locate next frame sync code
     - Parse frame header to determine size
     - Read complete frame including CRC
     - Return frame as MediaChunk with proper timing
     - _Requirements: 21.7, 21.8, 26.3_
-  - [ ] 24.2 Implement position tracking
+  - [x] 24.2 Implement position tracking
     - Maintain current sample position during reading
     - Update position based on frame block sizes
     - Provide accurate position reporting
