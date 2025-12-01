@@ -483,8 +483,48 @@ private:
                                    size_t& bytes_consumed, uint64_t& coded_number,
                                    bool is_variable_block_size);
     
+    // ========================================================================
+    // CRC-8 Validation (RFC 9639 Section 9.1.8)
+    // ========================================================================
+    
+    /**
+     * @brief Calculate CRC-8 checksum for frame header per RFC 9639 Section 9.1.8
+     * 
+     * Implements Requirements 10.1-10.3:
+     * - Uses polynomial 0x07 (x^8 + x^2 + x + 1)
+     * - Initializes CRC to 0
+     * - Covers all frame header bytes except the CRC byte itself
+     * 
+     * @param data Pointer to frame header data (starting from sync code)
+     * @param length Number of bytes to include in CRC calculation (excluding CRC byte)
+     * @return The calculated 8-bit CRC value
+     */
+    static uint8_t calculateCRC8(const uint8_t* data, size_t length);
+    
+    /**
+     * @brief Validate frame header CRC-8 per RFC 9639 Section 9.1.8
+     * 
+     * Implements Requirements 10.4-10.6:
+     * - Validates CRC-8 after parsing header
+     * - Logs CRC mismatches with frame position
+     * - Attempts resynchronization on failure
+     * - Supports strict mode rejection
+     * 
+     * @param header_data Pointer to complete frame header data (including CRC byte)
+     * @param header_length Total length of frame header including CRC byte
+     * @param frame_offset File offset of the frame (for logging)
+     * @return true if CRC is valid or strict mode is disabled, false if CRC fails in strict mode
+     */
+    bool validateFrameHeaderCRC_unlocked(const uint8_t* header_data, size_t header_length,
+                                         uint64_t frame_offset);
+    
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;
+    
+    // ========================================================================
+    // CRC-8 Lookup Table (RFC 9639 polynomial 0x07)
+    // ========================================================================
+    static const uint8_t s_crc8_table[256];
 };
 
 } // namespace FLAC

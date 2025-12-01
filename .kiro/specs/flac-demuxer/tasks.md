@@ -254,20 +254,20 @@
 
 ## Phase 5: CRC Validation
 
-- [ ] 20. Implement CRC-8 Validation (RFC 9639 Section 9.1.8)
-  - [ ] 20.1 Implement calculateCRC8 method
+- [x] 20. Implement CRC-8 Validation (RFC 9639 Section 9.1.8)
+  - [x] 20.1 Implement calculateCRC8 method
     - Use polynomial 0x07
     - Initialize CRC to 0
     - Cover all frame header bytes except CRC itself
     - _Requirements: 10.1-10.3_
-  - [ ] 20.2 Implement frame header CRC validation
+  - [x] 20.2 Implement frame header CRC validation
     - Validate CRC-8 after parsing header
     - Log CRC mismatches with frame position
     - Attempt resynchronization on failure
     - Support strict mode rejection
     - _Requirements: 10.4-10.6_
 
-- [ ] 20.3 Write property test for CRC-8 calculation
+- [x] 20.3 Write property test for CRC-8 calculation
   - **Property 13: CRC-8 Calculation Correctness**
   - **Validates: Requirements 10.2**
 
