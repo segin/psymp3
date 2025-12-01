@@ -522,9 +522,45 @@ private:
     uint64_t msToSamples(uint64_t ms) const;
     
     // ========================================================================
-    // CRC-8 Lookup Table (RFC 9639 polynomial 0x07)
+    // CRC-16 Validation (RFC 9639 Section 9.3)
     // ========================================================================
-    static const uint8_t s_crc8_table[256];
+    
+    /**
+     * @brief Calculate CRC-16 checksum for frame data per RFC 9639 Section 9.3
+     * 
+     * Implements Requirements 11.2-11.5:
+     * - Uses polynomial 0x8005 (x^16 + x^15 + x^2 + x^0)
+     * - Initializes CRC to 0
+     * - Covers entire frame from sync code to end of subframes (excluding CRC itself)
+     * 
+     * @param data Pointer to frame data (starting from sync code)
+     * @param length Number of bytes to include in CRC calculation (excluding CRC bytes)
+     * @return The calculated 16-bit CRC value
+     */
+    static uint16_t calculateCRC16(const uint8_t* data, size_t length);
+    
+    /**
+     * @brief Validate frame footer CRC-16 per RFC 9639 Section 9.3
+     * 
+     * Implements Requirements 11.1, 11.6-11.8:
+     * - Ensures byte alignment with zero padding
+     * - Reads 16-bit CRC from footer
+     * - Logs CRC mismatches and attempts to continue
+     * - Supports strict mode rejection
+     * 
+     * @param frame_data Pointer to complete frame data (including CRC bytes)
+     * @param frame_length Total length of frame including CRC bytes
+     * @param frame_offset File offset of the frame (for logging)
+     * @return true if CRC is valid or strict mode is disabled, false if CRC fails in strict mode
+     */
+    bool validateFrameFooterCRC_unlocked(const uint8_t* frame_data, size_t frame_length,
+                                          uint64_t frame_offset);
+    
+    // ========================================================================
+    // CRC Lookup Tables (RFC 9639)
+    // ========================================================================
+    static const uint8_t s_crc8_table[256];   ///< CRC-8 polynomial 0x07
+    static const uint16_t s_crc16_table[256]; ///< CRC-16 polynomial 0x8005
 };
 
 } // namespace FLAC

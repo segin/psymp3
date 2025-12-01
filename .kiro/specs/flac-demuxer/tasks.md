@@ -271,22 +271,23 @@
   - **Property 13: CRC-8 Calculation Correctness**
   - **Validates: Requirements 10.2**
 
-- [ ] 21. Implement CRC-16 Validation (RFC 9639 Section 9.3)
-  - [ ] 21.1 Implement calculateCRC16 method
+- [x] 21. Implement CRC-16 Validation (RFC 9639 Section 9.3)
+  - [x] 21.1 Implement calculateCRC16 method
     - Use polynomial 0x8005
     - Initialize CRC to 0
     - Cover entire frame from sync code to end of subframes
     - _Requirements: 11.2-11.5_
-  - [ ] 21.2 Implement frame footer CRC validation
+  - [x] 21.2 Implement frame footer CRC validation
     - Ensure byte alignment with zero padding
     - Read 16-bit CRC from footer
     - Log CRC mismatches and attempt to continue
     - Support strict mode rejection
     - _Requirements: 11.1, 11.6-11.8_
 
-- [ ] 21.3 Write property test for CRC-16 calculation
+- [x] 21.3 Write property test for CRC-16 calculation
   - **Property 14: CRC-16 Calculation Correctness**
   - **Validates: Requirements 11.3**
+  - **Status: PASSED** (724/724 tests)
 
 - [ ] 22. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.

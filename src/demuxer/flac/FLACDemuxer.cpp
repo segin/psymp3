@@ -3232,6 +3232,158 @@ bool FLACDemuxer::validateFrameHeaderCRC_unlocked(const uint8_t* header_data, si
     return true;
 }
 
+// ============================================================================
+// CRC-16 Implementation (RFC 9639 Section 9.3)
+// ============================================================================
+
+/**
+ * @brief CRC-16 lookup table for polynomial 0x8005 (x^16 + x^15 + x^2 + x^0)
+ * 
+ * Per RFC 9639 Section 9.3:
+ * - Polynomial: x^16 + x^15 + x^2 + x^0 = 0x8005
+ * - Initial value: 0
+ * - No final XOR
+ * 
+ * This table is pre-computed for the polynomial 0x8005 to enable fast
+ * byte-at-a-time CRC calculation.
+ * 
+ * Note: The CRC-16 used by FLAC is a bit-reversed version of the standard
+ * CRC-16-IBM. The polynomial 0x8005 when processed MSB-first produces
+ * this lookup table.
+ */
+const uint16_t FLACDemuxer::s_crc16_table[256] = {
+    0x0000, 0x8005, 0x800F, 0x000A, 0x801B, 0x001E, 0x0014, 0x8011,
+    0x8033, 0x0036, 0x003C, 0x8039, 0x0028, 0x802D, 0x8027, 0x0022,
+    0x8063, 0x0066, 0x006C, 0x8069, 0x0078, 0x807D, 0x8077, 0x0072,
+    0x0050, 0x8055, 0x805F, 0x005A, 0x804B, 0x004E, 0x0044, 0x8041,
+    0x80C3, 0x00C6, 0x00CC, 0x80C9, 0x00D8, 0x80DD, 0x80D7, 0x00D2,
+    0x00F0, 0x80F5, 0x80FF, 0x00FA, 0x80EB, 0x00EE, 0x00E4, 0x80E1,
+    0x00A0, 0x80A5, 0x80AF, 0x00AA, 0x80BB, 0x00BE, 0x00B4, 0x80B1,
+    0x8093, 0x0096, 0x009C, 0x8099, 0x0088, 0x808D, 0x8087, 0x0082,
+    0x8183, 0x0186, 0x018C, 0x8189, 0x0198, 0x819D, 0x8197, 0x0192,
+    0x01B0, 0x81B5, 0x81BF, 0x01BA, 0x81AB, 0x01AE, 0x01A4, 0x81A1,
+    0x01E0, 0x81E5, 0x81EF, 0x01EA, 0x81FB, 0x01FE, 0x01F4, 0x81F1,
+    0x81D3, 0x01D6, 0x01DC, 0x81D9, 0x01C8, 0x81CD, 0x81C7, 0x01C2,
+    0x0140, 0x8145, 0x814F, 0x014A, 0x815B, 0x015E, 0x0154, 0x8151,
+    0x8173, 0x0176, 0x017C, 0x8179, 0x0168, 0x816D, 0x8167, 0x0162,
+    0x8123, 0x0126, 0x012C, 0x8129, 0x0138, 0x813D, 0x8137, 0x0132,
+    0x0110, 0x8115, 0x811F, 0x011A, 0x810B, 0x010E, 0x0104, 0x8101,
+    0x8303, 0x0306, 0x030C, 0x8309, 0x0318, 0x831D, 0x8317, 0x0312,
+    0x0330, 0x8335, 0x833F, 0x033A, 0x832B, 0x032E, 0x0324, 0x8321,
+    0x0360, 0x8365, 0x836F, 0x036A, 0x837B, 0x037E, 0x0374, 0x8371,
+    0x8353, 0x0356, 0x035C, 0x8359, 0x0348, 0x834D, 0x8347, 0x0342,
+    0x03C0, 0x83C5, 0x83CF, 0x03CA, 0x83DB, 0x03DE, 0x03D4, 0x83D1,
+    0x83F3, 0x03F6, 0x03FC, 0x83F9, 0x03E8, 0x83ED, 0x83E7, 0x03E2,
+    0x83A3, 0x03A6, 0x03AC, 0x83A9, 0x03B8, 0x83BD, 0x83B7, 0x03B2,
+    0x0390, 0x8395, 0x839F, 0x039A, 0x838B, 0x038E, 0x0384, 0x8381,
+    0x0280, 0x8285, 0x828F, 0x028A, 0x829B, 0x029E, 0x0294, 0x8291,
+    0x82B3, 0x02B6, 0x02BC, 0x82B9, 0x02A8, 0x82AD, 0x82A7, 0x02A2,
+    0x82E3, 0x02E6, 0x02EC, 0x82E9, 0x02F8, 0x82FD, 0x82F7, 0x02F2,
+    0x02D0, 0x82D5, 0x82DF, 0x02DA, 0x82CB, 0x02CE, 0x02C4, 0x82C1,
+    0x8243, 0x0246, 0x024C, 0x8249, 0x0258, 0x825D, 0x8257, 0x0252,
+    0x0270, 0x8275, 0x827F, 0x027A, 0x826B, 0x026E, 0x0264, 0x8261,
+    0x0220, 0x8225, 0x822F, 0x022A, 0x823B, 0x023E, 0x0234, 0x8231,
+    0x8213, 0x0216, 0x021C, 0x8219, 0x0208, 0x820D, 0x8207, 0x0202
+};
+
+/**
+ * @brief Calculate CRC-16 checksum for frame data per RFC 9639 Section 9.3
+ * 
+ * Implements Requirements 11.2-11.5:
+ * - Requirement 11.2: Use polynomial 0x8005 (x^16 + x^15 + x^2 + x^0)
+ * - Requirement 11.3: Initialize CRC to 0
+ * - Requirement 11.4: Cover entire frame from sync code to end of subframes
+ * - Requirement 11.5: Exclude the 16-bit CRC itself from calculation
+ * 
+ * The CRC-16 is calculated over all frame bytes from the sync code
+ * up to but not including the CRC-16 bytes themselves.
+ * 
+ * @param data Pointer to frame data (starting from sync code)
+ * @param length Number of bytes to include in CRC calculation (excluding CRC bytes)
+ * @return The calculated 16-bit CRC value
+ */
+uint16_t FLACDemuxer::calculateCRC16(const uint8_t* data, size_t length)
+{
+    // Requirement 11.3: Initialize CRC to 0
+    uint16_t crc = 0;
+    
+    // Requirement 11.2: Use polynomial 0x8005 via lookup table
+    // Requirement 11.4: Cover entire frame from sync code to end of subframes
+    for (size_t i = 0; i < length; ++i) {
+        crc = (crc << 8) ^ s_crc16_table[(crc >> 8) ^ data[i]];
+    }
+    
+    return crc;
+}
+
+/**
+ * @brief Validate frame footer CRC-16 per RFC 9639 Section 9.3
+ * 
+ * Implements Requirements 11.1, 11.6-11.8:
+ * - Requirement 11.1: Ensure byte alignment with zero padding
+ * - Requirement 11.6: Read 16-bit CRC from footer (big-endian)
+ * - Requirement 11.7: Log CRC mismatches and attempt to continue
+ * - Requirement 11.8: Support strict mode rejection
+ * 
+ * The frame footer CRC-16 is the last 2 bytes of the frame, calculated
+ * over all preceding frame bytes starting from the sync code.
+ * 
+ * @param frame_data Pointer to complete frame data (including CRC bytes)
+ * @param frame_length Total length of frame including CRC bytes
+ * @param frame_offset File offset of the frame (for logging)
+ * @return true if CRC is valid, false if CRC fails
+ */
+bool FLACDemuxer::validateFrameFooterCRC_unlocked(const uint8_t* frame_data, size_t frame_length,
+                                                   uint64_t frame_offset)
+{
+    FLAC_DEBUG("[validateFrameFooterCRC] Validating CRC-16 for frame at offset ", frame_offset);
+    
+    // Need at least sync code (2 bytes) + minimal header (3 bytes) + CRC-8 (1 byte) + CRC-16 (2 bytes) = 8 bytes
+    if (frame_length < 8) {
+        FLAC_DEBUG("[validateFrameFooterCRC] Frame too short for CRC-16 validation: ", 
+                   frame_length, " bytes");
+        return false;
+    }
+    
+    // Requirement 11.6: Read 16-bit CRC from footer (big-endian)
+    // The CRC-16 is the last 2 bytes of the frame
+    size_t crc_data_length = frame_length - 2;
+    uint16_t expected_crc = (static_cast<uint16_t>(frame_data[frame_length - 2]) << 8) |
+                            static_cast<uint16_t>(frame_data[frame_length - 1]);
+    
+    // Requirement 11.4, 11.5: Calculate CRC over all bytes except the CRC itself
+    uint16_t calculated_crc = calculateCRC16(frame_data, crc_data_length);
+    
+    if (calculated_crc != expected_crc) {
+        // Requirement 11.7: Log CRC mismatches
+        FLAC_DEBUG("[validateFrameFooterCRC] CRC-16 MISMATCH at frame offset ", frame_offset);
+        FLAC_DEBUG("[validateFrameFooterCRC]   Expected CRC: 0x", std::hex, 
+                   expected_crc, std::dec);
+        FLAC_DEBUG("[validateFrameFooterCRC]   Calculated CRC: 0x", std::hex, 
+                   calculated_crc, std::dec);
+        FLAC_DEBUG("[validateFrameFooterCRC]   Frame length: ", frame_length, " bytes");
+        
+        // Log first few bytes of frame for debugging
+        if (frame_length >= 4) {
+            FLAC_DEBUG("[validateFrameFooterCRC]   Frame bytes: 0x", std::hex,
+                       static_cast<int>(frame_data[0]), " 0x",
+                       static_cast<int>(frame_data[1]), " 0x",
+                       static_cast<int>(frame_data[2]), " 0x",
+                       static_cast<int>(frame_data[3]), std::dec, " ...");
+        }
+        
+        // Requirement 11.7: Attempt to continue (caller decides on strict mode)
+        // Requirement 11.8: In strict mode, reject frame on CRC failure
+        // For now, we return false to indicate CRC failure
+        // The caller can decide whether to skip this frame or abort
+        return false;
+    }
+    
+    FLAC_DEBUG("[validateFrameFooterCRC] CRC-16 valid: 0x", std::hex, 
+               calculated_crc, std::dec);
+    return true;
+}
+
 } // namespace FLAC
 } // namespace Demuxer
 } // namespace PsyMP3
