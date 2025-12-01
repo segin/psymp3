@@ -333,6 +333,26 @@ private:
     bool parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buffer, size_t size);
     uint32_t calculateFrameSize_unlocked(const FLACFrame& frame) const;
     
+    /**
+     * @brief Parse block size bits from frame header per RFC 9639 Table 14
+     * 
+     * Implements Requirements 5.1-5.18:
+     * - Extracts bits 4-7 of frame byte 2
+     * - Implements all 16 lookup table values
+     * - Handles uncommon block sizes (8-bit and 16-bit)
+     * - Rejects reserved pattern 0b0000
+     * - Rejects forbidden uncommon block size 65536
+     * 
+     * @param bits The 4-bit block size code (bits 4-7 of frame byte 2)
+     * @param buffer Pointer to frame data (for reading uncommon block sizes)
+     * @param buffer_size Size of available buffer
+     * @param header_offset Current offset within header (updated if uncommon bytes read)
+     * @param block_size Output: the decoded block size in samples
+     * @return true if block size is valid, false if reserved/forbidden pattern detected
+     */
+    bool parseBlockSizeBits_unlocked(uint8_t bits, const uint8_t* buffer, size_t buffer_size,
+                                     size_t& header_offset, uint32_t& block_size);
+    
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;
 };

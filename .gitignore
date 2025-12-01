@@ -339,3 +339,13 @@ tests/test_vorbis_thread_safety_properties
 # Vorbis integration and compatibility tests
 tests/test_vorbis_demuxer_integration
 tests/test_vorbis_compatibility_performance
+
+# FLAC demuxer property test executables
+tests/test_flac_metadata_block_header_properties
+tests/test_flac_stream_marker_properties
+tests/test_flac_streaminfo_block_size_properties
+tests/test_flac_frame_sync_properties
+tests/test_flac_cuesheet_track_count_properties
+tests/test_flac_seektable_placeholder_properties
+tests/test_flac_vorbis_comment_endianness_properties
+tests/test_flac_block_size_bits_properties

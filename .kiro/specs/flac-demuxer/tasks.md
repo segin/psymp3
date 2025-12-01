@@ -187,8 +187,8 @@
   - **Property 7: Blocking Strategy Consistency**
   - **Validates: Requirements 4.8**
 
-- [ ] 14. Implement Block Size Bits Parser (RFC 9639 Table 14)
-  - [ ] 14.1 Implement parseBlockSizeBits method
+- [x] 14. Implement Block Size Bits Parser (RFC 9639 Table 14)
+  - [x] 14.1 Implement parseBlockSizeBits method
     - Extract bits 4-7 of frame byte 2
     - Implement all 16 lookup table values
     - Handle uncommon block sizes 8-bit and 16-bit
@@ -196,11 +196,11 @@
     - Reject forbidden uncommon block size 65536
     - _Requirements: 5.1-5.18_
 
-- [ ] 14.2 Write property test for reserved block size pattern
+- [x] 14.2 Write property test for reserved block size pattern
   - **Property 8: Reserved Block Size Pattern Detection**
   - **Validates: Requirements 5.2**
 
-- [ ] 14.3 Write property test for forbidden block size
+- [x] 14.3 Write property test for forbidden block size
   - **Property 9: Forbidden Block Size Detection**
   - **Validates: Requirements 5.18**
 

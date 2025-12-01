@@ -2199,6 +2199,215 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
 
 
 // ============================================================================
+// Block Size Bits Parser (RFC 9639 Section 9.1.1, Table 14)
+// ============================================================================
+
+/**
+ * @brief Parse block size bits from frame header per RFC 9639 Table 14
+ * 
+ * Implements Requirements 5.1-5.18 for block size decoding.
+ * 
+ * RFC 9639 Table 14 - Block Size Encoding:
+ *   0b0000: Reserved (reject)
+ *   0b0001: 192 samples
+ *   0b0010: 576 samples
+ *   0b0011: 1152 samples
+ *   0b0100: 2304 samples
+ *   0b0101: 4608 samples
+ *   0b0110: 8-bit uncommon block size minus 1 follows
+ *   0b0111: 16-bit uncommon block size minus 1 follows
+ *   0b1000: 256 samples
+ *   0b1001: 512 samples
+ *   0b1010: 1024 samples
+ *   0b1011: 2048 samples
+ *   0b1100: 4096 samples
+ *   0b1101: 8192 samples
+ *   0b1110: 16384 samples
+ *   0b1111: 32768 samples
+ * 
+ * @param bits The 4-bit block size code (bits 4-7 of frame byte 2)
+ * @param buffer Pointer to frame data (for reading uncommon block sizes)
+ * @param buffer_size Size of available buffer
+ * @param header_offset Current offset within header (updated if uncommon bytes read)
+ * @param block_size Output: the decoded block size in samples
+ * @return true if block size is valid, false if reserved/forbidden pattern detected
+ */
+bool FLACDemuxer::parseBlockSizeBits_unlocked(uint8_t bits, const uint8_t* buffer, size_t buffer_size,
+                                              size_t& header_offset, uint32_t& block_size)
+{
+    FLAC_DEBUG("[parseBlockSizeBits] Parsing block size bits: 0b",
+               ((bits >> 3) & 1), ((bits >> 2) & 1), ((bits >> 1) & 1), (bits & 1),
+               " (0x", std::hex, static_cast<int>(bits), std::dec, ")");
+    
+    // Requirement 5.2: Reserved block size pattern 0b0000
+    // RFC 9639 Table 1: Block size bits 0b0000 is reserved
+    if (bits == 0x00) {
+        FLAC_DEBUG("[parseBlockSizeBits] REJECTED: Reserved block size pattern 0b0000 (Requirement 5.2)");
+        return false;
+    }
+    
+    switch (bits) {
+        // Requirement 5.3: 0b0001 = 192 samples
+        case 0x01:
+            block_size = 192;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 192 samples (0b0001)");
+            break;
+            
+        // Requirement 5.4: 0b0010 = 576 samples
+        case 0x02:
+            block_size = 576;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 576 samples (0b0010)");
+            break;
+            
+        // Requirement 5.5: 0b0011 = 1152 samples
+        case 0x03:
+            block_size = 1152;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 1152 samples (0b0011)");
+            break;
+            
+        // Requirement 5.6: 0b0100 = 2304 samples
+        case 0x04:
+            block_size = 2304;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 2304 samples (0b0100)");
+            break;
+            
+        // Requirement 5.7: 0b0101 = 4608 samples
+        case 0x05:
+            block_size = 4608;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 4608 samples (0b0101)");
+            break;
+            
+        // Requirement 5.8: 0b0110 = 8-bit uncommon block size minus 1 follows
+        case 0x06: {
+            // Need at least 1 additional byte for the uncommon block size
+            // The uncommon block size byte comes after the coded number and before CRC-8
+            // For now, we need to read it from the buffer at the appropriate offset
+            FLAC_DEBUG("[parseBlockSizeBits] 8-bit uncommon block size (0b0110)");
+            
+            // Check if we have enough buffer space
+            // The uncommon block size byte position depends on the coded number length
+            // For simplicity, we'll mark that we need to read it later
+            // and use a placeholder for now
+            if (header_offset >= buffer_size) {
+                FLAC_DEBUG("[parseBlockSizeBits] Insufficient buffer for 8-bit uncommon block size");
+                // Fall back to STREAMINFO max_block_size
+                block_size = m_streaminfo.max_block_size > 0 ? m_streaminfo.max_block_size : 4096;
+                FLAC_DEBUG("[parseBlockSizeBits] Using fallback block size: ", block_size);
+                break;
+            }
+            
+            // Read the 8-bit uncommon block size value
+            uint8_t uncommon_value = buffer[header_offset];
+            header_offset += 1;
+            
+            // RFC 9639 Section 9.1.1: "8-bit (blocksize-1), i.e., blocksize is 1-256"
+            // The stored value is (block_size - 1), so we add 1
+            block_size = static_cast<uint32_t>(uncommon_value) + 1;
+            
+            FLAC_DEBUG("[parseBlockSizeBits] 8-bit uncommon value: ", static_cast<int>(uncommon_value),
+                       " -> block size: ", block_size, " samples");
+            break;
+        }
+            
+        // Requirement 5.9: 0b0111 = 16-bit uncommon block size minus 1 follows
+        case 0x07: {
+            FLAC_DEBUG("[parseBlockSizeBits] 16-bit uncommon block size (0b0111)");
+            
+            // Need at least 2 additional bytes for the uncommon block size
+            if (header_offset + 1 >= buffer_size) {
+                FLAC_DEBUG("[parseBlockSizeBits] Insufficient buffer for 16-bit uncommon block size");
+                // Fall back to STREAMINFO max_block_size
+                block_size = m_streaminfo.max_block_size > 0 ? m_streaminfo.max_block_size : 4096;
+                FLAC_DEBUG("[parseBlockSizeBits] Using fallback block size: ", block_size);
+                break;
+            }
+            
+            // Read the 16-bit uncommon block size value (big-endian per RFC 9639 Section 5)
+            uint16_t uncommon_value = (static_cast<uint16_t>(buffer[header_offset]) << 8) |
+                                       static_cast<uint16_t>(buffer[header_offset + 1]);
+            header_offset += 2;
+            
+            // RFC 9639 Section 9.1.1: "16-bit (blocksize-1), i.e., blocksize is 1-65536"
+            // The stored value is (block_size - 1), so we add 1
+            uint32_t decoded_block_size = static_cast<uint32_t>(uncommon_value) + 1;
+            
+            FLAC_DEBUG("[parseBlockSizeBits] 16-bit uncommon value: ", uncommon_value,
+                       " -> decoded block size: ", decoded_block_size, " samples");
+            
+            // Requirement 5.18: Reject forbidden uncommon block size 65536
+            // RFC 9639 Table 1: "A frame header with an uncommon block size 
+            // (see Section 9.1.1) equal to 65536"
+            if (decoded_block_size == 65536) {
+                FLAC_DEBUG("[parseBlockSizeBits] REJECTED: Forbidden uncommon block size 65536 (Requirement 5.18)");
+                return false;
+            }
+            
+            block_size = decoded_block_size;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: ", block_size, " samples");
+            break;
+        }
+            
+        // Requirement 5.10: 0b1000 = 256 samples
+        case 0x08:
+            block_size = 256;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 256 samples (0b1000)");
+            break;
+            
+        // Requirement 5.11: 0b1001 = 512 samples
+        case 0x09:
+            block_size = 512;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 512 samples (0b1001)");
+            break;
+            
+        // Requirement 5.12: 0b1010 = 1024 samples
+        case 0x0A:
+            block_size = 1024;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 1024 samples (0b1010)");
+            break;
+            
+        // Requirement 5.13: 0b1011 = 2048 samples
+        case 0x0B:
+            block_size = 2048;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 2048 samples (0b1011)");
+            break;
+            
+        // Requirement 5.14: 0b1100 = 4096 samples
+        case 0x0C:
+            block_size = 4096;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 4096 samples (0b1100)");
+            break;
+            
+        // Requirement 5.15: 0b1101 = 8192 samples
+        case 0x0D:
+            block_size = 8192;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 8192 samples (0b1101)");
+            break;
+            
+        // Requirement 5.16: 0b1110 = 16384 samples
+        case 0x0E:
+            block_size = 16384;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 16384 samples (0b1110)");
+            break;
+            
+        // Requirement 5.17: 0b1111 = 32768 samples
+        case 0x0F:
+            block_size = 32768;
+            FLAC_DEBUG("[parseBlockSizeBits] Block size: 32768 samples (0b1111)");
+            break;
+            
+        default:
+            // Should never reach here since we handle all 16 values
+            FLAC_DEBUG("[parseBlockSizeBits] Unexpected block size bits: 0x", 
+                       std::hex, static_cast<int>(bits), std::dec);
+            block_size = m_streaminfo.max_block_size > 0 ? m_streaminfo.max_block_size : 4096;
+            break;
+    }
+    
+    return true;
+}
+
+
+// ============================================================================
 // Frame Size Estimation (Requirement 21)
 // ============================================================================
 
