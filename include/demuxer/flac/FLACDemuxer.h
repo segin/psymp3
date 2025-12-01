@@ -157,6 +157,61 @@ struct FLACCuesheet {
 };
 
 /**
+ * @brief FLAC picture block data per RFC 9639 Section 8.8
+ */
+struct FLACPicture {
+    uint32_t type = 0;                   ///< Picture type (0-20 defined, see RFC 9639 Table 13)
+    std::string media_type;              ///< MIME type (e.g., "image/jpeg") or "-->" for URI
+    std::string description;             ///< UTF-8 description of the picture
+    uint32_t width = 0;                  ///< Width in pixels (0 if unknown)
+    uint32_t height = 0;                 ///< Height in pixels (0 if unknown)
+    uint32_t color_depth = 0;            ///< Color depth in bits per pixel (0 if unknown)
+    uint32_t indexed_colors = 0;         ///< Number of colors for indexed images (0 for non-indexed)
+    std::vector<uint8_t> data;           ///< Picture data or URI
+    bool is_uri = false;                 ///< True if data contains a URI instead of binary data
+    
+    FLACPicture() = default;
+    
+    bool isValid() const {
+        // Must have either data or be a URI reference
+        return !data.empty() || is_uri;
+    }
+    
+    /**
+     * @brief Get picture type name per RFC 9639 Table 13
+     */
+    std::string getTypeName() const {
+        static const char* type_names[] = {
+            "Other",                           // 0
+            "32x32 pixels file icon",          // 1
+            "Other file icon",                 // 2
+            "Cover (front)",                   // 3
+            "Cover (back)",                    // 4
+            "Leaflet page",                    // 5
+            "Media",                           // 6
+            "Lead artist/performer/soloist",   // 7
+            "Artist/performer",                // 8
+            "Conductor",                       // 9
+            "Band/Orchestra",                  // 10
+            "Composer",                        // 11
+            "Lyricist/text writer",            // 12
+            "Recording Location",              // 13
+            "During recording",                // 14
+            "During performance",              // 15
+            "Movie/video screen capture",      // 16
+            "A bright coloured fish",          // 17
+            "Illustration",                    // 18
+            "Band/artist logotype",            // 19
+            "Publisher/Studio logotype"        // 20
+        };
+        if (type <= 20) {
+            return type_names[type];
+        }
+        return "Unknown";
+    }
+};
+
+/**
  * @brief FLAC frame information for streaming
  */
 struct FLACFrame {
@@ -239,6 +294,7 @@ private:
     std::vector<FLACSeekPoint> m_seektable;                ///< SEEKTABLE entries
     std::map<std::string, std::string> m_vorbis_comments;  ///< Vorbis comments metadata
     FLACCuesheet m_cuesheet;                               ///< CUESHEET block data
+    std::vector<FLACPicture> m_pictures;                   ///< PICTURE block data (multiple allowed)
     
     // ========================================================================
     // Private unlocked implementations (assume locks are held)
@@ -264,6 +320,7 @@ private:
     bool parsePaddingBlock_unlocked(const FLACMetadataBlock& block);
     bool parseApplicationBlock_unlocked(const FLACMetadataBlock& block);
     bool parseCuesheetBlock_unlocked(const FLACMetadataBlock& block);
+    bool parsePictureBlock_unlocked(const FLACMetadataBlock& block);
     bool skipMetadataBlock_unlocked(const FLACMetadataBlock& block);
     
     bool findNextFrame_unlocked(FLACFrame& frame);

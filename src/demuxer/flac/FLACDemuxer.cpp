@@ -44,6 +44,7 @@ FLACDemuxer::~FLACDemuxer()
     // Clear metadata
     m_seektable.clear();
     m_vorbis_comments.clear();
+    m_pictures.clear();
 }
 
 
@@ -505,10 +506,8 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 break;
                 
             case FLACMetadataType::PICTURE:
-                // Skip known but unprocessed blocks
-                FLAC_DEBUG("Skipping metadata block type ", static_cast<int>(raw_type), 
-                           " (length=", block.length, " bytes)");
-                skipMetadataBlock_unlocked(block);
+                // Requirement 17.1-17.12: Handle PICTURE blocks per RFC 9639 Section 8.8
+                parsePictureBlock_unlocked(block);
                 break;
                 
             default:
@@ -1513,6 +1512,346 @@ bool FLACDemuxer::parseCuesheetBlock_unlocked(const FLACMetadataBlock& block)
     
     FLAC_DEBUG("[parseCuesheet] Parsed ", m_cuesheet.tracks.size(), " tracks");
     FLAC_DEBUG("[parseCuesheet] CUESHEET block parsed successfully");
+    
+    return true;
+}
+
+// ============================================================================
+// PICTURE Block Parsing (RFC 9639 Section 8.8)
+// ============================================================================
+
+bool FLACDemuxer::parsePictureBlock_unlocked(const FLACMetadataBlock& block)
+{
+    FLAC_DEBUG("[parsePicture] Parsing PICTURE block (RFC 9639 Section 8.8)");
+    
+    // Minimum PICTURE block size:
+    // - Picture type: 4 bytes
+    // - Media type length: 4 bytes
+    // - Description length: 4 bytes
+    // - Width: 4 bytes
+    // - Height: 4 bytes
+    // - Color depth: 4 bytes
+    // - Indexed colors: 4 bytes
+    // - Picture data length: 4 bytes
+    // Total minimum: 32 bytes (with empty strings and no data)
+    static constexpr size_t MIN_PICTURE_HEADER_SIZE = 32;
+    
+    if (block.length < MIN_PICTURE_HEADER_SIZE) {
+        FLAC_DEBUG("[parsePicture] PICTURE block too small: ", block.length, 
+                   " bytes (minimum ", MIN_PICTURE_HEADER_SIZE, " bytes)");
+        skipMetadataBlock_unlocked(block);
+        return false;
+    }
+    
+    // Track remaining bytes
+    uint64_t bytes_remaining = block.length;
+    
+    FLACPicture picture;
+    
+    // ========================================================================
+    // Requirement 17.1: Parse u32 picture type
+    // RFC 9639 Section 8.8: "The picture type according to the ID3v2 APIC frame"
+    // ========================================================================
+    
+    uint8_t type_data[4];
+    if (m_handler->read(type_data, 1, 4) != 4) {
+        FLAC_DEBUG("[parsePicture] Failed to read picture type");
+        return false;
+    }
+    bytes_remaining -= 4;
+    
+    // Big-endian u32 per RFC 9639 Section 5
+    picture.type = (static_cast<uint32_t>(type_data[0]) << 24) |
+                   (static_cast<uint32_t>(type_data[1]) << 16) |
+                   (static_cast<uint32_t>(type_data[2]) << 8) |
+                   static_cast<uint32_t>(type_data[3]);
+    
+    FLAC_DEBUG("[parsePicture] Picture type: ", picture.type, " (", picture.getTypeName(), ")");
+    
+    // ========================================================================
+    // Requirement 17.2: Parse media type length (u32)
+    // RFC 9639 Section 8.8: "The length of the MIME type string in bytes"
+    // ========================================================================
+    
+    if (bytes_remaining < 4) {
+        FLAC_DEBUG("[parsePicture] Insufficient data for media type length");
+        return false;
+    }
+    
+    uint8_t len_data[4];
+    if (m_handler->read(len_data, 1, 4) != 4) {
+        FLAC_DEBUG("[parsePicture] Failed to read media type length");
+        return false;
+    }
+    bytes_remaining -= 4;
+    
+    // Big-endian u32
+    uint32_t media_type_len = (static_cast<uint32_t>(len_data[0]) << 24) |
+                              (static_cast<uint32_t>(len_data[1]) << 16) |
+                              (static_cast<uint32_t>(len_data[2]) << 8) |
+                              static_cast<uint32_t>(len_data[3]);
+    
+    FLAC_DEBUG("[parsePicture] Media type length: ", media_type_len, " bytes");
+    
+    // Validate media type length
+    if (media_type_len > bytes_remaining) {
+        FLAC_DEBUG("[parsePicture] Media type length (", media_type_len, 
+                   ") exceeds remaining data (", bytes_remaining, ")");
+        return false;
+    }
+    
+    // ========================================================================
+    // Requirement 17.3: Parse media type (ASCII string)
+    // RFC 9639 Section 8.8: "The MIME type string, in printable ASCII characters 0x20-0x7E"
+    // ========================================================================
+    
+    if (media_type_len > 0) {
+        // Sanity check: limit media type to reasonable size
+        if (media_type_len > 256) {
+            FLAC_DEBUG("[parsePicture] Media type too long: ", media_type_len, " bytes - skipping block");
+            if (m_handler->seek(static_cast<off_t>(bytes_remaining), SEEK_CUR) != 0) {
+                return false;
+            }
+            return true;  // Gracefully skip malformed block
+        }
+        
+        std::vector<char> media_type_data(media_type_len);
+        if (m_handler->read(media_type_data.data(), 1, media_type_len) != media_type_len) {
+            FLAC_DEBUG("[parsePicture] Failed to read media type string");
+            return false;
+        }
+        bytes_remaining -= media_type_len;
+        
+        picture.media_type.assign(media_type_data.begin(), media_type_data.end());
+        FLAC_DEBUG("[parsePicture] Media type: '", picture.media_type, "'");
+        
+        // ====================================================================
+        // Requirement 17.12: Handle URI format when media type is "-->"
+        // RFC 9639 Section 8.8: "If the MIME type string is '-->', then the 
+        // picture data is a URL"
+        // ====================================================================
+        
+        if (picture.media_type == "-->") {
+            picture.is_uri = true;
+            FLAC_DEBUG("[parsePicture] Picture data is a URI reference");
+        }
+    } else {
+        FLAC_DEBUG("[parsePicture] Empty media type");
+    }
+    
+    // ========================================================================
+    // Requirement 17.4: Parse description length (u32)
+    // RFC 9639 Section 8.8: "The length of the description string in bytes"
+    // ========================================================================
+    
+    if (bytes_remaining < 4) {
+        FLAC_DEBUG("[parsePicture] Insufficient data for description length");
+        return false;
+    }
+    
+    if (m_handler->read(len_data, 1, 4) != 4) {
+        FLAC_DEBUG("[parsePicture] Failed to read description length");
+        return false;
+    }
+    bytes_remaining -= 4;
+    
+    // Big-endian u32
+    uint32_t description_len = (static_cast<uint32_t>(len_data[0]) << 24) |
+                               (static_cast<uint32_t>(len_data[1]) << 16) |
+                               (static_cast<uint32_t>(len_data[2]) << 8) |
+                               static_cast<uint32_t>(len_data[3]);
+    
+    FLAC_DEBUG("[parsePicture] Description length: ", description_len, " bytes");
+    
+    // Validate description length
+    if (description_len > bytes_remaining) {
+        FLAC_DEBUG("[parsePicture] Description length (", description_len, 
+                   ") exceeds remaining data (", bytes_remaining, ")");
+        return false;
+    }
+    
+    // ========================================================================
+    // Requirement 17.5: Parse description (UTF-8 string)
+    // RFC 9639 Section 8.8: "The description of the picture, in UTF-8"
+    // ========================================================================
+    
+    if (description_len > 0) {
+        // Sanity check: limit description to reasonable size
+        if (description_len > 65536) {
+            FLAC_DEBUG("[parsePicture] Description too long: ", description_len, 
+                       " bytes - truncating to 65536");
+            // Read only first 65536 bytes
+            std::vector<char> desc_data(65536);
+            if (m_handler->read(desc_data.data(), 1, 65536) != 65536) {
+                FLAC_DEBUG("[parsePicture] Failed to read description string");
+                return false;
+            }
+            // Skip remaining description bytes
+            if (m_handler->seek(static_cast<off_t>(description_len - 65536), SEEK_CUR) != 0) {
+                return false;
+            }
+            bytes_remaining -= description_len;
+            picture.description.assign(desc_data.begin(), desc_data.end());
+        } else {
+            std::vector<char> desc_data(description_len);
+            if (m_handler->read(desc_data.data(), 1, description_len) != description_len) {
+                FLAC_DEBUG("[parsePicture] Failed to read description string");
+                return false;
+            }
+            bytes_remaining -= description_len;
+            picture.description.assign(desc_data.begin(), desc_data.end());
+        }
+        
+        FLAC_DEBUG("[parsePicture] Description: '", 
+                   (picture.description.length() > 50 
+                    ? picture.description.substr(0, 50) + "..." 
+                    : picture.description), "'");
+    } else {
+        FLAC_DEBUG("[parsePicture] Empty description");
+    }
+    
+    // ========================================================================
+    // Requirement 17.6, 17.7: Parse dimensions (u32 width, u32 height)
+    // RFC 9639 Section 8.8: "The width of the picture in pixels"
+    // RFC 9639 Section 8.8: "The height of the picture in pixels"
+    // ========================================================================
+    
+    if (bytes_remaining < 16) {  // 4 bytes each for width, height, color_depth, indexed_colors
+        FLAC_DEBUG("[parsePicture] Insufficient data for picture dimensions");
+        return false;
+    }
+    
+    uint8_t dim_data[16];
+    if (m_handler->read(dim_data, 1, 16) != 16) {
+        FLAC_DEBUG("[parsePicture] Failed to read picture dimensions");
+        return false;
+    }
+    bytes_remaining -= 16;
+    
+    // Big-endian u32 for each field
+    picture.width = (static_cast<uint32_t>(dim_data[0]) << 24) |
+                    (static_cast<uint32_t>(dim_data[1]) << 16) |
+                    (static_cast<uint32_t>(dim_data[2]) << 8) |
+                    static_cast<uint32_t>(dim_data[3]);
+    
+    picture.height = (static_cast<uint32_t>(dim_data[4]) << 24) |
+                     (static_cast<uint32_t>(dim_data[5]) << 16) |
+                     (static_cast<uint32_t>(dim_data[6]) << 8) |
+                     static_cast<uint32_t>(dim_data[7]);
+    
+    FLAC_DEBUG("[parsePicture] Dimensions: ", picture.width, "x", picture.height, " pixels");
+    
+    // ========================================================================
+    // Requirement 17.8: Parse color depth (u32)
+    // RFC 9639 Section 8.8: "The color depth of the picture in bits-per-pixel"
+    // ========================================================================
+    
+    picture.color_depth = (static_cast<uint32_t>(dim_data[8]) << 24) |
+                          (static_cast<uint32_t>(dim_data[9]) << 16) |
+                          (static_cast<uint32_t>(dim_data[10]) << 8) |
+                          static_cast<uint32_t>(dim_data[11]);
+    
+    FLAC_DEBUG("[parsePicture] Color depth: ", picture.color_depth, " bits per pixel");
+    
+    // ========================================================================
+    // Requirement 17.9: Parse indexed colors (u32)
+    // RFC 9639 Section 8.8: "For indexed-color pictures (e.g. GIF), the number 
+    // of colors used, or 0 for non-indexed-color pictures"
+    // ========================================================================
+    
+    picture.indexed_colors = (static_cast<uint32_t>(dim_data[12]) << 24) |
+                             (static_cast<uint32_t>(dim_data[13]) << 16) |
+                             (static_cast<uint32_t>(dim_data[14]) << 8) |
+                             static_cast<uint32_t>(dim_data[15]);
+    
+    if (picture.indexed_colors > 0) {
+        FLAC_DEBUG("[parsePicture] Indexed colors: ", picture.indexed_colors);
+    } else {
+        FLAC_DEBUG("[parsePicture] Non-indexed color picture");
+    }
+    
+    // ========================================================================
+    // Requirement 17.10: Parse picture data length (u32)
+    // RFC 9639 Section 8.8: "The length of the picture data in bytes"
+    // ========================================================================
+    
+    if (bytes_remaining < 4) {
+        FLAC_DEBUG("[parsePicture] Insufficient data for picture data length");
+        return false;
+    }
+    
+    if (m_handler->read(len_data, 1, 4) != 4) {
+        FLAC_DEBUG("[parsePicture] Failed to read picture data length");
+        return false;
+    }
+    bytes_remaining -= 4;
+    
+    // Big-endian u32
+    uint32_t picture_data_len = (static_cast<uint32_t>(len_data[0]) << 24) |
+                                (static_cast<uint32_t>(len_data[1]) << 16) |
+                                (static_cast<uint32_t>(len_data[2]) << 8) |
+                                static_cast<uint32_t>(len_data[3]);
+    
+    FLAC_DEBUG("[parsePicture] Picture data length: ", picture_data_len, " bytes");
+    
+    // Validate picture data length
+    if (picture_data_len > bytes_remaining) {
+        FLAC_DEBUG("[parsePicture] Picture data length (", picture_data_len, 
+                   ") exceeds remaining data (", bytes_remaining, ")");
+        return false;
+    }
+    
+    // ========================================================================
+    // Requirement 17.11: Parse picture data (binary data)
+    // RFC 9639 Section 8.8: "The binary picture data"
+    // ========================================================================
+    
+    if (picture_data_len > 0) {
+        // Sanity check: limit picture data to reasonable size (16 MB)
+        static constexpr uint32_t MAX_PICTURE_SIZE = 16 * 1024 * 1024;
+        
+        if (picture_data_len > MAX_PICTURE_SIZE) {
+            FLAC_DEBUG("[parsePicture] Picture data too large: ", picture_data_len, 
+                       " bytes (max ", MAX_PICTURE_SIZE, ") - skipping data");
+            // Skip the oversized picture data
+            if (m_handler->seek(static_cast<off_t>(picture_data_len), SEEK_CUR) != 0) {
+                return false;
+            }
+            bytes_remaining -= picture_data_len;
+        } else {
+            picture.data.resize(picture_data_len);
+            if (m_handler->read(picture.data.data(), 1, picture_data_len) != picture_data_len) {
+                FLAC_DEBUG("[parsePicture] Failed to read picture data");
+                return false;
+            }
+            bytes_remaining -= picture_data_len;
+            
+            FLAC_DEBUG("[parsePicture] Read ", picture.data.size(), " bytes of picture data");
+            
+            // If this is a URI, log it
+            if (picture.is_uri) {
+                std::string uri(picture.data.begin(), picture.data.end());
+                FLAC_DEBUG("[parsePicture] URI: '", 
+                           (uri.length() > 100 ? uri.substr(0, 100) + "..." : uri), "'");
+            }
+        }
+    } else {
+        FLAC_DEBUG("[parsePicture] No picture data");
+    }
+    
+    // Skip any remaining bytes in the block (shouldn't happen with valid data)
+    if (bytes_remaining > 0) {
+        FLAC_DEBUG("[parsePicture] Skipping ", bytes_remaining, " trailing bytes");
+        if (m_handler->seek(static_cast<off_t>(bytes_remaining), SEEK_CUR) != 0) {
+            return false;
+        }
+    }
+    
+    // Store the picture
+    m_pictures.push_back(std::move(picture));
+    
+    FLAC_DEBUG("[parsePicture] PICTURE block parsed successfully (total pictures: ", 
+               m_pictures.size(), ")");
     
     return true;
 }

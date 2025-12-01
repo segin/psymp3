@@ -150,8 +150,8 @@
   - **Property 17: CUESHEET Track Count Validation**
   - **Validates: Requirements 16.6**
 
-- [ ] 11. Implement PICTURE Block Parsing (RFC 9639 Section 8.8)
-  - [ ] 11.1 Implement parsePicture method
+- [x] 11. Implement PICTURE Block Parsing (RFC 9639 Section 8.8)
+  - [x] 11.1 Implement parsePicture method
     - Parse u32 picture type
     - Parse media type length and ASCII string
     - Parse description length and UTF-8 string
