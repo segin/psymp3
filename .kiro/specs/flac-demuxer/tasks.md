@@ -247,7 +247,7 @@
     - Interpret as frame number for fixed or sample number for variable
     - _Requirements: 9.1-9.10_
 
-- [ ] 19. Checkpoint
+- [x] 19. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
