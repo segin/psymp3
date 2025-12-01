@@ -240,8 +240,8 @@
   - **Property 12: Reserved Bit Depth Detection**
   - **Validates: Requirements 8.5**
 
-- [ ] 18. Implement Coded Number Parser (RFC 9639 Section 9.1.5)
-  - [ ] 18.1 Implement parseCodedNumber method
+- [x] 18. Implement Coded Number Parser (RFC 9639 Section 9.1.5)
+  - [x] 18.1 Implement parseCodedNumber method
     - Parse UTF-8-like variable-length encoding 1-7 bytes
     - Support all byte length patterns
     - Interpret as frame number for fixed or sample number for variable

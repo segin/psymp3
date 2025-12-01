@@ -454,6 +454,35 @@ private:
      */
     bool parseBitDepthBits_unlocked(uint8_t bits, uint8_t reserved_bit, uint8_t& bit_depth);
     
+    /**
+     * @brief Parse coded number from frame header per RFC 9639 Section 9.1.5
+     * 
+     * Implements Requirements 9.1-9.10 for coded number decoding using
+     * UTF-8-like variable-length encoding (1-7 bytes).
+     * 
+     * RFC 9639 Coded Number Encoding (extended UTF-8):
+     *   0xxxxxxx                                           - 1 byte  (7 bits, 0-127)
+     *   110xxxxx 10xxxxxx                                  - 2 bytes (11 bits, 128-2047)
+     *   1110xxxx 10xxxxxx 10xxxxxx                         - 3 bytes (16 bits, 2048-65535)
+     *   11110xxx 10xxxxxx 10xxxxxx 10xxxxxx                - 4 bytes (21 bits, 65536-2097151)
+     *   111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx       - 5 bytes (26 bits, 2097152-67108863)
+     *   1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx - 6 bytes (31 bits, 67108864-2147483647)
+     *   11111110 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx - 7 bytes (36 bits)
+     * 
+     * For fixed block size streams: coded number is frame number (max 31 bits, 6 bytes)
+     * For variable block size streams: coded number is sample number (max 36 bits, 7 bytes)
+     * 
+     * @param buffer Pointer to frame data starting at the coded number position
+     * @param buffer_size Size of available buffer
+     * @param bytes_consumed Output: number of bytes consumed by the coded number
+     * @param coded_number Output: the decoded frame/sample number
+     * @param is_variable_block_size True if variable block size (sample number), false if fixed (frame number)
+     * @return true if coded number is valid, false if encoding is invalid
+     */
+    bool parseCodedNumber_unlocked(const uint8_t* buffer, size_t buffer_size,
+                                   size_t& bytes_consumed, uint64_t& coded_number,
+                                   bool is_variable_block_size);
+    
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;
 };

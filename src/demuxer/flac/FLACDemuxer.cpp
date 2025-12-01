@@ -2802,6 +2802,161 @@ bool FLACDemuxer::parseBitDepthBits_unlocked(uint8_t bits, uint8_t reserved_bit,
 
 
 // ============================================================================
+// Coded Number Parser (RFC 9639 Section 9.1.5)
+// ============================================================================
+
+/**
+ * @brief Parse coded number from frame header per RFC 9639 Section 9.1.5
+ * 
+ * Implements Requirements 9.1-9.10 for coded number decoding using
+ * UTF-8-like variable-length encoding (1-7 bytes).
+ * 
+ * RFC 9639 Table 18 - Coded Number Encoding (extended UTF-8):
+ *   Number Range (Hex)         | Octet Sequence (Binary)
+ *   0000 0000 0000 - 007F      | 0xxxxxxx                                           (1 byte)
+ *   0000 0000 0080 - 07FF      | 110xxxxx 10xxxxxx                                  (2 bytes)
+ *   0000 0000 0800 - FFFF      | 1110xxxx 10xxxxxx 10xxxxxx                         (3 bytes)
+ *   0000 0001 0000 - 1F FFFF   | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx                (4 bytes)
+ *   0000 0020 0000 - 3FF FFFF  | 111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx       (5 bytes)
+ *   0000 0400 0000 - 7FFF FFFF | 1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (6 bytes)
+ *   0000 8000 0000 - F FFFF FFFF | 11111110 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (7 bytes)
+ * 
+ * For fixed block size streams: coded number is frame number (max 31 bits, 6 bytes)
+ * For variable block size streams: coded number is sample number (max 36 bits, 7 bytes)
+ * 
+ * @param buffer Pointer to frame data starting at the coded number position
+ * @param buffer_size Size of available buffer
+ * @param bytes_consumed Output: number of bytes consumed by the coded number
+ * @param coded_number Output: the decoded frame/sample number
+ * @param is_variable_block_size True if variable block size (sample number), false if fixed (frame number)
+ * @return true if coded number is valid, false if encoding is invalid
+ */
+bool FLACDemuxer::parseCodedNumber_unlocked(const uint8_t* buffer, size_t buffer_size,
+                                            size_t& bytes_consumed, uint64_t& coded_number,
+                                            bool is_variable_block_size)
+{
+    FLAC_DEBUG("[parseCodedNumber] Parsing coded number (", 
+               is_variable_block_size ? "sample number" : "frame number", ")");
+    
+    // Initialize outputs
+    bytes_consumed = 0;
+    coded_number = 0;
+    
+    // Need at least 1 byte
+    if (buffer_size < 1) {
+        FLAC_DEBUG("[parseCodedNumber] Buffer too small: ", buffer_size, " bytes");
+        return false;
+    }
+    
+    uint8_t first_byte = buffer[0];
+    
+    // Determine the number of bytes in the coded number based on the first byte pattern
+    // RFC 9639 Section 9.1.5 / Table 18 (extended UTF-8 encoding)
+    size_t num_bytes = 0;
+    uint64_t value = 0;
+    
+    // Requirement 9.2: If first byte is 0b0xxxxxxx, read 1-byte coded number
+    if ((first_byte & 0x80) == 0x00) {
+        // 1-byte encoding: 0xxxxxxx (7 bits of data)
+        num_bytes = 1;
+        value = first_byte & 0x7F;
+        FLAC_DEBUG("[parseCodedNumber] 1-byte encoding: 0x", std::hex, static_cast<int>(first_byte), 
+                   std::dec, " -> value: ", value);
+    }
+    // Requirement 9.3: If first byte is 0b110xxxxx, read 2-byte coded number
+    else if ((first_byte & 0xE0) == 0xC0) {
+        // 2-byte encoding: 110xxxxx 10xxxxxx (11 bits of data)
+        num_bytes = 2;
+        value = first_byte & 0x1F;
+        FLAC_DEBUG("[parseCodedNumber] 2-byte encoding detected");
+    }
+    // Requirement 9.4: If first byte is 0b1110xxxx, read 3-byte coded number
+    else if ((first_byte & 0xF0) == 0xE0) {
+        // 3-byte encoding: 1110xxxx 10xxxxxx 10xxxxxx (16 bits of data)
+        num_bytes = 3;
+        value = first_byte & 0x0F;
+        FLAC_DEBUG("[parseCodedNumber] 3-byte encoding detected");
+    }
+    // Requirement 9.5: If first byte is 0b11110xxx, read 4-byte coded number
+    else if ((first_byte & 0xF8) == 0xF0) {
+        // 4-byte encoding: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx (21 bits of data)
+        num_bytes = 4;
+        value = first_byte & 0x07;
+        FLAC_DEBUG("[parseCodedNumber] 4-byte encoding detected");
+    }
+    // Requirement 9.6: If first byte is 0b111110xx, read 5-byte coded number
+    else if ((first_byte & 0xFC) == 0xF8) {
+        // 5-byte encoding: 111110xx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (26 bits of data)
+        num_bytes = 5;
+        value = first_byte & 0x03;
+        FLAC_DEBUG("[parseCodedNumber] 5-byte encoding detected");
+    }
+    // Requirement 9.7: If first byte is 0b1111110x, read 6-byte coded number
+    else if ((first_byte & 0xFE) == 0xFC) {
+        // 6-byte encoding: 1111110x 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (31 bits of data)
+        num_bytes = 6;
+        value = first_byte & 0x01;
+        FLAC_DEBUG("[parseCodedNumber] 6-byte encoding detected");
+    }
+    // Requirement 9.8: If first byte is 0b11111110, read 7-byte coded number
+    else if (first_byte == 0xFE) {
+        // 7-byte encoding: 11111110 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx 10xxxxxx (36 bits of data)
+        num_bytes = 7;
+        value = 0;  // No data bits in first byte for 7-byte encoding
+        FLAC_DEBUG("[parseCodedNumber] 7-byte encoding detected");
+    }
+    else {
+        // Invalid first byte pattern (0xFF or other invalid patterns)
+        FLAC_DEBUG("[parseCodedNumber] REJECTED: Invalid first byte pattern 0x", 
+                   std::hex, static_cast<int>(first_byte), std::dec);
+        return false;
+    }
+    
+    // Validate that we have enough bytes in the buffer
+    if (buffer_size < num_bytes) {
+        FLAC_DEBUG("[parseCodedNumber] Insufficient buffer: need ", num_bytes, 
+                   " bytes, have ", buffer_size);
+        return false;
+    }
+    
+    // For fixed block size streams (frame number), max is 6 bytes (31 bits)
+    // RFC 9639: "When a frame number is encoded, the value MUST NOT be larger than
+    // what fits a value of 31 bits unencoded or 6 bytes encoded."
+    if (!is_variable_block_size && num_bytes > 6) {
+        FLAC_DEBUG("[parseCodedNumber] REJECTED: Frame number encoding exceeds 6 bytes (", 
+                   num_bytes, " bytes) - invalid for fixed block size stream");
+        return false;
+    }
+    
+    // Read continuation bytes (each has pattern 10xxxxxx)
+    for (size_t i = 1; i < num_bytes; ++i) {
+        uint8_t cont_byte = buffer[i];
+        
+        // Validate continuation byte pattern: must be 10xxxxxx
+        if ((cont_byte & 0xC0) != 0x80) {
+            FLAC_DEBUG("[parseCodedNumber] REJECTED: Invalid continuation byte ", i, 
+                       ": 0x", std::hex, static_cast<int>(cont_byte), std::dec,
+                       " (expected 10xxxxxx pattern)");
+            return false;
+        }
+        
+        // Extract 6 bits of data from continuation byte and add to value
+        value = (value << 6) | (cont_byte & 0x3F);
+    }
+    
+    // Requirement 9.9: For fixed block size stream, interpret as frame number
+    // Requirement 9.10: For variable block size stream, interpret as sample number
+    coded_number = value;
+    bytes_consumed = num_bytes;
+    
+    FLAC_DEBUG("[parseCodedNumber] Decoded ", num_bytes, "-byte coded number: ", coded_number,
+               " (", is_variable_block_size ? "sample number" : "frame number", ")");
+    
+    return true;
+}
+
+
+// ============================================================================
 // Frame Size Estimation (Requirement 21)
 // ============================================================================
 
