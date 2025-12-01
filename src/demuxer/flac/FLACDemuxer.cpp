@@ -2147,24 +2147,18 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
     
     // ========================================================================
     // Parse channel assignment (RFC 9639 Section 9.1.3)
-    // Requirements 7.2-7.6
+    // Requirements 7.1-7.7 - Using dedicated parseChannelBits_unlocked method
     // ========================================================================
     
-    if (channel_bits <= 0x07) {
-        // Requirement 7.2: Independent channels (1-8)
-        // Requirement 7.3: Mode is independent
-        frame.channels = channel_bits + 1;
-    } else if (channel_bits == 0x08) {
-        // Requirement 7.4: Left-side stereo
-        frame.channels = 2;
-    } else if (channel_bits == 0x09) {
-        // Requirement 7.5: Right-side stereo
-        frame.channels = 2;
-    } else if (channel_bits == 0x0A) {
-        // Requirement 7.6: Mid-side stereo
-        frame.channels = 2;
+    // Note: Reserved patterns 0b1011-0b1111 are already rejected above in the
+    // validation section. The parseChannelBits_unlocked method provides the
+    // complete implementation with proper mode tracking.
+    if (!parseChannelBits_unlocked(channel_bits, frame.channels, frame.channel_mode)) {
+        // This should not happen since we already validated above, but handle it
+        FLAC_DEBUG("[parseFrameHeader] parseChannelBits_unlocked failed for bits 0x",
+                   std::hex, static_cast<int>(channel_bits), std::dec);
+        return false;
     }
-    // 0x0B-0x0F are reserved and already rejected above
     
     // ========================================================================
     // Parse bit depth (RFC 9639 Section 9.1.4)
@@ -2402,6 +2396,303 @@ bool FLACDemuxer::parseBlockSizeBits_unlocked(uint8_t bits, const uint8_t* buffe
             block_size = m_streaminfo.max_block_size > 0 ? m_streaminfo.max_block_size : 4096;
             break;
     }
+    
+    return true;
+}
+
+
+// ============================================================================
+// Sample Rate Bits Parser (RFC 9639 Section 9.1.2)
+// ============================================================================
+
+/**
+ * @brief Parse sample rate bits from frame header per RFC 9639 Section 9.1.2
+ * 
+ * Implements Requirements 6.1-6.17 for sample rate decoding.
+ * 
+ * RFC 9639 Sample Rate Encoding:
+ *   0b0000: Get from STREAMINFO (non-streamable subset)
+ *   0b0001: 88200 Hz
+ *   0b0010: 176400 Hz
+ *   0b0011: 192000 Hz
+ *   0b0100: 8000 Hz
+ *   0b0101: 16000 Hz
+ *   0b0110: 22050 Hz
+ *   0b0111: 24000 Hz
+ *   0b1000: 32000 Hz
+ *   0b1001: 44100 Hz
+ *   0b1010: 48000 Hz
+ *   0b1011: 96000 Hz
+ *   0b1100: 8-bit uncommon sample rate in kHz follows
+ *   0b1101: 16-bit uncommon sample rate in Hz follows
+ *   0b1110: 16-bit uncommon sample rate in tens of Hz follows
+ *   0b1111: Forbidden (reject)
+ * 
+ * @param bits The 4-bit sample rate code (bits 0-3 of frame byte 2)
+ * @param buffer Pointer to frame data (for reading uncommon sample rates)
+ * @param buffer_size Size of available buffer
+ * @param header_offset Current offset within header (updated if uncommon bytes read)
+ * @param sample_rate Output: the decoded sample rate in Hz
+ * @return true if sample rate is valid, false if forbidden pattern detected
+ */
+bool FLACDemuxer::parseSampleRateBits_unlocked(uint8_t bits, const uint8_t* buffer, size_t buffer_size,
+                                               size_t& header_offset, uint32_t& sample_rate)
+{
+    FLAC_DEBUG("[parseSampleRateBits] Parsing sample rate bits: 0b",
+               ((bits >> 3) & 1), ((bits >> 2) & 1), ((bits >> 1) & 1), (bits & 1),
+               " (0x", std::hex, static_cast<int>(bits), std::dec, ")");
+    
+    // Requirement 6.17: Forbidden sample rate pattern 0b1111
+    // RFC 9639 Table 1: Sample rate bits 0b1111 is forbidden
+    if (bits == 0x0F) {
+        FLAC_DEBUG("[parseSampleRateBits] REJECTED: Forbidden sample rate pattern 0b1111 (Requirement 6.17)");
+        return false;
+    }
+    
+    switch (bits) {
+        // Requirement 6.2: 0b0000 = Get from STREAMINFO
+        // RFC 9639 Section 9.1.2: "Get sample rate from STREAMINFO metadata block"
+        // Note: This makes the stream non-streamable subset compliant
+        case 0x00:
+            sample_rate = m_streaminfo.sample_rate;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate from STREAMINFO: ", sample_rate, " Hz (0b0000)");
+            break;
+            
+        // Requirement 6.3: 0b0001 = 88200 Hz
+        case 0x01:
+            sample_rate = 88200;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 88200 Hz (0b0001)");
+            break;
+            
+        // Requirement 6.4: 0b0010 = 176400 Hz
+        case 0x02:
+            sample_rate = 176400;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 176400 Hz (0b0010)");
+            break;
+            
+        // Requirement 6.5: 0b0011 = 192000 Hz
+        case 0x03:
+            sample_rate = 192000;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 192000 Hz (0b0011)");
+            break;
+            
+        // Requirement 6.6: 0b0100 = 8000 Hz
+        case 0x04:
+            sample_rate = 8000;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 8000 Hz (0b0100)");
+            break;
+            
+        // Requirement 6.7: 0b0101 = 16000 Hz
+        case 0x05:
+            sample_rate = 16000;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 16000 Hz (0b0101)");
+            break;
+            
+        // Requirement 6.8: 0b0110 = 22050 Hz
+        case 0x06:
+            sample_rate = 22050;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 22050 Hz (0b0110)");
+            break;
+            
+        // Requirement 6.9: 0b0111 = 24000 Hz
+        case 0x07:
+            sample_rate = 24000;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 24000 Hz (0b0111)");
+            break;
+            
+        // Requirement 6.10: 0b1000 = 32000 Hz
+        case 0x08:
+            sample_rate = 32000;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 32000 Hz (0b1000)");
+            break;
+            
+        // Requirement 6.11: 0b1001 = 44100 Hz
+        case 0x09:
+            sample_rate = 44100;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 44100 Hz (0b1001)");
+            break;
+            
+        // Requirement 6.12: 0b1010 = 48000 Hz
+        case 0x0A:
+            sample_rate = 48000;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 48000 Hz (0b1010)");
+            break;
+            
+        // Requirement 6.13: 0b1011 = 96000 Hz
+        case 0x0B:
+            sample_rate = 96000;
+            FLAC_DEBUG("[parseSampleRateBits] Sample rate: 96000 Hz (0b1011)");
+            break;
+            
+        // Requirement 6.14: 0b1100 = 8-bit uncommon sample rate in kHz follows
+        case 0x0C: {
+            FLAC_DEBUG("[parseSampleRateBits] 8-bit uncommon sample rate in kHz (0b1100)");
+            
+            // Check if we have enough buffer space for the 8-bit value
+            if (header_offset >= buffer_size) {
+                FLAC_DEBUG("[parseSampleRateBits] Insufficient buffer for 8-bit uncommon sample rate");
+                // Fall back to STREAMINFO sample rate
+                sample_rate = m_streaminfo.sample_rate;
+                FLAC_DEBUG("[parseSampleRateBits] Using fallback sample rate: ", sample_rate, " Hz");
+                break;
+            }
+            
+            // Read the 8-bit uncommon sample rate value (in kHz)
+            uint8_t uncommon_value = buffer[header_offset];
+            header_offset += 1;
+            
+            // RFC 9639 Section 9.1.2: "8-bit sample rate (in kHz)"
+            // The stored value is the sample rate in kHz, so multiply by 1000
+            sample_rate = static_cast<uint32_t>(uncommon_value) * 1000;
+            
+            FLAC_DEBUG("[parseSampleRateBits] 8-bit uncommon value: ", static_cast<int>(uncommon_value),
+                       " kHz -> sample rate: ", sample_rate, " Hz");
+            break;
+        }
+            
+        // Requirement 6.15: 0b1101 = 16-bit uncommon sample rate in Hz follows
+        case 0x0D: {
+            FLAC_DEBUG("[parseSampleRateBits] 16-bit uncommon sample rate in Hz (0b1101)");
+            
+            // Check if we have enough buffer space for the 16-bit value
+            if (header_offset + 1 >= buffer_size) {
+                FLAC_DEBUG("[parseSampleRateBits] Insufficient buffer for 16-bit uncommon sample rate");
+                // Fall back to STREAMINFO sample rate
+                sample_rate = m_streaminfo.sample_rate;
+                FLAC_DEBUG("[parseSampleRateBits] Using fallback sample rate: ", sample_rate, " Hz");
+                break;
+            }
+            
+            // Read the 16-bit uncommon sample rate value (big-endian per RFC 9639 Section 5)
+            uint16_t uncommon_value = (static_cast<uint16_t>(buffer[header_offset]) << 8) |
+                                       static_cast<uint16_t>(buffer[header_offset + 1]);
+            header_offset += 2;
+            
+            // RFC 9639 Section 9.1.2: "16-bit sample rate (in Hz)"
+            // The stored value is the sample rate in Hz directly
+            sample_rate = static_cast<uint32_t>(uncommon_value);
+            
+            FLAC_DEBUG("[parseSampleRateBits] 16-bit uncommon value: ", uncommon_value,
+                       " Hz -> sample rate: ", sample_rate, " Hz");
+            break;
+        }
+            
+        // Requirement 6.16: 0b1110 = 16-bit uncommon sample rate in tens of Hz follows
+        case 0x0E: {
+            FLAC_DEBUG("[parseSampleRateBits] 16-bit uncommon sample rate in tens of Hz (0b1110)");
+            
+            // Check if we have enough buffer space for the 16-bit value
+            if (header_offset + 1 >= buffer_size) {
+                FLAC_DEBUG("[parseSampleRateBits] Insufficient buffer for 16-bit uncommon sample rate");
+                // Fall back to STREAMINFO sample rate
+                sample_rate = m_streaminfo.sample_rate;
+                FLAC_DEBUG("[parseSampleRateBits] Using fallback sample rate: ", sample_rate, " Hz");
+                break;
+            }
+            
+            // Read the 16-bit uncommon sample rate value (big-endian per RFC 9639 Section 5)
+            uint16_t uncommon_value = (static_cast<uint16_t>(buffer[header_offset]) << 8) |
+                                       static_cast<uint16_t>(buffer[header_offset + 1]);
+            header_offset += 2;
+            
+            // RFC 9639 Section 9.1.2: "16-bit sample rate (in units of 10 Hz)"
+            // The stored value is the sample rate in tens of Hz, so multiply by 10
+            sample_rate = static_cast<uint32_t>(uncommon_value) * 10;
+            
+            FLAC_DEBUG("[parseSampleRateBits] 16-bit uncommon value: ", uncommon_value,
+                       " (x10 Hz) -> sample rate: ", sample_rate, " Hz");
+            break;
+        }
+            
+        // 0x0F is forbidden and already rejected above
+        default:
+            // Should never reach here since we handle all 16 values
+            FLAC_DEBUG("[parseSampleRateBits] Unexpected sample rate bits: 0x", 
+                       std::hex, static_cast<int>(bits), std::dec);
+            sample_rate = m_streaminfo.sample_rate;
+            break;
+    }
+    
+    return true;
+}
+
+
+// ============================================================================
+// Channel Assignment Bits Parser (RFC 9639 Section 9.1.3)
+// ============================================================================
+
+/**
+ * @brief Parse channel assignment bits from frame header per RFC 9639 Section 9.1.3
+ * 
+ * Implements Requirements 7.1-7.7 for channel assignment decoding.
+ * 
+ * RFC 9639 Channel Assignment Encoding:
+ *   0b0000-0b0111: 1-8 independent channels (value + 1)
+ *   0b1000: Left-side stereo (left + side)
+ *   0b1001: Right-side stereo (side + right)
+ *   0b1010: Mid-side stereo (mid + side)
+ *   0b1011-0b1111: Reserved (reject)
+ * 
+ * @param bits The 4-bit channel assignment code (bits 4-7 of frame byte 3)
+ * @param channels Output: the number of channels (1-8)
+ * @param mode Output: the channel assignment mode (independent or stereo variant)
+ * @return true if channel assignment is valid, false if reserved pattern detected
+ */
+bool FLACDemuxer::parseChannelBits_unlocked(uint8_t bits, uint8_t& channels, FLACChannelMode& mode)
+{
+    FLAC_DEBUG("[parseChannelBits] Parsing channel bits: 0b",
+               ((bits >> 3) & 1), ((bits >> 2) & 1), ((bits >> 1) & 1), (bits & 1),
+               " (0x", std::hex, static_cast<int>(bits), std::dec, ")");
+    
+    // Requirement 7.7: Reserved channel bits 0b1011-0b1111
+    // RFC 9639 Table 1: Channel bits 0b1011-0b1111 are reserved
+    if (bits >= 0x0B) {
+        FLAC_DEBUG("[parseChannelBits] REJECTED: Reserved channel bits 0b",
+                   ((bits >> 3) & 1), ((bits >> 2) & 1), ((bits >> 1) & 1), (bits & 1),
+                   " (Requirement 7.7)");
+        return false;
+    }
+    
+    // Requirement 7.1: Extract bits 4-7 of frame byte 3 for channel assignment
+    // (Already done by caller - bits parameter contains the extracted value)
+    
+    if (bits <= 0x07) {
+        // Requirement 7.2: Independent channels (1-8)
+        // RFC 9639 Section 9.1.3: "n channels, where n is the value plus 1"
+        channels = bits + 1;
+        
+        // Requirement 7.3: Mode is independent
+        mode = FLACChannelMode::INDEPENDENT;
+        
+        FLAC_DEBUG("[parseChannelBits] Independent mode: ", static_cast<int>(channels), 
+                   " channel(s) (0b", ((bits >> 3) & 1), ((bits >> 2) & 1), 
+                   ((bits >> 1) & 1), (bits & 1), ")");
+    } else if (bits == 0x08) {
+        // Requirement 7.4: Left-side stereo
+        // RFC 9639 Section 9.1.3: "left/side stereo: channel 0 is the left channel, 
+        // channel 1 is the side (difference) channel"
+        channels = 2;
+        mode = FLACChannelMode::LEFT_SIDE;
+        
+        FLAC_DEBUG("[parseChannelBits] Left-side stereo: 2 channels (0b1000)");
+    } else if (bits == 0x09) {
+        // Requirement 7.5: Right-side stereo
+        // RFC 9639 Section 9.1.3: "side/right stereo: channel 0 is the side (difference) 
+        // channel, channel 1 is the right channel"
+        channels = 2;
+        mode = FLACChannelMode::RIGHT_SIDE;
+        
+        FLAC_DEBUG("[parseChannelBits] Right-side stereo: 2 channels (0b1001)");
+    } else if (bits == 0x0A) {
+        // Requirement 7.6: Mid-side stereo
+        // RFC 9639 Section 9.1.3: "mid/side stereo: channel 0 is the mid (average) 
+        // channel, channel 1 is the side (difference) channel"
+        channels = 2;
+        mode = FLACChannelMode::MID_SIDE;
+        
+        FLAC_DEBUG("[parseChannelBits] Mid-side stereo: 2 channels (0b1010)");
+    }
+    // 0x0B-0x0F are reserved and already rejected above
     
     return true;
 }

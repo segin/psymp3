@@ -216,15 +216,15 @@
   - **Property 10: Forbidden Sample Rate Detection**
   - **Validates: Requirements 6.17**
 
-- [ ] 16. Implement Channel Assignment Parser (RFC 9639 Section 9.1.3)
-  - [ ] 16.1 Implement parseChannelBits method
+- [x] 16. Implement Channel Assignment Parser (RFC 9639 Section 9.1.3)
+  - [x] 16.1 Implement parseChannelBits method
     - Extract bits 4-7 of frame byte 3
     - Support independent channels 0b0000-0b0111
     - Support stereo modes left-side, right-side, mid-side
     - Reject reserved patterns 0b1011-0b1111
     - _Requirements: 7.1-7.7_
 
-- [ ] 16.2 Write property test for reserved channel bits
+- [x] 16.2 Write property test for reserved channel bits
   - **Property 11: Reserved Channel Bits Detection**
   - **Validates: Requirements 7.7**
 

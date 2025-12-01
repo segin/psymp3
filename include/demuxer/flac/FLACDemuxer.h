@@ -31,6 +31,20 @@ enum class FLACMetadataType : uint8_t {
 };
 
 /**
+ * @brief FLAC channel assignment modes per RFC 9639 Section 9.1.3
+ * 
+ * Defines the interchannel decorrelation mode used in FLAC frames.
+ * Independent mode stores each channel separately, while stereo modes
+ * use decorrelation to improve compression efficiency.
+ */
+enum class FLACChannelMode : uint8_t {
+    INDEPENDENT = 0,    ///< Independent channels (1-8 channels, no decorrelation)
+    LEFT_SIDE = 1,      ///< Left-side stereo (left channel + side channel)
+    RIGHT_SIDE = 2,     ///< Right-side stereo (side channel + right channel)
+    MID_SIDE = 3        ///< Mid-side stereo (mid channel + side channel)
+};
+
+/**
  * @brief FLAC metadata block header information per RFC 9639 Section 8.1
  */
 struct FLACMetadataBlock {
@@ -223,6 +237,7 @@ struct FLACFrame {
     uint8_t channels = 0;            ///< Channel count for this frame
     uint8_t bits_per_sample = 0;     ///< Bits per sample for this frame
     bool variable_block_size = false; ///< True if using variable block size strategy
+    FLACChannelMode channel_mode = FLACChannelMode::INDEPENDENT;  ///< Channel assignment mode
     
     FLACFrame() = default;
     
@@ -352,6 +367,66 @@ private:
      */
     bool parseBlockSizeBits_unlocked(uint8_t bits, const uint8_t* buffer, size_t buffer_size,
                                      size_t& header_offset, uint32_t& block_size);
+    
+    /**
+     * @brief Parse sample rate bits from frame header per RFC 9639 Section 9.1.2
+     * 
+     * Implements Requirements 6.1-6.17:
+     * - Extracts bits 0-3 of frame byte 2
+     * - Implements all 16 lookup table values
+     * - Handles uncommon sample rates in kHz, Hz, and tens of Hz
+     * - Rejects forbidden pattern 0b1111
+     * 
+     * RFC 9639 Sample Rate Encoding:
+     *   0b0000: Get from STREAMINFO (non-streamable subset)
+     *   0b0001: 88200 Hz
+     *   0b0010: 176400 Hz
+     *   0b0011: 192000 Hz
+     *   0b0100: 8000 Hz
+     *   0b0101: 16000 Hz
+     *   0b0110: 22050 Hz
+     *   0b0111: 24000 Hz
+     *   0b1000: 32000 Hz
+     *   0b1001: 44100 Hz
+     *   0b1010: 48000 Hz
+     *   0b1011: 96000 Hz
+     *   0b1100: 8-bit uncommon sample rate in kHz follows
+     *   0b1101: 16-bit uncommon sample rate in Hz follows
+     *   0b1110: 16-bit uncommon sample rate in tens of Hz follows
+     *   0b1111: Forbidden (reject)
+     * 
+     * @param bits The 4-bit sample rate code (bits 0-3 of frame byte 2)
+     * @param buffer Pointer to frame data (for reading uncommon sample rates)
+     * @param buffer_size Size of available buffer
+     * @param header_offset Current offset within header (updated if uncommon bytes read)
+     * @param sample_rate Output: the decoded sample rate in Hz
+     * @return true if sample rate is valid, false if forbidden pattern detected
+     */
+    bool parseSampleRateBits_unlocked(uint8_t bits, const uint8_t* buffer, size_t buffer_size,
+                                      size_t& header_offset, uint32_t& sample_rate);
+    
+    /**
+     * @brief Parse channel assignment bits from frame header per RFC 9639 Section 9.1.3
+     * 
+     * Implements Requirements 7.1-7.7:
+     * - Extracts bits 4-7 of frame byte 3
+     * - Supports independent channels 0b0000-0b0111 (1-8 channels)
+     * - Supports stereo modes: left-side (0b1000), right-side (0b1001), mid-side (0b1010)
+     * - Rejects reserved patterns 0b1011-0b1111
+     * 
+     * RFC 9639 Channel Assignment Encoding:
+     *   0b0000-0b0111: 1-8 independent channels (value + 1)
+     *   0b1000: Left-side stereo (left + side)
+     *   0b1001: Right-side stereo (side + right)
+     *   0b1010: Mid-side stereo (mid + side)
+     *   0b1011-0b1111: Reserved (reject)
+     * 
+     * @param bits The 4-bit channel assignment code (bits 4-7 of frame byte 3)
+     * @param channels Output: the number of channels (1-8)
+     * @param mode Output: the channel assignment mode (independent or stereo variant)
+     * @return true if channel assignment is valid, false if reserved pattern detected
+     */
+    bool parseChannelBits_unlocked(uint8_t bits, uint8_t& channels, FLACChannelMode& mode);
     
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;

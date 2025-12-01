@@ -124,7 +124,7 @@ libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 # Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_audioframe_creation test_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties
+noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_audioframe_creation test_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
@@ -1460,6 +1460,13 @@ test_flac_frame_sync_properties_LDADD = $(AM_LDFLAGS)
 test_flac_block_size_bits_properties_SOURCES = test_flac_block_size_bits_properties.cpp
 test_flac_block_size_bits_properties_CPPFLAGS = $(AM_CPPFLAGS)
 test_flac_block_size_bits_properties_LDADD = $(AM_LDFLAGS)
+
+# FLAC sample rate bits parsing property-based tests (standalone, minimal dependencies)
+# **Feature: flac-demuxer, Property 10: Forbidden Sample Rate Detection**
+# **Validates: Requirements 6.17**
+test_flac_sample_rate_bits_properties_SOURCES = test_flac_sample_rate_bits_properties.cpp
+test_flac_sample_rate_bits_properties_CPPFLAGS = $(AM_CPPFLAGS)
+test_flac_sample_rate_bits_properties_LDADD = $(AM_LDFLAGS)
 
 # μ-law/A-law codec selection unit tests (standalone, minimal dependencies)
 test_mulaw_alaw_codec_selection_SOURCES = test_mulaw_alaw_codec_selection.cpp
@@ -3713,4 +3720,17 @@ test_vorbis_thread_safety_properties_LDADD = \
 	$(OGG_LIBS) $(VORBIS_LIBS) -lopus \
 	$(AM_LDFLAGS)
 endif
+
+
+# ============================================================================
+# FLAC Demuxer Property-Based Tests
+# ============================================================================
+
+# **Feature: flac-demuxer, Property 11: Reserved Channel Bits Detection**
+# **Validates: Requirements 7.7**
+check_PROGRAMS += test_flac_channel_bits_properties
+test_flac_channel_bits_properties_SOURCES = test_flac_channel_bits_properties.cpp
+test_flac_channel_bits_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_channel_bits_properties_LDFLAGS = 
+test_flac_channel_bits_properties_LDADD = 
 
