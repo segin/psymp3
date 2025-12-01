@@ -123,8 +123,8 @@
   - **Property 15: Seek Point Placeholder Detection**
   - **Validates: Requirements 12.5**
 
-- [ ] 9. Implement VORBIS_COMMENT Block Parsing (RFC 9639 Section 8.6)
-  - [ ] 9.1 Implement parseVorbisComment method
+- [x] 9. Implement VORBIS_COMMENT Block Parsing (RFC 9639 Section 8.6)
+  - [x] 9.1 Implement parseVorbisComment method
     - Parse u32 little-endian vendor string length
     - Parse UTF-8 vendor string
     - Parse u32 little-endian field count
@@ -133,7 +133,7 @@
     - Validate field names use printable ASCII 0x20-0x7E except 0x3D
     - _Requirements: 13.1-13.8_
 
-- [ ] 9.2 Write property test for endianness handling
+- [x] 9.2 Write property test for endianness handling
   - **Property 16: Endianness Handling**
   - **Validates: Requirements 19.1, 19.4, 13.1**
 

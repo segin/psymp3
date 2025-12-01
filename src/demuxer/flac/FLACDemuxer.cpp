@@ -837,85 +837,290 @@ bool FLACDemuxer::parseSeekTableBlock_unlocked(const FLACMetadataBlock& block)
 // VORBIS_COMMENT Block Parsing (RFC 9639 Section 8.6)
 // ============================================================================
 
+/**
+ * @brief Validate a Vorbis comment field name per RFC 9639 Section 8.6
+ * 
+ * Field names must contain only printable ASCII characters 0x20-0x7E,
+ * excluding the equals sign (0x3D).
+ * 
+ * @param name The field name to validate
+ * @return true if the field name is valid, false otherwise
+ */
+static bool isValidVorbisFieldName(const std::string& name)
+{
+    if (name.empty()) {
+        return false;
+    }
+    
+    // Requirement 13.8: Validate field names use printable ASCII 0x20-0x7E except 0x3D
+    // RFC 9639 Section 8.6: "The field name is ASCII 0x20 through 0x7D, 0x3D ('=') excluded"
+    // Note: RFC says 0x7D but this appears to be a typo - should be 0x7E (tilde)
+    for (unsigned char c : name) {
+        // Must be in range 0x20-0x7E (space through tilde)
+        if (c < 0x20 || c > 0x7E) {
+            return false;
+        }
+        // Must not be equals sign (0x3D)
+        if (c == 0x3D) {
+            return false;
+        }
+    }
+    
+    return true;
+}
+
 bool FLACDemuxer::parseVorbisCommentBlock_unlocked(const FLACMetadataBlock& block)
 {
-    FLAC_DEBUG("Parsing VORBIS_COMMENT block");
+    FLAC_DEBUG("[parseVorbisComment] Parsing VORBIS_COMMENT block (RFC 9639 Section 8.6)");
     
-    uint64_t block_end = block.data_offset + block.length;
+    // Track remaining bytes to prevent reading past block end
+    uint64_t bytes_remaining = block.length;
     
-    // Vendor string length (u32 little-endian - exception to big-endian rule)
+    // Clear any existing comments
+    m_vorbis_comments.clear();
+    
+    // ========================================================================
+    // Requirement 13.1: Parse u32 little-endian vendor string length
+    // RFC 9639 Section 8.6: "A 32-bit unsigned integer indicating the length 
+    // of the vendor string in bytes"
+    // Note: This is little-endian, which is an exception to FLAC's big-endian rule
+    // (for Vorbis compatibility per Requirement 19.4)
+    // ========================================================================
+    
+    if (bytes_remaining < 4) {
+        FLAC_DEBUG("[parseVorbisComment] Block too small for vendor length field");
+        return false;
+    }
+    
     uint8_t len_buf[4];
     if (m_handler->read(len_buf, 1, 4) != 4) {
-        FLAC_DEBUG("Failed to read vendor length");
+        FLAC_DEBUG("[parseVorbisComment] Failed to read vendor string length");
+        return false;
+    }
+    bytes_remaining -= 4;
+    
+    // Little-endian u32 per Requirement 19.4
+    uint32_t vendor_len = static_cast<uint32_t>(len_buf[0]) |
+                          (static_cast<uint32_t>(len_buf[1]) << 8) |
+                          (static_cast<uint32_t>(len_buf[2]) << 16) |
+                          (static_cast<uint32_t>(len_buf[3]) << 24);
+    
+    FLAC_DEBUG("[parseVorbisComment] Vendor string length: ", vendor_len, " bytes");
+    
+    // Validate vendor length doesn't exceed remaining block data
+    if (vendor_len > bytes_remaining) {
+        FLAC_DEBUG("[parseVorbisComment] Vendor string length (", vendor_len, 
+                   ") exceeds remaining block data (", bytes_remaining, ")");
         return false;
     }
     
-    uint32_t vendor_len = len_buf[0] | (len_buf[1] << 8) | 
-                          (len_buf[2] << 16) | (len_buf[3] << 24);
+    // ========================================================================
+    // Requirement 13.2: Parse UTF-8 vendor string
+    // RFC 9639 Section 8.6: "The vendor string, a UTF-8 encoded string"
+    // ========================================================================
     
-    // Skip vendor string
+    std::string vendor_string;
     if (vendor_len > 0) {
-        m_handler->seek(static_cast<off_t>(vendor_len), SEEK_CUR);
+        // Sanity check: limit vendor string to reasonable size
+        if (vendor_len > 65536) {
+            FLAC_DEBUG("[parseVorbisComment] Vendor string too long: ", vendor_len, " bytes");
+            // Skip the oversized vendor string
+            if (m_handler->seek(static_cast<off_t>(vendor_len), SEEK_CUR) != 0) {
+                return false;
+            }
+            bytes_remaining -= vendor_len;
+        } else {
+            std::vector<char> vendor_data(vendor_len);
+            if (m_handler->read(vendor_data.data(), 1, vendor_len) != vendor_len) {
+                FLAC_DEBUG("[parseVorbisComment] Failed to read vendor string");
+                return false;
+            }
+            bytes_remaining -= vendor_len;
+            
+            vendor_string.assign(vendor_data.begin(), vendor_data.end());
+            FLAC_DEBUG("[parseVorbisComment] Vendor string: '", vendor_string, "'");
+        }
+    } else {
+        FLAC_DEBUG("[parseVorbisComment] Empty vendor string");
     }
     
-    // Field count (u32 little-endian)
-    if (m_handler->read(len_buf, 1, 4) != 4) {
-        FLAC_DEBUG("Failed to read field count");
+    // ========================================================================
+    // Requirement 13.3: Parse u32 little-endian field count
+    // RFC 9639 Section 8.6: "A 32-bit unsigned integer indicating the number 
+    // of user comment fields"
+    // ========================================================================
+    
+    if (bytes_remaining < 4) {
+        FLAC_DEBUG("[parseVorbisComment] Block too small for field count");
         return false;
     }
     
-    uint32_t field_count = len_buf[0] | (len_buf[1] << 8) | 
-                           (len_buf[2] << 16) | (len_buf[3] << 24);
+    if (m_handler->read(len_buf, 1, 4) != 4) {
+        FLAC_DEBUG("[parseVorbisComment] Failed to read field count");
+        return false;
+    }
+    bytes_remaining -= 4;
     
-    FLAC_DEBUG("VORBIS_COMMENT has ", field_count, " fields");
+    // Little-endian u32 per Requirement 19.4
+    uint32_t field_count = static_cast<uint32_t>(len_buf[0]) |
+                           (static_cast<uint32_t>(len_buf[1]) << 8) |
+                           (static_cast<uint32_t>(len_buf[2]) << 16) |
+                           (static_cast<uint32_t>(len_buf[3]) << 24);
     
-    // Parse each field
+    FLAC_DEBUG("[parseVorbisComment] Field count: ", field_count);
+    
+    // Sanity check: limit field count to prevent excessive memory allocation
+    if (field_count > 65536) {
+        FLAC_DEBUG("[parseVorbisComment] Excessive field count: ", field_count, 
+                   " - limiting to 65536");
+        field_count = 65536;
+    }
+    
+    // ========================================================================
+    // Requirement 13.4, 13.5: Parse each field with u32 little-endian length
+    // RFC 9639 Section 8.6: "Each user comment field consists of a 32-bit 
+    // unsigned integer indicating the length of the field in bytes, followed 
+    // by the field itself"
+    // ========================================================================
+    
+    uint32_t valid_fields = 0;
+    uint32_t invalid_fields = 0;
+    
     for (uint32_t i = 0; i < field_count; ++i) {
         // Check we haven't exceeded block bounds
-        if (static_cast<uint64_t>(m_handler->tell()) >= block_end) {
+        if (bytes_remaining < 4) {
+            FLAC_DEBUG("[parseVorbisComment] Insufficient data for field ", i, " length");
             break;
         }
         
-        // Field length (u32 little-endian)
+        // Requirement 13.4: Parse u32 little-endian field length
         if (m_handler->read(len_buf, 1, 4) != 4) {
+            FLAC_DEBUG("[parseVorbisComment] Failed to read field ", i, " length");
+            break;
+        }
+        bytes_remaining -= 4;
+        
+        // Little-endian u32 per Requirement 19.4
+        uint32_t field_len = static_cast<uint32_t>(len_buf[0]) |
+                             (static_cast<uint32_t>(len_buf[1]) << 8) |
+                             (static_cast<uint32_t>(len_buf[2]) << 16) |
+                             (static_cast<uint32_t>(len_buf[3]) << 24);
+        
+        // Validate field length
+        if (field_len > bytes_remaining) {
+            FLAC_DEBUG("[parseVorbisComment] Field ", i, " length (", field_len, 
+                       ") exceeds remaining data (", bytes_remaining, ")");
             break;
         }
         
-        uint32_t field_len = len_buf[0] | (len_buf[1] << 8) | 
-                             (len_buf[2] << 16) | (len_buf[3] << 24);
-        
-        if (field_len == 0 || field_len > 8192) {
-            // Skip invalid or too-long fields
-            if (field_len > 0) {
-                m_handler->seek(static_cast<off_t>(field_len), SEEK_CUR);
-            }
+        // Handle empty fields
+        if (field_len == 0) {
+            FLAC_DEBUG("[parseVorbisComment] Field ", i, " is empty - skipping");
+            invalid_fields++;
             continue;
         }
         
-        // Read field content
+        // Sanity check: limit individual field size
+        if (field_len > 1048576) {  // 1 MB limit per field
+            FLAC_DEBUG("[parseVorbisComment] Field ", i, " too large: ", field_len, 
+                       " bytes - skipping");
+            if (m_handler->seek(static_cast<off_t>(field_len), SEEK_CUR) != 0) {
+                break;
+            }
+            bytes_remaining -= field_len;
+            invalid_fields++;
+            continue;
+        }
+        
+        // Requirement 13.5: Read field content (UTF-8 string)
         std::vector<char> field_data(field_len);
         if (m_handler->read(field_data.data(), 1, field_len) != field_len) {
+            FLAC_DEBUG("[parseVorbisComment] Failed to read field ", i, " content");
             break;
         }
+        bytes_remaining -= field_len;
         
         std::string field(field_data.begin(), field_data.end());
         
-        // Split on first '=' into name and value
+        // ====================================================================
+        // Requirement 13.6: Split fields on first equals sign into name and value
+        // RFC 9639 Section 8.6: "The field is a UTF-8 encoded string of the 
+        // form NAME=value"
+        // ====================================================================
+        
         size_t eq_pos = field.find('=');
-        if (eq_pos != std::string::npos && eq_pos > 0) {
-            std::string name = field.substr(0, eq_pos);
-            std::string value = field.substr(eq_pos + 1);
-            
-            // Convert name to uppercase for case-insensitive lookup
-            for (char& c : name) {
-                if (c >= 'a' && c <= 'z') c -= 32;
-            }
-            
-            m_vorbis_comments[name] = value;
+        if (eq_pos == std::string::npos) {
+            FLAC_DEBUG("[parseVorbisComment] Field ", i, " has no '=' separator - skipping");
+            invalid_fields++;
+            continue;
         }
+        
+        if (eq_pos == 0) {
+            FLAC_DEBUG("[parseVorbisComment] Field ", i, " has empty name - skipping");
+            invalid_fields++;
+            continue;
+        }
+        
+        std::string name = field.substr(0, eq_pos);
+        std::string value = field.substr(eq_pos + 1);
+        
+        // ====================================================================
+        // Requirement 13.8: Validate field names use printable ASCII 0x20-0x7E except 0x3D
+        // RFC 9639 Section 8.6: "The field name is ASCII 0x20 through 0x7D, 
+        // 0x3D ('=') excluded"
+        // ====================================================================
+        
+        if (!isValidVorbisFieldName(name)) {
+            FLAC_DEBUG("[parseVorbisComment] Field ", i, " has invalid name characters - rejecting");
+            invalid_fields++;
+            continue;
+        }
+        
+        // ====================================================================
+        // Requirement 13.7: Use case-insensitive comparison for field names
+        // RFC 9639 Section 8.6: "Field names are case-insensitive"
+        // Convert to uppercase for consistent storage and lookup
+        // ====================================================================
+        
+        std::string normalized_name;
+        normalized_name.reserve(name.size());
+        for (char c : name) {
+            if (c >= 'a' && c <= 'z') {
+                normalized_name += static_cast<char>(c - 32);  // Convert to uppercase
+            } else {
+                normalized_name += c;
+            }
+        }
+        
+        // Store the comment (later values overwrite earlier ones for same key)
+        m_vorbis_comments[normalized_name] = value;
+        valid_fields++;
+        
+        FLAC_DEBUG("[parseVorbisComment] Field ", i, ": ", normalized_name, "=", 
+                   (value.length() > 50 ? value.substr(0, 50) + "..." : value));
     }
     
-    FLAC_DEBUG("Parsed ", m_vorbis_comments.size(), " Vorbis comments");
+    FLAC_DEBUG("[parseVorbisComment] Parsed ", valid_fields, " valid fields, ", 
+               invalid_fields, " invalid/skipped fields");
+    FLAC_DEBUG("[parseVorbisComment] Total stored comments: ", m_vorbis_comments.size());
+    
+    // Log common metadata fields if present
+    auto it = m_vorbis_comments.find("ARTIST");
+    if (it != m_vorbis_comments.end()) {
+        FLAC_DEBUG("[parseVorbisComment] ARTIST: ", it->second);
+    }
+    
+    it = m_vorbis_comments.find("TITLE");
+    if (it != m_vorbis_comments.end()) {
+        FLAC_DEBUG("[parseVorbisComment] TITLE: ", it->second);
+    }
+    
+    it = m_vorbis_comments.find("ALBUM");
+    if (it != m_vorbis_comments.end()) {
+        FLAC_DEBUG("[parseVorbisComment] ALBUM: ", it->second);
+    }
+    
+    FLAC_DEBUG("[parseVorbisComment] VORBIS_COMMENT block parsed successfully");
     return true;
 }
 
