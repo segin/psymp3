@@ -297,8 +297,8 @@
 
 ## Phase 6: Frame Size Estimation and Streaming
 
-- [ ] 23. Implement Frame Size Estimation
-  - [ ] 23.1 Implement calculateFrameSize method
+- [x] 23. Implement Frame Size Estimation
+  - [x] 23.1 Implement calculateFrameSize method
     - Use STREAMINFO minimum frame size as primary estimate
     - For fixed block size streams use minimum directly without scaling
     - Avoid complex theoretical calculations
@@ -306,11 +306,11 @@
     - Add debug logging with calculateFrameSize token
     - _Requirements: 21.1, 21.2, 21.5, 25.1, 25.4_
 
-- [ ] 23.2 Write property test for frame size estimation
+- [x] 23.2 Write property test for frame size estimation
   - **Property 18: Frame Size Estimation**
   - **Validates: Requirements 21.1**
 
-- [ ] 23.3 Write property test for frame boundary search limit
+- [x] 23.3 Write property test for frame boundary search limit
   - **Property 19: Frame Boundary Search Limit**
   - **Validates: Requirements 21.3**
 

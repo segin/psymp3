@@ -3051,24 +3051,190 @@ bool FLACDemuxer::parseCodedNumber_unlocked(const uint8_t* buffer, size_t buffer
 
 
 // ============================================================================
-// Frame Size Estimation (Requirement 21)
+// Frame Size Estimation (RFC 9639 compliant)
 // ============================================================================
 
+/**
+ * @brief Calculate estimated frame size using STREAMINFO metadata
+ * 
+ * Implements Requirements 21.1, 21.2, 21.5, 25.1, 25.4:
+ * - Requirement 21.1: Use STREAMINFO minimum frame size as primary estimate
+ * - Requirement 21.2: For fixed block size streams, use minimum directly without scaling
+ * - Requirement 21.5: Handle highly compressed streams with frames as small as 14 bytes
+ * - Requirement 25.1: Avoid complex theoretical calculations that produce inaccurate estimates
+ * - Requirement 25.4: Prioritize minimum frame size over complex scaling algorithms
+ * 
+ * Critical Design Insight (from real-world debugging):
+ * - STREAMINFO minimum frame size is the most accurate estimate for highly compressed streams
+ * - Fixed block size streams should use minimum frame size directly without scaling
+ * - Complex theoretical calculations often produce inaccurate estimates (e.g., 6942 bytes vs actual 14 bytes)
+ * - Conservative fallbacks prevent excessive I/O when estimation fails
+ * 
+ * @param frame The frame structure with parsed header information
+ * @return Estimated frame size in bytes
+ */
 uint32_t FLACDemuxer::calculateFrameSize_unlocked(const FLACFrame& frame) const
 {
-    FLAC_DEBUG("Calculating frame size");
+    FLAC_DEBUG("[calculateFrameSize] Estimating frame size for frame at offset ", frame.file_offset);
     
+    // ========================================================================
+    // Method 1: Use STREAMINFO minimum frame size (preferred)
     // Requirement 21.1: Use STREAMINFO minimum frame size as primary estimate
-    if (m_streaminfo.min_frame_size > 0) {
-        FLAC_DEBUG("Using STREAMINFO min_frame_size: ", m_streaminfo.min_frame_size);
-        return m_streaminfo.min_frame_size;
+    // Requirement 25.4: Prioritize minimum frame size over complex scaling algorithms
+    // ========================================================================
+    
+    if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
+        uint32_t estimated_size = m_streaminfo.min_frame_size;
+        
+        FLAC_DEBUG("[calculateFrameSize] STREAMINFO min_frame_size: ", m_streaminfo.min_frame_size, " bytes");
+        FLAC_DEBUG("[calculateFrameSize] STREAMINFO max_frame_size: ", m_streaminfo.max_frame_size, " bytes");
+        FLAC_DEBUG("[calculateFrameSize] STREAMINFO min_block_size: ", m_streaminfo.min_block_size, " samples");
+        FLAC_DEBUG("[calculateFrameSize] STREAMINFO max_block_size: ", m_streaminfo.max_block_size, " samples");
+        
+        // ====================================================================
+        // Requirement 21.2: For fixed block size streams, use minimum directly
+        // Fixed block size streams have min_block_size == max_block_size
+        // ====================================================================
+        
+        if (m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
+            // Fixed block size stream - use minimum frame size directly
+            // This is critical for highly compressed streams where frames can be as small as 14 bytes
+            FLAC_DEBUG("[calculateFrameSize] Fixed block size detected (", m_streaminfo.min_block_size, 
+                       " samples), using minimum frame size directly: ", estimated_size, " bytes");
+            
+            // Requirement 21.5: Handle highly compressed streams with frames as small as 14 bytes
+            // The minimum valid FLAC frame is approximately:
+            // - Sync code: 2 bytes
+            // - Frame header: 4-7 bytes (varies with coded number length)
+            // - CRC-8: 1 byte
+            // - Minimal subframe: ~2 bytes per channel
+            // - CRC-16: 2 bytes
+            // Total minimum: ~14 bytes for mono, ~16 bytes for stereo
+            
+            if (estimated_size < 14) {
+                FLAC_DEBUG("[calculateFrameSize] WARNING: min_frame_size (", estimated_size, 
+                           ") is below theoretical minimum (14 bytes), using 14 bytes");
+                estimated_size = 14;
+            }
+            
+            return estimated_size;
+        }
+        
+        // ====================================================================
+        // Variable block size stream - use conservative estimate
+        // Requirement 25.1: Avoid complex theoretical calculations
+        // ====================================================================
+        
+        FLAC_DEBUG("[calculateFrameSize] Variable block size stream detected");
+        FLAC_DEBUG("[calculateFrameSize] Frame block_size: ", frame.block_size, " samples");
+        
+        // For variable block size, we use a simple approach:
+        // - If the frame's block size matches min_block_size, use min_frame_size
+        // - If the frame's block size matches max_block_size, use max_frame_size
+        // - Otherwise, use a linear interpolation between min and max
+        
+        if (frame.block_size > 0 && m_streaminfo.max_frame_size > 0) {
+            if (frame.block_size <= m_streaminfo.min_block_size) {
+                // Frame is at or below minimum block size - use minimum frame size
+                FLAC_DEBUG("[calculateFrameSize] Frame block_size <= min_block_size, using min_frame_size: ", 
+                           m_streaminfo.min_frame_size, " bytes");
+                return m_streaminfo.min_frame_size;
+            }
+            
+            if (frame.block_size >= m_streaminfo.max_block_size) {
+                // Frame is at or above maximum block size - use maximum frame size
+                FLAC_DEBUG("[calculateFrameSize] Frame block_size >= max_block_size, using max_frame_size: ", 
+                           m_streaminfo.max_frame_size, " bytes");
+                return m_streaminfo.max_frame_size;
+            }
+            
+            // Linear interpolation between min and max frame sizes
+            // This is a simple, conservative approach that avoids complex calculations
+            uint32_t block_range = m_streaminfo.max_block_size - m_streaminfo.min_block_size;
+            uint32_t frame_range = m_streaminfo.max_frame_size - m_streaminfo.min_frame_size;
+            
+            if (block_range > 0) {
+                uint32_t block_offset = frame.block_size - m_streaminfo.min_block_size;
+                uint32_t frame_offset_estimate = (block_offset * frame_range) / block_range;
+                estimated_size = m_streaminfo.min_frame_size + frame_offset_estimate;
+                
+                FLAC_DEBUG("[calculateFrameSize] Linear interpolation: ", estimated_size, " bytes");
+                FLAC_DEBUG("[calculateFrameSize]   block_offset: ", block_offset, 
+                           ", frame_range: ", frame_range, ", block_range: ", block_range);
+            }
+        }
+        
+        // Ensure minimum valid frame size
+        if (estimated_size < 14) {
+            FLAC_DEBUG("[calculateFrameSize] Estimated size (", estimated_size, 
+                       ") below minimum, using 14 bytes");
+            estimated_size = 14;
+        }
+        
+        FLAC_DEBUG("[calculateFrameSize] Final estimate from STREAMINFO: ", estimated_size, " bytes");
+        return estimated_size;
     }
     
-    // Requirement 21.4: Conservative fallback
-    // Minimum FLAC frame: sync(2) + header(~4) + subframe(~1) + crc(2) = ~9 bytes
-    // Use 64 bytes as safe minimum for unknown streams
-    FLAC_DEBUG("Using conservative fallback: 64 bytes");
-    return 64;
+    // ========================================================================
+    // Method 2: STREAMINFO not available or min_frame_size is 0 (unknown)
+    // Use conservative fallback based on frame parameters
+    // ========================================================================
+    
+    FLAC_DEBUG("[calculateFrameSize] STREAMINFO min_frame_size unavailable, using fallback estimation");
+    
+    // Conservative fallback calculation:
+    // Frame overhead: sync(2) + header(4-7) + CRC-8(1) + CRC-16(2) = ~12 bytes
+    // Audio data: block_size * channels * (bits_per_sample / 8) * compression_ratio
+    // 
+    // For highly compressed FLAC, compression ratio can be as low as 0.1 (10%)
+    // For typical FLAC, compression ratio is around 0.5-0.7 (50-70%)
+    // 
+    // We use a conservative estimate assuming moderate compression
+    
+    uint32_t frame_overhead = 16;  // Conservative overhead estimate
+    uint32_t audio_data_estimate = 0;
+    
+    if (frame.block_size > 0 && frame.channels > 0 && frame.bits_per_sample > 0) {
+        // Calculate uncompressed size
+        uint32_t uncompressed_size = frame.block_size * frame.channels * (frame.bits_per_sample / 8);
+        
+        // Assume 50% compression ratio as a conservative estimate
+        // This may overestimate for highly compressed streams, but that's safer
+        // than underestimating and missing frame data
+        audio_data_estimate = uncompressed_size / 2;
+        
+        FLAC_DEBUG("[calculateFrameSize] Fallback calculation:");
+        FLAC_DEBUG("[calculateFrameSize]   block_size: ", frame.block_size);
+        FLAC_DEBUG("[calculateFrameSize]   channels: ", static_cast<int>(frame.channels));
+        FLAC_DEBUG("[calculateFrameSize]   bits_per_sample: ", static_cast<int>(frame.bits_per_sample));
+        FLAC_DEBUG("[calculateFrameSize]   uncompressed_size: ", uncompressed_size, " bytes");
+        FLAC_DEBUG("[calculateFrameSize]   audio_data_estimate (50% compression): ", audio_data_estimate, " bytes");
+    } else {
+        // No frame parameters available - use a very conservative default
+        // This handles the case where we're searching for the first frame
+        audio_data_estimate = 4096;  // Conservative default
+        FLAC_DEBUG("[calculateFrameSize] No frame parameters, using default audio_data_estimate: ", 
+                   audio_data_estimate, " bytes");
+    }
+    
+    uint32_t fallback_estimate = frame_overhead + audio_data_estimate;
+    
+    // Ensure minimum valid frame size
+    if (fallback_estimate < 14) {
+        fallback_estimate = 14;
+    }
+    
+    // Cap at reasonable maximum to prevent excessive reads
+    // FLAC frames are typically under 64KB even for high-resolution audio
+    static constexpr uint32_t MAX_REASONABLE_FRAME_SIZE = 65536;
+    if (fallback_estimate > MAX_REASONABLE_FRAME_SIZE) {
+        FLAC_DEBUG("[calculateFrameSize] Fallback estimate (", fallback_estimate, 
+                   ") exceeds maximum, capping at ", MAX_REASONABLE_FRAME_SIZE, " bytes");
+        fallback_estimate = MAX_REASONABLE_FRAME_SIZE;
+    }
+    
+    FLAC_DEBUG("[calculateFrameSize] Final fallback estimate: ", fallback_estimate, " bytes");
+    return fallback_estimate;
 }
 
 // ============================================================================
