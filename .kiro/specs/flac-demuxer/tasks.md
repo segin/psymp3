@@ -204,15 +204,15 @@
   - **Property 9: Forbidden Block Size Detection**
   - **Validates: Requirements 5.18**
 
-- [ ] 15. Implement Sample Rate Bits Parser (RFC 9639 Section 9.1.2)
-  - [ ] 15.1 Implement parseSampleRateBits method
+- [x] 15. Implement Sample Rate Bits Parser (RFC 9639 Section 9.1.2)
+  - [x] 15.1 Implement parseSampleRateBits method
     - Extract bits 0-3 of frame byte 2
     - Implement all 16 lookup table values
     - Handle uncommon sample rates in kHz, Hz, and tens of Hz
     - Reject forbidden pattern 0b1111
     - _Requirements: 6.1-6.17_
 
-- [ ] 15.2 Write property test for forbidden sample rate
+- [x] 15.2 Write property test for forbidden sample rate
   - **Property 10: Forbidden Sample Rate Detection**
   - **Validates: Requirements 6.17**
 
