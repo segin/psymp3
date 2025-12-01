@@ -137,8 +137,8 @@
   - **Property 16: Endianness Handling**
   - **Validates: Requirements 19.1, 19.4, 13.1**
 
-- [ ] 10. Implement CUESHEET Block Parsing (RFC 9639 Section 8.7)
-  - [ ] 10.1 Implement parseCuesheet method
+- [x] 10. Implement CUESHEET Block Parsing (RFC 9639 Section 8.7)
+  - [x] 10.1 Implement parseCuesheet method
     - Read u128 media catalog number
     - Read u64 lead-in samples and u1 CD-DA flag
     - Skip reserved bits and read u8 number of tracks
@@ -146,7 +146,7 @@
     - Validate CD-DA track count is at most 100
     - _Requirements: 16.1-16.8_
 
-- [ ] 10.2 Write property test for CUESHEET track count validation
+- [x] 10.2 Write property test for CUESHEET track count validation
   - **Property 17: CUESHEET Track Count Validation**
   - **Validates: Requirements 16.6**
 

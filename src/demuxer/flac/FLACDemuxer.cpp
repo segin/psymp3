@@ -500,6 +500,10 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 break;
                 
             case FLACMetadataType::CUESHEET:
+                // Requirement 16.1-16.8: Handle CUESHEET blocks per RFC 9639 Section 8.7
+                parseCuesheetBlock_unlocked(block);
+                break;
+                
             case FLACMetadataType::PICTURE:
                 // Skip known but unprocessed blocks
                 FLAC_DEBUG("Skipping metadata block type ", static_cast<int>(raw_type), 
@@ -1230,6 +1234,286 @@ bool FLACDemuxer::parseApplicationBlock_unlocked(const FLACMetadataBlock& block)
     // for each APPLICATION block encountered in the stream
     
     FLAC_DEBUG("[parseApplication] APPLICATION block processed successfully");
+    return true;
+}
+
+// ============================================================================
+// CUESHEET Block Parsing (RFC 9639 Section 8.7)
+// ============================================================================
+
+bool FLACDemuxer::parseCuesheetBlock_unlocked(const FLACMetadataBlock& block)
+{
+    FLAC_DEBUG("[parseCuesheet] Parsing CUESHEET block (RFC 9639 Section 8.7)");
+    
+    // Clear any existing cuesheet data
+    m_cuesheet = FLACCuesheet();
+    
+    // Minimum CUESHEET block size:
+    // - Media catalog number: 128 bytes
+    // - Lead-in samples: 8 bytes
+    // - CD-DA flag + reserved: 1 + 258 bytes = 259 bytes (but stored as bits)
+    // - Actually: 128 + 8 + (1 + 7 + 258*8)/8 = 128 + 8 + 259 = 395 bytes minimum header
+    // - Plus number of tracks: 1 byte
+    // Total minimum: 128 + 8 + 259 + 1 = 396 bytes
+    // But the reserved bits are: u(7+258*8) = 7 + 2064 = 2071 bits = 258.875 bytes
+    // So: 128 + 8 + 1 bit + 2071 bits + 8 bits = 128 + 8 + 2080 bits = 128 + 8 + 260 bytes = 396 bytes
+    
+    // Minimum size check: 128 (catalog) + 8 (lead-in) + 259 (flags+reserved) + 1 (track count) = 396 bytes
+    // But we need at least one track, so minimum is actually larger
+    static constexpr size_t MIN_CUESHEET_HEADER_SIZE = 396;
+    
+    if (block.length < MIN_CUESHEET_HEADER_SIZE) {
+        FLAC_DEBUG("[parseCuesheet] CUESHEET block too small: ", block.length, 
+                   " bytes (minimum ", MIN_CUESHEET_HEADER_SIZE, " bytes)");
+        skipMetadataBlock_unlocked(block);
+        return false;
+    }
+    
+    // Track remaining bytes
+    uint64_t bytes_remaining = block.length;
+    
+    // ========================================================================
+    // Requirement 16.1: Read u(128*8) media catalog number
+    // RFC 9639 Section 8.7: "Media catalog number in ASCII printable characters 0x20-0x7E"
+    // ========================================================================
+    
+    uint8_t catalog_data[128];
+    if (m_handler->read(catalog_data, 1, 128) != 128) {
+        FLAC_DEBUG("[parseCuesheet] Failed to read media catalog number");
+        return false;
+    }
+    bytes_remaining -= 128;
+    
+    // Copy to cuesheet structure (null-terminate)
+    std::memcpy(m_cuesheet.media_catalog_number, catalog_data, 128);
+    m_cuesheet.media_catalog_number[128] = '\0';
+    
+    // Log catalog number (trim trailing nulls for display)
+    std::string catalog_str;
+    for (int i = 0; i < 128 && catalog_data[i] != 0; ++i) {
+        if (catalog_data[i] >= 0x20 && catalog_data[i] <= 0x7E) {
+            catalog_str += static_cast<char>(catalog_data[i]);
+        }
+    }
+    if (!catalog_str.empty()) {
+        FLAC_DEBUG("[parseCuesheet] Media catalog number: '", catalog_str, "'");
+    } else {
+        FLAC_DEBUG("[parseCuesheet] Media catalog number: (empty)");
+    }
+    
+    // ========================================================================
+    // Requirement 16.2: Read u(64) number of lead-in samples
+    // RFC 9639 Section 8.7: "Number of lead-in samples"
+    // ========================================================================
+    
+    uint8_t lead_in_data[8];
+    if (m_handler->read(lead_in_data, 1, 8) != 8) {
+        FLAC_DEBUG("[parseCuesheet] Failed to read lead-in samples");
+        return false;
+    }
+    bytes_remaining -= 8;
+    
+    // Big-endian u64 per RFC 9639 Section 5
+    m_cuesheet.lead_in_samples = (static_cast<uint64_t>(lead_in_data[0]) << 56) |
+                                  (static_cast<uint64_t>(lead_in_data[1]) << 48) |
+                                  (static_cast<uint64_t>(lead_in_data[2]) << 40) |
+                                  (static_cast<uint64_t>(lead_in_data[3]) << 32) |
+                                  (static_cast<uint64_t>(lead_in_data[4]) << 24) |
+                                  (static_cast<uint64_t>(lead_in_data[5]) << 16) |
+                                  (static_cast<uint64_t>(lead_in_data[6]) << 8) |
+                                  lead_in_data[7];
+    
+    FLAC_DEBUG("[parseCuesheet] Lead-in samples: ", m_cuesheet.lead_in_samples);
+    
+    // ========================================================================
+    // Requirement 16.3: Read u(1) CD-DA flag
+    // Requirement 16.4: Skip u(7+258*8) reserved bits
+    // RFC 9639 Section 8.7: "1 if the cuesheet corresponds to a CD-DA; else 0"
+    // Reserved bits: 7 + 258*8 = 2071 bits = 258.875 bytes, rounded to 259 bytes
+    // ========================================================================
+    
+    // Read the byte containing the CD-DA flag and first 7 reserved bits
+    uint8_t flags_and_reserved[259];
+    if (m_handler->read(flags_and_reserved, 1, 259) != 259) {
+        FLAC_DEBUG("[parseCuesheet] Failed to read CD-DA flag and reserved bits");
+        return false;
+    }
+    bytes_remaining -= 259;
+    
+    // CD-DA flag is bit 7 (MSB) of the first byte
+    m_cuesheet.is_cd_da = (flags_and_reserved[0] & 0x80) != 0;
+    
+    FLAC_DEBUG("[parseCuesheet] CD-DA flag: ", m_cuesheet.is_cd_da ? "true" : "false");
+    
+    // ========================================================================
+    // Requirement 16.5: Read u(8) number of tracks
+    // RFC 9639 Section 8.7: "Number of tracks in this cuesheet"
+    // ========================================================================
+    
+    uint8_t num_tracks;
+    if (m_handler->read(&num_tracks, 1, 1) != 1) {
+        FLAC_DEBUG("[parseCuesheet] Failed to read number of tracks");
+        return false;
+    }
+    bytes_remaining -= 1;
+    
+    FLAC_DEBUG("[parseCuesheet] Number of tracks: ", static_cast<int>(num_tracks));
+    
+    // ========================================================================
+    // Requirement 16.6: Validate track count is at least 1
+    // RFC 9639 Section 8.7: "The number of tracks MUST be at least 1"
+    // ========================================================================
+    
+    if (num_tracks < 1) {
+        FLAC_DEBUG("[parseCuesheet] REJECTED: Number of tracks (", static_cast<int>(num_tracks), 
+                   ") < 1 - invalid per RFC 9639 Section 8.7");
+        reportError("Format", "Invalid CUESHEET: number of tracks must be at least 1");
+        return false;
+    }
+    
+    // ========================================================================
+    // Requirement 16.7: Validate CD-DA track count is at most 100
+    // RFC 9639 Section 8.7: "For CD-DA, this number MUST be no more than 100"
+    // ========================================================================
+    
+    if (m_cuesheet.is_cd_da && num_tracks > 100) {
+        FLAC_DEBUG("[parseCuesheet] REJECTED: CD-DA track count (", static_cast<int>(num_tracks), 
+                   ") > 100 - invalid per RFC 9639 Section 8.7");
+        reportError("Format", "Invalid CD-DA CUESHEET: number of tracks must be at most 100");
+        return false;
+    }
+    
+    // ========================================================================
+    // Parse cuesheet tracks (RFC 9639 Section 8.7.1)
+    // ========================================================================
+    
+    m_cuesheet.tracks.reserve(num_tracks);
+    
+    for (uint8_t t = 0; t < num_tracks; ++t) {
+        FLACCuesheetTrack track;
+        
+        // Each track has a fixed header size:
+        // - Track offset: 8 bytes
+        // - Track number: 1 byte
+        // - Track ISRC: 12 bytes
+        // - Track type + pre-emphasis + reserved: (1 + 1 + 6 + 13*8) bits = 112 bits = 14 bytes
+        // - Number of index points: 1 byte
+        // Total: 8 + 1 + 12 + 14 + 1 = 36 bytes per track header
+        static constexpr size_t TRACK_HEADER_SIZE = 36;
+        
+        if (bytes_remaining < TRACK_HEADER_SIZE) {
+            FLAC_DEBUG("[parseCuesheet] Insufficient data for track ", static_cast<int>(t), 
+                       " header (need ", TRACK_HEADER_SIZE, " bytes, have ", bytes_remaining, ")");
+            break;
+        }
+        
+        // Read track offset (u64, big-endian)
+        uint8_t track_data[36];
+        if (m_handler->read(track_data, 1, TRACK_HEADER_SIZE) != TRACK_HEADER_SIZE) {
+            FLAC_DEBUG("[parseCuesheet] Failed to read track ", static_cast<int>(t), " header");
+            break;
+        }
+        bytes_remaining -= TRACK_HEADER_SIZE;
+        
+        // Parse track offset (bytes 0-7)
+        track.offset = (static_cast<uint64_t>(track_data[0]) << 56) |
+                       (static_cast<uint64_t>(track_data[1]) << 48) |
+                       (static_cast<uint64_t>(track_data[2]) << 40) |
+                       (static_cast<uint64_t>(track_data[3]) << 32) |
+                       (static_cast<uint64_t>(track_data[4]) << 24) |
+                       (static_cast<uint64_t>(track_data[5]) << 16) |
+                       (static_cast<uint64_t>(track_data[6]) << 8) |
+                       track_data[7];
+        
+        // Parse track number (byte 8)
+        track.number = track_data[8];
+        
+        // Parse track ISRC (bytes 9-20)
+        std::memcpy(track.isrc, &track_data[9], 12);
+        track.isrc[12] = '\0';
+        
+        // Parse track type and pre-emphasis (byte 21)
+        // Bit 7: track type (0=audio, 1=non-audio)
+        // Bit 6: pre-emphasis flag
+        // Bits 0-5: reserved (part of the 6+13*8 reserved bits)
+        track.is_audio = (track_data[21] & 0x80) == 0;
+        track.pre_emphasis = (track_data[21] & 0x40) != 0;
+        
+        // Bytes 22-34: remaining reserved bits (13 bytes)
+        // Byte 35: number of index points
+        uint8_t num_index_points = track_data[35];
+        
+        FLAC_DEBUG("[parseCuesheet] Track ", static_cast<int>(t), ": number=", 
+                   static_cast<int>(track.number), ", offset=", track.offset,
+                   ", is_audio=", track.is_audio, ", pre_emphasis=", track.pre_emphasis,
+                   ", index_points=", static_cast<int>(num_index_points));
+        
+        // Parse index points (RFC 9639 Section 8.7.1.1)
+        // Each index point is 12 bytes:
+        // - Offset: 8 bytes
+        // - Index point number: 1 byte
+        // - Reserved: 3 bytes
+        static constexpr size_t INDEX_POINT_SIZE = 12;
+        
+        // Lead-out track must have zero index points
+        bool is_lead_out = track.isLeadOut();
+        
+        if (is_lead_out && num_index_points != 0) {
+            FLAC_DEBUG("[parseCuesheet] WARNING: Lead-out track has ", 
+                       static_cast<int>(num_index_points), " index points (should be 0)");
+        }
+        
+        track.index_points.reserve(num_index_points);
+        
+        for (uint8_t i = 0; i < num_index_points; ++i) {
+            if (bytes_remaining < INDEX_POINT_SIZE) {
+                FLAC_DEBUG("[parseCuesheet] Insufficient data for index point ", 
+                           static_cast<int>(i), " of track ", static_cast<int>(t));
+                break;
+            }
+            
+            uint8_t index_data[INDEX_POINT_SIZE];
+            if (m_handler->read(index_data, 1, INDEX_POINT_SIZE) != INDEX_POINT_SIZE) {
+                FLAC_DEBUG("[parseCuesheet] Failed to read index point ", 
+                           static_cast<int>(i), " of track ", static_cast<int>(t));
+                break;
+            }
+            bytes_remaining -= INDEX_POINT_SIZE;
+            
+            FLACCuesheetIndexPoint index_point;
+            
+            // Parse index point offset (bytes 0-7, big-endian)
+            index_point.offset = (static_cast<uint64_t>(index_data[0]) << 56) |
+                                 (static_cast<uint64_t>(index_data[1]) << 48) |
+                                 (static_cast<uint64_t>(index_data[2]) << 40) |
+                                 (static_cast<uint64_t>(index_data[3]) << 32) |
+                                 (static_cast<uint64_t>(index_data[4]) << 24) |
+                                 (static_cast<uint64_t>(index_data[5]) << 16) |
+                                 (static_cast<uint64_t>(index_data[6]) << 8) |
+                                 index_data[7];
+            
+            // Parse index point number (byte 8)
+            index_point.number = index_data[8];
+            
+            // Bytes 9-11: reserved (ignored)
+            
+            track.index_points.push_back(index_point);
+            
+            FLAC_DEBUG("[parseCuesheet]   Index point ", static_cast<int>(i), 
+                       ": number=", static_cast<int>(index_point.number),
+                       ", offset=", index_point.offset);
+        }
+        
+        m_cuesheet.tracks.push_back(std::move(track));
+    }
+    
+    // ========================================================================
+    // Requirement 16.8: Store track information for potential use
+    // ========================================================================
+    
+    FLAC_DEBUG("[parseCuesheet] Parsed ", m_cuesheet.tracks.size(), " tracks");
+    FLAC_DEBUG("[parseCuesheet] CUESHEET block parsed successfully");
+    
     return true;
 }
 

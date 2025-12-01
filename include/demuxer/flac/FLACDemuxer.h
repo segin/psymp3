@@ -105,6 +105,58 @@ struct FLACSeekPoint {
 };
 
 /**
+ * @brief FLAC cuesheet track index point per RFC 9639 Section 8.7.1.1
+ */
+struct FLACCuesheetIndexPoint {
+    uint64_t offset = 0;         ///< Offset in samples relative to track offset
+    uint8_t number = 0;          ///< Track index point number
+    
+    FLACCuesheetIndexPoint() = default;
+    
+    FLACCuesheetIndexPoint(uint64_t off, uint8_t num)
+        : offset(off), number(num) {}
+};
+
+/**
+ * @brief FLAC cuesheet track per RFC 9639 Section 8.7.1
+ */
+struct FLACCuesheetTrack {
+    uint64_t offset = 0;         ///< Track offset in samples from beginning of audio stream
+    uint8_t number = 0;          ///< Track number (1-99 for CD-DA, 170/255 for lead-out)
+    char isrc[13] = {0};         ///< Track ISRC (12 characters + null terminator)
+    bool is_audio = true;        ///< True if audio track, false if non-audio
+    bool pre_emphasis = false;   ///< True if pre-emphasis is applied
+    std::vector<FLACCuesheetIndexPoint> index_points;  ///< Track index points
+    
+    FLACCuesheetTrack() = default;
+    
+    bool isLeadOut() const {
+        return number == 170 || number == 255;
+    }
+};
+
+/**
+ * @brief FLAC cuesheet block data per RFC 9639 Section 8.7
+ */
+struct FLACCuesheet {
+    char media_catalog_number[129] = {0};  ///< Media catalog number (128 bytes + null terminator)
+    uint64_t lead_in_samples = 0;          ///< Number of lead-in samples
+    bool is_cd_da = false;                 ///< True if corresponds to CD-DA
+    std::vector<FLACCuesheetTrack> tracks; ///< Cuesheet tracks
+    
+    FLACCuesheet() = default;
+    
+    bool isValid() const {
+        // Requirement 16.6: Number of tracks must be at least 1
+        return !tracks.empty();
+    }
+    
+    size_t getTrackCount() const {
+        return tracks.size();
+    }
+};
+
+/**
  * @brief FLAC frame information for streaming
  */
 struct FLACFrame {
@@ -186,6 +238,7 @@ private:
     FLACStreamInfo m_streaminfo;                           ///< STREAMINFO block data
     std::vector<FLACSeekPoint> m_seektable;                ///< SEEKTABLE entries
     std::map<std::string, std::string> m_vorbis_comments;  ///< Vorbis comments metadata
+    FLACCuesheet m_cuesheet;                               ///< CUESHEET block data
     
     // ========================================================================
     // Private unlocked implementations (assume locks are held)
@@ -210,6 +263,7 @@ private:
     bool parseVorbisCommentBlock_unlocked(const FLACMetadataBlock& block);
     bool parsePaddingBlock_unlocked(const FLACMetadataBlock& block);
     bool parseApplicationBlock_unlocked(const FLACMetadataBlock& block);
+    bool parseCuesheetBlock_unlocked(const FLACMetadataBlock& block);
     bool skipMetadataBlock_unlocked(const FLACMetadataBlock& block);
     
     bool findNextFrame_unlocked(FLACFrame& frame);
