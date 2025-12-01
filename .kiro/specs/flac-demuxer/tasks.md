@@ -160,7 +160,7 @@
     - Handle URI format when media type is arrow
     - _Requirements: 17.1-17.12_
 
-- [ ] 12. Checkpoint
+- [x] 12. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
