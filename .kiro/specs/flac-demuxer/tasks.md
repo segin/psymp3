@@ -167,23 +167,23 @@
 
 ## Phase 4: Frame Header Parsing
 
-- [ ] 13. Implement Frame Sync Code Detection (RFC 9639 Section 9.1)
-  - [ ] 13.1 Implement findNextFrame method
+- [x] 13. Implement Frame Sync Code Detection (RFC 9639 Section 9.1)
+  - [x] 13.1 Implement findNextFrame method
     - Search for 15-bit sync pattern 0b111111111111100
     - Verify byte alignment of sync code
     - Limit search scope to 512 bytes maximum
     - _Requirements: 4.1, 4.2, 21.3_
-  - [ ] 13.2 Implement blocking strategy validation
+  - [x] 13.2 Implement blocking strategy validation
     - Extract blocking strategy bit where 0 is fixed and 1 is variable
     - Distinguish 0xFFF8 fixed from 0xFFF9 variable
     - Reject if blocking strategy changes mid-stream
     - _Requirements: 4.3-4.8_
 
-- [ ] 13.3 Write property test for frame sync code detection
+- [x] 13.3 Write property test for frame sync code detection
   - **Property 6: Frame Sync Code Detection**
   - **Validates: Requirements 4.1, 4.2**
 
-- [ ] 13.4 Write property test for blocking strategy consistency
+- [x] 13.4 Write property test for blocking strategy consistency
   - **Property 7: Blocking Strategy Consistency**
   - **Validates: Requirements 4.8**
 

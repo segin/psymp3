@@ -1869,137 +1869,330 @@ bool FLACDemuxer::skipMetadataBlock_unlocked(const FLACMetadataBlock& block)
 // Frame Detection and Parsing (RFC 9639 Section 9)
 // ============================================================================
 
+/**
+ * @brief Find the next FLAC frame in the stream
+ * 
+ * Implements RFC 9639 Section 9.1 frame sync code detection:
+ * - Requirement 4.1: Search for 15-bit sync pattern 0b111111111111100
+ * - Requirement 4.2: Verify byte alignment of sync code
+ * - Requirement 21.3: Limit search scope to 512 bytes maximum
+ * 
+ * @param frame Output frame structure to populate
+ * @return true if a valid frame was found, false otherwise
+ */
 bool FLACDemuxer::findNextFrame_unlocked(FLACFrame& frame)
 {
-    // Search for frame sync code (RFC 9639 Section 9.1)
-    // Sync code is 15 bits: 0b111111111111100 (0xFFF8 or 0xFFF9)
+    FLAC_DEBUG("[findNextFrame] Searching for frame sync code (RFC 9639 Section 9.1)");
+    FLAC_DEBUG("[findNextFrame] Starting search at offset ", m_current_offset);
     
-    // Limit search to 512 bytes max per Requirement 21.3
+    // Requirement 21.3: Limit search scope to 512 bytes maximum
+    // This prevents excessive I/O operations when searching for frame boundaries
     static constexpr size_t MAX_SEARCH_BYTES = 512;
     
     uint8_t buffer[MAX_SEARCH_BYTES];
-    size_t search_start = m_current_offset;
+    uint64_t search_start = m_current_offset;
     
     // Seek to current position
     if (m_handler->seek(static_cast<off_t>(m_current_offset), SEEK_SET) != 0) {
+        FLAC_DEBUG("[findNextFrame] Failed to seek to offset ", m_current_offset);
         return false;
     }
     
     size_t bytes_read = m_handler->read(buffer, 1, MAX_SEARCH_BYTES);
     if (bytes_read < 2) {
+        FLAC_DEBUG("[findNextFrame] Insufficient data: only ", bytes_read, " bytes read");
         return false;
     }
     
-    // Search for sync pattern
+    FLAC_DEBUG("[findNextFrame] Read ", bytes_read, " bytes for sync search");
+    
+    // Requirement 4.1: Search for 15-bit sync pattern 0b111111111111100
+    // RFC 9639 Section 9.1: The sync code is 15 bits: 0b111111111111100
+    // This appears as:
+    //   - 0xFF 0xF8 for fixed block size (blocking strategy bit = 0)
+    //   - 0xFF 0xF9 for variable block size (blocking strategy bit = 1)
+    // 
+    // Requirement 4.2: Verify byte alignment of sync code
+    // The sync code must start on a byte boundary (which it does since we're
+    // searching byte-by-byte from the start of the buffer)
+    
     for (size_t i = 0; i < bytes_read - 1; ++i) {
-        // Check for 0xFF followed by 0xF8 (fixed) or 0xF9 (variable)
-        if (buffer[i] == 0xFF && (buffer[i + 1] == 0xF8 || buffer[i + 1] == 0xF9)) {
-            // Found potential sync code
-            frame.file_offset = search_start + i;
-            frame.variable_block_size = (buffer[i + 1] == 0xF9);
-            
-            // Parse frame header
-            if (parseFrameHeader_unlocked(frame, &buffer[i], bytes_read - i)) {
-                FLAC_DEBUG("Found frame at offset ", frame.file_offset);
-                return true;
+        // Check for first byte of sync pattern (0xFF)
+        if (buffer[i] != 0xFF) {
+            continue;
+        }
+        
+        // Check for second byte: 0xF8 (fixed) or 0xF9 (variable)
+        // RFC 9639 Section 9.1: The 15-bit sync code is followed by a 1-bit
+        // blocking strategy flag:
+        //   - 0 = fixed block size (0xFFF8)
+        //   - 1 = variable block size (0xFFF9)
+        uint8_t second_byte = buffer[i + 1];
+        
+        if (second_byte != 0xF8 && second_byte != 0xF9) {
+            continue;
+        }
+        
+        // Found potential sync code at byte-aligned position
+        uint64_t frame_offset = search_start + i;
+        bool is_variable_block_size = (second_byte == 0xF9);
+        
+        FLAC_DEBUG("[findNextFrame] Potential sync code at offset ", frame_offset,
+                   " (", is_variable_block_size ? "variable" : "fixed", " block size)");
+        
+        // Requirement 4.3-4.7: Extract and validate blocking strategy
+        // Requirement 4.6: Fixed block size expects 0xFF 0xF8
+        // Requirement 4.7: Variable block size expects 0xFF 0xF9
+        
+        // Requirement 4.8: Reject if blocking strategy changes mid-stream
+        // RFC 9639 Section 9.1: "The blocking strategy MUST NOT change within a stream"
+        if (m_blocking_strategy_set) {
+            if (is_variable_block_size != m_variable_block_size) {
+                FLAC_DEBUG("[findNextFrame] REJECTED: Blocking strategy changed mid-stream!");
+                FLAC_DEBUG("[findNextFrame]   Expected: ", m_variable_block_size ? "variable (0xFFF9)" : "fixed (0xFFF8)");
+                FLAC_DEBUG("[findNextFrame]   Found: ", is_variable_block_size ? "variable (0xFFF9)" : "fixed (0xFFF8)");
+                // Skip this potential sync code and continue searching
+                // (it might be a false positive in the audio data)
+                continue;
             }
         }
+        
+        // Populate frame structure for header parsing
+        frame.file_offset = frame_offset;
+        frame.variable_block_size = is_variable_block_size;
+        
+        // Validate the frame header to confirm this is a real sync code
+        // (not just 0xFFF8/0xFFF9 appearing in audio data)
+        if (parseFrameHeader_unlocked(frame, &buffer[i], bytes_read - i)) {
+            // Valid frame found - update blocking strategy tracking
+            if (!m_blocking_strategy_set) {
+                m_blocking_strategy_set = true;
+                m_variable_block_size = is_variable_block_size;
+                FLAC_DEBUG("[findNextFrame] Blocking strategy set to: ", 
+                           m_variable_block_size ? "variable (0xFFF9)" : "fixed (0xFFF8)");
+            }
+            
+            FLAC_DEBUG("[findNextFrame] Valid frame found at offset ", frame.file_offset);
+            FLAC_DEBUG("[findNextFrame]   Block size: ", frame.block_size, " samples");
+            FLAC_DEBUG("[findNextFrame]   Sample rate: ", frame.sample_rate, " Hz");
+            FLAC_DEBUG("[findNextFrame]   Channels: ", static_cast<int>(frame.channels));
+            FLAC_DEBUG("[findNextFrame]   Bits per sample: ", static_cast<int>(frame.bits_per_sample));
+            
+            return true;
+        }
+        
+        // Header validation failed - this was a false sync code
+        FLAC_DEBUG("[findNextFrame] False sync code at offset ", frame_offset, " - continuing search");
     }
     
-    FLAC_DEBUG("No frame sync found in ", bytes_read, " bytes");
+    FLAC_DEBUG("[findNextFrame] No valid frame sync found in ", bytes_read, " bytes");
+    FLAC_DEBUG("[findNextFrame] Search limit (", MAX_SEARCH_BYTES, " bytes) reached per Requirement 21.3");
     return false;
 }
 
+/**
+ * @brief Parse and validate a FLAC frame header
+ * 
+ * Implements RFC 9639 Section 9.1 frame header parsing with validation
+ * of all forbidden and reserved patterns per RFC 9639 Table 1.
+ * 
+ * Frame Header Structure (RFC 9639 Section 9.1):
+ *   Byte 0-1: Sync code (15 bits) + Blocking strategy (1 bit)
+ *   Byte 2:   Block size bits (4) + Sample rate bits (4)
+ *   Byte 3:   Channel bits (4) + Bit depth bits (3) + Reserved (1)
+ *   Byte 4+:  Coded number (1-7 bytes, UTF-8-like encoding)
+ *   Optional: Uncommon block size (0, 1, or 2 bytes)
+ *   Optional: Uncommon sample rate (0, 1, or 2 bytes)
+ *   Final:    CRC-8 (1 byte)
+ * 
+ * @param frame Output frame structure to populate
+ * @param buffer Pointer to frame data starting at sync code
+ * @param size Number of bytes available in buffer
+ * @return true if header is valid, false otherwise
+ */
 bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buffer, size_t size)
 {
+    // Minimum frame header size: sync(2) + header(2) = 4 bytes
+    // (coded number and CRC-8 follow, but we validate basic structure first)
     if (size < 4) {
+        FLAC_DEBUG("[parseFrameHeader] Buffer too small: ", size, " bytes (minimum 4)");
         return false;
     }
     
-    // Byte 0-1: Sync code (already validated)
-    // Byte 2: Block size bits (4) + Sample rate bits (4)
-    // Byte 3: Channel bits (4) + Bit depth bits (3) + Reserved (1)
+    // Byte 0-1: Sync code (already validated in findNextFrame_unlocked)
+    // The sync code is 0xFFF8 (fixed) or 0xFFF9 (variable)
     
+    // Byte 2: Block size bits (4) + Sample rate bits (4)
+    // Requirement 5.1: Extract bits 4-7 of frame byte 2 for block size
     uint8_t block_size_bits = (buffer[2] >> 4) & 0x0F;
+    
+    // Requirement 6.1: Extract bits 0-3 of frame byte 2 for sample rate
     uint8_t sample_rate_bits = buffer[2] & 0x0F;
+    
+    // Byte 3: Channel bits (4) + Bit depth bits (3) + Reserved (1)
+    // Requirement 7.1: Extract bits 4-7 of frame byte 3 for channel assignment
     uint8_t channel_bits = (buffer[3] >> 4) & 0x0F;
+    
+    // Requirement 8.1: Extract bits 1-3 of frame byte 3 for bit depth
     uint8_t bit_depth_bits = (buffer[3] >> 1) & 0x07;
     
-    // RFC 9639 Table 1: Reserved block size pattern 0b0000
-    if (block_size_bits == 0) {
+    // Requirement 8.10, 8.11: Extract reserved bit (bit 0 of byte 3)
+    uint8_t reserved_bit = buffer[3] & 0x01;
+    
+    // ========================================================================
+    // Validate forbidden and reserved patterns (RFC 9639 Table 1)
+    // ========================================================================
+    
+    // Requirement 5.2: Reserved block size pattern 0b0000
+    // RFC 9639 Table 1: Block size bits 0b0000 is reserved
+    if (block_size_bits == 0x00) {
+        FLAC_DEBUG("[parseFrameHeader] REJECTED: Reserved block size pattern 0b0000");
         return false;
     }
     
-    // RFC 9639 Table 1: Forbidden sample rate pattern 0b1111
+    // Requirement 6.17: Forbidden sample rate pattern 0b1111
+    // RFC 9639 Table 1: Sample rate bits 0b1111 is forbidden
     if (sample_rate_bits == 0x0F) {
+        FLAC_DEBUG("[parseFrameHeader] REJECTED: Forbidden sample rate pattern 0b1111");
         return false;
     }
     
-    // RFC 9639 Table 1: Reserved channel bits 0b1011-0b1111
+    // Requirement 7.7: Reserved channel bits 0b1011-0b1111
+    // RFC 9639 Table 1: Channel bits 0b1011-0b1111 are reserved
     if (channel_bits >= 0x0B) {
+        FLAC_DEBUG("[parseFrameHeader] REJECTED: Reserved channel bits 0b", 
+                   std::hex, static_cast<int>(channel_bits), std::dec);
         return false;
     }
     
-    // RFC 9639 Table 1: Reserved bit depth pattern 0b011
+    // Requirement 8.5: Reserved bit depth pattern 0b011
+    // RFC 9639 Table 1: Bit depth bits 0b011 is reserved
     if (bit_depth_bits == 0x03) {
+        FLAC_DEBUG("[parseFrameHeader] REJECTED: Reserved bit depth pattern 0b011");
         return false;
     }
     
-    // Parse block size (RFC 9639 Table 14)
+    // Requirement 8.10, 8.11: Reserved bit at bit 0 of byte 3 must be 0
+    // RFC 9639 Section 9.1.4: "A reserved bit. It MUST have value 0"
+    if (reserved_bit != 0) {
+        FLAC_DEBUG("[parseFrameHeader] WARNING: Reserved bit is non-zero (", 
+                   static_cast<int>(reserved_bit), ") - continuing per Requirement 8.11");
+        // Per Requirement 8.11: Log warning and continue processing
+    }
+    
+    // ========================================================================
+    // Parse block size (RFC 9639 Section 9.1.1, Table 14)
+    // Requirements 5.3-5.17
+    // ========================================================================
+    
     switch (block_size_bits) {
-        case 0x01: frame.block_size = 192; break;
-        case 0x02: frame.block_size = 576; break;
-        case 0x03: frame.block_size = 1152; break;
-        case 0x04: frame.block_size = 2304; break;
-        case 0x05: frame.block_size = 4608; break;
-        case 0x06: frame.block_size = 256; break;  // 8-bit uncommon - simplified
-        case 0x07: frame.block_size = 256; break;  // 16-bit uncommon - simplified
-        case 0x08: frame.block_size = 256; break;
-        case 0x09: frame.block_size = 512; break;
-        case 0x0A: frame.block_size = 1024; break;
-        case 0x0B: frame.block_size = 2048; break;
-        case 0x0C: frame.block_size = 4096; break;
-        case 0x0D: frame.block_size = 8192; break;
-        case 0x0E: frame.block_size = 16384; break;
-        case 0x0F: frame.block_size = 32768; break;
-        default: frame.block_size = m_streaminfo.max_block_size; break;
+        case 0x01: frame.block_size = 192; break;    // Requirement 5.3
+        case 0x02: frame.block_size = 576; break;    // Requirement 5.4
+        case 0x03: frame.block_size = 1152; break;   // Requirement 5.5
+        case 0x04: frame.block_size = 2304; break;   // Requirement 5.6
+        case 0x05: frame.block_size = 4608; break;   // Requirement 5.7
+        case 0x06:                                    // Requirement 5.8: 8-bit uncommon
+            // For now, use STREAMINFO max_block_size as we don't parse the extra byte
+            frame.block_size = m_streaminfo.max_block_size > 0 ? m_streaminfo.max_block_size : 4096;
+            break;
+        case 0x07:                                    // Requirement 5.9: 16-bit uncommon
+            // For now, use STREAMINFO max_block_size as we don't parse the extra bytes
+            frame.block_size = m_streaminfo.max_block_size > 0 ? m_streaminfo.max_block_size : 4096;
+            break;
+        case 0x08: frame.block_size = 256; break;    // Requirement 5.10
+        case 0x09: frame.block_size = 512; break;    // Requirement 5.11
+        case 0x0A: frame.block_size = 1024; break;   // Requirement 5.12
+        case 0x0B: frame.block_size = 2048; break;   // Requirement 5.13
+        case 0x0C: frame.block_size = 4096; break;   // Requirement 5.14
+        case 0x0D: frame.block_size = 8192; break;   // Requirement 5.15
+        case 0x0E: frame.block_size = 16384; break;  // Requirement 5.16
+        case 0x0F: frame.block_size = 32768; break;  // Requirement 5.17
+        default:
+            // Should not reach here due to 0b0000 check above
+            frame.block_size = m_streaminfo.max_block_size > 0 ? m_streaminfo.max_block_size : 4096;
+            break;
     }
     
-    // Parse sample rate
-    if (sample_rate_bits == 0x00) {
-        frame.sample_rate = m_streaminfo.sample_rate;
-    } else {
-        // Use lookup table for common rates
-        static const uint32_t sample_rates[] = {
-            0, 88200, 176400, 192000, 8000, 16000, 22050, 24000,
-            32000, 44100, 48000, 96000, 0, 0, 0, 0
-        };
-        frame.sample_rate = sample_rates[sample_rate_bits];
-        if (frame.sample_rate == 0) {
+    // ========================================================================
+    // Parse sample rate (RFC 9639 Section 9.1.2)
+    // Requirements 6.2-6.16
+    // ========================================================================
+    
+    switch (sample_rate_bits) {
+        case 0x00:                                    // Requirement 6.2: Get from STREAMINFO
             frame.sample_rate = m_streaminfo.sample_rate;
-        }
+            break;
+        case 0x01: frame.sample_rate = 88200; break;  // Requirement 6.3
+        case 0x02: frame.sample_rate = 176400; break; // Requirement 6.4
+        case 0x03: frame.sample_rate = 192000; break; // Requirement 6.5
+        case 0x04: frame.sample_rate = 8000; break;   // Requirement 6.6
+        case 0x05: frame.sample_rate = 16000; break;  // Requirement 6.7
+        case 0x06: frame.sample_rate = 22050; break;  // Requirement 6.8
+        case 0x07: frame.sample_rate = 24000; break;  // Requirement 6.9
+        case 0x08: frame.sample_rate = 32000; break;  // Requirement 6.10
+        case 0x09: frame.sample_rate = 44100; break;  // Requirement 6.11
+        case 0x0A: frame.sample_rate = 48000; break;  // Requirement 6.12
+        case 0x0B: frame.sample_rate = 96000; break;  // Requirement 6.13
+        case 0x0C:                                    // Requirement 6.14: 8-bit uncommon (kHz)
+        case 0x0D:                                    // Requirement 6.15: 16-bit uncommon (Hz)
+        case 0x0E:                                    // Requirement 6.16: 16-bit uncommon (tens of Hz)
+            // For now, use STREAMINFO sample rate as we don't parse the extra bytes
+            frame.sample_rate = m_streaminfo.sample_rate;
+            break;
+        // 0x0F is forbidden and already rejected above
+        default:
+            frame.sample_rate = m_streaminfo.sample_rate;
+            break;
     }
     
-    // Parse channels
+    // ========================================================================
+    // Parse channel assignment (RFC 9639 Section 9.1.3)
+    // Requirements 7.2-7.6
+    // ========================================================================
+    
     if (channel_bits <= 0x07) {
+        // Requirement 7.2: Independent channels (1-8)
+        // Requirement 7.3: Mode is independent
         frame.channels = channel_bits + 1;
-    } else {
-        frame.channels = 2;  // Stereo modes (left-side, right-side, mid-side)
+    } else if (channel_bits == 0x08) {
+        // Requirement 7.4: Left-side stereo
+        frame.channels = 2;
+    } else if (channel_bits == 0x09) {
+        // Requirement 7.5: Right-side stereo
+        frame.channels = 2;
+    } else if (channel_bits == 0x0A) {
+        // Requirement 7.6: Mid-side stereo
+        frame.channels = 2;
     }
+    // 0x0B-0x0F are reserved and already rejected above
     
-    // Parse bit depth
-    if (bit_depth_bits == 0x00) {
-        frame.bits_per_sample = m_streaminfo.bits_per_sample;
-    } else {
-        static const uint8_t bit_depths[] = {0, 8, 12, 0, 16, 20, 24, 32};
-        frame.bits_per_sample = bit_depths[bit_depth_bits];
-        if (frame.bits_per_sample == 0) {
+    // ========================================================================
+    // Parse bit depth (RFC 9639 Section 9.1.4)
+    // Requirements 8.2-8.9
+    // ========================================================================
+    
+    switch (bit_depth_bits) {
+        case 0x00:                                    // Requirement 8.2: Get from STREAMINFO
             frame.bits_per_sample = m_streaminfo.bits_per_sample;
-        }
+            break;
+        case 0x01: frame.bits_per_sample = 8; break;  // Requirement 8.3
+        case 0x02: frame.bits_per_sample = 12; break; // Requirement 8.4
+        // 0x03 is reserved and already rejected above
+        case 0x04: frame.bits_per_sample = 16; break; // Requirement 8.6
+        case 0x05: frame.bits_per_sample = 20; break; // Requirement 8.7
+        case 0x06: frame.bits_per_sample = 24; break; // Requirement 8.8
+        case 0x07: frame.bits_per_sample = 32; break; // Requirement 8.9
+        default:
+            frame.bits_per_sample = m_streaminfo.bits_per_sample;
+            break;
     }
     
     // Set sample offset based on current position
     frame.sample_offset = m_current_sample;
+    
+    FLAC_DEBUG("[parseFrameHeader] Parsed header: block_size=", frame.block_size,
+               ", sample_rate=", frame.sample_rate, ", channels=", static_cast<int>(frame.channels),
+               ", bits_per_sample=", static_cast<int>(frame.bits_per_sample));
     
     return frame.isValid();
 }

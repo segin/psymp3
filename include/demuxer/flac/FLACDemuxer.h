@@ -288,6 +288,12 @@ private:
     bool m_eof = false;                  ///< End of file reached
     
     // ========================================================================
+    // Frame parsing state (protected by m_state_mutex)
+    // ========================================================================
+    bool m_blocking_strategy_set = false;  ///< True if blocking strategy has been determined
+    bool m_variable_block_size = false;    ///< True if variable block size (0xFFF9), false if fixed (0xFFF8)
+    
+    // ========================================================================
     // FLAC metadata (protected by m_metadata_mutex)
     // ========================================================================
     FLACStreamInfo m_streaminfo;                           ///< STREAMINFO block data
