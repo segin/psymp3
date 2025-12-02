@@ -334,15 +334,15 @@
 
 ## Phase 7: Seeking and Duration
 
-- [ ] 26. Implement Duration Calculation
-  - [ ] 26.1 Implement getDuration method
+- [x] 26. Implement Duration Calculation
+  - [x] 26.1 Implement getDuration method
     - Use total samples from STREAMINFO
     - Handle unknown duration when total samples is 0
     - Convert samples to milliseconds using sample rate
     - Use 64-bit integers for large files
     - _Requirements: 23.1, 23.2, 23.4, 23.8_
 
-- [ ] 26.2 Write property test for duration calculation
+- [x] 26.2 Write property test for duration calculation
   - **Property 20: Duration Calculation**
   - **Validates: Requirements 23.1, 23.4**
 
