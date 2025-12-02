@@ -448,8 +448,8 @@
     - Return timestamps in milliseconds consistently
     - _Requirements: 26.2, 26.4, 26.8_
 
-- [ ] 35. Implement Streamable Subset Detection (RFC 9639 Section 7)
-  - [ ] 35.1 Implement streamable subset validation
+- [x] 35. Implement Streamable Subset Detection (RFC 9639 Section 7)
+  - [x] 35.1 Implement streamable subset validation
     - Mark non-streamable if sample rate bits equal 0b0000
     - Mark non-streamable if bit depth bits equal 0b000
     - Mark non-streamable if max block size exceeds 16384

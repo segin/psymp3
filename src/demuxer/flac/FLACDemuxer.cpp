@@ -173,6 +173,11 @@ bool FLACDemuxer::parseContainer_unlocked()
         FLAC_DEBUG("[parseContainer] Successfully derived parameters from frame headers");
     }
     
+    // Validate streamable subset compliance (RFC 9639 Section 7)
+    // Requirements 20.1-20.5: Check streamable subset constraints
+    // This must be called after STREAMINFO and VORBIS_COMMENT are parsed
+    validateStreamableSubset_unlocked();
+    
     m_container_parsed = true;
     m_current_offset = m_audio_data_offset;
     updateCurrentSample_unlocked(0);
@@ -184,6 +189,7 @@ bool FLACDemuxer::parseContainer_unlocked()
     FLAC_DEBUG("  Bits per sample: ", static_cast<int>(m_streaminfo.bits_per_sample));
     FLAC_DEBUG("  Total samples: ", m_streaminfo.total_samples);
     FLAC_DEBUG("  Audio data offset: ", m_audio_data_offset);
+    FLAC_DEBUG("  Streamable subset: ", (m_is_streamable_subset ? "yes" : "no"));
     
     return true;
 }
@@ -1068,6 +1074,63 @@ bool FLACDemuxer::parseStreamInfoBlock_unlocked(const FLACMetadataBlock& block)
     FLAC_DEBUG("[parseStreamInfo] STREAMINFO parsed and validated successfully");
     return true;
 }
+
+
+// ============================================================================
+// Streamable Subset Validation (RFC 9639 Section 7)
+// ============================================================================
+
+void FLACDemuxer::validateStreamableSubset_unlocked()
+{
+    FLAC_DEBUG("[validateStreamableSubset] Validating streamable subset compliance (RFC 9639 Section 7)");
+    
+    // Start assuming stream is streamable
+    m_is_streamable_subset = true;
+    
+    // Requirement 20.3: Mark non-streamable if max block size exceeds 16384
+    // RFC 9639 Section 7: Streamable subset requires max block size <= 16384
+    if (m_streaminfo.max_block_size > 16384) {
+        FLAC_DEBUG("[validateStreamableSubset] Requirement 20.3: max_block_size (", 
+                   m_streaminfo.max_block_size, ") > 16384 - marking as non-streamable");
+        m_is_streamable_subset = false;
+    }
+    
+    // Requirement 20.4: Mark non-streamable if sample rate 48kHz or less and block size exceeds 4608
+    // RFC 9639 Section 7: For sample rates <= 48000 Hz, block size must be <= 4608
+    if (m_streaminfo.sample_rate > 0 && m_streaminfo.sample_rate <= 48000) {
+        if (m_streaminfo.max_block_size > 4608) {
+            FLAC_DEBUG("[validateStreamableSubset] Requirement 20.4: sample_rate (", 
+                       m_streaminfo.sample_rate, " Hz) <= 48000 and max_block_size (", 
+                       m_streaminfo.max_block_size, ") > 4608 - marking as non-streamable");
+            m_is_streamable_subset = false;
+        }
+    }
+    
+    // Requirement 20.5: Mark non-streamable if WAVEFORMATEXTENSIBLE_CHANNEL_MASK present
+    // RFC 9639 Section 7: WAVEFORMATEXTENSIBLE_CHANNEL_MASK indicates non-default channel ordering
+    auto it = m_vorbis_comments.find("WAVEFORMATEXTENSIBLE_CHANNEL_MASK");
+    if (it != m_vorbis_comments.end()) {
+        FLAC_DEBUG("[validateStreamableSubset] Requirement 20.5: WAVEFORMATEXTENSIBLE_CHANNEL_MASK present ('", 
+                   it->second, "') - marking as non-streamable");
+        m_is_streamable_subset = false;
+    }
+    
+    // Note: Requirements 20.1 and 20.2 (sample rate bits 0b0000 and bit depth bits 0b000)
+    // are checked during frame header parsing in parseFrameHeader_unlocked().
+    // These indicate that the frame relies on STREAMINFO for sample rate/bit depth,
+    // which violates the streamable subset requirement.
+    // The m_is_streamable_subset flag may be updated during frame parsing if these
+    // patterns are encountered.
+    
+    if (m_is_streamable_subset) {
+        FLAC_DEBUG("[validateStreamableSubset] Stream conforms to streamable subset");
+    } else {
+        FLAC_DEBUG("[validateStreamableSubset] Stream does NOT conform to streamable subset");
+        FLAC_DEBUG("[validateStreamableSubset] Note: Non-streamable streams are still playable, "
+                   "but may not be suitable for streaming without seeking capability");
+    }
+}
+
 
 // ============================================================================
 // SEEKTABLE Block Parsing (RFC 9639 Section 8.5)
@@ -2884,10 +2947,15 @@ bool FLACDemuxer::parseSampleRateBits_unlocked(uint8_t bits, const uint8_t* buff
     switch (bits) {
         // Requirement 6.2: 0b0000 = Get from STREAMINFO
         // RFC 9639 Section 9.1.2: "Get sample rate from STREAMINFO metadata block"
-        // Note: This makes the stream non-streamable subset compliant
+        // Requirement 20.1: Mark stream as non-streamable if sample rate bits equal 0b0000
         case 0x00:
             sample_rate = m_streaminfo.sample_rate;
             FLAC_DEBUG("[parseSampleRateBits] Sample rate from STREAMINFO: ", sample_rate, " Hz (0b0000)");
+            // Requirement 20.1: This violates streamable subset
+            if (m_is_streamable_subset) {
+                FLAC_DEBUG("[parseSampleRateBits] Requirement 20.1: sample rate bits 0b0000 - marking as non-streamable");
+                m_is_streamable_subset = false;
+            }
             break;
             
         // Requirement 6.3: 0b0001 = 88200 Hz
@@ -3181,11 +3249,16 @@ bool FLACDemuxer::parseBitDepthBits_unlocked(uint8_t bits, uint8_t reserved_bit,
     switch (bits) {
         // Requirement 8.2: 0b000 = Get from STREAMINFO
         // RFC 9639 Section 9.1.4: "Get sample size in bits from STREAMINFO metadata block"
-        // Note: This makes the stream non-streamable subset compliant
+        // Requirement 20.2: Mark stream as non-streamable if bit depth bits equal 0b000
         case 0x00:
             bit_depth = m_streaminfo.bits_per_sample;
             FLAC_DEBUG("[parseBitDepthBits] Bit depth from STREAMINFO: ", 
                        static_cast<int>(bit_depth), " bits (0b000)");
+            // Requirement 20.2: This violates streamable subset
+            if (m_is_streamable_subset) {
+                FLAC_DEBUG("[parseBitDepthBits] Requirement 20.2: bit depth bits 0b000 - marking as non-streamable");
+                m_is_streamable_subset = false;
+            }
             break;
             
         // Requirement 8.3: 0b001 = 8 bits per sample

@@ -340,6 +340,12 @@ private:
     bool m_variable_block_size = false;    ///< True if variable block size (0xFFF9), false if fixed (0xFFF8)
     
     // ========================================================================
+    // Streamable Subset Compliance (RFC 9639 Section 7)
+    // Requirements 20.1-20.5: Track streamable subset violations
+    // ========================================================================
+    bool m_is_streamable_subset = true;    ///< True if stream conforms to streamable subset
+    
+    // ========================================================================
     // FLAC metadata (protected by m_metadata_mutex)
     // ========================================================================
     FLACStreamInfo m_streaminfo;                           ///< STREAMINFO block data
@@ -381,6 +387,24 @@ private:
     bool parseCuesheetBlock_unlocked(const FLACMetadataBlock& block);
     bool parsePictureBlock_unlocked(const FLACMetadataBlock& block);
     bool skipMetadataBlock_unlocked(const FLACMetadataBlock& block);
+    
+    /**
+     * @brief Validate streamable subset compliance per RFC 9639 Section 7
+     * 
+     * Implements Requirements 20.1-20.5:
+     * - Mark non-streamable if sample rate bits equal 0b0000 (get from STREAMINFO)
+     * - Mark non-streamable if bit depth bits equal 0b000 (get from STREAMINFO)
+     * - Mark non-streamable if max block size exceeds 16384
+     * - Mark non-streamable if sample rate 48kHz or less and block size exceeds 4608
+     * - Mark non-streamable if WAVEFORMATEXTENSIBLE_CHANNEL_MASK present
+     * 
+     * This method should be called after parsing STREAMINFO and VORBIS_COMMENT blocks.
+     * The streamable subset ensures streams can be decoded without seeking.
+     * 
+     * @note This method only logs warnings and sets m_is_streamable_subset flag.
+     *       Non-streamable streams are still playable, just not suitable for streaming.
+     */
+    void validateStreamableSubset_unlocked();
     
     bool findNextFrame_unlocked(FLACFrame& frame);
     bool parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buffer, size_t size);
