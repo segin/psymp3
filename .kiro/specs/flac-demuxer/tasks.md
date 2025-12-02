@@ -387,7 +387,7 @@
   - **Property 21: Error Recovery - Sync Resynchronization**
   - **Validates: Requirements 24.4**
 
-- [ ] 30. Checkpoint
+- [x] 30. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
