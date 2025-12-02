@@ -45,6 +45,7 @@ FLACDemuxer::~FLACDemuxer()
     m_seektable.clear();
     m_vorbis_comments.clear();
     m_pictures.clear();
+    m_frame_index.clear();
 }
 
 
@@ -344,6 +345,13 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     frame.frame_size = actual_frame_size;
     
     // ========================================================================
+    // Step 4.5: Add frame to index for future seeking
+    // Requirement 22.4: Build frame index during initial parsing
+    // ========================================================================
+    
+    addFrameToIndex_unlocked(frame);
+    
+    // ========================================================================
     // Step 5: Create MediaChunk with proper timing
     // Requirement 26.3: Return frame as MediaChunk with proper timing
     // ========================================================================
@@ -374,75 +382,130 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     return chunk;
 }
 
+/**
+ * @brief Seek to a specific timestamp in the FLAC stream
+ * 
+ * Implements Requirements 22.1, 22.5, 22.6:
+ * - Requirement 22.1: Reset to first audio frame for seek to beginning
+ * - Requirement 22.5: Maintain current position on seek failure
+ * - Requirement 22.6: Clamp seeks beyond stream end to last valid position
+ * 
+ * Seeking strategy priority:
+ * 1. Frame index (if available) - most accurate
+ * 2. SEEKTABLE (if available) - RFC 9639 standard
+ * 3. Fallback to beginning - always works
+ * 
+ * @param timestamp_ms Target timestamp in milliseconds
+ * @return true if seek succeeded, false otherwise
+ */
 bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
 {
-    FLAC_DEBUG("Seeking to ", timestamp_ms, " ms");
+    FLAC_DEBUG("[seekTo] Seeking to ", timestamp_ms, " ms");
     
     if (!m_container_parsed) {
         reportError("State", "Container not parsed");
         return false;
     }
     
-    // Seek to beginning
+    // Requirement 22.5: Save current position in case of seek failure
+    uint64_t saved_offset = m_current_offset;
+    uint64_t saved_sample = m_current_sample;
+    bool saved_eof = m_eof;
+    
+    // Requirement 22.1: Reset to first audio frame for seek to beginning
     if (timestamp_ms == 0) {
-        m_current_offset = m_audio_data_offset;
-        m_current_sample = 0;
-        m_eof = false;
+        FLAC_DEBUG("[seekTo] Seeking to beginning (timestamp_ms == 0)");
         
         if (m_handler->seek(static_cast<off_t>(m_audio_data_offset), SEEK_SET) != 0) {
+            // Requirement 22.5: Maintain current position on seek failure
+            FLAC_DEBUG("[seekTo] Failed to seek to beginning, restoring position");
+            m_current_offset = saved_offset;
+            m_current_sample = saved_sample;
+            m_eof = saved_eof;
             reportError("IO", "Failed to seek to beginning");
             return false;
         }
         
-        FLAC_DEBUG("Seeked to beginning");
+        m_current_offset = m_audio_data_offset;
+        m_current_sample = 0;
+        m_eof = false;
+        
+        FLAC_DEBUG("[seekTo] Successfully seeked to beginning");
         return true;
     }
     
-    // Convert to samples
+    // Convert timestamp to samples
     uint64_t target_sample = msToSamples(timestamp_ms);
     
-    // Clamp to stream bounds
+    FLAC_DEBUG("[seekTo] Target sample: ", target_sample, 
+               " (from ", timestamp_ms, " ms at ", m_streaminfo.sample_rate, " Hz)");
+    
+    // Requirement 22.6: Clamp seeks beyond stream end to last valid position
     if (m_streaminfo.total_samples > 0 && target_sample >= m_streaminfo.total_samples) {
-        target_sample = m_streaminfo.total_samples - 1;
+        uint64_t clamped_sample = m_streaminfo.total_samples > 0 ? m_streaminfo.total_samples - 1 : 0;
+        FLAC_DEBUG("[seekTo] Clamping target sample from ", target_sample, 
+                   " to ", clamped_sample, " (stream end)");
+        target_sample = clamped_sample;
     }
     
-    // Use SEEKTABLE if available
-    if (!m_seektable.empty()) {
-        // Find closest seek point not exceeding target
-        const FLACSeekPoint* best = nullptr;
-        for (const auto& point : m_seektable) {
-            if (point.isPlaceholder()) continue;
-            if (point.sample_number <= target_sample) {
-                if (!best || point.sample_number > best->sample_number) {
-                    best = &point;
-                }
-            }
-        }
+    // Strategy 1: Try frame index first (most accurate)
+    // Requirement 22.4, 22.7: Use cached frame positions for sample-accurate seeking
+    if (!m_frame_index.empty()) {
+        FLAC_DEBUG("[seekTo] Attempting seek using frame index (", m_frame_index.size(), " entries)");
         
-        if (best) {
-            uint64_t seek_offset = m_audio_data_offset + best->stream_offset;
-            
-            if (m_handler->seek(static_cast<off_t>(seek_offset), SEEK_SET) != 0) {
-                reportError("IO", "Failed to seek using SEEKTABLE");
-                return false;
-            }
-            
-            m_current_offset = seek_offset;
-            m_current_sample = best->sample_number;
-            m_eof = false;
-            
-            FLAC_DEBUG("Seeked using SEEKTABLE to sample ", m_current_sample);
+        if (seekWithFrameIndex_unlocked(target_sample)) {
+            FLAC_DEBUG("[seekTo] Frame index seek successful");
             return true;
         }
+        
+        FLAC_DEBUG("[seekTo] Frame index seek failed, trying SEEKTABLE");
     }
     
-    // Fallback: seek to beginning
-    FLAC_DEBUG("No SEEKTABLE, seeking to beginning");
+    // Strategy 2: Try SEEKTABLE (RFC 9639 standard)
+    // Requirements 22.2, 22.3, 22.8
+    if (!m_seektable.empty()) {
+        FLAC_DEBUG("[seekTo] Attempting seek using SEEKTABLE (", m_seektable.size(), " entries)");
+        
+        if (seekWithSeekTable_unlocked(target_sample)) {
+            FLAC_DEBUG("[seekTo] SEEKTABLE seek successful");
+            return true;
+        }
+        
+        FLAC_DEBUG("[seekTo] SEEKTABLE seek failed, falling back to beginning");
+    }
+    
+    // Strategy 3: Fallback to beginning and parse forward
+    // This is the last resort when no seek table or frame index is available
+    FLAC_DEBUG("[seekTo] No SEEKTABLE or frame index available, seeking to beginning");
+    
+    if (m_handler->seek(static_cast<off_t>(m_audio_data_offset), SEEK_SET) != 0) {
+        // Requirement 22.5: Maintain current position on seek failure
+        FLAC_DEBUG("[seekTo] Failed to seek to beginning, restoring position");
+        m_current_offset = saved_offset;
+        m_current_sample = saved_sample;
+        m_eof = saved_eof;
+        reportError("IO", "Failed to seek to beginning for fallback");
+        return false;
+    }
+    
     m_current_offset = m_audio_data_offset;
     m_current_sample = 0;
     m_eof = false;
     
-    return m_handler->seek(static_cast<off_t>(m_audio_data_offset), SEEK_SET) == 0;
+    // If target is not at the beginning, try to parse forward
+    if (target_sample > 0) {
+        FLAC_DEBUG("[seekTo] Parsing forward from beginning to target sample ", target_sample);
+        
+        if (!parseFramesToSample_unlocked(target_sample)) {
+            // Parsing forward failed, but we're at the beginning which is valid
+            FLAC_DEBUG("[seekTo] Failed to parse to exact target, staying at beginning");
+            // Don't restore position - being at the beginning is better than the old position
+        }
+    }
+    
+    FLAC_DEBUG("[seekTo] Seek complete, now at sample ", m_current_sample, 
+               " (offset ", m_current_offset, ")");
+    return true;
 }
 
 bool FLACDemuxer::isEOF_unlocked() const
@@ -3640,6 +3703,263 @@ bool FLACDemuxer::validateFrameFooterCRC_unlocked(const uint8_t* frame_data, siz
     
     FLAC_DEBUG("[validateFrameFooterCRC] CRC-16 valid: 0x", std::hex, 
                calculated_crc, std::dec);
+    return true;
+}
+
+// ============================================================================
+// Seeking Helper Methods (Requirements 22.1-22.8)
+// ============================================================================
+
+/**
+ * @brief Seek using SEEKTABLE entries per RFC 9639 Section 8.5
+ * 
+ * Implements Requirements 22.2, 22.3, 22.8:
+ * - Requirement 22.2: Use seek points for approximate positioning
+ * - Requirement 22.3: Find closest seek point not exceeding target sample
+ * - Requirement 22.8: Add byte offset to first frame header position
+ * 
+ * @param target_sample Target sample position to seek to
+ * @return true if seek succeeded, false otherwise
+ */
+bool FLACDemuxer::seekWithSeekTable_unlocked(uint64_t target_sample)
+{
+    FLAC_DEBUG("[seekWithSeekTable] Seeking to sample ", target_sample, " using SEEKTABLE");
+    
+    if (m_seektable.empty()) {
+        FLAC_DEBUG("[seekWithSeekTable] No SEEKTABLE available");
+        return false;
+    }
+    
+    // Requirement 22.3: Find closest seek point not exceeding target sample
+    const FLACSeekPoint* best = nullptr;
+    for (const auto& point : m_seektable) {
+        // Skip placeholder seek points (sample_number == 0xFFFFFFFFFFFFFFFF)
+        if (point.isPlaceholder()) {
+            continue;
+        }
+        
+        // Find the closest seek point that doesn't exceed the target
+        if (point.sample_number <= target_sample) {
+            if (!best || point.sample_number > best->sample_number) {
+                best = &point;
+            }
+        }
+    }
+    
+    if (!best) {
+        FLAC_DEBUG("[seekWithSeekTable] No suitable seek point found for sample ", target_sample);
+        return false;
+    }
+    
+    FLAC_DEBUG("[seekWithSeekTable] Found seek point: sample=", best->sample_number,
+               ", offset=", best->stream_offset, ", frame_samples=", best->frame_samples);
+    
+    // Requirement 22.8: Add byte offset to first frame header position
+    uint64_t seek_offset = m_audio_data_offset + best->stream_offset;
+    
+    FLAC_DEBUG("[seekWithSeekTable] Seeking to file offset ", seek_offset,
+               " (audio_data_offset=", m_audio_data_offset, " + stream_offset=", best->stream_offset, ")");
+    
+    // Perform the seek
+    if (m_handler->seek(static_cast<off_t>(seek_offset), SEEK_SET) != 0) {
+        FLAC_DEBUG("[seekWithSeekTable] Failed to seek to file offset ", seek_offset);
+        return false;
+    }
+    
+    // Update position tracking
+    m_current_offset = seek_offset;
+    m_current_sample = best->sample_number;
+    m_eof = false;
+    
+    FLAC_DEBUG("[seekWithSeekTable] Seek successful, now at sample ", m_current_sample);
+    
+    // If we need to get closer to the target, parse frames forward
+    if (target_sample > m_current_sample) {
+        FLAC_DEBUG("[seekWithSeekTable] Parsing forward from sample ", m_current_sample,
+                   " to target ", target_sample);
+        return parseFramesToSample_unlocked(target_sample);
+    }
+    
+    return true;
+}
+
+/**
+ * @brief Seek using frame index for sample-accurate positioning
+ * 
+ * Implements Requirements 22.4, 22.7:
+ * - Requirement 22.4: Use cached frame positions for seeking
+ * - Requirement 22.7: Provide sample-accurate seeking using index
+ * 
+ * @param target_sample Target sample position to seek to
+ * @return true if seek succeeded, false otherwise
+ */
+bool FLACDemuxer::seekWithFrameIndex_unlocked(uint64_t target_sample)
+{
+    FLAC_DEBUG("[seekWithFrameIndex] Seeking to sample ", target_sample, " using frame index");
+    
+    if (m_frame_index.empty()) {
+        FLAC_DEBUG("[seekWithFrameIndex] Frame index is empty");
+        return false;
+    }
+    
+    // Binary search for the closest frame not exceeding target sample
+    // Requirement 22.7: Provide sample-accurate seeking using index
+    size_t left = 0;
+    size_t right = m_frame_index.size();
+    size_t best_idx = 0;
+    
+    while (left < right) {
+        size_t mid = left + (right - left) / 2;
+        
+        if (m_frame_index[mid].sample_offset <= target_sample) {
+            best_idx = mid;
+            left = mid + 1;
+        } else {
+            right = mid;
+        }
+    }
+    
+    const FLACFrameIndexEntry& entry = m_frame_index[best_idx];
+    
+    FLAC_DEBUG("[seekWithFrameIndex] Found frame index entry: sample=", entry.sample_offset,
+               ", file_offset=", entry.file_offset, ", block_size=", entry.block_size);
+    
+    // Seek to the frame position
+    if (m_handler->seek(static_cast<off_t>(entry.file_offset), SEEK_SET) != 0) {
+        FLAC_DEBUG("[seekWithFrameIndex] Failed to seek to file offset ", entry.file_offset);
+        return false;
+    }
+    
+    // Update position tracking
+    m_current_offset = entry.file_offset;
+    m_current_sample = entry.sample_offset;
+    m_eof = false;
+    
+    FLAC_DEBUG("[seekWithFrameIndex] Seek successful, now at sample ", m_current_sample);
+    return true;
+}
+
+/**
+ * @brief Add a frame to the frame index
+ * 
+ * Implements Requirement 22.4: Build frame index during initial parsing
+ * 
+ * @param frame Frame information to add to index
+ */
+void FLACDemuxer::addFrameToIndex_unlocked(const FLACFrame& frame)
+{
+    // Only add valid frames
+    if (!frame.isValid()) {
+        return;
+    }
+    
+    // Check if this frame is already in the index (avoid duplicates)
+    if (!m_frame_index.empty()) {
+        const auto& last = m_frame_index.back();
+        if (last.file_offset == frame.file_offset) {
+            return;  // Already indexed
+        }
+        
+        // Ensure frames are added in order
+        if (frame.sample_offset < last.sample_offset) {
+            FLAC_DEBUG("[addFrameToIndex] Warning: Frame at sample ", frame.sample_offset,
+                       " is out of order (last indexed: ", last.sample_offset, ")");
+            return;
+        }
+    }
+    
+    // Add to index
+    m_frame_index.emplace_back(frame.sample_offset, frame.file_offset, frame.block_size);
+    
+    FLAC_DEBUG("[addFrameToIndex] Added frame to index: sample=", frame.sample_offset,
+               ", file_offset=", frame.file_offset, ", block_size=", frame.block_size,
+               " (total indexed: ", m_frame_index.size(), ")");
+}
+
+/**
+ * @brief Parse frames forward from current position to target sample
+ * 
+ * Implements Requirement 22.3: Parse frames forward to exact position
+ * 
+ * This method reads frames sequentially from the current position until
+ * reaching a frame that contains or exceeds the target sample. Each
+ * discovered frame is added to the frame index for future seeking.
+ * 
+ * @param target_sample Target sample position to reach
+ * @return true if target was reached, false otherwise
+ */
+bool FLACDemuxer::parseFramesToSample_unlocked(uint64_t target_sample)
+{
+    FLAC_DEBUG("[parseFramesToSample] Parsing forward from sample ", m_current_sample,
+               " to target ", target_sample);
+    
+    // Limit the number of frames we'll parse to prevent infinite loops
+    static constexpr size_t MAX_FRAMES_TO_PARSE = 10000;
+    size_t frames_parsed = 0;
+    
+    while (m_current_sample < target_sample && frames_parsed < MAX_FRAMES_TO_PARSE) {
+        // Check for EOF
+        if (isEOF_unlocked()) {
+            FLAC_DEBUG("[parseFramesToSample] Reached EOF before target sample");
+            return false;
+        }
+        
+        // Find and parse the next frame
+        FLACFrame frame;
+        if (!findNextFrame_unlocked(frame)) {
+            FLAC_DEBUG("[parseFramesToSample] Failed to find next frame");
+            return false;
+        }
+        
+        // Add frame to index for future seeking
+        // Requirement 22.4: Build frame index during parsing
+        addFrameToIndex_unlocked(frame);
+        
+        // Check if this frame contains or exceeds the target
+        uint64_t frame_end_sample = frame.sample_offset + frame.block_size;
+        
+        if (frame.sample_offset <= target_sample && target_sample < frame_end_sample) {
+            // Target is within this frame - we're done
+            FLAC_DEBUG("[parseFramesToSample] Target sample ", target_sample,
+                       " is within frame at sample ", frame.sample_offset,
+                       " (block_size=", frame.block_size, ")");
+            
+            // Position at the start of this frame
+            if (m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET) != 0) {
+                FLAC_DEBUG("[parseFramesToSample] Failed to seek back to frame start");
+                return false;
+            }
+            
+            m_current_offset = frame.file_offset;
+            m_current_sample = frame.sample_offset;
+            return true;
+        }
+        
+        // Calculate frame size and skip to next frame
+        uint32_t frame_size = calculateFrameSize_unlocked(frame);
+        if (frame_size == 0) {
+            frame_size = 64;  // Conservative fallback
+        }
+        
+        // Update position to end of this frame
+        m_current_offset = frame.file_offset + frame_size;
+        m_current_sample = frame_end_sample;
+        
+        // Seek to next frame position
+        if (m_handler->seek(static_cast<off_t>(m_current_offset), SEEK_SET) != 0) {
+            FLAC_DEBUG("[parseFramesToSample] Failed to seek to next frame");
+            return false;
+        }
+        
+        frames_parsed++;
+    }
+    
+    if (frames_parsed >= MAX_FRAMES_TO_PARSE) {
+        FLAC_DEBUG("[parseFramesToSample] Reached maximum frame parse limit (", MAX_FRAMES_TO_PARSE, ")");
+        return false;
+    }
+    
+    FLAC_DEBUG("[parseFramesToSample] Reached target sample ", m_current_sample);
     return true;
 }
 

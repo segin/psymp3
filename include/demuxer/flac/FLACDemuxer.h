@@ -248,6 +248,28 @@ struct FLACFrame {
 };
 
 /**
+ * @brief FLAC frame index entry for sample-accurate seeking
+ * 
+ * Used to cache discovered frame positions during parsing for efficient seeking.
+ * Per Requirements 22.4, 22.7: Build frame index during initial parsing and
+ * provide sample-accurate seeking using index.
+ */
+struct FLACFrameIndexEntry {
+    uint64_t sample_offset = 0;      ///< Sample position of this frame
+    uint64_t file_offset = 0;        ///< File position where frame starts
+    uint32_t block_size = 0;         ///< Number of samples in this frame
+    
+    FLACFrameIndexEntry() = default;
+    
+    FLACFrameIndexEntry(uint64_t sample, uint64_t file, uint32_t size)
+        : sample_offset(sample), file_offset(file), block_size(size) {}
+    
+    bool isValid() const {
+        return block_size > 0;
+    }
+};
+
+/**
  * @brief FLAC container demuxer implementation per RFC 9639
  * 
  * This demuxer handles native FLAC files (.flac) by parsing the FLAC container
@@ -316,6 +338,13 @@ private:
     std::map<std::string, std::string> m_vorbis_comments;  ///< Vorbis comments metadata
     FLACCuesheet m_cuesheet;                               ///< CUESHEET block data
     std::vector<FLACPicture> m_pictures;                   ///< PICTURE block data (multiple allowed)
+    
+    // ========================================================================
+    // Frame index for sample-accurate seeking (protected by m_metadata_mutex)
+    // Requirements 22.4, 22.7: Build frame index during parsing for seeking
+    // ========================================================================
+    std::vector<FLACFrameIndexEntry> m_frame_index;        ///< Cached frame positions
+    bool m_frame_index_complete = false;                   ///< True if entire file has been indexed
     
     // ========================================================================
     // Private unlocked implementations (assume locks are held)
@@ -520,6 +549,54 @@ private:
     
     uint64_t samplesToMs(uint64_t samples) const;
     uint64_t msToSamples(uint64_t ms) const;
+    
+    // ========================================================================
+    // Seeking Helper Methods (Requirements 22.1-22.8)
+    // ========================================================================
+    
+    /**
+     * @brief Seek using SEEKTABLE entries per RFC 9639 Section 8.5
+     * 
+     * Implements Requirements 22.2, 22.3, 22.8:
+     * - Find closest seek point not exceeding target sample
+     * - Add byte offset to first frame header position
+     * - Parse frames forward to exact position
+     * 
+     * @param target_sample Target sample position to seek to
+     * @return true if seek succeeded, false otherwise
+     */
+    bool seekWithSeekTable_unlocked(uint64_t target_sample);
+    
+    /**
+     * @brief Seek using frame index for sample-accurate positioning
+     * 
+     * Implements Requirements 22.4, 22.7:
+     * - Use cached frame positions for seeking
+     * - Provide sample-accurate seeking using index
+     * 
+     * @param target_sample Target sample position to seek to
+     * @return true if seek succeeded, false otherwise
+     */
+    bool seekWithFrameIndex_unlocked(uint64_t target_sample);
+    
+    /**
+     * @brief Add a frame to the frame index
+     * 
+     * Implements Requirement 22.4: Build frame index during initial parsing
+     * 
+     * @param frame Frame information to add to index
+     */
+    void addFrameToIndex_unlocked(const FLACFrame& frame);
+    
+    /**
+     * @brief Parse frames forward from current position to target sample
+     * 
+     * Implements Requirement 22.3: Parse frames forward to exact position
+     * 
+     * @param target_sample Target sample position to reach
+     * @return true if target was reached, false otherwise
+     */
+    bool parseFramesToSample_unlocked(uint64_t target_sample);
     
     // ========================================================================
     // CRC-16 Validation (RFC 9639 Section 9.3)

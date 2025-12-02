@@ -346,18 +346,18 @@
   - **Property 20: Duration Calculation**
   - **Validates: Requirements 23.1, 23.4**
 
-- [ ] 27. Implement Seeking Operations
-  - [ ] 27.1 Implement seekTo method
+- [x] 27. Implement Seeking Operations
+  - [x] 27.1 Implement seekTo method
     - Reset to first audio frame for seek to beginning
     - Clamp seeks beyond stream end to last valid position
     - Maintain current position on seek failure
     - _Requirements: 22.1, 22.5, 22.6_
-  - [ ] 27.2 Implement SEEKTABLE-based seeking
+  - [x] 27.2 Implement SEEKTABLE-based seeking
     - Find closest seek point not exceeding target sample
     - Add byte offset to first frame header position
     - Parse frames forward to exact position
     - _Requirements: 22.2, 22.3, 22.8_
-  - [ ] 27.3 Implement frame indexing for seeking
+  - [x] 27.3 Implement frame indexing for seeking
     - Build frame index during initial parsing
     - Cache discovered frame positions
     - Provide sample-accurate seeking using index
