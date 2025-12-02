@@ -190,7 +190,10 @@ bool FLACDemuxer::parseContainer_unlocked()
 
 std::vector<StreamInfo> FLACDemuxer::getStreams_unlocked() const
 {
+    FLAC_DEBUG("[getStreams] Building StreamInfo for FLAC stream");
+    
     if (!m_container_parsed || !m_streaminfo.isValid()) {
+        FLAC_DEBUG("[getStreams] Container not parsed or STREAMINFO invalid");
         return {};
     }
     
@@ -204,6 +207,38 @@ std::vector<StreamInfo> FLACDemuxer::getStreams_unlocked() const
     stream.duration_samples = m_streaminfo.total_samples;
     stream.duration_ms = m_streaminfo.getDurationMs();
     
+    // Requirement 26.2, 26.8: Populate codec_data with FLAC-specific parameters
+    // Format: 8 bytes - 4 bytes min_block_size (big-endian), 4 bytes max_block_size (big-endian)
+    // This provides FLACCodec with block size information for proper decoding
+    stream.codec_data.resize(8);
+    // Min block size (big-endian)
+    stream.codec_data[0] = static_cast<uint8_t>((m_streaminfo.min_block_size >> 24) & 0xFF);
+    stream.codec_data[1] = static_cast<uint8_t>((m_streaminfo.min_block_size >> 16) & 0xFF);
+    stream.codec_data[2] = static_cast<uint8_t>((m_streaminfo.min_block_size >> 8) & 0xFF);
+    stream.codec_data[3] = static_cast<uint8_t>(m_streaminfo.min_block_size & 0xFF);
+    // Max block size (big-endian)
+    stream.codec_data[4] = static_cast<uint8_t>((m_streaminfo.max_block_size >> 24) & 0xFF);
+    stream.codec_data[5] = static_cast<uint8_t>((m_streaminfo.max_block_size >> 16) & 0xFF);
+    stream.codec_data[6] = static_cast<uint8_t>((m_streaminfo.max_block_size >> 8) & 0xFF);
+    stream.codec_data[7] = static_cast<uint8_t>(m_streaminfo.max_block_size & 0xFF);
+    
+    FLAC_DEBUG("[getStreams] codec_data populated with block sizes: min=", 
+               m_streaminfo.min_block_size, ", max=", m_streaminfo.max_block_size);
+    
+    // Requirement 26.4: Calculate bitrate if frame size information is available
+    // Bitrate = (average_frame_size * 8 * sample_rate) / average_block_size
+    if (m_streaminfo.min_frame_size > 0 && m_streaminfo.max_frame_size > 0 &&
+        m_streaminfo.min_block_size > 0 && m_streaminfo.sample_rate > 0) {
+        // Use average of min and max frame sizes for estimation
+        uint32_t avg_frame_size = (m_streaminfo.min_frame_size + m_streaminfo.max_frame_size) / 2;
+        uint32_t avg_block_size = (m_streaminfo.min_block_size + m_streaminfo.max_block_size) / 2;
+        if (avg_block_size > 0) {
+            // Calculate bitrate in bits per second
+            stream.bitrate = (static_cast<uint64_t>(avg_frame_size) * 8 * m_streaminfo.sample_rate) / avg_block_size;
+            FLAC_DEBUG("[getStreams] Estimated bitrate: ", stream.bitrate, " bps");
+        }
+    }
+    
     // Add metadata from Vorbis comments
     auto it = m_vorbis_comments.find("ARTIST");
     if (it != m_vorbis_comments.end()) stream.artist = it->second;
@@ -213,6 +248,11 @@ std::vector<StreamInfo> FLACDemuxer::getStreams_unlocked() const
     
     it = m_vorbis_comments.find("ALBUM");
     if (it != m_vorbis_comments.end()) stream.album = it->second;
+    
+    FLAC_DEBUG("[getStreams] StreamInfo complete: ", stream.sample_rate, "Hz, ",
+               static_cast<int>(stream.channels), "ch, ", 
+               static_cast<int>(stream.bits_per_sample), "bit, ",
+               stream.duration_ms, "ms");
     
     return {stream};
 }

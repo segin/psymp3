@@ -430,19 +430,19 @@
   - **Property 23: Debug Logging Format**
   - **Validates: Requirements 29.1**
 
-- [ ] 34. Implement Demuxer Architecture Integration
-  - [ ] 34.1 Complete IOHandler integration
+- [x] 34. Implement Demuxer Architecture Integration
+  - [x] 34.1 Complete IOHandler integration
     - Use IOHandler exclusively for all I/O
     - Support FileIOHandler and HTTPIOHandler
     - Handle 64-bit offsets for large files
     - Propagate I/O errors appropriately
     - _Requirements: 26.5, 26.7_
-  - [ ] 34.2 Complete MediaFactory integration
+  - [x] 34.2 Complete MediaFactory integration
     - Register for .flac extension
     - Register for audio/flac MIME type
     - Implement format detection based on fLaC marker
     - _Requirements: 26.1, 26.2_
-  - [ ] 34.3 Populate StreamInfo correctly
+  - [x] 34.3 Populate StreamInfo correctly
     - Include accurate FLAC parameters
     - Provide compatible frame data format for FLACCodec
     - Return timestamps in milliseconds consistently
