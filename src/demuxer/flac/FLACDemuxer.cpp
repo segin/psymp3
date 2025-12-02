@@ -175,8 +175,8 @@ bool FLACDemuxer::parseContainer_unlocked()
     
     m_container_parsed = true;
     m_current_offset = m_audio_data_offset;
-    m_current_sample = 0;
-    m_eof = false;
+    updateCurrentSample_unlocked(0);
+    updateEOF_unlocked(false);
     
     FLAC_DEBUG("Container parsing complete");
     FLAC_DEBUG("  Sample rate: ", m_streaminfo.sample_rate, " Hz");
@@ -280,7 +280,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         
         if (resync_attempts >= MAX_RESYNC_ATTEMPTS) {
             FLAC_DEBUG("[readChunk] Max resync attempts (", MAX_RESYNC_ATTEMPTS, ") reached");
-            m_eof = true;
+            updateEOF_unlocked(true);
             return MediaChunk{};
         }
         
@@ -289,7 +289,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         
         if (!resyncToNextFrame_unlocked()) {
             FLAC_DEBUG("[readChunk] Resync failed, no more frames found");
-            m_eof = true;
+            updateEOF_unlocked(true);
             return MediaChunk{};
         }
         
@@ -316,7 +316,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
             FLAC_DEBUG("[readChunk] Skipped corrupted frame, retrying");
             return readChunk_unlocked();  // Recursive retry (limited by resync attempts)
         }
-        m_eof = true;
+        updateEOF_unlocked(true);
         return MediaChunk{};
     }
     
@@ -339,7 +339,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         // If very little data available, we're likely at EOF
         if (available_bytes < 9) {  // Minimum frame size
             FLAC_DEBUG("[readChunk] Requirement 24.6: Insufficient data for frame, treating as EOF");
-            m_eof = true;
+            updateEOF_unlocked(true);
             return MediaChunk{};
         }
     }
@@ -375,7 +375,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     if (bytes_read == 0) {
         // Requirement 24.8: Handle EOF condition gracefully
         FLAC_DEBUG("[readChunk] Requirement 24.8: No data read - end of file");
-        m_eof = true;
+        updateEOF_unlocked(true);
         return MediaChunk{};
     }
     
@@ -438,7 +438,8 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     // ========================================================================
     
     // Update current sample position based on frame block size
-    m_current_sample = frame.sample_offset + frame.block_size;
+    // Requirement 28.6: Use atomic operations for sample counters
+    updateCurrentSample_unlocked(frame.sample_offset + frame.block_size);
     
     // Update current file offset to point to the next frame
     m_current_offset = frame.file_offset + actual_frame_size;
@@ -489,15 +490,15 @@ bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
             // Requirement 22.5: Maintain current position on seek failure
             FLAC_DEBUG("[seekTo] Failed to seek to beginning, restoring position");
             m_current_offset = saved_offset;
-            m_current_sample = saved_sample;
-            m_eof = saved_eof;
+            updateCurrentSample_unlocked(saved_sample);
+            updateEOF_unlocked(saved_eof);
             reportError("IO", "Failed to seek to beginning");
             return false;
         }
         
         m_current_offset = m_audio_data_offset;
-        m_current_sample = 0;
-        m_eof = false;
+        updateCurrentSample_unlocked(0);
+        updateEOF_unlocked(false);
         
         FLAC_DEBUG("[seekTo] Successfully seeked to beginning");
         return true;
@@ -551,15 +552,15 @@ bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
         // Requirement 22.5: Maintain current position on seek failure
         FLAC_DEBUG("[seekTo] Failed to seek to beginning, restoring position");
         m_current_offset = saved_offset;
-        m_current_sample = saved_sample;
-        m_eof = saved_eof;
+        updateCurrentSample_unlocked(saved_sample);
+        updateEOF_unlocked(saved_eof);
         reportError("IO", "Failed to seek to beginning for fallback");
         return false;
     }
     
     m_current_offset = m_audio_data_offset;
-    m_current_sample = 0;
-    m_eof = false;
+    updateCurrentSample_unlocked(0);
+    updateEOF_unlocked(false);
     
     // If target is not at the beginning, try to parse forward
     if (target_sample > 0) {
@@ -3914,9 +3915,10 @@ bool FLACDemuxer::seekWithSeekTable_unlocked(uint64_t target_sample)
     }
     
     // Update position tracking
+    // Requirement 28.6: Use atomic operations for sample counters
     m_current_offset = seek_offset;
-    m_current_sample = best->sample_number;
-    m_eof = false;
+    updateCurrentSample_unlocked(best->sample_number);
+    updateEOF_unlocked(false);
     
     FLAC_DEBUG("[seekWithSeekTable] Seek successful, now at sample ", m_current_sample);
     
@@ -3978,9 +3980,10 @@ bool FLACDemuxer::seekWithFrameIndex_unlocked(uint64_t target_sample)
     }
     
     // Update position tracking
+    // Requirement 28.6: Use atomic operations for sample counters
     m_current_offset = entry.file_offset;
-    m_current_sample = entry.sample_offset;
-    m_eof = false;
+    updateCurrentSample_unlocked(entry.sample_offset);
+    updateEOF_unlocked(false);
     
     FLAC_DEBUG("[seekWithFrameIndex] Seek successful, now at sample ", m_current_sample);
     return true;
@@ -4078,7 +4081,7 @@ bool FLACDemuxer::parseFramesToSample_unlocked(uint64_t target_sample)
             }
             
             m_current_offset = frame.file_offset;
-            m_current_sample = frame.sample_offset;
+            updateCurrentSample_unlocked(frame.sample_offset);
             return true;
         }
         
@@ -4089,8 +4092,9 @@ bool FLACDemuxer::parseFramesToSample_unlocked(uint64_t target_sample)
         }
         
         // Update position to end of this frame
+        // Requirement 28.6: Use atomic operations for sample counters
         m_current_offset = frame.file_offset + frame_size;
-        m_current_sample = frame_end_sample;
+        updateCurrentSample_unlocked(frame_end_sample);
         
         // Seek to next frame position
         if (m_handler->seek(static_cast<off_t>(m_current_offset), SEEK_SET) != 0) {
@@ -4208,7 +4212,8 @@ bool FLACDemuxer::deriveParametersFromFrameHeaders_unlocked()
         return false;
     }
     m_current_offset = frame.file_offset;
-    m_current_sample = frame.sample_offset;
+    // Requirement 28.6: Use atomic operations for sample counters
+    updateCurrentSample_unlocked(frame.sample_offset);
     
     FLAC_DEBUG("[deriveParametersFromFrameHeaders] Successfully derived parameters from frame header");
     return true;
@@ -4299,8 +4304,9 @@ bool FLACDemuxer::resyncToNextFrame_unlocked(size_t max_search_bytes)
                     FLAC_DEBUG("[resyncToNextFrame]   Sample rate: ", frame.sample_rate, " Hz");
                     
                     // Update position
+                    // Requirement 28.6: Use atomic operations for sample counters
                     m_current_offset = potential_frame_offset;
-                    m_current_sample = frame.sample_offset;
+                    updateCurrentSample_unlocked(frame.sample_offset);
                     
                     // Seek back to frame start for reading
                     m_handler->seek(static_cast<off_t>(potential_frame_offset), SEEK_SET);
@@ -4352,14 +4358,14 @@ bool FLACDemuxer::skipCorruptedFrame_unlocked(uint64_t frame_offset)
     // Check if we've gone past EOF
     if (m_file_size > 0 && m_current_offset >= m_file_size) {
         FLAC_DEBUG("[skipCorruptedFrame] Requirement 24.6: Reached EOF while skipping corrupted frame");
-        m_eof = true;
+        updateEOF_unlocked(true);
         return false;
     }
     
     // Try to resynchronize to the next valid frame
     if (!resyncToNextFrame_unlocked()) {
         FLAC_DEBUG("[skipCorruptedFrame] Failed to resynchronize after corrupted frame");
-        m_eof = true;
+        updateEOF_unlocked(true);
         return false;
     }
     
@@ -4392,7 +4398,9 @@ void FLACDemuxer::handleAllocationFailure_unlocked(const char* operation, size_t
     reportError("Memory", error_msg);
     
     // Set EOF to prevent further operations
-    m_eof = true;
+    // Requirement 28.7: Use atomic error state flags
+    updateEOF_unlocked(true);
+    updateError_unlocked(true);
 }
 
 /**
@@ -4413,7 +4421,7 @@ bool FLACDemuxer::handleIOError_unlocked(const char* operation)
     // Check if this is an EOF condition
     if (m_handler && m_handler->eof()) {
         FLAC_DEBUG("[handleIOError] EOF condition detected");
-        m_eof = true;
+        updateEOF_unlocked(true);
         return false;
     }
     
@@ -4424,6 +4432,94 @@ bool FLACDemuxer::handleIOError_unlocked(const char* operation)
     reportError("IO", error_msg);
     
     return false;
+}
+
+
+// ============================================================================
+// Atomic State Update Helpers (Requirements 28.6, 28.7)
+// ============================================================================
+
+/**
+ * @brief Update current sample position (both regular and atomic)
+ * 
+ * Implements Requirement 28.6: Use atomic operations for sample counters.
+ * Updates both m_current_sample and m_atomic_current_sample atomically.
+ * Must be called while holding m_state_mutex.
+ * 
+ * @param sample New sample position
+ */
+void FLACDemuxer::updateCurrentSample_unlocked(uint64_t sample)
+{
+    m_current_sample = sample;
+    m_atomic_current_sample.store(sample, std::memory_order_release);
+}
+
+/**
+ * @brief Update EOF state (both regular and atomic)
+ * 
+ * Implements Requirement 28.7: Use atomic error state flags.
+ * Updates both m_eof and m_atomic_eof atomically.
+ * Must be called while holding m_state_mutex.
+ * 
+ * @param eof New EOF state
+ */
+void FLACDemuxer::updateEOF_unlocked(bool eof)
+{
+    m_eof = eof;
+    m_atomic_eof.store(eof, std::memory_order_release);
+}
+
+/**
+ * @brief Update error state (atomic only)
+ * 
+ * Implements Requirement 28.7: Use atomic error state flags.
+ * Updates m_atomic_error for thread-safe error propagation.
+ * Must be called while holding m_state_mutex.
+ * 
+ * @param error New error state
+ */
+void FLACDemuxer::updateError_unlocked(bool error)
+{
+    m_atomic_error.store(error, std::memory_order_release);
+}
+
+/**
+ * @brief Get current sample position atomically (lock-free read)
+ * 
+ * Implements Requirement 28.6: Provides lock-free read access to
+ * the current sample position for quick queries.
+ * 
+ * @return Current sample position
+ */
+uint64_t FLACDemuxer::getAtomicCurrentSample() const
+{
+    return m_atomic_current_sample.load(std::memory_order_acquire);
+}
+
+/**
+ * @brief Get EOF state atomically (lock-free read)
+ * 
+ * Implements Requirement 28.7: Provides lock-free read access to
+ * the EOF state for quick queries.
+ * 
+ * @return Current EOF state
+ */
+bool FLACDemuxer::getAtomicEOF() const
+{
+    return m_atomic_eof.load(std::memory_order_acquire);
+}
+
+/**
+ * @brief Get error state atomically (lock-free read)
+ * 
+ * Implements Requirement 28.7: Provides lock-free read access to
+ * the error state for quick queries.
+ * 
+ * @return Current error state
+ */
+bool FLACDemuxer::getAtomicError() const
+{
+    return m_atomic_error.load(std::memory_order_acquire);
 }
 
 } // namespace FLAC

@@ -325,6 +325,15 @@ private:
     bool m_eof = false;                  ///< End of file reached
     
     // ========================================================================
+    // Atomic state for thread-safe quick access (Requirements 28.6, 28.7)
+    // These provide lock-free read access for frequently queried state.
+    // Writes are still protected by m_state_mutex for consistency.
+    // ========================================================================
+    mutable std::atomic<uint64_t> m_atomic_current_sample{0};  ///< Atomic sample counter (Req 28.6)
+    mutable std::atomic<bool> m_atomic_eof{false};             ///< Atomic EOF flag (Req 28.7)
+    mutable std::atomic<bool> m_atomic_error{false};           ///< Atomic error state flag (Req 28.7)
+    
+    // ========================================================================
     // Frame parsing state (protected by m_state_mutex)
     // ========================================================================
     bool m_blocking_strategy_set = false;  ///< True if blocking strategy has been determined
@@ -690,6 +699,73 @@ private:
      * @return false always (to indicate error to caller)
      */
     bool handleIOError_unlocked(const char* operation);
+    
+    // ========================================================================
+    // Atomic State Update Helpers (Requirements 28.6, 28.7)
+    // These methods update both the regular and atomic versions of state
+    // variables to maintain consistency. Must be called while holding
+    // m_state_mutex.
+    // ========================================================================
+    
+    /**
+     * @brief Update current sample position (both regular and atomic)
+     * 
+     * Implements Requirement 28.6: Use atomic operations for sample counters.
+     * Updates both m_current_sample and m_atomic_current_sample atomically.
+     * 
+     * @param sample New sample position
+     */
+    void updateCurrentSample_unlocked(uint64_t sample);
+    
+    /**
+     * @brief Update EOF state (both regular and atomic)
+     * 
+     * Implements Requirement 28.7: Use atomic error state flags.
+     * Updates both m_eof and m_atomic_eof atomically.
+     * 
+     * @param eof New EOF state
+     */
+    void updateEOF_unlocked(bool eof);
+    
+    /**
+     * @brief Update error state (atomic only)
+     * 
+     * Implements Requirement 28.7: Use atomic error state flags.
+     * Updates m_atomic_error for thread-safe error propagation.
+     * 
+     * @param error New error state
+     */
+    void updateError_unlocked(bool error);
+    
+    /**
+     * @brief Get current sample position atomically (lock-free read)
+     * 
+     * Implements Requirement 28.6: Provides lock-free read access to
+     * the current sample position for quick queries.
+     * 
+     * @return Current sample position
+     */
+    uint64_t getAtomicCurrentSample() const;
+    
+    /**
+     * @brief Get EOF state atomically (lock-free read)
+     * 
+     * Implements Requirement 28.7: Provides lock-free read access to
+     * the EOF state for quick queries.
+     * 
+     * @return Current EOF state
+     */
+    bool getAtomicEOF() const;
+    
+    /**
+     * @brief Get error state atomically (lock-free read)
+     * 
+     * Implements Requirement 28.7: Provides lock-free read access to
+     * the error state for quick queries.
+     * 
+     * @return Current error state
+     */
+    bool getAtomicError() const;
     
     // ========================================================================
     // CRC Lookup Tables (RFC 9639)

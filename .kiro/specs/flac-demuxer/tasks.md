@@ -394,23 +394,22 @@
 
 ## Phase 9: Thread Safety
 
-- [ ] 31. Implement Thread Safety
-  - [ ] 31.1 Implement public/private lock pattern
+- [x] 31. Implement Thread Safety
+  - [x] 31.1 Implement public/private lock pattern
     - Create public methods that acquire locks
     - Create private _unlocked implementations
     - Ensure internal calls use _unlocked versions
     - Document lock acquisition order
     - Use RAII lock guards for exception safety
     - _Requirements: 28.1-28.4_
-  - [ ] 31.2 Implement callback safety
+  - [x] 31.2 Implement callback safety
     - Release locks before callback invocation
     - Use atomic operations for sample counters
     - Use atomic error state flags
     - _Requirements: 28.5-28.7_
-
-- [ ] 31.3 Write property test for thread safety lock pattern
-  - **Property 22: Thread Safety - Lock Pattern**
-  - **Validates: Requirements 28.1, 28.2**
+  - [x] 31.3 Write property test for thread safety lock pattern
+    - **Property 22: Thread Safety - Lock Pattern**
+    - **Validates: Requirements 28.1, 28.2**
 
 - [ ] 32. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
