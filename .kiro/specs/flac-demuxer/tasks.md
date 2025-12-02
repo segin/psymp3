@@ -327,7 +327,7 @@
     - Provide accurate position reporting
     - _Requirements: 23.3, 23.6_
 
-- [ ] 25. Checkpoint
+- [x] 25. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
