@@ -13,8 +13,8 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace FLAC {
 
-// Debug logging macro with method identification token
-#define FLAC_DEBUG(...) Debug::log("flac", "[", __FUNCTION__, "] ", __VA_ARGS__)
+// Debug logging macro with method identification token and line number
+#define FLAC_DEBUG(...) Debug::log("flac", "[", __FUNCTION__, ":", __LINE__, "] ", __VA_ARGS__)
 
 // ============================================================================
 // Constructor and Destructor

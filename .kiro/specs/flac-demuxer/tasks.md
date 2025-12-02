@@ -418,15 +418,15 @@
 
 ## Phase 10: Integration and Debug Logging
 
-- [ ] 33. Implement Debug Logging
-  - [ ] 33.1 Add method identification tokens
+- [x] 33. Implement Debug Logging
+  - [x] 33.1 Add method identification tokens
     - Include tokens like parseStreamInfo and calculateFrameSize in all debug messages
     - Log frame size estimation method selection and results
     - Log frame boundary detection scope and outcomes
     - Log seeking strategy selection and outcomes
     - _Requirements: 29.1-29.8_
 
-- [ ] 33.2 Write property test for debug logging format
+- [x] 33.2 Write property test for debug logging format
   - **Property 23: Debug Logging Format**
   - **Validates: Requirements 29.1**
 
