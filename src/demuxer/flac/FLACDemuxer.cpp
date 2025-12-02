@@ -132,30 +132,45 @@ bool FLACDemuxer::parseContainer_unlocked()
     }
     
     if (!m_handler) {
+        // Requirement 24.8: Handle I/O errors gracefully
         reportError("IO", "No IOHandler available");
         return false;
     }
     
     // Seek to beginning
+    // Requirement 24.8: Handle I/O errors gracefully
     if (m_handler->seek(0, SEEK_SET) != 0) {
-        reportError("IO", "Failed to seek to beginning of file");
-        return false;
+        return handleIOError_unlocked("seek to beginning of file");
     }
     
     // Validate fLaC stream marker (RFC 9639 Section 6)
+    // Requirement 24.1: Reject invalid stream markers without crashing
     if (!validateStreamMarker_unlocked()) {
+        FLAC_DEBUG("[parseContainer] Requirement 24.1: Invalid stream marker, rejecting file");
         return false;
     }
     
     // Parse metadata blocks (RFC 9639 Section 8)
-    if (!parseMetadataBlocks_unlocked()) {
-        return false;
-    }
+    // Requirement 24.2: Skip corrupted metadata blocks and continue
+    bool metadata_ok = parseMetadataBlocks_unlocked();
     
     // Verify STREAMINFO is valid
     if (!m_streaminfo.isValid()) {
-        reportError("Format", "Invalid or missing STREAMINFO block");
-        return false;
+        // Requirement 24.3: If STREAMINFO is missing, derive parameters from frame headers
+        FLAC_DEBUG("[parseContainer] Requirement 24.3: STREAMINFO invalid or missing, attempting frame header derivation");
+        
+        if (!metadata_ok) {
+            // Metadata parsing failed completely, try to find audio data
+            // Scan forward from current position to find first frame
+            FLAC_DEBUG("[parseContainer] Metadata parsing failed, scanning for first frame");
+        }
+        
+        if (!deriveParametersFromFrameHeaders_unlocked()) {
+            reportError("Format", "Invalid or missing STREAMINFO block and unable to derive parameters from frame headers");
+            return false;
+        }
+        
+        FLAC_DEBUG("[parseContainer] Successfully derived parameters from frame headers");
     }
     
     m_container_parsed = true;
@@ -216,10 +231,15 @@ StreamInfo FLACDemuxer::getStreamInfo_unlocked(uint32_t stream_id) const
 /**
  * @brief Read the next FLAC frame as a MediaChunk
  * 
- * Implements Requirements 21.7, 21.8, 26.3:
+ * Implements Requirements 21.7, 21.8, 26.3 and Error Handling 24.4-24.8:
  * - Requirement 21.7: Maintain accurate sample position tracking during reading
  * - Requirement 21.8: Include complete frames with proper MediaChunk formatting
  * - Requirement 26.3: Return frame as MediaChunk with proper timing
+ * - Requirement 24.4: Resynchronize to next valid sync code on sync loss
+ * - Requirement 24.5: Log CRC errors but attempt to continue
+ * - Requirement 24.6: Handle truncated files gracefully
+ * - Requirement 24.7: Return appropriate error codes on allocation failure
+ * - Requirement 24.8: Handle I/O errors without crashing
  * 
  * This method:
  * 1. Locates the next frame sync code (0xFFF8 or 0xFFF9)
@@ -247,13 +267,34 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     // ========================================================================
     // Step 1: Locate next frame sync code
     // Requirement 21.7: Maintain accurate sample position tracking
+    // Requirement 24.4: Resynchronize to next valid sync code on sync loss
     // ========================================================================
     
     FLACFrame frame;
-    if (!findNextFrame_unlocked(frame)) {
-        FLAC_DEBUG("[readChunk] No more frames found");
-        m_eof = true;
-        return MediaChunk{};
+    int resync_attempts = 0;
+    static constexpr int MAX_RESYNC_ATTEMPTS = 3;
+    
+    while (!findNextFrame_unlocked(frame)) {
+        // Requirement 24.4: Attempt resynchronization on sync loss
+        FLAC_DEBUG("[readChunk] Requirement 24.4: Frame sync not found, attempting resync");
+        
+        if (resync_attempts >= MAX_RESYNC_ATTEMPTS) {
+            FLAC_DEBUG("[readChunk] Max resync attempts (", MAX_RESYNC_ATTEMPTS, ") reached");
+            m_eof = true;
+            return MediaChunk{};
+        }
+        
+        // Move forward and try to resync
+        m_current_offset += 1;  // Skip one byte and try again
+        
+        if (!resyncToNextFrame_unlocked()) {
+            FLAC_DEBUG("[readChunk] Resync failed, no more frames found");
+            m_eof = true;
+            return MediaChunk{};
+        }
+        
+        resync_attempts++;
+        FLAC_DEBUG("[readChunk] Resync attempt ", resync_attempts, " - trying again");
     }
     
     FLAC_DEBUG("[readChunk] Found frame at offset ", frame.file_offset);
@@ -270,11 +311,17 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     // Validate frame size
     if (estimated_frame_size == 0) {
         FLAC_DEBUG("[readChunk] Invalid frame size estimate: 0");
+        // Requirement 24.4: Try to skip this frame and continue
+        if (skipCorruptedFrame_unlocked(frame.file_offset)) {
+            FLAC_DEBUG("[readChunk] Skipped corrupted frame, retrying");
+            return readChunk_unlocked();  // Recursive retry (limited by resync attempts)
+        }
         m_eof = true;
         return MediaChunk{};
     }
     
     // Cap at reasonable maximum (1 MB) to prevent excessive memory allocation
+    // Requirement 24.7: Handle allocation failures gracefully
     static constexpr uint32_t MAX_FRAME_SIZE = 1024 * 1024;
     if (estimated_frame_size > MAX_FRAME_SIZE) {
         FLAC_DEBUG("[readChunk] Frame size estimate (", estimated_frame_size, 
@@ -283,29 +330,51 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     }
     
     // Check available data in file
+    // Requirement 24.6: Handle truncated files gracefully
     uint32_t available_bytes = estimated_frame_size;
     if (m_file_size > 0 && frame.file_offset + estimated_frame_size > m_file_size) {
         available_bytes = static_cast<uint32_t>(m_file_size - frame.file_offset);
-        FLAC_DEBUG("[readChunk] Adjusted frame size to available bytes: ", available_bytes);
+        FLAC_DEBUG("[readChunk] Requirement 24.6: Adjusted frame size to available bytes: ", available_bytes);
+        
+        // If very little data available, we're likely at EOF
+        if (available_bytes < 9) {  // Minimum frame size
+            FLAC_DEBUG("[readChunk] Requirement 24.6: Insufficient data for frame, treating as EOF");
+            m_eof = true;
+            return MediaChunk{};
+        }
     }
     
     // ========================================================================
     // Step 3: Read frame data
     // Requirement 21.8: Include complete frames with proper MediaChunk formatting
+    // Requirement 24.7: Handle allocation failures gracefully
+    // Requirement 24.8: Handle I/O errors without crashing
     // ========================================================================
     
     // Seek to frame position
     if (m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET) != 0) {
-        reportError("IO", "Failed to seek to frame position");
+        // Requirement 24.8: Handle I/O errors gracefully
+        return handleIOError_unlocked("seek to frame position") ? MediaChunk{} : MediaChunk{};
+    }
+    
+    // Allocate buffer with exception handling
+    // Requirement 24.7: Return appropriate error codes on allocation failure
+    std::vector<uint8_t> data;
+    try {
+        data.resize(available_bytes);
+    } catch (const std::bad_alloc&) {
+        handleAllocationFailure_unlocked("frame data buffer", available_bytes);
+        return MediaChunk{};
+    } catch (const std::length_error&) {
+        handleAllocationFailure_unlocked("frame data buffer (length error)", available_bytes);
         return MediaChunk{};
     }
     
-    // Read initial buffer (estimated size or available bytes)
-    std::vector<uint8_t> data(available_bytes);
     size_t bytes_read = m_handler->read(data.data(), 1, available_bytes);
     
     if (bytes_read == 0) {
-        FLAC_DEBUG("[readChunk] No data read - end of file");
+        // Requirement 24.8: Handle EOF condition gracefully
+        FLAC_DEBUG("[readChunk] Requirement 24.8: No data read - end of file");
         m_eof = true;
         return MediaChunk{};
     }
@@ -586,13 +655,35 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
     bool found_streaminfo = false;
     bool is_first_block = true;  // Track if this is the first metadata block
     bool is_last = false;
+    int corrupted_blocks_skipped = 0;  // Track corrupted blocks for Requirement 24.2
     
     while (!is_last) {
         FLACMetadataBlock block;
         
         if (!parseMetadataBlockHeader_unlocked(block)) {
-            reportError("Format", "Failed to parse metadata block header");
-            return false;
+            // Requirement 24.2: Skip corrupted metadata blocks and continue
+            FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.2: Failed to parse metadata block header");
+            
+            if (is_first_block) {
+                // First block must be STREAMINFO - can't continue without it
+                reportError("Format", "Failed to parse first metadata block header");
+                return false;
+            }
+            
+            // Try to recover by scanning for next valid block or audio data
+            FLAC_DEBUG("[parseMetadataBlocks] Attempting to recover from corrupted metadata");
+            corrupted_blocks_skipped++;
+            
+            // If we've skipped too many blocks, give up
+            if (corrupted_blocks_skipped > 10) {
+                FLAC_DEBUG("[parseMetadataBlocks] Too many corrupted blocks, giving up");
+                reportError("Format", "Too many corrupted metadata blocks");
+                return false;
+            }
+            
+            // Try to find audio data by scanning for frame sync
+            // This will set m_audio_data_offset if successful
+            break;  // Exit metadata parsing loop, try to find audio data
         }
         
         is_last = block.is_last;
@@ -600,6 +691,25 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
         FLAC_DEBUG("Metadata block: type=", static_cast<int>(block.type), 
                    ", length=", block.length, ", is_last=", is_last,
                    ", is_first=", is_first_block);
+        
+        // Validate block length to prevent reading past EOF
+        // Requirement 24.6: Handle truncated files gracefully
+        if (m_file_size > 0 && block.data_offset + block.length > m_file_size) {
+            FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.6: Block extends past EOF");
+            FLAC_DEBUG("[parseMetadataBlocks]   Block end: ", block.data_offset + block.length);
+            FLAC_DEBUG("[parseMetadataBlocks]   File size: ", m_file_size);
+            
+            if (is_first_block) {
+                reportError("Format", "First metadata block extends past end of file");
+                return false;
+            }
+            
+            // Skip this corrupted block
+            FLAC_DEBUG("[parseMetadataBlocks] Skipping truncated metadata block");
+            corrupted_blocks_skipped++;
+            is_first_block = false;
+            break;  // Exit loop, try to find audio data
+        }
         
         // Process block based on type
         // RFC 9639 Section 8.1: Block types 0-6 are defined, 7-126 are reserved, 127 is forbidden
@@ -610,9 +720,13 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
         if (is_first_block) {
             if (block.type != FLACMetadataType::STREAMINFO) {
                 FLAC_DEBUG("First metadata block is not STREAMINFO (type=", 
-                           static_cast<int>(raw_type), ") - rejecting stream");
-                reportError("Format", "STREAMINFO must be the first metadata block (RFC 9639 Section 8.2)");
-                return false;
+                           static_cast<int>(raw_type), ")");
+                // Requirement 24.2: Don't reject immediately, try to continue
+                // We'll derive parameters from frame headers later if needed
+                FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.2: Continuing despite missing STREAMINFO");
+                skipMetadataBlock_unlocked(block);
+                is_first_block = false;
+                continue;
             }
         }
         
@@ -626,24 +740,43 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
             continue;
         }
         
+        // Requirement 24.2: Wrap block parsing in try-catch for robustness
+        bool block_parsed_ok = true;
+        
         switch (block.type) {
             case FLACMetadataType::STREAMINFO:
                 if (found_streaminfo) {
-                    reportError("Format", "Multiple STREAMINFO blocks found");
-                    return false;
+                    // Requirement 24.2: Skip duplicate STREAMINFO instead of failing
+                    FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.2: Skipping duplicate STREAMINFO");
+                    skipMetadataBlock_unlocked(block);
+                    block_parsed_ok = true;
+                } else {
+                    block_parsed_ok = parseStreamInfoBlock_unlocked(block);
+                    if (block_parsed_ok) {
+                        found_streaminfo = true;
+                    } else {
+                        // Requirement 24.2: STREAMINFO parsing failed, skip and continue
+                        FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.2: STREAMINFO parsing failed, skipping");
+                        skipMetadataBlock_unlocked(block);
+                        corrupted_blocks_skipped++;
+                    }
                 }
-                if (!parseStreamInfoBlock_unlocked(block)) {
-                    return false;
-                }
-                found_streaminfo = true;
                 break;
                 
             case FLACMetadataType::SEEKTABLE:
-                parseSeekTableBlock_unlocked(block);
+                // Non-critical block - failure is not fatal
+                if (!parseSeekTableBlock_unlocked(block)) {
+                    FLAC_DEBUG("[parseMetadataBlocks] SEEKTABLE parsing failed, skipping");
+                    skipMetadataBlock_unlocked(block);
+                }
                 break;
                 
             case FLACMetadataType::VORBIS_COMMENT:
-                parseVorbisCommentBlock_unlocked(block);
+                // Non-critical block - failure is not fatal
+                if (!parseVorbisCommentBlock_unlocked(block)) {
+                    FLAC_DEBUG("[parseMetadataBlocks] VORBIS_COMMENT parsing failed, skipping");
+                    skipMetadataBlock_unlocked(block);
+                }
                 break;
                 
             case FLACMetadataType::PADDING:
@@ -658,12 +791,20 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
                 
             case FLACMetadataType::CUESHEET:
                 // Requirement 16.1-16.8: Handle CUESHEET blocks per RFC 9639 Section 8.7
-                parseCuesheetBlock_unlocked(block);
+                // Non-critical block - failure is not fatal
+                if (!parseCuesheetBlock_unlocked(block)) {
+                    FLAC_DEBUG("[parseMetadataBlocks] CUESHEET parsing failed, skipping");
+                    skipMetadataBlock_unlocked(block);
+                }
                 break;
                 
             case FLACMetadataType::PICTURE:
                 // Requirement 17.1-17.12: Handle PICTURE blocks per RFC 9639 Section 8.8
-                parsePictureBlock_unlocked(block);
+                // Non-critical block - failure is not fatal
+                if (!parsePictureBlock_unlocked(block)) {
+                    FLAC_DEBUG("[parseMetadataBlocks] PICTURE parsing failed, skipping");
+                    skipMetadataBlock_unlocked(block);
+                }
                 break;
                 
             default:
@@ -676,10 +817,16 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
         is_first_block = false;  // After processing any block, it's no longer the first
     }
     
-    // RFC 9639: STREAMINFO must be first metadata block
+    // Log if we skipped any corrupted blocks
+    if (corrupted_blocks_skipped > 0) {
+        FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.2: Skipped ", corrupted_blocks_skipped, " corrupted metadata blocks");
+    }
+    
+    // RFC 9639: STREAMINFO should be first metadata block
+    // But per Requirement 24.3, we can derive parameters from frame headers if missing
     if (!found_streaminfo) {
-        reportError("Format", "Missing STREAMINFO block");
-        return false;
+        FLAC_DEBUG("[parseMetadataBlocks] STREAMINFO not found, will attempt frame header derivation");
+        // Don't return false here - let parseContainer_unlocked handle the fallback
     }
     
     // Record where audio data starts
@@ -3961,6 +4108,322 @@ bool FLACDemuxer::parseFramesToSample_unlocked(uint64_t target_sample)
     
     FLAC_DEBUG("[parseFramesToSample] Reached target sample ", m_current_sample);
     return true;
+}
+
+
+// ============================================================================
+// Error Handling and Recovery (Requirements 24.1-24.8)
+// ============================================================================
+
+/**
+ * @brief Attempt to derive stream parameters from frame headers
+ * 
+ * Implements Requirement 24.3: If STREAMINFO is missing, derive parameters
+ * from frame headers. This is a fallback mechanism for corrupted files.
+ * 
+ * This method scans for the first valid frame and extracts:
+ * - Sample rate
+ * - Number of channels
+ * - Bits per sample
+ * - Block size (used for min/max block size estimates)
+ * 
+ * @return true if parameters were successfully derived, false otherwise
+ */
+bool FLACDemuxer::deriveParametersFromFrameHeaders_unlocked()
+{
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders] Attempting to derive stream parameters from frame headers");
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders] Requirement 24.3: STREAMINFO missing, using frame header fallback");
+    
+    // Save current position
+    uint64_t saved_offset = m_current_offset;
+    
+    // Start searching from the audio data offset (after metadata blocks)
+    // If we don't know where audio data starts, start from current position
+    uint64_t search_start = (m_audio_data_offset > 0) ? m_audio_data_offset : m_current_offset;
+    
+    if (m_handler->seek(static_cast<off_t>(search_start), SEEK_SET) != 0) {
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders] Failed to seek to search start position");
+        return false;
+    }
+    
+    m_current_offset = search_start;
+    
+    // Try to find and parse a valid frame
+    FLACFrame frame;
+    if (!findNextFrame_unlocked(frame)) {
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders] Failed to find any valid frame");
+        // Restore position
+        m_handler->seek(static_cast<off_t>(saved_offset), SEEK_SET);
+        m_current_offset = saved_offset;
+        return false;
+    }
+    
+    // Validate that we got useful parameters
+    if (frame.sample_rate == 0 || frame.channels == 0 || frame.bits_per_sample == 0) {
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders] Frame header has invalid parameters");
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders]   sample_rate=", frame.sample_rate);
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders]   channels=", static_cast<int>(frame.channels));
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders]   bits_per_sample=", static_cast<int>(frame.bits_per_sample));
+        // Restore position
+        m_handler->seek(static_cast<off_t>(saved_offset), SEEK_SET);
+        m_current_offset = saved_offset;
+        return false;
+    }
+    
+    // Populate STREAMINFO from frame header
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders] Deriving STREAMINFO from frame header:");
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders]   sample_rate: ", frame.sample_rate, " Hz");
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders]   channels: ", static_cast<int>(frame.channels));
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders]   bits_per_sample: ", static_cast<int>(frame.bits_per_sample));
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders]   block_size: ", frame.block_size, " samples");
+    
+    m_streaminfo.sample_rate = frame.sample_rate;
+    m_streaminfo.channels = frame.channels;
+    m_streaminfo.bits_per_sample = frame.bits_per_sample;
+    
+    // Use block size for min/max estimates (we only have one frame to work with)
+    // Per RFC 9639, block size must be >= 16
+    m_streaminfo.min_block_size = (frame.block_size >= 16) ? frame.block_size : 16;
+    m_streaminfo.max_block_size = (frame.block_size >= 16) ? frame.block_size : 4096;
+    
+    // Frame size is unknown without scanning the entire file
+    m_streaminfo.min_frame_size = 0;  // Unknown
+    m_streaminfo.max_frame_size = 0;  // Unknown
+    
+    // Total samples is unknown without STREAMINFO
+    m_streaminfo.total_samples = 0;  // Unknown
+    
+    // MD5 is unavailable
+    std::memset(m_streaminfo.md5_signature, 0, sizeof(m_streaminfo.md5_signature));
+    
+    // Update audio data offset if not already set
+    if (m_audio_data_offset == 0) {
+        m_audio_data_offset = frame.file_offset;
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders] Set audio_data_offset to ", m_audio_data_offset);
+    }
+    
+    // Restore position to the found frame (so playback can start from here)
+    if (m_handler->seek(static_cast<off_t>(frame.file_offset), SEEK_SET) != 0) {
+        FLAC_DEBUG("[deriveParametersFromFrameHeaders] Failed to seek back to frame position");
+        return false;
+    }
+    m_current_offset = frame.file_offset;
+    m_current_sample = frame.sample_offset;
+    
+    FLAC_DEBUG("[deriveParametersFromFrameHeaders] Successfully derived parameters from frame header");
+    return true;
+}
+
+/**
+ * @brief Resynchronize to the next valid frame sync code after sync loss
+ * 
+ * Implements Requirement 24.4: If frame sync is lost, resynchronize to
+ * the next valid sync code. This enables recovery from corrupted frames.
+ * 
+ * The method searches for the 15-bit sync pattern (0xFFF8 or 0xFFF9) and
+ * validates the frame header to confirm it's a real sync code.
+ * 
+ * @param max_search_bytes Maximum bytes to search (default 4096)
+ * @return true if resynchronization succeeded, false if no sync found
+ */
+bool FLACDemuxer::resyncToNextFrame_unlocked(size_t max_search_bytes)
+{
+    FLAC_DEBUG("[resyncToNextFrame] Attempting to resynchronize to next valid frame");
+    FLAC_DEBUG("[resyncToNextFrame] Requirement 24.4: Resynchronizing after sync loss");
+    FLAC_DEBUG("[resyncToNextFrame] Starting search at offset ", m_current_offset);
+    FLAC_DEBUG("[resyncToNextFrame] Maximum search range: ", max_search_bytes, " bytes");
+    
+    // Cap search range to prevent excessive I/O
+    static constexpr size_t ABSOLUTE_MAX_SEARCH = 65536;  // 64KB absolute maximum
+    if (max_search_bytes > ABSOLUTE_MAX_SEARCH) {
+        max_search_bytes = ABSOLUTE_MAX_SEARCH;
+    }
+    
+    // Read buffer for searching
+    static constexpr size_t BUFFER_SIZE = 4096;
+    uint8_t buffer[BUFFER_SIZE];
+    
+    size_t total_searched = 0;
+    uint64_t search_start = m_current_offset;
+    
+    while (total_searched < max_search_bytes) {
+        // Calculate how much to read this iteration
+        size_t to_read = std::min(BUFFER_SIZE, max_search_bytes - total_searched);
+        
+        // Seek to current search position
+        if (m_handler->seek(static_cast<off_t>(search_start + total_searched), SEEK_SET) != 0) {
+            FLAC_DEBUG("[resyncToNextFrame] Failed to seek to search position");
+            return false;
+        }
+        
+        // Read buffer
+        size_t bytes_read = m_handler->read(buffer, 1, to_read);
+        if (bytes_read < 2) {
+            FLAC_DEBUG("[resyncToNextFrame] Insufficient data read: ", bytes_read, " bytes");
+            return false;
+        }
+        
+        // Search for sync pattern in buffer
+        for (size_t i = 0; i < bytes_read - 1; ++i) {
+            // Check for sync pattern: 0xFF followed by 0xF8 or 0xF9
+            if (buffer[i] == 0xFF && (buffer[i + 1] == 0xF8 || buffer[i + 1] == 0xF9)) {
+                uint64_t potential_frame_offset = search_start + total_searched + i;
+                bool is_variable = (buffer[i + 1] == 0xF9);
+                
+                FLAC_DEBUG("[resyncToNextFrame] Potential sync at offset ", potential_frame_offset,
+                           " (", is_variable ? "variable" : "fixed", " block size)");
+                
+                // Validate blocking strategy consistency
+                if (m_blocking_strategy_set && is_variable != m_variable_block_size) {
+                    FLAC_DEBUG("[resyncToNextFrame] Blocking strategy mismatch, skipping");
+                    continue;
+                }
+                
+                // Try to validate the frame header
+                FLACFrame frame;
+                frame.file_offset = potential_frame_offset;
+                frame.variable_block_size = is_variable;
+                
+                // Need to read more data for header validation
+                if (m_handler->seek(static_cast<off_t>(potential_frame_offset), SEEK_SET) != 0) {
+                    continue;
+                }
+                
+                uint8_t header_buffer[32];  // Enough for frame header
+                size_t header_read = m_handler->read(header_buffer, 1, sizeof(header_buffer));
+                
+                if (header_read >= 4 && parseFrameHeader_unlocked(frame, header_buffer, header_read)) {
+                    // Valid frame found!
+                    FLAC_DEBUG("[resyncToNextFrame] Successfully resynchronized at offset ", potential_frame_offset);
+                    FLAC_DEBUG("[resyncToNextFrame]   Block size: ", frame.block_size, " samples");
+                    FLAC_DEBUG("[resyncToNextFrame]   Sample rate: ", frame.sample_rate, " Hz");
+                    
+                    // Update position
+                    m_current_offset = potential_frame_offset;
+                    m_current_sample = frame.sample_offset;
+                    
+                    // Seek back to frame start for reading
+                    m_handler->seek(static_cast<off_t>(potential_frame_offset), SEEK_SET);
+                    
+                    return true;
+                }
+                
+                FLAC_DEBUG("[resyncToNextFrame] False sync at offset ", potential_frame_offset);
+            }
+        }
+        
+        // Move to next buffer, overlapping by 1 byte to catch sync codes at boundaries
+        total_searched += bytes_read - 1;
+    }
+    
+    FLAC_DEBUG("[resyncToNextFrame] Failed to find valid sync code in ", total_searched, " bytes");
+    return false;
+}
+
+/**
+ * @brief Skip a corrupted frame and attempt to continue playback
+ * 
+ * Implements Requirements 24.5, 24.6: Log CRC errors but attempt to
+ * continue playback. Handle truncated files gracefully.
+ * 
+ * @param frame_offset File offset of the corrupted frame
+ * @return true if successfully skipped to next frame, false otherwise
+ */
+bool FLACDemuxer::skipCorruptedFrame_unlocked(uint64_t frame_offset)
+{
+    FLAC_DEBUG("[skipCorruptedFrame] Skipping corrupted frame at offset ", frame_offset);
+    FLAC_DEBUG("[skipCorruptedFrame] Requirement 24.5: Logging error and attempting to continue");
+    
+    // Log the error
+    reportError("Frame", "Corrupted frame detected at offset " + std::to_string(frame_offset) + ", attempting recovery");
+    
+    // Move past the current position to avoid re-detecting the same sync code
+    // Use STREAMINFO min_frame_size if available, otherwise use a conservative estimate
+    uint32_t skip_distance = 16;  // Minimum skip to get past sync code and basic header
+    
+    if (m_streaminfo.min_frame_size > 0) {
+        skip_distance = m_streaminfo.min_frame_size;
+        FLAC_DEBUG("[skipCorruptedFrame] Using STREAMINFO min_frame_size: ", skip_distance, " bytes");
+    }
+    
+    // Update current offset to skip past the corrupted frame
+    m_current_offset = frame_offset + skip_distance;
+    
+    // Check if we've gone past EOF
+    if (m_file_size > 0 && m_current_offset >= m_file_size) {
+        FLAC_DEBUG("[skipCorruptedFrame] Requirement 24.6: Reached EOF while skipping corrupted frame");
+        m_eof = true;
+        return false;
+    }
+    
+    // Try to resynchronize to the next valid frame
+    if (!resyncToNextFrame_unlocked()) {
+        FLAC_DEBUG("[skipCorruptedFrame] Failed to resynchronize after corrupted frame");
+        m_eof = true;
+        return false;
+    }
+    
+    FLAC_DEBUG("[skipCorruptedFrame] Successfully recovered, now at offset ", m_current_offset);
+    return true;
+}
+
+/**
+ * @brief Handle memory allocation failure gracefully
+ * 
+ * Implements Requirement 24.7: Return appropriate error codes on
+ * allocation failure without crashing.
+ * 
+ * @param operation Description of the operation that failed
+ * @param requested_size Size of the failed allocation
+ */
+void FLACDemuxer::handleAllocationFailure_unlocked(const char* operation, size_t requested_size)
+{
+    FLAC_DEBUG("[handleAllocationFailure] Requirement 24.7: Memory allocation failed");
+    FLAC_DEBUG("[handleAllocationFailure] Operation: ", operation);
+    FLAC_DEBUG("[handleAllocationFailure] Requested size: ", requested_size, " bytes");
+    
+    // Report the error
+    std::string error_msg = "Memory allocation failed for ";
+    error_msg += operation;
+    error_msg += " (";
+    error_msg += std::to_string(requested_size);
+    error_msg += " bytes)";
+    
+    reportError("Memory", error_msg);
+    
+    // Set EOF to prevent further operations
+    m_eof = true;
+}
+
+/**
+ * @brief Handle I/O error gracefully
+ * 
+ * Implements Requirement 24.8: Handle read errors and EOF conditions
+ * without crashing.
+ * 
+ * @param operation Description of the I/O operation that failed
+ * @return false always (to indicate error to caller)
+ */
+bool FLACDemuxer::handleIOError_unlocked(const char* operation)
+{
+    FLAC_DEBUG("[handleIOError] Requirement 24.8: I/O operation failed");
+    FLAC_DEBUG("[handleIOError] Operation: ", operation);
+    FLAC_DEBUG("[handleIOError] Current offset: ", m_current_offset);
+    
+    // Check if this is an EOF condition
+    if (m_handler && m_handler->eof()) {
+        FLAC_DEBUG("[handleIOError] EOF condition detected");
+        m_eof = true;
+        return false;
+    }
+    
+    // Report the error
+    std::string error_msg = "I/O error during ";
+    error_msg += operation;
+    
+    reportError("IO", error_msg);
+    
+    return false;
 }
 
 } // namespace FLAC

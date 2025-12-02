@@ -363,27 +363,27 @@
     - Provide sample-accurate seeking using index
     - _Requirements: 22.4, 22.7_
 
-- [ ] 28. Checkpoint
+- [x] 28. Checkpoint
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
 
 ## Phase 8: Error Handling and Recovery
 
-- [ ] 29. Implement Error Handling
-  - [ ] 29.1 Implement container-level error handling
+- [x] 29. Implement Error Handling
+  - [x] 29.1 Implement container-level error handling
     - Reject invalid stream markers without crashing
     - Skip corrupted metadata blocks and continue
     - Derive parameters from frame headers if STREAMINFO missing
     - _Requirements: 24.1-24.3_
-  - [ ] 29.2 Implement frame-level error recovery
+  - [x] 29.2 Implement frame-level error recovery
     - Resynchronize to next valid sync code on sync loss
     - Log CRC errors but attempt to continue
     - Handle truncated files gracefully
     - Return appropriate error codes on allocation failure
     - _Requirements: 24.4-24.8_
 
-- [ ] 29.3 Write property test for sync resynchronization
+- [x] 29.3 Write property test for sync resynchronization
   - **Property 21: Error Recovery - Sync Resynchronization**
   - **Validates: Requirements 24.4**
 

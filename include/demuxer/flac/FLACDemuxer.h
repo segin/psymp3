@@ -634,6 +634,64 @@ private:
                                           uint64_t frame_offset);
     
     // ========================================================================
+    // Error Handling and Recovery (Requirements 24.1-24.8)
+    // ========================================================================
+    
+    /**
+     * @brief Attempt to derive stream parameters from frame headers
+     * 
+     * Implements Requirement 24.3: If STREAMINFO is missing, derive parameters
+     * from frame headers. This is a fallback mechanism for corrupted files.
+     * 
+     * @return true if parameters were successfully derived, false otherwise
+     */
+    bool deriveParametersFromFrameHeaders_unlocked();
+    
+    /**
+     * @brief Resynchronize to the next valid frame sync code after sync loss
+     * 
+     * Implements Requirement 24.4: If frame sync is lost, resynchronize to
+     * the next valid sync code. This enables recovery from corrupted frames.
+     * 
+     * @param max_search_bytes Maximum bytes to search (default 4096)
+     * @return true if resynchronization succeeded, false if no sync found
+     */
+    bool resyncToNextFrame_unlocked(size_t max_search_bytes = 4096);
+    
+    /**
+     * @brief Skip a corrupted frame and attempt to continue playback
+     * 
+     * Implements Requirements 24.5, 24.6: Log CRC errors but attempt to
+     * continue playback. Handle truncated files gracefully.
+     * 
+     * @param frame_offset File offset of the corrupted frame
+     * @return true if successfully skipped to next frame, false otherwise
+     */
+    bool skipCorruptedFrame_unlocked(uint64_t frame_offset);
+    
+    /**
+     * @brief Handle memory allocation failure gracefully
+     * 
+     * Implements Requirement 24.7: Return appropriate error codes on
+     * allocation failure without crashing.
+     * 
+     * @param operation Description of the operation that failed
+     * @param requested_size Size of the failed allocation
+     */
+    void handleAllocationFailure_unlocked(const char* operation, size_t requested_size);
+    
+    /**
+     * @brief Handle I/O error gracefully
+     * 
+     * Implements Requirement 24.8: Handle read errors and EOF conditions
+     * without crashing.
+     * 
+     * @param operation Description of the I/O operation that failed
+     * @return false always (to indicate error to caller)
+     */
+    bool handleIOError_unlocked(const char* operation);
+    
+    // ========================================================================
     // CRC Lookup Tables (RFC 9639)
     // ========================================================================
     static const uint8_t s_crc8_table[256];   ///< CRC-8 polynomial 0x07
