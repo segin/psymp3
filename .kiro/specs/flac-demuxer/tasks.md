@@ -457,8 +457,8 @@
     - Mark non-streamable if WAVEFORMATEXTENSIBLE_CHANNEL_MASK present
     - _Requirements: 20.1-20.5_
 
-- [ ] 36. Ensure Compatibility
-  - [ ] 36.1 Verify backward compatibility
+- [x] 36. Ensure Compatibility
+  - [x] 36.1 Verify backward compatibility
     - Support all previously supported FLAC variants
     - Extract same metadata fields as current implementation
     - Provide equivalent seeking accuracy
