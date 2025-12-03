@@ -1332,9 +1332,10 @@ test_alaw_codec_properties_CPPFLAGS = $(AM_CPPFLAGS)
 test_alaw_codec_properties_LDADD = $(AM_LDFLAGS)
 
 # μ-law/A-law parameter handling property-based tests (standalone, minimal dependencies)
-test_mulaw_alaw_parameter_handling_SOURCES = test_mulaw_alaw_parameter_handling.cpp
-test_mulaw_alaw_parameter_handling_CPPFLAGS = $(AM_CPPFLAGS)
-test_mulaw_alaw_parameter_handling_LDADD = $(AM_LDFLAGS)
+# Temporarily disabled - test not yet added to check_PROGRAMS
+# test_mulaw_alaw_parameter_handling_SOURCES = test_mulaw_alaw_parameter_handling.cpp
+# test_mulaw_alaw_parameter_handling_CPPFLAGS = $(AM_CPPFLAGS)
+# test_mulaw_alaw_parameter_handling_LDADD = $(AM_LDFLAGS)
 
 # μ-law/A-law error state consistency property-based tests (standalone, minimal dependencies)
 test_mulaw_alaw_error_state_consistency_SOURCES = test_mulaw_alaw_error_state_consistency.cpp
@@ -3250,15 +3251,15 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 # RFC Compliance Debugging and Validation Tools Test
 # Temporarily disabled due to missing class implementations
 # noinst_PROGRAMS += test_rfc_compliance_debugging_tools
-test_rfc_compliance_debugging_tools_SOURCES = test_rfc_compliance_debugging_tools.cpp FLACRFCComplianceValidator.cpp
-test_rfc_compliance_debugging_tools_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include
-test_rfc_compliance_debugging_tools_LDADD = \
-        libtest_utilities.a \
-        $(top_builddir)/src/FLACRFCValidator.o \
-        $(top_builddir)/src/debug.o \
-        $(top_builddir)/src/exceptions.o \
-        $(FLAC_LIBS) \
-        $(AM_LDFLAGS)
+# test_rfc_compliance_debugging_tools_SOURCES = test_rfc_compliance_debugging_tools.cpp FLACRFCComplianceValidator.cpp
+# test_rfc_compliance_debugging_tools_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include
+# test_rfc_compliance_debugging_tools_LDADD = \
+#         libtest_utilities.a \
+#         $(top_builddir)/src/FLACRFCValidator.o \
+#         $(top_builddir)/src/debug.o \
+#         $(top_builddir)/src/exceptions.o \
+#         $(FLAC_LIBS) \
+#         $(AM_LDFLAGS)
 
 # FLAC audio output test (verifies synthetic STREAMINFO fix)
 test_flac_audio_output_SOURCES = test_flac_audio_output.cpp
