@@ -3841,3 +3841,19 @@ test_flac_byte_position_estimation_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++
 test_flac_byte_position_estimation_properties_LDFLAGS = 
 test_flac_byte_position_estimation_properties_LDADD = 
 
+# **Feature: flac-bisection-seeking, Property 6: Bisection Range Adjustment**
+# **Validates: Requirements 3.1, 3.2**
+check_PROGRAMS += test_flac_bisection_range_adjustment_properties
+test_flac_bisection_range_adjustment_properties_SOURCES = test_flac_bisection_range_adjustment_properties.cpp
+test_flac_bisection_range_adjustment_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_bisection_range_adjustment_properties_LDFLAGS = 
+test_flac_bisection_range_adjustment_properties_LDADD = 
+
+# **Feature: flac-bisection-seeking, Property 7: Convergence Termination**
+# **Validates: Requirements 3.3, 3.4, 3.5, 3.6**
+check_PROGRAMS += test_flac_bisection_convergence_properties
+test_flac_bisection_convergence_properties_SOURCES = test_flac_bisection_convergence_properties.cpp
+test_flac_bisection_convergence_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_bisection_convergence_properties_LDFLAGS = 
+test_flac_bisection_convergence_properties_LDADD =
+

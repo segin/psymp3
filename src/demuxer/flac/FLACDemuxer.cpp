@@ -4190,6 +4190,14 @@ uint64_t FLACDemuxer::estimateBytePosition_unlocked(uint64_t target_sample) cons
  * It estimates the byte position based on the ratio of target sample to total samples,
  * then iteratively refines the position until within 250ms of the target.
  * 
+ * Implements Requirements 3.1-3.6 for bisection seeking:
+ * - Requirement 3.1: Adjust search to upper half when actual < target
+ * - Requirement 3.2: Adjust search to lower half when actual > target
+ * - Requirement 3.3: Accept position when time differential <= 250ms
+ * - Requirement 3.4: Accept best position when iteration count > 10
+ * - Requirement 3.5: Accept position when search range < minimum frame size
+ * - Requirement 3.6: Accept position when same position found twice consecutively
+ * 
  * @param target_sample Target sample position to seek to
  * @return true if seek succeeded, false otherwise
  */
@@ -4198,6 +4206,7 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
     FLAC_DEBUG("[seekWithByteEstimation] Seeking to sample ", target_sample, " using byte estimation");
     
     // Need total samples and file size for estimation
+    // Requirement 1.3: Fall back to beginning when total_samples is 0
     if (m_streaminfo.total_samples == 0) {
         FLAC_DEBUG("[seekWithByteEstimation] Cannot estimate: total_samples is 0");
         return false;
@@ -4209,90 +4218,203 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         return false;
     }
     
-    // Calculate tolerance in samples (250ms)
-    uint64_t tolerance_samples = (m_streaminfo.sample_rate * 250) / 1000;
+    // ========================================================================
+    // Bisection State Initialization
+    // Requirement 3.1, 3.2: Initialize search range [audio_offset, file_size]
+    // ========================================================================
     
-    // Binary search bounds
-    uint64_t low_byte = m_audio_data_offset;
-    uint64_t high_byte = m_file_size;
+    // Calculate tolerance in samples (250ms) - Requirement 4.1, 4.2
+    static constexpr int64_t TOLERANCE_MS = 250;
+    uint64_t tolerance_samples = (static_cast<uint64_t>(m_streaminfo.sample_rate) * TOLERANCE_MS) / 1000;
     
-    const int MAX_ITERATIONS = 10;
+    // Binary search bounds - Requirement 3.1, 3.2
+    uint64_t low_pos = m_audio_data_offset;
+    uint64_t high_pos = m_file_size;
+    
+    // Best position tracking - Requirement 4.3, 4.4
+    uint64_t best_pos = m_audio_data_offset;
+    uint64_t best_sample = 0;
+    int64_t best_diff_ms = INT64_MAX;
+    bool best_is_before_target = true;
+    
+    // Iteration tracking - Requirement 3.4
+    static constexpr int MAX_ITERATIONS = 10;
+    
+    // Consecutive same position detection - Requirement 3.6
+    uint64_t last_frame_pos = UINT64_MAX;
+    
+    // Minimum search range - Requirement 3.5
+    static constexpr uint64_t MIN_SEARCH_RANGE = 64;
+    
+    FLAC_DEBUG("[seekWithByteEstimation] Starting bisection search:");
+    FLAC_DEBUG("[seekWithByteEstimation]   Target sample: ", target_sample);
+    FLAC_DEBUG("[seekWithByteEstimation]   Tolerance: ", tolerance_samples, " samples (", TOLERANCE_MS, "ms)");
+    FLAC_DEBUG("[seekWithByteEstimation]   Search range: [", low_pos, ", ", high_pos, "]");
     
     for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
-        // Estimate byte position for target sample
-        uint64_t estimated_offset = (target_sample * audio_data_size) / m_streaminfo.total_samples;
-        uint64_t target_file_pos = m_audio_data_offset + estimated_offset;
+        // ====================================================================
+        // Requirement 3.5: Check if search range collapsed
+        // ====================================================================
+        if (high_pos <= low_pos + MIN_SEARCH_RANGE) {
+            FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.5: Search range collapsed (",
+                       high_pos - low_pos, " bytes < ", MIN_SEARCH_RANGE, ")");
+            break;
+        }
+        
+        // ====================================================================
+        // Estimate byte position using linear interpolation
+        // Uses estimateBytePosition_unlocked for consistent calculation
+        // ====================================================================
+        uint64_t estimated_pos = estimateBytePosition_unlocked(target_sample);
         
         // Clamp to current search bounds
-        if (target_file_pos < low_byte) target_file_pos = low_byte;
-        if (target_file_pos >= high_byte) target_file_pos = high_byte > 1024 ? high_byte - 1024 : low_byte;
+        if (estimated_pos < low_pos) estimated_pos = low_pos;
+        if (estimated_pos >= high_pos) {
+            // Leave room for frame search
+            estimated_pos = (high_pos > MIN_SEARCH_RANGE) ? high_pos - MIN_SEARCH_RANGE : low_pos;
+        }
         
         FLAC_DEBUG("[seekWithByteEstimation] Iteration ", iteration, 
-                   ": seeking to file position ", target_file_pos);
+                   ": estimated position ", estimated_pos,
+                   " (range: [", low_pos, ", ", high_pos, "])");
         
+        // ====================================================================
         // Find a frame at or after this position
+        // ====================================================================
         uint64_t frame_pos = 0;
         uint64_t frame_sample = 0;
         uint32_t frame_block_size = 0;
         
-        if (!findFrameAtPosition_unlocked(target_file_pos, frame_pos, frame_sample, frame_block_size)) {
-            FLAC_DEBUG("[seekWithByteEstimation] No frame found at position ", target_file_pos);
-            // Try searching from a bit earlier
-            if (target_file_pos > low_byte + 8192) {
-                high_byte = target_file_pos;
+        if (!findFrameAtPosition_unlocked(estimated_pos, frame_pos, frame_sample, frame_block_size)) {
+            FLAC_DEBUG("[seekWithByteEstimation] No frame found at position ", estimated_pos);
+            // Narrow search range and retry
+            if (estimated_pos > low_pos + MIN_SEARCH_RANGE) {
+                high_pos = estimated_pos;
                 continue;
             }
-            return false;
+            // Can't find any frames in remaining range
+            break;
         }
+        
+        // ====================================================================
+        // Requirement 3.6: Check for consecutive same position
+        // ====================================================================
+        if (frame_pos == last_frame_pos) {
+            FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.6: Same position found twice consecutively");
+            break;
+        }
+        last_frame_pos = frame_pos;
+        
+        // ====================================================================
+        // Calculate time differential - Requirement 4.1
+        // time_diff_ms = abs(actual_sample - target_sample) * 1000 / sample_rate
+        // ====================================================================
+        int64_t sample_diff = static_cast<int64_t>(frame_sample) - static_cast<int64_t>(target_sample);
+        int64_t time_diff_ms = (std::abs(sample_diff) * 1000) / static_cast<int64_t>(m_streaminfo.sample_rate);
+        bool is_before_target = (frame_sample <= target_sample);
         
         FLAC_DEBUG("[seekWithByteEstimation] Found frame at ", frame_pos, 
                    " with sample ", frame_sample, ", block_size ", frame_block_size,
-                   " (target: ", target_sample, ")");
+                   " (target: ", target_sample, ", diff: ", time_diff_ms, "ms, ",
+                   is_before_target ? "before" : "after", " target)");
         
-        // Check if we're within tolerance
-        uint64_t diff = (frame_sample > target_sample) ? 
-                        (frame_sample - target_sample) : (target_sample - frame_sample);
+        // ====================================================================
+        // Update best position - Requirement 4.3, 4.4
+        // Track position with minimum differential
+        // Prefer positions before target when equal (for gapless playback)
+        // ====================================================================
+        bool update_best = false;
+        if (time_diff_ms < best_diff_ms) {
+            update_best = true;
+        } else if (time_diff_ms == best_diff_ms && is_before_target && !best_is_before_target) {
+            // Requirement 4.4: Prefer positions before target when equal
+            update_best = true;
+        }
         
-        if (diff <= tolerance_samples) {
-            // Close enough - position at this frame
-            m_handler->seek(static_cast<off_t>(frame_pos), SEEK_SET);
+        if (update_best) {
+            best_pos = frame_pos;
+            best_sample = frame_sample;
+            best_diff_ms = time_diff_ms;
+            best_is_before_target = is_before_target;
+            FLAC_DEBUG("[seekWithByteEstimation] Updated best position: ", best_pos,
+                       " (sample ", best_sample, ", diff ", best_diff_ms, "ms)");
+        }
+        
+        // ====================================================================
+        // Requirement 3.3: Check convergence (within 250ms tolerance)
+        // ====================================================================
+        if (time_diff_ms <= TOLERANCE_MS) {
+            FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.3: Within tolerance (",
+                       time_diff_ms, "ms <= ", TOLERANCE_MS, "ms)");
+            
+            // Position at this frame
+            if (m_handler->seek(static_cast<off_t>(frame_pos), SEEK_SET) != 0) {
+                FLAC_DEBUG("[seekWithByteEstimation] Failed to seek to frame position");
+                return false;
+            }
+            
             m_current_offset = frame_pos;
             updateCurrentSample_unlocked(frame_sample);
             updateEOF_unlocked(false);
             
+            // Add discovered frame to index - Requirement 6.4
+            FLACFrame discovered_frame;
+            discovered_frame.file_offset = frame_pos;
+            discovered_frame.sample_offset = frame_sample;
+            discovered_frame.block_size = frame_block_size;
+            discovered_frame.sample_rate = m_streaminfo.sample_rate;
+            discovered_frame.channels = m_streaminfo.channels;
+            discovered_frame.bits_per_sample = m_streaminfo.bits_per_sample;
+            addFrameToIndex_unlocked(discovered_frame);
+            
             FLAC_DEBUG("[seekWithByteEstimation] Seek successful after ", iteration + 1,
                        " iterations, now at sample ", frame_sample, 
-                       " (target was ", target_sample, ", diff: ", diff, " samples)");
+                       " (target was ", target_sample, ", diff: ", time_diff_ms, "ms)");
             return true;
         }
         
-        // Refine search bounds
+        // ====================================================================
+        // Adjust search range - Requirement 3.1, 3.2
+        // ====================================================================
         if (frame_sample < target_sample) {
-            // We're before the target, search later
-            low_byte = frame_pos + 1;
+            // Requirement 3.1: Actual < target, search upper half
+            low_pos = frame_pos + frame_block_size;  // Move past this frame
+            FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.1: Searching upper half, new low_pos=", low_pos);
         } else {
-            // We're after the target, search earlier
-            high_byte = frame_pos;
-        }
-        
-        // Recalculate estimate based on actual frame position
-        // This improves accuracy for variable bitrate
-        if (frame_sample > 0 && frame_sample < m_streaminfo.total_samples) {
-            double actual_ratio = static_cast<double>(frame_pos - m_audio_data_offset) / audio_data_size;
-            double expected_ratio = static_cast<double>(frame_sample) / m_streaminfo.total_samples;
-            
-            // Adjust our estimate based on the error
-            if (expected_ratio > 0.001) {
-                double correction = actual_ratio / expected_ratio;
-                uint64_t corrected_offset = static_cast<uint64_t>(
-                    (static_cast<double>(target_sample) / m_streaminfo.total_samples) * 
-                    audio_data_size * correction);
-                target_file_pos = m_audio_data_offset + corrected_offset;
-            }
+            // Requirement 3.2: Actual > target, search lower half
+            high_pos = frame_pos;
+            FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.2: Searching lower half, new high_pos=", high_pos);
         }
     }
     
-    FLAC_DEBUG("[seekWithByteEstimation] Failed to converge after ", MAX_ITERATIONS, " iterations");
+    // ========================================================================
+    // Requirement 3.4: Accept best position after max iterations
+    // Requirement 4.3: Use closest position found during all iterations
+    // ========================================================================
+    
+    if (best_diff_ms < INT64_MAX) {
+        FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.4/4.3: Using best position found");
+        FLAC_DEBUG("[seekWithByteEstimation]   Best position: ", best_pos);
+        FLAC_DEBUG("[seekWithByteEstimation]   Best sample: ", best_sample);
+        FLAC_DEBUG("[seekWithByteEstimation]   Best diff: ", best_diff_ms, "ms");
+        
+        if (m_handler->seek(static_cast<off_t>(best_pos), SEEK_SET) != 0) {
+            FLAC_DEBUG("[seekWithByteEstimation] Failed to seek to best position");
+            return false;
+        }
+        
+        m_current_offset = best_pos;
+        updateCurrentSample_unlocked(best_sample);
+        updateEOF_unlocked(false);
+        
+        // Requirement 4.5: Log final time differential
+        FLAC_DEBUG("[seekWithByteEstimation] Seek completed with final diff: ", best_diff_ms, "ms");
+        
+        // Even if not within tolerance, we found a position
+        return true;
+    }
+    
+    FLAC_DEBUG("[seekWithByteEstimation] Failed to find any valid frame position");
     return false;
 }
 

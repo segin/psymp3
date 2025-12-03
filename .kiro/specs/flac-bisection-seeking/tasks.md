@@ -26,18 +26,18 @@
     - **Validates: Requirements 2.3, 2.8**
 
 
-- [ ] 3. Implement bisection controller
-  - [ ] 3.1 Add `seekWithByteEstimation_unlocked()` method to FLACDemuxer
+- [x] 3. Implement bisection controller
+  - [x] 3.1 Add `seekWithByteEstimation_unlocked()` method to FLACDemuxer
     - Initialize search range [audio_offset, file_size]
     - Loop: estimate position, find frame, check tolerance
     - Adjust range based on actual vs target sample
     - Track best position found
     - Terminate on convergence or iteration limit
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
-  - [ ] 3.2 Write property test for bisection range adjustment
+  - [x] 3.2 Write property test for bisection range adjustment
     - **Property 6: Bisection Range Adjustment**
     - **Validates: Requirements 3.1, 3.2**
-  - [ ] 3.3 Write property test for convergence termination
+  - [x] 3.3 Write property test for convergence termination
     - **Property 7: Convergence Termination**
     - **Validates: Requirements 3.3, 3.4, 3.5, 3.6**
 
