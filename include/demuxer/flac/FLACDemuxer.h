@@ -613,6 +613,27 @@ private:
     bool seekWithFrameIndex_unlocked(uint64_t target_sample);
     
     /**
+     * @brief Seek using byte-position estimation with iterative refinement
+     * 
+     * Estimates byte position based on ratio of target sample to total samples,
+     * then iteratively refines until within 250ms of target.
+     * 
+     * @param target_sample Target sample position to seek to
+     * @return true if seek succeeded, false otherwise
+     */
+    bool seekWithByteEstimation_unlocked(uint64_t target_sample);
+    
+    /**
+     * @brief Find a valid frame at or after the given file position
+     * 
+     * @param start_pos File position to start searching from
+     * @param frame_pos Output: file position of found frame
+     * @param frame_sample Output: sample offset of found frame
+     * @return true if a frame was found, false otherwise
+     */
+    bool findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& frame_pos, uint64_t& frame_sample);
+    
+    /**
      * @brief Add a frame to the frame index
      * 
      * Implements Requirement 22.4: Build frame index during initial parsing

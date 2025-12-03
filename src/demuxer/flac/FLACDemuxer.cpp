@@ -587,12 +587,25 @@ bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
             return true;
         }
         
-        FLAC_DEBUG("[seekTo] SEEKTABLE seek failed, falling back to beginning");
+        FLAC_DEBUG("[seekTo] SEEKTABLE seek failed, trying byte estimation");
     }
     
-    // Strategy 3: Fallback to beginning and parse forward
-    // This is the last resort when no seek table or frame index is available
-    FLAC_DEBUG("[seekTo] No SEEKTABLE or frame index available, seeking to beginning");
+    // Strategy 3: Byte-position estimation (like VLC does)
+    // Estimate byte position based on ratio of target time to total duration
+    if (m_streaminfo.total_samples > 0 && m_file_size > m_audio_data_offset) {
+        FLAC_DEBUG("[seekTo] Attempting byte-position estimation seek");
+        
+        if (seekWithByteEstimation_unlocked(target_sample)) {
+            FLAC_DEBUG("[seekTo] Byte estimation seek successful");
+            return true;
+        }
+        
+        FLAC_DEBUG("[seekTo] Byte estimation seek failed, falling back to beginning");
+    }
+    
+    // Strategy 4: Fallback to beginning
+    // This is the last resort when all other strategies fail
+    FLAC_DEBUG("[seekTo] All seek strategies failed, seeking to beginning");
     
     if (m_handler->seek(static_cast<off_t>(m_audio_data_offset), SEEK_SET) != 0) {
         // Requirement 22.5: Maintain current position on seek failure
@@ -607,17 +620,6 @@ bool FLACDemuxer::seekTo_unlocked(uint64_t timestamp_ms)
     m_current_offset = m_audio_data_offset;
     updateCurrentSample_unlocked(0);
     updateEOF_unlocked(false);
-    
-    // If target is not at the beginning, try to parse forward
-    if (target_sample > 0) {
-        FLAC_DEBUG("[seekTo] Parsing forward from beginning to target sample ", target_sample);
-        
-        if (!parseFramesToSample_unlocked(target_sample)) {
-            // Parsing forward failed, but we're at the beginning which is valid
-            FLAC_DEBUG("[seekTo] Failed to parse to exact target, staying at beginning");
-            // Don't restore position - being at the beginning is better than the old position
-        }
-    }
     
     FLAC_DEBUG("[seekTo] Seek complete, now at sample ", m_current_sample, 
                " (offset ", m_current_offset, ")");
@@ -2676,8 +2678,25 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
         FLAC_DEBUG("[parseFrameHeader] Insufficient buffer for CRC-8 validation");
     }
     
-    // Set sample offset based on current position
-    frame.sample_offset = m_current_sample;
+    // Calculate sample offset from coded number
+    // Requirement 9.9: For fixed block size, coded number is frame number
+    // Requirement 9.10: For variable block size, coded number is sample number
+    if (coded_number_bytes > 0) {
+        if (frame.variable_block_size) {
+            // Variable block size: coded number is the sample number directly
+            frame.sample_offset = coded_number;
+            FLAC_DEBUG("[parseFrameHeader] Sample offset from coded number (variable): ", frame.sample_offset);
+        } else {
+            // Fixed block size: coded number is frame number, multiply by block size
+            frame.sample_offset = coded_number * frame.block_size;
+            FLAC_DEBUG("[parseFrameHeader] Sample offset from coded number (fixed): frame ", 
+                       coded_number, " * ", frame.block_size, " = ", frame.sample_offset);
+        }
+    } else {
+        // Fallback to current position if coded number parsing failed
+        frame.sample_offset = m_current_sample;
+        FLAC_DEBUG("[parseFrameHeader] Sample offset from current position (fallback): ", frame.sample_offset);
+    }
     
     FLAC_DEBUG("[parseFrameHeader] Parsed header: block_size=", frame.block_size,
                ", sample_rate=", frame.sample_rate, ", channels=", static_cast<int>(frame.channels),
@@ -4100,6 +4119,201 @@ bool FLACDemuxer::seekWithFrameIndex_unlocked(uint64_t target_sample)
     
     FLAC_DEBUG("[seekWithFrameIndex] Seek successful, now at sample ", m_current_sample);
     return true;
+}
+
+/**
+ * @brief Seek using byte-position estimation with iterative refinement
+ * 
+ * This is the strategy used by VLC and other players when no SEEKTABLE is available.
+ * It estimates the byte position based on the ratio of target sample to total samples,
+ * then iteratively refines the position until within 250ms of the target.
+ * 
+ * @param target_sample Target sample position to seek to
+ * @return true if seek succeeded, false otherwise
+ */
+bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
+{
+    FLAC_DEBUG("[seekWithByteEstimation] Seeking to sample ", target_sample, " using byte estimation");
+    
+    // Need total samples and file size for estimation
+    if (m_streaminfo.total_samples == 0) {
+        FLAC_DEBUG("[seekWithByteEstimation] Cannot estimate: total_samples is 0");
+        return false;
+    }
+    
+    uint64_t audio_data_size = m_file_size - m_audio_data_offset;
+    if (audio_data_size == 0) {
+        FLAC_DEBUG("[seekWithByteEstimation] Cannot estimate: audio data size is 0");
+        return false;
+    }
+    
+    // Calculate tolerance in samples (250ms)
+    uint64_t tolerance_samples = (m_streaminfo.sample_rate * 250) / 1000;
+    
+    // Binary search bounds
+    uint64_t low_byte = m_audio_data_offset;
+    uint64_t high_byte = m_file_size;
+    
+    const int MAX_ITERATIONS = 10;
+    
+    for (int iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+        // Estimate byte position for target sample
+        uint64_t estimated_offset = (target_sample * audio_data_size) / m_streaminfo.total_samples;
+        uint64_t target_file_pos = m_audio_data_offset + estimated_offset;
+        
+        // Clamp to current search bounds
+        if (target_file_pos < low_byte) target_file_pos = low_byte;
+        if (target_file_pos >= high_byte) target_file_pos = high_byte > 1024 ? high_byte - 1024 : low_byte;
+        
+        FLAC_DEBUG("[seekWithByteEstimation] Iteration ", iteration, 
+                   ": seeking to file position ", target_file_pos);
+        
+        // Find a frame at or after this position
+        uint64_t frame_pos = 0;
+        uint64_t frame_sample = 0;
+        
+        if (!findFrameAtPosition_unlocked(target_file_pos, frame_pos, frame_sample)) {
+            FLAC_DEBUG("[seekWithByteEstimation] No frame found at position ", target_file_pos);
+            // Try searching from a bit earlier
+            if (target_file_pos > low_byte + 8192) {
+                high_byte = target_file_pos;
+                continue;
+            }
+            return false;
+        }
+        
+        FLAC_DEBUG("[seekWithByteEstimation] Found frame at ", frame_pos, 
+                   " with sample ", frame_sample, " (target: ", target_sample, ")");
+        
+        // Check if we're within tolerance
+        uint64_t diff = (frame_sample > target_sample) ? 
+                        (frame_sample - target_sample) : (target_sample - frame_sample);
+        
+        if (diff <= tolerance_samples) {
+            // Close enough - position at this frame
+            m_handler->seek(static_cast<off_t>(frame_pos), SEEK_SET);
+            m_current_offset = frame_pos;
+            updateCurrentSample_unlocked(frame_sample);
+            updateEOF_unlocked(false);
+            
+            FLAC_DEBUG("[seekWithByteEstimation] Seek successful after ", iteration + 1,
+                       " iterations, now at sample ", frame_sample, 
+                       " (target was ", target_sample, ", diff: ", diff, " samples)");
+            return true;
+        }
+        
+        // Refine search bounds
+        if (frame_sample < target_sample) {
+            // We're before the target, search later
+            low_byte = frame_pos + 1;
+        } else {
+            // We're after the target, search earlier
+            high_byte = frame_pos;
+        }
+        
+        // Recalculate estimate based on actual frame position
+        // This improves accuracy for variable bitrate
+        if (frame_sample > 0 && frame_sample < m_streaminfo.total_samples) {
+            double actual_ratio = static_cast<double>(frame_pos - m_audio_data_offset) / audio_data_size;
+            double expected_ratio = static_cast<double>(frame_sample) / m_streaminfo.total_samples;
+            
+            // Adjust our estimate based on the error
+            if (expected_ratio > 0.001) {
+                double correction = actual_ratio / expected_ratio;
+                uint64_t corrected_offset = static_cast<uint64_t>(
+                    (static_cast<double>(target_sample) / m_streaminfo.total_samples) * 
+                    audio_data_size * correction);
+                target_file_pos = m_audio_data_offset + corrected_offset;
+            }
+        }
+    }
+    
+    FLAC_DEBUG("[seekWithByteEstimation] Failed to converge after ", MAX_ITERATIONS, " iterations");
+    return false;
+}
+
+/**
+ * @brief Find a valid frame at or after the given file position
+ * 
+ * Searches up to 64KB for a valid frame sync pattern.
+ * 
+ * @param start_pos File position to start searching from
+ * @param frame_pos Output: file position of found frame
+ * @param frame_sample Output: sample offset of found frame
+ * @return true if a frame was found, false otherwise
+ */
+bool FLACDemuxer::findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& frame_pos, uint64_t& frame_sample)
+{
+    FLAC_DEBUG("[findFrameAtPosition] Searching for frame at position ", start_pos);
+    
+    // Search up to 64KB for a valid frame
+    const size_t MAX_SEARCH = 65536;
+    const size_t BUFFER_SIZE = 8192;
+    std::vector<uint8_t> buffer(BUFFER_SIZE);
+    
+    uint64_t search_pos = start_pos;
+    size_t total_searched = 0;
+    
+    while (total_searched < MAX_SEARCH && search_pos < m_file_size) {
+        if (m_handler->seek(static_cast<off_t>(search_pos), SEEK_SET) != 0) {
+            FLAC_DEBUG("[findFrameAtPosition] Seek failed at position ", search_pos);
+            return false;
+        }
+        
+        size_t bytes_read = m_handler->read(buffer.data(), 1, BUFFER_SIZE);
+        if (bytes_read < 4) {
+            FLAC_DEBUG("[findFrameAtPosition] Read failed, only got ", bytes_read, " bytes");
+            return false;
+        }
+        
+        // Search for frame sync pattern (0xFFF8 or 0xFFF9)
+        for (size_t i = 0; i < bytes_read - 1; i++) {
+            if (buffer[i] == 0xFF && (buffer[i + 1] == 0xF8 || buffer[i + 1] == 0xF9)) {
+                uint64_t sync_pos = search_pos + i;
+                
+                FLAC_DEBUG("[findFrameAtPosition] Found sync pattern at ", sync_pos);
+                
+                // Try to parse frame header from buffer
+                if (i + 16 <= bytes_read) {
+                    FLACFrame frame;
+                    if (parseFrameHeader_unlocked(frame, &buffer[i], bytes_read - i)) {
+                        frame_pos = sync_pos;
+                        frame_sample = frame.sample_offset;
+                        FLAC_DEBUG("[findFrameAtPosition] Valid frame at ", sync_pos, 
+                                   ", sample ", frame_sample);
+                        return true;
+                    }
+                }
+                
+                // Need to read more data for header parsing
+                if (m_handler->seek(static_cast<off_t>(sync_pos), SEEK_SET) != 0) {
+                    continue;
+                }
+                
+                uint8_t header_buf[32];  // Increased buffer size
+                size_t header_read = m_handler->read(header_buf, 1, 32);
+                if (header_read >= 4) {
+                    FLACFrame frame;
+                    if (parseFrameHeader_unlocked(frame, header_buf, header_read)) {
+                        frame_pos = sync_pos;
+                        frame_sample = frame.sample_offset;
+                        FLAC_DEBUG("[findFrameAtPosition] Valid frame at ", sync_pos, 
+                                   ", sample ", frame_sample);
+                        return true;
+                    }
+                }
+                
+                FLAC_DEBUG("[findFrameAtPosition] Sync at ", sync_pos, " was false positive");
+            }
+        }
+        
+        // Move to next buffer, overlapping by 1 byte to catch sync at boundary
+        search_pos += bytes_read - 1;
+        total_searched += bytes_read - 1;
+    }
+    
+    FLAC_DEBUG("[findFrameAtPosition] No valid frame found after searching ", total_searched, " bytes");
+    return false;
 }
 
 /**
