@@ -4122,6 +4122,68 @@ bool FLACDemuxer::seekWithFrameIndex_unlocked(uint64_t target_sample)
 }
 
 /**
+ * @brief Estimate byte position for a target sample using linear interpolation
+ * 
+ * Implements Requirements 1.1, 1.2, 1.4, 1.5 for bisection seeking:
+ * - Requirement 1.1: Calculate position using audio_offset + (target/total) * audio_size
+ * - Requirement 1.2: Audio data size is file_size - audio_data_offset
+ * - Requirement 1.4: Clamp to file_size - 64 if estimated position exceeds file size
+ * - Requirement 1.5: Clamp to audio_data_offset if estimated position is before audio data
+ * 
+ * @param target_sample Target sample position to estimate byte position for
+ * @return Estimated byte position in the file, clamped to valid range
+ */
+uint64_t FLACDemuxer::estimateBytePosition_unlocked(uint64_t target_sample) const
+{
+    FLAC_DEBUG("[estimateBytePosition] Estimating byte position for sample ", target_sample);
+    
+    // Requirement 1.3: Handle edge case when total_samples is 0
+    // Fall back to audio data offset (beginning of audio)
+    if (m_streaminfo.total_samples == 0) {
+        FLAC_DEBUG("[estimateBytePosition] total_samples is 0, returning audio_data_offset: ", m_audio_data_offset);
+        return m_audio_data_offset;
+    }
+    
+    // Requirement 1.2: Calculate audio data size
+    uint64_t audio_data_size = m_file_size - m_audio_data_offset;
+    
+    if (audio_data_size == 0) {
+        FLAC_DEBUG("[estimateBytePosition] audio_data_size is 0, returning audio_data_offset: ", m_audio_data_offset);
+        return m_audio_data_offset;
+    }
+    
+    // Requirement 1.1: Calculate initial byte position using linear interpolation
+    // estimated_pos = audio_data_offset + (target_sample / total_samples) * audio_data_size
+    // Use double precision to avoid integer overflow for large files
+    double ratio = static_cast<double>(target_sample) / static_cast<double>(m_streaminfo.total_samples);
+    uint64_t estimated_offset = static_cast<uint64_t>(ratio * static_cast<double>(audio_data_size));
+    uint64_t estimated_pos = m_audio_data_offset + estimated_offset;
+    
+    FLAC_DEBUG("[estimateBytePosition] ratio=", ratio, 
+               ", audio_offset=", m_audio_data_offset,
+               ", audio_size=", audio_data_size,
+               ", raw_estimate=", estimated_pos);
+    
+    // Requirement 1.5: Clamp to audio_data_offset if before audio data
+    if (estimated_pos < m_audio_data_offset) {
+        FLAC_DEBUG("[estimateBytePosition] Clamping to audio_data_offset (was below)");
+        return m_audio_data_offset;
+    }
+    
+    // Requirement 1.4: Clamp to file_size - 64 if exceeds file size
+    // Leave room for at least a minimal frame (64 bytes is conservative)
+    static constexpr uint64_t MIN_FRAME_ROOM = 64;
+    if (m_file_size > MIN_FRAME_ROOM && estimated_pos >= m_file_size - MIN_FRAME_ROOM) {
+        uint64_t clamped = m_file_size - MIN_FRAME_ROOM;
+        FLAC_DEBUG("[estimateBytePosition] Clamping to file_size - 64: ", clamped);
+        return clamped;
+    }
+    
+    FLAC_DEBUG("[estimateBytePosition] Estimated position: ", estimated_pos);
+    return estimated_pos;
+}
+
+/**
  * @brief Seek using byte-position estimation with iterative refinement
  * 
  * This is the strategy used by VLC and other players when no SEEKTABLE is available.

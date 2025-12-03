@@ -624,6 +624,19 @@ private:
     bool seekWithByteEstimation_unlocked(uint64_t target_sample);
     
     /**
+     * @brief Estimate byte position for a target sample using linear interpolation
+     * 
+     * Implements Requirements 1.1, 1.2, 1.4, 1.5 for bisection seeking:
+     * - Calculates position using: audio_offset + (target/total) * audio_size
+     * - Clamps to valid range [audio_offset, file_size - 64]
+     * - Returns audio_offset when total_samples is 0
+     * 
+     * @param target_sample Target sample position to estimate byte position for
+     * @return Estimated byte position in the file, clamped to valid range
+     */
+    uint64_t estimateBytePosition_unlocked(uint64_t target_sample) const;
+    
+    /**
      * @brief Find a valid frame at or after the given file position
      * 
      * @param start_pos File position to start searching from

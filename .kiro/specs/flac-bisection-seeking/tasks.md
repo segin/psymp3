@@ -1,12 +1,12 @@
 # Implementation Plan
 
-- [ ] 1. Implement byte position estimation
-  - [ ] 1.1 Add `estimateBytePosition_unlocked()` method to FLACDemuxer
+- [x] 1. Implement byte position estimation
+  - [x] 1.1 Add `estimateBytePosition_unlocked()` method to FLACDemuxer
     - Calculate position using `audio_offset + (target/total) * audio_size`
     - Clamp to valid range `[audio_offset, file_size - 64]`
     - Handle edge case when total_samples is 0
     - _Requirements: 1.1, 1.2, 1.4, 1.5_
-  - [ ] 1.2 Write property test for byte estimation
+  - [x] 1.2 Write property test for byte estimation
     - **Property 1: Byte Position Estimation Correctness**
     - **Validates: Requirements 1.1, 1.2, 1.4, 1.5**
 

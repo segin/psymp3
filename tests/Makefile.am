@@ -3833,3 +3833,11 @@ test_flac_bit_depth_bits_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
 test_flac_bit_depth_bits_properties_LDFLAGS = 
 test_flac_bit_depth_bits_properties_LDADD = 
 
+# **Feature: flac-bisection-seeking, Property 1: Byte Position Estimation Correctness**
+# **Validates: Requirements 1.1, 1.2, 1.4, 1.5**
+check_PROGRAMS += test_flac_byte_position_estimation_properties
+test_flac_byte_position_estimation_properties_SOURCES = test_flac_byte_position_estimation_properties.cpp
+test_flac_byte_position_estimation_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_byte_position_estimation_properties_LDFLAGS = 
+test_flac_byte_position_estimation_properties_LDADD = 
+
