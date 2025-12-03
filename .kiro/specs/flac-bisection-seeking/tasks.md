@@ -10,18 +10,18 @@
     - **Property 1: Byte Position Estimation Correctness**
     - **Validates: Requirements 1.1, 1.2, 1.4, 1.5**
 
-- [ ] 2. Implement frame finder for bisection seeking
-  - [ ] 2.1 Add `findFrameAtPosition_unlocked()` method to FLACDemuxer
+- [x] 2. Implement frame finder for bisection seeking
+  - [x] 2.1 Add `findFrameAtPosition_unlocked()` method to FLACDemuxer
     - Seek to given position
     - Search forward for sync pattern (0xFFF8 or 0xFFF9)
     - Validate CRC-8 per RFC 9639 Section 9.1.8
     - Parse coded number per RFC 9639 Section 9.1.5
     - Return frame position, sample offset, and block size
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9_
-  - [ ] 2.2 Write property test for frame sync detection
+  - [x] 2.2 Write property test for frame sync detection
     - **Property 2: Frame Sync Detection (RFC 9639 Section 9.1)**
     - **Validates: Requirements 2.1, 2.2**
-  - [ ] 2.3 Write property test for CRC-8 validation
+  - [x] 2.3 Write property test for CRC-8 validation
     - **Property 3: CRC-8 Validation (RFC 9639 Section 9.1.8)**
     - **Validates: Requirements 2.3, 2.8**
 

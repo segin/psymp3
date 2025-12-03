@@ -4233,8 +4233,9 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         // Find a frame at or after this position
         uint64_t frame_pos = 0;
         uint64_t frame_sample = 0;
+        uint32_t frame_block_size = 0;
         
-        if (!findFrameAtPosition_unlocked(target_file_pos, frame_pos, frame_sample)) {
+        if (!findFrameAtPosition_unlocked(target_file_pos, frame_pos, frame_sample, frame_block_size)) {
             FLAC_DEBUG("[seekWithByteEstimation] No frame found at position ", target_file_pos);
             // Try searching from a bit earlier
             if (target_file_pos > low_byte + 8192) {
@@ -4245,7 +4246,8 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         }
         
         FLAC_DEBUG("[seekWithByteEstimation] Found frame at ", frame_pos, 
-                   " with sample ", frame_sample, " (target: ", target_sample, ")");
+                   " with sample ", frame_sample, ", block_size ", frame_block_size,
+                   " (target: ", target_sample, ")");
         
         // Check if we're within tolerance
         uint64_t diff = (frame_sample > target_sample) ? 
@@ -4297,18 +4299,30 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
 /**
  * @brief Find a valid frame at or after the given file position
  * 
- * Searches up to 64KB for a valid frame sync pattern.
+ * Implements RFC 9639 Section 9.1 frame discovery for bisection seeking:
+ * - Requirement 2.1: Search forward for 15-bit sync pattern (0xFFF8 or 0xFFF9)
+ * - Requirement 2.2: Verify blocking strategy bit matches stream's established strategy
+ * - Requirement 2.3: Validate CRC-8 checksum per RFC 9639 Section 9.1.8
+ * - Requirement 2.4: Parse coded number per RFC 9639 Section 9.1.5
+ * - Requirement 2.5: For fixed block size (0xFFF8), interpret coded number as frame number
+ * - Requirement 2.6: For variable block size (0xFFF9), interpret coded number as sample number
+ * - Requirement 2.7: Report failure if no valid frame found within 64KB
+ * - Requirement 2.8: Continue searching past false positive sync patterns (CRC failures)
+ * - Requirement 2.9: Record file position, sample offset, and block size
  * 
  * @param start_pos File position to start searching from
  * @param frame_pos Output: file position of found frame
  * @param frame_sample Output: sample offset of found frame
+ * @param block_size Output: block size of found frame in samples
  * @return true if a frame was found, false otherwise
  */
-bool FLACDemuxer::findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& frame_pos, uint64_t& frame_sample)
+bool FLACDemuxer::findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& frame_pos, 
+                                               uint64_t& frame_sample, uint32_t& block_size)
 {
     FLAC_DEBUG("[findFrameAtPosition] Searching for frame at position ", start_pos);
+    FLAC_DEBUG("[findFrameAtPosition] Requirement 2.1: Searching for 15-bit sync pattern");
     
-    // Search up to 64KB for a valid frame
+    // Requirement 2.7: Search up to 64KB for a valid frame
     const size_t MAX_SEARCH = 65536;
     const size_t BUFFER_SIZE = 8192;
     std::vector<uint8_t> buffer(BUFFER_SIZE);
@@ -4328,23 +4342,41 @@ bool FLACDemuxer::findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& fra
             return false;
         }
         
-        // Search for frame sync pattern (0xFFF8 or 0xFFF9)
+        // Requirement 2.1: Search for frame sync pattern (0xFFF8 or 0xFFF9)
+        // RFC 9639 Section 9.1: 15-bit sync code 0b111111111111100
         for (size_t i = 0; i < bytes_read - 1; i++) {
             if (buffer[i] == 0xFF && (buffer[i + 1] == 0xF8 || buffer[i + 1] == 0xF9)) {
                 uint64_t sync_pos = search_pos + i;
+                bool is_variable = (buffer[i + 1] == 0xF9);
                 
-                FLAC_DEBUG("[findFrameAtPosition] Found sync pattern at ", sync_pos);
+                FLAC_DEBUG("[findFrameAtPosition] Found sync pattern at ", sync_pos,
+                           " (", is_variable ? "variable" : "fixed", " block size)");
+                
+                // Requirement 2.2: Verify blocking strategy matches stream's established strategy
+                if (m_blocking_strategy_set && is_variable != m_variable_block_size) {
+                    FLAC_DEBUG("[findFrameAtPosition] Requirement 2.2: Blocking strategy mismatch, skipping");
+                    // Requirement 2.8: Continue searching past false positives
+                    continue;
+                }
                 
                 // Try to parse frame header from buffer
+                // parseFrameHeader_unlocked validates CRC-8 (Requirement 2.3)
+                // and parses coded number (Requirements 2.4, 2.5, 2.6)
                 if (i + 16 <= bytes_read) {
                     FLACFrame frame;
+                    frame.file_offset = sync_pos;
+                    frame.variable_block_size = is_variable;
                     if (parseFrameHeader_unlocked(frame, &buffer[i], bytes_read - i)) {
+                        // Requirement 2.9: Record file position, sample offset, and block size
                         frame_pos = sync_pos;
                         frame_sample = frame.sample_offset;
-                        FLAC_DEBUG("[findFrameAtPosition] Valid frame at ", sync_pos, 
-                                   ", sample ", frame_sample);
+                        block_size = frame.block_size;
+                        FLAC_DEBUG("[findFrameAtPosition] Requirement 2.9: Valid frame at ", sync_pos, 
+                                   ", sample ", frame_sample, ", block_size ", block_size);
                         return true;
                     }
+                    // Requirement 2.8: CRC-8 failed or invalid header, continue searching
+                    FLAC_DEBUG("[findFrameAtPosition] Requirement 2.8: Header validation failed, continuing search");
                 }
                 
                 // Need to read more data for header parsing
@@ -4352,20 +4384,25 @@ bool FLACDemuxer::findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& fra
                     continue;
                 }
                 
-                uint8_t header_buf[32];  // Increased buffer size
+                uint8_t header_buf[32];  // Buffer for frame header
                 size_t header_read = m_handler->read(header_buf, 1, 32);
                 if (header_read >= 4) {
                     FLACFrame frame;
+                    frame.file_offset = sync_pos;
+                    frame.variable_block_size = is_variable;
                     if (parseFrameHeader_unlocked(frame, header_buf, header_read)) {
+                        // Requirement 2.9: Record file position, sample offset, and block size
                         frame_pos = sync_pos;
                         frame_sample = frame.sample_offset;
-                        FLAC_DEBUG("[findFrameAtPosition] Valid frame at ", sync_pos, 
-                                   ", sample ", frame_sample);
+                        block_size = frame.block_size;
+                        FLAC_DEBUG("[findFrameAtPosition] Requirement 2.9: Valid frame at ", sync_pos, 
+                                   ", sample ", frame_sample, ", block_size ", block_size);
                         return true;
                     }
                 }
                 
-                FLAC_DEBUG("[findFrameAtPosition] Sync at ", sync_pos, " was false positive");
+                // Requirement 2.8: Continue searching past false positive sync patterns
+                FLAC_DEBUG("[findFrameAtPosition] Requirement 2.8: Sync at ", sync_pos, " was false positive");
             }
         }
         
@@ -4374,7 +4411,9 @@ bool FLACDemuxer::findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& fra
         total_searched += bytes_read - 1;
     }
     
-    FLAC_DEBUG("[findFrameAtPosition] No valid frame found after searching ", total_searched, " bytes");
+    // Requirement 2.7: Report failure if no valid frame found within 64KB
+    FLAC_DEBUG("[findFrameAtPosition] Requirement 2.7: No valid frame found after searching ", 
+               total_searched, " bytes");
     return false;
 }
 

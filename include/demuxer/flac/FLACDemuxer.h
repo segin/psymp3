@@ -639,12 +639,25 @@ private:
     /**
      * @brief Find a valid frame at or after the given file position
      * 
+     * Implements RFC 9639 Section 9.1 frame discovery for bisection seeking:
+     * - Requirement 2.1: Search forward for 15-bit sync pattern (0xFFF8 or 0xFFF9)
+     * - Requirement 2.2: Verify blocking strategy bit matches stream's established strategy
+     * - Requirement 2.3: Validate CRC-8 checksum per RFC 9639 Section 9.1.8
+     * - Requirement 2.4: Parse coded number per RFC 9639 Section 9.1.5
+     * - Requirement 2.5: For fixed block size (0xFFF8), interpret coded number as frame number
+     * - Requirement 2.6: For variable block size (0xFFF9), interpret coded number as sample number
+     * - Requirement 2.7: Report failure if no valid frame found within 64KB
+     * - Requirement 2.8: Continue searching past false positive sync patterns (CRC failures)
+     * - Requirement 2.9: Record file position, sample offset, and block size
+     * 
      * @param start_pos File position to start searching from
      * @param frame_pos Output: file position of found frame
      * @param frame_sample Output: sample offset of found frame
+     * @param block_size Output: block size of found frame in samples
      * @return true if a frame was found, false otherwise
      */
-    bool findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& frame_pos, uint64_t& frame_sample);
+    bool findFrameAtPosition_unlocked(uint64_t start_pos, uint64_t& frame_pos, 
+                                      uint64_t& frame_sample, uint32_t& block_size);
     
     /**
      * @brief Add a frame to the frame index
