@@ -69,7 +69,7 @@
     - **Property 10: Strategy Priority**
     - **Validates: Requirements 7.1, 7.2, 7.3, 7.5**
 
-- [ ] 6. Checkpoint - Ensure all tests pass
+- [x] 6. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 7. Test with real FLAC files
