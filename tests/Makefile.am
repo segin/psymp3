@@ -3857,3 +3857,20 @@ test_flac_bisection_convergence_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
 test_flac_bisection_convergence_properties_LDFLAGS = 
 test_flac_bisection_convergence_properties_LDADD =
 
+
+# **Feature: flac-bisection-seeking, Property 8: Time Differential Calculation**
+# **Validates: Requirements 4.1, 4.2**
+check_PROGRAMS += test_flac_time_differential_properties
+test_flac_time_differential_properties_SOURCES = test_flac_time_differential_properties.cpp
+test_flac_time_differential_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_time_differential_properties_LDFLAGS = 
+test_flac_time_differential_properties_LDADD =
+
+# **Feature: flac-bisection-seeking, Property 9: Best Position Selection**
+# **Validates: Requirements 4.3, 4.4**
+check_PROGRAMS += test_flac_best_position_selection_properties
+test_flac_best_position_selection_properties_SOURCES = test_flac_best_position_selection_properties.cpp
+test_flac_best_position_selection_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_best_position_selection_properties_LDFLAGS = 
+test_flac_best_position_selection_properties_LDADD =
+
