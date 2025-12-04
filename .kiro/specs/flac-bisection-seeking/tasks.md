@@ -57,15 +57,15 @@
     - **Property 9: Best Position Selection**
     - **Validates: Requirements 4.3, 4.4**
 
-- [ ] 5. Integrate with existing seeking code
-  - [ ] 5.1 Update `seekTo_unlocked()` to call bisection seeking
+- [x] 5. Integrate with existing seeking code
+  - [x] 5.1 Update `seekTo_unlocked()` to call bisection seeking
     - Call `seekWithByteEstimation_unlocked()` when SEEKTABLE and frame index unavailable
     - Maintain existing strategy priority order
     - _Requirements: 7.1, 7.2, 7.3, 7.5_
-  - [ ] 5.2 Add discovered frames to frame index
+  - [x] 5.2 Add discovered frames to frame index
     - Call `addFrameToIndex_unlocked()` for each frame found during bisection
     - _Requirements: 6.4_
-  - [ ] 5.3 Write property test for strategy priority
+  - [x] 5.3 Write property test for strategy priority
     - **Property 10: Strategy Priority**
     - **Validates: Requirements 7.1, 7.2, 7.3, 7.5**
 

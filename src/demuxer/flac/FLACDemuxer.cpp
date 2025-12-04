@@ -4234,6 +4234,7 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
     // Best position tracking - Requirement 4.3, 4.4
     uint64_t best_pos = m_audio_data_offset;
     uint64_t best_sample = 0;
+    uint32_t best_block_size = 0;  // Track block size for frame index - Requirement 6.4
     int64_t best_diff_ms = INT64_MAX;
     bool best_is_before_target = true;
     
@@ -4334,10 +4335,11 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         if (update_best) {
             best_pos = frame_pos;
             best_sample = frame_sample;
+            best_block_size = frame_block_size;  // Track block size for frame index - Requirement 6.4
             best_diff_ms = time_diff_ms;
             best_is_before_target = is_before_target;
             FLAC_DEBUG("[seekWithByteEstimation] Updated best position: ", best_pos,
-                       " (sample ", best_sample, ", diff ", best_diff_ms, "ms)");
+                       " (sample ", best_sample, ", block_size ", best_block_size, ", diff ", best_diff_ms, "ms)");
         }
         
         // ====================================================================
@@ -4396,6 +4398,7 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         FLAC_DEBUG("[seekWithByteEstimation] Requirement 3.4/4.3: Using best position found");
         FLAC_DEBUG("[seekWithByteEstimation]   Best position: ", best_pos);
         FLAC_DEBUG("[seekWithByteEstimation]   Best sample: ", best_sample);
+        FLAC_DEBUG("[seekWithByteEstimation]   Best block size: ", best_block_size);
         FLAC_DEBUG("[seekWithByteEstimation]   Best diff: ", best_diff_ms, "ms");
         
         if (m_handler->seek(static_cast<off_t>(best_pos), SEEK_SET) != 0) {
@@ -4406,6 +4409,20 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         m_current_offset = best_pos;
         updateCurrentSample_unlocked(best_sample);
         updateEOF_unlocked(false);
+        
+        // Add discovered frame to index - Requirement 6.4
+        // Cache frame positions for future seeks
+        if (best_block_size > 0) {
+            FLACFrame discovered_frame;
+            discovered_frame.file_offset = best_pos;
+            discovered_frame.sample_offset = best_sample;
+            discovered_frame.block_size = best_block_size;
+            discovered_frame.sample_rate = m_streaminfo.sample_rate;
+            discovered_frame.channels = m_streaminfo.channels;
+            discovered_frame.bits_per_sample = m_streaminfo.bits_per_sample;
+            addFrameToIndex_unlocked(discovered_frame);
+            FLAC_DEBUG("[seekWithByteEstimation] Requirement 6.4: Added best frame to index");
+        }
         
         // Requirement 4.5: Log final time differential
         FLAC_DEBUG("[seekWithByteEstimation] Seek completed with final diff: ", best_diff_ms, "ms");

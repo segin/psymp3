@@ -3874,3 +3874,11 @@ test_flac_best_position_selection_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++1
 test_flac_best_position_selection_properties_LDFLAGS = 
 test_flac_best_position_selection_properties_LDADD =
 
+# **Feature: flac-bisection-seeking, Property 10: Strategy Priority**
+# **Validates: Requirements 7.1, 7.2, 7.3, 7.5**
+check_PROGRAMS += test_flac_strategy_priority_properties
+test_flac_strategy_priority_properties_SOURCES = test_flac_strategy_priority_properties.cpp
+test_flac_strategy_priority_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
+test_flac_strategy_priority_properties_LDFLAGS = 
+test_flac_strategy_priority_properties_LDADD =
+
