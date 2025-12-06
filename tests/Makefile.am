@@ -79,38 +79,81 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/io/libio.a
 
 # Minimal library set for simple tests (I/O, demuxer core, codecs)
+# Note: Libraries with circular dependencies must be listed multiple times
+# Order: high-level -> mid-level -> low-level, then repeat for circular deps
 MINIMAL_TEST_LIBS = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
-	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(CODEC_LIBS) \
-	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
-	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
-	$(CODEC_LIBS) \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a
 
 # Common object files needed by tests (not in libraries)
 # These are standalone .o files from src/ that tests commonly need
 # Note: Memory management files (MemoryPoolManager, MemoryTracker, BufferPool, etc.)
 # are now part of libio.a and should be linked via $(top_builddir)/src/io/libio.a
+# Note: These object files depend on I/O libraries, so they must be listed
+# BEFORE the libraries they depend on in the link order
 COMMON_TEST_OBJS = \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o
 
-# Legacy variable for backward compatibility (deprecated - use COMMON_TEST_LIBS)
-COMMON_CODEC_DEPS = \
+# Extended object files that depend on I/O libraries
+# These must be linked with I/O libraries following them
+EXTENDED_TEST_OBJS = \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a
+
+# Full codec library set for codec tests
+# Order: high-level -> mid-level -> low-level, then repeat for circular deps
+FULL_CODEC_LIBS = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o
 
+# Legacy variable for backward compatibility (deprecated - use FULL_CODEC_LIBS)
+COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
+
 # Common library links for codec tests
-COMMON_CODEC_LIBS = -logg -lvorbis -lvorbisenc -lmpg123
+COMMON_CODEC_LIBS = -lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS)
 AM_LDFLAGS = $(SDL_LIBS) $(TAGLIB_LIBS) $(FREETYPE_LIBS) $(DBUS_LIBS) $(OPUS_LIBS)
 
@@ -284,7 +327,7 @@ endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_thread_safety_validation test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation test_flac_bit_depth_validation_simple test_flac_sample_format_rfc9639_compliance test_flac_rfc9639_compliance_validator test_flac_audio_output test_flac_seeking_crash test_flac_audio_output_debug test_flac_codec_simple_debug test_streaminfo_real_files test_streaminfo_recovery test_flac_streamable_subset_real_files test_streaminfo_debug test_flac_backward_compatibility_validation test_flac_demuxer_real_files
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_thread_safety_validation test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation test_flac_bit_depth_validation_simple test_flac_sample_format_rfc9639_compliance test_flac_audio_output test_flac_seeking_crash test_flac_audio_output_debug test_flac_codec_simple_debug test_streaminfo_real_files test_streaminfo_recovery test_flac_streamable_subset_real_files test_streaminfo_debug test_flac_backward_compatibility_validation test_flac_demuxer_real_files test_flac_bisection_real_files test_flac_mini_player
 endif
 
 # Test program sources and dependencies
@@ -418,7 +461,6 @@ test_demuxer_factory_unit_SOURCES = test_demuxer_factory_unit.cpp
 test_demuxer_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -426,78 +468,65 @@ test_demuxer_factory_unit_LDADD = libtest_utilities.a \
 
 test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
 test_media_factory_unit_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MediaFactory.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/CodecRegistration.o \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/HTTPIOHandler.o \
-	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/ModernStream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/flac.o \
-	$(top_builddir)/src/libmpg123.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
-	$(top_builddir)/src/RawAudioDemuxer.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/FLACRFCValidator.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/ChunkDemuxer.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lvorbis -lvorbisenc -lmpg123 -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
 test_demuxed_stream_unit_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
-	-logg -lvorbis -lvorbisenc -lopus \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(FLAC_LIBS) \
+	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 # Integration tests
@@ -505,7 +534,6 @@ test_demuxer_integration_SOURCES = test_demuxer_integration.cpp
 test_demuxer_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -513,53 +541,34 @@ test_demuxer_integration_LDADD = libtest_utilities.a \
 
 test_media_factory_integration_SOURCES = test_media_factory_integration.cpp
 test_media_factory_integration_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/MediaFactory.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/CodecRegistration.o \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/HTTPIOHandler.o \
-	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/ModernStream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/flac.o \
-	$(top_builddir)/src/libmpg123.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
-	$(top_builddir)/src/RawAudioDemuxer.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/FLACRFCValidator.o \
-	$(top_builddir)/src/ChunkDemuxer.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lmpg123 -lcurl -lssl -lcrypto \
+	-logg -lvorbis -lvorbisenc -lmpg123 -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 # Performance and regression tests
@@ -567,7 +576,6 @@ test_demuxer_performance_SOURCES = test_demuxer_performance.cpp
 test_demuxer_performance_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -576,10 +584,12 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 # IOHandler backward compatibility and performance validation tests
 test_iohandler_legacy_compatibility_SOURCES = test_iohandler_legacy_compatibility.cpp
 test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/HTTPIOHandler.o \
-	$(top_builddir)/src/HTTPClient.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	-lcurl -lssl -lcrypto \
@@ -587,10 +597,11 @@ test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \
 
 test_iohandler_performance_validation_SOURCES = test_iohandler_performance_validation.cpp
 test_iohandler_performance_validation_LDADD = libtest_utilities.a \
-	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/HTTPIOHandler.o \
-	$(top_builddir)/src/HTTPClient.o \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/http/libhttpio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -620,6 +631,7 @@ test_bisection_search_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -636,6 +648,7 @@ test_granule_arithmetic_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -773,8 +786,6 @@ test_ogg_demuxer_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -790,16 +801,27 @@ test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
 test_alaw_table_verification_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
 test_alaw_table_verification_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
 	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/opus/libopuscodec.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	-lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg \
@@ -836,13 +858,27 @@ test_mulaw_alaw_performance_SOURCES = test_mulaw_alaw_performance.cpp
 test_mulaw_alaw_performance_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
 test_mulaw_alaw_performance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
 	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/opus/libopuscodec.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	-lFLAC++ -lFLAC -lmpg123 -lvorbis -lopus -logg \
@@ -864,7 +900,7 @@ test_mpris_types_SOURCES = test_mpris_types.cpp
 test_mpris_types_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_types_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
@@ -874,8 +910,7 @@ test_dbus_connection_manager_SOURCES = test_dbus_connection_manager.cpp
 test_dbus_connection_manager_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_dbus_connection_manager_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
@@ -885,8 +920,7 @@ test_property_manager_SOURCES = test_property_manager.cpp
 test_property_manager_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_property_manager_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -897,7 +931,8 @@ test_method_handler_SOURCES = test_method_handler.cpp
 test_method_handler_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_method_handler_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
@@ -907,52 +942,41 @@ test_signal_emitter_SOURCES = test_signal_emitter.cpp
 test_signal_emitter_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_signal_emitter_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_mpris_manager_integration_SOURCES = test_mpris_manager_integration.cpp
+test_mpris_manager_integration_SOURCES = test_mpris_manager_integration.cpp player_stub.cpp
 test_mpris_manager_integration_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_manager_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_mpris_manager_simple_SOURCES = test_mpris_manager_simple.cpp
+test_mpris_manager_simple_SOURCES = test_mpris_manager_simple.cpp player_stub.cpp
 test_mpris_manager_simple_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_manager_simple_LDADD = \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_mpris_manager_minimal_SOURCES = test_mpris_manager_minimal.cpp
+test_mpris_manager_minimal_SOURCES = test_mpris_manager_minimal.cpp player_stub.cpp
 test_mpris_manager_minimal_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_manager_minimal_LDADD = \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
@@ -961,21 +985,17 @@ test_mpris_manager_minimal_LDADD = \
 test_mpris_manager_basic_integration_SOURCES = test_mpris_manager_basic_integration.cpp player_stub.cpp
 test_mpris_manager_basic_integration_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_manager_basic_integration_LDADD = \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/MPRISTypes.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
+	$(COMMON_TEST_LIBS) \
+	$(COMMON_TEST_OBJS) \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
 test_mpris_error_handling_SOURCES = test_mpris_error_handling.cpp
 test_mpris_error_handling_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_error_handling_LDADD = \
-	$(top_builddir)/src/MPRISTypes.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
@@ -984,7 +1004,9 @@ test_mpris_error_handling_LDADD = \
 test_mpris_error_integration_SOURCES = test_mpris_error_integration.cpp
 test_mpris_error_integration_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_error_integration_LDADD = \
-	$(top_builddir)/src/MPRISTypes.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
@@ -1107,31 +1129,9 @@ $(top_builddir)/src/exceptions.o:
 
 
 
-
-
-
-
-$(top_builddir)/src/HTTPIOHandler.o:
-	$(MAKE) -C $(top_builddir)/src HTTPIOHandler.o
-
-$(top_builddir)/src/HTTPClient.o:
-	$(MAKE) -C $(top_builddir)/src HTTPClient.o
 endif
 
 # Build rules for A-law codec test dependencies
-$(top_builddir)/src/ALawCodec.o:
-	$(MAKE) -C $(top_builddir)/src ALawCodec.o
-
-$(top_builddir)/src/AudioCodec.o:
-	$(MAKE) -C $(top_builddir)/src AudioCodec.o
-
-# Build rules for μ-law codec test dependencies
-$(top_builddir)/src/MuLawCodec.o:
-	$(MAKE) -C $(top_builddir)/src MuLawCodec.o
-
-$(top_builddir)/src/PCMCodecs.o:
-	$(MAKE) -C $(top_builddir)/src PCMCodecs.o
-
 # Build rules for Audio thread safety test dependencies
 $(top_builddir)/src/audio.o:
 	$(MAKE) -C $(top_builddir)/src audio.o
@@ -1154,7 +1154,6 @@ $(top_builddir)/src/track.o:
 $(top_builddir)/src/lyrics.o:
 	$(MAKE) -C $(top_builddir)/src lyrics.o
 
-$(top_builddir)/src/TagLibIOHandlerAdapter.o:
 	$(MAKE) -C $(top_builddir)/src TagLibIOHandlerAdapter.o
 
 # Build rules for Surface thread safety test dependencies
@@ -1162,28 +1161,20 @@ $(top_builddir)/src/surface.o:
 	$(MAKE) -C $(top_builddir)/src surface.o
 
 # Build rules for ISO demuxer test dependencies
-$(top_builddir)/src/ISODemuxer.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxer.o
 
-$(top_builddir)/src/ISODemuxerFragmentHandler.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxerFragmentHandler.o
 
-$(top_builddir)/src/ISODemuxerBoxParser.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxerBoxParser.o
 
-$(top_builddir)/src/ISODemuxerSampleTableManager.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxerSampleTableManager.o
 
-$(top_builddir)/src/ISODemuxerSeekingEngine.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxerSeekingEngine.o
 
-$(top_builddir)/src/ISODemuxerMetadataExtractor.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxerMetadataExtractor.o
 
-$(top_builddir)/src/ISODemuxerStreamManager.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxerStreamManager.o
 
-$(top_builddir)/src/ISODemuxerErrorRecovery.o:
 	$(MAKE) -C $(top_builddir)/src ISODemuxerErrorRecovery.o
 
 # System-wide threading integration test
@@ -1205,7 +1196,6 @@ test_system_wide_threading_integration_LDADD = \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(AM_LDFLAGS)
 
 # Threading performance regression test
@@ -1227,7 +1217,6 @@ test_threading_performance_regression_LDADD = \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(AM_LDFLAGS)
 
 # Simple codec performance test (minimal dependencies)
@@ -1243,7 +1232,7 @@ test_codec_thread_safety_simple_LDADD = $(AM_LDFLAGS)
 # Threading safety baseline test
 test_threading_safety_baseline_SOURCES = test_threading_safety_baseline.cpp
 test_threading_safety_baseline_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
-test_threading_safety_baseline_LDADD = $(AM_LDFLAGS)
+test_threading_safety_baseline_LDADD = libtest_utilities.a -lpthread
 
 # Audio thread safety test
 test_audio_thread_safety_SOURCES = test_audio_thread_safety.cpp
@@ -1262,7 +1251,6 @@ test_audio_thread_safety_LDADD = \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/io/libio.a \
 	$(AM_LDFLAGS)
 
@@ -1661,6 +1649,7 @@ test_flac_demuxer_performance_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -1675,9 +1664,8 @@ test_flac_compatibility_integration_LDADD = \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -1719,6 +1707,40 @@ test_flac_backward_compatibility_validation_LDADD = \
 test_flac_demuxer_real_files_SOURCES = test_flac_demuxer_real_files.cpp
 test_flac_demuxer_real_files_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_demuxer_real_files_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS) \
+	-lpthread
+
+# FLAC bisection seeking real file tests (Task 7.1, 7.2 from flac-bisection-seeking spec)
+test_flac_bisection_real_files_SOURCES = test_flac_bisection_real_files.cpp
+test_flac_bisection_real_files_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_bisection_real_files_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS) \
+	-lpthread
+
+# FLAC mini player test (Task 7.1, 7.2 from flac-bisection-seeking spec)
+test_flac_mini_player_SOURCES = test_flac_mini_player.cpp
+test_flac_mini_player_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_flac_mini_player_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -1811,99 +1833,57 @@ test_flac_codec_minimal_container_agnostic_SOURCES = test_flac_codec_minimal_con
 test_flac_codec_minimal_container_agnostic_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_codec_minimal_container_agnostic_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
 # FLAC codec container-agnostic operation test
+# Note: This test requires HAVE_NATIVE_FLAC; when not defined, it's a skip stub
 test_flac_codec_container_agnostic_SOURCES = test_flac_codec_container_agnostic.cpp
 test_flac_codec_container_agnostic_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_codec_container_agnostic_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus \
 	$(AM_LDFLAGS)
 
 # FLAC codec StreamInfo-only initialization test
+# Note: This test requires HAVE_NATIVE_FLAC; when not defined, it's a skip stub
 test_flac_codec_streaminfo_only_SOURCES = test_flac_codec_streaminfo_only.cpp
 test_flac_codec_streaminfo_only_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_codec_streaminfo_only_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus \
+	-lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
-
-# Build rules for FLAC demuxer test dependencies
-$(top_builddir)/src/demuxer/flac/libflacdemuxer.a:
-	$(MAKE) -C $(top_builddir)/src FLACDemuxer.o
-
-$(top_builddir)/src/FLACCodec.o:
-	$(MAKE) -C $(top_builddir)/src FLACCodec.o
-
-# Additional build rules for FLAC tests (non-duplicated)
-
-$(top_builddir)/src/OggCodecs.o:
-	$(MAKE) -C $(top_builddir)/src OggCodecs.o
-
-$(top_builddir)/src/vorbis.o:
-	$(MAKE) -C $(top_builddir)/src vorbis.o
-
-$(top_builddir)/src/opus.o:
-	$(MAKE) -C $(top_builddir)/src opus.o
-
-$(top_builddir)/src/DemuxedStream.o:
-	$(MAKE) -C $(top_builddir)/src DemuxedStream.o
-
-$(top_builddir)/src/DemuxerFactory.o:
-	$(MAKE) -C $(top_builddir)/src DemuxerFactory.o
-
-$(top_builddir)/src/MediaFactory.o:
-	$(MAKE) -C $(top_builddir)/src MediaFactory.o
-
 # Simple FLAC codec quality validation test (minimal dependencies)
 test_flac_quality_simple_SOURCES = test_flac_quality_simple.cpp
 test_flac_quality_simple_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
@@ -1946,7 +1926,6 @@ test_iohandler_thread_safety_comprehensive_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/io/libio.a \
 	$(AM_LDFLAGS)
 
@@ -1959,7 +1938,6 @@ test_iohandler_memory_deadlock_prevention_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/io/libio.a \
 	$(AM_LDFLAGS)
 
@@ -1970,6 +1948,8 @@ test_memory_pool_manager_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(AM_LDFLAGS)
 
 # MemoryPoolManager comprehensive thread safety test
@@ -1979,6 +1959,8 @@ test_memory_pool_manager_thread_safety_comprehensive_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(AM_LDFLAGS)
 
 # MemoryPoolManager basic threading test
@@ -1987,6 +1969,8 @@ test_memory_pool_manager_basic_threading_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -p
 test_memory_pool_manager_basic_threading_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(AM_LDFLAGS)
 
 test_frame_size_estimation_consistency_SOURCES = test_frame_size_estimation_consistency.cpp
@@ -2006,6 +1990,7 @@ test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
 test_flac_audioframe_creation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_audioframe_creation_LDADD = \
 	$(COMMON_TEST_OBJS) \
+	$(EXTENDED_TEST_OBJS) \
 	$(COMMON_TEST_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -2027,11 +2012,11 @@ test_flac_codec_compatibility_SOURCES = test_flac_codec_compatibility.cpp
 test_flac_codec_compatibility_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_codec_compatibility_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -2042,13 +2027,13 @@ test_flac_codec_integration_SOURCES = test_flac_codec_integration.cpp
 test_flac_codec_integration_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_codec_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -2059,8 +2044,13 @@ test_flac_quality_validation_SOURCES = test_flac_quality_validation.cpp
 test_flac_quality_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_quality_validation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -2116,7 +2106,7 @@ test_flac_performance_benchmarking_SOURCES = test_flac_performance_benchmarking.
 test_flac_performance_benchmarking_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_performance_benchmarking_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACPerformanceBenchmark.o \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -2127,9 +2117,29 @@ test_flac_conditional_compilation_SOURCES = test_flac_conditional_compilation.cp
 test_flac_conditional_compilation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_conditional_compilation_LDADD = \
 	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
+	$(FLAC_LIBS) \
+	-lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
 
 # FLAC binary search limitations test
@@ -2153,8 +2163,7 @@ test_flac_codec_threading_safety_SOURCES = test_flac_codec_threading_safety.cpp
 test_flac_codec_threading_safety_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_codec_threading_safety_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -2247,17 +2256,10 @@ test_flac_rfc_subframe_validation_SOURCES = test_flac_rfc_subframe_validation.cp
 test_flac_rfc_subframe_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_rfc_subframe_validation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/OpusCodec.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -2272,24 +2274,30 @@ test_flac_rfc_entropy_coding_validation_SOURCES = test_flac_rfc_entropy_coding_v
 test_flac_rfc_entropy_coding_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_rfc_entropy_coding_validation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
+	-lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
 
 # Simple entropy coding compilation test
@@ -2307,6 +2315,11 @@ test_flac_test_data_validation_SOURCES = test_flac_test_data_validation.cpp
 test_flac_test_data_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_test_data_validation_LDADD = \
 	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -2329,20 +2342,30 @@ test_flac_rfc_bit_depth_validation_SOURCES = test_flac_rfc_bit_depth_validation.
 test_flac_rfc_bit_depth_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_rfc_bit_depth_validation_LDADD = \
 	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus \
+	-lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
 
 # Simple RFC 9639 bit depth validation test (minimal dependencies)
@@ -2368,53 +2391,33 @@ test_flac_sample_format_rfc9639_compliance_SOURCES = test_flac_sample_format_rfc
 test_flac_sample_format_rfc9639_compliance_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
 test_flac_sample_format_rfc9639_compliance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/flac.o \
-	$(top_builddir)/src/libmpg123.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/ModernStream.o \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/HTTPIOHandler.o \
-	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/CodecRegistration.o \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
-	$(top_builddir)/src/RawAudioDemuxer.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/ChunkDemuxer.o \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	-lvorbis -lopus -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
 
 # OggDemuxer performance test
@@ -2427,8 +2430,6 @@ test_oggdemuxer_performance_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -2448,8 +2449,6 @@ test_oggdemuxer_comprehensive_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -2466,11 +2465,10 @@ test_ogg_comprehensive_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/demuxer/DemuxerRegistry.o \
-	$(top_builddir)/src/demuxer/DemuxerFactory.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
@@ -2485,24 +2483,21 @@ test_opus_codec_core_decoding_SOURCES = test_opus_codec_core_decoding.cpp
 test_opus_codec_core_decoding_CPPFLAGS = $(AM_CPPFLAGS) $(OPUS_CFLAGS)
 test_opus_codec_core_decoding_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
@@ -2515,22 +2510,20 @@ test_opus_codec_error_handling_SOURCES = test_opus_codec_error_handling.cpp
 test_opus_codec_error_handling_CPPFLAGS = $(AM_CPPFLAGS) $(OPUS_CFLAGS) -pthread
 test_opus_codec_error_handling_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
@@ -2543,24 +2536,21 @@ test_opus_integration_SOURCES = test_opus_integration.cpp
 test_opus_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OPUS_CFLAGS)
 test_opus_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
@@ -2573,24 +2563,21 @@ test_opus_compatibility_performance_SOURCES = test_opus_compatibility_performanc
 test_opus_compatibility_performance_CPPFLAGS = $(AM_CPPFLAGS) $(OPUS_CFLAGS)
 test_opus_compatibility_performance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
@@ -2609,9 +2596,9 @@ test_mpris_stress_testing_SOURCES = test_mpris_stress_testing.cpp
 test_mpris_stress_testing_CPPFLAGS = $(AM_CPPFLAGS)
 test_mpris_stress_testing_LDADD = libtest_utilities.a $(AM_LDFLAGS)
 
-test_comprehensive_mock_framework_SOURCES = test_comprehensive_mock_framework.cpp
+test_comprehensive_mock_framework_SOURCES = test_comprehensive_mock_framework.cpp player_stub.cpp
 test_comprehensive_mock_framework_CPPFLAGS = $(AM_CPPFLAGS)
-test_comprehensive_mock_framework_LDADD = libtest_utilities.a $(AM_LDFLAGS)
+test_comprehensive_mock_framework_LDADD = libtest_utilities.a $(top_builddir)/src/mpris/libmpris.a $(top_builddir)/src/rect.o $(top_builddir)/src/debug.o $(top_builddir)/src/exceptions.o $(AM_LDFLAGS)
 
 test_mock_framework_standalone_SOURCES = test_mock_framework_standalone.cpp
 test_mock_framework_standalone_CPPFLAGS = $(AM_CPPFLAGS)
@@ -2622,142 +2609,144 @@ test_dbus_connection_manager_comprehensive_SOURCES = test_dbus_connection_manage
 test_dbus_connection_manager_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
 test_dbus_connection_manager_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
 test_property_manager_comprehensive_SOURCES = test_property_manager_comprehensive.cpp
 test_property_manager_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
 test_property_manager_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_method_handler_comprehensive_SOURCES = test_method_handler_comprehensive.cpp
+test_method_handler_comprehensive_SOURCES = test_method_handler_comprehensive.cpp player_stub.cpp
 test_method_handler_comprehensive_CPPFLAGS = $(AM_CPPFLAGS) -DTESTING
 test_method_handler_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_method_handler_simple_SOURCES = test_method_handler_simple.cpp
+test_method_handler_simple_SOURCES = test_method_handler_simple.cpp player_stub.cpp
 test_method_handler_simple_CPPFLAGS = $(AM_CPPFLAGS) -DTESTING
 test_method_handler_simple_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
 test_signal_emitter_comprehensive_SOURCES = test_signal_emitter_comprehensive.cpp
 test_signal_emitter_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
 test_signal_emitter_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_mpris_manager_comprehensive_SOURCES = test_mpris_manager_comprehensive.cpp
+test_mpris_manager_comprehensive_SOURCES = test_mpris_manager_comprehensive.cpp player_stub.cpp
 test_mpris_manager_comprehensive_CPPFLAGS = $(AM_CPPFLAGS)
 test_mpris_manager_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/MPRISTypes.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
 test_mpris_logger_basic_SOURCES = test_mpris_logger_basic.cpp
 test_mpris_logger_basic_CPPFLAGS = $(AM_CPPFLAGS)
 test_mpris_logger_basic_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
 test_mpris_logger_dbus_tracing_SOURCES = test_mpris_logger_dbus_tracing.cpp
 test_mpris_logger_dbus_tracing_CPPFLAGS = $(AM_CPPFLAGS)
 test_mpris_logger_dbus_tracing_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
 test_mpris_logger_performance_SOURCES = test_mpris_logger_performance.cpp
 test_mpris_logger_performance_CPPFLAGS = $(AM_CPPFLAGS)
 test_mpris_logger_performance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 endif
 
 # MPRIS Integration Tests
-test_mpris_spec_compliance_SOURCES = test_mpris_spec_compliance.cpp
+test_mpris_spec_compliance_SOURCES = test_mpris_spec_compliance.cpp player_stub.cpp
 test_mpris_spec_compliance_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_spec_compliance_LDADD = \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/MPRISTypes.o \
-	$(top_builddir)/src/MPRISLogger.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_mpris_concurrent_clients_SOURCES = test_mpris_concurrent_clients.cpp
+test_mpris_concurrent_clients_SOURCES = test_mpris_concurrent_clients.cpp player_stub.cpp
 test_mpris_concurrent_clients_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_concurrent_clients_LDADD = \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/MPRISTypes.o \
-	$(top_builddir)/src/MPRISLogger.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_mpris_reconnection_behavior_SOURCES = test_mpris_reconnection_behavior.cpp
+test_mpris_reconnection_behavior_SOURCES = test_mpris_reconnection_behavior.cpp player_stub.cpp
 test_mpris_reconnection_behavior_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_reconnection_behavior_LDADD = \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/MPRISTypes.o \
-	$(top_builddir)/src/MPRISLogger.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
-test_mpris_memory_validation_SOURCES = test_mpris_memory_validation.cpp
+test_mpris_memory_validation_SOURCES = test_mpris_memory_validation.cpp player_stub.cpp
 test_mpris_memory_validation_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS)
 test_mpris_memory_validation_LDADD = \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/MPRISTypes.o \
-	$(top_builddir)/src/MPRISLogger.o \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libmpris.a \
 	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -2781,17 +2770,12 @@ test_mpris_performance_profiler_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17 -pthread
 test_mpris_performance_profiler_LDADD = \
 	$(AM_LDFLAGS)
 
-test_mpris_regression_validation_SOURCES = test_mpris_regression_validation.cpp fake_player.h
+test_mpris_regression_validation_SOURCES = test_mpris_regression_validation.cpp player_stub.cpp fake_player.h
 test_mpris_regression_validation_CPPFLAGS = $(AM_CPPFLAGS) $(DBUS_CFLAGS) -std=c++17 -pthread
 test_mpris_regression_validation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/MPRISManager.o \
-	$(top_builddir)/src/PropertyManager.o \
-	$(top_builddir)/src/MethodHandler.o \
-	$(top_builddir)/src/SignalEmitter.o \
-	$(top_builddir)/src/DBusConnectionManager.o \
-	$(top_builddir)/src/MPRISTypes.o \
-	$(top_builddir)/src/MPRISLogger.o \
+	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/rect.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(DBUS_LIBS) \
@@ -2843,15 +2827,6 @@ check_PROGRAMS += test_iso_constants test_iso_metadata_extraction test_iso_telep
 test_iso_compliance_comprehensive_SOURCES = test_iso_compliance_comprehensive.cpp
 test_iso_compliance_comprehensive_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2864,15 +2839,6 @@ test_iso_compliance_comprehensive_LDADD = \
 test_iso_compliance_edge_cases_SOURCES = test_iso_compliance_edge_cases.cpp
 test_iso_compliance_edge_cases_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2885,15 +2851,6 @@ test_iso_compliance_edge_cases_LDADD = \
 test_iso_codec_compliance_SOURCES = test_iso_codec_compliance.cpp
 test_iso_codec_compliance_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2908,15 +2865,6 @@ test_iso_comprehensive_integration_simple_SOURCES = test_iso_comprehensive_integ
 test_iso_comprehensive_integration_simple_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_comprehensive_integration_simple_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2929,15 +2877,6 @@ test_iso_encoder_compatibility_SOURCES = test_iso_encoder_compatibility.cpp
 test_iso_encoder_compatibility_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_encoder_compatibility_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2950,15 +2889,6 @@ test_iso_fragmented_streaming_SOURCES = test_iso_fragmented_streaming.cpp
 test_iso_fragmented_streaming_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_fragmented_streaming_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2971,15 +2901,6 @@ test_iso_seeking_accuracy_SOURCES = test_iso_seeking_accuracy.cpp
 test_iso_seeking_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_seeking_accuracy_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2992,15 +2913,6 @@ test_iso_compliance_minimal_SOURCES = test_iso_compliance_minimal.cpp
 test_iso_compliance_minimal_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_compliance_minimal_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3013,15 +2925,6 @@ test_iso_compliance_validation_SOURCES = test_iso_compliance_validation.cpp
 test_iso_compliance_validation_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_compliance_validation_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3035,15 +2938,6 @@ test_iso_comprehensive_integration_SOURCES = test_iso_comprehensive_integration.
 test_iso_comprehensive_integration_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_comprehensive_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3057,15 +2951,6 @@ test_iso_flac_integration_SOURCES = test_iso_flac_integration.cpp
 test_iso_flac_integration_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_flac_integration_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3078,15 +2963,6 @@ test_iso_flac_support_SOURCES = test_iso_flac_support.cpp
 test_iso_flac_support_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_flac_support_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3100,15 +2976,6 @@ test_iso_performance_optimization_SOURCES = test_iso_performance_optimization.cp
 test_iso_performance_optimization_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_performance_optimization_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3121,15 +2988,6 @@ test_iso_sample_table_optimization_SOURCES = test_iso_sample_table_optimization.
 test_iso_sample_table_optimization_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_sample_table_optimization_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3142,15 +3000,6 @@ test_iso_sample_table_simple_SOURCES = test_iso_sample_table_simple.cpp
 test_iso_sample_table_simple_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_sample_table_simple_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3164,7 +3013,6 @@ test_iso_constants_SOURCES = test_iso_constants.cpp
 test_iso_constants_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_constants_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
@@ -3173,15 +3021,6 @@ test_iso_metadata_extraction_SOURCES = test_iso_metadata_extraction.cpp
 test_iso_metadata_extraction_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_metadata_extraction_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3194,15 +3033,6 @@ test_iso_telephony_codecs_SOURCES = test_iso_telephony_codecs.cpp
 test_iso_telephony_codecs_CPPFLAGS = $(AM_CPPFLAGS)
 test_iso_telephony_codecs_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/ISODemuxer.o \
-	$(top_builddir)/src/ISODemuxerBoxParser.o \
-	$(top_builddir)/src/ISODemuxerSampleTableManager.o \
-	$(top_builddir)/src/ISODemuxerFragmentHandler.o \
-	$(top_builddir)/src/ISODemuxerMetadataExtractor.o \
-	$(top_builddir)/src/ISODemuxerStreamManager.o \
-	$(top_builddir)/src/ISODemuxerSeekingEngine.o \
-	$(top_builddir)/src/ISODemuxerErrorRecovery.o \
-	$(top_builddir)/src/ISODemuxerComplianceValidator.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3211,42 +3041,30 @@ test_iso_telephony_codecs_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-# RFC 9639 compliance validator test
-if HAVE_FLAC
+# RFC 9639 compliance validator test (requires native FLAC codec)
+if HAVE_NATIVE_FLAC
 test_flac_rfc9639_compliance_validator_SOURCES = test_flac_rfc9639_compliance_validator.cpp FLACRFCComplianceValidator.cpp
 test_flac_rfc9639_compliance_validator_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
 test_flac_rfc9639_compliance_validator_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACRFCValidator.o \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/libmpg123.o \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/HTTPIOHandler.o \
-	$(top_builddir)/src/HTTPClient.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/ModernStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/system.o \
-	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS)
+endif
 
 # RFC Compliance Debugging and Validation Tools Test
 # Temporarily disabled due to missing class implementations
@@ -3255,7 +3073,6 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 # test_rfc_compliance_debugging_tools_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include
 # test_rfc_compliance_debugging_tools_LDADD = \
 #         libtest_utilities.a \
-#         $(top_builddir)/src/FLACRFCValidator.o \
 #         $(top_builddir)/src/debug.o \
 #         $(top_builddir)/src/exceptions.o \
 #         $(FLAC_LIBS) \
@@ -3266,31 +3083,30 @@ test_flac_audio_output_SOURCES = test_flac_audio_output.cpp
 test_flac_audio_output_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
 test_flac_audio_output_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/FLACRFCValidator.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/libmpg123.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lmpg123 -lopus \
+	-lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
 
 # FLAC seeking crash test (reproduces memory corruption during seeking)
@@ -3298,31 +3114,30 @@ test_flac_seeking_crash_SOURCES = test_flac_seeking_crash.cpp
 test_flac_seeking_crash_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
 test_flac_seeking_crash_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/FLACRFCValidator.o \
-	$(top_builddir)/src/AudioCodec.o \
-	$(top_builddir)/src/PCMCodecs.o \
-	$(top_builddir)/src/ALawCodec.o \
-	$(top_builddir)/src/MuLawCodec.o \
-	$(top_builddir)/src/OggCodecs.o \
-	$(top_builddir)/src/vorbis.o \
-	$(top_builddir)/src/opus.o \
-	$(top_builddir)/src/OpusCodec.o \
-	$(top_builddir)/src/libmpg123.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/DemuxedStream.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
-	$(top_builddir)/src/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
 	$(FLAC_LIBS) \
-	-logg -lvorbis -lvorbisenc -lmpg123 -lopus \
+	-lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
 
 # FLAC audio output debug test (comprehensive pipeline debugging)
@@ -3330,17 +3145,34 @@ test_flac_audio_output_debug_SOURCES = test_flac_audio_output_debug.cpp
 test_flac_audio_output_debug_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
 test_flac_audio_output_debug_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
-	$(top_builddir)/src/FLACRFCValidator.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
+	-lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
 
 # FLAC codec simple debug test (minimal codec testing)
@@ -3348,9 +3180,6 @@ test_flac_codec_simple_debug_SOURCES = test_flac_codec_simple_debug.cpp
 test_flac_codec_simple_debug_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
 test_flac_codec_simple_debug_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/FLACCodec.o \
-	$(top_builddir)/src/FLACRFCValidator.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(FLAC_LIBS) \
@@ -3381,7 +3210,7 @@ test_debug_system_LDADD = \
 
 # Native FLAC codec unit tests (conditional on HAVE_NATIVE_FLAC)
 if HAVE_NATIVE_FLAC
-check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit test_native_flac_rfc_examples test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading test_flac_security_validation
+check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit test_native_flac_rfc_examples test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading test_flac_security_validation test_flac_rfc9639_compliance_validator
 
 # BitstreamReader unit tests
 test_bitstream_reader_unit_SOURCES = test_bitstream_reader_unit.cpp
@@ -3456,13 +3285,7 @@ test_native_flac_rfc_examples_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
-	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/CodecRegistration.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3478,13 +3301,7 @@ test_native_flac_real_files_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
-	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/CodecRegistration.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3501,13 +3318,7 @@ test_native_flac_containers_LDADD = \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
 	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/CodecRegistration.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3524,13 +3335,7 @@ test_native_flac_edge_cases_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
-	$(top_builddir)/src/MediaFactory.o \
-	$(top_builddir)/src/DemuxerFactory.o \
-	$(top_builddir)/src/DemuxerRegistry.o \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/CodecRegistration.o \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3550,8 +3355,6 @@ test_native_flac_performance_benchmark_LDADD = \
 	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3571,8 +3374,6 @@ test_native_flac_memory_usage_LDADD = \
 	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3592,8 +3393,6 @@ test_native_flac_threading_LDADD = \
 	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/demuxers/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/CodecRegistry.o \
-	$(top_builddir)/src/AudioCodec.o \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3601,8 +3400,6 @@ test_native_flac_threading_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
-
-endif
 
 endif
 
@@ -3881,4 +3678,50 @@ test_flac_strategy_priority_properties_SOURCES = test_flac_strategy_priority_pro
 test_flac_strategy_priority_properties_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
 test_flac_strategy_priority_properties_LDFLAGS = 
 test_flac_strategy_priority_properties_LDADD =
+
+
+# ============================================================================
+# flacout - FLAC to PCM/WAV decoder utility
+# ============================================================================
+# This utility decodes FLAC files to either raw PCM or RIFF WAVE format.
+# It serves as a test of the native FLAC decoder implementation.
+#
+# Usage:
+#   flacout [options] input.flac [output.wav|output.pcm]
+#
+# Options:
+#   -r, --raw       Output raw PCM instead of WAVE
+#   -q, --quiet     Suppress progress output
+#   -v, --verbose   Show detailed decoding information
+#   -h, --help      Show help message
+#
+# Note: Output is 16-bit signed PCM. High bit-depth sources are converted.
+# ============================================================================
+
+if HAVE_FLAC
+noinst_PROGRAMS += flacout
+
+flacout_SOURCES = flacout.cpp
+flacout_CPPFLAGS = $(AM_CPPFLAGS)
+flacout_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(FLAC_LIBS) \
+	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+endif
 
