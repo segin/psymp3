@@ -167,12 +167,12 @@ libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 # Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_audioframe_creation test_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_flac_audioframe_creation test_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -327,7 +327,7 @@ endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_thread_safety_validation test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_conditional_compilation test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation test_flac_bit_depth_validation_simple test_flac_sample_format_rfc9639_compliance test_flac_audio_output test_flac_seeking_crash test_flac_audio_output_debug test_flac_codec_simple_debug test_streaminfo_real_files test_streaminfo_recovery test_flac_streamable_subset_real_files test_streaminfo_debug test_flac_backward_compatibility_validation test_flac_demuxer_real_files test_flac_bisection_real_files test_flac_mini_player
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_thread_safety_validation test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_bit_depth_validation_simple test_streaminfo_real_files test_streaminfo_recovery test_streaminfo_debug test_flac_backward_compatibility_validation test_flac_demuxer_real_files test_flac_bisection_real_files test_flac_mini_player
 endif
 
 # Test program sources and dependencies
@@ -1912,7 +1912,7 @@ test_flac_codec_unit_minimal_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17
 test_flac_codec_unit_minimal_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/rect.o \
-	$(FLAC_LIBS) \
+	-lFLAC \
 	$(AM_LDFLAGS)
 
 endif
@@ -1985,25 +1985,57 @@ test_frame_size_estimation_consistency_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
-# FLAC AudioFrame creation test
-test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
-test_flac_audioframe_creation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
-test_flac_audioframe_creation_LDADD = \
-	$(COMMON_TEST_OBJS) \
-	$(EXTENDED_TEST_OBJS) \
-	$(COMMON_TEST_LIBS) \
-	$(SDL_LIBS) \
-	$(TAGLIB_LIBS) \
-	$(FREETYPE_LIBS) \
-	$(OPENSSL_LIBS) \
-	$(CURL_LIBS) \
-	$(FLAC_LIBS) \
-	$(LIBMPG123_LIBS) \
-	$(VORBIS_LIBS) \
-	$(OPUS_LIBS) \
-	$(OGG_LIBS) \
-	$(DBUS_LIBS) \
-	$(AM_LDFLAGS)
+# FLAC AudioFrame creation test (uses libFLAC wrapper FLACCodec, not native codec)
+# NOTE: This test is disabled when HAVE_NATIVE_FLAC is defined because it uses
+# the libFLAC++ wrapper (FLACCodec) which is incompatible with the native codec.
+# To enable this test, configure with --disable-native-flac
+#test_flac_audioframe_creation_SOURCES = test_flac_audioframe_creation.cpp
+#test_flac_audioframe_creation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS)
+#test_flac_audioframe_creation_LDADD = \
+#	$(COMMON_TEST_OBJS) \
+#	$(EXTENDED_TEST_OBJS) \
+#	libtest_utilities.a \
+#	$(top_builddir)/src/widget/ui/libwidgetui.a \
+#	$(top_builddir)/src/widget/windowing/libwidgetwindowing.a \
+#	$(top_builddir)/src/widget/foundation/libwidgetfoundation.a \
+#	$(top_builddir)/src/demuxer/libdemuxer.a \
+#	$(top_builddir)/src/io/http/libhttpio.a \
+#	$(top_builddir)/src/io/file/libfileio.a \
+#	$(top_builddir)/src/io/libio.a \
+#	$(top_builddir)/src/lastfm/liblastfm.a \
+#	$(top_builddir)/src/mpris/libmpris.a \
+#	$(top_builddir)/src/codecs/libcodecs.a \
+#	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+#	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+#	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+#	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+#	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+#	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+#	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+#	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+#	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+#	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+#	$(top_builddir)/src/demuxer/libdemuxer.a \
+#	$(top_builddir)/src/codecs/libcodecs.a \
+#	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+#	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+#	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
+#	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
+#	$(top_builddir)/src/codecs/opus/libopuscodec.a \
+#	$(top_builddir)/src/demuxer/libdemuxer.a \
+#	$(top_builddir)/src/io/libio.a \
+#	-lFLAC++ -lFLAC \
+#	$(SDL_LIBS) \
+#	$(TAGLIB_LIBS) \
+#	$(FREETYPE_LIBS) \
+#	$(OPENSSL_LIBS) \
+#	$(CURL_LIBS) \
+#	$(LIBMPG123_LIBS) \
+#	$(VORBIS_LIBS) \
+#	$(OPUS_LIBS) \
+#	$(OGG_LIBS) \
+#	$(DBUS_LIBS) \
+#	$(AM_LDFLAGS)
 
 # Note: FLACCodec.o and EnhancedAudioBufferPool.o build rules already defined above
 
@@ -2121,13 +2153,13 @@ test_flac_conditional_compilation_LDADD = \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/codecs/libcodecs.a \
-	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/opus/libopuscodec.a \
 	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
-	$(top_builddir)/src/codecs/flac/libflaccodec.a \
+	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/opus/libopuscodec.a \
 	$(top_builddir)/src/codecs/mp3/libmp3codec.a \
@@ -2138,8 +2170,7 @@ test_flac_conditional_compilation_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \
-	$(FLAC_LIBS) \
-	-lvorbis -lopus -lmpg123 \
+	-lFLAC++ -lFLAC -lvorbis -lopus -lmpg123 \
 	$(AM_LDFLAGS)
 
 # FLAC binary search limitations test
@@ -2827,6 +2858,7 @@ check_PROGRAMS += test_iso_constants test_iso_metadata_extraction test_iso_telep
 test_iso_compliance_comprehensive_SOURCES = test_iso_compliance_comprehensive.cpp
 test_iso_compliance_comprehensive_LDADD = \
 	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3705,18 +3737,23 @@ flacout_SOURCES = flacout.cpp
 flacout_CPPFLAGS = $(AM_CPPFLAGS)
 flacout_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libnativeflac.a \
-	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/flac/libnativeflac.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/rect.o \

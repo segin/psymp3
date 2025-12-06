@@ -18,6 +18,7 @@
 
 using namespace TestFramework;
 using namespace TestFramework::Threading;
+using namespace PsyMP3::MPRIS;
 
 /**
  * @brief Test class for DBusConnectionManager comprehensive testing
@@ -314,7 +315,7 @@ private:
 
     void testMemoryPressureScenarios() {
         // Test behavior under simulated memory pressure
-        std::vector<std::unique_ptr<MPRISTypes::DBusConnectionManager>> managers;
+        std::vector<std::unique_ptr<DBusConnectionManager>> managers;
         
         // Create multiple managers to simulate resource pressure
         for (int i = 0; i < 10; ++i) {

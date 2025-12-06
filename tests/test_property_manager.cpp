@@ -14,6 +14,8 @@
 #include <vector>
 #include <atomic>
 
+using namespace PsyMP3::MPRIS;
+
 // Mock Player class for testing
 class MockPlayer {
 public:
@@ -101,17 +103,17 @@ public:
         ASSERT_EQUALS(status, "Stopped", "Initial status should be Stopped");
         
         // Test setting to Playing
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         status = m_property_manager->getPlaybackStatus();
         ASSERT_EQUALS(status, "Playing", "Status should be Playing after update");
         
         // Test setting to Paused
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Paused);
         status = m_property_manager->getPlaybackStatus();
         ASSERT_EQUALS(status, "Paused", "Status should be Paused after update");
         
         // Test setting back to Stopped
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Stopped);
         status = m_property_manager->getPlaybackStatus();
         ASSERT_EQUALS(status, "Stopped", "Status should be Stopped after update");
     }
@@ -133,7 +135,7 @@ public:
         ASSERT_EQUALS(position, 5000000ULL, "Position should match what was set while stopped");
         
         // Test position interpolation while playing
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         m_property_manager->updatePosition(1000000); // 1 second
         
         // Wait a bit and check if position interpolates
@@ -143,7 +145,7 @@ public:
         ASSERT_TRUE(position <= 1200000ULL, "Position should not advance too much (within 200ms)");
         
         // Test that position doesn't interpolate when paused
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Paused);
         m_property_manager->updatePosition(2000000); // 2 seconds
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         position = m_property_manager->getPosition();
@@ -179,7 +181,7 @@ public:
                                 break;
                             case 1:
                                 m_property_manager->updatePlaybackStatus(
-                                    static_cast<MPRISTypes::PlaybackStatus>(j % 3)
+                                    static_cast<PlaybackStatus>(j % 3)
                                 );
                                 break;
                             case 2:
@@ -227,7 +229,7 @@ public:
     void runTest() override {
         // Set up some test data
         m_property_manager->updateMetadata("Test Artist", "Test Title", "Test Album");
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         m_property_manager->updatePosition(3000000); // 3 seconds
         
         // Get all properties
@@ -278,7 +280,7 @@ public:
         // Test rapid status changes
         for (int i = 0; i < 100; ++i) {
             m_property_manager->updatePlaybackStatus(
-                static_cast<MPRISTypes::PlaybackStatus>(i % 3)
+                static_cast<PlaybackStatus>(i % 3)
             );
         }
         

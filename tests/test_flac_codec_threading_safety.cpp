@@ -11,6 +11,8 @@
 #include "flac_test_data_utils.h"
 #include "test_framework.h"
 
+#ifdef HAVE_NATIVE_FLAC
+
 using namespace TestFramework;
 
 /**
@@ -416,8 +418,8 @@ private:
                 total_samples += frame.getSampleFrameCount();
                 
                 // Verify frame properties
-                ASSERT_EQUALS(2u, frame.getChannels(), "Frame should have correct channels");
-                ASSERT_EQUALS(44100u, frame.getSampleRate(), "Frame should have correct sample rate");
+                ASSERT_EQUALS(2u, frame.channels, "Frame should have correct channels");
+                ASSERT_EQUALS(44100u, frame.sample_rate, "Frame should have correct sample rate");
             }
         }
         
@@ -470,8 +472,8 @@ private:
             AudioFrame frame = codec->decode(chunk);
             
             if (frame.getSampleFrameCount() > 0) {
-                ASSERT_EQUALS(2u, frame.getChannels(), "Frame should have correct channels after seek");
-                ASSERT_EQUALS(44100u, frame.getSampleRate(), "Frame should have correct sample rate after seek");
+                ASSERT_EQUALS(2u, frame.channels, "Frame should have correct channels after seek");
+                ASSERT_EQUALS(44100u, frame.sample_rate, "Frame should have correct sample rate after seek");
             }
         }
         
@@ -592,3 +594,12 @@ int main() {
     
     return suite.getFailureCount(results);
 }
+
+#else // !HAVE_NATIVE_FLAC
+
+int main() {
+    Debug::log("test", "Native FLAC codec not available - skipping threading safety tests");
+    return 0;
+}
+
+#endif // HAVE_NATIVE_FLAC

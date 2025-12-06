@@ -9,6 +9,8 @@
 
 #ifdef HAVE_DBUS
 
+using namespace PsyMP3::MPRIS;
+
 /**
  * Basic initialization and shutdown test for MPRISManager
  */
@@ -101,13 +103,13 @@ public:
         m_mpris_manager->initialize();
         
         // Test all playback states
-        m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
-        m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
-        m_mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+        m_mpris_manager->updatePlaybackStatus(PlaybackStatus::Playing);
+        m_mpris_manager->updatePlaybackStatus(PlaybackStatus::Paused);
+        m_mpris_manager->updatePlaybackStatus(PlaybackStatus::Stopped);
         
         // Rapid state changes should be handled
         for (int i = 0; i < 20; ++i) {
-            auto status = (i % 2 == 0) ? MPRISTypes::PlaybackStatus::Playing : MPRISTypes::PlaybackStatus::Paused;
+            auto status = (i % 2 == 0) ? PlaybackStatus::Playing : PlaybackStatus::Paused;
             m_mpris_manager->updatePlaybackStatus(status);
         }
         

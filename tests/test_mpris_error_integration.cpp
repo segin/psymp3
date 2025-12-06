@@ -11,6 +11,8 @@
 
 #ifdef HAVE_DBUS
 
+using namespace PsyMP3::MPRIS;
+
 #include <cassert>
 #include <iostream>
 
@@ -32,15 +34,15 @@ private:
     static void testErrorLoggerIntegration() {
         std::cout << "Testing ErrorLogger integration...\n";
         
-        auto& logger = MPRISTypes::ErrorLogger::getInstance();
+        auto& logger = ErrorLogger::getInstance();
         
         // Reset for clean test
         logger.resetErrorStats();
         
         // Test logging different error types
-        MPRISTypes::ConnectionError conn_error("Integration test connection error");
-        MPRISTypes::MessageError msg_error("Integration test message error");
-        MPRISTypes::ThreadingError thread_error("Integration test threading error");
+        ConnectionError conn_error("Integration test connection error");
+        MessageError msg_error("Integration test message error");
+        ThreadingError thread_error("Integration test threading error");
         
         logger.logError(conn_error);
         logger.logError(msg_error);
@@ -59,14 +61,14 @@ private:
     static void testErrorRecoveryIntegration() {
         std::cout << "Testing ErrorRecoveryManager integration...\n";
         
-        MPRISTypes::ErrorRecoveryManager recovery_manager;
+        ErrorRecoveryManager recovery_manager;
         
         // Set up recovery actions
         bool retry_called = false;
         bool reconnect_called = false;
         
         recovery_manager.setRecoveryAction(
-            MPRISTypes::MPRISError::RecoveryStrategy::Retry,
+            MPRISError::RecoveryStrategy::Retry,
             [&retry_called]() -> bool {
                 retry_called = true;
                 return true;
@@ -74,7 +76,7 @@ private:
         );
         
         recovery_manager.setRecoveryAction(
-            MPRISTypes::MPRISError::RecoveryStrategy::Reconnect,
+            MPRISError::RecoveryStrategy::Reconnect,
             [&reconnect_called]() -> bool {
                 reconnect_called = true;
                 return false; // Simulate failure
@@ -82,20 +84,20 @@ private:
         );
         
         // Test recovery attempts
-        MPRISTypes::MPRISError retry_error(
-            MPRISTypes::MPRISError::Category::Message,
-            MPRISTypes::MPRISError::Severity::Warning,
+        MPRISError retry_error(
+            MPRISError::Category::Message,
+            MPRISError::Severity::Warning,
             "Retry test error",
             "integration_test",
-            MPRISTypes::MPRISError::RecoveryStrategy::Retry
+            MPRISError::RecoveryStrategy::Retry
         );
         
-        MPRISTypes::MPRISError reconnect_error(
-            MPRISTypes::MPRISError::Category::Connection,
-            MPRISTypes::MPRISError::Severity::Error,
+        MPRISError reconnect_error(
+            MPRISError::Category::Connection,
+            MPRISError::Severity::Error,
             "Reconnect test error",
             "integration_test",
-            MPRISTypes::MPRISError::RecoveryStrategy::Reconnect
+            MPRISError::RecoveryStrategy::Reconnect
         );
         
         bool retry_result = recovery_manager.attemptRecovery(retry_error);
@@ -118,32 +120,32 @@ private:
     static void testGracefulDegradationIntegration() {
         std::cout << "Testing GracefulDegradationManager integration...\n";
         
-        MPRISTypes::GracefulDegradationManager degradation_manager;
+        GracefulDegradationManager degradation_manager;
         
         // Test initial state
-        assert(degradation_manager.getDegradationLevel() == MPRISTypes::GracefulDegradationManager::DegradationLevel::None);
+        assert(degradation_manager.getDegradationLevel() == GracefulDegradationManager::DegradationLevel::None);
         
         // Test error reporting and auto-degradation
-        degradation_manager.setErrorThreshold(MPRISTypes::MPRISError::Category::Connection, 2);
+        degradation_manager.setErrorThreshold(MPRISError::Category::Connection, 2);
         degradation_manager.setTimeWindow(std::chrono::seconds(10));
         
         // Report errors
-        MPRISTypes::ConnectionError error1("Connection error 1");
-        MPRISTypes::ConnectionError error2("Connection error 2");
+        ConnectionError error1("Connection error 1");
+        ConnectionError error2("Connection error 2");
         
         degradation_manager.reportError(error1);
         degradation_manager.reportError(error2);
         
         // Test manual degradation
-        degradation_manager.setDegradationLevel(MPRISTypes::GracefulDegradationManager::DegradationLevel::Limited);
-        assert(degradation_manager.getDegradationLevel() == MPRISTypes::GracefulDegradationManager::DegradationLevel::Limited);
+        degradation_manager.setDegradationLevel(GracefulDegradationManager::DegradationLevel::Limited);
+        assert(degradation_manager.getDegradationLevel() == GracefulDegradationManager::DegradationLevel::Limited);
         
         // Test feature availability
         assert(!degradation_manager.isFeatureAvailable("metadata_updates"));
         assert(degradation_manager.isFeatureAvailable("playback_control"));
         
         // Test further degradation
-        degradation_manager.setDegradationLevel(MPRISTypes::GracefulDegradationManager::DegradationLevel::Disabled);
+        degradation_manager.setDegradationLevel(GracefulDegradationManager::DegradationLevel::Disabled);
         assert(!degradation_manager.isFeatureAvailable("playback_control"));
         
         std::cout << "GracefulDegradationManager integration tests passed.\n";
@@ -152,9 +154,9 @@ private:
     static void testComponentInteraction() {
         std::cout << "Testing component interaction...\n";
         
-        auto& logger = MPRISTypes::ErrorLogger::getInstance();
-        MPRISTypes::ErrorRecoveryManager recovery_manager;
-        MPRISTypes::GracefulDegradationManager degradation_manager;
+        auto& logger = ErrorLogger::getInstance();
+        ErrorRecoveryManager recovery_manager;
+        GracefulDegradationManager degradation_manager;
         
         // Reset for clean test
         logger.resetErrorStats();
@@ -162,12 +164,12 @@ private:
         
         // Set up recovery action
         recovery_manager.setRecoveryAction(
-            MPRISTypes::MPRISError::RecoveryStrategy::Degrade,
+            MPRISError::RecoveryStrategy::Degrade,
             [&degradation_manager]() -> bool {
                 auto current_level = degradation_manager.getDegradationLevel();
-                auto new_level = static_cast<MPRISTypes::GracefulDegradationManager::DegradationLevel>(
+                auto new_level = static_cast<GracefulDegradationManager::DegradationLevel>(
                     std::min(static_cast<int>(current_level) + 1, 
-                            static_cast<int>(MPRISTypes::GracefulDegradationManager::DegradationLevel::Disabled))
+                            static_cast<int>(GracefulDegradationManager::DegradationLevel::Disabled))
                 );
                 
                 if (new_level != current_level) {
@@ -179,12 +181,12 @@ private:
         );
         
         // Create error that triggers degradation
-        MPRISTypes::MPRISError degrade_error(
-            MPRISTypes::MPRISError::Category::Resource,
-            MPRISTypes::MPRISError::Severity::Error,
+        MPRISError degrade_error(
+            MPRISError::Category::Resource,
+            MPRISError::Severity::Error,
             "Resource exhaustion",
             "integration_test",
-            MPRISTypes::MPRISError::RecoveryStrategy::Degrade
+            MPRISError::RecoveryStrategy::Degrade
         );
         
         // Log error and attempt recovery
@@ -192,7 +194,7 @@ private:
         bool recovery_result = recovery_manager.attemptRecovery(degrade_error);
         
         assert(recovery_result == true);
-        assert(degradation_manager.getDegradationLevel() == MPRISTypes::GracefulDegradationManager::DegradationLevel::Limited);
+        assert(degradation_manager.getDegradationLevel() == GracefulDegradationManager::DegradationLevel::Limited);
         
         // Verify statistics were updated
         auto error_stats = logger.getErrorStats();

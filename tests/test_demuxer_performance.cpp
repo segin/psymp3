@@ -13,6 +13,8 @@
 #include <random>
 
 using namespace TestFramework;
+using namespace PsyMP3::IO;
+using namespace PsyMP3::Demuxer;
 
 /**
  * @brief Performance measurement utilities

@@ -1,14 +1,17 @@
 /*
  * test_iso_fragmented_mp4.cpp - Test fragmented MP4 support in ISO demuxer
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025 Kirn Gill II <segin2005@gmail.com>
  */
 
 #include "psymp3.h"
 
-// Test ISODemuxerFragmentHandler basic functionality
+// Use namespace aliases for cleaner code
+using namespace PsyMP3::Demuxer::ISO;
+
+// Test FragmentHandler basic functionality
 bool test_fragment_handler_creation() {
-    ISODemuxerFragmentHandler handler;
+    FragmentHandler handler;
     
     // Initially should not be fragmented
     if (handler.IsFragmented()) {
@@ -92,7 +95,7 @@ bool test_track_run_info() {
 
 // Test fragment validation
 bool test_fragment_validation() {
-    ISODemuxerFragmentHandler handler;
+    FragmentHandler handler;
     
     // Create a valid fragment
     MovieFragmentInfo fragment;
@@ -138,7 +141,7 @@ bool test_fragment_validation() {
 
 // Test fragment ordering
 bool test_fragment_ordering() {
-    ISODemuxerFragmentHandler handler;
+    FragmentHandler handler;
     
     // Add fragments out of order
     MovieFragmentInfo fragment3;
@@ -193,7 +196,7 @@ bool test_fragment_ordering() {
 
 // Test default values handling
 bool test_default_values() {
-    ISODemuxerFragmentHandler handler;
+    FragmentHandler handler;
     
     // Create a mock audio track for default values
     AudioTrackInfo track;

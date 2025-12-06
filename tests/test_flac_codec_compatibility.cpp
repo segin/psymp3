@@ -10,6 +10,8 @@
 #include "psymp3.h"
 #include "test_framework.h"
 
+#ifdef HAVE_NATIVE_FLAC
+
 using namespace TestFramework;
 
 /**
@@ -220,8 +222,8 @@ protected:
         
         // Validate decoded frame (may be empty with mock data, but should not crash)
         if (decoded_frame.getSampleFrameCount() > 0) {
-            ASSERT_EQUALS(2u, decoded_frame.getChannels(), "Decoded frame should have 2 channels");
-            ASSERT_EQUALS(44100u, decoded_frame.getSampleRate(), "Decoded frame should have correct sample rate");
+            ASSERT_EQUALS(2u, decoded_frame.channels, "Decoded frame should have 2 channels");
+            ASSERT_EQUALS(44100u, decoded_frame.sample_rate, "Decoded frame should have correct sample rate");
             ASSERT_TRUE(decoded_frame.getSampleFrameCount() <= 4096, "Frame size should be reasonable");
         }
         
@@ -300,9 +302,9 @@ protected:
                     
                     // Validate frame if it has content
                     if (frame.getSampleFrameCount() > 0) {
-                        ASSERT_EQUALS(config.channels, frame.getChannels(), 
+                        ASSERT_EQUALS(config.channels, frame.channels, 
                                      config.name + " should preserve channel count");
-                        ASSERT_EQUALS(config.sample_rate, frame.getSampleRate(),
+                        ASSERT_EQUALS(config.sample_rate, frame.sample_rate,
                                      config.name + " should preserve sample rate");
                     }
                     
@@ -513,8 +515,8 @@ protected:
         
         // Validate that new codec produces reasonable output
         if (new_frame.getSampleFrameCount() > 0) {
-            ASSERT_EQUALS(2u, new_frame.getChannels(), "New codec should output stereo");
-            ASSERT_EQUALS(44100u, new_frame.getSampleRate(), "New codec should preserve sample rate");
+            ASSERT_EQUALS(2u, new_frame.channels, "New codec should output stereo");
+            ASSERT_EQUALS(44100u, new_frame.sample_rate, "New codec should preserve sample rate");
             ASSERT_TRUE(new_frame.getSampleFrameCount() <= 4096, "Frame size should be reasonable");
         }
         
@@ -577,3 +579,12 @@ int main() {
     
     return suite.getFailureCount(results);
 }
+
+#else // !HAVE_NATIVE_FLAC
+
+int main() {
+    Debug::log("test", "Native FLAC codec not available - skipping compatibility tests");
+    return 0;
+}
+
+#endif // HAVE_NATIVE_FLAC

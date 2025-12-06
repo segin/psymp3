@@ -31,7 +31,7 @@ public:
         framework.startTest("Fragment handler initialization");
         
         // Test fragment handler creation
-        auto fragmentHandler = std::make_unique<ISODemuxerFragmentHandler>();
+        auto fragmentHandler = std::make_unique<FragmentHandler>();
         assert(fragmentHandler != nullptr);
         std::cout << "✓ Fragment handler created successfully" << std::endl;
         

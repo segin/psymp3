@@ -8,6 +8,8 @@
 
 #ifdef HAVE_DBUS
 
+using namespace PsyMP3::MPRIS;
+
 /**
  * Basic integration test for MPRISManager without Player dependencies
  */
@@ -42,7 +44,7 @@ void test_mpris_manager_basic_integration() {
         
         // Test metadata updates (should not crash)
         manager.updateMetadata("Test Artist", "Test Title", "Test Album");
-        manager.updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        manager.updatePlaybackStatus(PlaybackStatus::Playing);
         manager.updatePosition(30000000); // 30 seconds
         manager.notifySeeked(60000000); // 1 minute
         
@@ -94,7 +96,7 @@ void test_mpris_manager_component_coordination() {
     
     // Test operations before initialization (should not crash)
     manager.updateMetadata("", "", "");
-    manager.updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+    manager.updatePlaybackStatus(PlaybackStatus::Stopped);
     manager.updatePosition(0);
     manager.notifySeeked(0);
     
@@ -110,7 +112,7 @@ void test_mpris_manager_component_coordination() {
             "Album " + std::to_string(i)
         );
         manager.updatePlaybackStatus(
-            (i % 2 == 0) ? MPRISTypes::PlaybackStatus::Playing : MPRISTypes::PlaybackStatus::Paused
+            (i % 2 == 0) ? PlaybackStatus::Playing : PlaybackStatus::Paused
         );
         manager.updatePosition(i * 1000000); // i seconds
     }

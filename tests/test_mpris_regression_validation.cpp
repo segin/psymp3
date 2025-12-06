@@ -18,6 +18,8 @@
 #ifdef HAVE_DBUS
 #include "psymp3.h"
 
+using namespace PsyMP3::MPRIS;
+
 // Enhanced Player class for testing MPRIS integration
 class MockPlayer : public Player {
 public:
@@ -163,7 +165,7 @@ public:
         
         // Test playback status synchronization
         m_mock_player->play();
-        mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        mpris_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         
         // Test position synchronization
         m_mock_player->seekTo(30000); // 30 seconds
@@ -209,15 +211,15 @@ public:
         std::vector<std::pair<std::string, std::function<void()>>> state_changes = {
             {"Play", [&]() {
                 m_mock_player->play();
-                mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+                mpris_manager->updatePlaybackStatus(PlaybackStatus::Playing);
             }},
             {"Pause", [&]() {
                 m_mock_player->pause();
-                mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+                mpris_manager->updatePlaybackStatus(PlaybackStatus::Paused);
             }},
             {"Stop", [&]() {
                 m_mock_player->stop();
-                mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+                mpris_manager->updatePlaybackStatus(PlaybackStatus::Stopped);
             }},
             {"Next Track", [&]() {
                 m_mock_player->nextTrack();
@@ -308,7 +310,7 @@ public:
         try {
             for (int i = 0; i < 100; ++i) {
                 mpris_manager->updatePlaybackStatus(
-                    static_cast<MPRISTypes::PlaybackStatus>(i % 3));
+                    static_cast<PlaybackStatus>(i % 3));
             }
             std::cout << "Rapid state changes handling: PASS" << std::endl;
         } catch (const std::exception& e) {
@@ -387,7 +389,7 @@ public:
         
         for (size_t i = 0; i < iterations; ++i) {
             mpris_manager->updatePlaybackStatus(
-                static_cast<MPRISTypes::PlaybackStatus>(i % 3));
+                static_cast<PlaybackStatus>(i % 3));
         }
         
         end_time = std::chrono::high_resolution_clock::now();
@@ -455,7 +457,7 @@ public:
         // Perform intensive operations
         for (size_t i = 0; i < 10000; ++i) {
             mpris_manager->updateMetadata("Artist", "Title", "Album");
-            mpris_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+            mpris_manager->updatePlaybackStatus(PlaybackStatus::Playing);
             mpris_manager->updatePosition(i * 1000);
             
             if (i % 1000 == 0) {

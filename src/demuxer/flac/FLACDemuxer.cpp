@@ -2667,15 +2667,20 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
         size_t total_header_length = header_offset + 1;
         
         // Requirement 10.4: Validate CRC-8 after parsing header
+        // Requirement 2.3 (bisection seeking): Validate CRC-8 checksum per RFC 9639 Section 9.1.8
+        // Requirement 2.8 (bisection seeking): Continue searching past false positive sync patterns (CRC failures)
         if (!validateFrameHeaderCRC_unlocked(buffer, total_header_length, frame.file_offset)) {
             // Requirement 10.5: Log CRC mismatches with frame position (done in validateFrameHeaderCRC_unlocked)
             // Requirement 10.6: Attempt resynchronization on failure
-            FLAC_DEBUG("[parseFrameHeader] CRC-8 validation failed - frame may be corrupted");
-            // For now, we continue processing but log the error
-            // In strict mode, we would return false here
+            FLAC_DEBUG("[parseFrameHeader] CRC-8 validation failed - rejecting frame as false sync");
+            // CRC-8 failure means this is likely a false sync code in the audio data
+            // Return false to continue searching for a valid frame
+            return false;
         }
     } else {
         FLAC_DEBUG("[parseFrameHeader] Insufficient buffer for CRC-8 validation");
+        // Cannot validate CRC-8, reject this potential frame
+        return false;
     }
     
     // Calculate sample offset from coded number
@@ -4105,6 +4110,26 @@ bool FLACDemuxer::seekWithFrameIndex_unlocked(uint64_t target_sample)
     FLAC_DEBUG("[seekWithFrameIndex] Found frame index entry: sample=", entry.sample_offset,
                ", file_offset=", entry.file_offset, ", block_size=", entry.block_size);
     
+    // Check if the found entry is within acceptable tolerance (250ms)
+    // If the entry is too far from the target, fall back to other seeking strategies
+    // This prevents using stale/incomplete frame index entries that would result in
+    // seeks landing far from the target position
+    static constexpr int64_t TOLERANCE_MS = 250;
+    uint64_t tolerance_samples = (static_cast<uint64_t>(m_streaminfo.sample_rate) * TOLERANCE_MS) / 1000;
+    
+    int64_t sample_diff = static_cast<int64_t>(target_sample) - static_cast<int64_t>(entry.sample_offset);
+    
+    // The entry should be at or before the target (sample_diff >= 0)
+    // and within tolerance + one block size (to account for the frame containing the target)
+    uint64_t max_acceptable_diff = tolerance_samples + entry.block_size;
+    
+    if (sample_diff < 0 || static_cast<uint64_t>(sample_diff) > max_acceptable_diff) {
+        FLAC_DEBUG("[seekWithFrameIndex] Entry too far from target: diff=", sample_diff,
+                   " samples, max_acceptable=", max_acceptable_diff,
+                   " - falling back to other strategies");
+        return false;
+    }
+    
     // Seek to the frame position
     if (m_handler->seek(static_cast<off_t>(entry.file_offset), SEEK_SET) != 0) {
         FLAC_DEBUG("[seekWithFrameIndex] Failed to seek to file offset ", entry.file_offset);
@@ -4263,16 +4288,22 @@ bool FLACDemuxer::seekWithByteEstimation_unlocked(uint64_t target_sample)
         }
         
         // ====================================================================
-        // Estimate byte position using linear interpolation
-        // Uses estimateBytePosition_unlocked for consistent calculation
+        // Calculate position within current search range
+        // For first iteration, use global estimate; for subsequent iterations,
+        // use midpoint of current search range (true bisection)
         // ====================================================================
-        uint64_t estimated_pos = estimateBytePosition_unlocked(target_sample);
-        
-        // Clamp to current search bounds
-        if (estimated_pos < low_pos) estimated_pos = low_pos;
-        if (estimated_pos >= high_pos) {
-            // Leave room for frame search
-            estimated_pos = (high_pos > MIN_SEARCH_RANGE) ? high_pos - MIN_SEARCH_RANGE : low_pos;
+        uint64_t estimated_pos;
+        if (iteration == 0) {
+            // First iteration: use linear interpolation based on sample ratio
+            estimated_pos = estimateBytePosition_unlocked(target_sample);
+            // Clamp to current search bounds
+            if (estimated_pos < low_pos) estimated_pos = low_pos;
+            if (estimated_pos >= high_pos) {
+                estimated_pos = (high_pos > MIN_SEARCH_RANGE) ? high_pos - MIN_SEARCH_RANGE : low_pos;
+            }
+        } else {
+            // Subsequent iterations: use midpoint of current search range (bisection)
+            estimated_pos = low_pos + (high_pos - low_pos) / 2;
         }
         
         FLAC_DEBUG("[seekWithByteEstimation] Iteration ", iteration, 

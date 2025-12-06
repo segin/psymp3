@@ -19,6 +19,7 @@
 
 using namespace TestFramework;
 using namespace TestFramework::Threading;
+using namespace PsyMP3::MPRIS;
 
 /**
  * @brief Test class for PropertyManager comprehensive testing
@@ -69,11 +70,11 @@ private:
         ASSERT_TRUE(metadata.find("xesam:album") != metadata.end(), "Should contain album metadata");
         
         // Test playback status updates
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         std::string status = m_property_manager->getPlaybackStatus();
         ASSERT_EQUALS(std::string("Playing"), status, "Should report correct playback status");
         
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Paused);
         status = m_property_manager->getPlaybackStatus();
         ASSERT_EQUALS(std::string("Paused"), status, "Should update playback status");
         
@@ -163,10 +164,10 @@ private:
 
     void testPlaybackStatusTracking() {
         // Test all playback states
-        std::vector<MPRISTypes::PlaybackStatus> states = {
-            MPRISTypes::PlaybackStatus::Playing,
-            MPRISTypes::PlaybackStatus::Paused,
-            MPRISTypes::PlaybackStatus::Stopped
+        std::vector<PlaybackStatus> states = {
+            PlaybackStatus::Playing,
+            PlaybackStatus::Paused,
+            PlaybackStatus::Stopped
         };
         
         for (auto state : states) {
@@ -177,14 +178,14 @@ private:
         
         // Test rapid state changes
         for (int i = 0; i < 50; ++i) {
-            MPRISTypes::PlaybackStatus state = static_cast<MPRISTypes::PlaybackStatus>(i % 3);
+            PlaybackStatus state = static_cast<PlaybackStatus>(i % 3);
             m_property_manager->updatePlaybackStatus(state);
             std::string status = m_property_manager->getPlaybackStatus();
             ASSERT_TRUE(!status.empty(), "Should handle rapid state changes");
         }
         
         // Test state consistency
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         for (int i = 0; i < 10; ++i) {
             std::string status = m_property_manager->getPlaybackStatus();
             ASSERT_EQUALS(std::string("Playing"), status, "Status should remain consistent");
@@ -195,7 +196,7 @@ private:
         // Test position interpolation during playback
         uint64_t base_position = 1000000; // 1 second in microseconds
         m_property_manager->updatePosition(base_position);
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         
         uint64_t position1 = m_property_manager->getPosition();
         
@@ -207,7 +208,7 @@ private:
         ASSERT_TRUE(position2 >= position1, "Position should not go backwards during playback");
         
         // Test position during pause
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Paused);
         uint64_t paused_position1 = m_property_manager->getPosition();
         
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -217,7 +218,7 @@ private:
         ASSERT_EQUALS(paused_position1, paused_position2, "Position should be stable during pause");
         
         // Test position during stop
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Stopped);
         uint64_t stopped_position = m_property_manager->getPosition();
         ASSERT_TRUE(stopped_position >= 0, "Stopped position should be valid");
     }
@@ -233,7 +234,7 @@ private:
         
         // Update property manager from player state
         m_property_manager->updateMetadata(track.artist, track.title, track.album);
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         m_property_manager->updatePosition(60000000);
         
         // Verify synchronization
@@ -310,11 +311,11 @@ private:
             m_property_manager->updatePosition(i * 1000);
             
             if (i % 3 == 0) {
-                m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+                m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
             } else if (i % 3 == 1) {
-                m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Paused);
+                m_property_manager->updatePlaybackStatus(PlaybackStatus::Paused);
             } else {
-                m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Stopped);
+                m_property_manager->updatePlaybackStatus(PlaybackStatus::Stopped);
             }
         }
         

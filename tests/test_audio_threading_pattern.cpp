@@ -80,6 +80,8 @@ private:
     }
 };
 
+using namespace TestFramework::Threading;
+
 /**
  * Test concurrent access to public methods
  */
@@ -87,34 +89,29 @@ void testConcurrentAccess() {
     std::cout << "\n=== Testing Concurrent Access Pattern ===" << std::endl;
     
     MockAudioThreadingPattern mock_audio;
-    ThreadingTest::TestConfig config;
+    ThreadSafetyTester::Config config;
     config.num_threads = 8;
     config.operations_per_thread = 100;
-    config.timeout = std::chrono::milliseconds(5000);
+    config.test_duration = std::chrono::milliseconds(5000);
     
-    auto test = ThreadingTest::ConcurrentAccessTest<MockAudioThreadingPattern>(
-        &mock_audio,
-        [](MockAudioThreadingPattern* a, int thread_id) {
-            switch (thread_id % 4) {
-                case 0: a->isFinished(); break;
-                case 1: a->resetBuffer(); break;
-                case 2: a->getBufferLatencyMs(); break;
-                case 3: a->setStream(); break;
-            }
-        },
-        config
-    );
+    ThreadSafetyTester tester(config);
     
-    auto results = test.run();
+    std::map<std::string, ThreadSafetyTester::TestFunction> operations;
+    operations["isFinished"] = [&mock_audio]() { mock_audio.isFinished(); return true; };
+    operations["resetBuffer"] = [&mock_audio]() { mock_audio.resetBuffer(); return true; };
+    operations["getBufferLatencyMs"] = [&mock_audio]() { mock_audio.getBufferLatencyMs(); return true; };
+    operations["setStream"] = [&mock_audio]() { mock_audio.setStream(); return true; };
+    
+    auto results = tester.runStressTest(operations, "Concurrent access pattern");
     
     std::cout << "Concurrent access test: " 
-              << (results.success ? "PASSED" : "FAILED") << std::endl;
+              << (results.failed_operations == 0 ? "PASSED" : "FAILED") << std::endl;
     std::cout << "Operations: " << results.total_operations 
               << ", Errors: " << results.failed_operations << std::endl;
     std::cout << "Mock operations executed: " << mock_audio.getOperationCount() << std::endl;
     
-    if (!results.success) {
-        for (const auto& error : results.errors) {
+    if (results.failed_operations > 0) {
+        for (const auto& error : results.error_messages) {
             std::cout << "  Error: " << error << std::endl;
         }
     }
@@ -127,43 +124,26 @@ void testDeadlockPrevention() {
     std::cout << "\n=== Testing Deadlock Prevention Pattern ===" << std::endl;
     
     MockAudioThreadingPattern mock_audio;
-    ThreadingTest::TestConfig config;
+    ThreadSafetyTester::Config config;
     config.num_threads = 4;
     config.operations_per_thread = 50;
-    config.timeout = std::chrono::milliseconds(3000);
     
-    auto test = ThreadingTest::DeadlockDetectionTest<MockAudioThreadingPattern>(
-        &mock_audio,
-        [](MockAudioThreadingPattern* a, int thread_id) {
-            // These operations would cause deadlock without the unlocked pattern
-            switch (thread_id % 2) {
-                case 0:
-                    // setStream calls resetBuffer internally - would deadlock without unlocked pattern
-                    a->setStream();
-                    break;
-                case 1:
-                    // Multiple buffer operations
-                    a->resetBuffer();
-                    a->getBufferLatencyMs();
-                    a->isFinished();
-                    break;
-            }
-        },
-        config
-    );
+    ThreadSafetyTester tester(config);
     
-    auto results = test.run();
+    // Test for deadlock using the framework's deadlock detection
+    bool deadlock_detected = tester.testForDeadlock([&mock_audio]() {
+        // These operations would cause deadlock without the unlocked pattern
+        mock_audio.setStream();
+        mock_audio.resetBuffer();
+        mock_audio.getBufferLatencyMs();
+        mock_audio.isFinished();
+    }, std::chrono::milliseconds(3000));
     
     std::cout << "Deadlock prevention test: " 
-              << (results.success ? "PASSED" : "FAILED") << std::endl;
-    std::cout << "Operations: " << results.total_operations 
-              << ", Errors: " << results.failed_operations << std::endl;
+              << (!deadlock_detected ? "PASSED" : "FAILED") << std::endl;
     
-    if (!results.success) {
+    if (deadlock_detected) {
         std::cout << "WARNING: Potential deadlock detected!" << std::endl;
-        for (const auto& error : results.errors) {
-            std::cout << "  Error: " << error << std::endl;
-        }
     }
 }
 
@@ -174,45 +154,45 @@ void testPerformanceImpact() {
     std::cout << "\n=== Testing Performance Impact ===" << std::endl;
     
     MockAudioThreadingPattern mock_audio;
-    const int iterations = 10000;
+    const size_t iterations = 10000;
     
-    {
-        ThreadingTest::PerformanceBenchmark bench("MockAudio::isFinished() single-threaded");
-        for (int i = 0; i < iterations; ++i) {
-            mock_audio.isFinished();
-        }
-    }
+    ThreadingBenchmark benchmark;
     
-    {
-        ThreadingTest::PerformanceBenchmark bench("MockAudio::getBufferLatencyMs() single-threaded");
-        for (int i = 0; i < iterations; ++i) {
-            mock_audio.getBufferLatencyMs();
-        }
-    }
+    // Benchmark isFinished
+    auto results1 = benchmark.benchmarkScaling(
+        [&mock_audio](size_t) { mock_audio.isFinished(); },
+        iterations, 4);
     
-    {
-        ThreadingTest::PerformanceBenchmark bench("MockAudio mixed operations multi-threaded");
-        
-        std::vector<std::thread> threads;
-        const int num_threads = 4;
-        const int ops_per_thread = iterations / num_threads;
-        
-        for (int t = 0; t < num_threads; ++t) {
-            threads.emplace_back([&mock_audio, ops_per_thread, t]() {
-                for (int i = 0; i < ops_per_thread; ++i) {
-                    switch ((t + i) % 3) {
-                        case 0: mock_audio.isFinished(); break;
-                        case 1: mock_audio.getBufferLatencyMs(); break;
-                        case 2: mock_audio.resetBuffer(); break;
-                    }
-                }
-            });
-        }
-        
-        for (auto& thread : threads) {
-            thread.join();
-        }
-    }
+    std::cout << "MockAudio::isFinished() - Single: " 
+              << results1.single_thread_time.count() << "us, Multi: "
+              << results1.multi_thread_time.count() << "us, Speedup: "
+              << results1.speedup_ratio << "x" << std::endl;
+    
+    // Benchmark getBufferLatencyMs
+    auto results2 = benchmark.benchmarkScaling(
+        [&mock_audio](size_t) { mock_audio.getBufferLatencyMs(); },
+        iterations, 4);
+    
+    std::cout << "MockAudio::getBufferLatencyMs() - Single: " 
+              << results2.single_thread_time.count() << "us, Multi: "
+              << results2.multi_thread_time.count() << "us, Speedup: "
+              << results2.speedup_ratio << "x" << std::endl;
+    
+    // Benchmark mixed operations
+    auto results3 = benchmark.benchmarkScaling(
+        [&mock_audio](size_t i) { 
+            switch (i % 3) {
+                case 0: mock_audio.isFinished(); break;
+                case 1: mock_audio.getBufferLatencyMs(); break;
+                case 2: mock_audio.resetBuffer(); break;
+            }
+        },
+        iterations, 4);
+    
+    std::cout << "MockAudio mixed operations - Single: " 
+              << results3.single_thread_time.count() << "us, Multi: "
+              << results3.multi_thread_time.count() << "us, Speedup: "
+              << results3.speedup_ratio << "x" << std::endl;
 }
 
 int main() {

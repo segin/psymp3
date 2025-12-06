@@ -96,7 +96,7 @@ public:
         std::cout << "Testing fragmented MP4 support..." << std::endl;
         
         // Test fragment handler initialization
-        auto fragmentHandler = std::make_unique<ISODemuxerFragmentHandler>();
+        auto fragmentHandler = std::make_unique<FragmentHandler>();
         assert(fragmentHandler != nullptr);
         
         // Test basic fragment processing capabilities

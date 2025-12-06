@@ -1,7 +1,7 @@
 /*
  * test_fragment_handler.cpp - Test FragmentHandler implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025 Kirn Gill II <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -10,9 +10,12 @@
 #include "psymp3.h"
 #include <stdio.h>
 
-// Test ISODemuxerFragmentHandler implementation
+// Use namespace aliases for cleaner code
+using namespace PsyMP3::Demuxer::ISO;
+
+// Test FragmentHandler implementation
 bool test_fragment_handler() {
-    ISODemuxerFragmentHandler handler;
+    FragmentHandler handler;
     
     // Initially should not be fragmented
     if (handler.IsFragmented()) {
@@ -166,7 +169,7 @@ bool test_fragment_handler() {
     
     // Offset should be base data offset
     if (offset != 2000) {
-        printf("ERROR: Expected offset 2000, got %llu\n", offset);
+        printf("ERROR: Expected offset 2000, got %lu\n", static_cast<unsigned long>(offset));
         return false;
     }
     
@@ -182,7 +185,7 @@ bool test_fragment_handler() {
 
 // Test sample table updates from fragments
 bool test_sample_table_updates() {
-    ISODemuxerFragmentHandler handler;
+    FragmentHandler handler;
     
     // Create a mock audio track
     AudioTrackInfo track;
@@ -245,7 +248,8 @@ bool test_sample_table_updates() {
     }
     
     if (track.sampleTableInfo.chunkOffsets[0] != 2000) {
-        printf("ERROR: Expected chunk offset 2000, got %llu\n", track.sampleTableInfo.chunkOffsets[0]);
+        printf("ERROR: Expected chunk offset 2000, got %lu\n", 
+               static_cast<unsigned long>(track.sampleTableInfo.chunkOffsets[0]));
         return false;
     }
     
@@ -302,13 +306,15 @@ bool test_sample_table_updates() {
     }
     
     if (track.sampleTableInfo.chunkOffsets[1] != 11000) {
-        printf("ERROR: Expected chunk offset 11000, got %llu\n", track.sampleTableInfo.chunkOffsets[1]);
+        printf("ERROR: Expected chunk offset 11000, got %lu\n", 
+               static_cast<unsigned long>(track.sampleTableInfo.chunkOffsets[1]));
         return false;
     }
     
     // Verify sample times are continuous
     if (track.sampleTableInfo.sampleTimes[10] != 10240) {
-        printf("ERROR: Expected sample time 10240, got %llu\n", track.sampleTableInfo.sampleTimes[10]);
+        printf("ERROR: Expected sample time 10240, got %lu\n", 
+               static_cast<unsigned long>(track.sampleTableInfo.sampleTimes[10]));
         return false;
     }
     

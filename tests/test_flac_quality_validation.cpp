@@ -24,7 +24,7 @@
 #include "psymp3.h"
 #include "flac_test_data_utils.h"
 
-#ifdef HAVE_FLAC
+#ifdef HAVE_NATIVE_FLAC
 
 #include <iostream>
 #include <vector>
@@ -700,14 +700,14 @@ int main() {
                 auto handler = std::make_unique<FileIOHandler>(file);
                 auto demuxer = std::make_unique<FLACDemuxer>(std::move(handler));
                 
-                // Try to read a few frames to validate basic functionality
-                int frameCount = 0;
-                while (frameCount < 10 && !demuxer->isFinished()) {
-                    auto frame = demuxer->getNextFrame();
-                    if (frame) frameCount++;
+                // Try to read a few chunks to validate basic functionality
+                int chunkCount = 0;
+                while (chunkCount < 10 && !demuxer->isEOF()) {
+                    auto chunk = demuxer->readChunk();
+                    if (chunk.isValid()) chunkCount++;
                 }
                 
-                std::cout << "  ✓ Successfully read " << frameCount << " frames" << std::endl;
+                std::cout << "  ✓ Successfully read " << chunkCount << " chunks" << std::endl;
             } catch (const std::exception& e) {
                 std::cout << "  ✗ Error: " << e.what() << std::endl;
                 success = false;
@@ -718,11 +718,11 @@ int main() {
     return success ? 0 : 1;
 }
 
-#else // !HAVE_FLAC
+#else // !HAVE_NATIVE_FLAC
 
 int main() {
-    std::cout << "FLAC support not available - skipping quality validation tests" << std::endl;
+    std::cout << "Native FLAC codec not available - skipping quality validation tests" << std::endl;
     return 0;
 }
 
-#endif // HAVE_FLAC
+#endif // HAVE_NATIVE_FLAC

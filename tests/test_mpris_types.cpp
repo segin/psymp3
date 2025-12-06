@@ -4,7 +4,7 @@
 
 #ifdef HAVE_DBUS
 
-using namespace MPRISTypes;
+using namespace PsyMP3::MPRIS;
 
 // Test helper macros
 #define ASSERT_EQ(expected, actual) \

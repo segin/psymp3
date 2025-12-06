@@ -11,6 +11,8 @@
 #include "flac_test_data_utils.h"
 #include "test_framework.h"
 
+#ifdef HAVE_NATIVE_FLAC
+
 using namespace TestFramework;
 
 /**
@@ -61,8 +63,8 @@ protected:
                 
                 if (frame.getSampleFrameCount() > 0) {
                     // Validate decoded frame
-                    ASSERT_EQUALS(stream_info.channels, frame.getChannels(), "Frame should have correct channels");
-                    ASSERT_EQUALS(stream_info.sample_rate, frame.getSampleRate(), "Frame should have correct sample rate");
+                    ASSERT_EQUALS(stream_info.channels, frame.channels, "Frame should have correct channels");
+                    ASSERT_EQUALS(stream_info.sample_rate, frame.sample_rate, "Frame should have correct sample rate");
                     
                     total_samples += frame.getSampleFrameCount();
                 }
@@ -515,3 +517,12 @@ int main() {
     
     return suite.getFailureCount(results);
 }
+
+#else // !HAVE_NATIVE_FLAC
+
+int main() {
+    Debug::log("test", "Native FLAC codec not available - skipping integration tests");
+    return 0;
+}
+
+#endif // HAVE_NATIVE_FLAC

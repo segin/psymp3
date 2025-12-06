@@ -19,6 +19,7 @@
 
 using namespace TestFramework;
 using namespace TestFramework::Threading;
+using namespace PsyMP3::MPRIS;
 
 /**
  * @brief Test class for MethodHandler comprehensive testing
@@ -140,7 +141,7 @@ private:
     void testPropertyAccessMethods() {
         // Set up test metadata
         m_property_manager->updateMetadata("Test Artist", "Test Title", "Test Album");
-        m_property_manager->updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        m_property_manager->updatePlaybackStatus(PlaybackStatus::Playing);
         m_property_manager->updatePosition(45000000); // 45 seconds
         
         // Test GetProperty for PlaybackStatus

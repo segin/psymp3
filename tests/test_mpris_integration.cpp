@@ -6,6 +6,10 @@
 
 #include "psymp3.h"
 
+#ifdef HAVE_DBUS
+using namespace PsyMP3::MPRIS;
+#endif
+
 // Mock Player class for testing MPRIS integration
 class MockPlayer {
 public:
@@ -65,7 +69,7 @@ int main() {
         }
         
         // Test status updates (should work even without D-Bus connection)
-        mpris_manager.updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+        mpris_manager.updatePlaybackStatus(PlaybackStatus::Playing);
         std::cout << "✓ Playback status update completed" << std::endl;
         
         mpris_manager.updateMetadata("Test Artist", "Test Title", "Test Album");

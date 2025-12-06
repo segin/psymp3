@@ -11,6 +11,11 @@
 
 #ifdef HAVE_DBUS
 
+#include "mock_player.h"
+
+using namespace PsyMP3::MPRIS;
+using namespace TestFramework;
+
 #include <dbus/dbus.h>
 #include <thread>
 #include <chrono>
@@ -426,7 +431,7 @@ private:
         std::thread load_thread([&mpris_manager, &stop_load]() {
             while (!stop_load.load()) {
                 // Generate load by updating properties
-                mpris_manager.updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+                mpris_manager.updatePlaybackStatus(PlaybackStatus::Playing);
                 mpris_manager.updateMetadata("Test Artist", "Test Title", "Test Album");
                 mpris_manager.updatePosition(1000000); // 1 second
                 

@@ -8,7 +8,7 @@
 #include <dbus/dbus.h>
 #endif
 
-using namespace MPRISTypes;
+using namespace PsyMP3::MPRIS;
 
 // Simple test framework
 class TestFramework {

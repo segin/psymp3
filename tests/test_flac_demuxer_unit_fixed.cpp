@@ -345,7 +345,7 @@ protected:
             try {
                 for (int i = 0; i < 100; i++) {
                     uint64_t pos = demuxer->getPosition();
-                    uint64_t sample = demuxer->getCurrentSample();
+                    uint64_t sample = demuxer->getPosition();
                     uint64_t duration = demuxer->getDuration();
                     std::this_thread::sleep_for(std::chrono::microseconds(10));
                 }

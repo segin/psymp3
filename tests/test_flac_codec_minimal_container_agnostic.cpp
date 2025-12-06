@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-#ifdef HAVE_FLAC
+#ifdef HAVE_NATIVE_FLAC
 
 /**
  * @brief Minimal test for container-agnostic FLAC codec operation
@@ -292,11 +292,11 @@ int main() {
     }
 }
 
-#else // !HAVE_FLAC
+#else // !HAVE_NATIVE_FLAC
 
 int main() {
-    Debug::log("test", "FLAC codec not available - skipping minimal container-agnostic tests");
+    Debug::log("test", "Native FLAC codec not available - skipping minimal container-agnostic tests");
     return 0;
 }
 
-#endif // HAVE_FLAC
+#endif // HAVE_NATIVE_FLAC

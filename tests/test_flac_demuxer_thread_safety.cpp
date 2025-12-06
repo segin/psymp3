@@ -29,7 +29,7 @@ public:
         
         // Create a mock IOHandler for testing
         auto handler = std::make_unique<FileIOHandler>("test_file.flac");
-        if (!handler || !handler->isOpen()) {
+        if (!handler || handler->getFileSize() < 0) {
             Debug::log("test", "Cannot open test FLAC file, skipping thread safety test");
             return true; // Skip test if no file available
         }
@@ -64,7 +64,7 @@ public:
                         }
                         
                         auto position = demuxer->getPosition();
-                        auto sample = demuxer->getCurrentSample();
+                        auto sample = demuxer->getPosition();
                         auto duration = demuxer->getDuration();
                         auto eof = demuxer->isEOF();
                         
@@ -98,7 +98,7 @@ public:
         Debug::log("test", "FLACDemuxerThreadSafetyTest::testConcurrentSeeking()");
         
         auto handler = std::make_unique<FileIOHandler>("test_file.flac");
-        if (!handler || !handler->isOpen()) {
+        if (!handler || handler->getFileSize() < 0) {
             Debug::log("test", "Cannot open test FLAC file, skipping seeking test");
             return true; // Skip test if no file available
         }
@@ -172,7 +172,7 @@ public:
         Debug::log("test", "FLACDemuxerThreadSafetyTest::testConcurrentMetadataAccess()");
         
         auto handler = std::make_unique<FileIOHandler>("test_file.flac");
-        if (!handler || !handler->isOpen()) {
+        if (!handler || handler->getFileSize() < 0) {
             Debug::log("test", "Cannot open test FLAC file, skipping metadata test");
             return true; // Skip test if no file available
         }
@@ -200,7 +200,7 @@ public:
                         auto stream_info = demuxer->getStreamInfo(1);
                         auto duration = demuxer->getDuration();
                         auto position = demuxer->getPosition();
-                        auto sample = demuxer->getCurrentSample();
+                        auto sample = demuxer->getPosition();
                         auto eof = demuxer->isEOF();
                         
                         successful_accesses++;
@@ -233,7 +233,7 @@ public:
         
         for (int i = 0; i < num_iterations; ++i) {
             auto handler = std::make_unique<FileIOHandler>("test_file.flac");
-            if (!handler || !handler->isOpen()) {
+            if (!handler || handler->getFileSize() < 0) {
                 Debug::log("test", "Cannot open test FLAC file, skipping destructor test");
                 return true; // Skip test if no file available
             }
@@ -290,4 +290,53 @@ bool test_flac_demuxer_thread_safety_metadata_access() {
 
 bool test_flac_demuxer_thread_safety_destructor() {
     return FLACDemuxerThreadSafetyTest::testDestructorSafety();
+}
+
+
+int main() {
+    std::cout << "=== FLAC Demuxer Thread Safety Tests ===" << std::endl;
+    
+    int passed = 0;
+    int failed = 0;
+    
+    std::cout << "Test 1: Concurrent Reading... ";
+    if (test_flac_demuxer_thread_safety_concurrent_reading()) {
+        std::cout << "PASSED" << std::endl;
+        passed++;
+    } else {
+        std::cout << "FAILED" << std::endl;
+        failed++;
+    }
+    
+    std::cout << "Test 2: Concurrent Seeking... ";
+    if (test_flac_demuxer_thread_safety_concurrent_seeking()) {
+        std::cout << "PASSED" << std::endl;
+        passed++;
+    } else {
+        std::cout << "FAILED" << std::endl;
+        failed++;
+    }
+    
+    std::cout << "Test 3: Metadata Access... ";
+    if (test_flac_demuxer_thread_safety_metadata_access()) {
+        std::cout << "PASSED" << std::endl;
+        passed++;
+    } else {
+        std::cout << "FAILED" << std::endl;
+        failed++;
+    }
+    
+    std::cout << "Test 4: Destructor Safety... ";
+    if (test_flac_demuxer_thread_safety_destructor()) {
+        std::cout << "PASSED" << std::endl;
+        passed++;
+    } else {
+        std::cout << "FAILED" << std::endl;
+        failed++;
+    }
+    
+    std::cout << std::endl;
+    std::cout << "Results: " << passed << " passed, " << failed << " failed" << std::endl;
+    
+    return failed > 0 ? 1 : 0;
 }

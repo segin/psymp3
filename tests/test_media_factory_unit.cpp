@@ -11,6 +11,7 @@
 #include "test_framework.h"
 
 using namespace TestFramework;
+using namespace PsyMP3::Demuxer;
 
 /**
  * @brief Test MediaFormat data structure

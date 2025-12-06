@@ -11,6 +11,11 @@
 
 #ifdef HAVE_DBUS
 
+#include "mock_player.h"
+
+using namespace PsyMP3::MPRIS;
+using namespace TestFramework;
+
 #include <dbus/dbus.h>
 #include <thread>
 #include <chrono>
@@ -22,8 +27,9 @@
 
 /**
  * @brief Memory usage tracker for monitoring MPRIS memory consumption
+ * Named differently to avoid conflict with PsyMP3::IO::MemoryTracker
  */
-class MemoryTracker {
+class MPRISMemoryTracker {
 public:
     struct MemoryStats {
         size_t virtual_memory_kb = 0;
@@ -195,7 +201,7 @@ private:
     bool testBasicMemoryUsage() {
         std::cout << std::endl << "Testing basic memory usage..." << std::endl;
         
-        MemoryTracker tracker;
+        MPRISMemoryTracker tracker;
         tracker.startTracking();
         
         auto baseline = tracker.getCurrentStats();
@@ -222,7 +228,7 @@ private:
         
         // Perform some operations
         for (int i = 0; i < 100; ++i) {
-            mpris_manager.updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+            mpris_manager.updatePlaybackStatus(PlaybackStatus::Playing);
             mpris_manager.updateMetadata("Artist " + std::to_string(i), 
                                        "Title " + std::to_string(i), 
                                        "Album " + std::to_string(i));
@@ -263,7 +269,7 @@ private:
     bool testMemoryLeakDetection() {
         std::cout << std::endl << "Testing memory leak detection..." << std::endl;
         
-        MemoryTracker tracker;
+        MPRISMemoryTracker tracker;
         tracker.startTracking();
         
         // Run multiple initialization/shutdown cycles
@@ -285,9 +291,9 @@ private:
             // Perform operations
             for (int i = 0; i < 50; ++i) {
                 mpris_manager.updatePlaybackStatus(
-                    (i % 3 == 0) ? MPRISTypes::PlaybackStatus::Playing :
-                    (i % 3 == 1) ? MPRISTypes::PlaybackStatus::Paused :
-                                   MPRISTypes::PlaybackStatus::Stopped
+                    (i % 3 == 0) ? PlaybackStatus::Playing :
+                    (i % 3 == 1) ? PlaybackStatus::Paused :
+                                   PlaybackStatus::Stopped
                 );
                 
                 mpris_manager.updateMetadata("Test Artist", "Test Title", "Test Album");
@@ -335,7 +341,7 @@ private:
     bool testMemoryUnderLoad() {
         std::cout << std::endl << "Testing memory usage under load..." << std::endl;
         
-        MemoryTracker tracker;
+        MPRISMemoryTracker tracker;
         tracker.startTracking();
         
         MockPlayer mock_player;
@@ -357,9 +363,9 @@ private:
                 int counter = 0;
                 while (!stop_load.load()) {
                     mpris_manager.updatePlaybackStatus(
-                        (counter % 3 == 0) ? MPRISTypes::PlaybackStatus::Playing :
-                        (counter % 3 == 1) ? MPRISTypes::PlaybackStatus::Paused :
-                                             MPRISTypes::PlaybackStatus::Stopped
+                        (counter % 3 == 0) ? PlaybackStatus::Playing :
+                        (counter % 3 == 1) ? PlaybackStatus::Paused :
+                                             PlaybackStatus::Stopped
                     );
                     
                     mpris_manager.updateMetadata(
@@ -433,7 +439,7 @@ private:
     bool testResourceCleanup() {
         std::cout << std::endl << "Testing resource cleanup..." << std::endl;
         
-        MemoryTracker tracker;
+        MPRISMemoryTracker tracker;
         tracker.startTracking();
         
         auto baseline = tracker.getCurrentStats();
@@ -452,7 +458,7 @@ private:
             
             // Perform some operations
             for (int j = 0; j < 20; ++j) {
-                mpris_manager.updatePlaybackStatus(MPRISTypes::PlaybackStatus::Playing);
+                mpris_manager.updatePlaybackStatus(PlaybackStatus::Playing);
                 mpris_manager.updateMetadata("Test", "Test", "Test");
                 mpris_manager.updatePosition(j * 1000000);
             }
@@ -489,7 +495,7 @@ private:
         return true;
     }
     
-    void printMemoryStats(const MemoryTracker::MemoryStats& stats) {
+    void printMemoryStats(const MPRISMemoryTracker::MemoryStats& stats) {
         std::cout << "  Virtual: " << stats.virtual_memory_kb << " KB" << std::endl;
         std::cout << "  Resident: " << stats.resident_memory_kb << " KB" << std::endl;
         std::cout << "  Heap: " << stats.heap_size_kb << " KB" << std::endl;

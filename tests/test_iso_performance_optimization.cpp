@@ -84,7 +84,7 @@ void testLazyLoadingPerformance() {
     auto sampleTableInfo = convertToSampleTableInfo(testData);
     
     // Test with lazy loading enabled
-    auto sampleTableManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto sampleTableManager = std::make_unique<SampleTableManager>();
     sampleTableManager->EnableLazyLoading(true);
     
     auto start = std::chrono::high_resolution_clock::now();
@@ -116,7 +116,7 @@ void testCompressedChunkMappingPerformance() {
     auto testData = createLargeSampleTable(50000);
     auto sampleTableInfo = convertToSampleTableInfo(testData);
     
-    auto sampleTableManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto sampleTableManager = std::make_unique<SampleTableManager>();
     
     auto start = std::chrono::high_resolution_clock::now();
     bool success = sampleTableManager->BuildSampleTables(sampleTableInfo);
@@ -147,7 +147,7 @@ void testBinarySearchOptimization() {
     auto testData = createLargeSampleTable(200000); // Large table to trigger hierarchical index
     auto sampleTableInfo = convertToSampleTableInfo(testData);
     
-    auto sampleTableManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto sampleTableManager = std::make_unique<SampleTableManager>();
     
     auto start = std::chrono::high_resolution_clock::now();
     bool success = sampleTableManager->BuildSampleTables(sampleTableInfo);
@@ -190,7 +190,7 @@ void testMemoryOptimization() {
     auto testData = createLargeSampleTable(75000);
     auto sampleTableInfo = convertToSampleTableInfo(testData);
     
-    auto sampleTableManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto sampleTableManager = std::make_unique<SampleTableManager>();
     
     // Build tables
     sampleTableManager->BuildSampleTables(sampleTableInfo);

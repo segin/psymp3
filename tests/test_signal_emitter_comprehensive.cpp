@@ -19,6 +19,7 @@
 
 using namespace TestFramework;
 using namespace TestFramework::Threading;
+using namespace PsyMP3::MPRIS;
 
 /**
  * @brief Test class for SignalEmitter comprehensive testing
@@ -59,9 +60,9 @@ private:
 
     void testBasicSignalEmission() {
         // Test PropertiesChanged signal emission
-        std::map<std::string, MPRISTypes::DBusVariant> changed_properties;
-        changed_properties["PlaybackStatus"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, std::string("Playing")};
-        changed_properties["Position"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(123456789)};
+        std::map<std::string, DBusVariant> changed_properties;
+        changed_properties["PlaybackStatus"] = DBusVariant(std::string("Playing"));
+        changed_properties["Position"] = DBusVariant(uint64_t(123456789));
         
         // Emit signal (should be asynchronous)
         m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", changed_properties);
@@ -108,20 +109,20 @@ private:
 
     void testPropertiesChangedSignals() {
         // Test various property change scenarios
-        std::vector<std::map<std::string, MPRISTypes::DBusVariant>> test_properties = {
+        std::vector<std::map<std::string, DBusVariant>> test_properties = {
             // Metadata change
             {
-                {"Metadata", MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, std::string("test_metadata")}}
+                {"Metadata", DBusVariant(std::string("test_metadata"))}
             },
             // Playback status change
             {
-                {"PlaybackStatus", MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, std::string("Paused")}}
+                {"PlaybackStatus", DBusVariant(std::string("Paused"))}
             },
             // Multiple properties change
             {
-                {"PlaybackStatus", MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, std::string("Playing")}},
-                {"Position", MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(555555555)}},
-                {"Volume", MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::Double, 0.75}}
+                {"PlaybackStatus", DBusVariant(std::string("Playing"))},
+                {"Position", DBusVariant(uint64_t(555555555))},
+                {"Volume", DBusVariant(0.75)}
             },
             // Empty properties (should be handled gracefully)
             {}
@@ -193,8 +194,8 @@ private:
         // Emit many signals rapidly
         const size_t num_signals = 100;
         for (size_t i = 0; i < num_signals; ++i) {
-            std::map<std::string, MPRISTypes::DBusVariant> properties;
-            properties["TestProperty"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(i)};
+            std::map<std::string, DBusVariant> properties;
+            properties["TestProperty"] = DBusVariant(uint64_t(i));
             
             m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
         }
@@ -230,8 +231,8 @@ private:
         
         // Emit a large number of signals rapidly to test queue limits
         for (size_t i = 0; i < large_signal_count; ++i) {
-            std::map<std::string, MPRISTypes::DBusVariant> properties;
-            properties["OverflowTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(i)};
+            std::map<std::string, DBusVariant> properties;
+            properties["OverflowTest"] = DBusVariant(uint64_t(i));
             
             m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
             
@@ -258,8 +259,8 @@ private:
         ASSERT_TRUE(signal_count > 0, "Should have processed some signals despite overflow");
         
         // Signal emitter should still be functional after overflow
-        std::map<std::string, MPRISTypes::DBusVariant> test_properties;
-        test_properties["PostOverflowTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, std::string("test")};
+        std::map<std::string, DBusVariant> test_properties;
+        test_properties["PostOverflowTest"] = DBusVariant(std::string("test"));
         
         m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", test_properties);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -286,8 +287,8 @@ private:
                 
                 if (counter % 2 == 0) {
                     // Emit PropertiesChanged
-                    std::map<std::string, MPRISTypes::DBusVariant> properties;
-                    properties["ThreadTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(counter)};
+                    std::map<std::string, DBusVariant> properties;
+                    properties["ThreadTest"] = DBusVariant(uint64_t(counter));
                     
                     m_signal_emitter->emitPropertiesChanged(
                         "org.mpris.MediaPlayer2.Player", 
@@ -331,8 +332,8 @@ private:
         m_mock_connection_manager->simulateConnectionLoss();
         
         // Emit signals during connection failure
-        std::map<std::string, MPRISTypes::DBusVariant> properties;
-        properties["ErrorTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, std::string("test")};
+        std::map<std::string, DBusVariant> properties;
+        properties["ErrorTest"] = DBusVariant(std::string("test"));
         
         // Should not crash even with connection failure
         m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
@@ -355,7 +356,7 @@ private:
         
         // Emit signals with message failures
         for (int i = 0; i < 20; ++i) {
-            properties["FailureTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(i)};
+            properties["FailureTest"] = DBusVariant(uint64_t(i));
             m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
         }
         
@@ -365,7 +366,7 @@ private:
         mock_connection->setMessageFailureRate(0.0); // Restore normal operation
         
         // Should still be functional
-        properties["RecoveryTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, std::string("recovered")};
+        properties["RecoveryTest"] = DBusVariant(std::string("recovered"));
         m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
         
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -383,8 +384,8 @@ private:
         for (size_t i = 0; i < num_operations; ++i) {
             if (i % 3 == 0) {
                 // PropertiesChanged signal
-                std::map<std::string, MPRISTypes::DBusVariant> properties;
-                properties["PerfTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(i)};
+                std::map<std::string, DBusVariant> properties;
+                properties["PerfTest"] = DBusVariant(uint64_t(i));
                 m_signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
             } else {
                 // Seeked signal
@@ -459,7 +460,7 @@ private:
     void testRapidSignalBursts() {
         auto mock_connection_manager = std::make_unique<MockDBusConnectionManager>();
         mock_connection_manager->connect();
-        auto signal_emitter = std::make_unique<MPRISTypes::SignalEmitter>(mock_connection_manager.get());
+        auto signal_emitter = std::make_unique<SignalEmitter>(reinterpret_cast<DBusConnectionManager*>(mock_connection_manager.get()));
         
         // Emit rapid bursts of signals
         const size_t burst_size = 500;
@@ -467,8 +468,8 @@ private:
         
         for (size_t burst = 0; burst < num_bursts; ++burst) {
             for (size_t i = 0; i < burst_size; ++i) {
-                std::map<std::string, MPRISTypes::DBusVariant> properties;
-                properties["BurstTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(burst * burst_size + i)};
+                std::map<std::string, DBusVariant> properties;
+                properties["BurstTest"] = DBusVariant(uint64_t(burst * burst_size + i));
                 
                 signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
             }
@@ -490,7 +491,7 @@ private:
     void testLongRunningOperation() {
         auto mock_connection_manager = std::make_unique<MockDBusConnectionManager>();
         mock_connection_manager->connect();
-        auto signal_emitter = std::make_unique<MPRISTypes::SignalEmitter>(mock_connection_manager.get());
+        auto signal_emitter = std::make_unique<SignalEmitter>(reinterpret_cast<DBusConnectionManager*>(mock_connection_manager.get()));
         
         // Run continuous signal emission for extended period
         std::atomic<bool> should_stop{false};
@@ -499,8 +500,8 @@ private:
         std::thread emission_thread([&]() {
             size_t counter = 0;
             while (!should_stop.load()) {
-                std::map<std::string, MPRISTypes::DBusVariant> properties;
-                properties["LongRunTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(counter++)};
+                std::map<std::string, DBusVariant> properties;
+                properties["LongRunTest"] = DBusVariant(uint64_t(counter++));
                 
                 signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
                 signals_emitted.fetch_add(1);
@@ -528,14 +529,14 @@ private:
     void testMemoryUsageUnderLoad() {
         auto mock_connection_manager = std::make_unique<MockDBusConnectionManager>();
         mock_connection_manager->connect();
-        auto signal_emitter = std::make_unique<MPRISTypes::SignalEmitter>(mock_connection_manager.get());
+        auto signal_emitter = std::make_unique<SignalEmitter>(reinterpret_cast<DBusConnectionManager*>(mock_connection_manager.get()));
         
         // Test with large property data
         std::string large_value(10000, 'M'); // 10KB string
         
         for (int i = 0; i < 100; ++i) {
-            std::map<std::string, MPRISTypes::DBusVariant> properties;
-            properties["LargeData"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::String, large_value + std::to_string(i)};
+            std::map<std::string, DBusVariant> properties;
+            properties["LargeData"] = DBusVariant(large_value + std::to_string(i));
             
             signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
         }
@@ -553,15 +554,15 @@ private:
     void testShutdownDuringOperation() {
         auto mock_connection_manager = std::make_unique<MockDBusConnectionManager>();
         mock_connection_manager->connect();
-        auto signal_emitter = std::make_unique<MPRISTypes::SignalEmitter>(mock_connection_manager.get());
+        auto signal_emitter = std::make_unique<SignalEmitter>(reinterpret_cast<DBusConnectionManager*>(mock_connection_manager.get()));
         
         // Start emitting signals
         std::atomic<bool> emission_started{false};
         std::thread emission_thread([&]() {
             emission_started.store(true);
             for (int i = 0; i < 1000; ++i) {
-                std::map<std::string, MPRISTypes::DBusVariant> properties;
-                properties["ShutdownTest"] = MPRISTypes::DBusVariant{MPRISTypes::DBusVariant::UInt64, uint64_t(i)};
+                std::map<std::string, DBusVariant> properties;
+                properties["ShutdownTest"] = DBusVariant(uint64_t(i));
                 
                 signal_emitter->emitPropertiesChanged("org.mpris.MediaPlayer2.Player", properties);
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));

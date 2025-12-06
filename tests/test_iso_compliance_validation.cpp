@@ -120,7 +120,7 @@ void testBoxStructureValidation() {
     testData.resize(32); // Fill with zeros
     
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Test valid 32-bit box
     BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 32, 0, 1000);
@@ -141,7 +141,7 @@ void testBoxSizeValidation() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Test valid 32-bit sizes
     assert(validator.Validate32BitBoxSize(8, 0, 1000));
@@ -169,7 +169,7 @@ void testTimestampValidation() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Test valid timestamp configurations
     TimestampValidationResult result = validator.ValidateTimestampConfiguration(44100, 44100, 88200);
@@ -197,7 +197,7 @@ void testSampleTableValidation() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Create valid sample table info
     SampleTableInfo sampleTable;
@@ -224,7 +224,7 @@ void testCodecDataValidation() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Create test track info
     AudioTrackInfo track;
@@ -261,7 +261,7 @@ void testContainerCompliance() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Create valid file type box data
     std::vector<uint8_t> ftypData = {
@@ -288,7 +288,7 @@ void testTrackCompliance() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Create valid track
     AudioTrackInfo track;
@@ -325,7 +325,7 @@ void testComplianceReporting() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Initially should be compliant (no errors)
     ComplianceValidationResult report = validator.GetComplianceReport();
@@ -348,7 +348,7 @@ void testUtilityFunctions() {
     
     std::vector<uint8_t> testData;
     auto mockIO = std::make_shared<MockIOHandler>(testData);
-    ISODemuxerComplianceValidator validator(mockIO);
+    ComplianceValidator validator(mockIO);
     
     // Test box type to string conversion
     std::string ftypStr = validator.BoxTypeToString(BOX_FTYP);

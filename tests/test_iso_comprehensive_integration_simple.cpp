@@ -102,7 +102,7 @@ void testRealWorldFiles() {
 // Test fragmented MP4 support
 void testFragmentedMP4Support() {
     // Test fragment handler initialization
-    auto fragmentHandler = std::make_unique<ISODemuxerFragmentHandler>();
+    auto fragmentHandler = std::make_unique<FragmentHandler>();
     assert(fragmentHandler != nullptr);
     
     std::cout << "  ✓ Fragment handler created successfully" << std::endl;

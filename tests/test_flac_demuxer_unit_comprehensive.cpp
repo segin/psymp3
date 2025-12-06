@@ -519,11 +519,11 @@ private:
         
         // Seek to beginning
         ASSERT_TRUE(demuxer->seekTo(0), "Should seek to beginning");
-        ASSERT_EQUALS(0u, demuxer->getCurrentSample(), "Should be at sample 0");
+        ASSERT_EQUALS(0u, demuxer->getPosition(), "Should be at sample 0");
         
         // Seek to middle (should use seek table)
         ASSERT_TRUE(demuxer->seekTo(11337), "Should seek to middle using seek table");
-        uint64_t middle_sample = demuxer->getCurrentSample();
+        uint64_t middle_sample = demuxer->getPosition();
         ASSERT_TRUE(middle_sample >= 490000 && middle_sample <= 510000, "Should be near middle sample");
         
         // Seek to end

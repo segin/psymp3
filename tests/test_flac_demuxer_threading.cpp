@@ -43,10 +43,10 @@ bool test_flac_demuxer_thread_safety() {
         }
     });
     
-    // Thread 3: Repeatedly call getCurrentSample()
+    // Thread 3: Repeatedly call getPosition() (demuxer uses getPosition, not getCurrentSample)
     threads.emplace_back([&demuxer, &test_running, &operations_completed]() {
         while (test_running.load()) {
-            demuxer.getCurrentSample();
+            demuxer.getPosition();
             operations_completed.fetch_add(1);
             std::this_thread::sleep_for(std::chrono::microseconds(1));
         }

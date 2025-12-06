@@ -14,6 +14,7 @@
 #include <cstring>
 
 using namespace TestFramework;
+using namespace PsyMP3::Demuxer::ISO;
 
 // Mock IOHandler for codec testing
 class CodecMockIOHandler : public IOHandler {
@@ -85,7 +86,7 @@ private:
     void testValidAACConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -119,7 +120,7 @@ private:
     void testInvalidAACConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -151,7 +152,7 @@ private:
     void testAACProfileValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -183,7 +184,7 @@ private:
     void testAACSampleRateValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -217,7 +218,7 @@ private:
     void testAACChannelConfigValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -254,7 +255,7 @@ private:
     void testAACConfigurationMismatch() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -296,7 +297,7 @@ private:
     void testValidALACConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "alac";
@@ -328,7 +329,7 @@ private:
     void testInvalidALACConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "alac";
@@ -360,7 +361,7 @@ private:
     void testALACMagicCookieValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "alac";
@@ -399,7 +400,7 @@ private:
     void testALACParameterValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "alac";
@@ -450,7 +451,7 @@ private:
     void testValidTelephonyConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test valid mulaw configuration
         AudioTrackInfo mulawTrack;
@@ -482,7 +483,7 @@ private:
     void testInvalidTelephonyConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         std::vector<uint8_t> emptyConfig;
         
@@ -520,7 +521,7 @@ private:
     void testTelephonySampleRateValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "ulaw";
@@ -549,7 +550,7 @@ private:
     void testTelephonyChannelValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "alaw";
@@ -575,7 +576,7 @@ private:
     void testTelephonyBitDepthValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "ulaw";
@@ -617,7 +618,7 @@ private:
     void testValidPCMConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         std::vector<uint8_t> emptyConfig; // PCM doesn't need config data
         
@@ -649,7 +650,7 @@ private:
     void testInvalidPCMConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         std::vector<uint8_t> emptyConfig;
         
@@ -680,7 +681,7 @@ private:
     void testPCMBitDepthValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "lpcm";
@@ -701,7 +702,7 @@ private:
     void testPCMSampleRateValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "lpcm";
@@ -735,7 +736,7 @@ private:
     void testPCMChannelValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<CodecMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "lpcm";

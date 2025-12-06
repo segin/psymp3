@@ -299,7 +299,7 @@ protected:
         
         // Test position tracking
         ASSERT_EQUALS(0u, demuxer->getPosition(), "Initial position should be 0");
-        ASSERT_EQUALS(0u, demuxer->getCurrentSample(), "Initial sample position should be 0");
+        ASSERT_EQUALS(0u, demuxer->getPosition(), "Initial sample position should be 0");
         
         // Test EOF state
         ASSERT_FALSE(demuxer->isEOF(), "Should not be EOF initially");

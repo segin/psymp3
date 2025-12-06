@@ -20,6 +20,8 @@
 #include <future>
 #include <random>
 #include <memory>
+#include <map>
+#include <string>
 
 namespace TestFramework {
 namespace Threading {
@@ -365,5 +367,8 @@ public:
 
 } // namespace Threading
 } // namespace TestFramework
+
+// Namespace alias for backward compatibility
+namespace ThreadingTest = TestFramework::Threading;
 
 #endif // TEST_FRAMEWORK_THREADING_H

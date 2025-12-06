@@ -60,8 +60,9 @@ class MockFastFourier : public FastFourier {
 public:
     MockFastFourier() : FastFourier(512) {}
     // Use inherited methods - no need to override
-};/**
+};using namespace TestFramework::Threading;
 
+/**
  * Test concurrent access to Audio public methods
  */
 void testAudioConcurrentAccess() {
@@ -82,45 +83,33 @@ void testAudioConcurrentAccess() {
         // Create Audio instance
         Audio audio(std::move(stream), &fft, &player_mutex);
     
-    ThreadingTest::TestConfig config;
-    config.num_threads = 8;
-    config.operations_per_thread = 100;
-    config.timeout = std::chrono::milliseconds(5000);
-    
-    // Test concurrent access to different public methods
-    auto test = ThreadingTest::ConcurrentAccessTest<Audio>(
-        &audio,
-        [](Audio* a, int thread_id) {
-            switch (thread_id % 4) {
-                case 0: 
-                    a->isFinished();
-                    break;
-                case 1: 
-                    a->resetBuffer();
-                    break;
-                case 2: 
-                    a->getBufferLatencyMs();
-                    break;
-                case 3: {
-                    // Test setStream with new mock stream
-                    auto new_stream = std::make_unique<MockStream>();
-                    a->setStream(std::move(new_stream));
-                    break;
-                }
-            }
-        },
-        config
-    );
-    
-    auto results = test.run();
+        ThreadSafetyTester::Config config;
+        config.num_threads = 8;
+        config.operations_per_thread = 100;
+        config.test_duration = std::chrono::milliseconds(5000);
+        
+        ThreadSafetyTester tester(config);
+        
+        // Create test operations map
+        std::map<std::string, ThreadSafetyTester::TestFunction> operations;
+        operations["isFinished"] = [&audio]() { audio.isFinished(); return true; };
+        operations["resetBuffer"] = [&audio]() { audio.resetBuffer(); return true; };
+        operations["getBufferLatencyMs"] = [&audio]() { audio.getBufferLatencyMs(); return true; };
+        operations["setStream"] = [&audio]() {
+            auto new_stream = std::make_unique<MockStream>();
+            audio.setStream(std::move(new_stream));
+            return true;
+        };
+        
+        auto results = tester.runStressTest(operations, "Audio concurrent access");
     
         std::cout << "Concurrent access test: " 
-                  << (results.success ? "PASSED" : "FAILED") << std::endl;
+                  << (results.failed_operations == 0 ? "PASSED" : "FAILED") << std::endl;
         std::cout << "Operations: " << results.total_operations 
                   << ", Errors: " << results.failed_operations << std::endl;
         
-        if (!results.success) {
-            for (const auto& error : results.errors) {
+        if (results.failed_operations > 0) {
+            for (const auto& error : results.error_messages) {
                 std::cout << "  Error: " << error << std::endl;
             }
         }
@@ -150,52 +139,28 @@ void testAudioDeadlockPrevention() {
         
         Audio audio(std::move(stream), &fft, &player_mutex);
     
-    ThreadingTest::TestConfig config;
-    config.num_threads = 4;
-    config.operations_per_thread = 50;
-    config.timeout = std::chrono::milliseconds(3000);
-    
-    // Test operations that could cause deadlock if not properly implemented
-    auto test = ThreadingTest::DeadlockDetectionTest<Audio>(
-        &audio,
-        [](Audio* a, int thread_id) {
+        ThreadSafetyTester::Config config;
+        config.num_threads = 4;
+        config.operations_per_thread = 50;
+        
+        ThreadSafetyTester tester(config);
+        
+        // Test for deadlock using the framework's deadlock detection
+        bool deadlock_detected = tester.testForDeadlock([&audio]() {
             // These operations acquire multiple locks and could deadlock
             // if the unlocked pattern wasn't implemented correctly
-            switch (thread_id % 3) {
-                case 0: {
-                    // setStream acquires both stream and buffer mutexes
-                    auto new_stream = std::make_unique<MockStream>();
-                    a->setStream(std::move(new_stream));
-                    break;
-                }
-                case 1:
-                    // Multiple buffer operations
-                    a->resetBuffer();
-                    a->getBufferLatencyMs();
-                    a->isFinished();
-                    break;
-                case 2:
-                    // Mixed operations
-                    a->isFinished();
-                    a->getBufferLatencyMs();
-                    break;
-            }
-        },
-        config
-    );
-    
-    auto results = test.run();
+            auto new_stream = std::make_unique<MockStream>();
+            audio.setStream(std::move(new_stream));
+            audio.resetBuffer();
+            audio.getBufferLatencyMs();
+            audio.isFinished();
+        }, std::chrono::milliseconds(3000));
     
         std::cout << "Deadlock prevention test: " 
-                  << (results.success ? "PASSED" : "FAILED") << std::endl;
-        std::cout << "Operations: " << results.total_operations 
-                  << ", Errors: " << results.failed_operations << std::endl;
+                  << (!deadlock_detected ? "PASSED" : "FAILED") << std::endl;
         
-        if (!results.success) {
+        if (deadlock_detected) {
             std::cout << "WARNING: Potential deadlock detected!" << std::endl;
-            for (const auto& error : results.errors) {
-                std::cout << "  Error: " << error << std::endl;
-            }
         }
     } catch (const std::exception& e) {
         std::cout << "Test failed with exception: " << e.what() << std::endl;
@@ -203,8 +168,7 @@ void testAudioDeadlockPrevention() {
     
     SDL_Quit();
 }/**
- * St
-ress test with high concurrency and mixed operations
+ * Stress test with high concurrency and mixed operations
  */
 void testAudioStressTest() {
     std::cout << "\n=== Testing Audio Stress Test ===" << std::endl;
@@ -215,46 +179,49 @@ void testAudioStressTest() {
     
     Audio audio(std::move(stream), &fft, &player_mutex);
     
-    ThreadingTest::TestConfig config;
+    ThreadSafetyTester::Config config;
     config.num_threads = 12;
     config.operations_per_thread = 200;
-    config.timeout = std::chrono::milliseconds(10000);
-    config.enable_stress_testing = true;
+    config.test_duration = std::chrono::milliseconds(10000);
+    
+    ThreadSafetyTester tester(config);
     
     // Define multiple operations for stress testing
-    std::vector<std::function<void(Audio*, int)>> operations = {
-        [](Audio* a, int) { a->isFinished(); },
-        [](Audio* a, int) { a->getBufferLatencyMs(); },
-        [](Audio* a, int) { a->resetBuffer(); },
-        [](Audio* a, int) { 
-            auto new_stream = std::make_unique<MockStream>();
-            a->setStream(std::move(new_stream));
-        },
-        [](Audio* a, int) {
-            // Multiple operations in sequence
-            a->isFinished();
-            a->getBufferLatencyMs();
-        },
-        [](Audio* a, int) {
-            // Test play/pause operations
-            a->play(true);
-            std::this_thread::sleep_for(std::chrono::microseconds(10));
-            a->play(false);
-        }
+    std::map<std::string, ThreadSafetyTester::TestFunction> operations;
+    operations["isFinished"] = [&audio]() { audio.isFinished(); return true; };
+    operations["getBufferLatencyMs"] = [&audio]() { audio.getBufferLatencyMs(); return true; };
+    operations["resetBuffer"] = [&audio]() { audio.resetBuffer(); return true; };
+    operations["setStream"] = [&audio]() { 
+        auto new_stream = std::make_unique<MockStream>();
+        audio.setStream(std::move(new_stream));
+        return true;
+    };
+    operations["multiOp"] = [&audio]() {
+        audio.isFinished();
+        audio.getBufferLatencyMs();
+        return true;
+    };
+    operations["playPause"] = [&audio]() {
+        audio.play(true);
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+        audio.play(false);
+        return true;
     };
     
-    auto test = ThreadingTest::StressTest<Audio>(&audio, operations, config);
+    auto results = tester.runStressTest(operations, "Audio stress test");
     
-    auto results = test.run();
+    double success_rate = results.total_operations > 0 
+        ? (double)results.successful_operations / results.total_operations * 100.0 
+        : 0.0;
     
     std::cout << "Stress test: " 
-              << (results.success ? "PASSED" : "FAILED") << std::endl;
+              << (results.failed_operations == 0 ? "PASSED" : "FAILED") << std::endl;
     std::cout << "Operations: " << results.total_operations 
               << ", Errors: " << results.failed_operations 
-              << ", Success rate: " << (results.getSuccessRate() * 100.0) << "%" << std::endl;
+              << ", Success rate: " << success_rate << "%" << std::endl;
     
-    if (!results.success) {
-        for (const auto& error : results.errors) {
+    if (results.failed_operations > 0) {
+        for (const auto& error : results.error_messages) {
             std::cout << "  Error: " << error << std::endl;
         }
     }
@@ -272,54 +239,39 @@ void testAudioPerformanceRegression() {
     
     Audio audio(std::move(stream), &fft, &player_mutex);
     
-    const int iterations = 10000;
+    const size_t iterations = 10000;
     
-    // Benchmark individual operations
-    {
-        ThreadingTest::PerformanceBenchmark bench("Audio::isFinished() single-threaded");
-        for (int i = 0; i < iterations; ++i) {
-            audio.isFinished();
-        }
-    }
+    ThreadingBenchmark benchmark;
     
-    {
-        ThreadingTest::PerformanceBenchmark bench("Audio::getBufferLatencyMs() single-threaded");
-        for (int i = 0; i < iterations; ++i) {
-            audio.getBufferLatencyMs();
-        }
-    }
+    // Benchmark isFinished
+    auto results1 = benchmark.benchmarkScaling(
+        [&audio](size_t) { audio.isFinished(); },
+        iterations, 4);
     
-    {
-        ThreadingTest::PerformanceBenchmark bench("Audio::resetBuffer() single-threaded");
-        for (int i = 0; i < iterations / 10; ++i) {
-            audio.resetBuffer();
-        }
-    }
+    std::cout << "Audio::isFinished() - Single: " 
+              << results1.single_thread_time.count() << "us, Multi: "
+              << results1.multi_thread_time.count() << "us, Speedup: "
+              << results1.speedup_ratio << "x" << std::endl;
     
-    // Test concurrent performance
-    {
-        ThreadingTest::PerformanceBenchmark bench("Audio mixed operations multi-threaded");
-        
-        std::vector<std::thread> threads;
-        const int num_threads = 4;
-        const int ops_per_thread = iterations / num_threads;
-        
-        for (int t = 0; t < num_threads; ++t) {
-            threads.emplace_back([&audio, ops_per_thread, t]() {
-                for (int i = 0; i < ops_per_thread; ++i) {
-                    switch ((t + i) % 3) {
-                        case 0: audio.isFinished(); break;
-                        case 1: audio.getBufferLatencyMs(); break;
-                        case 2: audio.resetBuffer(); break;
-                    }
-                }
-            });
-        }
-        
-        for (auto& thread : threads) {
-            thread.join();
-        }
-    }
+    // Benchmark getBufferLatencyMs
+    auto results2 = benchmark.benchmarkScaling(
+        [&audio](size_t) { audio.getBufferLatencyMs(); },
+        iterations, 4);
+    
+    std::cout << "Audio::getBufferLatencyMs() - Single: " 
+              << results2.single_thread_time.count() << "us, Multi: "
+              << results2.multi_thread_time.count() << "us, Speedup: "
+              << results2.speedup_ratio << "x" << std::endl;
+    
+    // Benchmark resetBuffer
+    auto results3 = benchmark.benchmarkScaling(
+        [&audio](size_t) { audio.resetBuffer(); },
+        iterations / 10, 4);
+    
+    std::cout << "Audio::resetBuffer() - Single: " 
+              << results3.single_thread_time.count() << "us, Multi: "
+              << results3.multi_thread_time.count() << "us, Speedup: "
+              << results3.speedup_ratio << "x" << std::endl;
 }
 /**
  * Test Audio class with TestFramework integration

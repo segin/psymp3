@@ -60,7 +60,7 @@ void testBasicFunctionality() {
     std::cout << "Testing basic sample table functionality..." << std::endl;
     
     auto sampleTableInfo = createTestSampleTable(1000);
-    auto sampleTableManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto sampleTableManager = std::make_unique<SampleTableManager>();
     
     bool success = sampleTableManager->BuildSampleTables(sampleTableInfo);
     std::cout << "  Build success: " << (success ? "Yes" : "No") << std::endl;
@@ -88,7 +88,7 @@ void testLargeTablePerformance() {
     
     const size_t LARGE_SAMPLE_COUNT = 100000;
     auto sampleTableInfo = createTestSampleTable(LARGE_SAMPLE_COUNT);
-    auto sampleTableManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto sampleTableManager = std::make_unique<SampleTableManager>();
     
     // Measure build time
     auto start = std::chrono::high_resolution_clock::now();
@@ -132,7 +132,7 @@ void testMemoryOptimization() {
     std::cout << "Testing memory optimization..." << std::endl;
     
     auto sampleTableInfo = createTestSampleTable(50000);
-    auto sampleTableManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto sampleTableManager = std::make_unique<SampleTableManager>();
     
     // Build tables
     sampleTableManager->BuildSampleTables(sampleTableInfo);
@@ -166,7 +166,7 @@ void testLazyLoading() {
     auto sampleTableInfo = createTestSampleTable(25000);
     
     // Test with lazy loading enabled
-    auto lazyManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto lazyManager = std::make_unique<SampleTableManager>();
     lazyManager->EnableLazyLoading(true);
     
     auto start = std::chrono::high_resolution_clock::now();
@@ -177,7 +177,7 @@ void testLazyLoading() {
     size_t lazyMemory = lazyManager->GetMemoryFootprint();
     
     // Test with lazy loading disabled
-    auto eagerManager = std::make_unique<ISODemuxerSampleTableManager>();
+    auto eagerManager = std::make_unique<SampleTableManager>();
     eagerManager->EnableLazyLoading(false);
     
     start = std::chrono::high_resolution_clock::now();

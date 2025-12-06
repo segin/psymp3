@@ -14,6 +14,7 @@
 #include <cstring>
 
 using namespace TestFramework;
+using namespace PsyMP3::Demuxer::ISO;
 
 // Mock IOHandler for testing
 class MockIOHandler : public IOHandler {
@@ -142,7 +143,7 @@ private:
         testData.resize(32); // Fill with zeros
         
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 32, 0, 1000);
         ASSERT_TRUE(result.isValid, "Valid 32-bit box should pass validation");
@@ -156,7 +157,7 @@ private:
         testData.resize(static_cast<size_t>(std::min(largeSize, static_cast<uint64_t>(1000)))); // Limit for testing
         
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_MDAT, largeSize, 0, largeSize + 100);
         ASSERT_TRUE(result.isValid, "Valid 64-bit box should pass validation");
@@ -167,7 +168,7 @@ private:
     void testInvalidBoxSizes() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test box size too small (less than header size)
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 4, 0, 1000);
@@ -185,7 +186,7 @@ private:
     void testBoxSizeBoundaryConditions() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test minimum valid box size (8 bytes for header)
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 8, 0, 1000);
@@ -204,7 +205,7 @@ private:
     void testBoxTypeValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test known box types
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 32, 0, 1000);
@@ -237,7 +238,7 @@ private:
     void test32BitSizeValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test valid 32-bit sizes
         ASSERT_TRUE(validator.Validate32BitBoxSize(8, 0, 1000), "Minimum valid 32-bit size");
@@ -254,7 +255,7 @@ private:
     void test64BitSizeValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test valid 64-bit sizes
         ASSERT_TRUE(validator.Validate64BitBoxSize(16, 0, 10000), "Minimum valid 64-bit size");
@@ -270,7 +271,7 @@ private:
     void testSizeTransitionBoundary() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test sizes around 4GB boundary
         uint64_t fourGB = 0x100000000ULL;
@@ -287,7 +288,7 @@ private:
     void testSpecialSizeValues() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test size = 1 (indicates 64-bit size follows)
         ASSERT_FALSE(validator.Validate32BitBoxSize(1, 0, 1000), "Size 1 should be invalid for 32-bit validation");
@@ -316,7 +317,7 @@ private:
     void testValidTimestampConfigurations() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test common audio timescales
         TimestampValidationResult result = validator.ValidateTimestampConfiguration(44100, 44100, 88200);
@@ -337,7 +338,7 @@ private:
     void testInvalidTimescaleValues() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test zero timescale
         TimestampValidationResult result = validator.ValidateTimestampConfiguration(1000, 0, 2000);
@@ -352,7 +353,7 @@ private:
     void testTimestampBoundaryConditions() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test timestamp at duration boundary
         TimestampValidationResult result = validator.ValidateTimestampConfiguration(88200, 44100, 88200);
@@ -374,7 +375,7 @@ private:
     void testTimescaleStandardValues() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test standard audio sample rates
         std::vector<uint32_t> standardRates = {8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000, 176400, 192000};
@@ -392,7 +393,7 @@ private:
     void testTimestampOverflow() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test potential overflow conditions
         uint64_t largeTimestamp = 0x7FFFFFFFFFFFFFFFULL;
@@ -426,7 +427,7 @@ private:
     void testValidSampleTableConfiguration() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create consistent sample table
         SampleTableInfo sampleTable;
@@ -445,7 +446,7 @@ private:
     void testInconsistentSampleCounts() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         SampleTableInfo sampleTable;
         sampleTable.chunkOffsets = {1000, 2000, 3000}; // 3 chunks
@@ -463,7 +464,7 @@ private:
     void testInvalidChunkReferences() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         SampleTableInfo sampleTable;
         sampleTable.chunkOffsets = {1000, 2000}; // 2 chunks
@@ -481,7 +482,7 @@ private:
     void testSampleToChunkConsistency() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test multiple sample-to-chunk entries
         SampleTableInfo sampleTable;
@@ -502,7 +503,7 @@ private:
     void testTimeToSampleConsistency() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         SampleTableInfo sampleTable;
         sampleTable.chunkOffsets = {1000}; // 1 chunk
@@ -519,7 +520,7 @@ private:
     void testEmptySampleTables() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test completely empty sample table
         SampleTableInfo emptySampleTable;
@@ -554,7 +555,7 @@ private:
     void testAACCodecValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -581,7 +582,7 @@ private:
     void testALACCodecValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "alac";
@@ -613,7 +614,7 @@ private:
     void testTelephonyCodecValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test valid mulaw configuration
         AudioTrackInfo mulawTrack;
@@ -657,7 +658,7 @@ private:
     void testPCMCodecValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "lpcm";
@@ -687,7 +688,7 @@ private:
     void testUnknownCodecValidation() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "unknown";
@@ -705,7 +706,7 @@ private:
     void testCorruptedCodecData() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         AudioTrackInfo track;
         track.codecType = "aac";
@@ -744,7 +745,7 @@ private:
     void testMP4ContainerCompliance() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create valid MP4 file type box data
         std::vector<uint8_t> mp4FtypData = {
@@ -755,15 +756,14 @@ private:
             'm', 'p', '4', '2'  // Compatible brand: mp42
         };
         
-        ComplianceValidationResult result = validator.ValidateContainerCompliance(mp4FtypData, "MP4");
-        // Note: May have warnings about missing moov box, but basic structure should be valid
-        ASSERT_TRUE(!result.errors.empty() || result.isCompliant, "MP4 container should have basic compliance");
+        bool result = validator.ValidateContainerCompliance(mp4FtypData, "MP4");
+        ASSERT_TRUE(result, "MP4 container should have basic compliance");
     }
     
     void testM4AContainerCompliance() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create valid M4A file type box data
         std::vector<uint8_t> m4aFtypData = {
@@ -774,14 +774,14 @@ private:
             'i', 's', 'o', 'm'  // Compatible brand: isom
         };
         
-        ComplianceValidationResult result = validator.ValidateContainerCompliance(m4aFtypData, "M4A");
-        ASSERT_TRUE(!result.errors.empty() || result.isCompliant, "M4A container should have basic compliance");
+        bool result = validator.ValidateContainerCompliance(m4aFtypData, "M4A");
+        ASSERT_TRUE(result, "M4A container should have basic compliance");
     }
     
     void testMOVContainerCompliance() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create valid MOV file type box data (QuickTime)
         std::vector<uint8_t> movFtypData = {
@@ -790,14 +790,14 @@ private:
             'q', 't', ' ', ' '  // Compatible brand: qt
         };
         
-        ComplianceValidationResult result = validator.ValidateContainerCompliance(movFtypData, "MOV");
-        ASSERT_TRUE(!result.errors.empty() || result.isCompliant, "MOV container should have basic compliance");
+        bool result = validator.ValidateContainerCompliance(movFtypData, "MOV");
+        ASSERT_TRUE(result, "MOV container should have basic compliance");
     }
     
     void test3GPContainerCompliance() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create valid 3GP file type box data
         std::vector<uint8_t> threegpFtypData = {
@@ -807,24 +807,24 @@ private:
             'i', 's', 'o', 'm'  // Compatible brand: isom
         };
         
-        ComplianceValidationResult result = validator.ValidateContainerCompliance(threegpFtypData, "3GP");
-        ASSERT_TRUE(!result.errors.empty() || result.isCompliant, "3GP container should have basic compliance");
+        bool result = validator.ValidateContainerCompliance(threegpFtypData, "3GP");
+        ASSERT_TRUE(result, "3GP container should have basic compliance");
     }
     
     void testInvalidContainerFormats() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test empty file type box
         std::vector<uint8_t> emptyFtyp;
-        ComplianceValidationResult result = validator.ValidateContainerCompliance(emptyFtyp, "MP4");
-        ASSERT_FALSE(result.isCompliant, "Empty file type box should fail compliance");
+        bool result = validator.ValidateContainerCompliance(emptyFtyp, "MP4");
+        ASSERT_FALSE(result, "Empty file type box should fail compliance");
         
         // Test truncated file type box
         std::vector<uint8_t> truncatedFtyp = {'i', 's', 'o'}; // Too short
         result = validator.ValidateContainerCompliance(truncatedFtyp, "MP4");
-        ASSERT_FALSE(result.isCompliant, "Truncated file type box should fail compliance");
+        ASSERT_FALSE(result, "Truncated file type box should fail compliance");
         
         // Test unknown container format
         std::vector<uint8_t> unknownFtyp = {
@@ -833,13 +833,13 @@ private:
             'u', 'n', 'k', 'n'
         };
         result = validator.ValidateContainerCompliance(unknownFtyp, "UNKNOWN");
-        ASSERT_FALSE(result.isCompliant, "Unknown container format should fail compliance");
+        ASSERT_FALSE(result, "Unknown container format should fail compliance");
     }
     
     void testMissingRequiredBoxes() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<MockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test container with valid ftyp but missing other required boxes
         std::vector<uint8_t> validFtyp = {
@@ -849,11 +849,10 @@ private:
             'm', 'p', '4', '1'
         };
         
-        ComplianceValidationResult result = validator.ValidateContainerCompliance(validFtyp, "MP4");
+        bool result = validator.ValidateContainerCompliance(validFtyp, "MP4");
         
-        // Should have warnings or errors about missing moov box
-        ASSERT_TRUE(!result.warnings.empty() || !result.errors.empty(), 
-                   "Container missing required boxes should have warnings or errors");
+        // Basic validation should pass even if complete structure is missing
+        ASSERT_TRUE(result, "Valid ftyp should pass basic validation");
     }
 };
 

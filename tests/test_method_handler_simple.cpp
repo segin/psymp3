@@ -1,7 +1,5 @@
 #include "psymp3.h"
 #include "test_framework.h"
-#include "MethodHandler.h"
-#include "PropertyManager.h"
 
 using namespace TestFramework;
 

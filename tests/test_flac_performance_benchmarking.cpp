@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-#ifdef HAVE_FLAC
+#ifdef HAVE_NATIVE_FLAC
 
 /**
  * @brief Test FLAC codec performance benchmarking system
@@ -501,11 +501,11 @@ int main() {
     }
 }
 
-#else // !HAVE_FLAC
+#else // !HAVE_NATIVE_FLAC
 
 int main() {
-    Debug::log("test_flac_performance", "FLAC support not available - skipping performance benchmarking tests");
+    Debug::log("test_flac_performance", "Native FLAC codec not available - skipping performance benchmarking tests");
     return 0;
 }
 
-#endif // HAVE_FLAC
+#endif // HAVE_NATIVE_FLAC

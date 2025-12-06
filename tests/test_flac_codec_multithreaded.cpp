@@ -302,7 +302,7 @@ private:
     
     class SharedResource {
     private:
-        std::mutex mutex_;
+        mutable std::mutex mutex_;
         std::vector<int> data_;
         
     public:

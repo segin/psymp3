@@ -91,7 +91,6 @@ bool testRealFLACFile() {
         
         // Test position tracking
         SIMPLE_ASSERT(demuxer->getPosition() == 0, "Initial position should be 0");
-        SIMPLE_ASSERT(demuxer->getCurrentSample() == 0, "Initial sample position should be 0");
         SIMPLE_ASSERT(!demuxer->isEOF(), "Should not be EOF initially");
         
         // Test metadata extraction

@@ -15,6 +15,7 @@
 #include <limits>
 
 using namespace TestFramework;
+using namespace PsyMP3::Demuxer::ISO;
 
 // Mock IOHandler for testing edge cases
 class EdgeCaseMockIOHandler : public IOHandler {
@@ -96,7 +97,7 @@ private:
     void testMaximumBoxSizes() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test maximum 32-bit size
         uint32_t max32 = std::numeric_limits<uint32_t>::max();
@@ -118,7 +119,7 @@ private:
     void testMinimumBoxSizes() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test minimum valid 32-bit box size (8 bytes for header)
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 8, 0, 1000);
@@ -139,7 +140,7 @@ private:
     void testZeroSizeBoxes() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test zero size at end of file (should be valid - extends to end)
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_MDAT, 0, 900, 1000);
@@ -157,7 +158,7 @@ private:
     void testOverflowConditions() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test box size that would cause offset overflow
         uint64_t largeOffset = std::numeric_limits<uint64_t>::max() - 100;
@@ -172,7 +173,7 @@ private:
     void testNegativeSizeHandling() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test how validator handles what would be negative sizes if interpreted as signed
         uint32_t largeUnsigned = 0x80000000; // Would be negative if signed
@@ -204,7 +205,7 @@ private:
     void testExtremeTimescaleValues() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test minimum valid timescale
         TimestampValidationResult result = validator.ValidateTimestampConfiguration(1, 1, 2);
@@ -229,7 +230,7 @@ private:
     void testTimestampOverflowScenarios() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test timestamp at maximum uint64
         uint64_t maxTimestamp = std::numeric_limits<uint64_t>::max();
@@ -249,7 +250,7 @@ private:
     void testZeroTimestampAndDuration() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test zero timestamp
         TimestampValidationResult result = validator.ValidateTimestampConfiguration(0, 44100, 88200);
@@ -270,7 +271,7 @@ private:
     void testTimescaleResolutionLimits() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test very low resolution timescale
         TimestampValidationResult result = validator.ValidateTimestampConfiguration(1, 1, 10);
@@ -288,7 +289,7 @@ private:
     void testTimestampPrecisionLoss() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test timestamp that might lose precision in conversion
         uint64_t precisionTestTimestamp = 0x1FFFFFFFFULL; // Large value that might lose precision
@@ -318,7 +319,7 @@ private:
     void testLargeSampleTables() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create large sample table (10000 samples)
         SampleTableInfo largeSampleTable;
@@ -345,7 +346,7 @@ private:
     void testSingleSampleTables() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create single sample table
         SampleTableInfo singleSampleTable;
@@ -363,7 +364,7 @@ private:
     void testIrregularSampleDistribution() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Create irregular sample distribution
         SampleTableInfo irregularSampleTable;
@@ -397,7 +398,7 @@ private:
     void testSampleTableBoundaryConditions() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test maximum chunk index
         SampleTableInfo boundaryTable;
@@ -432,7 +433,7 @@ private:
     void testCorruptedSampleTableRecovery() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test sample table with missing entries
         SampleTableInfo corruptedTable;
@@ -478,7 +479,7 @@ private:
     void testReadErrorHandling() {
         std::vector<uint8_t> testData = {1, 2, 3, 4, 5};
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Simulate I/O error
         mockIO->setSimulateIOError(true);
@@ -494,7 +495,7 @@ private:
     void testSeekErrorHandling() {
         std::vector<uint8_t> testData = {1, 2, 3, 4, 5};
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test normal operation first
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 8, 0, 1000);
@@ -513,7 +514,7 @@ private:
         // Create data that's smaller than expected
         std::vector<uint8_t> smallData = {1, 2, 3}; // Only 3 bytes
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(smallData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Try to validate a box that would require more data
         BoxSizeValidationResult result = validator.ValidateBoxStructure(BOX_FTYP, 32, 0, 1000);
@@ -525,7 +526,7 @@ private:
     void testValidationWithIOErrors() {
         std::vector<uint8_t> testData;
         auto mockIO = std::make_shared<EdgeCaseMockIOHandler>(testData);
-        ISODemuxerComplianceValidator validator(mockIO);
+        ComplianceValidator validator(mockIO);
         
         // Test various validation functions with I/O errors
         mockIO->setSimulateIOError(true);

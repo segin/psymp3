@@ -222,6 +222,54 @@ public:
 };
 
 /**
+ * @brief Mock IOHandler for FLAC performance testing
+ */
+class MockFLACIOHandler : public IOHandler {
+private:
+    std::vector<uint8_t> m_data;
+    size_t m_position = 0;
+    
+public:
+    explicit MockFLACIOHandler(const std::vector<uint8_t>& data) : m_data(data) {}
+    
+    size_t read(void* buffer, size_t size, size_t count) override {
+        size_t bytes_to_read = size * count;
+        size_t bytes_available = m_data.size() - m_position;
+        size_t bytes_read = std::min(bytes_to_read, bytes_available);
+        
+        if (bytes_read > 0) {
+            std::memcpy(buffer, m_data.data() + m_position, bytes_read);
+            m_position += bytes_read;
+        }
+        
+        return bytes_read / size;
+    }
+    
+    int seek(off_t offset, int whence) override {
+        off_t new_position;
+        switch (whence) {
+            case SEEK_SET: new_position = offset; break;
+            case SEEK_CUR: new_position = static_cast<off_t>(m_position) + offset; break;
+            case SEEK_END: new_position = static_cast<off_t>(m_data.size()) + offset; break;
+            default: return -1;
+        }
+        
+        if (new_position < 0 || new_position > static_cast<off_t>(m_data.size())) {
+            return -1;
+        }
+        
+        m_position = static_cast<size_t>(new_position);
+        return 0;
+    }
+    
+    off_t tell() override { return static_cast<off_t>(m_position); }
+    bool eof() override { return m_position >= m_data.size(); }
+    off_t getFileSize() override { return static_cast<off_t>(m_data.size()); }
+    int close() override { return 0; }
+    int getLastError() const override { return 0; }
+};
+
+/**
  * @brief Test FLACDemuxer parsing performance
  */
 class FLACDemuxerParsingPerformanceTest : public TestCase {

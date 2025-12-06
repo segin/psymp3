@@ -2036,11 +2036,13 @@ private:
 
 #endif // !HAVE_NATIVE_FLAC
 
+#ifndef HAVE_NATIVE_FLAC
 /**
- * @brief Conditional compilation support for FLAC codec
+ * @brief Conditional compilation support for FLAC codec (libFLAC wrapper)
  * 
  * This namespace provides compile-time detection and registration
  * of FLAC codec support based on library availability.
+ * Note: When HAVE_NATIVE_FLAC is defined, use PsyMP3::Codec::FLAC::FLACCodecSupport instead.
  */
 namespace FLACCodecSupport {
     
@@ -2070,6 +2072,7 @@ namespace FLACCodecSupport {
     std::string getCodecInfo();
     
 } // namespace FLACCodecSupport
+#endif // !HAVE_NATIVE_FLAC
 
 #else // !HAVE_FLAC
 
