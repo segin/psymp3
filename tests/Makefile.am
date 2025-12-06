@@ -3742,17 +3742,17 @@ flacout_LDADD = \
 	$(top_builddir)/src/lyrics.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
-	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(CODEC_LIBS) \
-	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \

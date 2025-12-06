@@ -229,11 +229,13 @@ static int decode(const FlacOutConfig& config) {
         stream = std::make_unique<DemuxedStream>(path);
     } catch (const std::exception& e) {
         std::cerr << "Error: Failed to open file: " << e.what() << "\n";
+        std::cerr << "Check flacout_debug.log for detailed error information\n";
         return 1;
     }
     
     if (!stream) {
         std::cerr << "Error: Failed to create stream\n";
+        std::cerr << "Check flacout_debug.log for detailed error information\n";
         return 1;
     }
     
@@ -366,11 +368,22 @@ static int decode(const FlacOutConfig& config) {
 }
 
 int main(int argc, char* argv[]) {
+    // Initialize debug system with all channels enabled
+    std::vector<std::string> debug_channels = {"all"};
+    Debug::init("flacout_debug.log", debug_channels);
+    
+    // Register all codecs and demuxers
+    registerAllCodecs();
+    registerAllDemuxers();
+    
     FlacOutConfig config;
     
     if (!parseArgs(argc, argv, config)) {
         return 1;
     }
     
-    return decode(config);
+    int result = decode(config);
+    
+    Debug::shutdown();
+    return result;
 }

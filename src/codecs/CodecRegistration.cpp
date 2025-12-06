@@ -69,9 +69,13 @@ void registerAllCodecs() {
 
     // FLAC codec registration
 #ifdef HAVE_FLAC
-    // TODO: Register the new container-agnostic FLAC codec after namespace refactoring
-    // FLACCodecSupport::registerCodec();
-    Debug::log("codec", "registerAllCodecs: FLAC codec registration pending namespace refactoring");
+    // Register native FLAC codec for native FLAC files
+#ifdef HAVE_NATIVE_FLAC
+    AudioCodecFactory::registerCodec("flac", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::FLAC::FLACCodec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered native FLAC codec");
+#endif
     
     // Register Ogg FLAC passthrough codec if Ogg support is available
 #ifdef HAVE_OGGDEMUXER

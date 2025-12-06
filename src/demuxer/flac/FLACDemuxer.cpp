@@ -207,6 +207,7 @@ std::vector<StreamInfo> FLACDemuxer::getStreams_unlocked() const
     stream.stream_id = 1;
     stream.codec_type = "audio";
     stream.codec_name = "flac";
+    stream.codec_tag = 0x43614C66; // 'fLaC' in big-endian - identifies native FLAC
     stream.sample_rate = m_streaminfo.sample_rate;
     stream.channels = m_streaminfo.channels;
     stream.bits_per_sample = m_streaminfo.bits_per_sample;
