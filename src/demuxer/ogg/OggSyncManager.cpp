@@ -78,6 +78,64 @@ int OggSyncManager::wroteBytes(long bytes) {
     return ogg_sync_wrote(&m_sync_state, bytes);
 }
 
+int OggSyncManager::getPrevPage(ogg_page* page) {
+    long current_pos = m_io_handler->tell();
+    if (current_pos <= 0) return 0;
+
+    const long CHUNK_SIZE = 4096;
+    long offset = current_pos;
+    
+    while (offset > 0) {
+        long seek_size = (offset > CHUNK_SIZE) ? CHUNK_SIZE : offset;
+        offset -= seek_size;
+        
+        if (m_io_handler->seek(offset, SEEK_SET) != 0) return -1;
+        reset();
+        
+        bool found_any = false;
+        ogg_page temp_page;
+        
+        // Scan forward from offset to current_pos
+        while (m_io_handler->tell() < current_pos) {
+             int page_res = getNextPage(&temp_page);
+             if (page_res == 1) {
+                 found_any = true;
+                 *page = temp_page; // Shallow copy of struct
+                 // Note: buffer pointers in page point to sync state memory. 
+                 // They remain valid until we reset/clear or write enough to cause reallocation.
+             }
+        }
+        
+        if (found_any) {
+             return 1;
+        }
+    }
+    return 0;
+}
+
+int OggSyncManager::getPrevPageSerial(ogg_page* page, long serial) {
+    long current_pos = m_io_handler->tell();
+    long offset = current_pos;
+    const long CHUNK_SIZE = 4096;
+    
+    while (offset > 0) {
+        long seek_size = (offset > CHUNK_SIZE) ? CHUNK_SIZE : offset;
+        offset -= seek_size;
+        
+        if (m_io_handler->seek(offset, SEEK_SET) != 0) return -1;
+        reset();
+        
+        ogg_page temp_page;
+        while (getNextPage(&temp_page) == 1) {
+            if (ogg_page_serialno(&temp_page) == serial) {
+                *page = temp_page;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 } // namespace Ogg
 } // namespace Demuxer
 } // namespace PsyMP3
