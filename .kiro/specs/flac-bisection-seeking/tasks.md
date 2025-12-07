@@ -82,6 +82,6 @@
     - Confirm seeking works throughout the track
     - _Requirements: All_
 
-- [-] 8. Final Checkpoint - Ensure all tests pass
+- [x] 8. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
