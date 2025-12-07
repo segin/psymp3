@@ -1,7 +1,7 @@
 # Implementation Plan
 
-- [ ] 1. Create OpusCodec Class Structure
-  - [ ] 1.1 Implement OpusCodec class inheriting from AudioCodec base class
+- [x] 1. Create OpusCodec Class Structure
+  - [x] 1.1 Implement OpusCodec class inheriting from AudioCodec base class
     - Add private member variables for libopus decoder state and configuration
     - Implement constructor accepting StreamInfo parameter
     - Add destructor with proper libopus cleanup
