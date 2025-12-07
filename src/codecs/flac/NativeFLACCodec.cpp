@@ -390,7 +390,9 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
             return AudioFrame();
         }
         
-        // Step 1: Feed input data to bitstream reader
+        // Step 1: Clear and feed input data to bitstream reader
+        // Each chunk from demuxer is an independent frame, so start fresh
+        m_bitstream_reader->clearBuffer();
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Feeding ", chunk.data.size(), " bytes to bitstream reader");
         m_bitstream_reader->feedData(chunk.data.data(), chunk.data.size());
         

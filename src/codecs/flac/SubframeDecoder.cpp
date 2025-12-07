@@ -270,9 +270,7 @@ bool SubframeDecoder::decodeFixed(int32_t* output, uint32_t block_size,
         int32_t* residuals = new int32_t[residual_count];
         
         // Decode residuals using ResidualDecoder
-        // bool success = m_residual->decodeResidual(residuals, block_size, order);
-        // For now, just fail since ResidualDecoder isn't implemented yet
-        bool success = false;
+        bool success = m_residual->decodeResidual(residuals, block_size, order);
         
         if (success) {
             // Apply fixed predictor to reconstruct samples (Requirement 4, 54)
@@ -381,9 +379,7 @@ bool SubframeDecoder::decodeLPC(int32_t* output, uint32_t block_size,
         int32_t* residuals = new int32_t[residual_count];
         
         // Decode residuals using ResidualDecoder
-        // bool success = m_residual->decodeResidual(residuals, block_size, order);
-        // For now, just fail since ResidualDecoder isn't implemented yet
-        bool success = false;
+        bool success = m_residual->decodeResidual(residuals, block_size, order);
         
         if (success) {
             // Apply LPC predictor to reconstruct samples (Requirement 5, 51, 52, 54)

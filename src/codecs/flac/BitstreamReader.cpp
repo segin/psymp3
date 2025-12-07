@@ -226,6 +226,11 @@ uint64_t BitstreamReader::getBytePosition() const
 
 void BitstreamReader::resetPosition()
 {
+    // Reset reading position to beginning of buffer
+    m_byte_position = 0;
+    m_bit_position = 0;
+    m_bit_cache = 0;
+    m_cache_bits = 0;
     m_total_bits_read = 0;
 }
 

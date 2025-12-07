@@ -20,6 +20,7 @@ ResidualDecoder::ResidualDecoder(BitstreamReader* reader)
 
 bool ResidualDecoder::decodeResidual(int32_t* output, uint32_t block_size, uint32_t predictor_order)
 {
+    
     if (!output) {
         m_last_error = "Output buffer is null";
         return false;
@@ -46,26 +47,29 @@ bool ResidualDecoder::decodeResidual(int32_t* output, uint32_t block_size, uint3
     uint32_t residual_count = block_size - predictor_order;
     
     // Validate partition order
-    // RFC 9639 Section 9.2: partition_order must be such that
-    // block_size is evenly divisible by 2^partition_order
+    // RFC 9639 Section 9.2: block_size must be evenly divisible by 2^partition_order
     uint32_t partition_count = 1u << partition_order;
-    if (residual_count % partition_count != 0) {
+    if (block_size % partition_count != 0) {
         m_last_error = "Block size not divisible by partition count";
+        Debug::log("residual_decoder", "Block size ", block_size, " not divisible by ", partition_count);
         return false;
     }
     
-    // Calculate samples per partition
-    uint32_t samples_per_partition = residual_count / partition_count;
+    // Samples per partition is block_size / partition_count
+    // Per RFC 9639: first partition has (block_size / partition_count) - predictor_order samples
+    // Other partitions have (block_size / partition_count) samples
+    uint32_t samples_per_partition = block_size / partition_count;
     
     // Decode each partition
     uint32_t output_offset = 0;
     for (uint32_t p = 0; p < partition_count; ++p) {
         PartitionInfo info;
-        info.sample_count = samples_per_partition;
         
-        // First partition has fewer samples (excludes predictor order samples)
-        if (p == 0 && predictor_order > 0) {
+        // First partition has fewer samples due to predictor warm-up samples
+        if (p == 0) {
             info.sample_count = samples_per_partition - predictor_order;
+        } else {
+            info.sample_count = samples_per_partition;
         }
         
         // Determine Rice parameter bit width based on coding method
@@ -109,6 +113,7 @@ bool ResidualDecoder::decodeResidual(int32_t* output, uint32_t block_size, uint3
     // Verify we decoded the expected number of samples
     if (output_offset != residual_count) {
         m_last_error = "Residual count mismatch";
+        Debug::log("residual_decoder", "Residual count mismatch: got %u, expected %u", output_offset, residual_count);
         return false;
     }
     
@@ -157,6 +162,7 @@ bool ResidualDecoder::decodePartition(int32_t* output, const PartitionInfo& info
     for (uint32_t i = 0; i < info.sample_count; ++i) {
         int32_t value;
         if (!decodeRiceCode(value, info.rice_parameter)) {
+            Debug::log("residual_decoder", "Rice decode failed at sample ", i, " of ", info.sample_count);
             return false;
         }
         

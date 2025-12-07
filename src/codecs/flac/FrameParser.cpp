@@ -51,6 +51,9 @@ FrameParser::~FrameParser()
  * Per RFC 9639 Section 9: Frame sync is 14 bits of 1 followed by 2 reserved bits
  * Valid sync patterns: 0xFFF8, 0xFFF9, 0xFFFA, 0xFFFB, 0xFFFC, 0xFFFD, 0xFFFE, 0xFFFF
  * Sync must be on byte boundary
+ * 
+ * NOTE: The demuxer already provides chunks starting at the sync code.
+ * This function verifies the sync is present and positions the reader correctly.
  */
 bool FrameParser::findSync()
 {
@@ -61,47 +64,55 @@ bool FrameParser::findSync()
         }
     }
     
+    
     // Search for sync pattern
     // We need to find 0xFF followed by 0xF8-0xFF
     while (m_reader->getAvailableBits() >= 16) {
-        // Read first byte
-        uint32_t first_byte = 0;
-        if (!m_reader->readBits(first_byte, 8)) {
+        // Save position before reading potential sync
+        uint64_t sync_start_bit_position = m_reader->getBitPosition();
+        
+        // Read potential sync word (16 bits)
+        uint32_t sync_word = 0;
+        if (!m_reader->readBits(sync_word, 16)) {
             return false;
         }
         
-        // Check if it's 0xFF
-        if (first_byte == 0xFF) {
-            // Peek at next byte without consuming
-            uint64_t peek_position = m_reader->getBitPosition();
-            uint32_t second_byte = 0;
+        // Check if it's a valid sync pattern (0xFFF8-0xFFFF)
+        // Per RFC 9639 Section 9.1: sync code is 14 bits of 1 followed by 2 bits
+        if ((sync_word & 0xFFF8) == 0xFFF8) {
+            // Found sync pattern!
+            // We need to restore position to the START of the sync code
+            // so that parseFrameHeader() can read and validate it
             
-            if (!m_reader->readBits(second_byte, 8)) {
-                return false;
-            }
-            
-            // Check if second byte is 0xF8-0xFF (top 5 bits must be 11111)
-            if ((second_byte & 0xF8) == 0xF8) {
-                // Found sync pattern!
-                // Restore position to start of sync (before 0xFF)
-                m_reader->resetPosition();
-                // Advance to the position before we read the first 0xFF
-                for (uint64_t i = 0; i < (peek_position - 8) / 8; i++) {
-                    uint32_t dummy;
-                    m_reader->readBits(dummy, 8);
-                }
-                
-                m_last_sync_position = m_reader->getBitPosition();
-                Debug::log("flac_codec", "Found frame sync at bit position %llu", 
-                          (unsigned long long)m_last_sync_position);
-                return true;
-            }
-            
-            // Not a valid sync, restore position after first byte
+            // Reset to beginning and advance to sync start position
             m_reader->resetPosition();
-            for (uint64_t i = 0; i < peek_position / 8; i++) {
+            
+            // Advance to the sync start position (in bytes)
+            uint64_t bytes_to_skip = sync_start_bit_position / 8;
+            for (uint64_t i = 0; i < bytes_to_skip; i++) {
                 uint32_t dummy;
-                m_reader->readBits(dummy, 8);
+                if (!m_reader->readBits(dummy, 8)) {
+                    return false;
+                }
+            }
+            
+            m_last_sync_position = m_reader->getBitPosition();
+            Debug::log("flac_codec", "Found frame sync at bit position ", 
+                      static_cast<unsigned long long>(m_last_sync_position));
+            return true;
+        }
+        
+        // Not a valid sync pattern
+        // Instead of continuing byte-by-byte, back up to one byte after sync_start
+        // to check if the second byte could be the start of a new sync
+        m_reader->resetPosition();
+        
+        // Advance to one byte after where we started checking
+        uint64_t next_check_position = (sync_start_bit_position / 8) + 1;
+        for (uint64_t i = 0; i < next_check_position; i++) {
+            uint32_t dummy;
+            if (!m_reader->readBits(dummy, 8)) {
+                break;
             }
         }
     }
@@ -122,29 +133,35 @@ bool FrameParser::parseFrameHeader(FrameHeader& header)
     m_crc->resetCRC8();
     m_computing_header_crc = true;
     
-    // Read and validate sync code (14 bits of 1, 2 reserved bits)
+    // Read sync code + reserved bit + blocking strategy (16 bits total)
+    // Per RFC 9639 Section 9.1:
+    // - 14 bits: sync pattern (all 1s)
+    // - 1 bit: reserved (must be 0)
+    // - 1 bit: blocking strategy (0=fixed, 1=variable)
     uint32_t sync = 0;
     if (!m_reader->readBits(sync, 16)) {
         Debug::log("flac_codec", "Failed to read frame sync");
         return false;
     }
     
-    if ((sync & 0xFFF8) != 0xFFF8) {
-        Debug::log("flac_codec", "Invalid frame sync: 0x%04X", sync);
+    Debug::log("flac_codec", "[parseFrameHeader] Read sync word: 0x", std::hex, sync, std::dec);
+    
+    // Validate sync code: top 14 bits must be 1, reserved bit must be 0
+    // 0xFFFC = 0b1111111111111100 (14 ones, then 00)
+    // Valid patterns: 0xFFF8 (fixed blocking) or 0xFFF9 (variable blocking)
+    if ((sync & 0xFFFC) != 0xFFF8) {
+        Debug::log("flac_codec", "Invalid frame sync: 0x", std::hex, sync, std::dec);
         return false;
     }
+    
+    // Extract blocking strategy from the LSB of the sync word
+    // 0 = fixed block size, 1 = variable block size
+    uint32_t blocking_strategy = sync & 0x0001;
+    header.is_variable_block_size = (blocking_strategy == 1);
     
     // Update CRC with sync bytes
     m_crc->updateCRC8((sync >> 8) & 0xFF);
     m_crc->updateCRC8(sync & 0xFF);
-    
-    // Read blocking strategy (1 bit)
-    uint32_t blocking_strategy = 0;
-    if (!m_reader->readBits(blocking_strategy, 1)) {
-        Debug::log("flac_codec", "Failed to read blocking strategy");
-        return false;
-    }
-    header.is_variable_block_size = (blocking_strategy == 1);
     
     // Read block size bits (4 bits)
     uint32_t block_size_bits = 0;
@@ -159,6 +176,10 @@ bool FrameParser::parseFrameHeader(FrameHeader& header)
         Debug::log("flac_codec", "Failed to read sample rate bits");
         return false;
     }
+    
+    Debug::log("flac_codec", "[parseFrameHeader] blocking_strategy=", blocking_strategy,
+              ", block_size_bits=0b", std::hex, block_size_bits, std::dec,
+              ", sample_rate_bits=0b", std::hex, sample_rate_bits, std::dec);
     
     // Check for forbidden sample rate bits (Requirement 23)
     if (!checkForbiddenSampleRateBits(sample_rate_bits)) {
@@ -206,13 +227,8 @@ bool FrameParser::parseFrameHeader(FrameHeader& header)
         return false;
     }
     
-    // Parse block size
-    if (!parseBlockSize(header)) {
-        Debug::log("flac_codec", "Failed to parse block size");
-        return false;
-    }
-    
-    // Handle uncommon block size
+    // Handle block size lookup
+    // NOTE: Validation moved to after value is set
     if (block_size_bits == 0b0110) {
         if (!parseUncommonBlockSize(header, 8)) {
             return false;
@@ -244,14 +260,14 @@ bool FrameParser::parseFrameHeader(FrameHeader& header)
         
         header.block_size = block_size_table[block_size_bits];
         if (header.block_size == 0 && block_size_bits != 0b0110 && block_size_bits != 0b0111) {
-            Debug::log("flac_codec", "Reserved block size bits: 0x%X", block_size_bits);
+            Debug::log("flac_codec", "Reserved block size bits: 0x", std::hex, block_size_bits, std::dec);
             return false;
         }
     }
     
-    // Parse sample rate
-    if (!parseSampleRate(header)) {
-        Debug::log("flac_codec", "Failed to parse sample rate");
+    // Validate block size (now that it's set)
+    if (!parseBlockSize(header)) {
+        Debug::log("flac_codec", "Invalid block size: ", header.block_size);
         return false;
     }
     
@@ -294,12 +310,6 @@ bool FrameParser::parseFrameHeader(FrameHeader& header)
         header.sample_rate = sample_rate_table[sample_rate_bits];
     }
     
-    // Parse channels
-    if (!parseChannels(header)) {
-        Debug::log("flac_codec", "Failed to parse channels");
-        return false;
-    }
-    
     // Decode channel assignment
     if (channel_bits <= 7) {
         // Independent channels (0-7 = 1-8 channels)
@@ -319,13 +329,13 @@ bool FrameParser::parseFrameHeader(FrameHeader& header)
         header.channel_assignment = ChannelAssignment::MID_SIDE;
     } else {
         // Reserved (11-15)
-        Debug::log("flac_codec", "Reserved channel assignment: %u", channel_bits);
+        Debug::log("flac_codec", "Reserved channel assignment: ", channel_bits);
         return false;
     }
     
-    // Parse bit depth
-    if (!parseBitDepth(header)) {
-        Debug::log("flac_codec", "Failed to parse bit depth");
+    // Validate channels (now that it's set)
+    if (!parseChannels(header)) {
+        Debug::log("flac_codec", "Invalid channels: ", header.channels);
         return false;
     }
     
@@ -343,7 +353,13 @@ bool FrameParser::parseFrameHeader(FrameHeader& header)
     
     header.bit_depth = bit_depth_table[bit_depth_bits];
     if (header.bit_depth == 0 && bit_depth_bits != 0) {
-        Debug::log("flac_codec", "Reserved bit depth bits: 0x%X", bit_depth_bits);
+        Debug::log("flac_codec", "Reserved bit depth bits: 0x", std::hex, bit_depth_bits, std::dec);
+        return false;
+    }
+    
+    // Validate bit depth (now that it's set)
+    if (!parseBitDepth(header)) {
+        Debug::log("flac_codec", "Invalid bit depth: ", header.bit_depth);
         return false;
     }
     
