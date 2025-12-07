@@ -429,3 +429,5 @@ tests/test_signal_emitter_comprehensive
 tests/test_streaminfo_real_files
 tests/test_streaminfo_recovery
 tests/test_threading_safety_baseline
+tests/opusout
+tests/test_opus_codec_property

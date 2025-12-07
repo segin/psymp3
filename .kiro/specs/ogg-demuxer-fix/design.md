@@ -2,572 +2,786 @@
 
 ## **Overview**
 
-This design document specifies the implementation of a robust, RFC-compliant Ogg container demuxer for PsyMP3 that **exactly follows the behavior patterns of libvorbisfile and libopusfile reference implementations**. The demuxer will handle Ogg Vorbis, Ogg Opus, Ogg FLAC, and other Ogg-encapsulated audio formats with proper seeking, streaming, and error handling capabilities.
+This design document specifies a complete rewrite of the OggDemuxer for PsyMP3. The previous implementation failed to produce working playback due to fundamental issues in how libogg was integrated and how the demuxer lifecycle was managed.
 
-The design follows a layered architecture based on reference implementation patterns:
-- **Ogg Container Layer**: Uses libogg API patterns identical to libvorbisfile/libopusfile
-- **Logical Stream Layer**: Manages multiple logical bitstreams using _fetch_headers() patterns
-- **Codec Detection Layer**: Identifies codecs using opus_head_parse()/vorbis_synthesis_idheader() patterns
-- **Seeking Layer**: Implements bisection search identical to ov_pcm_seek_page()/op_pcm_seek_page()
-- **Granule Position Layer**: Handles arithmetic using libopusfile's overflow-safe patterns
-- **Integration Layer**: Bridges with PsyMP3's demuxer architecture
+This design takes a different approach: **delegate as much as possible to libogg** rather than reimplementing Ogg parsing logic. The reference implementations (libvorbisfile, libopusfile) succeed because they use libogg correctly and minimally - they don't try to parse pages manually or maintain parallel state.
 
-**CRITICAL DESIGN PRINCIPLE**: All algorithms, error handling, and API usage must match the reference implementations exactly to prevent compatibility issues and bugs that have already been solved in the mature reference code.
+### **Key Design Principles**
 
-**Note**: This OggDemuxer handles FLAC-in-Ogg streams (`.oga` files), which are different from native FLAC files (`.flac` files). The existing `Flac` class in `src/flac.cpp` handles native FLAC container format and should be refactored into separate `FLACDemuxer` and `FLACCodec` components to support both native FLAC and FLAC-in-Ogg through a unified codec interface.
+1. **Trust libogg**: Use libogg's `ogg_sync_state` and `ogg_stream_state` as the single source of truth for container parsing. Do not maintain parallel page/packet structures.
+
+2. **Simple State Machine**: The demuxer has exactly three states: INIT → HEADERS → STREAMING. No complex sub-states.
+
+3. **Lazy Evaluation**: Don't parse everything upfront. Parse headers on open, calculate duration on demand, stream packets as requested.
+
+4. **Reference Implementation Fidelity**: Follow libvorbisfile's `_fetch_headers()`, `_get_data()`, `_get_next_page()`, and `_get_prev_page()` patterns exactly.
+
+5. **Separation of Concerns**: The OggDemuxer handles container parsing only. Codec-specific logic (Vorbis/Opus/FLAC header parsing) is delegated to codec-specific helper classes.
+
 
 ## **Architecture**
+
+### **Component Diagram**
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              OggDemuxer                                      │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────────────────┐  │
+│  │  OggSyncManager │  │ OggStreamManager│  │     CodecHeaderParser       │  │
+│  │                 │  │                 │  │  ┌─────────┐ ┌───────────┐  │  │
+│  │ ogg_sync_state  │  │ ogg_stream_state│  │  │ Vorbis  │ │   Opus    │  │  │
+│  │ I/O buffering   │  │ per serial #    │  │  │ Parser  │ │  Parser   │  │  │
+│  │ page extraction │  │ packet assembly │  │  ├─────────┤ ├───────────┤  │  │
+│  └────────┬────────┘  └────────┬────────┘  │  │  FLAC   │ │  Speex    │  │  │
+│           │                    │           │  │ Parser  │ │  Parser   │  │  │
+│           └────────┬───────────┘           │  └─────────┘ └───────────┘  │  │
+│                    │                       └─────────────────────────────┘  │
+│           ┌────────▼────────┐                                               │
+│           │  SeekingEngine  │                                               │
+│           │                 │                                               │
+│           │ bisection search│                                               │
+│           │ backward scan   │                                               │
+│           │ duration calc   │                                               │
+│           └─────────────────┘                                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+                              ┌───────────────┐
+                              │   IOHandler   │
+                              │ (FileIOHandler│
+                              │  HTTPIOHandler)│
+                              └───────────────┘
+```
 
 ### **Class Structure**
 
 ```cpp
-class OggDemuxer : public Demuxer {
-private:
-    // Core libogg structures
-    ogg_sync_state m_sync_state;
-    std::map<uint32_t, ogg_stream_state> m_ogg_streams;
-    
-    // Stream management
-    std::map<uint32_t, OggStream> m_streams;
-    uint64_t m_file_size;
-    uint64_t m_duration_ms;
-    uint64_t m_position_ms;
-    bool m_eof;
-    
-    // Seeking optimization
-    uint64_t m_max_granule_seen;
-    
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Ogg {
+
+/**
+ * @brief Manages libogg's ogg_sync_state for I/O and page extraction
+ * 
+ * This class encapsulates all interaction with ogg_sync_state.
+ * It handles buffering data from IOHandler and extracting pages.
+ */
+class OggSyncManager {
 public:
-    // Demuxer interface implementation
+    explicit OggSyncManager(IOHandler* handler);
+    ~OggSyncManager();
+    
+    // Core operations (following libvorbisfile patterns)
+    int getData(size_t bytes_requested = CHUNKSIZE);  // _get_data()
+    int getNextPage(ogg_page* page, int64_t boundary = -1);  // _get_next_page()
+    int getPrevPage(ogg_page* page, int64_t begin, int64_t end);  // _get_prev_page()
+    int getPrevPageSerial(ogg_page* page, uint32_t serial, int64_t begin, int64_t end);
+    
+    // State management
+    void reset();  // ogg_sync_reset() wrapper
+    int64_t tell() const;  // Current file position
+    bool seek(int64_t offset, int whence);  // Seek in file
+    bool isEOF() const;
+    
+    static constexpr size_t CHUNKSIZE = 65536;
+    
+private:
+    IOHandler* m_handler;  // Not owned
+    ogg_sync_state m_sync;
+    int64_t m_offset;  // Current read position in file
+    bool m_eof;
+};
+
+
+/**
+ * @brief Manages logical bitstreams and their ogg_stream_state instances
+ * 
+ * Handles stream multiplexing (grouped and chained), maintains per-stream
+ * state, and routes pages to appropriate stream states.
+ */
+class OggStreamManager {
+public:
+    OggStreamManager();
+    ~OggStreamManager();
+    
+    // Stream lifecycle
+    bool addStream(uint32_t serial);
+    bool removeStream(uint32_t serial);
+    void clearAllStreams();
+    bool hasStream(uint32_t serial) const;
+    
+    // Page/packet operations
+    int submitPage(ogg_page* page);  // ogg_stream_pagein()
+    int getPacket(uint32_t serial, ogg_packet* packet);  // ogg_stream_packetout()
+    int peekPacket(uint32_t serial, ogg_packet* packet);  // ogg_stream_packetpeek()
+    
+    // Stream state
+    void resetStream(uint32_t serial);  // ogg_stream_reset()
+    void resetAllStreams();
+    
+    // Iteration
+    std::vector<uint32_t> getSerialNumbers() const;
+    ogg_stream_state* getStreamState(uint32_t serial);
+    
+private:
+    std::map<uint32_t, ogg_stream_state> m_streams;
+};
+
+/**
+ * @brief Parsed stream information
+ */
+struct OggStreamInfo {
+    uint32_t serial_number;
+    std::string codec_name;  // "vorbis", "opus", "flac", "speex", "theora", "unknown"
+    std::string codec_type;  // "audio", "video", "unknown"
+    
+    // Audio properties (populated by codec header parsers)
+    uint32_t sample_rate = 0;
+    uint16_t channels = 0;
+    uint32_t bitrate = 0;
+    uint8_t bits_per_sample = 0;
+    uint64_t total_samples = 0;
+    uint64_t pre_skip = 0;  // Opus only
+    
+    // Header state
+    std::vector<std::vector<uint8_t>> header_packets;
+    size_t expected_headers = 0;
+    bool headers_complete = false;
+    
+    // Metadata
+    std::string title, artist, album;
+    
+    // Runtime state
+    uint64_t current_granule = 0;
+    uint32_t last_page_sequence = 0;
+    bool page_sequence_valid = false;
+};
+
+
+/**
+ * @brief Codec-specific header parsing interface
+ */
+class CodecHeaderParser {
+public:
+    virtual ~CodecHeaderParser() = default;
+    
+    // Identify codec from first packet
+    static std::string identifyCodec(const uint8_t* data, size_t size);
+    
+    // Parse header packet, return true if more headers expected
+    virtual bool parseHeader(OggStreamInfo& info, const ogg_packet* packet) = 0;
+    
+    // Check if all required headers received
+    virtual bool headersComplete(const OggStreamInfo& info) const = 0;
+    
+    // Factory method
+    static std::unique_ptr<CodecHeaderParser> create(const std::string& codec_name);
+};
+
+class VorbisHeaderParser : public CodecHeaderParser {
+public:
+    bool parseHeader(OggStreamInfo& info, const ogg_packet* packet) override;
+    bool headersComplete(const OggStreamInfo& info) const override;
+    // Vorbis requires 3 headers: identification, comment, setup
+};
+
+class OpusHeaderParser : public CodecHeaderParser {
+public:
+    bool parseHeader(OggStreamInfo& info, const ogg_packet* packet) override;
+    bool headersComplete(const OggStreamInfo& info) const override;
+    // Opus requires 2 headers: OpusHead, OpusTags
+};
+
+class FLACHeaderParser : public CodecHeaderParser {
+public:
+    bool parseHeader(OggStreamInfo& info, const ogg_packet* packet) override;
+    bool headersComplete(const OggStreamInfo& info) const override;
+    // FLAC-in-Ogg: identification (with STREAMINFO), then metadata blocks
+    
+    // FLAC-specific: extract STREAMINFO from identification packet
+    static bool parseStreamInfo(OggStreamInfo& info, const uint8_t* data, size_t size);
+};
+
+class SpeexHeaderParser : public CodecHeaderParser {
+public:
+    bool parseHeader(OggStreamInfo& info, const ogg_packet* packet) override;
+    bool headersComplete(const OggStreamInfo& info) const override;
+    // Speex requires 2 headers: identification, comment
+};
+
+
+/**
+ * @brief Seeking and duration calculation engine
+ * 
+ * Implements bisection search following libvorbisfile/libopusfile patterns.
+ */
+class OggSeekingEngine {
+public:
+    OggSeekingEngine(OggSyncManager* sync, OggStreamManager* streams);
+    
+    // Duration calculation (following op_get_last_page patterns)
+    uint64_t calculateDuration(uint32_t serial, uint64_t file_size);
+    uint64_t getLastGranule(uint32_t serial, int64_t begin, int64_t end);
+    
+    // Seeking (following ov_pcm_seek_page patterns)
+    bool seekToGranule(uint32_t serial, uint64_t target_granule, 
+                       int64_t begin, int64_t end);
+    bool seekToTime(uint32_t serial, uint64_t timestamp_ms,
+                    const OggStreamInfo& info, int64_t begin, int64_t end);
+    
+    // Granule position arithmetic (following libopusfile)
+    static int granposAdd(int64_t* dst, int64_t src, int64_t delta);
+    static int granposDiff(int64_t* diff, int64_t a, int64_t b);
+    static int granposCmp(int64_t a, int64_t b);
+    
+    // Time conversion
+    static uint64_t granuleToMs(uint64_t granule, const OggStreamInfo& info);
+    static uint64_t msToGranule(uint64_t ms, const OggStreamInfo& info);
+    
+private:
+    OggSyncManager* m_sync;  // Not owned
+    OggStreamManager* m_streams;  // Not owned
+    
+    // Bisection search helpers
+    int64_t bisectForward(uint32_t serial, int64_t begin, int64_t end,
+                          uint64_t target_granule, int64_t* best_offset);
+    int64_t scanBackward(uint32_t serial, int64_t end, size_t chunk_size);
+};
+
+
+/**
+ * @brief Main OggDemuxer class
+ * 
+ * Coordinates the sync manager, stream manager, header parsers, and seeking engine
+ * to provide the Demuxer interface.
+ */
+class OggDemuxer : public Demuxer {
+public:
+    explicit OggDemuxer(std::unique_ptr<IOHandler> handler);
+    ~OggDemuxer() override;
+    
+    // Demuxer interface
     bool parseContainer() override;
     std::vector<StreamInfo> getStreams() const override;
+    StreamInfo getStreamInfo(uint32_t stream_id) const override;
     MediaChunk readChunk() override;
     MediaChunk readChunk(uint32_t stream_id) override;
     bool seekTo(uint64_t timestamp_ms) override;
-    // ... other interface methods
+    bool isEOF() const override;
+    uint64_t getDuration() const override;
+    uint64_t getPosition() const override;
+    uint64_t getGranulePosition(uint32_t stream_id) const override;
+    
+    // Static registration
+    static void registerDemuxer();
+    static bool canHandle(IOHandler* handler);
+    
+private:
+    // State machine
+    enum class State { INIT, HEADERS, STREAMING, ERROR };
+    State m_state = State::INIT;
+    
+    // Components
+    std::unique_ptr<OggSyncManager> m_sync;
+    std::unique_ptr<OggStreamManager> m_stream_mgr;
+    std::unique_ptr<OggSeekingEngine> m_seeking;
+    std::map<uint32_t, std::unique_ptr<CodecHeaderParser>> m_header_parsers;
+    
+    // Stream information
+    std::map<uint32_t, OggStreamInfo> m_stream_info;
+    uint32_t m_primary_serial = 0;  // Primary audio stream
+    
+    // File information
+    uint64_t m_file_size = 0;
+    uint64_t m_data_start = 0;  // Offset after all headers
+    uint64_t m_duration_ms = 0;
+    
+    // Runtime state
+    uint64_t m_current_position_ms = 0;
+    bool m_headers_sent = false;
+    
+    // Thread safety (public/private lock pattern)
+    mutable std::mutex m_mutex;
+    
+    // Private implementation methods (assume lock held)
+    bool parseContainer_unlocked();
+    bool fetchHeaders_unlocked();  // Following _fetch_headers()
+    bool processHeaderPacket_unlocked(uint32_t serial, ogg_packet* packet);
+    MediaChunk readChunk_unlocked(uint32_t stream_id);
+    bool seekTo_unlocked(uint64_t timestamp_ms);
+    
+    // Helper methods
+    uint32_t selectPrimaryStream() const;
+    bool allHeadersComplete() const;
 };
+
+} // namespace Ogg
+} // namespace Demuxer
+} // namespace PsyMP3
 ```
 
-### **Supporting Data Structures**
-
-```cpp
-struct OggStream {
-    uint32_t serial_number;
-    std::string codec_name;        // "vorbis", "opus", "flac", "speex", "theora"
-    std::string codec_type;        // "audio", "video", "subtitle"
-    
-    // Header management
-    std::vector<OggPacket> header_packets;
-    bool headers_complete;
-    bool headers_sent;
-    size_t next_header_index;
-    uint16_t expected_header_count; // FLAC-in-Ogg: from identification header (0 = unknown)
-    
-    // Audio properties
-    uint32_t sample_rate;
-    uint16_t channels;
-    uint32_t bitrate;
-    uint64_t total_samples;
-    uint64_t pre_skip;              // Opus-specific: samples to discard at start
-    uint8_t bits_per_sample;        // FLAC-specific: bit depth
-    
-    // FLAC-in-Ogg specific
-    uint8_t flac_mapping_version_major;  // Should be 1
-    uint8_t flac_mapping_version_minor;  // Should be 0
-    uint16_t flac_min_block_size;
-    uint16_t flac_max_block_size;
-    uint32_t flac_min_frame_size;
-    uint32_t flac_max_frame_size;
-    
-    // Metadata
-    std::string artist, title, album;
-    
-    // Packet buffering
-    std::deque<OggPacket> m_packet_queue;
-    uint64_t total_samples_processed;
-    
-    // Page sequence tracking
-    uint32_t last_page_sequence;    // For detecting page loss
-    bool page_sequence_initialized;
-};
-
-struct OggPacket {
-    uint32_t stream_id;
-    std::vector<uint8_t> data;
-    uint64_t granule_position;
-    bool is_first_packet;
-    bool is_last_packet;
-};
-```
 
 ## **Components and Interfaces**
 
-### **1. Container Parsing Component**
+### **1. OggSyncManager - I/O and Page Extraction**
 
-**Purpose**: Parse Ogg container structure using libogg
+**Purpose**: Encapsulate all libogg `ogg_sync_state` operations and I/O buffering.
 
-**Key Methods**:
-- `bool parseContainer()`: Main parsing entry point
-- `bool readIntoSyncBuffer(size_t bytes)`: Buffer management
-- `bool processPages()`: Page extraction and processing
+**Key Design Decisions**:
 
-**Design Decisions**:
-- Use libogg's `ogg_sync_state` for robust page parsing
-- Separate header parsing from data streaming phases
-- Implement bounded header parsing to prevent infinite loops
-- Reset sync state after header parsing for sequential reading
+1. **Single Point of I/O**: All file reads go through this class. No other component touches IOHandler directly.
+
+2. **Following `_get_data()` Pattern** (libvorbisfile):
+   ```cpp
+   int OggSyncManager::getData(size_t bytes_requested) {
+       if (m_eof) return 0;
+       
+       char* buffer = ogg_sync_buffer(&m_sync, bytes_requested);
+       if (!buffer) return -1;  // OV_EFAULT
+       
+       size_t bytes_read = m_handler->read(buffer, bytes_requested);
+       if (bytes_read == 0) {
+           m_eof = true;
+           return 0;
+       }
+       
+       int ret = ogg_sync_wrote(&m_sync, bytes_read);
+       if (ret < 0) return -1;
+       
+       m_offset += bytes_read;
+       return bytes_read;
+   }
+   ```
+
+3. **Following `_get_next_page()` Pattern** (libvorbisfile):
+   - Use `ogg_sync_pageseek()` NOT `ogg_sync_pageout()` for seeking
+   - `ogg_sync_pageseek()` returns bytes skipped (negative) or page size (positive)
+   - Handle partial pages by requesting more data
+   - Respect boundary parameter for bisection search
+
+4. **Following `_get_prev_page()` Pattern** (libvorbisfile):
+   - Seek backwards in CHUNKSIZE increments
+   - Read forward to find pages
+   - Return the last complete page found before the end position
 
 **Error Handling**:
-- Validate page headers and checksums
-- Skip corrupted pages and continue processing
-- Handle incomplete packets gracefully
-- Limit header parsing iterations to prevent hangs
+- Return negative values for errors (following libogg conventions)
+- `-1`: General error / OV_EFAULT
+- `-2`: Read error / OV_EREAD  
+- `-3`: EOF reached
+- Positive: Success (bytes read or page size)
 
-### **2. Codec Detection Component (Following Reference Implementation Patterns)**
+### **2. OggStreamManager - Logical Bitstream Management**
 
-**Purpose**: Identify codec types and parse codec-specific headers using reference implementation logic
+**Purpose**: Manage multiple `ogg_stream_state` instances for multiplexed streams.
 
-**Key Methods**:
-- `std::string identifyCodec(const std::vector<uint8_t>& packet_data)`: Codec signature detection
-- `bool parseVorbisHeaders(OggStream& stream, const OggPacket& packet)`: Vorbis header parsing
-- `bool parseOpusHeaders(OggStream& stream, const OggPacket& packet)`: Opus header parsing  
-- `bool parseFLACHeaders(OggStream& stream, const OggPacket& packet)`: FLAC header parsing
+**Key Design Decisions**:
 
-**Codec Detection Logic (Following Reference Patterns)**:
+1. **Lazy Stream Creation**: Streams are created when first BOS page is encountered.
 
-**Vorbis (Following libvorbisfile patterns)**:
-- Use vorbis_synthesis_idheader() equivalent logic for `\x01vorbis` signature validation
-- Use vorbis_synthesis_headerin() equivalent logic for header processing
-- Identification header: Extract sample rate, channels, bitrate from packet
-- Comment header: `\x03vorbis` signature with UTF-8 metadata parsing
-- Setup header: `\x05vorbis` signature with codec setup data preservation
-- **Requires all 3 headers for complete initialization** (libvorbisfile pattern)
-- Handle header parsing errors like libvorbisfile (return OV_EBADHEADER)
+2. **Serial Number Routing**: Pages are routed to streams by serial number using `ogg_page_serialno()`.
 
-**Opus (Following libopusfile patterns)**:
-- Use opus_head_parse() equivalent logic for "OpusHead" signature validation
-- Use opus_tags_parse() equivalent logic for metadata extraction
-- Identification header: Extract channels, pre-skip, input_sample_rate, channel_mapping
-- Comment header: "OpusTags" signature with metadata parsing
-- **Requires 2 headers for complete initialization** (libopusfile pattern)
-- Uses 48kHz granule rate regardless of output sample rate
-- Handle header parsing errors like libopusfile (return OP_EBADHEADER)
+3. **Proper Initialization**:
+   ```cpp
+   bool OggStreamManager::addStream(uint32_t serial) {
+       if (m_streams.count(serial)) return false;  // Duplicate serial
+       
+       ogg_stream_state& os = m_streams[serial];
+       if (ogg_stream_init(&os, serial) != 0) {
+           m_streams.erase(serial);
+           return false;
+       }
+       return true;
+   }
+   ```
 
-**FLAC-in-Ogg (Following RFC 9639 Section 10.1)**:
-- Identification header: `\x7fFLAC` (0x7F 0x46 0x4C 0x41 0x43) 5-byte signature validation
-- **First packet structure (51 bytes total)**:
-  - 5 bytes: Signature `\x7fFLAC`
-  - 2 bytes: Mapping version (0x01 0x00 for version 1.0)
-  - 2 bytes: Header packet count (big-endian, 0 = unknown)
-  - 4 bytes: fLaC signature (0x664C6143)
-  - 4 bytes: Metadata block header for STREAMINFO
-  - 34 bytes: STREAMINFO metadata block
-- **First page is always exactly 79 bytes** (27-byte header + 1 lacing value + 51-byte packet)
-- **Header packets**: One or more metadata blocks following identification
-- **First header packet SHOULD be Vorbis comment** for historic compatibility
-- **Audio packets**: Each packet contains exactly one FLAC frame
-- **Granule positions**: Sample count (interchannel samples), 0 for header pages
-- **Special granule value**: 0xFFFFFFFFFFFFFFFF when no packet completes on page
-- **Chaining**: Audio property changes require new stream (EOS followed by BOS)
-- Must be distinguished from native FLAC files (different container format)
+4. **Proper Cleanup**:
+   ```cpp
+   OggStreamManager::~OggStreamManager() {
+       for (auto& [serial, os] : m_streams) {
+           ogg_stream_clear(&os);
+       }
+   }
+   ```
 
-**Unknown Codecs**:
-- Return OP_ENOTFORMAT and continue scanning like libopusfile
-- Skip unknown streams without affecting other streams
-- Log codec signature for debugging purposes
+**Multiplexing Support**:
+- **Grouped**: Multiple BOS pages at start, interleaved data pages
+- **Chained**: Sequential streams (EOS followed by BOS)
+- Detection: BOS page after data pages indicates chain boundary
 
-### **3. FLAC-in-Ogg Handler Component (Following RFC 9639 Section 10.1)**
 
-**Purpose**: Handle FLAC audio encapsulated in Ogg containers per RFC 9639 Section 10.1
+### **3. CodecHeaderParser - Codec-Specific Header Processing**
 
-**Key Methods**:
-- `bool parseFLACInOggHeader(OggStream& stream, const OggPacket& packet)`: Parse identification header
-- `bool extractFLACStreamInfo(OggStream& stream, const uint8_t* data, size_t size)`: Extract STREAMINFO
-- `uint64_t flacGranuleToSamples(uint64_t granule)`: Granule position interpretation
+**Purpose**: Parse codec-specific headers and extract stream properties.
 
-**FLAC-in-Ogg Identification Header Structure**:
+**Codec Identification** (from first BOS packet):
+
+| Codec   | Signature                | Bytes | Reference           |
+|---------|--------------------------|-------|---------------------|
+| Vorbis  | `\x01vorbis`             | 7     | Vorbis I Spec       |
+| Opus    | `OpusHead`               | 8     | RFC 7845 §5.1       |
+| FLAC    | `\x7fFLAC`               | 5     | RFC 9639 §10.1      |
+| Speex   | `Speex   ` (with spaces) | 8     | Speex Spec          |
+| Theora  | `\x80theora`             | 7     | Theora Spec         |
+
+**Vorbis Header Processing** (3 headers required):
+
+1. **Identification Header** (`\x01vorbis`):
+   - Bytes 7-10: vorbis_version (must be 0)
+   - Byte 11: audio_channels
+   - Bytes 12-15: audio_sample_rate (little-endian)
+   - Bytes 16-19: bitrate_maximum
+   - Bytes 20-23: bitrate_nominal
+   - Bytes 24-27: bitrate_minimum
+   - Byte 28: blocksize info
+
+2. **Comment Header** (`\x03vorbis`):
+   - Vendor string length + string
+   - Comment count + comments (TAG=value format)
+
+3. **Setup Header** (`\x05vorbis`):
+   - Codebook and mode configuration (preserve as-is for decoder)
+
+**Opus Header Processing** (2 headers required, RFC 7845):
+
+1. **OpusHead** (19+ bytes):
+   - Bytes 0-7: "OpusHead" signature
+   - Byte 8: version (must be 1)
+   - Byte 9: channel_count
+   - Bytes 10-11: pre_skip (little-endian)
+   - Bytes 12-15: input_sample_rate (little-endian, informational only)
+   - Bytes 16-17: output_gain
+   - Byte 18: channel_mapping_family
+   - If family != 0: stream_count, coupled_count, channel_mapping[]
+
+2. **OpusTags**:
+   - Bytes 0-7: "OpusTags" signature
+   - Same format as Vorbis comments
+
+**FLAC-in-Ogg Header Processing** (RFC 9639 §10.1):
+
+1. **Identification Packet** (51 bytes, first page exactly 79 bytes):
+   - Bytes 0-4: `\x7fFLAC` signature
+   - Bytes 5-6: mapping version (major.minor, expect 1.0)
+   - Bytes 7-8: header_packets count (big-endian, 0 = unknown)
+   - Bytes 9-12: `fLaC` native signature
+   - Bytes 13-16: metadata block header (type 0 = STREAMINFO)
+   - Bytes 17-50: STREAMINFO (34 bytes)
+
+2. **Subsequent Header Packets**:
+   - First SHOULD be Vorbis comment (type 4)
+   - Other metadata blocks until last-metadata-block flag
+
+**STREAMINFO Parsing** (34 bytes, RFC 9639 §8.2):
+```
+Bits 0-15:   minimum_block_size
+Bits 16-31:  maximum_block_size
+Bits 32-55:  minimum_frame_size (24 bits)
+Bits 56-79:  maximum_frame_size (24 bits)
+Bits 80-99:  sample_rate (20 bits)
+Bits 100-102: channels - 1 (3 bits)
+Bits 103-107: bits_per_sample - 1 (5 bits)
+Bits 108-143: total_samples (36 bits)
+Bits 144-271: MD5 signature (128 bits)
+```
+
+
+### **4. OggSeekingEngine - Seeking and Duration**
+
+**Purpose**: Implement bisection search and duration calculation following reference implementations.
+
+**Duration Calculation** (following `op_get_last_page()`):
+
+1. **Priority Order**:
+   - FLAC: Use total_samples from STREAMINFO if non-zero
+   - Opus: Use total_samples from OpusHead if available
+   - All: Scan backwards for last granule position
+
+2. **Backward Scanning Algorithm**:
+   ```cpp
+   uint64_t OggSeekingEngine::getLastGranule(uint32_t serial, int64_t begin, int64_t end) {
+       // Start with small chunk, grow exponentially
+       size_t chunk_size = CHUNKSIZE;
+       int64_t offset = end;
+       uint64_t best_granule = 0;
+       
+       while (offset > begin) {
+           int64_t scan_start = std::max(begin, offset - chunk_size);
+           m_sync->seek(scan_start, SEEK_SET);
+           m_sync->reset();
+           
+           ogg_page page;
+           while (m_sync->getNextPage(&page, offset) > 0) {
+               if (ogg_page_serialno(&page) == serial) {
+                   int64_t gp = ogg_page_granulepos(&page);
+                   if (gp > 0 && gp != -1) {
+                       best_granule = gp;
+                   }
+               }
+           }
+           
+           if (best_granule > 0) return best_granule;
+           
+           offset = scan_start;
+           chunk_size = std::min(chunk_size * 2, (size_t)(4 * CHUNKSIZE));
+       }
+       
+       return best_granule;
+   }
+   ```
+
+**Bisection Search** (following `ov_pcm_seek_page()`):
+
+1. **Algorithm**:
+   - Convert target time to granule position
+   - Initialize search interval [begin, end]
+   - While interval > threshold:
+     - Seek to midpoint
+     - Find next page with matching serial
+     - Compare granule position to target
+     - Adjust interval accordingly
+   - When interval small, switch to linear scan
+
+2. **Key Implementation Details**:
+   - Use `ogg_sync_pageseek()` for page discovery (handles partial pages)
+   - Reset `ogg_sync_state` after each seek
+   - Handle granule position -1 (no packets complete on page)
+   - Account for pre-skip in Opus streams
+
+3. **Post-Seek State**:
+   - Reset stream state with `ogg_stream_reset()`
+   - Do NOT resend headers (decoder maintains state)
+   - Resume packet extraction from new position
+
+**Granule Position Arithmetic** (following libopusfile):
+
 ```cpp
-struct FLACInOggHeader {
-    uint8_t signature[5];      // "\x7fFLAC" (0x7F 0x46 0x4C 0x41 0x43)
-    uint8_t version_major;     // 0x01 for version 1.0
-    uint8_t version_minor;     // 0x00 for version 1.0
-    uint16_t header_count;     // Big-endian, 0 = unknown
-    uint8_t flac_signature[4]; // "fLaC" (0x66 0x4C 0x61 0x43)
-    uint8_t metadata_header[4]; // Metadata block header
-    uint8_t streaminfo[34];    // STREAMINFO metadata block
-};
-// Total: 51 bytes, first page always 79 bytes
+// Safe addition with overflow detection
+int OggSeekingEngine::granposAdd(int64_t* dst, int64_t src, int64_t delta) {
+    if (src < 0) return -1;  // Invalid source
+    if (delta < 0) {
+        if (src < -delta) return -1;  // Underflow
+    } else {
+        if (src > INT64_MAX - delta) return -1;  // Overflow
+    }
+    *dst = src + delta;
+    return 0;
+}
+
+// Safe comparison (handles wraparound)
+int OggSeekingEngine::granposCmp(int64_t a, int64_t b) {
+    if (a < 0 && b >= 0) return 1;   // Invalid a > valid b
+    if (a >= 0 && b < 0) return -1;  // Valid a < invalid b
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+}
 ```
 
-**STREAMINFO Extraction**:
-- Minimum block size (16 bits)
-- Maximum block size (16 bits)
-- Minimum frame size (24 bits)
-- Maximum frame size (24 bits)
-- Sample rate (20 bits)
-- Number of channels minus 1 (3 bits)
-- Bits per sample minus 1 (5 bits)
-- Total samples (36 bits)
-- MD5 signature (128 bits)
+**Time Conversion**:
 
-**Granule Position Handling**:
-- Header pages: Granule position MUST be 0
-- Audio pages with completed packet: Sample count at end of last completed packet
-- Audio pages without completed packet: 0xFFFFFFFFFFFFFFFF
-- Sample numbering: Interchannel samples (not per-channel)
-
-**Version Handling**:
-- Version 1.0 (0x01 0x00): Fully supported
-- Unknown versions: Log warning, attempt parsing, may fail gracefully
-
-**Error Conditions**:
-- Invalid signature: Return OP_ENOTFORMAT
-- Unsupported version: Return OP_EVERSION (or equivalent)
-- Malformed STREAMINFO: Return OP_EBADHEADER
-- First page not 79 bytes: Log warning, continue parsing
-
-### **4. Seeking Component (Following ov_pcm_seek_page/op_pcm_seek_page Patterns)**
-
-**Purpose**: Implement efficient timestamp-based seeking identical to reference implementations
-
-**Key Methods**:
-- `bool seekTo(uint64_t timestamp_ms)`: Main seeking interface (follows ov_pcm_seek/op_pcm_seek)
-- `bool seekToPage(uint64_t target_granule, uint32_t stream_id)`: Page-level seeking (follows ov_pcm_seek_page/op_pcm_seek_page)
-- `uint64_t granuleToMs(uint64_t granule, uint32_t stream_id)`: Time conversion
-- `uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id)`: Time conversion
-
-**Bisection Search Algorithm (Identical to Reference Implementations)**:
-1. Convert timestamp to target granule position using codec-specific logic
-2. Initialize bisection interval (begin, end) like libvorbisfile/libopusfile
-3. **Use ogg_sync_pageseek() for page discovery** (NOT ogg_sync_pageout())
-4. Bisect interval using (begin + end) / 2 calculation
-5. Read pages forward using _get_next_page() patterns
-6. Compare granule positions using op_granpos_cmp() equivalent logic
-7. Adjust interval based on comparison results
-8. **Switch to linear scanning when interval becomes small**
-9. Use ogg_stream_packetpeek() to examine packets without consuming
-10. Reset ogg_sync_state and stream positions after seek
-11. **Do NOT resend headers** - decoder maintains state
-
-**Backward Scanning (Following _get_prev_page Patterns)**:
-- Use chunk-based backward scanning with CHUNKSIZE (65536) increments
-- Exponentially increase chunk size for efficiency (like libopusfile)
-- Handle file beginning boundary conditions
-- Prefer pages with matching serial numbers
-
-**Granule Position Handling (Reference Implementation Patterns)**:
-- **Vorbis**: Granule = sample number at end of packet (direct mapping)
-- **Opus**: Granule = 48kHz sample number, account for pre-skip using opus_granule_sample() logic
-- **FLAC**: Granule = sample number at end of packet (same as Vorbis)
-- **Invalid (-1)**: Handle like reference implementations (continue searching)
-
-### **5. Duration Calculation Component (Following op_get_last_page Patterns)**
-
-**Purpose**: Determine total file duration using reference implementation patterns
-
-**Key Methods**:
-- `void calculateDuration()`: Main duration calculation
-- `uint64_t getLastGranulePosition()`: Find last valid granule (follows op_get_last_page)
-- `int64_t getPrevPageSerial()`: Backward page scanning (follows _get_prev_page_serial)
-
-**Duration Sources (Priority Order from Reference Implementations)**:
-1. Header-provided total sample counts (libopusfile pattern)
-2. Tracked maximum granule position during parsing
-3. Last page granule position using backward scanning
-4. Unknown duration (return 0)
-
-**Backward Scanning Implementation (Following Reference Patterns)**:
-- Use chunk-based backward scanning with exponentially increasing chunk sizes
-- Start with OP_CHUNK_SIZE (65536), increase up to OP_CHUNK_SIZE_MAX
-- Scan forward from each chunk start to find valid pages
-- Prefer pages with matching serial numbers
-- Handle file beginning boundary conditions gracefully
-- Use ogg_page_granulepos() to extract granule positions
-- Continue until valid granule position found or file beginning reached
-
-**Granule-to-Time Conversion**:
-- **Vorbis**: Direct sample count / sample_rate conversion
-- **Opus**: Use opus_granule_sample() equivalent logic (48kHz granule rate, account for pre-skip)
-- **FLAC-in-Ogg**: Direct sample count / sample_rate conversion (like Vorbis)
-  - Sample rate from STREAMINFO metadata block
-  - Total samples from STREAMINFO if available (36-bit field)
-  - Granule position represents interchannel sample count
-
-### **6. Granule Position Arithmetic Component (Following libopusfile Patterns)**
-
-**Purpose**: Handle granule position calculations with overflow protection
-
-**Key Methods**:
-- `int granposAdd(int64_t* dst_gp, int64_t src_gp, int32_t delta)`: Safe addition (follows op_granpos_add)
-- `int granposDiff(int64_t* delta, int64_t gp_a, int64_t gp_b)`: Safe subtraction (follows op_granpos_diff)
-- `int granposCmp(int64_t gp_a, int64_t gp_b)`: Safe comparison (follows op_granpos_cmp)
-
-**Granule Position Arithmetic (libopusfile Patterns)**:
-- **Invalid Value**: -1 in two's complement indicates invalid/unset granule position
-- **Overflow Detection**: Check for wraparound past -1 value in all operations
-- **Wraparound Handling**: Handle negative granule positions correctly (larger than positive)
-- **Range Organization**: [ -1 (invalid) ][ 0 ... INT64_MAX ][ INT64_MIN ... -2 ][ -1 (invalid) ]
-
-**Safe Addition Logic**:
-- Detect overflow that would wrap past -1
-- Handle positive and negative granule position ranges
-- Return appropriate error codes on overflow
-
-**Safe Subtraction Logic**:
-- Handle wraparound from positive to negative values
-- Detect underflow conditions
-- Maintain proper ordering semantics
-
-### **7. Data Streaming Component (Following Reference Implementation Patterns)**
-
-**Purpose**: Provide continuous packet streaming for playback using reference patterns
-
-**Key Methods**:
-- `MediaChunk readChunk()`: Read from best audio stream
-- `MediaChunk readChunk(uint32_t stream_id)`: Read from specific stream
-- `void fillPacketQueue(uint32_t target_stream_id)`: Buffer management
-- `int fetchAndProcessPacket()`: Packet processing (follows _fetch_and_process_packet)
-
-**Streaming Logic (Following libvorbisfile/libopusfile Patterns)**:
-1. Send header packets first (once per stream, never resend after seeks)
-2. Use ogg_stream_packetout() for packet extraction from pages
-3. Buffer data packets in per-stream queues with bounded sizes
-4. Maintain packet order within logical bitstreams
-5. Handle page boundaries using ogg_stream_pagein() patterns
-6. Update position tracking from granule positions using safe arithmetic
-7. Handle packet holes (return OV_HOLE/OP_HOLE) like reference implementations
-8. Use ogg_sync_pageseek() for page discovery during streaming
-
-## **Data Models**
-
-### **Stream State Machine**
-
-```
-[Uninitialized] → [Headers Parsing] → [Headers Complete] → [Streaming Data]
-                                   ↓
-                              [Headers Sent] → [Active Streaming]
-                                   ↑
-                              [After Seek] (no header resend)
+```cpp
+uint64_t OggSeekingEngine::granuleToMs(uint64_t granule, const OggStreamInfo& info) {
+    if (info.sample_rate == 0) return 0;
+    
+    if (info.codec_name == "opus") {
+        // Opus uses 48kHz granule rate, account for pre-skip
+        uint64_t samples = (granule > info.pre_skip) ? (granule - info.pre_skip) : 0;
+        return (samples * 1000) / 48000;
+    } else {
+        // Vorbis, FLAC: granule = sample count at stream sample rate
+        return (granule * 1000) / info.sample_rate;
+    }
+}
 ```
 
-### **Packet Flow**
+
+### **5. OggDemuxer - Main Coordinator**
+
+**Purpose**: Coordinate all components and implement the Demuxer interface.
+
+**Initialization Flow** (`parseContainer()`):
 
 ```
-File → IOHandler → ogg_sync_state → ogg_page → ogg_stream_state → ogg_packet → OggPacket → MediaChunk
+1. Get file size from IOHandler
+2. Create OggSyncManager and OggStreamManager
+3. Call fetchHeaders_unlocked():
+   a. Read pages until all BOS pages seen
+   b. For each BOS page:
+      - Create stream in OggStreamManager
+      - Identify codec from first packet
+      - Create appropriate CodecHeaderParser
+   c. Continue reading pages until all headers complete
+   d. Record data_start offset (first data page position)
+4. Create OggSeekingEngine
+5. Calculate duration using seeking engine
+6. Select primary audio stream
+7. Seek back to data_start for playback
+8. Transition to STREAMING state
 ```
 
-### **Seeking Flow**
+**Header Fetching** (following `_fetch_headers()`):
 
+```cpp
+bool OggDemuxer::fetchHeaders_unlocked() {
+    ogg_page page;
+    bool seen_data = false;
+    int max_pages = 1000;  // Prevent infinite loop
+    
+    for (int i = 0; i < max_pages && !allHeadersComplete(); ++i) {
+        int ret = m_sync->getNextPage(&page, -1);
+        if (ret < 0) {
+            if (ret == -3) break;  // EOF
+            return false;  // Error
+        }
+        
+        uint32_t serial = ogg_page_serialno(&page);
+        
+        if (ogg_page_bos(&page)) {
+            // New stream - create and identify
+            if (!m_stream_mgr->addStream(serial)) {
+                continue;  // Duplicate serial, skip
+            }
+            m_stream_mgr->submitPage(&page);
+            
+            ogg_packet packet;
+            if (m_stream_mgr->getPacket(serial, &packet) > 0) {
+                std::string codec = CodecHeaderParser::identifyCodec(
+                    packet.packet, packet.bytes);
+                
+                m_stream_info[serial].serial_number = serial;
+                m_stream_info[serial].codec_name = codec;
+                m_header_parsers[serial] = CodecHeaderParser::create(codec);
+                
+                if (m_header_parsers[serial]) {
+                    processHeaderPacket_unlocked(serial, &packet);
+                }
+            }
+        } else if (m_stream_mgr->hasStream(serial)) {
+            // Existing stream - process header or note data start
+            m_stream_mgr->submitPage(&page);
+            
+            ogg_packet packet;
+            while (m_stream_mgr->getPacket(serial, &packet) > 0) {
+                if (!m_stream_info[serial].headers_complete) {
+                    processHeaderPacket_unlocked(serial, &packet);
+                } else if (!seen_data) {
+                    // First data packet - record position
+                    m_data_start = m_sync->tell() - pageTotalSize(&page);
+                    seen_data = true;
+                }
+            }
+        }
+    }
+    
+    return !m_stream_info.empty();
+}
 ```
-Timestamp → Target Granule → Bisection Search → Page Position → Stream Reset → Continue Streaming
+
+
+**Packet Reading** (`readChunk()`):
+
+```cpp
+MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
+    if (m_state != State::STREAMING) {
+        return MediaChunk{};
+    }
+    
+    auto info_it = m_stream_info.find(stream_id);
+    if (info_it == m_stream_info.end()) {
+        return MediaChunk{};
+    }
+    
+    OggStreamInfo& info = info_it->second;
+    
+    // First call: send header packets
+    if (!m_headers_sent) {
+        if (!info.header_packets.empty()) {
+            MediaChunk chunk;
+            chunk.stream_id = stream_id;
+            chunk.is_header = true;
+            
+            // Concatenate all header packets
+            for (const auto& hdr : info.header_packets) {
+                chunk.data.insert(chunk.data.end(), hdr.begin(), hdr.end());
+            }
+            
+            m_headers_sent = true;
+            return chunk;
+        }
+        m_headers_sent = true;
+    }
+    
+    // Try to get a packet from the stream
+    ogg_packet packet;
+    int ret = m_stream_mgr->getPacket(stream_id, &packet);
+    
+    while (ret == 0) {
+        // No packet available, need more pages
+        ogg_page page;
+        ret = m_sync->getNextPage(&page, -1);
+        
+        if (ret < 0) {
+            if (ret == -3) {
+                // EOF
+                return MediaChunk{};
+            }
+            Debug::log("ogg", "Error reading page: ", ret);
+            return MediaChunk{};
+        }
+        
+        uint32_t page_serial = ogg_page_serialno(&page);
+        
+        // Check for chain boundary
+        if (ogg_page_bos(&page)) {
+            // New chain - for now, treat as EOF
+            // TODO: Handle chained streams properly
+            return MediaChunk{};
+        }
+        
+        // Submit page to appropriate stream
+        if (m_stream_mgr->hasStream(page_serial)) {
+            m_stream_mgr->submitPage(&page);
+            
+            // Update granule position
+            int64_t gp = ogg_page_granulepos(&page);
+            if (gp >= 0 && page_serial == stream_id) {
+                info.current_granule = gp;
+                m_current_position_ms = OggSeekingEngine::granuleToMs(gp, info);
+            }
+            
+            // Check page sequence for loss detection
+            uint32_t seq = ogg_page_pageno(&page);
+            if (info.page_sequence_valid && seq != info.last_page_sequence + 1) {
+                Debug::log("ogg", "Page loss detected: expected ", 
+                          info.last_page_sequence + 1, " got ", seq);
+            }
+            info.last_page_sequence = seq;
+            info.page_sequence_valid = true;
+        }
+        
+        // Try to get packet again
+        ret = m_stream_mgr->getPacket(stream_id, &packet);
+    }
+    
+    if (ret < 0) {
+        // Hole in data
+        Debug::log("ogg", "Hole in stream ", stream_id);
+        return MediaChunk{};
+    }
+    
+    // Build MediaChunk from packet
+    MediaChunk chunk;
+    chunk.stream_id = stream_id;
+    chunk.data.assign(packet.packet, packet.packet + packet.bytes);
+    chunk.timestamp_ms = m_current_position_ms;
+    chunk.is_keyframe = true;  // Ogg packets are independently decodable
+    chunk.is_header = false;
+    
+    if (packet.e_o_s) {
+        chunk.is_eos = true;
+    }
+    
+    return chunk;
+}
 ```
-
-## **Correctness Properties**
-
-*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
-
-### Property 1: OggS Capture Pattern Validation
-*For any* byte sequence, the demuxer SHALL accept it as a valid Ogg page start if and only if the first 4 bytes are exactly "OggS" (0x4f 0x67 0x67 0x53).
-**Validates: Requirements 1.1**
-
-### Property 2: Page Version Validation
-*For any* Ogg page header, the demuxer SHALL accept it as valid if and only if the stream_structure_version byte is 0.
-**Validates: Requirements 1.2**
-
-### Property 3: Page Size Bounds
-*For any* Ogg page, the demuxer SHALL reject it as invalid if the total page size exceeds 65,307 bytes.
-**Validates: Requirements 1.11**
-
-### Property 4: Lacing Value Interpretation
-*For any* segment table, the demuxer SHALL interpret a lacing value of 255 as packet continuation and a lacing value less than 255 as packet termination.
-**Validates: Requirements 2.4, 2.5, 13.6**
-
-### Property 5: Codec Signature Detection
-*For any* BOS packet, the demuxer SHALL correctly identify the codec type based on the magic bytes: "\x01vorbis" for Vorbis, "OpusHead" for Opus, "\x7fFLAC" for FLAC, "Speex   " for Speex, "\x80theora" for Theora.
-**Validates: Requirements 3.1, 3.2, 3.3, 3.4, 3.5, 3.6**
-
-### Property 6: FLAC-in-Ogg Header Structure
-*For any* valid FLAC-in-Ogg stream, the first page SHALL be exactly 79 bytes and the identification header SHALL contain the 5-byte signature, 2-byte version, 2-byte header count, 4-byte fLaC signature, 4-byte metadata header, and 34-byte STREAMINFO.
-**Validates: Requirements 4.9, 5.2**
-
-### Property 7: Page Sequence Tracking
-*For any* logical bitstream, the demuxer SHALL detect and report when page sequence numbers are non-consecutive (indicating page loss).
-**Validates: Requirements 1.6, 6.8**
-
-### Property 8: Grouped Stream Ordering
-*For any* grouped Ogg bitstream, all BOS pages SHALL appear before any data pages.
-**Validates: Requirements 3.7**
-
-### Property 9: Chained Stream Detection
-*For any* chained Ogg bitstream, the demuxer SHALL detect stream boundaries where an EOS page is immediately followed by a BOS page.
-**Validates: Requirements 3.8**
-
-### Property 10: Granule Position Arithmetic Safety
-*For any* granule position operations, the demuxer SHALL:
-- Detect overflow when adding to granule positions
-- Handle wraparound correctly when subtracting granule positions
-- Maintain proper ordering when comparing granule positions
-- Treat -1 as invalid/unset
-**Validates: Requirements 12.1, 12.2, 12.3, 12.4**
-
-### Property 11: Invalid Granule Handling
-*For any* page with granule position -1, the demuxer SHALL continue searching for valid granule positions rather than treating -1 as a valid position.
-**Validates: Requirements 7.10, 9.9**
-
-### Property 12: Multi-Page Packet Reconstruction
-*For any* packet spanning multiple pages, the demuxer SHALL correctly reconstruct the complete packet by accumulating segments across pages using continuation flags.
-**Validates: Requirements 13.1, 2.7**
-
-### Property 13: Seeking Accuracy
-*For any* seek operation to a target timestamp, the demuxer SHALL land on a page whose granule position is at or before the target, and the next page's granule position is after the target.
-**Validates: Requirements 7.1**
-
-### Property 14: Duration Calculation Consistency
-*For any* Ogg stream, the calculated duration SHALL equal (last_granule_position - pre_skip) / sample_rate for Opus, or last_granule_position / sample_rate for Vorbis and FLAC-in-Ogg.
-**Validates: Requirements 8.6, 8.7, 8.8**
-
-### Property 15: Bounded Queue Memory
-*For any* packet buffering operation, the demuxer SHALL enforce queue size limits to prevent unbounded memory growth.
-**Validates: Requirements 10.2**
-
-### Property 16: Thread Safety
-*For any* concurrent access to the demuxer from multiple threads, shared state modifications SHALL be protected by appropriate synchronization primitives.
-**Validates: Requirements 11.1**
-
-### Property 17: Position Reporting Consistency
-*For any* position query, the demuxer SHALL return timestamps in milliseconds, calculated consistently from granule positions using codec-specific sample rates.
-**Validates: Requirements 14.4**
-
-## **Error Handling (Following Reference Implementation Patterns)**
-
-### **Container Level Errors (libvorbisfile/libopusfile Patterns)**
-- **Invalid Ogg signatures**: Use memcmp() validation, return OP_ENOTFORMAT like libopusfile
-- **CRC failures**: Rely on libogg's internal validation, continue like reference implementations
-- **Truncated files**: Return OP_EOF/OV_EOF, handle gracefully
-- **Memory allocation failures**: Return OP_EFAULT/OV_EFAULT, clean up resources
-
-### **Stream Level Errors (Reference Implementation Patterns)**
-- **Unknown codecs**: Return OP_ENOTFORMAT, continue scanning like libopusfile
-- **Incomplete headers**: Return OP_EBADHEADER/OV_EBADHEADER like reference implementations
-- **Packet reconstruction failures**: Return OV_HOLE/OP_HOLE for missing packets
-- **Invalid granule positions (-1)**: Continue searching like reference implementations
-- **Duplicate serial numbers**: Return OP_EBADHEADER/OV_EBADHEADER
-
-### **Seeking Errors (Reference Implementation Patterns)**
-- **Seek beyond file boundaries**: Clamp to valid range using boundary checking
-- **No valid pages found**: Return OP_EBADLINK/OV_EBADLINK like reference implementations
-- **Bisection failures**: Fall back to linear search like ov_pcm_seek_page
-- **Stream reset failures**: Return appropriate error codes, maintain state
-- **Granule position overflow**: Return OP_EINVAL using safe arithmetic
-
-### **I/O Errors (Reference Implementation Patterns)**
-- **Read failures**: Return OP_EREAD/OV_EREAD, propagate IOHandler errors
-- **Network timeouts**: Handle gracefully in HTTPIOHandler
-- **File access errors**: Return OP_EREAD/OV_EREAD through exception system
-- **Buffer overflow**: Use bounded buffers with OP_PAGE_SIZE_MAX limits
-- **EOF conditions**: Return OP_FALSE/OV_EOF like _get_data() patterns
-
-### **Page Processing Errors (libogg Patterns)**
-- **ogg_sync_pageseek() negative return**: Handle as skipped bytes like libvorbisfile
-- **ogg_sync_pageout() failure**: Request more data like reference implementations
-- **ogg_stream_packetout() holes**: Return OV_HOLE/OP_HOLE like reference implementations
-- **Page size exceeds maximum**: Use OP_PAGE_SIZE_MAX bounds checking
-
-## **Testing Strategy**
-
-### **Dual Testing Approach**
-This implementation uses both unit tests and property-based tests:
-- **Unit tests** verify specific examples, edge cases, and error conditions
-- **Property-based tests** verify universal properties that should hold across all inputs
-- Together they provide comprehensive coverage: unit tests catch concrete bugs, property tests verify general correctness
-
-### **Property-Based Testing Framework**
-- **Library**: RapidCheck (C++ property-based testing library)
-- **Minimum iterations**: 100 per property test
-- **Test annotation format**: `// **Feature: ogg-demuxer-fix, Property N: <property_text>**`
-
-### **Unit Tests**
-- **Codec detection**: Test signature recognition for all supported codecs (Vorbis, Opus, FLAC, Speex, Theora)
-- **Header parsing**: Verify correct extraction of audio parameters and metadata
-- **Granule conversion**: Test time conversion accuracy for all codec types
-- **Packet reconstruction**: Test handling of packets spanning multiple pages
-- **Error conditions**: Test graceful handling of corrupted data
-- **FLAC-in-Ogg specifics**: Test 79-byte first page, STREAMINFO extraction, version validation
-
-### **Property-Based Tests**
-Each correctness property from the design document SHALL be implemented as a property-based test:
-- **Property 1-3**: Page structure validation properties
-- **Property 4**: Lacing value interpretation property
-- **Property 5-6**: Codec detection and FLAC-in-Ogg header properties
-- **Property 7-9**: Stream multiplexing properties
-- **Property 10-11**: Granule position arithmetic properties
-- **Property 12-13**: Packet reconstruction and seeking properties
-- **Property 14-17**: Duration, memory, threading, and position properties
-
-### **Integration Tests**
-- **File format compatibility**: Test with various Ogg file types and encoders
-- **Seeking accuracy**: Verify seek precision across different file sizes
-- **Stream switching**: Test handling of multiplexed streams
-- **Memory management**: Verify no leaks during normal and error conditions
-- **Performance**: Test with large files and network streams
-- **FLAC-in-Ogg integration**: Test with real .oga files containing FLAC audio
-
-### **Regression Tests**
-- **Known problematic files**: Maintain test suite of previously failing files
-- **Edge cases**: Test very short files, single-packet files, empty files
-- **Boundary conditions**: Test seeking to start, end, and invalid positions
-- **Codec variations**: Test different encoder settings and versions
-
-### **Compatibility Tests**
-- **Reference implementations**: Compare behavior with libvorbisfile and opusfile
-- **Cross-platform**: Test on Windows, Linux, macOS with different compilers
-- **Endianness**: Test on big-endian systems if available
-- **Threading**: Test concurrent access patterns
-
-## **Performance Considerations**
-
-### **Memory Usage**
-- **Bounded packet queues**: Limit queue sizes to prevent memory exhaustion
-- **Header caching**: Store parsed headers efficiently
-- **Buffer reuse**: Minimize allocation/deallocation in hot paths
-- **Stream cleanup**: Properly release libogg resources
-
-### **I/O Efficiency**
-- **Read-ahead buffering**: Use appropriate buffer sizes for network streams
-- **Seek optimization**: Minimize I/O operations during bisection search
-- **Page caching**: Cache recently accessed pages for repeated seeks
-- **Sequential optimization**: Optimize for forward playback patterns
-
-### **CPU Efficiency**
-- **Minimal copying**: Avoid unnecessary data copying in packet handling
-- **Efficient parsing**: Use optimized parsing for common header types
-- **Lazy evaluation**: Parse metadata only when requested
-- **Branch prediction**: Structure code for common cases
-
-### **Scalability**
-- **Large files**: Handle files >2GB efficiently
-- **Many streams**: Support reasonable numbers of multiplexed streams
-- **Long duration**: Handle very long audio files without overflow
-- **High bitrates**: Support high-bitrate streams without buffering issues
-
-## **Security Considerations**
-
-### **Input Validation**
-- **Header size limits**: Validate header sizes to prevent buffer overflows
-- **Packet size limits**: Limit packet sizes to reasonable bounds
-- **Loop prevention**: Prevent infinite loops in parsing logic
-- **Integer overflow**: Check for overflow in size calculations
-
-### **Memory Safety**
-- **Buffer bounds**: Always check buffer boundaries before access
-- **Null pointer checks**: Validate pointers before dereferencing
-- **Resource cleanup**: Ensure cleanup in all error paths
-- **Exception safety**: Maintain consistent state during exceptions
-
-### **Denial of Service Prevention**
-- **Parse time limits**: Limit time spent parsing headers
-- **Memory limits**: Prevent excessive memory allocation
-- **Recursion limits**: Limit recursion depth in parsing
-- **Rate limiting**: Consider rate limiting for network streams
-
-This design provides a robust, efficient, and maintainable implementation of Ogg demuxing that addresses the current seeking issues while providing a solid foundation for future enhancements.
