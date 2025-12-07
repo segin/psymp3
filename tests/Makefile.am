@@ -735,6 +735,24 @@ test_speex_parser_LDADD = libtest_utilities.a \
 	$(FREETYPE_LIBS) \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
+
+check_PROGRAMS += test_seeking_engine
+test_seeking_engine_SOURCES = test_seeking_engine.cpp
+test_seeking_engine_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/liboggdemuxer.a \
+	../src/demuxer/libdemuxer.a \
+	../src/io/file/libfileio.a \
+	../src/io/libio.a \
+	../src/debug.o \
+	../src/exceptions.o \
+	../src/rect.o \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS)
 test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_page_extraction_LDADD = \
 	libtest_utilities.a \

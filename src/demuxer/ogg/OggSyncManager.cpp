@@ -136,6 +136,26 @@ int OggSyncManager::getPrevPageSerial(ogg_page* page, long serial) {
     return 0;
 }
 
+int64_t OggSyncManager::getPosition() const {
+    return m_io_handler->tell();
+}
+
+int64_t OggSyncManager::getFileSize() const {
+    // Save current position
+    long current = m_io_handler->tell();
+    // Seek to end
+    const_cast<PsyMP3::IO::IOHandler*>(m_io_handler)->seek(0, SEEK_END);
+    long size = m_io_handler->tell();
+    // Restore position
+    const_cast<PsyMP3::IO::IOHandler*>(m_io_handler)->seek(current, SEEK_SET);
+    return size;
+}
+
+bool OggSyncManager::seek(int64_t position) {
+    reset();
+    return m_io_handler->seek(position, SEEK_SET) == 0;
+}
+
 } // namespace Ogg
 } // namespace Demuxer
 } // namespace PsyMP3

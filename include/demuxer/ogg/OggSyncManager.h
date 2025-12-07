@@ -75,6 +75,11 @@ public:
      */
     int wroteBytes(long bytes);
 
+    // File position and seeking
+    int64_t getPosition() const;
+    int64_t getFileSize() const;
+    bool seek(int64_t position);
+
     // Accessors
     PsyMP3::IO::IOHandler* getIOHandler() const { return m_io_handler; }
 
