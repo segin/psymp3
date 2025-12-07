@@ -791,6 +791,24 @@ test_ogg_error_handling_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
+check_PROGRAMS += test_ogg_integration
+test_ogg_integration_SOURCES = test_ogg_integration.cpp
+test_ogg_integration_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/liboggdemuxer.a \
+	../src/demuxer/libdemuxer.a \
+	../src/io/file/libfileio.a \
+	../src/io/libio.a \
+	../src/debug.o \
+	../src/exceptions.o \
+	../src/rect.o \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS)
+
 test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_page_extraction_LDADD = \
 	libtest_utilities.a \
