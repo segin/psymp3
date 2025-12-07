@@ -72,16 +72,16 @@
 - [x] 6. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 7. Test with real FLAC files
-  - [ ] 7.1 Test seeking on FLAC files without SEEKTABLEs
+- [x] 7. Test with real FLAC files
+  - [x] 7.1 Test seeking on FLAC files without SEEKTABLEs
     - Verify seeks land within 250ms of target
     - Test seeks to beginning, middle, and end of file
     - _Requirements: 4.2, 5.1, 5.2_
-  - [ ] 7.2 Verify user can play "RADIO GA GA.flac" without issues
+  - [x] 7.2 Verify user can play "RADIO GA GA.flac" without issues
     - Confirm track loads and plays correctly
     - Confirm seeking works throughout the track
     - _Requirements: All_
 
-- [ ] 8. Final Checkpoint - Ensure all tests pass
+- [-] 8. Final Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
