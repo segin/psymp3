@@ -22,6 +22,10 @@ SUBDIRS = .
 # Define optional codec/demuxer libraries (same as main binary)
 CODEC_LIBS =
 DEMUXER_LIBS =
+opusout_SOURCES = opusout.cpp
+opusout_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include
+opusout_LDADD = $(FULL_CODEC_LIBS) $(OPUS_LIBS) $(OGG_LIBS) $(TAGLIB_LIBS) $(VORBIS_LIBS) $(FLAC_LIBS)
+
 
 if HAVE_FLAC
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/flac/libflacdemuxer.a
@@ -256,11 +260,7 @@ test_flac_frame_indexing_LDADD = \
 	$(AM_LDFLAGS)
 
 # Individual test executables
-check_PROGRAMS = \
-	test_rect_area_validation \
-	test_rect_containment \
-	test_rect_intersection \
-	test_rect_union \
+check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union opusout \
 	test_rect_centering \
 	test_rect_centering_overflow \
 	test_rect_expansion \
@@ -299,7 +299,23 @@ endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
 if HAVE_RAPIDCHECK
-check_PROGRAMS += test_rapidcheck_setup
+check_PROGRAMS += test_rapidcheck_setup test_opus_codec_property
+
+test_rapidcheck_setup_SOURCES = test_rapidcheck_setup.cpp
+test_rapidcheck_setup_CPPFLAGS = $(AM_CPPFLAGS) $(RAPIDCHECK_CFLAGS)
+test_rapidcheck_setup_LDADD = $(AM_LDFLAGS) $(RAPIDCHECK_LIBS)
+
+test_opus_codec_property_SOURCES = test_opus_codec_property.cpp
+test_opus_codec_property_CPPFLAGS = $(AM_CPPFLAGS) $(RAPIDCHECK_CFLAGS) $(OPUS_CFLAGS) -I$(top_srcdir)/src
+test_opus_codec_property_LDADD = \
+	$(FULL_CODEC_LIBS) \
+	$(OPUS_LIBS) \
+	$(RAPIDCHECK_LIBS) \
+	$(OGG_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(VORBIS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
 endif
 
 # A-law codec tests
