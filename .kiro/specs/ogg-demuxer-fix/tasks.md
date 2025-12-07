@@ -123,8 +123,8 @@
   - Ensure all tests pass, ask the user if questions arise.
 
 
-- [ ] 5. Implement CodecHeaderParser Base and Factory
-  - [ ] 5.1 Implement CodecHeaderParser base class
+- [x] 5. Implement CodecHeaderParser Base and Factory
+  - [x] 5.1 Implement CodecHeaderParser base class
     - Define virtual interface: parseHeader(), headersComplete()
     - Implement static identifyCodec() for signature detection
     - Detect Vorbis: `\x01vorbis` (7 bytes)
@@ -135,19 +135,19 @@
     - Return "unknown" for unrecognized signatures
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6_
 
-  - [ ] 5.2 Implement factory method
+  - [x] 5.2 Implement factory method
     - Implement static create() returning appropriate parser
     - Return nullptr for unknown codecs
     - _Requirements: 4.11_
 
-  - [ ] 5.3 Write property test for codec signature detection
+  - [x] 5.3 Write property test for codec signature detection
     - **Property 6: Codec Signature Detection**
     - Generate packets with known signatures, verify detection
     - Generate packets with random data, verify "unknown" result
     - **Validates: Requirements 3.2, 3.3, 3.4, 3.5, 3.6**
 
-- [ ] 6. Implement VorbisHeaderParser
-  - [ ] 6.1 Implement Vorbis identification header parsing
+- [x] 6. Implement VorbisHeaderParser
+  - [x] 6.1 Implement Vorbis identification header parsing
     - Validate `\x01vorbis` signature
     - Extract vorbis_version (must be 0)
     - Extract audio_channels (byte 11)
@@ -156,7 +156,7 @@
     - Store as first header packet
     - _Requirements: 4.1_
 
-  - [ ] 6.2 Implement Vorbis comment header parsing
+  - [x] 6.2 Implement Vorbis comment header parsing
     - Validate `\x03vorbis` signature
     - Parse vendor string (length + UTF-8 string)
     - Parse comment count and comments (TAG=value format)
@@ -164,23 +164,23 @@
     - Store as second header packet
     - _Requirements: 4.2_
 
-  - [ ] 6.3 Implement Vorbis setup header handling
+  - [x] 6.3 Implement Vorbis setup header handling
     - Validate `\x05vorbis` signature
     - Store complete packet for decoder (no parsing needed)
     - Mark headers complete after third header
     - _Requirements: 4.3_
 
-  - [ ] 6.4 Implement headersComplete() for Vorbis
+  - [x] 6.4 Implement headersComplete() for Vorbis
     - Return true only when all 3 headers received
     - _Requirements: 4.3, 4.12_
 
-  - [ ] 6.5 Write property test for Vorbis header count
+  - [x] 6.5 Write property test for Vorbis header count
     - **Property 7: Vorbis Header Count**
     - Verify headers_complete is false until 3 headers received
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
-- [ ] 7. Implement OpusHeaderParser
-  - [ ] 7.1 Implement OpusHead parsing (RFC 7845 §5.1)
+- [x] 7. Implement OpusHeaderParser
+  - [x] 7.1 Implement OpusHead parsing (RFC 7845 §5.1)
     - Validate `OpusHead` signature (8 bytes)
     - Extract version (byte 8, must be 1)
     - Extract channel_count (byte 9)
@@ -192,7 +192,7 @@
     - Store as first header packet
     - _Requirements: 4.4_
 
-  - [ ] 7.2 Implement OpusTags parsing (RFC 7845 §5.2)
+  - [x] 7.2 Implement OpusTags parsing (RFC 7845 §5.2)
     - Validate `OpusTags` signature (8 bytes)
     - Parse vendor string and comments (same format as Vorbis)
     - Extract metadata fields
@@ -200,17 +200,17 @@
     - Mark headers complete after second header
     - _Requirements: 4.5_
 
-  - [ ] 7.3 Implement headersComplete() for Opus
+  - [x] 7.3 Implement headersComplete() for Opus
     - Return true when both OpusHead and OpusTags received
     - _Requirements: 4.5, 4.12_
 
-  - [ ] 7.4 Write property test for Opus header count
+  - [x] 7.4 Write property test for Opus header count
     - **Property 8: Opus Header Count**
     - Verify headers_complete is false until 2 headers received
     - **Validates: Requirements 4.4, 4.5**
 
-- [ ] 8. Implement FLACHeaderParser (RFC 9639 §10.1)
-  - [ ] 8.1 Implement FLAC-in-Ogg identification header parsing
+- [x] 8. Implement FLACHeaderParser (RFC 9639 §10.1)
+  - [x] 8.1 Implement FLAC-in-Ogg identification header parsing
     - Validate `\x7fFLAC` signature (5 bytes)
     - Extract mapping version (bytes 5-6, expect 1.0)
     - Extract header_packets count (bytes 7-8, big-endian)
@@ -220,7 +220,7 @@
     - Verify total packet size is 51 bytes
     - _Requirements: 4.6, 4.7, 4.8, 5.1, 5.2_
 
-  - [ ] 8.2 Implement STREAMINFO extraction
+  - [x] 8.2 Implement STREAMINFO extraction
     - Extract min/max block size (bits 0-31)
     - Extract min/max frame size (bits 32-79)
     - Extract sample_rate (bits 80-99, 20 bits)
@@ -229,47 +229,47 @@
     - Extract total_samples (bits 108-143, 36 bits)
     - _Requirements: 5.10_
 
-  - [ ] 8.3 Implement FLAC metadata block parsing
+  - [x] 8.3 Implement FLAC metadata block parsing
     - Parse subsequent header packets as metadata blocks
     - First header packet SHOULD be Vorbis comment (type 4)
     - Detect last-metadata-block flag
     - Handle header_packets count (0 = unknown)
     - _Requirements: 4.10, 5.4, 5.12_
 
-  - [ ] 8.4 Implement headersComplete() for FLAC
+  - [x] 8.4 Implement headersComplete() for FLAC
     - Return true when last-metadata-block flag seen
     - Or when expected header count reached
     - _Requirements: 4.12, 5.4_
 
-  - [ ] 8.5 Implement FLAC version handling
+  - [x] 8.5 Implement FLAC version handling
     - Accept version 1.0 (0x01 0x00)
     - Log warning for other versions, attempt parsing
     - _Requirements: 5.3_
 
-  - [ ] 8.6 Write property test for FLAC-in-Ogg identification header
+  - [x] 8.6 Write property test for FLAC-in-Ogg identification header
     - **Property 9: FLAC-in-Ogg Identification Header**
     - Verify 51-byte structure parsing
     - **Validates: Requirements 5.2**
 
-  - [ ] 8.7 Write property test for FLAC-in-Ogg first page size
+  - [x] 8.7 Write property test for FLAC-in-Ogg first page size
     - **Property 10: FLAC-in-Ogg First Page Size**
     - Verify first page is exactly 79 bytes
     - **Validates: Requirements 4.9**
 
-- [ ] 9. Implement SpeexHeaderParser
-  - [ ] 9.1 Implement Speex identification header parsing
+- [x] 9. Implement SpeexHeaderParser
+  - [x] 9.1 Implement Speex identification header parsing
     - Validate `Speex   ` signature (8 bytes with spaces)
     - Extract version string
     - Extract sample_rate, channels, bitrate
     - Store as first header packet
     - _Requirements: 3.5_
 
-  - [ ] 9.2 Implement Speex comment header parsing
+  - [x] 9.2 Implement Speex comment header parsing
     - Parse Vorbis-style comments
     - Mark headers complete after second header
     - _Requirements: 4.11_
 
-- [ ] 10. Checkpoint - Verify Header Parsing
+- [x] 10. Checkpoint - Verify Header Parsing
   - Ensure all tests pass, ask the user if questions arise.
 
 
