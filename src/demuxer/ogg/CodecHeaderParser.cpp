@@ -4,6 +4,10 @@
  */
 
 #include "demuxer/ogg/CodecHeaderParser.h"
+#include "demuxer/ogg/VorbisHeaderParser.h"
+#include "demuxer/ogg/OpusHeaderParser.h"
+#include "demuxer/ogg/FLACHeaderParser.h"
+#include "demuxer/ogg/SpeexHeaderParser.h"
 #include <cstring>
 
 namespace PsyMP3 {
@@ -20,29 +24,25 @@ std::unique_ptr<CodecHeaderParser> CodecHeaderParser::create(ogg_packet* bos_pac
     // Vorbis: "\01vorbis"
     if (bos_packet->bytes >= 7 && 
         memcmp(data, "\x01vorbis", 7) == 0) {
-        // Return Vorbis parser (to be implemented)
-        return nullptr; 
+        return std::make_unique<VorbisHeaderParser>();
     }
     
     // Opus: "OpusHead"
     if (bos_packet->bytes >= 8 &&
         memcmp(data, "OpusHead", 8) == 0) {
-        // Return Opus parser (to be implemented)
-        return nullptr;
+        return std::make_unique<OpusHeaderParser>();
     }
     
     // FLAC: "\x7fFLAC"
     if (bos_packet->bytes >= 5 &&
         memcmp(data, "\x7f" "FLAC", 5) == 0) {
-        // Return FLAC parser (to be implemented)
-        return nullptr;
+        return std::make_unique<FLACHeaderParser>();
     }
     
     // Speex: "Speex   "
     if (bos_packet->bytes >= 8 &&
         memcmp(data, "Speex   ", 8) == 0) {
-        // Return Speex parser (to be implemented)
-        return nullptr;
+        return std::make_unique<SpeexHeaderParser>();
     }
 
     return nullptr;
