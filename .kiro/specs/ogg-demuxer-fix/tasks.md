@@ -39,8 +39,8 @@
     - Run `./generate-configure.sh && ./configure && make -j$(nproc)`
     - _Requirements: 14.1_
 
-- [ ] 2. Implement OggSyncManager (I/O and Page Extraction)
-  - [ ] 2.1 Implement OggSyncManager class structure
+- [x] 2. Implement OggSyncManager (I/O and Page Extraction)
+  - [x] 2.1 Implement OggSyncManager class structure
     - Define class with ogg_sync_state member
     - Implement constructor with IOHandler parameter
     - Implement destructor with ogg_sync_clear()
@@ -49,7 +49,7 @@
     - Implement isEOF() accessor
     - _Requirements: 14.5, 14.8, 14.9_
 
-  - [ ] 2.2 Implement getData() following _get_data() pattern
+  - [x] 2.2 Implement getData() following _get_data() pattern
     - Call ogg_sync_buffer() to get write buffer
     - Read from IOHandler into buffer
     - Call ogg_sync_wrote() to commit bytes
@@ -57,34 +57,34 @@
     - Return bytes read or error code
     - _Requirements: 2.1, 9.6_
 
-  - [ ] 2.3 Implement getNextPage() following _get_next_page() pattern
+  - [x] 2.3 Implement getNextPage() following _get_next_page() pattern
     - Use ogg_sync_pageseek() for page discovery (NOT ogg_sync_pageout())
     - Handle partial pages by calling getData()
     - Respect boundary parameter for bisection search
     - Return page size on success, negative on error
     - _Requirements: 2.1, 7.2, 9.1_
 
-  - [ ] 2.4 Implement getPrevPage() following _get_prev_page() pattern
+  - [x] 2.4 Implement getPrevPage() following _get_prev_page() pattern
     - Seek backwards in CHUNKSIZE increments
     - Read forward to find pages
     - Return last complete page before end position
     - Handle file beginning boundary
     - _Requirements: 7.3, 8.3_
 
-  - [ ] 2.5 Implement getPrevPageSerial() for serial-specific backward scan
+  - [x] 2.5 Implement getPrevPageSerial() for serial-specific backward scan
     - Extend getPrevPage() to filter by serial number
     - Used for duration calculation and seeking
     - _Requirements: 7.9, 8.1_
 
-  - [ ] 2.6 Write unit tests for OggSyncManager
+  - [x] 2.6 Write unit tests for OggSyncManager
     - Test getData() with various buffer sizes
     - Test getNextPage() page extraction
     - Test getPrevPage() backward scanning
     - Test EOF and error handling
     - _Requirements: 2.1, 7.2, 7.3_
 
-- [ ] 3. Implement OggStreamManager (Logical Bitstream Management)
-  - [ ] 3.1 Implement OggStreamManager class structure
+- [x] 3. Implement OggStreamManager (Logical Bitstream Management)
+  - [x] 3.1 Implement OggStreamManager class structure
     - Define class with map of serial -> ogg_stream_state
     - Implement constructor and destructor with proper cleanup
     - Implement hasStream() check
@@ -92,26 +92,26 @@
     - Implement getStreamState() accessor
     - _Requirements: 3.9, 14.8_
 
-  - [ ] 3.2 Implement stream lifecycle methods
+  - [x] 3.2 Implement stream lifecycle methods
     - Implement addStream() with ogg_stream_init()
     - Implement removeStream() with ogg_stream_clear()
     - Implement clearAllStreams() for cleanup
     - Handle duplicate serial number detection
     - _Requirements: 3.9, 4.14, 10.6_
 
-  - [ ] 3.3 Implement page and packet operations
+  - [x] 3.3 Implement page and packet operations
     - Implement submitPage() wrapping ogg_stream_pagein()
     - Implement getPacket() wrapping ogg_stream_packetout()
     - Implement peekPacket() wrapping ogg_stream_packetpeek()
     - Route pages by serial number
     - _Requirements: 2.2, 2.3, 3.10, 7.6_
 
-  - [ ] 3.4 Implement stream reset methods
+  - [x] 3.4 Implement stream reset methods
     - Implement resetStream() wrapping ogg_stream_reset()
     - Implement resetAllStreams() for seek operations
     - _Requirements: 14.9, 14.10_
 
-  - [ ] 3.5 Write unit tests for OggStreamManager
+  - [x] 3.5 Write unit tests for OggStreamManager
     - Test stream creation and destruction
     - Test page routing by serial number
     - Test packet extraction
@@ -119,7 +119,7 @@
     - Test duplicate serial detection
     - _Requirements: 3.9, 3.10, 4.14_
 
-- [ ] 4. Checkpoint - Verify Core libogg Integration
+- [x] 4. Checkpoint - Verify Core libogg Integration
   - Ensure all tests pass, ask the user if questions arise.
 
 
