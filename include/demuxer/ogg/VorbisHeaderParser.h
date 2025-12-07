@@ -14,26 +14,15 @@ namespace Ogg {
 
 class VorbisHeaderParser : public CodecHeaderParser {
 public:
-    VorbisHeaderParser() : m_headers_count(0) {}
+    VorbisHeaderParser();
     
-    bool parseHeader(ogg_packet* packet) override {
-        // Todo: Implement
-        m_headers_count++;
-        return true;
-    }
-    
-    bool isHeadersComplete() const override {
-        return m_headers_count >= 3;
-    }
-    
-    CodecInfo getCodecInfo() const override {
-        CodecInfo info;
-        info.codec_name = "Vorbis";
-        return info;
-    }
+    bool parseHeader(ogg_packet* packet) override;
+    bool isHeadersComplete() const override;
+    CodecInfo getCodecInfo() const override;
 
 private:
     int m_headers_count;
+    CodecInfo m_info;
 };
 
 } // namespace Ogg

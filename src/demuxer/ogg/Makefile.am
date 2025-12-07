@@ -40,4 +40,5 @@ liboggdemuxer_a_SOURCES = \
 	OggSyncManager.cpp \
 	OggStreamManager.cpp \
 	CodecHeaderParser.cpp \
+	VorbisHeaderParser.cpp \
 	OggSeekingEngine.cpp
