@@ -86,12 +86,59 @@ The implementation must support:
 - **Sample**: Single unit of media data (audio frame, video frame, etc.)
 - **Chunk**: Contiguous set of samples stored together in file
 - **Data Reference Index**: Index into data reference table indicating sample location
-- **NAL Unit**: Network Abstraction Layer unit, the basic data structure in H.264/AVC
-- **SPS**: Sequence Parameter Set, H.264 configuration data for video sequence
-- **PPS**: Picture Parameter Set, H.264 configuration data for picture decoding
-- **Brand**: Four-character code in ftyp box identifying file format variant (e.g., 'isom', 'mp41', 'mp42', 'avc1')
-- **Compatible Brand**: Additional brands listed in ftyp box indicating format compatibility
-- **MIME Type**: Media type identifier for HTTP content negotiation (e.g., video/mp4, audio/mp4, application/mp4)
+- **sbgp Box**: Sample to Group Box mapping samples to sample groups
+- **sgpd Box**: Sample Group Description Box defining sample group properties
+- **tref Box**: Track Reference Box containing references to other tracks
+- **subs Box**: Sub-Sample Information Box defining sub-sample boundaries
+- **saiz Box**: Sample Auxiliary Information Sizes Box
+- **saio Box**: Sample Auxiliary Information Offsets Box
+- **sinf Box**: Protection Scheme Information Box for encrypted content
+- **frma Box**: Original Format Box identifying original codec type
+- **schm Box**: Scheme Type Box identifying protection scheme
+- **schi Box**: Scheme Information Box with scheme-specific data
+- **vmhd Box**: Video Media Header Box with video-specific information
+- **smhd Box**: Sound Media Header Box with audio-specific information
+- **hmhd Box**: Hint Media Header Box with hint track statistics
+- **nmhd Box**: Null Media Header Box for tracks without specific header
+- **chnl Box**: Channel Layout Box defining audio channel configuration
+- **pdin Box**: Progressive Download Information Box
+- **free Box**: Free Space Box containing padding data
+- **skip Box**: Skip Box containing reserved space
+- **sidx Box**: Segment Index Box for DASH segment navigation
+- **ssix Box**: Subsegment Index Box for fine-grained segment access
+- **styp Box**: Segment Type Box identifying segment format
+- **prft Box**: Producer Reference Time Box for live stream timing
+- **leva Box**: Level Assignment Box for scalable video
+- **tsel Box**: Track Selection Box with selection criteria
+- **strk Box**: Sub Track Box containing sub-track information
+- **stri Box**: Sub Track Information Box with sub-track details
+- **strd Box**: Sub Track Definition Box defining sub-track structure
+- **tfdt Box**: Track Fragment Decode Time Box with fragment base time
+- **mfhd Box**: Movie Fragment Header Box with sequence number
+- **mfro Box**: Movie Fragment Random Access Offset Box
+- **iloc Box**: Item Location Box for metadata item positions
+- **iinf Box**: Item Information Box describing metadata items
+- **pitm Box**: Primary Item Box identifying main metadata item
+- **ipro Box**: Item Protection Box for protected metadata items
+- **iref Box**: Item Reference Box linking related metadata items
+- **idat Box**: Item Data Box containing metadata item content
+- **xml Box**: XML Box containing text XML metadata
+- **bxml Box**: Binary XML Box containing compressed XML
+- **uuid Box**: UUID Extended Type Box for vendor extensions
+- **stdp Box**: Sample Degradation Priority Box
+- **stsh Box**: Shadow Sync Sample Box for alternative sync points
+- **padb Box**: Padding Bits Box defining sample padding
+- **stz2 Box**: Compact Sample Size Box for efficient size storage
+- **cslg Box**: Composition to Decode Timeline Mapping Box
+- **elng Box**: Extended Language Tag Box with BCP 47 language codes
+- **SAP**: Stream Access Point, a position where decoding can begin
+- **DASH**: Dynamic Adaptive Streaming over HTTP
+- **DRM**: Digital Rights Management
+- **Common Encryption (cenc)**: Standard encryption scheme for ISO media
+- **XMP**: Extensible Metadata Platform for embedded metadata
+- **BCP 47**: IETF Best Current Practice for language tags
+- **NTP**: Network Time Protocol for wall-clock synchronization
+- **UTC**: Coordinated Universal Time
 
 ## Requirements
 
@@ -469,3 +516,681 @@ The implementation must support:
 6. WHEN processing track volume THEN ISODemuxer SHALL extract volume for audio tracks
 7. WHEN processing track matrix THEN ISODemuxer SHALL extract transformation matrix
 8. WHEN track ID is 0 THEN ISODemuxer SHALL reject file as invalid
+
+##
+# Requirement 26: Sample Groups and Dependencies
+
+**User Story:** As a decoder, I want sample group and dependency information per ISO/IEC 14496-12, so that I can properly handle sample relationships and random access points.
+
+#### Acceptance Criteria
+
+1. WHEN processing sbgp box THEN ISODemuxer SHALL extract sample-to-group mappings
+2. WHEN processing sgpd box THEN ISODemuxer SHALL extract sample group descriptions
+3. WHEN processing sdtp box THEN ISODemuxer SHALL extract sample dependency type information
+4. WHEN sample is leading THEN ISODemuxer SHALL identify samples that depend on others
+5. WHEN sample depends on others THEN ISODemuxer SHALL track inter-sample dependencies
+6. WHEN sample is depended on THEN ISODemuxer SHALL identify reference samples
+7. WHEN sample has redundancy THEN ISODemuxer SHALL identify redundant coding information
+8. WHEN random access recovery point exists THEN ISODemuxer SHALL identify recovery points
+
+### Requirement 27: Track References and Relationships
+
+**User Story:** As a track manager, I want track reference support per ISO/IEC 14496-12, so that relationships between tracks are properly maintained.
+
+#### Acceptance Criteria
+
+1. WHEN processing tref box THEN ISODemuxer SHALL extract track reference information
+2. WHEN reference type is 'hint' THEN ISODemuxer SHALL link hint track to media track
+3. WHEN reference type is 'cdsc' THEN ISODemuxer SHALL link descriptive track to content
+4. WHEN reference type is 'sync' THEN ISODemuxer SHALL identify synchronization track
+5. WHEN reference type is 'dpnd' THEN ISODemuxer SHALL identify dependent tracks
+6. WHEN processing track groups THEN ISODemuxer SHALL extract trgr box information
+7. WHEN alternate group is specified THEN ISODemuxer SHALL group alternate tracks
+8. WHEN track references are circular THEN ISODemuxer SHALL detect and report error
+
+### Requirement 28: Sub-Sample Information
+
+**User Story:** As a decoder, I want sub-sample information per ISO/IEC 14496-12, so that I can access portions of samples for partial decoding or encryption.
+
+#### Acceptance Criteria
+
+1. WHEN processing subs box THEN ISODemuxer SHALL extract sub-sample information
+2. WHEN sub-sample count exists THEN ISODemuxer SHALL extract sub-sample sizes
+3. WHEN sub-sample priority exists THEN ISODemuxer SHALL extract priority values
+4. WHEN sub-sample is discardable THEN ISODemuxer SHALL identify discardable portions
+5. WHEN codec-specific parameters exist THEN ISODemuxer SHALL extract codec parameters
+6. WHEN sub-samples span samples THEN ISODemuxer SHALL maintain proper boundaries
+7. WHEN sub-sample information is absent THEN ISODemuxer SHALL treat sample as atomic
+8. WHEN sub-sample sizes exceed sample THEN ISODemuxer SHALL report error
+
+### Requirement 29: Sample Auxiliary Information
+
+**User Story:** As a decoder, I want sample auxiliary information per ISO/IEC 14496-12, so that I can access encryption and other auxiliary data associated with samples.
+
+#### Acceptance Criteria
+
+1. WHEN processing saiz box THEN ISODemuxer SHALL extract auxiliary information sizes
+2. WHEN processing saio box THEN ISODemuxer SHALL extract auxiliary information offsets
+3. WHEN default auxiliary size exists THEN ISODemuxer SHALL use default for all samples
+4. WHEN per-sample sizes exist THEN ISODemuxer SHALL extract individual sizes
+5. WHEN auxiliary type is specified THEN ISODemuxer SHALL identify auxiliary data type
+6. WHEN auxiliary data is encrypted THEN ISODemuxer SHALL provide data to decryption system
+7. WHEN multiple auxiliary types exist THEN ISODemuxer SHALL handle all auxiliary data
+8. WHEN auxiliary offsets are invalid THEN ISODemuxer SHALL report error
+
+### Requirement 30: Protection and Encryption Support
+
+**User Story:** As a DRM system, I want protection scheme information per ISO/IEC 14496-12, so that encrypted content can be properly identified and decrypted.
+
+#### Acceptance Criteria
+
+1. WHEN processing sinf box THEN ISODemuxer SHALL extract protection scheme information
+2. WHEN processing frma box THEN ISODemuxer SHALL extract original format type
+3. WHEN processing schm box THEN ISODemuxer SHALL extract scheme type and version
+4. WHEN processing schi box THEN ISODemuxer SHALL extract scheme-specific information
+5. WHEN sample entry is protected THEN ISODemuxer SHALL identify encryption scheme
+6. WHEN scheme type is 'cenc' THEN ISODemuxer SHALL support Common Encryption
+7. WHEN scheme type is 'cbcs' THEN ISODemuxer SHALL support CBC pattern encryption
+8. WHEN protection information is missing THEN ISODemuxer SHALL report error for protected tracks
+
+### Requirement 31: Media-Specific Header Boxes
+
+**User Story:** As a media handler, I want media-specific header boxes per ISO/IEC 14496-12, so that audio and video media properties are correctly extracted.
+
+#### Acceptance Criteria
+
+1. WHEN processing vmhd box THEN ISODemuxer SHALL extract video media header information
+2. WHEN processing smhd box THEN ISODemuxer SHALL extract sound media header information
+3. WHEN processing hmhd box THEN ISODemuxer SHALL extract hint media header information
+4. WHEN processing nmhd box THEN ISODemuxer SHALL handle null media header
+5. WHEN graphics mode is specified THEN ISODemuxer SHALL extract video composition mode
+6. WHEN audio balance is specified THEN ISODemuxer SHALL extract stereo balance value
+7. WHEN hint statistics exist THEN ISODemuxer SHALL extract hint track statistics
+8. WHEN media header is missing THEN ISODemuxer SHALL use default values
+
+### Requirement 32: Audio Channel Layout
+
+**User Story:** As an audio decoder, I want channel layout information per ISO/IEC 14496-12, so that multi-channel audio is properly mapped to speakers.
+
+#### Acceptance Criteria
+
+1. WHEN processing chnl box THEN ISODemuxer SHALL extract channel layout information
+2. WHEN channel count is specified THEN ISODemuxer SHALL extract number of audio channels
+3. WHEN channel ordering is defined THEN ISODemuxer SHALL extract channel order
+4. WHEN channel labels exist THEN ISODemuxer SHALL extract speaker position labels
+5. WHEN omitted channels exist THEN ISODemuxer SHALL identify omitted channel positions
+6. WHEN object-based audio exists THEN ISODemuxer SHALL extract object channel information
+7. WHEN downmix instructions exist THEN ISODemuxer SHALL extract dmix box information
+8. WHEN channel layout is absent THEN ISODemuxer SHALL use default channel mapping
+
+### Requirement 33: Composition Time Offsets
+
+**User Story:** As a decoder, I want composition time offset support per ISO/IEC 14496-12, so that decode and presentation times are properly distinguished.
+
+#### Acceptance Criteria
+
+1. WHEN processing ctts box version 0 THEN ISODemuxer SHALL use unsigned composition offsets
+2. WHEN processing ctts box version 1 THEN ISODemuxer SHALL use signed composition offsets
+3. WHEN composition offset is positive THEN ISODemuxer SHALL delay presentation after decode
+4. WHEN composition offset is negative THEN ISODemuxer SHALL present before decode time
+5. WHEN calculating presentation time THEN ISODemuxer SHALL add composition offset to decode time
+6. WHEN seeking by presentation time THEN ISODemuxer SHALL account for composition offsets
+7. WHEN ctts entries are run-length encoded THEN ISODemuxer SHALL expand to per-sample offsets
+8. WHEN ctts is absent THEN ISODemuxer SHALL use zero composition offset
+
+### Requirement 34: Progressive Download Information
+
+**User Story:** As a streaming player, I want progressive download information per ISO/IEC 14496-12, so that playback can begin before download completes.
+
+#### Acceptance Criteria
+
+1. WHEN processing pdin box THEN ISODemuxer SHALL extract progressive download information
+2. WHEN rate is specified THEN ISODemuxer SHALL extract download rate in bytes per second
+3. WHEN initial delay is specified THEN ISODemuxer SHALL extract initial buffering delay
+4. WHEN multiple rate entries exist THEN ISODemuxer SHALL support variable download rates
+5. WHEN calculating playback start THEN ISODemuxer SHALL use rate and delay information
+6. WHEN download rate changes THEN ISODemuxer SHALL adjust buffering strategy
+7. WHEN pdin is absent THEN ISODemuxer SHALL estimate based on file structure
+8. WHEN rate is zero THEN ISODemuxer SHALL treat as unknown download rate
+
+### Requirement 35: Free Space and Skip Boxes
+
+**User Story:** As a parser, I want free space handling per ISO/IEC 14496-12, so that padding and reserved space in files is properly skipped.
+
+#### Acceptance Criteria
+
+1. WHEN processing free box THEN ISODemuxer SHALL skip free space content
+2. WHEN processing skip box THEN ISODemuxer SHALL skip reserved space content
+3. WHEN free space is at file level THEN ISODemuxer SHALL continue parsing after skip
+4. WHEN free space is within container THEN ISODemuxer SHALL skip within container bounds
+5. WHEN free space size is large THEN ISODemuxer SHALL seek past without reading content
+6. WHEN free space is at end of file THEN ISODemuxer SHALL handle gracefully
+7. WHEN multiple free boxes exist THEN ISODemuxer SHALL skip all free space
+8. WHEN free box size is invalid THEN ISODemuxer SHALL report error
+
+### Requirement 36: Segment Index for DASH
+
+**User Story:** As a DASH player, I want segment index support per ISO/IEC 14496-12, so that I can efficiently navigate segmented media.
+
+#### Acceptance Criteria
+
+1. WHEN processing sidx box THEN ISODemuxer SHALL extract segment index information
+2. WHEN reference type is 0 THEN ISODemuxer SHALL identify media segment reference
+3. WHEN reference type is 1 THEN ISODemuxer SHALL identify index segment reference
+4. WHEN subsegment duration exists THEN ISODemuxer SHALL extract subsegment timing
+5. WHEN SAP type is specified THEN ISODemuxer SHALL identify stream access point type
+6. WHEN SAP delta time exists THEN ISODemuxer SHALL extract SAP timing offset
+7. WHEN processing ssix box THEN ISODemuxer SHALL extract subsegment index information
+8. WHEN segment index is hierarchical THEN ISODemuxer SHALL resolve nested references
+
+### Requirement 37: Movie Extends for Fragmented Files
+
+**User Story:** As a fragmented file parser, I want movie extends support per ISO/IEC 14496-12, so that default values for fragments are properly established.
+
+#### Acceptance Criteria
+
+1. WHEN processing mvex box THEN ISODemuxer SHALL identify file as fragmented
+2. WHEN processing mehd box THEN ISODemuxer SHALL extract fragment duration
+3. WHEN processing trex box THEN ISODemuxer SHALL extract default sample values per track
+4. WHEN default sample duration exists THEN ISODemuxer SHALL use for fragments without duration
+5. WHEN default sample size exists THEN ISODemuxer SHALL use for fragments without size
+6. WHEN default sample flags exist THEN ISODemuxer SHALL use for fragments without flags
+7. WHEN default sample description index exists THEN ISODemuxer SHALL use for fragments
+8. WHEN mvex is absent THEN ISODemuxer SHALL treat file as non-fragmented
+
+### Requirement 38: Track Fragment Decode Time
+
+**User Story:** As a fragment decoder, I want track fragment decode time per ISO/IEC 14496-12, so that fragment timing is accurately established.
+
+#### Acceptance Criteria
+
+1. WHEN processing tfdt box THEN ISODemuxer SHALL extract base decode time for fragment
+2. WHEN tfdt version is 0 THEN ISODemuxer SHALL use 32-bit base decode time
+3. WHEN tfdt version is 1 THEN ISODemuxer SHALL use 64-bit base decode time
+4. WHEN base decode time is specified THEN ISODemuxer SHALL use as fragment start time
+5. WHEN tfdt is absent THEN ISODemuxer SHALL calculate from previous fragment
+6. WHEN multiple fragments exist THEN ISODemuxer SHALL maintain continuous timeline
+7. WHEN decode time overflows THEN ISODemuxer SHALL handle 64-bit precision
+8. WHEN decode time is discontinuous THEN ISODemuxer SHALL report warning
+
+### Requirement 39: Item Location and Metadata Items
+
+**User Story:** As a metadata handler, I want item location support per ISO/IEC 14496-12, so that metadata items can be located and extracted.
+
+#### Acceptance Criteria
+
+1. WHEN processing iloc box THEN ISODemuxer SHALL extract item location information
+2. WHEN item offset is specified THEN ISODemuxer SHALL locate item data in file
+3. WHEN item length is specified THEN ISODemuxer SHALL extract item data size
+4. WHEN item is in idat box THEN ISODemuxer SHALL locate item in item data box
+5. WHEN item has multiple extents THEN ISODemuxer SHALL concatenate extent data
+6. WHEN construction method is 0 THEN ISODemuxer SHALL use file offset
+7. WHEN construction method is 1 THEN ISODemuxer SHALL use idat offset
+8. WHEN item location is invalid THEN ISODemuxer SHALL report error
+
+### Requirement 40: Extended Language Tag
+
+**User Story:** As a localization handler, I want extended language tag support per ISO/IEC 14496-12, so that track languages are properly identified.
+
+#### Acceptance Criteria
+
+1. WHEN processing elng box THEN ISODemuxer SHALL extract extended language tag
+2. WHEN language tag follows BCP 47 THEN ISODemuxer SHALL parse language subtags
+3. WHEN language is specified in mdhd THEN ISODemuxer SHALL extract ISO 639-2/T code
+4. WHEN both elng and mdhd language exist THEN ISODemuxer SHALL prefer elng
+5. WHEN language tag includes region THEN ISODemuxer SHALL extract region subtag
+6. WHEN language tag includes script THEN ISODemuxer SHALL extract script subtag
+7. WHEN language is undetermined THEN ISODemuxer SHALL use 'und' code
+8. WHEN language tag is malformed THEN ISODemuxer SHALL report warning
+
+
+### Requirement 41: UUID Extended Type Boxes
+
+**User Story:** As an extensible parser, I want UUID box support per ISO/IEC 14496-12, so that vendor-specific and custom extensions can be handled.
+
+#### Acceptance Criteria
+
+1. WHEN box type is 'uuid' THEN ISODemuxer SHALL read 16-byte UUID extended type
+2. WHEN UUID is recognized THEN ISODemuxer SHALL process vendor-specific content
+3. WHEN UUID is unrecognized THEN ISODemuxer SHALL skip box using size field
+4. WHEN UUID box contains metadata THEN ISODemuxer SHALL extract if format is known
+5. WHEN UUID box is nested THEN ISODemuxer SHALL handle within container context
+6. WHEN multiple UUID boxes exist THEN ISODemuxer SHALL process each independently
+7. WHEN UUID matches XMP THEN ISODemuxer SHALL extract XMP metadata
+8. WHEN UUID box size is invalid THEN ISODemuxer SHALL report error and skip
+
+### Requirement 42: Sample Degradation Priority
+
+**User Story:** As a streaming decoder, I want sample degradation priority per ISO/IEC 14496-12, so that samples can be prioritized during bandwidth-constrained playback.
+
+#### Acceptance Criteria
+
+1. WHEN processing stdp box THEN ISODemuxer SHALL extract degradation priority values
+2. WHEN priority is 0 THEN ISODemuxer SHALL treat sample as highest priority
+3. WHEN priority is non-zero THEN ISODemuxer SHALL use value for relative ordering
+4. WHEN bandwidth is limited THEN ISODemuxer SHALL identify droppable samples
+5. WHEN stdp is absent THEN ISODemuxer SHALL treat all samples as equal priority
+6. WHEN priority values span tracks THEN ISODemuxer SHALL maintain per-track priorities
+7. WHEN sample count mismatches THEN ISODemuxer SHALL report warning
+8. WHEN degradation is applied THEN ISODemuxer SHALL skip low-priority samples
+
+### Requirement 43: Shadow Sync Samples
+
+**User Story:** As a seeking mechanism, I want shadow sync sample support per ISO/IEC 14496-12, so that alternative sync points can be used for seeking.
+
+#### Acceptance Criteria
+
+1. WHEN processing stsh box THEN ISODemuxer SHALL extract shadow sync sample table
+2. WHEN shadow sync exists THEN ISODemuxer SHALL map shadowed to sync sample
+3. WHEN seeking to shadowed sample THEN ISODemuxer SHALL use shadow sync instead
+4. WHEN shadow sync is unavailable THEN ISODemuxer SHALL fall back to regular sync
+5. WHEN multiple shadows exist THEN ISODemuxer SHALL select nearest shadow sync
+6. WHEN stsh is absent THEN ISODemuxer SHALL use only stss for sync samples
+7. WHEN shadow mapping is invalid THEN ISODemuxer SHALL report warning
+8. WHEN shadow sync improves seeking THEN ISODemuxer SHALL prefer shadow sync
+
+### Requirement 44: Padding Bits
+
+**User Story:** As a sample extractor, I want padding bits support per ISO/IEC 14496-12, so that sample boundaries are correctly identified.
+
+#### Acceptance Criteria
+
+1. WHEN processing padb box THEN ISODemuxer SHALL extract padding bits information
+2. WHEN padding is specified THEN ISODemuxer SHALL identify unused bits in samples
+3. WHEN extracting samples THEN ISODemuxer SHALL account for padding bits
+4. WHEN padding is per-sample THEN ISODemuxer SHALL extract individual padding values
+5. WHEN padb is absent THEN ISODemuxer SHALL assume no padding bits
+6. WHEN padding exceeds sample size THEN ISODemuxer SHALL report error
+7. WHEN padding affects alignment THEN ISODemuxer SHALL adjust sample boundaries
+8. WHEN padding is codec-specific THEN ISODemuxer SHALL pass to codec
+
+### Requirement 45: Compact Sample Size Box
+
+**User Story:** As a memory-efficient parser, I want compact sample size support per ISO/IEC 14496-12, so that sample sizes can be stored efficiently.
+
+#### Acceptance Criteria
+
+1. WHEN processing stz2 box THEN ISODemuxer SHALL extract compact sample sizes
+2. WHEN field size is 4 bits THEN ISODemuxer SHALL extract 4-bit sample sizes
+3. WHEN field size is 8 bits THEN ISODemuxer SHALL extract 8-bit sample sizes
+4. WHEN field size is 16 bits THEN ISODemuxer SHALL extract 16-bit sample sizes
+5. WHEN sample count is odd with 4-bit THEN ISODemuxer SHALL handle padding nibble
+6. WHEN stz2 and stsz both exist THEN ISODemuxer SHALL prefer stsz
+7. WHEN compact size overflows THEN ISODemuxer SHALL report error
+8. WHEN field size is invalid THEN ISODemuxer SHALL report error
+
+### Requirement 46: Item Information Box
+
+**User Story:** As a metadata handler, I want item information support per ISO/IEC 14496-12, so that metadata items can be properly identified and described.
+
+#### Acceptance Criteria
+
+1. WHEN processing iinf box THEN ISODemuxer SHALL extract item information entries
+2. WHEN item ID is specified THEN ISODemuxer SHALL associate with item location
+3. WHEN item name exists THEN ISODemuxer SHALL extract item name string
+4. WHEN content type is specified THEN ISODemuxer SHALL extract MIME type
+5. WHEN content encoding exists THEN ISODemuxer SHALL extract encoding type
+6. WHEN item is hidden THEN ISODemuxer SHALL mark item as non-displayable
+7. WHEN item type is specified THEN ISODemuxer SHALL extract four-character code
+8. WHEN item information is missing THEN ISODemuxer SHALL report warning
+
+### Requirement 47: Primary Item Reference
+
+**User Story:** As a metadata handler, I want primary item reference per ISO/IEC 14496-12, so that the main metadata item can be identified.
+
+#### Acceptance Criteria
+
+1. WHEN processing pitm box THEN ISODemuxer SHALL extract primary item ID
+2. WHEN primary item exists THEN ISODemuxer SHALL prioritize for display
+3. WHEN primary item is image THEN ISODemuxer SHALL use as cover art
+4. WHEN primary item is missing THEN ISODemuxer SHALL use first item
+5. WHEN pitm is absent THEN ISODemuxer SHALL not assume primary item
+6. WHEN primary ID is invalid THEN ISODemuxer SHALL report warning
+7. WHEN multiple meta boxes exist THEN ISODemuxer SHALL handle each pitm
+8. WHEN primary item changes THEN ISODemuxer SHALL update reference
+
+### Requirement 48: Item Protection Box
+
+**User Story:** As a DRM handler, I want item protection support per ISO/IEC 14496-12, so that protected metadata items can be identified.
+
+#### Acceptance Criteria
+
+1. WHEN processing ipro box THEN ISODemuxer SHALL extract protection information
+2. WHEN protection count exists THEN ISODemuxer SHALL extract protection entries
+3. WHEN sinf box is present THEN ISODemuxer SHALL extract scheme information
+4. WHEN item is protected THEN ISODemuxer SHALL identify protection scheme
+5. WHEN protection index is specified THEN ISODemuxer SHALL link to protection entry
+6. WHEN ipro is absent THEN ISODemuxer SHALL treat items as unprotected
+7. WHEN protection scheme is unknown THEN ISODemuxer SHALL report warning
+8. WHEN decryption is required THEN ISODemuxer SHALL provide scheme to DRM system
+
+### Requirement 49: XML and Binary XML Boxes
+
+**User Story:** As a metadata handler, I want XML metadata support per ISO/IEC 14496-12, so that structured metadata can be extracted.
+
+#### Acceptance Criteria
+
+1. WHEN processing xml box THEN ISODemuxer SHALL extract XML text content
+2. WHEN processing bxml box THEN ISODemuxer SHALL extract binary XML content
+3. WHEN XML is well-formed THEN ISODemuxer SHALL parse XML structure
+4. WHEN XML namespace is specified THEN ISODemuxer SHALL preserve namespace
+5. WHEN XML encoding is specified THEN ISODemuxer SHALL decode appropriately
+6. WHEN binary XML is compressed THEN ISODemuxer SHALL decompress content
+7. WHEN XML is malformed THEN ISODemuxer SHALL report warning
+8. WHEN multiple XML boxes exist THEN ISODemuxer SHALL extract all content
+
+### Requirement 50: Item Reference Box
+
+**User Story:** As a metadata handler, I want item reference support per ISO/IEC 14496-12, so that relationships between metadata items can be tracked.
+
+#### Acceptance Criteria
+
+1. WHEN processing iref box THEN ISODemuxer SHALL extract item references
+2. WHEN reference type is 'dimg' THEN ISODemuxer SHALL link derived image to source
+3. WHEN reference type is 'thmb' THEN ISODemuxer SHALL link thumbnail to image
+4. WHEN reference type is 'cdsc' THEN ISODemuxer SHALL link description to content
+5. WHEN reference type is 'auxl' THEN ISODemuxer SHALL link auxiliary to master
+6. WHEN from_item_ID is specified THEN ISODemuxer SHALL identify source item
+7. WHEN to_item_ID is specified THEN ISODemuxer SHALL identify target item
+8. WHEN reference is circular THEN ISODemuxer SHALL detect and report error
+
+### Requirement 51: Segment Type Box
+
+**User Story:** As a DASH parser, I want segment type support per ISO/IEC 14496-12, so that media segments can be properly identified.
+
+#### Acceptance Criteria
+
+1. WHEN processing styp box THEN ISODemuxer SHALL extract segment type information
+2. WHEN major brand is specified THEN ISODemuxer SHALL identify segment format
+3. WHEN compatible brands exist THEN ISODemuxer SHALL extract all brands
+4. WHEN styp is at segment start THEN ISODemuxer SHALL validate segment structure
+5. WHEN styp is absent THEN ISODemuxer SHALL infer from file type
+6. WHEN segment brand differs from file THEN ISODemuxer SHALL handle appropriately
+7. WHEN minor version is specified THEN ISODemuxer SHALL extract version
+8. WHEN styp is malformed THEN ISODemuxer SHALL report error
+
+### Requirement 52: Producer Reference Time Box
+
+**User Story:** As a live streaming handler, I want producer reference time per ISO/IEC 14496-12, so that live stream timing can be accurately tracked.
+
+#### Acceptance Criteria
+
+1. WHEN processing prft box THEN ISODemuxer SHALL extract producer reference time
+2. WHEN reference track ID is specified THEN ISODemuxer SHALL associate with track
+3. WHEN NTP timestamp exists THEN ISODemuxer SHALL extract wall-clock time
+4. WHEN media time is specified THEN ISODemuxer SHALL extract media timestamp
+5. WHEN calculating latency THEN ISODemuxer SHALL use prft for timing
+6. WHEN prft is absent THEN ISODemuxer SHALL not assume wall-clock correlation
+7. WHEN NTP time is invalid THEN ISODemuxer SHALL report warning
+8. WHEN multiple prft boxes exist THEN ISODemuxer SHALL use most recent
+
+### Requirement 53: Level Assignment Box
+
+**User Story:** As a scalable video handler, I want level assignment support per ISO/IEC 14496-12, so that temporal and spatial levels can be identified.
+
+#### Acceptance Criteria
+
+1. WHEN processing leva box THEN ISODemuxer SHALL extract level assignment
+2. WHEN level count is specified THEN ISODemuxer SHALL extract all levels
+3. WHEN assignment type is temporal THEN ISODemuxer SHALL identify temporal layers
+4. WHEN assignment type is spatial THEN ISODemuxer SHALL identify spatial layers
+5. WHEN padding flag is set THEN ISODemuxer SHALL handle padding bits
+6. WHEN fraction is specified THEN ISODemuxer SHALL extract level fraction
+7. WHEN leva is absent THEN ISODemuxer SHALL treat as single level
+8. WHEN level assignment is invalid THEN ISODemuxer SHALL report warning
+
+### Requirement 54: Track Selection Box
+
+**User Story:** As a track selector, I want track selection support per ISO/IEC 14496-12, so that appropriate tracks can be selected based on criteria.
+
+#### Acceptance Criteria
+
+1. WHEN processing tsel box THEN ISODemuxer SHALL extract track selection criteria
+2. WHEN switch group is specified THEN ISODemuxer SHALL group switchable tracks
+3. WHEN attribute list exists THEN ISODemuxer SHALL extract selection attributes
+4. WHEN selecting tracks THEN ISODemuxer SHALL use criteria for selection
+5. WHEN multiple tracks match THEN ISODemuxer SHALL select based on priority
+6. WHEN tsel is absent THEN ISODemuxer SHALL not apply selection criteria
+7. WHEN switch group is 0 THEN ISODemuxer SHALL treat track as non-switchable
+8. WHEN attribute is unknown THEN ISODemuxer SHALL ignore attribute
+
+### Requirement 55: Sub-Track Support
+
+**User Story:** As a track handler, I want sub-track support per ISO/IEC 14496-12, so that track subsets can be identified and extracted.
+
+#### Acceptance Criteria
+
+1. WHEN processing strk box THEN ISODemuxer SHALL extract sub-track information
+2. WHEN processing stri box THEN ISODemuxer SHALL extract sub-track info details
+3. WHEN processing strd box THEN ISODemuxer SHALL extract sub-track definition
+4. WHEN sub-track ID is specified THEN ISODemuxer SHALL identify sub-track
+5. WHEN sub-track references samples THEN ISODemuxer SHALL map to parent samples
+6. WHEN sub-track has attributes THEN ISODemuxer SHALL extract attributes
+7. WHEN strk is absent THEN ISODemuxer SHALL treat track as atomic
+8. WHEN sub-track definition is invalid THEN ISODemuxer SHALL report warning
+
+### Requirement 56: Complete Track Information Box
+
+**User Story:** As a progressive download handler, I want complete track information per ISO/IEC 14496-12, so that incomplete tracks can be identified.
+
+#### Acceptance Criteria
+
+1. WHEN processing ctif box THEN ISODemuxer SHALL extract complete track info
+2. WHEN track is complete THEN ISODemuxer SHALL mark track as fully available
+3. WHEN track is incomplete THEN ISODemuxer SHALL identify available portion
+4. WHEN sample count is specified THEN ISODemuxer SHALL extract available samples
+5. WHEN duration is specified THEN ISODemuxer SHALL extract available duration
+6. WHEN ctif is absent THEN ISODemuxer SHALL assume track is complete
+7. WHEN incomplete track is played THEN ISODemuxer SHALL handle gracefully
+8. WHEN track becomes complete THEN ISODemuxer SHALL update status
+
+### Requirement 57: Composition to Decode Timeline Mapping
+
+**User Story:** As a decoder, I want composition to decode timeline mapping per ISO/IEC 14496-12, so that presentation order can be accurately determined.
+
+#### Acceptance Criteria
+
+1. WHEN processing cslg box THEN ISODemuxer SHALL extract composition shift information
+2. WHEN compositionToDTSShift exists THEN ISODemuxer SHALL extract shift value
+3. WHEN leastDecodeToDisplayDelta exists THEN ISODemuxer SHALL extract minimum delta
+4. WHEN greatestDecodeToDisplayDelta exists THEN ISODemuxer SHALL extract maximum delta
+5. WHEN compositionStartTime exists THEN ISODemuxer SHALL extract start time
+6. WHEN compositionEndTime exists THEN ISODemuxer SHALL extract end time
+7. WHEN cslg is absent THEN ISODemuxer SHALL calculate from ctts
+8. WHEN cslg values are inconsistent THEN ISODemuxer SHALL report warning
+
+### Requirement 58: Movie Fragment Header Sequence Numbers
+
+**User Story:** As a fragment validator, I want fragment sequence number support per ISO/IEC 14496-12, so that fragment ordering can be verified.
+
+#### Acceptance Criteria
+
+1. WHEN processing mfhd box THEN ISODemuxer SHALL extract sequence number
+2. WHEN sequence number is 1 THEN ISODemuxer SHALL identify first fragment
+3. WHEN sequence numbers are consecutive THEN ISODemuxer SHALL verify ordering
+4. WHEN sequence number gap exists THEN ISODemuxer SHALL report missing fragments
+5. WHEN sequence number repeats THEN ISODemuxer SHALL report duplicate fragment
+6. WHEN fragments are reordered THEN ISODemuxer SHALL sort by sequence number
+7. WHEN mfhd is missing THEN ISODemuxer SHALL report error
+8. WHEN sequence overflows THEN ISODemuxer SHALL handle wrap-around
+
+### Requirement 59: Track Fragment Header Flags
+
+**User Story:** As a fragment parser, I want track fragment header flags per ISO/IEC 14496-12, so that fragment-specific options can be properly handled.
+
+#### Acceptance Criteria
+
+1. WHEN base-data-offset-present flag is set THEN ISODemuxer SHALL read base data offset
+2. WHEN sample-description-index-present flag is set THEN ISODemuxer SHALL read sample description index
+3. WHEN default-sample-duration-present flag is set THEN ISODemuxer SHALL read default duration
+4. WHEN default-sample-size-present flag is set THEN ISODemuxer SHALL read default size
+5. WHEN default-sample-flags-present flag is set THEN ISODemuxer SHALL read default flags
+6. WHEN duration-is-empty flag is set THEN ISODemuxer SHALL treat fragment as empty
+7. WHEN default-base-is-moof flag is set THEN ISODemuxer SHALL use moof as base offset
+8. WHEN no flags are set THEN ISODemuxer SHALL use trex defaults
+
+### Requirement 60: Track Run Box Flags and Options
+
+**User Story:** As a fragment sample parser, I want track run flags per ISO/IEC 14496-12, so that per-sample information in fragments can be properly extracted.
+
+#### Acceptance Criteria
+
+1. WHEN data-offset-present flag is set THEN ISODemuxer SHALL read data offset
+2. WHEN first-sample-flags-present flag is set THEN ISODemuxer SHALL read first sample flags
+3. WHEN sample-duration-present flag is set THEN ISODemuxer SHALL read per-sample durations
+4. WHEN sample-size-present flag is set THEN ISODemuxer SHALL read per-sample sizes
+5. WHEN sample-flags-present flag is set THEN ISODemuxer SHALL read per-sample flags
+6. WHEN sample-composition-time-offsets-present flag is set THEN ISODemuxer SHALL read composition offsets
+7. WHEN trun version is 0 THEN ISODemuxer SHALL use unsigned composition offsets
+8. WHEN trun version is 1 THEN ISODemuxer SHALL use signed composition offsets
+
+
+### Requirement 61: Sample Flags Interpretation
+
+**User Story:** As a decoder, I want sample flags interpretation per ISO/IEC 14496-12, so that sample characteristics can be properly understood.
+
+#### Acceptance Criteria
+
+1. WHEN is_leading flag is set THEN ISODemuxer SHALL identify leading sample status
+2. WHEN sample_depends_on is specified THEN ISODemuxer SHALL identify dependency type
+3. WHEN sample_is_depended_on is specified THEN ISODemuxer SHALL identify reference status
+4. WHEN sample_has_redundancy is specified THEN ISODemuxer SHALL identify redundancy
+5. WHEN sample_padding_value is specified THEN ISODemuxer SHALL extract padding bits
+6. WHEN sample_is_non_sync_sample is set THEN ISODemuxer SHALL mark as non-sync
+7. WHEN sample_degradation_priority is specified THEN ISODemuxer SHALL extract priority
+8. WHEN flags are zero THEN ISODemuxer SHALL use default interpretation
+
+### Requirement 62: Movie Fragment Random Access Offset
+
+**User Story:** As a seeking mechanism, I want movie fragment random access offset per ISO/IEC 14496-12, so that the mfra box can be located efficiently.
+
+#### Acceptance Criteria
+
+1. WHEN processing mfro box THEN ISODemuxer SHALL extract mfra size
+2. WHEN mfro is at file end THEN ISODemuxer SHALL locate mfra by offset
+3. WHEN seeking in fragmented file THEN ISODemuxer SHALL use mfra for random access
+4. WHEN mfro size is valid THEN ISODemuxer SHALL verify mfra location
+5. WHEN mfro is absent THEN ISODemuxer SHALL scan for mfra
+6. WHEN mfro size is invalid THEN ISODemuxer SHALL report warning
+7. WHEN mfra is not found THEN ISODemuxer SHALL use sequential fragment access
+8. WHEN file is truncated THEN ISODemuxer SHALL handle missing mfro gracefully
+
+### Requirement 63: Track Fragment Random Access Details
+
+**User Story:** As a seeking mechanism, I want track fragment random access details per ISO/IEC 14496-12, so that random access points in fragments can be located.
+
+#### Acceptance Criteria
+
+1. WHEN processing tfra box THEN ISODemuxer SHALL extract random access entries
+2. WHEN track ID is specified THEN ISODemuxer SHALL associate with track
+3. WHEN time is specified THEN ISODemuxer SHALL extract presentation time
+4. WHEN moof_offset is specified THEN ISODemuxer SHALL extract fragment offset
+5. WHEN traf_number is specified THEN ISODemuxer SHALL identify track fragment
+6. WHEN trun_number is specified THEN ISODemuxer SHALL identify track run
+7. WHEN sample_number is specified THEN ISODemuxer SHALL identify sample in run
+8. WHEN tfra entry is invalid THEN ISODemuxer SHALL skip entry and continue
+
+### Requirement 64: Media Data Box Handling
+
+**User Story:** As a sample extractor, I want proper media data box handling per ISO/IEC 14496-12, so that sample data can be efficiently accessed.
+
+#### Acceptance Criteria
+
+1. WHEN processing mdat box THEN ISODemuxer SHALL note media data location
+2. WHEN mdat size is 0 THEN ISODemuxer SHALL treat as extending to EOF
+3. WHEN multiple mdat boxes exist THEN ISODemuxer SHALL handle all media data
+4. WHEN mdat precedes moov THEN ISODemuxer SHALL defer sample extraction
+5. WHEN sample offset is in mdat THEN ISODemuxer SHALL extract from correct location
+6. WHEN mdat is fragmented THEN ISODemuxer SHALL handle discontinuous data
+7. WHEN mdat is referenced externally THEN ISODemuxer SHALL resolve reference
+8. WHEN mdat is corrupted THEN ISODemuxer SHALL report error for affected samples
+
+### Requirement 65: Box Order and Structure Validation
+
+**User Story:** As a compliant parser, I want box order validation per ISO/IEC 14496-12, so that file structure conforms to specification requirements.
+
+#### Acceptance Criteria
+
+1. WHEN ftyp is not first THEN ISODemuxer SHALL report warning but continue
+2. WHEN moov appears multiple times THEN ISODemuxer SHALL report error
+3. WHEN mandatory boxes are missing THEN ISODemuxer SHALL report specific error
+4. WHEN box order is non-optimal THEN ISODemuxer SHALL handle but report warning
+5. WHEN header boxes are not first in container THEN ISODemuxer SHALL handle gracefully
+6. WHEN mfra is not last THEN ISODemuxer SHALL still process correctly
+7. WHEN unknown boxes appear THEN ISODemuxer SHALL skip using size field
+8. WHEN box hierarchy is violated THEN ISODemuxer SHALL report error
+
+### Requirement 66: Creation and Modification Times
+
+**User Story:** As a metadata handler, I want creation and modification time support per ISO/IEC 14496-12, so that file timestamps can be extracted.
+
+#### Acceptance Criteria
+
+1. WHEN processing mvhd THEN ISODemuxer SHALL extract creation_time
+2. WHEN processing mvhd THEN ISODemuxer SHALL extract modification_time
+3. WHEN processing tkhd THEN ISODemuxer SHALL extract track creation_time
+4. WHEN processing mdhd THEN ISODemuxer SHALL extract media creation_time
+5. WHEN time is 32-bit THEN ISODemuxer SHALL interpret as seconds since 1904-01-01
+6. WHEN time is 64-bit THEN ISODemuxer SHALL handle extended range
+7. WHEN time is 0 THEN ISODemuxer SHALL treat as unknown
+8. WHEN converting to UTC THEN ISODemuxer SHALL apply proper epoch offset
+
+### Requirement 67: Rate and Volume Fields
+
+**User Story:** As a playback controller, I want rate and volume field support per ISO/IEC 14496-12, so that playback parameters can be extracted.
+
+#### Acceptance Criteria
+
+1. WHEN processing mvhd rate THEN ISODemuxer SHALL extract as 16.16 fixed-point
+2. WHEN rate is 0x00010000 THEN ISODemuxer SHALL interpret as normal speed (1.0)
+3. WHEN processing mvhd volume THEN ISODemuxer SHALL extract as 8.8 fixed-point
+4. WHEN volume is 0x0100 THEN ISODemuxer SHALL interpret as full volume (1.0)
+5. WHEN processing tkhd volume THEN ISODemuxer SHALL extract track volume
+6. WHEN volume is 0 THEN ISODemuxer SHALL treat track as muted
+7. WHEN rate is negative THEN ISODemuxer SHALL handle reverse playback indication
+8. WHEN values are out of range THEN ISODemuxer SHALL clamp to valid range
+
+### Requirement 68: Transformation Matrix
+
+**User Story:** As a video renderer, I want transformation matrix support per ISO/IEC 14496-12, so that video can be properly transformed for display.
+
+#### Acceptance Criteria
+
+1. WHEN processing mvhd matrix THEN ISODemuxer SHALL extract 3x3 transformation matrix
+2. WHEN processing tkhd matrix THEN ISODemuxer SHALL extract track transformation
+3. WHEN matrix is identity THEN ISODemuxer SHALL apply no transformation
+4. WHEN matrix includes rotation THEN ISODemuxer SHALL extract rotation angle
+5. WHEN matrix includes scaling THEN ISODemuxer SHALL extract scale factors
+6. WHEN matrix includes translation THEN ISODemuxer SHALL extract translation vector
+7. WHEN composing matrices THEN ISODemuxer SHALL multiply track and movie matrices
+8. WHEN matrix values are 16.16 fixed-point THEN ISODemuxer SHALL convert properly
+
+### Requirement 69: Next Track ID
+
+**User Story:** As a track manager, I want next track ID support per ISO/IEC 14496-12, so that new tracks can be assigned unique identifiers.
+
+#### Acceptance Criteria
+
+1. WHEN processing mvhd THEN ISODemuxer SHALL extract next_track_ID
+2. WHEN next_track_ID is valid THEN ISODemuxer SHALL use for new track creation
+3. WHEN next_track_ID is 0xFFFFFFFF THEN ISODemuxer SHALL search for unused ID
+4. WHEN validating tracks THEN ISODemuxer SHALL verify all IDs are less than next_track_ID
+5. WHEN track ID conflicts THEN ISODemuxer SHALL report error
+6. WHEN adding tracks THEN ISODemuxer SHALL increment next_track_ID
+7. WHEN next_track_ID is 0 THEN ISODemuxer SHALL report error
+8. WHEN track IDs have gaps THEN ISODemuxer SHALL handle non-contiguous IDs
+
+### Requirement 70: Layer and Alternate Group
+
+**User Story:** As a track compositor, I want layer and alternate group support per ISO/IEC 14496-12, so that track stacking and alternatives can be managed.
+
+#### Acceptance Criteria
+
+1. WHEN processing tkhd layer THEN ISODemuxer SHALL extract layer value
+2. WHEN layer is 0 THEN ISODemuxer SHALL treat as front-most layer
+3. WHEN layer is negative THEN ISODemuxer SHALL place in front of layer 0
+4. WHEN processing alternate_group THEN ISODemuxer SHALL extract group ID
+5. WHEN alternate_group is 0 THEN ISODemuxer SHALL treat track as non-grouped
+6. WHEN alternate_group is non-zero THEN ISODemuxer SHALL group with same ID tracks
+7. WHEN selecting from alternate group THEN ISODemuxer SHALL choose one track
+8. WHEN compositing layers THEN ISODemuxer SHALL order by layer value
