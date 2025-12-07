@@ -244,21 +244,21 @@ bool FLACCodec::initialize_unlocked() {
     if (m_stream_info.sample_rate > 655350) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Invalid sample rate: ",
                   m_stream_info.sample_rate, " (RFC 9639 max: 655350 Hz)");
-        m_state = DecoderState::ERROR;
+        m_state = DecoderState::DECODER_ERROR;
         return false;
     }
     
     if (m_stream_info.channels > 8) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Invalid channel count: ",
                   m_stream_info.channels, " (RFC 9639 max: 8)");
-        m_state = DecoderState::ERROR;
+        m_state = DecoderState::DECODER_ERROR;
         return false;
     }
     
     if (m_stream_info.bits_per_sample > 32) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Invalid bit depth: ",
                   m_stream_info.bits_per_sample, " (RFC 9639 max: 32 bits)");
-        m_state = DecoderState::ERROR;
+        m_state = DecoderState::DECODER_ERROR;
         return false;
     }
     
@@ -310,11 +310,11 @@ bool FLACCodec::initialize_unlocked() {
         
     } catch (const std::exception& e) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Component creation failed: ", e.what());
-        m_state = DecoderState::ERROR;
+        m_state = DecoderState::DECODER_ERROR;
         return false;
     } catch (...) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Component creation failed: unknown exception");
-        m_state = DecoderState::ERROR;
+        m_state = DecoderState::DECODER_ERROR;
         return false;
     }
     
@@ -339,7 +339,7 @@ bool FLACCodec::initialize_unlocked() {
         
     } catch (const std::bad_alloc& e) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Buffer allocation failed: ", e.what());
-        m_state = DecoderState::ERROR;
+        m_state = DecoderState::DECODER_ERROR;
         return false;
     }
     
@@ -372,11 +372,11 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
     Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoding chunk with ", chunk.data.size(), " bytes");
     
     // Validate decoder state - attempt recovery if in ERROR state
-    if (!m_initialized || m_state == DecoderState::ERROR) {
+    if (!m_initialized || m_state == DecoderState::DECODER_ERROR) {
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoder not initialized or in error state, attempting recovery");
         
         // Attempt automatic recovery from ERROR state (Requirement 11.5)
-        if (m_state == DecoderState::ERROR) {
+        if (m_state == DecoderState::DECODER_ERROR) {
             if (resetFromErrorState() && initialize_unlocked()) {
                 Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Error recovery successful");
             } else {
@@ -437,14 +437,14 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
             // Attempt header error recovery
             if (!recoverFromInvalidHeader()) {
                 Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Header recovery failed");
-                transitionState(DecoderState::ERROR);
+                transitionState(DecoderState::DECODER_ERROR);
                 return AudioFrame();
             }
             
             // Try parsing header again after recovery
             if (!m_frame_parser->parseFrameHeader(header)) {
                 Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Header parsing failed after recovery");
-                transitionState(DecoderState::ERROR);
+                transitionState(DecoderState::DECODER_ERROR);
                 return AudioFrame();
             }
         }
@@ -469,7 +469,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
                 header.sample_rate = m_stream_info.sample_rate;
             } else {
                 Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] No sample rate available (frame=0, STREAMINFO unavailable)");
-                m_state = DecoderState::ERROR;
+                m_state = DecoderState::DECODER_ERROR;
                 return AudioFrame();
             }
         }
@@ -486,7 +486,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
                 header.bit_depth = m_stream_info.bits_per_sample;
             } else {
                 Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] No bit depth available (frame=0, STREAMINFO unavailable)");
-                m_state = DecoderState::ERROR;
+                m_state = DecoderState::DECODER_ERROR;
                 return AudioFrame();
             }
         }
@@ -543,7 +543,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         if (!m_channel_decorrelator->decorrelate(channel_ptrs, header.block_size,
                                                  header.channels, header.channel_assignment)) {
             Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Channel decorrelation failed");
-            m_state = DecoderState::ERROR;
+            m_state = DecoderState::DECODER_ERROR;
             return AudioFrame();
         }
         
@@ -579,7 +579,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         FrameFooter footer;
         if (!m_frame_parser->parseFrameFooter(footer)) {
             Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Frame footer parsing failed");
-            transitionState(DecoderState::ERROR);
+            transitionState(DecoderState::DECODER_ERROR);
             return AudioFrame();
         }
         
@@ -634,7 +634,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         if (m_consecutive_errors >= MAX_CONSECUTIVE_ERRORS) {
             handleUnrecoverableError();
         } else {
-            transitionState(DecoderState::ERROR);
+            transitionState(DecoderState::DECODER_ERROR);
         }
         return AudioFrame();
     } catch (const std::exception& e) {
@@ -644,7 +644,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         if (m_consecutive_errors >= MAX_CONSECUTIVE_ERRORS) {
             handleUnrecoverableError();
         } else {
-            transitionState(DecoderState::ERROR);
+            transitionState(DecoderState::DECODER_ERROR);
         }
         return AudioFrame();
     } catch (...) {
@@ -670,7 +670,7 @@ void FLACCodec::reset_unlocked() {
               getStateName(m_state));
     
     // Handle reset from error state (Requirement 64.6)
-    if (m_state == DecoderState::ERROR) {
+    if (m_state == DecoderState::DECODER_ERROR) {
         if (!resetFromErrorState()) {
             Debug::log("flac_codec", "[NativeFLACCodec::reset_unlocked] Failed to reset from ERROR state");
             return;
@@ -1303,7 +1303,7 @@ void FLACCodec::recoverFromMemoryError() {
     m_output_buffer.shrink_to_fit();
     
     m_last_error = FLACError::MEMORY_ALLOCATION;
-    m_state = DecoderState::ERROR;
+    m_state = DecoderState::DECODER_ERROR;
     
     Debug::log("flac_codec", "[NativeFLACCodec::recoverFromMemoryError] Memory cleanup complete, decoder in ERROR state");
 }
@@ -1312,7 +1312,7 @@ void FLACCodec::handleUnrecoverableError() {
     Debug::log("flac_codec", "[NativeFLACCodec::handleUnrecoverableError] Handling unrecoverable error");
     
     // Transition to ERROR state (Requirement 11.8)
-    m_state = DecoderState::ERROR;
+    m_state = DecoderState::DECODER_ERROR;
     m_last_error = FLACError::UNRECOVERABLE_ERROR;
     
     // Clear all buffers
@@ -1349,7 +1349,7 @@ bool FLACCodec::transitionState(DecoderState new_state) {
               getStateName(old_state), " -> ", getStateName(new_state));
     
     // Reset error counter on successful transition to non-error state
-    if (new_state != DecoderState::ERROR) {
+    if (new_state != DecoderState::DECODER_ERROR) {
         m_consecutive_errors = 0;
         m_last_error = FLACError::NONE;
     }
@@ -1364,23 +1364,23 @@ bool FLACCodec::isValidStateTransition(DecoderState current, DecoderState target
         case DecoderState::UNINITIALIZED:
             // Can only transition to INITIALIZED or ERROR
             return (target == DecoderState::INITIALIZED || 
-                    target == DecoderState::ERROR);
+                    target == DecoderState::DECODER_ERROR);
         
         case DecoderState::INITIALIZED:
             // Can transition to DECODING, ERROR, or END_OF_STREAM
             return (target == DecoderState::DECODING || 
-                    target == DecoderState::ERROR ||
+                    target == DecoderState::DECODER_ERROR ||
                     target == DecoderState::END_OF_STREAM ||
                     target == DecoderState::UNINITIALIZED);  // Allow reset
         
         case DecoderState::DECODING:
             // Can transition to INITIALIZED (after frame), ERROR, or END_OF_STREAM
             return (target == DecoderState::INITIALIZED || 
-                    target == DecoderState::ERROR ||
+                    target == DecoderState::DECODER_ERROR ||
                     target == DecoderState::END_OF_STREAM ||
                     target == DecoderState::UNINITIALIZED);  // Allow reset
         
-        case DecoderState::ERROR:
+        case DecoderState::DECODER_ERROR:
             // Can only transition to UNINITIALIZED (for reset)
             return (target == DecoderState::UNINITIALIZED);
         
@@ -1398,7 +1398,7 @@ bool FLACCodec::resetFromErrorState() {
     Debug::log("flac_codec", "[NativeFLACCodec::resetFromErrorState] Attempting to reset from ERROR state");
     
     // Can only reset from ERROR state (Requirement 64.5, 64.6)
-    if (m_state != DecoderState::ERROR) {
+    if (m_state != DecoderState::DECODER_ERROR) {
         Debug::log("flac_codec", "[NativeFLACCodec::resetFromErrorState] Not in ERROR state, current state: ",
                   getStateName(m_state));
         return false;
@@ -1443,7 +1443,7 @@ const char* FLACCodec::getStateName(DecoderState state) const {
             return "INITIALIZED";
         case DecoderState::DECODING:
             return "DECODING";
-        case DecoderState::ERROR:
+        case DecoderState::DECODER_ERROR:
             return "ERROR";
         case DecoderState::END_OF_STREAM:
             return "END_OF_STREAM";

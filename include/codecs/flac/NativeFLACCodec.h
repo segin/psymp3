@@ -250,7 +250,7 @@ private:
         UNINITIALIZED,
         INITIALIZED,
         DECODING,
-        ERROR,
+        DECODER_ERROR,  // Named DECODER_ERROR to avoid conflict with Windows ERROR macro
         END_OF_STREAM
     };
     
