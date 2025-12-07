@@ -490,6 +490,77 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
                     continue;
                 }
                 
+                // For fixed-block streams, validate that block size matches STREAMINFO
+                // This provides additional protection against CRC-8 collisions (1/256 chance)
+                if (m_streaminfo.isValid() && 
+                    m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
+                    // Extract block size bits (high nibble of byte 2)
+                    uint8_t block_size_bits = (data[i + 2] >> 4) & 0x0F;
+                    
+                    // Lookup expected block size from bits (RFC 9639 Table)
+                    // 0000 = reserved, 0001 = 192, 0010 = 576, 0011 = 1152
+                    // 0100 = 2304, 0101 = 4608, 0110 = 256, etc.
+                    uint32_t expected_block_size = 0;
+                    switch (block_size_bits) {
+                        case 0x01: expected_block_size = 192; break;
+                        case 0x02: expected_block_size = 576; break;
+                        case 0x03: expected_block_size = 1152; break;
+                        case 0x04: expected_block_size = 2304; break;
+                        case 0x05: expected_block_size = 4608; break;
+                        case 0x06: case 0x07: 
+                            // These require reading extra bytes - skip validation
+                            expected_block_size = m_streaminfo.min_block_size;
+                            break;
+                        case 0x08: expected_block_size = 256; break;
+                        case 0x09: expected_block_size = 512; break;
+                        case 0x0A: expected_block_size = 1024; break;
+                        case 0x0B: expected_block_size = 2048; break;
+                        case 0x0C: expected_block_size = 4096; break;
+                        case 0x0D: expected_block_size = 8192; break;
+                        case 0x0E: expected_block_size = 16384; break;
+                        case 0x0F: expected_block_size = 32768; break;
+                        default: expected_block_size = 0; break;
+                    }
+                    
+                    if (expected_block_size != 0 && 
+                        expected_block_size != m_streaminfo.min_block_size) {
+                        // Block size mismatch - false positive
+                        continue;
+                    }
+                    
+                    // Also validate sample rate if STREAMINFO has a known rate
+                    if (m_streaminfo.sample_rate > 0) {
+                        uint8_t sample_rate_bits = data[i + 2] & 0x0F;
+                        uint32_t expected_sample_rate = 0;
+                        
+                        switch (sample_rate_bits) {
+                            case 0x01: expected_sample_rate = 88200; break;
+                            case 0x02: expected_sample_rate = 176400; break;
+                            case 0x03: expected_sample_rate = 192000; break;
+                            case 0x04: expected_sample_rate = 8000; break;
+                            case 0x05: expected_sample_rate = 16000; break;
+                            case 0x06: expected_sample_rate = 22050; break;
+                            case 0x07: expected_sample_rate = 24000; break;
+                            case 0x08: expected_sample_rate = 32000; break;
+                            case 0x09: expected_sample_rate = 44100; break;
+                            case 0x0A: expected_sample_rate = 48000; break;
+                            case 0x0B: expected_sample_rate = 96000; break;
+                            case 0x0C: case 0x0D: case 0x0E:
+                                // These require reading extra bytes - skip validation
+                                expected_sample_rate = m_streaminfo.sample_rate;
+                                break;
+                            case 0x0F: expected_sample_rate = 0; break; // Invalid
+                            default: expected_sample_rate = 0; break; // Reserved
+                        }
+                        
+                        if (expected_sample_rate != 0 && 
+                            expected_sample_rate != m_streaminfo.sample_rate) {
+                            // Sample rate mismatch - false positive
+                            continue;
+                        }
+                    }
+                }
+                
                 // Found potential next frame sync code with valid CRC
                 actual_frame_size = static_cast<uint32_t>(i);
                 FLAC_DEBUG("[readChunk] Found next sync code at offset ", i, 
