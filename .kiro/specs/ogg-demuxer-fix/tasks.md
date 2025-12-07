@@ -480,169 +480,169 @@
   - Test with real Ogg Opus file
   - Verify audio plays correctly
 
-- [ ] 21. Implement Page Structure Validation Properties
-  - [ ] 21.1 Write property test for OggS capture pattern
+- [x] 21. Implement Page Structure Validation Properties
+  - [x] 21.1 Write property test for OggS capture pattern
     - **Property 1: OggS Capture Pattern Validation**
     - Generate byte sequences, verify only "OggS" accepted
     - **Validates: Requirements 1.1**
 
-  - [ ] 21.2 Write property test for page version
+  - [x] 21.2 Write property test for page version
     - **Property 2: Page Version Validation**
     - Generate pages with various versions, verify only 0 accepted
     - **Validates: Requirements 1.2**
 
-  - [ ] 21.3 Write property test for page size calculation
+  - [x] 21.3 Write property test for page size calculation
     - **Property 3: Page Size Calculation**
     - Verify header_size = 27 + N, total = header + sum(lacing)
     - **Validates: Requirements 1.9, 1.10**
 
-  - [ ] 21.4 Write property test for page size bounds
+  - [x] 21.4 Write property test for page size bounds
     - **Property 4: Page Size Bounds**
     - Verify pages > 65307 bytes rejected
     - **Validates: Requirements 1.11**
 
-  - [ ] 21.5 Write property test for lacing value interpretation
+  - [x] 21.5 Write property test for lacing value interpretation
     - **Property 5: Lacing Value Interpretation**
     - Verify 255 = continuation, <255 = termination
     - **Validates: Requirements 2.4, 2.5**
 
-- [ ] 22. Implement Stream Multiplexing Properties
-  - [ ] 22.1 Write property test for chained stream detection
+- [x] 22. Implement Stream Multiplexing Properties
+  - [x] 22.1 Write property test for chained stream detection
     - **Property 12: Chained Stream Detection**
     - Verify BOS after data pages detected as chain boundary
     - **Validates: Requirements 3.8, 3.11**
 
-  - [ ] 22.2 Write property test for granule position validity
+  - [x] 22.2 Write property test for granule position validity
     - **Property 14: Granule Position Validity**
     - Verify -1 treated as "no packets complete"
     - **Validates: Requirements 6.9, 7.10, 9.9**
 
-- [ ] 23. Implement Packet Handling Properties
-  - [ ] 23.1 Write property test for packet reconstruction
+- [x] 23. Implement Packet Handling Properties
+  - [x] 23.1 Write property test for packet reconstruction
     - **Property 18: Packet Reconstruction Completeness**
     - Verify multi-page packets reconstructed correctly
     - **Validates: Requirements 2.7, 13.1**
 
 
-- [ ] 24. Implement Thread Safety
-  - [ ] 24.1 Implement public/private lock pattern
+- [x] 24. Implement Thread Safety
+  - [x] 24.1 Implement public/private lock pattern
     - All public methods acquire m_mutex
     - All _unlocked methods assume lock held
     - Document lock requirements in comments
     - _Requirements: 11.1, 11.2, 11.3_
 
-  - [ ] 24.2 Implement safe cleanup
+  - [x] 24.2 Implement safe cleanup
     - Destructor acquires lock before cleanup
     - Ensure no operations in progress
     - _Requirements: 11.6_
 
-  - [ ] 24.3 Write property test for thread safety
+  - [x] 24.3 Write property test for thread safety
     - **Property 20: Thread Safety - No Data Races**
     - Concurrent read and seek operations
     - Verify no crashes or data corruption
     - **Validates: Requirements 11.1, 11.2**
 
-- [ ] 25. Implement Error Handling
-  - [ ] 25.1 Implement page-level error recovery
+- [x] 25. Implement Error Handling
+  - [x] 25.1 Implement page-level error recovery
     - Skip corrupted pages (invalid capture pattern)
     - Handle CRC failures via libogg
     - Handle oversized pages
     - _Requirements: 9.1, 9.2, 9.12_
 
-  - [ ] 25.2 Implement stream-level error recovery
+  - [x] 25.2 Implement stream-level error recovery
     - Skip unknown codecs, continue with known
     - Handle incomplete headers
     - Return appropriate error codes
     - _Requirements: 9.3, 9.4, 9.10_
 
-  - [ ] 25.3 Implement seeking error recovery
+  - [x] 25.3 Implement seeking error recovery
     - Clamp seeks to valid range
     - Fall back to linear scan on bisection failure
     - Maintain valid state on failure
     - _Requirements: 9.7, 9.11, 7.8_
 
-  - [ ] 25.4 Implement I/O error handling
+  - [x] 25.4 Implement I/O error handling
     - Propagate IOHandler errors
     - Handle EOF gracefully
     - _Requirements: 9.5, 9.6_
 
 
-- [ ] 26. Checkpoint - Verify Error Handling
+- [x] 26. Checkpoint - Verify Error Handling
   - Ensure all tests pass, ask the user if questions arise.
   - Test with corrupted files
   - Test with truncated files
   - Verify graceful degradation
 
-- [ ] 27. FLAC-in-Ogg Specific Handling
-  - [ ] 27.1 Implement FLAC granule position handling
+- [x] 27. FLAC-in-Ogg Specific Handling
+  - [x] 27.1 Implement FLAC granule position handling
     - Interpret granule as interchannel sample count
     - Handle 0xFFFFFFFFFFFFFFFF (no completed packet)
     - Expect granule 0 for header pages
     - _Requirements: 5.6, 5.7, 5.8_
 
-  - [ ] 27.2 Implement FLAC audio packet handling
+  - [x] 27.2 Implement FLAC audio packet handling
     - Each packet is single FLAC frame
     - Verify first audio packet starts new page
     - _Requirements: 5.5, 5.13_
 
-  - [ ] 27.3 Implement FLAC chaining detection
+  - [x] 27.3 Implement FLAC chaining detection
     - Detect audio property changes
     - Handle as new stream (EOS + BOS)
     - _Requirements: 5.9_
 
-- [ ] 28. Integration Testing
-  - [ ] 28.1 Test with Ogg Vorbis files
+- [x] 28. Integration Testing
+  - [x] 28.1 Test with Ogg Vorbis files
     - Various encoders (oggenc, ffmpeg, etc.)
     - Various quality settings
     - Verify playback, seeking, duration
     - _Requirements: All Vorbis requirements_
 
-  - [ ] 28.2 Test with Ogg Opus files
+  - [x] 28.2 Test with Ogg Opus files
     - Various encoders (opusenc, ffmpeg)
     - Various channel configurations
     - Verify pre-skip handling
     - _Requirements: All Opus requirements_
 
-  - [ ] 28.3 Test with FLAC-in-Ogg files (.oga)
+  - [x] 28.3 Test with FLAC-in-Ogg files (.oga)
     - Various encoders (flac, ffmpeg)
     - Verify STREAMINFO extraction
     - Verify duration from total_samples
     - _Requirements: All FLAC-in-Ogg requirements_
 
-  - [ ] 28.4 Test seeking accuracy
+  - [x] 28.4 Test seeking accuracy
     - Seek to various positions
     - Verify audio resumes correctly
     - Test boundary conditions (start, end)
     - _Requirements: 7.1-7.11_
 
-  - [ ] 28.5 Test with chained streams
+  - [x] 28.5 Test with chained streams
     - Multiple concatenated Ogg streams
     - Verify chain boundary detection
     - _Requirements: 3.8, 3.11_
 
-  - [ ] 28.6 Test with grouped/multiplexed streams
+  - [x] 28.6 Test with grouped/multiplexed streams
     - Audio + video Ogg files
     - Verify stream separation
     - _Requirements: 3.7, 3.9, 3.10_
 
-- [ ] 29. Final Checkpoint - Verify All Tests Pass
+- [x] 29. Final Checkpoint - Verify All Tests Pass
   - Ensure all tests pass, ask the user if questions arise.
   - Run complete property test suite (20 properties)
   - Verify clean build
 
-- [ ] 30. Cleanup and Documentation
-  - [ ] 30.1 Remove archived old implementation
+- [x] 30. Cleanup and Documentation
+  - [x] 30.1 Remove archived old implementation
     - Delete `src/demuxer/ogg/OggDemuxer.cpp.old`
     - Delete `include/demuxer/ogg/OggDemuxer.h.old`
     - _Requirements: Cleanup_
 
-  - [ ] 30.2 Update documentation
+  - [x] 30.2 Update documentation
     - Update `docs/ogg-demuxer-developer-guide.md`
     - Add inline documentation for all public methods
     - Document RFC compliance (3533, 7845, 9639)
     - _Requirements: All_
 
-  - [ ] 30.3 Final validation
+  - [x] 30.3 Final validation
     - Run `make clean && make -j$(nproc)`
     - Run complete test suite
     - Commit with proper git messages
