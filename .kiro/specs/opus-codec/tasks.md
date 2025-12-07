@@ -7,7 +7,7 @@
     - Add destructor with proper libopus cleanup
     - _Requirements: 11.1, 11.2_
 
-  - [ ] 1.2 Write property test for header parsing round-trip
+  - [x] 1.2 Write property test for header parsing round-trip
     - **Property 1: Header Parsing Round-Trip Consistency**
     - **Validates: Requirements 1.2, 16.1, 16.2, 16.3**
 
