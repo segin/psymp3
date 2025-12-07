@@ -24,35 +24,35 @@
     - Return "opus" string identifier for getCodecName()
     - _Requirements: 11.6_
 
-- [ ] 3. Implement Header Processing System
-  - [ ] 3.1 Create header packet detection and routing
+- [x] 3. Implement Header Processing System
+  - [x] 3.1 Create header packet detection and routing
     - Implement processHeaderPacket() method to route header types
     - Add header packet counter and state tracking
     - Validate header packet sequence (ID header first, then comments)
     - _Requirements: 1.1, 16.7_
 
-  - [ ] 3.2 Write property test for header sequence validation
+  - [x] 3.2 Write property test for header sequence validation
     - **Property 4: Header Sequence Validation**
     - **Validates: Requirements 1.1, 16.7**
 
-  - [ ] 3.3 Implement Opus identification header parsing
+  - [x] 3.3 Implement Opus identification header parsing
     - Create processIdentificationHeader() method
     - Parse OpusHead header format (version, channels, pre-skip, gain, etc.)
     - Extract fields in correct byte order (little-endian) per RFC 7845
     - Store configuration parameters for decoder initialization
     - _Requirements: 1.2, 16.1, 16.2, 16.3_
 
-  - [ ] 3.4 Implement comment header processing
+  - [x] 3.4 Implement comment header processing
     - Create processCommentHeader() method for OpusTags header
     - Validate vendor string length and comment entry lengths
     - Make header data available to demuxer for metadata extraction
     - _Requirements: 1.3, 14.1, 14.2, 16.5, 16.6_
 
-  - [ ] 3.5 Write property test for comment header validation
+  - [x] 3.5 Write property test for comment header validation
     - **Property 13: Comment Header Structure Validation**
     - **Validates: Requirements 1.3, 14.2, 16.5, 16.6**
 
-  - [ ] 3.6 Write property test for invalid header rejection
+  - [x] 3.6 Write property test for invalid header rejection
     - **Property 6: Invalid Header Rejection**
     - **Validates: Requirements 8.1, 16.8**
 
