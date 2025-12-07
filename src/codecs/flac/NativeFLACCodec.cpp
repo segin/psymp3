@@ -371,9 +371,28 @@ bool FLACCodec::initialize_unlocked() {
 AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
     Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoding chunk with ", chunk.data.size(), " bytes");
     
-    // Validate decoder state
-    if (!m_initialized || m_state != DecoderState::INITIALIZED) {
-        Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoder not initialized or in error state");
+    // Validate decoder state - attempt recovery if in ERROR state
+    if (!m_initialized || m_state == DecoderState::ERROR) {
+        Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoder not initialized or in error state, attempting recovery");
+        
+        // Attempt automatic recovery from ERROR state (Requirement 11.5)
+        if (m_state == DecoderState::ERROR) {
+            if (resetFromErrorState() && initialize_unlocked()) {
+                Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Error recovery successful");
+            } else {
+                Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Error recovery failed");
+                return AudioFrame();
+            }
+        } else {
+            // Not recoverable - not initialized
+            Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Cannot decode - not initialized");
+            return AudioFrame();
+        }
+    }
+    
+    // Check state is INITIALIZED (should be after recovery)
+    if (m_state != DecoderState::INITIALIZED) {
+        Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoder in unexpected state: ", getStateName(m_state));
         return AudioFrame();
     }
     
