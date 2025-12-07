@@ -11,15 +11,15 @@
     - **Property 1: Header Parsing Round-Trip Consistency**
     - **Validates: Requirements 1.2, 16.1, 16.2, 16.3**
 
-- [ ] 2. Implement Core AudioCodec Interface Methods
-  - [ ] 2.1 Implement initialize() method
+- [x] 2. Implement Core AudioCodec Interface Methods
+  - [x] 2.1 Implement initialize() method
     - Extract Opus parameters from StreamInfo (channels, sample rate, codec data)
     - Validate parameters against Opus specification limits
     - Set up internal buffers and state variables
     - Return success/failure status
     - _Requirements: 11.2, 6.2_
 
-  - [ ] 2.2 Implement canDecode() and getCodecName() methods
+  - [x] 2.2 Implement canDecode() and getCodecName() methods
     - Check if StreamInfo contains "opus" codec name
     - Return "opus" string identifier for getCodecName()
     - _Requirements: 11.6_
