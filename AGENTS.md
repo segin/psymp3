@@ -16,7 +16,7 @@
 - **Ogg Demuxer**: Added self-registration to `DemuxerFactory`.
 
 ### Active Tasks
-- [ ] Pass `test_opus_codec_property`
+- [x] Pass `test_opus_codec_property`
 - [ ] Verify End Trimming with accurate granule positions
 
 ## 3. Mandatory Directives
