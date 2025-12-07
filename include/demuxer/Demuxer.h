@@ -25,6 +25,17 @@
 #define DEMUXER_H
 
 // No direct includes - all includes should be in psymp3.h
+#include <vector>
+#include <string>
+#include <map>
+#include <mutex>
+#include <atomic>
+#include <memory>
+#include <thread>
+#include <stdexcept>
+#include "io/IOHandler.h"
+#include "io/EnhancedBufferPool.h"
+#include "debug.h"
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -303,7 +314,7 @@ struct DemuxerError {
  */
 class Demuxer {
 public:
-    explicit Demuxer(std::unique_ptr<IOHandler> handler);
+    explicit Demuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler);
     virtual ~Demuxer() = default;
     
     /**
@@ -480,7 +491,7 @@ public:
     }
     
 protected:
-    std::unique_ptr<IOHandler> m_handler;
+    std::unique_ptr<PsyMP3::IO::IOHandler> m_handler;
     std::vector<StreamInfo> m_streams;
     uint64_t m_duration_ms = 0;
     uint64_t m_position_ms = 0;

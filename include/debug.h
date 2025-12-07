@@ -10,7 +10,11 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-// No direct includes - all includes should be in psymp3.h
+// No direct #include <mutex>
+#include <iostream>
+#include <unordered_set>
+#include <sstream>
+// should be in psymp3.h
 
 class Debug {
 public:

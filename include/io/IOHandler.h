@@ -25,6 +25,16 @@
 #define IOHANDLER_H
 
 // No direct includes - all includes should be in psymp3.h
+#include <string>
+#include <vector>
+#include <memory>
+#include <mutex>
+#include <chrono>
+#include <cstdint>
+#include <atomic>
+#include <shared_mutex>
+#include <functional>
+#include <map>
 
 namespace PsyMP3 {
 namespace IO {

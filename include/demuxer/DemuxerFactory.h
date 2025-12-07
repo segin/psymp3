@@ -24,7 +24,11 @@
 #ifndef DEMUXER_FACTORY_H
 #define DEMUXER_FACTORY_H
 
-// No direct includes - all includes should be in psymp3.h
+#include <functional>
+#include <memory>
+#include <string>
+// Forward declare IOHandler properly
+namespace PsyMP3 { namespace IO { class IOHandler; } }
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -53,7 +57,7 @@ public:
      * @param handler I/O handler for media source
      * @return Unique pointer to appropriate demuxer
      */
-    static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler);
+    static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler);
     
     /**
      * @brief Create a demuxer with file path hint
@@ -61,7 +65,7 @@ public:
      * @param file_path Path hint for format detection
      * @return Unique pointer to appropriate demuxer
      */
-    static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<IOHandler> handler, 
+    static std::unique_ptr<Demuxer> createDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler, 
                                                  const std::string& file_path);
     
     /**
@@ -69,7 +73,7 @@ public:
      * @param handler I/O handler for media source
      * @return Format ID string, or empty if unknown
      */
-    static std::string probeFormat(IOHandler* handler);
+    static std::string probeFormat(PsyMP3::IO::IOHandler* handler);
     
     /**
      * @brief Probe format with file path hint
@@ -77,14 +81,14 @@ public:
      * @param file_path Path hint for format detection
      * @return Format ID string, or empty if unknown
      */
-    static std::string probeFormat(IOHandler* handler, const std::string& file_path);
+    static std::string probeFormat(PsyMP3::IO::IOHandler* handler, const std::string& file_path);
     
     /**
      * @brief Register a demuxer factory function
      * @param format_id Format ID string
      * @param factory_func Function that creates demuxer instances
      */
-    using DemuxerFactoryFunc = std::function<std::unique_ptr<Demuxer>(std::unique_ptr<IOHandler>)>;
+    using DemuxerFactoryFunc = std::function<std::unique_ptr<Demuxer>(std::unique_ptr<PsyMP3::IO::IOHandler>)>;
     static void registerDemuxer(const std::string& format_id, DemuxerFactoryFunc factory_func);
     
     /**

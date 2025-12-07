@@ -36,4 +36,8 @@ endif
 noinst_LIBRARIES = liboggdemuxer.a
 
 liboggdemuxer_a_SOURCES = \
-	OggDemuxer.cpp
+	OggDemuxer.cpp \
+	OggSyncManager.cpp \
+	OggStreamManager.cpp \
+	CodecHeaderParser.cpp \
+	OggSeekingEngine.cpp
