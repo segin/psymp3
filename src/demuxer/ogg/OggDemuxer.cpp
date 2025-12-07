@@ -6042,6 +6042,24 @@ int OggDemuxer::processPageAndExtractPackets_unlocked(ogg_page* page, uint32_t s
 }
 
 // ============================================================================
+// Automatic Registration
+// ============================================================================
+
+namespace {
+    // Register OggDemuxer with DemuxerFactory
+    struct OggDemuxerRegistrar {
+        OggDemuxerRegistrar() {
+            DemuxerFactory::registerDemuxer("ogg", [](std::unique_ptr<IOHandler> handler) {
+                return std::make_unique<OggDemuxer>(std::move(handler));
+            });
+        }
+    };
+    
+    // Static instance to trigger registration at startup
+    OggDemuxerRegistrar s_ogg_registrar;
+}
+
+// ============================================================================
 } // namespace Ogg
 } // namespace Demuxer
 } // namespace PsyMP3
