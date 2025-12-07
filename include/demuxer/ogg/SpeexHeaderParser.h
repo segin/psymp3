@@ -14,26 +14,15 @@ namespace Ogg {
 
 class SpeexHeaderParser : public CodecHeaderParser {
 public:
-    SpeexHeaderParser() : m_headers_count(0) {}
+    SpeexHeaderParser();
     
-    bool parseHeader(ogg_packet* packet) override {
-        // Todo: Implement
-        m_headers_count++;
-        return true;
-    }
-    
-    bool isHeadersComplete() const override {
-        return m_headers_count >= 2;
-    }
-    
-    CodecInfo getCodecInfo() const override {
-        CodecInfo info;
-        info.codec_name = "Speex";
-        return info;
-    }
+    bool parseHeader(ogg_packet* packet) override;
+    bool isHeadersComplete() const override;
+    CodecInfo getCodecInfo() const override;
 
 private:
     int m_headers_count;
+    CodecInfo m_info;
 };
 
 } // namespace Ogg
