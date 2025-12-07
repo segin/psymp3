@@ -302,7 +302,16 @@ void DemuxedStream::fillChunkBuffer() {
     }
     
     // Fill buffer until full or EOF
+    // IMPORTANT: Check buffer bounds BEFORE reading to avoid dropping chunks
     while (!m_demuxer->isEOF()) {
+        // Check if we have room for another chunk (estimate size)
+        // Use max_frame_size from FLAC as estimate, or a reasonable default
+        static constexpr size_t ESTIMATED_CHUNK_OVERHEAD = sizeof(MediaChunk) + 8192;
+        if (temp_buffer.size() >= max_chunks || temp_buffer_bytes + ESTIMATED_CHUNK_OVERHEAD > max_bytes) {
+            Debug::log("demux", "DemuxedStream: Bounded buffer full, will refill later");
+            break; // Buffer is full - don't read more, we'll refill when there's space
+        }
+        
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
         
         if (chunk.data.empty()) {
@@ -310,14 +319,8 @@ void DemuxedStream::fillChunkBuffer() {
             break; // No more data
         }
         
-        // Check bounds before adding
+        // Add chunk to temp buffer - we already checked bounds above
         size_t chunk_size = sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t);
-        if (temp_buffer.size() >= max_chunks || temp_buffer_bytes + chunk_size > max_bytes) {
-            Debug::log("demux", "DemuxedStream: Bounded buffer full, stopping chunk buffering");
-            break;
-        }
-        
-        // Add chunk to temp buffer
         temp_buffer_bytes += chunk_size;
         temp_buffer.push(std::move(chunk));
         

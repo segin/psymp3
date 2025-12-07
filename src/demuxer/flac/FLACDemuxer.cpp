@@ -749,8 +749,13 @@ bool FLACDemuxer::isEOF_unlocked() const
 {
     if (m_eof) return true;
     if (!m_handler) return true;
+    // Use file offset tracking rather than feof() since feof() returns true
+    // when the file buffer is exhausted, not when all frames are demuxed
     if (m_file_size > 0 && m_current_offset >= m_file_size) return true;
-    return m_handler->eof();
+    // Don't use m_handler->eof() as fallback - it can return true prematurely
+    // when the IOHandler's internal buffer hits EOF but there's still data
+    // to be demuxed from the buffer
+    return false;
 }
 
 uint64_t FLACDemuxer::getDuration_unlocked() const
