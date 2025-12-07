@@ -785,3 +785,400 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
     return chunk;
 }
 ```
+
+
+**Seeking** (`seekTo()`):
+
+```cpp
+bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
+    if (m_state != State::STREAMING) {
+        return false;
+    }
+    
+    auto info_it = m_stream_info.find(m_primary_serial);
+    if (info_it == m_stream_info.end()) {
+        return false;
+    }
+    
+    const OggStreamInfo& info = info_it->second;
+    
+    // Clamp to valid range
+    if (timestamp_ms > m_duration_ms) {
+        timestamp_ms = m_duration_ms;
+    }
+    
+    // Use seeking engine
+    bool success = m_seeking->seekToTime(
+        m_primary_serial, timestamp_ms, info, m_data_start, m_file_size);
+    
+    if (success) {
+        // Reset stream states (but don't clear headers)
+        m_stream_mgr->resetAllStreams();
+        
+        // Update position
+        m_current_position_ms = timestamp_ms;
+        
+        // Headers already sent, don't resend
+        // m_headers_sent remains true
+    }
+    
+    return success;
+}
+```
+
+## **Data Models**
+
+### **State Machine**
+
+```
+                    ┌──────────────────────────────────────┐
+                    │                                      │
+                    ▼                                      │
+    ┌──────┐   parseContainer()   ┌─────────┐   success   │
+    │ INIT │ ──────────────────► │ HEADERS │ ────────────►│
+    └──────┘                      └─────────┘              │
+        │                              │                   │
+        │ error                        │ error             │
+        │                              │                   │
+        ▼                              ▼                   │
+    ┌───────┐                     ┌───────┐               │
+    │ ERROR │ ◄─────────────────  │ ERROR │               │
+    └───────┘                     └───────┘               │
+                                                          │
+                                                          ▼
+                                                   ┌───────────┐
+                                                   │ STREAMING │
+                                                   └───────────┘
+                                                        │  ▲
+                                                        │  │
+                                                   seek │  │ readChunk
+                                                        │  │
+                                                        ▼  │
+                                                   ┌───────────┐
+                                                   │ STREAMING │
+                                                   └───────────┘
+```
+
+### **Packet Flow**
+
+```
+IOHandler.read()
+    │
+    ▼
+ogg_sync_buffer() + ogg_sync_wrote()
+    │
+    ▼
+ogg_sync_pageseek() / ogg_sync_pageout()
+    │
+    ▼
+ogg_page (raw page data)
+    │
+    ▼
+ogg_stream_pagein()
+    │
+    ▼
+ogg_stream_packetout()
+    │
+    ▼
+ogg_packet (codec packet)
+    │
+    ▼
+MediaChunk (PsyMP3 format)
+```
+
+
+## **Correctness Properties**
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: OggS Capture Pattern Validation
+*For any* byte sequence presented as an Ogg page, the demuxer SHALL accept it as valid if and only if bytes 0-3 are exactly `0x4F 0x67 0x67 0x53` ("OggS").
+**Validates: Requirements 1.1**
+
+### Property 2: Page Version Validation
+*For any* Ogg page header, the demuxer SHALL accept it as valid if and only if byte 4 (stream_structure_version) equals 0.
+**Validates: Requirements 1.2**
+
+### Property 3: Page Size Calculation
+*For any* valid Ogg page with N segments, the header size SHALL equal 27 + N bytes, and the total page size SHALL equal header_size + sum(lacing_values).
+**Validates: Requirements 1.9, 1.10**
+
+### Property 4: Page Size Bounds
+*For any* Ogg page, the demuxer SHALL reject it if total_size exceeds 65,307 bytes.
+**Validates: Requirements 1.11**
+
+### Property 5: Lacing Value Interpretation
+*For any* segment table entry, a value of 255 SHALL indicate packet continuation, and a value less than 255 SHALL indicate packet termination.
+**Validates: Requirements 2.4, 2.5**
+
+### Property 6: Codec Signature Detection
+*For any* BOS packet, the demuxer SHALL correctly identify: Vorbis (`\x01vorbis`), Opus (`OpusHead`), FLAC (`\x7fFLAC`), Speex (`Speex   `), Theora (`\x80theora`).
+**Validates: Requirements 3.2, 3.3, 3.4, 3.5, 3.6**
+
+### Property 7: Vorbis Header Count
+*For any* Vorbis stream, the demuxer SHALL require exactly 3 header packets before marking headers complete.
+**Validates: Requirements 4.1, 4.2, 4.3**
+
+### Property 8: Opus Header Count
+*For any* Opus stream, the demuxer SHALL require exactly 2 header packets (OpusHead, OpusTags) before marking headers complete.
+**Validates: Requirements 4.4, 4.5**
+
+### Property 9: FLAC-in-Ogg Identification Header
+*For any* FLAC-in-Ogg stream, the identification packet SHALL be exactly 51 bytes containing: 5-byte signature, 2-byte version, 2-byte header count, 4-byte fLaC, 4-byte metadata header, 34-byte STREAMINFO.
+**Validates: Requirements 5.2**
+
+### Property 10: FLAC-in-Ogg First Page Size
+*For any* FLAC-in-Ogg stream, the first page SHALL be exactly 79 bytes (27-byte header + 1 segment byte + 51-byte packet).
+**Validates: Requirements 4.9**
+
+### Property 11: Grouped Stream BOS Ordering
+*For any* grouped Ogg bitstream, all BOS pages SHALL appear before any non-BOS pages.
+**Validates: Requirements 3.7**
+
+### Property 12: Chained Stream Detection
+*For any* chained Ogg bitstream, the demuxer SHALL detect chain boundaries where a BOS page follows data pages.
+**Validates: Requirements 3.8, 3.11**
+
+### Property 13: Page Sequence Continuity
+*For any* logical bitstream, the demuxer SHALL detect when page sequence numbers are non-consecutive.
+**Validates: Requirements 1.6, 6.8**
+
+### Property 14: Granule Position Validity
+*For any* page with granule position -1, the demuxer SHALL treat it as "no packets complete on this page" and continue searching.
+**Validates: Requirements 6.9, 7.10, 9.9**
+
+### Property 15: Granule Arithmetic Overflow Safety
+*For any* granule position addition or subtraction, the demuxer SHALL detect overflow/underflow and return an error rather than producing incorrect results.
+**Validates: Requirements 12.1, 12.2, 12.6**
+
+### Property 16: Seeking Accuracy
+*For any* seek to target granule G, the demuxer SHALL position such that the next packet's granule is >= G and the previous page's granule is < G.
+**Validates: Requirements 7.1**
+
+### Property 17: Duration Calculation Consistency
+*For any* stream, duration_ms SHALL equal `(last_granule - pre_skip) * 1000 / granule_rate` where granule_rate is 48000 for Opus and sample_rate for others.
+**Validates: Requirements 8.6, 8.7, 8.8**
+
+### Property 18: Packet Reconstruction Completeness
+*For any* packet spanning N pages, the reconstructed packet SHALL contain all segments from all N pages in order.
+**Validates: Requirements 2.7, 13.1**
+
+### Property 19: Header Packet Preservation
+*For any* stream, all header packets SHALL be preserved exactly as received and available for codec initialization.
+**Validates: Requirements 4.3, 4.12**
+
+### Property 20: Thread Safety - No Data Races
+*For any* concurrent read and seek operations, shared state modifications SHALL be protected by mutex, preventing data races.
+**Validates: Requirements 11.1, 11.2**
+
+
+## **Error Handling**
+
+### **Error Codes** (following libogg/libvorbisfile/libopusfile conventions)
+
+| Code | Name | Description |
+|------|------|-------------|
+| 0 | SUCCESS | Operation completed successfully |
+| -1 | OGG_EFAULT | Internal error / bad argument |
+| -2 | OGG_EREAD | Read error from IOHandler |
+| -3 | OGG_EOF | End of file reached |
+| -128 | OGG_HOLE | Gap in data (missing packets) |
+| -129 | OGG_EBADHEADER | Invalid or corrupt header |
+| -130 | OGG_ENOTFORMAT | Not a recognized Ogg format |
+| -131 | OGG_EBADLINK | Invalid stream structure |
+| -132 | OGG_EVERSION | Unsupported version |
+
+### **Error Recovery Strategies**
+
+**Page-Level Errors**:
+- Invalid capture pattern: Skip bytes until next "OggS" found
+- CRC mismatch: Skip page, continue with next (libogg handles internally)
+- Oversized page: Reject and skip
+
+**Stream-Level Errors**:
+- Unknown codec: Log warning, skip stream, continue with known streams
+- Incomplete headers: Mark stream as unusable, continue with complete streams
+- Duplicate serial: Return OGG_EBADHEADER, reject duplicate
+
+**Seeking Errors**:
+- Target beyond file: Clamp to file end
+- No valid pages found: Return OGG_EBADLINK
+- Bisection failure: Fall back to linear scan from data_start
+
+**I/O Errors**:
+- Read failure: Return OGG_EREAD, propagate to caller
+- Seek failure: Return OGG_EREAD, maintain current state
+
+## **Testing Strategy**
+
+### **Property-Based Testing Framework**
+- **Library**: RapidCheck (C++ property-based testing)
+- **Minimum iterations**: 100 per property
+- **Annotation format**: `// **Feature: ogg-demuxer-fix, Property N: <text>**`
+
+### **Unit Tests**
+
+1. **OggSyncManager Tests**:
+   - getData() with various buffer sizes
+   - getNextPage() page extraction
+   - getPrevPage() backward scanning
+   - EOF handling
+   - Error propagation
+
+2. **OggStreamManager Tests**:
+   - Stream creation and destruction
+   - Page routing by serial number
+   - Packet extraction
+   - Multiple stream handling
+
+3. **CodecHeaderParser Tests**:
+   - Codec identification for all supported types
+   - Vorbis header parsing (all 3 headers)
+   - Opus header parsing (OpusHead, OpusTags)
+   - FLAC-in-Ogg header parsing (STREAMINFO extraction)
+   - Speex header parsing
+   - Unknown codec handling
+
+4. **OggSeekingEngine Tests**:
+   - Duration calculation accuracy
+   - Bisection search correctness
+   - Granule arithmetic edge cases
+   - Time conversion accuracy
+
+5. **OggDemuxer Integration Tests**:
+   - Full parse-read cycle
+   - Seek and resume
+   - Multiple codec types
+   - Chained streams
+   - Grouped streams
+
+### **Property-Based Tests**
+
+Each correctness property SHALL have a corresponding property-based test:
+- Properties 1-5: Page structure validation
+- Properties 6-10: Codec detection and header parsing
+- Properties 11-14: Stream multiplexing and sequencing
+- Properties 15-17: Granule arithmetic and seeking
+- Properties 18-20: Packet handling and thread safety
+
+### **Integration Tests with Real Files**
+
+- Ogg Vorbis files from various encoders
+- Ogg Opus files with different channel configurations
+- FLAC-in-Ogg (.oga) files
+- Chained Ogg files
+- Multiplexed Ogg files (audio + video)
+- Corrupted/truncated files for error handling
+
+
+## **Thread Safety**
+
+### **Lock Strategy**
+
+The OggDemuxer uses a single mutex (`m_mutex`) protecting all state. This follows the public/private lock pattern:
+
+```cpp
+// Public method - acquires lock
+MediaChunk OggDemuxer::readChunk(uint32_t stream_id) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return readChunk_unlocked(stream_id);
+}
+
+// Private method - assumes lock held
+MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
+    // Implementation without lock acquisition
+}
+```
+
+### **Thread-Safe Operations**
+
+| Operation | Thread Safety |
+|-----------|---------------|
+| parseContainer() | Exclusive (must complete before other ops) |
+| getStreams() | Safe (read-only after parse) |
+| readChunk() | Mutex protected |
+| seekTo() | Mutex protected |
+| getDuration() | Safe (read-only after parse) |
+| getPosition() | Mutex protected |
+
+### **Concurrent Access Patterns**
+
+- **Read + Read**: Safe (mutex serializes)
+- **Read + Seek**: Safe (mutex serializes, seek resets state)
+- **Seek + Seek**: Safe (mutex serializes)
+- **Parse + Any**: Not safe (parse must complete first)
+
+## **Performance Considerations**
+
+### **Memory Usage**
+
+- **Bounded Buffers**: OggSyncManager uses fixed CHUNKSIZE (64KB) buffer
+- **Header Storage**: Only header packets stored, not data packets
+- **No Full File Loading**: Streaming approach, pages processed on demand
+
+### **I/O Efficiency**
+
+- **Buffered Reads**: 64KB chunks minimize syscall overhead
+- **Bisection Search**: O(log n) seeks for seeking, not O(n)
+- **Backward Scan Optimization**: Exponentially growing chunk sizes
+
+### **CPU Efficiency**
+
+- **Delegate to libogg**: CRC validation, segment parsing done by libogg
+- **Lazy Duration**: Duration calculated once on first request
+- **No Redundant Parsing**: Headers parsed once, stored for reuse
+
+## **File Organization**
+
+```
+include/demuxer/ogg/
+├── OggDemuxer.h           # Main demuxer class
+├── OggSyncManager.h       # I/O and page extraction
+├── OggStreamManager.h     # Logical bitstream management
+├── OggSeekingEngine.h     # Seeking and duration
+├── CodecHeaderParser.h    # Base class and factory
+├── VorbisHeaderParser.h   # Vorbis-specific parsing
+├── OpusHeaderParser.h     # Opus-specific parsing
+├── FLACHeaderParser.h     # FLAC-in-Ogg parsing
+└── SpeexHeaderParser.h    # Speex-specific parsing
+
+src/demuxer/ogg/
+├── OggDemuxer.cpp
+├── OggSyncManager.cpp
+├── OggStreamManager.cpp
+├── OggSeekingEngine.cpp
+├── CodecHeaderParser.cpp
+├── VorbisHeaderParser.cpp
+├── OpusHeaderParser.cpp
+├── FLACHeaderParser.cpp
+├── SpeexHeaderParser.cpp
+└── Makefile.am
+
+tests/ogg/
+├── test_ogg_sync_manager.cpp
+├── test_ogg_stream_manager.cpp
+├── test_ogg_seeking_engine.cpp
+├── test_codec_header_parsers.cpp
+├── test_ogg_demuxer_integration.cpp
+├── test_ogg_properties.cpp        # Property-based tests
+└── Makefile.am
+```
+
+## **Dependencies**
+
+- **libogg**: Required for Ogg container parsing
+- **RapidCheck**: Required for property-based testing (test builds only)
+- **PsyMP3 Core**: IOHandler, Demuxer base class, Debug logging
+
+## **Migration Notes**
+
+The previous implementation attempted to:
+1. Manually parse Ogg pages alongside libogg (redundant, error-prone)
+2. Maintain parallel state structures (sync issues)
+3. Handle too many edge cases in the main demuxer class (complexity)
+
+This design:
+1. Delegates all Ogg parsing to libogg exclusively
+2. Uses libogg structures as single source of truth
+3. Separates concerns into focused components
+4. Follows reference implementation patterns exactly
