@@ -59,12 +59,14 @@ public:
     void setHeadersComplete(bool complete) { m_headers_complete = complete; }
 
     int getSerialNumber() const { return m_serial_no; }
+    int64_t getGranulePos() const { return m_last_granule; }
 
 private:
     ogg_stream_state m_stream_state;
     int m_serial_no;
     bool m_headers_complete;
     bool m_initialized;
+    int64_t m_last_granule;
 };
 
 } // namespace Ogg

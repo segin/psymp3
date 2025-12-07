@@ -11,6 +11,7 @@
 #include "../../../include/demuxer/Demuxer.h"
 #include "OggSyncManager.h"
 #include "OggStreamManager.h"
+#include "CodecHeaderParser.h"
 #include <memory>
 #include <map>
 #include <mutex>
@@ -47,11 +48,14 @@ private:
     // Components
     std::unique_ptr<OggSyncManager> m_sync;
     std::map<int, std::unique_ptr<OggStreamManager>> m_streams;
+    std::map<int, std::unique_ptr<CodecHeaderParser>> m_parsers;
     int m_primary_serial;
+    bool m_eof;
 
     // Unlocked implementations
     MediaChunk readChunk_unlocked(uint32_t stream_id);
     bool seekTo_unlocked(uint64_t timestamp_ms);
+    long getSampleRate() const;
 };
 
 } // namespace Ogg
