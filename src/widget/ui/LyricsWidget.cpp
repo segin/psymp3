@@ -31,13 +31,16 @@ using Foundation::Widget;
 using Foundation::DrawableWidget;
 
 LyricsWidget::LyricsWidget(Font* font, int width)
-    : Widget()
+    : TransparentWindowWidget(width, 100, 0.9f, true)  // width, height, opacity, mouse-transparent
     , m_font(font)
     , m_lyrics(nullptr)
     , m_last_update_time(0)
     , m_widget_width(width)
     , m_needs_redraw(false)
 {
+    // Set Z-order to UI level (just above desktop elements)
+    setZOrder(ZOrder::UI);
+    
     // Start with an empty widget
     clearLyrics();
 }

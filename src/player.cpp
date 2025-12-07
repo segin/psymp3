@@ -770,8 +770,7 @@ bool Player::updateGUI()
 #endif
 
     // --- Lyrics Widget Rendering ---
-    // NOTE: Temporarily disabled - will be converted to transparent window system
-    // TODO: Convert LyricsWidget to use TransparentWindowWidget with ZOrder::UI
+    // NOTE: Temporarily disabled - will be re-enabled with transparent window system
     /*
     if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
         m_lyrics_widget->updatePosition(current_pos_ms);

@@ -30,6 +30,9 @@ namespace PsyMP3 {
 namespace Widget {
 namespace UI {
 
+// Bring Windowing widgets into this namespace for inheritance
+using PsyMP3::Widget::Windowing::TransparentWindowWidget;
+
 // Forward declarations to avoid circular includes
 class Surface;
 
@@ -39,8 +42,10 @@ class Surface;
  * The widget shows the current lyric line prominently, with upcoming lines
  * displayed with reduced opacity for context. It automatically updates based
  * on playback position and hides when no lyrics are available.
+ * 
+ * Inherits from TransparentWindowWidget for proper Z-order support (ZOrder::UI).
  */
-class LyricsWidget : public Widget
+class LyricsWidget : public TransparentWindowWidget
 {
 public:
     /**
