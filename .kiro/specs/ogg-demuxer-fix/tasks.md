@@ -350,27 +350,27 @@
 - [x] 14. Checkpoint - Verify Seeking and Duration
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Implement OggDemuxer - Core Structure
-  - [ ] 15.1 Implement OggDemuxer class structure
+- [x] 15. Implement OggDemuxer - Core Structure
+  - [x] 15.1 Implement OggDemuxer class structure
     - Define State enum: INIT, HEADERS, STREAMING, ERROR
     - Define member variables for components
     - Define OggStreamInfo map
     - Define mutex for thread safety
     - _Requirements: 11.1, 14.1_
 
-  - [ ] 15.2 Implement constructor and destructor
+  - [x] 15.2 Implement constructor and destructor
     - Create OggSyncManager with IOHandler
     - Create OggStreamManager
     - Implement destructor with proper cleanup
     - _Requirements: 10.6, 14.8_
 
-  - [ ] 15.3 Implement static registration
+  - [x] 15.3 Implement static registration
     - Implement registerDemuxer() for DemuxerFactory
     - Implement canHandle() checking for OggS signature
     - _Requirements: 14.1_
 
-- [ ] 16. Implement OggDemuxer - Container Parsing
-  - [ ] 16.1 Implement parseContainer()
+- [x] 16. Implement OggDemuxer - Container Parsing
+  - [x] 16.1 Implement parseContainer()
     - Get file size from IOHandler
     - Call fetchHeaders_unlocked()
     - Create OggSeekingEngine
@@ -380,7 +380,7 @@
     - Transition to STREAMING state
     - _Requirements: 14.1, 14.5_
 
-  - [ ] 16.2 Implement fetchHeaders_unlocked() following _fetch_headers()
+  - [x] 16.2 Implement fetchHeaders_unlocked() following _fetch_headers()
     - Read pages until all BOS pages seen
     - For each BOS page: create stream, identify codec, create parser
     - Continue reading until all headers complete
@@ -389,48 +389,48 @@
     - Handle unknown codecs (skip, continue)
     - _Requirements: 3.7, 4.11, 4.12, 4.13, 4.16_
 
-  - [ ] 16.3 Implement processHeaderPacket_unlocked()
+  - [x] 16.3 Implement processHeaderPacket_unlocked()
     - Get appropriate CodecHeaderParser
     - Call parseHeader() on parser
     - Update OggStreamInfo with parsed data
     - Check headersComplete()
     - _Requirements: 4.1-4.10, 4.15_
 
-  - [ ] 16.4 Write property test for grouped stream ordering
+  - [x] 16.4 Write property test for grouped stream ordering
     - **Property 11: Grouped Stream BOS Ordering**
     - Verify all BOS pages appear before non-BOS pages
     - **Validates: Requirements 3.7**
 
-- [ ] 17. Implement OggDemuxer - Stream Information
-  - [ ] 17.1 Implement getStreams()
+- [x] 17. Implement OggDemuxer - Stream Information
+  - [x] 17.1 Implement getStreams()
     - Return vector of StreamInfo for complete streams
     - Populate codec_type, codec_name, sample_rate, channels
     - Include duration and metadata
     - _Requirements: 14.2_
 
-  - [ ] 17.2 Implement getStreamInfo()
+  - [x] 17.2 Implement getStreamInfo()
     - Return StreamInfo for specific stream_id
     - Return empty StreamInfo if not found
     - _Requirements: 14.2_
 
-  - [ ] 17.3 Implement selectPrimaryStream()
+  - [x] 17.3 Implement selectPrimaryStream()
     - Prefer first audio stream with complete headers
     - Store as m_primary_serial
     - _Requirements: 14.1_
 
 
-- [ ] 18. Implement OggDemuxer - Packet Reading
-  - [ ] 18.1 Implement readChunk() for primary stream
+- [x] 18. Implement OggDemuxer - Packet Reading
+  - [x] 18.1 Implement readChunk() for primary stream
     - Acquire mutex lock
     - Call readChunk_unlocked(m_primary_serial)
     - _Requirements: 6.1, 11.1_
 
-  - [ ] 18.2 Implement readChunk(stream_id)
+  - [x] 18.2 Implement readChunk(stream_id)
     - Acquire mutex lock
     - Call readChunk_unlocked(stream_id)
     - _Requirements: 6.1, 11.1_
 
-  - [ ] 18.3 Implement readChunk_unlocked()
+  - [x] 18.3 Implement readChunk_unlocked()
     - First call: return header packets as MediaChunk
     - Get packet from OggStreamManager
     - If no packet: read more pages, submit to stream
@@ -440,23 +440,23 @@
     - Handle EOS flag
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.8, 14.3_
 
-  - [ ] 18.4 Write property test for page sequence continuity
+  - [x] 18.4 Write property test for page sequence continuity
     - **Property 13: Page Sequence Continuity**
     - Verify detection of non-consecutive sequence numbers
     - **Validates: Requirements 1.6, 6.8**
 
-  - [ ] 18.5 Write property test for header packet preservation
+  - [x] 18.5 Write property test for header packet preservation
     - **Property 19: Header Packet Preservation**
     - Verify all header packets preserved exactly
     - **Validates: Requirements 4.3, 4.12**
 
-- [ ] 19. Implement OggDemuxer - Seeking
-  - [ ] 19.1 Implement seekTo()
+- [x] 19. Implement OggDemuxer - Seeking
+  - [x] 19.1 Implement seekTo()
     - Acquire mutex lock
     - Call seekTo_unlocked()
     - _Requirements: 7.1, 11.2_
 
-  - [ ] 19.2 Implement seekTo_unlocked()
+  - [x] 19.2 Implement seekTo_unlocked()
     - Clamp timestamp to valid range
     - Call seeking engine seekToTime()
     - Reset all stream states (but keep headers)
@@ -464,17 +464,17 @@
     - Do NOT resend headers (m_headers_sent stays true)
     - _Requirements: 7.1, 7.7, 7.8, 9.7_
 
-  - [ ] 19.3 Implement position accessors
+  - [x] 19.3 Implement position accessors
     - Implement getDuration() returning m_duration_ms
     - Implement getPosition() returning m_current_position_ms
     - Implement getGranulePosition() for specific stream
     - _Requirements: 14.4_
 
-  - [ ] 19.4 Implement isEOF()
+  - [x] 19.4 Implement isEOF()
     - Return true when sync manager reports EOF
     - _Requirements: 6.5_
 
-- [ ] 20. Checkpoint - Verify Basic Playback
+- [x] 20. Checkpoint - Verify Basic Playback
   - Ensure all tests pass, ask the user if questions arise.
   - Test with real Ogg Vorbis file
   - Test with real Ogg Opus file
