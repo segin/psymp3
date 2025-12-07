@@ -310,21 +310,27 @@ void LastFM::submissionThreadLoop()
     while (!m_shutdown) {
         std::unique_lock<std::mutex> lock(m_scrobble_mutex);
         
+        // If handshake has permanently failed, wait only for shutdown to avoid busy-wait
+        if (m_handshake_permanently_failed) {
+            m_submission_cv.wait(lock, [this] { return m_shutdown.load(); });
+            break;
+        }
+        
         // Wait for scrobbles or shutdown, with backoff timeout (Requirements 4.1, 4.4)
         if (m_backoff_seconds > 0) {
             // If in backoff, wait with timeout instead of indefinitely
             auto timeout = std::chrono::seconds(m_backoff_seconds);
             m_submission_cv.wait_for(lock, timeout, [this] { 
-                return (!m_scrobbles.empty() && !m_handshake_permanently_failed) || m_shutdown; 
+                return !m_scrobbles.empty() || m_shutdown || m_handshake_permanently_failed; 
             });
         } else {
             // Normal wait when not in backoff
             m_submission_cv.wait(lock, [this] { 
-                return (!m_scrobbles.empty() && !m_handshake_permanently_failed) || m_shutdown; 
+                return !m_scrobbles.empty() || m_shutdown || m_handshake_permanently_failed; 
             });
         }
         
-        if (m_shutdown) break;
+        if (m_shutdown || m_handshake_permanently_failed) break;
         
         if (!m_scrobbles.empty() && !m_submission_active) {
             m_submission_active = true;
