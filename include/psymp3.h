@@ -471,9 +471,10 @@ using PsyMP3::Codec::Opus::OpusHeader;
 #ifdef HAVE_OGGDEMUXER
 #include "demuxer/ogg/OggDemuxer.h"
 // Bring Ogg demuxer types into global namespace for compatibility
+// Bring Ogg demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::Ogg::OggDemuxer;
-using PsyMP3::Demuxer::Ogg::OggStream;
-using PsyMP3::Demuxer::Ogg::OggPacket;
+// using PsyMP3::Demuxer::Ogg::OggStream;
+// using PsyMP3::Demuxer::Ogg::OggPacket;
 // OggCodecs.h needs full definitions of codec types - include them here
 // These must be included regardless of individual codec flags since OggCodecs references them
 #include "codecs/vorbis/VorbisCodec.h"
