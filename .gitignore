@@ -431,3 +431,13 @@ tests/test_streaminfo_recovery
 tests/test_threading_safety_baseline
 tests/opusout
 tests/test_opus_codec_property
+tests/test_codec_identification
+tests/test_flac_parser
+tests/test_opus_parser
+tests/test_seeking_engine
+tests/test_speex_parser
+tests/test_stream_manager
+tests/test_vorbis_parser
+
+# Ogg Demuxer verification tests
+tests/test_ogg_error_handling

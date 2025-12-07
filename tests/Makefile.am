@@ -753,6 +753,44 @@ test_seeking_engine_LDADD = libtest_utilities.a \
 	$(FREETYPE_LIBS) \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
+
+check_PROGRAMS += test_ogg_thread_safety
+test_ogg_thread_safety_SOURCES = test_ogg_thread_safety.cpp
+test_ogg_thread_safety_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/liboggdemuxer.a \
+	../src/demuxer/libdemuxer.a \
+	../src/io/file/libfileio.a \
+	../src/io/libio.a \
+	../src/debug.o \
+	../src/exceptions.o \
+	../src/rect.o \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS) \
+	-lpthread
+
+check_PROGRAMS += test_ogg_error_handling
+test_ogg_error_handling_SOURCES = test_ogg_error_handling.cpp
+test_ogg_error_handling_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/liboggdemuxer.a \
+	../src/demuxer/libdemuxer.a \
+	../src/io/file/libfileio.a \
+	../src/io/libio.a \
+	../src/debug.o \
+	../src/exceptions.o \
+	../src/rect.o \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS)
+
 test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
 test_page_extraction_LDADD = \
 	libtest_utilities.a \
