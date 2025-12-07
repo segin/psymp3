@@ -42,4 +42,5 @@ liboggdemuxer_a_SOURCES = \
 	CodecHeaderParser.cpp \
 	VorbisHeaderParser.cpp \
 	OpusHeaderParser.cpp \
+	FLACHeaderParser.cpp \
 	OggSeekingEngine.cpp

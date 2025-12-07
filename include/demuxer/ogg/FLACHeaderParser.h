@@ -14,26 +14,16 @@ namespace Ogg {
 
 class FLACHeaderParser : public CodecHeaderParser {
 public:
-    FLACHeaderParser() : m_headers_count(0) {}
+    FLACHeaderParser();
     
-    bool parseHeader(ogg_packet* packet) override {
-        // Todo: Implement
-        m_headers_count++;
-        return true;
-    }
-    
-    bool isHeadersComplete() const override {
-        return m_headers_count >= 1; // Simplification
-    }
-    
-    CodecInfo getCodecInfo() const override {
-        CodecInfo info;
-        info.codec_name = "FLAC";
-        return info;
-    }
+    bool parseHeader(ogg_packet* packet) override;
+    bool isHeadersComplete() const override;
+    CodecInfo getCodecInfo() const override;
 
 private:
     int m_headers_count;
+    CodecInfo m_info;
+    bool m_streaminfo_found;
 };
 
 } // namespace Ogg
