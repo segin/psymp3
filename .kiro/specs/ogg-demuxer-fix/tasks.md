@@ -273,45 +273,45 @@
   - Ensure all tests pass, ask the user if questions arise.
 
 
-- [ ] 11. Implement OggSeekingEngine - Granule Arithmetic
-  - [ ] 11.1 Implement granule position arithmetic
+- [x] 11. Implement OggSeekingEngine - Granule Arithmetic
+  - [x] 11.1 Implement granule position arithmetic
     - Implement granposAdd() with overflow detection
     - Implement granposDiff() with wraparound handling
     - Implement granposCmp() for proper ordering
     - Handle -1 as invalid/unset granule position
     - _Requirements: 12.1, 12.2, 12.3, 12.4, 12.5, 12.6_
 
-  - [ ] 11.2 Implement time conversion methods
+  - [x] 11.2 Implement time conversion methods
     - Implement granuleToMs() with codec-specific logic
     - Opus: (granule - pre_skip) * 1000 / 48000
     - Vorbis/FLAC: granule * 1000 / sample_rate
     - Implement msToGranule() inverse conversion
     - _Requirements: 7.4, 7.5, 8.5, 8.6, 8.7, 8.8, 12.7, 12.8, 12.9_
 
-  - [ ] 11.3 Write property test for granule arithmetic safety
+  - [x] 11.3 Write property test for granule arithmetic safety
     - **Property 15: Granule Arithmetic Overflow Safety**
     - Test overflow detection in addition
     - Test underflow detection in subtraction
     - **Validates: Requirements 12.1, 12.2, 12.6**
 
-  - [ ] 11.4 Write property test for duration calculation
+  - [x] 11.4 Write property test for duration calculation
     - **Property 17: Duration Calculation Consistency**
     - Verify formula: (last_granule - pre_skip) * 1000 / rate
     - **Validates: Requirements 8.6, 8.7, 8.8**
 
-- [ ] 12. Implement OggSeekingEngine - Duration Calculation
-  - [ ] 12.1 Implement OggSeekingEngine class structure
+- [x] 12. Implement OggSeekingEngine - Duration Calculation
+  - [x] 12.1 Implement OggSeekingEngine class structure
     - Define class with OggSyncManager and OggStreamManager pointers
     - Implement constructor
     - _Requirements: 8.1_
 
-  - [ ] 12.2 Implement calculateDuration()
+  - [x] 12.2 Implement calculateDuration()
     - Check for total_samples in STREAMINFO (FLAC)
     - Fall back to backward scanning for last granule
     - Convert granule to milliseconds
     - _Requirements: 8.1, 8.2_
 
-  - [ ] 12.3 Implement getLastGranule() backward scanning
+  - [x] 12.3 Implement getLastGranule() backward scanning
     - Start with CHUNKSIZE, grow exponentially
     - Seek backwards, scan forward for pages
     - Filter by serial number
@@ -319,15 +319,15 @@
     - Handle file beginning boundary
     - _Requirements: 8.1, 8.3, 8.10_
 
-- [ ] 13. Implement OggSeekingEngine - Bisection Search
-  - [ ] 13.1 Implement seekToGranule() bisection search
+- [x] 13. Implement OggSeekingEngine - Bisection Search
+  - [x] 13.1 Implement seekToGranule() bisection search
     - Initialize search interval [begin, end]
     - Use bisectForward() to narrow interval
     - Switch to linear scan when interval small
     - Reset sync state after positioning
     - _Requirements: 7.1, 7.2, 7.11_
 
-  - [ ] 13.2 Implement bisectForward() helper
+  - [x] 13.2 Implement bisectForward() helper
     - Seek to midpoint
     - Find next page with matching serial using getNextPage()
     - Compare granule position to target
@@ -335,19 +335,19 @@
     - Handle granule position -1 (continue searching)
     - _Requirements: 7.1, 7.2, 7.10_
 
-  - [ ] 13.3 Implement seekToTime() wrapper
+  - [x] 13.3 Implement seekToTime() wrapper
     - Convert timestamp to granule using msToGranule()
     - Call seekToGranule()
     - Account for pre-skip in Opus streams
     - _Requirements: 7.4, 7.5_
 
-  - [ ] 13.4 Write property test for seeking accuracy
+  - [x] 13.4 Write property test for seeking accuracy
     - **Property 16: Seeking Accuracy**
     - Seek to target, verify next packet granule >= target
     - Verify previous page granule < target
     - **Validates: Requirements 7.1**
 
-- [ ] 14. Checkpoint - Verify Seeking and Duration
+- [x] 14. Checkpoint - Verify Seeking and Duration
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 15. Implement OggDemuxer - Core Structure
