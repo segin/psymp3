@@ -277,6 +277,18 @@ AudioFrame OpusCodec::flush()
     
     Debug::log("opus", "OpusCodec::flush called");
     
+    // If we've already flushed, return empty frame
+    // Opus decoders don't buffer audio internally, so calling opus_decode(NULL)
+    // produces PLC (Packet Loss Concealment) audio, not actual data.
+    // We only want to check/output any buffered frames once, not generate fake audio.
+    if (m_flushed) {
+        Debug::log("opus", "OpusCodec::flush - already flushed, returning empty frame");
+        return AudioFrame();
+    }
+    
+    // Mark as flushed so we only do this once
+    m_flushed = true;
+    
     // Output any remaining decoded samples from buffer (Requirement 7.5)
     if (hasBufferedFrames_unlocked()) {
         AudioFrame frame = getBufferedFrame_unlocked();
@@ -284,60 +296,13 @@ AudioFrame OpusCodec::flush()
         return frame;
     }
     
-    // For Opus, we can also try to decode any remaining data in the decoder
-    // by calling opus_decode with NULL packet data to get any final samples
-    if (m_decoder_initialized && (m_opus_decoder || m_opus_ms_decoder)) {
-        Debug::log("opus", "Attempting to flush decoder internal state");
-        
-        // Try to get any remaining samples from the decoder
-        constexpr int MAX_FRAME_SIZE = 5760;
-        std::vector<opus_int16> decode_buffer(MAX_FRAME_SIZE * m_channels);
-        
-        int samples_decoded = 0;
-        
-        if (m_use_multistream && m_opus_ms_decoder) {
-            // Flush multistream decoder
-            samples_decoded = opus_multistream_decode(m_opus_ms_decoder,
-                                                     nullptr, 0, // NULL packet for flushing
-                                                     decode_buffer.data(),
-                                                     MAX_FRAME_SIZE,
-                                                     0);
-        } else if (!m_use_multistream && m_opus_decoder) {
-            // Flush standard decoder
-            samples_decoded = opus_decode(m_opus_decoder, 
-                                         nullptr, 0, // NULL packet for flushing
-                                         decode_buffer.data(), 
-                                         MAX_FRAME_SIZE, 
-                                         0);
-        }
-        
-        if (samples_decoded > 0) {
-            Debug::log("opus", "Decoder flush returned ", samples_decoded, " samples");
-            
-            // Create frame with flushed samples
-            AudioFrame frame;
-            frame.sample_rate = m_sample_rate;
-            frame.channels = m_channels;
-            
-            size_t total_samples = samples_decoded * m_channels;
-            frame.samples.resize(total_samples);
-            std::memcpy(frame.samples.data(), decode_buffer.data(), total_samples * sizeof(int16_t));
-            
-            // Apply post-processing
-            applyPreSkip_unlocked(frame);
-            applyOutputGain_unlocked(frame);
-            processChannelMapping_unlocked(frame);
-            
-            Debug::log("opus", "Returning flushed frame with ", frame.samples.size(), " samples");
-            return frame;
-        } else if (samples_decoded < 0) {
-            Debug::log("opus", "Decoder flush failed: ", opus_strerror(samples_decoded));
-        } else {
-            Debug::log("opus", "No samples to flush from decoder");
-        }
-    }
+    // Note: Opus decoders don't buffer audio internally like some other codecs.
+    // Calling opus_decode with NULL packet produces PLC (Packet Loss Concealment)
+    // samples, which are placeholder audio for missing packets, NOT actual remaining data.
+    // Therefore, we should NOT call opus_decode(nullptr) here for flushing.
+    // The decoder is already fully flushed after the last successful decode.
     
-    Debug::log("opus", "OpusCodec::flush completed - no data to flush");
+    Debug::log("opus", "OpusCodec::flush completed - no buffered data to flush");
     return AudioFrame();
 }
 
@@ -546,6 +511,7 @@ bool OpusCodec::setupInternalBuffers_unlocked()
         
         // Initialize decoder if we have channel info
         m_decoder_initialized = false;
+        m_flushed = false;  // Reset flush state
         
         // Reset atomic counters
         m_samples_decoded.store(0);
@@ -685,14 +651,27 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
         return frame;
     }
     
+    // Validate decoded sample count is within expected bounds
+    if (samples_decoded > 5760) {
+        Debug::log("opus", "Opus decoded unexpected sample count: ", samples_decoded, " (max expected: 5760)");
+        return frame;  // Return empty frame, don't crash
+    }
+    
+    size_t total_samples = static_cast<size_t>(samples_decoded) * m_channels;
+    if (total_samples > m_output_buffer.size()) {
+        Debug::log("opus", "Opus decoded samples (", total_samples, ") exceeds buffer size (", m_output_buffer.size(), ")");
+        return frame;  // Return empty frame, don't crash
+    }
+    
+    Debug::log("opus", "Opus decoded ", samples_decoded, " frames (", total_samples, " samples total)");
+    
     // Handle efficiency for variable frame sizes (Requirement 9.7)
     handleVariableFrameSizeEfficiently_unlocked(samples_decoded);
     
     // Create AudioFrame from decoded samples
-
     frame.sample_rate = 48000;
     frame.channels = m_channels;
-    frame.samples.assign(m_output_buffer.begin(), m_output_buffer.begin() + samples_decoded * m_channels);
+    frame.samples.assign(m_output_buffer.begin(), m_output_buffer.begin() + total_samples);
     
     // Update internal state
     m_samples_decoded += samples_decoded;
@@ -2665,6 +2644,7 @@ void OpusCodec::resetDecoderState_unlocked()
     // Reset state
     m_header_packets_received = 0;
     m_decoder_initialized = false;
+    m_flushed = false;  // Reset flush state
     m_use_multistream = false;
     m_channels = 0;
     m_pre_skip = 0;

@@ -3,6 +3,7 @@
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
 
+#include "psymp3.h"
 #include "demuxer/ogg/OggSyncManager.h"
 #include <cstring>
 #include <stdexcept>
@@ -30,13 +31,16 @@ long OggSyncManager::getData(size_t bytes_requested) {
 
     char* buffer = ogg_sync_buffer(&m_sync_state, bytes_requested);
     if (!buffer) {
+        Debug::log("ogg", "OggSyncManager::getData() ogg_sync_buffer failed");
         return -1; // Memory error
     }
 
     long bytes_read = m_io_handler->read(buffer, 1, bytes_requested);
+    Debug::log("ogg", "OggSyncManager::getData() read ", bytes_read, " of ", bytes_requested, " bytes requested");
     if (bytes_read > 0) {
         ogg_sync_wrote(&m_sync_state, bytes_read);
     } else if (bytes_read < 0) {
+        Debug::log("ogg", "OggSyncManager::getData() I/O error");
         return -1; // I/O Error
     }
 
@@ -45,9 +49,12 @@ long OggSyncManager::getData(size_t bytes_requested) {
 
 int OggSyncManager::getNextPage(ogg_page* page) {
     // libopusfile pattern: loop until we get a page or need more data
+    int iteration = 0;
     while (true) {
         int result = ogg_sync_pageout(&m_sync_state, page);
+        Debug::log("ogg", "OggSyncManager::getNextPage() iteration ", iteration, " pageout returned ", result);
         if (result > 0) {
+            Debug::log("ogg", "OggSyncManager::getNextPage() got page, size=", ogg_page_pageno(page));
             return 1; // Got a page
         }
         if (result < 0) {
@@ -55,14 +62,17 @@ int OggSyncManager::getNextPage(ogg_page* page) {
             // RFC 3533 says we should skip bytes to resync.
             // libogg does this internally but reports error.
             // We'll continue trying to find the next valid page.
+            Debug::log("ogg", "OggSyncManager::getNextPage() sync error, continuing");
              continue;
         }
 
         // Need more data
         long bytes_read = getData(4096);
         if (bytes_read <= 0) {
+            Debug::log("ogg", "OggSyncManager::getNextPage() EOF/error after ", iteration, " iterations");
             return 0; // EOF or error
         }
+        iteration++;
     }
 }
 

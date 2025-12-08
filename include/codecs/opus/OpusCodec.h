@@ -102,6 +102,7 @@ private:
     // Header processing state
     int m_header_packets_received = 0;
     bool m_decoder_initialized = false;
+    bool m_flushed = false;  // Track if flush() has been called to prevent infinite loop
     
     // Decoding buffers
     std::vector<int16_t> m_output_buffer;

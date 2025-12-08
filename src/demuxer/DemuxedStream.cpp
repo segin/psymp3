@@ -32,6 +32,8 @@ DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::S
 
 bool DemuxedStream::initialize() {
     try {
+        Debug::log("demux", "DemuxedStream::initialize() starting for path: ", m_path);
+        
         // Create IOHandler
         URI uri(m_path);
         std::unique_ptr<IOHandler> handler;
@@ -40,40 +42,50 @@ bool DemuxedStream::initialize() {
             handler = std::make_unique<FileIOHandler>(uri.path());
         } else {
             // Could add support for other schemes later
+            Debug::log("demux", "DemuxedStream::initialize() unsupported URI scheme");
             return false;
         }
         
         // Create demuxer with file path hint for raw format detection
         m_demuxer = DemuxerFactory::createDemuxer(std::move(handler), uri.path().to8Bit(true));
         if (!m_demuxer) {
+            Debug::log("demux", "DemuxedStream::initialize() createDemuxer returned nullptr");
             return false;
         }
         
         // Parse container
         if (!m_demuxer->parseContainer()) {
+            Debug::log("demux", "DemuxedStream::initialize() parseContainer returned false");
             return false;
         }
+        Debug::log("demux", "DemuxedStream::initialize() parseContainer succeeded");
         
         // Select audio stream
         if (m_current_stream_id == 0) {
             m_current_stream_id = selectBestAudioStream();
+            Debug::log("demux", "DemuxedStream::initialize() selectBestAudioStream returned: ", m_current_stream_id);
         }
         
         if (m_current_stream_id == 0) {
+            Debug::log("demux", "DemuxedStream::initialize() no suitable audio stream found");
             return false; // No suitable audio stream found
         }
         
         // Setup codec
         if (!setupCodec()) {
+            Debug::log("demux", "DemuxedStream::initialize() setupCodec returned false");
             return false;
         }
+        Debug::log("demux", "DemuxedStream::initialize() setupCodec succeeded");
         
         // Update stream properties
         updateStreamProperties();
         
+        Debug::log("demux", "DemuxedStream::initialize() complete - rate=", m_rate, " channels=", m_channels);
         return true;
         
-    } catch (const std::exception&) {
+    } catch (const std::exception& e) {
+        Debug::log("demux", "DemuxedStream::initialize() exception: ", e.what());
         return false;
     }
 }
@@ -92,17 +104,28 @@ uint32_t DemuxedStream::selectBestAudioStream() const {
 }
 
 bool DemuxedStream::setupCodec() {
+    Debug::log("demux", "DemuxedStream::setupCodec() starting for stream_id: ", m_current_stream_id);
+    
     StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
+    Debug::log("demux", "DemuxedStream::setupCodec() getStreamInfo returned stream_id=", stream_info.stream_id, 
+               " codec_name=", stream_info.codec_name, " codec_type=", stream_info.codec_type,
+               " channels=", stream_info.channels, " sample_rate=", stream_info.sample_rate);
+    
     if (stream_info.stream_id == 0) {
+        Debug::log("demux", "DemuxedStream::setupCodec() failed: stream_id is 0");
         return false;
     }
     
     m_codec = AudioCodecFactory::createCodec(stream_info);
     if (!m_codec) {
+        Debug::log("demux", "DemuxedStream::setupCodec() failed: createCodec returned nullptr for codec_name=", stream_info.codec_name);
         return false;
     }
+    Debug::log("demux", "DemuxedStream::setupCodec() codec created, type=", m_codec->getCodecName());
     
-    return m_codec->initialize();
+    bool init_result = m_codec->initialize();
+    Debug::log("demux", "DemuxedStream::setupCodec() codec->initialize() returned ", init_result);
+    return init_result;
 }
 
 void DemuxedStream::updateStreamProperties() {
@@ -232,11 +255,19 @@ AudioFrame DemuxedStream::getNextFrame() {
     // If we have chunks, decode one on-demand
     if (has_chunk) {
         
-        // Special handling for Opus: if codec is initialized, and we get a header chunk,
-        // it means it's a redundant header from seeking or re-initialization. Skip it.
-        if (m_codec && m_codec->getCodecName() == "opus" && m_codec->isInitialized() && chunk.is_keyframe) {
-            Debug::log("demux", "DemuxedStream: Skipping redundant Opus header chunk (size=", chunk_size, ")");
-            return AudioFrame{}; // Return empty frame, effectively discarding this chunk
+        // Special handling for Opus: if codec is initialized, skip any header packets
+        // that the demuxer may have included (e.g., after seeking to a page containing headers).
+        // We detect headers by their magic signatures, not by is_keyframe flag.
+        if (m_codec && m_codec->getCodecName() == "opus" && m_codec->isInitialized()) {
+            // Check if this is an Opus header packet (OpusHead or OpusTags)
+            if (chunk_size >= 8) {
+                const uint8_t* data = chunk.data.data();
+                if (std::memcmp(data, "OpusHead", 8) == 0 || 
+                    std::memcmp(data, "OpusTags", 8) == 0) {
+                    Debug::log("demux", "DemuxedStream: Skipping redundant Opus header chunk (size=", chunk_size, ")");
+                    return AudioFrame{}; // Return empty frame, effectively discarding this header
+                }
+            }
         }
         
         AudioFrame frame = m_codec->decode(chunk);
