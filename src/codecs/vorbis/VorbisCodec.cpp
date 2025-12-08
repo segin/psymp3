@@ -325,8 +325,10 @@ bool VorbisCodec::canDecode(const StreamInfo& stream_info) const
 {
     // Thread-safe read-only operation, no lock needed (Requirement 11.6, 6.6)
     
-    // Check if StreamInfo contains "vorbis" codec name
-    if (stream_info.codec_name != "vorbis") {
+    // Check if StreamInfo contains "vorbis" codec name (case-insensitive)
+    std::string codec_lower = stream_info.codec_name;
+    std::transform(codec_lower.begin(), codec_lower.end(), codec_lower.begin(), ::tolower);
+    if (codec_lower != "vorbis") {
         return false;
     }
     
