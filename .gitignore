@@ -442,3 +442,4 @@ tests/test_vorbis_parser
 # Ogg Demuxer verification tests
 tests/test_ogg_error_handling
 tests/test_ogg_integration
+tests/vorbisout
