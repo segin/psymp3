@@ -301,7 +301,6 @@ src/psymp3
 test_streaminfo_debug
 tests/test_streaminfo_bitfields
 tests/test_flac_streamable_subset_validation
-.gitignore
 tests/test_flac_thread_safety_validation
 tests/test_debug_system
 tests/test_alaw_codec_properties
@@ -440,5 +439,17 @@ tests/test_vorbis_parser
 # Ogg Demuxer verification tests
 tests/test_ogg_error_handling
 tests/test_ogg_integration
+tests/test_ogg_seeking_algorithms
+tests/test_ogg_codec_detection
 tests/vorbisout
 tests/mp3out
+
+# FLAC unit test executables
+tests/test_bitstream_reader_unit
+tests/test_channel_decorrelator_unit
+tests/test_flac_security_validation
+tests/test_frame_parser_unit
+tests/test_residual_decoder_unit
+tests/test_sample_reconstructor_unit
+tests/test_subframe_decoder_unit
+tests/test_ogg_page_extraction
