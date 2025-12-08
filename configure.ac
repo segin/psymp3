@@ -342,6 +342,9 @@ if test "x$enable_static_binary" = "xyes"; then
   case "$host_os" in
     *mingw*|*cygwin*|*msys*)
        # Ensure we don't have conflicting flags if necessary
+       AC_DEFINE([TAGLIB_STATIC], [1], [Define to 1 for static TagLib linking])
+       AC_DEFINE([FLAC__NO_DLL], [1], [Define to 1 for static FLAC linking])
+       CPPFLAGS="$CPPFLAGS -DTAGLIB_STATIC -DFLAC__NO_DLL"
        ;;
   esac
 fi
