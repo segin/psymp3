@@ -195,8 +195,6 @@ tests/test_duration_calculation
 tests/test_oggdemuxer_performance
 tests/test_time_conversion
 tests/test_error_handling
-
-.gitignore
 tests/test_error_handling
 
 tests/test_method_handler_simple
@@ -443,3 +441,4 @@ tests/test_vorbis_parser
 tests/test_ogg_error_handling
 tests/test_ogg_integration
 tests/vorbisout
+tests/mp3out

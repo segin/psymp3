@@ -4054,3 +4054,49 @@ vorbisout_LDADD = \
 	-logg -lopus -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS)
 endif
+
+# ============================================================================
+# mp3out - MP3 to PCM/WAV decoder utility
+# ============================================================================
+#
+# Usage:
+#   mp3out [options] input.mp3 [output.wav|output.pcm]
+#
+# Options:
+#   -r, --raw       Output raw PCM instead of WAVE (default: WAVE)
+#   -q, --quiet     Suppress progress output
+#   -v, --verbose   Show detailed decoding information
+#   -h, --help      Show this help message
+#
+# ============================================================================
+
+if HAVE_MP3
+noinst_PROGRAMS += mp3out
+
+mp3out_SOURCES = mp3out.cpp
+mp3out_CPPFLAGS = $(AM_CPPFLAGS)
+mp3out_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(LIBMPG123_LIBS) \
+	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+endif
+
