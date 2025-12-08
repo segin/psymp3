@@ -3,9 +3,8 @@
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
 
+#include "psymp3.h"
 #include "demuxer/ogg/SpeexHeaderParser.h"
-#include <cstring>
-#include <string>
 
 namespace PsyMP3 {
 namespace Demuxer {

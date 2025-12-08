@@ -470,6 +470,7 @@ using PsyMP3::Codec::Opus::OpusHeader;
 // Demuxer subsystem - Ogg
 #ifdef HAVE_OGGDEMUXER
 #include "demuxer/ogg/OggDemuxer.h"
+#include <ogg/ogg.h>
 // Bring Ogg demuxer types into global namespace for compatibility
 // Bring Ogg demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::Ogg::OggDemuxer;

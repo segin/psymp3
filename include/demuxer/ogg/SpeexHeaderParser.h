@@ -6,7 +6,7 @@
 #ifndef HAS_SPEEXHEADERPARSER_H
 #define HAS_SPEEXHEADERPARSER_H
 
-#include "CodecHeaderParser.h"
+
 
 namespace PsyMP3 {
 namespace Demuxer {

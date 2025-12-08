@@ -3,7 +3,7 @@
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
 
-#include "demuxer/ogg/OggStreamManager.h"
+#include "psymp3.h"
 
 namespace PsyMP3 {
 namespace Demuxer {
