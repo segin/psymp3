@@ -156,6 +156,17 @@ bool OpusCodec::initialize_unlocked()
         return false;
     }
     
+    // If we have channel info from StreamInfo (demuxer already parsed headers),
+    // initialize the decoder now instead of waiting for header packets
+    if (m_channels > 0 && m_header_packets_received >= 2) {
+        Debug::log("opus", "Initializing decoder from pre-parsed StreamInfo (channels=", m_channels, ")");
+        if (!initializeOpusDecoder_unlocked()) {
+            m_last_error = "Failed to initialize Opus decoder from StreamInfo";
+            Debug::log("opus", m_last_error);
+            return false;
+        }
+    }
+    
     m_initialized = true;
     
     Debug::log("opus", "OpusCodec::initialize_unlocked completed successfully");
@@ -393,8 +404,10 @@ bool OpusCodec::extractOpusParameters_unlocked()
 {
     Debug::log("opus", "extractOpusParameters_unlocked called");
     
-    // Verify this is an Opus stream
-    if (m_stream_info.codec_name != "opus") {
+    // Verify this is an Opus stream (case-insensitive comparison)
+    std::string codec_lower = m_stream_info.codec_name;
+    std::transform(codec_lower.begin(), codec_lower.end(), codec_lower.begin(), ::tolower);
+    if (codec_lower != "opus") {
         Debug::log("opus", "Not an Opus stream: codec_name=", m_stream_info.codec_name);
         return false;
     }
@@ -433,14 +446,17 @@ bool OpusCodec::validateOpusParameters_unlocked()
     // (they come from the identification header packet).
     // We can only validate what we have from StreamInfo.
     
-    // Validate codec type
-    if (m_stream_info.codec_type != "audio") {
-        Debug::log("opus", "Invalid codec type: ", m_stream_info.codec_type, " (expected 'audio')");
+    // Validate codec type - allow empty since some demuxers don't set it
+    // Opus is always an audio codec, so we can infer this from codec_name
+    if (!m_stream_info.codec_type.empty() && m_stream_info.codec_type != "audio") {
+        Debug::log("opus", "Invalid codec type: ", m_stream_info.codec_type, " (expected 'audio' or empty)");
         return false;
     }
     
-    // Validate codec name
-    if (m_stream_info.codec_name != "opus") {
+    // Validate codec name (case-insensitive comparison)
+    std::string codec_lower = m_stream_info.codec_name;
+    std::transform(codec_lower.begin(), codec_lower.end(), codec_lower.begin(), ::tolower);
+    if (codec_lower != "opus") {
         Debug::log("opus", "Invalid codec name: ", m_stream_info.codec_name, " (expected 'opus')");
         return false;
     }
@@ -511,12 +527,24 @@ bool OpusCodec::setupInternalBuffers_unlocked()
         
         // Initialize state variables
         m_sample_rate = 48000;  // Opus always outputs at 48kHz
-        m_channels = 0;         // Will be set from identification header
-        m_pre_skip = 0;         // Will be set from identification header
-        m_output_gain = 0;      // Will be set from identification header
         
-        // Reset header processing state
-        m_header_packets_received = 0;
+        // Use channel count from StreamInfo if available (demuxer already parsed headers)
+        // Otherwise, set to 0 and wait for header packets
+        if (m_stream_info.channels > 0 && m_stream_info.channels <= 255) {
+            m_channels = m_stream_info.channels;
+            // Demuxer already parsed headers, mark as received
+            m_header_packets_received = 2;
+            Debug::log("opus", "Using channel count from StreamInfo: ", m_channels, " (headers pre-parsed by demuxer)");
+        } else {
+            m_channels = 0;         // Will be set from identification header
+            m_header_packets_received = 0;
+        }
+        
+        m_pre_skip = 0;         // Will be set from identification header (or use 0 if not available)
+        m_output_gain = 0;      // Will be set from identification header (or use 0 if not available)
+        m_channel_mapping_family = 0;  // Default to family 0 (mono/stereo)
+        
+        // Initialize decoder if we have channel info
         m_decoder_initialized = false;
         
         // Reset atomic counters
