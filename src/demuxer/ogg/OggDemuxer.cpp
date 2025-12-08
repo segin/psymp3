@@ -13,10 +13,8 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
 
-// Auto-registration
-namespace {
-    bool registered = OggDemuxer::registerDemuxer();
-}
+// Note: Registration is handled by registerAllDemuxers() called from main().
+// Do NOT use static auto-registration here as it causes initialization order issues.
 
 bool OggDemuxer::registerDemuxer() {
     DemuxerFactory::registerDemuxer("ogg", [](std::unique_ptr<PsyMP3::IO::IOHandler> io) {

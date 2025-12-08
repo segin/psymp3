@@ -60,9 +60,21 @@ void registerAllCodecs() {
 #endif
 
 #ifdef HAVE_OPUS
-    // TODO: Register the new container-agnostic Opus codec after namespace refactoring
-    // OpusCodecSupport::registerCodec();
-    Debug::log("codec", "registerAllCodecs: Opus codec registration pending namespace refactoring");
+    // Register the container-agnostic OpusCodec with AudioCodecFactory
+    PsyMP3::Codec::Opus::OpusCodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: Registered OpusCodec with AudioCodecFactory");
+    
+    // Also register with CodecRegistry for compatibility
+    CodecRegistry::registerCodec("opus", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::Opus::OpusCodec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered Opus codec with CodecRegistry");
+    
+    // Also register the passthrough variant for Ogg containers (legacy support)
+    CodecRegistry::registerCodec("opus_passthrough", [](const StreamInfo& info) {
+        return std::make_unique<OpusPassthroughCodec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered Opus passthrough codec");
 #else
     Debug::log("codec", "registerAllCodecs: Opus codec disabled at compile time");
 #endif
