@@ -12,6 +12,18 @@ AC_HEADER_STDBOOL
 AC_FUNC_MALLOC
 AX_CXX_COMPILE_STDCXX_17
 
+# Check for -Wno-psabi (suppress GCC 7.1 ABI warnings on ARM)
+AC_MSG_CHECKING([if compiler supports -Wno-psabi])
+OLD_CXXFLAGS="$CXXFLAGS"
+CXXFLAGS="$CXXFLAGS -Wno-psabi"
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
+  AC_MSG_RESULT([yes])
+  # Keep -Wno-psabi in CXXFLAGS
+], [
+  AC_MSG_RESULT([no])
+  CXXFLAGS="$OLD_CXXFLAGS"
+])
+
 AC_TYPE_INT16_T
 AC_TYPE_SIZE_T
 AC_TYPE_UINT32_T
