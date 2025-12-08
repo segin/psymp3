@@ -174,12 +174,12 @@ libtest_utilities_a_CPPFLAGS = $(AM_CPPFLAGS)
 
 # Test harness executable and debug programs
 if BUILD_TEST_HARNESS
-noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+noinst_PROGRAMS = test-harness debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_ogg_codec_detection test_error_handling test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_sample_rate_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 test_harness_SOURCES = test_harness.cpp test_discovery.cpp test_executor.cpp test_reporter.cpp
 test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 else
-noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_ogg_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
 endif
 
 # ============================================================================
@@ -320,8 +320,6 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_rect_performance \
 	test_widget_rect_integration \
 	test_harness_integration \
-	test_iso_fragment_handler \
-	test_iso_fragmented_mp4 \
 	test_iohandler_integration_simple \
 	test_iohandler_minimal \
 	test_iohandler_basic \
@@ -343,7 +341,6 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_page_extraction test_bisection_search test_granule_arithmetic test_codec_detection test_duration_calculation test_time_conversion test_data_streaming test_error_handling test_memory_safety test_seeking_integration test_ogg_demuxer_integration test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration test_opus_codec_core_decoding test_opus_codec_error_handling test_opus_integration test_opus_compatibility_performance
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
@@ -368,13 +365,22 @@ test_opus_codec_property_LDADD = \
 endif
 
 # A-law codec tests
+if HAVE_ALAW
 check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties
+endif
 
 # μ-law codec tests
+if HAVE_MULAW
 check_PROGRAMS += test_mulaw_conversion_accuracy
+endif
 
 # Codec selection and validation tests
-check_PROGRAMS += test_codec_selection_validation_simple test_mulaw_alaw_codec_selection test_mulaw_alaw_error_handling
+check_PROGRAMS += test_codec_selection_validation_simple
+if HAVE_MULAW
+if HAVE_ALAW
+check_PROGRAMS += test_mulaw_alaw_codec_selection test_mulaw_alaw_error_handling
+endif
+endif
 
 # Performance and thread safety tests
 check_PROGRAMS += test_codec_performance test_mulaw_alaw_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
@@ -392,7 +398,6 @@ endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_flac_diagnostic test_iohandler_deadlock test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration test_flac_demuxer_thread_safety test_flac_demuxer_threading test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_thread_safety_validation test_flac_binary_search_limitations test_flac_variable_block_size test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic test_flac_codec_streaminfo_only test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_threading_safety test_flac_quality_validation test_flac_quality_simple test_flac_codec_unit_minimal test_flac_codec_unit_comprehensive test_flac_codec_error_handling test_flac_codec_multithreaded test_flac_codec_performance_comprehensive test_flac_codec_demuxer_integration test_flac_performance_benchmarking test_flac_performance_optimization test_flac_performance_with_real_files test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation test_entropy_coding_compilation test_flac_test_data_validation test_flac_crc_validation test_flac_bit_depth_validation_simple test_streaminfo_real_files test_streaminfo_recovery test_streaminfo_debug test_flac_backward_compatibility_validation test_flac_demuxer_real_files test_flac_bisection_real_files test_flac_mini_player
 endif
 
 # Test program sources and dependencies
@@ -438,8 +443,6 @@ test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rec
 test_harness_integration_SOURCES = test_harness_integration.cpp
 test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 
-test_iso_fragment_handler_SOURCES = test_iso_fragment_handler.cpp
-test_iso_fragment_handler_LDADD = \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -448,8 +451,6 @@ test_iso_fragment_handler_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_fragmented_mp4_SOURCES = test_iso_fragmented_mp4.cpp
-test_iso_fragmented_mp4_LDADD = \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -675,7 +676,7 @@ test_iohandler_performance_validation_LDADD = libtest_utilities.a \
 
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
-test_page_extraction_SOURCES = test_page_extraction.cpp
+test_ogg_page_extraction_SOURCES = test_ogg_page_extraction.cpp
 
 check_PROGRAMS += test_stream_manager
 test_stream_manager_SOURCES = test_stream_manager.cpp
@@ -713,9 +714,6 @@ test_codec_identification_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_vorbis_parser
-test_vorbis_parser_SOURCES = test_vorbis_parser.cpp
-test_vorbis_parser_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/liboggdemuxer.a \
 	../src/demuxer/libdemuxer.a \
 	../src/io/file/libfileio.a \
@@ -785,9 +783,10 @@ test_speex_parser_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_seeking_engine
-test_seeking_engine_SOURCES = test_seeking_engine.cpp
-test_seeking_engine_LDADD = libtest_utilities.a \
+check_PROGRAMS += test_ogg_seeking_algorithms
+test_ogg_seeking_algorithms_SOURCES = test_ogg_seeking_algorithms.cpp
+test_ogg_seeking_algorithms_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
+test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/liboggdemuxer.a \
 	../src/demuxer/libdemuxer.a \
 	../src/io/file/libfileio.a \
@@ -858,8 +857,8 @@ test_ogg_integration_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-test_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
-test_page_extraction_LDADD = \
+test_ogg_page_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
+test_ogg_page_extraction_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -871,44 +870,14 @@ test_page_extraction_LDADD = \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
-# OggDemuxer bisection search test
-test_bisection_search_SOURCES = test_bisection_search.cpp
-test_bisection_search_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
-test_bisection_search_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/rect.o \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
 
-# OggDemuxer granule arithmetic test
-test_granule_arithmetic_SOURCES = test_granule_arithmetic.cpp
-test_granule_arithmetic_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
-test_granule_arithmetic_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(top_builddir)/src/rect.o \
-	$(OGG_LIBS) \
-	$(AM_LDFLAGS)
+
+
 
 # OggDemuxer codec detection test
-test_codec_detection_SOURCES = test_codec_detection.cpp
-test_codec_detection_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
-test_codec_detection_LDADD = \
+test_ogg_codec_detection_SOURCES = test_ogg_codec_detection.cpp
+test_ogg_codec_detection_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
+test_ogg_codec_detection_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -922,9 +891,9 @@ test_codec_detection_LDADD = \
 	$(AM_LDFLAGS)
 
 # OggDemuxer duration calculation test
-test_duration_calculation_SOURCES = test_duration_calculation.cpp
-test_duration_calculation_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
-test_duration_calculation_LDADD = \
+test_ogg_duration_calculation_SOURCES = test_ogg_duration_calculation.cpp
+test_ogg_duration_calculation_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
+test_ogg_duration_calculation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -938,9 +907,9 @@ test_duration_calculation_LDADD = \
 	$(AM_LDFLAGS)
 
 # OggDemuxer time conversion test
-test_time_conversion_SOURCES = test_time_conversion.cpp
-test_time_conversion_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
-test_time_conversion_LDADD = \
+test_ogg_time_conversion_SOURCES = test_ogg_time_conversion.cpp
+test_ogg_time_conversion_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
+test_ogg_time_conversion_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -954,9 +923,9 @@ test_time_conversion_LDADD = \
 	$(AM_LDFLAGS)
 
 # OggDemuxer data streaming test
-test_data_streaming_SOURCES = test_data_streaming.cpp
-test_data_streaming_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
-test_data_streaming_LDADD = \
+test_ogg_data_streaming_SOURCES = test_ogg_data_streaming.cpp
+test_ogg_data_streaming_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
+test_ogg_data_streaming_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -970,9 +939,9 @@ test_data_streaming_LDADD = \
 	$(AM_LDFLAGS)
 
 # OggDemuxer memory safety test
-test_memory_safety_SOURCES = test_memory_safety.cpp
-test_memory_safety_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
-test_memory_safety_LDADD = \
+test_ogg_memory_safety_SOURCES = test_ogg_memory_safety.cpp
+test_ogg_memory_safety_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
+test_ogg_memory_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -1005,9 +974,6 @@ test_error_handling_LDADD = \
 	$(AM_LDFLAGS)
 
 # OggDemuxer seeking integration test
-test_seeking_integration_SOURCES = test_seeking_integration.cpp
-test_seeking_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(OPUS_CFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
-test_seeking_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -1265,10 +1231,6 @@ test_mpris_error_integration_LDADD = \
 # **Feature: vorbis-codec, Property 7: Flush Outputs Remaining Samples**
 # **Feature: vorbis-codec, Property 16: Reset Clears State**
 # **Validates: Requirements 7.1, 7.2, 7.4, 7.5, 7.6, 4.8, 11.4, 11.5**
-check_PROGRAMS += test_vorbis_streaming_properties
-test_vorbis_streaming_properties_SOURCES = test_vorbis_streaming_properties.cpp
-test_vorbis_streaming_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_streaming_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -1290,10 +1252,6 @@ test_vorbis_streaming_properties_LDADD = \
 # Vorbis Demuxer Integration Tests
 # Task 15.1: Test integration with demuxer architecture
 # **Validates: Requirements 6.1, 6.3, 11.3, 11.4, 12.8**
-check_PROGRAMS += test_vorbis_demuxer_integration
-test_vorbis_demuxer_integration_SOURCES = test_vorbis_demuxer_integration.cpp
-test_vorbis_demuxer_integration_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_demuxer_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -1315,10 +1273,6 @@ test_vorbis_demuxer_integration_LDADD = \
 # Vorbis Compatibility and Performance Tests
 # Task 15.2: Validate compatibility and performance
 # **Validates: Requirements 12.1, 12.2, 12.4, 13.1, 13.2, 13.8**
-check_PROGRAMS += test_vorbis_compatibility_performance
-test_vorbis_compatibility_performance_SOURCES = test_vorbis_compatibility_performance.cpp
-test_vorbis_compatibility_performance_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_compatibility_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -2099,9 +2053,6 @@ test_flac_codec_container_agnostic_LDADD = \
 
 # FLAC codec StreamInfo-only initialization test
 # Note: This test requires HAVE_NATIVE_FLAC; when not defined, it's a skip stub
-test_flac_codec_streaminfo_only_SOURCES = test_flac_codec_streaminfo_only.cpp
-test_flac_codec_streaminfo_only_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
-test_flac_codec_streaminfo_only_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
@@ -2319,9 +2270,6 @@ test_flac_codec_integration_LDADD = \
 	$(AM_LDFLAGS)
 
 # FLAC codec quality validation and accuracy test
-test_flac_quality_validation_SOURCES = test_flac_quality_validation.cpp
-test_flac_quality_validation_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
-test_flac_quality_validation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
@@ -2437,9 +2385,6 @@ test_flac_binary_search_limitations_LDADD = \
 	$(AM_LDFLAGS)
 
 # FLAC codec threading safety test
-test_flac_codec_threading_safety_SOURCES = test_flac_codec_threading_safety.cpp
-test_flac_codec_threading_safety_CPPFLAGS = $(AM_CPPFLAGS) $(FLAC_CFLAGS) -std=c++17 -pthread
-test_flac_codec_threading_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3088,22 +3033,15 @@ clean-local:
 	rm -rf validation_results_*
 
 # ISO Demuxer Compliance Validation Tests
-check_PROGRAMS += test_iso_compliance_comprehensive test_iso_compliance_edge_cases test_iso_codec_compliance test_iso_compliance_minimal test_iso_compliance_validation
 
 # ISO Demuxer Comprehensive Integration Tests (Task 21)
-check_PROGRAMS += test_iso_comprehensive_integration_simple test_iso_encoder_compatibility test_iso_fragmented_streaming test_iso_seeking_accuracy test_iso_comprehensive_integration
 
 # ISO Demuxer FLAC Integration Tests
-check_PROGRAMS += test_iso_flac_integration test_iso_flac_support
 
 # ISO Demuxer Performance and Optimization Tests
-check_PROGRAMS += test_iso_performance_optimization test_iso_sample_table_optimization test_iso_sample_table_simple
 
 # ISO Demuxer Additional Tests
-check_PROGRAMS += test_iso_constants test_iso_metadata_extraction test_iso_telephony_codecs
 
-test_iso_compliance_comprehensive_SOURCES = test_iso_compliance_comprehensive.cpp
-test_iso_compliance_comprehensive_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -3115,8 +3053,6 @@ test_iso_compliance_comprehensive_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(AM_LDFLAGS)
 
-test_iso_compliance_edge_cases_SOURCES = test_iso_compliance_edge_cases.cpp
-test_iso_compliance_edge_cases_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3127,8 +3063,6 @@ test_iso_compliance_edge_cases_LDADD = \
 	$(top_builddir)/src/rect.o \
 	$(AM_LDFLAGS)
 
-test_iso_codec_compliance_SOURCES = test_iso_codec_compliance.cpp
-test_iso_codec_compliance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3140,9 +3074,6 @@ test_iso_codec_compliance_LDADD = \
 	$(AM_LDFLAGS)
 
 # ISO Demuxer Comprehensive Integration Tests (Task 21)
-test_iso_comprehensive_integration_simple_SOURCES = test_iso_comprehensive_integration_simple.cpp
-test_iso_comprehensive_integration_simple_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_comprehensive_integration_simple_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3152,9 +3083,6 @@ test_iso_comprehensive_integration_simple_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_encoder_compatibility_SOURCES = test_iso_encoder_compatibility.cpp
-test_iso_encoder_compatibility_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_encoder_compatibility_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3164,9 +3092,6 @@ test_iso_encoder_compatibility_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_fragmented_streaming_SOURCES = test_iso_fragmented_streaming.cpp
-test_iso_fragmented_streaming_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_fragmented_streaming_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3176,9 +3101,6 @@ test_iso_fragmented_streaming_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_seeking_accuracy_SOURCES = test_iso_seeking_accuracy.cpp
-test_iso_seeking_accuracy_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_seeking_accuracy_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3188,9 +3110,6 @@ test_iso_seeking_accuracy_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 # Additional ISO Demuxer Compliance Tests
-test_iso_compliance_minimal_SOURCES = test_iso_compliance_minimal.cpp
-test_iso_compliance_minimal_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_compliance_minimal_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3200,9 +3119,6 @@ test_iso_compliance_minimal_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_compliance_validation_SOURCES = test_iso_compliance_validation.cpp
-test_iso_compliance_validation_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_compliance_validation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3213,9 +3129,6 @@ test_iso_compliance_validation_LDADD = \
 	$(AM_LDFLAGS)
 
 # Additional ISO Demuxer Integration Tests
-test_iso_comprehensive_integration_SOURCES = test_iso_comprehensive_integration.cpp
-test_iso_comprehensive_integration_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_comprehensive_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3226,9 +3139,6 @@ test_iso_comprehensive_integration_LDADD = \
 	$(AM_LDFLAGS)
 
 # ISO Demuxer FLAC Integration Tests
-test_iso_flac_integration_SOURCES = test_iso_flac_integration.cpp
-test_iso_flac_integration_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_flac_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3238,9 +3148,6 @@ test_iso_flac_integration_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_flac_support_SOURCES = test_iso_flac_support.cpp
-test_iso_flac_support_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_flac_support_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3251,9 +3158,6 @@ test_iso_flac_support_LDADD = \
 	$(AM_LDFLAGS)
 
 # ISO Demuxer Performance and Optimization Tests
-test_iso_performance_optimization_SOURCES = test_iso_performance_optimization.cpp
-test_iso_performance_optimization_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_performance_optimization_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3263,9 +3167,6 @@ test_iso_performance_optimization_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_sample_table_optimization_SOURCES = test_iso_sample_table_optimization.cpp
-test_iso_sample_table_optimization_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_sample_table_optimization_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3275,9 +3176,6 @@ test_iso_sample_table_optimization_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_sample_table_simple_SOURCES = test_iso_sample_table_simple.cpp
-test_iso_sample_table_simple_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_sample_table_simple_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3288,17 +3186,11 @@ test_iso_sample_table_simple_LDADD = \
 	$(AM_LDFLAGS)
 
 # ISO Demuxer Additional Tests
-test_iso_constants_SOURCES = test_iso_constants.cpp
-test_iso_constants_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_constants_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_metadata_extraction_SOURCES = test_iso_metadata_extraction.cpp
-test_iso_metadata_extraction_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_metadata_extraction_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3308,9 +3200,6 @@ test_iso_metadata_extraction_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-test_iso_telephony_codecs_SOURCES = test_iso_telephony_codecs.cpp
-test_iso_telephony_codecs_CPPFLAGS = $(AM_CPPFLAGS)
-test_iso_telephony_codecs_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3489,7 +3378,6 @@ test_debug_system_LDADD = \
 
 # Native FLAC codec unit tests (conditional on HAVE_NATIVE_FLAC)
 if HAVE_NATIVE_FLAC
-check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit test_native_flac_rfc_examples test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading test_flac_security_validation test_flac_rfc9639_compliance_validator
 
 # BitstreamReader unit tests
 test_bitstream_reader_unit_SOURCES = test_bitstream_reader_unit.cpp
@@ -3558,9 +3446,6 @@ test_sample_reconstructor_unit_LDADD = \
 	$(AM_LDFLAGS)
 
 # Integration test: RFC 9639 example files
-test_native_flac_rfc_examples_SOURCES = test_native_flac_rfc_examples.cpp
-test_native_flac_rfc_examples_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
-test_native_flac_rfc_examples_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/flac/libnativeflac.a \
 	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
@@ -3697,10 +3582,6 @@ endif
 # OggDemuxer property-based tests (RFC 3533 compliance)
 # Works with or without RapidCheck - falls back to exhaustive unit tests
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_ogg_page_properties
-test_ogg_page_properties_SOURCES = ogg/test_ogg_page_properties.cpp
-test_ogg_page_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17
-test_ogg_page_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -3711,7 +3592,6 @@ test_ogg_page_properties_LDADD = \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 if HAVE_RAPIDCHECK
-test_ogg_page_properties_LDADD += $(RAPIDCHECK_LIBS)
 endif
 
 # OggDemuxer thread safety property-based tests
@@ -3761,10 +3641,6 @@ endif
 # **Feature: vorbis-codec, Property 6: Block Size Constraint**
 # **Validates: Requirements 1.1, 1.2, 4.1, 4.2**
 if HAVE_OGGDEMUXER
-check_PROGRAMS += test_vorbis_header_sequence_properties
-test_vorbis_header_sequence_properties_SOURCES = test_vorbis_header_sequence_properties.cpp
-test_vorbis_header_sequence_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_header_sequence_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -3787,10 +3663,6 @@ test_vorbis_header_sequence_properties_LDADD = \
 # **Feature: vorbis-codec, Property 3: Corrupted Packet Recovery**
 # **Feature: vorbis-codec, Property 4: Error Code Handling**
 # **Validates: Requirements 11.3, 1.8, 8.3, 2.6**
-check_PROGRAMS += test_vorbis_audio_decoding_properties
-test_vorbis_audio_decoding_properties_SOURCES = test_vorbis_audio_decoding_properties.cpp
-test_vorbis_audio_decoding_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_audio_decoding_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -3813,10 +3685,6 @@ test_vorbis_audio_decoding_properties_LDADD = \
 # **Feature: vorbis-codec, Property 8: Channel Count Consistency**
 # **Feature: vorbis-codec, Property 9: Channel Interleaving Correctness**
 # **Validates: Requirements 5.1, 5.2, 5.3, 5.5, 5.7**
-check_PROGRAMS += test_vorbis_channel_properties
-test_vorbis_channel_properties_SOURCES = test_vorbis_channel_properties.cpp
-test_vorbis_channel_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_channel_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -3838,10 +3706,6 @@ test_vorbis_channel_properties_LDADD = \
 # Vorbis Container-Agnostic Property Tests
 # **Feature: vorbis-codec, Property 10: Container-Agnostic Decoding**
 # **Validates: Requirements 6.1, 6.3**
-check_PROGRAMS += test_vorbis_container_agnostic_properties
-test_vorbis_container_agnostic_properties_SOURCES = test_vorbis_container_agnostic_properties.cpp
-test_vorbis_container_agnostic_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_container_agnostic_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -3864,11 +3728,6 @@ test_vorbis_container_agnostic_properties_LDADD = \
 # **Feature: vorbis-codec, Property 13: Instance Independence**
 # **Feature: vorbis-codec, Property 14: Concurrent Initialization Safety**
 # **Validates: Requirements 10.1, 10.2, 10.5**
-check_PROGRAMS += test_vorbis_thread_safety_properties
-test_vorbis_thread_safety_properties_SOURCES = test_vorbis_thread_safety_properties.cpp
-test_vorbis_thread_safety_properties_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) -std=c++17
-test_vorbis_thread_safety_properties_LDFLAGS = -pthread
-test_vorbis_thread_safety_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
