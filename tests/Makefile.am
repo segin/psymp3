@@ -22,9 +22,6 @@ SUBDIRS = .
 # Define optional codec/demuxer libraries (same as main binary)
 CODEC_LIBS =
 DEMUXER_LIBS =
-opusout_SOURCES = opusout.cpp
-opusout_CPPFLAGS = $(AM_CPPFLAGS) -I$(top_srcdir)/include
-opusout_LDADD = $(FULL_CODEC_LIBS) $(OPUS_LIBS) $(OGG_LIBS) $(TAGLIB_LIBS) $(VORBIS_LIBS) $(FLAC_LIBS)
 
 
 if HAVE_FLAC
@@ -183,6 +180,52 @@ test_harness_CPPFLAGS = $(AM_CPPFLAGS)
 test_harness_LDADD = libtest_utilities.a $(top_builddir)/src/rect.o $(AM_LDFLAGS)
 else
 noinst_PROGRAMS = debug_dual_flac debug_bit_extraction debug_flac_seeking test_iohandler_seek_comprehensive test_iohandler_buffer_analysis test_debug_iohandler_position test_seek_deadlock test_flac_frame_indexing test_frame_size_estimation_consistency test_codec_detection test_error_handling test_flac_streamable_subset_real_files test_mulaw_codec_properties test_alaw_codec_properties test_mulaw_alaw_error_state_consistency test_lastfm_md5_properties test_lastfm_url_encoding_properties test_lastfm_exponential_backoff_properties test_lastfm_lazy_logging_properties test_lastfm_scrobble_cache_roundtrip_properties test_lastfm_config_backward_compatibility test_lastfm_config_roundtrip_properties test_lastfm_thread_safety_properties test_flac_stream_marker_properties test_flac_metadata_block_header_properties test_flac_streaminfo_block_size_properties test_flac_seektable_placeholder_properties test_flac_vorbis_comment_endianness_properties test_flac_cuesheet_track_count_properties test_flac_frame_sync_properties test_flac_block_size_bits_properties test_flac_crc8_properties test_flac_crc16_properties test_flac_frame_size_estimation_properties test_flac_frame_boundary_search_properties test_flac_duration_calculation_properties test_flac_sync_resync_properties test_flac_thread_safety_lock_pattern_properties test_flac_debug_logging_format_properties
+endif
+
+# ============================================================================
+# opusout - Opus to PCM/WAV decoder utility
+# ============================================================================
+#
+# Usage:
+#   opusout [options] input.opus [output.wav|output.pcm]
+#
+# Options:
+#   -r, --raw       Output raw PCM instead of WAVE (default: WAVE)
+#   -q, --quiet     Suppress progress output
+#   -v, --verbose   Show detailed decoding information
+#   -h, --help      Show this help message
+#
+# ============================================================================
+
+if HAVE_OPUS
+noinst_PROGRAMS += opusout
+
+opusout_SOURCES = opusout.cpp
+opusout_CPPFLAGS = $(AM_CPPFLAGS)
+opusout_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(OPUS_LIBS) $(OGG_LIBS) \
+	-lvorbis -lmpg123 -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -3966,3 +4009,48 @@ flacout_LDADD = \
 	$(AM_LDFLAGS)
 endif
 
+# ============================================================================
+# vorbisout - Vorbis to PCM/WAV decoder utility
+# ============================================================================
+#
+# Usage:
+#   vorbisout [options] input.ogg [output.wav|output.pcm]
+#
+# Options:
+#   -r, --raw       Output raw PCM instead of WAVE (default: WAVE)
+#   -q, --quiet     Suppress progress output
+#   -v, --verbose   Show detailed decoding information
+#   -h, --help      Show this help message
+#
+# ============================================================================
+
+if HAVE_VORBIS
+noinst_PROGRAMS += vorbisout
+
+vorbisout_SOURCES = vorbisout.cpp
+vorbisout_CPPFLAGS = $(AM_CPPFLAGS)
+vorbisout_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/lyrics.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(DEMUXER_LIBS) \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(top_builddir)/src/rect.o \
+	$(VORBIS_LIBS) \
+	-logg -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS) $(FLAC_LIBS)
+endif

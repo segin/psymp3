@@ -1,20 +1,20 @@
 /*
- * opusout.cpp - Opus to PCM/WAV decoder utility
+ * vorbisout.cpp - Vorbis to PCM/WAV decoder utility
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  *
- * This utility decodes Opus files to either:
+ * This utility decodes Vorbis files to either:
  * - Raw PCM (LPCM) data
  * - RIFF WAVE format
  *
- * This serves as a test of the Opus decoder implementation.
- * Note: Output is 16-bit signed PCM at 48kHz (Opus always outputs at 48kHz).
+ * This serves as a test of the Vorbis decoder implementation.
+ * Note: Output is 16-bit signed PCM as that's what the codec produces.
  *
  * Usage:
- *   opusout [options] input.opus [output.wav|output.pcm]
+ *   vorbisout [options] input.ogg [output.wav|output.pcm]
  *
  * Options:
  *   -r, --raw       Output raw PCM instead of WAVE (default: WAVE)
@@ -62,9 +62,9 @@ struct WAVHeader {
 #pragma pack(pop)
 
 /**
- * @brief Configuration options for opusout
+ * @brief Configuration options for vorbisout
  */
-struct OpusOutConfig {
+struct VorbisOutConfig {
     std::string input_file;
     std::string output_file;
     bool raw_output = false;      // Output raw PCM instead of WAVE
@@ -77,9 +77,9 @@ struct OpusOutConfig {
  * @brief Print usage information
  */
 static void printUsage(const char* program_name) {
-    std::cerr << "Usage: " << program_name << " [options] input.opus [output.wav|output.pcm]\n"
+    std::cerr << "Usage: " << program_name << " [options] input.ogg [output.wav|output.pcm]\n"
               << "\n"
-              << "Decode Opus files to PCM or WAVE format.\n"
+              << "Decode Vorbis files to PCM or WAVE format.\n"
               << "\n"
               << "Options:\n"
               << "  -r, --raw       Output raw PCM instead of WAVE (default: WAVE)\n"
@@ -88,23 +88,22 @@ static void printUsage(const char* program_name) {
               << "  -h, --help      Show this help message\n"
               << "\n"
               << "Output format:\n"
-              << "  16-bit signed little-endian PCM (S16_LE) at 48kHz\n"
-              << "  (Opus always outputs at 48kHz regardless of source sample rate)\n"
+              << "  16-bit signed little-endian PCM (S16_LE)\n"
               << "\n"
               << "If no output file is specified, output goes to stdout.\n"
               << "When outputting to stdout, raw PCM is used by default.\n"
               << "\n"
               << "Examples:\n"
-              << "  " << program_name << " input.opus output.wav\n"
-              << "  " << program_name << " -r input.opus output.pcm\n"
-              << "  " << program_name << " input.opus > output.pcm\n"
-              << "  " << program_name << " input.opus | aplay -f S16_LE -r 48000 -c 2\n";
+              << "  " << program_name << " input.ogg output.wav\n"
+              << "  " << program_name << " -r input.ogg output.pcm\n"
+              << "  " << program_name << " input.ogg > output.pcm\n"
+              << "  " << program_name << " input.ogg | aplay -f S16_LE -r 44100 -c 2\n";
 }
 
 /**
  * @brief Parse command line arguments
  */
-static bool parseArgs(int argc, char* argv[], OpusOutConfig& config) {
+static bool parseArgs(int argc, char* argv[], VorbisOutConfig& config) {
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
         
@@ -213,7 +212,7 @@ static std::string formatTime(uint64_t ms) {
 /**
  * @brief Main decoding function using DemuxedStream
  */
-static int decode(const OpusOutConfig& config) {
+static int decode(const VorbisOutConfig& config) {
     auto start_time = std::chrono::high_resolution_clock::now();
     
     // Open input file using DemuxedStream
@@ -228,13 +227,13 @@ static int decode(const OpusOutConfig& config) {
         stream = std::make_unique<DemuxedStream>(path);
     } catch (const std::exception& e) {
         std::cerr << "Error: Failed to open file: " << e.what() << "\n";
-        std::cerr << "Check opusout_debug.log for detailed error information\n";
+        std::cerr << "Check vorbisout_debug.log for detailed error information\n";
         return 1;
     }
     
     if (!stream) {
         std::cerr << "Error: Failed to create stream\n";
-        std::cerr << "Check opusout_debug.log for detailed error information\n";
+        std::cerr << "Check vorbisout_debug.log for detailed error information\n";
         return 1;
     }
     
@@ -242,14 +241,11 @@ static int decode(const OpusOutConfig& config) {
     StreamInfo info = stream->getCurrentStreamInfo();
     uint64_t duration_ms = stream->getLength();
     
-    // Opus always outputs at 48kHz
-    uint32_t output_sample_rate = 48000;
-    
     if (!config.quiet) {
         std::cerr << "Stream info:\n"
                   << "  Demuxer: " << stream->getDemuxerType() << "\n"
                   << "  Codec: " << stream->getCodecType() << "\n"
-                  << "  Sample rate: " << info.sample_rate << " Hz (output: 48000 Hz)\n"
+                  << "  Sample rate: " << info.sample_rate << " Hz\n"
                   << "  Channels: " << info.channels << "\n"
                   << "  Output bits per sample: 16 (S16_LE)\n"
                   << "  Duration: " << formatTime(duration_ms) << "\n";
@@ -277,13 +273,12 @@ static int decode(const OpusOutConfig& config) {
         out = &file_out;
     }
     
-    // Output is always 16-bit PCM at 48kHz for Opus
+    // Output is always 16-bit PCM (codec converts to 16-bit)
     const uint16_t output_bits = 16;
-    uint16_t output_channels = info.channels > 0 ? info.channels : 2;
     
     // Write WAVE header placeholder if not raw
     if (!config.raw_output) {
-        if (!writeWAVHeader(*out, output_sample_rate, output_channels, output_bits, 0)) {
+        if (!writeWAVHeader(*out, info.sample_rate, info.channels, output_bits, 0)) {
             std::cerr << "Error: Failed to write WAVE header\n";
             return 1;
         }
@@ -320,9 +315,7 @@ static int decode(const OpusOutConfig& config) {
         
         total_bytes += bytes_read;
         // Each sample is 16-bit (2 bytes) per channel
-        if (output_channels > 0) {
-            total_samples += bytes_read / (2 * output_channels);
-        }
+        total_samples += bytes_read / (2 * info.channels);
         
         // Progress output (every ~500ms worth of audio)
         if (!config.quiet) {
@@ -372,7 +365,7 @@ static int decode(const OpusOutConfig& config) {
 }
 
 int main(int argc, char* argv[]) {
-    OpusOutConfig config;
+    VorbisOutConfig config;
     
     if (!parseArgs(argc, argv, config)) {
         return 1;
@@ -381,10 +374,10 @@ int main(int argc, char* argv[]) {
     // Initialize debug system based on verbose flag
     if (config.verbose) {
         std::vector<std::string> debug_channels = {"all"};
-        Debug::init("opusout_debug.log", debug_channels);
+        Debug::init("vorbisout_debug.log", debug_channels);
     } else {
         std::vector<std::string> debug_channels = {};
-        Debug::init("opusout_debug.log", debug_channels);
+        Debug::init("vorbisout_debug.log", debug_channels);
     }
     
     // Register all codecs and demuxers

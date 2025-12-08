@@ -1,14 +1,14 @@
 # Implementation Plan
 
-- [ ] 1. Create VorbisCodec Class Structure and Build System
-  - [ ] 1.1 Create directory structure and Makefile.am
+- [x] 1. Create VorbisCodec Class Structure and Build System
+  - [x] 1.1 Create directory structure and Makefile.am
     - Create `src/codecs/vorbis/` and `include/codecs/vorbis/` directories
     - Create `src/codecs/vorbis/Makefile.am` to build `libvorbiscodec.a`
     - Update `src/codecs/Makefile.am` to include vorbis subdirectory
     - Update `configure.ac` to add vorbis codec Makefile
     - _Requirements: 17.1_
 
-  - [ ] 1.2 Create VorbisCodec header file
+  - [x] 1.2 Create VorbisCodec header file
     - Create `include/codecs/vorbis/VorbisCodec.h` with class declaration
     - Add libvorbis structure members (vorbis_info, vorbis_comment, vorbis_dsp_state, vorbis_block)
     - Add initialization state tracking flags
@@ -17,7 +17,7 @@
     - Add threading mutex following public/private lock pattern
     - _Requirements: 1.1-1.6, 16.1_
 
-  - [ ] 1.3 Create VorbisCodec implementation skeleton
+  - [x] 1.3 Create VorbisCodec implementation skeleton
     - Create `src/codecs/vorbis/VorbisCodec.cpp` with constructor and destructor
     - Implement constructor with vorbis_info_init() and vorbis_comment_init()
     - Implement destructor with cleanup in reverse order (block, dsp, comment, info)
@@ -28,24 +28,24 @@
     - **Property 14: Cleanup Order**
     - **Validates: Requirements 2.1-2.5**
 
-- [ ] 2. Implement Core AudioCodec Interface Methods
-  - [ ] 2.1 Implement initialize() method
+- [x] 2. Implement Core AudioCodec Interface Methods
+  - [x] 2.1 Implement initialize() method
     - Initialize libvorbis structures (vorbis_info_init, vorbis_comment_init)
     - Extract Vorbis parameters from StreamInfo if available
     - Set up internal buffers and state variables
     - Return success/failure status
     - _Requirements: 1.1-1.2, 17.2_
 
-  - [ ] 2.2 Implement canDecode() method
-    - Check if StreamInfo contains "vorbis" codec name
+  - [x] 2.2 Implement canDecode() method
+    - Check if StreamInfo contains "vorbis" codec name (case-insensitive)
     - Return boolean indicating decode capability
     - _Requirements: 17.7_
 
-  - [ ] 2.3 Implement getCodecName() method
+  - [x] 2.3 Implement getCodecName() method
     - Return "vorbis" string identifier
     - _Requirements: 17.6_
 
-- [ ] 3. Implement Header Processing System
+- [x] 3. Implement Header Processing System
   - [ ] 3.1 Create header packet detection and routing
     - Implement isHeaderPacket_unlocked() to detect 0x01/0x03/0x05 + "vorbis"
     - Implement processHeaderPacket_unlocked() to route header types
