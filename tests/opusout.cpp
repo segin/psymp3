@@ -13,6 +13,8 @@
 #include <vector>
 #include <string>
 #include "io/file/FileIOHandler.h"
+#include "demuxer/ogg/OggDemuxer.h"
+#include "codecs/opus/OpusCodec.h"
 
 // Use namespaces for convenience
 using namespace PsyMP3;
@@ -92,6 +94,19 @@ int main(int argc, char* argv[]) {
     
     std::cout << "Decoding " << input_path << " to " << output_path << "..." << std::endl;
     
+    // Register only OggDemuxer and OpusCodec (minimal registration for opus decoding)
+    DemuxerRegistry::getInstance().registerDemuxer("ogg", [](std::unique_ptr<PsyMP3::IO::IOHandler> handler) {
+        return std::make_unique<PsyMP3::Demuxer::Ogg::OggDemuxer>(std::move(handler));
+    }, "Ogg", {"ogg", "oga", "opus"});
+    
+    // Register OpusCodec with both cases to handle stream metadata variations
+    AudioCodecFactory::registerCodec("opus", [](const StreamInfo& stream_info) {
+        return std::make_unique<PsyMP3::Codec::Opus::OpusCodec>(stream_info);
+    });
+    AudioCodecFactory::registerCodec("Opus", [](const StreamInfo& stream_info) {
+        return std::make_unique<PsyMP3::Codec::Opus::OpusCodec>(stream_info);
+    });
+    
     // Create IOHandler directly
     std::unique_ptr<FileIOHandler> io_handler;
     try {
@@ -123,7 +138,10 @@ int main(int argc, char* argv[]) {
     std::cout << "Container parsed. Found " << streams.size() << " streams." << std::endl;
     for (const auto& stream : streams) {
         std::cout << "  Stream " << stream.stream_id << ": " << stream.codec_type << "/" << stream.codec_name << std::endl;
-        if (stream.isAudio() && stream.codec_name == "opus" && !audio_stream) {
+        // Match Opus codec case-insensitively (OggDemuxer may use "Opus" or "opus")
+        std::string codec_lower = stream.codec_name;
+        std::transform(codec_lower.begin(), codec_lower.end(), codec_lower.begin(), ::tolower);
+        if (codec_lower == "opus" && !audio_stream) {
             audio_stream = &stream;
         }
     }
