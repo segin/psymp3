@@ -327,6 +327,25 @@ fi
 
 AM_CONDITIONAL([FINAL_BUILD], [test "x$enable_final" = "xyes"])
 
+# Static Build Support
+AC_ARG_ENABLE([static-binary],
+  [AS_HELP_STRING([--enable-static-binary], [Enable static linking for the final binary @<:@default=no@:>@])],
+  [enable_static_binary=$enableval],
+  [enable_static_binary=no])
+
+if test "x$enable_static_binary" = "xyes"; then
+  AC_MSG_NOTICE([Static linking enabled])
+  LDFLAGS="$LDFLAGS -static"
+  
+  # For Windows/MinGW, we might need additional flags or specific handling
+  # but -static is usually the main switch for gcc/ld.
+  case "$host_os" in
+    *mingw*|*cygwin*|*msys*)
+       # Ensure we don't have conflicting flags if necessary
+       ;;
+  esac
+fi
+
 # Check for windres (Windows Resource Compiler) for cross-compilation
 AC_CHECK_TOOL([WINDRES], [windres], [no])
 AM_CONDITIONAL([HAVE_WINDRES], [test "x$WINDRES" != "xno"])

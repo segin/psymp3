@@ -247,7 +247,6 @@ deadlock_*.log
 psymp3_test.log
 psymp3.log
 mingw.log
-src/surface.cpp
 tests/test_flac_simple
 
 # Additional FLAC test executables
@@ -316,7 +315,6 @@ tests/test_ogg_thread_safety
 tests/test_ogg_page_properties
 tests/test_position_reporting_property
 tests/test_ogg_comprehensive_integration
-.kiro/specs/lastfm-performance-optimization/tasks.md
 tests/test_lastfm_md5_properties
 tests/test_lastfm_url_encoding_properties
 tests/test_lastfm_exponential_backoff_properties
