@@ -148,11 +148,27 @@ if test "x$enable_alaw" = "xyes"; then
   AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
 fi
 
-if test "x$enable_mulaw" = "xyes"; then
+# G711 codec option (enables both μ-law and A-law)
+AC_ARG_ENABLE([g711],
+  [AS_HELP_STRING([--enable-g711], [Enable G.711 codecs (μ-law and A-law) @<:@default=auto@:])],
+  [enable_g711=$enableval],
+  [enable_g711=auto])
+
+# Determine G711 support
+if test "x$enable_g711" = "xno"; then
+  have_g711=no
+  have_alaw=no
+  have_mulaw=no
+else
+  have_g711=yes
+  # Enable both codecs by default
+  have_alaw=yes
   have_mulaw=yes
+  AC_DEFINE([ENABLE_ALAW_CODEC], [1], [Define to 1 if A-law codec support is enabled])
   AC_DEFINE([ENABLE_MULAW_CODEC], [1], [Define to 1 if μ-law codec support is enabled])
 fi
 
+AM_CONDITIONAL([HAVE_G711], [test "x$have_g711" = "xyes"])
 AM_CONDITIONAL([HAVE_FLAC], [test "x$have_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])

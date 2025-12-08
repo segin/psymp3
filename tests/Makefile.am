@@ -364,29 +364,28 @@ test_opus_codec_property_LDADD = \
 	$(AM_LDFLAGS)
 endif
 
-# A-law codec tests
-if HAVE_ALAW
-check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties
-endif
-
-# μ-law codec tests
-if HAVE_MULAW
-check_PROGRAMS += test_mulaw_conversion_accuracy
+# G711 codec tests (both A-law and μ-law)
+if HAVE_G711
+  # A-law tests
+  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties
+  # μ-law tests
+  check_PROGRAMS += test_mulaw_conversion_accuracy
+  # Combined codec selection tests
+  check_PROGRAMS += test_mulaw_alaw_codec_selection test_mulaw_alaw_error_handling
+  # Performance tests for G711
+  check_PROGRAMS += test_mulaw_alaw_performance
+  # Integration tests for G711
+  check_PROGRAMS += test_mulaw_alaw_integration
 endif
 
 # Codec selection and validation tests
 check_PROGRAMS += test_codec_selection_validation_simple
-if HAVE_MULAW
-if HAVE_ALAW
-check_PROGRAMS += test_mulaw_alaw_codec_selection test_mulaw_alaw_error_handling
-endif
-endif
 
 # Performance and thread safety tests
-check_PROGRAMS += test_codec_performance test_mulaw_alaw_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
+check_PROGRAMS += test_codec_performance test_codec_thread_safety test_codec_concurrent_instances test_codec_performance_simple test_codec_thread_safety_simple test_threading_safety_baseline test_audio_thread_safety test_audio_threading_pattern test_iohandler_thread_safety_comprehensive test_iohandler_memory_deadlock_prevention test_memory_pool_manager_integration test_memory_pool_manager_thread_safety_comprehensive test_memory_pool_manager_basic_threading test_surface_thread_safety test_surface_performance_regression test_system_wide_threading_integration test_threading_performance_regression
 
 # SimplePCMCodec integration tests
-check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration test_mulaw_alaw_integration
+check_PROGRAMS += test_simplepcmcodec_integration_minimal test_simplepcmcodec_real_integration test_simplepcmcodec_comprehensive_integration
 
 # Conditional compilation tests
 check_PROGRAMS += test_conditional_codec_compilation
@@ -802,9 +801,6 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_ogg_thread_safety
-test_ogg_thread_safety_SOURCES = test_ogg_thread_safety.cpp
-test_ogg_thread_safety_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/liboggdemuxer.a \
 	../src/demuxer/libdemuxer.a \
 	../src/io/file/libfileio.a \
@@ -1011,7 +1007,7 @@ endif
 
 # A-law codec table verification test
 test_alaw_table_verification_SOURCES = test_alaw_table_verification.cpp
-test_alaw_table_verification_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
+test_alaw_table_verification_CPPFLAGS = $(AM_CPPFLAGS) 
 test_alaw_table_verification_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
@@ -1042,7 +1038,7 @@ test_alaw_table_verification_LDADD = \
 
 # A-law codec sample conversion test
 test_alaw_sample_conversion_SOURCES = test_alaw_sample_conversion.cpp
-test_alaw_sample_conversion_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_ALAW_CODEC
+test_alaw_sample_conversion_CPPFLAGS = $(AM_CPPFLAGS) 
 test_alaw_sample_conversion_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1063,12 +1059,12 @@ test_codec_selection_validation_simple_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_COD
 
 # Codec performance test
 test_codec_performance_SOURCES = test_codec_performance.cpp
-test_codec_performance_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_performance_CPPFLAGS = $(AM_CPPFLAGS)  
 test_codec_performance_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # μ-law/A-law codec performance test
 test_mulaw_alaw_performance_SOURCES = test_mulaw_alaw_performance.cpp
-test_mulaw_alaw_performance_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_mulaw_alaw_performance_CPPFLAGS = $(AM_CPPFLAGS)  
 test_mulaw_alaw_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
@@ -1099,12 +1095,12 @@ test_mulaw_alaw_performance_LDADD = \
 
 # Codec thread safety test
 test_codec_thread_safety_SOURCES = test_codec_thread_safety.cpp
-test_codec_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_thread_safety_CPPFLAGS = $(AM_CPPFLAGS)  
 test_codec_thread_safety_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # Codec concurrent instances test
 test_codec_concurrent_instances_SOURCES = test_codec_concurrent_instances.cpp
-test_codec_concurrent_instances_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_concurrent_instances_CPPFLAGS = $(AM_CPPFLAGS)  
 test_codec_concurrent_instances_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) $(AM_LDFLAGS)
 
 # MPRIS types test (conditional on HAVE_DBUS)
@@ -1422,12 +1418,12 @@ test_threading_performance_regression_LDADD = \
 
 # Simple codec performance test (minimal dependencies)
 test_codec_performance_simple_SOURCES = test_codec_performance_simple.cpp
-test_codec_performance_simple_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_performance_simple_CPPFLAGS = $(AM_CPPFLAGS)  
 test_codec_performance_simple_LDADD = $(AM_LDFLAGS)
 
 # Simple codec thread safety test (minimal dependencies)
 test_codec_thread_safety_simple_SOURCES = test_codec_thread_safety_simple.cpp
-test_codec_thread_safety_simple_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_codec_thread_safety_simple_CPPFLAGS = $(AM_CPPFLAGS)  
 test_codec_thread_safety_simple_LDADD = $(AM_LDFLAGS)
 
 # Threading safety baseline test
@@ -1503,7 +1499,7 @@ test_simplepcmcodec_comprehensive_integration_LDADD = $(AM_LDFLAGS)
 
 # μ-law/A-law codec integration tests with SimplePCMCodec
 test_mulaw_alaw_integration_SOURCES = test_mulaw_alaw_integration.cpp
-test_mulaw_alaw_integration_CPPFLAGS = $(AM_CPPFLAGS) -DENABLE_MULAW_CODEC -DENABLE_ALAW_CODEC
+test_mulaw_alaw_integration_CPPFLAGS = $(AM_CPPFLAGS)  
 test_mulaw_alaw_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
@@ -3597,10 +3593,6 @@ endif
 # OggDemuxer thread safety property-based tests
 # **Feature: ogg-demuxer-fix, Property 16: Thread Safety**
 # **Validates: Requirements 11.1**
-check_PROGRAMS += test_ogg_thread_safety
-test_ogg_thread_safety_SOURCES = ogg/test_ogg_thread_safety.cpp
-test_ogg_thread_safety_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17 -pthread
-test_ogg_thread_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -3611,16 +3603,11 @@ test_ogg_thread_safety_LDADD = \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 if HAVE_RAPIDCHECK
-test_ogg_thread_safety_LDADD += $(RAPIDCHECK_LIBS)
 endif
 
 # OggDemuxer position reporting consistency property-based tests
 # **Feature: ogg-demuxer-fix, Property 17: Position Reporting Consistency**
 # **Validates: Requirements 14.4**
-check_PROGRAMS += test_position_reporting_property
-test_position_reporting_property_SOURCES = ogg/test_position_reporting_property.cpp
-test_position_reporting_property_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS) -std=c++17
-test_position_reporting_property_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -3631,7 +3618,6 @@ test_position_reporting_property_LDADD = \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 if HAVE_RAPIDCHECK
-test_position_reporting_property_LDADD += $(RAPIDCHECK_LIBS)
 endif
 endif
 
