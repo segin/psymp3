@@ -451,3 +451,6 @@ tests/test_residual_decoder_unit
 tests/test_sample_reconstructor_unit
 tests/test_subframe_decoder_unit
 tests/test_ogg_page_extraction
+
+# Test artifacts
+tests/*.dat
