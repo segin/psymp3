@@ -26,7 +26,8 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 
 
 # Check for atomic library (required for 64-bit atomics on some 32-bit architectures like ARM)
-AC_SEARCH_LIBS([__atomic_load_8], [atomic])
+# Use __atomic_compare_exchange_8 as it's the specific symbol often missing on ARM
+AC_SEARCH_LIBS([__atomic_compare_exchange_8], [atomic])
 
 AC_TYPE_INT16_T
 AC_TYPE_SIZE_T
