@@ -199,8 +199,7 @@ endif
 
 if HAVE_OPUS
 noinst_PROGRAMS += opusout
-check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
-	test_opus_integration test_opus_compatibility_performance
+
 opusout_SOURCES = opusout.cpp
 opusout_CPPFLAGS = $(AM_CPPFLAGS)
 opusout_LDADD = \
@@ -366,6 +365,12 @@ test_opus_codec_property_LDADD = \
 	$(VORBIS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+endif
+
+# Opus codec tests (conditional on HAVE_OPUS)
+if HAVE_OPUS
+check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
+	test_opus_integration test_opus_compatibility_performance
 endif
 
 # G711 codec tests (both A-law and μ-law)
