@@ -25,9 +25,24 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 ])
 
 
-# Check for atomic library (required for 64-bit atomics on some 32-bit architectures like ARM)
-# Use __atomic_compare_exchange_8 as it's the specific symbol often missing on ARM
-AC_SEARCH_LIBS([__atomic_compare_exchange_8], [atomic])
+# Check for atomic library
+# Explicitly check for __atomic_compare_exchange_8 (64-bit atomic CAS)
+# On some architectures (like ARM), this requires -latomic.
+# We use AC_CHECK_LIB to explicitly find it and define ATOMIC_LIBS.
+ATOMIC_LIBS=""
+AC_SEARCH_LIBS([__atomic_compare_exchange_8], [atomic], [
+  if test "x$ac_cv_search___atomic_compare_exchange_8" != "xnone required"; then
+     ATOMIC_LIBS="$ac_cv_search___atomic_compare_exchange_8"
+  fi
+], [
+  # Fallback: Force -latomic check if the search failed but we might be on ARM
+  case "$host_cpu" in
+    arm*)
+      AC_CHECK_LIB([atomic], [__atomic_load_8], [ATOMIC_LIBS="-latomic"])
+      ;;
+  esac
+])
+AC_SUBST([ATOMIC_LIBS])
 
 AC_TYPE_INT16_T
 AC_TYPE_SIZE_T
