@@ -24,6 +24,10 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
   CXXFLAGS="$OLD_CXXFLAGS"
 ])
 
+
+# Check for atomic library (required for 64-bit atomics on some 32-bit architectures like ARM)
+AC_SEARCH_LIBS([__atomic_load_8], [atomic])
+
 AC_TYPE_INT16_T
 AC_TYPE_SIZE_T
 AC_TYPE_UINT32_T
