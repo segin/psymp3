@@ -199,7 +199,8 @@ endif
 
 if HAVE_OPUS
 noinst_PROGRAMS += opusout
-
+check_PROGRAMS += test_opus_codec_core_decoding test_opus_codec_error_handling \
+	test_opus_integration test_opus_compatibility_performance
 opusout_SOURCES = opusout.cpp
 opusout_CPPFLAGS = $(AM_CPPFLAGS)
 opusout_LDADD = \
@@ -341,6 +342,9 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
+check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
+	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
+	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
@@ -397,6 +401,27 @@ endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
+check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_real_files \
+	test_streaminfo_recovery test_streaminfo_debug test_flac_diagnostic test_iohandler_deadlock \
+	test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration \
+	test_flac_demuxer_thread_safety test_flac_backward_compatibility_validation \
+	test_flac_demuxer_real_files test_flac_bisection_real_files test_flac_mini_player \
+	test_flac_demuxer_unit_comprehensive test_flac_demuxer_integration_comprehensive \
+	test_flac_demuxer_unit_fixed test_flac_index_based_seeking test_flac_variable_block_size \
+	test_flac_codec_minimal_container_agnostic test_flac_codec_container_agnostic \
+	test_flac_quality_simple test_flac_thread_safety_validation test_flac_codec_unit_minimal \
+	test_flac_codec_compatibility test_flac_codec_integration test_flac_codec_unit_comprehensive \
+	test_flac_codec_error_handling test_flac_codec_performance_comprehensive \
+	test_flac_codec_multithreaded test_flac_codec_demuxer_integration \
+	test_flac_performance_benchmarking test_flac_conditional_compilation \
+	test_flac_binary_search_limitations test_flac_demuxer_threading \
+	test_flac_performance_optimization test_flac_performance_with_real_files \
+	test_flac_comprehensive_validation test_flac_rfc_compliance test_flac_rfc_subframe_validation \
+	test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation \
+	test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation \
+	test_flac_bit_depth_validation_simple test_flac_security_validation \
+	test_flac_sample_format_rfc9639_compliance test_flac_audio_output test_flac_seeking_crash \
+	test_flac_audio_output_debug test_flac_codec_simple_debug
 endif
 
 # Test program sources and dependencies
@@ -3200,7 +3225,11 @@ test_debug_system_LDADD = \
 
 # Native FLAC codec unit tests (conditional on HAVE_NATIVE_FLAC)
 if HAVE_NATIVE_FLAC
-
+check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit \
+	test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit \
+	test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases \
+	test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading \
+	test_flac_rfc9639_compliance_validator
 # BitstreamReader unit tests
 test_bitstream_reader_unit_SOURCES = test_bitstream_reader_unit.cpp
 test_bitstream_reader_unit_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
@@ -3389,17 +3418,7 @@ test_native_flac_threading_LDADD = \
 
 endif
 
-# RapidCheck property-based testing setup test
-if HAVE_RAPIDCHECK
-test_rapidcheck_setup_SOURCES = ogg/test_rapidcheck_setup.cpp
-test_rapidcheck_setup_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
-test_rapidcheck_setup_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(RAPIDCHECK_LIBS) \
-	$(AM_LDFLAGS)
-endif
+
 
 # OggDemuxer property-based tests (RFC 3533 compliance)
 # Works with or without RapidCheck - falls back to exhaustive unit tests
