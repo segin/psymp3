@@ -3301,19 +3301,6 @@ test_sample_reconstructor_unit_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
-# Integration test: RFC 9639 example files
-	libtest_utilities.a \
-	$(top_builddir)/src/codecs/flac/libnativeflac.a \
-	$(top_builddir)/src/demuxers/flac/libflacdemuxer.a \
-	$(top_builddir)/src/demuxer/libdemuxer.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/io/file/libfileio.a \
-	$(top_builddir)/src/io/libio.a \
-	$(top_builddir)/src/rect.o \
-	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
-	$(AM_LDFLAGS)
-
 # Integration test: Real FLAC files
 test_native_flac_real_files_SOURCES = test_native_flac_real_files.cpp
 test_native_flac_real_files_CPPFLAGS = $(AM_CPPFLAGS) -std=c++17
