@@ -2,6 +2,9 @@ AC_PREREQ([2.69])
 AC_INIT([PsyMP3],[2-CURRENT],[segin2005@gmail.com],[psymp3],[https://github.com/segin/psymp3])
 AM_INIT_AUTOMAKE([1.10 subdir-objects])
 
+# Enable host detection (populates $host_cpu)
+AC_CANONICAL_HOST
+
 AU_DEFUN([AX_REQUIRE_CPP], [ax_require_cpp(std_17, reject)])
 
 AC_PROG_CPP
@@ -35,9 +38,9 @@ AC_SEARCH_LIBS([__atomic_compare_exchange_8], [atomic], [
      ATOMIC_LIBS="$ac_cv_search___atomic_compare_exchange_8"
   fi
 ], [
-  # Fallback: Force -latomic check if the search failed but we might be on ARM
+  # Fallback: Force -latomic check if the search failed but we might be on ARM/AArch64
   case "$host_cpu" in
-    arm*)
+    arm*|aarch64*)
       AC_CHECK_LIB([atomic], [__atomic_load_8], [ATOMIC_LIBS="-latomic"])
       ;;
   esac
