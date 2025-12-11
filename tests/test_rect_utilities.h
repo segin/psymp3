@@ -11,7 +11,8 @@
 #define TEST_RECT_UTILITIES_H
 
 #include "test_framework.h"
-#include "../include/rect.h"
+#include "../include/core/rect.h"
+using PsyMP3::Core::Rect;
 #include <string>
 #include <vector>
 

@@ -19,7 +19,8 @@
 
 #include "test_framework.h"
 #include "test_rect_utilities.h"
-#include "../include/rect.h"
+#include "../include/core/rect.h"
+using PsyMP3::Core::Rect;
 #include <iostream>
 
 using namespace TestFramework;

@@ -144,7 +144,6 @@ psymp3_SOURCES = \
  lyrics.cpp \
  main.cpp mediafile.cpp \
  persistentstorage.cpp player.cpp playlist.cpp \
- rect.cpp \
  stream.cpp surface.cpp \
  system.cpp \
  track.cpp truetype.cpp utility.cpp

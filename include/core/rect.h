@@ -100,6 +100,10 @@
 #ifndef RECT_H
 #define RECT_H
 
+namespace PsyMP3 {
+namespace Core {
+
+
 // No direct includes - all includes should be in psymp3.h
 
 /**
@@ -837,5 +841,8 @@ class Rect
          */
         static uint16_t clampToUInt16(uint32_t value);
 };
+
+} // namespace Core
+} // namespace PsyMP3
 
 #endif // RECT_H

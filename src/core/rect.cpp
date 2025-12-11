@@ -22,6 +22,10 @@
  */
 
 #include "psymp3.h"
+
+namespace PsyMP3 {
+namespace Core {
+
 #include <algorithm> // For std::max and std::min
 #include <sstream>   // For std::ostringstream
 #include <limits>    // For std::numeric_limits
@@ -821,3 +825,5 @@ uint16_t Rect::clampToUInt16(uint32_t value)
     }
     return static_cast<uint16_t>(value);
 }
+} // namespace Core
+} // namespace PsyMP3

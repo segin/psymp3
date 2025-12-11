@@ -20,7 +20,8 @@
 #include <functional>
 
 // Forward declaration for Rect class - will be defined when rect.h is included
-class Rect;
+namespace PsyMP3 { namespace Core { class Rect; } }
+using PsyMP3::Core::Rect;
 
 namespace TestFramework {
 
