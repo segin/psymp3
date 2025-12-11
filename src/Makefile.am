@@ -115,8 +115,7 @@ psymp3_LDADD = \
 	$(FREETYPE_LIBS) \
 	$(OPENSSL_LIBS) \
 	$(CURL_LIBS) \
-	$(WINSOCK_LIBS) \
-	$(ATOMIC_LIBS)
+	$(WINSOCK_LIBS)
 
 # Optional codec system libraries (must come after our libraries)
 if HAVE_FLAC

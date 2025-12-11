@@ -31,41 +31,13 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 # Check for atomic library
 # Explicitly check for __atomic_compare_exchange_8 (64-bit atomic CAS)
 # Check for atomic library
-# Check if -latomic is needed for 64-bit atomics
-AC_MSG_CHECKING([whether -latomic is needed for 64-bit atomics])
-AC_LANG_PUSH([C++])
-ATOMIC_LIBS=""
-AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-  #include <atomic>
-  #include <cstdint>
-]], [[
-  std::atomic<uint64_t> a{0};
-  uint64_t v = a.load();
-  a.store(v + 1);
-]])], [
-  AC_MSG_RESULT([no])
-], [
-  save_LIBS="$LIBS"
-  LIBS="$LIBS -latomic"
-  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-    #include <atomic>
-    #include <cstdint>
-  ]], [[
-    std::atomic<uint64_t> a{0};
-    uint64_t v = a.load();
-    a.store(v + 1);
-  ]])], [
-    AC_MSG_RESULT([yes])
-    ATOMIC_LIBS="-latomic"
-  ], [
-    AC_MSG_RESULT([failed])
-    AC_MSG_WARN([Could not link 64-bit atomics, please check your toolchain.])
-  ])
-  LIBS="$save_LIBS"
-])
-AC_LANG_POP([C++])
-AC_SUBST([ATOMIC_LIBS])
-AC_SUBST([ATOMIC_LIBS])
+# Explicitly link -latomic on ARM architectures where it's often needed for 64-bit atomics
+case "$host_cpu" in
+  arm*)
+    AC_MSG_NOTICE([ARM architecture detected: appending -latomic to LIBS])
+    LIBS="$LIBS -latomic"
+    ;;
+esac
 
 AC_TYPE_INT16_T
 AC_TYPE_SIZE_T
