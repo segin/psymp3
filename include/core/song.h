@@ -10,7 +10,7 @@
  * any purpose with or without fee is hereby granted, provided that
  * the above copyright notice and this permission notice appear in all
  * copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
@@ -24,13 +24,19 @@
 #ifndef SONG_H
 #define SONG_H
 
-class Song
-{
-    public:
-        Song();
-        virtual ~Song();
-    protected:
-    private:
+namespace PsyMP3 {
+namespace Core {
+
+class Song {
+public:
+  Song();
+  virtual ~Song();
+
+protected:
+private:
 };
+
+} // namespace Core
+} // namespace PsyMP3
 
 #endif // SONG_H

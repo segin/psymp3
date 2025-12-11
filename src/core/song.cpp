@@ -10,7 +10,7 @@
  * any purpose with or without fee is hereby granted, provided that
  * the above copyright notice and this permission notice appear in all
  * copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
@@ -23,19 +23,24 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Core {
+
 /**
  * @brief Default constructor for the Song class.
- * @note This class is currently a placeholder for future architectural enhancements.
+ * @note This class is currently a placeholder for future architectural
+ * enhancements.
  */
-Song::Song()
-{
-    //ctor
+Song::Song() {
+  // ctor
 }
 
 /**
  * @brief Destructor for the Song class.
  */
-Song::~Song()
-{
-    //dtor
+Song::~Song() {
+  // dtor
 }
+
+} // namespace Core
+} // namespace PsyMP3

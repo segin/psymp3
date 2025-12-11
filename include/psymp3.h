@@ -549,7 +549,8 @@ using PsyMP3::Demuxer::ChainedStream;
 #include "about.h"
 #include "persistentstorage.h"
 #include "track.h"
-#include "song.h"
+#include "core/song.h"
+using PsyMP3::Core::Song;
 #include "XMLUtil.h"
 
 // Using declarations for backward compatibility - XML subsystem
