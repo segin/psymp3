@@ -30,21 +30,41 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([], [])], [
 
 # Check for atomic library
 # Explicitly check for __atomic_compare_exchange_8 (64-bit atomic CAS)
-# On some architectures (like ARM), this requires -latomic.
-# We use AC_CHECK_LIB to explicitly find it and define ATOMIC_LIBS.
+# Check for atomic library
+# Check if -latomic is needed for 64-bit atomics
+AC_MSG_CHECKING([whether -latomic is needed for 64-bit atomics])
+AC_LANG_PUSH([C++])
 ATOMIC_LIBS=""
-AC_SEARCH_LIBS([__atomic_compare_exchange_8], [atomic], [
-  if test "x$ac_cv_search___atomic_compare_exchange_8" != "xnone required"; then
-     ATOMIC_LIBS="$ac_cv_search___atomic_compare_exchange_8"
-  fi
+AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+  #include <atomic>
+  #include <cstdint>
+]], [[
+  std::atomic<uint64_t> a{0};
+  uint64_t v = a.load();
+  a.store(v + 1);
+]])], [
+  AC_MSG_RESULT([no])
 ], [
-  # Fallback: Force -latomic check if the search failed but we might be on ARM/AArch64
-  case "$host_cpu" in
-    arm*|aarch64*)
-      AC_CHECK_LIB([atomic], [__atomic_load_8], [ATOMIC_LIBS="-latomic"])
-      ;;
-  esac
+  save_LIBS="$LIBS"
+  LIBS="$LIBS -latomic"
+  AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+    #include <atomic>
+    #include <cstdint>
+  ]], [[
+    std::atomic<uint64_t> a{0};
+    uint64_t v = a.load();
+    a.store(v + 1);
+  ]])], [
+    AC_MSG_RESULT([yes])
+    ATOMIC_LIBS="-latomic"
+  ], [
+    AC_MSG_RESULT([failed])
+    AC_MSG_WARN([Could not link 64-bit atomics, please check your toolchain.])
+  ])
+  LIBS="$save_LIBS"
 ])
+AC_LANG_POP([C++])
+AC_SUBST([ATOMIC_LIBS])
 AC_SUBST([ATOMIC_LIBS])
 
 AC_TYPE_INT16_T
