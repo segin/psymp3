@@ -24,6 +24,10 @@
 #ifndef FFT_DRAW_H
 #define FFT_DRAW_H
 
+namespace PsyMP3 {
+namespace Core {
+
+
 // No direct includes - all includes should be in psymp3.h
 
 class FastFourier
@@ -45,5 +49,8 @@ class FastFourier
 		std::vector<float> m_fft;
 		int m_fft_size; // Store the FFT size
 };
+
+} // namespace Core
+} // namespace PsyMP3
 
 #endif // FFT_DRAW_H

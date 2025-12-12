@@ -1,5 +1,5 @@
 /*
- * about.h - Header for about.cpp
+ * persistentstorage.cpp - SQLite3 wrapper.
  * This file is part of PsyMP3.
  * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,13 +21,20 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef ABOUT_H_INCLUDED
-#define ABOUT_H_INCLUDED
+#include "psymp3.h"
 
-void about_console();
-void print_help();
-void about_ui(); // maybe one day...
+namespace PsyMP3 {
+namespace Core {
 
 
+PersistentStorage::PersistentStorage()
+{
+    //ctor
+}
 
-#endif // ABOUT_H_INCLUDED
+PersistentStorage::~PersistentStorage()
+{
+    //dtor
+}
+} // namespace Core
+} // namespace PsyMP3

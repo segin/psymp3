@@ -25,6 +25,10 @@
 #ifndef FFT_H
 #define FFT_H
 
+namespace PsyMP3 {
+namespace Core {
+
+
 enum class FFTMode {
     Original, // mat-og
     Optimized, // vibe-1
@@ -60,5 +64,8 @@ class FFT {
 		FFTMode getFFTMode() const; // Getter for the mode
 		std::string getFFTModeName() const; // Getter for the mode name string
 };
+
+} // namespace Core
+} // namespace PsyMP3
 
 #endif // FFT_H

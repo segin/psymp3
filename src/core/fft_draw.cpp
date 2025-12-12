@@ -23,6 +23,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Core {
+
+
 /**
  * @brief Constructs a FastFourier object.
  *
@@ -83,3 +87,5 @@ std::string FastFourier::getFFTModeName() const
 {
     return fft->getFFTModeName();
 }
+} // namespace Core
+} // namespace PsyMP3

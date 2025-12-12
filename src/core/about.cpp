@@ -23,6 +23,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Core {
+
+
 static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
             "Copyright © 2009-2025 Kirn Gill II <segin2005@gmail.com>\n"
@@ -124,3 +128,6 @@ void about_windows() {
 #endif
 }
 #endif // _WIN32
+
+} // namespace Core
+} // namespace PsyMP3

@@ -24,6 +24,10 @@
 
 #include "psymp3.h"
 
+namespace PsyMP3 {
+namespace Core {
+
+
 // Define I for float complex
 static const std::complex<float> I_f(0.0f, 1.0f);
 
@@ -323,4 +327,5 @@ void FFT::fft(float *output, const float *input) {
             neomat_out_of_place_fft_impl(output, input);
             break;
     }
-}
+}} // namespace Core
+} // namespace PsyMP3

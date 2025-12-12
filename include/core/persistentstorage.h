@@ -1,5 +1,5 @@
 /*
- * persistentstorage.cpp - SQLite3 wrapper.
+ * persistentstorage.h - SQLite3 wrapper.
  * This file is part of PsyMP3.
  * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
  *
@@ -21,14 +21,24 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "persistentstorage.h"
+#ifndef STORAGE_H
+#define STORAGE_H
 
-PersistentStorage::PersistentStorage()
-{
-    //ctor
-}
+namespace PsyMP3 {
+namespace Core {
 
-PersistentStorage::~PersistentStorage()
+
+
+class PersistentStorage
 {
-    //dtor
-}
+    public:
+        PersistentStorage();
+        ~PersistentStorage();
+    protected:
+    private:
+};
+
+} // namespace Core
+} // namespace PsyMP3
+
+#endif // STORAGE_H
