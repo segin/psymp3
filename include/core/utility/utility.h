@@ -1,5 +1,5 @@
 /*
- * utility.cpp - General utility functions implementation.
+ * utility.h - General utility functions.
  * This file is part of PsyMP3.
  * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -17,17 +17,19 @@
  * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
  * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
  * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
- * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * TORTIOUS ACTION, ARISING OUT of OR IN CONNECTION WITH THE USE OR
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "psymp3.h"
+#ifndef UTILITY_H
+#define UTILITY_H
 
-float Util::logarithmicScale(const int f, float x) {
-    x = std::clamp(x, 0.0f, 1.0f);
-    if(f)
-        for (auto i=0;i<f;i++)
-            x = std::log10(1.0f + 9.0f * x);
-    return x;
-}
+namespace PsyMP3 {
+namespace Core {
+namespace Utility {
+float logarithmicScale(const int f, float x);
+} // namespace Utility
+} // namespace Core
+} // namespace PsyMP3
 
+#endif // UTILITY_H

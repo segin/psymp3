@@ -10,7 +10,8 @@
 noinst_LIBRARIES = libpsymp3-core-utility.a
 
 libpsymp3_core_utility_a_SOURCES = \
-	XMLUtil.cpp
+	XMLUtil.cpp \
+	utility.cpp
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(LIBMPG123_CFLAGS)
 libpsymp3_core_utility_a_CXXFLAGS = $(AM_CXXFLAGS)

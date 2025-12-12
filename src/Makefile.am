@@ -146,7 +146,7 @@ psymp3_SOURCES = \
  persistentstorage.cpp player.cpp playlist.cpp \
  stream.cpp surface.cpp \
  system.cpp \
- track.cpp truetype.cpp utility.cpp
+ track.cpp truetype.cpp
 
 # Link static libraries from subdirectories (regular build only)
 psymp3_LDADD += \
