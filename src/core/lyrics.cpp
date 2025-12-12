@@ -21,76 +21,301 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-// GCC 13 has a known bug where it generates false-positive "may be used
-// uninitialized" warnings in libstdc++ <regex> internals when -O2 is enabled.
-// This is a compiler/library bug, not a code issue. Suppress it here.
-// See: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=105562
-#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 13
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-
 #include "psymp3.h"
-
-#if defined(__GNUC__) && !defined(__clang__) && __GNUC__ >= 13
-#pragma GCC diagnostic pop
-#endif
 
 namespace PsyMP3 {
 namespace Core {
 
-bool LyricsFile::loadFromFile(const std::string &file_path) {
+namespace {
+
+// Helper to convert string_view to lowercase string
+[[nodiscard]] std::string toLower(std::string_view str) {
+  std::string result(str);
+  std::transform(result.begin(), result.end(), result.begin(),
+                 [](unsigned char c) { return std::tolower(c); });
+  return result;
+}
+
+// Helper to get file extension (lowercase, without dot)
+[[nodiscard]] std::string_view getExtension(std::string_view path) noexcept {
+  if (const auto pos = path.rfind('.'); pos != std::string_view::npos) {
+    return path.substr(pos + 1);
+  }
+  return {};
+}
+
+// LRC timestamp parser result
+struct TimestampResult {
+  std::chrono::milliseconds time{0};
+  size_t end_pos{0};
+  bool valid{false};
+};
+
+// Parse LRC timestamp: [mm:ss.xx] or [m:ss.xx]
+[[nodiscard]] TimestampResult parseLRCTimestamp(std::string_view line,
+                                                size_t start) noexcept {
+  TimestampResult result;
+
+  if (start >= line.size() || line[start] != '[') {
+    return result;
+  }
+
+  size_t pos = start + 1;
+
+  // Parse minutes (1-2 digits)
+  const size_t min_start = pos;
+  while (pos < line.size() &&
+         std::isdigit(static_cast<unsigned char>(line[pos]))) {
+    ++pos;
+  }
+
+  if (pos == min_start || pos - min_start > 2) {
+    return result;
+  }
+
+  int minutes = 0;
+  for (size_t i = min_start; i < pos; ++i) {
+    minutes = minutes * 10 + (line[i] - '0');
+  }
+
+  // Expect ':'
+  if (pos >= line.size() || line[pos] != ':') {
+    return result;
+  }
+  ++pos;
+
+  // Parse seconds (exactly 2 digits)
+  if (pos + 2 > line.size() ||
+      !std::isdigit(static_cast<unsigned char>(line[pos])) ||
+      !std::isdigit(static_cast<unsigned char>(line[pos + 1]))) {
+    return result;
+  }
+  const int seconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
+  pos += 2;
+
+  // Expect '.'
+  if (pos >= line.size() || line[pos] != '.') {
+    return result;
+  }
+  ++pos;
+
+  // Parse centiseconds (exactly 2 digits)
+  if (pos + 2 > line.size() ||
+      !std::isdigit(static_cast<unsigned char>(line[pos])) ||
+      !std::isdigit(static_cast<unsigned char>(line[pos + 1]))) {
+    return result;
+  }
+  const int centiseconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
+  pos += 2;
+
+  // Expect ']'
+  if (pos >= line.size() || line[pos] != ']') {
+    return result;
+  }
+  ++pos;
+
+  result.time = std::chrono::milliseconds((minutes * 60 + seconds) * 1000 +
+                                          centiseconds * 10);
+  result.end_pos = pos;
+  result.valid = true;
+  return result;
+}
+
+// LRC metadata parser result
+struct MetadataResult {
+  std::string_view tag;
+  std::string_view value;
+  bool valid{false};
+};
+
+// Parse LRC metadata: [xx:value] where xx is 2 letters
+[[nodiscard]] MetadataResult parseLRCMetadata(std::string_view line) noexcept {
+  MetadataResult result;
+
+  if (line.size() < 5 || line[0] != '[') {
+    return result;
+  }
+
+  // Check for 2-letter tag
+  if (!std::isalpha(static_cast<unsigned char>(line[1])) ||
+      !std::isalpha(static_cast<unsigned char>(line[2]))) {
+    return result;
+  }
+
+  if (line[3] != ':') {
+    return result;
+  }
+
+  // Find closing bracket
+  const auto close = line.find(']', 4);
+  if (close == std::string_view::npos || close != line.size() - 1) {
+    return result;
+  }
+
+  result.tag = line.substr(1, 2);
+  result.value = line.substr(4, close - 4);
+  result.valid = true;
+  return result;
+}
+
+} // anonymous namespace
+
+// --- LyricsUtils implementation ---
+
+namespace LyricsUtils {
+
+std::string_view trim(std::string_view str) noexcept {
+  constexpr std::string_view whitespace = " \t\r\n";
+
+  const auto start = str.find_first_not_of(whitespace);
+  if (start == std::string_view::npos) {
+    return {};
+  }
+
+  const auto end = str.find_last_not_of(whitespace);
+  return str.substr(start, end - start + 1);
+}
+
+bool isLyricsFile(std::string_view file_path) noexcept {
+  const auto ext = getExtension(file_path);
+  if (ext.empty()) {
+    return false;
+  }
+
+  const auto lower_ext = toLower(ext);
+  return lower_ext == "lrc" || lower_ext == "srt" || lower_ext == "txt";
+}
+
+std::string findLyricsFile(std::string_view audio_file_path) {
+  // Extract base path without extension
+  auto dotPos = audio_file_path.rfind('.');
+  auto slashPos = audio_file_path.rfind('/');
+
+#ifdef _WIN32
+  if (auto bslash = audio_file_path.rfind('\\');
+      bslash != std::string_view::npos) {
+    slashPos = (slashPos == std::string_view::npos)
+                   ? bslash
+                   : std::max(slashPos, bslash);
+  }
+#endif
+
+  std::string base_path;
+  if (dotPos != std::string_view::npos &&
+      (slashPos == std::string_view::npos || dotPos > slashPos)) {
+    base_path = std::string(audio_file_path.substr(0, dotPos));
+  } else {
+    base_path = std::string(audio_file_path);
+  }
+
+  // Try each extension (both lower and upper case)
+  constexpr std::array<std::string_view, 6> extensions = {
+      ".lrc", ".LRC", ".srt", ".SRT", ".txt", ".TXT"};
+
+  for (const auto &ext : extensions) {
+    std::string lyrics_path = base_path + std::string(ext);
+    try {
+      auto handler = std::make_unique<FileIOHandler>(
+          TagLib::String(lyrics_path, TagLib::String::UTF8));
+      handler->seek(0, SEEK_END);
+      if (handler->tell() > 0) {
+        return lyrics_path;
+      }
+    } catch (...) {
+      // File doesn't exist or can't be opened - continue
+    }
+  }
+
+  // Try lyrics subdirectory
+  if (slashPos != std::string_view::npos) {
+    const auto dir = audio_file_path.substr(0, slashPos + 1);
+    auto filename = audio_file_path.substr(slashPos + 1);
+
+    // Remove extension from filename
+    if (dotPos != std::string_view::npos && dotPos > slashPos) {
+      filename = filename.substr(0, dotPos - slashPos - 1);
+    }
+
+    for (const auto &ext : extensions) {
+      std::string lyrics_path = std::string(dir) + "lyrics/" +
+                                std::string(filename) + std::string(ext);
+      try {
+        auto handler = std::make_unique<FileIOHandler>(
+            TagLib::String(lyrics_path, TagLib::String::UTF8));
+        handler->seek(0, SEEK_END);
+        if (handler->tell() > 0) {
+          return lyrics_path;
+        }
+      } catch (...) {
+        // Continue searching
+      }
+    }
+  }
+
+  return {};
+}
+
+} // namespace LyricsUtils
+
+// --- LyricsFile implementation ---
+
+void LyricsFile::clear() noexcept {
+  m_lines.clear();
+  m_has_timing = false;
+  m_title.clear();
+  m_artist.clear();
+}
+
+bool LyricsFile::loadFromFile(std::string_view file_path) {
   clear();
 
   try {
-    // Use IOHandler to read the file - this may throw InvalidMediaException
+    // Create IO handler - throws on failure
     auto io_handler = std::make_unique<FileIOHandler>(
-        TagLib::String(file_path, TagLib::String::UTF8));
+        TagLib::String(std::string(file_path), TagLib::String::UTF8));
 
-    // Get file size using seek/tell
+    // Get file size
     io_handler->seek(0, SEEK_END);
-    long file_size = io_handler->tell();
+    const auto file_size = io_handler->tell();
     io_handler->seek(0, SEEK_SET);
 
-    if (file_size <= 0 ||
-        file_size > 10 * 1024 * 1024) { // Sanity check: max 10MB for lyrics
+    if (file_size <= 0) {
+      Debug::log("lyrics", "Empty lyrics file: {}", file_path);
       return false;
     }
 
-    // Read entire file into buffer
+    if (static_cast<size_t>(file_size) > MAX_FILE_SIZE) {
+      Debug::log("lyrics", "Lyrics file too large (", file_size,
+                 " bytes): ", file_path);
+      return false;
+    }
+
+    // Read file content
     std::vector<char> buffer(static_cast<size_t>(file_size));
-    size_t bytes_read =
-        io_handler->read(buffer.data(), 1, static_cast<size_t>(file_size));
+    const auto bytes_read = io_handler->read(buffer.data(), 1, buffer.size());
 
     if (bytes_read == 0) {
-      throw IOException("Failed to read any data from lyrics file");
-    }
-
-    if (bytes_read != static_cast<size_t>(file_size)) {
-      // Partial read - could be I/O error, but we'll try to continue
-      std::cerr << "Warning: Only read " << bytes_read << " of " << file_size
-                << " bytes from lyrics file '" << file_path << "'" << std::endl;
-    }
-
-    // Convert to string (handle partial reads)
-    std::string content(buffer.data(), bytes_read);
-
-    if (content.empty()) {
+      Debug::log("lyrics", "Failed to read lyrics file: ", file_path);
       return false;
     }
 
-    // Determine file format and parse accordingly
-    std::string extension = file_path.substr(file_path.find_last_of(".") + 1);
-    std::transform(extension.begin(), extension.end(), extension.begin(),
-                   ::tolower);
+    if (bytes_read != buffer.size()) {
+      Debug::log("lyrics", "Partial read (", bytes_read, "/", file_size,
+                 " bytes): ", file_path);
+    }
+
+    const std::string_view content(buffer.data(), bytes_read);
+
+    // Determine format by extension
+    const auto ext = toLower(getExtension(file_path));
 
     bool success = false;
-    if (extension == "lrc") {
+    if (ext == "lrc") {
       success = parseLRC(content);
-    } else if (extension == "txt") {
+    } else if (ext == "txt") {
       success = parsePlainText(content);
     } else {
-      // Try LRC format first, then fall back to plain text
+      // Unknown extension - try LRC first, then plain text
       success = parseLRC(content);
       if (!success) {
         success = parsePlainText(content);
@@ -98,191 +323,95 @@ bool LyricsFile::loadFromFile(const std::string &file_path) {
     }
 
     if (success && !m_lines.empty()) {
-      // Sort lines by timestamp for synced lyrics
+      // Sort synchronized lyrics by timestamp
       if (m_has_timing) {
         std::sort(m_lines.begin(), m_lines.end(),
                   [](const LyricLine &a, const LyricLine &b) {
-                    return a.timestamp_ms < b.timestamp_ms;
+                    return a.timestamp < b.timestamp;
                   });
       }
+
+      Debug::log("lyrics", "Loaded {} {} lyrics from: {}", m_lines.size(),
+                 m_has_timing ? "synced" : "unsynced", file_path);
       return true;
     }
 
     return false;
 
-  } catch (const InvalidMediaException &e) {
-    // File doesn't exist, permission denied, etc. from FileIOHandler - this is
-    // expected
+  } catch (const InvalidMediaException &) {
+    // File not found or inaccessible - expected, don't log
     return false;
   } catch (const IOException &e) {
-    // General I/O errors during lyrics processing
-    std::cerr << "I/O error loading lyrics file '" << file_path
-              << "': " << e.what() << std::endl;
+    Debug::log("lyrics", "I/O error loading lyrics '", file_path,
+               "': ", e.what());
     clear();
     return false;
   } catch (const std::exception &e) {
-    // Catch any other exceptions, parsing errors, etc.
-    std::cerr << "Error loading lyrics file '" << file_path << "': " << e.what()
-              << std::endl;
-    clear(); // Ensure we're in a clean state
-    return false;
-  } catch (...) {
-    // Catch any other unexpected exceptions
-    std::cerr << "Unknown error loading lyrics file '" << file_path << "'"
-              << std::endl;
+    Debug::log("lyrics", "Error loading lyrics '{}': {}", file_path, e.what());
     clear();
     return false;
   }
 }
 
-// Helper to parse LRC timestamp: [mm:ss.xx] or [m:ss.xx]
-// Returns true if valid, sets minutes, seconds, centiseconds, and end_pos
-// (position after ']')
-static bool parseLRCTimestamp(const std::string &line, size_t start,
-                              int &minutes, int &seconds, int &centiseconds,
-                              size_t &end_pos) {
-  if (start >= line.size() || line[start] != '[')
-    return false;
-
-  size_t pos = start + 1;
-
-  // Parse minutes (1-2 digits)
-  size_t min_start = pos;
-  while (pos < line.size() && std::isdigit(line[pos]))
-    pos++;
-  if (pos == min_start || pos - min_start > 2)
-    return false;
-  minutes = std::stoi(line.substr(min_start, pos - min_start));
-
-  // Expect ':'
-  if (pos >= line.size() || line[pos] != ':')
-    return false;
-  pos++;
-
-  // Parse seconds (exactly 2 digits)
-  if (pos + 2 > line.size() || !std::isdigit(line[pos]) ||
-      !std::isdigit(line[pos + 1]))
-    return false;
-  seconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
-  pos += 2;
-
-  // Expect '.'
-  if (pos >= line.size() || line[pos] != '.')
-    return false;
-  pos++;
-
-  // Parse centiseconds (exactly 2 digits)
-  if (pos + 2 > line.size() || !std::isdigit(line[pos]) ||
-      !std::isdigit(line[pos + 1]))
-    return false;
-  centiseconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
-  pos += 2;
-
-  // Expect ']'
-  if (pos >= line.size() || line[pos] != ']')
-    return false;
-  pos++;
-
-  end_pos = pos;
-  return true;
-}
-
-// Helper to parse LRC metadata: [xx:value] where xx is 2 lowercase letters
-// Returns true if valid, sets tag, value
-static bool parseLRCMetadata(const std::string &line, std::string &tag,
-                             std::string &value) {
-  if (line.size() < 5 || line[0] != '[')
-    return false;
-
-  // Check for 2-letter tag
-  if (!std::isalpha(line[1]) || !std::isalpha(line[2]))
-    return false;
-  if (line[3] != ':')
-    return false;
-
-  // Find closing bracket
-  size_t close = line.find(']', 4);
-  if (close == std::string::npos)
-    return false;
-
-  // Make sure there's nothing after the closing bracket (metadata lines are
-  // standalone)
-  if (close != line.size() - 1)
-    return false;
-
-  tag = line.substr(1, 2);
-  std::transform(tag.begin(), tag.end(), tag.begin(), ::tolower);
-  value = line.substr(4, close - 4);
-  return true;
-}
-
-bool LyricsFile::parseLRC(const std::string &content) {
-  // LRC format: [mm:ss.xx]Lyric text
-  // Also supports metadata: [ti:Title], [ar:Artist], etc.
-
-  std::istringstream stream(content);
-  std::string line;
+bool LyricsFile::parseLRC(std::string_view content) {
   bool found_lyrics = false;
+  size_t line_start = 0;
 
-  while (std::getline(stream, line)) {
-    // Trim whitespace
-    line.erase(0, line.find_first_not_of(" \t\r\n"));
-    line.erase(line.find_last_not_of(" \t\r\n") + 1);
+  while (line_start < content.size()) {
+    // Find end of line
+    auto line_end = content.find('\n', line_start);
+    if (line_end == std::string_view::npos) {
+      line_end = content.size();
+    }
 
-    if (line.empty())
+    // Extract and trim line
+    auto line =
+        LyricsUtils::trim(content.substr(line_start, line_end - line_start));
+    line_start = line_end + 1;
+
+    if (line.empty()) {
       continue;
+    }
 
-    int minutes, seconds, centiseconds;
-    size_t end_pos;
-
-    // Try to match timestamp format
-    if (parseLRCTimestamp(line, 0, minutes, seconds, centiseconds, end_pos)) {
-      std::string lyric_text = line.substr(end_pos);
-
-      // Trim lyric text
-      lyric_text.erase(0, lyric_text.find_first_not_of(" \t"));
-      if (!lyric_text.empty()) {
-        lyric_text.erase(lyric_text.find_last_not_of(" \t") + 1);
-      }
-
-      unsigned int timestamp_ms =
-          (minutes * 60 + seconds) * 1000 + centiseconds * 10;
-
-      // Add lyric line even if text is empty (for timing gaps)
-      m_lines.emplace_back(timestamp_ms, lyric_text, true);
+    // Try timestamp format
+    if (auto ts = parseLRCTimestamp(line, 0); ts.valid) {
+      auto lyric_text = LyricsUtils::trim(line.substr(ts.end_pos));
+      m_lines.emplace_back(ts.time, std::string(lyric_text), true);
       found_lyrics = true;
       m_has_timing = true;
     }
-    // Try to match metadata format
-    else {
-      std::string tag, value;
-      if (parseLRCMetadata(line, tag, value)) {
-        if (tag == "ti") {
-          m_title = value;
-        } else if (tag == "ar") {
-          m_artist = value;
-        }
-        // Ignore other metadata for now
+    // Try metadata format
+    else if (auto meta = parseLRCMetadata(line); meta.valid) {
+      const auto tag = toLower(meta.tag);
+      if (tag == "ti") {
+        m_title = std::string(meta.value);
+      } else if (tag == "ar") {
+        m_artist = std::string(meta.value);
       }
+      // Other metadata tags are ignored
     }
   }
 
   return found_lyrics;
 }
 
-bool LyricsFile::parsePlainText(const std::string &content) {
-  std::istringstream stream(content);
-  std::string line;
+bool LyricsFile::parsePlainText(std::string_view content) {
   bool found_lyrics = false;
+  size_t line_start = 0;
 
-  while (std::getline(stream, line)) {
-    // Trim whitespace
-    line.erase(0, line.find_first_not_of(" \t\r\n"));
-    line.erase(line.find_last_not_of(" \t\r\n") + 1);
+  while (line_start < content.size()) {
+    auto line_end = content.find('\n', line_start);
+    if (line_end == std::string_view::npos) {
+      line_end = content.size();
+    }
+
+    auto line =
+        LyricsUtils::trim(content.substr(line_start, line_end - line_start));
+    line_start = line_end + 1;
 
     if (!line.empty()) {
-      // Plain text lyrics have no timing
-      m_lines.emplace_back(0, line, false);
+      m_lines.emplace_back(std::chrono::milliseconds(0), std::string(line),
+                           false);
       found_lyrics = true;
     }
   }
@@ -291,66 +420,71 @@ bool LyricsFile::parsePlainText(const std::string &content) {
   return found_lyrics;
 }
 
-const LyricLine *
-LyricsFile::getCurrentLine(unsigned int current_time_ms) const {
+const LyricLine *LyricsFile::getCurrentLine(
+    std::chrono::milliseconds current_time) const noexcept {
   if (m_lines.empty()) {
     return nullptr;
   }
 
   if (!m_has_timing) {
-    // For unsynced lyrics, just return the first line
     return &m_lines[0];
   }
 
-  int index = findCurrentLineIndex(current_time_ms);
-  if (index >= 0 && index < static_cast<int>(m_lines.size())) {
-    return &m_lines[index];
+  const auto index = findCurrentLineIndex(current_time);
+  if (index >= 0 && static_cast<size_t>(index) < m_lines.size()) {
+    return &m_lines[static_cast<size_t>(index)];
   }
 
   return nullptr;
 }
 
 std::vector<const LyricLine *>
-LyricsFile::getUpcomingLines(unsigned int current_time_ms, size_t count) const {
+LyricsFile::getUpcomingLines(std::chrono::milliseconds current_time,
+                             size_t count) const {
+
   std::vector<const LyricLine *> upcoming;
+  upcoming.reserve(count);
 
   if (m_lines.empty()) {
     return upcoming;
   }
 
   if (!m_has_timing) {
-    // For unsynced lyrics, return all lines
-    for (size_t i = 0; i < std::min(count, m_lines.size()); ++i) {
+    // For unsynced lyrics, return first N lines
+    const auto n = std::min(count, m_lines.size());
+    for (size_t i = 0; i < n; ++i) {
       upcoming.push_back(&m_lines[i]);
     }
     return upcoming;
   }
 
-  int current_index = findCurrentLineIndex(current_time_ms);
+  const auto current_index = findCurrentLineIndex(current_time);
   if (current_index >= 0) {
-    // Add current line and upcoming lines
-    for (size_t i = 0; i < count && (current_index + i) < m_lines.size(); ++i) {
-      upcoming.push_back(&m_lines[current_index + i]);
+    const auto start = static_cast<size_t>(current_index);
+    const auto end = std::min(start + count, m_lines.size());
+    for (size_t i = start; i < end; ++i) {
+      upcoming.push_back(&m_lines[i]);
     }
   }
 
   return upcoming;
 }
 
-int LyricsFile::findCurrentLineIndex(unsigned int current_time_ms) const {
+std::ptrdiff_t LyricsFile::findCurrentLineIndex(
+    std::chrono::milliseconds current_time) const noexcept {
   if (m_lines.empty() || !m_has_timing) {
     return -1;
   }
 
   // Binary search for the most recent lyric line
-  int left = 0;
-  int right = static_cast<int>(m_lines.size()) - 1;
-  int result = -1;
+  std::ptrdiff_t left = 0;
+  std::ptrdiff_t right = static_cast<std::ptrdiff_t>(m_lines.size()) - 1;
+  std::ptrdiff_t result = -1;
 
   while (left <= right) {
-    int mid = left + (right - left) / 2;
+    const auto mid = left + (right - left) / 2;
 
-    if (m_lines[mid].timestamp_ms <= current_time_ms) {
+    if (m_lines[static_cast<size_t>(mid)].timestamp <= current_time) {
       result = mid;
       left = mid + 1;
     } else {
@@ -360,110 +494,6 @@ int LyricsFile::findCurrentLineIndex(unsigned int current_time_ms) const {
 
   return result;
 }
-
-void LyricsFile::clear() {
-  m_lines.clear();
-  m_has_timing = false;
-  m_title.clear();
-  m_artist.clear();
-}
-
-// Utility functions
-namespace LyricsUtils {
-
-std::string findLyricsFile(const std::string &audio_file_path) {
-  try {
-    // Extract base name without extension
-    size_t last_dot = audio_file_path.find_last_of(".");
-    size_t last_slash = audio_file_path.find_last_of("/\\");
-
-    std::string base_path;
-    if (last_dot != std::string::npos &&
-        (last_slash == std::string::npos || last_dot > last_slash)) {
-      base_path = audio_file_path.substr(0, last_dot);
-    } else {
-      base_path = audio_file_path;
-    }
-
-    // Try different lyrics file extensions
-    std::vector<std::string> extensions = {".lrc", ".LRC", ".srt",
-                                           ".SRT", ".txt", ".TXT"};
-
-    for (const auto &ext : extensions) {
-      try {
-        std::string lyrics_path = base_path + ext;
-        auto test_handler = std::make_unique<FileIOHandler>(
-            TagLib::String(lyrics_path, TagLib::String::UTF8));
-        if (test_handler) {
-          // Check if file has content by seeking to end
-          test_handler->seek(0, SEEK_END);
-          long size = test_handler->tell();
-          if (size > 0) {
-            return lyrics_path;
-          }
-        }
-      } catch (...) {
-        // Ignore errors for individual file checks (ENOENT, EPERM, etc.)
-        continue;
-      }
-    }
-
-    // Try lyrics subdirectory
-    if (last_slash != std::string::npos) {
-      std::string dir = audio_file_path.substr(0, last_slash + 1);
-      std::string filename = audio_file_path.substr(last_slash + 1);
-
-      if (last_dot != std::string::npos && last_dot > last_slash) {
-        filename = filename.substr(0, last_dot - last_slash - 1);
-      }
-
-      for (const auto &ext : extensions) {
-        try {
-          std::string lyrics_path = dir + "lyrics/" + filename + ext;
-          auto test_handler = std::make_unique<FileIOHandler>(
-              TagLib::String(lyrics_path, TagLib::String::UTF8));
-          if (test_handler) {
-            // Check if file has content by seeking to end
-            test_handler->seek(0, SEEK_END);
-            long size = test_handler->tell();
-            if (size > 0) {
-              return lyrics_path;
-            }
-          }
-        } catch (...) {
-          // Ignore errors for individual file checks (ENOENT, EPERM, etc.)
-          continue;
-        }
-      }
-    }
-
-    return "";
-
-  } catch (const std::exception &e) {
-    std::cerr << "Error searching for lyrics file for '" << audio_file_path
-              << "': " << e.what() << std::endl;
-    return "";
-  } catch (...) {
-    std::cerr << "Unknown error searching for lyrics file for '"
-              << audio_file_path << "'" << std::endl;
-    return "";
-  }
-}
-
-bool isLyricsFile(const std::string &file_path) {
-  size_t last_dot = file_path.find_last_of(".");
-  if (last_dot == std::string::npos) {
-    return false;
-  }
-
-  std::string extension = file_path.substr(last_dot + 1);
-  std::transform(extension.begin(), extension.end(), extension.begin(),
-                 ::tolower);
-
-  return extension == "lrc" || extension == "srt" || extension == "txt";
-}
-
-} // namespace LyricsUtils
 
 } // namespace Core
 } // namespace PsyMP3
