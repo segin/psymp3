@@ -139,7 +139,6 @@ else
 psymp3_SOURCES = \
  audio.cpp \
  debug.cpp display.cpp \
- exceptions.cpp \
  font.cpp \
  main.cpp mediafile.cpp \
  player.cpp playlist.cpp \

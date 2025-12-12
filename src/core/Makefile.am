@@ -12,6 +12,7 @@ SUBDIRS = utility
 noinst_LIBRARIES = libpsymp3-core.a
 
 libpsymp3_core_a_SOURCES = \
+	exceptions.cpp \
 	song.cpp \
 	rect.cpp \
 	fft.cpp \

@@ -11,7 +11,7 @@
  * any purpose with or without fee is hereby granted, provided that
  * the above copyright notice and this permission notice appear in all
  * copies.
- * 
+ *
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
@@ -27,57 +27,65 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+namespace PsyMP3 {
+namespace Core {
+
 class SDLException : public std::runtime_error {
 public:
-    explicit SDLException(const std::string& message) : std::runtime_error(message) {}
+  explicit SDLException(const std::string &message)
+      : std::runtime_error(message) {}
 };
 
 // When no format can open the file.
-class InvalidMediaException : public std::exception
-{
-    public:
-        InvalidMediaException(TagLib::String why);
-        ~InvalidMediaException() noexcept override = default;
-        const char *what() const noexcept override;
-    protected:
-    private:
-        TagLib::String m_why;
+class InvalidMediaException : public std::exception {
+public:
+  InvalidMediaException(TagLib::String why);
+  ~InvalidMediaException() noexcept override = default;
+  const char *what() const noexcept override;
+
+protected:
+private:
+  TagLib::String m_why;
 };
 
 // Correct format, but incorrect data for whatever reason (file corrupt, etc.)
-class BadFormatException : public std::exception
-{
-    public:
-        BadFormatException(TagLib::String why);
-        ~BadFormatException() noexcept override = default;
-        const char *what() const noexcept override;
-    protected:
-    private:
-        TagLib::String m_why;
+class BadFormatException : public std::exception {
+public:
+  BadFormatException(TagLib::String why);
+  ~BadFormatException() noexcept override = default;
+  const char *what() const noexcept override;
+
+protected:
+private:
+  TagLib::String m_why;
 };
 
-// Not correct data format for this class. Try next or throw InvalidMediaException
-class WrongFormatException : public std::exception
-{
-    public:
-        WrongFormatException(TagLib::String why);
-        ~WrongFormatException() noexcept override = default;
-        const char *what() const noexcept override;
-    protected:
-    private:
-        TagLib::String m_why;
+// Not correct data format for this class. Try next or throw
+// InvalidMediaException
+class WrongFormatException : public std::exception {
+public:
+  WrongFormatException(TagLib::String why);
+  ~WrongFormatException() noexcept override = default;
+  const char *what() const noexcept override;
+
+protected:
+private:
+  TagLib::String m_why;
 };
 
 // General I/O exception for file operations (lyrics, configs, etc.)
-class IOException : public std::exception
-{
-    public:
-        IOException(const std::string& why);
-        ~IOException() noexcept override = default;
-        const char *what() const noexcept override;
-    protected:
-    private:
-        std::string m_why;
+class IOException : public std::exception {
+public:
+  IOException(const std::string &why);
+  ~IOException() noexcept override = default;
+  const char *what() const noexcept override;
+
+protected:
+private:
+  std::string m_why;
 };
+
+} // namespace Core
+} // namespace PsyMP3
 
 #endif // EXCEPTIONS_H
