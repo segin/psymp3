@@ -21,7 +21,6 @@
 #include "core/persistentstorage.cpp"
 #include "core/rect.cpp"
 #include "core/song.cpp"
-#include "core/utility/utility.cpp"
 #include "debug.cpp"
 #include "display.cpp"
 #include "exceptions.cpp"
@@ -41,6 +40,7 @@
 // Utility
 // ============================================================================
 #include "core/utility/XMLUtil.cpp"
+#include "core/utility/utility.cpp"
 
 // ============================================================================
 // I/O Subsystem
