@@ -20,4 +20,3 @@ libpsymp3_core_a_SOURCES = \
 	persistentstorage.cpp
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(LIBMPG123_CFLAGS)
-libpsymp3_core_a_CXXFLAGS = $(AM_CXXFLAGS)

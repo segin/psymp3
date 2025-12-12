@@ -14,33 +14,33 @@
 // ============================================================================
 // Core Application
 // ============================================================================
-#include "about.cpp"
 #include "audio.cpp"
+#include "core/about.cpp"
+#include "core/fft.cpp"
+#include "core/fft_draw.cpp"
+#include "core/persistentstorage.cpp"
+#include "core/rect.cpp"
+#include "core/song.cpp"
+#include "core/utility/utility.cpp"
 #include "debug.cpp"
 #include "display.cpp"
 #include "exceptions.cpp"
-#include "fft.cpp"
-#include "fft_draw.cpp"
 #include "font.cpp"
 #include "lyrics.cpp"
 #include "main.cpp"
 #include "mediafile.cpp"
-#include "persistentstorage.cpp"
 #include "player.cpp"
 #include "playlist.cpp"
-#include "rect.cpp"
-#include "song.cpp"
 #include "stream.cpp"
 #include "surface.cpp"
 #include "system.cpp"
 #include "track.cpp"
 #include "truetype.cpp"
-#include "utility.cpp"
 
 // ============================================================================
 // Utility
 // ============================================================================
-#include "util/XMLUtil.cpp"
+#include "core/utility/XMLUtil.cpp"
 
 // ============================================================================
 // I/O Subsystem
