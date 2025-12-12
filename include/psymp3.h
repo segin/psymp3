@@ -553,10 +553,10 @@ using PsyMP3::Core::NullStream;
 #include "track.h"
 #include "core/song.h"
 using PsyMP3::Core::Song;
-#include "XMLUtil.h"
+#include "core/utility/XMLUtil.h"
 
 // Using declarations for backward compatibility - XML subsystem
-using PsyMP3::XML::XMLUtil;
+using PsyMP3::Core::Utility::XMLUtil;
 
 // Last.fm scrobbling
 #include "lastfm/scrobble.h"
