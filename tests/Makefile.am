@@ -117,7 +117,7 @@ COMMON_TEST_OBJS = \
 EXTENDED_TEST_OBJS = \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a
@@ -128,7 +128,7 @@ FULL_CODEC_LIBS = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
@@ -206,7 +206,7 @@ opusout_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -565,7 +565,7 @@ test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
 test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -597,7 +597,7 @@ test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
 test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -638,7 +638,7 @@ test_media_factory_integration_SOURCES = test_media_factory_integration.cpp
 test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -1042,7 +1042,7 @@ test_alaw_table_verification_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -1099,7 +1099,7 @@ test_mulaw_alaw_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -1268,7 +1268,7 @@ test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -1289,7 +1289,7 @@ test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -1310,7 +1310,7 @@ test_mpris_error_integration_LDADD = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -1378,7 +1378,7 @@ $(top_builddir)/src/system.o:
 $(top_builddir)/src/track.o:
 	$(MAKE) -C $(top_builddir)/src track.o
 
-$(top_builddir)/src/lyrics.o:
+$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a:
 	$(MAKE) -C $(top_builddir)/src lyrics.o
 
 	$(MAKE) -C $(top_builddir)/src TagLibIOHandlerAdapter.o
@@ -1422,7 +1422,7 @@ test_system_wide_threading_integration_LDADD = \
 	$(top_builddir)/src/fft_draw.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
 # Threading performance regression test
@@ -1443,7 +1443,7 @@ test_threading_performance_regression_LDADD = \
 	$(top_builddir)/src/fft_draw.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
 # Simple codec performance test (minimal dependencies)
@@ -1475,7 +1475,7 @@ test_audio_thread_safety_LDADD = \
 	$(top_builddir)/src/exceptions.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -2082,7 +2082,7 @@ test_flac_codec_container_agnostic_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -2372,7 +2372,7 @@ test_flac_conditional_compilation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
@@ -2500,7 +2500,7 @@ test_flac_rfc_subframe_validation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2518,7 +2518,7 @@ test_flac_rfc_entropy_coding_validation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
@@ -2586,7 +2586,7 @@ test_flac_rfc_bit_depth_validation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
@@ -2635,7 +2635,7 @@ test_flac_sample_format_rfc9639_compliance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
@@ -2727,7 +2727,7 @@ test_opus_codec_core_decoding_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2754,7 +2754,7 @@ test_opus_codec_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -2780,7 +2780,7 @@ test_opus_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -2807,7 +2807,7 @@ test_opus_compatibility_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3076,7 +3076,7 @@ test_flac_rfc9639_compliance_validator_LDADD = \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/exceptions.o \
@@ -3105,7 +3105,7 @@ test_flac_audio_output_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
@@ -3136,7 +3136,7 @@ test_flac_seeking_crash_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
 	$(top_builddir)/src/codecs/vorbis/libvorbiscodec.a \
@@ -3167,7 +3167,7 @@ test_flac_audio_output_debug_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/libio.a \
@@ -3514,7 +3514,7 @@ flacout_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -3561,7 +3561,7 @@ vorbisout_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/codecs/libcodecs.a \
@@ -3607,7 +3607,7 @@ mp3out_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/lyrics.o \
+	$(top_builddi$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
 	$(top_builddir)/src/codecs/libcodecs.a \

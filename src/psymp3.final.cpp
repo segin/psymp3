@@ -25,7 +25,7 @@
 #include "display.cpp"
 #include "exceptions.cpp"
 #include "font.cpp"
-#include "lyrics.cpp"
+#include "core/lyrics.cpp"
 #include "main.cpp"
 #include "mediafile.cpp"
 #include "player.cpp"

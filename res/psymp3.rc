@@ -24,15 +24,15 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "Comments", "This is PsyMP3 version 2-CURRENT\0"
-      VALUE "CompanyName", "Fuck corporations!\0"
+      VALUE "CompanyName", "None\0"
       VALUE "FileDescription", "PsyMP3 Audio Player\0"
       VALUE "FileVersion", "2, 0, 0, 805\0"
       VALUE "InternalName", "PsyMP3\0"
-      VALUE "LegalCopyright", "GNU General Public License, version 2\0"
+      VALUE "LegalCopyright", "ISC License\0"
       VALUE "OriginalFilename", "psymp3.exe\0"
       VALUE "ProductName", "PsyMP3 Audio Player\0"
       VALUE "ProductVersion", "2-CURRENT\0"
-      VALUE "LegalTrademarks", "Main program is � 2008-2011 Kirn Gill. MD5 library is Copyright � 2002 Aladdin Enterprises, � 1999, 2000 artofcode LLC. libdir is Copyright � 2009-2010 Mattis Michel.\0"
+      VALUE "LegalTrademarks", "Main program is � 2008-2025 Kirn Gill II. MD5 library is Copyright � 2002 Aladdin Enterprises, � 1999, 2000 artofcode LLC. libdir is Copyright � 2009-2010 Mattis Michel.\0"
     END
   END
   BLOCK "VarFileInfo"

@@ -305,7 +305,10 @@ using PsyMP3::Core::Rect;
 #include "display.h"
 #include "font.h"
 #include "truetype.h"
-#include "lyrics.h"
+#include "core/lyrics.h"
+using PsyMP3::Core::LyricLine;
+using PsyMP3::Core::LyricsFile;
+namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 
 // Widget system - Foundation
 #include "widget/foundation/Widget.h"

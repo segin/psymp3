@@ -141,7 +141,6 @@ psymp3_SOURCES = \
  debug.cpp display.cpp \
  exceptions.cpp \
  font.cpp \
- lyrics.cpp \
  main.cpp mediafile.cpp \
  player.cpp playlist.cpp \
  stream.cpp surface.cpp \
