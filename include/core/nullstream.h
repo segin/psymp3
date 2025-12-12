@@ -24,6 +24,10 @@
 #ifndef NULLSTREAM_H
 #define NULLSTREAM_H
 
+namespace PsyMP3 {
+namespace Core {
+
+
 class NullStream : public Stream
 {
     public:
@@ -36,5 +40,8 @@ class NullStream : public Stream
     protected:
     private:
 };
+
+} // namespace Core
+} // namespace PsyMP3
 
 #endif /* NULLSTREAM_H */

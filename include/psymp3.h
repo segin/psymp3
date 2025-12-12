@@ -542,7 +542,8 @@ using PsyMP3::Demuxer::DemuxedStream;
 using PsyMP3::Demuxer::ModernStream;
 using PsyMP3::Demuxer::ChainedStream;
 
-#include "nullstream.h"
+#include "core/nullstream.h"
+using PsyMP3::Core::NullStream;
 #include "mediafile.h"
 #include "fft.h"
 #include "fft_draw.h"
