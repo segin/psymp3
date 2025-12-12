@@ -79,7 +79,6 @@ enum class LoopMode {
     All
 };
 
-//
 // C++ Standard Library
 #include <algorithm>
 #include <atomic>
@@ -331,7 +330,6 @@ using PsyMP3::Core::Rect;
 #include "widget/ui/ToastWidget.h"
 #include "widget/ui/LyricsWidget.h"
 
-// Bring widget types into global namespace for backward compatibility
 using PsyMP3::Widget::Foundation::Widget;
 using PsyMP3::Widget::Foundation::DrawableWidget;
 using PsyMP3::Widget::Foundation::LayoutWidget;
@@ -356,13 +354,11 @@ using PsyMP3::Widget::UI::LyricsWidget;
 
 #include "widget/ui/Label.h"
 
-// Bring Label into global namespace for backward compatibility
 using PsyMP3::Widget::UI::Label;
 
 #include "ZOrder.h"
 #include "widget/ui/ToastNotification.h"
 
-// Bring ToastNotification into global namespace after its header is included
 using PsyMP3::Widget::UI::ToastNotification;
 
 // I/O and utility components (needed by other components)
@@ -386,7 +382,6 @@ namespace Util = PsyMP3::Core::Utility;
 #include "io/TagLibIOHandlerAdapter.h"
 #include "io/URI.h"
 
-// Using declarations for I/O classes for backward compatibility
 using PsyMP3::IO::IOHandler;
 using PsyMP3::IO::File::FileIOHandler;
 using PsyMP3::IO::HTTP::HTTPIOHandler;
@@ -418,7 +413,6 @@ using PsyMP3::Demuxer::FormatSignature;
 using PsyMP3::Demuxer::DemuxerFactory;
 using PsyMP3::Demuxer::DemuxerRegistry;
 
-// I/O buffer pool types (backward compatibility)
 using PsyMP3::IO::IOBufferPool;
 using PsyMP3::IO::BoundedBuffer;
 using PsyMP3::IO::EnhancedBufferPool;
@@ -430,7 +424,6 @@ using PsyMP3::IO::MemoryPoolManager;
 // I/O Handler subsystem - Advanced (depends on Demuxer and BoundedQueue)
 #include "io/StreamingManager.h"
 
-// Using declaration for StreamingManager (after include)
 using PsyMP3::IO::StreamingManager;
 
 // Codec architecture (depends on Demuxer types)
@@ -438,7 +431,6 @@ using PsyMP3::IO::StreamingManager;
 #include "codecs/CodecRegistry.h"
 #include "codecs/CodecRegistration.h"
 #include "codecs/pcm/PCMCodecs.h"
-// Bring PCM codec types into global namespace for compatibility
 using PsyMP3::Codec::PCM::PCMCodec;
 using PsyMP3::Codec::PCM::MP3PassthroughCodec;
 #ifdef ENABLE_MULAW_CODEC
@@ -457,14 +449,12 @@ using PsyMP3::Codec::PCM::ALawCodec;
 // Codec includes needed by OggCodecs.h (must come before OggCodecs.h)
 #ifdef HAVE_VORBIS
 #include "codecs/vorbis/VorbisCodec.h"
-// Bring Vorbis codec types into global namespace for compatibility
 using PsyMP3::Codec::Vorbis::Vorbis;
 using PsyMP3::Codec::Vorbis::VorbisCodec;
 #endif
 #ifdef HAVE_OPUS
 #include "codecs/opus/opusw.h"
 #include "codecs/opus/OpusCodec.h"
-// Bring Opus codec types into global namespace for compatibility
 using PsyMP3::Codec::Opus::OpusCodec;
 using PsyMP3::Codec::Opus::OpusHeader;
 #endif
@@ -473,13 +463,7 @@ using PsyMP3::Codec::Opus::OpusHeader;
 #ifdef HAVE_OGGDEMUXER
 #include "demuxer/ogg/OggDemuxer.h"
 #include <ogg/ogg.h>
-// Bring Ogg demuxer types into global namespace for compatibility
-// Bring Ogg demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::Ogg::OggDemuxer;
-// using PsyMP3::Demuxer::Ogg::OggStream;
-// using PsyMP3::Demuxer::Ogg::OggPacket;
-// OggCodecs.h needs full definitions of codec types - include them here
-// These must be included regardless of individual codec flags since OggCodecs references them
 #include "codecs/vorbis/VorbisCodec.h"
 #include "codecs/opus/opusw.h"
 #include "codecs/opus/OpusCodec.h"
@@ -508,7 +492,6 @@ using PsyMP3::Codec::Opus::OpusComments;
 #include "codecs/flac/FLACRFC9639.h"
 #include "codecs/flac/FLACRFCValidator.h"
 #include "demuxer/flac/FLACDemuxer.h"
-// Bring FLAC demuxer types into global namespace for compatibility
 using PsyMP3::Demuxer::FLAC::FLACDemuxer;
 using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 #ifdef HAVE_NATIVE_FLAC
@@ -524,7 +507,6 @@ using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 #include "codecs/flac/MetadataParser.h"
 #include "codecs/flac/MD5Validator.h"
 #include "codecs/flac/NativeFLACCodec.h"
-// Bring Native FLAC codec types into global namespace for compatibility
 using PsyMP3::Codec::FLAC::FLACCodec;
 using PsyMP3::Codec::FLAC::FLACError;
 using PsyMP3::Codec::FLAC::FLACException;
@@ -556,14 +538,12 @@ using PsyMP3::Core::NullStream;
 using PsyMP3::Core::Song;
 #include "core/utility/XMLUtil.h"
 
-// Using declarations for backward compatibility - XML subsystem
 using PsyMP3::Core::Utility::XMLUtil;
 
 // Last.fm scrobbling
 #include "lastfm/scrobble.h"
 #include "lastfm/LastFM.h"
 
-// Using declarations for backward compatibility
 using PsyMP3::LastFM::LastFM;
 using PsyMP3::LastFM::Scrobble;
 
@@ -576,25 +556,6 @@ using PsyMP3::LastFM::Scrobble;
 #include "mpris/MethodHandler.h"
 #include "mpris/SignalEmitter.h"
 #include "mpris/MPRISManager.h"
-
-// ============================================================================
-// Backward Compatibility Using Declarations
-// ============================================================================
-// The following using declarations bring commonly-used namespaced types into
-// the global namespace to maintain backward compatibility with existing code
-// that was written before the namespace migration. These declarations allow
-// code to use types like "IOHandler" instead of "PsyMP3::IO::IOHandler".
-
-// IO Subsystem - Memory Management (already declared above)
-// using PsyMP3::IO::MemoryPoolManager;
-// using PsyMP3::IO::MemoryOptimizer;
-// using PsyMP3::IO::MemoryTracker;
-
-// IO Subsystem - Buffer Management (already declared above)
-// using PsyMP3::IO::BoundedBuffer;
-// using PsyMP3::IO::EnhancedBufferPool;
-// using PsyMP3::IO::EnhancedAudioBufferPool;
-
 // Demuxer Subsystem - ISO/MP4 Helper Classes
 using PsyMP3::Demuxer::ISO::BoxParser;
 using PsyMP3::Demuxer::ISO::ComplianceValidator;
@@ -608,36 +569,12 @@ using PsyMP3::Demuxer::ISO::ISODemuxer;
 
 // Demuxer Subsystem - Raw Audio
 using PsyMP3::Demuxer::Raw::RawAudioDemuxer;
-
-// Widget Subsystem - Foundation Layer (already declared above)
-// using PsyMP3::Widget::Foundation::Widget;
-// using PsyMP3::Widget::Foundation::DrawableWidget;
-// using PsyMP3::Widget::Foundation::LayoutWidget;
-// using PsyMP3::Widget::Foundation::FadingWidget;
-
-// Widget Subsystem - Windowing Layer (already declared above)
-// using PsyMP3::Widget::Windowing::TitlebarWidget;
-// using PsyMP3::Widget::Windowing::WindowFrameWidget;
-// using PsyMP3::Widget::Windowing::WindowWidget;
-// using PsyMP3::Widget::Windowing::TransparentWindowWidget;
-
-// Widget Subsystem - UI Layer (already declared above)
-// using PsyMP3::Widget::UI::ButtonWidget;
-// using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;
-// using PsyMP3::Widget::UI::PlayerProgressBarWidget;
-// using PsyMP3::Widget::UI::ToastWidget;
-// using PsyMP3::Widget::UI::ToastNotification;
-// using PsyMP3::Widget::UI::Label;
-
 // MPRIS Subsystem
 using PsyMP3::MPRIS::MPRISManager;
 using PsyMP3::MPRIS::DBusConnectionManager;
 using PsyMP3::MPRIS::MethodHandler;
 using PsyMP3::MPRIS::PropertyManager;
 using PsyMP3::MPRIS::SignalEmitter;
-
-// Portable branch prediction macros
-
 #ifdef DEBUG
 #define PSYMP3_DATADIR "/usr/local/share/psymp3/data"
 #endif /* DEBUG */
