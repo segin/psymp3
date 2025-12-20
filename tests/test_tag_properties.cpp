@@ -384,11 +384,11 @@ bool runRapidCheckTests() {
         auto genPrintableChar = rc::gen::inRange<char>(33, 126); // Printable ASCII, no space
         
         // Generate test data with fixed reasonable lengths
-        auto title = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
-        auto artist = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
-        auto album = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto title = *rc::gen::container<std::string>(genPrintableChar);
+        auto artist = *rc::gen::container<std::string>(genPrintableChar);
+        auto album = *rc::gen::container<std::string>(genPrintableChar);
         auto year = *rc::gen::inRange<uint32_t>(1900, 2100);
-        auto comment = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto comment = *rc::gen::container<std::string>(genPrintableChar);
         auto track = *rc::gen::inRange<uint8_t>(1, 99);
         auto genre_idx = *rc::gen::inRange<uint8_t>(0, 191);
         
@@ -441,11 +441,11 @@ bool runRapidCheckTests() {
     auto result27 = rc::check("ID3v1.0 round-trip parsing preserves field values", []() {
         auto genPrintableChar = rc::gen::inRange<char>(33, 126);
         
-        auto title = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
-        auto artist = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
-        auto album = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto title = *rc::gen::container<std::string>(genPrintableChar);
+        auto artist = *rc::gen::container<std::string>(genPrintableChar);
+        auto album = *rc::gen::container<std::string>(genPrintableChar);
         auto year = *rc::gen::inRange<uint32_t>(1900, 2100);
-        auto comment = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto comment = *rc::gen::container<std::string>(genPrintableChar);
         auto genre_idx = *rc::gen::inRange<uint8_t>(0, 191);
         
         std::vector<uint8_t> data(128, 0);
@@ -478,6 +478,213 @@ bool runRapidCheckTests() {
         RC_ASSERT(tag->formatName() == "ID3v1");
     });
     if (!result27) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // ========================================================================
+    // Property 6: ID3v2 Synchsafe Integer Round-Trip
+    // **Validates: Requirements 3.2**
+    // For any 28-bit unsigned integer value, encoding it as a synchsafe integer
+    // and then decoding should return the original value.
+    // ========================================================================
+    
+    std::cout << "\n  --- Property 6: ID3v2 Synchsafe Integer Round-Trip ---\n";
+    std::cout << "  ID3v2_SynchsafeIntegerRoundTrip: ";
+    auto result28 = rc::check("ID3v2 synchsafe integer round-trip", []() {
+        // Generate a 28-bit value (0 to 0x0FFFFFFF)
+        auto value = *rc::gen::inRange<uint32_t>(0, 0x0FFFFFFF);
+        
+        // Verify the value can be encoded
+        RC_ASSERT(ID3v2Utils::canEncodeSynchsafe(value));
+        
+        // Encode and decode using uint32_t functions
+        uint32_t encoded = ID3v2Utils::encodeSynchsafe(value);
+        uint32_t decoded = ID3v2Utils::decodeSynchsafe(encoded);
+        
+        // Round-trip should preserve the value
+        RC_ASSERT(decoded == value);
+    });
+    if (!result28) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: Synchsafe byte encoding/decoding round-trip
+    std::cout << "  ID3v2_SynchsafeBytesRoundTrip: ";
+    auto result29 = rc::check("ID3v2 synchsafe bytes round-trip", []() {
+        auto value = *rc::gen::inRange<uint32_t>(0, 0x0FFFFFFF);
+        
+        // Encode to bytes
+        uint8_t bytes[4];
+        ID3v2Utils::encodeSynchsafeBytes(value, bytes);
+        
+        // Verify each byte has MSB = 0 (synchsafe property)
+        RC_ASSERT((bytes[0] & 0x80) == 0);
+        RC_ASSERT((bytes[1] & 0x80) == 0);
+        RC_ASSERT((bytes[2] & 0x80) == 0);
+        RC_ASSERT((bytes[3] & 0x80) == 0);
+        
+        // Decode from bytes
+        uint32_t decoded = ID3v2Utils::decodeSynchsafeBytes(bytes);
+        
+        // Round-trip should preserve the value
+        RC_ASSERT(decoded == value);
+    });
+    if (!result29) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: Values > 28 bits cannot be encoded as synchsafe
+    std::cout << "  ID3v2_SynchsafeRejectsLargeValues: ";
+    auto result30 = rc::check("ID3v2 synchsafe rejects values > 28 bits", []() {
+        // Generate a value that's definitely > 28 bits
+        auto value = *rc::gen::inRange<uint32_t>(0x10000000, 0xFFFFFFFF);
+        
+        // Should not be encodable as synchsafe
+        RC_ASSERT(!ID3v2Utils::canEncodeSynchsafe(value));
+    });
+    if (!result30) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // ========================================================================
+    // Property 7: ID3v2 Text Encoding Round-Trip
+    // **Validates: Requirements 3.4**
+    // For any UTF-8 string, encoding it in any ID3v2 text encoding and then
+    // decoding should return the original string (or equivalent for ISO-8859-1).
+    // ========================================================================
+    
+    std::cout << "\n  --- Property 7: ID3v2 Text Encoding Round-Trip ---\n";
+    
+    // Property: UTF-8 round-trip (lossless)
+    std::cout << "  ID3v2_UTF8RoundTrip: ";
+    auto result31 = rc::check("ID3v2 UTF-8 text round-trip", []() {
+        // Generate ASCII string (safe for all encodings) - use fixed size
+        auto text = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        // Encode as UTF-8
+        auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::UTF_8);
+        
+        // Decode back
+        std::string decoded = ID3v2Utils::decodeText(
+            encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::UTF_8);
+        
+        // Round-trip should preserve the value
+        RC_ASSERT(decoded == text);
+    });
+    if (!result31) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: ISO-8859-1 round-trip (ASCII subset)
+    std::cout << "  ID3v2_ISO8859_1RoundTrip: ";
+    auto result32 = rc::check("ID3v2 ISO-8859-1 text round-trip (ASCII)", []() {
+        // Generate ASCII string (safe for ISO-8859-1)
+        auto text = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        // Encode as ISO-8859-1
+        auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::ISO_8859_1);
+        
+        // Decode back
+        std::string decoded = ID3v2Utils::decodeText(
+            encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::ISO_8859_1);
+        
+        // Round-trip should preserve the value
+        RC_ASSERT(decoded == text);
+    });
+    if (!result32) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: UTF-16 with BOM round-trip
+    std::cout << "  ID3v2_UTF16BOMRoundTrip: ";
+    auto result33 = rc::check("ID3v2 UTF-16 BOM text round-trip", []() {
+        // Generate ASCII string
+        auto text = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        // Encode as UTF-16 with BOM
+        auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::UTF_16_BOM);
+        
+        // Decode back
+        std::string decoded = ID3v2Utils::decodeText(
+            encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::UTF_16_BOM);
+        
+        // Round-trip should preserve the value
+        RC_ASSERT(decoded == text);
+    });
+    if (!result33) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: UTF-16 BE round-trip
+    std::cout << "  ID3v2_UTF16BERoundTrip: ";
+    auto result34 = rc::check("ID3v2 UTF-16 BE text round-trip", []() {
+        // Generate ASCII string
+        auto text = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        // Encode as UTF-16 BE
+        auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::UTF_16_BE);
+        
+        // Decode back
+        std::string decoded = ID3v2Utils::decodeText(
+            encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::UTF_16_BE);
+        
+        // Round-trip should preserve the value
+        RC_ASSERT(decoded == text);
+    });
+    if (!result34) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: Text with encoding byte round-trip
+    std::cout << "  ID3v2_TextWithEncodingRoundTrip: ";
+    auto result35 = rc::check("ID3v2 text with encoding byte round-trip", []() {
+        // Generate ASCII string
+        auto text = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        // Test all encodings
+        for (uint8_t enc = 0; enc <= 3; ++enc) {
+            auto encoding = static_cast<ID3v2Utils::TextEncoding>(enc);
+            
+            // Encode with encoding byte prefix
+            auto encoded = ID3v2Utils::encodeTextWithEncoding(text, encoding);
+            
+            // First byte should be the encoding
+            RC_ASSERT(encoded[0] == enc);
+            
+            // Decode with encoding byte
+            std::string decoded = ID3v2Utils::decodeTextWithEncoding(
+                encoded.data(), encoded.size());
+            
+            // Round-trip should preserve the value
+            RC_ASSERT(decoded == text);
+        }
+    });
+    if (!result35) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // ========================================================================
+    // ID3v2 Unsynchronization Tests
+    // ========================================================================
+    
+    std::cout << "\n  --- ID3v2 Unsynchronization Tests ---\n";
+    
+    // Property: Unsync decode/encode round-trip
+    std::cout << "  ID3v2_UnsyncRoundTrip: ";
+    auto result36 = rc::check("ID3v2 unsync round-trip", []() {
+        // Generate random data with fixed size
+        auto data = *rc::gen::container<std::vector<uint8_t>>(rc::gen::arbitrary<uint8_t>());
+        
+        // Encode with unsync
+        auto encoded = ID3v2Utils::encodeUnsync(data.data(), data.size());
+        
+        // Decode unsync
+        auto decoded = ID3v2Utils::decodeUnsync(encoded.data(), encoded.size());
+        
+        // Round-trip should preserve the data
+        RC_ASSERT(decoded == data);
+    });
+    if (!result36) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: Unsync encoding never produces false sync patterns
+    std::cout << "  ID3v2_UnsyncNoFalseSync: ";
+    auto result37 = rc::check("ID3v2 unsync encoding produces no false sync", []() {
+        // Generate random data with fixed size
+        auto data = *rc::gen::container<std::vector<uint8_t>>(rc::gen::arbitrary<uint8_t>());
+        
+        // Encode with unsync
+        auto encoded = ID3v2Utils::encodeUnsync(data.data(), data.size());
+        
+        // Check that no 0xFF is followed by >= 0xE0 (MPEG sync pattern)
+        for (size_t i = 0; i + 1 < encoded.size(); ++i) {
+            if (encoded[i] == 0xFF) {
+                RC_ASSERT(encoded[i + 1] < 0xE0);
+            }
+        }
+    });
+    if (!result37) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
     return all_passed;
 }
@@ -868,6 +1075,239 @@ protected:
 };
 
 // ============================================================================
+// ID3v2 Utility Fallback Tests
+// ============================================================================
+
+class ID3v2_SynchsafeIntegerRoundTrip : public TestCase {
+public:
+    ID3v2_SynchsafeIntegerRoundTrip() 
+        : TestCase("ID3v2_SynchsafeIntegerRoundTrip") {}
+protected:
+    void runTest() override {
+        // Test various values
+        std::vector<uint32_t> test_values = {
+            0, 1, 127, 128, 255, 256, 16383, 16384,
+            0x7F, 0x3FFF, 0x1FFFFF, 0x0FFFFFFF,
+            1000, 10000, 100000, 1000000
+        };
+        
+        for (uint32_t value : test_values) {
+            ASSERT_TRUE(ID3v2Utils::canEncodeSynchsafe(value), 
+                        "Value should be encodable: " + std::to_string(value));
+            
+            uint32_t encoded = ID3v2Utils::encodeSynchsafe(value);
+            uint32_t decoded = ID3v2Utils::decodeSynchsafe(encoded);
+            
+            ASSERT_EQUALS(value, decoded, 
+                          "Round-trip failed for value: " + std::to_string(value));
+        }
+    }
+};
+
+class ID3v2_SynchsafeBytesRoundTrip : public TestCase {
+public:
+    ID3v2_SynchsafeBytesRoundTrip() 
+        : TestCase("ID3v2_SynchsafeBytesRoundTrip") {}
+protected:
+    void runTest() override {
+        std::vector<uint32_t> test_values = {
+            0, 1, 127, 128, 255, 256, 16383, 16384,
+            0x7F, 0x3FFF, 0x1FFFFF, 0x0FFFFFFF
+        };
+        
+        for (uint32_t value : test_values) {
+            uint8_t bytes[4];
+            ID3v2Utils::encodeSynchsafeBytes(value, bytes);
+            
+            // Verify MSB is 0 for each byte
+            ASSERT_TRUE((bytes[0] & 0x80) == 0, "Byte 0 MSB should be 0");
+            ASSERT_TRUE((bytes[1] & 0x80) == 0, "Byte 1 MSB should be 0");
+            ASSERT_TRUE((bytes[2] & 0x80) == 0, "Byte 2 MSB should be 0");
+            ASSERT_TRUE((bytes[3] & 0x80) == 0, "Byte 3 MSB should be 0");
+            
+            uint32_t decoded = ID3v2Utils::decodeSynchsafeBytes(bytes);
+            ASSERT_EQUALS(value, decoded, 
+                          "Bytes round-trip failed for: " + std::to_string(value));
+        }
+    }
+};
+
+class ID3v2_SynchsafeRejectsLargeValues : public TestCase {
+public:
+    ID3v2_SynchsafeRejectsLargeValues() 
+        : TestCase("ID3v2_SynchsafeRejectsLargeValues") {}
+protected:
+    void runTest() override {
+        std::vector<uint32_t> large_values = {
+            0x10000000, 0x20000000, 0x7FFFFFFF, 0xFFFFFFFF
+        };
+        
+        for (uint32_t value : large_values) {
+            ASSERT_FALSE(ID3v2Utils::canEncodeSynchsafe(value),
+                         "Large value should not be encodable: " + std::to_string(value));
+        }
+    }
+};
+
+class ID3v2_UTF8RoundTrip : public TestCase {
+public:
+    ID3v2_UTF8RoundTrip() 
+        : TestCase("ID3v2_UTF8RoundTrip") {}
+protected:
+    void runTest() override {
+        std::vector<std::string> test_strings = {
+            "", "Hello", "Test String", "ASCII only 123",
+            "Special: !@#$%^&*()", "Spaces   and\ttabs"
+        };
+        
+        for (const auto& text : test_strings) {
+            auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::UTF_8);
+            std::string decoded = ID3v2Utils::decodeText(
+                encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::UTF_8);
+            
+            ASSERT_EQUALS(text, decoded, "UTF-8 round-trip failed for: " + text);
+        }
+    }
+};
+
+class ID3v2_ISO8859_1RoundTrip : public TestCase {
+public:
+    ID3v2_ISO8859_1RoundTrip() 
+        : TestCase("ID3v2_ISO8859_1RoundTrip") {}
+protected:
+    void runTest() override {
+        std::vector<std::string> test_strings = {
+            "", "Hello", "Test String", "ASCII only 123"
+        };
+        
+        for (const auto& text : test_strings) {
+            auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::ISO_8859_1);
+            std::string decoded = ID3v2Utils::decodeText(
+                encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::ISO_8859_1);
+            
+            ASSERT_EQUALS(text, decoded, "ISO-8859-1 round-trip failed for: " + text);
+        }
+    }
+};
+
+class ID3v2_UTF16BOMRoundTrip : public TestCase {
+public:
+    ID3v2_UTF16BOMRoundTrip() 
+        : TestCase("ID3v2_UTF16BOMRoundTrip") {}
+protected:
+    void runTest() override {
+        std::vector<std::string> test_strings = {
+            "", "Hello", "Test String", "ASCII only"
+        };
+        
+        for (const auto& text : test_strings) {
+            auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::UTF_16_BOM);
+            std::string decoded = ID3v2Utils::decodeText(
+                encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::UTF_16_BOM);
+            
+            ASSERT_EQUALS(text, decoded, "UTF-16 BOM round-trip failed for: " + text);
+        }
+    }
+};
+
+class ID3v2_UTF16BERoundTrip : public TestCase {
+public:
+    ID3v2_UTF16BERoundTrip() 
+        : TestCase("ID3v2_UTF16BERoundTrip") {}
+protected:
+    void runTest() override {
+        std::vector<std::string> test_strings = {
+            "", "Hello", "Test String", "ASCII only"
+        };
+        
+        for (const auto& text : test_strings) {
+            auto encoded = ID3v2Utils::encodeText(text, ID3v2Utils::TextEncoding::UTF_16_BE);
+            std::string decoded = ID3v2Utils::decodeText(
+                encoded.data(), encoded.size(), ID3v2Utils::TextEncoding::UTF_16_BE);
+            
+            ASSERT_EQUALS(text, decoded, "UTF-16 BE round-trip failed for: " + text);
+        }
+    }
+};
+
+class ID3v2_TextWithEncodingRoundTrip : public TestCase {
+public:
+    ID3v2_TextWithEncodingRoundTrip() 
+        : TestCase("ID3v2_TextWithEncodingRoundTrip") {}
+protected:
+    void runTest() override {
+        std::string text = "Test String";
+        
+        for (uint8_t enc = 0; enc <= 3; ++enc) {
+            auto encoding = static_cast<ID3v2Utils::TextEncoding>(enc);
+            
+            auto encoded = ID3v2Utils::encodeTextWithEncoding(text, encoding);
+            
+            // First byte should be the encoding
+            ASSERT_EQUALS(enc, encoded[0], "First byte should be encoding");
+            
+            std::string decoded = ID3v2Utils::decodeTextWithEncoding(
+                encoded.data(), encoded.size());
+            
+            ASSERT_EQUALS(text, decoded, 
+                          "Text with encoding round-trip failed for encoding: " + std::to_string(enc));
+        }
+    }
+};
+
+class ID3v2_UnsyncRoundTrip : public TestCase {
+public:
+    ID3v2_UnsyncRoundTrip() 
+        : TestCase("ID3v2_UnsyncRoundTrip") {}
+protected:
+    void runTest() override {
+        // Test data with various patterns
+        std::vector<std::vector<uint8_t>> test_data = {
+            {},
+            {0x00},
+            {0xFF},
+            {0xFF, 0x00},
+            {0xFF, 0xE0},
+            {0xFF, 0xFF},
+            {0x01, 0xFF, 0x00, 0x02},
+            {0xFF, 0xE0, 0xFF, 0xF0, 0xFF, 0x00}
+        };
+        
+        for (const auto& data : test_data) {
+            auto encoded = ID3v2Utils::encodeUnsync(data.data(), data.size());
+            auto decoded = ID3v2Utils::decodeUnsync(encoded.data(), encoded.size());
+            
+            ASSERT_EQUALS(data.size(), decoded.size(), "Unsync round-trip size mismatch");
+            for (size_t i = 0; i < data.size(); ++i) {
+                ASSERT_EQUALS(data[i], decoded[i], 
+                              "Unsync round-trip byte mismatch at index " + std::to_string(i));
+            }
+        }
+    }
+};
+
+class ID3v2_UnsyncNoFalseSync : public TestCase {
+public:
+    ID3v2_UnsyncNoFalseSync() 
+        : TestCase("ID3v2_UnsyncNoFalseSync") {}
+protected:
+    void runTest() override {
+        // Data that would create false sync patterns
+        std::vector<uint8_t> data = {0xFF, 0xE0, 0xFF, 0xF0, 0xFF, 0xFB};
+        
+        auto encoded = ID3v2Utils::encodeUnsync(data.data(), data.size());
+        
+        // Check no false sync patterns
+        for (size_t i = 0; i + 1 < encoded.size(); ++i) {
+            if (encoded[i] == 0xFF) {
+                ASSERT_TRUE(encoded[i + 1] < 0xE0, 
+                            "False sync pattern found at index " + std::to_string(i));
+            }
+        }
+    }
+};
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -896,6 +1336,18 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ID3v1_StringFieldsProperlyTrimmed>());
     suite.addTest(std::make_unique<ID3v1_NullPointerHandling>());
     suite.addTest(std::make_unique<ID3v1_YearParsingHandlesNonNumeric>());
+    
+    // ID3v2 utility tests
+    suite.addTest(std::make_unique<ID3v2_SynchsafeIntegerRoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_SynchsafeBytesRoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_SynchsafeRejectsLargeValues>());
+    suite.addTest(std::make_unique<ID3v2_UTF8RoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_ISO8859_1RoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_UTF16BOMRoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_UTF16BERoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_TextWithEncodingRoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_UnsyncRoundTrip>());
+    suite.addTest(std::make_unique<ID3v2_UnsyncNoFalseSync>());
     
     auto results = suite.runAll();
     suite.printResults(results);

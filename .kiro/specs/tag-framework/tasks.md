@@ -35,18 +35,18 @@ This implementation plan breaks down the Tag framework into discrete coding task
     - Test all 192 genre mappings
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 2. Implement ID3v2 Core Utilities
-  - [ ] 2.1 Create ID3v2 utility functions
+- [x] 2. Implement ID3v2 Core Utilities
+  - [x] 2.1 Create ID3v2 utility functions
     - Implement synchsafe integer encode/decode
     - Implement text encoding detection and conversion
     - Implement unsynchronization decode
     - _Requirements: 3.2, 3.4, 3.6_
 
-  - [ ] 2.2 Write property test for synchsafe integer round-trip
+  - [x] 2.2 Write property test for synchsafe integer round-trip
     - **Property 6: ID3v2 Synchsafe Integer Round-Trip**
     - **Validates: Requirements 3.2**
 
-  - [ ] 2.3 Write property test for text encoding round-trip
+  - [x] 2.3 Write property test for text encoding round-trip
     - **Property 7: ID3v2 Text Encoding Round-Trip**
     - **Validates: Requirements 3.4**
 

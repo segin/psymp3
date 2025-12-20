@@ -217,6 +217,7 @@
 #include "tag/Tag.cpp"
 #include "tag/NullTag.cpp"
 #include "tag/ID3v1Tag.cpp"
+#include "tag/ID3v2Utils.cpp"
 
 // ============================================================================
 // Last.fm Scrobbling

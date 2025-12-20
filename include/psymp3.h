@@ -594,6 +594,7 @@ using PsyMP3::MPRIS::SignalEmitter;
 #include "tag/Tag.h"
 #include "tag/NullTag.h"
 #include "tag/ID3v1Tag.h"
+#include "tag/ID3v2Utils.h"
 
 // Using declarations for Tag subsystem
 using PsyMP3::Tag::Tag;
