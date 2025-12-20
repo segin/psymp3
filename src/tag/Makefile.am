@@ -14,7 +14,9 @@ libpsymp3_tag_a_SOURCES = \
 	Tag.cpp \
 	NullTag.cpp \
 	ID3v1Tag.cpp \
-	ID3v2Utils.cpp
+	ID3v2Tag.cpp \
+	ID3v2Utils.cpp \
+	MergedID3Tag.cpp
 
 # Use AM_CPPFLAGS (not per-target) to avoid object file renaming
 AM_CPPFLAGS = \
@@ -23,10 +25,9 @@ AM_CPPFLAGS = \
 	@TAGLIB_CFLAGS@ \
 	@FREETYPE_CFLAGS@ \
 	@OPENSSL_CFLAGS@ \
-	@LIBCURL_CFLAGS@ \
+	@CURL_CFLAGS@ \
 	@DBUS_CFLAGS@ \
-	@OPUS_CFLAGS@ \
-	@MPG123_CFLAGS@
+	@OPUS_CFLAGS@
 
 AM_CXXFLAGS = -Wall -Werror
 

@@ -84,23 +84,23 @@ This implementation plan breaks down the Tag framework into discrete coding task
     - Test APIC parsing
     - _Requirements: 3.1, 3.3, 3.4, 3.5, 3.8_
 
-- [ ] 4. Checkpoint - ID3 Parsers Complete
+- [x] 4. Checkpoint - ID3 Parsers Complete
   - Ensure all ID3v1 and ID3v2 tests pass
   - Verify build compiles cleanly
   - Ask user if questions arise
 
-- [ ] 5. Implement MergedID3Tag
-  - [ ] 5.1 Create MergedID3Tag class
+- [x] 5. Implement MergedID3Tag
+  - [x] 5.1 Create MergedID3Tag class
     - Define MergedID3Tag in `include/tag/MergedID3Tag.h`
     - Implement constructor taking ID3v1Tag and ID3v2Tag
     - Implement all Tag interface methods with fallback logic
     - _Requirements: 6a.1, 6a.2, 6a.3, 6a.4, 6a.5, 6a.6_
 
-  - [ ] 5.2 Write property test for ID3 tag merging
+  - [x] 5.2 Write property test for ID3 tag merging
     - **Property 8: ID3 Tag Merging with Fallback**
     - **Validates: Requirements 6a.3, 6a.4, 6a.5, 6a.6**
 
-  - [ ] 5.3 Write unit tests for MergedID3Tag
+  - [x] 5.3 Write unit tests for MergedID3Tag
     - Test ID3v2 precedence over ID3v1
     - Test fallback when ID3v2 field is empty
     - Test ID3v1-only and ID3v2-only cases

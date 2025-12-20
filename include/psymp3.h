@@ -594,12 +594,17 @@ using PsyMP3::MPRIS::SignalEmitter;
 #include "tag/Tag.h"
 #include "tag/NullTag.h"
 #include "tag/ID3v1Tag.h"
+#include "tag/ID3v2Tag.h"
 #include "tag/ID3v2Utils.h"
+#include "tag/MergedID3Tag.h"
 
 // Using declarations for Tag subsystem
 using PsyMP3::Tag::Tag;
 using PsyMP3::Tag::NullTag;
 using PsyMP3::Tag::ID3v1Tag;
+using PsyMP3::Tag::ID3v2Tag;
+using PsyMP3::Tag::MergedID3Tag;
+using PsyMP3::Tag::ID3v2Frame;
 using PsyMP3::Tag::Picture;
 using PsyMP3::Tag::PictureType;
 using PsyMP3::Tag::createTagReader;

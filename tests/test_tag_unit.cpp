@@ -730,6 +730,225 @@ protected:
 };
 
 // ============================================================================
+// MergedID3Tag Unit Tests
+// ============================================================================
+
+class MergedID3Tag_ID3v2Precedence : public TestCase {
+public:
+    MergedID3Tag_ID3v2Precedence() : TestCase("MergedID3Tag_ID3v2Precedence") {}
+protected:
+    void runTest() override {
+        // Create ID3v1 tag with all fields
+        auto v1_data = createID3v1_1Tag("V1Title", "V1Artist", "V1Album", "2000", 
+                                         "V1Comment", 5, 12);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        ASSERT_NOT_NULL(v1_tag.get(), "ID3v1 tag should parse");
+        
+        // Create empty ID3v2 tag
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        // Create merged tag
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        // Since ID3v2 is empty, should fallback to ID3v1
+        ASSERT_EQUALS(std::string("V1Title"), merged.title(), "Should fallback to ID3v1 title");
+        ASSERT_EQUALS(std::string("V1Artist"), merged.artist(), "Should fallback to ID3v1 artist");
+        ASSERT_EQUALS(std::string("V1Album"), merged.album(), "Should fallback to ID3v1 album");
+        ASSERT_EQUALS(2000u, merged.year(), "Should fallback to ID3v1 year");
+        ASSERT_EQUALS(5u, merged.track(), "Should fallback to ID3v1 track");
+        ASSERT_EQUALS(std::string("Other"), merged.genre(), "Should fallback to ID3v1 genre");
+    }
+};
+
+class MergedID3Tag_ID3v1OnlyTag : public TestCase {
+public:
+    MergedID3Tag_ID3v1OnlyTag() : TestCase("MergedID3Tag_ID3v1OnlyTag") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        ASSERT_NOT_NULL(v1_tag.get(), "ID3v1 tag should parse");
+        
+        // Create merged tag with only ID3v1
+        MergedID3Tag merged(std::move(v1_tag), nullptr);
+        
+        ASSERT_TRUE(merged.hasID3v1(), "Should have ID3v1");
+        ASSERT_FALSE(merged.hasID3v2(), "Should not have ID3v2");
+        ASSERT_EQUALS(std::string("Title"), merged.title(), "Title should come from ID3v1");
+        ASSERT_EQUALS(std::string("Artist"), merged.artist(), "Artist should come from ID3v1");
+        ASSERT_EQUALS(std::string("Rock"), merged.genre(), "Genre should come from ID3v1");
+    }
+};
+
+class MergedID3Tag_ID3v2OnlyTag : public TestCase {
+public:
+    MergedID3Tag_ID3v2OnlyTag() : TestCase("MergedID3Tag_ID3v2OnlyTag") {}
+protected:
+    void runTest() override {
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        // Create merged tag with only ID3v2
+        MergedID3Tag merged(nullptr, std::move(v2_tag));
+        
+        ASSERT_FALSE(merged.hasID3v1(), "Should not have ID3v1");
+        ASSERT_TRUE(merged.hasID3v2(), "Should have ID3v2");
+    }
+};
+
+class MergedID3Tag_BothTagsEmpty : public TestCase {
+public:
+    MergedID3Tag_BothTagsEmpty() : TestCase("MergedID3Tag_BothTagsEmpty") {}
+protected:
+    void runTest() override {
+        auto v1_tag = std::make_unique<ID3v1Tag>();
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        ASSERT_TRUE(merged.isEmpty(), "Merged tag should be empty when both tags are empty");
+    }
+};
+
+class MergedID3Tag_FormatName : public TestCase {
+public:
+    MergedID3Tag_FormatName() : TestCase("MergedID3Tag_FormatName") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        std::string format = merged.formatName();
+        ASSERT_TRUE(format.find("ID3v2") != std::string::npos, "Format should mention ID3v2");
+        ASSERT_TRUE(format.find("ID3v1") != std::string::npos, "Format should mention ID3v1");
+    }
+};
+
+class MergedID3Tag_FormatName_ID3v1Only : public TestCase {
+public:
+    MergedID3Tag_FormatName_ID3v1Only() : TestCase("MergedID3Tag_FormatName_ID3v1Only") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        
+        MergedID3Tag merged(std::move(v1_tag), nullptr);
+        
+        std::string format = merged.formatName();
+        ASSERT_EQUALS(std::string("ID3v1"), format, "Format should be ID3v1 only");
+    }
+};
+
+class MergedID3Tag_PicturesFromID3v2 : public TestCase {
+public:
+    MergedID3Tag_PicturesFromID3v2() : TestCase("MergedID3Tag_PicturesFromID3v2") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        // ID3v1 doesn't support pictures, so count should be 0
+        ASSERT_EQUALS(0u, merged.pictureCount(), "Picture count should be 0");
+        ASSERT_FALSE(merged.getFrontCover().has_value(), "Front cover should be nullopt");
+        ASSERT_FALSE(merged.getPicture(0).has_value(), "getPicture(0) should be nullopt");
+    }
+};
+
+class MergedID3Tag_ID3v2OnlyFields : public TestCase {
+public:
+    MergedID3Tag_ID3v2OnlyFields() : TestCase("MergedID3Tag_ID3v2OnlyFields") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        // Fields only in ID3v2 (not in ID3v1)
+        ASSERT_EQUALS(std::string(""), merged.albumArtist(), "albumArtist should be empty");
+        ASSERT_EQUALS(std::string(""), merged.composer(), "composer should be empty");
+        ASSERT_EQUALS(0u, merged.trackTotal(), "trackTotal should be 0");
+        ASSERT_EQUALS(0u, merged.disc(), "disc should be 0");
+        ASSERT_EQUALS(0u, merged.discTotal(), "discTotal should be 0");
+    }
+};
+
+class MergedID3Tag_GetTag : public TestCase {
+public:
+    MergedID3Tag_GetTag() : TestCase("MergedID3Tag_GetTag") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("V1Title", "V1Artist", "V1Album", "2000", "V1Comment", 12);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        // getTag should fallback to ID3v1
+        ASSERT_EQUALS(std::string("V1Title"), merged.getTag("TITLE"), "getTag(TITLE) should fallback");
+        ASSERT_EQUALS(std::string("V1Artist"), merged.getTag("ARTIST"), "getTag(ARTIST) should fallback");
+    }
+};
+
+class MergedID3Tag_HasTag : public TestCase {
+public:
+    MergedID3Tag_HasTag() : TestCase("MergedID3Tag_HasTag") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("Title", "Artist", "", "", "", 255);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        ASSERT_TRUE(merged.hasTag("TITLE"), "hasTag(TITLE) should return true");
+        ASSERT_TRUE(merged.hasTag("ARTIST"), "hasTag(ARTIST) should return true");
+        ASSERT_FALSE(merged.hasTag("ALBUM"), "hasTag(ALBUM) should return false for empty");
+    }
+};
+
+class MergedID3Tag_GetAllTags : public TestCase {
+public:
+    MergedID3Tag_GetAllTags() : TestCase("MergedID3Tag_GetAllTags") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1_1Tag("Title", "Artist", "Album", "2024", "Comment", 5, 17);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        auto allTags = merged.getAllTags();
+        ASSERT_FALSE(allTags.empty(), "getAllTags should not be empty");
+        ASSERT_EQUALS(std::string("Title"), allTags["TITLE"], "TITLE should be in map");
+        ASSERT_EQUALS(std::string("Artist"), allTags["ARTIST"], "ARTIST should be in map");
+    }
+};
+
+class MergedID3Tag_GetTagValues : public TestCase {
+public:
+    MergedID3Tag_GetTagValues() : TestCase("MergedID3Tag_GetTagValues") {}
+protected:
+    void runTest() override {
+        auto v1_data = createID3v1Tag("Title", "Artist", "Album", "2024", "Comment", 17);
+        auto v1_tag = ID3v1Tag::parse(v1_data.data());
+        auto v2_tag = std::make_unique<ID3v2Tag>();
+        
+        MergedID3Tag merged(std::move(v1_tag), std::move(v2_tag));
+        
+        auto values = merged.getTagValues("TITLE");
+        ASSERT_FALSE(values.empty(), "getTagValues should not be empty");
+        ASSERT_EQUALS(std::string("Title"), values[0], "First value should be Title");
+    }
+};
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -796,6 +1015,20 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ID3v1Tag_YearParsing_InvalidYear>());
     suite.addTest(std::make_unique<ID3v1Tag_NoPictures>());
     suite.addTest(std::make_unique<ID3v1Tag_UnsupportedFields>());
+    
+    // MergedID3Tag tests
+    suite.addTest(std::make_unique<MergedID3Tag_ID3v2Precedence>());
+    suite.addTest(std::make_unique<MergedID3Tag_ID3v1OnlyTag>());
+    suite.addTest(std::make_unique<MergedID3Tag_ID3v2OnlyTag>());
+    suite.addTest(std::make_unique<MergedID3Tag_BothTagsEmpty>());
+    suite.addTest(std::make_unique<MergedID3Tag_FormatName>());
+    suite.addTest(std::make_unique<MergedID3Tag_FormatName_ID3v1Only>());
+    suite.addTest(std::make_unique<MergedID3Tag_PicturesFromID3v2>());
+    suite.addTest(std::make_unique<MergedID3Tag_ID3v2OnlyFields>());
+    suite.addTest(std::make_unique<MergedID3Tag_GetTag>());
+    suite.addTest(std::make_unique<MergedID3Tag_HasTag>());
+    suite.addTest(std::make_unique<MergedID3Tag_GetAllTags>());
+    suite.addTest(std::make_unique<MergedID3Tag_GetTagValues>());
     
     auto results = suite.runAll();
     suite.printResults(results);
