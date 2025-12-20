@@ -323,6 +323,7 @@ private:
     uint64_t m_current_offset = 0;       ///< Current read position in file
     uint64_t m_current_sample = 0;       ///< Current sample position in stream
     bool m_eof = false;                  ///< End of file reached
+    uint64_t m_id3_tag_offset = 0;       ///< Offset of FLAC data after ID3 tag (0 if no ID3 tag)
     
     // ========================================================================
     // Atomic state for thread-safe quick access (Requirements 28.6, 28.7)

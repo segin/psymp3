@@ -30,7 +30,7 @@ datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories - only built in regular mode (final build includes all sources directly)
 if !FINAL_BUILD
-SUBDIRS = codecs lastfm mpris util io demuxer widget core
+SUBDIRS = codecs lastfm mpris util io demuxer widget tag
 endif
 
 # Include path for psymp3.h and other headers
@@ -92,8 +92,63 @@ if HAVE_OGGDEMUXER
 DEMUXER_LIBS += demuxer/ogg/liboggdemuxer.a
 endif
 
-# System libraries (always needed)
+bin_PROGRAMS = psymp3
+
+if FINAL_BUILD
+# Final build mode - single compilation unit
+# All sources are #included in psymp3.final.cpp, no static libraries needed
+psymp3_SOURCES = psymp3.final.cpp
+# Final build still needs system libraries
 psymp3_LDADD = \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(OPENSSL_LIBS) \
+	$(CURL_LIBS) \
+	$(WINSOCK_LIBS)
+else
+# Regular build mode - individual source files
+psymp3_SOURCES = \
+ about.cpp audio.cpp \
+ debug.cpp display.cpp \
+ exceptions.cpp fft.cpp fft_draw.cpp \
+ font.cpp \
+ lyrics.cpp \
+ main.cpp mediafile.cpp \
+ persistentstorage.cpp player.cpp playlist.cpp \
+ rect.cpp \
+ song.cpp stream.cpp surface.cpp \
+ system.cpp \
+ track.cpp truetype.cpp utility.cpp
+
+# Link static libraries from subdirectories FIRST (regular build only)
+# Order matters: our convenience libraries must come BEFORE system libraries
+# that they depend on (GNU ld resolves symbols left-to-right)
+psymp3_LDADD = \
+	widget/ui/libwidgetui.a \
+	widget/windowing/libwidgetwindowing.a \
+	widget/foundation/libwidgetfoundation.a \
+	demuxer/libdemuxer.a \
+	io/http/libhttpio.a \
+	io/file/libfileio.a \
+	io/libio.a \
+	lastfm/liblastfm.a \
+	mpris/libmpris.a \
+	util/libutil.a \
+	tag/libpsymp3-tag.a \
+	codecs/libcodecs.a \
+	$(CODEC_LIBS) \
+	$(DEMUXER_LIBS) \
+	demuxer/iso/libisodemuxer.a \
+	demuxer/riff/libriffdemuxer.a \
+	demuxer/raw/librawdemuxer.a \
+	demuxer/libdemuxer.a \
+	codecs/pcm/libpcmcodecs.a \
+	codecs/libcodecs.a
+endif
+
+# System libraries (must come AFTER our convenience libraries)
+psymp3_LDADD += \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
 	$(FREETYPE_LIBS) \
@@ -126,49 +181,6 @@ endif
 
 if HAVE_DBUS
 psymp3_LDADD += $(DBUS_LIBS)
-endif
-
-bin_PROGRAMS = psymp3
-
-if FINAL_BUILD
-# Final build mode - single compilation unit
-# All sources are #included in psymp3.final.cpp, no static libraries needed
-psymp3_SOURCES = psymp3.final.cpp
-else
-# Regular build mode - individual source files
-psymp3_SOURCES = \
- audio.cpp \
- debug.cpp display.cpp \
- font.cpp \
- main.cpp mediafile.cpp \
- player.cpp playlist.cpp \
- stream.cpp surface.cpp \
- system.cpp \
- track.cpp truetype.cpp
-
-# Link static libraries from subdirectories (regular build only)
-psymp3_LDADD += \
-	widget/ui/libwidgetui.a \
-	widget/windowing/libwidgetwindowing.a \
-	widget/foundation/libwidgetfoundation.a \
-	demuxer/libdemuxer.a \
-	io/http/libhttpio.a \
-	io/file/libfileio.a \
-	io/libio.a \
-	lastfm/liblastfm.a \
-	mpris/libmpris.a \
-	util/libutil.a \
-	core/libpsymp3-core.a \
-	core/utility/libpsymp3-core-utility.a \
-	codecs/libcodecs.a \
-	$(CODEC_LIBS) \
-	$(DEMUXER_LIBS) \
-	demuxer/iso/libisodemuxer.a \
-	demuxer/riff/libriffdemuxer.a \
-	demuxer/raw/librawdemuxer.a \
-	demuxer/libdemuxer.a \
-	codecs/pcm/libpcmcodecs.a \
-	codecs/libcodecs.a
 endif
 
 # Windows resource file support

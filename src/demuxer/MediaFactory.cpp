@@ -809,6 +809,21 @@ std::string MediaFactory::probeOggCodec(const uint8_t* buffer, size_t buffer_siz
     return ""; // No codec detected
 }
 
+// Stub: ID3v2 tag size calculation (TODO: move to shared utility)
+#ifndef FINAL_BUILD
+namespace {
+static size_t calculateID3v2TagSize(const uint8_t* buffer, size_t buffer_size) {
+    if (buffer_size < 10) return 0;
+    if (buffer[0] != 'I' || buffer[1] != 'D' || buffer[2] != '3') return 0;
+    size_t size = ((buffer[6] & 0x7F) << 21) |
+                  ((buffer[7] & 0x7F) << 14) |
+                  ((buffer[8] & 0x7F) << 7) |
+                  (buffer[9] & 0x7F);
+    return 10 + size;
+}
+} // anonymous namespace
+#endif
+
 ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler) {
     ContentInfo info;
     
@@ -819,9 +834,76 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     long original_pos = handler->tell();
     handler->seek(0, SEEK_SET);
     size_t bytes_read = handler->read(buffer, 1, sizeof(buffer));
-    handler->seek(original_pos, SEEK_SET);
     
-    if (bytes_read < 4) return info;
+    if (bytes_read < 4) {
+        handler->seek(original_pos, SEEK_SET);
+        return info;
+    }
+    
+    // Check for ID3v2 tag and skip past it to find actual audio format
+    // ID3 tags can be prepended to FLAC, MP3, and other formats
+    bool has_id3_tag = false;
+    
+    if (bytes_read >= 10 && buffer[0] == 'I' && buffer[1] == 'D' && buffer[2] == '3') {
+        has_id3_tag = true;
+#ifdef FINAL_BUILD
+        size_t id3_size = calculateID3v2Size(buffer, bytes_read);
+#else
+        size_t id3_size = calculateID3v2TagSize(buffer, bytes_read);
+#endif
+        
+        if (id3_size > 0) {
+            Debug::log("loader", "MediaFactory::detectByMagicBytes found ID3v2 tag, size: ", id3_size);
+            
+            // Read the actual audio data after ID3 tag
+            uint8_t post_id3_buffer[64];
+            handler->seek(id3_size, SEEK_SET);
+            size_t post_bytes = handler->read(post_id3_buffer, 1, sizeof(post_id3_buffer));
+            
+            if (post_bytes >= 4) {
+                // Check for FLAC signature after ID3 tag
+                if (post_id3_buffer[0] == 'f' && post_id3_buffer[1] == 'L' && 
+                    post_id3_buffer[2] == 'a' && post_id3_buffer[3] == 'C') {
+                    Debug::log("loader", "MediaFactory::detectByMagicBytes found FLAC signature after ID3 tag");
+                    info.detected_format = "flac";
+                    info.confidence = 0.98f;
+                    info.metadata["has_id3"] = "true";
+                    info.metadata["magic_signature"] = "fLaC";
+                    handler->seek(original_pos, SEEK_SET);
+                    return info;
+                }
+                
+                // Check for Ogg signature after ID3 tag
+                if (post_id3_buffer[0] == 'O' && post_id3_buffer[1] == 'g' && 
+                    post_id3_buffer[2] == 'g' && post_id3_buffer[3] == 'S') {
+                    Debug::log("loader", "MediaFactory::detectByMagicBytes found Ogg signature after ID3 tag");
+                    info.detected_format = "ogg";
+                    info.confidence = 0.98f;
+                    info.metadata["has_id3"] = "true";
+                    info.metadata["magic_signature"] = "OggS";
+                    handler->seek(original_pos, SEEK_SET);
+                    return info;
+                }
+                
+                // Check for MPEG audio sync after ID3 tag (confirms it's actually MP3)
+                if ((post_id3_buffer[0] == 0xFF) && ((post_id3_buffer[1] & 0xE0) == 0xE0)) {
+                    Debug::log("loader", "MediaFactory::detectByMagicBytes found MPEG sync after ID3 tag");
+                    info.detected_format = "mpeg_audio";
+                    info.confidence = 0.98f;
+                    info.metadata["has_id3"] = "true";
+                    info.metadata["magic_signature"] = "ID3+sync";
+                    handler->seek(original_pos, SEEK_SET);
+                    return info;
+                }
+            }
+            
+            // ID3 tag found but couldn't determine format after it
+            // Don't assume it's MP3 - let other detection methods handle it
+            Debug::log("loader", "MediaFactory::detectByMagicBytes ID3 tag found but format after tag unclear");
+        }
+    }
+    
+    handler->seek(original_pos, SEEK_SET);
     
     // Enhanced priority-based resolution with codec-specific probing
     struct DetectionCandidate {
@@ -835,8 +917,14 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     std::vector<DetectionCandidate> candidates;
     
     // Check against all registered formats and collect candidates
+    // Skip ID3 signature matching if we already handled ID3 above
     for (const auto& [format_id, registration] : s_formats) {
         for (const auto& signature : registration.format.magic_signatures) {
+            // Skip ID3 signature - we handle it specially above
+            if (signature == "ID3" && has_id3_tag) {
+                continue;
+            }
+            
             if (signature.length() <= bytes_read) {
                 if (std::memcmp(buffer, signature.c_str(), signature.length()) == 0) {
                     DetectionCandidate candidate;
@@ -929,14 +1017,11 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
     
     // Advanced format detection based on content patterns
     
-    // Check for ID3 tags (MP3 files)
-    if (bytes_read >= 10 && 
-        buffer[0] == 'I' && buffer[1] == 'D' && buffer[2] == '3') {
-        info.detected_format = "mpeg_audio";
-        info.confidence = 0.9f;
-        info.metadata["has_id3"] = "true";
-        return info;
-    }
+    // Check for ID3 tags - but don't assume it's MP3!
+    // ID3 tags can be prepended to FLAC, MP3, and other formats
+    // The actual format detection is handled by detectByMagicBytes which
+    // properly skips the ID3 tag and checks the underlying format
+    // So we skip ID3 detection here to avoid false positives
     
     // Check for MPEG audio sync patterns (but avoid false positives with Ogg)
     bool found_ogg = false;
@@ -944,6 +1029,18 @@ ContentInfo MediaFactory::detectByContentAnalysis(std::unique_ptr<IOHandler>& ha
         if (buffer[i] == 'O' && buffer[i+1] == 'g' && buffer[i+2] == 'g' && buffer[i+3] == 'S') {
             found_ogg = true;
             break;
+        }
+    }
+    
+    // Check for FLAC signature (may appear after ID3 tag, but also check at start)
+    for (size_t i = 0; i < std::min(bytes_read - 4, (size_t)256); i++) {
+        if (buffer[i] == 'f' && buffer[i+1] == 'L' && 
+            buffer[i+2] == 'a' && buffer[i+3] == 'C') {
+            info.detected_format = "flac";
+            info.confidence = 0.95f;
+            info.metadata["flac_signature_found"] = "true";
+            Debug::log("loader", "MediaFactory::detectByContentAnalysis found FLAC signature at offset ", i);
+            return info;
         }
     }
     

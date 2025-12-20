@@ -39,7 +39,20 @@ AC_CHECK_HEADERS([stdlib.h string.h unistd.h])
 AC_CHECK_FUNCS([atexit getcwd memset])
 
 # Core mandatory dependencies
-PKG_CHECK_MODULES([SDL], [sdl >= 1.2])
+# SDL: Try pkg-config first, fall back to sdl-config
+PKG_CHECK_MODULES([SDL], [sdl >= 1.2], [], [
+  AC_MSG_CHECKING([for SDL using sdl-config])
+  if test -x "`which sdl-config 2>/dev/null`"; then
+    SDL_CFLAGS="`sdl-config --cflags`"
+    SDL_LIBS="`sdl-config --libs`"
+    AC_MSG_RESULT([yes])
+    AC_SUBST([SDL_CFLAGS])
+    AC_SUBST([SDL_LIBS])
+  else
+    AC_MSG_RESULT([no])
+    AC_MSG_ERROR([SDL >= 1.2 is required. Install libsdl1.2-dev or equivalent.])
+  fi
+])
 PKG_CHECK_MODULES([TAGLIB], [taglib >= 1.6])
 PKG_CHECK_MODULES([FREETYPE], [freetype2])
 PKG_CHECK_MODULES([OPENSSL], [openssl])
@@ -376,11 +389,12 @@ case "$host_os" in
 esac
 
 # Core dependencies check for final validation
-PKG_CHECK_MODULES([DEPENDS], [sdl >= 1.2 taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
+# SDL: Try pkg-config first, fall back to sdl-config (already checked above, just validate others)
+PKG_CHECK_MODULES([DEPENDS], [taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
-AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/lastfm/Makefile src/mpris/Makefile src/util/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/core/Makefile src/core/utility/Makefile res/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/lastfm/Makefile src/mpris/Makefile src/util/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/tag/Makefile res/Makefile tests/Makefile])
 
 # Print configuration summary
 echo ""

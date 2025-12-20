@@ -143,6 +143,40 @@ bool FLACDemuxer::parseContainer_unlocked()
         return handleIOError_unlocked("seek to beginning of file");
     }
     
+    // Check for ID3v2 tag and skip past it if present
+    // ID3 tags can be prepended to FLAC files by tagging software
+    uint8_t id3_header[10];
+    size_t id3_bytes = m_handler->read(id3_header, 1, 10);
+    
+    if (id3_bytes >= 10 && id3_header[0] == 'I' && id3_header[1] == 'D' && id3_header[2] == '3') {
+        // ID3v2 tag found - calculate size and skip past it
+        // Size is stored as syncsafe integer (4 bytes, 7 bits each)
+        size_t id3_size = ((id3_header[6] & 0x7F) << 21) |
+                          ((id3_header[7] & 0x7F) << 14) |
+                          ((id3_header[8] & 0x7F) << 7) |
+                          (id3_header[9] & 0x7F);
+        
+        // Total size = header (10 bytes) + tag size
+        size_t total_id3_size = 10 + id3_size;
+        
+        FLAC_DEBUG("Found ID3v2 tag at file start, size: ", total_id3_size, " bytes");
+        FLAC_DEBUG("Skipping ID3 tag to find FLAC stream marker");
+        
+        // Seek past the ID3 tag
+        if (m_handler->seek(total_id3_size, SEEK_SET) != 0) {
+            return handleIOError_unlocked("seek past ID3 tag");
+        }
+        
+        // Store the offset where FLAC data actually starts
+        m_id3_tag_offset = total_id3_size;
+    } else {
+        // No ID3 tag - seek back to beginning
+        if (m_handler->seek(0, SEEK_SET) != 0) {
+            return handleIOError_unlocked("seek back to beginning after ID3 check");
+        }
+        m_id3_tag_offset = 0;
+    }
+    
     // Validate fLaC stream marker (RFC 9639 Section 6)
     // Requirement 24.1: Reject invalid stream markers without crashing
     if (!validateStreamMarker_unlocked()) {
@@ -777,7 +811,7 @@ bool FLACDemuxer::validateStreamMarker_unlocked()
 {
     FLAC_DEBUG("Validating fLaC stream marker (RFC 9639 Section 6)");
     
-    // Requirement 1.1: Read first 4 bytes of file
+    // Requirement 1.1: Read first 4 bytes (after any ID3 tag)
     uint8_t marker[4];
     size_t bytes_read = m_handler->read(marker, 1, 4);
     
@@ -813,7 +847,7 @@ bool FLACDemuxer::validateStreamMarker_unlocked()
     }
     
     // Requirement 1.4: When stream marker is valid, proceed to metadata block parsing
-    FLAC_DEBUG("Valid fLaC stream marker found at file offset 0");
+    FLAC_DEBUG("Valid fLaC stream marker found at file offset ", m_id3_tag_offset);
     return true;
 }
 

@@ -207,6 +207,24 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     }
 }
 
+namespace {
+// Helper function to calculate ID3v2 tag size
+static size_t calculateID3v2Size(const uint8_t* buffer, size_t buffer_size) {
+    // ID3v2 header: "ID3" + version (2 bytes) + flags (1 byte) + size (4 bytes syncsafe)
+    if (buffer_size < 10) return 0;
+    if (buffer[0] != 'I' || buffer[1] != 'D' || buffer[2] != '3') return 0;
+    
+    // Size is stored as syncsafe integer (4 bytes, 7 bits each)
+    size_t size = ((buffer[6] & 0x7F) << 21) |
+                  ((buffer[7] & 0x7F) << 14) |
+                  ((buffer[8] & 0x7F) << 7) |
+                  (buffer[9] & 0x7F);
+    
+    // Total size = header (10 bytes) + tag size
+    return 10 + size;
+}
+} // anonymous namespace
+
 std::string DemuxerFactory::probeFormat(IOHandler* handler) {
     if (!handler) {
         Debug::log("demuxer", "DemuxerFactory::probeFormat: Null handler provided");
@@ -241,15 +259,61 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
         return "";
     }
     
+    if (bytes_read < 4) {
+        // Restore original position
+        handler->seek(original_pos, SEEK_SET);
+        Debug::log("demuxer", "DemuxerFactory::probeFormat: Insufficient data for format detection: ", bytes_read, " bytes");
+        return ""; // Not enough data to identify format
+    }
+    
+    // Check for ID3v2 tag and skip past it to find actual audio format
+    // ID3 tags can be prepended to FLAC, MP3, and other formats
+    if (bytes_read >= 10 && header[0] == 'I' && header[1] == 'D' && header[2] == '3') {
+        size_t id3_size = calculateID3v2Size(header.data(), bytes_read);
+        
+        if (id3_size > 0) {
+            Debug::log("demuxer", "DemuxerFactory::probeFormat: Found ID3v2 tag, size: ", id3_size);
+            
+            // Read the actual audio data after ID3 tag
+            std::vector<uint8_t> post_id3_header(64, 0);
+            if (handler->seek(id3_size, SEEK_SET) == 0) {
+                size_t post_bytes = handler->read(post_id3_header.data(), 1, post_id3_header.size());
+                
+                if (post_bytes >= 4) {
+                    // Check for FLAC signature after ID3 tag
+                    if (post_id3_header[0] == 'f' && post_id3_header[1] == 'L' && 
+                        post_id3_header[2] == 'a' && post_id3_header[3] == 'C') {
+                        Debug::log("demuxer", "DemuxerFactory::probeFormat: Found FLAC signature after ID3 tag");
+                        handler->seek(original_pos, SEEK_SET);
+                        return "flac";
+                    }
+                    
+                    // Check for Ogg signature after ID3 tag
+                    if (post_id3_header[0] == 'O' && post_id3_header[1] == 'g' && 
+                        post_id3_header[2] == 'g' && post_id3_header[3] == 'S') {
+                        Debug::log("demuxer", "DemuxerFactory::probeFormat: Found Ogg signature after ID3 tag");
+                        handler->seek(original_pos, SEEK_SET);
+                        return "ogg";
+                    }
+                    
+                    // Check for MPEG audio sync after ID3 tag (confirms it's actually MP3)
+                    if ((post_id3_header[0] == 0xFF) && ((post_id3_header[1] & 0xE0) == 0xE0)) {
+                        Debug::log("demuxer", "DemuxerFactory::probeFormat: Found MPEG sync after ID3 tag");
+                        handler->seek(original_pos, SEEK_SET);
+                        return "mp3";
+                    }
+                }
+            }
+            
+            // ID3 tag found but couldn't determine format after it - fall through to normal detection
+            Debug::log("demuxer", "DemuxerFactory::probeFormat: ID3 tag found but format after tag unclear, trying normal detection");
+        }
+    }
+    
     // Restore original position with error handling
     if (handler->seek(original_pos, SEEK_SET) != 0) {
         Debug::log("demuxer", "DemuxerFactory::probeFormat: Failed to restore original position");
         // Continue anyway - this is not fatal for format detection
-    }
-    
-    if (bytes_read < 4) {
-        Debug::log("demuxer", "DemuxerFactory::probeFormat: Insufficient data for format detection: ", bytes_read, " bytes");
-        return ""; // Not enough data to identify format
     }
     
     // Validate header data

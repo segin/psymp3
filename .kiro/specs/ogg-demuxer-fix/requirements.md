@@ -10,8 +10,9 @@ The implementation must strictly follow the behavior patterns established by the
 - **RFC 3533**: The Ogg Encapsulation Format Version 0
 - **RFC 5334**: Ogg Media Types  
 - **RFC 7845**: Ogg Encapsulation for the Opus Audio Codec
+- **RFC 9639**: Free Lossless Audio Codec (FLAC) - Section 10.1 defines FLAC-in-Ogg mapping
 - **Vorbis I Specification** (xiph.org)
-- **FLAC Format Specification** (xiph.org)
+- **FLAC Format Specification** (xiph.org/flac)
 
 **CRITICAL**: All seeking, granule position handling, and error recovery behavior must match libvorbisfile and libopusfile exactly to prevent compatibility issues and bugs.
 
@@ -134,16 +135,19 @@ The implementation must strictly follow the behavior patterns established by the
 
 #### **Acceptance Criteria**
 
-1. **WHEN** detecting FLAC-in-Ogg streams **THEN** the demuxer **SHALL** recognize the 5-byte signature "\x7fFLAC" (0x7F 0x46 0x4C 0x41 0x43) per RFC 9639 Section 10.1
-2. **WHEN** parsing FLAC-in-Ogg identification header **THEN** the demuxer **SHALL** extract mapping version (2 bytes), header count (2 bytes big-endian), fLaC signature (4 bytes), metadata block header (4 bytes), and STREAMINFO (34 bytes)
+1. **WHEN** detecting FLAC-in-Ogg streams **THEN** the demuxer **SHALL** recognize the 5-byte signature "\x7fFLAC" (0x7F 0x46 0x4C 0x41 0x43) per RFC 9639 Section 10.1 and RFC 5334
+2. **WHEN** parsing FLAC-in-Ogg identification header **THEN** the demuxer **SHALL** extract mapping version (2 bytes), header count (2 bytes big-endian unsigned), fLaC signature (4 bytes), metadata block header (4 bytes), and STREAMINFO (34 bytes) totaling 51 bytes per RFC 9639 Section 10.1 Table 24
 3. **WHEN** FLAC-in-Ogg mapping version is not 1.0 (0x01 0x00) **THEN** the demuxer **SHALL** handle gracefully or report unsupported version
 4. **WHEN** FLAC-in-Ogg header count is 0 **THEN** the demuxer **SHALL** treat as unknown number of header packets per RFC 9639 Section 10.1
 5. **WHEN** processing FLAC-in-Ogg audio packets **THEN** the demuxer **SHALL** treat each packet as a single FLAC frame per RFC 9639 Section 10.1
-6. **WHEN** processing FLAC-in-Ogg granule positions **THEN** the demuxer **SHALL** interpret as sample count (interchannel samples) per RFC 9639 Section 10.1
-7. **WHEN** FLAC-in-Ogg page contains no completed packet **THEN** the demuxer **SHALL** expect granule position 0xFFFFFFFFFFFFFFFF per RFC 9639 Section 10.1
+6. **WHEN** processing FLAC-in-Ogg granule positions **THEN** the demuxer **SHALL** interpret as interchannel sample count (number of the last sample contained in the last completed packet) per RFC 9639 Section 10.1
+7. **WHEN** FLAC-in-Ogg page contains no completed packet **THEN** the demuxer **SHALL** expect granule position set to maximum value (0xFFFFFFFFFFFFFFFF) per RFC 9639 Section 10.1
 8. **WHEN** FLAC-in-Ogg header pages are processed **THEN** the demuxer **SHALL** expect granule position 0 per RFC 9639 Section 10.1
-9. **WHEN** FLAC-in-Ogg audio properties change mid-stream **THEN** the demuxer **SHALL** handle as chained stream (new BOS after EOS) per RFC 9639 Section 10.1
-10. **WHEN** extracting FLAC-in-Ogg STREAMINFO **THEN** the demuxer **SHALL** parse sample rate, channels, bits per sample, and total samples for duration calculation
+9. **WHEN** FLAC-in-Ogg audio properties change mid-stream **THEN** the demuxer **SHALL** handle as chained stream (finish current Ogg stream and start new one) per RFC 9639 Section 10.1 and RFC 3533
+10. **WHEN** extracting FLAC-in-Ogg STREAMINFO **THEN** the demuxer **SHALL** parse sample rate (20 bits), channels (3 bits + 1), bits per sample (5 bits + 1), and total samples (36 bits) for duration calculation per RFC 9639 Section 8.2
+11. **WHEN** the first FLAC-in-Ogg packet is processed **THEN** the demuxer **SHALL** verify it does not share an Ogg page with any other packets per RFC 9639 Section 10.1
+12. **WHEN** processing FLAC-in-Ogg header packets after identification **THEN** the demuxer **SHALL** expect the first header packet to be a Vorbis comment metadata block per RFC 9639 Section 10.1
+13. **WHEN** the first FLAC-in-Ogg audio packet is encountered **THEN** the demuxer **SHALL** verify it starts on a new Ogg page (last metadata block finishes its page) per RFC 9639 Section 10.1
 
 ### **Requirement 6: Data Packet Streaming**
 

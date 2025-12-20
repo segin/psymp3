@@ -65,6 +65,7 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/lastfm/liblastfm.a \
 	$(top_builddir)/src/mpris/libmpris.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(CODEC_LIBS) \
@@ -3625,6 +3626,47 @@ mp3out_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(LIBMPG123_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+endif
+
+
+# ============================================================================
+# Tag Framework Tests
+# ============================================================================
+
+check_PROGRAMS += test_tag_unit test_tag_properties
+
+# Tag unit tests
+test_tag_unit_SOURCES = test_tag_unit.cpp
+test_tag_unit_CPPFLAGS = $(AM_CPPFLAGS)
+test_tag_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(AM_LDFLAGS)
+
+# Tag property-based tests
+test_tag_properties_SOURCES = test_tag_properties.cpp
+test_tag_properties_CPPFLAGS = $(AM_CPPFLAGS)
+if HAVE_RAPIDCHECK
+test_tag_properties_CPPFLAGS += $(RAPIDCHECK_CFLAGS)
+test_tag_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
+	$(RAPIDCHECK_LIBS) \
+	$(AM_LDFLAGS)
+else
+test_tag_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 endif
 
