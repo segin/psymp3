@@ -454,3 +454,47 @@ tests/test_ogg_page_extraction
 
 # Test artifacts
 tests/*.dat
+
+# All test executables in tests/ directory (comprehensive pattern)
+# Test executables are typically named test_* without extension
+tests/test_*
+!tests/test_*.cpp
+!tests/test_*.h
+!tests/test_*.sh
+!tests/test_*.md
+!tests/test_*.txt
+
+# Debug and output executables
+tests/flacout
+tests/mp3out
+tests/opusout
+tests/vorbisout
+tests/debug_*
+!tests/debug_*.cpp
+!tests/debug_*.h
+
+# Fuzzer executables
+tests/fuzz_*
+!tests/fuzz_*.cpp
+
+# Validation executables
+tests/validate_*
+!tests/validate_*.cpp
+!tests/validate_*.sh
+
+# Verification executables
+tests/verify_*
+!tests/verify_*.cpp
+!tests/verify_*.sh
+
+# Generator executables
+tests/generate_*
+!tests/generate_*.cpp
+
+# Dump executables
+tests/dump_*
+!tests/dump_*.cpp
+
+# Simple test executables
+tests/simple_*
+!tests/simple_*.cpp
