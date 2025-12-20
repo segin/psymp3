@@ -30,7 +30,7 @@ datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories - only built in regular mode (final build includes all sources directly)
 if !FINAL_BUILD
-SUBDIRS = codecs lastfm mpris util io demuxer widget tag
+SUBDIRS = codecs lastfm mpris util io demuxer widget tag core
 endif
 
 # Include path for psymp3.h and other headers
@@ -109,17 +109,14 @@ psymp3_LDADD = \
 else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
- about.cpp audio.cpp \
+ audio.cpp \
  debug.cpp display.cpp \
- exceptions.cpp fft.cpp fft_draw.cpp \
  font.cpp \
- lyrics.cpp \
  main.cpp mediafile.cpp \
- persistentstorage.cpp player.cpp playlist.cpp \
- rect.cpp \
- song.cpp stream.cpp surface.cpp \
+ player.cpp playlist.cpp \
+ stream.cpp surface.cpp \
  system.cpp \
- track.cpp truetype.cpp utility.cpp
+ track.cpp truetype.cpp
 
 # Link static libraries from subdirectories FIRST (regular build only)
 # Order matters: our convenience libraries must come BEFORE system libraries
@@ -136,6 +133,8 @@ psymp3_LDADD = \
 	mpris/libmpris.a \
 	util/libutil.a \
 	tag/libpsymp3-tag.a \
+	core/libpsymp3-core.a \
+	core/utility/libpsymp3-core-utility.a \
 	codecs/libcodecs.a \
 	$(CODEC_LIBS) \
 	$(DEMUXER_LIBS) \
