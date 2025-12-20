@@ -144,3 +144,5 @@ tests/dump_*
 # Simple test executables
 tests/simple_*
 !tests/simple_*.cpp
+
+tests/test-harness

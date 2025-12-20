@@ -369,6 +369,116 @@ bool runRapidCheckTests() {
     });
     if (!result25) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
+    // ========================================================================
+    // Property 4: ID3v1 Round-Trip Parsing
+    // **Validates: Requirements 4.1, 4.2, 4.3, 4.5**
+    // For any valid 128-byte ID3v1 tag data, parsing the data should correctly
+    // extract title, artist, album, year, comment, and (for ID3v1.1) track number,
+    // with trailing nulls and spaces trimmed.
+    // ========================================================================
+    
+    std::cout << "\n  --- Property 4: ID3v1 Round-Trip Parsing ---\n";
+    std::cout << "  ID3v1_RoundTripParsing: ";
+    auto result26 = rc::check("ID3v1 round-trip parsing preserves field values", []() {
+        // Generate random printable strings (no trailing spaces)
+        auto genPrintableChar = rc::gen::inRange<char>(33, 126); // Printable ASCII, no space
+        
+        // Generate test data with fixed reasonable lengths
+        auto title = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto artist = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto album = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto year = *rc::gen::inRange<uint32_t>(1900, 2100);
+        auto comment = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto track = *rc::gen::inRange<uint8_t>(1, 99);
+        auto genre_idx = *rc::gen::inRange<uint8_t>(0, 191);
+        
+        // Build ID3v1.1 tag data
+        std::vector<uint8_t> data(128, 0);
+        data[0] = 'T'; data[1] = 'A'; data[2] = 'G';
+        
+        // Copy title (bytes 3-32)
+        std::copy(title.begin(), title.end(), data.begin() + 3);
+        
+        // Copy artist (bytes 33-62)
+        std::copy(artist.begin(), artist.end(), data.begin() + 33);
+        
+        // Copy album (bytes 63-92)
+        std::copy(album.begin(), album.end(), data.begin() + 63);
+        
+        // Copy year (bytes 93-96)
+        std::string year_str = std::to_string(year);
+        std::copy(year_str.begin(), year_str.end(), data.begin() + 93);
+        
+        // Copy comment (bytes 97-124 for ID3v1.1)
+        std::copy(comment.begin(), comment.end(), data.begin() + 97);
+        
+        // ID3v1.1: byte 125 = 0, byte 126 = track
+        data[125] = 0x00;
+        data[126] = track;
+        
+        // Genre (byte 127)
+        data[127] = genre_idx;
+        
+        // Parse the tag
+        auto tag = ID3v1Tag::parse(data.data());
+        RC_ASSERT(tag != nullptr);
+        
+        // Verify round-trip: parsed values should match input
+        RC_ASSERT(tag->title() == title);
+        RC_ASSERT(tag->artist() == artist);
+        RC_ASSERT(tag->album() == album);
+        RC_ASSERT(tag->year() == year);
+        RC_ASSERT(tag->comment() == comment);
+        RC_ASSERT(tag->track() == track);
+        RC_ASSERT(tag->genreIndex() == genre_idx);
+        RC_ASSERT(tag->isID3v1_1());
+        RC_ASSERT(tag->formatName() == "ID3v1.1");
+    });
+    if (!result26) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // ID3v1.0 round-trip (no track number)
+    std::cout << "  ID3v1_0_RoundTripParsing: ";
+    auto result27 = rc::check("ID3v1.0 round-trip parsing preserves field values", []() {
+        auto genPrintableChar = rc::gen::inRange<char>(33, 126);
+        
+        auto title = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto artist = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto album = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto year = *rc::gen::inRange<uint32_t>(1900, 2100);
+        auto comment = *rc::gen::container<std::string>(rc::gen::just<size_t>(10), genPrintableChar);
+        auto genre_idx = *rc::gen::inRange<uint8_t>(0, 191);
+        
+        std::vector<uint8_t> data(128, 0);
+        data[0] = 'T'; data[1] = 'A'; data[2] = 'G';
+        
+        std::copy(title.begin(), title.end(), data.begin() + 3);
+        std::copy(artist.begin(), artist.end(), data.begin() + 33);
+        std::copy(album.begin(), album.end(), data.begin() + 63);
+        
+        std::string year_str = std::to_string(year);
+        std::copy(year_str.begin(), year_str.end(), data.begin() + 93);
+        
+        std::copy(comment.begin(), comment.end(), data.begin() + 97);
+        
+        // ID3v1.0: byte 125 is non-zero (part of comment)
+        data[125] = 'X'; // Non-zero byte to trigger ID3v1.0 detection
+        
+        data[127] = genre_idx;
+        
+        auto tag = ID3v1Tag::parse(data.data());
+        RC_ASSERT(tag != nullptr);
+        
+        RC_ASSERT(tag->title() == title);
+        RC_ASSERT(tag->artist() == artist);
+        RC_ASSERT(tag->album() == album);
+        RC_ASSERT(tag->year() == year);
+        RC_ASSERT(tag->track() == 0); // No track in ID3v1.0
+        RC_ASSERT(tag->genreIndex() == genre_idx);
+        RC_ASSERT(!tag->isID3v1_1());
+        RC_ASSERT(tag->formatName() == "ID3v1");
+    });
+    if (!result27) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
     return all_passed;
 }
 
