@@ -3642,9 +3642,8 @@ test_tag_unit_CPPFLAGS = $(AM_CPPFLAGS)
 test_tag_unit_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 
 # Tag property-based tests
@@ -3655,18 +3654,16 @@ test_tag_properties_CPPFLAGS += $(RAPIDCHECK_CFLAGS)
 test_tag_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
 	$(RAPIDCHECK_LIBS) \
 	$(AM_LDFLAGS)
 else
 test_tag_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
-	$(top_builddir)/src/rect.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/exceptions.o \
 	$(AM_LDFLAGS)
 endif
 
