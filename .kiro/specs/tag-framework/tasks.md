@@ -50,34 +50,34 @@ This implementation plan breaks down the Tag framework into discrete coding task
     - **Property 7: ID3v2 Text Encoding Round-Trip**
     - **Validates: Requirements 3.4**
 
-- [ ] 3. Implement ID3v2 Tag Reader
-  - [ ] 3.1 Create ID3v2Tag header and class structure
+- [x] 3. Implement ID3v2 Tag Reader
+  - [x] 3.1 Create ID3v2Tag header and class structure
     - Define ID3v2Tag class in `include/tag/ID3v2Tag.h`
     - Define ID3v2Frame structure
     - Implement static `parse()`, `isValid()`, `getTagSize()` methods
     - _Requirements: 3.1, 3.2, 3.3_
 
-  - [ ] 3.2 Implement ID3v2 header parsing
+  - [x] 3.2 Implement ID3v2 header parsing
     - Parse version (2.2, 2.3, 2.4)
     - Parse flags (unsync, extended header, footer)
     - Parse synchsafe tag size
     - Handle extended header skipping
     - _Requirements: 3.1, 3.2, 3.7_
 
-  - [ ] 3.3 Implement ID3v2 frame parsing
+  - [x] 3.3 Implement ID3v2 frame parsing
     - Parse frame headers (v2.2 3-char, v2.3/v2.4 4-char)
     - Handle frame flags
     - Implement frame ID normalization (v2.2 to v2.3+)
     - Parse text frames with encoding handling
     - _Requirements: 3.3, 3.4, 3.8_
 
-  - [ ] 3.4 Implement APIC frame parsing for pictures
+  - [x] 3.4 Implement APIC frame parsing for pictures
     - Parse MIME type, picture type, description
     - Extract image data
     - Handle v2.2 PIC vs v2.3+ APIC differences
     - _Requirements: 3.5, 5.1, 5.2, 5.3_
 
-  - [ ] 3.5 Write unit tests for ID3v2Tag
+  - [x] 3.5 Write unit tests for ID3v2Tag
     - Test version detection (2.2, 2.3, 2.4)
     - Test frame ID mapping
     - Test text encoding handling
