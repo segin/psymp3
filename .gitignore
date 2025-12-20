@@ -37,236 +37,34 @@ tmp/
 **/*.aac
 **/*.wma
 **/*.aiff
-**/*.log
 include/config.h.in
 libs/util/Makefile
-tests/test_rect_containment
-tests/test_rect_intersection
-tests/test_rect_union
-tests/test_rect_area_validation
-tests/test_rect_transformation
-tests/test_rect_centering
-tests/test_rect_centering_overflow
-test_centering_simple
-tests/test_rect_normalization
-tests/test_rect_expansion
-tests/test_rect_modern_cpp
 
 # Test harness build artifacts
-tests/test-harness
 tests/.deps/**
 **/.deps/**
 **/*.Po
 **/*.a
 
-tests/test_rect_expansion
-tests/test-harness
-tests/test_harness_integration
-tests/test_raii_file_handle
-tests/test_resource_management_simple
-tests/simple_memory_test
-tests/test_iohandler_minimal
-tests/test_integration_verification
-tests/test_iohandler_integration_simple
-tests/integration_test.txt
+# Non-tests/ directory test artifacts
+test_centering_simple
 test_thread_safety_minimal
 simple_test.txt
-tests/simple_test.txt
-tests/test_framework_only
-tests/test_iohandler_simple
-tests/test_iohandler_unit_comprehensive
-tests/test_iohandler_working
-tests/test_minimal
-tests/test_performance.csv
-# Additional test executables
-tests/test_iso_fragment_handler
-tests/test_iso_fragmented_mp4
-tests/test_iohandler_basic
-tests/test_components_only
-tests/test_debug
-tests/test_iohandler_no_memory
-tests/libtest_utilities.a
-tests/test_performance.csv
-tests/test_demuxer_extensibility
-tests/test_factory_thread_safety
-tests/test_plugin_minimal
-tests/test_thread_safety_simple
-tests/test_bounded_queue
-tests/test_ogg_granule_conversion
-tests/test_ogg_duration_calculation
-tests/test_minimal_demuxer
-tests/test_page_extraction
-tests/test_api_consistency
-tests/test_iohandler_demuxer_integration
-tests/test_iohandler_demuxer_integration_simple
-tests/test_psymp3_system_integration
-tests/verify_mulaw_table
-tests/generate_alaw_table
-tests/test_alaw_minimal
-tests/test_codec_performance_simple
-tests/test_codec_selection_validation_simple
-tests/test_codec_thread_safety_simple
-tests/test_simplepcmcodec_integration_minimal
-tests/test_simplepcmcodec_real_integration
-tests/test_simplepcmcodec_comprehensive_integration
-tests/test_alaw_codec_minimal
-tests/test_alaw_conversion_accuracy
-tests/test_alaw_conversion_direct
-tests/test_mulaw_conversion_accuracy
-tests/test_mulaw_direct
-tests/test_codec_error_handling_simple
-tests/test_bisection_search
-tests/test_backward_compatibility_minimal
-tests/test_granule_arithmetic
-tests/test_rect_backward_compatibility
-tests/test_rect_performance
-tests/test_widget_rect_integration
-tests/test_flac_real_file
-tests/test_flac_demuxer_simple
-tests/test_iohandler_deadlock
-tests/test_flac_diagnostic
-tests/test_audio_thread_safety
-tests/test_simple_iohandler_deadlock
-tests/test_simple_memory_deadlock
-tests/test_seek_deadlock
-tests/test_iohandler_thread_safety_comprehensive
-tests/test_iohandler_memory_deadlock_prevention
-tests/test_audio_threading_pattern
-tests/test_iohandler_subsystem_thread_safety
-tests/test_memory_pool_manager_integration
-tests/test_surface_thread_safety
-tests/test_surface_performance_regression
-tests/test_flac_demuxer_integration_comprehensive
-tests/test_flac_demuxer_unit_comprehensive
-tests/debug_flac_simple
-tests/debug_flac_simple
-tests/debug_real_flac
-tests/debug_bit_extraction
-tests/debug_dual_flac
-tests/test_iohandler_seek_comprehensive
-tests/test_iohandler_buffer_analysis
-tests/test_system_wide_threading_integration
-tests/test_system_wide_threading_integration
-tests/test_threading_performance_regression
-debug_test_data
-debug_flac_bits
-debug_gdb_script.gdb
-debug_streaminfo_packing
-tests/test_debug_iohandler_position
-
-# Test data directory (contains copyrighted FLAC files)
-tests/data/
-tests/debug_flac_seeking
-tests/test_flac_binary_search_limitations
-tests/test_flac_frame_indexing
-tests/test_flac_performance_optimization
-tests/test_frame_size_estimation_consistency
-tests/test_flac_performance_with_real_files
-tests/test_flac_index_based_seeking
-tests/test_codec_detection
-tests/test_media_factory_unit
-tests/test_demuxer_unit
-tests/test_demuxer_factory_unit
-tests/test_demuxed_stream_unit
-tests/test_flac_variable_block_size
-tests/test_flac_quality_simple
-tests/test_flac_codec_unit_comprehensive
-tests/test_flac_codec_performance_comprehensive
-tests/test_flac_codec_error_handling
-tests/test_flac_codec_unit_minimal
-tests/test_conditional_codec_compilation
-tests/test_flac_comprehensive_validation
-tests/test_flac_test_data_validation
-tests/test_flac_audioframe_creation
-tests/test_iohandler_legacy_compatibility
-tests/test_iohandler_performance_validation
-tests/test_error_handling
-tests/test_memory_safety
-tests/test_ogg_demuxer_integration
-tests/test_seeking_integration
-tests/test_error_handling
-
-# Comprehensive test suite
-tests/test_oggdemuxer_comprehensive
-tests/test_*_temp.*
-tests/test_error_handling
-tests/test_data_streaming
-tests/test_duration_calculation
-tests/test_oggdemuxer_performance
-tests/test_time_conversion
-tests/test_error_handling
-tests/test_error_handling
-
-tests/test_method_handler_simple
-tests/debug_dbus
-tests/debug_psymp3
-tests/test_signal_emitter
-tests/test_mpris_manager_basic_integration
-tests/test_mpris_error_handling
-tests/test_mpris_error_integration
-tests/test_mock_framework_standalone
-tests/test_method_handler_comprehensive
-tests/test_mpris_logger_basic
-tests/test_property_manager_comprehensive
 test_mpris_build
 test_mpris_build_no_dbus
-tests/test_iso_comprehensive_integration_simple
-tests/test_iso_constants
-tests/test_iso_debug_segfault
-tests/test_iso_flac_integration
-tests/test_iso_sample_table_simple
-tests/test_alaw_table_verification
-tests/test_demuxer_integration
-
-tests/test_media_factory_integration
-
-# Opus codec test executables
-tests/test_opus_codec_core_decoding
-tests/test_opus_codec_error_handling
-tests/test_opus_integration
-tests/test_opus_compatibility_performance
-tests/test_opus_multichannel
-
-# Additional test executables that may be generated
-tests/test_demuxer_performance
-tests/test_flac_rfc_subframe_validation
-tests/test_entropy_coding_compilation
-tests/test_flac_bit_depth_validation_simple
-tests/test_flac_crc_validation
 test_opus_registration
-tests/test_flac_sample_format_rfc9639_compliance
-tests/test_flac_sample_format_rfc9639_compliance
-tests/test_audio_destructor_deadlock
-tests/test_threading_pattern
-tests/test_flac_codec_deadlock_fix
-tests/test_flac_demuxer_deadlock_fix
+test_streaminfo_debug
 
 # Debug files and test artifacts in project root
 debug_*
+debug_gdb_script.gdb
 deadlock_*.log
 psymp3_test.log
 psymp3.log
 mingw.log
-tests/test_flac_simple
 
-# Additional FLAC test executables
-tests/test_flac_audio_output
-tests/test_flac_debug
-tests/test_flac_simple_debug
-tests/test_flac_deadlock_fix
-tests/test_flac_demuxer_deadlock_fix
-tests/test_flac_codec_deadlock_fix
-tests/test_playlist_threading
-tests/test_flac_seeking_crash
-
-# RFC compliance and validation tests
-tests/test_rfc_compliance_debugging_tools
-tests/test_flac_rfc9639_compliance_validator
-tests/test_midside_stereo_rfc9639
-tests/test_flac_subframe_processing_rfc9639
-tests/test_flac_frame_boundary_detection_rfc9639
-tests/test_flac_rfc9639_error_handling
-tests/test_flac_rfc_block_size_sample_rate_validation
+# Test data directory (contains copyrighted FLAC files)
+tests/data/
 
 # Build system artifacts
 autom4te.cache/
@@ -285,178 +83,24 @@ libtool
 # Test output and temporary files
 tests/*.tmp
 tests/*.out
-tests/test_output_*
-tests/validation_results_*
-tests/mpris_*
+tests/*.csv
+tests/*.dat
+tests/integration_test.txt
 tests/static_analysis_report.txt
 tests/final_validation_report.html
-tests/mpris_performance_*.csv
 tests/mpris_regression_report.txt
 
 # Core executable in different locations
 psymp3
 src/psymp3
 ./psymp3
-test_streaminfo_debug
-tests/test_streaminfo_bitfields
-tests/test_flac_streamable_subset_validation
-tests/test_flac_thread_safety_validation
-tests/test_debug_system
-tests/test_alaw_codec_properties
-tests/test_mulaw_alaw_parameter_handling
-tests/test_mulaw_codec_properties
-tests/test_mulaw_alaw_error_state_consistency
-tests/test_mulaw_alaw_error_handling
-tests/test_mulaw_alaw_integration
-tests/test_mulaw_alaw_performance
-tests/test_mulaw_alaw_thread_safety_properties
-tests/test_ogg_page_properties
-tests/test_ogg_thread_safety
-tests/test_ogg_page_properties
-tests/test_position_reporting_property
-tests/test_ogg_comprehensive_integration
-tests/test_lastfm_md5_properties
-tests/test_lastfm_url_encoding_properties
-tests/test_lastfm_exponential_backoff_properties
-tests/test_lastfm_lazy_logging_properties
-tests/test_lastfm_scrobble_cache_roundtrip_properties
-tests/test_lastfm_config_backward_compatibility
-tests/test_lastfm_config_roundtrip_properties
-tests/test_streaminfo_debug
-tests/test_lastfm_thread_safety_properties
-tests/test_vorbis_header_sequence_properties
-tests/test_vorbis_audio_decoding_properties
-tests/test_vorbis_channel_properties
-tests/test_vorbis_streaming_properties
-tests/test_vorbis_container_agnostic_properties
-tests/test_vorbis_thread_safety_properties
 
-# Vorbis integration and compatibility tests
-tests/test_vorbis_demuxer_integration
-tests/test_vorbis_compatibility_performance
+# ============================================================================
+# Comprehensive test executable patterns for tests/ directory
+# These patterns cover all test executables without needing explicit entries
+# ============================================================================
 
-# FLAC demuxer property test executables
-tests/test_flac_metadata_block_header_properties
-tests/test_flac_stream_marker_properties
-tests/test_flac_streaminfo_block_size_properties
-tests/test_flac_frame_sync_properties
-tests/test_flac_cuesheet_track_count_properties
-tests/test_flac_seektable_placeholder_properties
-tests/test_flac_vorbis_comment_endianness_properties
-tests/test_flac_block_size_bits_properties
-
-# Additional FLAC demuxer property test executables
-tests/test_flac_backward_compatibility_validation
-tests/test_flac_bit_depth_bits_properties
-tests/test_flac_channel_bits_properties
-tests/test_flac_crc16_properties
-tests/test_flac_crc8_properties
-tests/test_flac_debug_logging_format_properties
-tests/test_flac_demuxer_real_files
-tests/test_flac_duration_calculation_properties
-tests/test_flac_frame_boundary_search_properties
-tests/test_flac_frame_size_estimation_properties
-tests/test_flac_sample_rate_bits_properties
-tests/test_flac_sync_resync_properties
-tests/test_flac_thread_safety_lock_pattern_properties
-tests/test_flac_byte_position_estimation_properties
-tests/test_flac_crc8_validation_properties
-tests/test_flac_bisection_range_adjustment_properties
-tests/test_flac_bisection_convergence_properties
-tests/test_flac_best_position_selection_properties
-tests/test_flac_strategy_priority_properties
-tests/test_flac_time_differential_properties
-
-# Additional test harness executables
-tests/flacout
-tests/test_alaw_sample_conversion
-tests/test_codec_concurrent_instances
-tests/test_codec_performance
-tests/test_codec_thread_safety
-tests/test_comprehensive_mock_framework
-tests/test_dbus_connection_manager
-tests/test_dbus_connection_manager_comprehensive
-tests/test_flac_audio_output_debug
-tests/test_flac_bisection_real_files
-tests/test_flac_codec_compatibility
-tests/test_flac_codec_container_agnostic
-tests/test_flac_codec_demuxer_integration
-tests/test_flac_codec_integration
-tests/test_flac_codec_minimal_container_agnostic
-tests/test_flac_codec_multithreaded
-tests/test_flac_codec_streaminfo_only
-tests/test_flac_codec_threading_safety
-tests/test_flac_compatibility_integration
-tests/test_flac_demuxer_compatibility
-tests/test_flac_demuxer_performance
-tests/test_flac_demuxer_thread_safety
-tests/test_flac_demuxer_threading
-tests/test_flac_demuxer_unit_fixed
-tests/test_flac_mini_player
-tests/test_flac_performance_benchmarking
-tests/test_flac_quality_validation
-tests/test_flac_rfc_bit_depth_validation
-tests/test_flac_rfc_compliance
-tests/test_iso_compliance_comprehensive
-tests/test_iso_compliance_edge_cases
-tests/test_memory_pool_manager_basic_threading
-tests/test_memory_pool_manager_thread_safety_comprehensive
-tests/test_method_handler
-tests/test_mpris_concurrent_clients
-tests/test_mpris_logger_dbus_tracing
-tests/test_mpris_logger_performance
-tests/test_mpris_manager_comprehensive
-tests/test_mpris_manager_integration
-tests/test_mpris_manager_minimal
-tests/test_mpris_manager_simple
-tests/test_mpris_memory_validation
-tests/test_mpris_mock_framework
-tests/test_mpris_performance_profiler
-tests/test_mpris_reconnection_behavior
-tests/test_mpris_regression_validation
-tests/test_mpris_spec_compliance
-tests/test_mpris_stress_testing
-tests/test_mpris_types
-tests/test_mulaw_alaw_codec_selection
-tests/test_property_manager
-tests/test_rapidcheck_setup
-tests/test_signal_emitter_comprehensive
-tests/test_streaminfo_real_files
-tests/test_streaminfo_recovery
-tests/test_threading_safety_baseline
-tests/opusout
-tests/test_opus_codec_property
-tests/test_codec_identification
-tests/test_flac_parser
-tests/test_opus_parser
-tests/test_seeking_engine
-tests/test_speex_parser
-tests/test_stream_manager
-tests/test_vorbis_parser
-
-# Ogg Demuxer verification tests
-tests/test_ogg_error_handling
-tests/test_ogg_integration
-tests/test_ogg_seeking_algorithms
-tests/test_ogg_codec_detection
-tests/vorbisout
-tests/mp3out
-
-# FLAC unit test executables
-tests/test_bitstream_reader_unit
-tests/test_channel_decorrelator_unit
-tests/test_flac_security_validation
-tests/test_frame_parser_unit
-tests/test_residual_decoder_unit
-tests/test_sample_reconstructor_unit
-tests/test_subframe_decoder_unit
-tests/test_ogg_page_extraction
-
-# Test artifacts
-tests/*.dat
-
-# All test executables in tests/ directory (comprehensive pattern)
-# Test executables are typically named test_* without extension
+# All test executables (test_* without source file extensions)
 tests/test_*
 !tests/test_*.cpp
 !tests/test_*.h
@@ -464,14 +108,16 @@ tests/test_*
 !tests/test_*.md
 !tests/test_*.txt
 
-# Debug and output executables
+# Debug executables
+tests/debug_*
+!tests/debug_*.cpp
+!tests/debug_*.h
+
+# Output tool executables
 tests/flacout
 tests/mp3out
 tests/opusout
 tests/vorbisout
-tests/debug_*
-!tests/debug_*.cpp
-!tests/debug_*.h
 
 # Fuzzer executables
 tests/fuzz_*
