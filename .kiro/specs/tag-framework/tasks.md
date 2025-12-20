@@ -6,30 +6,30 @@ This implementation plan breaks down the Tag framework into discrete coding task
 
 ## Tasks
 
-- [-] 1. Implement ID3v1 Tag Reader
-  - [-] 1.1 Create ID3v1Tag header and class structure
+- [x] 1. Implement ID3v1 Tag Reader
+  - [x] 1.1 Create ID3v1Tag header and class structure
     - Define ID3v1Tag class in `include/tag/ID3v1Tag.h`
     - Implement static `parse()` and `isValid()` methods
     - Implement all Tag interface methods
     - Add genre lookup table (192 genres)
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [ ] 1.2 Implement ID3v1 parsing logic
+  - [x] 1.2 Implement ID3v1 parsing logic
     - Parse fixed 128-byte structure
     - Detect ID3v1.1 format (track number in comment)
     - Implement string trimming for trailing nulls/spaces
     - Implement genre index to string mapping
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-  - [ ] 1.3 Write property test for ID3v1 round-trip parsing
+  - [x] 1.3 Write property test for ID3v1 round-trip parsing
     - **Property 4: ID3v1 Round-Trip Parsing**
     - **Validates: Requirements 4.1, 4.2, 4.3, 4.5**
 
-  - [ ] 1.4 Write property test for ID3v1 genre mapping
+  - [x] 1.4 Write property test for ID3v1 genre mapping
     - **Property 5: ID3v1 Genre Mapping**
     - **Validates: Requirements 4.4**
 
-  - [ ] 1.5 Write unit tests for ID3v1Tag
+  - [x] 1.5 Write unit tests for ID3v1Tag
     - Test ID3v1 vs ID3v1.1 detection
     - Test string trimming edge cases
     - Test all 192 genre mappings
