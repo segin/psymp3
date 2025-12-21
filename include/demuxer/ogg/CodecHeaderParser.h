@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -24,6 +25,16 @@ struct CodecInfo {
     int channels;
     long rate;
     // Add other common fields
+};
+
+/**
+ * @brief Parsed VorbisComment data from Ogg stream headers
+ */
+struct OggVorbisComment {
+    std::string vendor;
+    std::map<std::string, std::vector<std::string>> fields;  // Multi-valued fields
+    
+    bool isEmpty() const { return vendor.empty() && fields.empty(); }
 };
 
 class CodecHeaderParser {
@@ -46,6 +57,12 @@ public:
      * @brief Get codec info
      */
     virtual CodecInfo getCodecInfo() const = 0;
+
+    /**
+     * @brief Get parsed VorbisComment data (if available)
+     * @return VorbisComment data, or empty struct if not available
+     */
+    virtual OggVorbisComment getVorbisComment() const { return OggVorbisComment{}; }
 
     /**
      * @brief Factory method: Identify codec from BOS packet

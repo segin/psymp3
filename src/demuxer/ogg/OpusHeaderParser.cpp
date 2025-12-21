@@ -4,7 +4,10 @@
  */
 
 #include "demuxer/ogg/OpusHeaderParser.h"
+#include "debug.h"
 #include <cstring>
+#include <algorithm>
+#include <cctype>
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -14,6 +17,83 @@ OpusHeaderParser::OpusHeaderParser()
     : m_headers_count(0) {
     m_info.codec_name = "Opus";
     m_info.rate = 48000; // Opus always outputs 48kHz
+}
+
+bool OpusHeaderParser::parseOpusTags(const unsigned char* data, size_t size) {
+    // OpusTags format (after "OpusTags" signature):
+    // - vendor_length (4 bytes, little-endian)
+    // - vendor_string (vendor_length bytes, UTF-8)
+    // - user_comment_list_length (4 bytes, little-endian)
+    // - For each comment:
+    //   - comment_length (4 bytes, little-endian)
+    //   - comment_string (comment_length bytes, UTF-8, format: "FIELD=value")
+    
+    size_t offset = 0;
+    
+    // Read vendor length
+    if (offset + 4 > size) {
+        Debug::log("ogg", "OpusHeaderParser: OpusTags too short for vendor length");
+        return false;
+    }
+    uint32_t vendor_length = data[offset] | (data[offset+1] << 8) | 
+                             (data[offset+2] << 16) | (data[offset+3] << 24);
+    offset += 4;
+    
+    // Read vendor string
+    if (offset + vendor_length > size) {
+        Debug::log("ogg", "OpusHeaderParser: OpusTags too short for vendor string");
+        return false;
+    }
+    m_comment.vendor = std::string(reinterpret_cast<const char*>(data + offset), vendor_length);
+    offset += vendor_length;
+    Debug::log("ogg", "OpusHeaderParser: vendor='", m_comment.vendor, "'");
+    
+    // Read user comment list length
+    if (offset + 4 > size) {
+        Debug::log("ogg", "OpusHeaderParser: OpusTags too short for comment count");
+        return false;
+    }
+    uint32_t comment_count = data[offset] | (data[offset+1] << 8) | 
+                             (data[offset+2] << 16) | (data[offset+3] << 24);
+    offset += 4;
+    Debug::log("ogg", "OpusHeaderParser: comment_count=", comment_count);
+    
+    // Read each comment
+    for (uint32_t i = 0; i < comment_count; ++i) {
+        if (offset + 4 > size) {
+            Debug::log("ogg", "OpusHeaderParser: OpusTags truncated at comment ", i);
+            break;  // Truncated, but we got some comments
+        }
+        
+        uint32_t comment_length = data[offset] | (data[offset+1] << 8) | 
+                                  (data[offset+2] << 16) | (data[offset+3] << 24);
+        offset += 4;
+        
+        if (offset + comment_length > size) {
+            Debug::log("ogg", "OpusHeaderParser: comment ", i, " truncated");
+            break;  // Truncated
+        }
+        
+        std::string comment(reinterpret_cast<const char*>(data + offset), comment_length);
+        offset += comment_length;
+        
+        // Parse "FIELD=value" format
+        size_t eq_pos = comment.find('=');
+        if (eq_pos != std::string::npos && eq_pos > 0) {
+            std::string field_name = comment.substr(0, eq_pos);
+            std::string field_value = comment.substr(eq_pos + 1);
+            
+            // Normalize field name to uppercase (VorbisComment is case-insensitive)
+            std::transform(field_name.begin(), field_name.end(), field_name.begin(),
+                          [](unsigned char c) { return std::toupper(c); });
+            
+            // Add to multi-valued map
+            m_comment.fields[field_name].push_back(field_value);
+            Debug::log("ogg", "OpusHeaderParser: field '", field_name, "'='", field_value, "'");
+        }
+    }
+    
+    return true;
 }
 
 bool OpusHeaderParser::parseHeader(ogg_packet* packet) {
@@ -48,13 +128,11 @@ bool OpusHeaderParser::parseHeader(ogg_packet* packet) {
     if (m_headers_count == 1) {
         if (memcmp(data, "OpusTags", 8) != 0) return false;
         
-        // Vendor string (starts at 8)
-        // Length (4 bytes)
-        // String
-        // User Comment list length (4 bytes)
-        // ...
+        // Parse VorbisComment data (starts after "OpusTags" signature)
+        if (packet->bytes > 8) {
+            parseOpusTags(data + 8, packet->bytes - 8);
+        }
         
-        // We just validate signature here
         m_headers_count = 2;
         return true;
     }
@@ -70,6 +148,10 @@ bool OpusHeaderParser::isHeadersComplete() const {
 
 CodecInfo OpusHeaderParser::getCodecInfo() const {
     return m_info;
+}
+
+OggVorbisComment OpusHeaderParser::getVorbisComment() const {
+    return m_comment;
 }
 
 } // namespace Ogg

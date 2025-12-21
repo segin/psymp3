@@ -83,6 +83,7 @@ COMMON_TEST_LIBS = \
 # Minimal library set for simple tests (I/O, demuxer core, codecs)
 # Note: Libraries with circular dependencies must be listed multiple times
 # Order: high-level -> mid-level -> low-level, then repeat for circular deps
+# Note: Tag library is required because demuxers now depend on it for metadata extraction
 MINIMAL_TEST_LIBS = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
@@ -91,6 +92,8 @@ MINIMAL_TEST_LIBS = \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/http/libhttpio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -100,6 +103,8 @@ MINIMAL_TEST_LIBS = \
 	$(top_builddir)/src/codecs/libcodecs.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a
 
 # Common object files needed by tests (not in libraries)
@@ -125,6 +130,7 @@ EXTENDED_TEST_OBJS = \
 
 # Full codec library set for codec tests
 # Order: high-level -> mid-level -> low-level, then repeat for circular deps
+# Note: Tag library is required because demuxers now depend on it for metadata extraction
 FULL_CODEC_LIBS = \
 	libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
@@ -136,6 +142,8 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/codecs/flac/libflaccodec.a \
@@ -151,6 +159,8 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -219,6 +229,8 @@ opusout_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
@@ -237,6 +249,8 @@ debug_dual_flac_LDADD = \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
@@ -253,6 +267,8 @@ debug_flac_seeking_LDADD = \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
@@ -889,6 +905,8 @@ test_ogg_page_extraction_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
@@ -908,6 +926,8 @@ test_ogg_codec_detection_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -924,6 +944,8 @@ test_ogg_duration_calculation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -940,6 +962,8 @@ test_ogg_time_conversion_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -956,6 +980,8 @@ test_ogg_data_streaming_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -972,6 +998,8 @@ test_ogg_memory_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -988,6 +1016,8 @@ test_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -1004,6 +1034,8 @@ test_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -1023,6 +1055,8 @@ test_ogg_demuxer_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -2641,6 +2675,8 @@ test_oggdemuxer_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -2660,6 +2696,8 @@ test_oggdemuxer_comprehensive_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -2679,6 +2717,8 @@ test_ogg_comprehensive_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
@@ -3499,6 +3539,8 @@ flacout_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
@@ -3545,6 +3587,8 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
@@ -3590,6 +3634,8 @@ mp3out_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
 	$(top_builddir)/src/debug.o \
@@ -3605,7 +3651,7 @@ endif
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual
+check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual test_demuxer_tag_extraction
 
 # Tag unit tests
 test_tag_unit_SOURCES = test_tag_unit.cpp
@@ -3672,6 +3718,26 @@ test_tag_error_handling_manual_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# Demuxer tag extraction tests
+test_demuxer_tag_extraction_SOURCES = test_demuxer_tag_extraction.cpp
+test_demuxer_tag_extraction_CPPFLAGS = $(AM_CPPFLAGS) $(OGG_CFLAGS)
+test_demuxer_tag_extraction_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
 # ============================================================================

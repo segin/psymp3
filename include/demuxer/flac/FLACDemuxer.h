@@ -407,6 +407,17 @@ private:
      */
     void validateStreamableSubset_unlocked();
     
+    /**
+     * @brief Create VorbisCommentTag from parsed metadata
+     * 
+     * Converts the parsed VorbisComment fields and PICTURE blocks into a
+     * VorbisCommentTag object and stores it in m_tag (inherited from Demuxer).
+     * 
+     * This method should be called after parseMetadataBlocks_unlocked() completes.
+     * If no VorbisComment metadata was found, m_tag remains null (getTag() returns NullTag).
+     */
+    void createTagFromMetadata_unlocked();
+    
     bool findNextFrame_unlocked(FLACFrame& frame);
     bool parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buffer, size_t size);
     uint32_t calculateFrameSize_unlocked(const FLACFrame& frame) const;

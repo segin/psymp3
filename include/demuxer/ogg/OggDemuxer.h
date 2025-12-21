@@ -56,6 +56,12 @@ private:
     MediaChunk readChunk_unlocked(uint32_t stream_id);
     bool seekTo_unlocked(uint64_t timestamp_ms);
     long getSampleRate() const;
+    
+    /**
+     * @brief Create VorbisCommentTag from parsed header data
+     * Called after headers are complete to populate m_tag
+     */
+    void createTagFromMetadata_unlocked();
 };
 
 } // namespace Ogg

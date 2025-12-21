@@ -36,6 +36,8 @@
 #include "io/IOHandler.h"
 #include "io/EnhancedBufferPool.h"
 #include "debug.h"
+#include "tag/Tag.h"
+#include "tag/NullTag.h"
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -445,6 +447,21 @@ public:
     }
     
     /**
+     * @brief Get extracted metadata tags
+     * 
+     * Returns a reference to the Tag object containing metadata extracted
+     * from the container during parsing. If no metadata was found or the
+     * container hasn't been parsed yet, returns a NullTag instance.
+     * 
+     * @return Reference to Tag object (NullTag if no metadata)
+     * 
+     * @pre parseContainer() should have been called for meaningful results
+     * 
+     * @thread_safety Safe to call concurrently after parseContainer() completes
+     */
+    const PsyMP3::Tag::Tag& getTag() const;
+    
+    /**
      * @brief Get the last error that occurred during demuxer operations
      */
     const DemuxerError& getLastError() const {
@@ -496,6 +513,9 @@ protected:
     uint64_t m_duration_ms = 0;
     uint64_t m_position_ms = 0;
     bool m_parsed = false;
+    
+    // Tag metadata extracted from container
+    std::unique_ptr<PsyMP3::Tag::Tag> m_tag;
     
     // Additional state for concrete implementations
     std::map<uint32_t, uint64_t> m_stream_positions; // Per-stream position tracking

@@ -202,24 +202,24 @@ This implementation plan breaks down the Tag framework into discrete coding task
   - Verify no crashes on malformed input
   - Ask user if questions arise
 
-- [ ] 11. Integrate with Demuxer
-  - [ ] 11.1 Add tag support to Demuxer base class
+- [x] 11. Integrate with Demuxer
+  - [x] 11.1 Add tag support to Demuxer base class
     - Add `m_tag` member to Demuxer
     - Add `getTag()` method returning const reference
     - Initialize with NullTag by default
     - _Requirements: 8.1, 8.5_
 
-  - [ ] 11.2 Update FLACDemuxer to extract VorbisComment
+  - [x] 11.2 Update FLACDemuxer to extract VorbisComment
     - Create VorbisCommentTag from parsed metadata
     - Store in m_tag during parseContainer()
     - _Requirements: 8.2, 8.4_
 
-  - [ ] 11.3 Update OggDemuxer to extract VorbisComment
+  - [x] 11.3 Update OggDemuxer to extract VorbisComment
     - Extract VorbisComment from stream headers
     - Create VorbisCommentTag from parsed data
     - _Requirements: 8.3, 8.4_
 
-  - [ ] 11.4 Write unit tests for demuxer tag extraction
+  - [x] 11.4 Write unit tests for demuxer tag extraction
     - Test FLAC VorbisComment extraction
     - Test Ogg VorbisComment extraction
     - Test tagless containers return NullTag

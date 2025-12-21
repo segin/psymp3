@@ -7,6 +7,7 @@
 #include "demuxer/DemuxerFactory.h"
 #include "demuxer/ogg/CodecHeaderParser.h"
 #include "demuxer/ogg/OggSeekingEngine.h"
+#include "tag/VorbisCommentTag.h"
 #include <algorithm>
 #include <iostream>
 
@@ -163,7 +164,51 @@ bool OggDemuxer::parseContainer() {
     }
   }
 
+  // Create tag from parsed VorbisComment data
+  if (!m_streams.empty()) {
+    createTagFromMetadata_unlocked();
+  }
+
   return !m_streams.empty();
+}
+
+void OggDemuxer::createTagFromMetadata_unlocked() {
+    // Get VorbisComment from primary stream's parser
+    if (m_primary_serial < 0) {
+        Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: no primary stream");
+        return;
+    }
+    
+    auto pit = m_parsers.find(m_primary_serial);
+    if (pit == m_parsers.end()) {
+        Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: no parser for primary stream");
+        return;
+    }
+    
+    OggVorbisComment ogg_comment = pit->second->getVorbisComment();
+    if (ogg_comment.isEmpty()) {
+        Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: no VorbisComment data");
+        return;
+    }
+    
+    Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: creating VorbisCommentTag from ",
+               ogg_comment.fields.size(), " fields");
+    
+    // Convert OggVorbisComment to VorbisCommentTag format
+    // VorbisCommentTag expects multi-valued map
+    std::map<std::string, std::vector<std::string>> multi_fields = ogg_comment.fields;
+    
+    // Create VorbisCommentTag (no pictures in Ogg VorbisComment typically, 
+    // METADATA_BLOCK_PICTURE would need base64 decoding which VorbisCommentTag handles)
+    std::vector<PsyMP3::Tag::Picture> pictures;
+    
+    m_tag = std::make_unique<PsyMP3::Tag::VorbisCommentTag>(
+        ogg_comment.vendor,
+        multi_fields,
+        pictures
+    );
+    
+    Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: VorbisCommentTag created successfully");
 }
 
 std::vector<StreamInfo> OggDemuxer::getStreams() const {
