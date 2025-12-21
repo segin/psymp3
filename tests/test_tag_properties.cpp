@@ -816,6 +816,101 @@ bool runRapidCheckTests() {
     });
     if (!result42) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
+    // ========================================================================
+    // Property 1: VorbisComment Round-Trip Parsing
+    // **Validates: Requirements 2.1, 2.2, 2.3**
+    // For any valid VorbisComment data containing a vendor string and field
+    // name=value pairs, parsing the data and then querying the resulting Tag
+    // should return the original values for all fields.
+    // ========================================================================
+    
+    std::cout << "\n  --- Property 1: VorbisComment Round-Trip Parsing ---\n";
+    std::cout << "  VorbisComment_RoundTripParsing: ";
+    auto result43 = rc::check("VorbisComment round-trip parsing preserves field values", []() {
+        // Generate vendor string
+        auto vendor = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        // Generate field map with random fields
+        std::map<std::string, std::vector<std::string>> fields;
+        
+        // Add some standard fields
+        auto title = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        auto artist = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        auto album = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        fields["TITLE"] = {title};
+        fields["ARTIST"] = {artist};
+        fields["ALBUM"] = {album};
+        
+        // Create VorbisCommentTag
+        VorbisCommentTag tag(vendor, fields);
+        
+        // Verify round-trip
+        RC_ASSERT(tag.vendorString() == vendor);
+        RC_ASSERT(tag.title() == title);
+        RC_ASSERT(tag.artist() == artist);
+        RC_ASSERT(tag.album() == album);
+    });
+    if (!result43) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // ========================================================================
+    // Property 2: VorbisComment Case-Insensitive Lookup
+    // **Validates: Requirements 2.4**
+    // For any VorbisComment Tag and any field name, looking up the field using
+    // different case variations should return the same value.
+    // ========================================================================
+    
+    std::cout << "\n  --- Property 2: VorbisComment Case-Insensitive Lookup ---\n";
+    std::cout << "  VorbisComment_CaseInsensitiveLookup: ";
+    auto result44 = rc::check("VorbisComment case-insensitive lookup", []() {
+        std::map<std::string, std::vector<std::string>> fields;
+        auto value = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        fields["ARTIST"] = {value};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        // All case variations should return the same value
+        RC_ASSERT(tag.getTag("ARTIST") == value);
+        RC_ASSERT(tag.getTag("artist") == value);
+        RC_ASSERT(tag.getTag("Artist") == value);
+        RC_ASSERT(tag.getTag("aRtIsT") == value);
+    });
+    if (!result44) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // ========================================================================
+    // Property 3: VorbisComment Multi-Valued Fields
+    // **Validates: Requirements 2.5**
+    // For any VorbisComment data containing multiple fields with the same name,
+    // getTagValues() should return all values in order, and getTag() should
+    // return the first value.
+    // ========================================================================
+    
+    std::cout << "\n  --- Property 3: VorbisComment Multi-Valued Fields ---\n";
+    std::cout << "  VorbisComment_MultiValuedFields: ";
+    auto result45 = rc::check("VorbisComment multi-valued fields", []() {
+        std::map<std::string, std::vector<std::string>> fields;
+        
+        // Generate multiple values for ARTIST field
+        auto value1 = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        auto value2 = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        auto value3 = *rc::gen::container<std::string>(rc::gen::inRange<char>(32, 126));
+        
+        fields["ARTIST"] = {value1, value2, value3};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        // getTag() should return first value
+        RC_ASSERT(tag.getTag("ARTIST") == value1);
+        
+        // getTagValues() should return all values in order
+        auto values = tag.getTagValues("ARTIST");
+        RC_ASSERT(values.size() == 3);
+        RC_ASSERT(values[0] == value1);
+        RC_ASSERT(values[1] == value2);
+        RC_ASSERT(values[2] == value3);
+    });
+    if (!result45) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
     return all_passed;
 }
 

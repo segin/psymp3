@@ -20,43 +20,19 @@
 
 #include "debug.h"
 #include "tag/Tag.h"
-#include "tag/NullTag.h"
+#include "tag/TagFactory.h"
 #endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace Tag {
 
 std::unique_ptr<Tag> createTagReader(const std::string& filepath) {
-    if (filepath.empty()) {
-        Debug::log("tag", "createTagReader: Empty filepath, returning NullTag");
-        return std::make_unique<NullTag>();
-    }
-    
-    Debug::log("tag", "createTagReader: Opening file: ", filepath);
-    
-    // TODO: Implement format detection and appropriate tag reader creation
-    // For now, return NullTag as a placeholder
-    // Future implementations will detect ID3, Vorbis Comments, APE, etc.
-    
-    Debug::log("tag", "createTagReader: No tag reader implemented yet, returning NullTag");
-    return std::make_unique<NullTag>();
+    return TagFactory::createFromFile(filepath);
 }
 
 std::unique_ptr<Tag> createTagReaderFromData(const uint8_t* data, size_t size, 
                                               const std::string& format_hint) {
-    if (!data || size == 0) {
-        Debug::log("tag", "createTagReaderFromData: No data provided, returning NullTag");
-        return std::make_unique<NullTag>();
-    }
-    
-    Debug::log("tag", "createTagReaderFromData: Processing ", size, " bytes, hint: ", 
-               format_hint.empty() ? "(none)" : format_hint);
-    
-    // TODO: Implement format detection from raw data
-    // For now, return NullTag as a placeholder
-    
-    Debug::log("tag", "createTagReaderFromData: No tag reader implemented yet, returning NullTag");
-    return std::make_unique<NullTag>();
+    return TagFactory::createFromData(data, size, format_hint);
 }
 
 } // namespace Tag

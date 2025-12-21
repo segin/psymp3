@@ -106,14 +106,14 @@ This implementation plan breaks down the Tag framework into discrete coding task
     - Test ID3v1-only and ID3v2-only cases
     - _Requirements: 6a.3, 6a.4, 6a.5, 6a.6_
 
-- [ ] 6. Implement VorbisComment Tag Reader
-  - [ ] 6.1 Create VorbisCommentTag header and class structure
+- [x] 6. Implement VorbisComment Tag Reader
+  - [x] 6.1 Create VorbisCommentTag header and class structure
     - Define VorbisCommentTag in `include/tag/VorbisCommentTag.h`
     - Implement static `parse()` method
     - Implement field name normalization (uppercase)
     - _Requirements: 2.1, 2.2, 2.4_
 
-  - [ ] 6.2 Implement VorbisComment parsing logic
+  - [x] 6.2 Implement VorbisComment parsing logic
     - Parse vendor string (little-endian length)
     - Parse field count and all fields
     - Handle UTF-8 encoding
@@ -121,60 +121,60 @@ This implementation plan breaks down the Tag framework into discrete coding task
     - Support multi-valued fields
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-  - [ ] 6.3 Implement field name validation and mapping
+  - [x] 6.3 Implement field name validation and mapping
     - Validate field names (printable ASCII, no '=')
     - Skip invalid fields gracefully
     - Map standard fields to Tag interface
     - _Requirements: 2.6, 2.7_
 
-  - [ ] 6.4 Implement METADATA_BLOCK_PICTURE parsing
+  - [x] 6.4 Implement METADATA_BLOCK_PICTURE parsing
     - Parse base64-encoded picture data
     - Extract picture type, MIME, description, dimensions
     - _Requirements: 2.8, 5.1, 5.2, 5.3, 5.4_
 
-  - [ ] 6.5 Write property test for VorbisComment round-trip
+  - [x] 6.5 Write property test for VorbisComment round-trip
     - **Property 1: VorbisComment Round-Trip Parsing**
     - **Validates: Requirements 2.1, 2.2, 2.3**
 
-  - [ ] 6.6 Write property test for case-insensitive lookup
+  - [x] 6.6 Write property test for case-insensitive lookup
     - **Property 2: VorbisComment Case-Insensitive Lookup**
     - **Validates: Requirements 2.4**
 
-  - [ ] 6.7 Write property test for multi-valued fields
+  - [x] 6.7 Write property test for multi-valued fields
     - **Property 3: VorbisComment Multi-Valued Fields**
     - **Validates: Requirements 2.5**
 
-  - [ ] 6.8 Write unit tests for VorbisCommentTag
+  - [x] 6.8 Write unit tests for VorbisCommentTag
     - Test vendor string extraction
     - Test field parsing
     - Test invalid field handling
     - Test METADATA_BLOCK_PICTURE parsing
     - _Requirements: 2.1, 2.2, 2.6, 2.7, 2.8_
 
-- [ ] 7. Checkpoint - All Tag Parsers Complete
+- [x] 7. Checkpoint - All Tag Parsers Complete
   - Ensure all VorbisComment tests pass
   - Ensure all ID3 tests pass
   - Verify build compiles cleanly
   - Ask user if questions arise
 
-- [ ] 8. Implement Tag Factory
-  - [ ] 8.1 Enhance TagFactory with format detection
+- [x] 8. Implement Tag Factory
+  - [x] 8.1 Enhance TagFactory with format detection
     - Implement `detectFormat()` for magic byte detection
     - Implement `createFromFile()` with ID3v1/ID3v2 handling
     - Implement `createFromData()` with format hints
     - _Requirements: 6.1, 6.2, 6.3_
 
-  - [ ] 8.2 Implement MP3 tag loading with merging
+  - [x] 8.2 Implement MP3 tag loading with merging
     - Check for ID3v1 at file end
     - Check for ID3v2 at file start
     - Create MergedID3Tag when both present
     - _Requirements: 6a.1, 6a.2, 6a.3_
 
-  - [ ] 8.3 Write property test for factory null safety
+  - [x] 8.3 Write property test for factory null safety
     - **Property 9: Tag Factory Never Returns Null**
     - **Validates: Requirements 6.4, 6.5**
 
-  - [ ] 8.4 Write unit tests for TagFactory
+  - [x] 8.4 Write unit tests for TagFactory
     - Test format detection
     - Test file-based tag loading
     - Test data-based tag loading

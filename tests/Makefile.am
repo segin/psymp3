@@ -3634,7 +3634,7 @@ endif
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag
+check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory
 
 # Tag unit tests
 test_tag_unit_SOURCES = test_tag_unit.cpp
@@ -3671,6 +3671,16 @@ endif
 test_id3v2_tag_SOURCES = test_id3v2_tag.cpp
 test_id3v2_tag_CPPFLAGS = $(AM_CPPFLAGS)
 test_id3v2_tag_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# TagFactory unit tests
+test_tag_factory_SOURCES = test_tag_factory.cpp
+test_tag_factory_CPPFLAGS = $(AM_CPPFLAGS)
+test_tag_factory_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \

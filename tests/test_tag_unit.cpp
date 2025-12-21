@@ -949,6 +949,248 @@ protected:
 };
 
 // ============================================================================
+// VorbisComment Unit Tests
+// ============================================================================
+
+class VorbisCommentTag_VendorString : public TestCase {
+public:
+    VorbisCommentTag_VendorString() : TestCase("VorbisCommentTag_VendorString") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        VorbisCommentTag tag("libvorbis 1.3.7", fields);
+        
+        ASSERT_EQUALS(std::string("libvorbis 1.3.7"), tag.vendorString(), 
+                      "Vendor string should match");
+    }
+};
+
+class VorbisCommentTag_FieldParsing : public TestCase {
+public:
+    VorbisCommentTag_FieldParsing() : TestCase("VorbisCommentTag_FieldParsing") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["TITLE"] = {"Test Title"};
+        fields["ARTIST"] = {"Test Artist"};
+        fields["ALBUM"] = {"Test Album"};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        ASSERT_EQUALS(std::string("Test Title"), tag.title(), "Title should match");
+        ASSERT_EQUALS(std::string("Test Artist"), tag.artist(), "Artist should match");
+        ASSERT_EQUALS(std::string("Test Album"), tag.album(), "Album should match");
+    }
+};
+
+class VorbisCommentTag_CaseInsensitiveFieldNames : public TestCase {
+public:
+    VorbisCommentTag_CaseInsensitiveFieldNames() : TestCase("VorbisCommentTag_CaseInsensitiveFieldNames") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["ARTIST"] = {"Test Artist"};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        // All case variations should work
+        ASSERT_EQUALS(std::string("Test Artist"), tag.getTag("ARTIST"), "Uppercase should work");
+        ASSERT_EQUALS(std::string("Test Artist"), tag.getTag("artist"), "Lowercase should work");
+        ASSERT_EQUALS(std::string("Test Artist"), tag.getTag("Artist"), "Mixed case should work");
+    }
+};
+
+class VorbisCommentTag_MultiValuedFields : public TestCase {
+public:
+    VorbisCommentTag_MultiValuedFields() : TestCase("VorbisCommentTag_MultiValuedFields") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["ARTIST"] = {"Artist 1", "Artist 2", "Artist 3"};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        // getTag() should return first value
+        ASSERT_EQUALS(std::string("Artist 1"), tag.getTag("ARTIST"), 
+                      "getTag should return first value");
+        
+        // getTagValues() should return all values
+        auto values = tag.getTagValues("ARTIST");
+        ASSERT_EQUALS(3u, values.size(), "Should have 3 values");
+        ASSERT_EQUALS(std::string("Artist 1"), values[0], "First value should match");
+        ASSERT_EQUALS(std::string("Artist 2"), values[1], "Second value should match");
+        ASSERT_EQUALS(std::string("Artist 3"), values[2], "Third value should match");
+    }
+};
+
+class VorbisCommentTag_YearParsing : public TestCase {
+public:
+    VorbisCommentTag_YearParsing() : TestCase("VorbisCommentTag_YearParsing") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["DATE"] = {"2023"};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        ASSERT_EQUALS(2023u, tag.year(), "Year should be parsed from DATE field");
+    }
+};
+
+class VorbisCommentTag_YearFallback : public TestCase {
+public:
+    VorbisCommentTag_YearFallback() : TestCase("VorbisCommentTag_YearFallback") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["YEAR"] = {"2022"};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        ASSERT_EQUALS(2022u, tag.year(), "Year should fallback to YEAR field");
+    }
+};
+
+class VorbisCommentTag_TrackTotalFallback : public TestCase {
+public:
+    VorbisCommentTag_TrackTotalFallback() : TestCase("VorbisCommentTag_TrackTotalFallback") {}
+protected:
+    void runTest() override {
+        // Test TRACKTOTAL
+        std::map<std::string, std::vector<std::string>> fields1;
+        fields1["TRACKTOTAL"] = {"12"};
+        VorbisCommentTag tag1("vendor", fields1);
+        ASSERT_EQUALS(12u, tag1.trackTotal(), "Should use TRACKTOTAL");
+        
+        // Test TOTALTRACKS fallback
+        std::map<std::string, std::vector<std::string>> fields2;
+        fields2["TOTALTRACKS"] = {"15"};
+        VorbisCommentTag tag2("vendor", fields2);
+        ASSERT_EQUALS(15u, tag2.trackTotal(), "Should fallback to TOTALTRACKS");
+    }
+};
+
+class VorbisCommentTag_DiscTotalFallback : public TestCase {
+public:
+    VorbisCommentTag_DiscTotalFallback() : TestCase("VorbisCommentTag_DiscTotalFallback") {}
+protected:
+    void runTest() override {
+        // Test DISCTOTAL
+        std::map<std::string, std::vector<std::string>> fields1;
+        fields1["DISCTOTAL"] = {"2"};
+        VorbisCommentTag tag1("vendor", fields1);
+        ASSERT_EQUALS(2u, tag1.discTotal(), "Should use DISCTOTAL");
+        
+        // Test TOTALDISCS fallback
+        std::map<std::string, std::vector<std::string>> fields2;
+        fields2["TOTALDISCS"] = {"3"};
+        VorbisCommentTag tag2("vendor", fields2);
+        ASSERT_EQUALS(3u, tag2.discTotal(), "Should fallback to TOTALDISCS");
+    }
+};
+
+class VorbisCommentTag_CommentFallback : public TestCase {
+public:
+    VorbisCommentTag_CommentFallback() : TestCase("VorbisCommentTag_CommentFallback") {}
+protected:
+    void runTest() override {
+        // Test COMMENT
+        std::map<std::string, std::vector<std::string>> fields1;
+        fields1["COMMENT"] = {"Test comment"};
+        VorbisCommentTag tag1("vendor", fields1);
+        ASSERT_EQUALS(std::string("Test comment"), tag1.comment(), "Should use COMMENT");
+        
+        // Test DESCRIPTION fallback
+        std::map<std::string, std::vector<std::string>> fields2;
+        fields2["DESCRIPTION"] = {"Test description"};
+        VorbisCommentTag tag2("vendor", fields2);
+        ASSERT_EQUALS(std::string("Test description"), tag2.comment(), 
+                      "Should fallback to DESCRIPTION");
+    }
+};
+
+class VorbisCommentTag_HasTag : public TestCase {
+public:
+    VorbisCommentTag_HasTag() : TestCase("VorbisCommentTag_HasTag") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["ARTIST"] = {"Test Artist"};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        ASSERT_TRUE(tag.hasTag("ARTIST"), "Should have ARTIST tag");
+        ASSERT_TRUE(tag.hasTag("artist"), "Should have artist tag (case-insensitive)");
+        ASSERT_FALSE(tag.hasTag("TITLE"), "Should not have TITLE tag");
+    }
+};
+
+class VorbisCommentTag_GetAllTags : public TestCase {
+public:
+    VorbisCommentTag_GetAllTags() : TestCase("VorbisCommentTag_GetAllTags") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["TITLE"] = {"Test Title"};
+        fields["ARTIST"] = {"Test Artist"};
+        fields["ALBUM"] = {"Test Album"};
+        
+        VorbisCommentTag tag("vendor", fields);
+        
+        auto all_tags = tag.getAllTags();
+        ASSERT_EQUALS(3u, all_tags.size(), "Should have 3 tags");
+        ASSERT_EQUALS(std::string("Test Title"), all_tags["TITLE"], "Title should match");
+        ASSERT_EQUALS(std::string("Test Artist"), all_tags["ARTIST"], "Artist should match");
+        ASSERT_EQUALS(std::string("Test Album"), all_tags["ALBUM"], "Album should match");
+    }
+};
+
+class VorbisCommentTag_IsEmpty : public TestCase {
+public:
+    VorbisCommentTag_IsEmpty() : TestCase("VorbisCommentTag_IsEmpty") {}
+protected:
+    void runTest() override {
+        // Empty tag
+        std::map<std::string, std::vector<std::string>> empty_fields;
+        VorbisCommentTag empty_tag("vendor", empty_fields);
+        ASSERT_TRUE(empty_tag.isEmpty(), "Empty tag should be empty");
+        
+        // Non-empty tag
+        std::map<std::string, std::vector<std::string>> fields;
+        fields["TITLE"] = {"Test"};
+        VorbisCommentTag tag("vendor", fields);
+        ASSERT_FALSE(tag.isEmpty(), "Tag with fields should not be empty");
+    }
+};
+
+class VorbisCommentTag_FormatName : public TestCase {
+public:
+    VorbisCommentTag_FormatName() : TestCase("VorbisCommentTag_FormatName") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        VorbisCommentTag tag("vendor", fields);
+        
+        ASSERT_EQUALS(std::string("Vorbis Comments"), tag.formatName(), 
+                      "Format name should be 'Vorbis Comments'");
+    }
+};
+
+class VorbisCommentTag_NoPictures : public TestCase {
+public:
+    VorbisCommentTag_NoPictures() : TestCase("VorbisCommentTag_NoPictures") {}
+protected:
+    void runTest() override {
+        std::map<std::string, std::vector<std::string>> fields;
+        VorbisCommentTag tag("vendor", fields);
+        
+        ASSERT_EQUALS(0u, tag.pictureCount(), "Should have no pictures");
+        ASSERT_FALSE(tag.getPicture(0).has_value(), "getPicture should return nullopt");
+        ASSERT_FALSE(tag.getFrontCover().has_value(), "getFrontCover should return nullopt");
+    }
+};
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -1029,6 +1271,22 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<MergedID3Tag_HasTag>());
     suite.addTest(std::make_unique<MergedID3Tag_GetAllTags>());
     suite.addTest(std::make_unique<MergedID3Tag_GetTagValues>());
+    
+    // VorbisCommentTag tests
+    suite.addTest(std::make_unique<VorbisCommentTag_VendorString>());
+    suite.addTest(std::make_unique<VorbisCommentTag_FieldParsing>());
+    suite.addTest(std::make_unique<VorbisCommentTag_CaseInsensitiveFieldNames>());
+    suite.addTest(std::make_unique<VorbisCommentTag_MultiValuedFields>());
+    suite.addTest(std::make_unique<VorbisCommentTag_YearParsing>());
+    suite.addTest(std::make_unique<VorbisCommentTag_YearFallback>());
+    suite.addTest(std::make_unique<VorbisCommentTag_TrackTotalFallback>());
+    suite.addTest(std::make_unique<VorbisCommentTag_DiscTotalFallback>());
+    suite.addTest(std::make_unique<VorbisCommentTag_CommentFallback>());
+    suite.addTest(std::make_unique<VorbisCommentTag_HasTag>());
+    suite.addTest(std::make_unique<VorbisCommentTag_GetAllTags>());
+    suite.addTest(std::make_unique<VorbisCommentTag_IsEmpty>());
+    suite.addTest(std::make_unique<VorbisCommentTag_FormatName>());
+    suite.addTest(std::make_unique<VorbisCommentTag_NoPictures>());
     
     auto results = suite.runAll();
     suite.printResults(results);

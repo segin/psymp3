@@ -13,10 +13,12 @@ noinst_LIBRARIES = libpsymp3-tag.a
 libpsymp3_tag_a_SOURCES = \
 	Tag.cpp \
 	NullTag.cpp \
+	VorbisCommentTag.cpp \
 	ID3v1Tag.cpp \
 	ID3v2Tag.cpp \
 	ID3v2Utils.cpp \
-	MergedID3Tag.cpp
+	MergedID3Tag.cpp \
+	TagFactory.cpp
 
 # Use AM_CPPFLAGS (not per-target) to avoid object file renaming
 AM_CPPFLAGS = \

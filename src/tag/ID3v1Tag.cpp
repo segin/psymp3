@@ -250,8 +250,8 @@ std::string ID3v1Tag::trimString(const char* data, size_t max_len) {
         len++;
     }
     
-    // Trim trailing spaces
-    while (len > 0 && (data[len - 1] == ' ' || data[len - 1] == '\0')) {
+    // Trim trailing spaces only (not nulls, as we already stopped at first null)
+    while (len > 0 && data[len - 1] == ' ') {
         len--;
     }
     
