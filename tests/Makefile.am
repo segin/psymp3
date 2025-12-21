@@ -1346,18 +1346,9 @@ $(check_PROGRAMS): $(top_builddir)/src/core/libpsymp3-core.a
 $(top_builddir)/src/core/libpsymp3-core.a:
 	$(MAKE) -C $(top_builddir)/src rect.o
 
-# Build rules for OggDemuxer test dependencies
-if HAVE_OGGDEMUXER
+# Build rule for debug.o (core dependency)
 $(top_builddir)/src/debug.o:
 	$(MAKE) -C $(top_builddir)/src debug.o
-
-$(top_builddir)/src/core/libpsymp3-core.a:
-	$(MAKE) -C $(top_builddir)/src exceptions.o
-
-
-
-
-endif
 
 # Build rules for A-law codec test dependencies
 # Build rules for Audio thread safety test dependencies
@@ -1379,31 +1370,11 @@ $(top_builddir)/src/system.o:
 $(top_builddir)/src/track.o:
 	$(MAKE) -C $(top_builddir)/src track.o
 
-$(top_builddir)/src/core/libpsymp3-core.a:
-	$(MAKE) -C $(top_builddir)/src lyrics.o
-
-	$(MAKE) -C $(top_builddir)/src TagLibIOHandlerAdapter.o
-
 # Build rules for Surface thread safety test dependencies
 $(top_builddir)/src/surface.o:
 	$(MAKE) -C $(top_builddir)/src surface.o
 
 # Build rules for ISO demuxer test dependencies
-	$(MAKE) -C $(top_builddir)/src ISODemuxer.o
-
-	$(MAKE) -C $(top_builddir)/src ISODemuxerFragmentHandler.o
-
-	$(MAKE) -C $(top_builddir)/src ISODemuxerBoxParser.o
-
-	$(MAKE) -C $(top_builddir)/src ISODemuxerSampleTableManager.o
-
-	$(MAKE) -C $(top_builddir)/src ISODemuxerSeekingEngine.o
-
-	$(MAKE) -C $(top_builddir)/src ISODemuxerMetadataExtractor.o
-
-	$(MAKE) -C $(top_builddir)/src ISODemuxerStreamManager.o
-
-	$(MAKE) -C $(top_builddir)/src ISODemuxerErrorRecovery.o
 
 # System-wide threading integration test
 test_system_wide_threading_integration_SOURCES = test_system_wide_threading_integration.cpp
@@ -3643,6 +3614,7 @@ test_tag_unit_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
@@ -3655,6 +3627,7 @@ test_tag_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(RAPIDCHECK_LIBS) \
 	$(AM_LDFLAGS)
@@ -3663,6 +3636,7 @@ test_tag_properties_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 endif
@@ -3674,6 +3648,7 @@ test_id3v2_tag_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
@@ -3684,6 +3659,7 @@ test_tag_factory_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
@@ -3694,6 +3670,7 @@ test_tag_error_handling_manual_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
