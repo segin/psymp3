@@ -97,6 +97,12 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     uint32_t vendor_len = readLE32(data + offset);
     offset += 4;
     
+    // Sanity check vendor length (prevent huge allocations)
+    if (vendor_len > 1024 * 1024) { // 1MB max vendor string
+        Debug::log("tag", "VorbisComment: Vendor string length ", vendor_len, " exceeds maximum (1MB)");
+        return nullptr;
+    }
+    
     if (vendor_len > size - offset) {
         Debug::log("tag", "VorbisComment: Vendor string length ", vendor_len, 
                    " exceeds remaining data ", (size - offset));
@@ -104,7 +110,10 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     }
     
     // Parse vendor string (UTF-8)
-    std::string vendor(reinterpret_cast<const char*>(data + offset), vendor_len);
+    std::string vendor;
+    if (vendor_len > 0) {
+        vendor = ID3v2Utils::decodeUTF8Safe(data + offset, vendor_len);
+    }
     offset += vendor_len;
     
     // Parse field count
@@ -116,6 +125,12 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     uint32_t field_count = readLE32(data + offset);
     offset += 4;
     
+    // Sanity check field count (prevent huge allocations)
+    if (field_count > 100000) { // 100k fields max
+        Debug::log("tag", "VorbisComment: Field count ", field_count, " exceeds maximum (100k)");
+        return nullptr;
+    }
+    
     Debug::log("tag", "VorbisComment: vendor='", vendor, "', field_count=", field_count);
     
     // Parse all fields
@@ -125,20 +140,30 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     for (uint32_t i = 0; i < field_count; i++) {
         if (offset + 4 > size) {
             Debug::log("tag", "VorbisComment: Insufficient data for field ", i, " length");
+            // Return partial data instead of failing completely
             break;
         }
         
         uint32_t field_len = readLE32(data + offset);
         offset += 4;
         
+        // Sanity check field length (prevent huge allocations)
+        if (field_len > 10 * 1024 * 1024) { // 10MB max field
+            Debug::log("tag", "VorbisComment: Field ", i, " length ", field_len, " exceeds maximum (10MB)");
+            // Skip this field but continue parsing
+            offset += std::min(field_len, static_cast<uint32_t>(size - offset));
+            continue;
+        }
+        
         if (field_len > size - offset) {
             Debug::log("tag", "VorbisComment: Field ", i, " length ", field_len,
                        " exceeds remaining data ", (size - offset));
+            // Return partial data instead of failing completely
             break;
         }
         
-        // Parse field as UTF-8 string
-        std::string field_str(reinterpret_cast<const char*>(data + offset), field_len);
+        // Parse field as UTF-8 string with safe decoding
+        std::string field_str = ID3v2Utils::decodeUTF8Safe(data + offset, field_len);
         offset += field_len;
         
         // Split on '=' to get name and value
@@ -190,7 +215,7 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     std::vector<uint8_t> data = decodeBase64(base64_data);
     
     if (data.size() < 32) {
-        Debug::log("tag", "VorbisComment: METADATA_BLOCK_PICTURE too small");
+        Debug::log("tag", "VorbisComment: METADATA_BLOCK_PICTURE too small (need 32, got ", data.size(), ")");
         return std::nullopt;
     }
     
@@ -212,13 +237,19 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
                         static_cast<uint32_t>(data[offset + 3]);
     offset += 4;
     
+    // Sanity check MIME type length
+    if (mime_len > 256) { // 256 bytes max MIME type
+        Debug::log("tag", "VorbisComment: MIME type length ", mime_len, " exceeds maximum (256)");
+        return std::nullopt;
+    }
+    
     if (mime_len > data.size() - offset) {
         Debug::log("tag", "VorbisComment: MIME type length exceeds data");
         return std::nullopt;
     }
     
-    // MIME type
-    pic.mime_type = std::string(reinterpret_cast<const char*>(data.data() + offset), mime_len);
+    // MIME type (UTF-8)
+    pic.mime_type = ID3v2Utils::decodeUTF8Safe(data.data() + offset, mime_len);
     offset += mime_len;
     
     if (offset + 4 > data.size()) {
@@ -233,13 +264,19 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
                         static_cast<uint32_t>(data[offset + 3]);
     offset += 4;
     
+    // Sanity check description length
+    if (desc_len > 1024 * 1024) { // 1MB max description
+        Debug::log("tag", "VorbisComment: Description length ", desc_len, " exceeds maximum (1MB)");
+        return std::nullopt;
+    }
+    
     if (desc_len > data.size() - offset) {
         Debug::log("tag", "VorbisComment: Description length exceeds data");
         return std::nullopt;
     }
     
-    // Description
-    pic.description = std::string(reinterpret_cast<const char*>(data.data() + offset), desc_len);
+    // Description (UTF-8)
+    pic.description = ID3v2Utils::decodeUTF8Safe(data.data() + offset, desc_len);
     offset += desc_len;
     
     if (offset + 20 > data.size()) {
@@ -281,6 +318,12 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
                        (static_cast<uint32_t>(data[offset + 2]) << 8) |
                        static_cast<uint32_t>(data[offset + 3]);
     offset += 4;
+    
+    // Sanity check picture data length
+    if (pic_len > 100 * 1024 * 1024) { // 100MB max picture
+        Debug::log("tag", "VorbisComment: Picture data length ", pic_len, " exceeds maximum (100MB)");
+        return std::nullopt;
+    }
     
     if (pic_len > data.size() - offset) {
         Debug::log("tag", "VorbisComment: Picture data length exceeds data");

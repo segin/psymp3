@@ -118,6 +118,12 @@ size_t ID3v2Tag::getTagSize(const uint8_t* header) {
     // Add header size (10 bytes)
     size_t total_size = HEADER_SIZE + synchsafe_size;
     
+    // Sanity check - prevent integer overflow
+    if (synchsafe_size > MAX_TAG_SIZE - HEADER_SIZE) {
+        Debug::log("tag", "ID3v2Tag::getTagSize: Synchsafe size ", synchsafe_size, " would overflow");
+        return 0;
+    }
+    
     // Sanity check
     if (total_size > MAX_TAG_SIZE) {
         Debug::log("tag", "ID3v2Tag::getTagSize: Tag size ", total_size, " exceeds maximum ", MAX_TAG_SIZE);
@@ -382,6 +388,14 @@ ID3v2Frame ID3v2Tag::parseFrame(const uint8_t* data, size_t size, size_t& bytes_
     // Parse frame header
     size_t header_size = parseFrameHeader(data, size, frame_id, frame_size, frame_flags);
     if (header_size == 0) {
+        return {};
+    }
+    
+    // Sanity check frame size (prevent huge allocations)
+    if (frame_size > 100 * 1024 * 1024) { // 100MB max frame
+        Debug::log("tag", "ID3v2Tag::parseFrame: Frame ", frame_id, " size ", frame_size, 
+                  " exceeds maximum (100MB)");
+        bytes_consumed = header_size + std::min(frame_size, static_cast<uint32_t>(size - header_size));
         return {};
     }
     
@@ -734,7 +748,13 @@ std::optional<Picture> ID3v2Tag::parseAPIC(const ID3v2Frame& frame) const {
         return std::nullopt;
     }
     
-    std::string mime_type(reinterpret_cast<const char*>(data + offset), mime_end - offset);
+    // Sanity check MIME type length
+    if (mime_end - offset > 256) {
+        Debug::log("tag", "ID3v2Tag::parseAPIC: MIME type too long (", mime_end - offset, " bytes)");
+        return std::nullopt;
+    }
+    
+    std::string mime_type = ID3v2Utils::decodeUTF8Safe(data + offset, mime_end - offset);
     offset = mime_end + 1; // Skip null terminator
     
     // Parse picture type
@@ -761,6 +781,12 @@ std::optional<Picture> ID3v2Tag::parseAPIC(const ID3v2Frame& frame) const {
         return std::nullopt;
     }
     
+    // Sanity check description length
+    if (desc_end > 1024 * 1024) { // 1MB max description
+        Debug::log("tag", "ID3v2Tag::parseAPIC: Description too long (", desc_end, " bytes)");
+        return std::nullopt;
+    }
+    
     std::string description;
     if (desc_end > 0) {
         description = ID3v2Utils::decodeText(data + desc_start, desc_end, encoding);
@@ -770,6 +796,13 @@ std::optional<Picture> ID3v2Tag::parseAPIC(const ID3v2Frame& frame) const {
     // Remaining data is the picture
     if (offset >= size) {
         Debug::log("tag", "ID3v2Tag::parseAPIC: No picture data");
+        return std::nullopt;
+    }
+    
+    // Sanity check picture data size
+    size_t pic_size = size - offset;
+    if (pic_size > 100 * 1024 * 1024) { // 100MB max picture
+        Debug::log("tag", "ID3v2Tag::parseAPIC: Picture data too large (", pic_size, " bytes)");
         return std::nullopt;
     }
     
@@ -816,7 +849,7 @@ std::optional<Picture> ID3v2Tag::parsePIC(const ID3v2Frame& frame) const {
         return std::nullopt;
     }
     
-    std::string image_format(reinterpret_cast<const char*>(data + offset), 3);
+    std::string image_format = ID3v2Utils::decodeUTF8Safe(data + offset, 3);
     offset += 3;
     
     // Convert image format to MIME type
@@ -858,6 +891,12 @@ std::optional<Picture> ID3v2Tag::parsePIC(const ID3v2Frame& frame) const {
         return std::nullopt;
     }
     
+    // Sanity check description length
+    if (desc_end > 1024 * 1024) { // 1MB max description
+        Debug::log("tag", "ID3v2Tag::parsePIC: Description too long (", desc_end, " bytes)");
+        return std::nullopt;
+    }
+    
     std::string description;
     if (desc_end > 0) {
         description = ID3v2Utils::decodeText(data + desc_start, desc_end, encoding);
@@ -867,6 +906,13 @@ std::optional<Picture> ID3v2Tag::parsePIC(const ID3v2Frame& frame) const {
     // Remaining data is the picture
     if (offset >= size) {
         Debug::log("tag", "ID3v2Tag::parsePIC: No picture data");
+        return std::nullopt;
+    }
+    
+    // Sanity check picture data size
+    size_t pic_size = size - offset;
+    if (pic_size > 100 * 1024 * 1024) { // 100MB max picture
+        Debug::log("tag", "ID3v2Tag::parsePIC: Picture data too large (", pic_size, " bytes)");
         return std::nullopt;
     }
     
