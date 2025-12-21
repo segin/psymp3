@@ -144,6 +144,7 @@ size_t findNullTerminator(const uint8_t* data, size_t size, TextEncoding encodin
 /**
  * @brief Decode ISO-8859-1 (Latin-1) to UTF-8
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::fromLatin1() instead
  * @param data Pointer to Latin-1 data
  * @param size Size of data
  * @return UTF-8 encoded string
@@ -155,6 +156,7 @@ std::string decodeISO8859_1(const uint8_t* data, size_t size);
  * 
  * Characters outside Latin-1 range are replaced with '?'
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::toLatin1() instead
  * @param text UTF-8 string
  * @return Latin-1 encoded bytes
  */
@@ -163,6 +165,7 @@ std::vector<uint8_t> encodeISO8859_1(const std::string& text);
 /**
  * @brief Decode UTF-16 (with BOM) to UTF-8
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::fromUTF16BOM() instead
  * @param data Pointer to UTF-16 data (may start with BOM)
  * @param size Size of data in bytes
  * @return UTF-8 encoded string
@@ -172,6 +175,7 @@ std::string decodeUTF16_BOM(const uint8_t* data, size_t size);
 /**
  * @brief Decode UTF-16 Big Endian to UTF-8
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::fromUTF16BE() instead
  * @param data Pointer to UTF-16BE data
  * @param size Size of data in bytes
  * @return UTF-8 encoded string
@@ -181,6 +185,7 @@ std::string decodeUTF16_BE(const uint8_t* data, size_t size);
 /**
  * @brief Decode UTF-16 Little Endian to UTF-8
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::fromUTF16LE() instead
  * @param data Pointer to UTF-16LE data
  * @param size Size of data in bytes
  * @return UTF-8 encoded string
@@ -190,6 +195,7 @@ std::string decodeUTF16_LE(const uint8_t* data, size_t size);
 /**
  * @brief Encode UTF-8 to UTF-16 with BOM
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::toUTF16BOM() instead
  * @param text UTF-8 string
  * @return UTF-16 encoded bytes with BOM
  */
@@ -198,6 +204,7 @@ std::vector<uint8_t> encodeUTF16_BOM(const std::string& text);
 /**
  * @brief Encode UTF-8 to UTF-16 Big Endian
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::toUTF16BE() instead
  * @param text UTF-8 string
  * @return UTF-16BE encoded bytes
  */
@@ -246,6 +253,7 @@ bool needsUnsync(const uint8_t* data, size_t size);
 /**
  * @brief Validate UTF-8 string
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::isValid() instead
  * @param text String to validate
  * @return true if valid UTF-8
  */
@@ -256,6 +264,7 @@ bool isValidUTF8(const std::string& text);
  * 
  * Replaces invalid sequences with U+FFFD (replacement character)
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::repair() instead
  * @param text String to repair
  * @return Repaired UTF-8 string
  */
@@ -264,6 +273,7 @@ std::string repairUTF8(const std::string& text);
 /**
  * @brief Decode UTF-8 with error handling
  * 
+ * @deprecated Use PsyMP3::Core::Utility::UTF8Util::decodeSafe() instead
  * @param data Pointer to UTF-8 data
  * @param size Size of data
  * @return UTF-8 string with invalid sequences replaced

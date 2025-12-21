@@ -3634,7 +3634,7 @@ endif
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory
+check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual
 
 # Tag unit tests
 test_tag_unit_SOURCES = test_tag_unit.cpp
@@ -3683,6 +3683,55 @@ test_tag_factory_CPPFLAGS = $(AM_CPPFLAGS)
 test_tag_factory_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# Tag error handling tests
+test_tag_error_handling_manual_SOURCES = test_tag_error_handling_manual.cpp
+test_tag_error_handling_manual_CPPFLAGS = $(AM_CPPFLAGS)
+test_tag_error_handling_manual_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# ============================================================================
+# UTF8Util Tests
+# ============================================================================
+
+check_PROGRAMS += test_utf8util_unit test_utf8util_properties fuzz_utf8util
+
+# UTF8Util unit tests
+test_utf8util_unit_SOURCES = test_utf8util_unit.cpp
+test_utf8util_unit_CPPFLAGS = $(AM_CPPFLAGS)
+test_utf8util_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# UTF8Util property-based tests
+test_utf8util_properties_SOURCES = test_utf8util_properties.cpp
+test_utf8util_properties_CPPFLAGS = $(AM_CPPFLAGS)
+test_utf8util_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+if HAVE_RAPIDCHECK
+test_utf8util_properties_LDADD += -lrapidcheck
+endif
+
+# UTF8Util fuzzing tests
+fuzz_utf8util_SOURCES = fuzz_utf8util.cpp
+fuzz_utf8util_CPPFLAGS = $(AM_CPPFLAGS)
+fuzz_utf8util_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)

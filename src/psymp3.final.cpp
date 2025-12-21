@@ -39,6 +39,7 @@
 // ============================================================================
 // Utility
 // ============================================================================
+#include "core/utility/UTF8Util.cpp"
 #include "core/utility/XMLUtil.cpp"
 #include "core/utility/utility.cpp"
 

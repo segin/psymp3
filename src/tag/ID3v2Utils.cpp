@@ -111,316 +111,39 @@ size_t findNullTerminator(const uint8_t* data, size_t size, TextEncoding encodin
 }
 
 std::string decodeISO8859_1(const uint8_t* data, size_t size) {
-    if (!data || size == 0) {
-        return "";
-    }
-    
-    std::string result;
-    result.reserve(size * 2); // Worst case: all chars need 2 bytes in UTF-8
-    
-    for (size_t i = 0; i < size; ++i) {
-        uint8_t c = data[i];
-        if (c == 0x00) {
-            break; // Null terminator
-        }
-        
-        if (c < 0x80) {
-            // ASCII: direct copy
-            result += static_cast<char>(c);
-        } else {
-            // Latin-1 extended (0x80-0xFF): convert to UTF-8
-            // These map to U+0080 to U+00FF
-            result += static_cast<char>(0xC0 | (c >> 6));
-            result += static_cast<char>(0x80 | (c & 0x3F));
-        }
-    }
-    
-    return result;
+    // Delegate to centralized UTF8Util
+    return PsyMP3::Core::Utility::UTF8Util::fromLatin1(data, size);
 }
 
 std::vector<uint8_t> encodeISO8859_1(const std::string& text) {
-    std::vector<uint8_t> result;
-    result.reserve(text.size());
-    
-    size_t i = 0;
-    while (i < text.size()) {
-        uint8_t c = static_cast<uint8_t>(text[i]);
-        
-        if (c < 0x80) {
-            // ASCII: direct copy
-            result.push_back(c);
-            ++i;
-        } else if ((c & 0xE0) == 0xC0 && i + 1 < text.size()) {
-            // 2-byte UTF-8 sequence
-            uint8_t c2 = static_cast<uint8_t>(text[i + 1]);
-            if ((c2 & 0xC0) == 0x80) {
-                uint32_t codepoint = ((c & 0x1F) << 6) | (c2 & 0x3F);
-                if (codepoint <= 0xFF) {
-                    result.push_back(static_cast<uint8_t>(codepoint));
-                } else {
-                    result.push_back('?'); // Outside Latin-1 range
-                }
-                i += 2;
-            } else {
-                result.push_back('?');
-                ++i;
-            }
-        } else if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) {
-            // 3-byte UTF-8 sequence - outside Latin-1 range
-            result.push_back('?');
-            i += 3;
-        } else if ((c & 0xF8) == 0xF0 && i + 3 < text.size()) {
-            // 4-byte UTF-8 sequence - outside Latin-1 range
-            result.push_back('?');
-            i += 4;
-        } else {
-            result.push_back('?');
-            ++i;
-        }
-    }
-    
-    return result;
+    // Delegate to centralized UTF8Util
+    return PsyMP3::Core::Utility::UTF8Util::toLatin1(text);
 }
 
 std::string decodeUTF16_LE(const uint8_t* data, size_t size) {
-    if (!data || size < 2) {
-        return "";
-    }
-    
-    std::string result;
-    result.reserve(size); // Approximate
-    
-    for (size_t i = 0; i + 1 < size; i += 2) {
-        uint16_t unit = static_cast<uint16_t>(data[i]) | 
-                        (static_cast<uint16_t>(data[i + 1]) << 8);
-        
-        if (unit == 0x0000) {
-            break; // Null terminator
-        }
-        
-        if (unit < 0x80) {
-            // ASCII
-            result += static_cast<char>(unit);
-        } else if (unit < 0x800) {
-            // 2-byte UTF-8
-            result += static_cast<char>(0xC0 | (unit >> 6));
-            result += static_cast<char>(0x80 | (unit & 0x3F));
-        } else if (unit >= 0xD800 && unit <= 0xDBFF) {
-            // High surrogate - need low surrogate
-            if (i + 3 < size) {
-                uint16_t low = static_cast<uint16_t>(data[i + 2]) | 
-                               (static_cast<uint16_t>(data[i + 3]) << 8);
-                if (low >= 0xDC00 && low <= 0xDFFF) {
-                    // Valid surrogate pair
-                    uint32_t codepoint = 0x10000 + 
-                        ((static_cast<uint32_t>(unit - 0xD800) << 10) | 
-                         (low - 0xDC00));
-                    // 4-byte UTF-8
-                    result += static_cast<char>(0xF0 | (codepoint >> 18));
-                    result += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-                    result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-                    result += static_cast<char>(0x80 | (codepoint & 0x3F));
-                    i += 2; // Skip low surrogate
-                    continue;
-                }
-            }
-            // Invalid surrogate - use replacement character
-            result += "\xEF\xBF\xBD";
-        } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
-            // Orphan low surrogate - use replacement character
-            result += "\xEF\xBF\xBD";
-        } else {
-            // 3-byte UTF-8
-            result += static_cast<char>(0xE0 | (unit >> 12));
-            result += static_cast<char>(0x80 | ((unit >> 6) & 0x3F));
-            result += static_cast<char>(0x80 | (unit & 0x3F));
-        }
-    }
-    
-    return result;
+    // Delegate to centralized UTF8Util
+    return PsyMP3::Core::Utility::UTF8Util::fromUTF16LE(data, size);
 }
 
 std::string decodeUTF16_BE(const uint8_t* data, size_t size) {
-    if (!data || size < 2) {
-        return "";
-    }
-    
-    std::string result;
-    result.reserve(size);
-    
-    for (size_t i = 0; i + 1 < size; i += 2) {
-        uint16_t unit = (static_cast<uint16_t>(data[i]) << 8) | 
-                        static_cast<uint16_t>(data[i + 1]);
-        
-        if (unit == 0x0000) {
-            break; // Null terminator
-        }
-        
-        if (unit < 0x80) {
-            result += static_cast<char>(unit);
-        } else if (unit < 0x800) {
-            result += static_cast<char>(0xC0 | (unit >> 6));
-            result += static_cast<char>(0x80 | (unit & 0x3F));
-        } else if (unit >= 0xD800 && unit <= 0xDBFF) {
-            // High surrogate
-            if (i + 3 < size) {
-                uint16_t low = (static_cast<uint16_t>(data[i + 2]) << 8) | 
-                               static_cast<uint16_t>(data[i + 3]);
-                if (low >= 0xDC00 && low <= 0xDFFF) {
-                    uint32_t codepoint = 0x10000 + 
-                        ((static_cast<uint32_t>(unit - 0xD800) << 10) | 
-                         (low - 0xDC00));
-                    result += static_cast<char>(0xF0 | (codepoint >> 18));
-                    result += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
-                    result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-                    result += static_cast<char>(0x80 | (codepoint & 0x3F));
-                    i += 2;
-                    continue;
-                }
-            }
-            result += "\xEF\xBF\xBD";
-        } else if (unit >= 0xDC00 && unit <= 0xDFFF) {
-            result += "\xEF\xBF\xBD";
-        } else {
-            result += static_cast<char>(0xE0 | (unit >> 12));
-            result += static_cast<char>(0x80 | ((unit >> 6) & 0x3F));
-            result += static_cast<char>(0x80 | (unit & 0x3F));
-        }
-    }
-    
-    return result;
+    // Delegate to centralized UTF8Util
+    return PsyMP3::Core::Utility::UTF8Util::fromUTF16BE(data, size);
 }
 
 std::string decodeUTF16_BOM(const uint8_t* data, size_t size) {
-    if (!data || size < 2) {
-        return "";
-    }
-    
-    // Check for BOM
-    if (data[0] == 0xFF && data[1] == 0xFE) {
-        // Little-endian BOM
-        return decodeUTF16_LE(data + 2, size - 2);
-    } else if (data[0] == 0xFE && data[1] == 0xFF) {
-        // Big-endian BOM
-        return decodeUTF16_BE(data + 2, size - 2);
-    } else {
-        // No BOM - assume big-endian (ID3v2 spec default)
-        return decodeUTF16_BE(data, size);
-    }
+    // Delegate to centralized UTF8Util
+    return PsyMP3::Core::Utility::UTF8Util::fromUTF16BOM(data, size);
 }
 
 
 std::vector<uint8_t> encodeUTF16_BOM(const std::string& text) {
-    std::vector<uint8_t> result;
-    result.reserve(text.size() * 2 + 2);
-    
-    // Add little-endian BOM
-    result.push_back(0xFF);
-    result.push_back(0xFE);
-    
-    size_t i = 0;
-    while (i < text.size()) {
-        uint8_t c = static_cast<uint8_t>(text[i]);
-        uint32_t codepoint = 0;
-        
-        if (c < 0x80) {
-            codepoint = c;
-            ++i;
-        } else if ((c & 0xE0) == 0xC0 && i + 1 < text.size()) {
-            codepoint = ((c & 0x1F) << 6) | 
-                        (static_cast<uint8_t>(text[i + 1]) & 0x3F);
-            i += 2;
-        } else if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) {
-            codepoint = ((c & 0x0F) << 12) | 
-                        ((static_cast<uint8_t>(text[i + 1]) & 0x3F) << 6) |
-                        (static_cast<uint8_t>(text[i + 2]) & 0x3F);
-            i += 3;
-        } else if ((c & 0xF8) == 0xF0 && i + 3 < text.size()) {
-            codepoint = ((c & 0x07) << 18) | 
-                        ((static_cast<uint8_t>(text[i + 1]) & 0x3F) << 12) |
-                        ((static_cast<uint8_t>(text[i + 2]) & 0x3F) << 6) |
-                        (static_cast<uint8_t>(text[i + 3]) & 0x3F);
-            i += 4;
-        } else {
-            codepoint = 0xFFFD; // Replacement character
-            ++i;
-        }
-        
-        if (codepoint < 0x10000) {
-            // BMP character - single UTF-16 code unit (little-endian)
-            result.push_back(static_cast<uint8_t>(codepoint & 0xFF));
-            result.push_back(static_cast<uint8_t>((codepoint >> 8) & 0xFF));
-        } else if (codepoint <= 0x10FFFF) {
-            // Supplementary character - surrogate pair (little-endian)
-            codepoint -= 0x10000;
-            uint16_t high = 0xD800 + static_cast<uint16_t>((codepoint >> 10) & 0x3FF);
-            uint16_t low = 0xDC00 + static_cast<uint16_t>(codepoint & 0x3FF);
-            result.push_back(static_cast<uint8_t>(high & 0xFF));
-            result.push_back(static_cast<uint8_t>((high >> 8) & 0xFF));
-            result.push_back(static_cast<uint8_t>(low & 0xFF));
-            result.push_back(static_cast<uint8_t>((low >> 8) & 0xFF));
-        } else {
-            // Invalid codepoint - use replacement character
-            result.push_back(0xFD);
-            result.push_back(0xFF);
-        }
-    }
-    
-    return result;
+    // Delegate to centralized UTF8Util
+    return PsyMP3::Core::Utility::UTF8Util::toUTF16BOM(text);
 }
 
 std::vector<uint8_t> encodeUTF16_BE(const std::string& text) {
-    std::vector<uint8_t> result;
-    result.reserve(text.size() * 2);
-    
-    size_t i = 0;
-    while (i < text.size()) {
-        uint8_t c = static_cast<uint8_t>(text[i]);
-        uint32_t codepoint = 0;
-        
-        if (c < 0x80) {
-            codepoint = c;
-            ++i;
-        } else if ((c & 0xE0) == 0xC0 && i + 1 < text.size()) {
-            codepoint = ((c & 0x1F) << 6) | 
-                        (static_cast<uint8_t>(text[i + 1]) & 0x3F);
-            i += 2;
-        } else if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) {
-            codepoint = ((c & 0x0F) << 12) | 
-                        ((static_cast<uint8_t>(text[i + 1]) & 0x3F) << 6) |
-                        (static_cast<uint8_t>(text[i + 2]) & 0x3F);
-            i += 3;
-        } else if ((c & 0xF8) == 0xF0 && i + 3 < text.size()) {
-            codepoint = ((c & 0x07) << 18) | 
-                        ((static_cast<uint8_t>(text[i + 1]) & 0x3F) << 12) |
-                        ((static_cast<uint8_t>(text[i + 2]) & 0x3F) << 6) |
-                        (static_cast<uint8_t>(text[i + 3]) & 0x3F);
-            i += 4;
-        } else {
-            codepoint = 0xFFFD;
-            ++i;
-        }
-        
-        if (codepoint < 0x10000) {
-            // BMP character (big-endian)
-            result.push_back(static_cast<uint8_t>((codepoint >> 8) & 0xFF));
-            result.push_back(static_cast<uint8_t>(codepoint & 0xFF));
-        } else if (codepoint <= 0x10FFFF) {
-            // Surrogate pair (big-endian)
-            codepoint -= 0x10000;
-            uint16_t high = 0xD800 + static_cast<uint16_t>((codepoint >> 10) & 0x3FF);
-            uint16_t low = 0xDC00 + static_cast<uint16_t>(codepoint & 0x3FF);
-            result.push_back(static_cast<uint8_t>((high >> 8) & 0xFF));
-            result.push_back(static_cast<uint8_t>(high & 0xFF));
-            result.push_back(static_cast<uint8_t>((low >> 8) & 0xFF));
-            result.push_back(static_cast<uint8_t>(low & 0xFF));
-        } else {
-            result.push_back(0xFF);
-            result.push_back(0xFD);
-        }
-    }
-    
-    return result;
+    // Delegate to centralized UTF8Util
+    return PsyMP3::Core::Utility::UTF8Util::toUTF16BE(text);
 }
 
 std::string decodeText(const uint8_t* data, size_t size, TextEncoding encoding) {
@@ -550,149 +273,19 @@ bool needsUnsync(const uint8_t* data, size_t size) {
 }
 
 // ============================================================================
-// UTF-8 Validation and Repair
+// UTF-8 Validation and Repair - Delegate to UTF8Util
 // ============================================================================
 
 bool isValidUTF8(const std::string& text) {
-    size_t i = 0;
-    while (i < text.size()) {
-        uint8_t c = static_cast<uint8_t>(text[i]);
-        
-        if (c < 0x80) {
-            // ASCII
-            ++i;
-        } else if ((c & 0xE0) == 0xC0) {
-            // 2-byte sequence
-            if (i + 1 >= text.size() || 
-                (static_cast<uint8_t>(text[i + 1]) & 0xC0) != 0x80) {
-                return false;
-            }
-            // Check for overlong encoding
-            if ((c & 0x1E) == 0) {
-                return false;
-            }
-            i += 2;
-        } else if ((c & 0xF0) == 0xE0) {
-            // 3-byte sequence
-            if (i + 2 >= text.size() ||
-                (static_cast<uint8_t>(text[i + 1]) & 0xC0) != 0x80 ||
-                (static_cast<uint8_t>(text[i + 2]) & 0xC0) != 0x80) {
-                return false;
-            }
-            // Check for overlong encoding
-            if (c == 0xE0 && (static_cast<uint8_t>(text[i + 1]) & 0x20) == 0) {
-                return false;
-            }
-            // Check for surrogate range (U+D800-U+DFFF)
-            if (c == 0xED && (static_cast<uint8_t>(text[i + 1]) & 0x20) != 0) {
-                return false;
-            }
-            i += 3;
-        } else if ((c & 0xF8) == 0xF0) {
-            // 4-byte sequence
-            if (i + 3 >= text.size() ||
-                (static_cast<uint8_t>(text[i + 1]) & 0xC0) != 0x80 ||
-                (static_cast<uint8_t>(text[i + 2]) & 0xC0) != 0x80 ||
-                (static_cast<uint8_t>(text[i + 3]) & 0xC0) != 0x80) {
-                return false;
-            }
-            // Check for overlong encoding
-            if (c == 0xF0 && (static_cast<uint8_t>(text[i + 1]) & 0x30) == 0) {
-                return false;
-            }
-            // Check for codepoints > U+10FFFF
-            if (c > 0xF4 || (c == 0xF4 && static_cast<uint8_t>(text[i + 1]) > 0x8F)) {
-                return false;
-            }
-            i += 4;
-        } else {
-            // Invalid start byte
-            return false;
-        }
-    }
-    
-    return true;
+    return PsyMP3::Core::Utility::UTF8Util::isValid(text);
 }
 
 std::string repairUTF8(const std::string& text) {
-    std::string result;
-    result.reserve(text.size());
-    
-    size_t i = 0;
-    while (i < text.size()) {
-        uint8_t c = static_cast<uint8_t>(text[i]);
-        
-        if (c < 0x80) {
-            result += text[i];
-            ++i;
-        } else if ((c & 0xE0) == 0xC0) {
-            if (i + 1 < text.size() && 
-                (static_cast<uint8_t>(text[i + 1]) & 0xC0) == 0x80 &&
-                (c & 0x1E) != 0) {
-                result += text[i];
-                result += text[i + 1];
-                i += 2;
-            } else {
-                result += "\xEF\xBF\xBD"; // Replacement character
-                ++i;
-            }
-        } else if ((c & 0xF0) == 0xE0) {
-            if (i + 2 < text.size() &&
-                (static_cast<uint8_t>(text[i + 1]) & 0xC0) == 0x80 &&
-                (static_cast<uint8_t>(text[i + 2]) & 0xC0) == 0x80 &&
-                !(c == 0xE0 && (static_cast<uint8_t>(text[i + 1]) & 0x20) == 0) &&
-                !(c == 0xED && (static_cast<uint8_t>(text[i + 1]) & 0x20) != 0)) {
-                result += text[i];
-                result += text[i + 1];
-                result += text[i + 2];
-                i += 3;
-            } else {
-                result += "\xEF\xBF\xBD";
-                ++i;
-            }
-        } else if ((c & 0xF8) == 0xF0) {
-            if (i + 3 < text.size() &&
-                (static_cast<uint8_t>(text[i + 1]) & 0xC0) == 0x80 &&
-                (static_cast<uint8_t>(text[i + 2]) & 0xC0) == 0x80 &&
-                (static_cast<uint8_t>(text[i + 3]) & 0xC0) == 0x80 &&
-                !(c == 0xF0 && (static_cast<uint8_t>(text[i + 1]) & 0x30) == 0) &&
-                !(c > 0xF4 || (c == 0xF4 && static_cast<uint8_t>(text[i + 1]) > 0x8F))) {
-                result += text[i];
-                result += text[i + 1];
-                result += text[i + 2];
-                result += text[i + 3];
-                i += 4;
-            } else {
-                result += "\xEF\xBF\xBD";
-                ++i;
-            }
-        } else {
-            result += "\xEF\xBF\xBD";
-            ++i;
-        }
-    }
-    
-    return result;
+    return PsyMP3::Core::Utility::UTF8Util::repair(text);
 }
 
 std::string decodeUTF8Safe(const uint8_t* data, size_t size) {
-    if (!data || size == 0) {
-        return "";
-    }
-    
-    // Find null terminator
-    size_t len = 0;
-    while (len < size && data[len] != 0x00) {
-        ++len;
-    }
-    
-    std::string text(reinterpret_cast<const char*>(data), len);
-    
-    if (isValidUTF8(text)) {
-        return text;
-    }
-    
-    return repairUTF8(text);
+    return PsyMP3::Core::Utility::UTF8Util::decodeSafe(data, size);
 }
 
 } // namespace ID3v2Utils
