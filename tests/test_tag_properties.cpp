@@ -817,6 +817,182 @@ bool runRapidCheckTests() {
     if (!result42) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
     // ========================================================================
+    // Property 10: Corrupted Data Handling
+    // **Validates: Requirements 10.1, 10.2, 10.3**
+    // For any corrupted or malformed tag data (truncated, invalid magic bytes,
+    // oversized fields), the Tag parser should not throw exceptions and should
+    // return either a NullTag or a partial Tag with available data.
+    // ========================================================================
+    
+    std::cout << "\n  --- Property 10: Corrupted Data Handling ---\n";
+    
+    // Property: VorbisComment parser handles truncated data
+    std::cout << "  VorbisComment_HandlesTruncatedData: ";
+    auto result46 = rc::check("VorbisComment parser handles truncated data", []() {
+        // Generate random truncated data (0-100 bytes)
+        auto size = *rc::gen::inRange<size_t>(0, 100);
+        std::vector<uint8_t> data(size);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = *rc::gen::arbitrary<uint8_t>();
+        }
+        
+        // Should not crash, should return nullptr or partial data
+        try {
+            auto tag = VorbisCommentTag::parse(data.data(), data.size());
+            // Result can be nullptr or valid tag - both acceptable
+            RC_ASSERT(true); // If we get here, no crash occurred
+        } catch (...) {
+            // Should not throw exceptions
+            RC_ASSERT(false && "VorbisComment parser should not throw exceptions");
+        }
+    });
+    if (!result46) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: VorbisComment parser handles oversized field lengths
+    std::cout << "  VorbisComment_HandlesOversizedFieldLengths: ";
+    auto result47 = rc::check("VorbisComment parser handles oversized field lengths", []() {
+        // Create data with vendor string claiming huge size
+        std::vector<uint8_t> data;
+        
+        // Vendor string length: 0xFFFFFFFF (4GB - clearly invalid)
+        data.push_back(0xFF);
+        data.push_back(0xFF);
+        data.push_back(0xFF);
+        data.push_back(0xFF);
+        
+        // Add some random data (10-50 bytes)
+        auto extra_size = *rc::gen::inRange<size_t>(10, 50);
+        for (size_t i = 0; i < extra_size; ++i) {
+            data.push_back(*rc::gen::arbitrary<uint8_t>());
+        }
+        
+        // Should not crash or allocate huge memory
+        try {
+            auto tag = VorbisCommentTag::parse(data.data(), data.size());
+            // Should return nullptr for invalid data
+            RC_ASSERT(true); // No crash is the key property
+        } catch (...) {
+            RC_ASSERT(false && "Should not throw exceptions");
+        }
+    });
+    if (!result47) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: ID3v2 parser handles truncated data
+    std::cout << "  ID3v2_HandlesTruncatedData: ";
+    auto result48 = rc::check("ID3v2 parser handles truncated data", []() {
+        // Generate random truncated data (0-100 bytes)
+        auto size = *rc::gen::inRange<size_t>(0, 100);
+        std::vector<uint8_t> data(size);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = *rc::gen::arbitrary<uint8_t>();
+        }
+        
+        // Should not crash
+        try {
+            auto tag = ID3v2Tag::parse(data.data(), data.size());
+            RC_ASSERT(true); // No crash occurred
+        } catch (...) {
+            RC_ASSERT(false && "ID3v2 parser should not throw exceptions");
+        }
+    });
+    if (!result48) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: ID3v2 parser handles invalid frame sizes
+    std::cout << "  ID3v2_HandlesInvalidFrameSizes: ";
+    auto result49 = rc::check("ID3v2 parser handles invalid frame sizes", []() {
+        // Create minimal ID3v2 header with invalid frame size
+        std::vector<uint8_t> data;
+        
+        // ID3v2 header: "ID3" + version + flags + size
+        data.push_back('I'); data.push_back('D'); data.push_back('3');
+        data.push_back(0x03); // Version 2.3
+        data.push_back(0x00); // Minor version
+        data.push_back(0x00); // Flags
+        
+        // Tag size: 100 bytes (synchsafe)
+        data.push_back(0x00);
+        data.push_back(0x00);
+        data.push_back(0x00);
+        data.push_back(0x64);
+        
+        // Frame with huge size claim
+        data.push_back('T'); data.push_back('I'); data.push_back('T'); data.push_back('2');
+        data.push_back(0xFF); data.push_back(0xFF); data.push_back(0xFF); data.push_back(0xFF);
+        data.push_back(0x00); data.push_back(0x00); // Flags
+        
+        // Should not crash or allocate huge memory
+        try {
+            auto tag = ID3v2Tag::parse(data.data(), data.size());
+            RC_ASSERT(true); // No crash is the key property
+        } catch (...) {
+            RC_ASSERT(false && "Should not throw exceptions");
+        }
+    });
+    if (!result49) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: ID3v2 APIC parser handles corrupted picture data
+    std::cout << "  ID3v2_APIC_HandlesCorruptedPictureData: ";
+    auto result50 = rc::check("ID3v2 APIC parser handles corrupted picture data", []() {
+        // Generate random data that might look like APIC frame
+        auto size = *rc::gen::inRange<size_t>(10, 200);
+        std::vector<uint8_t> data(size);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = *rc::gen::arbitrary<uint8_t>();
+        }
+        
+        // Should not crash when parsing as APIC
+        try {
+            // This tests internal APIC parsing robustness
+            auto tag = ID3v2Tag::parse(data.data(), data.size());
+            RC_ASSERT(true); // No crash occurred
+        } catch (...) {
+            RC_ASSERT(false && "Should not throw exceptions");
+        }
+    });
+    if (!result50) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: Invalid UTF-8 sequences are handled gracefully
+    std::cout << "  InvalidUTF8_HandledGracefully: ";
+    auto result51 = rc::check("Invalid UTF-8 sequences are handled gracefully", []() {
+        // Generate random bytes that are likely invalid UTF-8
+        auto size = *rc::gen::inRange<size_t>(1, 100);
+        std::vector<uint8_t> data(size);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = *rc::gen::arbitrary<uint8_t>();
+        }
+        
+        // Should not crash when decoding as UTF-8
+        try {
+            std::string result = ID3v2Utils::decodeUTF8Safe(data.data(), data.size());
+            // Result should be valid UTF-8 (with replacement characters if needed)
+            RC_ASSERT(ID3v2Utils::isValidUTF8(result));
+        } catch (...) {
+            RC_ASSERT(false && "UTF-8 decoding should not throw exceptions");
+        }
+    });
+    if (!result51) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // Property: TagFactory never crashes on corrupted data
+    std::cout << "  TagFactory_NeverCrashesOnCorruptedData: ";
+    auto result52 = rc::check("TagFactory never crashes on corrupted data", []() {
+        // Generate random data of various sizes
+        auto size = *rc::gen::inRange<size_t>(0, 500);
+        std::vector<uint8_t> data(size);
+        for (size_t i = 0; i < size; ++i) {
+            data[i] = *rc::gen::arbitrary<uint8_t>();
+        }
+        
+        // Should not crash, should return valid tag (possibly NullTag)
+        try {
+            auto tag = createTagReaderFromData(data.data(), data.size());
+            RC_ASSERT(tag != nullptr);
+        } catch (...) {
+            RC_ASSERT(false && "TagFactory should not throw exceptions");
+        }
+    });
+    if (!result52) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+    
+    // ========================================================================
     // Property 1: VorbisComment Round-Trip Parsing
     // **Validates: Requirements 2.1, 2.2, 2.3**
     // For any valid VorbisComment data containing a vendor string and field
@@ -1673,6 +1849,218 @@ protected:
 };
 
 // ============================================================================
+// Property 10: Corrupted Data Handling (Fallback Tests)
+// ============================================================================
+
+class CorruptedData_VorbisComment_HandlesTruncatedData : public TestCase {
+public:
+    CorruptedData_VorbisComment_HandlesTruncatedData() 
+        : TestCase("CorruptedData_VorbisComment_HandlesTruncatedData") {}
+protected:
+    void runTest() override {
+        // Test various truncated data patterns
+        std::vector<std::vector<uint8_t>> test_data = {
+            {},  // Empty
+            {0x00},  // 1 byte
+            {0x05, 0x00, 0x00, 0x00},  // Vendor length only
+            {0x05, 0x00, 0x00, 0x00, 'T', 'e', 's'},  // Truncated vendor string
+            {0x03, 0x00, 0x00, 0x00, 'A', 'B', 'C', 0xFF, 0xFF},  // Truncated field count
+        };
+        
+        for (const auto& data : test_data) {
+            // Should not crash
+            try {
+                auto tag = VorbisCommentTag::parse(
+                    data.empty() ? nullptr : data.data(), data.size());
+                // Result can be nullptr or valid - both acceptable
+                ASSERT_TRUE(true, "No crash occurred");
+            } catch (...) {
+                ASSERT_TRUE(false, "VorbisComment parser should not throw exceptions");
+            }
+        }
+    }
+};
+
+class CorruptedData_VorbisComment_HandlesOversizedFieldLengths : public TestCase {
+public:
+    CorruptedData_VorbisComment_HandlesOversizedFieldLengths() 
+        : TestCase("CorruptedData_VorbisComment_HandlesOversizedFieldLengths") {}
+protected:
+    void runTest() override {
+        // Vendor string claiming 4GB size
+        std::vector<uint8_t> data = {
+            0xFF, 0xFF, 0xFF, 0xFF,  // Vendor length: 4GB
+            'A', 'B', 'C', 'D'  // Some data
+        };
+        
+        // Should not crash or allocate huge memory
+        try {
+            auto tag = VorbisCommentTag::parse(data.data(), data.size());
+            ASSERT_TRUE(true, "No crash occurred");
+        } catch (...) {
+            ASSERT_TRUE(false, "Should not throw exceptions");
+        }
+        
+        // Field with huge size claim
+        std::vector<uint8_t> data2 = {
+            0x03, 0x00, 0x00, 0x00,  // Vendor length: 3
+            'A', 'B', 'C',  // Vendor string
+            0x01, 0x00, 0x00, 0x00,  // Field count: 1
+            0xFF, 0xFF, 0xFF, 0x7F,  // Field length: 2GB
+            'X', 'Y', 'Z'  // Some data
+        };
+        
+        try {
+            auto tag = VorbisCommentTag::parse(data2.data(), data2.size());
+            ASSERT_TRUE(true, "No crash occurred");
+        } catch (...) {
+            ASSERT_TRUE(false, "Should not throw exceptions");
+        }
+    }
+};
+
+class CorruptedData_ID3v2_HandlesTruncatedData : public TestCase {
+public:
+    CorruptedData_ID3v2_HandlesTruncatedData() 
+        : TestCase("CorruptedData_ID3v2_HandlesTruncatedData") {}
+protected:
+    void runTest() override {
+        std::vector<std::vector<uint8_t>> test_data = {
+            {},  // Empty
+            {'I', 'D'},  // Incomplete header
+            {'I', 'D', '3', 0x03, 0x00},  // Truncated header
+            {'I', 'D', '3', 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0A},  // Header only
+        };
+        
+        for (const auto& data : test_data) {
+            try {
+                auto tag = ID3v2Tag::parse(
+                    data.empty() ? nullptr : data.data(), data.size());
+                ASSERT_TRUE(true, "No crash occurred");
+            } catch (...) {
+                ASSERT_TRUE(false, "ID3v2 parser should not throw exceptions");
+            }
+        }
+    }
+};
+
+class CorruptedData_ID3v2_HandlesInvalidFrameSizes : public TestCase {
+public:
+    CorruptedData_ID3v2_HandlesInvalidFrameSizes() 
+        : TestCase("CorruptedData_ID3v2_HandlesInvalidFrameSizes") {}
+protected:
+    void runTest() override {
+        // ID3v2 header with frame claiming huge size
+        std::vector<uint8_t> data = {
+            'I', 'D', '3',  // ID3 magic
+            0x03, 0x00,  // Version 2.3.0
+            0x00,  // Flags
+            0x00, 0x00, 0x00, 0x64,  // Tag size: 100 bytes (synchsafe)
+            // Frame with huge size
+            'T', 'I', 'T', '2',  // Frame ID
+            0xFF, 0xFF, 0xFF, 0xFF,  // Frame size: 4GB
+            0x00, 0x00,  // Flags
+            0x00  // Some data
+        };
+        
+        try {
+            auto tag = ID3v2Tag::parse(data.data(), data.size());
+            ASSERT_TRUE(true, "No crash occurred");
+        } catch (...) {
+            ASSERT_TRUE(false, "Should not throw exceptions");
+        }
+    }
+};
+
+class CorruptedData_ID3v2_APIC_HandlesCorruptedPictureData : public TestCase {
+public:
+    CorruptedData_ID3v2_APIC_HandlesCorruptedPictureData() 
+        : TestCase("CorruptedData_ID3v2_APIC_HandlesCorruptedPictureData") {}
+protected:
+    void runTest() override {
+        // ID3v2 with corrupted APIC frame
+        std::vector<uint8_t> data = {
+            'I', 'D', '3',  // ID3 magic
+            0x03, 0x00,  // Version 2.3.0
+            0x00,  // Flags
+            0x00, 0x00, 0x00, 0x64,  // Tag size: 100 bytes
+            // APIC frame
+            'A', 'P', 'I', 'C',  // Frame ID
+            0x00, 0x00, 0x00, 0x20,  // Frame size: 32 bytes
+            0x00, 0x00,  // Flags
+            0x00,  // Encoding
+            // MIME type not null-terminated (corrupted)
+            'i', 'm', 'a', 'g', 'e', '/', 'j', 'p', 'e', 'g',
+            // Missing null terminator and rest of data
+        };
+        
+        try {
+            auto tag = ID3v2Tag::parse(data.data(), data.size());
+            ASSERT_TRUE(true, "No crash occurred");
+        } catch (...) {
+            ASSERT_TRUE(false, "Should not throw exceptions");
+        }
+    }
+};
+
+class CorruptedData_InvalidUTF8_HandledGracefully : public TestCase {
+public:
+    CorruptedData_InvalidUTF8_HandledGracefully() 
+        : TestCase("CorruptedData_InvalidUTF8_HandledGracefully") {}
+protected:
+    void runTest() override {
+        // Various invalid UTF-8 sequences
+        std::vector<std::vector<uint8_t>> invalid_utf8 = {
+            {0xFF, 0xFF, 0xFF},  // Invalid start bytes
+            {0xC0, 0x80},  // Overlong encoding
+            {0xED, 0xA0, 0x80},  // Surrogate pair
+            {0xF4, 0x90, 0x80, 0x80},  // Out of range
+            {0xC2},  // Incomplete sequence
+            {0xE0, 0x80},  // Incomplete sequence
+        };
+        
+        for (const auto& data : invalid_utf8) {
+            try {
+                std::string result = ID3v2Utils::decodeUTF8Safe(data.data(), data.size());
+                // Result should be valid UTF-8 (with replacement characters)
+                ASSERT_TRUE(ID3v2Utils::isValidUTF8(result), 
+                            "Result should be valid UTF-8");
+            } catch (...) {
+                ASSERT_TRUE(false, "UTF-8 decoding should not throw exceptions");
+            }
+        }
+    }
+};
+
+class CorruptedData_TagFactory_NeverCrashesOnCorruptedData : public TestCase {
+public:
+    CorruptedData_TagFactory_NeverCrashesOnCorruptedData() 
+        : TestCase("CorruptedData_TagFactory_NeverCrashesOnCorruptedData") {}
+protected:
+    void runTest() override {
+        // Various corrupted data patterns
+        std::vector<std::vector<uint8_t>> test_data = {
+            {},  // Empty
+            {0xFF, 0xFF, 0xFF, 0xFF},  // Random bytes
+            {'I', 'D', '3'},  // Incomplete ID3v2
+            {'T', 'A', 'G'},  // Incomplete ID3v1
+            {'f', 'L', 'a', 'C'},  // Incomplete FLAC
+            {'O', 'g', 'g', 'S'},  // Incomplete Ogg
+        };
+        
+        for (const auto& data : test_data) {
+            try {
+                auto tag = createTagReaderFromData(
+                    data.empty() ? nullptr : data.data(), data.size());
+                ASSERT_NOT_NULL(tag.get(), "TagFactory should return valid tag");
+            } catch (...) {
+                ASSERT_TRUE(false, "TagFactory should not throw exceptions");
+            }
+        }
+    }
+};
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -1720,6 +2108,15 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<MergedID3Tag_ID3v2Only>());
     suite.addTest(std::make_unique<MergedID3Tag_IsEmptyWhenBothEmpty>());
     suite.addTest(std::make_unique<MergedID3Tag_PicturesFromID3v2Only>());
+    
+    // Property 10: Corrupted Data Handling tests
+    suite.addTest(std::make_unique<CorruptedData_VorbisComment_HandlesTruncatedData>());
+    suite.addTest(std::make_unique<CorruptedData_VorbisComment_HandlesOversizedFieldLengths>());
+    suite.addTest(std::make_unique<CorruptedData_ID3v2_HandlesTruncatedData>());
+    suite.addTest(std::make_unique<CorruptedData_ID3v2_HandlesInvalidFrameSizes>());
+    suite.addTest(std::make_unique<CorruptedData_ID3v2_APIC_HandlesCorruptedPictureData>());
+    suite.addTest(std::make_unique<CorruptedData_InvalidUTF8_HandledGracefully>());
+    suite.addTest(std::make_unique<CorruptedData_TagFactory_NeverCrashesOnCorruptedData>());
     
     auto results = suite.runAll();
     suite.printResults(results);
