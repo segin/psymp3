@@ -258,18 +258,18 @@ This implementation plan breaks down the Tag framework into discrete coding task
     - **Property 12: Thread-Safe Concurrent Reads**
     - **Validates: Requirements 9.1, 9.2**
 
-- [ ] 14. Implement Picture Access
-  - [ ] 14.1 Write property test for picture index access
+- [x] 14. Implement Picture Access
+  - [x] 14.1 Write property test for picture index access
     - **Property 13: Picture Index Access**
     - **Validates: Requirements 5.1, 5.2, 11.4**
 
-  - [ ] 14.2 Write unit tests for picture access
+  - [x] 14.2 Write unit tests for picture access
     - Test pictureCount() accuracy
     - Test getPicture() bounds checking
     - Test getFrontCover() convenience method
     - _Requirements: 5.1, 5.2, 5.3_
 
-- [ ] 15. Checkpoint - Integration Complete
+- [x] 15. Checkpoint - Integration Complete
   - Ensure all integration tests pass
   - Verify Stream/Demuxer tag access works
   - Ask user if questions arise
