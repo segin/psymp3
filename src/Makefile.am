@@ -143,7 +143,9 @@ psymp3_LDADD = \
 	demuxer/raw/librawdemuxer.a \
 	demuxer/libdemuxer.a \
 	codecs/pcm/libpcmcodecs.a \
-	codecs/libcodecs.a
+	codecs/libcodecs.a \
+	tag/libpsymp3-tag.a \
+	core/utility/libpsymp3-core-utility.a
 endif
 
 # System libraries (must come AFTER our convenience libraries)

@@ -27,6 +27,13 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+// Forward declarations for Tag framework
+namespace PsyMP3 {
+namespace Tag {
+    class Tag;
+}
+}
+
 class Stream
 {
     public:
@@ -47,6 +54,19 @@ class Stream
         virtual TagLib::String getTitle();
         virtual TagLib::String getAlbum();
         TagLib::String getFilePath() const;
+        
+        // Tag framework integration
+        /**
+         * @brief Get metadata tag for this stream
+         * 
+         * Returns a reference to the Tag object containing metadata for this stream.
+         * If no metadata is available, returns a NullTag instance.
+         * 
+         * @return Reference to Tag object (NullTag if no metadata)
+         * 
+         * @thread_safety Safe to call concurrently after stream is opened
+         */
+        virtual const PsyMP3::Tag::Tag& getTag() const;
         
         // Lyrics support
         std::shared_ptr<LyricsFile> getLyrics() const;
@@ -80,6 +100,9 @@ class Stream
         
         // Lyrics support
         std::shared_ptr<LyricsFile> m_lyrics;
+        
+        // Tag framework integration - stores metadata tag for this stream
+        std::unique_ptr<PsyMP3::Tag::Tag> m_tag;
         
     private:
         std::unique_ptr<TagLib::FileRef> m_tags;

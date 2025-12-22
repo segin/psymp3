@@ -548,12 +548,30 @@ std::string DemuxedStream::getCodecType() const {
     return m_codec->getCodecName();
 }
 
+const PsyMP3::Tag::Tag& DemuxedStream::getTag() const {
+    // Return the demuxer's tag if available
+    if (m_demuxer) {
+        return m_demuxer->getTag();
+    }
+    // Fall back to base class implementation (returns NullTag)
+    return Stream::getTag();
+}
+
 TagLib::String DemuxedStream::getArtist() {
     if (!m_demuxer) {
         return TagLib::String();
     }
     
-    // Try to get metadata from the demuxer (for Ogg files)
+    // First, try to get artist from the demuxer's Tag framework
+    const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+    if (!tag.isEmpty()) {
+        std::string artist = tag.artist();
+        if (!artist.empty()) {
+            return TagLib::String(artist, TagLib::String::UTF8);
+        }
+    }
+    
+    // Fall back to StreamInfo metadata (legacy path for Ogg files)
     StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
     if (!stream_info.artist.empty()) {
         return TagLib::String(stream_info.artist, TagLib::String::UTF8);
@@ -568,7 +586,16 @@ TagLib::String DemuxedStream::getTitle() {
         return TagLib::String();
     }
     
-    // Try to get metadata from the demuxer (for Ogg files)
+    // First, try to get title from the demuxer's Tag framework
+    const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+    if (!tag.isEmpty()) {
+        std::string title = tag.title();
+        if (!title.empty()) {
+            return TagLib::String(title, TagLib::String::UTF8);
+        }
+    }
+    
+    // Fall back to StreamInfo metadata (legacy path for Ogg files)
     StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
     if (!stream_info.title.empty()) {
         return TagLib::String(stream_info.title, TagLib::String::UTF8);
@@ -583,7 +610,16 @@ TagLib::String DemuxedStream::getAlbum() {
         return TagLib::String();
     }
     
-    // Try to get metadata from the demuxer (for Ogg files)
+    // First, try to get album from the demuxer's Tag framework
+    const PsyMP3::Tag::Tag& tag = m_demuxer->getTag();
+    if (!tag.isEmpty()) {
+        std::string album = tag.album();
+        if (!album.empty()) {
+            return TagLib::String(album, TagLib::String::UTF8);
+        }
+    }
+    
+    // Fall back to StreamInfo metadata (legacy path for Ogg files)
     StreamInfo stream_info = m_demuxer->getStreamInfo(m_current_stream_id);
     if (!stream_info.album.empty()) {
         return TagLib::String(stream_info.album, TagLib::String::UTF8);

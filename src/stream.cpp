@@ -23,6 +23,9 @@
 
 #include "psymp3.h"
 
+// Static NullTag instance for returning when no tag is available
+static const PsyMP3::Tag::NullTag s_stream_null_tag;
+
 /**
  * @brief Default constructor for the Stream base class.
  */
@@ -108,10 +111,23 @@ void Stream::open(TagLib::String name)
 
 /**
  * @brief Gets the artist metadata for the stream.
+ * 
+ * First checks the Tag framework for artist metadata, then falls back
+ * to TagLib if no tag is available or the tag has no artist.
+ * 
  * @return A TagLib::String containing the artist name, or an empty string if not available.
  */
 TagLib::String Stream::getArtist()
 {
+    // First, try to get artist from the Tag framework
+    if (m_tag && !m_tag->isEmpty()) {
+        std::string artist = m_tag->artist();
+        if (!artist.empty()) {
+            return TagLib::String(artist, TagLib::String::UTF8);
+        }
+    }
+    
+    // Fall back to TagLib
     if(!m_tags) {
         Debug::log("stream", "Stream::getArtist: m_tags is null for file: ", getFilePath().to8Bit(true));
         return track::nullstr;
@@ -133,10 +149,23 @@ TagLib::String Stream::getArtist()
 
 /**
  * @brief Gets the title metadata for the stream.
+ * 
+ * First checks the Tag framework for title metadata, then falls back
+ * to TagLib if no tag is available or the tag has no title.
+ * 
  * @return A TagLib::String containing the track title, or an empty string if not available.
  */
 TagLib::String Stream::getTitle()
 {
+    // First, try to get title from the Tag framework
+    if (m_tag && !m_tag->isEmpty()) {
+        std::string title = m_tag->title();
+        if (!title.empty()) {
+            return TagLib::String(title, TagLib::String::UTF8);
+        }
+    }
+    
+    // Fall back to TagLib
     if(!m_tags) {
         Debug::log("stream", "Stream::getTitle: m_tags is null for file: ", getFilePath().to8Bit(true));
         return track::nullstr;
@@ -158,10 +187,23 @@ TagLib::String Stream::getTitle()
 
 /**
  * @brief Gets the album metadata for the stream.
+ * 
+ * First checks the Tag framework for album metadata, then falls back
+ * to TagLib if no tag is available or the tag has no album.
+ * 
  * @return A TagLib::String containing the album name, or an empty string if not available.
  */
 TagLib::String Stream::getAlbum()
 {
+    // First, try to get album from the Tag framework
+    if (m_tag && !m_tag->isEmpty()) {
+        std::string album = m_tag->album();
+        if (!album.empty()) {
+            return TagLib::String(album, TagLib::String::UTF8);
+        }
+    }
+    
+    // Fall back to TagLib
     if(!m_tags) {
         Debug::log("stream", "Stream::getAlbum: m_tags is null for file: ", getFilePath().to8Bit(true));
         return track::nullstr;
@@ -399,4 +441,21 @@ void Stream::loadLyrics()
     } else {
         Debug::log("lyrics", "Stream::loadLyrics: No lyrics file found");
     }
+}
+
+/**
+ * @brief Gets the metadata tag for this stream.
+ * 
+ * Returns a reference to the Tag object containing metadata for this stream.
+ * If no metadata is available, returns a NullTag instance.
+ * 
+ * @return Reference to Tag object (NullTag if no metadata)
+ */
+const PsyMP3::Tag::Tag& Stream::getTag() const
+{
+    // Return the stored tag if available, otherwise return NullTag
+    if (m_tag) {
+        return *m_tag;
+    }
+    return s_stream_null_tag;
 }
