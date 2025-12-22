@@ -27,7 +27,15 @@ namespace Tag {
  * Ogg and FLAC containers. VorbisComment uses UTF-8 encoded key=value
  * pairs with case-insensitive field names and support for multi-valued fields.
  * 
- * Thread-safe: All methods are const and operate on immutable data.
+ * ## Thread Safety
+ * 
+ * This class is thread-safe for concurrent read operations:
+ * - All public accessor methods are const
+ * - No mutable state is modified after construction
+ * - Multiple threads can safely call any method simultaneously
+ * - Data is fully parsed and stored during parse() or construction
+ * 
+ * @see Tag class documentation for complete thread safety guarantees
  */
 class VorbisCommentTag : public Tag {
 public:

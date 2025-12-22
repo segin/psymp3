@@ -32,7 +32,15 @@ namespace Tag {
  * ID3v1.1 extends ID3v1 by using the last two bytes of the comment field
  * to store a track number (byte 28 = 0x00, byte 29 = track number).
  * 
- * Thread-safe: All methods are const and return immutable data.
+ * ## Thread Safety
+ * 
+ * This class is thread-safe for concurrent read operations:
+ * - All public accessor methods are const
+ * - No mutable state is modified after construction
+ * - Multiple threads can safely call any method simultaneously
+ * - Data is fully parsed and stored during parse()
+ * 
+ * @see Tag class documentation for complete thread safety guarantees
  */
 class ID3v1Tag : public Tag {
 public:

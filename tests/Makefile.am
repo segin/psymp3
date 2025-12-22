@@ -3651,7 +3651,7 @@ endif
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual test_demuxer_tag_extraction
+check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual test_demuxer_tag_extraction test_stream_tag_integration test_tag_thread_safety
 
 # Tag unit tests
 test_tag_unit_SOURCES = test_tag_unit.cpp
@@ -3739,6 +3739,84 @@ test_demuxer_tag_extraction_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
+
+# Stream-Tag integration tests (Property 11: Stream-Tag Delegation Consistency)
+test_stream_tag_integration_SOURCES = test_stream_tag_integration.cpp
+test_stream_tag_integration_CPPFLAGS = $(AM_CPPFLAGS)
+if HAVE_RAPIDCHECK
+test_stream_tag_integration_CPPFLAGS += $(RAPIDCHECK_CFLAGS)
+test_stream_tag_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(RAPIDCHECK_LIBS) \
+	$(OGG_LIBS) \
+	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
+else
+test_stream_tag_integration_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/demuxer/flac/libflacdemuxer.a \
+	$(top_builddir)/src/demuxer/ogg/liboggdemuxer.a \
+	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
+	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
+	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
+	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/file/libfileio.a \
+	$(top_builddir)/src/io/libio.a \
+	$(top_builddir)/src/codecs/libcodecs.a \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/pcm/libpcmcodecs.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(OGG_LIBS) \
+	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
+endif
+
+# Tag thread safety tests (Property 12: Thread-Safe Concurrent Reads)
+test_tag_thread_safety_SOURCES = test_tag_thread_safety.cpp
+test_tag_thread_safety_CPPFLAGS = $(AM_CPPFLAGS)
+if HAVE_RAPIDCHECK
+test_tag_thread_safety_CPPFLAGS += $(RAPIDCHECK_CFLAGS)
+test_tag_thread_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(RAPIDCHECK_LIBS) \
+	$(AM_LDFLAGS) -lpthread
+else
+test_tag_thread_safety_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS) -lpthread
+endif
 
 # ============================================================================
 # UTF8Util Tests

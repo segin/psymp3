@@ -225,36 +225,36 @@ This implementation plan breaks down the Tag framework into discrete coding task
     - Test tagless containers return NullTag
     - _Requirements: 8.2, 8.3, 8.5_
 
-- [ ] 12. Integrate with Stream Classes
-  - [ ] 12.1 Add tag support to Stream base class
+- [x] 12. Integrate with Stream Classes
+  - [x] 12.1 Add tag support to Stream base class
     - Add `m_tag` member to Stream
     - Add `getTag()` method
     - Update getArtist/getTitle/getAlbum to delegate to tag
     - _Requirements: 7.1, 7.4, 7.5_
 
-  - [ ] 12.2 Update DemuxedStream to use demuxer tags
+  - [x] 12.2 Update DemuxedStream to use demuxer tags
     - Get tag from demuxer after parsing
     - Override getTag() to return demuxer's tag
     - _Requirements: 7.2, 7.3_
 
-  - [ ] 12.3 Write property test for Stream-Tag delegation
+  - [x] 12.3 Write property test for Stream-Tag delegation
     - **Property 11: Stream-Tag Delegation Consistency**
     - **Validates: Requirements 7.4**
 
-  - [ ] 12.4 Write unit tests for Stream tag integration
+  - [x] 12.4 Write unit tests for Stream tag integration
     - Test Stream::getTag() returns valid tag
     - Test DemuxedStream tag extraction
     - Test delegation consistency
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
 
-- [ ] 13. Implement Thread Safety
-  - [ ] 13.1 Ensure thread-safe read operations
+- [x] 13. Implement Thread Safety
+  - [x] 13.1 Ensure thread-safe read operations
     - Verify all Tag methods are const
     - Verify no mutable state modified during reads
     - Add thread safety documentation
     - _Requirements: 9.1, 9.3, 9.4_
 
-  - [ ] 13.2 Write property test for concurrent reads
+  - [x] 13.2 Write property test for concurrent reads
     - **Property 12: Thread-Safe Concurrent Reads**
     - **Validates: Requirements 9.1, 9.2**
 

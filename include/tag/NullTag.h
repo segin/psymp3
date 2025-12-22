@@ -22,7 +22,15 @@ namespace Tag {
  * It returns empty/default values for all tag queries, allowing code
  * to safely work with files that have no metadata without null checks.
  * 
- * Thread-safe: All methods are const and return immutable data.
+ * ## Thread Safety
+ * 
+ * This class is thread-safe for concurrent read operations:
+ * - All public accessor methods are const
+ * - No mutable state exists (all methods return constant values)
+ * - Multiple threads can safely call any method simultaneously
+ * - Stateless implementation guarantees no data races
+ * 
+ * @see Tag class documentation for complete thread safety guarantees
  */
 class NullTag : public Tag {
 public:

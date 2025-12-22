@@ -30,7 +30,15 @@ namespace Tag {
  * - ID3v1 values are used as fallback when ID3v2 field is empty
  * - If only one tag type is present, it is used exclusively
  * 
- * Thread-safe: All methods are const and return immutable data.
+ * ## Thread Safety
+ * 
+ * This class is thread-safe for concurrent read operations:
+ * - All public accessor methods are const
+ * - No mutable state is modified after construction
+ * - Multiple threads can safely call any method simultaneously
+ * - Underlying ID3v1 and ID3v2 tags are also thread-safe
+ * 
+ * @see Tag class documentation for complete thread safety guarantees
  */
 class MergedID3Tag : public Tag {
 public:

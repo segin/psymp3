@@ -69,7 +69,39 @@ struct Picture {
  * This interface provides a unified way to access metadata tags regardless
  * of the underlying format (ID3v1, ID3v2, Vorbis Comments, APE, etc.)
  * 
- * Implementations should be thread-safe for read operations.
+ * ## Thread Safety Guarantees
+ * 
+ * All Tag implementations provide the following thread safety guarantees:
+ * 
+ * 1. **Concurrent Read Safety**: Multiple threads can safely call any const
+ *    method simultaneously without external synchronization. This includes
+ *    all accessor methods (title(), artist(), getTag(), getPicture(), etc.)
+ * 
+ * 2. **Immutable After Construction**: Tag objects are immutable after
+ *    construction. All data is parsed and stored during object creation,
+ *    and no internal state is modified by any accessor method.
+ * 
+ * 3. **No Mutable State**: Tag implementations do not use mutable members
+ *    or lazy initialization that could cause data races during reads.
+ * 
+ * 4. **Safe Sharing**: Tag objects can be safely shared between threads
+ *    via const references or shared_ptr<const Tag> without synchronization.
+ * 
+ * ## Usage Example
+ * 
+ * @code
+ * // Safe: Multiple threads reading the same tag
+ * std::shared_ptr<const Tag> tag = TagFactory::createFromFile("song.mp3");
+ * 
+ * std::thread t1([&tag]() { std::cout << tag->title() << std::endl; });
+ * std::thread t2([&tag]() { std::cout << tag->artist() << std::endl; });
+ * std::thread t3([&tag]() { std::cout << tag->album() << std::endl; });
+ * 
+ * t1.join(); t2.join(); t3.join();
+ * @endcode
+ * 
+ * @note Write operations are not supported. Tags are read-only after creation.
+ * @see Requirements 9.1, 9.2, 9.3, 9.4 in tag-framework design document
  */
 class Tag {
 public:

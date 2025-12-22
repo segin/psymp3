@@ -51,7 +51,16 @@ struct ID3v2Frame {
  * - Unsynchronization support
  * - Frame ID normalization (v2.2 3-char to v2.3+ 4-char)
  * 
- * Thread-safe: All methods are const and return immutable data.
+ * ## Thread Safety
+ * 
+ * This class is thread-safe for concurrent read operations:
+ * - All public accessor methods are const
+ * - No mutable state is modified after construction
+ * - Multiple threads can safely call any method simultaneously
+ * - Data is fully parsed and stored during parse()
+ * - Pictures are extracted and cached during construction
+ * 
+ * @see Tag class documentation for complete thread safety guarantees
  */
 class ID3v2Tag : public Tag {
 public:
