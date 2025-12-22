@@ -274,25 +274,25 @@ This implementation plan breaks down the Tag framework into discrete coding task
   - Verify Stream/Demuxer tag access works
   - Ask user if questions arise
 
-- [ ] 16. Implement Fuzzing Tests
-  - [ ] 16.1 Create VorbisComment fuzzer
+- [x] 16. Implement Fuzzing Tests
+  - [x] 16.1 Create VorbisComment fuzzer
     - Implement fuzzer target in `tests/fuzz_tag_vorbis.cpp`
     - Create seed corpus with valid VorbisComment data
     - _Requirements: 10.1, 10.3_
 
-  - [ ] 16.2 Create ID3v1 fuzzer
+  - [x] 16.2 Create ID3v1 fuzzer
     - Implement fuzzer target in `tests/fuzz_tag_id3v1.cpp`
     - Create seed corpus with valid ID3v1 data
     - _Requirements: 10.1, 10.3_
 
-  - [ ] 16.3 Create ID3v2 fuzzer with "almost-right" corpus
+  - [x] 16.3 Create ID3v2 fuzzer with "almost-right" corpus
     - Implement fuzzer target in `tests/fuzz_tag_id3v2.cpp`
     - Create comprehensive seed corpus with mutation strategies
     - Include header mutations, frame size attacks, text exploits
     - Include APIC attacks, unsync edge cases, boundary conditions
     - _Requirements: 10.1, 10.3_
 
-  - [ ] 16.4 Create picture data fuzzer
+  - [x] 16.4 Create picture data fuzzer
     - Implement fuzzer target in `tests/fuzz_tag_picture.cpp`
     - Test APIC and METADATA_BLOCK_PICTURE parsing
     - _Requirements: 10.1, 10.3_
