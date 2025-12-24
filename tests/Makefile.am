@@ -3651,7 +3651,7 @@ endif
 # Tag Framework Tests
 # ============================================================================
 
-check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual test_demuxer_tag_extraction test_stream_tag_integration test_tag_thread_safety
+check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_factory test_tag_error_handling_manual test_demuxer_tag_extraction test_stream_tag_integration test_tag_thread_safety test_tag_picture_properties test_tag_picture_unit
 
 # Tag unit tests
 test_tag_unit_SOURCES = test_tag_unit.cpp
@@ -3817,6 +3817,132 @@ test_tag_thread_safety_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS) -lpthread
 endif
+
+# Tag picture access property tests (Property 13: Picture Index Access)
+test_tag_picture_properties_SOURCES = test_tag_picture_properties.cpp
+test_tag_picture_properties_CPPFLAGS = $(AM_CPPFLAGS)
+if HAVE_RAPIDCHECK
+test_tag_picture_properties_CPPFLAGS += $(RAPIDCHECK_CFLAGS)
+test_tag_picture_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(RAPIDCHECK_LIBS) \
+	$(AM_LDFLAGS)
+else
+test_tag_picture_properties_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+endif
+
+# Tag picture access unit tests
+test_tag_picture_unit_SOURCES = test_tag_picture_unit.cpp
+test_tag_picture_unit_CPPFLAGS = $(AM_CPPFLAGS)
+test_tag_picture_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# Tag fuzzing tests and corpus generators
+check_PROGRAMS += fuzz_tag_vorbis fuzz_tag_id3v1 fuzz_tag_id3v2 fuzz_tag_picture
+check_PROGRAMS += generate_vorbis_corpus generate_id3v1_corpus generate_id3v2_corpus generate_picture_corpus
+
+# VorbisComment fuzzer
+fuzz_tag_vorbis_SOURCES = fuzz_tag_vorbis.cpp
+fuzz_tag_vorbis_CPPFLAGS = $(AM_CPPFLAGS)
+fuzz_tag_vorbis_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# ID3v1 fuzzer
+fuzz_tag_id3v1_SOURCES = fuzz_tag_id3v1.cpp
+fuzz_tag_id3v1_CPPFLAGS = $(AM_CPPFLAGS)
+fuzz_tag_id3v1_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# ID3v2 fuzzer
+fuzz_tag_id3v2_SOURCES = fuzz_tag_id3v2.cpp
+fuzz_tag_id3v2_CPPFLAGS = $(AM_CPPFLAGS)
+fuzz_tag_id3v2_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# Picture data fuzzer
+fuzz_tag_picture_SOURCES = fuzz_tag_picture.cpp
+fuzz_tag_picture_CPPFLAGS = $(AM_CPPFLAGS)
+fuzz_tag_picture_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# VorbisComment corpus generator
+generate_vorbis_corpus_SOURCES = generate_vorbis_corpus.cpp
+generate_vorbis_corpus_CPPFLAGS = $(AM_CPPFLAGS)
+generate_vorbis_corpus_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# ID3v1 corpus generator
+generate_id3v1_corpus_SOURCES = generate_id3v1_corpus.cpp
+generate_id3v1_corpus_CPPFLAGS = $(AM_CPPFLAGS)
+generate_id3v1_corpus_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# ID3v2 corpus generator
+generate_id3v2_corpus_SOURCES = generate_id3v2_corpus.cpp
+generate_id3v2_corpus_CPPFLAGS = $(AM_CPPFLAGS)
+generate_id3v2_corpus_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# Picture corpus generator
+generate_picture_corpus_SOURCES = generate_picture_corpus.cpp
+generate_picture_corpus_CPPFLAGS = $(AM_CPPFLAGS)
+generate_picture_corpus_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
 
 # ============================================================================
 # UTF8Util Tests

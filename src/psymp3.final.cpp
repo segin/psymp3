@@ -217,8 +217,12 @@
 // ============================================================================
 #include "tag/Tag.cpp"
 #include "tag/NullTag.cpp"
+#include "tag/VorbisCommentTag.cpp"
 #include "tag/ID3v1Tag.cpp"
 #include "tag/ID3v2Utils.cpp"
+#include "tag/ID3v2Tag.cpp"
+#include "tag/MergedID3Tag.cpp"
+#include "tag/TagFactory.cpp"
 
 // ============================================================================
 // Last.fm Scrobbling
