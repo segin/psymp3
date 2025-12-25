@@ -50,6 +50,7 @@ private:
     std::map<int, std::unique_ptr<OggStreamManager>> m_streams;
     std::map<int, std::unique_ptr<CodecHeaderParser>> m_parsers;
     int m_primary_serial;
+    bool m_has_primary_serial;
     bool m_eof;
 
     // Unlocked implementations

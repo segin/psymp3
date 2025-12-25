@@ -28,7 +28,7 @@ bool OggDemuxer::registerDemuxer() {
 }
 
 OggDemuxer::OggDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler)
-    : Demuxer(std::move(handler)), m_primary_serial(-1), m_eof(false) {
+    : Demuxer(std::move(handler)), m_primary_serial(0), m_has_primary_serial(false), m_eof(false) {
 
   // Demuxer base class owns the IOHandler.
   // OggSyncManager takes a raw pointer to use it.
@@ -89,8 +89,9 @@ bool OggDemuxer::parseContainer() {
           m_parsers[serial] = std::move(parser);
 
           // Set primary stream to first audio stream
-          if (m_primary_serial < 0) {
+          if (!m_has_primary_serial) {
             m_primary_serial = serial;
+            m_has_primary_serial = true;
             Debug::log(
                 "ogg",
                 "OggDemuxer::parseContainer() set primary_serial=", serial);
@@ -174,7 +175,7 @@ bool OggDemuxer::parseContainer() {
 
 void OggDemuxer::createTagFromMetadata_unlocked() {
     // Get VorbisComment from primary stream's parser
-    if (m_primary_serial < 0) {
+    if (!m_has_primary_serial) {
         Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: no primary stream");
         return;
     }
@@ -280,7 +281,7 @@ bool OggDemuxer::isEOF() const {
 uint64_t OggDemuxer::getDuration() const {
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
 
-  if (m_primary_serial < 0 || m_streams.empty())
+  if (!m_has_primary_serial || m_streams.empty())
     return 0;
 
   // Use seeking engine to calculate
@@ -350,7 +351,7 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
 }
 
 bool OggDemuxer::seekTo_unlocked(uint64_t timestamp_ms) {
-  if (m_primary_serial < 0)
+  if (!m_has_primary_serial)
     return false;
 
   auto sit = m_streams.find(m_primary_serial);
