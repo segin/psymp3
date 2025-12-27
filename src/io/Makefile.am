@@ -11,11 +11,11 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 SUBDIRS = file http
 
-noinst_LIBRARIES = libio.a
+noinst_LIBRARIES = libpsymp3-io.a
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(LIBMPG123_CFLAGS) -Wall -Werror
 
-libio_a_SOURCES = \
+libpsymp3_io_a_SOURCES = \
 	IOHandler.cpp \
 	StreamingManager.cpp \
 	TagLibIOHandlerAdapter.cpp \

@@ -126,11 +126,11 @@ psymp3_LDADD = \
 	widget/windowing/libwidgetwindowing.a \
 	widget/foundation/libwidgetfoundation.a \
 	demuxer/libdemuxer.a \
-	io/http/libhttpio.a \
-	io/file/libfileio.a \
-	io/libio.a \
+	io/http/libpsymp3-io-http.a \
+	io/file/libpsymp3-io-file.a \
+	io/libpsymp3-io.a \
 	lastfm/liblastfm.a \
-	mpris/libmpris.a \
+	mpris/libpsymp3-mpris.a \
 	util/libutil.a \
 	tag/libpsymp3-tag.a \
 	core/libpsymp3-core.a \

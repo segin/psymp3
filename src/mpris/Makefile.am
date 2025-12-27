@@ -1,6 +1,6 @@
-noinst_LIBRARIES = libmpris.a
+noinst_LIBRARIES = libpsymp3-mpris.a
 
-libmpris_a_SOURCES = \
+libpsymp3_mpris_a_SOURCES = \
 	MPRISManager.cpp \
 	DBusConnectionManager.cpp \
 	MPRISTypes.cpp \
@@ -9,4 +9,4 @@ libmpris_a_SOURCES = \
 	SignalEmitter.cpp
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(FLAC_CFLAGS) $(LIBMPG123_CFLAGS)
-libmpris_a_CXXFLAGS = $(AM_CXXFLAGS)
+libpsymp3_mpris_a_CXXFLAGS = $(AM_CXXFLAGS)
