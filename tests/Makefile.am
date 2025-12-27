@@ -582,17 +582,17 @@ test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
 test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/http/libhttpio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -605,6 +605,9 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libio.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lopus -lcurl -lssl -lcrypto \
@@ -614,16 +617,16 @@ test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
 test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/http/libhttpio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -636,6 +639,9 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libio.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
@@ -655,17 +661,17 @@ test_media_factory_integration_SOURCES = test_media_factory_integration.cpp
 test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
 	$(top_builddir)/src/track.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/iso/libisodemuxer.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/http/libhttpio.a \
 	$(top_builddir)/src/io/file/libfileio.a \
 	$(top_builddir)/src/io/libio.a \
@@ -678,6 +684,9 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libriffdemuxer.a \
 	$(top_builddir)/src/demuxer/raw/librawdemuxer.a \
 	$(top_builddir)/src/demuxer/libdemuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libio.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lopus -lcurl -lssl -lcrypto \

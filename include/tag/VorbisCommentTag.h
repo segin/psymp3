@@ -71,7 +71,7 @@ public:
                      const std::map<std::string, std::vector<std::string>>& fields,
                      const std::vector<Picture>& pictures);
     
-    ~VorbisCommentTag() override = default;
+    ~VorbisCommentTag() override;
     
     // Non-copyable but movable
     VorbisCommentTag(const VorbisCommentTag&) = delete;
@@ -106,7 +106,7 @@ public:
     std::optional<Picture> getFrontCover() const override;
     
     bool isEmpty() const override;
-    std::string formatName() const override { return "Vorbis Comments"; }
+    std::string formatName() const override;
     
     // ========================================================================
     // VorbisComment-specific accessors
@@ -116,7 +116,7 @@ public:
      * @brief Get the vendor string
      * @return Vendor string (e.g., "libvorbis 1.3.7")
      */
-    std::string vendorString() const { return m_vendor_string; }
+    std::string vendorString() const;
     
 private:
     std::string m_vendor_string;

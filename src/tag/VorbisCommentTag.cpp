@@ -85,6 +85,8 @@ VorbisCommentTag::VorbisCommentTag(const std::string& vendor,
     : m_vendor_string(vendor), m_fields(fields), m_pictures(pictures) {
 }
 
+VorbisCommentTag::~VorbisCommentTag() = default;
+
 std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, size_t size) {
     if (!data || size < 8) {
         Debug::log("tag", "VorbisComment: Insufficient data for header (need 8, got ", size, ")");
@@ -490,6 +492,14 @@ std::optional<Picture> VorbisCommentTag::getFrontCover() const {
 
 bool VorbisCommentTag::isEmpty() const {
     return m_fields.empty() && m_pictures.empty();
+}
+
+std::string VorbisCommentTag::formatName() const {
+    return "Vorbis Comments";
+}
+
+std::string VorbisCommentTag::vendorString() const {
+    return m_vendor_string;
 }
 
 } // namespace Tag
