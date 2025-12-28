@@ -33,9 +33,9 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = liboggdemuxer.a
+noinst_LIBRARIES = libpsymp3-demuxer-ogg.a
 
-liboggdemuxer_a_SOURCES = \
+libpsymp3_demuxer_ogg_a_SOURCES = \
 	OggDemuxer.cpp \
 	OggSyncManager.cpp \
 	OggStreamManager.cpp \

@@ -32,9 +32,9 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libwidgetui.a
+noinst_LIBRARIES = libpsymp3-widget-ui.a
 
-libwidgetui_a_SOURCES = \
+libpsymp3_widget_ui_a_SOURCES = \
 	ButtonWidget.cpp \
 	MainUIWidget.cpp \
 	ApplicationWidget.cpp \

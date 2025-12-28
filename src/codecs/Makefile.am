@@ -11,11 +11,11 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 SUBDIRS = pcm
 
-noinst_LIBRARIES = libcodecs.a
+noinst_LIBRARIES = libpsymp3-codecs.a
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(LIBMPG123_CFLAGS) -Wall -Werror
 
-libcodecs_a_SOURCES = \
+libpsymp3_codecs_a_SOURCES = \
 	AudioCodec.cpp \
 	CodecRegistration.cpp \
 	CodecRegistry.cpp \

@@ -9,9 +9,9 @@
 
 ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
-noinst_LIBRARIES = libriffdemuxer.a
+noinst_LIBRARIES = libpsymp3-demuxer-riff.a
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(LIBMPG123_CFLAGS) -Wall -Werror
 
-libriffdemuxer_a_SOURCES = \
+libpsymp3_demuxer_riff_a_SOURCES = \
 	wav.cpp

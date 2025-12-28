@@ -34,7 +34,7 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libvorbiscodec.a
+noinst_LIBRARIES = libpsymp3-codec-vorbis.a
 
-libvorbiscodec_a_SOURCES = \
+libpsymp3_codec_vorbis_a_SOURCES = \
 	VorbisCodec.cpp

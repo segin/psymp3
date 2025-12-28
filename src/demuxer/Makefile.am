@@ -11,11 +11,11 @@ ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 SUBDIRS = iso riff raw flac ogg
 
-noinst_LIBRARIES = libdemuxer.a
+noinst_LIBRARIES = libpsymp3-demuxer.a
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(OGG_CFLAGS) $(VORBIS_CFLAGS) $(LIBMPG123_CFLAGS) -Wall -Werror
 
-libdemuxer_a_SOURCES = \
+libpsymp3_demuxer_a_SOURCES = \
 	ChainedStream.cpp \
 	ChunkDemuxer.cpp \
 	Demuxer.cpp \

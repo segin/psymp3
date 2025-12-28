@@ -68,28 +68,28 @@ CODEC_LIBS =
 DEMUXER_LIBS =
 
 if HAVE_FLAC
-DEMUXER_LIBS += demuxer/flac/libflacdemuxer.a
+DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
 if HAVE_NATIVE_FLAC
-CODEC_LIBS += codecs/flac/libnativeflac.a
+CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
 else
-CODEC_LIBS += codecs/flac/libflaccodec.a
+CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
 endif
 endif
 
 if HAVE_MP3
-CODEC_LIBS += codecs/mp3/libmp3codec.a
+CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
 endif
 
 if HAVE_VORBIS
-CODEC_LIBS += codecs/vorbis/libvorbiscodec.a
+CODEC_LIBS += codecs/vorbis/libpsymp3-codec-vorbis.a
 endif
 
 if HAVE_OPUS
-CODEC_LIBS += codecs/opus/libopuscodec.a
+CODEC_LIBS += codecs/opus/libpsymp3-codec-opus.a
 endif
 
 if HAVE_OGGDEMUXER
-DEMUXER_LIBS += demuxer/ogg/liboggdemuxer.a
+DEMUXER_LIBS += demuxer/ogg/libpsymp3-demuxer-ogg.a
 endif
 
 bin_PROGRAMS = psymp3
@@ -122,28 +122,28 @@ psymp3_SOURCES = \
 # Order matters: our convenience libraries must come BEFORE system libraries
 # that they depend on (GNU ld resolves symbols left-to-right)
 psymp3_LDADD = \
-	widget/ui/libwidgetui.a \
-	widget/windowing/libwidgetwindowing.a \
-	widget/foundation/libwidgetfoundation.a \
-	demuxer/libdemuxer.a \
+	widget/ui/libpsymp3-widget-ui.a \
+	widget/windowing/libpsymp3-widget-windowing.a \
+	widget/foundation/libpsymp3-widget-foundation.a \
+	demuxer/libpsymp3-demuxer.a \
 	io/http/libpsymp3-io-http.a \
 	io/file/libpsymp3-io-file.a \
 	io/libpsymp3-io.a \
-	lastfm/liblastfm.a \
+	lastfm/libpsymp3-lastfm.a \
 	mpris/libpsymp3-mpris.a \
-	util/libutil.a \
+	util/libpsymp3-util.a \
 	tag/libpsymp3-tag.a \
 	core/libpsymp3-core.a \
 	core/utility/libpsymp3-core-utility.a \
-	codecs/libcodecs.a \
+	codecs/libpsymp3-codecs.a \
 	$(CODEC_LIBS) \
 	$(DEMUXER_LIBS) \
-	demuxer/iso/libisodemuxer.a \
-	demuxer/riff/libriffdemuxer.a \
-	demuxer/raw/librawdemuxer.a \
-	demuxer/libdemuxer.a \
-	codecs/pcm/libpcmcodecs.a \
-	codecs/libcodecs.a \
+	demuxer/iso/libpsymp3-demuxer-iso.a \
+	demuxer/riff/libpsymp3-demuxer-riff.a \
+	demuxer/raw/libpsymp3-demuxer-raw.a \
+	demuxer/libpsymp3-demuxer.a \
+	codecs/pcm/libpsymp3-codec-pcm.a \
+	codecs/libpsymp3-codecs.a \
 	tag/libpsymp3-tag.a \
 	core/utility/libpsymp3-core-utility.a
 endif

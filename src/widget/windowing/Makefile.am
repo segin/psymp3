@@ -32,9 +32,9 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libwidgetwindowing.a
+noinst_LIBRARIES = libpsymp3-widget-windowing.a
 
-libwidgetwindowing_a_SOURCES = \
+libpsymp3_widget_windowing_a_SOURCES = \
 	WindowWidget.cpp \
 	WindowFrameWidget.cpp \
 	TransparentWindowWidget.cpp \

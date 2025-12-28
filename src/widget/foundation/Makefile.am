@@ -32,9 +32,9 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libwidgetfoundation.a
+noinst_LIBRARIES = libpsymp3-widget-foundation.a
 
-libwidgetfoundation_a_SOURCES = \
+libpsymp3_widget_foundation_a_SOURCES = \
 	Widget.cpp \
 	DrawableWidget.cpp \
 	FadingWidget.cpp \

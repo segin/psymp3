@@ -21,9 +21,9 @@
 # PERFORMANCE OF THIS SOFTWARE.
 #
 
-noinst_LIBRARIES = libutil.a
+noinst_LIBRARIES = libpsymp3-util.a
 
-libutil_a_SOURCES =
+libpsymp3_util_a_SOURCES =
 
 AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(DBUS_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(FLAC_CFLAGS) $(LIBMPG123_CFLAGS)
-libutil_a_CXXFLAGS = $(AM_CXXFLAGS)
+libpsymp3_util_a_CXXFLAGS = $(AM_CXXFLAGS)
