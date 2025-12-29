@@ -234,7 +234,7 @@ private:
     // Memory pressure monitoring
     MemoryPressureLevel m_memory_pressure_level;   // Current memory pressure level
     std::thread m_monitoring_thread;               // Memory monitoring thread
-    bool m_monitoring_active = false;              // Flag to control monitoring thread
+    std::atomic<bool> m_monitoring_active{false};  // Flag to control monitoring thread
     
     // Adaptive pool parameters based on memory pressure
     size_t m_effective_max_pool_size = 16 * 1024 * 1024;  // Effective max pool size

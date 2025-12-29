@@ -158,7 +158,7 @@ private:
     // Memory pressure monitoring
     MemoryPressureLevel m_memory_pressure_level = MemoryPressureLevel::Normal;
     std::thread m_monitoring_thread;
-    bool m_monitoring_active = false;
+    std::atomic<bool> m_monitoring_active{false};
     
     // Usage pattern tracking
     struct UsagePattern {
