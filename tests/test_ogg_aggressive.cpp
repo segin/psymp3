@@ -207,13 +207,25 @@ private:
     }
 
     static std::unique_ptr<IOHandler> createTestIO() {
-         const char* real_ogg = "tests/data/02 AJR - Bummerland.opus";
-         // Check if it exists
-         std::ifstream f(real_ogg);
-         if (!f.good()) {
-             throw std::runtime_error("Could not find test data: tests/data/02 AJR - Bummerland.opus");
+         const char* paths[] = {
+             "tests/data/02 AJR - Bummerland.opus",
+             "data/02 AJR - Bummerland.opus",
+             "../tests/data/02 AJR - Bummerland.opus"
+         };
+         
+         std::string found_path;
+         for (const char* path : paths) {
+             std::ifstream f(path);
+             if (f.good()) {
+                 found_path = path;
+                 break;
+             }
          }
-         return std::make_unique<FileIOHandler>(real_ogg);
+
+         if (found_path.empty()) {
+             throw std::runtime_error("Could not find test data: 02 AJR - Bummerland.opus");
+         }
+         return std::make_unique<FileIOHandler>(found_path);
     }
 
     static void testAggressiveSeeking() {
