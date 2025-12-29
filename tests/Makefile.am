@@ -755,7 +755,27 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_stream_manager
+test_ogg_aggressive_SOURCES = test_ogg_aggressive.cpp
+test_ogg_aggressive_CPPFLAGS = $(AM_CPPFLAGS)
+test_ogg_aggressive_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
+	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	../src/io/file/libpsymp3-io-file.a \
+	../src/io/libpsymp3-io.a \
+	../src/debug.o \
+	../src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS)
+
+check_PROGRAMS += test_stream_manager test_ogg_fuzzing test_ogg_aggressive
 test_stream_manager_SOURCES = test_stream_manager.cpp
 test_stream_manager_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
