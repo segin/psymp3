@@ -23,7 +23,7 @@
 
 #include "psymp3.h"
 
-bool Player::guiRunning = false;
+std::atomic<bool> Player::guiRunning{false};
 
 static std::string convertInt(long number) {
    std::stringstream ss;

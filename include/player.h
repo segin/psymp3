@@ -121,7 +121,7 @@ class Player
         bool playPause(void);
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
-        static bool guiRunning;
+        static std::atomic<bool> guiRunning;
         
         // Robust playlist handling
         bool handleUnplayableTrack();
@@ -217,12 +217,12 @@ class Player
 
         // Loader thread members
         std::thread m_loader_thread;
-        bool m_loader_active;
+        std::atomic<bool> m_loader_active;
         std::queue<TrackLoadRequest> m_loader_queue;
         std::mutex m_loader_queue_mutex;
         std::condition_variable m_loader_queue_cv;
-        bool m_loading_track;
-        bool m_preloading_track;
+        std::atomic<bool> m_loading_track;
+        std::atomic<bool> m_preloading_track;
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;
         int m_skip_attempts = 0;

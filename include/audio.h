@@ -74,7 +74,7 @@ private:
     
     int m_rate;
     int m_channels;
-    bool m_playing;
+    std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};
     std::atomic<bool> m_stream_eof{false};
 };

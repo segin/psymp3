@@ -17,7 +17,7 @@ class CurlLifecycleManager {
 private:
     static std::once_flag s_init_flag;
     static std::once_flag s_cleanup_flag;
-    static bool s_initialized;
+    static std::atomic<bool> s_initialized;
     static std::mutex s_cleanup_mutex;
     
 public:
@@ -34,7 +34,7 @@ public:
     CurlLifecycleManager() {
         std::call_once(s_init_flag, []() {
             CURLcode result = curl_global_init(CURL_GLOBAL_ALL);
-            s_initialized = (result == CURLE_OK);
+            s_initialized.store(result == CURLE_OK);
             if (s_initialized) {
                 Debug::log("http", "CurlLifecycleManager: libcurl initialized successfully");
             } else {
@@ -47,7 +47,7 @@ public:
         // Cleanup is handled by explicit cleanup call or program exit
     }
     
-    static bool isInitialized() { return s_initialized; }
+    static bool isInitialized() { return s_initialized.load(); }
     
     static void incrementHandleCount() {
         s_active_handles.fetch_add(1);
@@ -72,7 +72,7 @@ public:
                 // Clean up connection pool first
                 cleanupConnectionPool();
                 curl_global_cleanup();
-                s_initialized = false;
+                s_initialized.store(false);
                 Debug::log("http", "CurlLifecycleManager: libcurl cleanup completed");
             }
         });
@@ -139,11 +139,11 @@ public:
 private:
     static void performCleanupIfNeeded() {
         std::lock_guard<std::mutex> lock(s_cleanup_mutex);
-        if (s_active_handles.load() == 0 && s_initialized) {
+        if (s_active_handles.load() == 0 && s_initialized.load()) {
             // No active handles, safe to cleanup
             cleanupConnectionPool();
             curl_global_cleanup();
-            s_initialized = false;
+            s_initialized.store(false);
             Debug::log("http", "CurlLifecycleManager: libcurl cleanup completed (no active handles)");
         }
     }
@@ -157,9 +157,9 @@ private:
     }
 };
 
+std::atomic<bool> CurlLifecycleManager::s_initialized{false};
 std::once_flag CurlLifecycleManager::s_init_flag;
 std::once_flag CurlLifecycleManager::s_cleanup_flag;
-bool CurlLifecycleManager::s_initialized = false;
 std::atomic<int> CurlLifecycleManager::s_active_handles{0};
 std::mutex CurlLifecycleManager::s_cleanup_mutex;
 std::mutex CurlLifecycleManager::s_pool_mutex;
