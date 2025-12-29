@@ -242,7 +242,14 @@ if test "x$enable_rapidcheck" != "xno"; then
     AC_SUBST([RAPIDCHECK_LIBS])
   else
     if test "x$enable_rapidcheck" = "xyes"; then
-      AC_MSG_ERROR([RapidCheck was requested but not found. Install librapidcheck-dev or use --disable-rapidcheck])
+      case "$host_os" in
+        freebsd*|dragonfly*|openbsd*|netbsd*|minix*)
+          AC_MSG_ERROR([RapidCheck was requested but not found. Install devel/rapidcheck or use --disable-rapidcheck])
+          ;;
+        *)
+          AC_MSG_ERROR([RapidCheck was requested but not found. Install librapidcheck-dev or use --disable-rapidcheck])
+          ;;
+      esac
     fi
   fi
 fi
