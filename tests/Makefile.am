@@ -360,7 +360,8 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
-	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration
+	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
+	test_ogg_fuzzing
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
@@ -732,6 +733,27 @@ test_iohandler_performance_validation_LDADD = libtest_utilities.a \
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
 test_ogg_page_extraction_SOURCES = test_ogg_page_extraction.cpp
+
+test_ogg_fuzzing_SOURCES = test_ogg_fuzzing.cpp
+test_ogg_fuzzing_CPPFLAGS = $(AM_CPPFLAGS) $(RAPIDCHECK_CFLAGS)
+test_ogg_fuzzing_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
+	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	../src/io/file/libpsymp3-io-file.a \
+	../src/io/libpsymp3-io.a \
+	../src/debug.o \
+	../src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(RAPIDCHECK_LIBS) \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS)
 
 check_PROGRAMS += test_stream_manager
 test_stream_manager_SOURCES = test_stream_manager.cpp
