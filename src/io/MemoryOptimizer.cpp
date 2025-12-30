@@ -32,13 +32,13 @@ MemoryOptimizer::~MemoryOptimizer() {
 }
 
 MemoryOptimizer::MemoryPressureLevel MemoryOptimizer::getMemoryPressureLevel() const {
-    return m_memory_pressure_level;
+    return m_memory_pressure_level.load();
 }
 
 size_t MemoryOptimizer::getOptimalBufferSize(size_t requested_size, 
                                            const std::string& usage_pattern,
                                            bool sequential_access) const {
-    return calculateOptimalBufferSize(requested_size, m_memory_pressure_level, sequential_access);
+    return calculateOptimalBufferSize(requested_size, m_memory_pressure_level.load(), sequential_access);
 }
 
 bool MemoryOptimizer::isSafeToAllocate(size_t requested_size, const std::string& component_name) const {
@@ -121,7 +121,7 @@ std::map<std::string, size_t> MemoryOptimizer::getMemoryStats() const {
     stats["total_memory_usage"] = m_total_memory_usage;
     stats["max_total_memory"] = m_max_total_memory;
     stats["max_buffer_memory"] = m_max_buffer_memory;
-    stats["memory_pressure_level"] = static_cast<size_t>(m_memory_pressure_level);
+    stats["memory_pressure_level"] = static_cast<size_t>(m_memory_pressure_level.load());
     
     // Add component-specific stats
     for (const auto& component : m_component_memory_usage) {
@@ -164,7 +164,8 @@ void MemoryOptimizer::optimizeMemoryUsage() {
               "% (", m_total_memory_usage, " / ", m_max_total_memory, " bytes)");
     
     // Perform optimization based on memory pressure
-    if (m_memory_pressure_level == MemoryPressureLevel::Critical) {
+    MemoryPressureLevel current_level = m_memory_pressure_level.load();
+    if (current_level == MemoryPressureLevel::Critical) {
         // Critical memory pressure - aggressive optimization
         Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Critical memory pressure, performing aggressive optimization");
         
@@ -176,7 +177,7 @@ void MemoryOptimizer::optimizeMemoryUsage() {
         IOBufferPool::getInstance().setMaxPoolSize(critical_pool_size);
         IOBufferPool::getInstance().setMaxBuffersPerSize(1); // Minimal buffering
         
-    } else if (m_memory_pressure_level == MemoryPressureLevel::High) {
+    } else if (current_level == MemoryPressureLevel::High) {
         // High memory pressure - moderate optimization
         Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - High memory pressure, performing moderate optimization");
         
@@ -189,7 +190,7 @@ void MemoryOptimizer::optimizeMemoryUsage() {
         IOBufferPool::getInstance().setMaxPoolSize(high_pool_size);
         IOBufferPool::getInstance().setMaxBuffersPerSize(2); // Reduced buffering
         
-    } else if (m_memory_pressure_level == MemoryPressureLevel::Normal) {
+    } else if (current_level == MemoryPressureLevel::Normal) {
         // Normal memory pressure - light optimization
         Debug::log("memory", "MemoryOptimizer::optimizeMemoryUsage() - Normal memory pressure, performing light optimization");
         
@@ -219,7 +220,7 @@ void MemoryOptimizer::optimizeMemoryUsage() {
 }
 
 void MemoryOptimizer::getRecommendedBufferPoolParams(size_t& max_pool_size, size_t& max_buffers_per_size) const {
-    switch (m_memory_pressure_level) {
+    switch (m_memory_pressure_level.load()) {
         case MemoryPressureLevel::Critical:
             max_pool_size = m_max_total_memory / 16; // 6.25% of total
             max_buffers_per_size = 1;
@@ -241,11 +242,11 @@ void MemoryOptimizer::getRecommendedBufferPoolParams(size_t& max_pool_size, size
 }
 
 bool MemoryOptimizer::shouldEnableReadAhead() const {
-    return m_memory_pressure_level <= MemoryPressureLevel::Normal;
+    return m_memory_pressure_level.load() <= MemoryPressureLevel::Normal;
 }
 
 size_t MemoryOptimizer::getRecommendedReadAheadSize(size_t default_size) const {
-    switch (m_memory_pressure_level) {
+    switch (m_memory_pressure_level.load()) {
         case MemoryPressureLevel::Critical:
             return 0; // No read-ahead
         case MemoryPressureLevel::High:
@@ -302,7 +303,7 @@ void MemoryOptimizer::monitorMemoryPressure() {
         MemoryPressureLevel new_pressure = detectMemoryPressure();
         
         // Update memory pressure level if changed
-        if (new_pressure != m_memory_pressure_level) {
+        if (new_pressure != m_memory_pressure_level.load()) {
             updateMemoryPressureLevel(new_pressure);
         }
     }
@@ -335,10 +336,10 @@ MemoryOptimizer::MemoryPressureLevel MemoryOptimizer::detectMemoryPressure() {
 
 void MemoryOptimizer::updateMemoryPressureLevel(MemoryPressureLevel new_level) {
     Debug::log("memory", "MemoryOptimizer::updateMemoryPressureLevel() - Memory pressure changed from ",
-              memoryPressureLevelToString(m_memory_pressure_level), " to ",
+              memoryPressureLevelToString(m_memory_pressure_level.load()), " to ",
               memoryPressureLevelToString(new_level));
     
-    m_memory_pressure_level = new_level;
+    m_memory_pressure_level.store(new_level);
     
     // Trigger optimization if pressure increased
     if (new_level > MemoryPressureLevel::Normal) {

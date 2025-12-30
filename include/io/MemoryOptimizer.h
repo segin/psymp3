@@ -156,7 +156,7 @@ private:
     size_t m_max_buffer_memory = 32 * 1024 * 1024; // 32MB default
     
     // Memory pressure monitoring
-    MemoryPressureLevel m_memory_pressure_level = MemoryPressureLevel::Normal;
+    std::atomic<MemoryPressureLevel> m_memory_pressure_level{MemoryPressureLevel::Normal};
     std::thread m_monitoring_thread;
     std::atomic<bool> m_monitoring_active{false};
     
