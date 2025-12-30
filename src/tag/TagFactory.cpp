@@ -12,7 +12,7 @@
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
-
+#include <algorithm>
 #include <string>
 #include <vector>
 #include <fstream>
@@ -283,11 +283,14 @@ std::unique_ptr<Tag> TagFactory::createFromData(
     // Use format hint if provided
     TagFormat format = TagFormat::Unknown;
     if (!format_hint.empty()) {
-        if (format_hint == "id3v2" || format_hint == "ID3v2") {
+        std::string hint = format_hint;
+        std::transform(hint.begin(), hint.end(), hint.begin(), ::tolower);
+        
+        if (hint == "id3v2") {
             format = TagFormat::ID3v2;
-        } else if (format_hint == "id3v1" || format_hint == "ID3v1") {
+        } else if (hint == "id3v1") {
             format = TagFormat::ID3v1;
-        } else if (format_hint == "vorbis" || format_hint == "vorbiscomment") {
+        } else if (hint == "vorbis" || hint == "vorbiscomment") {
             format = TagFormat::VorbisComment;
         }
     }
