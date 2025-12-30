@@ -8,7 +8,10 @@
  */
 
 #ifndef FINAL_BUILD
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#include <charconv>
+#endif // !FINAL_BUILD
 #endif // !FINAL_BUILD
 
 namespace PsyMP3 {
@@ -18,7 +21,7 @@ namespace Tag {
 // ID3v1 Genre List (Standard 80 + Winamp Extensions up to 191)
 // ============================================================================
 
-static const std::array<std::string, ID3v1Tag::GENRE_COUNT> s_genre_list = {{
+static constexpr std::array<std::string_view, ID3v1Tag::GENRE_COUNT> s_genre_list = {{
     // Standard ID3v1 genres (0-79)
     "Blues",                  // 0
     "Classic Rock",           // 1
@@ -226,7 +229,7 @@ const std::array<std::string, ID3v1Tag::GENRE_COUNT>& ID3v1Tag::genreList() {
 
 std::string ID3v1Tag::genreFromIndex(uint8_t index) {
     if (index < GENRE_COUNT) {
-        return s_genre_list[index];
+        return std::string(s_genre_list[index]);
     }
     return ""; // Unknown genre (255 or out of range)
 }
@@ -287,9 +290,8 @@ std::unique_ptr<ID3v1Tag> ID3v1Tag::parse(const uint8_t* data) {
     // Offset 93-96: Year (4 bytes, ASCII)
     std::string year_str = trimString(reinterpret_cast<const char*>(data + 93), 4);
     if (!year_str.empty()) {
-        try {
-            tag->m_year = static_cast<uint32_t>(std::stoul(year_str));
-        } catch (...) {
+        auto [ptr, ec] = std::from_chars(year_str.data(), year_str.data() + year_str.size(), tag->m_year);
+        if (ec != std::errc()) {
             tag->m_year = 0;
         }
     }
