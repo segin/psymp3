@@ -87,6 +87,8 @@ bool Debug::isChannelEnabled(const std::string& channel) {
 }
 
 void Debug::write(const std::string& channel, const std::string& function, int line, const std::string& message) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    
     auto now = std::chrono::system_clock::now();
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch()) % 1000000;
     auto timer = std::chrono::system_clock::to_time_t(now);
@@ -103,7 +105,6 @@ void Debug::write(const std::string& channel, const std::string& function, int l
     
     ss << ": " << message;
 
-    std::lock_guard<std::mutex> lock(m_mutex);
     if (m_log_to_file && m_logfile.is_open()) {
         m_logfile << ss.str() << std::endl;
     } else {
