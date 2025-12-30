@@ -9,6 +9,8 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
+#include "tag/TagConstants.h"
+#include "tag/ImageUtils.h"
 #endif // !FINAL_BUILD
 
 namespace PsyMP3 {
@@ -392,9 +394,9 @@ ID3v2Frame ID3v2Tag::parseFrame(const uint8_t* data, size_t size, size_t& bytes_
     }
     
     // Sanity check frame size (prevent huge allocations)
-    if (frame_size > 100 * 1024 * 1024) { // 100MB max frame
+    if (frame_size > TagConstants::MAX_FRAME_SIZE) {
         Debug::log("tag", "ID3v2Tag::parseFrame: Frame ", frame_id, " size ", frame_size, 
-                  " exceeds maximum (100MB)");
+                  " exceeds maximum (", TagConstants::MAX_FRAME_SIZE, ")");
         bytes_consumed = header_size + std::min(frame_size, static_cast<uint32_t>(size - header_size));
         return {};
     }
@@ -437,6 +439,11 @@ ID3v2Frame ID3v2Tag::parseFrame(const uint8_t* data, size_t size, size_t& bytes_
             bytes_consumed = header_size + frame_size;
             return {};
         }
+        
+        // Note: The ID3v2.4 specification is ambiguous regarding whether the Data Length Indicator
+        // is included in the frame size. Most implementations (TagLib, ffmpeg) assume it is NOT
+        // included in the synchsafe integers for the frame size, but is part of the "frame data".
+        // Current implementation assumes frame_size includes everything after the header.
         
         // Skip 4-byte data length indicator
         frame_data += 4;
@@ -782,7 +789,7 @@ std::optional<Picture> ID3v2Tag::parseAPIC(const ID3v2Frame& frame) const {
     }
     
     // Sanity check description length
-    if (desc_end > 1024 * 1024) { // 1MB max description
+    if (desc_end > TagConstants::MAX_STRING_FIELD_SIZE) {
         Debug::log("tag", "ID3v2Tag::parseAPIC: Description too long (", desc_end, " bytes)");
         return std::nullopt;
     }
@@ -801,7 +808,7 @@ std::optional<Picture> ID3v2Tag::parseAPIC(const ID3v2Frame& frame) const {
     
     // Sanity check picture data size
     size_t pic_size = size - offset;
-    if (pic_size > 100 * 1024 * 1024) { // 100MB max picture
+    if (pic_size > TagConstants::MAX_PICTURE_SIZE) {
         Debug::log("tag", "ID3v2Tag::parseAPIC: Picture data too large (", pic_size, " bytes)");
         return std::nullopt;
     }
@@ -892,7 +899,7 @@ std::optional<Picture> ID3v2Tag::parsePIC(const ID3v2Frame& frame) const {
     }
     
     // Sanity check description length
-    if (desc_end > 1024 * 1024) { // 1MB max description
+    if (desc_end > TagConstants::MAX_STRING_FIELD_SIZE) {
         Debug::log("tag", "ID3v2Tag::parsePIC: Description too long (", desc_end, " bytes)");
         return std::nullopt;
     }
@@ -911,7 +918,7 @@ std::optional<Picture> ID3v2Tag::parsePIC(const ID3v2Frame& frame) const {
     
     // Sanity check picture data size
     size_t pic_size = size - offset;
-    if (pic_size > 100 * 1024 * 1024) { // 100MB max picture
+    if (pic_size > TagConstants::MAX_PICTURE_SIZE) {
         Debug::log("tag", "ID3v2Tag::parsePIC: Picture data too large (", pic_size, " bytes)");
         return std::nullopt;
     }
@@ -932,77 +939,7 @@ std::optional<Picture> ID3v2Tag::parsePIC(const ID3v2Frame& frame) const {
 }
 
 void ID3v2Tag::extractImageDimensions(Picture& picture) const {
-    if (picture.data.size() < 16) {
-        return; // Too small for any image header
-    }
-    
-    const uint8_t* data = picture.data.data();
-    
-    // Try to extract dimensions based on MIME type
-    if (picture.mime_type == "image/jpeg") {
-        // JPEG: Look for SOF0 (0xFFC0) marker
-        for (size_t i = 0; i + 8 < picture.data.size(); i++) {
-            if (data[i] == 0xFF && data[i + 1] == 0xC0) {
-                // SOF0 marker found
-                if (i + 7 < picture.data.size()) {
-                    picture.height = (static_cast<uint32_t>(data[i + 5]) << 8) | data[i + 6];
-                    picture.width = (static_cast<uint32_t>(data[i + 7]) << 8) | data[i + 8];
-                    picture.color_depth = data[i + 4] * 8; // Components * 8 bits
-                    return;
-                }
-            }
-        }
-    } else if (picture.mime_type == "image/png") {
-        // PNG: Check IHDR chunk (should be at offset 8)
-        if (picture.data.size() >= 24 && 
-            data[0] == 0x89 && data[1] == 0x50 && data[2] == 0x4E && data[3] == 0x47) {
-            // PNG signature verified, read IHDR
-            picture.width = (static_cast<uint32_t>(data[16]) << 24) |
-                           (static_cast<uint32_t>(data[17]) << 16) |
-                           (static_cast<uint32_t>(data[18]) << 8) |
-                           static_cast<uint32_t>(data[19]);
-            picture.height = (static_cast<uint32_t>(data[20]) << 24) |
-                            (static_cast<uint32_t>(data[21]) << 16) |
-                            (static_cast<uint32_t>(data[22]) << 8) |
-                            static_cast<uint32_t>(data[23]);
-            picture.color_depth = data[24]; // Bit depth
-            return;
-        }
-    } else if (picture.mime_type == "image/gif") {
-        // GIF: Check header
-        if (picture.data.size() >= 10 &&
-            ((data[0] == 'G' && data[1] == 'I' && data[2] == 'F' && data[3] == '8' && data[4] == '7' && data[5] == 'a') ||
-             (data[0] == 'G' && data[1] == 'I' && data[2] == 'F' && data[3] == '8' && data[4] == '9' && data[5] == 'a'))) {
-            // GIF signature verified
-            picture.width = static_cast<uint32_t>(data[6]) | (static_cast<uint32_t>(data[7]) << 8);
-            picture.height = static_cast<uint32_t>(data[8]) | (static_cast<uint32_t>(data[9]) << 8);
-            // GIF color depth is in global color table flag
-            if (picture.data.size() >= 11) {
-                uint8_t packed = data[10];
-                if (packed & 0x80) { // Global color table flag
-                    picture.color_depth = ((packed & 0x07) + 1); // Bits per pixel
-                }
-            }
-            return;
-        }
-    } else if (picture.mime_type == "image/bmp") {
-        // BMP: Check header
-        if (picture.data.size() >= 26 && data[0] == 'B' && data[1] == 'M') {
-            // BMP signature verified, read DIB header
-            picture.width = static_cast<uint32_t>(data[18]) |
-                           (static_cast<uint32_t>(data[19]) << 8) |
-                           (static_cast<uint32_t>(data[20]) << 16) |
-                           (static_cast<uint32_t>(data[21]) << 24);
-            picture.height = static_cast<uint32_t>(data[22]) |
-                            (static_cast<uint32_t>(data[23]) << 8) |
-                            (static_cast<uint32_t>(data[24]) << 16) |
-                            (static_cast<uint32_t>(data[25]) << 24);
-            if (picture.data.size() >= 28) {
-                picture.color_depth = static_cast<uint32_t>(data[28]) | (static_cast<uint32_t>(data[29]) << 8);
-            }
-            return;
-        }
-    }
+    ImageUtils::extractDimensions(picture);
 }
 // ============================================================================
 // Tag interface implementation
@@ -1248,7 +1185,7 @@ bool ID3v2Tag::isEmpty() const {
 }
 
 std::string ID3v2Tag::formatName() const {
-    return "ID3v2." + std::to_string(m_major_version);
+    return "ID3v2." + std::to_string(m_major_version) + "." + std::to_string(m_minor_version);
 }
 
 // ============================================================================
