@@ -16,7 +16,7 @@ namespace Tag {
 // ID3v1 Genre List (Standard 80 + Winamp Extensions up to 191)
 // ============================================================================
 
-static constexpr std::array<std::string_view, ID3v1Tag::GENRE_COUNT> s_genre_list = {{
+static const std::array<std::string, ID3v1Tag::GENRE_COUNT> s_genre_list = {{
     // Standard ID3v1 genres (0-79)
     "Blues",                  // 0
     "Classic Rock",           // 1
@@ -224,7 +224,7 @@ const std::array<std::string, ID3v1Tag::GENRE_COUNT>& ID3v1Tag::genreList() {
 
 std::string ID3v1Tag::genreFromIndex(uint8_t index) {
     if (index < GENRE_COUNT) {
-        return std::string(s_genre_list[index]);
+        return s_genre_list[index];
     }
     return ""; // Unknown genre (255 or out of range)
 }
