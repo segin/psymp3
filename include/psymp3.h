@@ -82,6 +82,7 @@ enum class LoopMode {
 // C++ Standard Library
 #include <algorithm>
 #include <atomic>
+#include <charconv>
 #include <complex>
 #include <condition_variable>
 #include <deque>
