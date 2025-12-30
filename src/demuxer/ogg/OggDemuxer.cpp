@@ -28,7 +28,8 @@ bool OggDemuxer::registerDemuxer() {
 }
 
 OggDemuxer::OggDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler)
-    : Demuxer(std::move(handler)), m_primary_serial(0), m_has_primary_serial(false), m_eof(false) {
+    : Demuxer(std::move(handler)), m_primary_serial(0), m_has_primary_serial(false), m_eof(false),
+      m_duration_calculated(false), m_cached_duration(0) {
 
   // Demuxer base class owns the IOHandler.
   // OggSyncManager takes a raw pointer to use it.
@@ -281,6 +282,10 @@ bool OggDemuxer::isEOF() const {
 uint64_t OggDemuxer::getDuration() const {
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
 
+  if (m_duration_calculated) {
+    return m_cached_duration;
+  }
+
   if (!m_has_primary_serial || m_streams.empty())
     return 0;
 
@@ -290,7 +295,9 @@ uint64_t OggDemuxer::getDuration() const {
     return 0;
 
   OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
-  return static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
+  m_cached_duration = static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
+  m_duration_calculated = true;
+  return m_cached_duration;
 }
 
 uint64_t OggDemuxer::getPosition() const {

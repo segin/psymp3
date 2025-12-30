@@ -52,6 +52,8 @@ private:
     int m_primary_serial;
     bool m_has_primary_serial;
     bool m_eof;
+    mutable bool m_duration_calculated;
+    mutable uint64_t m_cached_duration;
 
     // Unlocked implementations
     MediaChunk readChunk_unlocked(uint32_t stream_id);
