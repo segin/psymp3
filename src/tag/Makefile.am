@@ -17,6 +17,7 @@ libpsymp3_tag_a_SOURCES = \
 	ID3v1Tag.cpp \
 	ID3v2Tag.cpp \
 	ID3v2Utils.cpp \
+	ImageUtils.cpp \
 	MergedID3Tag.cpp \
 	TagFactory.cpp
 
