@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+#include "tag/TagConstants.h"
+#include "core/utility/Base64.h"
+#include "tag/ImageUtils.h"
 
 namespace PsyMP3 {
 namespace Tag {
@@ -26,38 +29,7 @@ static uint32_t readLE32(const uint8_t* data) {
            (static_cast<uint32_t>(data[3]) << 24);
 }
 
-/**
- * @brief Decode base64 string to binary data
- */
-static std::vector<uint8_t> decodeBase64(const std::string& input) {
-    static const std::string base64_chars =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "abcdefghijklmnopqrstuvwxyz"
-        "0123456789+/";
-    
-    std::vector<uint8_t> result;
-    result.reserve((input.size() * 3) / 4);
-    
-    uint32_t val = 0;
-    int valb = -8;
-    
-    for (unsigned char c : input) {
-        if (c == '=') break;
-        
-        size_t pos = base64_chars.find(c);
-        if (pos == std::string::npos) continue;
-        
-        val = (val << 6) | pos;
-        valb += 6;
-        
-        if (valb >= 0) {
-            result.push_back((val >> valb) & 0xFF);
-            valb -= 8;
-        }
-    }
-    
-    return result;
-}
+
 
 // ============================================================================
 // VorbisCommentTag implementation
@@ -100,8 +72,8 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     offset += 4;
     
     // Sanity check vendor length (prevent huge allocations)
-    if (vendor_len > 1024 * 1024) { // 1MB max vendor string
-        Debug::log("tag", "VorbisComment: Vendor string length ", vendor_len, " exceeds maximum (1MB)");
+    if (vendor_len > TagConstants::MAX_VENDOR_STRING_SIZE) { 
+        Debug::log("tag", "VorbisComment: Vendor string length ", vendor_len, " exceeds maximum");
         return nullptr;
     }
     
@@ -128,8 +100,8 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     offset += 4;
     
     // Sanity check field count (prevent huge allocations)
-    if (field_count > 100000) { // 100k fields max
-        Debug::log("tag", "VorbisComment: Field count ", field_count, " exceeds maximum (100k)");
+    if (field_count > TagConstants::MAX_FIELD_COUNT) {
+        Debug::log("tag", "VorbisComment: Field count ", field_count, " exceeds maximum");
         return nullptr;
     }
     
@@ -150,8 +122,8 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
         offset += 4;
         
         // Sanity check field length (prevent huge allocations)
-        if (field_len > 10 * 1024 * 1024) { // 10MB max field
-            Debug::log("tag", "VorbisComment: Field ", i, " length ", field_len, " exceeds maximum (10MB)");
+        if (field_len > TagConstants::MAX_STRING_FIELD_SIZE) {
+            Debug::log("tag", "VorbisComment: Field ", i, " length ", field_len, " exceeds maximum");
             // Skip this field but continue parsing
             offset += std::min(field_len, static_cast<uint32_t>(size - offset));
             continue;
@@ -214,7 +186,7 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
 
 std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& base64_data) {
     // Decode base64
-    std::vector<uint8_t> data = decodeBase64(base64_data);
+    std::vector<uint8_t> data = Core::Utility::Base64::decode(base64_data);
     
     if (data.size() < 32) {
         Debug::log("tag", "VorbisComment: METADATA_BLOCK_PICTURE too small (need 32, got ", data.size(), ")");
@@ -240,8 +212,8 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     offset += 4;
     
     // Sanity check MIME type length
-    if (mime_len > 256) { // 256 bytes max MIME type
-        Debug::log("tag", "VorbisComment: MIME type length ", mime_len, " exceeds maximum (256)");
+    if (mime_len > TagConstants::MAX_MIME_TYPE_LENGTH) {
+        Debug::log("tag", "VorbisComment: MIME type length ", mime_len, " exceeds maximum");
         return std::nullopt;
     }
     
@@ -267,8 +239,8 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     offset += 4;
     
     // Sanity check description length
-    if (desc_len > 1024 * 1024) { // 1MB max description
-        Debug::log("tag", "VorbisComment: Description length ", desc_len, " exceeds maximum (1MB)");
+    if (desc_len > TagConstants::MAX_STRING_FIELD_SIZE) { 
+        Debug::log("tag", "VorbisComment: Description length ", desc_len, " exceeds maximum");
         return std::nullopt;
     }
     
@@ -322,8 +294,8 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     offset += 4;
     
     // Sanity check picture data length
-    if (pic_len > 100 * 1024 * 1024) { // 100MB max picture
-        Debug::log("tag", "VorbisComment: Picture data length ", pic_len, " exceeds maximum (100MB)");
+    if (pic_len > TagConstants::MAX_PICTURE_SIZE) { 
+        Debug::log("tag", "VorbisComment: Picture data length ", pic_len, " exceeds maximum");
         return std::nullopt;
     }
     
@@ -334,6 +306,14 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     
     // Picture data
     pic.data.assign(data.begin() + offset, data.begin() + offset + pic_len);
+
+    // Validate or fallback dimensions
+    if (pic.width == 0 || pic.height == 0) {
+        ImageUtils::extractDimensions(pic);
+        if (pic.width != 0 && pic.height != 0) {
+             Debug::log("tag", "VorbisComment: Extracted dimensions from image data: ", pic.width, "x", pic.height);
+        }
+    }
     
     Debug::log("tag", "VorbisComment: Parsed picture: type=", static_cast<int>(pic.type),
                ", mime=", pic.mime_type, ", ", pic.width, "x", pic.height, ", ", pic_len, " bytes");
