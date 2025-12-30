@@ -66,6 +66,9 @@ Player::Player() {
 }
 
 Player::~Player() {
+    // Stop audio first to join decoder threads before deleting other members
+    audio.reset();
+
     // Notify all windows that the application is shutting down
     ApplicationWidget::getInstance().notifyShutdown();
     
@@ -1419,8 +1422,6 @@ void Player::Run(const PlayerOptions& options) {
     }
 
 
-    // make sure SDL cleans up before exit
-    atexit(SDL_Quit);
 
     Debug::log("system", "System::getStoragePath: ", System::getStoragePath().to8Bit(true));
     Debug::log("system", "System::getUser: ", System::getUser().to8Bit(true));
@@ -1671,6 +1672,7 @@ void Player::Run(const PlayerOptions& options) {
 
     // all is well ;)
     Debug::log("player", "Exited cleanly");
+    SDL_Quit();
     return;
 }
 

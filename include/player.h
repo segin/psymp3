@@ -165,9 +165,9 @@ class Player
         size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
         size_t m_num_tracks_in_current_stream = 0; // How many playlist entries the current stream represents
 
-        std::unique_ptr<Audio> audio;
-        std::unique_ptr<FastFourier> fft;
         std::unique_ptr<std::mutex> mutex;
+        std::unique_ptr<FastFourier> fft;
+        std::unique_ptr<Audio> audio;
         std::unique_ptr<System> system;
 #ifdef HAVE_DBUS
         std::unique_ptr<PsyMP3::MPRIS::MPRISManager> m_mpris_manager;  // MPRIS integration for desktop media controls
