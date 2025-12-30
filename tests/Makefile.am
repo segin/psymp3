@@ -18,6 +18,13 @@
 SUBDIRS = .
 
 # Common flags for all test programs
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(FLAC_CFLAGS) $(LIBMPG123_CFLAGS)
+
+if HAVE_DBUS
+AM_CPPFLAGS += $(DBUS_CFLAGS)
+endif
+
+# Common flags for all test programs
 
 # Define optional codec/demuxer libraries (same as main binary)
 CODEC_LIBS =
