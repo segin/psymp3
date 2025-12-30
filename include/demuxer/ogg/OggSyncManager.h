@@ -66,6 +66,11 @@ public:
     void reset();
 
     /**
+     * @brief Get the current logical file position of the next unconsumed byte
+     */
+    int64_t getLogicalPosition() const { return m_logical_offset; }
+
+    /**
      * @brief Get buffer pointer for writing data directly (advanced usage)
      */
     char* getBuffer(size_t size);
@@ -86,6 +91,7 @@ public:
 private:
     PsyMP3::IO::IOHandler* m_io_handler;
     ogg_sync_state m_sync_state;
+    int64_t m_logical_offset;
 };
 
 } // namespace Ogg

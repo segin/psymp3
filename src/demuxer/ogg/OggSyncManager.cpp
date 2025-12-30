@@ -13,7 +13,7 @@ namespace Demuxer {
 namespace Ogg {
 
 OggSyncManager::OggSyncManager(PsyMP3::IO::IOHandler* io_handler)
-    : m_io_handler(io_handler) {
+    : m_io_handler(io_handler), m_logical_offset(0) {
     if (!m_io_handler) {
         throw std::invalid_argument("IOHandler cannot be null");
     }
@@ -51,22 +51,26 @@ int OggSyncManager::getNextPage(ogg_page* page) {
     // libopusfile pattern: loop until we get a page or need more data
     int iteration = 0;
     while (true) {
-        int result = ogg_sync_pageout(&m_sync_state, page);
-        Debug::log("ogg", "OggSyncManager::getNextPage() iteration ", iteration, " pageout returned ", result);
-        if (result > 0) {
-            Debug::log("ogg", "OggSyncManager::getNextPage() got page, size=", ogg_page_pageno(page));
-            return 1; // Got a page
+        // Use pageseek to track exact logical consumption
+        int bytes_consumed = ogg_sync_pageseek(&m_sync_state, page);
+        
+        Debug::log("ogg", "OggSyncManager::getNextPage() iteration ", iteration, " pageseek returned ", bytes_consumed);
+        
+        if (bytes_consumed > 0) {
+            // Found a page, bytes_consumed is the page size
+            m_logical_offset += bytes_consumed;
+            Debug::log("ogg", "OggSyncManager::getNextPage() got page, size=", bytes_consumed, " new offset=", m_logical_offset);
+            return 1;
         }
-        if (result < 0) {
-            // Stream error, typically means loss of sync or corrupt data.
-            // RFC 3533 says we should skip bytes to resync.
-            // libogg does this internally but reports error.
-            // We'll continue trying to find the next valid page.
-            Debug::log("ogg", "OggSyncManager::getNextPage() sync error, continuing");
-             continue;
+        
+        if (bytes_consumed < 0) {
+            // -n bytes were skipped to reach the next page sync
+            m_logical_offset += (-bytes_consumed);
+            Debug::log("ogg", "OggSyncManager::getNextPage() sync error, skipped ", -bytes_consumed, " bytes, new offset=", m_logical_offset);
+            continue; // Continue to try and get the page after skip
         }
 
-        // Need more data
+        // Need more data (result == 0)
         long bytes_read = getData(4096);
         if (bytes_read <= 0) {
             Debug::log("ogg", "OggSyncManager::getNextPage() EOF/error after ", iteration, " iterations");
@@ -163,6 +167,7 @@ int64_t OggSyncManager::getFileSize() const {
 
 bool OggSyncManager::seek(int64_t position) {
     reset();
+    m_logical_offset = position;
     return m_io_handler->seek(position, SEEK_SET) == 0;
 }
 
