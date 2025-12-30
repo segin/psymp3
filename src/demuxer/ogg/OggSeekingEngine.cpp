@@ -56,8 +56,8 @@ int64_t OggSeekingEngine::timeToGranule(double time_seconds) const {
 // --- Duration Calculation ---
 
 int64_t OggSeekingEngine::getLastGranule() {
-    // Save current position
-    int64_t saved_pos = m_sync.getPosition();
+    // Save current logical position
+    int64_t saved_pos = m_sync.getLogicalPosition();
     
     // Seek to end
     int64_t file_size = m_sync.getFileSize();
