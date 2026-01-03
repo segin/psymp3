@@ -58,26 +58,41 @@ int64_t OggSeekingEngine::timeToGranule(double time_seconds) const {
 int64_t OggSeekingEngine::getLastGranule() {
     // Save current logical position
     int64_t saved_pos = m_sync.getLogicalPosition();
+    int serial = m_stream.getSerialNumber();
     
     // Seek to end
     int64_t file_size = m_sync.getFileSize();
     if (file_size <= 0) return -1;
     
-    // Seek backward from end to find last page
-    int64_t search_pos = file_size - 65536; // Last 64KB
-    if (search_pos < 0) search_pos = 0;
-    
-    m_sync.seek(search_pos);
-    
-    ogg_page page;
+    // Progressive search from end to find last page
+    int64_t search_size = 65536; // Start with 64KB
     int64_t last_granule = -1;
     
-    // Scan forward to find last page with valid granule
-    while (m_sync.getNextPage(&page) == 1) {
-        int64_t gp = ogg_page_granulepos(&page);
-        if (gp >= 0) {
-            last_granule = gp;
+    while (search_size <= 1024 * 1024) { // Up to 1MB logic, but also handles small files
+        int64_t search_pos = file_size - search_size;
+        if (search_pos < 0) search_pos = 0;
+        
+        m_sync.seek(search_pos);
+        
+        ogg_page page;
+        bool found_any_gp = false;
+        
+        // Scan forward to find last page with valid granule for our stream
+        while (m_sync.getNextPage(&page) == 1) {
+            if (ogg_page_serialno(&page) == serial) {
+                int64_t gp = ogg_page_granulepos(&page);
+                if (gp >= 0) {
+                    last_granule = gp;
+                    found_any_gp = true;
+                }
+            }
         }
+        
+        if (found_any_gp || search_pos == 0) {
+            break;
+        }
+        
+        search_size *= 2; // Expand search window
     }
     
     // Restore position
@@ -109,11 +124,9 @@ bool OggSeekingEngine::seekToTime(double time_seconds) {
 }
 
 bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int64_t end) {
-    // Simple bisection search implementation
-    // This is a simplified version; production would need more refinement
-    
     const int MAX_ITERATIONS = 50;
     int iterations = 0;
+    int serial = m_stream.getSerialNumber();
     
     while (end - begin > 8192 && iterations < MAX_ITERATIONS) {
         int64_t mid = begin + (end - begin) / 2;
@@ -121,33 +134,43 @@ bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int6
         m_sync.seek(mid);
         
         ogg_page page;
-        if (m_sync.getNextPage(&page) != 1) {
-            // Failed to get page, try a bit later
-            begin = mid + 1;
+        bool found_stream_page = false;
+        
+        // Find first page for our stream after mid
+        while (m_sync.getNextPage(&page) == 1) {
+            if (ogg_page_serialno(&page) == serial) {
+                found_stream_page = true;
+                break;
+            }
+        }
+        
+        if (!found_stream_page) {
+            // Failed to find target stream in this half, move end closer
+            end = mid;
             iterations++;
             continue;
         }
         
         int64_t gp = ogg_page_granulepos(&page);
         if (gp < 0) {
-            // Page has no granule, try next
-            begin = mid + 1;
+            // Page has no granule, search further forward
+            // (A better implementation would look for the next page with a GP)
+            // But for now, we'll treat it as unknown and move begin.
+            begin = m_sync.getLogicalPosition(); 
             iterations++;
             continue;
         }
         
         if (gp < target_granule) {
-            begin = mid;
+            begin = m_sync.getLogicalPosition();
         } else {
             end = mid;
         }
         iterations++;
     }
     
-    // Final positioning: seek to begin and find the exact page
+    // Final positioning: seek to the offset found by begin and reset stream
     m_sync.seek(begin);
-    
-    // Reset stream state
     m_stream.reset();
     
     return true;

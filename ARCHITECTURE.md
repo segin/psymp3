@@ -62,3 +62,27 @@ PsyMP3 uses a self-registration pattern for codecs and demuxers to allow modular
 | `StreamInfo` | `include/demuxer/Demuxer.h` | Metadata structure for stream properties. |
 | `MediaChunk` | `include/demuxer/Demuxer.h` | Encapsulates a unit of compressed data. |
 | `AudioFrame` | `include/codecs/AudioCodec.h` | Encapsulates decoded PCM samples. |
+| `CodecHeaderParser` | `include/demuxer/ogg/CodecHeaderParser.h` | Validator for codec-specific Ogg headers. |
+
+## 5. Ogg Demuxer Architecture
+
+The Ogg demuxer follows a layered design to ensure RFC 3533 compliance and handle complex multiplexed streams.
+
+| Layer | Class | Responsibility |
+|-------|-------|----------------|
+| **Sync** | `OggSyncManager` | Handles `OggS` capture, page sync, and CRC validation. Manages a circular buffer of raw data. |
+| **Stream** | `OggStreamManager` | Manages a single logical bitstream (`ogg_stream_state`) and reconstructs packets from pages. |
+| **Seek** | `OggSeekingEngine` | Implements precise bisection seeking and duration calculation using granule positions. |
+| **Demux** | `OggDemuxer` | Orchestrates components, selects primary streams, and provides the standard `Demuxer` interface. |
+| **Codec Header** | `CodecHeaderParser` | Validates codec-specific BOS headers (Vorbis, Opus, FLAC, Speex) to extract sample rates and pre-skip. |
+
+### 5.1 Ogg Layered Detail
+
+The Ogg demuxer is implemented as a pipeline of specialized managers:
+
+1.  **Sync Layer (`OggSyncManager`)**: The foundation. It reads raw bytes from `IOHandler` into an `ogg_sync_state` buffer. It performs "capture pattern" synchronization to find the Ogg page markers (`OggS`) and validates checksums.
+2.  **Stream Layer (`OggStreamManager`)**: Manages logical bitstreams. Once a page is synchronized, it is routed to the appropriate `OggStreamManager` based on its serial number. This layer handles the reassembly of Ogg packets from one or more Ogg pages, including handling spanning packets.
+3.  **Seek Layer (`OggSeekingEngine`)**: Handles bisection seeking. It uses the `OggSyncManager` to scan the file for pages near a target timestamp. It converts between milliseconds and Ogg granule positions using codec-specific math provided by header parsers.
+    *   **Serial Number Validation**: Crucially, the bisection search validates page serial numbers against the target stream. This ensures correct seeking in multiplexed files (e.g., Ogg Theora+Vorbis) by ignoring pages that belong to other concurrent streams, preventing invalid granule interpretation.
+4.  **Demux Layer (`OggDemuxer`)**: The top-level orchestrator. It manages the lifecycle of all internal managers. It implements the `Demuxer` interface used by the rest of PsyMP3. It also handles "chained" Ogg streams (multiplexed serial numbers).
+5.  **Codec Header Parser (`CodecHeaderParser`)**: A pluggable validation layer. It inspects the first packet of each stream to identify the codec (Vorbis, Opus, FLAC, Speex, or unknown) and extracts critical metadata like sample rate and channel count without initializing a full decoder.

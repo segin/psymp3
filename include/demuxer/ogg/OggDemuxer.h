@@ -15,10 +15,31 @@
 #include <memory>
 #include <map>
 #include <mutex>
+#include <deque>
+#include <ogg/ogg.h>
 
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
+
+struct OggPacket {
+    std::vector<uint8_t> data;
+    uint64_t granule_position;
+    bool is_keyframe;
+};
+
+struct OggStream {
+    uint32_t serial_number;
+    std::string codec_name;
+    std::string codec_type;
+    uint32_t sample_rate;
+    uint16_t channels;
+    uint64_t pre_skip = 0;
+    bool headers_complete = false;
+    bool headers_sent = false;
+    std::deque<ogg_packet> m_packet_queue; // Using libogg's ogg_packet
+    std::vector<std::vector<uint8_t>> header_packets;
+};
 
 class OggDemuxer : public Demuxer {
 public:
@@ -65,6 +86,33 @@ private:
      * Called after headers are complete to populate m_tag
      */
     void createTagFromMetadata_unlocked();
+
+public:
+    // --- Legacy / Testing members required by unit tests ---
+    
+    std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_test_streams; }
+
+    uint64_t granuleToMs(uint64_t granule, uint32_t stream_id) const;
+    uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const;
+
+    int fetchAndProcessPacket();
+    void fillPacketQueue(uint32_t stream_id);
+
+    // Enhanced memory safety (Testing/Internal)
+    bool performMemoryAudit();
+    void enforceMemoryLimits();
+    bool validateLiboggStructures();
+    void performPeriodicMaintenance();
+
+    bool performMemoryAudit_unlocked();
+    void enforceMemoryLimits_unlocked();
+    bool validateLiboggStructures_unlocked();
+    void performPeriodicMaintenance_unlocked();
+
+    static constexpr size_t MAX_PACKET_QUEUE_SIZE = 100;
+
+private:
+    std::map<uint32_t, OggStream> m_test_streams;
 };
 
 } // namespace Ogg

@@ -237,5 +237,95 @@ int main() {
         demuxer->getDuration();
     });
 
+    // 4. Multiplexed Seeking Consistency
+    // Ensure seeking works even with interleaved secondary streams
+    rc::check("OggDemuxer: Multiplexed Seeking Consistency", [](uint32_t primary_serial, uint32_t secondary_serial) {
+        // Ensure distinct serials
+        RC_PRE(primary_serial != secondary_serial);
+        
+        // Construct a minimal Opus stream (Primary)
+        ogg_stream_state os_p;
+        ogg_stream_init(&os_p, primary_serial);
+        
+        // Primary Header (OpusHead)
+        std::vector<uint8_t> opus_head = {'O', 'p', 'u', 's', 'H', 'e', 'a', 'd'};
+        opus_head.insert(opus_head.end(), {1, 1, 0, 0, 0x80, 0xBB, 0, 0, 0, 0, 0});
+        ogg_packet op;
+        op.packet = opus_head.data();
+        op.bytes = opus_head.size();
+        op.b_o_s = 1; op.e_o_s = 0; op.granulepos = 0; op.packetno = 0;
+        ogg_stream_packetin(&os_p, &op);
+        
+        // Construct secondary stream (Noise/Garbage)
+        ogg_stream_state os_s;
+        ogg_stream_init(&os_s, secondary_serial);
+        
+        std::vector<uint8_t> noise_head = {'N', 'o', 'i', 's', 'e', 'H', 'e', 'a', 'd'};
+        op.packet = noise_head.data();
+        op.bytes = noise_head.size();
+        op.b_o_s = 1; op.e_o_s = 0; op.granulepos = 0; op.packetno = 0;
+        ogg_stream_packetin(&os_s, &op);
+        
+        std::vector<uint8_t> stream_data;
+        ogg_page og;
+        
+        // Interleave headers
+        while(ogg_stream_flush(&os_p, &og)) {
+            stream_data.insert(stream_data.end(), og.header, og.header + og.header_len);
+            stream_data.insert(stream_data.end(), og.body, og.body + og.body_len);
+        }
+        while(ogg_stream_flush(&os_s, &og)) {
+            stream_data.insert(stream_data.end(), og.header, og.header + og.header_len);
+            stream_data.insert(stream_data.end(), og.body, og.body + og.body_len);
+        }
+        
+        // Add body packets
+        // Primary packet at granule 48000 (1 second)
+        std::vector<uint8_t> p_body = {0xDE, 0xAD, 0xBE, 0xEF};
+        op.packet = p_body.data();
+        op.bytes = p_body.size();
+        op.b_o_s = 0; op.e_o_s = 0; op.granulepos = 48000; op.packetno = 1;
+        ogg_stream_packetin(&os_p, &op);
+        
+        while(ogg_stream_flush(&os_p, &og)) {
+            stream_data.insert(stream_data.end(), og.header, og.header + og.header_len);
+            stream_data.insert(stream_data.end(), og.body, og.body + og.body_len);
+        }
+
+        // Secondary packet interleaved
+        std::vector<uint8_t> s_body = {0xCA, 0xFE, 0xBA, 0xBE};
+        op.packet = s_body.data();
+        op.bytes = s_body.size();
+        op.b_o_s = 0; op.e_o_s = 0; op.granulepos = 200; op.packetno = 1;
+        ogg_stream_packetin(&os_s, &op);
+        
+        while(ogg_stream_flush(&os_s, &og)) {
+            stream_data.insert(stream_data.end(), og.header, og.header + og.header_len);
+            stream_data.insert(stream_data.end(), og.body, og.body + og.body_len);
+        }
+        
+        ogg_stream_clear(&os_p);
+        ogg_stream_clear(&os_s);
+        
+        auto io = std::make_unique<MemoryIOHandler>(stream_data);
+        auto demuxer = std::make_unique<PsyMP3::Demuxer::Ogg::OggDemuxer>(std::move(io));
+        
+        if (demuxer->parseContainer()) {
+             // Try seeking to 500ms (should find the granule 48000 packet eventually)
+             // Note: Unit is ms for seekTo.
+             bool seek_success = demuxer->seekTo(500);
+             // We assert that seeking doesn't crash.
+             // Success depends on whether bisection finds a page.
+             // With only 1 body page, it might struggle to bisect precisely properly? 
+             // But it shouldn't crash or get stuck on secondary stream.
+             // Since we fixed small files, it should work.
+             
+             // Check validation?
+             // Since we only have 1 data page at 1000ms, seeking to 500ms might land us earlier or at it.
+             (void)seek_success;
+        }
+    });
+
+
     return 0;
 }

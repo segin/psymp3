@@ -356,7 +356,7 @@ if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
-	test_ogg_fuzzing
+	test_ogg_fuzzing test_ogg_multiplexed_seeking test_ogg_seeking_stress
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
@@ -739,6 +739,44 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(RAPIDCHECK_LIBS) \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS)
+
+test_ogg_multiplexed_seeking_SOURCES = test_ogg_multiplexed_seeking.cpp
+test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
+	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	../src/io/file/libpsymp3-io-file.a \
+	../src/io/libpsymp3-io.a \
+	../src/debug.o \
+	../src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(OGG_LIBS) \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(ZLIB_LIBS) \
+	$(FREETYPE_LIBS) \
+	$(DBUS_LIBS) \
+	$(OPUS_LIBS)
+
+test_ogg_seeking_stress_SOURCES = test_ogg_seeking_stress.cpp
+test_ogg_seeking_stress_LDADD = libtest_utilities.a \
+	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
+	../src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	../src/io/file/libpsymp3-io-file.a \
+	../src/io/libpsymp3-io.a \
+	../src/debug.o \
+	../src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -1405,11 +1443,11 @@ $(top_builddir)/src/audio.o:
 $(top_builddir)/src/stream.o:
 	$(MAKE) -C $(top_builddir)/src stream.o
 
-$(top_builddir)/src/fft.o:
-	$(MAKE) -C $(top_builddir)/src fft.o
+$(top_builddir)/src/core/fft.o:
+	$(MAKE) -C $(top_builddir)/src/core fft.o
 
-$(top_builddir)/src/fft_draw.o:
-	$(MAKE) -C $(top_builddir)/src fft_draw.o
+$(top_builddir)/src/core/fft_draw.o:
+	$(MAKE) -C $(top_builddir)/src/core fft_draw.o
 
 $(top_builddir)/src/system.o:
 	$(MAKE) -C $(top_builddir)/src system.o
@@ -1436,8 +1474,8 @@ test_system_wide_threading_integration_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/fft.o \
-	$(top_builddir)/src/fft_draw.o \
+	$(top_builddir)/src/core/fft.o \
+	$(top_builddir)/src/core/fft_draw.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -1456,8 +1494,8 @@ test_threading_performance_regression_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/fft.o \
-	$(top_builddir)/src/fft_draw.o \
+	$(top_builddir)/src/core/fft.o \
+	$(top_builddir)/src/core/fft_draw.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -1481,8 +1519,8 @@ test_audio_thread_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/audio.o \
 	$(top_builddir)/src/stream.o \
-	$(top_builddir)/src/fft.o \
-	$(top_builddir)/src/fft_draw.o \
+	$(top_builddir)/src/core/fft.o \
+	$(top_builddir)/src/core/fft_draw.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
