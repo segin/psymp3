@@ -1,13 +1,16 @@
 /*
  * ImageUtils.cpp - Image utility functions implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
+#include "psymp3.h"
 #include "tag/ImageUtils.h"
+#endif // !FINAL_BUILD
 #include <algorithm>
 #include <string>
 
