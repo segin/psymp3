@@ -1,6 +1,6 @@
 /*
  * FLACHeaderParser.cpp - FLAC header parsing validation
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  */
 
 #include "demuxer/ogg/FLACHeaderParser.h"

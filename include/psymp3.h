@@ -475,6 +475,8 @@ using PsyMP3::Codec::Opus::OpusHeader;
 #include "demuxer/ogg/OggDemuxer.h"
 #include <ogg/ogg.h>
 using PsyMP3::Demuxer::Ogg::OggDemuxer;
+using PsyMP3::Demuxer::Ogg::OggStream;
+using PsyMP3::Demuxer::Ogg::OggPacket;
 #include "codecs/vorbis/VorbisCodec.h"
 #include "codecs/opus/opusw.h"
 #include "codecs/opus/OpusCodec.h"

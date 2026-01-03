@@ -1,8 +1,8 @@
 /*
  * fft.cpp - Class implementation for the FFT class
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
- * Copyright © 2011-2025 Mattis Michel <sic_zer0@hotmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Mattis Michel <sic_zer0@hotmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
