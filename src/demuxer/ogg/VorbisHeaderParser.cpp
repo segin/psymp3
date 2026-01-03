@@ -1,8 +1,29 @@
 /*
  * VorbisHeaderParser.cpp - Vorbis header parsing validation
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * This file is part of PsyMP3.
+ * Copyright © 2026 Kirn Gill <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that
+ * the above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
+#include "psymp3.h"
+#endif // !FINAL_BUILD
 #include "demuxer/ogg/VorbisHeaderParser.h"
 #include "debug.h"
 #include <cstring>
@@ -39,6 +60,12 @@ bool VorbisHeaderParser::parseVorbisComment(const unsigned char* data, size_t si
                              (data[offset+2] << 16) | (data[offset+3] << 24);
     offset += 4;
     
+    // Resource limit check
+    if (vendor_length > 1024 * 1024) { // 1MB limit
+        Debug::log("ogg", "VorbisHeaderParser: vendor_length too large: ", vendor_length);
+        return false;
+    }
+    
     // Read vendor string
     if (offset + vendor_length > size) {
         Debug::log("ogg", "VorbisHeaderParser: comment header too short for vendor string");
@@ -56,6 +83,13 @@ bool VorbisHeaderParser::parseVorbisComment(const unsigned char* data, size_t si
     uint32_t comment_count = data[offset] | (data[offset+1] << 8) | 
                              (data[offset+2] << 16) | (data[offset+3] << 24);
     offset += 4;
+    
+    // Resource limit check
+    if (comment_count > 10000) {
+        Debug::log("ogg", "VorbisHeaderParser: too many comments: ", comment_count);
+        return false;
+    }
+    
     Debug::log("ogg", "VorbisHeaderParser: comment_count=", comment_count);
     
     // Read each comment
@@ -68,6 +102,12 @@ bool VorbisHeaderParser::parseVorbisComment(const unsigned char* data, size_t si
         uint32_t comment_length = data[offset] | (data[offset+1] << 8) | 
                                   (data[offset+2] << 16) | (data[offset+3] << 24);
         offset += 4;
+        
+        // Resource limit check
+        if (comment_length > 1024 * 1024) { // 1MB limit
+            Debug::log("ogg", "VorbisHeaderParser: comment_length too large: ", comment_length);
+            return false;
+        }
         
         if (offset + comment_length > size) {
             Debug::log("ogg", "VorbisHeaderParser: comment ", i, " truncated");
@@ -91,6 +131,13 @@ bool VorbisHeaderParser::parseVorbisComment(const unsigned char* data, size_t si
             m_comment.fields[field_name].push_back(field_value);
             Debug::log("ogg", "VorbisHeaderParser: field '", field_name, "'='", field_value, "'");
         }
+    }
+    
+    // Check framing bit (last bit of comment header should be 1 according to spec,
+    // though some encoders might skip it. RFC 3533 and Vorbis spec mention it.)
+    if (offset < size && !(data[offset] & 1)) {
+        // Debug::log("ogg", "VorbisHeaderParser: comment header framing bit not set");
+        // We log but don't strictly fail as some files might be slightly out of spec
     }
     
     return true;
@@ -135,12 +182,17 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
             return true;
             
         case 3: // Comment Header
-            if (m_headers_count != 1) return false; // Must follow ID header (interleaved? No, usually ordered)
-            // Ideally we accept mixed order? Spec mandates order: ID -> Comment -> Setup.
+            if (m_headers_count != 1) return false; // Must follow ID header
             
             // Parse VorbisComment data (starts after type byte and "vorbis" signature)
             if (packet->bytes > 7) {
                 parseVorbisComment(data + 7, packet->bytes - 7);
+            }
+            
+            // Check framing bit (last bit of the packet)
+            if (!(data[packet->bytes - 1] & 1)) {
+                Debug::log("ogg", "VorbisHeaderParser: comment header missing framing bit");
+                return false;
             }
             
             m_headers_count = 2;
@@ -148,6 +200,13 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
             
         case 5: // Setup Header
             if (m_headers_count != 2) return false; // Must follow Comment header
+            
+            // Check framing bit
+            if (!(data[packet->bytes - 1] & 1)) {
+                Debug::log("ogg", "VorbisHeaderParser: setup header missing framing bit");
+                return false;
+            }
+            
             m_headers_count = 3;
             return true;
             

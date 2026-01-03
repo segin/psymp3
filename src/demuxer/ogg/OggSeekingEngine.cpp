@@ -1,11 +1,30 @@
 /*
  * OggSeekingEngine.cpp - Seeking and Granule Arithmetic
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * This file is part of PsyMP3.
+ * Copyright © 2026 Kirn Gill <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that
+ * the above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
+#include "psymp3.h"
+#endif // !FINAL_BUILD
 #include "demuxer/ogg/OggSeekingEngine.h"
-#include <limits>
-#include <cmath>
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -128,7 +147,7 @@ bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int6
     int iterations = 0;
     int serial = m_stream.getSerialNumber();
     
-    while (end - begin > 8192 && iterations < MAX_ITERATIONS) {
+    while (end - begin > 2048 && iterations < MAX_ITERATIONS) {
         int64_t mid = begin + (end - begin) / 2;
         
         m_sync.seek(mid);
@@ -169,8 +188,45 @@ bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int6
         iterations++;
     }
     
-    // Final positioning: seek to the offset found by begin and reset stream
+    // Linear refinement: Ensure we are exactly at the right page
+    // The bisection might have left us at 'begin', which could be a few pages before the target.
     m_sync.seek(begin);
+    m_stream.reset();
+    
+    ogg_page page;
+    int64_t best_offset = begin;
+    
+    // Scan forward up to a reasonable limit or until we find the page
+    // (In case file is huge and bisection failed oddly, don't scan forever, 
+    // but typically we are very close).
+    // The previous loop ensures we are within a small range of the target.
+    
+    while (m_sync.getNextPage(&page) == 1) {
+        if (ogg_page_serialno(&page) == serial) {
+            int64_t gp = ogg_page_granulepos(&page);
+            if (gp != -1) {
+                if (gp < target_granule) {
+                    // This page is entirely before the target.
+                    // The next page *might* be the one.
+                    // Update best_offset to the *end* of this page (current logical pos)
+                    best_offset = m_sync.getLogicalPosition();
+                } else {
+                    // This page contains the target (or is the first one after).
+                    // We want to start processing FROM this page.
+                    // The 'best_offset' should be the start of THIS page.
+                    // But wait, 'getLogicalPosition' returns offset AFTER the page we just read.
+                    // We need the offset of the page we just read.
+                    // OggSyncManager doesn't easily convert "current page" to "start offset" 
+                    // unless we tracked it.
+                    // However, 'best_offset' tracked the end of the *previous* page.
+                    // So if we seek to 'best_offset', we will read this page next.
+                    break;
+                }
+            }
+        }
+    }
+    
+    m_sync.seek(best_offset);
     m_stream.reset();
     
     return true;

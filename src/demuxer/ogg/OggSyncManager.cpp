@@ -1,9 +1,29 @@
 /*
  * OggSyncManager.cpp - Ogg Sync Layer (RFC 3533)
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * This file is part of PsyMP3.
+ * Copyright © 2026 Kirn Gill <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that
+ * the above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif // !FINAL_BUILD
 #include "demuxer/ogg/OggSyncManager.h"
 #include <cstring>
 #include <stdexcept>
@@ -92,12 +112,13 @@ int OggSyncManager::wroteBytes(long bytes) {
     return ogg_sync_wrote(&m_sync_state, bytes);
 }
 
-int OggSyncManager::getPrevPage(ogg_page* page) {
+int64_t OggSyncManager::findPrevPage() {
     long current_pos = m_io_handler->tell();
-    if (current_pos <= 0) return 0;
+    if (current_pos <= 0) return -1;
 
     const long CHUNK_SIZE = 4096;
     long offset = current_pos;
+    int64_t found_offset = -1;
     
     while (offset > 0) {
         long seek_size = (offset > CHUNK_SIZE) ? CHUNK_SIZE : offset;
@@ -106,28 +127,26 @@ int OggSyncManager::getPrevPage(ogg_page* page) {
         if (m_io_handler->seek(offset, SEEK_SET) != 0) return -1;
         reset();
         
-        bool found_any = false;
         ogg_page temp_page;
-        
         // Scan forward from offset to current_pos
         while (m_io_handler->tell() < current_pos) {
+             long page_start_offset = m_logical_offset;
              int page_res = getNextPage(&temp_page);
              if (page_res == 1) {
-                 found_any = true;
-                 *page = temp_page; // Shallow copy of struct
-                 // Note: buffer pointers in page point to sync state memory. 
-                 // They remain valid until we reset/clear or write enough to cause reallocation.
+                 found_offset = page_start_offset;
+             } else if (page_res == 0) {
+                 break;
              }
         }
         
-        if (found_any) {
-             return 1;
+        if (found_offset != -1) {
+             return found_offset;
         }
     }
-    return 0;
+    return -1;
 }
 
-int OggSyncManager::getPrevPageSerial(ogg_page* page, long serial) {
+int64_t OggSyncManager::findPrevPageSerial(long serial) {
     long current_pos = m_io_handler->tell();
     long offset = current_pos;
     const long CHUNK_SIZE = 4096;
@@ -140,28 +159,37 @@ int OggSyncManager::getPrevPageSerial(ogg_page* page, long serial) {
         reset();
         
         ogg_page temp_page;
-        while (getNextPage(&temp_page) == 1) {
-            if (ogg_page_serialno(&temp_page) == serial) {
-                *page = temp_page;
-                return 1;
+        int64_t found_offset = -1;
+        while (m_io_handler->tell() < current_pos) {
+            long page_start_offset = m_logical_offset;
+            int res = getNextPage(&temp_page);
+            if (res == 1) {
+                if (ogg_page_serialno(&temp_page) == serial) {
+                    found_offset = page_start_offset;
+                }
+            } else if (res == 0) {
+                break;
             }
         }
+        if (found_offset != -1) {
+            return found_offset;
+        }
     }
-    return 0;
+    return -1;
 }
 
 int64_t OggSyncManager::getPosition() const {
     return m_io_handler->tell();
 }
 
-int64_t OggSyncManager::getFileSize() const {
+int64_t OggSyncManager::getFileSize() {
     // Save current position
     long current = m_io_handler->tell();
     // Seek to end
-    const_cast<PsyMP3::IO::IOHandler*>(m_io_handler)->seek(0, SEEK_END);
+    m_io_handler->seek(0, SEEK_END);
     long size = m_io_handler->tell();
     // Restore position
-    const_cast<PsyMP3::IO::IOHandler*>(m_io_handler)->seek(current, SEEK_SET);
+    m_io_handler->seek(current, SEEK_SET);
     return size;
 }
 

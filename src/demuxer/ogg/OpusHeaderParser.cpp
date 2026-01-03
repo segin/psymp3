@@ -1,8 +1,29 @@
 /*
  * OpusHeaderParser.cpp - Opus header parsing validation
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * This file is part of PsyMP3.
+ * Copyright © 2026 Kirn Gill <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that
+ * the above copyright notice and this permission notice appear in all
+ * copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
+#include "psymp3.h"
+#endif // !FINAL_BUILD
 #include "demuxer/ogg/OpusHeaderParser.h"
 #include "debug.h"
 #include <cstring>
@@ -39,6 +60,12 @@ bool OpusHeaderParser::parseOpusTags(const unsigned char* data, size_t size) {
                              (data[offset+2] << 16) | (data[offset+3] << 24);
     offset += 4;
     
+    // Resource limit check
+    if (vendor_length > 1024 * 1024) { // 1MB limit
+        Debug::log("ogg", "OpusHeaderParser: vendor_length too large: ", vendor_length);
+        return false;
+    }
+    
     // Read vendor string
     if (offset + vendor_length > size) {
         Debug::log("ogg", "OpusHeaderParser: OpusTags too short for vendor string");
@@ -56,6 +83,13 @@ bool OpusHeaderParser::parseOpusTags(const unsigned char* data, size_t size) {
     uint32_t comment_count = data[offset] | (data[offset+1] << 8) | 
                              (data[offset+2] << 16) | (data[offset+3] << 24);
     offset += 4;
+    
+    // Resource limit check
+    if (comment_count > 10000) {
+        Debug::log("ogg", "OpusHeaderParser: too many comments: ", comment_count);
+        return false;
+    }
+    
     Debug::log("ogg", "OpusHeaderParser: comment_count=", comment_count);
     
     // Read each comment
@@ -68,6 +102,12 @@ bool OpusHeaderParser::parseOpusTags(const unsigned char* data, size_t size) {
         uint32_t comment_length = data[offset] | (data[offset+1] << 8) | 
                                   (data[offset+2] << 16) | (data[offset+3] << 24);
         offset += 4;
+        
+        // Resource limit check
+        if (comment_length > 1024 * 1024) { // 1MB limit
+            Debug::log("ogg", "OpusHeaderParser: comment_length too large: ", comment_length);
+            return false;
+        }
         
         if (offset + comment_length > size) {
             Debug::log("ogg", "OpusHeaderParser: comment ", i, " truncated");
@@ -115,7 +155,10 @@ bool OpusHeaderParser::parseHeader(ogg_packet* packet) {
         m_info.channels = data[9];
         if (m_info.channels == 0) return false;
         
-        // Pre-skip (byte 10-11)
+        // Pre-skip (byte 10-11, little-endian)
+        m_info.pre_skip = data[10] | (data[11] << 8);
+        Debug::log("ogg", "OpusHeaderParser: pre_skip=", m_info.pre_skip);
+        
         // Rate (byte 12-15) - informative
         // Gain (byte 16-17)
         // Mapping Family (byte 18)
