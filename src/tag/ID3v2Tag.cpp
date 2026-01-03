@@ -9,11 +9,12 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif // !FINAL_BUILD
+
 #include "tag/ID3v2Tag.h"
 #include "tag/TagConstants.h"
 #include "tag/ImageUtils.h"
 #include "tag/ID3v2Utils.h"
-#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace Tag {
