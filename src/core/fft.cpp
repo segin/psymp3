@@ -22,7 +22,9 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace Core {

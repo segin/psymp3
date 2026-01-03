@@ -21,14 +21,12 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace Core {
-
-#include <algorithm> // For std::max and std::min
-#include <sstream>   // For std::ostringstream
-#include <limits>    // For std::numeric_limits
 
 Rect::Rect() : m_x(0), m_y(0), m_width(0), m_height(0)
 {
