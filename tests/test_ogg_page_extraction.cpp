@@ -137,10 +137,16 @@ bool testGetPrevPage() {
         ASSERT(ogg_page_serialno(&page) == 54321U, "Should be at second page serial");
         
         // Go back
-        ogg_page prev_page;
-        int prev_result = sync.getPrevPage(&prev_page);
+        int64_t prev_offset = sync.findPrevPage();
+        ASSERT(prev_offset != -1, "Should find previous page");
         
-        ASSERT(prev_result == 1, "Should find previous page");
+        // Verify it's actually the first page (offset 0 in this specific multi-page test)
+        ASSERT(prev_offset == 0, "Previous page offset should be 0");
+        
+        sync.seek(prev_offset);
+        ogg_page prev_page;
+        int res = sync.getNextPage(&prev_page);
+        ASSERT(res == 1, "Should read previous page");
         ASSERT(ogg_page_serialno(&prev_page) == 12345U, "Previous page serial mismatch");
         
         std::remove("test_sync_multi.ogg");
@@ -176,10 +182,13 @@ bool testGetPrevPageSerial() {
         
         // Now at end of Page 2 (or EOF).
         
-        ogg_page prev_page;
-        int result = sync.getPrevPageSerial(&prev_page, 12345);
+        int64_t prev_offset = sync.findPrevPageSerial(12345);
+        ASSERT(prev_offset != -1, "Should find page with serial 12345");
         
-        ASSERT(result == 1, "Should find page with serial 12345");
+        sync.seek(prev_offset);
+        ogg_page prev_page;
+        int res = sync.getNextPage(&prev_page);
+        ASSERT(res == 1, "Should read target page");
         ASSERT(ogg_page_serialno(&prev_page) == 12345U, "Serial check");
         
         std::remove("test_sync_multi.ogg");
@@ -201,10 +210,8 @@ bool testGetPrevPageSerialNotFound() {
         auto handler = std::make_unique<FileIOHandler>("test_sync_multi.ogg");
         OggSyncManager sync(handler.get());
         
-        ogg_page prev_page;
-        int result = sync.getPrevPageSerial(&prev_page, 99999);
-        
-        ASSERT(result == 0, "Should NOT find page with serial 99999");
+        int64_t result = sync.findPrevPageSerial(99999);
+        ASSERT(result == -1, "Should NOT find page with serial 99999");
         
         std::remove("test_sync_multi.ogg");
         std::cout << "  ✓ Passed" << std::endl;

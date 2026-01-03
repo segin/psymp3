@@ -1,6 +1,6 @@
 /*
  * OggStreamManager.cpp - Ogg Stream Layer implementation
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  */
 
 #include "psymp3.h"
@@ -35,6 +35,8 @@ int OggStreamManager::getPacket(ogg_packet* packet) {
     int result = ogg_stream_packetout(&m_stream_state, packet);
     if (result == 1 && packet->granulepos >= 0) {
         m_last_granule = packet->granulepos;
+    } else if (result == -1) {
+        Debug::log("ogg", "OggStreamManager::getPacket: data gap detected in stream ", m_serial_no);
     }
     return result;
 }

@@ -46,19 +46,17 @@ public:
     int getNextPage(ogg_page* page);
 
     /**
-     * @brief Find the page immediately preceding the current file position
-     * @param[out] page Destination for the parsed page
-     * @return 1 if page found, 0 if not found/error
+     * @brief Find the file offset of the page immediately preceding the current file position
+     * @return File offset of the page header, or -1 if not found/error
      */
-    int getPrevPage(ogg_page* page);
+    int64_t findPrevPage();
 
     /**
-     * @brief Find the previous page with a specific serial number
-     * @param[out] page Destination for the parsed page
+     * @brief Find the file offset of the previous page with a specific serial number
      * @param serial Serial number to match
-     * @return 1 if page found, 0 if not found/error
+     * @return File offset of the page header, or -1 if not found/error
      */
-    int getPrevPageSerial(ogg_page* page, long serial);
+    int64_t findPrevPageSerial(long serial);
 
     /**
      * @brief Reset sync state (e.g., after seek)
@@ -82,7 +80,7 @@ public:
 
     // File position and seeking
     int64_t getPosition() const;
-    int64_t getFileSize() const;
+    int64_t getFileSize();
     bool seek(int64_t position);
 
     // Accessors

@@ -24,6 +24,7 @@ struct CodecInfo {
     std::string codec_name;
     int channels;
     long rate;
+    uint64_t pre_skip = 0; // For Opus
     // Add other common fields
 };
 
