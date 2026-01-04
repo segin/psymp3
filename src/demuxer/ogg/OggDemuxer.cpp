@@ -1,7 +1,7 @@
 /*
  * OggDemuxer.cpp - RFC-compliant Ogg Demuxer
  * This file is part of PsyMP3.
- * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill II <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -10,7 +10,7 @@
  * any purpose with or without fee is hereby granted, provided that
  * the above copyright notice and this permission notice appear in all
  * copies.
- *
+ * 
  * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
  * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
  * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
