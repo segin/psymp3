@@ -25,7 +25,7 @@
 *   **Testing Build**: `./configure --enable-rapidcheck && make check`
 
 ### Version Control
-*   **Atomic Commits**: ONE test unit or logical change per commit.
+*   **Atomic Commits**: ONE test unit or logical change per commit. Even for cross-cutting concerns (e.g., copyright updates, header cleanups), split commits by module (e.g., "Codecs: ...", "Core: ...") rather than bulk application.
 *   **Workflow**: `git commit -m "Topic: Description" && git push` after each distinct unit of work.
 *   **Renaming**: ALWAYS use `git mv`.
 

@@ -10,18 +10,16 @@
  * 3. Playback resumption (demuxer can produce data after seeking)
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include <iostream>
+#include <string>
 
 #include "psymp3.h"
-#include <iostream>
+
+#ifdef HAVE_OGGDEMUXER
 #include <thread>
 #include <chrono>
 #include <cmath>
 #include <vector>
-
-#ifdef HAVE_OGGDEMUXER
 
 // Include FileIOHandler.h specifically if psymp3.h doesn't export it
 #include "io/file/FileIOHandler.h"

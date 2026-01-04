@@ -72,7 +72,6 @@ COMMON_TEST_LIBS = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
 	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(CODEC_LIBS) \
@@ -99,7 +98,6 @@ MINIMAL_TEST_LIBS = \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -110,7 +108,6 @@ MINIMAL_TEST_LIBS = \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a
 
@@ -149,7 +146,6 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -166,7 +162,6 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -232,7 +227,6 @@ opusout_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -251,7 +245,6 @@ debug_dual_flac_LDADD = \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -267,7 +260,6 @@ debug_flac_seeking_LDADD = \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -584,7 +576,6 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
@@ -599,7 +590,6 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -618,7 +608,6 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
@@ -633,7 +622,6 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -663,7 +651,6 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
@@ -678,7 +665,6 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -731,7 +717,6 @@ test_ogg_fuzzing_SOURCES = test_ogg_fuzzing.cpp
 test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -751,7 +736,6 @@ test_ogg_multiplexed_seeking_SOURCES = test_ogg_multiplexed_seeking.cpp
 test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -770,7 +754,6 @@ test_ogg_seeking_stress_SOURCES = test_ogg_seeking_stress.cpp
 test_ogg_seeking_stress_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -789,7 +772,6 @@ test_ogg_aggressive_SOURCES = test_ogg_aggressive.cpp
 test_ogg_aggressive_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	../src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	../src/io/file/libpsymp3-io-file.a \
 	../src/io/libpsymp3-io.a \
@@ -983,7 +965,6 @@ test_ogg_page_extraction_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -1003,7 +984,6 @@ test_ogg_codec_detection_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1020,7 +1000,6 @@ test_ogg_duration_calculation_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1037,7 +1016,6 @@ test_ogg_time_conversion_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1054,7 +1032,6 @@ test_ogg_data_streaming_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1071,7 +1048,6 @@ test_ogg_memory_safety_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1088,7 +1064,6 @@ test_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1106,7 +1081,6 @@ test_error_handling_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -1126,7 +1100,6 @@ test_ogg_demuxer_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -2624,7 +2597,6 @@ test_oggdemuxer_performance_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -2644,7 +2616,6 @@ test_oggdemuxer_comprehensive_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
@@ -2664,7 +2635,6 @@ test_ogg_comprehensive_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -2727,6 +2697,8 @@ test_opus_codec_error_handling_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(AM_LDFLAGS)
@@ -2753,6 +2725,8 @@ test_opus_integration_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(AM_LDFLAGS)
@@ -2779,6 +2753,8 @@ test_opus_compatibility_performance_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
 	$(AM_LDFLAGS)
@@ -3434,7 +3410,6 @@ flacout_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -3481,7 +3456,6 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -3527,7 +3501,6 @@ mp3out_LDADD = \
 	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -3550,7 +3523,6 @@ check_PROGRAMS += test_tag_unit test_tag_properties test_id3v2_tag test_tag_fact
 test_tag_unit_SOURCES = test_tag_unit.cpp
 test_tag_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3561,7 +3533,6 @@ test_tag_properties_SOURCES = test_tag_properties.cpp
 if HAVE_RAPIDCHECK
 test_tag_properties_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3570,7 +3541,6 @@ test_tag_properties_LDADD = \
 else
 test_tag_properties_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3581,7 +3551,6 @@ endif
 test_id3v2_tag_SOURCES = test_id3v2_tag.cpp
 test_id3v2_tag_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3591,7 +3560,6 @@ test_id3v2_tag_LDADD = \
 test_tag_factory_SOURCES = test_tag_factory.cpp
 test_tag_factory_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3601,7 +3569,6 @@ test_tag_factory_LDADD = \
 test_tag_error_handling_manual_SOURCES = test_tag_error_handling_manual.cpp
 test_tag_error_handling_manual_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3617,7 +3584,6 @@ test_demuxer_tag_extraction_LDADD = \
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -3640,7 +3606,6 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -3665,7 +3630,6 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
 	$(top_builddir)/src/demuxer/raw/libpsymp3-demuxer-raw.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
@@ -3684,7 +3648,6 @@ test_tag_thread_safety_SOURCES = test_tag_thread_safety.cpp
 if HAVE_RAPIDCHECK
 test_tag_thread_safety_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3693,7 +3656,6 @@ test_tag_thread_safety_LDADD = \
 else
 test_tag_thread_safety_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3705,7 +3667,6 @@ test_tag_picture_properties_SOURCES = test_tag_picture_properties.cpp
 if HAVE_RAPIDCHECK
 test_tag_picture_properties_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3714,7 +3675,6 @@ test_tag_picture_properties_LDADD = \
 else
 test_tag_picture_properties_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3725,7 +3685,6 @@ endif
 test_tag_picture_unit_SOURCES = test_tag_picture_unit.cpp
 test_tag_picture_unit_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3739,7 +3698,6 @@ check_PROGRAMS += generate_vorbis_corpus generate_id3v1_corpus generate_id3v2_co
 fuzz_tag_vorbis_SOURCES = fuzz_tag_vorbis.cpp
 fuzz_tag_vorbis_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3749,7 +3707,6 @@ fuzz_tag_vorbis_LDADD = \
 fuzz_tag_id3v1_SOURCES = fuzz_tag_id3v1.cpp
 fuzz_tag_id3v1_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3759,7 +3716,6 @@ fuzz_tag_id3v1_LDADD = \
 fuzz_tag_id3v2_SOURCES = fuzz_tag_id3v2.cpp
 fuzz_tag_id3v2_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3769,7 +3725,6 @@ fuzz_tag_id3v2_LDADD = \
 fuzz_tag_picture_SOURCES = fuzz_tag_picture.cpp
 fuzz_tag_picture_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3779,7 +3734,6 @@ fuzz_tag_picture_LDADD = \
 generate_vorbis_corpus_SOURCES = generate_vorbis_corpus.cpp
 generate_vorbis_corpus_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3789,7 +3743,6 @@ generate_vorbis_corpus_LDADD = \
 generate_id3v1_corpus_SOURCES = generate_id3v1_corpus.cpp
 generate_id3v1_corpus_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3799,7 +3752,6 @@ generate_id3v1_corpus_LDADD = \
 generate_id3v2_corpus_SOURCES = generate_id3v2_corpus.cpp
 generate_id3v2_corpus_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
@@ -3809,7 +3761,6 @@ generate_id3v2_corpus_LDADD = \
 generate_picture_corpus_SOURCES = generate_picture_corpus.cpp
 generate_picture_corpus_LDADD = \
 	libtest_utilities.a \
-	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/debug.o \
