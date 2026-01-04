@@ -1,31 +1,23 @@
 /*
  * TagFactory.cpp - Tag format detection and factory implementation
  * This file is part of PsyMP3.
- * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill II <segin2005@gmail.com>
  *
- * PsyMP3 is free software. You may redistribute and/or modify it under
- * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted, provided that the above
+ * copyright notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
 #ifndef FINAL_BUILD
-// Standalone build - include only what we need
 #include "psymp3.h"
-
-#include <algorithm>
-#include <string>
-#include <vector>
-#include <fstream>
-#include <cstring>
-#include <mutex>
-
-#include "debug.h"
-#include "tag/TagFactory.h"
-#include "tag/Tag.h"
-#include "tag/NullTag.h"
-#include "tag/ID3v1Tag.h"
-#include "tag/ID3v2Tag.h"
-#include "tag/MergedID3Tag.h"
-#include "tag/VorbisCommentTag.h"
 #endif // !FINAL_BUILD
 
 namespace PsyMP3 {

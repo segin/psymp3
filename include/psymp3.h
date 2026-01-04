@@ -373,8 +373,10 @@ using PsyMP3::Widget::UI::ToastNotification;
 // I/O and utility components (needed by other components)
 #include "core/utility/utility.h"
 #include "core/utility/UTF8Util.h"
+#include "core/utility/Base64.h"
 namespace Util = PsyMP3::Core::Utility;
 using PsyMP3::Core::Utility::UTF8Util;
+using PsyMP3::Core::Utility::Base64;
 #include "system.h"
 #include "io/BufferPool.h"
 #include "io/BoundedBuffer.h"
@@ -597,6 +599,8 @@ using PsyMP3::MPRIS::SignalEmitter;
 
 // Tag subsystem
 #include "tag/Tag.h"
+#include "tag/TagConstants.h"
+#include "tag/ImageUtils.h"
 #include "tag/NullTag.h"
 #include "tag/VorbisCommentTag.h"
 #include "tag/ID3v1Tag.h"
