@@ -25,10 +25,6 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#ifndef FINAL_BUILD
-#include "psymp3.h"
-#endif // !FINAL_BUILD
-
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
