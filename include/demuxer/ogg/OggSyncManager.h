@@ -16,7 +16,7 @@
 #include <ogg/ogg.h>
 #include <memory>
 #include <vector>
-#include "../../../include/io/IOHandler.h"
+#include "io/IOHandler.h"
 #include <vector>
 #include <cstdint>
 

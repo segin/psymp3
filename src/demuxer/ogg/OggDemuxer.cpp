@@ -24,13 +24,6 @@
 #ifndef FINAL_BUILD
 #include "psymp3.h"
 #endif // !FINAL_BUILD
-#include "demuxer/ogg/OggDemuxer.h"
-#include "demuxer/DemuxerFactory.h"
-#include "demuxer/ogg/CodecHeaderParser.h"
-#include "demuxer/ogg/OggSeekingEngine.h"
-#include "tag/VorbisCommentTag.h"
-#include <algorithm>
-#include <iostream>
 
 namespace PsyMP3 {
 namespace Demuxer {

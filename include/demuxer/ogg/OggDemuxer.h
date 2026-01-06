@@ -8,7 +8,7 @@
 #ifndef OGGDEMUXER_H
 #define OGGDEMUXER_H
 
-#include "../../../include/demuxer/Demuxer.h"
+#include "demuxer/Demuxer.h"
 #include "OggSyncManager.h"
 #include "OggStreamManager.h"
 #include "CodecHeaderParser.h"

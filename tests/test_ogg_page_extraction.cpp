@@ -11,12 +11,8 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/OggSyncManager.h"
 #include "io/file/FileIOHandler.h"
 #include <fstream>
-#include <vector>
-#include <cstring>
-#include <iostream>
 #include <cassert>
 
 using namespace PsyMP3::Demuxer::Ogg;

@@ -25,11 +25,9 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#include "demuxer/ogg/CodecHeaderParser.h"
-#include "demuxer/ogg/VorbisHeaderParser.h"
-#include "demuxer/ogg/OpusHeaderParser.h"
-#include "demuxer/ogg/FLACHeaderParser.h"
-#include "demuxer/ogg/SpeexHeaderParser.h"
+#ifndef FINAL_BUILD
+#include "psymp3.h"
+#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace Demuxer {

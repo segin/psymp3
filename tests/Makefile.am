@@ -233,6 +233,8 @@ opusout_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OPUS_LIBS) $(OGG_LIBS) \
 	-lvorbis -lmpg123 -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
@@ -363,6 +365,8 @@ test_opus_codec_property_LDADD = \
 	$(FULL_CODEC_LIBS) \
 	$(OPUS_LIBS) \
 	$(RAPIDCHECK_LIBS) \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(TAGLIB_LIBS) \
 	$(VORBIS_LIBS) \
@@ -724,6 +728,8 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(RAPIDCHECK_LIBS) \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -742,6 +748,8 @@ test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -760,6 +768,8 @@ test_ogg_seeking_stress_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -778,6 +788,8 @@ test_ogg_aggressive_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -796,6 +808,8 @@ test_stream_manager_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -814,6 +828,8 @@ test_codec_identification_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -829,6 +845,8 @@ test_codec_identification_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -847,6 +865,8 @@ test_opus_parser_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -865,6 +885,8 @@ test_flac_parser_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -883,6 +905,8 @@ test_speex_parser_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -901,6 +925,8 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -916,6 +942,8 @@ test_ogg_seeking_algorithms_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -935,6 +963,8 @@ test_ogg_error_handling_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -953,6 +983,8 @@ test_ogg_integration_LDADD = libtest_utilities.a \
 	../src/debug.o \
 	../src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(SDL_LIBS) \
 	$(TAGLIB_LIBS) \
@@ -971,6 +1003,8 @@ test_ogg_page_extraction_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1007,6 +1041,8 @@ test_ogg_duration_calculation_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1023,6 +1059,8 @@ test_ogg_time_conversion_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1039,6 +1077,8 @@ test_ogg_data_streaming_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1055,6 +1095,8 @@ test_ogg_memory_safety_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -1071,6 +1113,8 @@ test_error_handling_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
@@ -1088,6 +1132,8 @@ test_error_handling_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
@@ -1107,6 +1153,8 @@ test_ogg_demuxer_integration_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
@@ -2210,6 +2258,8 @@ test_frame_size_estimation_consistency_LDADD = \
 #	$(LIBMPG123_LIBS) \
 #	$(VORBIS_LIBS) \
 #	$(OPUS_LIBS) \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 #	$(OGG_LIBS) \
 #	$(DBUS_LIBS) \
 #	$(AM_LDFLAGS)
@@ -2297,6 +2347,8 @@ test_flac_codec_demuxer_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(FLAC_LIBS) \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -2604,6 +2656,8 @@ test_oggdemuxer_performance_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
@@ -2623,6 +2677,8 @@ test_oggdemuxer_comprehensive_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
@@ -2643,6 +2699,8 @@ test_ogg_comprehensive_integration_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
@@ -3589,6 +3647,8 @@ test_demuxer_tag_extraction_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(AM_LDFLAGS)
 
@@ -3615,6 +3675,8 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(RAPIDCHECK_LIBS) \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
@@ -3638,6 +3700,8 @@ test_stream_tag_integration_LDADD = \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	-lvorbis -lmpg123 -lopus -lcurl -lssl -lcrypto \
 	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)

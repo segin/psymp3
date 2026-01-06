@@ -9,8 +9,9 @@
 #define HAS_OGGSEEKINGENGINE_H
 
 #include <cstdint>
-#include "OggSyncManager.h"
-#include "OggStreamManager.h"
+#include "io/IOHandler.h"
+#include "demuxer/ogg/OggSyncManager.h"
+#include "demuxer/ogg/OggStreamManager.h"
 
 namespace PsyMP3 {
 namespace Demuxer {

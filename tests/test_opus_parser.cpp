@@ -7,12 +7,10 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/OpusHeaderParser.h"
-#include <iostream>
-#include <vector>
-#include <cstring>
 
-using namespace PsyMP3::Demuxer::Ogg;
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Ogg {
 
 // Helper
 ogg_packet createOpusIDHeader(int channels) {
@@ -92,12 +90,16 @@ bool testFullSequence() {
     return true;
 }
 
+} // namespace Ogg
+} // namespace Demuxer
+} // namespace PsyMP3
+
 int main() {
     std::cout << "Running OpusHeaderParser Tests..." << std::endl;
     int passed = 0;
     int total = 0;
     
-    if (testIDHeader()) passed++; total++;
+    if (PsyMP3::Demuxer::Ogg::testIDHeader()) passed++; total++;
     if (testFullSequence()) passed++; total++;
     
     if (passed == total) {

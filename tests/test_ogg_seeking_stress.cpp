@@ -16,13 +16,6 @@
 #include "psymp3.h"
 
 #ifdef HAVE_OGGDEMUXER
-#include <thread>
-#include <chrono>
-#include <cmath>
-#include <vector>
-
-// Include FileIOHandler.h specifically if psymp3.h doesn't export it
-#include "io/file/FileIOHandler.h"
 
 // using namespace PsyMP3;
 // using namespace PsyMP3::Demuxer::Ogg;

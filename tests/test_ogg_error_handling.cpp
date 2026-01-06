@@ -7,12 +7,6 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/OggStreamManager.h"
-#include "demuxer/ogg/OggSeekingEngine.h"
-#include "demuxer/ogg/CodecHeaderParser.h"
-#include <iostream>
-#include <vector>
-#include <cstring>
 
 #define ASSERT(condition, message) \
     do { \

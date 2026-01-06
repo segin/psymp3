@@ -12,18 +12,11 @@
 #include "config.h"
 #endif
 
-#include <iostream>
 
 #ifdef HAVE_OGGDEMUXER
 
-#include <memory>
-#include <vector>
-#include <cstring>
 #include <algorithm>
 #include <cmath>
-#include "demuxer/ogg/OggSeekingEngine.h"
-#include "demuxer/ogg/OggSyncManager.h"
-#include "demuxer/ogg/OggStreamManager.h"
 
 // --- Mock Classes ---
 

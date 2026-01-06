@@ -7,12 +7,7 @@
 
 #include "psymp3.h"
 #include <rapidcheck.h>
-#include <vector>
-#include <cstring>
-#include <iostream>
 
-#include "demuxer/ogg/OggSyncManager.h"
-#include "demuxer/ogg/OggDemuxer.h"
 #include "ogg/ogg.h"
 
 // Helper to create a valid Ogg page manually (rfc3533)

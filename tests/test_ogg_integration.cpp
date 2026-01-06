@@ -7,13 +7,11 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/OggDemuxer.h"
-#include "demuxer/ogg/OggSeekingEngine.h"
-#include <iostream>
-#include <fstream>
-#include <vector>
 
-using namespace PsyMP3::Demuxer::Ogg;
+
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Ogg {
 
 #define ASSERT(condition, message) \
     do { \
@@ -110,6 +108,10 @@ bool testArithmeticBoundaries() {
     return true;
 }
 
+} // namespace Ogg
+} // namespace Demuxer
+} // namespace PsyMP3
+
 int main() {
     std::cout << "Running OggDemuxer Integration Tests..." << std::endl;
     std::cout << "========================================" << std::endl;
@@ -117,10 +119,10 @@ int main() {
     int passed = 0;
     int total = 0;
     
-    if (testDemuxerConstruction()) passed++; total++;
-    if (testTimeConversionIntegration()) passed++; total++;
-    if (testGranulePosValidation()) passed++; total++;
-    if (testArithmeticBoundaries()) passed++; total++;
+    if (PsyMP3::Demuxer::Ogg::testDemuxerConstruction()) passed++; total++;
+    if (PsyMP3::Demuxer::Ogg::testTimeConversionIntegration()) passed++; total++;
+    if (PsyMP3::Demuxer::Ogg::testGranulePosValidation()) passed++; total++;
+    if (PsyMP3::Demuxer::Ogg::testArithmeticBoundaries()) passed++; total++;
     
     std::cout << std::endl;
     if (passed == total) {

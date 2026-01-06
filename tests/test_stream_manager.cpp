@@ -8,11 +8,8 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/OggStreamManager.h"
 #include "MockOggFile.h"
-#include <iostream>
 #include <cassert>
-#include <cstring>
 
 using namespace PsyMP3::Demuxer::Ogg;
 

@@ -474,11 +474,17 @@ using PsyMP3::Codec::Opus::OpusHeader;
 
 // Demuxer subsystem - Ogg
 #ifdef HAVE_OGGDEMUXER
-#include "demuxer/ogg/OggDemuxer.h"
 #include <ogg/ogg.h>
-using PsyMP3::Demuxer::Ogg::OggDemuxer;
-using PsyMP3::Demuxer::Ogg::OggStream;
-using PsyMP3::Demuxer::Ogg::OggPacket;
+#include "demuxer/ogg/OggSyncManager.h"
+#include "demuxer/ogg/OggStreamManager.h"
+#include "demuxer/ogg/OggDemuxer.h"
+#include "demuxer/ogg/CodecHeaderParser.h"
+#include "demuxer/ogg/VorbisHeaderParser.h"
+#include "demuxer/ogg/OpusHeaderParser.h"
+#include "demuxer/ogg/FLACHeaderParser.h"
+#include "demuxer/ogg/SpeexHeaderParser.h"
+#include "demuxer/ogg/OggSeekingEngine.h"
+
 #include "codecs/vorbis/VorbisCodec.h"
 #include "codecs/opus/opusw.h"
 #include "codecs/opus/OpusCodec.h"
