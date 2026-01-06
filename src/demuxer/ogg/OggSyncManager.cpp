@@ -101,6 +101,15 @@ int OggSyncManager::getNextPage(ogg_page* page) {
     }
 }
 
+int OggSyncManager::getNextPage(SafeOggPage* safe_page) {
+    ogg_page temp_page;
+    int result = getNextPage(&temp_page);
+    if (result == 1) {
+        safe_page->clone(&temp_page);
+    }
+    return result;
+}
+
 void OggSyncManager::reset() {
     ogg_sync_reset(&m_sync_state);
 }

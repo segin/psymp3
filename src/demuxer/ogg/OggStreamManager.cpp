@@ -55,10 +55,14 @@ int OggStreamManager::submitPage(ogg_page* page) {
 int OggStreamManager::getPacket(ogg_packet* packet) {
     if (!m_initialized) return -1;
     int result = ogg_stream_packetout(&m_stream_state, packet);
+    
+    if (result == -1) {
+        // Lost sync / data gap
+        Debug::log("ogg", "OggStreamManager: Data gap detected in stream ", m_serial_no);
+    }
+    
     if (result == 1 && packet->granulepos >= 0) {
         m_last_granule = packet->granulepos;
-    } else if (result == -1) {
-        Debug::log("ogg", "OggStreamManager::getPacket: data gap detected in stream ", m_serial_no);
     }
     return result;
 }
