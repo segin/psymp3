@@ -3197,6 +3197,7 @@ check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subfram
 	test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases \
 	test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading \
 	test_flac_rfc9639_compliance_validator
+
 # BitstreamReader unit tests
 test_bitstream_reader_unit_SOURCES = test_bitstream_reader_unit.cpp
 test_bitstream_reader_unit_LDADD = \
@@ -3359,6 +3360,16 @@ test_native_flac_threading_LDADD = \
 	$(AM_LDFLAGS)
 
 endif
+
+# Fixed predictor overflow tests (outside HAVE_NATIVE_FLAC - standalone test)
+check_PROGRAMS += test_fixed_predictor_overflow
+test_fixed_predictor_overflow_SOURCES = test_fixed_predictor_overflow.cpp
+test_fixed_predictor_overflow_LDADD = \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+
 
 
 
