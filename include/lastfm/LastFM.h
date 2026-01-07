@@ -66,9 +66,25 @@ namespace LastFM {
  * - Submission thread exits cleanly
  * - Pending scrobbles are saved to cache before destruction
  */
+/**
+ * @brief Request to update now-playing status
+ */
+struct NowPlayingRequest {
+    std::string artist;
+    std::string title;
+    std::string album;
+    int length;
+    bool is_clear;  // true to clear now-playing, false to set it
+    
+    NowPlayingRequest() : length(0), is_clear(true) {}
+    NowPlayingRequest(const std::string& a, const std::string& t, const std::string& al, int len)
+        : artist(a), title(t), album(al), length(len), is_clear(false) {}
+};
+
 class LastFM {
 private:
     std::queue<Scrobble> m_scrobbles;
+    std::queue<NowPlayingRequest> m_nowplaying_requests;
     std::string m_session_key;
     std::string m_username;
     std::string m_password;
@@ -94,6 +110,7 @@ private:
     std::condition_variable m_submission_cv;
     std::atomic<bool> m_shutdown = false;
     std::atomic<bool> m_submission_active = false;
+    std::atomic<bool> m_has_nowplaying_request = false;  // Fast check without lock
     int m_handshake_attempts = 0;
     bool m_handshake_permanently_failed = false;
     
@@ -121,6 +138,8 @@ private:
     // Background thread functions
     void submissionThreadLoop();
     void submitSavedScrobbles();
+    void processNowPlayingRequests();  // Process pending now-playing requests
+    bool submitNowPlayingRequest(const NowPlayingRequest& request);  // Actually perform HTTP POST
     bool performHandshake(int host_index);
     
     // Queue access helpers (assumes lock is held)

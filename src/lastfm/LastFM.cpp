@@ -316,22 +316,34 @@ void LastFM::submissionThreadLoop()
             break;
         }
         
-        // Wait for scrobbles or shutdown, with backoff timeout (Requirements 4.1, 4.4)
+        // Wait for scrobbles, now-playing requests, or shutdown, with backoff timeout (Requirements 4.1, 4.4)
         if (m_backoff_seconds > 0) {
             // If in backoff, wait with timeout instead of indefinitely
             auto timeout = std::chrono::seconds(m_backoff_seconds);
             m_submission_cv.wait_for(lock, timeout, [this] { 
-                return !m_scrobbles.empty() || m_shutdown || m_handshake_permanently_failed; 
+                return !m_scrobbles.empty() || !m_nowplaying_requests.empty() || m_shutdown || m_handshake_permanently_failed; 
             });
         } else {
             // Normal wait when not in backoff
             m_submission_cv.wait(lock, [this] { 
-                return !m_scrobbles.empty() || m_shutdown || m_handshake_permanently_failed; 
+                return !m_scrobbles.empty() || !m_nowplaying_requests.empty() || m_shutdown || m_handshake_permanently_failed; 
             });
         }
         
         if (m_shutdown || m_handshake_permanently_failed) break;
         
+        // Process now-playing requests first (they're more time-sensitive)
+        if (!m_nowplaying_requests.empty()) {
+            m_submission_active = true;
+            lock.unlock();
+            
+            processNowPlayingRequests();
+            
+            lock.lock();
+            m_submission_active = false;
+        }
+        
+        // Process scrobble submissions
         if (!m_scrobbles.empty() && !m_submission_active) {
             m_submission_active = true;
             lock.unlock();
@@ -343,6 +355,7 @@ void LastFM::submissionThreadLoop()
         }
     }
 }
+
 
 void LastFM::resetBackoff_unlocked()
 {
@@ -519,41 +532,106 @@ bool LastFM::setNowPlaying(const track& track)
         return false;
     }
     
-    DEBUG_LOG_LAZY("lastfm", "Setting now playing: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+    DEBUG_LOG_LAZY("lastfm", "Queueing now playing: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
     
+    // Create a now-playing request and queue it for background processing
+    NowPlayingRequest request(
+        track.GetArtist().to8Bit(true),
+        track.GetTitle().to8Bit(true),
+        track.GetAlbum().to8Bit(true),
+        track.GetLen()
+    );
+    
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        m_nowplaying_requests.push(std::move(request));
+    }
+    
+    // Notify the background thread (outside lock to avoid holding lock during notification)
+    m_submission_cv.notify_one();
+    
+    return true;  // Request queued successfully
+}
+
+bool LastFM::unsetNowPlaying()
+{
+    if (!isConfigured()) {
+        DEBUG_LOG_LAZY("lastfm", "Cannot unset now playing - not configured");
+        return false;
+    }
+    
+    DEBUG_LOG_LAZY("lastfm", "Queueing clear now playing request");
+    
+    // Create a "clear" request (is_clear=true)
+    NowPlayingRequest request;  // Default constructor sets is_clear=true
+    
+    {
+        std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+        m_nowplaying_requests.push(std::move(request));
+    }
+    
+    // Notify the background thread
+    m_submission_cv.notify_one();
+    
+    return true;  // Request queued successfully
+}
+
+void LastFM::processNowPlayingRequests()
+{
+    // Process all pending now-playing requests
+    // This is called from the background thread with lock NOT held
+    
+    while (!m_shutdown) {
+        NowPlayingRequest request;
+        
+        {
+            std::lock_guard<std::mutex> lock(m_scrobble_mutex);
+            if (m_nowplaying_requests.empty()) {
+                break;
+            }
+            request = std::move(m_nowplaying_requests.front());
+            m_nowplaying_requests.pop();
+        }
+        
+        // Submit the request (network I/O, no lock held)
+        submitNowPlayingRequest(request);
+    }
+}
+
+bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
+{
     // Ensure we have valid session and now playing URL
     if ((m_session_key.empty() || m_nowplaying_url.empty()) && getSessionKey().empty()) {
-        DEBUG_LOG_LAZY("lastfm", "Cannot set now playing without valid session key and now playing URL");
+        DEBUG_LOG_LAZY("lastfm", "Cannot submit now playing without valid session key and now playing URL");
         return false;
     }
     
     // Build POST data for Last.fm 1.2 now playing API
-    // Use string concatenation with reserve() instead of ostringstream (Requirements 2.1, 2.4)
     std::string postData;
-    postData.reserve(512);  // Pre-allocate reasonable size for POST data
+    postData.reserve(512);
     
     postData += "s=";
     postData += HTTPClient::urlEncode(m_session_key);
     postData += "&a=";
-    postData += HTTPClient::urlEncode(track.GetArtist().to8Bit(true));
+    postData += HTTPClient::urlEncode(request.artist);
     postData += "&t=";
-    postData += HTTPClient::urlEncode(track.GetTitle().to8Bit(true));
+    postData += HTTPClient::urlEncode(request.title);
     postData += "&b=";
-    postData += HTTPClient::urlEncode(track.GetAlbum().to8Bit(true));
+    postData += HTTPClient::urlEncode(request.album);
     postData += "&l=";
-    postData += std::to_string(track.GetLen());
-    postData += "&n=";  // Track number (empty - not available in track class)
+    postData += std::to_string(request.length);
+    postData += "&n=";  // Track number (empty)
     postData += "&m=";
-    postData += md5Hash(track.GetArtist().to8Bit(true) + track.GetTitle().to8Bit(true));  // MusicBrainz ID fallback
+    postData += md5Hash(request.artist + request.title);  // MusicBrainz ID fallback
     
-    // Use now playing URL from handshake response
     if (m_nowplaying_url.empty()) {
         DEBUG_LOG_LAZY("lastfm", "No now playing URL available");
         return false;
     }
     
+    // Use shorter timeout (5 seconds) since this is background and non-critical
     HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData, 
-                                                    "application/x-www-form-urlencoded", {}, 10);
+                                                    "application/x-www-form-urlencoded", {}, 5);
         
     if (response.success) {
         std::istringstream responseStream(response.body);
@@ -561,13 +639,17 @@ bool LastFM::setNowPlaying(const track& track)
         std::getline(responseStream, status);
         
         if (status == "OK") {
-            DEBUG_LOG_LAZY("lastfm", "Now playing submitted successfully: ", track.GetArtist().to8Bit(true), " - ", track.GetTitle().to8Bit(true));
+            if (request.is_clear) {
+                DEBUG_LOG_LAZY("lastfm", "Now playing status cleared successfully");
+            } else {
+                DEBUG_LOG_LAZY("lastfm", "Now playing submitted successfully: ", request.artist, " - ", request.title);
+            }
             return true;
         } else if (status.substr(0, 6) == "FAILED") {
             DEBUG_LOG_LAZY("lastfm", "Now playing submission failed - ", status);
             // Clear session for authentication failures
             if (status.find("BADAUTH") != std::string::npos) {
-                m_session_key.clear(); // Force re-authentication
+                m_session_key.clear();
                 m_submission_url.clear();
                 m_nowplaying_url.clear();
             }
@@ -581,64 +663,6 @@ bool LastFM::setNowPlaying(const track& track)
     return false;
 }
 
-bool LastFM::unsetNowPlaying()
-{
-    if (!isConfigured()) {
-        DEBUG_LOG_LAZY("lastfm", "Cannot unset now playing - not configured");
-        return false;
-    }
-    
-    DEBUG_LOG_LAZY("lastfm", "Clearing now playing status");
-    
-    // Ensure we have valid session and now playing URL
-    if ((m_session_key.empty() || m_nowplaying_url.empty()) && getSessionKey().empty()) {
-        DEBUG_LOG_LAZY("lastfm", "Cannot unset now playing without valid session key and now playing URL");
-        return false;
-    }
-    
-    // Build POST data with only session key (empty now playing)
-    // Use string concatenation instead of ostringstream (Requirements 2.1, 2.4)
-    std::string postData;
-    postData.reserve(128);  // Pre-allocate for small POST data
-    
-    postData += "s=";
-    postData += HTTPClient::urlEncode(m_session_key);
-    postData += "&a=&t=";
-    
-    // Use now playing URL from handshake response
-    if (m_nowplaying_url.empty()) {
-        DEBUG_LOG_LAZY("lastfm", "No now playing URL available");
-        return false;
-    }
-    
-    HTTPClient::Response response = HTTPClient::post(m_nowplaying_url, postData, 
-                                                    "application/x-www-form-urlencoded", {}, 10);
-        
-    if (response.success) {
-        std::istringstream responseStream(response.body);
-        std::string status;
-        std::getline(responseStream, status);
-        
-        if (status == "OK") {
-            DEBUG_LOG_LAZY("lastfm", "Now playing status cleared successfully");
-            return true;
-        } else if (status.substr(0, 6) == "FAILED") {
-            DEBUG_LOG_LAZY("lastfm", "Failed to clear now playing status - ", status);
-            // Clear session for authentication failures
-            if (status.find("BADAUTH") != std::string::npos) {
-                m_session_key.clear(); // Force re-authentication
-                m_submission_url.clear();
-                m_nowplaying_url.clear();
-            }
-        } else {
-            DEBUG_LOG_LAZY("lastfm", "Unexpected response when clearing now playing: ", status);
-        }
-    } else {
-        DEBUG_LOG_LAZY("lastfm", "HTTP error when clearing now playing: ", response.statusMessage);
-    }
-    
-    return false;
-}
 
 void LastFM::scrobbleTrack_unlocked(Scrobble&& scrobble)
 {
