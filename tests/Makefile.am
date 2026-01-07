@@ -355,7 +355,7 @@ endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
 if HAVE_RAPIDCHECK
-check_PROGRAMS += test_rapidcheck_setup test_opus_codec_property
+check_PROGRAMS += test_rapidcheck_setup test_opus_codec_property test_fixed_predictor_properties
 
 test_rapidcheck_setup_SOURCES = test_rapidcheck_setup.cpp
 test_rapidcheck_setup_LDADD = $(AM_LDFLAGS) $(RAPIDCHECK_LIBS)
@@ -372,7 +372,15 @@ test_opus_codec_property_LDADD = \
 	$(VORBIS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
+
+test_fixed_predictor_properties_SOURCES = test_fixed_predictor_properties.cpp
+test_fixed_predictor_properties_LDADD = \
+	$(RAPIDCHECK_LIBS) \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
 endif
+
 
 # Opus codec tests (conditional on HAVE_OPUS)
 if HAVE_OPUS
