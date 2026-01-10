@@ -54,7 +54,8 @@ enum {
     TRACK_SEAMLESS_SWAP, // Event to perform seamless track transition
     DO_SAVE_PLAYLIST,
     QUIT_APPLICATION,
-    AUTOMATED_SKIP_TRACK
+    AUTOMATED_SKIP_TRACK,
+    SHOW_MPRIS_ERROR
 };
 
 enum class PlayerState {
