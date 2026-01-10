@@ -82,7 +82,7 @@ public:
     /**
      * @brief Virtual destructor.
      */
-    virtual ~WindowFrameWidget() = default;
+    virtual ~WindowFrameWidget();
     
     /**
      * @brief Handles mouse button down events.
@@ -250,6 +250,8 @@ private:
     // Z-order for window layering
     int m_z_order;
     static int s_next_z_order;
+    static int s_instance_count;
+    static SDL_Cursor* s_cursor_nwse;
     
     // Drag state
     bool m_is_dragging;
