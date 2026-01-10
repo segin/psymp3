@@ -93,7 +93,10 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     // Manage cursor resources
     s_instance_count++;
     if (!s_cursor_nwse) {
-        s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
+        // SDL 1.2 doesn't support SDL_CreateSystemCursor.
+        // TODO: Implement custom cursor for SDL 1.2 using SDL_CreateCursor
+        // s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
+        s_cursor_nwse = nullptr;
     }
 }
 
