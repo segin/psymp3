@@ -119,6 +119,8 @@ class Player
         bool pause(void);
         bool play(void);
         bool playPause(void);
+        void setLoopMode(LoopMode mode);
+        LoopMode getLoopMode() const;
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
         static std::atomic<bool> guiRunning;
@@ -226,7 +228,7 @@ class Player
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;
         int m_skip_attempts = 0;
-        LoopMode m_loop_mode;
+        std::atomic<LoopMode> m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;
 

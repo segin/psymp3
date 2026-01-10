@@ -1013,11 +1013,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_e:
         {
+            LoopMode next_mode = LoopMode::None;
             switch (m_loop_mode) {
-                case LoopMode::None: m_loop_mode = LoopMode::One; showToast("Loop: One"); break;
-                case LoopMode::One:  m_loop_mode = LoopMode::All; showToast("Loop: All"); break;
-                case LoopMode::All:  m_loop_mode = LoopMode::None; showToast("Loop: None"); break;
+                case LoopMode::None: next_mode = LoopMode::One; break;
+                case LoopMode::One:  next_mode = LoopMode::All; break;
+                case LoopMode::All:  next_mode = LoopMode::None; break;
+                default: next_mode = LoopMode::None; break;
             }
+            setLoopMode(next_mode);
             // Persist this setting for the next session
             break;
         }
@@ -1397,6 +1400,35 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             }
             break;
         }
+        case DO_SET_LOOP_MODE:
+        {
+            LoopMode mode = static_cast<LoopMode>(reinterpret_cast<intptr_t>(event.data1));
+            m_loop_mode = mode;
+            std::string toastMsg = "Loop: ";
+            std::string mprisStatus;
+            PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+            switch(m_loop_mode) {
+                case LoopMode::None:
+                    toastMsg += "None";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+                    break;
+                case LoopMode::One:
+                    toastMsg += "One";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Track;
+                    break;
+                case LoopMode::All:
+                    toastMsg += "All";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Playlist;
+                    break;
+            }
+            showToast(toastMsg);
+#ifdef HAVE_DBUS
+            if (m_mpris_manager) {
+                 m_mpris_manager->updateLoopStatus(mprisEnum);
+            }
+#endif
+            break;
+        }
     }
     return false; // Do not exit
 }
@@ -1674,6 +1706,24 @@ void Player::Run(const PlayerOptions& options) {
     Debug::log("player", "Exited cleanly");
     SDL_Quit();
     return;
+}
+
+/**
+ * @brief Sets the player loop mode.
+ * This method is thread-safe and dispatches an event to the main thread.
+ * @param mode The new loop mode to set.
+ */
+void Player::setLoopMode(LoopMode mode) {
+    synthesizeUserEvent(DO_SET_LOOP_MODE, reinterpret_cast<void*>(static_cast<intptr_t>(mode)), nullptr);
+}
+
+/**
+ * @brief Gets the current loop mode.
+ * This method is thread-safe as m_loop_mode is atomic.
+ * @return The current LoopMode.
+ */
+LoopMode Player::getLoopMode() const {
+    return m_loop_mode;
 }
 
 // Static member function definitions for automated testing
