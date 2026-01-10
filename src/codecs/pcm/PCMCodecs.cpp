@@ -226,8 +226,8 @@ void MP3PassthroughCodec::reset() {
 bool MP3PassthroughCodec::canDecode(const StreamInfo& stream_info) const {
     return stream_info.codec_name == "mp3";
 }
+#endif
 
 } // namespace PCM
 } // namespace Codec
 } // namespace PsyMP3
-#endif

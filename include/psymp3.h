@@ -261,7 +261,11 @@ typedef struct bio_st BIO;
 #include <SDL_mutex.h>
 #endif
 #ifdef HAVE_FLAC
+#ifndef HAVE_NATIVE_FLAC
+#ifndef HAVE_NATIVE_FLAC
 #include <FLAC++/decoder.h>
+#endif
+#endif
 #endif
 #ifdef HAVE_MP3
 #include <mpg123.h>
