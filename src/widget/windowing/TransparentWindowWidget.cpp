@@ -116,25 +116,18 @@ void TransparentWindowWidget::draw(Surface& surface)
 void TransparentWindowWidget::drawRoundedRect(Surface& surface, int x, int y, int width, int height, 
                                              int radius, uint32_t color)
 {
-    // For now, implement as a simple rectangle
-    // TODO: Implement proper rounded rectangle drawing
-    // This would involve drawing the central rectangle and four corner arcs
-    
-    // Extract color components for drawing operations (currently unused in simple implementation)
-    (void)color; // Suppress unused parameter warning
-    
-    if (radius <= 0 || radius >= std::min(width, height) / 2) {
-        // Radius too small or too large, draw normal rectangle
+    if (radius <= 0) {
+        // Radius too small, draw normal rectangle
         surface.FillRect(color);
         return;
     }
-    
-    // For now, just draw a regular rectangle
-    // A full rounded rectangle implementation would:
-    // 1. Fill the central rectangle (x+radius, y, width-2*radius, height)
-    // 2. Fill the left and right rectangles (x, y+radius, radius, height-2*radius) each
-    // 3. Draw four quarter-circles at the corners
-    surface.FillRect(color);
+
+    int16_t x1 = static_cast<int16_t>(x);
+    int16_t y1 = static_cast<int16_t>(y);
+    int16_t x2 = static_cast<int16_t>(x + width - 1);
+    int16_t y2 = static_cast<int16_t>(y + height - 1);
+
+    surface.roundedBox(x1, y1, x2, y2, static_cast<int16_t>(radius), color);
 }
 
 } // namespace Windowing
