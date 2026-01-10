@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+#ifdef HAVE_MP3
+#include "io/MemoryIOHandler.h"
+#endif
 
 namespace PsyMP3 {
 namespace Codec {
@@ -164,6 +167,9 @@ void PCMCodec::detectPCMFormat() {
 
 
 #ifdef HAVE_MP3
+
+using PsyMP3::IO::MemoryIOHandler;
+
 // MP3PassthroughCodec implementation
 MP3PassthroughCodec::MP3PassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
@@ -182,35 +188,102 @@ bool MP3PassthroughCodec::initialize() {
 AudioFrame MP3PassthroughCodec::decode(const MediaChunk& chunk) {
     AudioFrame frame;
     
-    if (chunk.data.empty()) {
-        return frame;
+    // 1. If we have data, feed it into the decoder or buffer it
+    if (!chunk.data.empty()) {
+        if (m_mp3_stream && m_io_handler) {
+            // We have an active stream, feed it directly
+            m_io_handler->write(chunk.data.data(), chunk.data.size());
+        } else {
+             // Buffer initially until we create stream
+             m_buffer.insert(m_buffer.end(), chunk.data.begin(), chunk.data.end());
+        }
     }
-    
-    // Accumulate data in buffer
-    m_buffer.insert(m_buffer.end(), chunk.data.begin(), chunk.data.end());
-    
-    // Create MP3Stream if we haven't yet
+
+    // 2. Create MP3Stream if we haven't yet and have enough data
     if (!m_mp3_stream && m_buffer.size() >= 4) {
-        // Try to create from buffered data
-        // Note: This is a simplified approach - in practice, we might need
-        // to write the data to a temporary file or implement a memory-based stream
+        // Create the handler
+        auto handler = std::make_unique<MemoryIOHandler>();
+        m_io_handler = handler.get();
+
+        // Pre-fill with accumulated data
+        if (!m_buffer.empty()) {
+            handler->write(m_buffer.data(), m_buffer.size());
+            // Clear initial buffer as data is now in the handler
+            m_buffer.clear();
+        }
         
-        // For now, return empty frame - full implementation would require
-        // significant changes to the existing MP3Stream class
-        return frame;
+        // Create MP3Stream using the handler
+        // Note: Libmpg123 takes ownership of the handler
+        try {
+            m_mp3_stream = new PsyMP3::Codec::MP3::Libmpg123(std::move(handler));
+        } catch (...) {
+            m_io_handler = nullptr;
+            throw;
+        }
     }
     
-    // TODO: Implement proper MP3 passthrough
-    // This would require either:
-    // 1. Modifying MP3Stream to accept memory buffers
-    // 2. Creating a temporary file
-    // 3. Implementing a memory-based IOHandler
+    // 3. Decode frames from the stream
+    if (m_mp3_stream) {
+        // Feed data if we have it and haven't already (via initial buffer)
+        // Note: if m_io_handler was just created, we already fed it.
+        // But if m_mp3_stream already existed, we need to feed new chunk.
+        // We handled feeding above in Step 1.
+
+        // Try to decode frames until no more data or error
+        // mpg123 usually returns one frame per read call if buffer is large enough
+        // but our Libmpg123::getData wrapper behaves slightly differently.
+        // It calls mpg123_read and fills the buffer.
+
+        // We need a buffer to hold the decoded PCM
+        size_t pcm_buffer_size = 4096 * 4; // Reasonable chunk size
+        std::vector<uint8_t> pcm_data(pcm_buffer_size);
+
+        try {
+            // Read from the stream
+            size_t bytes_read = m_mp3_stream->getData(pcm_buffer_size, pcm_data.data());
+
+            if (bytes_read > 0) {
+                // Resize to actual data read
+                pcm_data.resize(bytes_read);
+
+                // Set frame properties
+                frame.sample_rate = m_mp3_stream->getRate();
+                frame.channels = m_mp3_stream->getChannels();
+                // Timestamp from chunk or estimated? For now use chunk's if first frame
+                // Ideally track sample count.
+                frame.timestamp_samples = chunk.timestamp_samples; // Approximate
+
+                // Convert 16-bit PCM bytes to int16_t samples
+                size_t num_samples = bytes_read / 2; // 16-bit
+                frame.samples.resize(num_samples);
+                std::memcpy(frame.samples.data(), pcm_data.data(), bytes_read);
+
+                // Clean up consumed data from handler to keep memory usage low
+                // Note: We can't know exactly how much input was consumed by mpg123
+                // without querying mpg123 internals or tracking file position.
+                // m_mp3_stream->getPosition() returns msec.
+                // MemoryIOHandler::tell() returns current read position!
+                // So we can discard up to tell().
+                if (m_io_handler) {
+                    // Use discardRead() to safely discard only what has been read from the buffer
+                    m_io_handler->discardRead();
+                }
+            }
+        } catch (const std::exception& e) {
+            Debug::log("mp3_passthrough", "Decode error: ", e.what());
+            // It's possible we just need more data
+        }
+    }
     
     return frame;
 }
 
 AudioFrame MP3PassthroughCodec::flush() {
-    return AudioFrame{};
+    AudioFrame frame;
+    // Flush any remaining data in the decoder if possible
+    // Currently Libmpg123 doesn't expose a flush method that returns data,
+    // but we can try reading until EOF.
+    return frame;
 }
 
 void MP3PassthroughCodec::reset() {
@@ -221,6 +294,7 @@ void MP3PassthroughCodec::reset() {
         delete m_mp3_stream;
         m_mp3_stream = nullptr;
     }
+    m_io_handler = nullptr;
 }
 
 bool MP3PassthroughCodec::canDecode(const StreamInfo& stream_info) const {
