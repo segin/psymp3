@@ -640,7 +640,9 @@ MethodHandler::handleSetProperty_unlocked(DBusConnection *connection,
     }
 
     std::cout << "MPRIS: Setting volume to " << volume << std::endl;
-    // TODO: Implement volume control in Player if available
+    if (m_player) {
+      m_player->setVolume(volume);
+    }
 
   } else if (prop_name_str == "LoopStatus") {
     if (dbus_message_iter_get_arg_type(&variant_iter) != DBUS_TYPE_STRING) {
@@ -1090,8 +1092,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "Volume") {
-    // Default volume to 1.0 since Player doesn't have volume control yet
-    double volume = 1.0;
+    double volume = m_player ? m_player->getVolume() : 1.0;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "d",
                                      &variant_iter);
     dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE, &volume);

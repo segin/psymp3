@@ -43,6 +43,9 @@ public:
     uint64_t getSamplesPlayed() const;
     void setSamplesPlayed(uint64_t samples);
 
+    void setVolume(float volume);
+    float getVolume() const;
+
 private:
     void setup();
     static void callback(void *userdata, Uint8 *buf, int len);
@@ -74,6 +77,7 @@ private:
     
     int m_rate;
     int m_channels;
+    std::atomic<float> m_volume{1.0f};
     std::atomic<bool> m_playing;
     std::atomic<uint64_t> m_samples_played{0};
     std::atomic<bool> m_stream_eof{false};

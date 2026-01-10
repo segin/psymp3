@@ -36,6 +36,7 @@ Audio::Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex
       m_current_stream_raw_ptr(m_owned_stream.get()),
       m_fft(fft),
       m_player_mutex(player_mutex),
+      m_volume(1.0f),
       m_playing(false)
 {
     if (!m_owned_stream) {
@@ -393,6 +394,26 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
         toFloat(self->m_channels, (int16_t *)buf, self->m_fft->getTimeDom());
         self->m_fft->doFFT();
     }
+
+    // Apply volume scaling
+    float volume = self->m_volume.load();
+    if (bytes_copied > 0 && volume < 1.0f) {
+        int16_t* samples = reinterpret_cast<int16_t*>(buf);
+        size_t count = bytes_copied / sizeof(int16_t);
+        for (size_t i = 0; i < count; ++i) {
+            samples[i] = static_cast<int16_t>(samples[i] * volume);
+        }
+    }
+}
+
+void Audio::setVolume(float volume) {
+    if (volume < 0.0f) volume = 0.0f;
+    if (volume > 1.0f) volume = 1.0f;
+    m_volume.store(volume);
+}
+
+float Audio::getVolume() const {
+    return m_volume.load();
 }
 
 /**
