@@ -42,6 +42,7 @@ struct PlayerOptions {
     FFTMode fft_mode = FFTMode::Original;
     bool automated_test_mode = false;
     bool unattended_quit = false;
+    bool show_mpris_errors = true;
     std::vector<std::string> files;
 };
 
@@ -123,6 +124,10 @@ class Player
         void seekTo(unsigned long pos);
         static std::atomic<bool> guiRunning;
         
+        // MPRIS Error Notification
+        void toggleMPRISErrorNotifications();
+        void showMPRISError(const std::string& message);
+
         // Robust playlist handling
         bool handleUnplayableTrack();
         bool findFirstPlayableTrack();
@@ -233,6 +238,7 @@ class Player
         // Automated testing members
         bool m_automated_test_mode;
         bool m_unattended_quit;
+        bool m_show_mpris_errors;
         int m_automated_test_track_count;
         SDL_TimerID m_automated_test_timer_id = 0;
         SDL_TimerID m_automated_quit_timer_id = 0;

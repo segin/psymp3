@@ -723,8 +723,9 @@ void MPRISManager::reportErrorToPlayer_unlocked(const MPRISError& error) {
         // For now, we'll log it as a user-facing message
         logError_unlocked("reportErrorToPlayer", "User notification: " + user_message);
         
-        // TODO: Add actual Player notification method call when Player interface is available
-        // m_player->showNotification(user_message, Player::NotificationType::Error);
+        if (m_player) {
+            m_player->showMPRISError(user_message);
+        }
     }
 }
 

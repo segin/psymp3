@@ -45,6 +45,7 @@ Player::Player() {
     m_preloading_track = false;
     m_automated_test_mode = false;
     m_automated_test_track_count = 0;
+    m_show_mpris_errors = true;
     m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
     
     // Initialize Last.fm scrobbling
@@ -301,6 +302,17 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
             Debug::log("playlist", "Player::playlistPopulatorLoop(): Failed to add file ", args[i], ": ", e.what());
         }
     }
+}
+
+void Player::toggleMPRISErrorNotifications() {
+    m_show_mpris_errors = !m_show_mpris_errors;
+    std::string state = m_show_mpris_errors ? "ON" : "OFF";
+    showToast("MPRIS Errors: " + state);
+}
+
+void Player::showMPRISError(const std::string& message) {
+    auto* msg_ptr = new std::string(message);
+    synthesizeUserEvent(SHOW_MPRIS_ERROR, msg_ptr, nullptr);
 }
 
 /**
@@ -1060,12 +1072,16 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_m:
         {
-            // Toggle between widget-based and legacy mouse handling
-            m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
-            if (m_use_widget_mouse_handling) {
-                showToast("Mouse: Widget-based handling");
+            if (keysym.mod & KMOD_SHIFT) {
+                toggleMPRISErrorNotifications();
             } else {
-                showToast("Mouse: Legacy handling");
+                // Toggle between widget-based and legacy mouse handling
+                m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
+                if (m_use_widget_mouse_handling) {
+                    showToast("Mouse: Widget-based handling");
+                } else {
+                    showToast("Mouse: Legacy handling");
+                }
             }
             break;
         }
@@ -1397,6 +1413,17 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             }
             break;
         }
+        case SHOW_MPRIS_ERROR:
+        {
+            std::string* msg_ptr = static_cast<std::string*>(event.data1);
+            if (msg_ptr) {
+                if (m_show_mpris_errors) {
+                    showToast("MPRIS Error:\n" + *msg_ptr, 4000);
+                }
+                delete msg_ptr;
+            }
+            break;
+        }
     }
     return false; // Do not exit
 }
@@ -1413,6 +1440,7 @@ void Player::Run(const PlayerOptions& options) {
     decayfactor = options.decayfactor;
     m_automated_test_mode = options.automated_test_mode;
     m_unattended_quit = options.unattended_quit;
+    m_show_mpris_errors = options.show_mpris_errors;
 
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
