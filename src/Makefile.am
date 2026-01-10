@@ -126,25 +126,22 @@ psymp3_LDADD = \
 	widget/windowing/libpsymp3-widget-windowing.a \
 	widget/foundation/libpsymp3-widget-foundation.a \
 	demuxer/libpsymp3-demuxer.a \
-	io/http/libpsymp3-io-http.a \
-	io/file/libpsymp3-io-file.a \
-	io/libpsymp3-io.a \
+	codecs/libpsymp3-codecs.a \
+	codecs/pcm/libpsymp3-codec-pcm.a \
 	lastfm/libpsymp3-lastfm.a \
 	mpris/libpsymp3-mpris.a \
-	util/libpsymp3-util.a \
-	tag/libpsymp3-tag.a \
-	core/libpsymp3-core.a \
-	core/utility/libpsymp3-core-utility.a \
-	codecs/libpsymp3-codecs.a \
 	$(CODEC_LIBS) \
+	demuxer/libpsymp3-demuxer.a \
 	$(DEMUXER_LIBS) \
 	demuxer/iso/libpsymp3-demuxer-iso.a \
 	demuxer/riff/libpsymp3-demuxer-riff.a \
 	demuxer/raw/libpsymp3-demuxer-raw.a \
-	demuxer/libpsymp3-demuxer.a \
-	codecs/pcm/libpsymp3-codec-pcm.a \
-	codecs/libpsymp3-codecs.a \
+	io/http/libpsymp3-io-http.a \
+	io/file/libpsymp3-io-file.a \
+	io/libpsymp3-io.a \
 	tag/libpsymp3-tag.a \
+	core/libpsymp3-core.a \
+	util/libpsymp3-util.a \
 	core/utility/libpsymp3-core-utility.a
 endif
 

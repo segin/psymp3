@@ -84,9 +84,9 @@ have_opus=no
 
 # Native FLAC decoder - no external library dependency
 if test "x$enable_flac" = "xyes"; then
-  # ###have_native_flac=yes
+  have_native_flac=yes
   have_flac=yes
-  # AC_DEFINE([HAVE_NATIVE_FLAC], [1], [Define to 1 if native FLAC decoder is enabled])
+  AC_DEFINE([HAVE_NATIVE_FLAC], [1], [Define to 1 if native FLAC decoder is enabled])
   AC_DEFINE([HAVE_FLAC], [1], [Define to 1 if FLAC support is enabled])
   AC_MSG_NOTICE([Using native FLAC decoder (RFC 9639 compliant, no external dependencies)])
 fi
