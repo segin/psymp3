@@ -196,7 +196,7 @@ size_t MemoryIOHandler::write(const void* data, size_t size) {
 
     if (size == 0) return 0;
 
-    size_t current_size = m_buffer.size();
+
 
     // Check memory limits before allocation
     if (!checkMemoryLimits(size)) {
