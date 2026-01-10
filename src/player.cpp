@@ -51,6 +51,7 @@ Player::Player() {
     m_lastfm = std::make_unique<LastFM>();
     m_track_start_time = 0;
     m_track_scrobbled = false;
+    m_volume = 1.0f;
     
 #ifdef HAVE_DBUS
     m_mpris_manager = std::make_unique<PsyMP3::MPRIS::MPRISManager>(this);
@@ -938,6 +939,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             }
             break;
 
+        case SDLK_UP:
+            setVolume(getVolume() + 0.05);
+            break;
+
+        case SDLK_DOWN:
+            setVolume(getVolume() - 0.05);
+            break;
+
         case SDLK_0:
             scalefactor = 0;
             updateInfo();
@@ -1254,6 +1263,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             // Create a new audio object, which takes ownership of the stream.
             audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
+            audio->setVolume(m_volume);
 
             // Update the player's current stream pointer to reflect the one now owned by Audio
             // This is a raw pointer, for read-only access by Player.
@@ -1363,6 +1373,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 audio.reset();
                 auto owned_stream = std::move(m_next_stream);
                 audio = std::make_unique<Audio>(std::move(owned_stream), fft.get(), mutex.get());
+                audio->setVolume(m_volume);
             } else {
                 // Same audio format, can seamlessly switch streams
                 Debug::log("audio", "Performing seamless stream transition.");
@@ -2081,4 +2092,27 @@ void Player::submitNowPlaying()
     now_playing_track.SetLen(static_cast<unsigned int>(stream->getLength() / 1000)); // Convert to seconds
     
     m_lastfm->setNowPlaying(now_playing_track);
+}
+
+void Player::setVolume(double volume) {
+    if (volume < 0.0) volume = 0.0;
+    if (volume > 1.0) volume = 1.0;
+    m_volume = static_cast<float>(volume);
+
+    if (audio) {
+        audio->setVolume(m_volume);
+    }
+
+    // Show toast with new volume percentage
+    int percentage = static_cast<int>(m_volume * 100 + 0.5f); // Round to nearest integer
+    showToast("Volume: " + std::to_string(percentage) + "%");
+
+#ifdef HAVE_DBUS
+    // TODO: Notify MPRIS about volume change (PropertiesChanged signal)
+    // For now, MPRIS clients polling the property will see the new value
+#endif
+}
+
+double Player::getVolume() const {
+    return static_cast<double>(m_volume);
 }

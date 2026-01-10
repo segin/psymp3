@@ -131,6 +131,10 @@ class Player
         void checkScrobbling();
         void startTrackScrobbling();
         void submitNowPlaying(); 
+
+        void setVolume(double volume);
+        double getVolume() const;
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
@@ -229,6 +233,7 @@ class Player
         LoopMode m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;
+        float m_volume = 1.0f;
 
         // Automated testing members
         bool m_automated_test_mode;
