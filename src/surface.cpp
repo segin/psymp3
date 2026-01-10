@@ -486,6 +486,13 @@ void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 
     SDLLockGuard lock_guard(m_handle.get());
     roundedBoxRGBA_unlocked(x1, y1, x2, y2, rad, color);
 }
+
+void Surface::roundedBox(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, uint32_t color)
+{
+    if (!m_handle || rad < 0) return;
+    SDLLockGuard lock_guard(m_handle.get());
+    roundedBoxRGBA_unlocked(x1, y1, x2, y2, rad, color);
+}
     
 int16_t Surface::height()
 {
