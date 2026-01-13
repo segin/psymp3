@@ -247,6 +247,11 @@ class Player
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
         int m_random_window_counter = 0;
+
+        // Deferred widget deletion
+        std::vector<std::unique_ptr<Widget>> m_deferred_widgets;
+        void processDeferredDeletions();
+        void deferWidgetDeletion(std::unique_ptr<Widget> widget);
 };
 
 #endif // PLAYER_H

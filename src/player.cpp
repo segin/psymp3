@@ -1668,6 +1668,7 @@ void Player::Run(const PlayerOptions& options) {
                 break;
             }
             } // end switch (event.type)
+            processDeferredDeletions();
             if (done) break;
 
         } // end of message processing
@@ -1920,7 +1921,10 @@ void Player::toggleTestWindowH()
         
         // Set up window control callbacks
         m_test_window_h->setOnClose([this]() {
-            m_test_window_h.reset();
+            if (m_test_window_h) {
+                deferWidgetDeletion(std::move(m_test_window_h));
+                m_test_window_h = nullptr;
+            }
             showToast("Test Window H: Closed");
         });
         
@@ -2115,4 +2119,14 @@ void Player::setVolume(double volume) {
 
 double Player::getVolume() const {
     return static_cast<double>(m_volume);
+}
+
+void Player::processDeferredDeletions() {
+    m_deferred_widgets.clear();
+}
+
+void Player::deferWidgetDeletion(std::unique_ptr<Widget> widget) {
+    if (widget) {
+        m_deferred_widgets.push_back(std::move(widget));
+    }
 }
