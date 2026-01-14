@@ -252,6 +252,26 @@ class Player
         std::vector<std::unique_ptr<Widget>> m_deferred_widgets;
         void processDeferredDeletions();
         void deferWidgetDeletion(std::unique_ptr<Widget> widget);
+        
+        /**
+         * @brief Defer deletion of a widget owned by a unique_ptr member.
+         * 
+         * This method safely moves the widget from the specified unique_ptr into
+         * the deferred deletion queue. The unique_ptr is reset to nullptr immediately,
+         * but the actual deletion is deferred until the end of the current event loop
+         * iteration, preventing use-after-free when a widget's callback triggers its
+         * own destruction.
+         * 
+         * @tparam T Widget type (must derive from Widget)
+         * @param ptr Reference to the unique_ptr member to be released
+         */
+        template<typename T>
+        void deferDelete(std::unique_ptr<T>& ptr) {
+            if (ptr) {
+                // Move to deferred queue for safe deletion later
+                m_deferred_widgets.push_back(std::move(ptr));
+            }
+        }
 };
 
 #endif // PLAYER_H

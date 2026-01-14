@@ -1980,8 +1980,8 @@ void Player::toggleTestWindowB()
         
         // Set up window control callbacks
         m_test_window_b->setOnClose([this]() {
-            m_test_window_b.reset();
             showToast("Test Window B: Closed");
+            this->deferDelete(m_test_window_b);
         });
         
         m_test_window_b->setOnMinimize([this]() {
