@@ -85,7 +85,8 @@ void print_help()
     std::cout << "      --debug=CHANNELS    enable debug output for specified channels\n";
     std::cout << "                          (comma-separated list or 'all')\n";
     std::cout << "      --logfile=FILE      write debug output to specified file\n";
-    std::cout << "      --unattended-quit   quit automatically when playback ends\n\n";
+    std::cout << "      --unattended-quit   quit automatically when playback ends\n";
+    std::cout << "      --no-mpris-errors   disable on-screen notifications for MPRIS errors\n\n";
     
     std::cout << "Available debug channels:\n";
     std::cout << "  HTTPIOHandler, audio, chunk, codec, compliance, demux, demuxer,\n";

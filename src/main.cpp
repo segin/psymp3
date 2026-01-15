@@ -81,6 +81,7 @@ int main(int argc, char *argv[]) {
         {"debug", required_argument, 0, 0},
         {"logfile", required_argument, 0, 0},
         {"unattended-quit", no_argument, 0, 0},
+        {"no-mpris-errors", no_argument, 0, 0},
         {0, 0, 0, 0}
     };
 
@@ -116,6 +117,8 @@ int main(int argc, char *argv[]) {
                 logfile = optarg;
             } else if (option_name == "unattended-quit") {
                 options.unattended_quit = true;
+            } else if (option_name == "no-mpris-errors") {
+                options.show_mpris_errors = false;
             }
         } else {
             switch (opt) {
