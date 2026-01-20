@@ -18,6 +18,10 @@
 #include <fstream>
 #include <random>
 
+using namespace PsyMP3;
+using namespace PsyMP3::IO;
+using namespace PsyMP3::Demuxer::Ogg;
+
 // Test framework
 struct PerformanceTest {
     std::string name;

@@ -176,6 +176,14 @@ public:
     uint64_t getCurrentSample() const;
     
     /**
+     * @brief Get codec performance and debugging statistics
+     * 
+     * @return FLACCodecStats structure with current statistics
+     * @thread_safety Thread-safe. Uses m_state_mutex for synchronization.
+     */
+    FLACCodecStats getStats() const;
+    
+    /**
      * @brief Seek to specific sample position
      * 
      * Uses seek table if available for fast seeking, otherwise falls back

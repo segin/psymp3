@@ -43,3 +43,12 @@ void Player::synthesizeUserEvent(int event_type, void* data1, void* data2) {
     (void)event_type; (void)data1; (void)data2; // Suppress unused parameter warnings
     // Do nothing for testing
 }
+
+void Player::setVolume(double volume) {
+    (void)volume; // Suppress unused parameter warning
+    // Do nothing for testing
+}
+
+double Player::getVolume() const {
+    return 1.0; // Return dummy volume (1.0 = 100%)
+}

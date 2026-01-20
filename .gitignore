@@ -146,3 +146,4 @@ tests/simple_*
 !tests/simple_*.cpp
 
 tests/test-harness
+test-driver

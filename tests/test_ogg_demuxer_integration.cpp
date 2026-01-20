@@ -12,10 +12,18 @@
 #ifdef HAVE_OGGDEMUXER
 
 #include "test_framework.h"
+#include "demuxer/ogg/OggDemuxer.h"
+#include "demuxer/DemuxerRegistry.h"
+#include "io/file/FileIOHandler.h"
 #include <memory>
 #include <vector>
 #include <fstream>
 #include <cstring>
+
+using namespace PsyMP3;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
+using namespace PsyMP3::IO;
 
 /**
  * @brief Comprehensive integration tests for OggDemuxer class

@@ -142,6 +142,7 @@ psymp3_LDADD = \
 	tag/libpsymp3-tag.a \
 	core/libpsymp3-core.a \
 	util/libpsymp3-util.a \
+	core/compression/libpsymp3-core-compression.a \
 	core/utility/libpsymp3-core-utility.a
 endif
 

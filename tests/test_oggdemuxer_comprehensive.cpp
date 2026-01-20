@@ -21,6 +21,11 @@
 #include <algorithm>
 #include <atomic>
 
+using namespace PsyMP3;
+using namespace PsyMP3::IO;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
+
 // Simple test framework
 static int test_count = 0;
 static int passed_count = 0;

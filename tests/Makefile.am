@@ -169,7 +169,8 @@ FULL_CODEC_LIBS = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(CODEC_LIBS)
 
 # Legacy variable for backward compatibility (deprecated - use FULL_CODEC_LIBS)
 COMMON_CODEC_DEPS = $(FULL_CODEC_LIBS)
@@ -354,7 +355,14 @@ if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
-	test_ogg_fuzzing test_ogg_multiplexed_seeking test_ogg_seeking_stress
+	test_ogg_fuzzing test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
+	test_compression_lz77
+
+test_compression_lz77_SOURCES = test_compression_lz77.cpp
+test_compression_lz77_LDADD = \
+	$(top_builddir)/src/core/compression/libpsymp3-core-compression.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(LDADD)
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
@@ -375,6 +383,8 @@ test_opus_codec_property_LDADD = \
 	$(TAGLIB_LIBS) \
 	$(VORBIS_LIBS) \
 	$(FLAC_LIBS) \
+	$(FLAC_LIBS) \
+	-lmpg123 \
 	$(AM_LDFLAGS)
 
 test_fixed_predictor_properties_SOURCES = test_fixed_predictor_properties.cpp
@@ -611,6 +621,8 @@ test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(AM_LDFLAGS)
 
 test_demuxed_stream_unit_SOURCES = test_demuxed_stream_unit.cpp
@@ -632,6 +644,7 @@ test_demuxed_stream_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
+	$(CODEC_LIBS) \
 	$(top_builddir)/src/codecs/libpsymp3-codecs.a \
 	$(DEMUXER_LIBS) \
 	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
@@ -686,6 +699,8 @@ test_media_factory_integration_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lmpg123 -lopus -lcurl -lssl -lcrypto \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(AM_LDFLAGS)
 
 # Performance and regression tests
@@ -1505,10 +1520,6 @@ test_system_wide_threading_integration_LDADD = \
 	$(top_builddir)/src/surface.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/fft.o \
-	$(top_builddir)/src/core/fft_draw.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -1525,10 +1536,6 @@ test_threading_performance_regression_LDADD = \
 	$(top_builddir)/src/surface.o \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(top_builddir)/src/core/fft.o \
-	$(top_builddir)/src/core/fft_draw.o \
 	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/track.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -2177,10 +2184,10 @@ test_iohandler_memory_deadlock_prevention_SOURCES = test_iohandler_memory_deadlo
 test_iohandler_memory_deadlock_prevention_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
 # MemoryPoolManager integration test
@@ -2188,9 +2195,9 @@ test_memory_pool_manager_integration_SOURCES = test_memory_pool_manager_integrat
 test_memory_pool_manager_integration_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
 # MemoryPoolManager comprehensive thread safety test
@@ -2198,18 +2205,18 @@ test_memory_pool_manager_thread_safety_comprehensive_SOURCES = test_memory_pool_
 test_memory_pool_manager_thread_safety_comprehensive_LDADD = \
 	libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
 # MemoryPoolManager basic threading test
 test_memory_pool_manager_basic_threading_SOURCES = test_memory_pool_manager_basic_threading.cpp
 test_memory_pool_manager_basic_threading_LDADD = \
 	$(top_builddir)/src/debug.o \
-	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
 test_frame_size_estimation_consistency_SOURCES = test_frame_size_estimation_consistency.cpp
@@ -2741,9 +2748,14 @@ test_opus_codec_core_decoding_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
+	$(OPUS_LIBS) \
+	$(CODEC_LIBS) \
+	-lmpg123 \
 	$(AM_LDFLAGS)
 
 test_opus_codec_error_handling_SOURCES = test_opus_codec_error_handling.cpp
@@ -2771,6 +2783,9 @@ test_opus_codec_error_handling_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
+	$(OPUS_LIBS) \
+	$(CODEC_LIBS) \
+	-lmpg123 \
 	$(AM_LDFLAGS)
 
 test_opus_integration_SOURCES = test_opus_integration.cpp
@@ -2799,6 +2814,10 @@ test_opus_integration_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
+	$(OPUS_LIBS) \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	-lmpg123 \
 	$(AM_LDFLAGS)
 
 test_opus_compatibility_performance_SOURCES = test_opus_compatibility_performance.cpp
@@ -2827,6 +2846,10 @@ test_opus_compatibility_performance_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	-logg -lvorbis -lvorbisenc \
 	$(OPUS_LIBS) \
+	$(OPUS_LIBS) \
+	$(CODEC_LIBS) \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	-lmpg123 \
 	$(AM_LDFLAGS)
 
 # MPRIS Mock Framework Tests
@@ -3892,3 +3915,6 @@ fuzz_utf8util_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
+
+# Run all check programs
+TESTS = $(check_PROGRAMS)

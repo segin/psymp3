@@ -531,7 +531,9 @@ using PsyMP3::Demuxer::FLAC::FLACStreamInfo;
 #include "codecs/flac/SampleReconstructor.h"
 #include "codecs/flac/MetadataParser.h"
 #include "codecs/flac/MD5Validator.h"
+#include "codecs/flac/FLACTypes.h"
 #include "codecs/flac/NativeFLACCodec.h"
+#include "codecs/FLACCodec.h"
 using PsyMP3::Codec::FLAC::FLACCodec;
 using PsyMP3::Codec::FLAC::FLACError;
 using PsyMP3::Codec::FLAC::FLACException;
