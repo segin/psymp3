@@ -473,6 +473,13 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
     }
     
     std::string scheme = url.substr(0, schemeEnd);
+    
+    // Validate scheme
+    if (scheme != "http" && scheme != "https") {
+        Debug::log("http", "HTTPClient::parseURL() - Unsupported scheme: ", scheme);
+        return false;
+    }
+    
     isHttps = (scheme == "https");
     port = isHttps ? 443 : 80;
     
@@ -544,23 +551,7 @@ void HTTPClient::cleanupSSL() {
     CurlLifecycleManager::forceCleanup();
     Debug::log("http", "HTTPClient::cleanupSSL() - SSL cleanup handled by libcurl cleanup");
 }
-// Implementation of Connection::close() method
-void HTTPClient::Connection::close() {
-    if (ssl) {
-        SSL_shutdown(ssl);
-        SSL_free(ssl);
-        ssl = nullptr;
-    }
-    if (socket >= 0) {
-#ifdef _WIN32
-        closesocket(socket);
-#else
-        ::close(socket);
-#endif
-        socket = -1;
-    }
-    keep_alive = false;
-}
+
 } // namespace HTTP
 } // namespace IO
 } // namespace PsyMP3

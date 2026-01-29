@@ -51,30 +51,7 @@ public:
         bool connection_reused = false;
     };
     
-    /**
-     * @brief Persistent HTTP connection for Keep-Alive
-     */
-    struct Connection {
-        int socket = -1;
-        SSL* ssl = nullptr;
-        std::string host;
-        int port = 0;
-        bool is_https = false;
-        std::chrono::steady_clock::time_point last_used;
-        bool keep_alive = false;
-        int max_requests = 100;
-        int requests_made = 0;
-        
-        bool isValid() const {
-            return socket >= 0 && keep_alive && requests_made < max_requests;
-        }
-        
-        bool isExpired(std::chrono::seconds timeout = std::chrono::seconds(30)) const {
-            return std::chrono::steady_clock::now() - last_used > timeout;
-        }
-        
-        void close();  // Moved to implementation to avoid header dependencies
-    };
+
     
     /**
      * @brief Perform HTTP GET request
