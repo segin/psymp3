@@ -262,7 +262,7 @@ private:
     std::map<std::string, ComponentUsage> m_component_usage;
     
     // Memory pressure monitoring
-    int m_memory_pressure_level = 0;
+    std::atomic<int> m_memory_pressure_level{0};
     int m_callback_id_counter = 0;
     int m_memory_tracker_callback_id = -1;
     std::vector<std::pair<int, std::function<void(int)>>> m_pressure_callbacks;
