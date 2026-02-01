@@ -107,7 +107,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Handle boundary conditions correctly
     - _Requirements: 1.1_
   
-  - [ ]* 5.2 Write property test for point containment correctness
+  - [ ] 5.2 Write property test for point containment correctness
     - **Property 1: Point Containment Correctness**
     - **Validates: Requirements 1.1**
   
@@ -116,7 +116,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Handle empty rectangles appropriately
     - _Requirements: 1.1_
   
-  - [ ]* 5.4 Write unit tests for containment edge cases
+  - [ ] 5.4 Write unit tests for containment edge cases
     - Test empty rectangle containment
     - Test boundary point containment
     - Test negative coordinate containment
@@ -129,7 +129,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Handle touching edges correctly
     - _Requirements: 1.2_
   
-  - [ ]* 6.2 Write property test for rectangle intersection detection
+  - [ ] 6.2 Write property test for rectangle intersection detection
     - **Property 2: Rectangle Intersection Detection**
     - **Validates: Requirements 1.2**
   
@@ -139,11 +139,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Handle partial and full containment cases
     - _Requirements: 1.3_
   
-  - [ ]* 6.4 Write property test for intersection calculation correctness
+  - [ ] 6.4 Write property test for intersection calculation correctness
     - **Property 3: Intersection Calculation Correctness**
     - **Validates: Requirements 1.3**
   
-  - [ ]* 6.5 Write unit tests for intersection edge cases
+  - [ ] 6.5 Write unit tests for intersection edge cases
     - Test non-overlapping rectangles
     - Test touching edges (no overlap)
     - Test full containment
@@ -157,11 +157,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Handle coordinate overflow safely
     - _Requirements: 1.4_
   
-  - [ ]* 7.2 Write property test for union bounding box property
+  - [ ] 7.2 Write property test for union bounding box property
     - **Property 4: Union Bounding Box Property**
     - **Validates: Requirements 1.4**
   
-  - [ ]* 7.3 Write unit tests for union edge cases
+  - [ ] 7.3 Write unit tests for union edge cases
     - Test union with empty rectangles
     - Test union with negative coordinates
     - Test union with maximum coordinate values
@@ -179,7 +179,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Add `expanded(int16_t dx, int16_t dy)` returning expanded rectangle
     - _Requirements: 1.5_
   
-  - [ ]* 8.3 Write property test for expansion preserves center
+  - [ ] 8.3 Write property test for expansion preserves center
     - **Property 5: Expansion Preserves Center**
     - **Validates: Requirements 1.5**
   
@@ -194,11 +194,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Add `shrunk(int16_t dx, int16_t dy)` returning shrunk rectangle
     - _Requirements: 1.6_
   
-  - [ ]* 8.6 Write property test for shrinking preserves center
+  - [ ] 8.6 Write property test for shrinking preserves center
     - **Property 6: Shrinking Preserves Center**
     - **Validates: Requirements 1.6**
   
-  - [ ]* 8.7 Write unit tests for expansion/shrinking edge cases
+  - [ ] 8.7 Write unit tests for expansion/shrinking edge cases
     - Test expansion with negative margins
     - Test shrinking beyond zero dimensions
     - Test with maximum coordinate values
@@ -211,7 +211,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Handle coordinate overflow safely
     - _Requirements: 3.1_
   
-  - [ ]* 9.2 Write property test for translation preserves dimensions
+  - [ ] 9.2 Write property test for translation preserves dimensions
     - **Property 12: Translation Preserves Dimensions**
     - **Validates: Requirements 3.1**
   
@@ -220,11 +220,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Add `movedTo(int16_t x, int16_t y)` returning repositioned rectangle
     - _Requirements: 3.2_
   
-  - [ ]* 9.4 Write property test for moveTo sets absolute position
+  - [ ] 9.4 Write property test for moveTo sets absolute position
     - **Property 13: MoveTo Sets Absolute Position**
     - **Validates: Requirements 3.2**
   
-  - [ ]* 9.5 Write unit tests for translation edge cases
+  - [ ] 9.5 Write unit tests for translation edge cases
     - Test translation with negative offsets
     - Test translation causing overflow
     - Test moveTo with negative coordinates
@@ -237,11 +237,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Preserve top-left position
     - _Requirements: 3.3_
   
-  - [ ]* 10.2 Write property test for resize preserves position
+  - [ ] 10.2 Write property test for resize preserves position
     - **Property 14: Resize Preserves Position**
     - **Validates: Requirements 3.3**
   
-  - [ ]* 10.3 Write unit tests for resize edge cases
+  - [ ] 10.3 Write unit tests for resize edge cases
     - Test resize to zero dimensions
     - Test resize to maximum dimensions
     - _Requirements: 3.3_
@@ -254,11 +254,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Handle coordinate overflow
     - _Requirements: 3.4_
   
-  - [ ]* 11.2 Write property test for adjust modifies position and size
+  - [ ] 11.2 Write property test for adjust modifies position and size
     - **Property 15: Adjust Modifies Position and Size**
     - **Validates: Requirements 3.4**
   
-  - [ ]* 11.3 Write unit tests for adjust edge cases
+  - [ ] 11.3 Write unit tests for adjust edge cases
     - Test adjust causing negative dimensions
     - Test adjust with overflow conditions
     - _Requirements: 3.4_
@@ -271,11 +271,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Calculate center with integer division precision
     - _Requirements: 3.5_
   
-  - [ ]* 12.2 Write property test for centering calculation
+  - [ ] 12.2 Write property test for centering calculation
     - **Property 16: Centering Calculation**
     - **Validates: Requirements 3.5**
   
-  - [ ]* 12.3 Write unit tests for centering edge cases
+  - [ ] 12.3 Write unit tests for centering edge cases
     - Test centering larger rectangle in smaller container
     - Test centering with odd dimensions
     - Test centering with negative coordinates
@@ -289,19 +289,19 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Document overflow behavior in comments
     - _Requirements: 6.2, 6.4_
   
-  - [ ]* 13.2 Write property test for negative coordinate handling
+  - [ ] 13.2 Write property test for negative coordinate handling
     - **Property 21: Negative Coordinate Handling**
     - **Validates: Requirements 6.1**
   
-  - [ ]* 13.3 Write property test for overflow protection
+  - [ ] 13.3 Write property test for overflow protection
     - **Property 22: Overflow Protection**
     - **Validates: Requirements 6.2, 6.4**
   
-  - [ ]* 13.4 Write property test for precision maintenance
+  - [ ] 13.4 Write property test for precision maintenance
     - **Property 23: Precision Maintenance**
     - **Validates: Requirements 6.3**
   
-  - [ ]* 13.5 Write unit tests for boundary conditions
+  - [ ] 13.5 Write unit tests for boundary conditions
     - Test with INT16_MIN and INT16_MAX coordinates
     - Test with UINT16_MAX dimensions
     - Test operations at boundary values
@@ -313,11 +313,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Document behavior for invalid rectangles in method comments
     - _Requirements: 7.3_
   
-  - [ ]* 14.2 Write property test for invalid rectangle handling
+  - [ ] 14.2 Write property test for invalid rectangle handling
     - **Property 25: Invalid Rectangle Handling**
     - **Validates: Requirements 7.3**
   
-  - [ ]* 14.3 Write unit tests for invalid rectangle scenarios
+  - [ ] 14.3 Write unit tests for invalid rectangle scenarios
     - Test operations on rectangles with negative dimensions
     - Test operations on rectangles with overflow conditions
     - Verify no crashes or undefined behavior
@@ -331,11 +331,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Verify memory layout unchanged (sizeof, alignment)
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [ ]* 15.2 Write property test for backward compatibility
+  - [ ] 15.2 Write property test for backward compatibility
     - **Property 17: Backward Compatibility - API Preservation**
     - **Validates: Requirements 4.1, 4.2, 4.3**
-  
-  - [ ]* 15.3 Write property test for container compatibility
+
+  - [ ] 15.3 Write property test for container compatibility
     - **Property 18: Container Compatibility**
     - **Validates: Requirements 5.1, 5.4**
 
@@ -364,7 +364,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Test ToastWidget centering with centerIn()
     - _Requirements: 4.5_
   
-  - [ ]* 17.4 Write integration tests for Widget system
+  - [ ] 17.4 Write integration tests for Widget system
     - Test complete widget positioning workflow
     - Test layout calculations with new methods
     - Test event handling with enhanced containment
