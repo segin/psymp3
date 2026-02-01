@@ -367,10 +367,15 @@ endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
 if HAVE_RAPIDCHECK
-check_PROGRAMS += test_rapidcheck_setup test_opus_codec_property test_fixed_predictor_properties
+check_PROGRAMS += test_boxparser_vulnerability \
+    test_rapidcheck_setup test_opus_codec_property test_fixed_predictor_properties
 
 test_rapidcheck_setup_SOURCES = test_rapidcheck_setup.cpp
-test_rapidcheck_setup_LDADD = $(AM_LDFLAGS) $(RAPIDCHECK_LIBS)
+test_rapidcheck_setup_LDADD = $(COMMON_TEST_LIBS)
+
+test_boxparser_vulnerability_SOURCES = test_boxparser_vulnerability.cpp
+test_boxparser_vulnerability_LDADD = $(COMMON_TEST_LIBS) \
+ $(RAPIDCHECK_LIBS)
 
 test_opus_codec_property_SOURCES = test_opus_codec_property.cpp
 test_opus_codec_property_LDADD = \
