@@ -76,25 +76,25 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - **Validates: Requirements 7.4**
 
 - [ ] 4. Implement modern C++ operators and string representation
-  - [~] 4.1 Implement comparison operators
+  - [x] 4.1 Implement comparison operators
     - Add `operator==(const Rect& other)` comparing all members
     - Add `operator!=(const Rect& other)` as negation of equality
     - _Requirements: 5.2_
   
-  - [~] 4.2 Write property test for equality comparison correctness
+  - [x] 4.2 Write property test for equality comparison correctness
     - **Property 19: Equality Comparison Correctness**
     - **Validates: Requirements 5.2**
   
-  - [~] 4.3 Implement string representation
+  - [x] 4.3 Implement string representation
     - Add `toString()` returning "Rect(x, y, width, height)" format
     - Include proper formatting for negative coordinates
     - _Requirements: 5.3, 7.2_
   
-  - [~] 4.4 Write property test for string representation accuracy
+  - [x] 4.4 Write property test for string representation accuracy
     - **Property 20: String Representation Accuracy**
     - **Validates: Requirements 5.3, 7.2**
   
-  - [~] 4.5 Write unit tests for container compatibility
+  - [x] 4.5 Write unit tests for container compatibility
     - Test Rect in std::vector, std::map, std::set
     - Test with std::sort, std::find algorithms
     - Verify copy/move semantics work correctly

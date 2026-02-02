@@ -320,6 +320,46 @@ int main() {
         failures++;
     }
 
+    // Property 20: String Representation Accuracy
+    // **Validates: Requirements 5.3, 7.2**
+    std::cout << "Property 20: String Representation Accuracy... ";
+    std::cout.flush();
+    try {
+        rc::check("String representation accuracy", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            std::string str = rect.toString();
+            
+            // String should contain "Rect(" prefix
+            RC_ASSERT(str.find("Rect(") == 0);
+            
+            // String should contain all coordinate values as strings
+            std::string x_str = std::to_string(x);
+            std::string y_str = std::to_string(y);
+            std::string w_str = std::to_string(w);
+            std::string h_str = std::to_string(h);
+            
+            RC_ASSERT(str.find(x_str) != std::string::npos);
+            RC_ASSERT(str.find(y_str) != std::string::npos);
+            RC_ASSERT(str.find(w_str) != std::string::npos);
+            RC_ASSERT(str.find(h_str) != std::string::npos);
+            
+            // String should contain closing parenthesis
+            RC_ASSERT(str.find(")") != std::string::npos);
+            
+            // For empty rectangles, string should indicate empty status
+            if (rect.isEmpty()) {
+                RC_ASSERT(str.find("[EMPTY]") != std::string::npos);
+            }
+            
+            // String should be non-empty
+            RC_ASSERT(!str.empty());
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
     // Property 12: Translation Preserves Dimensions
     // **Validates: Requirements 3.1**
     std::cout << "Property 12: Translation Preserves Dimensions... ";
@@ -451,7 +491,7 @@ int main() {
     std::cout << std::endl;
     std::cout << "Property-Based Test Summary" << std::endl;
     std::cout << "===========================" << std::endl;
-    std::cout << "Total properties tested: 11" << std::endl;
+    std::cout << "Total properties tested: 12" << std::endl;
     std::cout << "Failures: " << failures << std::endl;
     
     if (failures == 0) {

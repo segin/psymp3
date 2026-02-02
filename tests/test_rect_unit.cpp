@@ -22,6 +22,10 @@
 #include "test_rect_utilities.h"
 #include <iostream>
 #include <limits>
+#include <vector>
+#include <map>
+#include <set>
+#include <algorithm>
 
 using PsyMP3::Core::Rect;
 using namespace TestFramework;
@@ -539,6 +543,82 @@ public:
 };
 
 // ========================================
+// CONTAINER COMPATIBILITY TESTS
+// ========================================
+
+class TestContainerCompatibility : public TestCase {
+public:
+    TestContainerCompatibility() : TestCase("Container Compatibility") {}
+    
+    void runTest() override {
+        // Test with std::vector
+        std::vector<Rect> vec;
+        vec.push_back(Rect(10, 20, 100, 50));
+        vec.push_back(Rect(30, 40, 80, 60));
+        vec.push_back(Rect(50, 60, 120, 70));
+        
+        RECT_ASSERT_EQUALS(vec.size(), 3u, "Vector size");
+        assertRectEquals(vec[0], 10, 20, 100, 50, "Vector element 0");
+        assertRectEquals(vec[1], 30, 40, 80, 60, "Vector element 1");
+        assertRectEquals(vec[2], 50, 60, 120, 70, "Vector element 2");
+        
+        // Test copy semantics
+        std::vector<Rect> vec_copy = vec;
+        RECT_ASSERT_EQUALS(vec_copy.size(), 3u, "Copied vector size");
+        assertRectsIdentical(vec[0], vec_copy[0], "Copy semantics");
+        
+        // Test with std::map
+        std::map<int, Rect> map;
+        map[1] = Rect(10, 20, 100, 50);
+        map[2] = Rect(30, 40, 80, 60);
+        map[3] = Rect(50, 60, 120, 70);
+        
+        RECT_ASSERT_EQUALS(map.size(), 3u, "Map size");
+        assertRectEquals(map[1], 10, 20, 100, 50, "Map element 1");
+        assertRectEquals(map[2], 30, 40, 80, 60, "Map element 2");
+        assertRectEquals(map[3], 50, 60, 120, 70, "Map element 3");
+        
+        // Test with std::set (requires operator<, but we can use custom comparator)
+        auto rect_compare = [](const Rect& a, const Rect& b) {
+            if (a.x() != b.x()) return a.x() < b.x();
+            if (a.y() != b.y()) return a.y() < b.y();
+            if (a.width() != b.width()) return a.width() < b.width();
+            return a.height() < b.height();
+        };
+        std::set<Rect, decltype(rect_compare)> set(rect_compare);
+        set.insert(Rect(10, 20, 100, 50));
+        set.insert(Rect(30, 40, 80, 60));
+        set.insert(Rect(50, 60, 120, 70));
+        set.insert(Rect(10, 20, 100, 50)); // Duplicate, should not be added
+        
+        RECT_ASSERT_EQUALS(set.size(), 3u, "Set size (no duplicates)");
+        
+        // Test with std::find
+        auto it = std::find(vec.begin(), vec.end(), Rect(30, 40, 80, 60));
+        RECT_ASSERT_TRUE(it != vec.end(), "std::find found element");
+        assertRectEquals(*it, 30, 40, 80, 60, "Found element");
+        
+        auto not_found = std::find(vec.begin(), vec.end(), Rect(999, 999, 1, 1));
+        RECT_ASSERT_TRUE(not_found == vec.end(), "std::find didn't find non-existent element");
+        
+        // Test with std::sort (using custom comparator)
+        std::vector<Rect> sort_vec;
+        sort_vec.push_back(Rect(50, 60, 120, 70));
+        sort_vec.push_back(Rect(10, 20, 100, 50));
+        sort_vec.push_back(Rect(30, 40, 80, 60));
+        
+        std::sort(sort_vec.begin(), sort_vec.end(), rect_compare);
+        
+        // After sorting by x coordinate, should be in order
+        RECT_ASSERT_TRUE(sort_vec[0].x() <= sort_vec[1].x(), "Sorted order 0 <= 1");
+        RECT_ASSERT_TRUE(sort_vec[1].x() <= sort_vec[2].x(), "Sorted order 1 <= 2");
+        assertRectEquals(sort_vec[0], 10, 20, 100, 50, "Sorted element 0");
+        assertRectEquals(sort_vec[1], 30, 40, 80, 60, "Sorted element 1");
+        assertRectEquals(sort_vec[2], 50, 60, 120, 70, "Sorted element 2");
+    }
+};
+
+// ========================================
 // MAIN TEST RUNNER
 // ========================================
 
@@ -566,6 +646,7 @@ int main() {
     // Modern C++ features
     suite.addTest(std::make_unique<TestEqualityOperators>());
     suite.addTest(std::make_unique<TestStringRepresentation>());
+    suite.addTest(std::make_unique<TestContainerCompatibility>());
     
     // Edge cases and validation
     suite.addTest(std::make_unique<TestEmptyRectangles>());
