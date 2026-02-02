@@ -101,22 +101,22 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - _Requirements: 5.1, 5.4_
 
 - [ ] 5. Implement point and rectangle containment
-  - [~] 5.1 Implement point containment
+  - [x] 5.1 Implement point containment
     - Add `contains(int16_t x, int16_t y)` checking point-in-rectangle
     - Handle empty rectangles (return false)
     - Handle boundary conditions correctly
     - _Requirements: 1.1_
   
-  - [~] 5.2 Write property test for point containment correctness
+  - [x] 5.2 Write property test for point containment correctness
     - **Property 1: Point Containment Correctness**
     - **Validates: Requirements 1.1**
   
-  - [~] 5.3 Implement rectangle containment
+  - [x] 5.3 Implement rectangle containment
     - Add `contains(const Rect& other)` checking if other is fully inside
     - Handle empty rectangles appropriately
     - _Requirements: 1.1_
   
-  - [~] 5.4 Write unit tests for containment edge cases
+  - [x] 5.4 Write unit tests for containment edge cases
     - Test empty rectangle containment
     - Test boundary point containment
     - Test negative coordinate containment
