@@ -61,17 +61,17 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - **Property 11: Area Calculation**
     - **Validates: Requirements 2.6**
   
-  - [~] 3.4 Implement validation and normalization
+  - [x] 3.4 Implement validation and normalization
     - Add `isValid()` checking for valid coordinate ranges and non-zero dimensions
     - Add `normalized()` returning rectangle with positive dimensions
     - Add `normalize()` for in-place normalization
     - _Requirements: 7.1, 7.4_
   
-  - [~] 3.5 Write property test for validation correctness
+  - [x] 3.5 Write property test for validation correctness
     - **Property 24: Validation Correctness**
     - **Validates: Requirements 7.1**
   
-  - [~] 3.6 Write property test for normalization correctness
+  - [x] 3.6 Write property test for normalization correctness
     - **Property 26: Normalization Correctness**
     - **Validates: Requirements 7.4**
 

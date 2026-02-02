@@ -376,11 +376,82 @@ int main() {
         failures++;
     }
 
+    // Property 24: Validation Correctness
+    // **Validates: Requirements 7.1**
+    std::cout << "Property 24: Validation Correctness... ";
+    std::cout.flush();
+    try {
+        rc::check("Validation correctness", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            bool is_valid = rect.isValid();
+            
+            // A rectangle is valid if and only if it has non-zero dimensions
+            bool expected_valid = (w > 0 && h > 0);
+            RC_ASSERT(is_valid == expected_valid);
+            
+            // Valid rectangles should not be empty
+            if (is_valid) {
+                RC_ASSERT(!rect.isEmpty());
+            }
+            
+            // Empty rectangles should not be valid
+            if (rect.isEmpty()) {
+                RC_ASSERT(!is_valid);
+            }
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 26: Normalization Correctness
+    // **Validates: Requirements 7.4**
+    std::cout << "Property 26: Normalization Correctness... ";
+    std::cout.flush();
+    try {
+        rc::check("Normalization correctness", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            Rect normalized = rect.normalized();
+            
+            // Normalized rectangle should have the same area
+            RC_ASSERT(normalized.area() == rect.area());
+            
+            // For rectangles with positive dimensions, normalization should not change them
+            if (w > 0 && h > 0) {
+                // Already normalized - should be unchanged
+                RC_ASSERT(normalized.x() == rect.x());
+                RC_ASSERT(normalized.y() == rect.y());
+                RC_ASSERT(normalized.width() == rect.width());
+                RC_ASSERT(normalized.height() == rect.height());
+            }
+            
+            // Test in-place normalization produces same result
+            Rect rect_copy(x, y, w, h);
+            rect_copy.normalize();
+            RC_ASSERT(rect_copy.x() == normalized.x());
+            RC_ASSERT(rect_copy.y() == normalized.y());
+            RC_ASSERT(rect_copy.width() == normalized.width());
+            RC_ASSERT(rect_copy.height() == normalized.height());
+            
+            // Normalizing a normalized rectangle should be idempotent
+            Rect double_normalized = normalized.normalized();
+            RC_ASSERT(double_normalized.x() == normalized.x());
+            RC_ASSERT(double_normalized.y() == normalized.y());
+            RC_ASSERT(double_normalized.width() == normalized.width());
+            RC_ASSERT(double_normalized.height() == normalized.height());
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
     // Summary
     std::cout << std::endl;
     std::cout << "Property-Based Test Summary" << std::endl;
     std::cout << "===========================" << std::endl;
-    std::cout << "Total properties tested: 9" << std::endl;
+    std::cout << "Total properties tested: 11" << std::endl;
     std::cout << "Failures: " << failures << std::endl;
     
     if (failures == 0) {
