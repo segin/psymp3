@@ -231,6 +231,125 @@ public:
     }
 };
 
+class TestIntersectionEdgeCases : public TestCase {
+public:
+    TestIntersectionEdgeCases() : TestCase("Intersection Edge Cases") {}
+    
+    void runTest() override {
+        // Test 1: Non-overlapping rectangles (separated horizontally)
+        Rect rect1(10, 10, 50, 30);
+        Rect rect2(100, 10, 50, 30);
+        RECT_ASSERT_FALSE(rect1.intersects(rect2), "Horizontally separated rects don't intersect");
+        Rect intersection1 = rect1.intersection(rect2);
+        RECT_ASSERT_TRUE(intersection1.isEmpty(), "Non-overlapping intersection is empty");
+        RECT_ASSERT_EQUALS(intersection1.x(), 0, "Empty intersection x");
+        RECT_ASSERT_EQUALS(intersection1.y(), 0, "Empty intersection y");
+        RECT_ASSERT_EQUALS(intersection1.width(), 0, "Empty intersection width");
+        RECT_ASSERT_EQUALS(intersection1.height(), 0, "Empty intersection height");
+        
+        // Test 2: Non-overlapping rectangles (separated vertically)
+        Rect rect3(10, 10, 50, 30);
+        Rect rect4(10, 100, 50, 30);
+        RECT_ASSERT_FALSE(rect3.intersects(rect4), "Vertically separated rects don't intersect");
+        Rect intersection2 = rect3.intersection(rect4);
+        RECT_ASSERT_TRUE(intersection2.isEmpty(), "Vertically separated intersection is empty");
+        
+        // Test 3: Touching edges (right edge of rect1 touches left edge of rect2)
+        Rect rect5(10, 10, 50, 30);  // right edge at x=60
+        Rect rect6(60, 10, 50, 30);  // left edge at x=60
+        RECT_ASSERT_FALSE(rect5.intersects(rect6), "Touching right-left edges don't intersect (exclusive)");
+        Rect intersection3 = rect5.intersection(rect6);
+        RECT_ASSERT_TRUE(intersection3.isEmpty(), "Touching edges intersection is empty");
+        
+        // Test 4: Touching edges (bottom edge of rect1 touches top edge of rect2)
+        Rect rect7(10, 10, 50, 30);  // bottom edge at y=40
+        Rect rect8(10, 40, 50, 30);  // top edge at y=40
+        RECT_ASSERT_FALSE(rect7.intersects(rect8), "Touching bottom-top edges don't intersect (exclusive)");
+        Rect intersection4 = rect7.intersection(rect8);
+        RECT_ASSERT_TRUE(intersection4.isEmpty(), "Touching edges intersection is empty");
+        
+        // Test 5: Full containment (rect2 completely inside rect1)
+        Rect rect9(10, 10, 100, 100);
+        Rect rect10(30, 30, 20, 20);
+        RECT_ASSERT_TRUE(rect9.intersects(rect10), "Container intersects contained rect");
+        Rect intersection5 = rect9.intersection(rect10);
+        assertRectsIdentical(rect10, intersection5, "Full containment intersection equals smaller rect");
+        
+        // Test 6: Full containment (rect1 completely inside rect2)
+        Rect rect11(30, 30, 20, 20);
+        Rect rect12(10, 10, 100, 100);
+        RECT_ASSERT_TRUE(rect11.intersects(rect12), "Contained rect intersects container");
+        Rect intersection6 = rect11.intersection(rect12);
+        assertRectsIdentical(rect11, intersection6, "Full containment intersection equals smaller rect");
+        
+        // Test 7: Partial overlap (top-left corner)
+        Rect rect13(20, 20, 50, 50);
+        Rect rect14(10, 10, 30, 30);
+        RECT_ASSERT_TRUE(rect13.intersects(rect14), "Partial overlap top-left");
+        Rect intersection7 = rect13.intersection(rect14);
+        assertRectEquals(intersection7, 20, 20, 20, 20, "Top-left overlap intersection");
+        
+        // Test 8: Partial overlap (bottom-right corner)
+        Rect rect15(10, 10, 30, 30);
+        Rect rect16(20, 20, 50, 50);
+        RECT_ASSERT_TRUE(rect15.intersects(rect16), "Partial overlap bottom-right");
+        Rect intersection8 = rect15.intersection(rect16);
+        assertRectEquals(intersection8, 20, 20, 20, 20, "Bottom-right overlap intersection");
+        
+        // Test 9: Cross-shaped overlap (rect2 crosses rect1 horizontally)
+        Rect rect17(20, 20, 20, 60);  // Vertical bar
+        Rect rect18(10, 40, 60, 20);  // Horizontal bar
+        RECT_ASSERT_TRUE(rect17.intersects(rect18), "Cross-shaped overlap");
+        Rect intersection9 = rect17.intersection(rect18);
+        assertRectEquals(intersection9, 20, 40, 20, 20, "Cross-shaped intersection");
+        
+        // Test 10: Empty rectangle never intersects
+        Rect empty1(0, 0, 0, 0);
+        Rect empty2(10, 10, 0, 20);
+        Rect empty3(10, 10, 20, 0);
+        Rect normal(10, 10, 50, 50);
+        
+        RECT_ASSERT_FALSE(empty1.intersects(normal), "Empty rect (0,0) doesn't intersect");
+        RECT_ASSERT_FALSE(empty2.intersects(normal), "Empty rect (zero width) doesn't intersect");
+        RECT_ASSERT_FALSE(empty3.intersects(normal), "Empty rect (zero height) doesn't intersect");
+        RECT_ASSERT_FALSE(empty1.intersects(empty2), "Empty rects don't intersect each other");
+        
+        // Test 11: Self-intersection
+        Rect rect19(10, 10, 50, 50);
+        RECT_ASSERT_TRUE(rect19.intersects(rect19), "Rectangle intersects itself");
+        Rect self_intersection = rect19.intersection(rect19);
+        assertRectsIdentical(rect19, self_intersection, "Self-intersection equals self");
+        
+        // Test 12: Intersection symmetry
+        Rect rect20(10, 10, 50, 30);
+        Rect rect21(30, 20, 40, 25);
+        Rect intersection_ab = rect20.intersection(rect21);
+        Rect intersection_ba = rect21.intersection(rect20);
+        assertRectsIdentical(intersection_ab, intersection_ba, "Intersection is symmetric");
+        
+        // Test 13: Negative coordinates
+        Rect rect22(-50, -50, 60, 60);  // From (-50,-50) to (10,10)
+        Rect rect23(-10, -10, 30, 30);  // From (-10,-10) to (20,20)
+        RECT_ASSERT_TRUE(rect22.intersects(rect23), "Negative coords intersect");
+        Rect intersection10 = rect22.intersection(rect23);
+        assertRectEquals(intersection10, -10, -10, 20, 20, "Negative coords intersection");
+        
+        // Test 14: One pixel overlap
+        Rect rect24(10, 10, 50, 50);
+        Rect rect25(59, 59, 50, 50);  // Overlaps by 1 pixel at (59,59)
+        RECT_ASSERT_TRUE(rect24.intersects(rect25), "One pixel overlap");
+        Rect intersection11 = rect24.intersection(rect25);
+        assertRectEquals(intersection11, 59, 59, 1, 1, "One pixel intersection");
+        
+        // Test 15: Identical rectangles
+        Rect rect26(10, 10, 50, 50);
+        Rect rect27(10, 10, 50, 50);
+        RECT_ASSERT_TRUE(rect26.intersects(rect27), "Identical rects intersect");
+        Rect intersection12 = rect26.intersection(rect27);
+        assertRectsIdentical(rect26, intersection12, "Identical rects intersection");
+    }
+};
+
 class TestRectangleUnion : public TestCase {
 public:
     TestRectangleUnion() : TestCase("Rectangle Union") {}
@@ -634,6 +753,7 @@ int main() {
     // Geometric operations
     suite.addTest(std::make_unique<TestPointContainment>());
     suite.addTest(std::make_unique<TestRectangleIntersection>());
+    suite.addTest(std::make_unique<TestIntersectionEdgeCases>());
     suite.addTest(std::make_unique<TestRectangleUnion>());
     
     // Transformation operations

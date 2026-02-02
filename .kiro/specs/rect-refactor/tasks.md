@@ -123,27 +123,27 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - _Requirements: 1.1_
 
 - [ ] 6. Implement intersection operations
-  - [~] 6.1 Implement intersection detection
+  - [x] 6.1 Implement intersection detection
     - Add `intersects(const Rect& other)` checking for overlap
     - Handle empty rectangles (return false)
     - Handle touching edges correctly
     - _Requirements: 1.2_
   
-  - [~] 6.2 Write property test for rectangle intersection detection
+  - [x] 6.2 Write property test for rectangle intersection detection
     - **Property 2: Rectangle Intersection Detection**
     - **Validates: Requirements 1.2**
   
-  - [~] 6.3 Implement intersection calculation
+  - [x] 6.3 Implement intersection calculation
     - Add `intersection(const Rect& other)` returning overlapping area
     - Return empty Rect(0, 0, 0, 0) for non-overlapping rectangles
     - Handle partial and full containment cases
     - _Requirements: 1.3_
   
-  - [~] 6.4 Write property test for intersection calculation correctness
+  - [x] 6.4 Write property test for intersection calculation correctness
     - **Property 3: Intersection Calculation Correctness**
     - **Validates: Requirements 1.3**
   
-  - [~] 6.5 Write unit tests for intersection edge cases
+  - [x] 6.5 Write unit tests for intersection edge cases
     - Test non-overlapping rectangles
     - Test touching edges (no overlap)
     - Test full containment

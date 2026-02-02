@@ -487,11 +487,105 @@ int main() {
         failures++;
     }
 
+    // Property 2: Rectangle Intersection Detection
+    // **Validates: Requirements 1.2**
+    std::cout << "Property 2: Rectangle Intersection Detection... ";
+    std::cout.flush();
+    try {
+        rc::check("Rectangle intersection detection", [](int16_t x1, int16_t y1, uint16_t w1, uint16_t h1,
+                                                          int16_t x2, int16_t y2, uint16_t w2, uint16_t h2) {
+            Rect rect1(x1, y1, w1, h1);
+            Rect rect2(x2, y2, w2, h2);
+            
+            bool intersects = rect1.intersects(rect2);
+            
+            // Empty rectangles never intersect
+            if (rect1.isEmpty() || rect2.isEmpty()) {
+                RC_ASSERT(!intersects);
+                return;
+            }
+            
+            // Calculate expected intersection using separation test
+            // Rectangles intersect if they are NOT separated on either axis
+            bool separated_x = (rect1.x() >= rect2.x() + static_cast<int32_t>(rect2.width())) ||
+                              (rect2.x() >= rect1.x() + static_cast<int32_t>(rect1.width()));
+            bool separated_y = (rect1.y() >= rect2.y() + static_cast<int32_t>(rect2.height())) ||
+                              (rect2.y() >= rect1.y() + static_cast<int32_t>(rect1.height()));
+            
+            bool expected_intersects = !separated_x && !separated_y;
+            
+            RC_ASSERT(intersects == expected_intersects);
+            
+            // Intersection should be symmetric
+            RC_ASSERT(rect1.intersects(rect2) == rect2.intersects(rect1));
+            
+            // A rectangle always intersects with itself (if non-empty)
+            if (!rect1.isEmpty()) {
+                RC_ASSERT(rect1.intersects(rect1));
+            }
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 3: Intersection Calculation Correctness
+    // **Validates: Requirements 1.3**
+    std::cout << "Property 3: Intersection Calculation Correctness... ";
+    std::cout.flush();
+    try {
+        rc::check("Intersection calculation correctness", [](int16_t x1, int16_t y1, uint16_t w1, uint16_t h1,
+                                                              int16_t x2, int16_t y2, uint16_t w2, uint16_t h2) {
+            Rect rect1(x1, y1, w1, h1);
+            Rect rect2(x2, y2, w2, h2);
+            
+            Rect intersection = rect1.intersection(rect2);
+            
+            // If rectangles don't intersect, intersection should be empty
+            if (!rect1.intersects(rect2)) {
+                RC_ASSERT(intersection.isEmpty());
+                return;
+            }
+            
+            // If rectangles intersect, intersection should not be empty
+            RC_ASSERT(!intersection.isEmpty());
+            
+            // Intersection should be contained in both rectangles
+            RC_ASSERT(rect1.contains(intersection));
+            RC_ASSERT(rect2.contains(intersection));
+            
+            // Intersection should be symmetric
+            Rect intersection_reversed = rect2.intersection(rect1);
+            RC_ASSERT(intersection.x() == intersection_reversed.x());
+            RC_ASSERT(intersection.y() == intersection_reversed.y());
+            RC_ASSERT(intersection.width() == intersection_reversed.width());
+            RC_ASSERT(intersection.height() == intersection_reversed.height());
+            
+            // Intersection with self should return self (if non-empty)
+            if (!rect1.isEmpty()) {
+                Rect self_intersection = rect1.intersection(rect1);
+                RC_ASSERT(self_intersection.x() == rect1.x());
+                RC_ASSERT(self_intersection.y() == rect1.y());
+                RC_ASSERT(self_intersection.width() == rect1.width());
+                RC_ASSERT(self_intersection.height() == rect1.height());
+            }
+            
+            // Intersection area should be <= both rectangle areas
+            RC_ASSERT(intersection.area() <= rect1.area());
+            RC_ASSERT(intersection.area() <= rect2.area());
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
     // Summary
     std::cout << std::endl;
     std::cout << "Property-Based Test Summary" << std::endl;
     std::cout << "===========================" << std::endl;
-    std::cout << "Total properties tested: 12" << std::endl;
+    std::cout << "Total properties tested: 14" << std::endl;
     std::cout << "Failures: " << failures << std::endl;
     
     if (failures == 0) {
