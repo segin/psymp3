@@ -48,16 +48,16 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - **Validates: Requirements 2.4**
 
 - [ ] 3. Implement validation and area methods
-  - [~] 3.1 Implement isEmpty and area methods
+  - [x] 3.1 Implement isEmpty and area methods
     - Add `isEmpty()` returning `width() == 0 || height() == 0`
     - Add `area()` returning `static_cast<uint32_t>(width()) * height()`
     - _Requirements: 2.5, 2.6_
   
-  - [~] 3.2 Write property test for empty rectangle detection
+  - [x] 3.2 Write property test for empty rectangle detection
     - **Property 10: Empty Rectangle Detection**
     - **Validates: Requirements 2.5**
   
-  - [~] 3.3 Write property test for area calculation
+  - [x] 3.3 Write property test for area calculation
     - **Property 11: Area Calculation**
     - **Validates: Requirements 2.6**
   
