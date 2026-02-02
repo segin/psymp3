@@ -36,14 +36,14 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - **Property 8: Center Point Calculation**
     - **Validates: Requirements 2.3**
   
-  - [~] 2.5 Implement corner coordinate methods
+  - [x] 2.5 Implement corner coordinate methods
     - Add `topLeft()` returning `(left(), top())`
     - Add `topRight()` returning `(right(), top())`
     - Add `bottomLeft()` returning `(left(), bottom())`
     - Add `bottomRight()` returning `(right(), bottom())`
     - _Requirements: 2.4_
   
-  - [~] 2.6 Write property test for corner coordinate derivation
+  - [x] 2.6 Write property test for corner coordinate derivation
     - **Property 9: Corner Coordinate Derivation**
     - **Validates: Requirements 2.4**
 

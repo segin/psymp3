@@ -177,6 +177,42 @@ std::pair<int16_t, int16_t> Rect::center() const
     return std::make_pair(centerX(), centerY());
 }
 
+/**
+ * @brief Get the top-left corner coordinates
+ * @return A pair containing (left, top)
+ */
+std::pair<int16_t, int16_t> Rect::topLeft() const
+{
+    return std::make_pair(left(), top());
+}
+
+/**
+ * @brief Get the top-right corner coordinates
+ * @return A pair containing (right, top)
+ */
+std::pair<int16_t, int16_t> Rect::topRight() const
+{
+    return std::make_pair(right(), top());
+}
+
+/**
+ * @brief Get the bottom-left corner coordinates
+ * @return A pair containing (left, bottom)
+ */
+std::pair<int16_t, int16_t> Rect::bottomLeft() const
+{
+    return std::make_pair(left(), bottom());
+}
+
+/**
+ * @brief Get the bottom-right corner coordinates
+ * @return A pair containing (right, bottom)
+ */
+std::pair<int16_t, int16_t> Rect::bottomRight() const
+{
+    return std::make_pair(right(), bottom());
+}
+
 // Area and validation methods
 
 

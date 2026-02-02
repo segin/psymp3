@@ -84,6 +84,53 @@ public:
     }
 };
 
+class TestRectCornerCoordinates : public TestCase {
+public:
+    TestRectCornerCoordinates() : TestCase("Rect Corner Coordinates") {}
+    
+    void runTest() override {
+        Rect rect(10, 20, 100, 50);
+        
+        // Test topLeft() returns (left, top)
+        auto [tl_x, tl_y] = rect.topLeft();
+        RECT_ASSERT_EQUALS(tl_x, 10, "Top-left X");
+        RECT_ASSERT_EQUALS(tl_y, 20, "Top-left Y");
+        RECT_ASSERT_EQUALS(tl_x, rect.left(), "Top-left X matches left()");
+        RECT_ASSERT_EQUALS(tl_y, rect.top(), "Top-left Y matches top()");
+        
+        // Test topRight() returns (right, top)
+        auto [tr_x, tr_y] = rect.topRight();
+        RECT_ASSERT_EQUALS(tr_x, 110, "Top-right X");
+        RECT_ASSERT_EQUALS(tr_y, 20, "Top-right Y");
+        RECT_ASSERT_EQUALS(tr_x, rect.right(), "Top-right X matches right()");
+        RECT_ASSERT_EQUALS(tr_y, rect.top(), "Top-right Y matches top()");
+        
+        // Test bottomLeft() returns (left, bottom)
+        auto [bl_x, bl_y] = rect.bottomLeft();
+        RECT_ASSERT_EQUALS(bl_x, 10, "Bottom-left X");
+        RECT_ASSERT_EQUALS(bl_y, 70, "Bottom-left Y");
+        RECT_ASSERT_EQUALS(bl_x, rect.left(), "Bottom-left X matches left()");
+        RECT_ASSERT_EQUALS(bl_y, rect.bottom(), "Bottom-left Y matches bottom()");
+        
+        // Test bottomRight() returns (right, bottom)
+        auto [br_x, br_y] = rect.bottomRight();
+        RECT_ASSERT_EQUALS(br_x, 110, "Bottom-right X");
+        RECT_ASSERT_EQUALS(br_y, 70, "Bottom-right Y");
+        RECT_ASSERT_EQUALS(br_x, rect.right(), "Bottom-right X matches right()");
+        RECT_ASSERT_EQUALS(br_y, rect.bottom(), "Bottom-right Y matches bottom()");
+        
+        // Test with negative coordinates
+        Rect negative(-50, -30, 80, 60);
+        auto [neg_tl_x, neg_tl_y] = negative.topLeft();
+        RECT_ASSERT_EQUALS(neg_tl_x, -50, "Negative top-left X");
+        RECT_ASSERT_EQUALS(neg_tl_y, -30, "Negative top-left Y");
+        
+        auto [neg_br_x, neg_br_y] = negative.bottomRight();
+        RECT_ASSERT_EQUALS(neg_br_x, 30, "Negative bottom-right X");
+        RECT_ASSERT_EQUALS(neg_br_y, 30, "Negative bottom-right Y");
+    }
+};
+
 class TestRectAreaAndEmpty : public TestCase {
 public:
     TestRectAreaAndEmpty() : TestCase("Rect Area and Empty") {}
@@ -501,6 +548,7 @@ int main() {
     // Basic construction and properties
     suite.addTest(std::make_unique<TestRectConstruction>());
     suite.addTest(std::make_unique<TestRectEdgeAccess>());
+    suite.addTest(std::make_unique<TestRectCornerCoordinates>());
     suite.addTest(std::make_unique<TestRectAreaAndEmpty>());
     
     // Geometric operations

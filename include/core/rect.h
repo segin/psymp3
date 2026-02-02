@@ -290,6 +290,34 @@ class Rect
         std::pair<int16_t, int16_t> center() const;
         
         /**
+         * @brief Get top-left corner coordinates
+         * @return std::pair containing (left, top)
+         * Usage example: auto [x, y] = rect.topLeft();
+         */
+        std::pair<int16_t, int16_t> topLeft() const;
+        
+        /**
+         * @brief Get top-right corner coordinates
+         * @return std::pair containing (right, top)
+         * Usage example: auto [x, y] = rect.topRight();
+         */
+        std::pair<int16_t, int16_t> topRight() const;
+        
+        /**
+         * @brief Get bottom-left corner coordinates
+         * @return std::pair containing (left, bottom)
+         * Usage example: auto [x, y] = rect.bottomLeft();
+         */
+        std::pair<int16_t, int16_t> bottomLeft() const;
+        
+        /**
+         * @brief Get bottom-right corner coordinates
+         * @return std::pair containing (right, bottom)
+         * Usage example: auto [x, y] = rect.bottomRight();
+         */
+        std::pair<int16_t, int16_t> bottomRight() const;
+        
+        /**
          * @brief Calculate rectangle area
          * @return Area in pixels (width * height)
          * Returns uint32_t to handle maximum possible area without overflow

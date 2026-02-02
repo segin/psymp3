@@ -218,6 +218,40 @@ int main() {
         failures++;
     }
 
+    // Property 9: Corner Coordinate Derivation
+    // **Validates: Requirements 2.4**
+    std::cout << "Property 9: Corner Coordinate Derivation... ";
+    std::cout.flush();
+    try {
+        rc::check("Corner coordinate derivation", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            
+            // Test topLeft() returns (left(), top())
+            auto [tl_x, tl_y] = rect.topLeft();
+            RC_ASSERT(tl_x == rect.left());
+            RC_ASSERT(tl_y == rect.top());
+            
+            // Test topRight() returns (right(), top())
+            auto [tr_x, tr_y] = rect.topRight();
+            RC_ASSERT(tr_x == rect.right());
+            RC_ASSERT(tr_y == rect.top());
+            
+            // Test bottomLeft() returns (left(), bottom())
+            auto [bl_x, bl_y] = rect.bottomLeft();
+            RC_ASSERT(bl_x == rect.left());
+            RC_ASSERT(bl_y == rect.bottom());
+            
+            // Test bottomRight() returns (right(), bottom())
+            auto [br_x, br_y] = rect.bottomRight();
+            RC_ASSERT(br_x == rect.right());
+            RC_ASSERT(br_y == rect.bottom());
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
     // Property 10: Empty Rectangle Detection
     // **Validates: Requirements 2.5**
     std::cout << "Property 10: Empty Rectangle Detection... ";
@@ -346,7 +380,7 @@ int main() {
     std::cout << std::endl;
     std::cout << "Property-Based Test Summary" << std::endl;
     std::cout << "===========================" << std::endl;
-    std::cout << "Total properties tested: 8" << std::endl;
+    std::cout << "Total properties tested: 9" << std::endl;
     std::cout << "Failures: " << failures << std::endl;
     
     if (failures == 0) {
