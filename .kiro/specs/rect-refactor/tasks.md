@@ -22,11 +22,11 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Add `bottom()` returning `y() + height()`
     - _Requirements: 2.1, 2.2_
   
-  - [~] 2.2 Write property test for edge calculation consistency
+  - [x] 2.2 Write property test for edge calculation consistency
     - **Property 7: Edge Calculation Consistency**
     - **Validates: Requirements 2.1, 2.2**
   
-  - [~] 2.3 Implement center point calculations
+  - [x] 2.3 Implement center point calculations
     - Add `centerX()` returning `x() + width() / 2`
     - Add `centerY()` returning `y() + height() / 2`
     - Add `center()` returning `std::pair<int16_t, int16_t>`
