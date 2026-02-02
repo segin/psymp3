@@ -329,6 +329,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_rect_modern_cpp \
 	test_rect_backward_compatibility \
 	test_rect_performance \
+	test_rect_unit \
 	test_widget_rect_integration \
 	test_harness_integration \
 	test_iohandler_integration_simple \
@@ -368,7 +369,8 @@ endif
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
 if HAVE_RAPIDCHECK
 check_PROGRAMS += test_boxparser_vulnerability \
-    test_rapidcheck_setup test_opus_codec_property test_fixed_predictor_properties
+    test_rapidcheck_setup test_opus_codec_property test_fixed_predictor_properties \
+    test_rect_properties
 
 test_rapidcheck_setup_SOURCES = test_rapidcheck_setup.cpp
 test_rapidcheck_setup_LDADD = $(COMMON_TEST_LIBS)
@@ -397,6 +399,13 @@ test_fixed_predictor_properties_LDADD = \
 	$(RAPIDCHECK_LIBS) \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+test_rect_properties_SOURCES = test_rect_properties.cpp
+test_rect_properties_LDADD = \
+	libtest_utilities.a \
+	$(RAPIDCHECK_LIBS) \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 endif
 
@@ -499,6 +508,9 @@ test_rect_backward_compatibility_LDADD = libtest_utilities.a $(top_builddir)/src
 
 test_rect_performance_SOURCES = test_rect_performance.cpp
 test_rect_performance_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
+
+test_rect_unit_SOURCES = test_rect_unit.cpp
+test_rect_unit_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 
 test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
 test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
