@@ -15,7 +15,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
   - _Requirements: 5.1, 5.4_
 
 - [ ] 2. Implement foundational utility methods
-  - [~] 2.1 Implement edge coordinate accessors
+  - [x] 2.1 Implement edge coordinate accessors
     - Add `left()` returning `x()` (alias for consistency)
     - Add `top()` returning `y()` (alias for consistency)
     - Add `right()` returning `x() + width()`
