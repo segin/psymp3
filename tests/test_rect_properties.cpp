@@ -178,6 +178,46 @@ int main() {
         failures++;
     }
 
+    // Property 8: Center Point Calculation
+    // **Validates: Requirements 2.3**
+    std::cout << "Property 8: Center Point Calculation... ";
+    std::cout.flush();
+    try {
+        rc::check("Center point calculation", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            
+            // Calculate expected center coordinates using int32_t to match implementation
+            // The implementation uses int32_t for calculation and then clamps to int16_t range
+            int32_t expected_cx_32 = static_cast<int32_t>(x) + static_cast<int32_t>(w) / 2;
+            int32_t expected_cy_32 = static_cast<int32_t>(y) + static_cast<int32_t>(h) / 2;
+            
+            // Clamp to int16_t range (matching implementation behavior)
+            int16_t expected_cx = (expected_cx_32 > std::numeric_limits<int16_t>::max()) ? std::numeric_limits<int16_t>::max() :
+                                  (expected_cx_32 < std::numeric_limits<int16_t>::min()) ? std::numeric_limits<int16_t>::min() :
+                                  static_cast<int16_t>(expected_cx_32);
+            int16_t expected_cy = (expected_cy_32 > std::numeric_limits<int16_t>::max()) ? std::numeric_limits<int16_t>::max() :
+                                  (expected_cy_32 < std::numeric_limits<int16_t>::min()) ? std::numeric_limits<int16_t>::min() :
+                                  static_cast<int16_t>(expected_cy_32);
+            
+            // Test centerX() and centerY() methods
+            RC_ASSERT(rect.centerX() == expected_cx);
+            RC_ASSERT(rect.centerY() == expected_cy);
+            
+            // Test center() method returns same values as individual methods
+            auto [cx, cy] = rect.center();
+            RC_ASSERT(cx == rect.centerX());
+            RC_ASSERT(cy == rect.centerY());
+            
+            // Verify consistency between center() and individual methods
+            RC_ASSERT(cx == expected_cx);
+            RC_ASSERT(cy == expected_cy);
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
     // Property 10: Empty Rectangle Detection
     // **Validates: Requirements 2.5**
     std::cout << "Property 10: Empty Rectangle Detection... ";
@@ -306,7 +346,7 @@ int main() {
     std::cout << std::endl;
     std::cout << "Property-Based Test Summary" << std::endl;
     std::cout << "===========================" << std::endl;
-    std::cout << "Total properties tested: 7" << std::endl;
+    std::cout << "Total properties tested: 8" << std::endl;
     std::cout << "Failures: " << failures << std::endl;
     
     if (failures == 0) {

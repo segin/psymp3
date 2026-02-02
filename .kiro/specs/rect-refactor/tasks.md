@@ -32,7 +32,7 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Add `center()` returning `std::pair<int16_t, int16_t>`
     - _Requirements: 2.3_
   
-  - [~] 2.4 Write property test for center point calculation
+  - [x] 2.4 Write property test for center point calculation
     - **Property 8: Center Point Calculation**
     - **Validates: Requirements 2.3**
   
