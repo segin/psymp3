@@ -151,191 +151,191 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - _Requirements: 1.2, 1.3_
 
 - [ ] 7. Implement union operations
-  - [~] 7.1 Implement bounding box union
+  - [x] 7.1 Implement bounding box union
     - Add `united(const Rect& other)` returning smallest containing rectangle
     - Handle empty rectangles (ignore in calculation)
     - Handle coordinate overflow safely
     - _Requirements: 1.4_
   
-  - [~] 7.2 Write property test for union bounding box property
+  - [x] 7.2 Write property test for union bounding box property
     - **Property 4: Union Bounding Box Property**
     - **Validates: Requirements 1.4**
   
-  - [~] 7.3 Write unit tests for union edge cases
+  - [x] 7.3 Write unit tests for union edge cases
     - Test union with empty rectangles
     - Test union with negative coordinates
     - Test union with maximum coordinate values
     - _Requirements: 1.4_
 
 - [ ] 8. Implement expansion and shrinking operations
-  - [~] 8.1 Implement uniform expansion
+  - [x] 8.1 Implement uniform expansion
     - Add `expand(int16_t margin)` for in-place uniform expansion
     - Add `expanded(int16_t margin)` returning expanded rectangle
     - Expand by margin in all directions (total 2*margin per dimension)
     - _Requirements: 1.5_
   
-  - [~] 8.2 Implement directional expansion
+  - [x] 8.2 Implement directional expansion
     - Add `expand(int16_t dx, int16_t dy)` for directional expansion
     - Add `expanded(int16_t dx, int16_t dy)` returning expanded rectangle
     - _Requirements: 1.5_
   
-  - [~] 8.3 Write property test for expansion preserves center
+  - [x] 8.3 Write property test for expansion preserves center
     - **Property 5: Expansion Preserves Center**
     - **Validates: Requirements 1.5**
   
-  - [~] 8.4 Implement uniform shrinking
+  - [x] 8.4 Implement uniform shrinking
     - Add `shrink(int16_t margin)` for in-place uniform shrinking
     - Add `shrunk(int16_t margin)` returning shrunk rectangle
     - Clamp to prevent negative dimensions
     - _Requirements: 1.6_
   
-  - [~] 8.5 Implement directional shrinking
+  - [x] 8.5 Implement directional shrinking
     - Add `shrink(int16_t dx, int16_t dy)` for directional shrinking
     - Add `shrunk(int16_t dx, int16_t dy)` returning shrunk rectangle
     - _Requirements: 1.6_
   
-  - [~] 8.6 Write property test for shrinking preserves center
+  - [x] 8.6 Write property test for shrinking preserves center
     - **Property 6: Shrinking Preserves Center**
     - **Validates: Requirements 1.6**
   
-  - [~] 8.7 Write unit tests for expansion/shrinking edge cases
+  - [x] 8.7 Write unit tests for expansion/shrinking edge cases
     - Test expansion with negative margins
     - Test shrinking beyond zero dimensions
     - Test with maximum coordinate values
     - _Requirements: 1.5, 1.6_
 
 - [ ] 9. Implement translation operations
-  - [~] 9.1 Implement relative translation
+  - [x] 9.1 Implement relative translation
     - Add `translate(int16_t dx, int16_t dy)` for in-place movement
     - Add `translated(int16_t dx, int16_t dy)` returning moved rectangle
     - Handle coordinate overflow safely
     - _Requirements: 3.1_
   
-  - [~] 9.2 Write property test for translation preserves dimensions
+  - [x] 9.2 Write property test for translation preserves dimensions
     - **Property 12: Translation Preserves Dimensions**
     - **Validates: Requirements 3.1**
   
-  - [~] 9.3 Implement absolute positioning
+  - [x] 9.3 Implement absolute positioning
     - Add `moveTo(int16_t x, int16_t y)` for in-place positioning
     - Add `movedTo(int16_t x, int16_t y)` returning repositioned rectangle
     - _Requirements: 3.2_
   
-  - [~] 9.4 Write property test for moveTo sets absolute position
+  - [x] 9.4 Write property test for moveTo sets absolute position
     - **Property 13: MoveTo Sets Absolute Position**
     - **Validates: Requirements 3.2**
   
-  - [~] 9.5 Write unit tests for translation edge cases
+  - [x] 9.5 Write unit tests for translation edge cases
     - Test translation with negative offsets
     - Test translation causing overflow
     - Test moveTo with negative coordinates
     - _Requirements: 3.1, 3.2_
 
 - [ ] 10. Implement resizing operations
-  - [~] 10.1 Implement resize methods
+  - [x] 10.1 Implement resize methods
     - Add `resize(uint16_t width, uint16_t height)` for in-place resizing
     - Add `resized(uint16_t width, uint16_t height)` returning resized rectangle
     - Preserve top-left position
     - _Requirements: 3.3_
   
-  - [~] 10.2 Write property test for resize preserves position
+  - [x] 10.2 Write property test for resize preserves position
     - **Property 14: Resize Preserves Position**
     - **Validates: Requirements 3.3**
   
-  - [~] 10.3 Write unit tests for resize edge cases
+  - [x] 10.3 Write unit tests for resize edge cases
     - Test resize to zero dimensions
     - Test resize to maximum dimensions
     - _Requirements: 3.3_
 
 - [ ] 11. Implement combined adjustment operations
-  - [~] 11.1 Implement adjust methods
+  - [x] 11.1 Implement adjust methods
     - Add `adjust(int16_t dx, int16_t dy, int16_t dw, int16_t dh)` for combined changes
     - Add `adjusted(int16_t dx, int16_t dy, int16_t dw, int16_t dh)` returning adjusted rectangle
     - Clamp dimensions to prevent negative values
     - Handle coordinate overflow
     - _Requirements: 3.4_
   
-  - [~] 11.2 Write property test for adjust modifies position and size
+  - [x] 11.2 Write property test for adjust modifies position and size
     - **Property 15: Adjust Modifies Position and Size**
     - **Validates: Requirements 3.4**
   
-  - [~] 11.3 Write unit tests for adjust edge cases
+  - [x] 11.3 Write unit tests for adjust edge cases
     - Test adjust causing negative dimensions
     - Test adjust with overflow conditions
     - _Requirements: 3.4_
 
 - [ ] 12. Implement centering operations
-  - [~] 12.1 Implement centerIn methods
+  - [x] 12.1 Implement centerIn methods
     - Add `centerIn(const Rect& container)` for in-place centering
     - Add `centeredIn(const Rect& container)` returning centered rectangle
     - Handle cases where rectangle is larger than container
     - Calculate center with integer division precision
     - _Requirements: 3.5_
   
-  - [~] 12.2 Write property test for centering calculation
+  - [x] 12.2 Write property test for centering calculation
     - **Property 16: Centering Calculation**
     - **Validates: Requirements 3.5**
   
-  - [~] 12.3 Write unit tests for centering edge cases
+  - [x] 12.3 Write unit tests for centering edge cases
     - Test centering larger rectangle in smaller container
     - Test centering with odd dimensions
     - Test centering with negative coordinates
     - _Requirements: 3.5_
 
 - [ ] 13. Implement coordinate system safety and overflow protection
-  - [~] 13.1 Add safe arithmetic helper functions
+  - [x] 13.1 Add safe arithmetic helper functions
     - Implement `safeAdd(int16_t a, int16_t b)` with overflow clamping
     - Implement `safeAdd(uint16_t a, uint16_t b)` with overflow clamping
     - Implement `safeSub(int16_t a, int16_t b)` with underflow clamping
     - Document overflow behavior in comments
     - _Requirements: 6.2, 6.4_
   
-  - [~] 13.2 Write property test for negative coordinate handling
+  - [x] 13.2 Write property test for negative coordinate handling
     - **Property 21: Negative Coordinate Handling**
     - **Validates: Requirements 6.1**
   
-  - [~] 13.3 Write property test for overflow protection
+  - [x] 13.3 Write property test for overflow protection
     - **Property 22: Overflow Protection**
     - **Validates: Requirements 6.2, 6.4**
   
-  - [~] 13.4 Write property test for precision maintenance
+  - [x] 13.4 Write property test for precision maintenance
     - **Property 23: Precision Maintenance**
     - **Validates: Requirements 6.3**
   
-  - [~] 13.5 Write unit tests for boundary conditions
+  - [x] 13.5 Write unit tests for boundary conditions
     - Test with INT16_MIN and INT16_MAX coordinates
     - Test with UINT16_MAX dimensions
     - Test operations at boundary values
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
 - [ ] 14. Implement invalid rectangle handling
-  - [~] 14.1 Add graceful handling for invalid rectangles
+  - [x] 14.1 Add graceful handling for invalid rectangles
     - Ensure geometric operations return sensible defaults for invalid inputs
     - Document behavior for invalid rectangles in method comments
     - _Requirements: 7.3_
   
-  - [~] 14.2 Write property test for invalid rectangle handling
+  - [x] 14.2 Write property test for invalid rectangle handling
     - **Property 25: Invalid Rectangle Handling**
     - **Validates: Requirements 7.3**
   
-  - [~] 14.3 Write unit tests for invalid rectangle scenarios
+  - [x] 14.3 Write unit tests for invalid rectangle scenarios
     - Test operations on rectangles with negative dimensions
     - Test operations on rectangles with overflow conditions
     - Verify no crashes or undefined behavior
     - _Requirements: 7.3_
 
 - [ ] 15. Verify backward compatibility
-  - [~] 15.1 Create backward compatibility test suite
+  - [x] 15.1 Create backward compatibility test suite
     - Test all existing constructors produce same results
     - Test all existing getters return same values
     - Test all existing setters behave identically
     - Verify memory layout unchanged (sizeof, alignment)
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [~] 15.2 Write property test for backward compatibility
+  - [x] 15.2 Write property test for backward compatibility
     - **Property 17: Backward Compatibility - API Preservation**
     - **Validates: Requirements 4.1, 4.2, 4.3**
 
-  - [~] 15.3 Write property test for container compatibility
+  - [x] 15.3 Write property test for container compatibility
     - **Property 18: Container Compatibility**
     - **Validates: Requirements 5.1, 5.4**
 

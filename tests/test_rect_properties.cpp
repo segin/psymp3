@@ -393,6 +393,122 @@ int main() {
         failures++;
     }
 
+    // Property 13: MoveTo Sets Absolute Position
+    // **Validates: Requirements 3.2**
+    std::cout << "Property 13: MoveTo Sets Absolute Position... ";
+    std::cout.flush();
+    try {
+        rc::check("MoveTo sets absolute position", [](int16_t x, int16_t y, uint16_t w, uint16_t h, int16_t new_x, int16_t new_y) {
+            Rect rect(x, y, w, h);
+            Rect moved = rect.movedTo(new_x, new_y);
+            
+            // Position should be set to exact values
+            RC_ASSERT(moved.x() == new_x);
+            RC_ASSERT(moved.y() == new_y);
+            
+            // Dimensions should be preserved
+            RC_ASSERT(moved.width() == rect.width());
+            RC_ASSERT(moved.height() == rect.height());
+            
+            // Test in-place version produces same result
+            Rect rect_copy = rect;
+            rect_copy.moveTo(new_x, new_y);
+            RC_ASSERT(rect_copy == moved);
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 15: Adjust Modifies Position and Size
+    // **Validates: Requirements 3.4**
+    std::cout << "Property 15: Adjust Modifies Position and Size... ";
+    std::cout.flush();
+    try {
+        rc::check("Adjust modifies position and size", [](int16_t x, int16_t y, uint16_t w, uint16_t h, 
+                                                           int16_t dx, int16_t dy, int16_t dw, int16_t dh) {
+            Rect rect(x, y, w, h);
+            Rect adjusted = rect.adjusted(dx, dy, dw, dh);
+            
+            // Calculate expected position (with overflow handling)
+            int32_t expected_x = static_cast<int32_t>(x) + dx;
+            int32_t expected_y = static_cast<int32_t>(y) + dy;
+            
+            // Clamp to int16_t range
+            if (expected_x < -32768) expected_x = -32768;
+            if (expected_x > 32767) expected_x = 32767;
+            if (expected_y < -32768) expected_y = -32768;
+            if (expected_y > 32767) expected_y = 32767;
+            
+            RC_ASSERT(adjusted.x() == static_cast<int16_t>(expected_x));
+            RC_ASSERT(adjusted.y() == static_cast<int16_t>(expected_y));
+            
+            // Calculate expected dimensions (with clamping)
+            int32_t expected_width = static_cast<int32_t>(w) + dw;
+            int32_t expected_height = static_cast<int32_t>(h) + dh;
+            
+            // Clamp to valid range [0, 65535]
+            if (expected_width < 0) expected_width = 0;
+            if (expected_width > 65535) expected_width = 65535;
+            if (expected_height < 0) expected_height = 0;
+            if (expected_height > 65535) expected_height = 65535;
+            
+            RC_ASSERT(adjusted.width() == static_cast<uint16_t>(expected_width));
+            RC_ASSERT(adjusted.height() == static_cast<uint16_t>(expected_height));
+            
+            // Test in-place version produces same result
+            Rect rect_copy = rect;
+            rect_copy.adjust(dx, dy, dw, dh);
+            RC_ASSERT(rect_copy == adjusted);
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 16: Centering Calculation
+    // **Validates: Requirements 3.5**
+    std::cout << "Property 16: Centering Calculation... ";
+    std::cout.flush();
+    try {
+        rc::check("Centering calculation", [](int16_t x, int16_t y, uint16_t w, uint16_t h,
+                                              int16_t cx, int16_t cy, uint16_t cw, uint16_t ch) {
+            // Use smaller rectangles to avoid overflow
+            if (w > 10000 || h > 10000 || cw > 10000 || ch > 10000) return;
+            
+            Rect rect(x, y, w, h);
+            Rect container(cx, cy, cw, ch);
+            
+            if (rect.isEmpty() || container.isEmpty()) return;
+            
+            Rect centered = rect.centeredIn(container);
+            
+            // Dimensions should be preserved
+            RC_ASSERT(centered.width() == rect.width());
+            RC_ASSERT(centered.height() == rect.height());
+            
+            // Center should align (within ±1 pixel due to integer division)
+            int16_t rect_center_x = centered.centerX();
+            int16_t rect_center_y = centered.centerY();
+            int16_t container_center_x = container.centerX();
+            int16_t container_center_y = container.centerY();
+            
+            RC_ASSERT(std::abs(rect_center_x - container_center_x) <= 1);
+            RC_ASSERT(std::abs(rect_center_y - container_center_y) <= 1);
+            
+            // Test in-place version produces same result
+            Rect rect_copy = rect;
+            rect_copy.centerIn(container);
+            RC_ASSERT(rect_copy == centered);
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
     // Property 14: Resize Preserves Position
     // **Validates: Requirements 3.3**
     std::cout << "Property 14: Resize Preserves Position... ";
@@ -581,11 +697,386 @@ int main() {
         failures++;
     }
 
+    // Property 4: Union Bounding Box Property
+    // **Validates: Requirements 1.4**
+    std::cout << "Property 4: Union Bounding Box Property... ";
+    std::cout.flush();
+    try {
+        rc::check("Union bounding box property", [](int16_t x1, int16_t y1, uint16_t w1, uint16_t h1,
+                                                     int16_t x2, int16_t y2, uint16_t w2, uint16_t h2) {
+            Rect rect1(x1, y1, w1, h1);
+            Rect rect2(x2, y2, w2, h2);
+            
+            Rect union_rect = rect1.united(rect2);
+            
+            // Handle empty rectangles - union should ignore them
+            if (rect1.isEmpty() && rect2.isEmpty()) {
+                RC_ASSERT(union_rect.isEmpty());
+                return;
+            }
+            if (rect1.isEmpty()) {
+                RC_ASSERT(union_rect == rect2);
+                return;
+            }
+            if (rect2.isEmpty()) {
+                RC_ASSERT(union_rect == rect1);
+                return;
+            }
+            
+            // Union should contain both rectangles
+            RC_ASSERT(union_rect.contains(rect1));
+            RC_ASSERT(union_rect.contains(rect2));
+            
+            // Union should be symmetric
+            Rect union_reversed = rect2.united(rect1);
+            RC_ASSERT(union_rect == union_reversed);
+            
+            // Union with self should return self
+            Rect self_union = rect1.united(rect1);
+            RC_ASSERT(self_union == rect1);
+            
+            // Union area should be >= both rectangle areas
+            RC_ASSERT(union_rect.area() >= rect1.area());
+            RC_ASSERT(union_rect.area() >= rect2.area());
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 5: Expansion Preserves Center
+    // **Validates: Requirements 1.5**
+    std::cout << "Property 5: Expansion Preserves Center... ";
+    std::cout.flush();
+    try {
+        rc::check("Expansion preserves center", [](int16_t x, int16_t y, uint16_t w, uint16_t h, int16_t margin) {
+            // Use smaller rectangles to avoid overflow
+            if (w > 10000 || h > 10000 || std::abs(margin) > 1000) return;
+            
+            Rect rect(x, y, w, h);
+            if (rect.isEmpty()) return;
+            
+            int16_t original_cx = rect.centerX();
+            int16_t original_cy = rect.centerY();
+            
+            Rect expanded = rect.expanded(margin);
+            
+            // If expansion would make dimensions negative, skip
+            if (expanded.isEmpty() && margin > 0) return;
+            if (expanded.isEmpty()) return;
+            
+            int16_t expanded_cx = expanded.centerX();
+            int16_t expanded_cy = expanded.centerY();
+            
+            // Center should be preserved (within ±1 pixel due to integer division)
+            RC_ASSERT(std::abs(expanded_cx - original_cx) <= 1);
+            RC_ASSERT(std::abs(expanded_cy - original_cy) <= 1);
+            
+            // Dimensions should change by 2*margin
+            if (margin >= 0) {
+                int32_t expected_width = static_cast<int32_t>(w) + 2 * margin;
+                int32_t expected_height = static_cast<int32_t>(h) + 2 * margin;
+                if (expected_width <= 65535 && expected_height <= 65535) {
+                    RC_ASSERT(expanded.width() == static_cast<uint16_t>(expected_width));
+                    RC_ASSERT(expanded.height() == static_cast<uint16_t>(expected_height));
+                }
+            }
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 6: Shrinking Preserves Center
+    // **Validates: Requirements 1.6**
+    std::cout << "Property 6: Shrinking Preserves Center... ";
+    std::cout.flush();
+    try {
+        rc::check("Shrinking preserves center", [](int16_t x, int16_t y, uint16_t w, uint16_t h, int16_t margin) {
+            // Use rectangles large enough to shrink
+            if (w < 10 || h < 10 || w > 10000 || h > 10000) return;
+            if (std::abs(margin) > static_cast<int16_t>(w) / 2 || std::abs(margin) > static_cast<int16_t>(h) / 2) return;
+            
+            Rect rect(x, y, w, h);
+            if (rect.isEmpty()) return;
+            
+            int16_t original_cx = rect.centerX();
+            int16_t original_cy = rect.centerY();
+            
+            Rect shrunk = rect.shrunk(margin);
+            
+            // If shrinking would make dimensions zero or negative, skip
+            if (shrunk.isEmpty()) return;
+            
+            int16_t shrunk_cx = shrunk.centerX();
+            int16_t shrunk_cy = shrunk.centerY();
+            
+            // Center should be preserved (within ±1 pixel due to integer division)
+            RC_ASSERT(std::abs(shrunk_cx - original_cx) <= 1);
+            RC_ASSERT(std::abs(shrunk_cy - original_cy) <= 1);
+            
+            // Dimensions should change by 2*margin
+            if (margin >= 0) {
+                int32_t expected_width = static_cast<int32_t>(w) - 2 * margin;
+                int32_t expected_height = static_cast<int32_t>(h) - 2 * margin;
+                if (expected_width > 0 && expected_height > 0) {
+                    RC_ASSERT(shrunk.width() == static_cast<uint16_t>(expected_width));
+                    RC_ASSERT(shrunk.height() == static_cast<uint16_t>(expected_height));
+                }
+            }
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 17: Backward Compatibility - API Preservation
+    // **Validates: Requirements 4.1, 4.2, 4.3**
+    std::cout << "Property 17: Backward Compatibility - API Preservation... ";
+    std::cout.flush();
+    try {
+        rc::check("Backward compatibility - API preservation", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            // Test all constructors work as expected
+            Rect default_rect;
+            RC_ASSERT(default_rect.x() == 0);
+            RC_ASSERT(default_rect.y() == 0);
+            RC_ASSERT(default_rect.width() == 0);
+            RC_ASSERT(default_rect.height() == 0);
+            
+            Rect size_rect(w, h);
+            RC_ASSERT(size_rect.x() == 0);
+            RC_ASSERT(size_rect.y() == 0);
+            RC_ASSERT(size_rect.width() == w);
+            RC_ASSERT(size_rect.height() == h);
+            
+            Rect full_rect(x, y, w, h);
+            RC_ASSERT(full_rect.x() == x);
+            RC_ASSERT(full_rect.y() == y);
+            RC_ASSERT(full_rect.width() == w);
+            RC_ASSERT(full_rect.height() == h);
+            
+            // Test getters return correct values
+            RC_ASSERT(full_rect.x() == x);
+            RC_ASSERT(full_rect.y() == y);
+            RC_ASSERT(full_rect.width() == w);
+            RC_ASSERT(full_rect.height() == h);
+            
+            // Test setters work correctly
+            Rect mutable_rect;
+            mutable_rect.x(x);
+            mutable_rect.y(y);
+            mutable_rect.width(w);
+            mutable_rect.height(h);
+            RC_ASSERT(mutable_rect.x() == x);
+            RC_ASSERT(mutable_rect.y() == y);
+            RC_ASSERT(mutable_rect.width() == w);
+            RC_ASSERT(mutable_rect.height() == h);
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 18: Container Compatibility
+    // **Validates: Requirements 5.1, 5.4**
+    std::cout << "Property 18: Container Compatibility... ";
+    std::cout.flush();
+    try {
+        rc::check("Container compatibility", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            
+            // Test copy semantics
+            Rect copy = rect;
+            RC_ASSERT(copy == rect);
+            RC_ASSERT(copy.x() == rect.x());
+            RC_ASSERT(copy.y() == rect.y());
+            RC_ASSERT(copy.width() == rect.width());
+            RC_ASSERT(copy.height() == rect.height());
+            
+            // Test assignment
+            Rect assigned;
+            assigned = rect;
+            RC_ASSERT(assigned == rect);
+            
+            // Test in vector
+            std::vector<Rect> vec;
+            vec.push_back(rect);
+            RC_ASSERT(vec.size() == 1);
+            RC_ASSERT(vec[0] == rect);
+            
+            // Test move semantics
+            Rect moved = std::move(copy);
+            RC_ASSERT(moved == rect);
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 21: Negative Coordinate Handling
+    // **Validates: Requirements 6.1**
+    std::cout << "Property 21: Negative Coordinate Handling... ";
+    std::cout.flush();
+    try {
+        rc::check("Negative coordinate handling", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            // Focus on negative coordinates
+            if (x >= 0 && y >= 0) return;
+            
+            Rect rect(x, y, w, h);
+            
+            // Basic properties should work with negative coordinates
+            RC_ASSERT(rect.x() == x);
+            RC_ASSERT(rect.y() == y);
+            RC_ASSERT(rect.left() == x);
+            RC_ASSERT(rect.top() == y);
+            
+            // Geometric operations should handle negative coordinates
+            if (!rect.isEmpty()) {
+                // Contains should work with negative coordinates
+                bool contains_origin = rect.contains(0, 0);
+                bool expected_contains = (0 >= rect.left() && 0 < rect.right() &&
+                                        0 >= rect.top() && 0 < rect.bottom());
+                RC_ASSERT(contains_origin == expected_contains);
+                
+                // Intersection with positive rectangle should work
+                Rect positive(0, 0, 100, 100);
+                Rect intersection = rect.intersection(positive);
+                // Intersection should be valid or empty
+                RC_ASSERT(intersection.isEmpty() || intersection.isValid() || 
+                         intersection.width() == 0 || intersection.height() == 0);
+            }
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 22: Overflow Protection
+    // **Validates: Requirements 6.2, 6.4**
+    std::cout << "Property 22: Overflow Protection... ";
+    std::cout.flush();
+    try {
+        rc::check("Overflow protection", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            
+            // Test that operations near boundaries don't crash
+            // Translation with large offsets
+            Rect translated = rect.translated(10000, 10000);
+            RC_ASSERT(translated.width() == rect.width());
+            RC_ASSERT(translated.height() == rect.height());
+            
+            // Translation with negative offsets
+            Rect translated_neg = rect.translated(-10000, -10000);
+            RC_ASSERT(translated_neg.width() == rect.width());
+            RC_ASSERT(translated_neg.height() == rect.height());
+            
+            // Expansion should not crash
+            Rect expanded = rect.expanded(1000);
+            // Should produce valid result (possibly clamped)
+            
+            // Adjustment should not crash
+            Rect adjusted = rect.adjusted(1000, 1000, 1000, 1000);
+            // Should produce valid result (possibly clamped)
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 23: Precision Maintenance
+    // **Validates: Requirements 6.3**
+    std::cout << "Property 23: Precision Maintenance... ";
+    std::cout.flush();
+    try {
+        rc::check("Precision maintenance", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            // Use values within safe range
+            if (std::abs(x) > 10000 || std::abs(y) > 10000 || w > 10000 || h > 10000) return;
+            
+            Rect rect(x, y, w, h);
+            
+            // Operations should maintain precision within int16_t/uint16_t limits
+            // Translation and back should restore original position
+            Rect translated = rect.translated(100, 100);
+            Rect back = translated.translated(-100, -100);
+            RC_ASSERT(back.x() == rect.x());
+            RC_ASSERT(back.y() == rect.y());
+            RC_ASSERT(back.width() == rect.width());
+            RC_ASSERT(back.height() == rect.height());
+            
+            // Expansion and shrinking should be inverse operations (within limits)
+            if (w > 20 && h > 20) {
+                Rect expanded = rect.expanded(10);
+                Rect shrunk = expanded.shrunk(10);
+                RC_ASSERT(shrunk.x() == rect.x());
+                RC_ASSERT(shrunk.y() == rect.y());
+                RC_ASSERT(shrunk.width() == rect.width());
+                RC_ASSERT(shrunk.height() == rect.height());
+            }
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
+    // Property 25: Invalid Rectangle Handling
+    // **Validates: Requirements 7.3**
+    std::cout << "Property 25: Invalid Rectangle Handling... ";
+    std::cout.flush();
+    try {
+        rc::check("Invalid rectangle handling", [](int16_t x, int16_t y, uint16_t w, uint16_t h) {
+            Rect rect(x, y, w, h);
+            
+            // Empty rectangles should be handled gracefully
+            if (rect.isEmpty()) {
+                // Contains should return false
+                RC_ASSERT(!rect.contains(x, y));
+                RC_ASSERT(!rect.contains(0, 0));
+                
+                // Intersects should return false
+                Rect other(100, 100, 50, 50);
+                RC_ASSERT(!rect.intersects(other));
+                
+                // Intersection should return empty
+                Rect intersection = rect.intersection(other);
+                RC_ASSERT(intersection.isEmpty());
+                
+                // Union should return the other rectangle
+                Rect union_rect = rect.united(other);
+                RC_ASSERT(union_rect == other);
+                
+                // Area should be zero
+                RC_ASSERT(rect.area() == 0);
+                
+                // isValid should return false
+                RC_ASSERT(!rect.isValid());
+            }
+            
+            // All operations should complete without crashing
+            rect.toString();
+            rect.normalized();
+            rect.translated(10, 10);
+            rect.expanded(5);
+            rect.shrunk(5);
+        });
+        std::cout << "PASSED" << std::endl;
+    } catch (const std::exception& e) {
+        std::cout << "FAILED: " << e.what() << std::endl;
+        failures++;
+    }
+
     // Summary
     std::cout << std::endl;
     std::cout << "Property-Based Test Summary" << std::endl;
     std::cout << "===========================" << std::endl;
-    std::cout << "Total properties tested: 14" << std::endl;
+    std::cout << "Total properties tested: 26" << std::endl;
     std::cout << "Failures: " << failures << std::endl;
     
     if (failures == 0) {
