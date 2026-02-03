@@ -465,3 +465,26 @@ This implementation plan refactors the Rect class to add comprehensive geometric
     - Commit changes with descriptive message
     - Push to repository
     - Update tasks.md with enhancement details
+
+- [x] 22. Add pos() and size() accessor/mutator methods
+  - [x] 22.1 Add pos() methods
+    - Add `pos()` getter returning `std::pair<int16_t, int16_t>` (x, y)
+    - Add `pos(pair)` setter accepting position as pair
+    - Enables structured binding: `auto [x, y] = rect.pos();`
+  
+  - [x] 22.2 Add size() methods
+    - Add `size()` getter returning `std::pair<uint16_t, uint16_t>` (width, height)
+    - Add `size(pair)` setter accepting dimensions as pair
+    - Enables structured binding: `auto [w, h] = rect.size();`
+  
+  - [x] 22.3 Add tests for pos() and size()
+    - Test pos() getter and setter
+    - Test size() getter and setter
+    - Test structured binding usage
+    - Added 6 tests to test_rect_pair_variants.cpp
+    - All 25 tests passing (19 original + 6 new)
+  
+  - [x] 22.4 Commit and push
+    - Commit with descriptive message
+    - Push to repository
+    - Update tasks.md
