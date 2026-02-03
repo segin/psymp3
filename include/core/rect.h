@@ -184,6 +184,32 @@ class Rect
         Rect(uint16_t w, uint16_t h);
         
         /**
+         * @brief Constructor with position as pair and separate dimensions
+         * @param pos Position as std::pair<int16_t, int16_t> (x, y)
+         * @param w Width of rectangle (must be positive)
+         * @param h Height of rectangle (must be positive)
+         * Usage example: Rect rect({10, 20}, 100, 50);
+         */
+        Rect(const std::pair<int16_t, int16_t>& pos, uint16_t w, uint16_t h);
+        
+        /**
+         * @brief Constructor with separate position and size as pair
+         * @param x X coordinate of top-left corner
+         * @param y Y coordinate of top-left corner
+         * @param size Size as std::pair<uint16_t, uint16_t> (width, height)
+         * Usage example: Rect rect(10, 20, {100, 50});
+         */
+        Rect(int16_t x, int16_t y, const std::pair<uint16_t, uint16_t>& size);
+        
+        /**
+         * @brief Constructor with both position and size as pairs
+         * @param pos Position as std::pair<int16_t, int16_t> (x, y)
+         * @param size Size as std::pair<uint16_t, uint16_t> (width, height)
+         * Usage example: Rect rect({10, 20}, {100, 50});
+         */
+        Rect(const std::pair<int16_t, int16_t>& pos, const std::pair<uint16_t, uint16_t>& size);
+        
+        /**
          * @brief Destructor
          */
         ~Rect();
@@ -533,6 +559,13 @@ class Rect
         void expand(int16_t dx, int16_t dy);
         
         /**
+         * @brief Expand rectangle directionally using pair (in-place)
+         * @param delta Expansion amounts as std::pair<int16_t, int16_t> (dx, dy)
+         * Usage example: rect.expand({5, 10});
+         */
+        void expand(const std::pair<int16_t, int16_t>& delta);
+        
+        /**
          * @brief Return expanded rectangle uniformly by margin (const version)
          * @param margin Amount to expand in all directions
          * @return New rectangle expanded by specified margin
@@ -548,6 +581,14 @@ class Rect
          * @return New rectangle expanded by specified amounts
          */
         Rect expanded(int16_t dx, int16_t dy) const;
+        
+        /**
+         * @brief Return expanded rectangle directionally using pair (const version)
+         * @param delta Expansion amounts as std::pair<int16_t, int16_t> (dx, dy)
+         * @return New rectangle expanded by specified amounts
+         * Usage example: Rect expanded = rect.expanded({5, 10});
+         */
+        Rect expanded(const std::pair<int16_t, int16_t>& delta) const;
         
         /**
          * @brief Shrink rectangle uniformly by margin (in-place)
@@ -572,6 +613,13 @@ class Rect
         void shrink(int16_t dx, int16_t dy);
         
         /**
+         * @brief Shrink rectangle directionally using pair (in-place)
+         * @param delta Shrink amounts as std::pair<int16_t, int16_t> (dx, dy)
+         * Usage example: rect.shrink({5, 10});
+         */
+        void shrink(const std::pair<int16_t, int16_t>& delta);
+        
+        /**
          * @brief Return shrunk rectangle uniformly (const version)
          * @param margin Amount to shrink from all edges
          * @return New rectangle shrunk by specified margin
@@ -585,6 +633,14 @@ class Rect
          * @return New rectangle shrunk by specified amounts
          */
         Rect shrunk(int16_t dx, int16_t dy) const;
+        
+        /**
+         * @brief Return shrunk rectangle directionally using pair (const version)
+         * @param delta Shrink amounts as std::pair<int16_t, int16_t> (dx, dy)
+         * @return New rectangle shrunk by specified amounts
+         * Usage example: Rect shrunk = rect.shrunk({5, 10});
+         */
+        Rect shrunk(const std::pair<int16_t, int16_t>& delta) const;
         
         // ========================================
         // TRANSFORMATION METHODS
@@ -604,6 +660,13 @@ class Rect
         void translate(int16_t dx, int16_t dy);
         
         /**
+         * @brief Move rectangle by offset using pair (in-place)
+         * @param offset Offset as std::pair<int16_t, int16_t> (dx, dy)
+         * Usage example: rect.translate({10, -5});
+         */
+        void translate(const std::pair<int16_t, int16_t>& offset);
+        
+        /**
          * @brief Return rectangle moved by offset (const version)
          * @param dx Horizontal offset
          * @param dy Vertical offset
@@ -615,6 +678,14 @@ class Rect
         Rect translated(int16_t dx, int16_t dy) const;
         
         /**
+         * @brief Return rectangle moved by offset using pair (const version)
+         * @param offset Offset as std::pair<int16_t, int16_t> (dx, dy)
+         * @return New rectangle at translated position
+         * Usage example: Rect moved = rect.translated({10, -5});
+         */
+        Rect translated(const std::pair<int16_t, int16_t>& offset) const;
+        
+        /**
          * @brief Move rectangle to absolute position (in-place)
          * @param x New X coordinate for top-left corner
          * @param y New Y coordinate for top-left corner
@@ -624,12 +695,27 @@ class Rect
         void moveTo(int16_t x, int16_t y);
         
         /**
+         * @brief Move rectangle to absolute position using pair (in-place)
+         * @param pos Position as std::pair<int16_t, int16_t> (x, y)
+         * Usage example: rect.moveTo({100, 200});
+         */
+        void moveTo(const std::pair<int16_t, int16_t>& pos);
+        
+        /**
          * @brief Return rectangle moved to absolute position (const version)
          * @param x New X coordinate for top-left corner
          * @param y New Y coordinate for top-left corner
          * @return New rectangle at specified position
          */
         Rect movedTo(int16_t x, int16_t y) const;
+        
+        /**
+         * @brief Return rectangle moved to absolute position using pair (const version)
+         * @param pos Position as std::pair<int16_t, int16_t> (x, y)
+         * @return New rectangle at specified position
+         * Usage example: Rect moved = rect.movedTo({100, 200});
+         */
+        Rect movedTo(const std::pair<int16_t, int16_t>& pos) const;
         
         /**
          * @brief Change rectangle dimensions (in-place)
@@ -641,12 +727,27 @@ class Rect
         void resize(uint16_t width, uint16_t height);
         
         /**
+         * @brief Change rectangle dimensions using pair (in-place)
+         * @param size Size as std::pair<uint16_t, uint16_t> (width, height)
+         * Usage example: rect.resize({200, 150});
+         */
+        void resize(const std::pair<uint16_t, uint16_t>& size);
+        
+        /**
          * @brief Return rectangle with new dimensions (const version)
          * @param width New width
          * @param height New height
          * @return New rectangle with specified dimensions
          */
         Rect resized(uint16_t width, uint16_t height) const;
+        
+        /**
+         * @brief Return rectangle with new dimensions using pair (const version)
+         * @param size Size as std::pair<uint16_t, uint16_t> (width, height)
+         * @return New rectangle with specified dimensions
+         * Usage example: Rect resized = rect.resized({200, 150});
+         */
+        Rect resized(const std::pair<uint16_t, uint16_t>& size) const;
         
         /**
          * @brief Adjust rectangle position and size simultaneously (in-place)
@@ -685,6 +786,15 @@ class Rect
         void adjust(int16_t dx, int16_t dy, int16_t dw, int16_t dh);
         
         /**
+         * @brief Adjust rectangle position and size using pairs (in-place)
+         * @param positionDelta Position change as std::pair<int16_t, int16_t> (dx, dy)
+         * @param sizeDelta Size change as std::pair<int16_t, int16_t> (dw, dh)
+         * Usage example: rect.adjust({-10, -10}, {20, 20});
+         */
+        void adjust(const std::pair<int16_t, int16_t>& positionDelta, 
+                   const std::pair<int16_t, int16_t>& sizeDelta);
+        
+        /**
          * @brief Return adjusted rectangle (const version)
          * @param dx Change in X position
          * @param dy Change in Y position
@@ -693,6 +803,16 @@ class Rect
          * @return New rectangle with adjustments applied
          */
         Rect adjusted(int16_t dx, int16_t dy, int16_t dw, int16_t dh) const;
+        
+        /**
+         * @brief Return adjusted rectangle using pairs (const version)
+         * @param positionDelta Position change as std::pair<int16_t, int16_t> (dx, dy)
+         * @param sizeDelta Size change as std::pair<int16_t, int16_t> (dw, dh)
+         * @return New rectangle with adjustments applied
+         * Usage example: Rect adjusted = rect.adjusted({-10, -10}, {20, 20});
+         */
+        Rect adjusted(const std::pair<int16_t, int16_t>& positionDelta,
+                     const std::pair<int16_t, int16_t>& sizeDelta) const;
         
         /**
          * @brief Center this rectangle within another rectangle (in-place)

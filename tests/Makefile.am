@@ -331,6 +331,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_rect_performance \
 	test_rect_unit \
 	test_rect_integration \
+	test_rect_pair_variants \
 	test_widget_rect_integration \
 	test_harness_integration \
 	test_iohandler_integration_simple \
@@ -515,6 +516,9 @@ test_rect_unit_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-co
 
 test_rect_integration_SOURCES = test_rect_integration.cpp
 test_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
+
+test_rect_pair_variants_SOURCES = test_rect_pair_variants.cpp
+test_rect_pair_variants_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 
 test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
 test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)

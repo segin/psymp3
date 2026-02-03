@@ -41,6 +41,23 @@ Rect::Rect(int16_t x, int16_t y, uint16_t w, uint16_t h) : m_x(x), m_y(y), m_wid
 {
 }
 
+// New pair-based constructors
+
+Rect::Rect(const std::pair<int16_t, int16_t>& pos, uint16_t w, uint16_t h) 
+    : m_x(pos.first), m_y(pos.second), m_width(w), m_height(h)
+{
+}
+
+Rect::Rect(int16_t x, int16_t y, const std::pair<uint16_t, uint16_t>& size)
+    : m_x(x), m_y(y), m_width(size.first), m_height(size.second)
+{
+}
+
+Rect::Rect(const std::pair<int16_t, int16_t>& pos, const std::pair<uint16_t, uint16_t>& size)
+    : m_x(pos.first), m_y(pos.second), m_width(size.first), m_height(size.second)
+{
+}
+
 Rect::~Rect()
 {
     //dtor
@@ -754,6 +771,130 @@ void Rect::normalize()
         m_y = safeAdd(m_y, static_cast<int16_t>(signed_height));
         m_height = static_cast<uint16_t>(-signed_height);
     }
+}
+
+// ========================================
+// PAIR-BASED METHOD VARIANTS
+// ========================================
+
+/**
+ * @brief Move rectangle by offset using pair (in-place)
+ * @param offset Offset as std::pair<int16_t, int16_t> (dx, dy)
+ */
+void Rect::translate(const std::pair<int16_t, int16_t>& offset)
+{
+    translate(offset.first, offset.second);
+}
+
+/**
+ * @brief Return rectangle moved by offset using pair (const version)
+ * @param offset Offset as std::pair<int16_t, int16_t> (dx, dy)
+ * @return New rectangle at translated position
+ */
+Rect Rect::translated(const std::pair<int16_t, int16_t>& offset) const
+{
+    return translated(offset.first, offset.second);
+}
+
+/**
+ * @brief Move rectangle to absolute position using pair (in-place)
+ * @param pos Position as std::pair<int16_t, int16_t> (x, y)
+ */
+void Rect::moveTo(const std::pair<int16_t, int16_t>& pos)
+{
+    moveTo(pos.first, pos.second);
+}
+
+/**
+ * @brief Return rectangle moved to absolute position using pair (const version)
+ * @param pos Position as std::pair<int16_t, int16_t> (x, y)
+ * @return New rectangle at specified position
+ */
+Rect Rect::movedTo(const std::pair<int16_t, int16_t>& pos) const
+{
+    return movedTo(pos.first, pos.second);
+}
+
+/**
+ * @brief Change rectangle dimensions using pair (in-place)
+ * @param size Size as std::pair<uint16_t, uint16_t> (width, height)
+ */
+void Rect::resize(const std::pair<uint16_t, uint16_t>& size)
+{
+    resize(size.first, size.second);
+}
+
+/**
+ * @brief Return rectangle with new dimensions using pair (const version)
+ * @param size Size as std::pair<uint16_t, uint16_t> (width, height)
+ * @return New rectangle with specified dimensions
+ */
+Rect Rect::resized(const std::pair<uint16_t, uint16_t>& size) const
+{
+    return resized(size.first, size.second);
+}
+
+/**
+ * @brief Expand rectangle directionally using pair (in-place)
+ * @param delta Expansion amounts as std::pair<int16_t, int16_t> (dx, dy)
+ */
+void Rect::expand(const std::pair<int16_t, int16_t>& delta)
+{
+    expand(delta.first, delta.second);
+}
+
+/**
+ * @brief Return expanded rectangle directionally using pair (const version)
+ * @param delta Expansion amounts as std::pair<int16_t, int16_t> (dx, dy)
+ * @return New rectangle expanded by specified amounts
+ */
+Rect Rect::expanded(const std::pair<int16_t, int16_t>& delta) const
+{
+    return expanded(delta.first, delta.second);
+}
+
+/**
+ * @brief Shrink rectangle directionally using pair (in-place)
+ * @param delta Shrink amounts as std::pair<int16_t, int16_t> (dx, dy)
+ */
+void Rect::shrink(const std::pair<int16_t, int16_t>& delta)
+{
+    shrink(delta.first, delta.second);
+}
+
+/**
+ * @brief Return shrunk rectangle directionally using pair (const version)
+ * @param delta Shrink amounts as std::pair<int16_t, int16_t> (dx, dy)
+ * @return New rectangle shrunk by specified amounts
+ */
+Rect Rect::shrunk(const std::pair<int16_t, int16_t>& delta) const
+{
+    return shrunk(delta.first, delta.second);
+}
+
+/**
+ * @brief Adjust rectangle position and size using pairs (in-place)
+ * @param positionDelta Position change as std::pair<int16_t, int16_t> (dx, dy)
+ * @param sizeDelta Size change as std::pair<int16_t, int16_t> (dw, dh)
+ */
+void Rect::adjust(const std::pair<int16_t, int16_t>& positionDelta, 
+                 const std::pair<int16_t, int16_t>& sizeDelta)
+{
+    adjust(positionDelta.first, positionDelta.second, 
+           sizeDelta.first, sizeDelta.second);
+}
+
+/**
+ * @brief Return adjusted rectangle using pairs (const version)
+ * @param positionDelta Position change as std::pair<int16_t, int16_t> (dx, dy)
+ * @param sizeDelta Size change as std::pair<int16_t, int16_t> (dw, dh)
+ * @return New rectangle with adjustments applied
+ */
+Rect Rect::adjusted(const std::pair<int16_t, int16_t>& positionDelta,
+                   const std::pair<int16_t, int16_t>& sizeDelta) const
+{
+    return adjusted(positionDelta.first, positionDelta.second,
+                   sizeDelta.first, sizeDelta.second);
 }
 
 // Safe arithmetic methods for internal use
