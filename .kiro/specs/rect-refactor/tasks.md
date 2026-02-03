@@ -429,3 +429,39 @@ This implementation plan refactors the Rect class to add comprehensive geometric
 - All 26 correctness properties from the design document are covered
 - Backward compatibility is verified throughout implementation
 - Performance validation ensures no regression in hot paths
+
+
+## Post-Implementation Enhancements
+
+- [x] 21. Add std::pair variants for improved ergonomics
+  - [x] 21.1 Add pair-based constructors
+    - Add `Rect(pair<x,y>, w, h)` - position as pair, separate dimensions
+    - Add `Rect(x, y, pair<w,h>)` - separate position, size as pair
+    - Add `Rect(pair<x,y>, pair<w,h>)` - both position and size as pairs
+    - Enables structured binding and cleaner API usage
+  
+  - [x] 21.2 Add pair-based method variants
+    - Add `translate(pair<dx,dy>)` and `translated(pair<dx,dy>)`
+    - Add `moveTo(pair<x,y>)` and `movedTo(pair<x,y>)`
+    - Add `resize(pair<w,h>)` and `resized(pair<w,h>)`
+    - Add `expand(pair<dx,dy>)` and `expanded(pair<dx,dy>)`
+    - Add `shrink(pair<dx,dy>)` and `shrunk(pair<dx,dy>)`
+    - Add `adjust(pair<dx,dy>, pair<dw,dh>)` and `adjusted(pair<dx,dy>, pair<dw,dh>)`
+    - All variants delegate to existing implementations
+  
+  - [x] 21.3 Create comprehensive test suite
+    - Create tests/test_rect_pair_variants.cpp
+    - Test all three pair-based constructors
+    - Test all pair-based method variants (in-place and const)
+    - Test real-world usage examples (widget creation, animation, padding)
+    - Verify all 19 tests pass
+  
+  - [x] 21.4 Update build system
+    - Add test_rect_pair_variants to tests/Makefile.am
+    - Rebuild core library with new methods
+    - Verify clean compilation
+  
+  - [x] 21.5 Commit and document
+    - Commit changes with descriptive message
+    - Push to repository
+    - Update tasks.md with enhancement details
