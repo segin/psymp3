@@ -262,6 +262,34 @@ class Rect
          */
         void height(uint16_t a);
         
+        /**
+         * @brief Get position as pair
+         * @return Position as std::pair<int16_t, int16_t> (x, y)
+         * Usage example: auto [x, y] = rect.pos();
+         */
+        std::pair<int16_t, int16_t> pos() const;
+        
+        /**
+         * @brief Set position from pair
+         * @param position Position as std::pair<int16_t, int16_t> (x, y)
+         * Usage example: rect.pos({100, 200});
+         */
+        void pos(const std::pair<int16_t, int16_t>& position);
+        
+        /**
+         * @brief Get size as pair
+         * @return Size as std::pair<uint16_t, uint16_t> (width, height)
+         * Usage example: auto [w, h] = rect.size();
+         */
+        std::pair<uint16_t, uint16_t> size() const;
+        
+        /**
+         * @brief Set size from pair
+         * @param dimensions Size as std::pair<uint16_t, uint16_t> (width, height)
+         * Usage example: rect.size({300, 200});
+         */
+        void size(const std::pair<uint16_t, uint16_t>& dimensions);
+        
         // ========================================
         // UTILITY METHODS (Edge Access & Properties)
         // ========================================

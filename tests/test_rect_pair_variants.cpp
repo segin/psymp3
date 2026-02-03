@@ -207,6 +207,56 @@ void test_pair_usage_examples() {
     std::cout << "  ✓ Padding with pairs works" << std::endl;
 }
 
+void test_pos_size_accessors() {
+    std::cout << "Testing pos() and size() accessor methods..." << std::endl;
+    
+    // Test pos() getter
+    Rect rect1(10, 20, 100, 50);
+    auto position = rect1.pos();
+    assert(position.first == 10);
+    assert(position.second == 20);
+    std::cout << "  ✓ pos() getter works" << std::endl;
+    
+    // Test pos() setter
+    Rect rect2(0, 0, 100, 50);
+    rect2.pos({30, 40});
+    assert(rect2.x() == 30);
+    assert(rect2.y() == 40);
+    assert(rect2.width() == 100);
+    assert(rect2.height() == 50);
+    std::cout << "  ✓ pos() setter works" << std::endl;
+    
+    // Test size() getter
+    Rect rect3(10, 20, 100, 50);
+    auto dimensions = rect3.size();
+    assert(dimensions.first == 100);
+    assert(dimensions.second == 50);
+    std::cout << "  ✓ size() getter works" << std::endl;
+    
+    // Test size() setter
+    Rect rect4(10, 20, 0, 0);
+    rect4.size({200, 150});
+    assert(rect4.x() == 10);
+    assert(rect4.y() == 20);
+    assert(rect4.width() == 200);
+    assert(rect4.height() == 150);
+    std::cout << "  ✓ size() setter works" << std::endl;
+    
+    // Test structured binding with pos()
+    Rect rect5(50, 60, 100, 80);
+    auto [x, y] = rect5.pos();
+    assert(x == 50);
+    assert(y == 60);
+    std::cout << "  ✓ pos() with structured binding works" << std::endl;
+    
+    // Test structured binding with size()
+    Rect rect6(10, 20, 300, 250);
+    auto [w, h] = rect6.size();
+    assert(w == 300);
+    assert(h == 250);
+    std::cout << "  ✓ size() with structured binding works" << std::endl;
+}
+
 int main() {
     std::cout << "=== Rect Pair Variants Tests ===" << std::endl;
     std::cout << std::endl;
@@ -231,6 +281,9 @@ int main() {
         std::cout << std::endl;
         
         test_pair_usage_examples();
+        std::cout << std::endl;
+        
+        test_pos_size_accessors();
         std::cout << std::endl;
         
         std::cout << "=== ALL PAIR VARIANT TESTS PASSED ===" << std::endl;

@@ -139,6 +139,44 @@ void Rect::height(uint16_t a)
     m_height = a;
 }
 
+/**
+ * @brief Get position as pair
+ * @return Position as std::pair<int16_t, int16_t> (x, y)
+ */
+std::pair<int16_t, int16_t> Rect::pos() const
+{
+    return std::make_pair(m_x, m_y);
+}
+
+/**
+ * @brief Set position from pair
+ * @param position Position as std::pair<int16_t, int16_t> (x, y)
+ */
+void Rect::pos(const std::pair<int16_t, int16_t>& position)
+{
+    m_x = position.first;
+    m_y = position.second;
+}
+
+/**
+ * @brief Get size as pair
+ * @return Size as std::pair<uint16_t, uint16_t> (width, height)
+ */
+std::pair<uint16_t, uint16_t> Rect::size() const
+{
+    return std::make_pair(m_width, m_height);
+}
+
+/**
+ * @brief Set size from pair
+ * @param dimensions Size as std::pair<uint16_t, uint16_t> (width, height)
+ */
+void Rect::size(const std::pair<uint16_t, uint16_t>& dimensions)
+{
+    m_width = dimensions.first;
+    m_height = dimensions.second;
+}
+
 // Edge coordinate methods
 
 
