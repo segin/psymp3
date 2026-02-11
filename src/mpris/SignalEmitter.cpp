@@ -349,6 +349,9 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
     case DBusVariant::Boolean:
       variant_signature = "b";
       break;
+    case DBusVariant::Dictionary:
+      variant_signature = "a{sv}";
+      break;
     default:
       return Result<DBusMessagePtr>::error(
           "Unsupported variant type in PropertiesChanged signal");
@@ -414,6 +417,127 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
       dbus_bool_t dbus_bool = bool_val ? TRUE : FALSE;
       append_success = dbus_message_iter_append_basic(
           &variant_iter, DBUS_TYPE_BOOLEAN, &dbus_bool);
+      break;
+    }
+    case DBusVariant::Dictionary: {
+      const auto &dict =
+          *variant.get<std::shared_ptr<PsyMP3::MPRIS::DBusDictionary>>();
+      DBusMessageIter dict_iter_inner;
+      if (dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY,
+                                           "{sv}", &dict_iter_inner)) {
+        append_success = true;
+        for (const auto &[inner_key, inner_value] : dict) {
+          DBusMessageIter entry_iter_inner;
+          if (!dbus_message_iter_open_container(&dict_iter_inner,
+                                                DBUS_TYPE_DICT_ENTRY, nullptr,
+                                                &entry_iter_inner)) {
+            append_success = false;
+            break;
+          }
+
+          const char *inner_key_cstr = inner_key.c_str();
+          dbus_message_iter_append_basic(&entry_iter_inner, DBUS_TYPE_STRING,
+                                         &inner_key_cstr);
+
+          // We need a way to recursively append variants here too.
+          // Since SignalEmitter doesn't have the helper yet, I'll implement it or just do it inline for one level.
+          // Metadata is only one level of dict-in-dict.
+
+          const char *inner_variant_sig;
+          switch (inner_value.type) {
+          case DBusVariant::String:
+            inner_variant_sig = "s";
+            break;
+          case DBusVariant::StringArray:
+            inner_variant_sig = "as";
+            break;
+          case DBusVariant::Int64:
+            inner_variant_sig = "x";
+            break;
+          case DBusVariant::UInt64:
+            inner_variant_sig = "t";
+            break;
+          case DBusVariant::Double:
+            inner_variant_sig = "d";
+            break;
+          case DBusVariant::Boolean:
+            inner_variant_sig = "b";
+            break;
+          default:
+            append_success = false;
+            break;
+          }
+
+          if (!append_success)
+            break;
+
+          DBusMessageIter inner_variant_iter;
+          if (dbus_message_iter_open_container(&entry_iter_inner,
+                                               DBUS_TYPE_VARIANT,
+                                               inner_variant_sig,
+                                               &inner_variant_iter)) {
+            switch (inner_value.type) {
+            case DBusVariant::String: {
+              const auto &s = inner_value.get<std::string>();
+              const char *c = s.c_str();
+              dbus_message_iter_append_basic(&inner_variant_iter,
+                                             DBUS_TYPE_STRING, &c);
+              break;
+            }
+            case DBusVariant::StringArray: {
+              const auto &a = inner_value.get<std::vector<std::string>>();
+              DBusMessageIter ai;
+              dbus_message_iter_open_container(&inner_variant_iter,
+                                               DBUS_TYPE_ARRAY, "s", &ai);
+              for (const auto &str : a) {
+                const char *c = str.c_str();
+                dbus_message_iter_append_basic(&ai, DBUS_TYPE_STRING, &c);
+              }
+              dbus_message_iter_close_container(&inner_variant_iter, &ai);
+              break;
+            }
+            case DBusVariant::Int64: {
+              auto v = inner_value.get<int64_t>();
+              dbus_message_iter_append_basic(&inner_variant_iter,
+                                             DBUS_TYPE_INT64, &v);
+              break;
+            }
+            case DBusVariant::UInt64: {
+              auto v = inner_value.get<uint64_t>();
+              dbus_message_iter_append_basic(&inner_variant_iter,
+                                             DBUS_TYPE_UINT64, &v);
+              break;
+            }
+            case DBusVariant::Double: {
+              auto v = inner_value.get<double>();
+              dbus_message_iter_append_basic(&inner_variant_iter,
+                                             DBUS_TYPE_DOUBLE, &v);
+              break;
+            }
+            case DBusVariant::Boolean: {
+              dbus_bool_t v = inner_value.get<bool>() ? TRUE : FALSE;
+              dbus_message_iter_append_basic(&inner_variant_iter,
+                                             DBUS_TYPE_BOOLEAN, &v);
+              break;
+            }
+            }
+            dbus_message_iter_close_container(&entry_iter_inner,
+                                              &inner_variant_iter);
+          } else {
+            append_success = false;
+          }
+
+          if (!dbus_message_iter_close_container(&dict_iter_inner,
+                                                 &entry_iter_inner)) {
+            append_success = false;
+            break;
+          }
+        }
+        if (append_success) {
+          append_success = dbus_message_iter_close_container(
+              &variant_iter, &dict_iter_inner);
+        }
+      }
       break;
     }
     }
