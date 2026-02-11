@@ -103,7 +103,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
                 // Use FormatMessage for other Windows errors
                 LPSTR messageBuffer = nullptr;
                 size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                                           NULL, win_error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+                                           nullptr, win_error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, nullptr);
                 if (size > 0 && messageBuffer) {
                     win_error_msg = std::string(messageBuffer, size);
                     // Remove trailing newlines
@@ -690,27 +690,10 @@ int FileIOHandler::close_unlocked() {
  * @return true if at end of file, false otherwise
  */
 bool FileIOHandler::eof() {
-    // If file is closed or we've already detected EOF, return true
-    bool closed = m_closed.load();
-    bool cached_eof = m_eof.load();
-    if (closed || !m_file_handle.is_valid() || cached_eof) {
-        Debug::log("io", "FileIOHandler::eof() - EOF condition: closed=", closed, " cached_eof=", cached_eof);
-        return true;
-    }
-    
-    // Check EOF condition (need file mutex for file operations)
-    bool file_eof;
-    {
-        std::lock_guard<std::mutex> file_lock(m_file_mutex);
-        file_eof = (feof(m_file_handle.get()) != 0);
-    }
-    
-    if (file_eof) {
-        updateEofState(true);
-    }
-    
-    Debug::log("io", "FileIOHandler::eof() - EOF check result: ", file_eof);
-    return file_eof;
+    // Return the atomic EOF/closed state directly to avoid UI thread blocking
+    // caused by mutex contention on m_file_mutex. The atomic flags are updated
+    // by all I/O operations that can hit EOF.
+    return m_closed.load() || !m_file_handle.is_valid() || m_eof.load();
 }
 
 /**
@@ -963,9 +946,9 @@ bool FileIOHandler::attemptErrorRecovery() {
             
             if (m_file_handle) {
                 // Reopen successful, restore state
-                m_closed = false;
-                m_eof = false;
-                m_error = 0;
+                updateClosedState(false);
+                updateEofState(false);
+                updateErrorState(0);
                 
                 // Try to restore position
                 if (saved_position > 0) {
@@ -974,12 +957,12 @@ bool FileIOHandler::attemptErrorRecovery() {
 #else
                     if (fseeko(m_file_handle, saved_position, SEEK_SET) == 0) {
 #endif
-                        m_position = saved_position;
+                        updatePosition(saved_position);
                         Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Successfully reopened file and restored position: ", saved_position);
                         return true;
                     } else {
                         Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Reopened file but failed to restore position");
-                        m_position = 0;
+                        updatePosition(0);
                         return true; // Still partially successful
                     }
                 } else {
@@ -988,7 +971,7 @@ bool FileIOHandler::attemptErrorRecovery() {
                 }
             } else {
                 // Reopen failed, restore error state
-                m_error = saved_error;
+                updateErrorState(saved_error);
                 Debug::log("io", "FileIOHandler::attemptErrorRecovery() - Failed to reopen file: ", strerror(errno));
                 return false;
             }
@@ -1033,7 +1016,7 @@ bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
         off_t remaining = m_cached_file_size - file_position;
         if (remaining <= 0) {
             Debug::log("io", "FileIOHandler::fillBuffer() - Position beyond file size");
-            m_eof = true;
+            updateEofState(true);
             return false;
         }
         buffer_size_to_use = std::min(buffer_size_to_use, static_cast<size_t>(remaining));
@@ -1098,11 +1081,12 @@ bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
     
     if (bytes_read == 0) {
         if (feof(m_file_handle)) {
-            m_eof = true;
+            updateEofState(true);
             Debug::log("io", "FileIOHandler::fillBuffer() - Reached EOF during buffer fill");
         } else {
-            m_error = ferror(m_file_handle);
-            Debug::log("io", "FileIOHandler::fillBuffer() - Read error during buffer fill: ", strerror(m_error));
+            int file_error = ferror(m_file_handle);
+            updateErrorState(file_error, "Read error during buffer fill");
+            Debug::log("io", "FileIOHandler::fillBuffer() - Read error during buffer fill: ", strerror(file_error));
             
             // Attempt error recovery
             if (isRecoverableError(m_error)) {
@@ -1895,8 +1879,8 @@ void FileIOHandler::ensureSafeDestructorCleanup() noexcept {
         }
         
         // Reset state safely
-        m_closed = true;
-        m_eof = true;
+        updateClosedState(true);
+        updateEofState(true);
         m_buffer_file_position = -1;
         m_buffer_valid_bytes = 0;
         m_buffer_offset = 0;

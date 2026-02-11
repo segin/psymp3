@@ -132,8 +132,8 @@ uint8_t* MemoryPoolManager::allocateBuffer_unlocked(size_t size, const std::stri
     auto& usage = m_component_usage[component_name];
     usage.allocations++;
     
-    // Try to find a suitable pool
-    auto pool_it = findBestPool(size);
+    // Try to find a suitable pool - only if we should pool this size
+    auto pool_it = shouldPool(size) ? findBestPool(size) : m_pools.end();
     if (pool_it != m_pools.end()) {
         auto& pool = pool_it->second;
         
@@ -660,12 +660,7 @@ bool MemoryPoolManager::shouldPool(size_t size) const {
         }
     }
     
-    // Under high memory pressure, be more selective
-    if (m_memory_pressure_level > 70 && size > 64 * 1024) {
-        return false;
-    }
-    
-    return true;
+    return false;
 }
 
 size_t MemoryPoolManager::getMaxBuffersPerPool() const {

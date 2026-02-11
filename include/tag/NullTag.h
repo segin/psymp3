@@ -73,13 +73,11 @@ public:
     // Extended metadata access - all return empty values
     // ========================================================================
     
-    std::string getTag(const std::string& key) const override { 
-        (void)key; // Suppress unused parameter warning
+    std::string getTag([[maybe_unused]] const std::string& key) const override {
         return ""; 
     }
     
-    std::vector<std::string> getTagValues(const std::string& key) const override { 
-        (void)key;
+    std::vector<std::string> getTagValues([[maybe_unused]] const std::string& key) const override {
         return {}; 
     }
     
@@ -87,8 +85,7 @@ public:
         return {}; 
     }
     
-    bool hasTag(const std::string& key) const override { 
-        (void)key;
+    bool hasTag([[maybe_unused]] const std::string& key) const override {
         return false; 
     }
     
@@ -98,8 +95,7 @@ public:
     
     size_t pictureCount() const override { return 0; }
     
-    std::optional<Picture> getPicture(size_t index) const override { 
-        (void)index;
+    std::optional<Picture> getPicture([[maybe_unused]] size_t index) const override {
         return std::nullopt; 
     }
     

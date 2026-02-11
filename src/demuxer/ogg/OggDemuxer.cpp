@@ -519,8 +519,7 @@ int OggDemuxer::fetchAndProcessPacket() {
     return 0;
 }
 
-void OggDemuxer::fillPacketQueue(uint32_t stream_id) {
-    (void)stream_id;
+void OggDemuxer::fillPacketQueue([[maybe_unused]] uint32_t stream_id) {
     std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
     // Read some pages until we get at least some packets for this stream
     for (int i = 0; i < 50; ++i) {

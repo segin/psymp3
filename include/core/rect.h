@@ -100,6 +100,10 @@
 #ifndef RECT_H
 #define RECT_H
 
+#include <cstdint>
+#include <utility>
+#include <string>
+
 namespace PsyMP3 {
 namespace Core {
 

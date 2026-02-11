@@ -16,7 +16,9 @@ namespace MPRIS {
 
 PropertyManager::PropertyManager(Player *player)
     : m_player(player), m_length_us(0),
-      m_status(PsyMP3::MPRIS::PlaybackStatus::Stopped), m_position_us(0),
+      m_status(PsyMP3::MPRIS::PlaybackStatus::Stopped),
+      m_loop_status(PsyMP3::MPRIS::LoopStatus::None),
+      m_position_us(0),
       m_position_timestamp(std::chrono::steady_clock::now()),
       m_can_go_next(false), m_can_go_previous(false), m_can_seek(false),
       m_can_control(true) // Generally true for media players
@@ -48,6 +50,11 @@ void PropertyManager::updatePosition(uint64_t position_us) {
   updatePosition_unlocked(position_us);
 }
 
+void PropertyManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  updateLoopStatus_unlocked(status);
+}
+
 std::string PropertyManager::getPlaybackStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getPlaybackStatus_unlocked();
@@ -62,6 +69,11 @@ PropertyManager::getMetadata() const {
 uint64_t PropertyManager::getPosition() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getPosition_unlocked();
+}
+
+PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getLoopStatus_unlocked();
 }
 
 uint64_t PropertyManager::getLength() const {
@@ -137,6 +149,10 @@ void PropertyManager::updatePosition_unlocked(uint64_t position_us) {
   m_position_timestamp = std::chrono::steady_clock::now();
 }
 
+void PropertyManager::updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status) {
+  m_loop_status = status;
+}
+
 std::string PropertyManager::getPlaybackStatus_unlocked() const {
   return PsyMP3::MPRIS::playbackStatusToString(
       m_status.load(std::memory_order_relaxed));
@@ -150,6 +166,10 @@ PropertyManager::getMetadata_unlocked() const {
 
 uint64_t PropertyManager::getPosition_unlocked() const {
   return interpolatePosition_unlocked();
+}
+
+PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus_unlocked() const {
+  return m_loop_status;
 }
 
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
@@ -195,11 +215,11 @@ PropertyManager::getAllProperties_unlocked() const {
       std::make_pair(std::string("PlaybackStatus"),
                      PsyMP3::MPRIS::DBusVariant(getPlaybackStatus_unlocked())));
 
-  // Loop status (for now, always None)
+  // Loop status
   properties.insert(std::make_pair(
       std::string("LoopStatus"),
       PsyMP3::MPRIS::DBusVariant(
-          PsyMP3::MPRIS::loopStatusToString(PsyMP3::MPRIS::LoopStatus::None))));
+          PsyMP3::MPRIS::loopStatusToString(getLoopStatus_unlocked()))));
 
   // Rate (playback rate, always 1.0 for now)
   properties.insert(
@@ -211,10 +231,8 @@ PropertyManager::getAllProperties_unlocked() const {
 
   // Metadata
   auto metadata_dict = getMetadata_unlocked();
-  properties.insert(std::make_pair(
-      std::string("Metadata"),
-      PsyMP3::MPRIS::DBusVariant(
-          std::string("metadata_dict")))); // TODO: Handle dict-in-dict properly
+  properties.insert(std::make_pair(std::string("Metadata"),
+                                   PsyMP3::MPRIS::DBusVariant(metadata_dict)));
 
   // Volume (not implemented, use 1.0)
   properties.insert(
