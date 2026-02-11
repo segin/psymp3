@@ -103,7 +103,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
                 // Use FormatMessage for other Windows errors
                 LPSTR messageBuffer = nullptr;
                 size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                                           NULL, win_error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+                                           nullptr, win_error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, nullptr);
                 if (size > 0 && messageBuffer) {
                     win_error_msg = std::string(messageBuffer, size);
                     // Remove trailing newlines

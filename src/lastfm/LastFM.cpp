@@ -8,8 +8,11 @@
  */
 
 #include "psymp3.h"
-#include <openssl/evp.h>
-#include <openssl/crypto.h>
+
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
 
 namespace PsyMP3 {
 namespace LastFM {
@@ -71,14 +74,17 @@ void LastFM::readConfig()
             m_username = value;
             DEBUG_LOG_LAZY("lastfm", "Username loaded: ", m_username);
         } else if (key == "password") {
-            m_password = value;
-            DEBUG_LOG_LAZY("lastfm", "Password loaded (", m_password.length(), " characters)");
-        } else if (key == "password_md5") {
+            // Legacy password entry - migrate to hash
+            if (!value.empty()) {
+                m_password_hash = md5Hash(value);
+                DEBUG_LOG_LAZY("lastfm", "Legacy password loaded and migrated to hash");
+            }
+        } else if (key == "password_hash") {
             m_password_hash = value;
-            DEBUG_LOG_LAZY("lastfm", "Password hash loaded: ", m_password_hash.substr(0, 8), "...");
+            DEBUG_LOG_LAZY("lastfm", "Password hash loaded");
         } else if (key == "session_key") {
             m_session_key = value;
-            DEBUG_LOG_LAZY("lastfm", "Session key loaded: ", m_session_key.substr(0, 8), "...");
+            DEBUG_LOG_LAZY("lastfm", "Session key loaded");
         } else if (key == "now_playing_url") {
             m_nowplaying_url = value;
             DEBUG_LOG_LAZY("lastfm", "Now playing URL loaded: ", m_nowplaying_url);
@@ -89,29 +95,27 @@ void LastFM::readConfig()
     }
     
     if (isConfigured()) {
-        if (!m_password.empty()) {
-            // Cache the password hash to avoid redundant computation (Requirements 1.3)
-            // Note: MD5 is required by the legacy Last.fm 1.2 protocol for authentication.
-            m_password_hash = md5Hash(m_password);
-            DEBUG_LOG_LAZY("lastfm", "Password hash cached for auth token generation");
-
-            // Clear the plain-text password from memory to minimize its exposure.
-            OPENSSL_cleanse(m_password.data(), m_password.size());
-            m_password.clear();
-
-            // Trigger a config write to migrate from plain-text password to hash
-            writeConfig();
-        }
         DEBUG_LOG_LAZY("lastfm", "Configuration complete - scrobbling enabled");
     } else {
-        DEBUG_LOG_LAZY("lastfm", "Missing configuration (username, password or session key) - scrobbling disabled");
+        DEBUG_LOG_LAZY("lastfm", "Missing username or password hash - scrobbling disabled");
     }
 }
 
 void LastFM::writeConfig()
 {
     System::createStoragePath();
+
+#ifndef _WIN32
+    // Set umask to ensure file is created with 0600 permissions
+    mode_t old_mask = umask(0077);
+#endif
+
     std::ofstream config(m_config_file);
+
+#ifndef _WIN32
+    umask(old_mask);
+#endif
+
     if (!config.is_open()) {
         DEBUG_LOG_LAZY("lastfm", "Failed to write config file: ", m_config_file);
         return;
@@ -119,15 +123,7 @@ void LastFM::writeConfig()
     
     config << "# Last.fm configuration\n";
     config << "username=" << m_username << "\n";
-
-    // Do not save the plain-text password to the configuration file.
-    // Instead, save the MD5 hash which is required by the protocol.
-    // This provides better security than plain-text storage while maintaining
-    // the ability to re-authenticate if a session key expires.
-    if (!m_password_hash.empty()) {
-        config << "password_md5=" << m_password_hash << "\n";
-    }
-
+    config << "password_hash=" << m_password_hash << "\n";
     config << "session_key=" << m_session_key << "\n";
     config << "now_playing_url=" << m_nowplaying_url << "\n";
     config << "submission_url=" << m_submission_url << "\n";
@@ -165,26 +161,14 @@ std::string LastFM::getSessionKey()
 
 bool LastFM::performHandshake(int host_index)
 {
-    if (m_username.empty() || (m_password.empty() && m_password_hash.empty())) {
-        DEBUG_LOG_LAZY("lastfm", "Username or password not configured");
+    if (m_username.empty() || m_password_hash.empty()) {
+        DEBUG_LOG_LAZY("lastfm", "Username or password hash not configured");
         return false;
     }
     
     // Generate timestamp and auth token (double MD5 as per API spec)
     // Use cached password hash to avoid redundant computation (Requirements 1.3)
     time_t timestamp = time(nullptr);
-    
-    // Ensure password hash is cached (in case config was modified)
-    if (m_password_hash.empty()) {
-        // This should normally be handled in readConfig()
-        m_password_hash = md5Hash(m_password);
-
-        // Clear plain-text password if it was used
-        if (!m_password.empty()) {
-            OPENSSL_cleanse(m_password.data(), m_password.size());
-            m_password.clear();
-        }
-    }
     
     std::string auth_token = md5Hash(m_password_hash + std::to_string(timestamp));
     
@@ -227,7 +211,7 @@ bool LastFM::performHandshake(int host_index)
             m_session_key = sessionKey;
             m_nowplaying_url = nowPlayingUrl;
             m_submission_url = submissionUrl;
-            DEBUG_LOG_LAZY("lastfm", "Handshake successful. Session Key: ", m_session_key);
+            DEBUG_LOG_LAZY("lastfm", "Handshake successful");
             DEBUG_LOG_LAZY("lastfm", "Now Playing URL: ", m_nowplaying_url);
             DEBUG_LOG_LAZY("lastfm", "Submission URL: ", m_submission_url);
             return true;
@@ -517,9 +501,7 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     postData += HTTPClient::urlEncode(album);
     postData += "&n[0]=";   // Track number (empty)
     postData += "&m[0]=";
-    // Use SHA-256 (truncated to 32 chars) for fallback ID instead of MD5
-    // While collision resistance isn't critical here, we prefer SHA-256 over MD5.
-    postData += sha256Hash(artist + title).substr(0, 32);
+    postData += md5Hash(artist + title);  // MusicBrainz ID (using hash as fallback)
     
     // Use submission URL from handshake response
     if (m_submission_url.empty()) {
@@ -654,8 +636,7 @@ bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
     postData += std::to_string(request.length);
     postData += "&n=";  // Track number (empty)
     postData += "&m=";
-    // Use SHA-256 (truncated to 32 chars) for fallback ID instead of MD5
-    postData += sha256Hash(request.artist + request.title).substr(0, 32);
+    postData += md5Hash(request.artist + request.title);  // MusicBrainz ID fallback
     
     if (m_nowplaying_url.empty()) {
         DEBUG_LOG_LAZY("lastfm", "No now playing URL available");
@@ -745,8 +726,7 @@ void LastFM::forceSubmission()
 
 bool LastFM::isConfigured() const
 {
-    // A session key OR a password/hash counts as configured.
-    return !m_username.empty() && (!m_password.empty() || !m_password_hash.empty() || !m_session_key.empty());
+    return !m_username.empty() && !m_password_hash.empty();
 }
 
 std::string LastFM::urlEncode(const std::string& input)
@@ -784,39 +764,6 @@ std::string LastFM::md5Hash(const std::string& input)
         return result;
     }
     
-    EVP_MD_CTX_free(ctx);
-    return "";
-}
-
-std::string LastFM::sha256Hash(const std::string& input)
-{
-    // SHA-256 implementation using lookup table for hex conversion
-    static constexpr char hex_chars[] = "0123456789abcdef";
-
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    if (!ctx) return "";
-
-    unsigned char hash[EVP_MAX_MD_SIZE];
-    unsigned int hash_len = 0;
-
-    if (EVP_DigestInit_ex(ctx, EVP_sha256(), nullptr) &&
-        EVP_DigestUpdate(ctx, input.c_str(), input.length()) &&
-        EVP_DigestFinal_ex(ctx, hash, &hash_len)) {
-
-        // Pre-allocate output string (SHA-256 is always 32 bytes = 64 hex chars)
-        std::string result;
-        result.reserve(64);
-
-        // Convert bytes to hex using lookup table and bit shifting
-        for (unsigned int i = 0; i < hash_len; i++) {
-            result += hex_chars[(hash[i] >> 4) & 0x0F];
-            result += hex_chars[hash[i] & 0x0F];
-        }
-
-        EVP_MD_CTX_free(ctx);
-        return result;
-    }
-
     EVP_MD_CTX_free(ctx);
     return "";
 }

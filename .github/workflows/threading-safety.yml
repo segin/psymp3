@@ -22,8 +22,6 @@ jobs:
   threading-safety-check:
     name: Threading Safety Validation
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     
     steps:
     - name: Checkout code
@@ -39,20 +37,27 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
+          automake \
           libtool \
           pkg-config \
-          libsdl2-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libmpg123-dev \
-          libcurl4-openssl-dev
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
+          libcurl4-openssl-dev \
+          libssl-dev
           
     - name: Install Python dependencies
       run: |
@@ -96,10 +101,6 @@ jobs:
   comprehensive-validation:
     name: Comprehensive Threading Validation
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
@@ -116,20 +117,27 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
+          automake \
           libtool \
           pkg-config \
-          libsdl2-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libmpg123-dev \
-          libcurl4-openssl-dev
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
+          libcurl4-openssl-dev \
+          libssl-dev
           
     - name: Generate build system
       run: |
@@ -174,8 +182,6 @@ jobs:
   performance-regression:
     name: Performance Regression Check
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     if: github.event_name == 'pull_request'
     
     steps:
@@ -192,20 +198,27 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
+          automake \
           libtool \
           pkg-config \
-          libsdl2-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libmpg123-dev \
-          libcurl4-openssl-dev
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
+          libcurl4-openssl-dev \
+          libssl-dev
           
     - name: Generate build system
       run: |

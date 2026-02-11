@@ -116,7 +116,7 @@ void print_results() {
 }
 
 // ========================================
-// TEST 1: NULL CHUNK DATA HANDLING
+// TEST 1: nullptr CHUNK DATA HANDLING
 // ========================================
 void test_null_chunk_data_handling() {
     print_test_section("Test 1: Null chunk data handling");

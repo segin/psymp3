@@ -87,7 +87,6 @@ private:
     std::queue<NowPlayingRequest> m_nowplaying_requests;
     std::string m_session_key;
     std::string m_username;
-    std::string m_password;
     std::string m_password_hash;  // Cached MD5 hash of password (Requirements 1.3)
     std::string m_config_file;
     std::string m_cache_file;
@@ -152,7 +151,6 @@ private:
     // URL encoding and utilities
     std::string urlEncode(const std::string& input);
     std::string md5Hash(const std::string& input);
-    std::string sha256Hash(const std::string& input);
     
 public:
     LastFM();
