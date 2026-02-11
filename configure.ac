@@ -84,9 +84,9 @@ have_opus=no
 
 # Native FLAC decoder - no external library dependency
 if test "x$enable_flac" = "xyes"; then
-  # ###have_native_flac=yes
+  have_native_flac=yes
   have_flac=yes
-  # AC_DEFINE([HAVE_NATIVE_FLAC], [1], [Define to 1 if native FLAC decoder is enabled])
+  AC_DEFINE([HAVE_NATIVE_FLAC], [1], [Define to 1 if native FLAC decoder is enabled])
   AC_DEFINE([HAVE_FLAC], [1], [Define to 1 if FLAC support is enabled])
   AC_MSG_NOTICE([Using native FLAC decoder (RFC 9639 compliant, no external dependencies)])
 fi
@@ -324,6 +324,9 @@ if test -n "$SANITIZER_FLAGS"; then
   CXXFLAGS="$CXXFLAGS $SANITIZER_FLAGS"
   CFLAGS="$CFLAGS $SANITIZER_FLAGS"
   LDFLAGS="$LDFLAGS $SANITIZER_FLAGS"
+  AC_SUBST([CXXFLAGS])
+  AC_SUBST([CFLAGS])
+  AC_SUBST([LDFLAGS])
 fi
 
 AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
@@ -401,7 +404,7 @@ PKG_CHECK_MODULES([DEPENDS], [taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
-AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/lastfm/Makefile src/mpris/Makefile src/util/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/tag/Makefile src/core/Makefile src/core/utility/Makefile res/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/lastfm/Makefile src/mpris/Makefile src/util/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/tag/Makefile src/core/Makefile src/core/utility/Makefile src/core/compression/Makefile res/Makefile tests/Makefile])
 
 # Print configuration summary
 echo ""

@@ -19,6 +19,11 @@
 #include <vector>
 #include <fstream>
 
+using namespace PsyMP3;
+using namespace PsyMP3::IO;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
+
 // Test IOHandler implementations
 class TestIOHandler : public IOHandler {
 private:

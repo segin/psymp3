@@ -12,6 +12,8 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
 
+static const uint32_t MAX_SAMPLES_PER_TRACK = 10000000; // 10 million samples
+
 BoxParser::BoxParser(std::shared_ptr<IOHandler> io) : io(io), fileSize(0) {
     // Get file size for validation
     if (io) {
@@ -744,6 +746,13 @@ bool BoxParser::ParseTimeToSampleBox(uint64_t offset, uint64_t size, SampleTable
         
         // Validate entry
         if (sampleCount == 0) {
+            return false;
+        }
+        
+        // SEC-01: Prevent OOM by validating total samples against limit
+        if (sampleCount > MAX_SAMPLES_PER_TRACK || 
+            tables.sampleTimes.size() + sampleCount > MAX_SAMPLES_PER_TRACK) {
+            Debug::log("BoxParser", "Too many samples in stts box, rejecting to prevent OOM");
             return false;
         }
         

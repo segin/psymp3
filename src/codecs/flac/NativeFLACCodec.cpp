@@ -197,6 +197,13 @@ uint64_t FLACCodec::getCurrentSample() const {
     return current;
 }
 
+FLACCodecStats FLACCodec::getStats() const {
+    std::lock_guard<std::mutex> lock(m_state_mutex);
+    FLACCodecStats stats;
+    // TODO: Populate stats from internal metrics
+    return stats;
+}
+
 bool FLACCodec::seek(uint64_t target_sample) {
     Debug::log("flac_codec", "[NativeFLACCodec::seek] [ENTRY] Seeking to sample ", target_sample);
     

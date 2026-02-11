@@ -120,6 +120,8 @@ class Player
         bool pause(void);
         bool play(void);
         bool playPause(void);
+        void setLoopMode(LoopMode mode);
+        LoopMode getLoopMode() const;
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
         static std::atomic<bool> guiRunning;
@@ -136,6 +138,10 @@ class Player
         void checkScrobbling();
         void startTrackScrobbling();
         void submitNowPlaying(); 
+
+        void setVolume(double volume);
+        double getVolume() const;
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
@@ -231,9 +237,10 @@ class Player
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;
         int m_skip_attempts = 0;
-        LoopMode m_loop_mode;
+        std::atomic<LoopMode> m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;
+        float m_volume = 1.0f;
 
         // Automated testing members
         bool m_automated_test_mode;
@@ -248,6 +255,31 @@ class Player
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
         int m_random_window_counter = 0;
+
+        // Deferred widget deletion
+        std::vector<std::unique_ptr<Widget>> m_deferred_widgets;
+        void processDeferredDeletions();
+        void deferWidgetDeletion(std::unique_ptr<Widget> widget);
+        
+        /**
+         * @brief Defer deletion of a widget owned by a unique_ptr member.
+         * 
+         * This method safely moves the widget from the specified unique_ptr into
+         * the deferred deletion queue. The unique_ptr is reset to nullptr immediately,
+         * but the actual deletion is deferred until the end of the current event loop
+         * iteration, preventing use-after-free when a widget's callback triggers its
+         * own destruction.
+         * 
+         * @tparam T Widget type (must derive from Widget)
+         * @param ptr Reference to the unique_ptr member to be released
+         */
+        template<typename T>
+        void deferDelete(std::unique_ptr<T>& ptr) {
+            if (ptr) {
+                // Move to deferred queue for safe deletion later
+                m_deferred_widgets.push_back(std::move(ptr));
+            }
+        }
 };
 
 #endif // PLAYER_H

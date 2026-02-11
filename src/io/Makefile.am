@@ -27,4 +27,5 @@ libpsymp3_io_a_SOURCES = \
 	EnhancedBufferPool.cpp \
 	EnhancedAudioBufferPool.cpp \
 	BoundedBuffer.cpp \
-	RAIIFileHandle.cpp
+	RAIIFileHandle.cpp \
+	MemoryIOHandler.cpp

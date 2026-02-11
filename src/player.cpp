@@ -52,6 +52,7 @@ Player::Player() {
     m_lastfm = std::make_unique<LastFM>();
     m_track_start_time = 0;
     m_track_scrobbled = false;
+    m_volume = 1.0f;
     
 #ifdef HAVE_DBUS
     m_mpris_manager = std::make_unique<PsyMP3::MPRIS::MPRISManager>(this);
@@ -950,6 +951,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
             }
             break;
 
+        case SDLK_UP:
+            setVolume(getVolume() + 0.05);
+            break;
+
+        case SDLK_DOWN:
+            setVolume(getVolume() - 0.05);
+            break;
+
         case SDLK_0:
             scalefactor = 0;
             updateInfo();
@@ -1025,11 +1034,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_e:
         {
+            LoopMode next_mode = LoopMode::None;
             switch (m_loop_mode) {
-                case LoopMode::None: m_loop_mode = LoopMode::One; showToast("Loop: One"); break;
-                case LoopMode::One:  m_loop_mode = LoopMode::All; showToast("Loop: All"); break;
-                case LoopMode::All:  m_loop_mode = LoopMode::None; showToast("Loop: None"); break;
+                case LoopMode::None: next_mode = LoopMode::One; break;
+                case LoopMode::One:  next_mode = LoopMode::All; break;
+                case LoopMode::All:  next_mode = LoopMode::None; break;
+                default: next_mode = LoopMode::None; break;
             }
+            setLoopMode(next_mode);
             // Persist this setting for the next session
             break;
         }
@@ -1270,6 +1282,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 
             // Create a new audio object, which takes ownership of the stream.
             audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
+            audio->setVolume(m_volume);
 
             // Update the player's current stream pointer to reflect the one now owned by Audio
             // This is a raw pointer, for read-only access by Player.
@@ -1379,6 +1392,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 audio.reset();
                 auto owned_stream = std::move(m_next_stream);
                 audio = std::make_unique<Audio>(std::move(owned_stream), fft.get(), mutex.get());
+                audio->setVolume(m_volume);
             } else {
                 // Same audio format, can seamlessly switch streams
                 Debug::log("audio", "Performing seamless stream transition.");
@@ -1422,6 +1436,35 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 }
                 delete msg_ptr;
             }
+            break;
+        }
+        case DO_SET_LOOP_MODE:
+        {
+            LoopMode mode = static_cast<LoopMode>(reinterpret_cast<intptr_t>(event.data1));
+            m_loop_mode = mode;
+            std::string toastMsg = "Loop: ";
+            std::string mprisStatus;
+            PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+            switch(m_loop_mode) {
+                case LoopMode::None:
+                    toastMsg += "None";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+                    break;
+                case LoopMode::One:
+                    toastMsg += "One";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Track;
+                    break;
+                case LoopMode::All:
+                    toastMsg += "All";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Playlist;
+                    break;
+            }
+            showToast(toastMsg);
+#ifdef HAVE_DBUS
+            if (m_mpris_manager) {
+                 m_mpris_manager->updateLoopStatus(mprisEnum);
+            }
+#endif
             break;
         }
     }
@@ -1685,6 +1728,7 @@ void Player::Run(const PlayerOptions& options) {
                 break;
             }
             } // end switch (event.type)
+            processDeferredDeletions();
             if (done) break;
 
         } // end of message processing
@@ -1702,6 +1746,24 @@ void Player::Run(const PlayerOptions& options) {
     Debug::log("player", "Exited cleanly");
     SDL_Quit();
     return;
+}
+
+/**
+ * @brief Sets the player loop mode.
+ * This method is thread-safe and dispatches an event to the main thread.
+ * @param mode The new loop mode to set.
+ */
+void Player::setLoopMode(LoopMode mode) {
+    synthesizeUserEvent(DO_SET_LOOP_MODE, reinterpret_cast<void*>(static_cast<intptr_t>(mode)), nullptr);
+}
+
+/**
+ * @brief Gets the current loop mode.
+ * This method is thread-safe as m_loop_mode is atomic.
+ * @return The current LoopMode.
+ */
+LoopMode Player::getLoopMode() const {
+    return m_loop_mode;
 }
 
 // Static member function definitions for automated testing
@@ -1937,7 +1999,10 @@ void Player::toggleTestWindowH()
         
         // Set up window control callbacks
         m_test_window_h->setOnClose([this]() {
-            m_test_window_h.reset();
+            if (m_test_window_h) {
+                deferWidgetDeletion(std::move(m_test_window_h));
+                m_test_window_h = nullptr;
+            }
             showToast("Test Window H: Closed");
         });
         
@@ -1993,8 +2058,8 @@ void Player::toggleTestWindowB()
         
         // Set up window control callbacks
         m_test_window_b->setOnClose([this]() {
-            m_test_window_b.reset();
             showToast("Test Window B: Closed");
+            this->deferDelete(m_test_window_b);
         });
         
         m_test_window_b->setOnMinimize([this]() {
@@ -2109,4 +2174,37 @@ void Player::submitNowPlaying()
     now_playing_track.SetLen(static_cast<unsigned int>(stream->getLength() / 1000)); // Convert to seconds
     
     m_lastfm->setNowPlaying(now_playing_track);
+}
+
+void Player::setVolume(double volume) {
+    if (volume < 0.0) volume = 0.0;
+    if (volume > 1.0) volume = 1.0;
+    m_volume = static_cast<float>(volume);
+
+    if (audio) {
+        audio->setVolume(m_volume);
+    }
+
+    // Show toast with new volume percentage
+    int percentage = static_cast<int>(m_volume * 100 + 0.5f); // Round to nearest integer
+    showToast("Volume: " + std::to_string(percentage) + "%");
+
+#ifdef HAVE_DBUS
+    // TODO: Notify MPRIS about volume change (PropertiesChanged signal)
+    // For now, MPRIS clients polling the property will see the new value
+#endif
+}
+
+double Player::getVolume() const {
+    return static_cast<double>(m_volume);
+}
+
+void Player::processDeferredDeletions() {
+    m_deferred_widgets.clear();
+}
+
+void Player::deferWidgetDeletion(std::unique_ptr<Widget> widget) {
+    if (widget) {
+        m_deferred_widgets.push_back(std::move(widget));
+    }
 }

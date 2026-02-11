@@ -86,3 +86,18 @@ The Ogg demuxer is implemented as a pipeline of specialized managers:
     *   **Serial Number Validation**: Crucially, the bisection search validates page serial numbers against the target stream. This ensures correct seeking in multiplexed files (e.g., Ogg Theora+Vorbis) by ignoring pages that belong to other concurrent streams, preventing invalid granule interpretation.
 4.  **Demux Layer (`OggDemuxer`)**: The top-level orchestrator. It manages the lifecycle of all internal managers. It implements the `Demuxer` interface used by the rest of PsyMP3. It also handles "chained" Ogg streams (multiplexed serial numbers).
 5.  **Codec Header Parser (`CodecHeaderParser`)**: A pluggable validation layer. It inspects the first packet of each stream to identify the codec (Vorbis, Opus, FLAC, Speex, or unknown) and extracts critical metadata like sample rate and channel count without initializing a full decoder.
+
+## 6. Core Mechanisms
+
+### 6.1 Deferred Widget Deletion
+To prevent Heap-Use-After-Free errors where a widget destroys itself within its own event callback (e.g., closing a window), PsyMP3 uses a deferred deletion pattern.
+
+-   **Mechanism**: The `Player` class maintains a `m_deferred_widgets` queue.
+-   **Usage**: Instead of `delete this` or `.reset()`, widgets transfer ownership to `Player::deferWidgetDeletion()`.
+-   **Execution**: At the end of each event loop iteration, `Player::processDeferredDeletions()` clears the queue, safely destroying widgets when they are no longer on the call stack.
+
+### 6.2 Ogg Duration Caching
+Determining the duration of an Ogg file requires scanning the last page. To avoid performance penalties:
+
+-   **Caching**: `OggSeekingEngine` calculates the duration once (via bisection search for the last granule) and caches it in `m_duration_cached`.
+-   **Optimization**: Subsequent calls to `getDuration()` return the cached value instantly, preventing repeated file I/O during playback or seeking operations.

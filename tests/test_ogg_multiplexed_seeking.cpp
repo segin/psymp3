@@ -15,8 +15,19 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+
 #include <algorithm>
 #include <cmath>
+#include <iostream>
+#include <cstdint>
+#include <cstring>
+#include <vector>
+#include <ogg/ogg.h>
+
+#include "io/IOHandler.h"
+#include "demuxer/ogg/OggSyncManager.h"
+#include "demuxer/ogg/OggStreamManager.h"
+#include "demuxer/ogg/OggSeekingEngine.h"
 
 // --- Mock Classes ---
 

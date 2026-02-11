@@ -33,6 +33,9 @@ namespace MP3 {
     class Libmpg123;
 }
 }
+namespace IO {
+    class MemoryIOHandler;
+}
 }
 
 namespace PsyMP3 {
@@ -93,7 +96,8 @@ public:
     
 private:
     PsyMP3::Codec::MP3::Libmpg123* m_mp3_stream = nullptr;  // Fully qualified
-    std::vector<uint8_t> m_buffer;            // Accumulated data buffer
+    PsyMP3::IO::MemoryIOHandler* m_io_handler = nullptr;    // Raw pointer to handler (owned by m_mp3_stream)
+    std::vector<uint8_t> m_buffer;            // Accumulated data buffer (initial only)
     bool m_header_written = false;
 };
 

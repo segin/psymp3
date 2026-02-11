@@ -13,6 +13,9 @@
 #ifdef HAVE_OGGDEMUXER
 
 using namespace TestFramework;
+using namespace PsyMP3;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
 
 // ========== Test Data Creation Utilities ==========
 

@@ -1,7 +1,7 @@
 /*
  * OggSyncManager.cpp - Ogg Sync Layer (RFC 3533)
  * This file is part of PsyMP3.
- * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill II <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -134,8 +134,7 @@ int64_t OggSyncManager::findPrevPage() {
         long seek_size = (offset > CHUNK_SIZE) ? CHUNK_SIZE : offset;
         offset -= seek_size;
         
-        if (m_io_handler->seek(offset, SEEK_SET) != 0) return -1;
-        reset();
+        if (!seek(offset)) return -1;
         
         ogg_page temp_page;
         // Scan forward from offset to current_pos
@@ -165,8 +164,7 @@ int64_t OggSyncManager::findPrevPageSerial(long serial) {
         long seek_size = (offset > CHUNK_SIZE) ? CHUNK_SIZE : offset;
         offset -= seek_size;
         
-        if (m_io_handler->seek(offset, SEEK_SET) != 0) return -1;
-        reset();
+        if (!seek(offset)) return -1;
         
         ogg_page temp_page;
         int64_t found_offset = -1;

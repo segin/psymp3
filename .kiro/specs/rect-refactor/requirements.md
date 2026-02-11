@@ -6,6 +6,29 @@ The `Rect` class is a fundamental utility class in PsyMP3 that handles rectangle
 
 The class is extensively used throughout the widget system, surface operations, layout management, and UI positioning. Any changes must be carefully designed to avoid breaking the existing codebase while providing valuable new functionality.
 
+## Goals and Non-Goals
+
+### Goals
+
+- Enhance the Rect class with comprehensive geometric operations (containment, intersection, union)
+- Add convenient utility methods for edges, corners, and center points
+- Provide transformation methods for moving, resizing, and adjusting rectangles
+- Maintain 100% backward compatibility with existing code
+- Follow modern C++ best practices for value semantics and operator overloading
+- Provide robust validation and debugging support
+- Document coordinate system limitations and overflow behavior
+
+### Non-Goals
+
+- Changing the existing memory layout or data member types
+- Adding virtual functions or polymorphic behavior
+- Implementing floating-point coordinate support (remains int16_t/uint16_t)
+- Creating a separate RectF class for floating-point coordinates
+- Adding dependency on external geometry libraries
+- Implementing advanced geometric algorithms (rotation, skewing, etc.)
+- Providing serialization/deserialization functionality
+- Thread-safety guarantees (Rect remains a simple value type)
+
 ## Requirements
 
 ### Requirement 1
