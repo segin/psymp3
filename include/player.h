@@ -206,15 +206,7 @@ class Player
         PlayerProgressBarWidget* m_progress_widget;
 
         // Overlay widgets
-        std::unique_ptr<ToastNotification> m_toast;
-        // Toast queue for smooth replacement transitions
-        struct PendingToast {
-            std::string message;
-            Uint32 duration_ms;
-        };
-        std::queue<PendingToast> m_toast_queue;
-        static constexpr size_t MAX_TOAST_QUEUE_SIZE = 10;
-        std::unique_ptr<LyricsWidget> m_lyrics_widget;
+        LyricsWidget* m_lyrics_widget = nullptr;
         std::unique_ptr<Label> m_pause_indicator;
         FadingWidget* m_seek_left_indicator = nullptr;
         FadingWidget* m_seek_right_indicator = nullptr;

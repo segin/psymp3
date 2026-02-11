@@ -379,6 +379,10 @@ bool Player::stop(void) {
     audio.reset(); // Destroy the audio object when stopping.
     stream = nullptr;
 
+    if (m_lyrics_widget) {
+        m_lyrics_widget->clearLyrics();
+    }
+
 #ifdef HAVE_DBUS
     if (m_mpris_manager) {
         m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Stopped);
@@ -773,39 +777,10 @@ bool Player::updateGUI()
     }
 #endif
 
-    // --- Lyrics Widget Rendering ---
-    // NOTE: Temporarily disabled - will be re-enabled with transparent window system
-    /*
+    // --- Lyrics Widget Update ---
     if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
         m_lyrics_widget->updatePosition(current_pos_ms);
-        m_lyrics_widget->BlitTo(*graph);
     }
-    */
-
-    // --- Toast Notification Management and Rendering ---
-    // NOTE: Temporarily disabled - will be converted to transparent window system  
-    // TODO: Convert ToastNotification to use ToastWidget with ZOrder::MAX
-    /*
-    if (m_toast) {
-        if (m_toast->isExpired()) {
-            m_toast.reset();
-            // Check if there's a queued toast to show immediately after fade-out
-            if (!m_toast_queue.empty()) {
-                const PendingToast& next_toast = m_toast_queue.front();
-                m_toast = std::make_unique<ToastNotification>(font.get(), next_toast.message, next_toast.duration_ms);
-                m_toast_queue.pop();
-            }
-        } else {
-            // Horizontally center and vertically align to the bottom of the FFT area.
-            const Rect& current_pos = m_toast->getPos();
-            Rect new_pos = current_pos; // Make a copy to modify
-            new_pos.x((graph->width() - current_pos.width()) / 2);
-            new_pos.y(350 - current_pos.height() - 40); // 40px margin from the bottom of the FFT area
-            m_toast->setPos(new_pos);
-            m_toast->BlitTo(*graph); // Blit to the graph surface for correct alpha blending
-        }
-    }
-    */
 
     // --- Pause Indicator Rendering ---
     // This should be drawn after the toast so it appears on top if both are active.
@@ -1391,10 +1366,14 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             stream = audio->getCurrentStream();
             startTrackScrobbling();
 
-            // Update GUI and clear lyrics
+            // Update GUI and lyrics for the new stream
             updateInfo(false, "");
             if (m_lyrics_widget) {
-                m_lyrics_widget->clearLyrics();
+                if (stream) {
+                    m_lyrics_widget->setLyrics(stream->getLyrics());
+                } else {
+                    m_lyrics_widget->clearLyrics();
+                }
             }
             break;
         }
@@ -1544,8 +1523,10 @@ void Player::Run(const PlayerOptions& options) {
     add_label("fft_mode", Rect(545, 30, 95, 16));
     m_loop_mode = LoopMode::None; // Default loop mode on startup
 
-    // Initialize lyrics widget
-    m_lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
+    // Initialize lyrics widget and add to application window system
+    auto lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
+    m_lyrics_widget = lyrics_widget.get();
+    app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
 
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
