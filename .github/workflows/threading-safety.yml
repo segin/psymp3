@@ -40,9 +40,12 @@ jobs:
           autotools-dev \
           automake \
           autoconf \
+          autoconf-archive \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
@@ -114,9 +117,12 @@ jobs:
           autotools-dev \
           automake \
           autoconf \
+          autoconf-archive \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
@@ -189,9 +195,12 @@ jobs:
           autotools-dev \
           automake \
           autoconf \
+          autoconf-archive \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
