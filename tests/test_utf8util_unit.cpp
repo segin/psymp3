@@ -276,14 +276,14 @@ protected:
         ASSERT_EQUALS("", UTF8Util::decodeSafe(&dummy, 0), "Non-null input with size 0");
 
         // Valid ASCII
-        const uint8_t ascii[] = "Hello";
+        const uint8_t ascii[] = {'H', 'e', 'l', 'l', 'o'};
         ASSERT_EQUALS("Hello", UTF8Util::decodeSafe(ascii, 5), "Valid ASCII without null terminator");
-        const uint8_t ascii_null[] = "Hello"; // Includes null terminator
+        const uint8_t ascii_null[] = {'H', 'e', 'l', 'l', 'o', 0}; // Includes null terminator
         ASSERT_EQUALS("Hello", UTF8Util::decodeSafe(ascii_null, 6), "Valid ASCII with null terminator");
 
         // Valid UTF-8
-        const uint8_t utf8[] = "café";
-        ASSERT_EQUALS("café", UTF8Util::decodeSafe(utf8, std::strlen("café")), "Valid UTF-8");
+        const uint8_t utf8[] = {'c', 'a', 'f', static_cast<uint8_t>('\xC3'), static_cast<uint8_t>('\xA9')}; // café
+        ASSERT_EQUALS("café", UTF8Util::decodeSafe(utf8, 5), "Valid UTF-8");
 
         // Null terminator before end of size
         const uint8_t with_null[] = {'H', 'i', 0, 'X', 'Y'};
