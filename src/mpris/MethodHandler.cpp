@@ -509,18 +509,15 @@ MethodHandler::handleSetPosition_unlocked(DBusConnection *connection,
 
 // Stub implementations when D-Bus is not available
 
-MethodHandler::MethodHandler(Player *player, PropertyManager *properties)
-    : m_player(player), m_properties(properties), m_initialized(false) {
-  (void)player;
-  (void)properties; // Suppress unused parameter warnings
-}
+MethodHandler::MethodHandler([[maybe_unused]] Player *player,
+                             [[maybe_unused]] PropertyManager *properties)
+    : m_player(player), m_properties(properties), m_initialized(false) {}
 
 MethodHandler::~MethodHandler() {}
 
-DBusHandlerResult MethodHandler::handleMessage(DBusConnection *connection,
-                                               DBusMessage *message) {
-  (void)connection;
-  (void)message; // Suppress unused parameter warnings
+DBusHandlerResult
+MethodHandler::handleMessage([[maybe_unused]] DBusConnection *connection,
+                             [[maybe_unused]] DBusMessage *message) {
   return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
@@ -664,7 +661,18 @@ MethodHandler::handleSetProperty_unlocked(DBusConnection *connection,
     }
 
     std::cout << "MPRIS: Setting loop status to " << loop_str << std::endl;
-    // TODO: Implement loop control in Player if available
+
+    // Map MPRIS string to LoopMode
+    LoopMode mode = LoopMode::None;
+    if (loop_str == "Track") {
+        mode = LoopMode::One;
+    } else if (loop_str == "Playlist") {
+        mode = LoopMode::All;
+    }
+
+    if (m_player) {
+        m_player->setLoopMode(mode);
+    }
 
   } else if (prop_name_str == "Shuffle") {
     if (dbus_message_iter_get_arg_type(&variant_iter) != DBUS_TYPE_BOOLEAN) {
@@ -1099,12 +1107,12 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "LoopStatus") {
-    // Default to "None" since Player doesn't have loop control yet
-    const char *loop_status = "None";
+    std::string loop_status = PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus());
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s",
                                      &variant_iter);
+    const char *loop_status_cstr = loop_status.c_str();
     dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                   &loop_status);
+                                   &loop_status_cstr);
     dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "Shuffle") {
