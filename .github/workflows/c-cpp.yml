@@ -31,7 +31,6 @@ jobs:
           libmpg123-dev \
           libtag1-dev \
           libvorbis-dev \
-          libvorbisfile-dev \
           libopusfile-dev \
           libopus-dev \
           libogg-dev \
