@@ -31,16 +31,16 @@ jobs:
           libmpg123-dev \
           libtag1-dev \
           libvorbis-dev \
-          libopusfile-dev \
           libopus-dev \
+          libopusfile-dev \
           libogg-dev \
-          libflac++-dev \
           libflac-dev \
+          libflac++-dev \
           libfreetype6-dev \
           libssl-dev \
           libcurl4-openssl-dev \
-          zlib1g-dev \
-          libdbus-1-dev
+          libdbus-1-dev \
+          zlib1g-dev
 
     - name: Cache dependencies
       uses: actions/cache@v4
