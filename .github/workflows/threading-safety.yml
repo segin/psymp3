@@ -2,7 +2,7 @@ name: Threading Safety Validation
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, develop, master ]
     paths:
       - 'src/**'
       - 'include/**'
@@ -10,7 +10,7 @@ on:
       - 'scripts/**'
       - '.github/workflows/threading-safety.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, develop, master ]
     paths:
       - 'src/**'
       - 'include/**'
@@ -42,14 +42,18 @@ jobs:
           autoconf \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev \
+          libdbus-1-dev
           
     - name: Install Python dependencies
       run: |
@@ -58,11 +62,11 @@ jobs:
         
     - name: Generate build system
       run: |
-        ./generate-configure.sh
+        ./autogen.sh
         
     - name: Configure build
       run: |
-        ./configure --enable-debug
+        ./configure --enable-debug --enable-mpris
         
     - name: Run Threading Safety CI Check
       run: |
@@ -114,22 +118,26 @@ jobs:
           autoconf \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev \
+          libdbus-1-dev
           
     - name: Generate build system
       run: |
-        ./generate-configure.sh
+        ./autogen.sh
         
     - name: Configure build
       run: |
-        ./configure --enable-debug
+        ./configure --enable-debug --enable-mpris
         
     - name: Run Comprehensive Threading Validation
       run: |
@@ -187,22 +195,26 @@ jobs:
           autoconf \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev \
+          libdbus-1-dev
           
     - name: Generate build system
       run: |
-        ./generate-configure.sh
+        ./autogen.sh
         
     - name: Configure build
       run: |
-        ./configure --enable-debug
+        ./configure --enable-debug --enable-mpris
         
     - name: Build project
       run: |
