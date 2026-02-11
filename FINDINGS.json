@@ -1,0 +1,47 @@
+[
+  {
+    "id": "ID-001",
+    "title": "Critical Undefined Behavior in FLAC Decoder",
+    "severity": "Critical",
+    "cwe": "CWE-190",
+    "file": "src/codecs/flac/SampleReconstructor.cpp",
+    "line": 116,
+    "description": "Invalid bit shift operation leading to undefined behavior."
+  },
+  {
+    "id": "ID-002",
+    "title": "Logical Dead Code / Broken Loops",
+    "severity": "High",
+    "cwe": "CWE-570",
+    "file": "src/audio.cpp",
+    "line": 506,
+    "description": "Loop condition is always false; fallback logic is never executed."
+  },
+  {
+    "id": "ID-003",
+    "title": "Missing Compiler Security Flags",
+    "severity": "High",
+    "cwe": "CWE-1127",
+    "file": "configure.ac",
+    "line": 1,
+    "description": "Missing Stack Protector and FORTIFY_SOURCE."
+  },
+  {
+    "id": "ID-004",
+    "title": "Unsafe C-style Cast",
+    "severity": "Medium",
+    "cwe": "CWE-704",
+    "file": "src/audio.cpp",
+    "line": 394,
+    "description": "Potential type confusion/buffer overflow risk."
+  },
+  {
+    "id": "ID-005",
+    "title": "Insecure Credential Storage",
+    "severity": "Medium",
+    "cwe": "CWE-312",
+    "file": "include/lastfm/LastFM.h",
+    "line": 1,
+    "description": "Password stored in plain std::string."
+  }
+]

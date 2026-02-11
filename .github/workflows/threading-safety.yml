@@ -37,20 +37,27 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
+          automake \
           libtool \
           pkg-config \
-          libsdl2-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libmpg123-dev \
-          libcurl4-openssl-dev
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
+          libcurl4-openssl-dev \
+          libssl-dev
           
     - name: Install Python dependencies
       run: |
@@ -110,20 +117,27 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
+          automake \
           libtool \
           pkg-config \
-          libsdl2-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libmpg123-dev \
-          libcurl4-openssl-dev
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
+          libcurl4-openssl-dev \
+          libssl-dev
           
     - name: Generate build system
       run: |
@@ -184,20 +198,32 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
+          automake \
           libtool \
           pkg-config \
-          libsdl2-dev \
-          libfreetype6-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
+          libmpg123-dev \
           libtag1-dev \
-          libflac-dev \
           libvorbis-dev \
-          libogg-dev \
+          libopusfile-dev \
           libopus-dev \
+<<<<<<< HEAD
           libmpg123-dev \
           libcurl4-openssl-dev
+=======
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
+          libcurl4-openssl-dev \
+          libssl-dev
+>>>>>>> master
           
     - name: Generate build system
       run: |
