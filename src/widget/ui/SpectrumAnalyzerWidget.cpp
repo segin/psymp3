@@ -36,6 +36,7 @@ SpectrumAnalyzerWidget::SpectrumAnalyzerWidget(int width, int height)
     , m_color_scheme(0)
     , m_decay_factor(1.0f) // Default decay factor where 1.0 = 63 alpha
     , m_scale_factor(2) // Default scale factor
+    , m_cached_fade_alpha(255)
 {
     // Initialize with empty spectrum data
     m_spectrum_data.resize(64, 0.0f); // Default to 64 bands
@@ -102,8 +103,13 @@ void SpectrumAnalyzerWidget::setDecayFactor(float decay_factor)
 void SpectrumAnalyzerWidget::precomputeColors()
 {
     int num_bands = m_spectrum_data.size();
-    m_precomputed_colors.resize(num_bands);
-    if (num_bands <= 0) return;
+    if (num_bands <= 0) {
+        m_precomputed_colors.clear();
+        return;
+    }
+
+    m_precomputed_colors.clear();
+    m_precomputed_colors.reserve(num_bands);
 
     for (int i = 0; i < num_bands; ++i) {
         uint8_t r, g, b;
@@ -149,44 +155,39 @@ void SpectrumAnalyzerWidget::precomputeColors()
                 r = 255; g = 255; b = 255;
                 break;
         }
-        m_precomputed_colors[i] = {r, g, b};
+        m_precomputed_colors.push_back({r, g, b});
     }
 }
 
 void SpectrumAnalyzerWidget::draw(Surface& surface)
 {
-    // Maintain a persistent spectrum surface that accumulates frames over time
-    static std::unique_ptr<Surface> spectrum_surface_ptr; // Persistent across calls
-    static std::unique_ptr<Surface> fade_surface_ptr; // For fade effect
-    static uint8_t cached_fade_alpha = 255; // Cache to avoid redundant SetAlpha calls
-    
     Rect pos = getPos();
     int width = pos.width();
     int height = pos.height();
     
     // Create persistent spectrum surface once and reuse
-    if (!spectrum_surface_ptr || spectrum_surface_ptr->width() != width || spectrum_surface_ptr->height() != height) {
-        spectrum_surface_ptr = std::make_unique<Surface>(width, height);
-        spectrum_surface_ptr->FillRect(spectrum_surface_ptr->MapRGB(0, 0, 0)); // Start with black
+    if (!m_spectrum_surface || m_spectrum_surface->width() != width || m_spectrum_surface->height() != height) {
+        m_spectrum_surface = std::make_unique<Surface>(width, height);
+        m_spectrum_surface->FillRect(m_spectrum_surface->MapRGB(0, 0, 0)); // Start with black
     }
-    Surface& spectrum_surface = *spectrum_surface_ptr;
+    Surface& spectrum_surface = *m_spectrum_surface;
     
     // Create fade surface once and reuse (matches original algorithm)
-    if (!fade_surface_ptr || fade_surface_ptr->width() != width || fade_surface_ptr->height() != height) {
-        fade_surface_ptr = std::make_unique<Surface>(width, height);
-        fade_surface_ptr->FillRect(fade_surface_ptr->MapRGB(0, 0, 0));
-        cached_fade_alpha = 255; // Reset cache when surface is recreated
+    if (!m_fade_surface || m_fade_surface->width() != width || m_fade_surface->height() != height) {
+        m_fade_surface = std::make_unique<Surface>(width, height);
+        m_fade_surface->FillRect(m_fade_surface->MapRGB(0, 0, 0));
+        m_cached_fade_alpha = 255; // Reset cache when surface is recreated
     }
-    Surface& fade_surface = *fade_surface_ptr;
+    Surface& fade_surface = *m_fade_surface;
     
     // Calculate alpha for fade (0-255). Original: decayfactor from 0.5 to 2.0
     // Original formula: (255 * (decayfactor / 4.0f))  where decayfactor=1.0 gives 63 alpha
     uint8_t fade_alpha = static_cast<uint8_t>(255 * (m_decay_factor / 4.0f));
     
     // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
-    if (fade_alpha != cached_fade_alpha) {
+    if (fade_alpha != m_cached_fade_alpha) {
         fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
-        cached_fade_alpha = fade_alpha;
+        m_cached_fade_alpha = fade_alpha;
     }
     
     // Apply fade effect to the persistent spectrum surface (darkens previous content)
@@ -223,13 +224,6 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
     int num_bands = m_spectrum_data.size();
     int bar_width = std::max(1, width / num_bands);
     int spacing = std::max(0, (width - (bar_width * num_bands)) / (num_bands + 1));
-    
-    // Find max value for debug
-    float max_val = 0.0f;
-    for (const float& val : m_spectrum_data) {
-        max_val = std::max(max_val, val);
-    }
-    
     
     for (int i = 0; i < num_bands; ++i) {
         float value = m_spectrum_data[i];
@@ -276,13 +270,13 @@ void SpectrumAnalyzerWidget::drawOscilloscope(Surface& surface)
         y1 = std::max(0, std::min(height - 1, y1));
         y2 = std::max(0, std::min(height - 1, y2));
         
-        uint32_t color = getSpectrumColor(value1, x, surface); // Color based on position, not amplitude
+        uint32_t color = getSpectrumColor(x, surface); // Color based on position, not amplitude
         surface.line(x1, y1, x2, y2, 
                     (color >> 16) & 0xFF, (color >> 8) & 0xFF, color & 0xFF, 255);
     }
 }
 
-uint32_t SpectrumAnalyzerWidget::getSpectrumColor(float value [[maybe_unused]], int position, Surface& surface)
+uint32_t SpectrumAnalyzerWidget::getSpectrumColor(int position, Surface& surface)
 {
     // Color is based on POSITION (frequency), not amplitude value
     // This matches the original renderSpectrum behavior with precomputed colors

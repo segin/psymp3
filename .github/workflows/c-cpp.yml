@@ -33,6 +33,7 @@ jobs:
           libvorbis-dev \
           libopusfile-dev \
           libopus-dev \
+          libcurl4-openssl-dev \
           libogg-dev \
           libflac++-dev \
           libflac-dev \
