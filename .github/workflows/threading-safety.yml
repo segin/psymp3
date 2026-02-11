@@ -2,7 +2,7 @@ name: Threading Safety Validation
 
 on:
   push:
-    branches: [ main, develop, master ]
+    branches: [ main, develop ]
     paths:
       - 'src/**'
       - 'include/**'
@@ -10,7 +10,7 @@ on:
       - 'scripts/**'
       - '.github/workflows/threading-safety.yml'
   pull_request:
-    branches: [ main, develop, master ]
+    branches: [ main, develop ]
     paths:
       - 'src/**'
       - 'include/**'
