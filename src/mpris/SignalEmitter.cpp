@@ -77,11 +77,9 @@ void SignalEmitter::resetStatistics() {
 // Private implementations - assume locks are already held
 
 Result<void> SignalEmitter::emitPropertiesChanged_unlocked(
-    const std::string &interface_name,
-    const std::map<std::string, DBusVariant> &changed_properties) {
+    [[maybe_unused]] const std::string &interface_name,
+    [[maybe_unused]] const std::map<std::string, DBusVariant> &changed_properties) {
 #ifndef HAVE_DBUS
-  (void)interface_name;
-  (void)changed_properties;
   return Result<void>::error("D-Bus support not compiled in");
 #else
   if (changed_properties.empty()) {
@@ -106,9 +104,8 @@ Result<void> SignalEmitter::emitPropertiesChanged_unlocked(
 #endif
 }
 
-Result<void> SignalEmitter::emitSeeked_unlocked(uint64_t position_us) {
+Result<void> SignalEmitter::emitSeeked_unlocked([[maybe_unused]] uint64_t position_us) {
 #ifndef HAVE_DBUS
-  (void)position_us;
   return Result<void>::error("D-Bus support not compiled in");
 #else
   if (!isRunning_unlocked()) {
@@ -277,11 +274,9 @@ void SignalEmitter::processBatchedSignals_unlocked() { flushBatch_unlocked(); }
 // Signal creation helpers
 
 Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
-    const std::string &interface_name,
-    const std::map<std::string, DBusVariant> &changed_properties) {
+    [[maybe_unused]] const std::string &interface_name,
+    [[maybe_unused]] const std::map<std::string, DBusVariant> &changed_properties) {
 #ifndef HAVE_DBUS
-  (void)interface_name;
-  (void)changed_properties;
   return Result<DBusMessagePtr>::error("D-Bus support not compiled in");
 #else
   // Create PropertiesChanged signal message
@@ -455,9 +450,8 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
 }
 
 Result<DBusMessagePtr>
-SignalEmitter::createSeekedMessage_unlocked(uint64_t position_us) {
+SignalEmitter::createSeekedMessage_unlocked([[maybe_unused]] uint64_t position_us) {
 #ifndef HAVE_DBUS
-  (void)position_us;
   return Result<DBusMessagePtr>::error("D-Bus support not compiled in");
 #else
   // Create Seeked signal message
@@ -485,9 +479,8 @@ SignalEmitter::createSeekedMessage_unlocked(uint64_t position_us) {
 
 // D-Bus message sending
 
-Result<void> SignalEmitter::sendSignalMessage_unlocked(DBusMessage *message) {
+Result<void> SignalEmitter::sendSignalMessage_unlocked([[maybe_unused]] DBusMessage *message) {
 #ifndef HAVE_DBUS
-  (void)message;
   return Result<void>::error("D-Bus support not compiled in");
 #else
   if (!message) {
