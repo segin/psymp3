@@ -42,7 +42,7 @@ jobs:
           libdbus-1-dev
 
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cache/apt
@@ -86,7 +86,7 @@ jobs:
 
     - name: Upload build artifacts
       if: success()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: psymp3-build-${{ github.sha }}
         path: |
