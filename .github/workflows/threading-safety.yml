@@ -44,7 +44,7 @@ jobs:
           pkg-config \
           libsdl2-dev \
           libfreetype6-dev \
-          libtag-dev \
+          libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
@@ -118,7 +118,7 @@ jobs:
           pkg-config \
           libsdl2-dev \
           libfreetype6-dev \
-          libtag-dev \
+          libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
@@ -193,7 +193,7 @@ jobs:
           pkg-config \
           libsdl2-dev \
           libfreetype6-dev \
-          libtag-dev \
+          libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
