@@ -42,6 +42,7 @@ struct PlayerOptions {
     FFTMode fft_mode = FFTMode::Original;
     bool automated_test_mode = false;
     bool unattended_quit = false;
+    bool show_mpris_errors = true;
     std::vector<std::string> files;
 };
 
@@ -119,10 +120,16 @@ class Player
         bool pause(void);
         bool play(void);
         bool playPause(void);
+        void setLoopMode(LoopMode mode);
+        LoopMode getLoopMode() const;
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
         static std::atomic<bool> guiRunning;
         
+        // MPRIS Error Notification
+        void toggleMPRISErrorNotifications();
+        void showMPRISError(const std::string& message);
+
         // Robust playlist handling
         bool handleUnplayableTrack();
         bool findFirstPlayableTrack();
@@ -206,15 +213,7 @@ class Player
         PlayerProgressBarWidget* m_progress_widget;
 
         // Overlay widgets
-        std::unique_ptr<ToastNotification> m_toast;
-        // Toast queue for smooth replacement transitions
-        struct PendingToast {
-            std::string message;
-            Uint32 duration_ms;
-        };
-        std::queue<PendingToast> m_toast_queue;
-        static constexpr size_t MAX_TOAST_QUEUE_SIZE = 10;
-        std::unique_ptr<LyricsWidget> m_lyrics_widget;
+        LyricsWidget* m_lyrics_widget = nullptr;
         std::unique_ptr<Label> m_pause_indicator;
         FadingWidget* m_seek_left_indicator = nullptr;
         FadingWidget* m_seek_right_indicator = nullptr;
@@ -230,7 +229,7 @@ class Player
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;
         int m_skip_attempts = 0;
-        LoopMode m_loop_mode;
+        std::atomic<LoopMode> m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;
         float m_volume = 1.0f;
@@ -238,6 +237,7 @@ class Player
         // Automated testing members
         bool m_automated_test_mode;
         bool m_unattended_quit;
+        bool m_show_mpris_errors;
         int m_automated_test_track_count;
         SDL_TimerID m_automated_test_timer_id = 0;
         SDL_TimerID m_automated_quit_timer_id = 0;

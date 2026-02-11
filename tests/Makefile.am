@@ -351,7 +351,8 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_media_factory_integration \
 	test_demuxer_performance \
 	test_iohandler_legacy_compatibility \
-	test_iohandler_performance_validation
+	test_iohandler_performance_validation \
+	test_http_client_parse_url
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -421,7 +422,7 @@ endif
 # G711 codec tests (both A-law and μ-law)
 if HAVE_G711
   # A-law tests
-  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties
+  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties test_wav_g711
   # μ-law tests
   check_PROGRAMS += test_mulaw_conversion_accuracy
   # Combined codec selection tests
@@ -759,6 +760,15 @@ test_iohandler_performance_validation_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	-lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+
+test_http_client_parse_url_SOURCES = test_http_client_parse_url.cpp
+test_http_client_parse_url_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
@@ -1256,6 +1266,10 @@ test_alaw_conversion_accuracy_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) 
 # μ-law codec conversion accuracy test
 test_mulaw_conversion_accuracy_SOURCES = test_mulaw_conversion_accuracy.cpp
 test_mulaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
+
+# WAV G.711 conversion test
+test_wav_g711_SOURCES = test_wav_g711.cpp
+test_wav_g711_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 
 # Codec selection and validation test (simple)
 test_codec_selection_validation_simple_SOURCES = test_codec_selection_validation_simple.cpp

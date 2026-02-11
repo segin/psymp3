@@ -21,67 +21,33 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <algorithm>
-#include <cmath>
-
-#ifndef FINAL_BUILD
 #include "psymp3.h"
-#else
-#include "core/utility/utility.h"
-#endif
 
-namespace {
-    /**
-     * @brief Internal lookup table for logarithmic scaling.
-     * Precomputes scale factors 0-4 for values 0.0 to 1.0.
-     * Uses 4096 entries to ensure high precision even for scale factor 4.
-     */
-    struct LogScaleLUT {
-        static constexpr int TABLE_SIZE = 4096;
-        float data[5][TABLE_SIZE];
-        LogScaleLUT() {
-            for (int f = 0; f <= 4; ++f) {
-                for (int i = 0; i < TABLE_SIZE; ++i) {
-                    float val = static_cast<float>(i) / static_cast<float>(TABLE_SIZE - 1);
-                    float x = val;
-                    if (f > 0) {
-                        for (int j = 0; j < f; ++j) {
-                            x = std::log10(1.0f + 9.0f * x);
-                        }
-                    }
-                    data[f][i] = x;
-                }
-            }
-        }
-    };
-}
-
-/**
- * @brief Applies logarithmic scaling to a value.
- * Optimized with a lookup table and linear interpolation for common scale factors (0-4).
- * @param f The scale factor (number of times to apply log10(1 + 9x)).
- * @param x The input value, clamped to [0.0, 1.0].
- * @return The scaled value.
- */
 float PsyMP3::Core::Utility::logarithmicScale(const int f, float x) {
-    static const LogScaleLUT lut;
-    x = std::clamp(x, 0.0f, 1.0f);
+  x = std::clamp(x, 0.0f, 1.0f);
+  if (f <= 0) return x;
 
-    if (f >= 0 && f <= 4) {
-        float f_index = x * static_cast<float>(LogScaleLUT::TABLE_SIZE - 1);
-        int index = static_cast<int>(f_index);
-        if (index >= LogScaleLUT::TABLE_SIZE - 1) {
-            return lut.data[f][LogScaleLUT::TABLE_SIZE - 1];
-        }
-        float fraction = f_index - static_cast<float>(index);
-        return lut.data[f][index] * (1.0f - fraction) + lut.data[f][index + 1] * fraction;
+  constexpr int LUT_COUNT = 5;
+  constexpr int LUT_SIZE = 16384;
+  static float luts[LUT_COUNT][LUT_SIZE];
+  static bool initialized = []() {
+    for (int i = 0; i < LUT_SIZE; ++i) {
+      float val = static_cast<float>(i) / (LUT_SIZE - 1);
+      luts[0][i] = val;
+      for (int f_idx = 1; f_idx < LUT_COUNT; ++f_idx) {
+        luts[f_idx][i] = std::log10(1.0f + 9.0f * luts[f_idx - 1][i]);
+      }
     }
+    return true;
+  }();
 
-    // Fallback for f > 4 or f < 0
-    if (f > 0) {
-        for (auto i = 0; i < f; i++) {
-            x = std::log10(1.0f + 9.0f * x);
-        }
-    }
-    return x;
+  if (f < LUT_COUNT) {
+    int index = static_cast<int>(x * (LUT_SIZE - 1) + 0.5f);
+    return luts[f][index];
+  }
+
+  // Fallback for f >= 5
+  for (auto i = 0; i < f; i++)
+    x = std::log10(1.0f + 9.0f * x);
+  return x;
 }

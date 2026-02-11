@@ -38,6 +38,19 @@ std::string DBusVariant::toString() const {
     return std::to_string(std::get<double>(value));
   case Boolean:
     return std::get<bool>(value) ? "true" : "false";
+  case Dictionary: {
+    const auto &dict = *std::get<std::shared_ptr<DBusDictionary>>(value);
+    std::string result = "{";
+    bool first = true;
+    for (const auto &[key, val] : dict) {
+      if (!first)
+        result += ", ";
+      result += "\"" + key + "\": " + val.toString();
+      first = false;
+    }
+    result += "}";
+    return result;
+  }
   default:
     return "<unknown>";
   }
@@ -92,23 +105,19 @@ bool MPRISMetadata::isEmpty() const {
 }
 
 // RAII deleters implementation
-void DBusConnectionDeleter::operator()(DBusConnection *conn) {
+void DBusConnectionDeleter::operator()([[maybe_unused]] DBusConnection *conn) {
 #ifdef HAVE_DBUS
   if (conn) {
     dbus_connection_unref(conn);
   }
-#else
-  (void)conn; // Suppress unused parameter warning
 #endif
 }
 
-void DBusMessageDeleter::operator()(DBusMessage *msg) {
+void DBusMessageDeleter::operator()([[maybe_unused]] DBusMessage *msg) {
 #ifdef HAVE_DBUS
   if (msg) {
     dbus_message_unref(msg);
   }
-#else
-  (void)msg; // Suppress unused parameter warning
 #endif
 }
 

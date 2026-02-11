@@ -532,8 +532,7 @@ bool ChunkDemuxer::parseAiffCommon(const Chunk& chunk) {
     
     // Read COMM chunk (all AIFF data is big-endian)
     stream_data.channels = readBE<uint16_t>();
-    uint32_t num_sample_frames = readBE<uint32_t>();
-    (void)num_sample_frames;
+    [[maybe_unused]] uint32_t num_sample_frames = readBE<uint32_t>();
     stream_data.bits_per_sample = readBE<uint16_t>();
     
     // Read IEEE 80-bit extended precision sample rate
