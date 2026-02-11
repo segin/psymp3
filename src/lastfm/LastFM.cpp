@@ -70,10 +70,10 @@ void LastFM::readConfig()
             DEBUG_LOG_LAZY("lastfm", "Username loaded: ", m_username);
         } else if (key == "password") {
             m_password = value;
-            DEBUG_LOG_LAZY("lastfm", "Password loaded (", m_password.length(), " characters)");
+            DEBUG_LOG_LAZY("lastfm", "Password loaded");
         } else if (key == "session_key") {
             m_session_key = value;
-            DEBUG_LOG_LAZY("lastfm", "Session key loaded: ", m_session_key.substr(0, 8), "...");
+            DEBUG_LOG_LAZY("lastfm", "Session key loaded");
         } else if (key == "now_playing_url") {
             m_nowplaying_url = value;
             DEBUG_LOG_LAZY("lastfm", "Now playing URL loaded: ", m_nowplaying_url);
@@ -197,7 +197,7 @@ bool LastFM::performHandshake(int host_index)
             m_session_key = sessionKey;
             m_nowplaying_url = nowPlayingUrl;
             m_submission_url = submissionUrl;
-            DEBUG_LOG_LAZY("lastfm", "Handshake successful. Session Key: ", m_session_key);
+            DEBUG_LOG_LAZY("lastfm", "Handshake successful");
             DEBUG_LOG_LAZY("lastfm", "Now Playing URL: ", m_nowplaying_url);
             DEBUG_LOG_LAZY("lastfm", "Submission URL: ", m_submission_url);
             return true;
