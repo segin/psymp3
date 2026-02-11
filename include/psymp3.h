@@ -53,8 +53,10 @@ enum {
     TRACK_PRELOAD_FAILURE, // Sent from loader thread for a failed preload
     TRACK_SEAMLESS_SWAP, // Event to perform seamless track transition
     DO_SAVE_PLAYLIST,
+    DO_SET_LOOP_MODE,
     QUIT_APPLICATION,
-    AUTOMATED_SKIP_TRACK
+    AUTOMATED_SKIP_TRACK,
+    SHOW_MPRIS_ERROR
 };
 
 enum class PlayerState {

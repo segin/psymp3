@@ -69,6 +69,12 @@ public:
     void updatePosition(uint64_t position_us);
     
     /**
+     * Update cached loop status
+     * @param status New loop status
+     */
+    void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
+
+    /**
      * Get current playback status as string for D-Bus
      * @return Playback status string ("Playing", "Paused", "Stopped")
      */
@@ -85,6 +91,12 @@ public:
      * @return Current position in microseconds
      */
     uint64_t getPosition() const;
+
+    /**
+     * Get current loop status
+     * @return Current loop status
+     */
+    PsyMP3::MPRIS::LoopStatus getLoopStatus() const;
     
     /**
      * Get track length in microseconds
@@ -133,10 +145,12 @@ private:
     void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album);
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
+    void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);
     
     std::string getPlaybackStatus_unlocked() const;
     std::map<std::string, PsyMP3::MPRIS::DBusVariant> getMetadata_unlocked() const;
     uint64_t getPosition_unlocked() const;
+    PsyMP3::MPRIS::LoopStatus getLoopStatus_unlocked() const;
     uint64_t getLength_unlocked() const;
     
     bool canGoNext_unlocked() const;
@@ -168,6 +182,9 @@ private:
     // Playback state with atomic access for lock-free reads where safe
     std::atomic<PsyMP3::MPRIS::PlaybackStatus> m_status;
     
+    // Loop status
+    PsyMP3::MPRIS::LoopStatus m_loop_status;
+
     // Position tracking with timestamp-based interpolation
     uint64_t m_position_us;
     std::chrono::steady_clock::time_point m_position_timestamp;

@@ -91,7 +91,29 @@ private:
     int m_color_scheme;
     float m_decay_factor;
     int m_scale_factor;
+
+    // Persistent surfaces for rendering effects
+    std::unique_ptr<Surface> m_spectrum_surface;
+    std::unique_ptr<Surface> m_fade_surface;
+    uint8_t m_cached_fade_alpha;
+
+    /**
+     * @brief Structure to store precomputed RGB color components.
+     */
+    struct ColorRGB {
+        uint8_t r, g, b;
+    };
+
+    /**
+     * @brief Cache for precomputed spectrum colors.
+     */
+    std::vector<ColorRGB> m_precomputed_colors;
     
+    /**
+     * @brief Precomputes colors for the current scheme and band count.
+     */
+    void precomputeColors();
+
     /**
      * @brief Draws spectrum bars visualization.
      * @param surface Surface to draw on
@@ -105,12 +127,11 @@ private:
     void drawOscilloscope(Surface& surface);
     
     /**
-     * @brief Gets a color for the given spectrum value and position.
-     * @param value Spectrum value (0.0 to 1.0)
+     * @brief Gets a color for the given position.
      * @param position Position index (for gradients)
      * @return RGB color value
      */
-    uint32_t getSpectrumColor(float value, int position, Surface& surface);
+    uint32_t getSpectrumColor(int position, Surface& surface);
 };
 
 } // namespace UI

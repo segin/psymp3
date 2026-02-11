@@ -677,7 +677,7 @@ bool BitLevelAnalyzer::validateSubframes(const uint8_t* data, size_t size,
         violation.violation_type = "Invalid subframe data";
         violation.description = "Subframe validation requires valid frame data and FLAC frame structure";
         violation.expected_value = "Valid frame data and FLAC__Frame pointer";
-        violation.actual_value = "NULL or insufficient data";
+        violation.actual_value = "nullptr or insufficient data";
         violation.byte_offset = byte_offset;
         violation.frame_number = frame_number;
         violation.timestamp = std::chrono::high_resolution_clock::now();
@@ -1032,7 +1032,7 @@ FrameComplianceAnalysis FLACRFCComplianceValidator::validateSamples(const int16_
         violation.violation_type = "Invalid sample data";
         violation.description = "Sample validation requires valid sample data";
         violation.expected_value = "Valid sample array";
-        violation.actual_value = "NULL or empty";
+        violation.actual_value = "nullptr or empty";
         violation.byte_offset = 0;
         violation.frame_number = analysis.frame_number;
         violation.timestamp = std::chrono::high_resolution_clock::now();
