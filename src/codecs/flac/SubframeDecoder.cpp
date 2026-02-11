@@ -420,7 +420,10 @@ void SubframeDecoder::applyFixedPredictor(int32_t *samples,
 
   // Sequential decoding requirement (Requirement 54)
   for (uint32_t i = 0; i < count; i++) {
-    int32_t prediction = 0;
+    // Use 64-bit arithmetic to prevent overflow for high bit-depth files
+    // (24-bit and 32-bit FLAC). Coefficients can be as large as 6 and samples
+    // can be near INT32_MAX, so intermediate products can exceed 32 bits.
+    int64_t prediction = 0;
     uint32_t sample_idx = order + i;
 
     switch (order) {
@@ -436,19 +439,19 @@ void SubframeDecoder::applyFixedPredictor(int32_t *samples,
 
     case 2:
       // Order 2: s[i] = residual[i] + 2*s[i-1] - s[i-2]
-      prediction = 2 * samples[sample_idx - 1] - samples[sample_idx - 2];
+      prediction = 2LL * samples[sample_idx - 1] - samples[sample_idx - 2];
       break;
 
     case 3:
       // Order 3: s[i] = residual[i] + 3*s[i-1] - 3*s[i-2] + s[i-3]
-      prediction = 3 * samples[sample_idx - 1] - 3 * samples[sample_idx - 2] +
+      prediction = 3LL * samples[sample_idx - 1] - 3LL * samples[sample_idx - 2] +
                    samples[sample_idx - 3];
       break;
 
     case 4:
       // Order 4: s[i] = residual[i] + 4*s[i-1] - 6*s[i-2] + 4*s[i-3] - s[i-4]
-      prediction = 4 * samples[sample_idx - 1] - 6 * samples[sample_idx - 2] +
-                   4 * samples[sample_idx - 3] - samples[sample_idx - 4];
+      prediction = 4LL * samples[sample_idx - 1] - 6LL * samples[sample_idx - 2] +
+                   4LL * samples[sample_idx - 3] - samples[sample_idx - 4];
       break;
 
     default:
@@ -458,7 +461,8 @@ void SubframeDecoder::applyFixedPredictor(int32_t *samples,
     }
 
     // Reconstruct sample: s[i] = prediction + residual[i]
-    samples[sample_idx] = prediction + residuals[i];
+    // Cast back to 32-bit - safe because FLAC spec guarantees samples fit in 32 bits
+    samples[sample_idx] = static_cast<int32_t>(prediction + residuals[i]);
   }
 }
 

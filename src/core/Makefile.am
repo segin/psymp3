@@ -7,7 +7,7 @@
 # the terms of the ISC License <https://opensource.org/licenses/ISC>
 #
 
-SUBDIRS = utility
+SUBDIRS = utility compression
 
 noinst_LIBRARIES = libpsymp3-core.a
 

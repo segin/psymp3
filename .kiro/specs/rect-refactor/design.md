@@ -178,6 +178,140 @@ A rectangle is considered valid when:
 - **Empty Rectangles**: Ignores empty rectangles in union calculations
 - **Coordinate Overflow**: Handles potential overflow in coordinate calculations
 
+## Correctness Properties
+
+*A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
+
+### Property 1: Point Containment Correctness
+*For any* rectangle and any point (x, y), the `contains(x, y)` method should return true if and only if the point lies within the rectangle bounds (x >= left && x < right && y >= top && y < bottom), with proper handling of empty rectangles returning false.
+
+**Validates: Requirements 1.1**
+
+### Property 2: Rectangle Intersection Detection
+*For any* two rectangles A and B, `A.intersects(B)` should return true if and only if there exists at least one point that is contained in both rectangles, with empty rectangles never intersecting.
+
+**Validates: Requirements 1.2**
+
+### Property 3: Intersection Calculation Correctness
+*For any* two rectangles A and B, the result of `A.intersection(B)` should be a rectangle C such that every point in C is contained in both A and B, and C is the largest such rectangle (or empty if no intersection exists).
+
+**Validates: Requirements 1.3**
+
+### Property 4: Union Bounding Box Property
+*For any* two rectangles A and B, the result of `A.united(B)` should be the smallest rectangle C that contains both A and B completely, with empty rectangles being ignored in the calculation.
+
+**Validates: Requirements 1.4**
+
+### Property 5: Expansion Preserves Center
+*For any* rectangle and any margin value, expanding the rectangle uniformly should preserve the center point (within integer division precision) while increasing dimensions by 2*margin in each direction.
+
+**Validates: Requirements 1.5**
+
+### Property 6: Shrinking Preserves Center
+*For any* rectangle and any margin value (where margin < width/2 and margin < height/2), shrinking the rectangle uniformly should preserve the center point (within integer division precision) while decreasing dimensions by 2*margin in each direction.
+
+**Validates: Requirements 1.6**
+
+### Property 7: Edge Calculation Consistency
+*For any* rectangle, the edge methods should satisfy: `right() == x() + width()`, `bottom() == y() + height()`, `left() == x()`, and `top() == y()`.
+
+**Validates: Requirements 2.1, 2.2**
+
+### Property 8: Center Point Calculation
+*For any* rectangle, the center point should be calculated as `(x() + width()/2, y() + height()/2)` with integer division, and the `center()` method should return the same values as `(centerX(), centerY())`.
+
+**Validates: Requirements 2.3**
+
+### Property 9: Corner Coordinate Derivation
+*For any* rectangle, corner methods should return coordinates derived from edges: `topLeft() == (left(), top())`, `topRight() == (right(), top())`, `bottomLeft() == (left(), bottom())`, `bottomRight() == (right(), bottom())`.
+
+**Validates: Requirements 2.4**
+
+### Property 10: Empty Rectangle Detection
+*For any* rectangle, `isEmpty()` should return true if and only if `width() == 0 || height() == 0`.
+
+**Validates: Requirements 2.5**
+
+### Property 11: Area Calculation
+*For any* rectangle, `area()` should equal `width() * height()` computed as uint32_t to prevent overflow.
+
+**Validates: Requirements 2.6**
+
+### Property 12: Translation Preserves Dimensions
+*For any* rectangle and any offset (dx, dy), translating the rectangle should preserve width and height while changing position by exactly (dx, dy), with both in-place and const versions producing equivalent results.
+
+**Validates: Requirements 3.1**
+
+### Property 13: MoveTo Sets Absolute Position
+*For any* rectangle and any target position (x, y), `moveTo(x, y)` should set the rectangle's position to exactly (x, y) while preserving dimensions, with both in-place and const versions producing equivalent results.
+
+**Validates: Requirements 3.2**
+
+### Property 14: Resize Preserves Position
+*For any* rectangle and any dimensions (w, h), resizing should preserve the top-left position while setting dimensions to exactly (w, h), with both in-place and const versions producing equivalent results.
+
+**Validates: Requirements 3.3**
+
+### Property 15: Adjust Modifies Position and Size
+*For any* rectangle and any adjustments (dx, dy, dw, dh), the `adjust()` method should modify position by (dx, dy) and dimensions by (dw, dh), with proper clamping to prevent negative dimensions.
+
+**Validates: Requirements 3.4**
+
+### Property 16: Centering Calculation
+*For any* rectangle R and container C, after `R.centerIn(C)`, the rectangle R should be positioned such that `R.centerX() == C.centerX()` and `R.centerY() == C.centerY()` (within ±1 pixel due to integer division).
+
+**Validates: Requirements 3.5**
+
+### Property 17: Backward Compatibility - API Preservation
+*For any* rectangle created with existing constructors and manipulated with existing getters/setters, the behavior should be identical to the original implementation, with all existing code paths producing the same results.
+
+**Validates: Requirements 4.1, 4.2, 4.3**
+
+### Property 18: Container Compatibility
+*For any* Rect object, it should be usable in standard containers (std::vector, std::map, etc.) with proper copy/move semantics, and should work correctly with standard algorithms (std::sort, std::find, etc.).
+
+**Validates: Requirements 5.1, 5.4**
+
+### Property 19: Equality Comparison Correctness
+*For any* two rectangles A and B, `A == B` should return true if and only if all four member values are equal (x, y, width, height), and `A != B` should return the logical negation of `A == B`.
+
+**Validates: Requirements 5.2**
+
+### Property 20: String Representation Accuracy
+*For any* rectangle, `toString()` should produce a string in the format "Rect(x, y, width, height)" with all values correctly represented, providing clear debugging output.
+
+**Validates: Requirements 5.3, 7.2**
+
+### Property 21: Negative Coordinate Handling
+*For any* rectangle with negative coordinates, all geometric operations (contains, intersects, intersection, union) should handle negative values correctly according to the standard coordinate system.
+
+**Validates: Requirements 6.1**
+
+### Property 22: Overflow Protection
+*For any* operation that could cause coordinate overflow (addition, subtraction), the result should be clamped to the valid range of int16_t or uint16_t, ensuring predictable behavior at boundary conditions.
+
+**Validates: Requirements 6.2, 6.4**
+
+### Property 23: Precision Maintenance
+*For any* coordinate calculation within the valid range of int16_t/uint16_t, the result should maintain maximum precision without unnecessary truncation, with only unavoidable integer division causing precision loss.
+
+**Validates: Requirements 6.3**
+
+### Property 24: Validation Correctness
+*For any* rectangle, `isValid()` should return true if and only if the rectangle has non-zero dimensions and all coordinates are within valid ranges without overflow conditions.
+
+**Validates: Requirements 7.1**
+
+### Property 25: Invalid Rectangle Handling
+*For any* invalid rectangle (negative dimensions, overflow conditions), all geometric operations should handle it gracefully without crashes, returning sensible defaults (typically empty rectangles or false for boolean queries).
+
+**Validates: Requirements 7.3**
+
+### Property 26: Normalization Correctness
+*For any* rectangle with negative width or height, `normalized()` should return an equivalent rectangle with positive dimensions by adjusting the position accordingly, such that the same geometric area is represented.
+
+**Validates: Requirements 7.4**
+
 ## Error Handling
 
 ### Overflow Protection

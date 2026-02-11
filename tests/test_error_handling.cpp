@@ -11,7 +11,9 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-using namespace PsyMP3::Demuxer::Ogg;
+// Use qualified names from PsyMP3 namespaces
+using PsyMP3::IO::IOHandler;
+using PsyMP3::Demuxer::Ogg::OggDemuxer;
 
 // Mock IOHandler for testing
 class MemoryIOHandler : public IOHandler {

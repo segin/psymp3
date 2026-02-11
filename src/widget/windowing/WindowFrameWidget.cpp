@@ -31,6 +31,8 @@ using Foundation::Widget;
 using Foundation::DrawableWidget;
 
 int WindowFrameWidget::s_next_z_order = 1;
+int WindowFrameWidget::s_instance_count = 0;
+SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
 
 WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title)
     : Widget()
@@ -87,6 +89,26 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     
     // Force a complete refresh to ensure consistent initialization
     refresh();
+
+    // Manage cursor resources
+    s_instance_count++;
+    if (!s_cursor_nwse) {
+        // SDL 1.2 doesn't support SDL_CreateSystemCursor.
+        // TODO: Implement custom cursor for SDL 1.2 using SDL_CreateCursor
+        // s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
+        s_cursor_nwse = nullptr;
+    }
+}
+
+WindowFrameWidget::~WindowFrameWidget()
+{
+    s_instance_count--;
+    if (s_instance_count == 0) {
+        if (s_cursor_nwse) {
+            SDL_FreeCursor(s_cursor_nwse);
+            s_cursor_nwse = nullptr;
+        }
+    }
 }
 
 bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
@@ -216,13 +238,13 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
         if (resize_edge != 0) {
             // Set resize cursor based on edge
             if ((resize_edge & 1) && (resize_edge & 4)) { // Top-left corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northwest-southeast cursor
+                if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if ((resize_edge & 2) && (resize_edge & 4)) { // Top-right corner
                 SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
             } else if ((resize_edge & 1) && (resize_edge & 8)) { // Bottom-left corner
                 SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
             } else if ((resize_edge & 2) && (resize_edge & 8)) { // Bottom-right corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northwest-southeast cursor
+                if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if (resize_edge & 3) { // Left or right edge
                 SDL_SetCursor(SDL_GetCursor()); // TODO: Set east-west cursor
             } else if (resize_edge & 12) { // Top or bottom edge

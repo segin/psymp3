@@ -1,7 +1,7 @@
 /*
  * OggSeekingEngine.cpp - Seeking and Granule Arithmetic
  * This file is part of PsyMP3.
- * Copyright © 2026 Kirn Gill II <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill II <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -74,6 +74,14 @@ int64_t OggSeekingEngine::timeToGranule(double time_seconds) const {
 // --- Duration Calculation ---
 
 int64_t OggSeekingEngine::getLastGranule() {
+    // Return cached value if already calculated (prevents state corruption during playback)
+    if (m_duration_cached) {
+        Debug::log("ogg", "OggSeekingEngine::getLastGranule() returning cached granule: ", m_cached_last_granule);
+        return m_cached_last_granule;
+    }
+    
+    Debug::log("ogg", "OggSeekingEngine::getLastGranule() scanning file for duration...");
+    
     // Save current logical position
     int64_t saved_pos = m_sync.getLogicalPosition();
     int serial = m_stream.getSerialNumber();
@@ -116,8 +124,15 @@ int64_t OggSeekingEngine::getLastGranule() {
     // Restore position
     m_sync.seek(saved_pos);
     
+    // Cache the result so we never re-scan during playback
+    m_cached_last_granule = last_granule;
+    m_duration_cached = true;
+    
+    Debug::log("ogg", "OggSeekingEngine::getLastGranule() found and cached granule: ", last_granule);
+    
     return last_granule;
 }
+
 
 double OggSeekingEngine::calculateDuration() {
     int64_t last = getLastGranule();
