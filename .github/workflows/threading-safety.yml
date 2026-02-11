@@ -28,7 +28,7 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
         
@@ -75,14 +75,14 @@ jobs:
         
     - name: Upload CI Report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: threading-safety-ci-report
         path: ci_threading_safety_report.txt
         
     - name: Upload Analysis Reports
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: threading-safety-analysis
         path: |
@@ -100,7 +100,7 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
         
@@ -138,7 +138,7 @@ jobs:
         
     - name: Upload Comprehensive Report
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: comprehensive-threading-validation-report
         path: threading_safety_validation_report.md
@@ -173,7 +173,7 @@ jobs:
       uses: actions/checkout@v4
       
     - name: Setup Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.x'
         
