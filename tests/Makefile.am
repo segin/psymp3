@@ -421,7 +421,7 @@ endif
 # G711 codec tests (both A-law and μ-law)
 if HAVE_G711
   # A-law tests
-  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties
+  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties test_wav_g711
   # μ-law tests
   check_PROGRAMS += test_mulaw_conversion_accuracy
   # Combined codec selection tests
@@ -1256,6 +1256,10 @@ test_alaw_conversion_accuracy_LDADD = $(COMMON_CODEC_DEPS) $(COMMON_CODEC_LIBS) 
 # μ-law codec conversion accuracy test
 test_mulaw_conversion_accuracy_SOURCES = test_mulaw_conversion_accuracy.cpp
 test_mulaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
+
+# WAV G.711 conversion test
+test_wav_g711_SOURCES = test_wav_g711.cpp
+test_wav_g711_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
 
 # Codec selection and validation test (simple)
 test_codec_selection_validation_simple_SOURCES = test_codec_selection_validation_simple.cpp
