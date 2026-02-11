@@ -42,14 +42,22 @@ jobs:
           autoconf \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libopusfile-dev \
+          libmpg123-dev \
+          libssl-dev \
+          libcurl4-openssl-dev \
+          libdbus-1-dev \
+          zlib1g-dev
           
     - name: Install Python dependencies
       run: |
@@ -114,14 +122,22 @@ jobs:
           autoconf \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libopusfile-dev \
+          libmpg123-dev \
+          libssl-dev \
+          libcurl4-openssl-dev \
+          libdbus-1-dev \
+          zlib1g-dev
           
     - name: Generate build system
       run: |
@@ -187,14 +203,22 @@ jobs:
           autoconf \
           libtool \
           pkg-config \
-          libsdl2-dev \
+          autoconf-archive \
+          libsdl1.2-dev \
+          libsdl-gfx1.2-dev \
+          libsdl-ttf2.0-dev \
           libfreetype6-dev \
           libtag1-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libopusfile-dev \
+          libmpg123-dev \
+          libssl-dev \
+          libcurl4-openssl-dev \
+          libdbus-1-dev \
+          zlib1g-dev
           
     - name: Generate build system
       run: |
