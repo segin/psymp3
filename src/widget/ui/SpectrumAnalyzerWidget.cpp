@@ -39,6 +39,7 @@ SpectrumAnalyzerWidget::SpectrumAnalyzerWidget(int width, int height)
 {
     // Initialize with empty spectrum data
     m_spectrum_data.resize(64, 0.0f); // Default to 64 bands
+    precomputeColors();
 }
 
 void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_bands, int scale_factor, float decay_factor)
@@ -48,7 +49,11 @@ void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_
         m_scale_factor = scale_factor;
         m_decay_factor = decay_factor;
         
-        m_spectrum_data.resize(num_bands);
+        if (m_spectrum_data.size() != static_cast<size_t>(num_bands)) {
+            m_spectrum_data.resize(num_bands);
+            precomputeColors();
+        }
+
         float max_val = 0.0f;
         bool data_changed = false;
         
@@ -84,6 +89,7 @@ void SpectrumAnalyzerWidget::setColorScheme(int color_scheme)
 {
     if (m_color_scheme != color_scheme) {
         m_color_scheme = color_scheme;
+        precomputeColors();
         invalidate();
     }
 }
@@ -91,6 +97,60 @@ void SpectrumAnalyzerWidget::setColorScheme(int color_scheme)
 void SpectrumAnalyzerWidget::setDecayFactor(float decay_factor)
 {
     m_decay_factor = decay_factor;
+}
+
+void SpectrumAnalyzerWidget::precomputeColors()
+{
+    int num_bands = m_spectrum_data.size();
+    m_precomputed_colors.resize(num_bands);
+    if (num_bands <= 0) return;
+
+    for (int i = 0; i < num_bands; ++i) {
+        uint8_t r, g, b;
+        switch (m_color_scheme) {
+            case 0: // Original spectrum colors
+                if (i > 213) {
+                    r = static_cast<uint8_t>((i - 214) * 2.4);
+                    g = 0;
+                    b = 255;
+                } else if (i < 106) {
+                    r = 128;
+                    g = 255;
+                    b = static_cast<uint8_t>(i * 2.398);
+                } else {
+                    r = static_cast<uint8_t>(128 - ((i - 106) * 1.1962615));
+                    g = static_cast<uint8_t>(255 - ((i - 106) * 2.383177));
+                    b = 255;
+                }
+                break;
+            case 1: // Position-based rainbow
+                {
+                    float hue = static_cast<float>(i) / num_bands * 6.0f;
+                    int h = static_cast<int>(hue) % 6;
+                    float f = hue - h;
+                    uint8_t v = 255, p = 0;
+                    uint8_t q = static_cast<uint8_t>((1.0f - f) * 255);
+                    uint8_t t = static_cast<uint8_t>(f * 255);
+                    switch (h) {
+                        case 0: r = v; g = t; b = p; break;
+                        case 1: r = q; g = v; b = p; break;
+                        case 2: r = p; g = v; b = t; break;
+                        case 3: r = p; g = q; b = v; break;
+                        case 4: r = t; g = p; b = v; break;
+                        case 5: r = v; g = p; b = q; break;
+                        default: r = v; g = v; b = v; break;
+                    }
+                }
+                break;
+            case 2: // Solid green
+                r = 0; g = 255; b = 0;
+                break;
+            default: // White
+                r = 255; g = 255; b = 255;
+                break;
+        }
+        m_precomputed_colors[i] = {r, g, b};
+    }
 }
 
 void SpectrumAnalyzerWidget::draw(Surface& surface)
@@ -179,27 +239,11 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
         
         int x = spacing + i * (bar_width + spacing);
         
-        // Get color components directly (like the old code did)
-        uint8_t r, g, b;
-        if (i > 213) {
-            // Zone 3: x > 213
-            r = static_cast<uint8_t>((i - 214) * 2.4);
-            g = 0;
-            b = 255;
-        } else if (i < 106) {
-            // Zone 1: x < 106
-            r = 128;
-            g = 255;
-            b = static_cast<uint8_t>(i * 2.398);
-        } else {
-            // Zone 2: 106 <= x <= 213
-            r = static_cast<uint8_t>(128 - ((i - 106) * 1.1962615));
-            g = static_cast<uint8_t>(255 - ((i - 106) * 2.383177));
-            b = 255;
-        }
+        // Get precomputed color
+        const auto& color = m_precomputed_colors[i];
         
         // Draw rectangle from y_start down to bottom (like original rectangle call)
-        surface.box(x, y_start, x + bar_width - 1, height - 1, r, g, b, 255);
+        surface.box(x, y_start, x + bar_width - 1, height - 1, color.r, color.g, color.b, 255);
     }
 }
 
@@ -238,63 +282,17 @@ void SpectrumAnalyzerWidget::drawOscilloscope(Surface& surface)
     }
 }
 
-uint32_t SpectrumAnalyzerWidget::getSpectrumColor(float value, int position, Surface& surface)
+uint32_t SpectrumAnalyzerWidget::getSpectrumColor(float value [[maybe_unused]], int position, Surface& surface)
 {
-    // FIXED: Color should be based on POSITION (frequency), not amplitude value
+    // Color is based on POSITION (frequency), not amplitude value
     // This matches the original renderSpectrum behavior with precomputed colors
     
-    switch (m_color_scheme) {
-        case 0: // Original spectrum colors (exact old renderSpectrum algorithm)
-            {
-                // Use position directly (should be 0-319 for 320 bands)
-                int x = position;
-                uint8_t r, g, b;
-                
-                if (x > 213) {
-                    // Zone 3: x > 213
-                    r = static_cast<uint8_t>((x - 214) * 2.4);
-                    g = 0;
-                    b = 255;
-                } else if (x < 106) {
-                    // Zone 1: x < 106
-                    r = 128;
-                    g = 255;
-                    b = static_cast<uint8_t>(x * 2.398);
-                } else {
-                    // Zone 2: 106 <= x <= 213
-                    r = static_cast<uint8_t>(128 - ((x - 106) * 1.1962615));
-                    g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
-                    b = 255;
-                }
-                return surface.MapRGB(r, g, b);
-            }
-        case 1: // Simple position-based rainbow (not amplitude-based)
-            {
-                float hue = static_cast<float>(position) / m_spectrum_data.size() * 6.0f;
-                int h = static_cast<int>(hue) % 6;
-                float f = hue - h;
-                
-                // Full intensity colors (not based on amplitude)
-                uint8_t v = 255;
-                uint8_t p = 0;
-                uint8_t q = static_cast<uint8_t>((1.0f - f) * 255);
-                uint8_t t = static_cast<uint8_t>(f * 255);
-                
-                switch (h) {
-                    case 0: return surface.MapRGB(v, t, p);
-                    case 1: return surface.MapRGB(q, v, p);
-                    case 2: return surface.MapRGB(p, v, t);
-                    case 3: return surface.MapRGB(p, q, v);
-                    case 4: return surface.MapRGB(t, p, v);
-                    case 5: return surface.MapRGB(v, p, q);
-                    default: return surface.MapRGB(v, v, v);
-                }
-            }
-        case 2: // Solid green (classic spectrum analyzer)
-            return surface.MapRGB(0, 255, 0);
-        default:
-            return surface.MapRGB(255, 255, 255); // White
+    if (position >= 0 && position < static_cast<int>(m_precomputed_colors.size())) {
+        const auto& color = m_precomputed_colors[position];
+        return surface.MapRGB(color.r, color.g, color.b);
     }
+
+    return surface.MapRGB(255, 255, 255); // Fallback
 }
 
 } // namespace UI

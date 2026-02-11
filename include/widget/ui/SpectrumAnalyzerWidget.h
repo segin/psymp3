@@ -91,7 +91,24 @@ private:
     int m_color_scheme;
     float m_decay_factor;
     int m_scale_factor;
+
+    /**
+     * @brief Structure to store precomputed RGB color components.
+     */
+    struct ColorRGB {
+        uint8_t r, g, b;
+    };
+
+    /**
+     * @brief Cache for precomputed spectrum colors.
+     */
+    std::vector<ColorRGB> m_precomputed_colors;
     
+    /**
+     * @brief Precomputes colors for the current scheme and band count.
+     */
+    void precomputeColors();
+
     /**
      * @brief Draws spectrum bars visualization.
      * @param surface Surface to draw on
