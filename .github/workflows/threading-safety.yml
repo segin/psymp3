@@ -44,12 +44,14 @@ jobs:
           pkg-config \
           libsdl2-dev \
           libfreetype6-dev \
-          libtag1-dev \
+          libtag-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libssl-dev \
+          libcurl4-openssl-dev
           
     - name: Install Python dependencies
       run: |
@@ -116,12 +118,14 @@ jobs:
           pkg-config \
           libsdl2-dev \
           libfreetype6-dev \
-          libtag1-dev \
+          libtag-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libssl-dev \
+          libcurl4-openssl-dev
           
     - name: Generate build system
       run: |
@@ -189,12 +193,14 @@ jobs:
           pkg-config \
           libsdl2-dev \
           libfreetype6-dev \
-          libtag1-dev \
+          libtag-dev \
           libflac-dev \
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libssl-dev \
+          libcurl4-openssl-dev
           
     - name: Generate build system
       run: |

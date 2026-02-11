@@ -29,17 +29,17 @@ jobs:
           libsdl-gfx1.2-dev \
           libsdl-ttf2.0-dev \
           libmpg123-dev \
-          libtag1-dev \
+          libtag-dev \
           libvorbis-dev \
-          libvorbisfile-dev \
-          libopusfile-dev \
           libopus-dev \
           libogg-dev \
           libflac++-dev \
           libflac-dev \
           libfreetype6-dev \
           zlib1g-dev \
-          libdbus-1-dev
+          libdbus-1-dev \
+          libssl-dev \
+          libcurl4-openssl-dev
 
     - name: Cache dependencies
       uses: actions/cache@v4
