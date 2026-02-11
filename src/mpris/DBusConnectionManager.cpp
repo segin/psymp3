@@ -183,7 +183,7 @@ void DBusConnectionManager::cleanupConnection_unlocked() {
       DBusError error;
       dbus_error_init(&error);
 
-      int result =
+      [[maybe_unused]] int result =
           dbus_bus_release_name(m_connection.get(), DBUS_SERVICE_NAME, &error);
       if (dbus_error_is_set(&error)) {
         MPRIS_LOG_WARN("DBusConnectionManager",
@@ -194,7 +194,6 @@ void DBusConnectionManager::cleanupConnection_unlocked() {
         MPRIS_LOG_DEBUG("DBusConnectionManager",
                         "D-Bus service name released successfully");
       }
-      (void)result; // Suppress unused variable warning
     }
 
     // Reset the connection pointer (RAII will handle cleanup)

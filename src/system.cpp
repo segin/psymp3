@@ -475,7 +475,7 @@ void System::progressState(TBPFLAG status) {
 
 #endif
 
-void System::setThisThreadName(const std::string &name) {
+void System::setThisThreadName([[maybe_unused]] const std::string &name) {
 #if defined(__linux__)
   // Linux limits thread names to 16 bytes (including null terminator).
   std::string truncated_name = name.substr(0, 15);
@@ -519,7 +519,6 @@ void System::setThisThreadName(const std::string &name) {
   }
 #else
   // No-op for other platforms.
-  (void)name;
 #endif
 }
 
