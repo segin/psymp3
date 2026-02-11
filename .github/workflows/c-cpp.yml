@@ -38,7 +38,7 @@ jobs:
           libflac++-dev \
           libfreetype6-dev \
           libssl-dev \
-          libcurl-dev \
+          libcurl4-openssl-dev \
           libdbus-1-dev \
           zlib1g-dev
 

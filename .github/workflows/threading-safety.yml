@@ -55,7 +55,7 @@ jobs:
           libopusfile-dev \
           libmpg123-dev \
           libssl-dev \
-          libcurl-dev \
+          libcurl4-openssl-dev \
           libdbus-1-dev \
           zlib1g-dev
           
@@ -135,7 +135,7 @@ jobs:
           libopusfile-dev \
           libmpg123-dev \
           libssl-dev \
-          libcurl-dev \
+          libcurl4-openssl-dev \
           libdbus-1-dev \
           zlib1g-dev
           
@@ -216,7 +216,7 @@ jobs:
           libopusfile-dev \
           libmpg123-dev \
           libssl-dev \
-          libcurl-dev \
+          libcurl4-openssl-dev \
           libdbus-1-dev \
           zlib1g-dev
           
