@@ -31,9 +31,12 @@ jobs:
           libmpg123-dev \
           libtag1-dev \
           libvorbis-dev \
+          libopusfile-dev \
           libopus-dev \
           libogg-dev \
+          libflac++-dev \
           libflac-dev \
+          libcurl4-openssl-dev \
           libfreetype6-dev \
           zlib1g-dev \
           libdbus-1-dev
