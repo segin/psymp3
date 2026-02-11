@@ -85,7 +85,8 @@ void print_help()
     std::cout << "      --debug=CHANNELS    enable debug output for specified channels\n";
     std::cout << "                          (comma-separated list or 'all')\n";
     std::cout << "      --logfile=FILE      write debug output to specified file\n";
-    std::cout << "      --unattended-quit   quit automatically when playback ends\n\n";
+    std::cout << "      --unattended-quit   quit automatically when playback ends\n";
+    std::cout << "      --no-mpris-errors   disable on-screen notifications for MPRIS errors\n\n";
     
     std::cout << "Available debug channels:\n";
     std::cout << "  HTTPIOHandler, audio, chunk, codec, compliance, demux, demuxer,\n";
@@ -118,7 +119,7 @@ void about_windows() {
 #ifdef UNICODE
     // Use modern C++ vector for buffer management instead of malloc/free.
     // First, determine the required buffer size for the wide string.
-    int required_size = MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, NULL, 0);
+    int required_size = MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, nullptr, 0);
     if (required_size > 0) {
         std::vector<wchar_t> wide_buffer(required_size);
         // Now, perform the actual conversion.

@@ -67,7 +67,7 @@ void MemoryTracker::update() {
     mib[0] = CTL_HW;
     mib[1] = HW_MEMSIZE;
     length = sizeof(new_stats.total_physical_memory);
-    if (sysctl(mib, 2, &new_stats.total_physical_memory, &length, NULL, 0) == 0) {
+    if (sysctl(mib, 2, &new_stats.total_physical_memory, &length, nullptr, 0) == 0) {
         mach_port_t host_port = mach_host_self();
         mach_msg_type_number_t host_size = sizeof(vm_statistics64) / sizeof(integer_t);
         host_statistics64(host_port, HOST_VM_INFO64, (host_info64_t)&vm_stats, &host_size);
