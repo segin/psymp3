@@ -111,6 +111,14 @@ private:
      * @return RGB color value
      */
     uint32_t getSpectrumColor(float value, int position, Surface& surface);
+
+    /**
+     * @brief Precomputes the color table for the current visualization settings.
+     * @param surface Surface to use for color mapping
+     */
+    void precomputeColors(Surface& surface);
+
+    std::vector<uint32_t> m_precomputed_colors;
 };
 
 } // namespace UI
