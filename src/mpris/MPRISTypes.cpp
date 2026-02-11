@@ -38,6 +38,19 @@ std::string DBusVariant::toString() const {
     return std::to_string(std::get<double>(value));
   case Boolean:
     return std::get<bool>(value) ? "true" : "false";
+  case Dictionary: {
+    const auto &dict = *std::get<std::shared_ptr<DBusDictionary>>(value);
+    std::string result = "{";
+    bool first = true;
+    for (const auto &[key, val] : dict) {
+      if (!first)
+        result += ", ";
+      result += "\"" + key + "\": " + val.toString();
+      first = false;
+    }
+    result += "}";
+    return result;
+  }
   default:
     return "<unknown>";
   }

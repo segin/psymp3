@@ -211,10 +211,8 @@ PropertyManager::getAllProperties_unlocked() const {
 
   // Metadata
   auto metadata_dict = getMetadata_unlocked();
-  properties.insert(std::make_pair(
-      std::string("Metadata"),
-      PsyMP3::MPRIS::DBusVariant(
-          std::string("metadata_dict")))); // TODO: Handle dict-in-dict properly
+  properties.insert(std::make_pair(std::string("Metadata"),
+                                   PsyMP3::MPRIS::DBusVariant(metadata_dict)));
 
   // Volume (not implemented, use 1.0)
   properties.insert(
