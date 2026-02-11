@@ -8,6 +8,8 @@
  */
 
 #include "psymp3.h"
+#include <openssl/evp.h>
+#include <openssl/crypto.h>
 
 namespace PsyMP3 {
 namespace LastFM {

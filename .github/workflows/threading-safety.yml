@@ -93,6 +93,9 @@ jobs:
   comprehensive-validation:
     name: Comprehensive Threading Validation
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
     steps:
