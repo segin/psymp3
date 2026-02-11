@@ -34,6 +34,7 @@ jobs:
           libopusfile-dev \
           libopus-dev \
           libogg-dev \
+          libcurl4-openssl-dev \
           libflac++-dev \
           libflac-dev \
           libfreetype6-dev \
