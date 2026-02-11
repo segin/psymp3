@@ -8,6 +8,8 @@
  */
 
 #include "psymp3.h"
+#include <cstdio>
+
 namespace PsyMP3 {
 namespace IO {
 namespace HTTP {
@@ -440,26 +442,42 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
 }
 
 std::string HTTPClient::urlEncode(const std::string& input) {
-    if (!CurlLifecycleManager::isInitialized()) {
-        return input; // Fallback - return unencoded
+    if (input.empty()) {
+        return "";
+    }
+
+    if (CurlLifecycleManager::isInitialized()) {
+        CURL *curl = curl_easy_init();
+        if (curl) {
+            char *output = curl_easy_escape(curl, input.c_str(), static_cast<int>(input.length()));
+            if (output) {
+                std::string result(output);
+                curl_free(output);
+                curl_easy_cleanup(curl);
+                return result;
+            }
+            curl_easy_cleanup(curl);
+        }
     }
     
-    CURL *curl = curl_easy_init();
-    if (!curl) {
-        return input; // Fallback - return unencoded
-    }
+    // Fallback if curl is not initialized, failed to init, or failed to escape.
+    // Use a safe, manual encoding to avoid security risks of returning unencoded input.
+    Debug::log("http", "HTTPClient::urlEncode() - libcurl encoding failed or unavailable, using fallback encoder");
     
-    char *output = curl_easy_escape(curl, input.c_str(), static_cast<int>(input.length()));
     std::string result;
-    
-    if (output) {
-        result = output;
-        curl_free(output);
-    } else {
-        result = input; // Fallback - return unencoded
+    result.reserve(input.length() * 3);
+    for (unsigned char c : input) {
+        if ((c >= '0' && c <= '9') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            c == '-' || c == '.' || c == '_' || c == '~') {
+            result += c;
+        } else {
+            char buf[4];
+            snprintf(buf, sizeof(buf), "%%%02X", c);
+            result += buf;
+        }
     }
-    
-    curl_easy_cleanup(curl);
     return result;
 }
 
