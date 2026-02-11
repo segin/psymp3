@@ -509,18 +509,15 @@ MethodHandler::handleSetPosition_unlocked(DBusConnection *connection,
 
 // Stub implementations when D-Bus is not available
 
-MethodHandler::MethodHandler(Player *player, PropertyManager *properties)
-    : m_player(player), m_properties(properties), m_initialized(false) {
-  (void)player;
-  (void)properties; // Suppress unused parameter warnings
-}
+MethodHandler::MethodHandler([[maybe_unused]] Player *player,
+                             [[maybe_unused]] PropertyManager *properties)
+    : m_player(player), m_properties(properties), m_initialized(false) {}
 
 MethodHandler::~MethodHandler() {}
 
-DBusHandlerResult MethodHandler::handleMessage(DBusConnection *connection,
-                                               DBusMessage *message) {
-  (void)connection;
-  (void)message; // Suppress unused parameter warnings
+DBusHandlerResult
+MethodHandler::handleMessage([[maybe_unused]] DBusConnection *connection,
+                             [[maybe_unused]] DBusMessage *message) {
   return DBUS_HANDLER_RESULT_NOT_YET_HANDLED;
 }
 
