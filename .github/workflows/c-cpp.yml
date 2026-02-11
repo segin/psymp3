@@ -32,9 +32,10 @@ jobs:
           libtag1-dev \
           libvorbis-dev \
           libopus-dev \
+          libopusfile-dev \
           libogg-dev \
-          libflac++-dev \
           libflac-dev \
+          libflac++-dev \
           libfreetype6-dev \
           zlib1g-dev \
           libdbus-1-dev \

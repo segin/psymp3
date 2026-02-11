@@ -37,22 +37,25 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
-          autoconf-archive \
+          automake \
           libtool \
           pkg-config \
+          autoconf-archive \
           libsdl1.2-dev \
           libsdl-gfx1.2-dev \
           libsdl-ttf2.0-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
           libmpg123-dev \
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
           libcurl4-openssl-dev \
           libssl-dev
           
@@ -114,22 +117,25 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
-          autoconf-archive \
+          automake \
           libtool \
           pkg-config \
+          autoconf-archive \
           libsdl1.2-dev \
           libsdl-gfx1.2-dev \
           libsdl-ttf2.0-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
           libmpg123-dev \
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
           libcurl4-openssl-dev \
           libssl-dev
           
@@ -155,7 +161,7 @@ jobs:
         
     - name: Comment PR with Results
       if: github.event_name == 'pull_request'
-      uses: actions/github-script@v6
+      uses: actions/github-script@v7
       with:
         script: |
           const fs = require('fs');
@@ -192,22 +198,25 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y \
           build-essential \
-          autotools-dev \
-          automake \
           autoconf \
-          autoconf-archive \
+          automake \
           libtool \
           pkg-config \
+          autoconf-archive \
           libsdl1.2-dev \
           libsdl-gfx1.2-dev \
           libsdl-ttf2.0-dev \
-          libfreetype6-dev \
-          libtag1-dev \
-          libflac-dev \
-          libvorbis-dev \
-          libogg-dev \
-          libopus-dev \
           libmpg123-dev \
+          libtag1-dev \
+          libvorbis-dev \
+          libopusfile-dev \
+          libopus-dev \
+          libogg-dev \
+          libflac++-dev \
+          libflac-dev \
+          libfreetype6-dev \
+          zlib1g-dev \
+          libdbus-1-dev \
           libcurl4-openssl-dev \
           libssl-dev
           

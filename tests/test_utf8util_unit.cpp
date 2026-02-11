@@ -7,8 +7,11 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif
 #include "test_framework.h"
+#include "core/utility/UTF8Util.h"
 #include <cstring>
 
 using namespace PsyMP3::Core::Utility;
@@ -257,6 +260,51 @@ protected:
 };
 
 // ============================================================================
+// UTF-8 DecodeSafe Tests
+// ============================================================================
+
+class UTF8DecodeSafeTest : public TestCase {
+public:
+    UTF8DecodeSafeTest() : TestCase("UTF8Util::decodeSafe") {}
+
+protected:
+    void runTest() override {
+        // Null and empty input
+        ASSERT_EQUALS("", UTF8Util::decodeSafe(nullptr, 0), "Null input with size 0");
+        ASSERT_EQUALS("", UTF8Util::decodeSafe(nullptr, 10), "Null input with non-zero size");
+        uint8_t dummy = 'A';
+        ASSERT_EQUALS("", UTF8Util::decodeSafe(&dummy, 0), "Non-null input with size 0");
+
+        // Valid ASCII
+        const uint8_t ascii[] = {'H', 'e', 'l', 'l', 'o'};
+        ASSERT_EQUALS("Hello", UTF8Util::decodeSafe(ascii, 5), "Valid ASCII without null terminator");
+        const uint8_t ascii_null[] = {'H', 'e', 'l', 'l', 'o', 0}; // Includes null terminator
+        ASSERT_EQUALS("Hello", UTF8Util::decodeSafe(ascii_null, 6), "Valid ASCII with null terminator");
+
+        // Valid UTF-8
+        const uint8_t utf8[] = {'c', 'a', 'f', static_cast<uint8_t>('\xC3'), static_cast<uint8_t>('\xA9')}; // café
+        ASSERT_EQUALS("café", UTF8Util::decodeSafe(utf8, 5), "Valid UTF-8");
+
+        // Null terminator before end of size
+        const uint8_t with_null[] = {'H', 'i', 0, 'X', 'Y'};
+        ASSERT_EQUALS("Hi", UTF8Util::decodeSafe(with_null, 5), "Null terminator respected within buffer");
+
+        // Invalid UTF-8 should be repaired
+        // 0x80 is an invalid start byte
+        const uint8_t invalid[] = {'H', 0x80, 'W', 0};
+        std::string repaired = UTF8Util::decodeSafe(invalid, 4);
+        ASSERT_TRUE(repaired.find("\xEF\xBF\xBD") != std::string::npos, "Invalid byte replaced with replacement char");
+        ASSERT_TRUE(repaired.find("H") == 0, "Valid prefix preserved");
+        ASSERT_TRUE(repaired.find("W") != std::string::npos, "Valid suffix preserved");
+
+        // Overlong encoding (invalid)
+        const uint8_t overlong[] = {0xC0, 0x80, 0}; // Overlong NUL
+        std::string repaired2 = UTF8Util::decodeSafe(overlong, 3);
+        ASSERT_EQUALS(UTF8Util::replacementCharacter(), repaired2, "Overlong NUL repaired to single replacement char");
+    }
+};
+
+// ============================================================================
 // Edge Cases Tests
 // ============================================================================
 
@@ -304,6 +352,7 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<UTF32ConversionTest>());
     suite.addTest(std::make_unique<CodepointOperationsTest>());
     suite.addTest(std::make_unique<StringUtilitiesTest>());
+    suite.addTest(std::make_unique<UTF8DecodeSafeTest>());
     suite.addTest(std::make_unique<EdgeCasesTest>());
     
     auto results = suite.runAll();

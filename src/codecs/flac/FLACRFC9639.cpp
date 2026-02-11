@@ -31,7 +31,7 @@ namespace FLACRFC9639 {
 
 bool validateStreamMarkerWithLogging(const uint8_t* marker, const char* debug_channel) {
     if (!marker) {
-        Debug::log(debug_channel, "[validateStreamMarker] NULL marker pointer provided");
+        Debug::log(debug_channel, "[validateStreamMarker] nullptr marker pointer provided");
         return false;
     }
     
@@ -70,7 +70,7 @@ bool validateStreamMarkerWithLogging(const uint8_t* marker, const char* debug_ch
 
 std::string getStreamMarkerErrorDescription(const uint8_t* marker) {
     if (!marker) {
-        return "NULL marker pointer";
+        return "nullptr marker pointer";
     }
     
     // Check for common audio format signatures
@@ -152,7 +152,7 @@ bool parseMetadataBlockHeader(const uint8_t* data, MetadataBlockHeader& header) 
 bool parseMetadataBlockHeaderWithLogging(const uint8_t* data, MetadataBlockHeader& header, 
                                         const char* debug_channel) {
     if (!data) {
-        Debug::log(debug_channel, "[parseMetadataBlockHeader] NULL data pointer provided");
+        Debug::log(debug_channel, "[parseMetadataBlockHeader] nullptr data pointer provided");
         return false;
     }
     
@@ -356,7 +356,7 @@ bool parseCodedNumber(const uint8_t* data, uint64_t& number, size_t& bytes_consu
 bool parseCodedNumberWithLogging(const uint8_t* data, uint64_t& number, size_t& bytes_consumed,
                                 const char* debug_channel) {
     if (!data) {
-        Debug::log(debug_channel, "[parseCodedNumber] NULL data pointer provided");
+        Debug::log(debug_channel, "[parseCodedNumber] nullptr data pointer provided");
         return false;
     }
     
@@ -417,7 +417,7 @@ uint16_t calculateCRC16(const uint8_t* data, size_t length) {
 bool validateHeaderCRC8WithLogging(const uint8_t* data, size_t length, uint8_t expected_crc,
                                   uint64_t file_offset, const char* debug_channel) {
     if (!data) {
-        Debug::log(debug_channel, "[validateHeaderCRC8] NULL data pointer provided");
+        Debug::log(debug_channel, "[validateHeaderCRC8] nullptr data pointer provided");
         return false;
     }
     
@@ -440,7 +440,7 @@ bool validateHeaderCRC8WithLogging(const uint8_t* data, size_t length, uint8_t e
 bool validateFrameCRC16WithLogging(const uint8_t* data, size_t length, uint16_t expected_crc,
                                   uint64_t file_offset, const char* debug_channel) {
     if (!data) {
-        Debug::log(debug_channel, "[validateFrameCRC16] NULL data pointer provided");
+        Debug::log(debug_channel, "[validateFrameCRC16] nullptr data pointer provided");
         return false;
     }
     
@@ -566,7 +566,7 @@ bool parseFLACStreamInfo(const uint8_t* data, FLACStreamInfo& info) {
 bool parseFLACStreamInfoWithLogging(const uint8_t* data, FLACStreamInfo& info,
                                    const char* debug_channel) {
     if (!data) {
-        Debug::log(debug_channel, "[parseStreamInfo] NULL data pointer provided");
+        Debug::log(debug_channel, "[parseStreamInfo] nullptr data pointer provided");
         return false;
     }
     
@@ -695,7 +695,7 @@ bool detectFrameSync(const uint8_t* data, size_t size, FrameSyncResult& result) 
 bool detectFrameSyncWithLogging(const uint8_t* data, size_t size, FrameSyncResult& result,
                                const char* debug_channel) {
     if (!data) {
-        Debug::log(debug_channel, "[detectFrameSync] NULL data pointer provided");
+        Debug::log(debug_channel, "[detectFrameSync] nullptr data pointer provided");
         result.found = false;
         return false;
     }

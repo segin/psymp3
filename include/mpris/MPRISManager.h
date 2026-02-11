@@ -82,6 +82,12 @@ public:
      * @param position_us Position in microseconds
      */
     void updatePosition(uint64_t position_us);
+
+    /**
+     * Update loop status
+     * @param status New loop status
+     */
+    void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
     
     /**
      * Notify that seeking occurred (emits Seeked signal)
@@ -175,6 +181,7 @@ private:
     void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album);
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
+    void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);
     void notifySeeked_unlocked(uint64_t position_us);
     bool isInitialized_unlocked() const;
     bool isConnected_unlocked() const;

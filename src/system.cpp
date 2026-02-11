@@ -87,7 +87,7 @@ void System::InitializeIPC(Player *player) {
   WNDCLASSEXW wcx = {0};
   wcx.cbSize = sizeof(WNDCLASSEXW);
   wcx.lpfnWndProc = System::ipcWndProc;
-  wcx.hInstance = GetModuleHandleW(NULL);
+  wcx.hInstance = GetModuleHandleW(nullptr);
   wcx.lpszClassName = L"Winamp v1.x";
 
   if (!RegisterClassExW(&wcx)) {
@@ -106,9 +106,9 @@ void System::InitializeIPC(Player *player) {
                       L"PsyMP3 Winamp Interface", // Window text
                       0,                          // Window style (not visible)
                       0, 0, 0, 0,                 // Position and size (hidden)
-                      NULL,                       // Parent window
-                      NULL,                       // Menu
-                      GetModuleHandleW(NULL),     // Instance handle
+                      nullptr,                    // Parent window
+                      nullptr,                    // Menu
+                      GetModuleHandleW(nullptr),  // Instance handle
                       player // Additional application data (the Player pointer)
       );
 
@@ -133,15 +133,15 @@ void System::broadcastMsnMessage(const std::wstring &message) {
   cds.cbData = (message.length() + 1) * sizeof(wchar_t);
   cds.lpData = (PVOID)message.c_str();
 
-  HWND msgr_hwnd = NULL;
+  HWND msgr_hwnd = nullptr;
   // Loop through all top-level windows to find all messenger instances.
   do {
-    msgr_hwnd = FindWindowExW(NULL, msgr_hwnd, L"MsnMsgrUIManager", NULL);
+    msgr_hwnd = FindWindowExW(nullptr, msgr_hwnd, L"MsnMsgrUIManager", nullptr);
     if (msgr_hwnd) {
       // Using SendMessage for synchronous delivery.
       SendMessage(msgr_hwnd, WM_COPYDATA, (WPARAM)getHwnd(), (LPARAM)&cds);
     }
-  } while (msgr_hwnd != NULL);
+  } while (msgr_hwnd != nullptr);
 }
 
 /**
@@ -392,7 +392,7 @@ TagLib::String System::getHome() {
                     L"hell Folders",
                     0, KEY_READ, &hKey) == ERROR_SUCCESS) {
     DWORD buffer_size = sizeof(env_buffer);
-    if (RegQueryValueExW(hKey, L"Personal", NULL, NULL, (LPBYTE)env_buffer,
+    if (RegQueryValueExW(hKey, L"Personal", nullptr, nullptr, (LPBYTE)env_buffer,
                          &buffer_size) == ERROR_SUCCESS) {
       RegCloseKey(hKey);
       return TagLib::String(env_buffer);
@@ -438,7 +438,7 @@ bool System::createStoragePath() {
   TagLib::String path = getStoragePath();
 #ifdef _WIN32
   // CreateDirectoryW returns non-zero on success.
-  return CreateDirectoryW(path.toWString().c_str(), NULL) ||
+  return CreateDirectoryW(path.toWString().c_str(), nullptr) ||
          (GetLastError() == ERROR_ALREADY_EXISTS);
 #else
   // mkdir returns 0 on success.
@@ -494,7 +494,7 @@ void System::setThisThreadName(const std::string &name) {
   if (pSetThreadDescription) {
     // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API
     int size_needed =
-        MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), NULL, 0);
+        MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), nullptr, 0);
     std::wstring wname(size_needed, 0);
     MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), &wname[0],
                         size_needed);

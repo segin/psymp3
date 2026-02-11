@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include <sstream>
 
 namespace PsyMP3 {
 namespace Widget {
@@ -84,42 +85,43 @@ void ToastWidget::resetTimer()
 
 void ToastWidget::draw(Surface& surface)
 {
-    // Step 1: Render the Label onto its Surface and get dimensions
-    std::unique_ptr<Surface> label_surface;
-    int label_width = 0, label_height = 0;
-    
-    if (m_font && !m_message.empty()) {
-        label_surface = m_font->Render(m_message, 255, 255, 255); // White text
-        if (label_surface && label_surface->isValid()) {
-            label_width = label_surface->width();
-            label_height = label_surface->height();
-        }
-    }
-    
-    // Step 2: Use actual surface dimensions (should match calculateSize result)
+    // Step 1: Use actual surface dimensions (should match calculateSize result)
     int window_width = surface.width();
     int window_height = surface.height();
     
-    // Step 3: Clear surface to fully transparent
+    // Step 2: Clear surface to fully transparent
     surface.FillRect(surface.MapRGBA(0, 0, 0, 0));
     
     const int corner_radius = 8;
     
-    // Step 4: Draw outer border background with original ToastNotification colors
+    // Step 3: Draw outer border background with original ToastNotification colors
     drawSimpleRoundedRect(surface, 0, 0, window_width, window_height, corner_radius, 100, 100, 100, 255);
     
-    // Step 5: Draw inner background area (2px smaller, offset by 1px) with original colors
+    // Step 4: Draw inner background area (2px smaller, offset by 1px) with original colors
     if (window_width > 4 && window_height > 4) { // Ensure we have space for inner rect
         drawSimpleRoundedRect(surface, 1, 1, window_width - 2, window_height - 2, corner_radius - 1, 50, 50, 50, 255);
     }
     
-    // Step 6: Apply 85% opacity while preserving transparent areas
+    // Step 5: Apply 85% opacity while preserving transparent areas
     applyRelativeOpacity(surface, 0.85f);
     
-    // Step 7: Render the Label at (8, 8)
-    if (label_surface && label_surface->isValid()) {
-        Rect label_rect(8, 8, label_width, label_height);
-        surface.Blit(*label_surface, label_rect);
+    // Step 6: Render the Label (handling multiline)
+    std::stringstream ss(m_message);
+    std::string line;
+    int y_offset = 8;
+    while (std::getline(ss, line, '\n')) {
+        if (m_font && !line.empty()) {
+            auto line_surface = m_font->Render(line, 255, 255, 255);
+            if (line_surface && line_surface->isValid()) {
+                Rect label_rect(8, y_offset, line_surface->width(), line_surface->height());
+                surface.Blit(*line_surface, label_rect);
+                y_offset += line_surface->height();
+            }
+        } else {
+             // For empty lines, add some spacing if font is available
+             // Assuming ~12px for standard font if not easily accessible
+             y_offset += 12;
+        }
     }
 }
 
@@ -129,24 +131,34 @@ void ToastWidget::draw(Surface& surface)
         return Rect(0, 0, 100, 50); // Minimum default size
     }
     
-    // Render the text to get its dimensions
-    auto text_surface = font->Render(message, 255, 255, 255);
+    int max_width = 0;
+    int total_height = 0;
     
-    if (!text_surface || !text_surface->isValid()) {
-        return Rect(0, 0, 100, 50); // Fallback size
+    std::stringstream ss(message);
+    std::string line;
+    while (std::getline(ss, line, '\n')) {
+        if (!line.empty()) {
+            auto text_surface = font->Render(line, 255, 255, 255);
+            if (text_surface && text_surface->isValid()) {
+                max_width = std::max(max_width, static_cast<int>(text_surface->width()));
+                total_height += text_surface->height();
+            }
+        } else {
+             total_height += 12; // Approximation for empty line
+        }
     }
     
     // Add padding around the text
-    int width = text_surface->width() + (padding * 2);
-    int height = text_surface->height() + (padding * 2);
+    int width = max_width + (padding * 2);
+    int height = total_height + (padding * 2);
     
     // Ensure minimum size
     width = std::max(width, 100);
     height = std::max(height, 50);
     
     // Ensure maximum reasonable size (don't let toasts get too big)
-    width = std::min(width, 400);
-    height = std::min(height, 100);
+    width = std::min(width, 600); // Increased max width for errors
+    height = std::min(height, 300); // Increased max height
     
     return Rect(0, 0, width, height);
 }
@@ -154,19 +166,28 @@ void ToastWidget::draw(Surface& surface)
 void ToastWidget::updateSize()
 {
     // Calculate size based on actual label dimensions + 16px padding
-    int label_width = 0, label_height = 0;
+    int max_width = 0;
+    int total_height = 0;
     
     if (m_font && !m_message.empty()) {
-        auto label_surface = m_font->Render(m_message, 255, 255, 255);
-        if (label_surface && label_surface->isValid()) {
-            label_width = label_surface->width();
-            label_height = label_surface->height();
+        std::stringstream ss(m_message);
+        std::string line;
+        while (std::getline(ss, line, '\n')) {
+            if (!line.empty()) {
+                auto label_surface = m_font->Render(line, 255, 255, 255);
+                if (label_surface && label_surface->isValid()) {
+                    max_width = std::max(max_width, static_cast<int>(label_surface->width()));
+                    total_height += label_surface->height();
+                }
+            } else {
+                 total_height += 12; // Approximation
+            }
         }
     }
     
     // Add 16px to both axes as specified
-    int window_width = label_width + 16;
-    int window_height = label_height + 16;
+    int window_width = max_width + 16;
+    int window_height = total_height + 16;
     
     // Ensure minimum size
     window_width = std::max(window_width, 50);
