@@ -22,6 +22,8 @@ jobs:
   threading-safety-check:
     name: Threading Safety Validation
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     
     steps:
     - name: Checkout code
@@ -49,7 +51,8 @@ jobs:
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev
           
     - name: Install Python dependencies
       run: |
@@ -94,6 +97,7 @@ jobs:
     name: Comprehensive Threading Validation
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pull-requests: write
       issues: write
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -124,7 +128,8 @@ jobs:
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev
           
     - name: Generate build system
       run: |
@@ -169,6 +174,8 @@ jobs:
   performance-regression:
     name: Performance Regression Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     if: github.event_name == 'pull_request'
     
     steps:
@@ -197,7 +204,8 @@ jobs:
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev
           
     - name: Generate build system
       run: |
