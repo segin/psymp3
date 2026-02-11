@@ -45,6 +45,7 @@ Player::Player() {
     m_preloading_track = false;
     m_automated_test_mode = false;
     m_automated_test_track_count = 0;
+    m_show_mpris_errors = true;
     m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
     
     // Initialize Last.fm scrobbling
@@ -304,6 +305,17 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
     }
 }
 
+void Player::toggleMPRISErrorNotifications() {
+    m_show_mpris_errors = !m_show_mpris_errors;
+    std::string state = m_show_mpris_errors ? "ON" : "OFF";
+    showToast("MPRIS Errors: " + state);
+}
+
+void Player::showMPRISError(const std::string& message) {
+    auto* msg_ptr = new std::string(message);
+    synthesizeUserEvent(SHOW_MPRIS_ERROR, msg_ptr, nullptr);
+}
+
 /**
  * @brief Advances to the next track in the playlist.
  * @param advance_count The number of tracks to advance by. Defaults to 1.
@@ -378,6 +390,10 @@ bool Player::stop(void) {
     }
     audio.reset(); // Destroy the audio object when stopping.
     stream = nullptr;
+
+    if (m_lyrics_widget) {
+        m_lyrics_widget->clearLyrics();
+    }
 
 #ifdef HAVE_DBUS
     if (m_mpris_manager) {
@@ -773,39 +789,10 @@ bool Player::updateGUI()
     }
 #endif
 
-    // --- Lyrics Widget Rendering ---
-    // NOTE: Temporarily disabled - will be re-enabled with transparent window system
-    /*
+    // --- Lyrics Widget Update ---
     if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
         m_lyrics_widget->updatePosition(current_pos_ms);
-        m_lyrics_widget->BlitTo(*graph);
     }
-    */
-
-    // --- Toast Notification Management and Rendering ---
-    // NOTE: Temporarily disabled - will be converted to transparent window system  
-    // TODO: Convert ToastNotification to use ToastWidget with ZOrder::MAX
-    /*
-    if (m_toast) {
-        if (m_toast->isExpired()) {
-            m_toast.reset();
-            // Check if there's a queued toast to show immediately after fade-out
-            if (!m_toast_queue.empty()) {
-                const PendingToast& next_toast = m_toast_queue.front();
-                m_toast = std::make_unique<ToastNotification>(font.get(), next_toast.message, next_toast.duration_ms);
-                m_toast_queue.pop();
-            }
-        } else {
-            // Horizontally center and vertically align to the bottom of the FFT area.
-            const Rect& current_pos = m_toast->getPos();
-            Rect new_pos = current_pos; // Make a copy to modify
-            new_pos.x((graph->width() - current_pos.width()) / 2);
-            new_pos.y(350 - current_pos.height() - 40); // 40px margin from the bottom of the FFT area
-            m_toast->setPos(new_pos);
-            m_toast->BlitTo(*graph); // Blit to the graph surface for correct alpha blending
-        }
-    }
-    */
 
     // --- Pause Indicator Rendering ---
     // This should be drawn after the toast so it appears on top if both are active.
@@ -1022,11 +1009,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_e:
         {
+            LoopMode next_mode = LoopMode::None;
             switch (m_loop_mode) {
-                case LoopMode::None: m_loop_mode = LoopMode::One; showToast("Loop: One"); break;
-                case LoopMode::One:  m_loop_mode = LoopMode::All; showToast("Loop: All"); break;
-                case LoopMode::All:  m_loop_mode = LoopMode::None; showToast("Loop: None"); break;
+                case LoopMode::None: next_mode = LoopMode::One; break;
+                case LoopMode::One:  next_mode = LoopMode::All; break;
+                case LoopMode::All:  next_mode = LoopMode::None; break;
+                default: next_mode = LoopMode::None; break;
             }
+            setLoopMode(next_mode);
             // Persist this setting for the next session
             break;
         }
@@ -1069,12 +1059,16 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_m:
         {
-            // Toggle between widget-based and legacy mouse handling
-            m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
-            if (m_use_widget_mouse_handling) {
-                showToast("Mouse: Widget-based handling");
+            if (keysym.mod & KMOD_SHIFT) {
+                toggleMPRISErrorNotifications();
             } else {
-                showToast("Mouse: Legacy handling");
+                // Toggle between widget-based and legacy mouse handling
+                m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
+                if (m_use_widget_mouse_handling) {
+                    showToast("Mouse: Widget-based handling");
+                } else {
+                    showToast("Mouse: Legacy handling");
+                }
             }
             break;
         }
@@ -1391,10 +1385,14 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             stream = audio->getCurrentStream();
             startTrackScrobbling();
 
-            // Update GUI and clear lyrics
+            // Update GUI and lyrics for the new stream
             updateInfo(false, "");
             if (m_lyrics_widget) {
-                m_lyrics_widget->clearLyrics();
+                if (stream) {
+                    m_lyrics_widget->setLyrics(stream->getLyrics());
+                } else {
+                    m_lyrics_widget->clearLyrics();
+                }
             }
             break;
         }
@@ -1406,6 +1404,46 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                 playlist->savePlaylist(save_path);
                 showToast("Current playlist saved!");
             }
+            break;
+        }
+        case SHOW_MPRIS_ERROR:
+        {
+            std::string* msg_ptr = static_cast<std::string*>(event.data1);
+            if (msg_ptr) {
+                if (m_show_mpris_errors) {
+                    showToast("MPRIS Error:\n" + *msg_ptr, 4000);
+                }
+                delete msg_ptr;
+            }
+            break;
+        }
+        case DO_SET_LOOP_MODE:
+        {
+            LoopMode mode = static_cast<LoopMode>(reinterpret_cast<intptr_t>(event.data1));
+            m_loop_mode = mode;
+            std::string toastMsg = "Loop: ";
+            std::string mprisStatus;
+            PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+            switch(m_loop_mode) {
+                case LoopMode::None:
+                    toastMsg += "None";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+                    break;
+                case LoopMode::One:
+                    toastMsg += "One";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Track;
+                    break;
+                case LoopMode::All:
+                    toastMsg += "All";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Playlist;
+                    break;
+            }
+            showToast(toastMsg);
+#ifdef HAVE_DBUS
+            if (m_mpris_manager) {
+                 m_mpris_manager->updateLoopStatus(mprisEnum);
+            }
+#endif
             break;
         }
     }
@@ -1424,6 +1462,7 @@ void Player::Run(const PlayerOptions& options) {
     decayfactor = options.decayfactor;
     m_automated_test_mode = options.automated_test_mode;
     m_unattended_quit = options.unattended_quit;
+    m_show_mpris_errors = options.show_mpris_errors;
 
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
@@ -1544,8 +1583,10 @@ void Player::Run(const PlayerOptions& options) {
     add_label("fft_mode", Rect(545, 30, 95, 16));
     m_loop_mode = LoopMode::None; // Default loop mode on startup
 
-    // Initialize lyrics widget
-    m_lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
+    // Initialize lyrics widget and add to application window system
+    auto lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
+    m_lyrics_widget = lyrics_widget.get();
+    app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
 
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
@@ -1686,6 +1727,24 @@ void Player::Run(const PlayerOptions& options) {
     Debug::log("player", "Exited cleanly");
     SDL_Quit();
     return;
+}
+
+/**
+ * @brief Sets the player loop mode.
+ * This method is thread-safe and dispatches an event to the main thread.
+ * @param mode The new loop mode to set.
+ */
+void Player::setLoopMode(LoopMode mode) {
+    synthesizeUserEvent(DO_SET_LOOP_MODE, reinterpret_cast<void*>(static_cast<intptr_t>(mode)), nullptr);
+}
+
+/**
+ * @brief Gets the current loop mode.
+ * This method is thread-safe as m_loop_mode is atomic.
+ * @return The current LoopMode.
+ */
+LoopMode Player::getLoopMode() const {
+    return m_loop_mode;
 }
 
 // Static member function definitions for automated testing

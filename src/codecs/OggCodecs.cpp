@@ -111,7 +111,7 @@ bool OggFLACPassthroughCodec::canDecode(const StreamInfo& stream_info) const {
 OpusPassthroughCodec::OpusPassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
     // Create the actual OpusCodec
-    m_opus_codec = std::make_unique<OpusCodec>(stream_info);
+    m_opus_codec = std::make_unique<PsyMP3::Codec::Opus::OpusCodec>(stream_info);
 }
 
 OpusPassthroughCodec::~OpusPassthroughCodec() {
