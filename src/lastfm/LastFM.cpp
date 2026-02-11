@@ -9,6 +9,11 @@
 
 #include "psymp3.h"
 
+#ifndef _WIN32
+#include <sys/types.h>
+#include <sys/stat.h>
+#endif
+
 namespace PsyMP3 {
 namespace LastFM {
 
@@ -69,8 +74,14 @@ void LastFM::readConfig()
             m_username = value;
             DEBUG_LOG_LAZY("lastfm", "Username loaded: ", m_username);
         } else if (key == "password") {
-            m_password = value;
-            DEBUG_LOG_LAZY("lastfm", "Password loaded");
+            // Legacy password entry - migrate to hash
+            if (!value.empty()) {
+                m_password_hash = md5Hash(value);
+                DEBUG_LOG_LAZY("lastfm", "Legacy password loaded and migrated to hash");
+            }
+        } else if (key == "password_hash") {
+            m_password_hash = value;
+            DEBUG_LOG_LAZY("lastfm", "Password hash loaded");
         } else if (key == "session_key") {
             m_session_key = value;
             DEBUG_LOG_LAZY("lastfm", "Session key loaded");
@@ -84,19 +95,27 @@ void LastFM::readConfig()
     }
     
     if (isConfigured()) {
-        // Cache the password hash to avoid redundant computation (Requirements 1.3)
-        m_password_hash = md5Hash(m_password);
-        DEBUG_LOG_LAZY("lastfm", "Password hash cached for auth token generation");
         DEBUG_LOG_LAZY("lastfm", "Configuration complete - scrobbling enabled");
     } else {
-        DEBUG_LOG_LAZY("lastfm", "Missing username or password - scrobbling disabled");
+        DEBUG_LOG_LAZY("lastfm", "Missing username or password hash - scrobbling disabled");
     }
 }
 
 void LastFM::writeConfig()
 {
     System::createStoragePath();
+
+#ifndef _WIN32
+    // Set umask to ensure file is created with 0600 permissions
+    mode_t old_mask = umask(0077);
+#endif
+
     std::ofstream config(m_config_file);
+
+#ifndef _WIN32
+    umask(old_mask);
+#endif
+
     if (!config.is_open()) {
         DEBUG_LOG_LAZY("lastfm", "Failed to write config file: ", m_config_file);
         return;
@@ -104,7 +123,7 @@ void LastFM::writeConfig()
     
     config << "# Last.fm configuration\n";
     config << "username=" << m_username << "\n";
-    config << "password=" << m_password << "\n";
+    config << "password_hash=" << m_password_hash << "\n";
     config << "session_key=" << m_session_key << "\n";
     config << "now_playing_url=" << m_nowplaying_url << "\n";
     config << "submission_url=" << m_submission_url << "\n";
@@ -142,19 +161,14 @@ std::string LastFM::getSessionKey()
 
 bool LastFM::performHandshake(int host_index)
 {
-    if (m_username.empty() || m_password.empty()) {
-        DEBUG_LOG_LAZY("lastfm", "Username or password not configured");
+    if (m_username.empty() || m_password_hash.empty()) {
+        DEBUG_LOG_LAZY("lastfm", "Username or password hash not configured");
         return false;
     }
     
     // Generate timestamp and auth token (double MD5 as per API spec)
     // Use cached password hash to avoid redundant computation (Requirements 1.3)
     time_t timestamp = time(nullptr);
-    
-    // Ensure password hash is cached (in case config was modified)
-    if (m_password_hash.empty()) {
-        m_password_hash = md5Hash(m_password);
-    }
     
     std::string auth_token = md5Hash(m_password_hash + std::to_string(timestamp));
     
@@ -712,7 +726,7 @@ void LastFM::forceSubmission()
 
 bool LastFM::isConfigured() const
 {
-    return !m_username.empty() && !m_password.empty();
+    return !m_username.empty() && !m_password_hash.empty();
 }
 
 std::string LastFM::urlEncode(const std::string& input)

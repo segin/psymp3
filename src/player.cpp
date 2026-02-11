@@ -45,6 +45,7 @@ Player::Player() {
     m_preloading_track = false;
     m_automated_test_mode = false;
     m_automated_test_track_count = 0;
+    m_show_mpris_errors = true;
     m_loader_thread = std::thread(&Player::loaderThreadLoop, this);
     
     // Initialize Last.fm scrobbling
@@ -302,6 +303,17 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
             Debug::log("playlist", "Player::playlistPopulatorLoop(): Failed to add file ", args[i], ": ", e.what());
         }
     }
+}
+
+void Player::toggleMPRISErrorNotifications() {
+    m_show_mpris_errors = !m_show_mpris_errors;
+    std::string state = m_show_mpris_errors ? "ON" : "OFF";
+    showToast("MPRIS Errors: " + state);
+}
+
+void Player::showMPRISError(const std::string& message) {
+    auto* msg_ptr = new std::string(message);
+    synthesizeUserEvent(SHOW_MPRIS_ERROR, msg_ptr, nullptr);
 }
 
 /**
@@ -1022,11 +1034,14 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_e:
         {
+            LoopMode next_mode = LoopMode::None;
             switch (m_loop_mode) {
-                case LoopMode::None: m_loop_mode = LoopMode::One; showToast("Loop: One"); break;
-                case LoopMode::One:  m_loop_mode = LoopMode::All; showToast("Loop: All"); break;
-                case LoopMode::All:  m_loop_mode = LoopMode::None; showToast("Loop: None"); break;
+                case LoopMode::None: next_mode = LoopMode::One; break;
+                case LoopMode::One:  next_mode = LoopMode::All; break;
+                case LoopMode::All:  next_mode = LoopMode::None; break;
+                default: next_mode = LoopMode::None; break;
             }
+            setLoopMode(next_mode);
             // Persist this setting for the next session
             break;
         }
@@ -1069,12 +1084,16 @@ bool Player::handleKeyPress(const SDL_keysym& keysym)
 
         case SDLK_m:
         {
-            // Toggle between widget-based and legacy mouse handling
-            m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
-            if (m_use_widget_mouse_handling) {
-                showToast("Mouse: Widget-based handling");
+            if (keysym.mod & KMOD_SHIFT) {
+                toggleMPRISErrorNotifications();
             } else {
-                showToast("Mouse: Legacy handling");
+                // Toggle between widget-based and legacy mouse handling
+                m_use_widget_mouse_handling = !m_use_widget_mouse_handling;
+                if (m_use_widget_mouse_handling) {
+                    showToast("Mouse: Widget-based handling");
+                } else {
+                    showToast("Mouse: Legacy handling");
+                }
             }
             break;
         }
@@ -1408,6 +1427,46 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             }
             break;
         }
+        case SHOW_MPRIS_ERROR:
+        {
+            std::string* msg_ptr = static_cast<std::string*>(event.data1);
+            if (msg_ptr) {
+                if (m_show_mpris_errors) {
+                    showToast("MPRIS Error:\n" + *msg_ptr, 4000);
+                }
+                delete msg_ptr;
+            }
+            break;
+        }
+        case DO_SET_LOOP_MODE:
+        {
+            LoopMode mode = static_cast<LoopMode>(reinterpret_cast<intptr_t>(event.data1));
+            m_loop_mode = mode;
+            std::string toastMsg = "Loop: ";
+            std::string mprisStatus;
+            PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+            switch(m_loop_mode) {
+                case LoopMode::None:
+                    toastMsg += "None";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+                    break;
+                case LoopMode::One:
+                    toastMsg += "One";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Track;
+                    break;
+                case LoopMode::All:
+                    toastMsg += "All";
+                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Playlist;
+                    break;
+            }
+            showToast(toastMsg);
+#ifdef HAVE_DBUS
+            if (m_mpris_manager) {
+                 m_mpris_manager->updateLoopStatus(mprisEnum);
+            }
+#endif
+            break;
+        }
     }
     return false; // Do not exit
 }
@@ -1424,6 +1483,7 @@ void Player::Run(const PlayerOptions& options) {
     decayfactor = options.decayfactor;
     m_automated_test_mode = options.automated_test_mode;
     m_unattended_quit = options.unattended_quit;
+    m_show_mpris_errors = options.show_mpris_errors;
 
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
@@ -1686,6 +1746,24 @@ void Player::Run(const PlayerOptions& options) {
     Debug::log("player", "Exited cleanly");
     SDL_Quit();
     return;
+}
+
+/**
+ * @brief Sets the player loop mode.
+ * This method is thread-safe and dispatches an event to the main thread.
+ * @param mode The new loop mode to set.
+ */
+void Player::setLoopMode(LoopMode mode) {
+    synthesizeUserEvent(DO_SET_LOOP_MODE, reinterpret_cast<void*>(static_cast<intptr_t>(mode)), nullptr);
+}
+
+/**
+ * @brief Gets the current loop mode.
+ * This method is thread-safe as m_loop_mode is atomic.
+ * @return The current LoopMode.
+ */
+LoopMode Player::getLoopMode() const {
+    return m_loop_mode;
 }
 
 // Static member function definitions for automated testing

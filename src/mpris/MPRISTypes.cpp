@@ -92,23 +92,19 @@ bool MPRISMetadata::isEmpty() const {
 }
 
 // RAII deleters implementation
-void DBusConnectionDeleter::operator()(DBusConnection *conn) {
+void DBusConnectionDeleter::operator()([[maybe_unused]] DBusConnection *conn) {
 #ifdef HAVE_DBUS
   if (conn) {
     dbus_connection_unref(conn);
   }
-#else
-  (void)conn; // Suppress unused parameter warning
 #endif
 }
 
-void DBusMessageDeleter::operator()(DBusMessage *msg) {
+void DBusMessageDeleter::operator()([[maybe_unused]] DBusMessage *msg) {
 #ifdef HAVE_DBUS
   if (msg) {
     dbus_message_unref(msg);
   }
-#else
-  (void)msg; // Suppress unused parameter warning
 #endif
 }
 
