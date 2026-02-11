@@ -152,6 +152,7 @@ private:
     // URL encoding and utilities
     std::string urlEncode(const std::string& input);
     std::string md5Hash(const std::string& input);
+    std::string sha256Hash(const std::string& input);
     
 public:
     LastFM();
