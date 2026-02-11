@@ -3252,7 +3252,7 @@ bool FLACCodec::validateFrameCRC_unlocked(const uint8_t* frame_data, size_t fram
     // Validate input parameters per RFC 9639 requirements
     if (!frame_data || frame_size < 6) {
         Debug::log("flac_codec", "[FLACCodec::validateFrameCRC_unlocked] Invalid frame data for CRC validation");
-        Debug::log("flac_codec", "  Frame data pointer: ", (frame_data ? "valid" : "NULL"));
+        Debug::log("flac_codec", "  Frame data pointer: ", (frame_data ? "valid" : "nullptr"));
         Debug::log("flac_codec", "  Frame size: ", frame_size, " bytes (minimum 6 required)");
         return false;
     }
