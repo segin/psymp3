@@ -446,6 +446,13 @@ std::string HTTPClient::urlEncode(const std::string& input) {
         return "";
     }
 
+    // Limit input size to prevent excessive memory allocation
+    const size_t MAX_URL_COMPONENT_SIZE = 1 * 1024 * 1024; // 1MB limit
+    if (input.length() > MAX_URL_COMPONENT_SIZE) {
+        Debug::log("http", "HTTPClient::urlEncode() - input exceeds maximum allowed size (1MB)");
+        return "";
+    }
+
     if (CurlLifecycleManager::isInitialized()) {
         CURL *curl = curl_easy_init();
         if (curl) {
