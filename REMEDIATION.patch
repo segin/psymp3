@@ -1,0 +1,29 @@
+diff --git a/configure.ac b/configure.ac
+index 1234567..89abcdef 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -165,6 +165,11 @@ if test -n "$SANITIZER_FLAGS"; then
+   AC_SUBST([LDFLAGS])
+ fi
+
++# Security Hardening Flags
++CXXFLAGS="$CXXFLAGS -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE"
++LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now -pie"
++
++
+ AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
+ AM_CONDITIONAL([ENABLE_UBSAN], [test "x$enable_ubsan" = "xyes"])
+ AM_CONDITIONAL([ENABLE_TSAN], [test "x$enable_tsan" = "xyes"])
+diff --git a/src/codecs/flac/SampleReconstructor.cpp b/src/codecs/flac/SampleReconstructor.cpp
+index abcdef1..2345678 100644
+--- a/src/codecs/flac/SampleReconstructor.cpp
++++ b/src/codecs/flac/SampleReconstructor.cpp
+@@ -113,7 +113,7 @@ void SampleReconstructor::reconstruct(const int32_t* residual,
+     // Shift correction for certain bit depths
+     if (source_bit_depth < 16) {
+       int shift_amount = 16 - source_bit_depth;
+-      int32_t rounding = 1 << (shift_amount - 1);
++      int32_t rounding = (shift_amount > 0 && shift_amount < 32) ? (1 << (shift_amount - 1)) : 0;
+
+       for (size_t i = 0; i < block_size; i++) {
+           decoded[i] = (decoded[i] << shift_amount) | rounding;

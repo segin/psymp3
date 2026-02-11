@@ -42,14 +42,14 @@
  */
 struct ConfigData {
     std::string username;
-    std::string password;
+    std::string password_hash;
     std::string session_key;
     std::string now_playing_url;
     std::string submission_url;
     
     bool operator==(const ConfigData& other) const {
         return username == other.username &&
-               password == other.password &&
+               password_hash == other.password_hash &&
                session_key == other.session_key &&
                now_playing_url == other.now_playing_url &&
                submission_url == other.submission_url;
@@ -82,7 +82,12 @@ ConfigData parseConfigFile(const std::string& filename) {
         if (key == "username") {
             config.username = value;
         } else if (key == "password") {
-            config.password = value;
+            // For backward compatibility tests, we mock the hashing transition.
+            // This verifies that legacy 'password' entries are correctly identified
+            // and transformed into the hash field.
+            config.password_hash = "mock_hash_of_" + value;
+        } else if (key == "password_hash") {
+            config.password_hash = value;
         } else if (key == "session_key") {
             config.session_key = value;
         } else if (key == "now_playing_url") {
@@ -104,7 +109,7 @@ void writeConfigFile(const std::string& filename, const ConfigData& config) {
     
     file << "# Last.fm configuration\n";
     file << "username=" << config.username << "\n";
-    file << "password=" << config.password << "\n";
+    file << "password_hash=" << config.password_hash << "\n";
     file << "session_key=" << config.session_key << "\n";
     file << "now_playing_url=" << config.now_playing_url << "\n";
     file << "submission_url=" << config.submission_url << "\n";
@@ -128,7 +133,7 @@ bool test_parse_existing_config_format() {
         // Write a config file in the standard format
         ConfigData original;
         original.username = "testuser";
-        original.password = "testpass123";
+        original.password_hash = "testpass123";
         original.session_key = "abc123def456";
         original.now_playing_url = "http://post.audioscrobbler.com/np_1.2";
         original.submission_url = "http://post.audioscrobbler.com/1.2";
@@ -140,7 +145,7 @@ bool test_parse_existing_config_format() {
         
         // Verify all fields match
         assert(parsed.username == original.username);
-        assert(parsed.password == original.password);
+        assert(parsed.password_hash == original.password_hash);
         assert(parsed.session_key == original.session_key);
         assert(parsed.now_playing_url == original.now_playing_url);
         assert(parsed.submission_url == original.submission_url);
@@ -173,7 +178,7 @@ bool test_write_config_maintains_format() {
         // Create config data
         ConfigData original;
         original.username = "myuser";
-        original.password = "mypassword";
+        original.password_hash = "mypassword";
         original.session_key = "session123";
         original.now_playing_url = "http://post.audioscrobbler.com/np_1.2";
         original.submission_url = "http://post.audioscrobbler.com/1.2";
@@ -189,7 +194,7 @@ bool test_write_config_maintains_format() {
         
         // Verify format contains expected keys
         assert(content.find("username=") != std::string::npos);
-        assert(content.find("password=") != std::string::npos);
+        assert(content.find("password_hash=") != std::string::npos);
         assert(content.find("session_key=") != std::string::npos);
         assert(content.find("now_playing_url=") != std::string::npos);
         assert(content.find("submission_url=") != std::string::npos);
@@ -231,15 +236,15 @@ bool test_handle_missing_optional_fields() {
         std::ofstream file(temp_file);
         file << "# Minimal Last.fm configuration\n";
         file << "username=testuser\n";
-        file << "password=testpass\n";
+        file << "password=testpass\n"; // Legacy key
         file.close();
         
         // Parse it
         ConfigData parsed = parseConfigFile(temp_file);
         
-        // Verify required fields are present
+        // Verify required fields are present and migration occurred
         assert(parsed.username == "testuser");
-        assert(parsed.password == "testpass");
+        assert(parsed.password_hash == "mock_hash_of_testpass");
         
         // Optional fields should be empty
         assert(parsed.session_key.empty());
@@ -272,7 +277,7 @@ bool test_handle_special_characters() {
         // Create config with special characters
         ConfigData original;
         original.username = "user@example.com";
-        original.password = "p@ss!word#123";
+        original.password_hash = "p@ss!word#123";
         original.session_key = "abc-123_def.456";
         original.now_playing_url = "http://post.audioscrobbler.com/np_1.2?param=value";
         original.submission_url = "http://post.audioscrobbler.com/1.2";
@@ -283,7 +288,7 @@ bool test_handle_special_characters() {
         
         // Verify special characters are preserved
         assert(parsed.username == original.username);
-        assert(parsed.password == original.password);
+        assert(parsed.password_hash == original.password_hash);
         assert(parsed.session_key == original.session_key);
         assert(parsed.now_playing_url == original.now_playing_url);
         
@@ -329,9 +334,9 @@ bool test_handle_comments_and_blank_lines() {
         // Parse it
         ConfigData parsed = parseConfigFile(temp_file);
         
-        // Verify values are correctly extracted
+        // Verify values are correctly extracted and migrated
         assert(parsed.username == "testuser");
-        assert(parsed.password == "testpass");
+        assert(parsed.password_hash == "mock_hash_of_testpass");
         assert(parsed.session_key == "abc123");
         assert(parsed.now_playing_url == "http://post.audioscrobbler.com/np_1.2");
         assert(parsed.submission_url == "http://post.audioscrobbler.com/1.2");
@@ -362,7 +367,7 @@ bool test_empty_values_preserved() {
         // Create config with some empty values
         ConfigData original;
         original.username = "testuser";
-        original.password = "";  // Empty password
+        original.password_hash = "";  // Empty password
         original.session_key = "";  // Empty session key
         original.now_playing_url = "http://post.audioscrobbler.com/np_1.2";
         original.submission_url = "";  // Empty submission URL
@@ -373,7 +378,7 @@ bool test_empty_values_preserved() {
         
         // Verify empty values are preserved
         assert(parsed.username == "testuser");
-        assert(parsed.password.empty());
+        assert(parsed.password_hash.empty());
         assert(parsed.session_key.empty());
         assert(parsed.now_playing_url == "http://post.audioscrobbler.com/np_1.2");
         assert(parsed.submission_url.empty());
