@@ -354,7 +354,7 @@ bool ComplianceValidator::ValidateSampleDistribution(const SampleTableInfo& samp
 
 bool ComplianceValidator::ValidateContainerFormat(const std::string& brand) {
     // Validate known container brands
-    const std::vector<std::string> validBrands = {
+    static const std::vector<std::string> validBrands = {
         "isom", "mp41", "mp42", "M4A ", "M4V ", "qt  ", 
         "3gp4", "3gp5", "3gp6", "3g2a"
     };
@@ -381,7 +381,7 @@ bool ComplianceValidator::IsValidBoxType(uint32_t boxType) {
 }
 
 bool ComplianceValidator::IsContainerBox(uint32_t boxType) {
-    const std::vector<uint32_t> containerBoxes = {
+    static const std::vector<uint32_t> containerBoxes = {
         BOX_MOOV, BOX_TRAK, BOX_MDIA, BOX_MINF, BOX_STBL, BOX_UDTA, BOX_META
     };
     
@@ -444,7 +444,7 @@ bool ComplianceValidator::ValidateSampleRate(uint32_t sampleRate, const std::str
     // Codec-specific sample rate validation
     if (codecType == "aac") {
         // AAC supports a wide range of sample rates
-        const std::vector<uint32_t> validRates = {
+        static const std::vector<uint32_t> validRates = {
             8000, 11025, 12000, 16000, 22050, 24000, 
             32000, 44100, 48000, 64000, 88200, 96000
         };
@@ -475,7 +475,7 @@ bool ComplianceValidator::ValidateBitsPerSample(uint16_t bits, const std::string
     }
     
     // Common bit depths
-    const std::vector<uint16_t> validBits = {8, 16, 24, 32};
+    static const std::vector<uint16_t> validBits = {8, 16, 24, 32};
     return std::find(validBits.begin(), validBits.end(), bits) != validBits.end();
 }
 
@@ -487,7 +487,7 @@ ComplianceValidationResult ComplianceValidator::GetComplianceReport() const {
 
 bool ComplianceValidator::ValidateBoxNesting(uint32_t parentType, uint32_t childType) {
     // Define valid parent-child relationships
-    const std::map<uint32_t, std::vector<uint32_t>> validNesting = {
+    static const std::map<uint32_t, std::vector<uint32_t>> validNesting = {
         {BOX_MOOV, {BOX_MVHD, BOX_TRAK, BOX_UDTA, BOX_META, BOX_IODS}},
         {BOX_TRAK, {BOX_TKHD, BOX_TREF, BOX_EDTS, BOX_MDIA}},
         {BOX_MDIA, {BOX_MDHD, BOX_HDLR, BOX_MINF}},
