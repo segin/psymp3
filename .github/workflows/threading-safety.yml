@@ -49,7 +49,10 @@ jobs:
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev \
+          zlib1g-dev \
+          libdbus-1-dev
           
     - name: Install Python dependencies
       run: |
@@ -121,7 +124,10 @@ jobs:
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev \
+          zlib1g-dev \
+          libdbus-1-dev
           
     - name: Generate build system
       run: |
@@ -194,7 +200,10 @@ jobs:
           libvorbis-dev \
           libogg-dev \
           libopus-dev \
-          libmpg123-dev
+          libmpg123-dev \
+          libcurl4-openssl-dev \
+          zlib1g-dev \
+          libdbus-1-dev
           
     - name: Generate build system
       run: |
