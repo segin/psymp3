@@ -101,3 +101,16 @@ Determining the duration of an Ogg file requires scanning the last page. To avoi
 
 -   **Caching**: `OggSeekingEngine` calculates the duration once (via bisection search for the last granule) and caches it in `m_duration_cached`.
 -   **Optimization**: Subsequent calls to `getDuration()` return the cached value instantly, preventing repeated file I/O during playback or seeking operations.
+
+## 7. Last.fm Integration
+
+PsyMP3 includes a background scrobbler for the Last.fm service, using the legacy Audioscrobbler 1.2 API.
+
+### 7.1 Secure Credential Storage
+To protect user credentials, PsyMP3 implements several security measures:
+- **One-Way Hashing**: Passwords are never stored in plain text. Instead, an MD5 hash of the password is saved, which is the format required by the Last.fm 1.2 authentication protocol.
+- **Restricted File Permissions**: The Last.fm configuration file (`lastfm.conf`) is created with restricted filesystem permissions (0600 on Unix-like systems), ensuring it is only readable by the current user.
+- **Legacy Migration**: Upon startup, any existing plain-text password in the configuration is automatically hashed and the original plain-text entry is removed from the file on the next write.
+
+### 7.2 Background Submission
+Scrobbling operations (handshake, now-playing updates, and scrobble submissions) are performed in a dedicated background thread (`lastfm-submission`) to prevent network latency from affecting UI responsiveness. Failed scrobbles are cached in an XML file and retried with exponential backoff.
