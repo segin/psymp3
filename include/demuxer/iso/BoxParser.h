@@ -10,9 +10,24 @@
 #ifndef BOXPARSER_H
 #define BOXPARSER_H
 
+#include <cstdint>
+#include <string>
+#include <vector>
+#include <functional>
+#include <memory>
+#include <stack>
+
 namespace PsyMP3 {
+namespace IO {
+    class IOHandler;
+}
+using IO::IOHandler;
+
 namespace Demuxer {
 namespace ISO {
+
+struct AudioTrackInfo;
+struct SampleTableInfo;
 
 // No direct includes - all includes should be in psymp3.h
 

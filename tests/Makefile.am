@@ -739,6 +739,17 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
+check_PROGRAMS += test_boxparser_unit
+test_boxparser_unit_SOURCES = test_boxparser_unit.cpp
+test_boxparser_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 # IOHandler backward compatibility and performance validation tests
 test_iohandler_legacy_compatibility_SOURCES = test_iohandler_legacy_compatibility.cpp
 test_iohandler_legacy_compatibility_LDADD = libtest_utilities.a \

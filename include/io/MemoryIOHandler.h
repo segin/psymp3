@@ -24,6 +24,11 @@
 #ifndef MEMORYIOHANDLER_H
 #define MEMORYIOHANDLER_H
 
+#include <vector>
+#include <cstdint>
+#include <cstddef>
+#include "io/IOHandler.h"
+
 // No direct includes - all includes should be in psymp3.h
 
 namespace PsyMP3 {

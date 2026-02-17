@@ -7,7 +7,16 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif
+#include "demuxer/iso/BoxParser.h"
+#include "demuxer/iso/ISODemuxer.h"
+#include "io/IOHandler.h"
+#include "debug.h"
+#include <algorithm>
+#include <iostream>
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {

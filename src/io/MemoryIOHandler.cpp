@@ -21,8 +21,14 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif
 #include "io/MemoryIOHandler.h"
+#include <algorithm>
+#include <cstring>
+#include <mutex>
+#include <shared_mutex>
 
 namespace PsyMP3 {
 namespace IO {
