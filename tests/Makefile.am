@@ -360,10 +360,16 @@ check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_og
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
 	test_ogg_fuzzing test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
-	test_compression_lz77
+	test_compression_lz77 test_compression_lz77_edge_cases
 
 test_compression_lz77_SOURCES = test_compression_lz77.cpp
 test_compression_lz77_LDADD = \
+	$(top_builddir)/src/core/compression/libpsymp3-core-compression.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(LDADD)
+
+test_compression_lz77_edge_cases_SOURCES = test_compression_lz77_edge_cases.cpp
+test_compression_lz77_edge_cases_LDADD = \
 	$(top_builddir)/src/core/compression/libpsymp3-core-compression.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(LDADD)
