@@ -33,6 +33,68 @@ using Foundation::DrawableWidget;
 int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_nesw = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_ew = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
+
+namespace {
+// 16x16 standard cursor definitions
+// NS: Double-headed vertical arrow
+const Uint8 cursor_ns_data[] = {
+    0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+    0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0xff, 0xff,
+    0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+    0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_ns_mask[] = {
+    0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0,
+    0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0, 0xff, 0xff,
+    0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0,
+    0x03, 0xc0, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00
+};
+
+// EW: Double-headed horizontal arrow
+const Uint8 cursor_ew_data[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x10,
+    0x0c, 0x30, 0x0e, 0x70, 0xff, 0xff, 0x0e, 0x70,
+    0x0c, 0x30, 0x08, 0x10, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_ew_mask[] = {
+    0x00, 0x00, 0x00, 0x00, 0x0c, 0x30, 0x1c, 0x38,
+    0x1e, 0x78, 0x1f, 0xf8, 0xff, 0xff, 0x1f, 0xf8,
+    0x1e, 0x78, 0x1c, 0x38, 0x0c, 0x30, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+// NWSE: Diagonal
+const Uint8 cursor_nwse_data[] = {
+    0x00, 0x00, 0x00, 0x00, 0xfe, 0x00, 0x7c, 0x00,
+    0x38, 0x00, 0x11, 0x00, 0x00, 0x88, 0x00, 0x44,
+    0x00, 0x22, 0x00, 0x11, 0x00, 0x38, 0x00, 0x7c,
+    0x00, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_nwse_mask[] = {
+    0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0x7e, 0x00,
+    0x3c, 0x00, 0x1b, 0x80, 0x01, 0xdc, 0x00, 0xee,
+    0x00, 0x77, 0x00, 0x3b, 0x00, 0x7e, 0x00, 0xff,
+    0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+// NESW: Diagonal
+const Uint8 cursor_nesw_data[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x3e,
+    0x00, 0x1c, 0x00, 0x88, 0x11, 0x00, 0x22, 0x00,
+    0x44, 0x00, 0x88, 0x00, 0x1c, 0x00, 0x3e, 0x00,
+    0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_nesw_mask[] = {
+    0x00, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0x7e,
+    0x00, 0x3c, 0x01, 0xd8, 0x3b, 0x80, 0x77, 0x00,
+    0xee, 0x00, 0xdc, 0x00, 0x3c, 0x00, 0x7e, 0x00,
+    0xff, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00
+};
+}
 
 WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title)
     : Widget()
@@ -94,9 +156,11 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     s_instance_count++;
     if (!s_cursor_nwse) {
         // SDL 1.2 doesn't support SDL_CreateSystemCursor.
-        // TODO: Implement custom cursor for SDL 1.2 using SDL_CreateCursor
-        // s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
-        s_cursor_nwse = nullptr;
+        // Create custom cursors for SDL 1.2 using SDL_CreateCursor
+        s_cursor_nwse = SDL_CreateCursor((Uint8*)cursor_nwse_data, (Uint8*)cursor_nwse_mask, 16, 16, 8, 8);
+        s_cursor_nesw = SDL_CreateCursor((Uint8*)cursor_nesw_data, (Uint8*)cursor_nesw_mask, 16, 16, 8, 8);
+        s_cursor_ew = SDL_CreateCursor((Uint8*)cursor_ew_data, (Uint8*)cursor_ew_mask, 16, 16, 8, 8);
+        s_cursor_ns = SDL_CreateCursor((Uint8*)cursor_ns_data, (Uint8*)cursor_ns_mask, 16, 16, 8, 8);
     }
 }
 
@@ -104,10 +168,10 @@ WindowFrameWidget::~WindowFrameWidget()
 {
     s_instance_count--;
     if (s_instance_count == 0) {
-        if (s_cursor_nwse) {
-            SDL_FreeCursor(s_cursor_nwse);
-            s_cursor_nwse = nullptr;
-        }
+        if (s_cursor_nwse) { SDL_FreeCursor(s_cursor_nwse); s_cursor_nwse = nullptr; }
+        if (s_cursor_nesw) { SDL_FreeCursor(s_cursor_nesw); s_cursor_nesw = nullptr; }
+        if (s_cursor_ew) { SDL_FreeCursor(s_cursor_ew); s_cursor_ew = nullptr; }
+        if (s_cursor_ns) { SDL_FreeCursor(s_cursor_ns); s_cursor_ns = nullptr; }
     }
 }
 
@@ -240,15 +304,15 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             if ((resize_edge & 1) && (resize_edge & 4)) { // Top-left corner
                 if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if ((resize_edge & 2) && (resize_edge & 4)) { // Top-right corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
             } else if ((resize_edge & 1) && (resize_edge & 8)) { // Bottom-left corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
             } else if ((resize_edge & 2) && (resize_edge & 8)) { // Bottom-right corner
                 if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if (resize_edge & 3) { // Left or right edge
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set east-west cursor
+                if (s_cursor_ew) SDL_SetCursor(s_cursor_ew);
             } else if (resize_edge & 12) { // Top or bottom edge
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set north-south cursor
+                if (s_cursor_ns) SDL_SetCursor(s_cursor_ns);
             }
         } else {
             // Reset to default cursor
