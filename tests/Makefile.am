@@ -360,13 +360,33 @@ check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_og
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
 	test_ogg_fuzzing test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
-	test_compression_lz77
+	test_compression_lz77 repro_ogg_duration_perf
 
 test_compression_lz77_SOURCES = test_compression_lz77.cpp
 test_compression_lz77_LDADD = \
 	$(top_builddir)/src/core/compression/libpsymp3-core-compression.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(LDADD)
+
+repro_ogg_duration_perf_SOURCES = repro_ogg_duration_perf.cpp
+repro_ogg_duration_perf_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(OGG_LIBS) \
+	$(VORBIS_LIBS) \
+	$(OPUS_LIBS) \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
