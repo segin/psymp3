@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include "core/SpectrumConfig.h"
 
 std::atomic<bool> Player::guiRunning{false};
 
@@ -518,24 +519,11 @@ void Player::precomputeSpectrumColors() {
     }
     Debug::log("player", "graph is valid.");
 
-    m_spectrum_colors.resize(320);
-    for (uint16_t x = 0; x < 320; ++x) {
-        uint8_t r, g, b;
-        if (x > 213) {
-            r = static_cast<uint8_t>((x - 214) * 2.4);
-            g = 0;
-            b = 255;
-        } else if (x < 106) {
-            r = 128;
-            g = 255;
-            b = static_cast<uint8_t>(x * 2.398);
-        } else {
-            r = static_cast<uint8_t>(128 - ((x - 106) * 1.1962615));
-            g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
-            b = 255;
-        }
-        // Debug::log("player", "x: ", x, " r: ", (int)r, " g: ", (int)g, " b: ", (int)b);
-        m_spectrum_colors[x] = graph->MapRGBA(r, g, b, 255);
+    m_spectrum_colors.resize(PsyMP3::Core::SpectrumConfig::NumBands);
+    for (uint16_t x = 0; x < PsyMP3::Core::SpectrumConfig::NumBands; ++x) {
+        auto color = PsyMP3::Core::SpectrumConfig::getBarColor(x);
+        // Debug::log("player", "x: ", x, " r: ", (int)color.r, " g: ", (int)color.g, " b: ", (int)color.b);
+        m_spectrum_colors[x] = graph->MapRGBA(color.r, color.g, color.b, 255);
     }
     Debug::log("player", "precomputeSpectrumColors finished.");
 }
@@ -593,7 +581,7 @@ void Player::renderSpectrum(Surface *graph) {
     // Cache constants to reduce repeated calculations
     constexpr int16_t spectrum_height = 350;
     constexpr int16_t spectrum_bottom = 349; // Bottom of the FFT area (0-349 for 350 pixels)
-    constexpr uint16_t spectrum_bins = 320;
+    constexpr uint16_t spectrum_bins = PsyMP3::Core::SpectrumConfig::NumBands;
     
     for(uint16_t x = 0; x < spectrum_bins; x++) {
         // Calculate the bar's height with fewer intermediate calculations
@@ -772,7 +760,7 @@ bool Player::updateGUI()
         if (m_spectrum_widget) {
             // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
             // Pass live scalefactor and decayfactor values so keypress changes propagate
-            m_spectrum_widget->updateSpectrum(spectrum, 320, scalefactor, decayfactor);
+            m_spectrum_widget->updateSpectrum(spectrum, PsyMP3::Core::SpectrumConfig::NumBands, scalefactor, decayfactor);
         }
     }
 

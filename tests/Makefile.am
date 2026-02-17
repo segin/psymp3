@@ -3954,6 +3954,15 @@ fuzz_utf8util_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
+# Spectrum Config tests
+check_PROGRAMS += test_spectrum_config
+test_spectrum_config_SOURCES = test_spectrum_config.cpp
+test_spectrum_config_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 
 # Run all check programs
 TESTS = $(check_PROGRAMS)
