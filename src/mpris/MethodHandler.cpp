@@ -1142,6 +1142,17 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
         }
+      } catch (const std::exception &e) {
+          logError_unlocked("appendAllPropertiesToMessage",
+                            "Failed to get property " + prop_name + ": " +
+                                e.what());
+          // Add empty variant as fallback
+          dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
+                                           &variant_iter);
+          const char *empty_str = "";
+          dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
+                                         &empty_str);
+          dbus_message_iter_close_container(&entry_iter, &variant_iter);
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
