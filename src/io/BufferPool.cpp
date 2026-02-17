@@ -234,6 +234,9 @@ void IOBufferPool::setMaxPoolSize(size_t max_bytes) {
     
     Debug::log("memory", "BufferPool::setMaxPoolSize() - Set max pool size to ", max_bytes, " bytes");
     
+    // Update effective limits immediately
+    adjustPoolParametersForMemoryPressure();
+
     // Evict if current size exceeds new limit
     if (m_current_pool_size > m_max_pool_size) {
         evictIfNeededInternal();
@@ -249,6 +252,9 @@ void IOBufferPool::setMaxBuffersPerSize(size_t max_buffers) {
     
     Debug::log("memory", "BufferPool::setMaxBuffersPerSize() - Set max buffers per size to ", max_buffers);
     
+    // Update effective limits immediately
+    adjustPoolParametersForMemoryPressure();
+
     // Trim existing pools if they exceed new limit
     for (auto& pool : m_pools) {
         while (pool.second.available_buffers.size() > m_max_buffers_per_size) {
