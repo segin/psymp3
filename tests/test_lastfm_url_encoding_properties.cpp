@@ -27,6 +27,7 @@
 #include <cassert>
 #include <cstdint>
 #include <random>
+#include <cstdio>
 #include <curl/curl.h>
 
 // ========================================
@@ -37,22 +38,42 @@
  * URL encode a string using libcurl (same as HTTPClient::urlEncode)
  */
 std::string urlEncode(const std::string& input) {
+    if (input.empty()) return "";
+
+    // Limit input size to prevent excessive memory allocation
+    const size_t MAX_URL_COMPONENT_SIZE = 1 * 1024 * 1024; // 1MB limit
+    if (input.length() > MAX_URL_COMPONENT_SIZE) {
+        return "";
+    }
+
     CURL *curl = curl_easy_init();
-    if (!curl) {
-        return input; // Fallback - return unencoded
+    if (curl) {
+        char *output = curl_easy_escape(curl, input.c_str(), static_cast<int>(input.length()));
+        if (output) {
+            std::string result(output);
+            curl_free(output);
+            curl_easy_cleanup(curl);
+            return result;
+        }
+        curl_easy_cleanup(curl);
     }
     
-    char *output = curl_easy_escape(curl, input.c_str(), static_cast<int>(input.length()));
+    // Fallback - use safe manual encoding
+    // RFC 3986 unreserved characters
     std::string result;
-    
-    if (output) {
-        result = output;
-        curl_free(output);
-    } else {
-        result = input; // Fallback - return unencoded
+    result.reserve(input.length() * 3);
+    for (unsigned char c : input) {
+        if ((c >= '0' && c <= '9') ||
+            (c >= 'A' && c <= 'Z') ||
+            (c >= 'a' && c <= 'z') ||
+            c == '-' || c == '.' || c == '_' || c == '~') {
+            result += c;
+        } else {
+            char buf[4];
+            snprintf(buf, sizeof(buf), "%%%02X", c);
+            result += buf;
+        }
     }
-    
-    curl_easy_cleanup(curl);
     return result;
 }
 
@@ -62,22 +83,36 @@ std::string urlEncode(const std::string& input) {
  */
 std::string urlDecode(const std::string& input) {
     CURL *curl = curl_easy_init();
-    if (!curl) {
-        return input; // Fallback - return undecoded
+    if (curl) {
+        int output_length = 0;
+        char *output = curl_easy_unescape(curl, input.c_str(), static_cast<int>(input.length()), &output_length);
+        if (output) {
+            std::string result(output, output_length);
+            curl_free(output);
+            curl_easy_cleanup(curl);
+            return result;
+        }
+        curl_easy_cleanup(curl);
     }
     
-    int output_length = 0;
-    char *output = curl_easy_unescape(curl, input.c_str(), static_cast<int>(input.length()), &output_length);
+    // Fallback - manual decoding
     std::string result;
-    
-    if (output) {
-        result = std::string(output, output_length);
-        curl_free(output);
-    } else {
-        result = input; // Fallback - return undecoded
+    result.reserve(input.length());
+    for (size_t i = 0; i < input.length(); ++i) {
+        if (input[i] == '%' && i + 2 < input.length()) {
+            int value;
+            if (sscanf(input.substr(i + 1, 2).c_str(), "%x", &value) == 1) {
+                result += static_cast<char>(value);
+                i += 2;
+            } else {
+                result += input[i];
+            }
+        } else if (input[i] == '+') {
+            result += ' ';
+        } else {
+            result += input[i];
+        }
     }
-    
-    curl_easy_cleanup(curl);
     return result;
 }
 
