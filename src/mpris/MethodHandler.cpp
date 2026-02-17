@@ -1015,7 +1015,7 @@ void MethodHandler::appendVariantToIter_unlocked(
 
 void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
-  DBusMessageIter args;
+  DBusMessageIter args, variant_iter;
   dbus_message_iter_init_append(reply, &args);
 
   if (property_name == "PlaybackStatus") {
@@ -1142,8 +1142,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
-        dbus_message_unref(temp_msg);
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
