@@ -266,7 +266,74 @@ void test_subframe_type_detection() {
     ASSERT_EQUALS(48, 0b110000, "LPC order 32 type bits");
 }
 
+// Test LPC subframe decoding (Order 1, Coeff 1, Shift 0)
+// Effectively same as FIXED order 1: s[i] = s[i-1] + residual
+void test_lpc_subframe_full() {
+    BitstreamReader reader;
+    ResidualDecoder residual(&reader);
+    SubframeDecoder decoder(&reader, &residual);
+
+    // Header: 100000 (LPC 1) | wasted 0 | bitdepth ...
+    // Byte 0: 0x40 (0100 0000)
+    // Warm-up: 10 (0x000A) -> Byte 1, 2: 0x00 0x0A
+    // LPC Params:
+    // Prec: 0011 (4 bits). Shift: 00000 (5 bits). Coeff: 0001 (4 bits).
+    // Stream: 0011 0000 0 0001 -> 00110000 00001...
+    // Residuals: Method 0 (00), PartOrder 0 (0000), RiceParam 0 (0000).
+    // Stream: ... 00 0000 0000
+    // Residuals data: 001 (1), 01 (-1), 1 (0).
+    // Stream: ... 001 01 1
+    // Padding: 000
+    // Bytes: 0x30, 0x08, 0x00, 0x2C
+
+    uint8_t data[] = {
+        0x40,        // Subframe header (LPC order 1)
+        0x00, 0x0A,  // Warm-up sample: 10
+        0x30,        // Prec(4) + Shift(high 4)
+        0x08,        // Shift(low 1) + Coeff(4) + Method(high 3)
+                     // Wait:
+                     // Prec: 0011
+                     // Shift: 00000
+                     // Coeff: 0001
+                     // 0011 0000 0 0001
+                     // Byte 3: 00110000 = 0x30
+                     // Next bits: 00001...
+                     // Method: 00
+                     // Part: 0000
+                     // Param: 0000
+                     // Res: 001 01 1
+                     // Stream after 0x30:
+                     // 0 0001 00 0000 0000 001 01 1 000
+                     // 0000 1000 -> 0x08
+                     // 0000 0000 -> 0x00
+                     // Residual 0 (001) starts at bit 23.
+                     // Bit 23: 0. (Last bit of Byte 2)
+                     // Byte 2 = 0x00.
+                     // Byte 3: 01 (Rest of Res 0) 01 (Res 1) 1 (Res 2) 000 (Pad)
+                     // 01 01 1 000 -> 0101 1000 -> 0x58.
+        0x00,        // Param(low 4) + Res(partial)
+        0x58         // Res(rest) + Padding
+    };
+
+    reader.feedData(data, sizeof(data));
+
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode LPC subframe");
+
+    // Expected output same as fixed order 1: 10, 11, 10, 10
+    ASSERT_EQUALS(10, output[0], "Sample 0");
+    ASSERT_EQUALS(11, output[1], "Sample 1");
+    ASSERT_EQUALS(10, output[2], "Sample 2");
+    ASSERT_EQUALS(10, output[3], "Sample 3");
+}
+
 int main() {
+    // Enable debug logging
+    // Debug::init("", {"subframe_decoder", "residual_decoder"});
+
     // Create test suite
     TestSuite suite("SubframeDecoder Unit Tests");
     
@@ -278,6 +345,7 @@ int main() {
     suite.addTest("Wasted Bits", test_wasted_bits);
     suite.addTest("Side Channel Bit Depth", test_side_channel_bit_depth);
     suite.addTest("LPC Predictor Structure", test_lpc_predictor_structure);
+    suite.addTest("LPC Subframe Full", test_lpc_subframe_full);
     suite.addTest("Subframe Type Detection", test_subframe_type_detection);
     
     // Run all tests
