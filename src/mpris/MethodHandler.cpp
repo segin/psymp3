@@ -1141,7 +1141,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
         }
-      }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
