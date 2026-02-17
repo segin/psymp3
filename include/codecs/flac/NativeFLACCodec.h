@@ -454,6 +454,9 @@ private:
     std::vector<int32_t> m_decode_buffer[MAX_CHANNELS];  // Per-channel decode buffers
     std::vector<int16_t> m_output_buffer;
     
+    // Performance statistics
+    mutable FLACCodecStats m_stats;
+
     // Threading mutexes (lock acquisition order documented above)
     mutable std::mutex m_state_mutex;
     mutable std::mutex m_decoder_mutex;
