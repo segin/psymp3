@@ -12,6 +12,8 @@ on:
 
 jobs:
   claude-review:
+    # Disabled due to API quota exhaustion ("Credit balance is too low")
+    if: false
     # Optional: Filter by PR author
     # if: |
     #   github.event.pull_request.user.login == 'external-contributor' ||
