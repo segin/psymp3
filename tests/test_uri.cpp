@@ -66,6 +66,12 @@ protected:
         URI uri8("file:///C:/path/to/file");
         ASSERT_EQUALS("file", uri8.scheme().to8Bit(true), "Scheme should be file");
         ASSERT_EQUALS("/C:/path/to/file", uri8.path().to8Bit(true), "Path should be extracted correctly including drive letter");
+
+        // Test generic scheme with authority
+        // smb://server/share/file
+        URI uri9("smb://server/share/file");
+        ASSERT_EQUALS("smb", uri9.scheme().to8Bit(true), "Scheme should be smb");
+        ASSERT_EQUALS("server/share/file", uri9.path().to8Bit(true), "Path should be extracted correctly");
     }
 };
 
