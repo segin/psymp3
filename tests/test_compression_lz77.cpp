@@ -104,7 +104,8 @@ int unit_tests() {
         }
         
         // Should be significantly compressed
-        ASSERT_TRUE(compressed.size() < 100); 
+        // 1000 bytes with max match length 18 (2 bytes token + 1/8 flag overhead) -> ~120-130 bytes
+        ASSERT_TRUE(compressed.size() < 150);
     }
 
     std::cout << "[UNIT] Passed.\n";
@@ -199,10 +200,107 @@ int fuzzer_tests() {
     return 0;
 }
 
+// Edge Case Tests
+int edge_case_tests() {
+    std::cout << "[EDGE] Running edge case tests...\n";
+
+    LZ77Decompressor decompressor;
+
+    // Test 1: Truncated Input (Flags only, Literal)
+    {
+        // 0x00 flags = 8 literals. But no data.
+        std::vector<uint8_t> input = { 0x00 };
+        auto output = decompressor.decompress(input.data(), input.size());
+        // Should handle gracefully and produce empty output
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // Test 2: Truncated Input (Flags only, Reference)
+    {
+        // 0x01 flags = 1st bit Ref. But no data.
+        std::vector<uint8_t> input = { 0x01 };
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // Test 3: Truncated Reference (Partial data)
+    {
+        // 0x01 flags = 1st bit Ref. Need 2 bytes. Only 1 provided.
+        // Data: [Flags=0x01, Byte1=0x00]
+        std::vector<uint8_t> input = { 0x01, 0x00 };
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // Test 4: Truncated Literal
+    {
+        // 0x00 flags = 8 literals. 1st bit is Literal. Need 1 byte. 0 provided.
+        // Data: [Flags=0x00]
+        // Checked in Test 1, but let's be explicit
+        std::vector<uint8_t> input = { 0x00 };
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // Test 5: Invalid Backreference (Distance > Output Size)
+    {
+        // Flags=0x01 (Ref).
+        // Ref: Dist=5, Length=3.
+        // Encoding: <Distance:12><Length:4> (Wait, implementation format is different)
+
+        // Implementation:
+        // b1 = (dist >> 4) & 0xFF
+        // b2 = ((dist & 0x0F) << 4) | (len_code & 0x0F)
+        // len_code = length - 3
+
+        // Let's encode Distance=100 (0x64), Length=3 (code 0).
+        // b1 = (0x64 >> 4) = 0x06
+        // b2 = ((0x64 & 0x0F) << 4) | 0 = (0x04 << 4) = 0x40
+
+        // Input: [0x01, 0x06, 0x40]
+        // Output size is 0 initially. Distance 100 > 0.
+        // Code should clamp distance to output.size() (0).
+        // If distance becomes 0, it does nothing.
+
+        std::vector<uint8_t> input = { 0x01, 0x06, 0x40 };
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // Test 6: Zero Distance
+    {
+        // Distance=0.
+        // b1 = 0
+        // b2 = 0 (len code 0)
+        std::vector<uint8_t> input = { 0x01, 0x00, 0x00 };
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // Test 7: Non-multiple of 8 input items
+    {
+        // Flags=0x00 (8 Literals).
+        // Provide 3 bytes: 'A', 'B', 'C'.
+        // Loop should run 3 times then stop because cursor >= size.
+        std::vector<uint8_t> input = { 0x00, 'A', 'B', 'C' };
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 3);
+        if (output.size() == 3) {
+            ASSERT_EQ(output[0], 'A');
+            ASSERT_EQ(output[1], 'B');
+            ASSERT_EQ(output[2], 'C');
+        }
+    }
+
+    std::cout << "[EDGE] Passed.\n";
+    return 0;
+}
+
 int main(int argc, char** argv) {
     if (unit_tests() != 0) return 1;
     if (property_tests() != 0) return 1;
     if (fuzzer_tests() != 0) return 1;
+    if (edge_case_tests() != 0) return 1;
     
     std::cout << "All LZ77 tests passed successfully.\n";
     return 0;
