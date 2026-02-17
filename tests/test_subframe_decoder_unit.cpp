@@ -4,13 +4,19 @@
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include <cstdint>
+#include <vector>
+#include <cstring>
+#include <iostream>
+#endif
+
 #include "test_framework.h"
 #include "codecs/flac/SubframeDecoder.h"
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/ResidualDecoder.h"
-#include <cstring>
-#include <vector>
 
 using namespace PsyMP3::Codec::FLAC;
 using namespace TestFramework;
@@ -72,8 +78,8 @@ void test_verbatim_subframe() {
     ASSERT_EQUALS(4, output[3], "Sample 3 should be 4");
 }
 
-// Test FIXED predictor order 0
-void test_fixed_predictor_order_0() {
+// Test FIXED predictor order 0 (Full decoding)
+void test_fixed_predictor_order_0_full() {
     // FIXED order 0 is just the residuals (no prediction)
     BitstreamReader reader;
     ResidualDecoder residual(&reader);
@@ -83,36 +89,83 @@ void test_fixed_predictor_order_0() {
     // Subframe header: 0|001000|0 = 0x10
     // No warm-up samples for order 0
     // Residuals follow
+
+    // Residuals: 1 (zigzag 2->001), -1 (zigzag 1->01), 0 (zigzag 0->1), 2 (zigzag 4->00001)
+    // Bits: 001 01 1 00001. Total 11 bits.
+    // Header bits: Method 0 (00), PartOrder 0 (0000), RiceParam 0 (0000). Total 10 bits.
+    // Total bits: 21 bits.
+    // Bytes:
+    // Byte 0: 0x10 (Subframe Header)
+    // Residual Header + Residuals:
+    // 00 0000 0000 001 01 1 00001 000 (padding)
+    // 0000 0000 -> 0x00
+    // 0000 1011 -> 0x0B
+    // 0000 1000 -> 0x08
+
     uint8_t data[] = {
         0x10,  // Subframe header (FIXED order 0)
-        // Residual coding would follow here
-        // For this test, we're just testing the structure
+        0x00,  // Method, Order, Param (part 1)
+        0x0B,  // Param (part 2), Res 0, Res 1, Res 2
+        0x08   // Res 3, padding
     };
     reader.feedData(data, sizeof(data));
     
-    // The decoder should recognize FIXED order 0
-    // (Full test would require valid residual data)
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode FIXED order 0 subframe");
+
+    ASSERT_EQUALS(1, output[0], "Sample 0 should be 1");
+    ASSERT_EQUALS(-1, output[1], "Sample 1 should be -1");
+    ASSERT_EQUALS(0, output[2], "Sample 2 should be 0");
+    ASSERT_EQUALS(2, output[3], "Sample 3 should be 2");
 }
 
-// Test FIXED predictor order 1
-void test_fixed_predictor_order_1() {
-    // FIXED order 1: s[i] = residual[i] + s[i-1]
+// Test FIXED predictor order 1 (Full decoding)
+void test_fixed_predictor_full_decoding() {
     BitstreamReader reader;
     ResidualDecoder residual(&reader);
     SubframeDecoder decoder(&reader, &residual);
     
     // FIXED order 1: type=001001 (9), wasted_bits=0
     // Subframe header: 0|001001|0 = 0x12
-    // 1 warm-up sample
-    // Residuals follow
+    // Warm-up sample: 10 (0x000A)
+    // Residuals: Method 0 (4-bit Rice), PartOrder 0 (1 part), RiceParam 0
+    // Residuals: 1 (zigzag 2->001), -1 (zigzag 1->01), 0 (zigzag 0->1)
+    // Bits: 00 0000 0000 001 01 1. Total 16 bits.
+    // Padding: 0000. Total 20 bits. Next byte boundary: 24 bits.
+    // Bytes:
+    // Header: 0x12
+    // Warm-up: 0x00, 0x0A
+    // Residuals: 0000 0000 -> 0x00.
+    // Residuals + Padding: 0000 1011 -> 0x0B.
+
     uint8_t data[] = {
         0x12,        // Subframe header (FIXED order 1)
         0x00, 0x0A,  // Warm-up sample: 10
-        // Residual coding would follow
+        0x00,        // Residual header (Method 0, PartOrder 0) + RiceParam (0)
+        0x0B         // Residuals: 001 (1), 01 (-1), 1 (0) + Padding
     };
     reader.feedData(data, sizeof(data));
     
-    // The decoder should recognize FIXED order 1 and read warm-up sample
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    // Block size 4, bit depth 16
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode FIXED subframe");
+
+    // Expected output:
+    // s[0] = 10
+    // s[1] = 10 + 1 = 11
+    // s[2] = 11 + (-1) = 10
+    // s[3] = 10 + 0 = 10
+
+    ASSERT_EQUALS(10, output[0], "Sample 0 should be 10");
+    ASSERT_EQUALS(11, output[1], "Sample 1 should be 11");
+    ASSERT_EQUALS(10, output[2], "Sample 2 should be 10");
+    ASSERT_EQUALS(10, output[3], "Sample 3 should be 10");
 }
 
 // Test wasted bits handling
@@ -220,8 +273,8 @@ int main() {
     // Add test functions
     suite.addTest("CONSTANT Subframe", test_constant_subframe);
     suite.addTest("VERBATIM Subframe", test_verbatim_subframe);
-    suite.addTest("FIXED Predictor Order 0", test_fixed_predictor_order_0);
-    suite.addTest("FIXED Predictor Order 1", test_fixed_predictor_order_1);
+    suite.addTest("FIXED Predictor Order 0 Full", test_fixed_predictor_order_0_full);
+    suite.addTest("FIXED Predictor Order 1 Full", test_fixed_predictor_full_decoding);
     suite.addTest("Wasted Bits", test_wasted_bits);
     suite.addTest("Side Channel Bit Depth", test_side_channel_bit_depth);
     suite.addTest("LPC Predictor Structure", test_lpc_predictor_structure);
