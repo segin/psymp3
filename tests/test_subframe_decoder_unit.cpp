@@ -190,6 +190,61 @@ void test_lpc_predictor_structure() {
     // (Full test would require complete LPC data)
 }
 
+// Test full LPC subframe decoding with residuals
+void test_lpc_subframe_decoding() {
+    BitstreamReader reader;
+
+    // Construct bitstream
+    std::vector<uint8_t> data;
+
+    // Header: 0 (zero bit) | 100000 (LPC order 1) | 0 (wasted bits)
+    // 01000000 = 0x40
+    data.push_back(0x40);
+
+    // Warm-up sample: 10 (0x000A) - 16 bits
+    data.push_back(0x00);
+    data.push_back(0x0A);
+
+    // LPC parameters and residuals
+    // Precision (4): 0011 (3 -> 4 bits precision)
+    // Shift (5): 00000 (0)
+    // Coeffs (4): 0010 (2)
+    // Method (2): 00 (Rice 4-bit)
+    // Partition order (4): 0000 (0)
+    // Rice param (4): 0000 (0)
+    // Residual 0 (1): 1
+    // Residual -1 (2): 01
+    // Residual 1 (3): 001
+
+    // Bytes: 0x30, 0x10, 0x01, 0x48 (verified in repro_lpc_decode.cpp)
+    data.push_back(0x30);
+    data.push_back(0x10);
+    data.push_back(0x01);
+    data.push_back(0x48);
+
+    reader.feedData(data.data(), data.size());
+
+    ResidualDecoder residual(&reader);
+    SubframeDecoder decoder(&reader, &residual);
+
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode LPC subframe");
+
+    // Expected output:
+    // Sample 0: 10 (Warm-up)
+    // Sample 1: Pred(10*2 >> 0) + Res(0) = 20 + 0 = 20
+    // Sample 2: Pred(20*2 >> 0) + Res(-1) = 40 - 1 = 39
+    // Sample 3: Pred(39*2 >> 0) + Res(1) = 78 + 1 = 79
+
+    ASSERT_EQUALS(10, output[0], "Sample 0 check");
+    ASSERT_EQUALS(20, output[1], "Sample 1 check");
+    ASSERT_EQUALS(39, output[2], "Sample 2 check");
+    ASSERT_EQUALS(79, output[3], "Sample 3 check");
+}
+
 // Test subframe type detection
 void test_subframe_type_detection() {
     // Test that different subframe types are correctly identified
@@ -225,6 +280,7 @@ int main() {
     suite.addTest("Wasted Bits", test_wasted_bits);
     suite.addTest("Side Channel Bit Depth", test_side_channel_bit_depth);
     suite.addTest("LPC Predictor Structure", test_lpc_predictor_structure);
+    suite.addTest("LPC Subframe Decoding", test_lpc_subframe_decoding);
     suite.addTest("Subframe Type Detection", test_subframe_type_detection);
     
     // Run all tests
