@@ -22,6 +22,8 @@
  */
 
 #include "psymp3.h"
+#include <chrono>
+#include <algorithm>
 
 #ifdef HAVE_NATIVE_FLAC
 
@@ -50,6 +52,9 @@ FLACCodec::FLACCodec(const StreamInfo& stream_info)
               stream_info.codec_name, ", ", stream_info.sample_rate, "Hz, ",
               stream_info.channels, " channels, ", stream_info.bits_per_sample, " bits");
     
+    // Explicitly initialize stats (although default constructor does this)
+    m_stats.min_frame_decode_time_us = UINT64_MAX;
+
     // Pre-allocate buffers for performance (Requirement 65)
     m_input_buffer.reserve(INPUT_BUFFER_SIZE);  // 64KB input buffer
     
@@ -199,7 +204,11 @@ uint64_t FLACCodec::getCurrentSample() const {
 }
 
 FLACCodecStats FLACCodec::getStats() const {
-    std::lock_guard<std::mutex> lock(m_state_mutex);
+    // Acquire all locks in documented order to ensure thread safety when reading stats
+    // and vector capacities. This prevents race conditions with decode() and other threads.
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
 
     // Create a copy of current stats
     FLACCodecStats stats = m_stats;
@@ -1369,7 +1378,7 @@ void FLACCodec::recoverFromMemoryError() {
 void FLACCodec::handleUnrecoverableError() {
     Debug::log("flac_codec", "[NativeFLACCodec::handleUnrecoverableError] Handling unrecoverable error");
     
-    m_stats.error_count++;
+    // Note: m_stats.error_count is incremented by caller (exception handler or recover function)
 
     // Transition to ERROR state (Requirement 11.8)
     m_state = DecoderState::DECODER_ERROR;
