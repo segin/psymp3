@@ -377,6 +377,25 @@ void Player::prevTrack(void) {
 }
 
 /**
+ * @brief Checks if it is possible to go to the next track.
+ * @return `true` if next track is available or looping is enabled.
+ */
+bool Player::canGoNext(void) const {
+    if (!playlist || playlist->entries() == 0) return false;
+    if (m_loop_mode == LoopMode::All) return true;
+    return playlist->getPosition() < playlist->entries() - 1;
+}
+
+/**
+ * @brief Checks if it is possible to go to the previous track.
+ * @return `true` if previous track is available or looping is enabled.
+ */
+bool Player::canGoPrev(void) const {
+    if (!playlist || playlist->entries() == 0) return false;
+    return true;
+}
+
+/**
  * @brief Stops playback completely.
  * Resets the stream and audio device.
  * @return `true` always.

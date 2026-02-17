@@ -116,6 +116,8 @@ class Player
 
         void nextTrack(size_t advance_count = 1);
         void prevTrack(void);
+        bool canGoNext(void) const;
+        bool canGoPrev(void) const;
         bool stop(void);
         bool pause(void);
         bool play(void);
