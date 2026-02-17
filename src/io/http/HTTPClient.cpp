@@ -9,10 +9,22 @@
 
 #include "psymp3.h"
 #include <cstdio>
+#include <string>
+#include <vector>
+#include <map>
+#include <mutex>
+#include <atomic>
+#include <thread>
+#include <chrono>
+#include <iostream>
+#include <sstream>
+#include <algorithm>
 
 namespace PsyMP3 {
 namespace IO {
 namespace HTTP {
+
+#ifndef HTTP_CLIENT_NO_CURL
 
 // Thread-safe RAII wrapper for global curl initialization with proper cleanup
 class CurlLifecycleManager {
@@ -168,6 +180,10 @@ std::mutex CurlLifecycleManager::s_pool_mutex;
 std::unordered_map<std::string, std::vector<CURL*>> CurlLifecycleManager::s_connection_pool;
 std::chrono::steady_clock::time_point CurlLifecycleManager::s_last_pool_cleanup = std::chrono::steady_clock::now();
 static CurlLifecycleManager s_curl_manager;
+
+#endif // HTTP_CLIENT_NO_CURL
+
+#ifndef HTTP_CLIENT_NO_CURL
 
 // C-style callback functions for libcurl
 static size_t writeCallback(void *contents, size_t size, size_t nmemb, void *userp) {
@@ -441,6 +457,8 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
     return response;
 }
 
+#endif // HTTP_CLIENT_NO_CURL
+
 std::string HTTPClient::urlEncode(const std::string& input) {
     if (input.empty()) {
         return "";
@@ -453,6 +471,7 @@ std::string HTTPClient::urlEncode(const std::string& input) {
         return "";
     }
 
+#ifndef HTTP_CLIENT_NO_CURL
     if (CurlLifecycleManager::isInitialized()) {
         CURL *curl = curl_easy_init();
         if (curl) {
@@ -466,6 +485,7 @@ std::string HTTPClient::urlEncode(const std::string& input) {
             curl_easy_cleanup(curl);
         }
     }
+#endif
     
     // Fallback if curl is not initialized, failed to init, or failed to escape.
     // Use a safe, manual encoding to avoid security risks of returning unencoded input.
@@ -533,6 +553,8 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
     return !host.empty();
 }
 
+#ifndef HTTP_CLIENT_NO_CURL
+
 void HTTPClient::closeAllConnections() {
     // Thread-safe cleanup of connection pool and libcurl resources
     CurlLifecycleManager::cleanupConnectionPool();
@@ -576,6 +598,8 @@ void HTTPClient::cleanupSSL() {
     CurlLifecycleManager::forceCleanup();
     Debug::log("http", "HTTPClient::cleanupSSL() - SSL cleanup handled by libcurl cleanup");
 }
+
+#endif // HTTP_CLIENT_NO_CURL
 
 } // namespace HTTP
 } // namespace IO

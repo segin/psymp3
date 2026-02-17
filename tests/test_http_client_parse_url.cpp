@@ -76,6 +76,36 @@ protected:
 
         // 12. Invalid port (empty after colon)
         ASSERT_FALSE(HTTPClient::parseURL("http://example.com:/path", host, port, path, isHttps), "URL with empty port after colon should return false");
+
+        // 13. Port limits
+        ASSERT_TRUE(HTTPClient::parseURL("http://example.com:0", host, port, path, isHttps), "URL with port 0 should be parsed");
+        ASSERT_EQUALS(0, port, "Port should be 0");
+
+        ASSERT_TRUE(HTTPClient::parseURL("http://example.com:65535", host, port, path, isHttps), "URL with port 65535 should be parsed");
+        ASSERT_EQUALS(65535, port, "Port should be 65535");
+
+        // 14. IPv6 (Current limitations check)
+        // Currently IPv6 is not supported by the simple parser because of colons
+        // This test documents the limitation or verifies if it works unexpectedly
+        // With current implementation: [::1]:8080 -> host=[, port fails
+        ASSERT_FALSE(HTTPClient::parseURL("http://[::1]:8080/path", host, port, path, isHttps), "IPv6 with port currently fails");
+
+        // 15. Basic Auth (Current limitations check)
+        // http://user:pass@example.com -> host=user, port fails on "pass@example.com"
+        ASSERT_FALSE(HTTPClient::parseURL("http://user:pass@example.com/path", host, port, path, isHttps), "Basic auth currently fails");
+
+        // 16. Subdomain with many dots
+        ASSERT_TRUE(HTTPClient::parseURL("http://a.b.c.d.e.f.example.com", host, port, path, isHttps), "URL with many subdomains should be parsed");
+        ASSERT_EQUALS("a.b.c.d.e.f.example.com", host, "Host should be fully extracted");
+
+        // 17. Weird but valid paths
+        ASSERT_TRUE(HTTPClient::parseURL("http://example.com/path//with//double//slashes", host, port, path, isHttps), "URL with double slashes in path should be parsed");
+        ASSERT_EQUALS("/path//with//double//slashes", path, "Path should preserve slashes");
+
+        // 18. Just scheme and host
+        ASSERT_TRUE(HTTPClient::parseURL("https://example.com", host, port, path, isHttps), "HTTPS URL without path");
+        ASSERT_TRUE(isHttps, "Should be HTTPS");
+        ASSERT_EQUALS(443, port, "Port should be 443");
     }
 };
 
