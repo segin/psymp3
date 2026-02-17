@@ -3957,3 +3957,16 @@ fuzz_utf8util_LDADD = \
 
 # Run all check programs
 TESTS = $(check_PROGRAMS)
+
+if HAVE_DBUS
+check_PROGRAMS += test_loop_status
+test_loop_status_SOURCES = test_loop_status.cpp player_stub.cpp
+test_loop_status_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/mpris/libpsymp3-mpris.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(DBUS_LIBS) \
+	$(AM_LDFLAGS)
+endif

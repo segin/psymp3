@@ -9,6 +9,9 @@
 // Stub implementations for Player methods used by MethodHandler
 // These are only used for testing and don't need to do anything meaningful
 
+// Global variable to track loop mode for testing
+LoopMode g_last_loop_mode = LoopMode::None;
+
 bool Player::play() {
     return true; // Always succeed for testing
 }
@@ -25,7 +28,7 @@ bool Player::playPause() {
     return true; // Always succeed for testing
 }
 
-void Player::nextTrack(unsigned long count) {
+void Player::nextTrack(size_t count) {
     (void)count; // Suppress unused parameter warning
     // Do nothing for testing
 }
@@ -51,4 +54,12 @@ void Player::setVolume(double volume) {
 
 double Player::getVolume() const {
     return 1.0; // Return dummy volume (1.0 = 100%)
+}
+
+void Player::setLoopMode(LoopMode mode) {
+    g_last_loop_mode = mode;
+}
+
+LoopMode Player::getLoopMode() const {
+    return g_last_loop_mode;
 }
