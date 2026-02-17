@@ -264,11 +264,8 @@ bool SubframeDecoder::decodeFixed(int32_t *output, uint32_t block_size,
   // Decode residuals (Requirement 4)
   uint32_t residual_count = block_size - order;
   if (residual_count > 0) {
-    // TODO: This will be implemented when ResidualDecoder (Task 7) is complete
-    // For now, we'll use a placeholder that will fail
     if (!m_residual) {
-      Debug::log("subframe_decoder",
-                 "ResidualDecoder not available (Task 7 not yet complete)");
+      Debug::log("subframe_decoder", "ResidualDecoder not available");
       return false;
     }
 
@@ -375,11 +372,8 @@ bool SubframeDecoder::decodeLPC(int32_t *output, uint32_t block_size,
   // Decode residuals (Requirement 5)
   uint32_t residual_count = block_size - order;
   if (residual_count > 0) {
-    // TODO: This will be implemented when ResidualDecoder (Task 7) is complete
-    // For now, we'll use a placeholder that will fail
     if (!m_residual) {
-      Debug::log("subframe_decoder",
-                 "ResidualDecoder not available (Task 7 not yet complete)");
+      Debug::log("subframe_decoder", "ResidualDecoder not available");
       delete[] coeffs;
       return false;
     }
