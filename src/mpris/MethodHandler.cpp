@@ -1016,6 +1016,9 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
 
+  // Iterator for variant containers
+  DBusMessageIter variant_iter;
+
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus()));
@@ -1142,8 +1145,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
         }
-        dbus_message_unref(temp_msg);
-      }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
