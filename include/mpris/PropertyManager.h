@@ -77,8 +77,9 @@ public:
     /**
      * Update cached volume
      * @param volume Volume level (0.0 to 1.0)
+     * @return true if the volume changed, false otherwise
      */
-    void updateVolume(double volume);
+    bool updateVolume(double volume);
 
     /**
      * Get current playback status as string for D-Bus
@@ -158,7 +159,7 @@ private:
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);
-    void updateVolume_unlocked(double volume);
+    bool updateVolume_unlocked(double volume);
     
     std::string getPlaybackStatus_unlocked() const;
     std::map<std::string, PsyMP3::MPRIS::DBusVariant> getMetadata_unlocked() const;

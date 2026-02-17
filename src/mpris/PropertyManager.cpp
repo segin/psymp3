@@ -55,9 +55,9 @@ void PropertyManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
   updateLoopStatus_unlocked(status);
 }
 
-void PropertyManager::updateVolume(double volume) {
+bool PropertyManager::updateVolume(double volume) {
   std::lock_guard<std::mutex> lock(m_mutex);
-  updateVolume_unlocked(volume);
+  return updateVolume_unlocked(volume);
 }
 
 std::string PropertyManager::getPlaybackStatus() const {
@@ -163,10 +163,16 @@ void PropertyManager::updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status
   m_loop_status = status;
 }
 
-void PropertyManager::updateVolume_unlocked(double volume) {
+bool PropertyManager::updateVolume_unlocked(double volume) {
   if (volume < 0.0) volume = 0.0;
   if (volume > 1.0) volume = 1.0;
+
+  if (std::abs(m_volume - volume) < 1e-6) {
+    return false;
+  }
+
   m_volume = volume;
+  return true;
 }
 
 std::string PropertyManager::getPlaybackStatus_unlocked() const {

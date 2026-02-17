@@ -311,8 +311,9 @@ void MPRISManager::updateVolume_unlocked(double volume) {
     }
 
     try {
-        m_properties->updateVolume(volume);
-        emitPropertyChanges_unlocked();
+        if (m_properties->updateVolume(volume)) {
+            emitPropertyChanges_unlocked();
+        }
     } catch (const std::exception& e) {
         MPRISError error(
             MPRISError::Category::PlayerState,

@@ -310,17 +310,24 @@ public:
         ASSERT_EQUALS(volume, 1.0, "Initial volume should be 1.0");
 
         // Test updating volume
-        m_property_manager->updateVolume(0.5);
+        bool changed = m_property_manager->updateVolume(0.5);
+        ASSERT_TRUE(changed, "Volume update should return true when changed");
         volume = m_property_manager->getVolume();
         ASSERT_EQUALS(volume, 0.5, "Volume should be 0.5 after update");
 
+        // Test updating to same volume
+        changed = m_property_manager->updateVolume(0.5);
+        ASSERT_FALSE(changed, "Volume update should return false when unchanged");
+
         // Test volume clamping (lower bound)
-        m_property_manager->updateVolume(-0.5);
+        changed = m_property_manager->updateVolume(-0.5);
+        ASSERT_TRUE(changed, "Volume update should return true when clamped value is different");
         volume = m_property_manager->getVolume();
         ASSERT_EQUALS(volume, 0.0, "Volume should be clamped to 0.0");
 
         // Test volume clamping (upper bound)
-        m_property_manager->updateVolume(1.5);
+        changed = m_property_manager->updateVolume(1.5);
+        ASSERT_TRUE(changed, "Volume update should return true when clamped value is different");
         volume = m_property_manager->getVolume();
         ASSERT_EQUALS(volume, 1.0, "Volume should be clamped to 1.0");
 
@@ -330,7 +337,8 @@ public:
         ASSERT_EQUALS(properties["Volume"].get<double>(), 1.0, "Volume in properties map should be 1.0");
 
         // Update again and verify map
-        m_property_manager->updateVolume(0.75);
+        changed = m_property_manager->updateVolume(0.75);
+        ASSERT_TRUE(changed, "Volume update should return true when changed");
         properties = m_property_manager->getAllProperties();
         ASSERT_EQUALS(properties["Volume"].get<double>(), 0.75, "Volume in properties map should be 0.75");
     }
