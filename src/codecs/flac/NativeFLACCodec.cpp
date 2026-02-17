@@ -206,6 +206,7 @@ uint64_t FLACCodec::getCurrentSample() const {
 FLACCodecStats FLACCodec::getStats() const {
     // Acquire all locks in documented order to ensure thread safety when reading stats
     // and vector capacities. This prevents race conditions with decode() and other threads.
+    // Note: We use scoped locking for thread safety across all members.
     std::lock_guard<std::mutex> state_lock(m_state_mutex);
     std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
     std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
