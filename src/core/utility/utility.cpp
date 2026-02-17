@@ -21,7 +21,13 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include <algorithm>
+#include <cmath>
+#include "core/utility/utility.h"
+#endif
 
 float PsyMP3::Core::Utility::logarithmicScale(const int f, float x) {
   x = std::clamp(x, 0.0f, 1.0f);
