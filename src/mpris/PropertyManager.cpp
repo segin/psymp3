@@ -230,9 +230,9 @@ PropertyManager::getAllProperties_unlocked() const {
                                    PsyMP3::MPRIS::DBusVariant(false)));
 
   // Metadata
-  auto metadata_dict = getMetadata_unlocked();
+  // We use our recursive variant support to handle the dict-in-dict structure properly
   properties.insert(std::make_pair(std::string("Metadata"),
-                                   PsyMP3::MPRIS::DBusVariant(metadata_dict)));
+                                   PsyMP3::MPRIS::DBusVariant(getMetadata_unlocked())));
 
   // Volume (not implemented, use 1.0)
   properties.insert(
