@@ -210,6 +210,7 @@ private:
     IOBufferPool& operator=(const IOBufferPool&) = delete;
     
     struct PoolEntry {
+        mutable std::mutex mutex;
         std::vector<uint8_t*> available_buffers;
         size_t buffer_size;
         size_t total_allocated;
@@ -225,11 +226,11 @@ private:
         double getHitRate() const;
     };
     
-    mutable std::mutex m_mutex;
-    std::map<size_t, PoolEntry> m_pools;
+    mutable std::shared_mutex m_pools_mutex;
+    std::map<size_t, std::unique_ptr<PoolEntry>> m_pools;
     size_t m_max_pool_size = 16 * 1024 * 1024;     // 16MB default max pool size
     size_t m_max_buffers_per_size = 8;             // 8 buffers per size default
-    size_t m_current_pool_size = 0;                // Current total pooled memory
+    std::atomic<size_t> m_current_pool_size{0};    // Current total pooled memory
     
     // Memory pressure monitoring
     MemoryPressureLevel m_memory_pressure_level;   // Current memory pressure level
