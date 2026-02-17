@@ -96,9 +96,9 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
         // SDL 1.2 doesn't support SDL_CreateSystemCursor.
         // Implement custom cursor for SDL 1.2 using SDL_CreateCursor
 
-        // 16x16 NWSE arrow cursor data (diagonal double arrow)
-        // 1 = black, 0 = transparent (when using same data for mask)
-        static const Uint8 cursor_nwse_data[] = {
+        // 16x16 NWSE arrow cursor mask (shape)
+        // 1 = opaque, 0 = transparent
+        static const Uint8 cursor_nwse_mask[] = {
             // Row 0-15 (16 rows, 2 bytes each)
             // MSB first
             0x80, 0x00, // 10000000 00000000 (Top-left start)
@@ -119,11 +119,21 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
             0x00, 0x01  // 00000000 00000001 (Bottom-right end)
         };
 
-        // In SDL 1.2, data=1 mask=1 is black. data=0 mask=0 is transparent.
-        // We use the same array for data and mask to get a simple black cursor.
-        // const_cast is needed because SDL 1.2 API takes non-const Uint8*
+        // Cursor color data (black=1, white=0)
+        // Using all zeros produces a white cursor where mask is 1
+        static const Uint8 cursor_nwse_data[] = {
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0
+        };
+
+        // SDL 1.2 Cursor:
+        // Mask=1, Data=0 => White
+        // Mask=1, Data=1 => Black
+        // Mask=0 => Transparent
         s_cursor_nwse = SDL_CreateCursor(const_cast<Uint8*>(cursor_nwse_data),
-                                         const_cast<Uint8*>(cursor_nwse_data),
+                                         const_cast<Uint8*>(cursor_nwse_mask),
                                          16, 16, 7, 7);
     }
 }
