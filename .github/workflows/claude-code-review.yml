@@ -18,6 +18,7 @@ jobs:
     #   github.event.pull_request.user.login == 'new-developer' ||
     #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
     
+    if: false # Disabled due to low API credits causing CI failure
     runs-on: ubuntu-latest
     permissions:
       contents: write
