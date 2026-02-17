@@ -239,7 +239,7 @@ bool ISODemuxer::parseContainer() {
         });
         
         boxParser->ParseBoxRecursively(0, static_cast<uint64_t>(file_size), 
-            [this, &containerType, &foundFileType, &foundMovie, &hasFragments, sharedHandler, file_size](const BoxHeader& header, uint64_t boxOffset) {
+            [this, &containerType, &foundFileType, &foundMovie, &hasFragments, sharedHandler, file_size](const BoxHeader& header, uint64_t boxOffset, uint32_t depth) {
                 // Validate box structure compliance
                 BoxSizeValidationResult sizeValidation = complianceValidator->ValidateBoxStructure(
                     header.type, header.size, boxOffset, static_cast<uint64_t>(file_size));
@@ -801,7 +801,7 @@ uint64_t ISODemuxer::getPosition() const {
 
 bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
     bool success = boxParser->ParseBoxRecursively(offset, size, 
-        [this](const BoxHeader& header, uint64_t boxOffset) {
+        [this](const BoxHeader& header, uint64_t boxOffset, uint32_t depth) {
             // Validate box nesting compliance within movie box
             if (complianceValidator && !complianceValidator->ValidateBoxNesting(header.type, BOX_MOOV)) {
                 std::string boxTypeStr = complianceValidator->BoxTypeToString(header.type);
@@ -818,7 +818,7 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
                         AudioTrackInfo track = {};
                         if (boxParser->ParseTrackBox(header.dataOffset, 
                                                    header.size - (header.dataOffset - boxOffset), 
-                                                   track)) {
+                                                   track, depth)) {
                             // Validate track compliance
                             bool trackValidation = complianceValidator->ValidateTrackCompliance(track);
                             if (!trackValidation) {
@@ -848,7 +848,7 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size) {
                 default:
                     return boxParser->SkipUnknownBox(header);
             }
-        });
+        }, 1);
     
     // After parsing all tracks, build sample tables for the first audio track
     if (success && !audioTracks.empty()) {

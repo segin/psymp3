@@ -382,6 +382,10 @@ test_boxparser_vulnerability_SOURCES = test_boxparser_vulnerability.cpp
 test_boxparser_vulnerability_LDADD = $(COMMON_TEST_LIBS) \
  $(RAPIDCHECK_LIBS)
 
+check_PROGRAMS += test_boxparser_recursion
+test_boxparser_recursion_SOURCES = test_boxparser_recursion.cpp
+test_boxparser_recursion_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 test_opus_codec_property_SOURCES = test_opus_codec_property.cpp
 test_opus_codec_property_LDADD = \
 	$(FULL_CODEC_LIBS) \
