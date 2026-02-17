@@ -30,6 +30,16 @@ namespace Windowing {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+namespace {
+    // cursor_nwse - 16x16
+    static const Uint8 cursor_nwse_data[] = {
+        0xc0, 0x00, 0xa0, 0x00, 0x90, 0x00, 0x88, 0x00, 0x44, 0x00, 0x22, 0x00, 0x11, 0x00, 0x08, 0x80, 0x04, 0x40, 0x02, 0x20, 0x01, 0x10, 0x00, 0x90, 0x00, 0x50, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00
+    };
+    static const Uint8 cursor_nwse_mask[] = {
+        0xc0, 0x00, 0xe0, 0x00, 0xf0, 0x00, 0xf8, 0x00, 0x7c, 0x00, 0x3e, 0x00, 0x1f, 0x00, 0x0f, 0x80, 0x07, 0xc0, 0x03, 0xe0, 0x01, 0xf0, 0x00, 0xf0, 0x00, 0x70, 0x00, 0x30, 0x00, 0x00, 0x00, 0x00
+    };
+}
+
 int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
@@ -94,9 +104,8 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     s_instance_count++;
     if (!s_cursor_nwse) {
         // SDL 1.2 doesn't support SDL_CreateSystemCursor.
-        // TODO: Implement custom cursor for SDL 1.2 using SDL_CreateCursor
-        // s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
-        s_cursor_nwse = nullptr;
+        // Create custom cursor for SDL 1.2 using SDL_CreateCursor
+        s_cursor_nwse = SDL_CreateCursor(const_cast<Uint8*>(cursor_nwse_data), const_cast<Uint8*>(cursor_nwse_mask), 16, 16, 8, 8);
     }
 }
 
