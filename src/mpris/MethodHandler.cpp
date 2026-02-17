@@ -11,6 +11,16 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <cmath>
+#include <cstring>
+#include <utility>
+
 namespace PsyMP3 {
 namespace MPRIS {
 
@@ -1100,6 +1110,9 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
   dbus_message_iter_init_append(reply, &args);
   dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict_iter);
 
+  // Declare iterators outside blocks to ensure correct scope for cleanup
+  DBusMessageIter entry_iter, variant_iter;
+
   if (interface_name == MPRIS_PLAYER_INTERFACE) {
     // Add all Player interface properties
     std::vector<std::string> properties = {
@@ -1109,7 +1122,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
 
     auto all_properties = m_properties->getAllProperties();
     for (const auto &prop_name : properties) {
-      DBusMessageIter entry_iter, variant_iter;
       dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
                                        nullptr, &entry_iter);
 
@@ -1141,7 +1153,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
