@@ -5,6 +5,7 @@
 #include <map>
 #include <mutex>
 #include <functional>
+#include "MPRISTypes.h"
 
 // Forward declarations
 class Player;
@@ -14,13 +15,6 @@ struct DBusMessage;
 namespace PsyMP3 {
 namespace MPRIS {
     class PropertyManager;
-}
-}
-
-namespace PsyMP3 {
-namespace MPRIS {
-    struct DBusVariant;
-    template<typename T> class Result;
 }
 }
 
@@ -83,6 +77,13 @@ public:
     bool isReady() const;
 
 private:
+    // Property handler structure
+    struct PropertyHandler {
+        std::function<PsyMP3::MPRIS::DBusVariant()> getter;
+        std::function<PsyMP3::MPRIS::Result<void>(const PsyMP3::MPRIS::DBusVariant&)> setter;
+        bool writable;
+    };
+
     // Private implementations - assume locks are already held
     
     DBusHandlerResult handleMessage_unlocked(DBusConnection* connection, DBusMessage* message);
@@ -125,8 +126,6 @@ private:
     // Property value serialization for D-Bus responses
     void appendVariantToMessage_unlocked(DBusMessage* reply, const PsyMP3::MPRIS::DBusVariant& variant);
     void appendVariantToIter_unlocked(DBusMessageIter* iter, const PsyMP3::MPRIS::DBusVariant& variant);
-    void appendPropertyToMessage_unlocked(DBusMessage* reply, const std::string& property_name);
-    void appendAllPropertiesToMessage_unlocked(DBusMessage* reply, const std::string& interface_name);
     
     // Error handling and logging
     void logMethodCall_unlocked(const std::string& interface_name, const std::string& method_name);
@@ -147,9 +146,16 @@ private:
     // Method dispatch table for efficient routing
     std::map<std::string, std::function<DBusHandlerResult(DBusConnection*, DBusMessage*)>> m_method_handlers;
     
+    // Property handlers map
+    // Key: Interface name -> Value: Map of (Property name -> PropertyHandler)
+    std::map<std::string, std::map<std::string, PropertyHandler>> m_property_handlers;
+
     // Initialize method dispatch table
     void initializeMethodHandlers_unlocked();
     
+    // Initialize property handlers
+    void initializePropertyHandlers_unlocked();
+
     // Constants for MPRIS interfaces
     static constexpr const char* MPRIS_MEDIAPLAYER2_INTERFACE = "org.mpris.MediaPlayer2";
     static constexpr const char* MPRIS_PLAYER_INTERFACE = "org.mpris.MediaPlayer2.Player";
