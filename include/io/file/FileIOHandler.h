@@ -151,7 +151,7 @@ private:
     bool m_sequential_access = false;       // Detected sequential access pattern
     
     // Seeking optimization
-    off_t m_cached_file_size = -1;          // Cached file size to avoid repeated fstat calls
+    std::atomic<off_t> m_cached_file_size{-1};          // Cached file size to avoid repeated fstat calls
     
     // Error handling and recovery
     int m_retry_count = 0;                  // Current retry count for operations

@@ -163,7 +163,7 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     // Get and log file size for debugging and optimization (without locks during construction)
     off_t fileSize = getFileSizeInternal();
     if (fileSize >= 0) {
-        m_cached_file_size = fileSize;  // Cache for performance
+        m_cached_file_size.store(fileSize);  // Cache for performance
         Debug::log("io", "FileIOHandler::FileIOHandler() - File size: ", fileSize, 
                   " bytes (", std::hex, fileSize, std::dec, ")");
         
@@ -511,8 +511,8 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
                 break;
             case SEEK_END:
                 // For SEEK_END, we need to get the file size
-                if (m_cached_file_size >= 0) {
-                    new_logical_position = m_cached_file_size + offset;
+                if (m_cached_file_size.load() >= 0) {
+                    new_logical_position = m_cached_file_size.load() + offset;
                 } else {
                     // Fall back to tell_internal for SEEK_END if we don't know file size
                     new_logical_position = tell_internal();
@@ -531,7 +531,8 @@ int FileIOHandler::seek_unlocked(off_t offset, int whence) {
             updateEofState(true);
         } else {
             // Check if we're at the end of the file
-            off_t file_size = (m_cached_file_size >= 0) ? m_cached_file_size : getFileSizeInternal();
+            off_t cached_size = m_cached_file_size.load();
+            off_t file_size = (cached_size >= 0) ? cached_size : getFileSizeInternal();
             if (file_size >= 0 && new_logical_position >= file_size) {
                 updateEofState(true);
             } else {
@@ -671,7 +672,7 @@ int FileIOHandler::close_unlocked() {
         std::unique_lock<std::shared_mutex> buffer_lock(m_buffer_mutex);
         invalidateBuffer();
         m_read_buffer = IOBufferPool::Buffer(); // Release buffer back to pool
-        m_cached_file_size = -1;
+        m_cached_file_size.store(-1);
         m_last_read_position = -1;
         m_sequential_access = false;
     }
@@ -690,7 +691,7 @@ int FileIOHandler::close_unlocked() {
  * @return true if at end of file, false otherwise
  */
 bool FileIOHandler::eof() {
-    // Return the atomic EOF/closed state directly to avoid UI thread blocking
+    // Optimization: Return the atomic EOF/closed state directly to avoid UI thread blocking
     // caused by mutex contention on m_file_mutex. The atomic flags are updated
     // by all I/O operations that can hit EOF.
     return m_closed.load() || !m_file_handle.is_valid() || m_eof.load();
@@ -704,17 +705,25 @@ bool FileIOHandler::eof() {
  * @return Size in bytes, or -1 if unknown
  */
 off_t FileIOHandler::getFileSize() {
+    // Check cached size atomically first (performance optimization)
+    off_t cached_size = m_cached_file_size.load();
+    if (cached_size >= 0) {
+        Debug::log("io", "FileIOHandler::getFileSize() - Returning cached size: ", cached_size);
+        return cached_size;
+    }
+
     // Thread-safe getFileSize operation using file lock
     std::lock_guard<std::mutex> file_lock(m_file_mutex);
     
+    // Double-check cache inside lock in case another thread updated it
+    cached_size = m_cached_file_size.load();
+    if (cached_size >= 0) {
+        Debug::log("io", "FileIOHandler::getFileSize() - Returning cached size (double-check): ", cached_size);
+        return cached_size;
+    }
+
     // Reset error state
     updateErrorState(0);
-    
-    // Return cached size if available for performance
-    if (m_cached_file_size >= 0) {
-        Debug::log("io", "FileIOHandler::getFileSize() - Returning cached size: ", m_cached_file_size);
-        return m_cached_file_size;
-    }
     
     // Validate file handle state
     if (!validateFileHandle()) {
@@ -820,7 +829,7 @@ off_t FileIOHandler::getFileSize() {
     }
     
     // Cache the file size for future calls
-    m_cached_file_size = file_stat.st_size;
+    m_cached_file_size.store(file_stat.st_size);
     
     return file_stat.st_size;
 }
@@ -1012,8 +1021,9 @@ bool FileIOHandler::fillBuffer(off_t file_position, size_t min_bytes) {
     }
     
     // Don't read beyond file size if known
-    if (m_cached_file_size > 0) {
-        off_t remaining = m_cached_file_size - file_position;
+    off_t cached_size = m_cached_file_size.load();
+    if (cached_size > 0) {
+        off_t remaining = cached_size - file_position;
         if (remaining <= 0) {
             Debug::log("io", "FileIOHandler::fillBuffer() - Position beyond file size");
             updateEofState(true);
@@ -1884,7 +1894,7 @@ void FileIOHandler::ensureSafeDestructorCleanup() noexcept {
         m_buffer_file_position = -1;
         m_buffer_valid_bytes = 0;
         m_buffer_offset = 0;
-        m_cached_file_size = -1;
+        m_cached_file_size.store(-1);
         m_last_read_position = -1;
         m_sequential_access = false;
         m_retry_count = 0;
