@@ -30,6 +30,7 @@
 #include <sstream>
 #include <random>
 #include <openssl/evp.h>
+#include <openssl/crypto.h>
 
 // ========================================
 // STANDALONE MD5 IMPLEMENTATIONS FOR TESTING
@@ -94,6 +95,9 @@ std::string md5Hash_optimized(const std::string& input) {
             result += hex_chars[hash[i] & 0x0F];
         }
         
+        // Securely clear the hash buffer from memory
+        OPENSSL_cleanse(hash, sizeof(hash));
+
         EVP_MD_CTX_free(ctx);
         return result;
     }
