@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include "tag/ID3v2Tag.h"
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -207,24 +208,6 @@ std::unique_ptr<Demuxer> DemuxerFactory::createDemuxer(std::unique_ptr<IOHandler
     }
 }
 
-namespace {
-// Helper function to calculate ID3v2 tag size
-static size_t calculateID3v2Size(const uint8_t* buffer, size_t buffer_size) {
-    // ID3v2 header: "ID3" + version (2 bytes) + flags (1 byte) + size (4 bytes syncsafe)
-    if (buffer_size < 10) return 0;
-    if (buffer[0] != 'I' || buffer[1] != 'D' || buffer[2] != '3') return 0;
-    
-    // Size is stored as syncsafe integer (4 bytes, 7 bits each)
-    size_t size = ((buffer[6] & 0x7F) << 21) |
-                  ((buffer[7] & 0x7F) << 14) |
-                  ((buffer[8] & 0x7F) << 7) |
-                  (buffer[9] & 0x7F);
-    
-    // Total size = header (10 bytes) + tag size
-    return 10 + size;
-}
-} // anonymous namespace
-
 std::string DemuxerFactory::probeFormat(IOHandler* handler) {
     if (!handler) {
         Debug::log("demuxer", "DemuxerFactory::probeFormat: Null handler provided");
@@ -269,7 +252,7 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
     // Check for ID3v2 tag and skip past it to find actual audio format
     // ID3 tags can be prepended to FLAC, MP3, and other formats
     if (bytes_read >= 10 && header[0] == 'I' && header[1] == 'D' && header[2] == '3') {
-        size_t id3_size = calculateID3v2Size(header.data(), bytes_read);
+        size_t id3_size = PsyMP3::Tag::ID3v2Tag::getTagSize(header.data());
         
         if (id3_size > 0) {
             Debug::log("demuxer", "DemuxerFactory::probeFormat: Found ID3v2 tag, size: ", id3_size);
