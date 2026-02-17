@@ -7,6 +7,10 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
+#include "psymp3.h"
+#endif // !FINAL_BUILD
+
 #include "mpris/MethodHandler.h"
 #include "mpris/MPRISTypes.h"
 #include "mpris/PropertyManager.h"
@@ -14,10 +18,6 @@
 #include <iostream>
 #include <algorithm>
 #include <cmath>
-
-#ifndef FINAL_BUILD
-#include "psymp3.h"
-#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace MPRIS {
