@@ -128,7 +128,15 @@ class Player
         
         // MPRIS Error Notification
         void toggleMPRISErrorNotifications();
-        void showMPRISError(const std::string& message);
+
+        enum class NotificationType {
+            Info,
+            Warning,
+            Error,
+            MPRISError
+        };
+
+        void showNotification(const std::string& message, NotificationType type);
 
         // Robust playlist handling
         bool handleUnplayableTrack();
