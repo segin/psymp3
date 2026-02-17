@@ -350,6 +350,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_demuxer_integration \
 	test_media_factory_integration \
 	test_demuxer_performance \
+	test_metadata_extractor \
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
 	test_http_client_parse_url
@@ -735,6 +736,14 @@ test_demuxer_performance_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
+test_metadata_extractor_SOURCES = test_metadata_extractor.cpp
+test_metadata_extractor_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
