@@ -20,7 +20,7 @@ PropertyManager::PropertyManager(Player *player)
       m_loop_status(PsyMP3::MPRIS::LoopStatus::None),
       m_position_us(0),
       m_position_timestamp(std::chrono::steady_clock::now()),
-      m_can_go_next(false), m_can_go_previous(false), m_can_seek(false),
+      m_can_go_next(false), m_can_go_previous(false),
       m_can_control(true) // Generally true for media players
       ,
       m_metadata_valid(false) {
@@ -187,8 +187,8 @@ bool PropertyManager::canGoPrevious_unlocked() const {
 }
 
 bool PropertyManager::canSeek_unlocked() const {
-  // TODO: In a real implementation, check if current stream supports seeking
-  return m_can_seek;
+  // Check if current stream supports seeking via Player
+  return m_player && m_player->canSeek();
 }
 
 bool PropertyManager::canControl_unlocked() const { return m_can_control; }

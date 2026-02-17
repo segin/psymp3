@@ -507,6 +507,17 @@ void Player::seekTo(unsigned long pos)
 }
 
 /**
+ * @brief Checks if the current stream supports seeking.
+ * This is a thread-safe operation.
+ * @return true if seeking is supported, false otherwise.
+ */
+bool Player::canSeek() const
+{
+    std::lock_guard<std::mutex> lock(*mutex);
+    return stream && stream->canSeek();
+}
+
+/**
  * @brief Pre-calculates the color gradient for the spectrum analyzer.
  * This is done once at startup to avoid expensive color calculations in the main render loop.
  */

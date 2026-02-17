@@ -192,7 +192,6 @@ private:
     // Control capabilities cache
     bool m_can_go_next;
     bool m_can_go_previous;
-    bool m_can_seek;
     bool m_can_control;
     
     // Track if metadata has been set
