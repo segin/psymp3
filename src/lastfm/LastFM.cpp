@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include <openssl/crypto.h>
 
 #ifndef _WIN32
 #include <sys/types.h>
@@ -77,6 +78,13 @@ void LastFM::readConfig()
             // Legacy password entry - migrate to hash
             if (!value.empty()) {
                 m_password_hash = md5Hash(value);
+
+                // Securely erase plaintext password from memory (Requirements 7.5, Security Directive)
+                OPENSSL_cleanse(&value[0], value.length());
+                if (line.length() > equals + 1) {
+                    OPENSSL_cleanse(&line[equals + 1], line.length() - (equals + 1));
+                }
+
                 DEBUG_LOG_LAZY("lastfm", "Legacy password loaded and migrated to hash");
             }
         } else if (key == "password_hash") {
