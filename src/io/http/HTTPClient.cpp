@@ -9,11 +9,23 @@
 
 #include "psymp3.h"
 #include <cstdio>
+#include <string>
+#include <vector>
+#include <map>
+#include <mutex>
+#include <atomic>
+#include <thread>
+#include <chrono>
+#include <iostream>
+#include <sstream>
+#include <algorithm>
+#include <cstring>
 
 namespace PsyMP3 {
 namespace IO {
 namespace HTTP {
 
+#ifndef HTTP_CLIENT_NO_CURL
 // Thread-safe RAII wrapper for global curl initialization with proper cleanup
 class CurlLifecycleManager {
 private:
@@ -213,11 +225,16 @@ static size_t headerCallback(void *contents, size_t size, size_t nmemb, void *us
     
     return realsize;
 }
+#endif // HTTP_CLIENT_NO_CURL
 
 HTTPClient::Response HTTPClient::get(const std::string& url,
                                     const std::map<std::string, std::string>& headers,
                                     int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     return performRequest("GET", url, "", headers, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
 HTTPClient::Response HTTPClient::post(const std::string& url,
@@ -225,15 +242,23 @@ HTTPClient::Response HTTPClient::post(const std::string& url,
                                      const std::string& contentType,
                                      const std::map<std::string, std::string>& headers,
                                      int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     std::map<std::string, std::string> postHeaders = headers;
     postHeaders["Content-Type"] = contentType;
     return performRequest("POST", url, data, postHeaders, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
 HTTPClient::Response HTTPClient::head(const std::string& url,
                                      const std::map<std::string, std::string>& headers,
                                      int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     return performRequest("HEAD", url, "", headers, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
 HTTPClient::Response HTTPClient::getRange(const std::string& url,
@@ -241,6 +266,7 @@ HTTPClient::Response HTTPClient::getRange(const std::string& url,
                                          long end_byte,
                                          const std::map<std::string, std::string>& headers,
                                          int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     std::map<std::string, std::string> range_headers = headers;
     if (end_byte >= 0) {
         range_headers["Range"] = "bytes=" + std::to_string(start_byte) + "-" + std::to_string(end_byte);
@@ -248,6 +274,9 @@ HTTPClient::Response HTTPClient::getRange(const std::string& url,
         range_headers["Range"] = "bytes=" + std::to_string(start_byte) + "-";
     }
     return performRequest("GET", url, "", range_headers, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
 HTTPClient::Response HTTPClient::performRequest(const std::string& method,
@@ -256,7 +285,7 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
                                                const std::map<std::string, std::string>& headers,
                                                int timeoutSeconds) {
     Response response;
-    
+#ifndef HTTP_CLIENT_NO_CURL
     // Check if curl was initialized properly
     if (!CurlLifecycleManager::isInitialized()) {
         response.statusMessage = "libcurl initialization failed";
@@ -438,6 +467,10 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
     }
 
     // Cleanup is handled automatically by CurlHandleGuard destructor
+#else
+    response.success = false;
+    response.statusMessage = "Compiled without libcurl support";
+#endif
     return response;
 }
 
@@ -453,6 +486,7 @@ std::string HTTPClient::urlEncode(const std::string& input) {
         return "";
     }
 
+#ifndef HTTP_CLIENT_NO_CURL
     if (CurlLifecycleManager::isInitialized()) {
         CURL *curl = curl_easy_init();
         if (curl) {
@@ -466,6 +500,7 @@ std::string HTTPClient::urlEncode(const std::string& input) {
             curl_easy_cleanup(curl);
         }
     }
+#endif
     
     // Fallback if curl is not initialized, failed to init, or failed to escape.
     // Use a safe, manual encoding to avoid security risks of returning unencoded input.
@@ -534,21 +569,26 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
 }
 
 void HTTPClient::closeAllConnections() {
+#ifndef HTTP_CLIENT_NO_CURL
     // Thread-safe cleanup of connection pool and libcurl resources
     CurlLifecycleManager::cleanupConnectionPool();
     CurlLifecycleManager::forceCleanup();
     Debug::log("http", "HTTPClient::closeAllConnections() - Thread-safe cleanup of all HTTP connections");
+#endif
 }
 
 void HTTPClient::setConnectionTimeout(int timeout_seconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     // This would be stored in a static variable for use in performRequest
     // For now, we use the default 10 second connect timeout
     Debug::log("http", "HTTPClient::setConnectionTimeout() - Connection timeout set to ", timeout_seconds, " seconds");
+#endif
 }
 
 std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
     // Return thread-safe stats for libcurl implementation with connection pooling
     std::map<std::string, int> stats;
+#ifndef HTTP_CLIENT_NO_CURL
     stats["active_handles"] = CurlLifecycleManager::s_active_handles.load();
     stats["initialized"] = CurlLifecycleManager::isInitialized() ? 1 : 0;
     
@@ -562,19 +602,23 @@ std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
         stats["pooled_connections"] = total_pooled_connections;
         stats["pool_hosts"] = static_cast<int>(CurlLifecycleManager::s_connection_pool.size());
     }
-    
+#endif
     return stats;
 }
 
 void HTTPClient::initializeSSL() {
+#ifndef HTTP_CLIENT_NO_CURL
     // libcurl handles SSL initialization automatically
     Debug::log("http", "HTTPClient::initializeSSL() - SSL initialization handled by libcurl");
+#endif
 }
 
 void HTTPClient::cleanupSSL() {
+#ifndef HTTP_CLIENT_NO_CURL
     // Force cleanup of libcurl resources which includes SSL cleanup
     CurlLifecycleManager::forceCleanup();
     Debug::log("http", "HTTPClient::cleanupSSL() - SSL cleanup handled by libcurl cleanup");
+#endif
 }
 
 } // namespace HTTP
