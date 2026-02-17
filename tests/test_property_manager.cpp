@@ -299,6 +299,43 @@ public:
     }
 };
 
+// Test volume property
+class TestVolume : public PropertyManagerTest {
+public:
+    TestVolume() : PropertyManagerTest("Volume") {}
+
+    void runTest() override {
+        // Test initial volume
+        double volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 1.0, "Initial volume should be 1.0");
+
+        // Test updating volume
+        m_property_manager->updateVolume(0.5);
+        volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 0.5, "Volume should be 0.5 after update");
+
+        // Test volume clamping (lower bound)
+        m_property_manager->updateVolume(-0.5);
+        volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 0.0, "Volume should be clamped to 0.0");
+
+        // Test volume clamping (upper bound)
+        m_property_manager->updateVolume(1.5);
+        volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 1.0, "Volume should be clamped to 1.0");
+
+        // Test getAllProperties contains Volume
+        auto properties = m_property_manager->getAllProperties();
+        ASSERT_TRUE(properties.find("Volume") != properties.end(), "Volume should be present in all properties");
+        ASSERT_EQUALS(properties["Volume"].get<double>(), 1.0, "Volume in properties map should be 1.0");
+
+        // Update again and verify map
+        m_property_manager->updateVolume(0.75);
+        properties = m_property_manager->getAllProperties();
+        ASSERT_EQUALS(properties["Volume"].get<double>(), 0.75, "Volume in properties map should be 0.75");
+    }
+};
+
 int main() {
     TestFramework::TestSuite suite("PropertyManager Tests");
     
@@ -309,6 +346,7 @@ int main() {
     suite.addTest(std::make_unique<TestThreadSafety>());
     suite.addTest(std::make_unique<TestAllProperties>());
     suite.addTest(std::make_unique<TestEdgeCases>());
+    suite.addTest(std::make_unique<TestVolume>());
     
     // Run all tests
     auto results = suite.runAll();

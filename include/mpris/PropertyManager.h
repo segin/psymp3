@@ -75,6 +75,12 @@ public:
     void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
 
     /**
+     * Update cached volume
+     * @param volume Volume level (0.0 to 1.0)
+     */
+    void updateVolume(double volume);
+
+    /**
      * Get current playback status as string for D-Bus
      * @return Playback status string ("Playing", "Paused", "Stopped")
      */
@@ -97,6 +103,12 @@ public:
      * @return Current loop status
      */
     PsyMP3::MPRIS::LoopStatus getLoopStatus() const;
+
+    /**
+     * Get current volume
+     * @return Current volume (0.0 to 1.0)
+     */
+    double getVolume() const;
     
     /**
      * Get track length in microseconds
@@ -146,11 +158,13 @@ private:
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);
+    void updateVolume_unlocked(double volume);
     
     std::string getPlaybackStatus_unlocked() const;
     std::map<std::string, PsyMP3::MPRIS::DBusVariant> getMetadata_unlocked() const;
     uint64_t getPosition_unlocked() const;
     PsyMP3::MPRIS::LoopStatus getLoopStatus_unlocked() const;
+    double getVolume_unlocked() const;
     uint64_t getLength_unlocked() const;
     
     bool canGoNext_unlocked() const;
@@ -184,6 +198,9 @@ private:
     
     // Loop status
     PsyMP3::MPRIS::LoopStatus m_loop_status;
+
+    // Volume level
+    double m_volume{1.0};
 
     // Position tracking with timestamp-based interpolation
     uint64_t m_position_us;

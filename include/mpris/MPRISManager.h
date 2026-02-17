@@ -88,6 +88,12 @@ public:
      * @param status New loop status
      */
     void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
+
+    /**
+     * Update volume
+     * @param volume Volume level (0.0 to 1.0)
+     */
+    void updateVolume(double volume);
     
     /**
      * Notify that seeking occurred (emits Seeked signal)
@@ -182,6 +188,7 @@ private:
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);
+    void updateVolume_unlocked(double volume);
     void notifySeeked_unlocked(uint64_t position_us);
     bool isInitialized_unlocked() const;
     bool isConnected_unlocked() const;

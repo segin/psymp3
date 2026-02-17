@@ -55,6 +55,11 @@ void PropertyManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
   updateLoopStatus_unlocked(status);
 }
 
+void PropertyManager::updateVolume(double volume) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  updateVolume_unlocked(volume);
+}
+
 std::string PropertyManager::getPlaybackStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getPlaybackStatus_unlocked();
@@ -74,6 +79,11 @@ uint64_t PropertyManager::getPosition() const {
 PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getLoopStatus_unlocked();
+}
+
+double PropertyManager::getVolume() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getVolume_unlocked();
 }
 
 uint64_t PropertyManager::getLength() const {
@@ -153,6 +163,12 @@ void PropertyManager::updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status
   m_loop_status = status;
 }
 
+void PropertyManager::updateVolume_unlocked(double volume) {
+  if (volume < 0.0) volume = 0.0;
+  if (volume > 1.0) volume = 1.0;
+  m_volume = volume;
+}
+
 std::string PropertyManager::getPlaybackStatus_unlocked() const {
   return PsyMP3::MPRIS::playbackStatusToString(
       m_status.load(std::memory_order_relaxed));
@@ -170,6 +186,10 @@ uint64_t PropertyManager::getPosition_unlocked() const {
 
 PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus_unlocked() const {
   return m_loop_status;
+}
+
+double PropertyManager::getVolume_unlocked() const {
+  return m_volume;
 }
 
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
@@ -234,9 +254,9 @@ PropertyManager::getAllProperties_unlocked() const {
   properties.insert(std::make_pair(std::string("Metadata"),
                                    PsyMP3::MPRIS::DBusVariant(metadata_dict)));
 
-  // Volume (not implemented, use 1.0)
+  // Volume
   properties.insert(
-      std::make_pair(std::string("Volume"), PsyMP3::MPRIS::DBusVariant(1.0)));
+      std::make_pair(std::string("Volume"), PsyMP3::MPRIS::DBusVariant(getVolume_unlocked())));
 
   // Position
   properties.insert(std::make_pair(

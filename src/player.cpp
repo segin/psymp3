@@ -2171,8 +2171,9 @@ void Player::setVolume(double volume) {
     showToast("Volume: " + std::to_string(percentage) + "%");
 
 #ifdef HAVE_DBUS
-    // TODO: Notify MPRIS about volume change (PropertiesChanged signal)
-    // For now, MPRIS clients polling the property will see the new value
+    if (m_mpris_manager) {
+        m_mpris_manager->updateVolume(static_cast<double>(m_volume));
+    }
 #endif
 }
 
