@@ -33,6 +33,7 @@ using Foundation::DrawableWidget;
 int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
 
 WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title)
     : Widget()
@@ -98,6 +99,25 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
         // s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
         s_cursor_nwse = nullptr;
     }
+
+    if (!s_cursor_ns) {
+        // 16x16 North-South resize cursor (vertical double arrow)
+        // Data: Black pixels
+        // Mask: Opaque pixels (Black or White)
+        static Uint8 cursor_ns_data[] = {
+            0x01, 0x80, 0x03, 0xC0, 0x07, 0xE0, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x07, 0xE0, 0x03, 0xC0, 0x01, 0x80, 0x00, 0x00
+        };
+        static Uint8 cursor_ns_mask[] = {
+            0x01, 0x80, 0x03, 0xC0, 0x07, 0xE0, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x07, 0xE0, 0x03, 0xC0, 0x01, 0x80, 0x00, 0x00
+        };
+        s_cursor_ns = SDL_CreateCursor(cursor_ns_data, cursor_ns_mask, 16, 16, 8, 8);
+    }
 }
 
 WindowFrameWidget::~WindowFrameWidget()
@@ -107,6 +127,10 @@ WindowFrameWidget::~WindowFrameWidget()
         if (s_cursor_nwse) {
             SDL_FreeCursor(s_cursor_nwse);
             s_cursor_nwse = nullptr;
+        }
+        if (s_cursor_ns) {
+            SDL_FreeCursor(s_cursor_ns);
+            s_cursor_ns = nullptr;
         }
     }
 }
@@ -248,7 +272,7 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             } else if (resize_edge & 3) { // Left or right edge
                 SDL_SetCursor(SDL_GetCursor()); // TODO: Set east-west cursor
             } else if (resize_edge & 12) { // Top or bottom edge
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set north-south cursor
+                if (s_cursor_ns) SDL_SetCursor(s_cursor_ns);
             }
         } else {
             // Reset to default cursor

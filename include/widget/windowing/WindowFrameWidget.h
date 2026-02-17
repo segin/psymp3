@@ -252,6 +252,7 @@ private:
     static int s_next_z_order;
     static int s_instance_count;
     static SDL_Cursor* s_cursor_nwse;
+    static SDL_Cursor* s_cursor_ns;
     
     // Drag state
     bool m_is_dragging;
