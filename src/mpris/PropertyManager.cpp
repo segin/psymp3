@@ -231,6 +231,8 @@ PropertyManager::getAllProperties_unlocked() const {
 
   // Metadata
   auto metadata_dict = getMetadata_unlocked();
+  // Note: metadata_dict is a std::map<string, DBusVariant> which converts to a Dictionary variant.
+  // This supports the "dict-in-dict" structure required by MPRIS Metadata.
   properties.insert(std::make_pair(std::string("Metadata"),
                                    PsyMP3::MPRIS::DBusVariant(metadata_dict)));
 
