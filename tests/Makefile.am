@@ -3957,3 +3957,8 @@ fuzz_utf8util_LDADD = \
 
 # Run all check programs
 TESTS = $(check_PROGRAMS)
+
+# Security regression test for BoxParser recursion stack overflow
+check_PROGRAMS += test_boxparser_recursion
+test_boxparser_recursion_SOURCES = test_boxparser_recursion.cpp
+test_boxparser_recursion_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
