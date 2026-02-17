@@ -123,7 +123,7 @@ void LastFM::writeConfig()
     
     config << "# Last.fm configuration\n";
     config << "username=" << m_username << "\n";
-    config << "password_hash=" << m_password_hash << "\n";
+    // password_hash is not persisted for security reasons
     config << "session_key=" << m_session_key << "\n";
     config << "now_playing_url=" << m_nowplaying_url << "\n";
     config << "submission_url=" << m_submission_url << "\n";
