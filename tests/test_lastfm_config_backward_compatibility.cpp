@@ -109,7 +109,7 @@ void writeConfigFile(const std::string& filename, const ConfigData& config) {
     
     file << "# Last.fm configuration\n";
     file << "username=" << config.username << "\n";
-    file << "password_hash=" << config.password_hash << "\n";
+    // password_hash is not persisted for security reasons
     file << "session_key=" << config.session_key << "\n";
     file << "now_playing_url=" << config.now_playing_url << "\n";
     file << "submission_url=" << config.submission_url << "\n";
@@ -130,7 +130,7 @@ bool test_parse_existing_config_format() {
     std::string temp_file = "/tmp/test_lastfm_config_" + std::to_string(getpid()) + ".conf";
     
     try {
-        // Write a config file in the standard format
+        // Write a config file in the standard format (manually, to simulate existing file with password_hash)
         ConfigData original;
         original.username = "testuser";
         original.password_hash = "testpass123";
@@ -138,12 +138,20 @@ bool test_parse_existing_config_format() {
         original.now_playing_url = "http://post.audioscrobbler.com/np_1.2";
         original.submission_url = "http://post.audioscrobbler.com/1.2";
         
-        writeConfigFile(temp_file, original);
+        // Manually write file to ensure password_hash is present (simulating old format)
+        std::ofstream file(temp_file);
+        file << "# Last.fm configuration\n";
+        file << "username=" << original.username << "\n";
+        file << "password_hash=" << original.password_hash << "\n";
+        file << "session_key=" << original.session_key << "\n";
+        file << "now_playing_url=" << original.now_playing_url << "\n";
+        file << "submission_url=" << original.submission_url << "\n";
+        file.close();
         
         // Parse it back
         ConfigData parsed = parseConfigFile(temp_file);
         
-        // Verify all fields match
+        // Verify all fields match (reading old format should still work)
         assert(parsed.username == original.username);
         assert(parsed.password_hash == original.password_hash);
         assert(parsed.session_key == original.session_key);
@@ -192,21 +200,23 @@ bool test_write_config_maintains_format() {
                            std::istreambuf_iterator<char>());
         file.close();
         
-        // Verify format contains expected keys
+        // Verify format contains expected keys (password_hash should NOT be present)
         assert(content.find("username=") != std::string::npos);
-        assert(content.find("password_hash=") != std::string::npos);
+        assert(content.find("password_hash=") == std::string::npos);
         assert(content.find("session_key=") != std::string::npos);
         assert(content.find("now_playing_url=") != std::string::npos);
         assert(content.find("submission_url=") != std::string::npos);
         
-        // Verify values are present
+        // Verify values are present (except password)
         assert(content.find("myuser") != std::string::npos);
-        assert(content.find("mypassword") != std::string::npos);
+        assert(content.find("mypassword") == std::string::npos);
         assert(content.find("session123") != std::string::npos);
         
-        // Parse it back to verify round-trip
+        // Parse it back to verify round-trip (password_hash will be empty)
         ConfigData parsed = parseConfigFile(temp_file);
-        assert(parsed == original);
+        ConfigData expected = original;
+        expected.password_hash = "";
+        assert(parsed == expected);
         
         std::cout << "  ✓ Written config file maintains standard format" << std::endl;
         std::cout << "  ✓ Round-trip parsing successful" << std::endl;
@@ -286,9 +296,9 @@ bool test_handle_special_characters() {
         writeConfigFile(temp_file, original);
         ConfigData parsed = parseConfigFile(temp_file);
         
-        // Verify special characters are preserved
+        // Verify special characters are preserved (except password_hash)
         assert(parsed.username == original.username);
-        assert(parsed.password_hash == original.password_hash);
+        assert(parsed.password_hash.empty());
         assert(parsed.session_key == original.session_key);
         assert(parsed.now_playing_url == original.now_playing_url);
         
