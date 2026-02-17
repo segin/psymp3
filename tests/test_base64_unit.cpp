@@ -61,6 +61,8 @@ public:
 protected:
     void runTest() override {
         // RFC 4648 test vectors
+        // Note: The decoder is permissive and does not strictly require padding,
+        // but respects it if present.
         checkDecode("", {});
         checkDecode("Zg==", {'f'});
         checkDecode("Zm8=", {'f', 'o'});
