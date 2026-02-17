@@ -12,6 +12,13 @@
 #endif // !FINAL_BUILD
 
 #include "mpris/MethodHandler.h"
+#include "mpris/MPRISTypes.h"
+#include "mpris/PropertyManager.h"
+#include "player.h"
+
+#include <iostream>
+#include <memory>
+#include <stdexcept>
 
 namespace PsyMP3 {
 namespace MPRIS {
