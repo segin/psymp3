@@ -11,6 +11,8 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include "mpris/MethodHandler.h"
+
 namespace PsyMP3 {
 namespace MPRIS {
 
@@ -509,8 +511,7 @@ MethodHandler::handleSetPosition_unlocked(DBusConnection *connection,
 
 // Stub implementations when D-Bus is not available
 
-MethodHandler::MethodHandler([[maybe_unused]] Player *player,
-                             [[maybe_unused]] PropertyManager *properties)
+MethodHandler::MethodHandler(Player *player, PropertyManager *properties)
     : m_player(player), m_properties(properties), m_initialized(false) {}
 
 MethodHandler::~MethodHandler() {}
