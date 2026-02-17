@@ -1109,7 +1109,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
 
     auto all_properties = m_properties->getAllProperties();
     for (const auto &prop_name : properties) {
-      DBusMessageIter entry_iter, variant_iter;
+      DBusMessageIter entry_iter;
       dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
                                        nullptr, &entry_iter);
 
@@ -1123,6 +1123,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           appendVariantToIter_unlocked(&entry_iter, it->second);
         } else {
           // Fallback - this should not happen if all properties are in the map
+          DBusMessageIter variant_iter;
           dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
                                            &variant_iter);
           const char *empty_str = "";
@@ -1135,6 +1136,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                             "Failed to get property " + prop_name + ": " +
                                 e.what());
           // Add empty variant as fallback
+          DBusMessageIter variant_iter;
           dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
                                            &variant_iter);
           const char *empty_str = "";
