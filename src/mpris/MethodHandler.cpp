@@ -1098,9 +1098,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     }
   }
 }
-    throw std::runtime_error("Unknown property: " + property_name);
-  }
-}
 
 void MethodHandler::appendAllPropertiesToMessage_unlocked(
     DBusMessage *reply, const std::string &interface_name) {
