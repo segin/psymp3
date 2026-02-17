@@ -52,3 +52,11 @@ void Player::setVolume(double volume) {
 double Player::getVolume() const {
     return 1.0; // Return dummy volume (1.0 = 100%)
 }
+
+bool Player::canGoNext() const {
+    return false;
+}
+
+bool Player::canGoPrevious() const {
+    return false;
+}

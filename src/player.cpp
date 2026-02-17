@@ -376,6 +376,36 @@ void Player::prevTrack(void) {
     requestTrackLoad(playlist->getTrack(new_pos));
 }
 
+bool Player::canGoPrevious() const {
+    if (!playlist || playlist->entries() == 0) return false;
+
+    if (m_loop_mode == LoopMode::All) return true;
+
+    if (playlist->getPosition() > 0) return true;
+
+    // At position 0, LoopMode::None.
+    // Check if we can seek to 0 (restart).
+    // This requires a stream.
+    if (mutex) {
+        std::lock_guard<std::mutex> lock(*mutex);
+        return stream != nullptr;
+    }
+
+    return false;
+}
+
+bool Player::canGoNext() const {
+    if (!playlist || playlist->entries() == 0) return false;
+
+    if (m_loop_mode == LoopMode::All) return true;
+
+    // LoopMode::None
+    if (playlist->getPosition() < playlist->entries() - 1) return true;
+
+    // At last track. Next stops playback.
+    return false;
+}
+
 /**
  * @brief Stops playback completely.
  * Resets the stream and audio device.

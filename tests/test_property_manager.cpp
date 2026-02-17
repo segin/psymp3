@@ -27,6 +27,16 @@ public:
     //  but this provides a foundation for future integration)
 };
 
+// Stub implementations of Player methods used by PropertyManager
+// These are safe to call even with reinterpret_cast because they don't access members
+bool Player::canGoNext() const {
+    return false;
+}
+
+bool Player::canGoPrevious() const {
+    return false;
+}
+
 class PropertyManagerTest : public TestFramework::TestCase {
 public:
     PropertyManagerTest(const std::string& name) : TestCase(name) {}

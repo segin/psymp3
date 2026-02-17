@@ -20,7 +20,7 @@ PropertyManager::PropertyManager(Player *player)
       m_loop_status(PsyMP3::MPRIS::LoopStatus::None),
       m_position_us(0),
       m_position_timestamp(std::chrono::steady_clock::now()),
-      m_can_go_next(false), m_can_go_previous(false), m_can_seek(false),
+      m_can_seek(false),
       m_can_control(true) // Generally true for media players
       ,
       m_metadata_valid(false) {
@@ -175,15 +175,11 @@ PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus_unlocked() const {
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
 
 bool PropertyManager::canGoNext_unlocked() const {
-  // TODO: In a real implementation, query the Player/Playlist for next track
-  // availability
-  return m_can_go_next;
+  return m_player && m_player->canGoNext();
 }
 
 bool PropertyManager::canGoPrevious_unlocked() const {
-  // TODO: In a real implementation, query the Player/Playlist for previous
-  // track availability
-  return m_can_go_previous;
+  return m_player && m_player->canGoPrevious();
 }
 
 bool PropertyManager::canSeek_unlocked() const {
