@@ -1024,72 +1024,80 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     appendVariantToIter_unlocked(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getMetadata()));
 
-  } else if (property_name == "Position") {
-    uint64_t position = m_properties->getPosition();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "x",
-                                     &variant_iter);
-    dbus_int64_t position_val = static_cast<dbus_int64_t>(position);
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_INT64,
-                                   &position_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanGoNext") {
-    bool can_go_next = m_properties->canGoNext();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_go_next ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanGoPrevious") {
-    bool can_go_previous = m_properties->canGoPrevious();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_go_previous ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanSeek") {
-    bool can_seek = m_properties->canSeek();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_seek ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanControl") {
-    bool can_control = m_properties->canControl();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_control ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "Volume") {
-    double volume = m_player ? m_player->getVolume() : 1.0;
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "d",
-                                     &variant_iter);
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE, &volume);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "LoopStatus") {
-    std::string loop_status = PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus());
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s",
-                                     &variant_iter);
-    const char *loop_status_cstr = loop_status.c_str();
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                   &loop_status_cstr);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "Shuffle") {
-    // Default to false since Player doesn't have shuffle control yet
-    dbus_bool_t shuffle = FALSE;
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &shuffle);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
   } else {
+    // For scalar types wrapped manually
+    DBusMessageIter variant_iter;
+
+    if (property_name == "Position") {
+      uint64_t position = m_properties->getPosition();
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "x",
+                                       &variant_iter);
+      dbus_int64_t position_val = static_cast<dbus_int64_t>(position);
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_INT64,
+                                     &position_val);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else if (property_name == "CanGoNext") {
+      bool can_go_next = m_properties->canGoNext();
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                       &variant_iter);
+      dbus_bool_t bool_val = can_go_next ? TRUE : FALSE;
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else if (property_name == "CanGoPrevious") {
+      bool can_go_previous = m_properties->canGoPrevious();
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                       &variant_iter);
+      dbus_bool_t bool_val = can_go_previous ? TRUE : FALSE;
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else if (property_name == "CanSeek") {
+      bool can_seek = m_properties->canSeek();
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                       &variant_iter);
+      dbus_bool_t bool_val = can_seek ? TRUE : FALSE;
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else if (property_name == "CanControl") {
+      bool can_control = m_properties->canControl();
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                       &variant_iter);
+      dbus_bool_t bool_val = can_control ? TRUE : FALSE;
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else if (property_name == "Volume") {
+      double volume = m_player ? m_player->getVolume() : 1.0;
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "d",
+                                       &variant_iter);
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE, &volume);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else if (property_name == "LoopStatus") {
+      std::string loop_status = PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus());
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s",
+                                       &variant_iter);
+      const char *loop_status_cstr = loop_status.c_str();
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
+                                     &loop_status_cstr);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else if (property_name == "Shuffle") {
+      // Default to false since Player doesn't have shuffle control yet
+      dbus_bool_t shuffle = FALSE;
+      dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                       &variant_iter);
+      dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &shuffle);
+      dbus_message_iter_close_container(&args, &variant_iter);
+
+    } else {
+      throw std::runtime_error("Unknown property: " + property_name);
+    }
+  }
+}
     throw std::runtime_error("Unknown property: " + property_name);
   }
 }
@@ -1141,8 +1149,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
-        dbus_message_unref(temp_msg);
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
