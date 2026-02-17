@@ -33,6 +33,7 @@ using Foundation::DrawableWidget;
 int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_nesw = nullptr;
 
 WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title)
     : Widget()
@@ -98,6 +99,10 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
         // s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
         s_cursor_nwse = nullptr;
     }
+    if (!s_cursor_nesw) {
+        // s_cursor_nesw = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENESW);
+        s_cursor_nesw = nullptr;
+    }
 }
 
 WindowFrameWidget::~WindowFrameWidget()
@@ -107,6 +112,10 @@ WindowFrameWidget::~WindowFrameWidget()
         if (s_cursor_nwse) {
             SDL_FreeCursor(s_cursor_nwse);
             s_cursor_nwse = nullptr;
+        }
+        if (s_cursor_nesw) {
+            SDL_FreeCursor(s_cursor_nesw);
+            s_cursor_nesw = nullptr;
         }
     }
 }
@@ -240,9 +249,9 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             if ((resize_edge & 1) && (resize_edge & 4)) { // Top-left corner
                 if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if ((resize_edge & 2) && (resize_edge & 4)) { // Top-right corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
             } else if ((resize_edge & 1) && (resize_edge & 8)) { // Bottom-left corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
             } else if ((resize_edge & 2) && (resize_edge & 8)) { // Bottom-right corner
                 if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if (resize_edge & 3) { // Left or right edge
