@@ -11,6 +11,10 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#ifdef HAVE_DBUS
+#include <dbus/dbus.h>
+#endif
+
 namespace PsyMP3 {
 namespace MPRIS {
 
