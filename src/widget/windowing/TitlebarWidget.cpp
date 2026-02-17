@@ -31,8 +31,8 @@ using Foundation::Widget;
 
 TitlebarWidget::TitlebarWidget(int width, int height, Font* font, const std::string& title)
     : Widget()
-    , m_title(title)
     , m_font(font)
+    , m_title(title)
     , m_width(width)
     , m_height(height)
     , m_is_dragging(false)
