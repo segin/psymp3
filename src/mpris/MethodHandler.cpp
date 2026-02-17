@@ -687,7 +687,10 @@ MethodHandler::handleSetProperty_unlocked(DBusConnection *connection,
 
     std::cout << "MPRIS: Setting shuffle to " << (shuffle ? "true" : "false")
               << std::endl;
-    // TODO: Implement shuffle control in Player if available
+
+    if (m_player) {
+      m_player->setShuffle(shuffle);
+    }
 
   } else {
     sendErrorReply_unlocked(connection, message,
@@ -1081,8 +1084,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "Shuffle") {
-    // Default to false since Player doesn't have shuffle control yet
-    dbus_bool_t shuffle = FALSE;
+    dbus_bool_t shuffle = m_properties->getShuffle();
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
                                      &variant_iter);
     dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &shuffle);
