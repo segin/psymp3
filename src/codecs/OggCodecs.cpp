@@ -48,59 +48,68 @@ bool VorbisPassthroughCodec::canDecode(const StreamInfo& stream_info) const {
 }
 #endif // HAVE_VORBIS
 
+// Helper to select the correct FLAC codec implementation
+#ifdef HAVE_FLAC
+#ifdef HAVE_NATIVE_FLAC
+    #include "codecs/flac/NativeFLACCodec.h"
+    using FLACCodecImpl = PsyMP3::Codec::FLAC::FLACCodec;
+#else
+    #include "codecs/FLACCodec.h"
+    using FLACCodecImpl = FLACCodec;
+#endif
+#endif
+
 // OggFLACPassthroughCodec implementation
 OggFLACPassthroughCodec::OggFLACPassthroughCodec(const StreamInfo& stream_info) 
     : AudioCodec(stream_info) {
 }
 
 OggFLACPassthroughCodec::~OggFLACPassthroughCodec() {
-    // m_flac_stream is a forward-declared incomplete type and is never allocated
-    // No cleanup needed
+    // Unique pointer handles cleanup
 }
 
 bool OggFLACPassthroughCodec::initialize() {
-    // We'll create the FLACStream when we get the first chunk
-    m_initialized = true;
-    return true;
+#ifdef HAVE_FLAC
+    try {
+        m_flac_codec = std::make_unique<FLACCodecImpl>(m_stream_info);
+        m_initialized = m_flac_codec->initialize();
+    } catch (...) {
+        m_initialized = false;
+    }
+    return m_initialized;
+#else
+    return false;
+#endif
 }
 
 AudioFrame OggFLACPassthroughCodec::decode(const MediaChunk& chunk) {
-    AudioFrame frame;
-    
-    if (chunk.data.empty()) {
-        return frame;
+    if (!m_flac_codec) {
+        return AudioFrame{};
     }
-    
-    // Accumulate data in buffer
-    m_buffer.insert(m_buffer.end(), chunk.data.begin(), chunk.data.end());
-    
-    // Create FLACStream if we haven't yet
-    if (!m_flac_stream && m_buffer.size() >= 4) {
-        // Try to create from buffered data
-        // Note: Similar challenges as with Vorbis - the existing FLACStream
-        // expects a file-based interface, not raw FLAC packets from Ogg
-        
-        // For now, return empty frame
-        return frame;
+
+    // Check for Ogg FLAC header packet (starts with "fLaC")
+    // libFLAC wrapper (FLACCodec) synthesizes the STREAMINFO header based on StreamInfo,
+    // so we should skip the actual Ogg packet containing STREAMINFO to avoid confusing it.
+    if (chunk.data.size() >= 4 &&
+        chunk.data[0] == 'f' && chunk.data[1] == 'L' &&
+        chunk.data[2] == 'a' && chunk.data[3] == 'C') {
+        return AudioFrame{};
     }
-    
-    // TODO: Implement proper Ogg FLAC passthrough
-    // This is more complex because Ogg FLAC has a different structure
-    // than native FLAC files - it doesn't have the native FLAC container
-    
-    return frame;
+
+    return m_flac_codec->decode(chunk);
 }
 
 AudioFrame OggFLACPassthroughCodec::flush() {
+    if (m_flac_codec) {
+        return m_flac_codec->flush();
+    }
     return AudioFrame{};
 }
 
 void OggFLACPassthroughCodec::reset() {
-    m_buffer.clear();
-    m_headers_written = false;
-    
-    // m_flac_stream is a forward-declared incomplete type and is never allocated
-    // No cleanup needed
+    if (m_flac_codec) {
+        m_flac_codec->reset();
+    }
 }
 
 bool OggFLACPassthroughCodec::canDecode(const StreamInfo& stream_info) const {
