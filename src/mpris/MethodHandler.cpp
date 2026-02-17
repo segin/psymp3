@@ -11,6 +11,12 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include <iostream>
+#include <string>
+#include <vector>
+#include <memory>
+#include <stdexcept>
+
 namespace PsyMP3 {
 namespace MPRIS {
 
@@ -1015,6 +1021,8 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
 
+  DBusMessageIter variant_iter; // Fixed: Declaration added
+
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus()));
@@ -1140,9 +1148,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
-        dbus_message_unref(temp_msg);
-      }
+      } // Fixed: Properly closed catch block and removed stray unref
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
