@@ -34,9 +34,10 @@ int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
 
-WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title)
+WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title, Font* font)
     : Widget()
     , m_title(title)
+    , m_font(font)
     , m_client_width(client_width)
     , m_client_height(client_height)
     , m_z_order(s_next_z_order++)
@@ -558,7 +559,19 @@ void WindowFrameWidget::rebuildSurface()
         frame_surface->hline(inner_x2, outer_x2, bottom_notch_y, 0, 0, 0, 255);
     }
     
-    // TODO: Add title text rendering when font access is available
+    // Render title text
+    if (m_font && !m_title.empty()) {
+        auto text_surface = m_font->Render(TagLib::String(m_title), 255, 255, 255);
+        if (text_surface) {
+            // Center horizontally in the titlebar area
+            int text_x = content_x + (content_width - text_surface->width()) / 2;
+
+            // Center vertically in the titlebar
+            int text_y = content_y + (TITLEBAR_HEIGHT - text_surface->height()) / 2;
+
+            frame_surface->Blit(*text_surface, Rect(text_x, text_y, text_surface->width(), text_surface->height()));
+        }
+    }
     
     // Draw window control buttons
     drawWindowControls(*frame_surface);
