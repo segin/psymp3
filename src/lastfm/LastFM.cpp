@@ -78,6 +78,10 @@ void LastFM::readConfig()
             if (!value.empty()) {
                 m_password_hash = md5Hash(value);
                 DEBUG_LOG_LAZY("lastfm", "Legacy password loaded and migrated to hash");
+
+                // Securely clear sensitive data from memory
+                OPENSSL_cleanse(value.data(), value.length());
+                OPENSSL_cleanse(line.data(), line.length());
             }
         } else if (key == "password_hash") {
             m_password_hash = value;
