@@ -103,16 +103,31 @@ void test_fixed_predictor_order_1() {
     
     // FIXED order 1: type=001001 (9), wasted_bits=0
     // Subframe header: 0|001001|0 = 0x12
-    // 1 warm-up sample
-    // Residuals follow
-    uint8_t data[] = {
-        0x12,        // Subframe header (FIXED order 1)
-        0x00, 0x0A,  // Warm-up sample: 10
-        // Residual coding would follow
-    };
-    reader.feedData(data, sizeof(data));
+    std::vector<uint8_t> data;
+    data.push_back(0x12);
+
+    // Warm-up sample: 10 (0x000A)
+    data.push_back(0x00);
+    data.push_back(0x0A);
+
+    // Residuals: 1, -1, 1 (ZigZag: 2, 1, 2) (Unary: 001, 01, 001)
+    // 0x00, 0x0A, 0x40
+    data.push_back(0x00);
+    data.push_back(0x0A);
+    data.push_back(0x40);
+
+    reader.feedData(data.data(), data.size());
     
-    // The decoder should recognize FIXED order 1 and read warm-up sample
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode FIXED order 1 subframe");
+
+    ASSERT_EQUALS(10, output[0], "Sample 0 (warmup)");
+    ASSERT_EQUALS(11, output[1], "Sample 1");
+    ASSERT_EQUALS(10, output[2], "Sample 2");
+    ASSERT_EQUALS(11, output[3], "Sample 3");
 }
 
 // Test wasted bits handling

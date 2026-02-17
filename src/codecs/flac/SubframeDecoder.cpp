@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+#include "codecs/flac/SubframeDecoder.h"
+#include "codecs/flac/ResidualDecoder.h"
+#include "codecs/flac/BitstreamReader.h"
 
 namespace PsyMP3 {
 namespace Codec {
