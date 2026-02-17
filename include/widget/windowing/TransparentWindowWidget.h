@@ -44,7 +44,7 @@ using PsyMP3::Widget::Foundation::DrawableWidget;
  * - No titlebar or window decorations
  * - Adjustable transparency/opacity
  * - Z-order aware for proper layering
- * - Optional mouse event pass-through (for ToastNotification)
+ * - Optional mouse event pass-through (for ToastWidget)
  * - Custom background rendering (solid, gradient, rounded corners, etc.)
  */
 class TransparentWindowWidget : public DrawableWidget {

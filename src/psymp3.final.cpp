@@ -209,7 +209,6 @@
 #include "widget/ui/ProgressBarBracketWidget.cpp"
 #include "widget/ui/ProgressBarFrameWidget.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
-#include "widget/ui/ToastNotification.cpp"
 #include "widget/ui/ToastWidget.cpp"
 
 // ============================================================================
