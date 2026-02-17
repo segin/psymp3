@@ -372,9 +372,6 @@ using PsyMP3::Widget::UI::LyricsWidget;
 using PsyMP3::Widget::UI::Label;
 
 #include "ZOrder.h"
-#include "widget/ui/ToastNotification.h"
-
-using PsyMP3::Widget::UI::ToastNotification;
 
 // I/O and utility components (needed by other components)
 #include "core/utility/utility.h"
