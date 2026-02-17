@@ -158,6 +158,11 @@ class Player
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
         
+        // Initialization and cleanup
+        bool Initialize(const PlayerOptions& options);
+        void EventLoop();
+        void Cleanup();
+
         // Window management methods
         void renderWindows();
         void handleWindowMouseEvents(const SDL_Event& event);
@@ -241,7 +246,8 @@ class Player
         int m_automated_test_track_count;
         SDL_TimerID m_automated_test_timer_id = 0;
         SDL_TimerID m_automated_quit_timer_id = 0;
-        
+        SDL_TimerID m_app_loop_timer_id = 0;
+
         // Test windows
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
