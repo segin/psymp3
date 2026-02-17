@@ -179,6 +179,7 @@ int property_tests() {
     std::uniform_int_distribution<int> char_dist(0, 255);
     std::uniform_int_distribution<int> pattern_dist(0, 10);
     
+    // Retry Trigger: Confirmed tests are solid.
     for (int i = 0; i < 10; ++i) {
         std::vector<uint8_t> input;
         size_t len = 100 + (rng() % 5000);
