@@ -352,7 +352,8 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_demuxer_performance \
 	test_iohandler_legacy_compatibility \
 	test_iohandler_performance_validation \
-	test_http_client_parse_url
+	test_http_client_parse_url \
+	test_base64_unit
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -773,6 +774,14 @@ test_http_client_parse_url_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	-lcurl -lssl -lcrypto \
+	$(AM_LDFLAGS)
+
+test_base64_unit_SOURCES = test_base64_unit.cpp
+test_base64_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
 # OggDemuxer page extraction test
