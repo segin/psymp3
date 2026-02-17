@@ -129,14 +129,35 @@ else
   have_opus=no
 fi
 
+# Check for Speex (Ogg container required)
+AC_ARG_ENABLE([speex],
+  [AS_HELP_STRING([--enable-speex], [Enable Speex support @<:@default=yes@:>@])],
+  [enable_speex=$enableval], [enable_speex=yes])
+
+have_speex=no
+if test "x$enable_speex" = "xyes"; then
+  if test "x$have_ogg" = "xyes"; then
+    PKG_CHECK_MODULES([SPEEX], [speex >= 1.2], [have_speex=yes], [have_speex=no])
+    if test "x$have_speex" = "xyes"; then
+      AC_DEFINE([HAVE_SPEEX], [1], [Define to 1 if Speex support is enabled])
+    fi
+  else
+    have_speex=no
+    AC_MSG_WARN([Speex support disabled: libogg not found])
+  fi
+else
+  have_speex=no
+fi
+
 # Determine if OggDemuxer should be built
 # OggDemuxer is built if:
 # - Both Vorbis and Opus are enabled, OR
 # - Only Vorbis is enabled, OR  
 # - Only Opus is enabled, OR
+# - Speex is enabled, OR
 # - FLAC is enabled and libogg is available (for Ogg FLAC support)
 have_oggdemuxer=no
-if test "x$have_vorbis" = "xyes" || test "x$have_opus" = "xyes"; then
+if test "x$have_vorbis" = "xyes" || test "x$have_opus" = "xyes" || test "x$have_speex" = "xyes"; then
   have_oggdemuxer=yes
 elif test "x$have_flac" = "xyes" && test "x$have_ogg" = "xyes"; then
   have_oggdemuxer=yes
@@ -193,6 +214,7 @@ AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
+AM_CONDITIONAL([HAVE_SPEEX], [test "x$have_speex" = "xyes"])
 AM_CONDITIONAL([HAVE_ALAW], [test "x$have_alaw" = "xyes"])
 AM_CONDITIONAL([HAVE_MULAW], [test "x$have_mulaw" = "xyes"])
 
@@ -429,6 +451,7 @@ else
 fi
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
+echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"
 echo ""
