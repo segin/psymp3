@@ -145,9 +145,13 @@ class Player
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
-        void renderSpectrum(Surface *graph);
         void precomputeSpectrumColors();
     private:
+        // GUI update helper methods
+        void updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title);
+        void renderSpectrum();
+        void renderOverlay(Stream* current_stream, unsigned long current_pos_ms);
+
         bool updateGUI();
         bool handleKeyPress(const SDL_keysym& keysym);
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
