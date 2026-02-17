@@ -3957,3 +3957,8 @@ fuzz_utf8util_LDADD = \
 
 # Run all check programs
 TESTS = $(check_PROGRAMS)
+
+check_PROGRAMS += test_mp3_codec_wrapper
+test_mp3_codec_wrapper_SOURCES = test_mp3_codec.cpp
+test_mp3_codec_wrapper_CXXFLAGS = $(AM_CXXFLAGS) -I$(top_srcdir)/tests
+test_mp3_codec_wrapper_LDADD = # No external libs
