@@ -1141,7 +1141,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
@@ -1216,8 +1215,3 @@ void MethodHandler::logValidationError_unlocked(
   std::cerr << "MPRIS MethodHandler Validation Error [" << method_name << "."
             << parameter << "]: " << error_message << std::endl;
 }
-
-#endif // HAVE_DBUS
-
-} // namespace MPRIS
-} // namespace PsyMP3
