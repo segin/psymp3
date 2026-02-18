@@ -3957,3 +3957,17 @@ fuzz_utf8util_LDADD = \
 
 # Run all check programs
 TESTS = $(check_PROGRAMS)
+
+# ============================================================================
+# Utility Tests
+# ============================================================================
+
+check_PROGRAMS += test_utility_unit
+
+test_utility_unit_SOURCES = test_utility_unit.cpp
+test_utility_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
