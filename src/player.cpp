@@ -541,79 +541,172 @@ void Player::precomputeSpectrumColors() {
 }
 
 /**
- * @brief Renders the spectrum analyzer visualization onto a given surface.
- * This includes the falling-bar visualization and the "ghosting" or fade effect,
- * which is achieved by blitting a semi-transparent black rectangle over the previous frame.
- * @param graph The destination surface to draw the spectrum on.
+ * @brief Updates the spectrum visualization widget with new FFT data.
+ * @param spectrum Pointer to the FFT data array.
  */
-void Player::renderSpectrum(Surface *graph) {
+void Player::renderSpectrum(float* spectrum) {
+    if (m_spectrum_widget) {
+        // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
+        // Pass live scalefactor and decayfactor values so keypress changes propagate
+        m_spectrum_widget->updateSpectrum(spectrum, 320, scalefactor, decayfactor);
+    }
+}
+
+/**
+ * @brief Captures the current player state and handles periodic updates.
+ * This function runs inside a critical section to safely access shared audio data.
+ * It also handles scrobbling logic and track preloading.
+ * @return A GUIState struct containing the snapshot of the current state.
+ */
+Player::GUIState Player::updateState() {
+    GUIState gui_state;
+    std::lock_guard<std::mutex> lock(*mutex);
+
+    // Copy data from stream object while locked
+    if (audio && audio->getCurrentStream()) {
+        gui_state.current_stream = audio->getCurrentStream();
+
+        // During a keyboard seek, we use our manually-controlled position for
+        // instant visual feedback. Otherwise, get the position from the stream.
+        if (m_seek_direction != 0) {
+            gui_state.current_pos_ms = m_seek_position_ms;
+        } else {
+            if (audio) {
+                gui_state.current_pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
+            } else {
+                gui_state.current_pos_ms = 0;
+            }
+            Debug::log("player", "Player: User visible position=", gui_state.current_pos_ms, "ms, total_len=", gui_state.current_stream->getLength(), "ms");
+        }
+        gui_state.total_len_ms = gui_state.current_stream->getLength();
+        gui_state.artist = gui_state.current_stream->getArtist();
+        gui_state.title = gui_state.current_stream->getTitle();
+        gui_state.is_playing = (state == PlayerState::Playing);
+
+        // Check if we should scrobble this track (only check every 30 seconds to avoid spam)
+        if (gui_state.is_playing) {
+            static Uint32 last_scrobble_check = 0;
+            Uint32 current_time = SDL_GetTicks();
+            if (current_time - last_scrobble_check > 30000) { // Check every 30 seconds
+                checkScrobbling();
+                last_scrobble_check = current_time;
+            }
+        }
+
+        // Trigger preloading when near the end of the track (last 10 seconds)
+        if (!m_next_stream && !m_preloading_track && gui_state.total_len_ms > 0 &&
+            (gui_state.total_len_ms - gui_state.current_pos_ms) < 10000 && playlist &&
+            playlist->getPosition() < playlist->entries() - 1) {
+
+            // Look ahead for sequences of short tracks and automatically chain them
+            std::vector<TagLib::String> short_track_chain;
+            long current_playlist_pos = playlist->getPosition();
+            long look_ahead_pos = current_playlist_pos + 1;
+
+            // Scan ahead for consecutive short tracks (< 10 seconds each)
+            while (look_ahead_pos < playlist->entries()) {
+                TagLib::String candidate_path = playlist->getTrack(look_ahead_pos);
+                if (candidate_path.isEmpty()) break;
+
+                // Use cached track metadata instead of blocking MediaFile::open()
+                const track* track_info = playlist->getTrackInfo(look_ahead_pos);
+                if (track_info) {
+                    long track_length = track_info->GetLen() * 1000; // Convert seconds to milliseconds
+                    if (track_length > 0 && track_length < 10000) {
+                        // Track is short, add to chain
+                        short_track_chain.push_back(candidate_path);
+                        look_ahead_pos++;
+                    } else if (track_length > 0) {
+                        // Found a normal-length track - include it to complete the transition
+                        short_track_chain.push_back(candidate_path);
+                        break;
+                    } else {
+                        // Unknown length (cached metadata may be unavailable), stop scanning to be safe
+                        break;
+                    }
+                } else {
+                    // No track info available, stop scanning
+                    break;
+                }
+            }
+
+            if (short_track_chain.size() >= 2) {
+                // Use ChainedStream for sequences of 2+ tracks
+                Debug::log("playlist", "Detected sequence of ", short_track_chain.size(),
+                          " tracks for chaining, starting with: ",
+                          short_track_chain[0].to8Bit(true));
+                requestChainedStreamLoad(short_track_chain);
+            } else {
+                // Single track or no short tracks found, use normal preloading
+                TagLib::String next_path = playlist->peekNext();
+                if (!next_path.isEmpty()) {
+                    Debug::log("loader", "Preloading next track for seamless transition: ", next_path.to8Bit(true));
+                    requestTrackPreload(next_path);
+                }
+            }
+        }
+    }
+
+    // Update spectrum data in the widget - it will render itself via the widget tree
     float *spectrum = fft->getFFT();
+    renderSpectrum(spectrum);
     
-    // DEBUG: Print some spectrum values to understand the data range
-    static int debug_counter = 0;
-    if (debug_counter++ % 60 == 0) { // Print every 60 frames (~1 second at 60fps)
-        std::stringstream ss;
-        ss << "DEBUG: Spectrum values [0-9]: ";
-        for (int i = 0; i < 10; i++) {
-            ss << spectrum[i] << " ";
+    return gui_state;
+}
+
+/**
+ * @brief Renders overlay widgets, handles MPRIS updates, and draws the UI hierarchy.
+ * @param state The current player state snapshot.
+ */
+void Player::renderOverlay(const GUIState& state) {
+#ifdef HAVE_DBUS
+    // Update MPRIS position (outside of Player mutex to avoid deadlocks)
+    if (m_mpris_manager && state.current_stream && state.is_playing) {
+        // Update position periodically (convert ms to microseconds)
+        static Uint32 last_position_update = 0;
+        Uint32 current_time = SDL_GetTicks();
+        if (current_time - last_position_update > 1000) { // Update every second
+            m_mpris_manager->updatePosition(static_cast<uint64_t>(state.current_pos_ms) * 1000);
+            last_position_update = current_time;
         }
-        ss << "| scale=" << scalefactor;
-        Debug::log("spectrum", ss.str());
+    }
+#endif
+
+    // --- Lyrics Widget Update ---
+    if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && state.current_stream) {
+        m_lyrics_widget->updatePosition(state.current_pos_ms);
     }
 
-    // --- Fade effect implementation ---
-    static std::unique_ptr<Surface> fade_surface_ptr; // Declared static to persist across calls
-    static uint8_t cached_fade_alpha = 255; // Cache the last alpha value to avoid redundant SetAlpha calls
-    
-    // The fade surface is created once and reused. It's filled with opaque black
-    // only upon creation, avoiding a FillRect call on every frame.
-    if (!fade_surface_ptr || fade_surface_ptr->width() != 640 || fade_surface_ptr->height() != 350) {
-        fade_surface_ptr = std::make_unique<Surface>(640, 350); // Creates a 32-bit surface for FFT area only
-        // Fill the surface with opaque black. This only needs to be done once.
-        fade_surface_ptr->FillRect(fade_surface_ptr->MapRGBA(0, 0, 0, 255));
-        cached_fade_alpha = 255; // Reset cache when surface is recreated
+    // --- Pause Indicator Rendering ---
+    // This should be drawn after the toast so it appears on top if both are active.
+    if (m_pause_indicator) {
+        // Center the indicator in the graph area
+        const Rect& current_pos = m_pause_indicator->getPos();
+        Rect new_pos = current_pos;
+        new_pos.x((graph->width() - current_pos.width()) / 2);
+        new_pos.y((350 - current_pos.height()) / 2); // Center in the 350px FFT area
+        m_pause_indicator->setPos(new_pos);
+        m_pause_indicator->BlitTo(*graph);
     }
-    Surface& fade_surface = *fade_surface_ptr;
 
-    // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
-    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 8.0f)); // Reduced fade strength: divisor increased from 4.0 to 8.0
-
-    // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
-    if (fade_alpha != cached_fade_alpha) {
-        fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
-        cached_fade_alpha = fade_alpha;
+    // --- UI Widget Tree Rendering ---
+    // Clear areas where UI widgets will render to prevent ghosting
+    // Note: Don't clear spectrum area (0,0,640,350) - SpectrumAnalyzerWidget handles its own background
+    // Bottom area for track info labels (below spectrum area)
+    graph->box(0, 350, 640, 400, 0, 0, 0, 255);
+    // Top-right area for debug labels (over spectrum area)
+    graph->box(545, 0, 640, 48, 0, 0, 0, 255);
+    
+    // Render ApplicationWidget hierarchy (background + windows)
+    if (m_ui_root) {
+        m_ui_root->BlitTo(*graph);
     }
-    
-    // Use static rect to avoid repeated object construction
-    static const Rect blit_dest_rect(0, 0, 640, 350); // Blit only to the FFT area
-    graph->Blit(fade_surface, blit_dest_rect); // This will blend if SDL_SRCALPHA is set on src
 
-    // --- End Fade effect implementation ---
-
-    // Cache constants to reduce repeated calculations
-    constexpr int16_t spectrum_height = 350;
-    constexpr int16_t spectrum_bottom = 349; // Bottom of the FFT area (0-349 for 350 pixels)
-    constexpr uint16_t spectrum_bins = 320;
-    
-    for(uint16_t x = 0; x < spectrum_bins; x++) {
-        // Calculate the bar's height with fewer intermediate calculations
-        // Apply gain to amplify weak signals before logarithmic scaling
-        const float gained_amplitude = spectrum[x] * 5.0f; // Amplify by 5x
-        const float scaled_amplitude = Util::logarithmicScale(scalefactor, gained_amplitude);
-        const int16_t y_start = static_cast<int16_t>(spectrum_bottom - scaled_amplitude * spectrum_height);
-        const int16_t x_pos = x * 2;
-        
-        // DEBUG: Print some bar calculations
-        if (debug_counter % 60 == 1 && x < 5) { // Different frame to avoid overlap, first 5 bars
-            Debug::log("spectrum", "DEBUG bar ", x, ": raw=", spectrum[x], 
-                      " gained=", gained_amplitude,
-                      " scaled=", scaled_amplitude, 
-                      " y_start=", y_start);
-        }
-        
-        // Use box() instead of rectangle() for better performance (SDL_FillRect vs hline loop)
-        graph->box(x_pos, y_start, x_pos + 1, spectrum_bottom, m_spectrum_colors[x]);
-    };
+    // --- Window Rendering ---
+    // Update windows (handle auto-dismiss for toasts, etc.)
+    ApplicationWidget::getInstance().updateWindows();
+    // Render floating windows on top of everything else
+    renderWindows();
 }
 
 /**
@@ -670,183 +763,34 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
 bool Player::updateGUI()
 {
     Player::guiRunning = true;
-    unsigned long current_pos_ms = 0;
-    unsigned long total_len_ms = 0;
-    TagLib::String artist = "";
-    TagLib::String title = "";
-    Stream* current_stream = nullptr; // Declare here
-
-    // --- GUI Update Logic ---
-    // --- Start of critical section ---
-    // Lock the mutex only while accessing shared data (stream, fft).
-    {
-        std::lock_guard<std::mutex> lock(*mutex);
-
-        // Don't clear the graph surface - widgets will draw their own backgrounds
-
-        // Copy data from stream object while locked
-        if (audio && audio->getCurrentStream()) {
-            current_stream = audio->getCurrentStream(); // Assign here
-            // During a keyboard seek, we use our manually-controlled position for
-            // instant visual feedback. Otherwise, get the position from the stream.
-            if (m_seek_direction != 0) {
-                current_pos_ms = m_seek_position_ms;
-            } else {
-                if (audio) {
-                    current_pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
-                } else {
-                    current_pos_ms = 0;
-                }
-                Debug::log("player", "Player: User visible position=", current_pos_ms, "ms, total_len=", current_stream->getLength(), "ms");
-            }
-            total_len_ms = current_stream->getLength();
-            artist = current_stream->getArtist();
-            title = current_stream->getTitle();
-            
-            // Check if we should scrobble this track (only check every 30 seconds to avoid spam)
-            if (state == PlayerState::Playing) {
-                static Uint32 last_scrobble_check = 0;
-                Uint32 current_time = SDL_GetTicks();
-                if (current_time - last_scrobble_check > 30000) { // Check every 30 seconds
-                    checkScrobbling();
-                    last_scrobble_check = current_time;
-                }
-            }
-
-            // Trigger preloading when near the end of the track (last 10 seconds)
-            if (!m_next_stream && !m_preloading_track && total_len_ms > 0 && 
-                (total_len_ms - current_pos_ms) < 10000 && playlist && 
-                playlist->getPosition() < playlist->entries() - 1) {
-                
-                // Look ahead for sequences of short tracks and automatically chain them
-                std::vector<TagLib::String> short_track_chain;
-                long current_playlist_pos = playlist->getPosition();
-                long look_ahead_pos = current_playlist_pos + 1;
-                
-                // Scan ahead for consecutive short tracks (< 10 seconds each)
-                while (look_ahead_pos < playlist->entries()) {
-                    TagLib::String candidate_path = playlist->getTrack(look_ahead_pos);
-                    if (candidate_path.isEmpty()) break;
-                    
-                    // Use cached track metadata instead of blocking MediaFile::open()
-                    const track* track_info = playlist->getTrackInfo(look_ahead_pos);
-                    if (track_info) {
-                        long track_length = track_info->GetLen() * 1000; // Convert seconds to milliseconds
-                        if (track_length > 0 && track_length < 10000) {
-                            // Track is short, add to chain
-                            short_track_chain.push_back(candidate_path);
-                            look_ahead_pos++;
-                        } else if (track_length > 0) {
-                            // Found a normal-length track - include it to complete the transition
-                            short_track_chain.push_back(candidate_path);
-                            break;
-                        } else {
-                            // Unknown length (cached metadata may be unavailable), stop scanning to be safe
-                            break;
-                        }
-                    } else {
-                        // No track info available, stop scanning
-                        break;
-                    }
-                }
-                
-                if (short_track_chain.size() >= 2) {
-                    // Use ChainedStream for sequences of 2+ tracks
-                    Debug::log("playlist", "Detected sequence of ", short_track_chain.size(), 
-                              " tracks for chaining, starting with: ", 
-                              short_track_chain[0].to8Bit(true));
-                    requestChainedStreamLoad(short_track_chain);
-                } else {
-                    // Single track or no short tracks found, use normal preloading
-                    TagLib::String next_path = playlist->peekNext();
-                    if (!next_path.isEmpty()) {
-                        Debug::log("loader", "Preloading next track for seamless transition: ", next_path.to8Bit(true));
-                        requestTrackPreload(next_path);
-                    }
-                }
-            }
-        }
-
-        // Update spectrum data in the widget - it will render itself via the widget tree
-        float *spectrum = fft->getFFT();
-        if (m_spectrum_widget) {
-            // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
-            // Pass live scalefactor and decayfactor values so keypress changes propagate
-            m_spectrum_widget->updateSpectrum(spectrum, 320, scalefactor, decayfactor);
-        }
-    }
-
-#ifdef HAVE_DBUS
-    // Update MPRIS position (outside of Player mutex to avoid deadlocks)
-    if (m_mpris_manager && current_stream && state == PlayerState::Playing) {
-        // Update position periodically (convert ms to microseconds)
-        static Uint32 last_position_update = 0;
-        Uint32 current_time = SDL_GetTicks();
-        if (current_time - last_position_update > 1000) { // Update every second
-            m_mpris_manager->updatePosition(static_cast<uint64_t>(current_pos_ms) * 1000);
-            last_position_update = current_time;
-        }
-    }
-#endif
-
-    // --- Lyrics Widget Update ---
-    if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
-        m_lyrics_widget->updatePosition(current_pos_ms);
-    }
-
-    // --- Pause Indicator Rendering ---
-    // This should be drawn after the toast so it appears on top if both are active.
-    if (m_pause_indicator) {
-        // Center the indicator in the graph area
-        const Rect& current_pos = m_pause_indicator->getPos();
-        Rect new_pos = current_pos;
-        new_pos.x((graph->width() - current_pos.width()) / 2);
-        new_pos.y((350 - current_pos.height()) / 2); // Center in the 350px FFT area
-        m_pause_indicator->setPos(new_pos);
-        m_pause_indicator->BlitTo(*graph);
-    }
-
-    // --- UI Widget Tree Rendering ---
-    // Clear areas where UI widgets will render to prevent ghosting
-    // Note: Don't clear spectrum area (0,0,640,350) - SpectrumAnalyzerWidget handles its own background
-    // Bottom area for track info labels (below spectrum area)
-    graph->box(0, 350, 640, 400, 0, 0, 0, 255);
-    // Top-right area for debug labels (over spectrum area)  
-    graph->box(545, 0, 640, 48, 0, 0, 0, 255);
     
-    // Render ApplicationWidget hierarchy (background + windows)
-    if (m_ui_root) {
-        m_ui_root->BlitTo(*graph);
-    }
-    
-    // --- Window Rendering ---
-    // Update windows (handle auto-dismiss for toasts, etc.)
-    ApplicationWidget::getInstance().updateWindows();
-    // Render floating windows on top of everything else
-    renderWindows();
+    // 1. Update State (Locking, data gathering, preloading, spectrum update)
+    GUIState state = updateState();
 
+    // 2. Render Overlay (Widgets, Windows, Indicators)
+    // Note: This renders to 'graph' surface.
+    renderOverlay(state);
 
-    // --- End of critical section ---
+    // 3. Post-render logic (Labels, Seek, Progress Bar, Final Scene Composition)
 
-    // Now use the copied data for rendering, outside the lock.
-    if(current_stream) {
-        m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
-                                + ":" + convertInt2((current_pos_ms / 1000) % 60)
-                                + "." + convertInt2((current_pos_ms / 10) % 100)
-                                + "/" + convertInt(total_len_ms / 60000)
-                                + ":" + convertInt2((total_len_ms / 1000) % 60)
-                                + "." + convertInt2((total_len_ms / 10) % 100));
+    // Update Labels
+    if(state.current_stream) {
+        m_labels.at("position")->setText("Position: " + convertInt(state.current_pos_ms / 60000)
+                                + ":" + convertInt2((state.current_pos_ms / 1000) % 60)
+                                + "." + convertInt2((state.current_pos_ms / 10) % 100)
+                                + "/" + convertInt(state.total_len_ms / 60000)
+                                + ":" + convertInt2((state.total_len_ms / 1000) % 60)
+                                + "." + convertInt2((state.total_len_ms / 10) % 100));
         screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
-                        (std::string) " -:[ " + artist.to8Bit(true) + " ] :-" + " -- -:[ " +
-                        title.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
+                        (std::string) " -:[ " + state.artist.to8Bit(true) + " ] :-" + " -- -:[ " +
+                        state.title.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
     } else {
         m_labels.at("position")->setText("Position: -:--.-- / -:--.--");
         screen->SetCaption((std::string) "PsyMP3 " PSYMP3_VERSION + " -:[ not playing ] :-", "PsyMP3 " PSYMP3_VERSION);
     }
     
-    // Progress bar frame and fill are now handled by ProgressBarFrameWidget hierarchy
-
     // --- Continuous Keyboard Seeking ---
+    unsigned long display_pos_ms = state.current_pos_ms;
     if (m_seek_direction != 0 && stream && !m_is_dragging) {
         // This implements a continuous seek while arrow keys are held down.
         const long long seek_increment_ms = 500; // Seek by 500ms per frame
@@ -857,19 +801,19 @@ bool Player::updateGUI()
             m_seek_position_ms = (signed_pos < 0) ? 0 : static_cast<unsigned long>(signed_pos);
         } else if (m_seek_direction == 2) { // forwards
             m_seek_position_ms += seek_increment_ms;
-            if (total_len_ms > 0 && m_seek_position_ms > total_len_ms) {
-                m_seek_position_ms = total_len_ms;
+            if (state.total_len_ms > 0 && m_seek_position_ms > state.total_len_ms) {
+                m_seek_position_ms = state.total_len_ms;
             }
         }
         seekTo(m_seek_position_ms); // Request the asynchronous seek
-        current_pos_ms = m_seek_position_ms; // Update local var for instant visual feedback
+        display_pos_ms = m_seek_position_ms; // Update local var for instant visual feedback
     }
 
     // Update progress bar widget
     if (m_progress_widget) {
-        if (total_len_ms > 0) {
-            unsigned long display_position_ms = m_is_dragging ? m_drag_position_ms : current_pos_ms;
-            double progress = static_cast<double>(display_position_ms) / static_cast<double>(total_len_ms);
+        if (state.total_len_ms > 0) {
+            unsigned long current_display_ms = m_is_dragging ? m_drag_position_ms : display_pos_ms;
+            double progress = static_cast<double>(current_display_ms) / static_cast<double>(state.total_len_ms);
             if (m_is_dragging) {
                 m_progress_widget->setDragProgress(progress);
             } else {
