@@ -9,7 +9,22 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <cmath>
+#include <cstring>
+#include <utility>
 #endif // !FINAL_BUILD
+
+#ifdef HAVE_DBUS
+#include "mpris/MethodHandler.h"
+#include "mpris/MPRISTypes.h"
+#include <dbus/dbus.h>
+#endif
 
 namespace PsyMP3 {
 namespace MPRIS {
@@ -1013,7 +1028,7 @@ void MethodHandler::appendVariantToIter_unlocked(
 void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args;
-  DBusMessageIter variant_iter; // Declare variant_iter here
+  DBusMessageIter variant_iter; // Correctly declared
   dbus_message_iter_init_append(reply, &args);
 
   if (property_name == "PlaybackStatus") {
@@ -1141,7 +1156,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
+      }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
