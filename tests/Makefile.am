@@ -3628,6 +3628,29 @@ endif
 # ============================================================================
 
 if HAVE_MP3
+check_PROGRAMS += test_mp3_codec
+
+test_mp3_codec_SOURCES = test_mp3_codec.cpp
+test_mp3_codec_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/io/TagLibIOHandlerAdapter.o \
+	$(top_builddir)/src/codecs/mp3/libpsymp3-codec-mp3.a \
+	$(top_builddir)/src/codecs/pcm/libpsymp3-codec-pcm.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(LIBMPG123_LIBS) \
+	$(CURL_LIBS) \
+	$(OPENSSL_LIBS) \
+	$(AM_LDFLAGS)
+
 noinst_PROGRAMS += mp3out
 
 mp3out_SOURCES = mp3out.cpp
