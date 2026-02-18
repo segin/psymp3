@@ -123,7 +123,6 @@ void LastFM::writeConfig()
     
     config << "# Last.fm configuration\n";
     config << "username=" << m_username << "\n";
-    config << "password_hash=" << m_password_hash << "\n";
     config << "session_key=" << m_session_key << "\n";
     config << "now_playing_url=" << m_nowplaying_url << "\n";
     config << "submission_url=" << m_submission_url << "\n";
@@ -726,7 +725,7 @@ void LastFM::forceSubmission()
 
 bool LastFM::isConfigured() const
 {
-    return !m_username.empty() && !m_password_hash.empty();
+    return !m_username.empty() && (!m_password_hash.empty() || !m_session_key.empty());
 }
 
 std::string LastFM::urlEncode(const std::string& input)
