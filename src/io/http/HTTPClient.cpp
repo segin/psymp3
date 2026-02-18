@@ -468,7 +468,7 @@ std::string HTTPClient::urlEncode(const std::string& input) {
     }
     
     // Fallback if curl is not initialized, failed to init, or failed to escape.
-    // Use a safe, manual encoding to avoid security risks of returning unencoded input.
+    // Use a safe, manual encoding (RFC 3986 compliant) to avoid security risks of returning unencoded input.
     Debug::log("http", "HTTPClient::urlEncode() - libcurl encoding failed or unavailable, using fallback encoder");
     
     std::string result;
