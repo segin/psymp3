@@ -148,6 +148,10 @@ class Player
         void renderSpectrum(Surface *graph);
         void precomputeSpectrumColors();
     private:
+        bool Initialize(const PlayerOptions& options);
+        void EventLoop();
+        void Cleanup();
+
         bool updateGUI();
         bool handleKeyPress(const SDL_keysym& keysym);
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
