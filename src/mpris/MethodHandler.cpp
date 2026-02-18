@@ -32,6 +32,7 @@ MethodHandler::MethodHandler(Player *player, PropertyManager *properties)
   }
 
   initializeMethodHandlers_unlocked();
+  initializePropertyHandlers_unlocked();
   m_initialized = true;
 }
 
@@ -167,6 +168,99 @@ void MethodHandler::initializeMethodHandlers_unlocked() {
       [this](DBusConnection *conn, DBusMessage *msg) {
         return handleGetAllProperties_unlocked(conn, msg);
       };
+}
+
+void MethodHandler::initializePropertyHandlers_unlocked() {
+  // MPRIS MediaPlayer2 interface properties
+  auto &mp2_handlers = m_property_handlers[MPRIS_MEDIAPLAYER2_INTERFACE];
+
+  mp2_handlers["Identity"] = []() {
+    return PsyMP3::MPRIS::DBusVariant("PsyMP3");
+  };
+
+  mp2_handlers["CanQuit"] = []() { return PsyMP3::MPRIS::DBusVariant(true); };
+
+  mp2_handlers["CanRaise"] = []() { return PsyMP3::MPRIS::DBusVariant(true); };
+
+  mp2_handlers["HasTrackList"] = []() {
+    return PsyMP3::MPRIS::DBusVariant(false);
+  };
+
+  mp2_handlers["SupportedUriSchemes"] = []() {
+    std::vector<std::string> schemes = {"file"};
+    return PsyMP3::MPRIS::DBusVariant(schemes);
+  };
+
+  mp2_handlers["SupportedMimeTypes"] = []() {
+    std::vector<std::string> mimes = {"audio/mpeg", "audio/x-mpeg",
+                                      "audio/mp3", "audio/flac", "audio/ogg",
+                                      "application/ogg"};
+    return PsyMP3::MPRIS::DBusVariant(mimes);
+  };
+
+  // MPRIS MediaPlayer2.Player interface properties
+  auto &player_handlers = m_property_handlers[MPRIS_PLAYER_INTERFACE];
+
+  player_handlers["PlaybackStatus"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus());
+  };
+
+  player_handlers["LoopStatus"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(
+        PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus()));
+  };
+
+  player_handlers["Rate"] = []() { return PsyMP3::MPRIS::DBusVariant(1.0); };
+
+  player_handlers["Shuffle"] = []() {
+    return PsyMP3::MPRIS::DBusVariant(false);
+  };
+
+  player_handlers["Metadata"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->getMetadata());
+  };
+
+  player_handlers["Volume"] = [this]() {
+    double volume = m_player ? m_player->getVolume() : 1.0;
+    return PsyMP3::MPRIS::DBusVariant(volume);
+  };
+
+  player_handlers["Position"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(
+        static_cast<int64_t>(m_properties->getPosition()));
+  };
+
+  player_handlers["MinimumRate"] = []() {
+    return PsyMP3::MPRIS::DBusVariant(1.0);
+  };
+
+  player_handlers["MaximumRate"] = []() {
+    return PsyMP3::MPRIS::DBusVariant(1.0);
+  };
+
+  player_handlers["CanGoNext"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->canGoNext());
+  };
+
+  player_handlers["CanGoPrevious"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->canGoPrevious());
+  };
+
+  player_handlers["CanPlay"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->canControl());
+  };
+
+  player_handlers["CanPause"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->canControl());
+  };
+
+  player_handlers["CanSeek"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->canSeek());
+  };
+
+  player_handlers["CanControl"] = [this]() {
+    return PsyMP3::MPRIS::DBusVariant(m_properties->canControl());
+  };
 }
 
 // MPRIS MediaPlayer2 interface handlers
@@ -554,7 +648,7 @@ MethodHandler::handleGetProperty_unlocked(DBusConnection *connection,
   }
 
   try {
-    appendPropertyToMessage_unlocked(reply, property_name);
+    appendPropertyToMessage_unlocked(reply, interface_name, property_name);
     dbus_connection_send(connection, reply, nullptr);
     dbus_message_unref(reply);
     return DBUS_HANDLER_RESULT_HANDLED;
@@ -1011,86 +1105,23 @@ void MethodHandler::appendVariantToIter_unlocked(
 }
 
 void MethodHandler::appendPropertyToMessage_unlocked(
-    DBusMessage *reply, const std::string &property_name) {
+    DBusMessage *reply, const std::string &interface_name,
+    const std::string &property_name) {
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
 
-  if (property_name == "PlaybackStatus") {
-    appendVariantToIter_unlocked(
-        &args, PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus()));
+  auto it = m_property_handlers.find(interface_name);
+  if (it == m_property_handlers.end()) {
+    throw std::runtime_error("Unknown interface: " + interface_name);
+  }
 
-  } else if (property_name == "Metadata") {
-    appendVariantToIter_unlocked(
-        &args, PsyMP3::MPRIS::DBusVariant(m_properties->getMetadata()));
-
-  } else if (property_name == "Position") {
-    uint64_t position = m_properties->getPosition();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "x",
-                                     &variant_iter);
-    dbus_int64_t position_val = static_cast<dbus_int64_t>(position);
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_INT64,
-                                   &position_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanGoNext") {
-    bool can_go_next = m_properties->canGoNext();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_go_next ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanGoPrevious") {
-    bool can_go_previous = m_properties->canGoPrevious();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_go_previous ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanSeek") {
-    bool can_seek = m_properties->canSeek();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_seek ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "CanControl") {
-    bool can_control = m_properties->canControl();
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t bool_val = can_control ? TRUE : FALSE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "Volume") {
-    double volume = m_player ? m_player->getVolume() : 1.0;
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "d",
-                                     &variant_iter);
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE, &volume);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "LoopStatus") {
-    std::string loop_status = PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus());
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s",
-                                     &variant_iter);
-    const char *loop_status_cstr = loop_status.c_str();
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                   &loop_status_cstr);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else if (property_name == "Shuffle") {
-    // Default to false since Player doesn't have shuffle control yet
-    dbus_bool_t shuffle = FALSE;
-    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &shuffle);
-    dbus_message_iter_close_container(&args, &variant_iter);
-
-  } else {
+  auto &handlers = it->second;
+  auto prop_it = handlers.find(property_name);
+  if (prop_it == handlers.end()) {
     throw std::runtime_error("Unknown property: " + property_name);
   }
+
+  appendVariantToIter_unlocked(&args, prop_it->second());
 }
 
 void MethodHandler::appendAllPropertiesToMessage_unlocked(
@@ -1099,16 +1130,10 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
   dbus_message_iter_init_append(reply, &args);
   dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict_iter);
 
-  if (interface_name == MPRIS_PLAYER_INTERFACE) {
-    // Add all Player interface properties
-    std::vector<std::string> properties = {
-        "PlaybackStatus", "Metadata", "Position",   "CanGoNext",
-        "CanGoPrevious",  "CanSeek",  "CanControl", "Volume",
-        "LoopStatus",     "Shuffle"};
-
-    auto all_properties = m_properties->getAllProperties();
-    for (const auto &prop_name : properties) {
-      DBusMessageIter entry_iter, variant_iter;
+  auto it = m_property_handlers.find(interface_name);
+  if (it != m_property_handlers.end()) {
+    for (const auto &[prop_name, handler] : it->second) {
+      DBusMessageIter entry_iter;
       dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
                                        nullptr, &entry_iter);
 
@@ -1117,80 +1142,23 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                                      &prop_name_cstr);
 
       try {
-        auto it = all_properties.find(prop_name);
-        if (it != all_properties.end()) {
-          appendVariantToIter_unlocked(&entry_iter, it->second);
-        } else {
-          // Fallback - this should not happen if all properties are in the map
-          dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
-                                           &variant_iter);
-          const char *empty_str = "";
-          dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                         &empty_str);
-          dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
+        appendVariantToIter_unlocked(&entry_iter, handler());
       } catch (const std::exception &e) {
-          logError_unlocked("appendAllPropertiesToMessage",
-                            "Failed to get property " + prop_name + ": " +
-                                e.what());
-          // Add empty variant as fallback
-          dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
-                                           &variant_iter);
-          const char *empty_str = "";
-          dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                         &empty_str);
-          dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
-        dbus_message_unref(temp_msg);
+        logError_unlocked("appendAllPropertiesToMessage",
+                          "Failed to get property " + prop_name + ": " +
+                              e.what());
+        // Add empty variant as fallback
+        DBusMessageIter variant_iter;
+        dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
+                                         &variant_iter);
+        const char *empty_str = "";
+        dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
+                                       &empty_str);
+        dbus_message_iter_close_container(&entry_iter, &variant_iter);
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
-  } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
-    // Add MediaPlayer2 interface properties
-    DBusMessageIter entry_iter, variant_iter;
-
-    // Identity property
-    dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr,
-                                     &entry_iter);
-    const char *identity_key = "Identity";
-    dbus_message_iter_append_basic(&entry_iter, DBUS_TYPE_STRING,
-                                   &identity_key);
-    dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
-                                     &variant_iter);
-    const char *identity_val = "PsyMP3";
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                   &identity_val);
-    dbus_message_iter_close_container(&entry_iter, &variant_iter);
-    dbus_message_iter_close_container(&dict_iter, &entry_iter);
-
-    // CanQuit property
-    dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr,
-                                     &entry_iter);
-    const char *can_quit_key = "CanQuit";
-    dbus_message_iter_append_basic(&entry_iter, DBUS_TYPE_STRING,
-                                   &can_quit_key);
-    dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t can_quit_val = TRUE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN,
-                                   &can_quit_val);
-    dbus_message_iter_close_container(&entry_iter, &variant_iter);
-    dbus_message_iter_close_container(&dict_iter, &entry_iter);
-
-    // CanRaise property
-    dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr,
-                                     &entry_iter);
-    const char *can_raise_key = "CanRaise";
-    dbus_message_iter_append_basic(&entry_iter, DBUS_TYPE_STRING,
-                                   &can_raise_key);
-    dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "b",
-                                     &variant_iter);
-    dbus_bool_t can_raise_val = TRUE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN,
-                                   &can_raise_val);
-    dbus_message_iter_close_container(&entry_iter, &variant_iter);
-    dbus_message_iter_close_container(&dict_iter, &entry_iter);
   }
 
   dbus_message_iter_close_container(&args, &dict_iter);

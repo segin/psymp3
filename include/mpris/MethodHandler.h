@@ -125,9 +125,16 @@ private:
     // Property value serialization for D-Bus responses
     void appendVariantToMessage_unlocked(DBusMessage* reply, const PsyMP3::MPRIS::DBusVariant& variant);
     void appendVariantToIter_unlocked(DBusMessageIter* iter, const PsyMP3::MPRIS::DBusVariant& variant);
-    void appendPropertyToMessage_unlocked(DBusMessage* reply, const std::string& property_name);
+    void appendPropertyToMessage_unlocked(DBusMessage* reply, const std::string& interface_name, const std::string& property_name);
     void appendAllPropertiesToMessage_unlocked(DBusMessage* reply, const std::string& interface_name);
     
+    // Property handlers
+    using PropertyGetter = std::function<PsyMP3::MPRIS::DBusVariant()>;
+    // Map of interface name -> (Map of property name -> getter)
+    std::map<std::string, std::map<std::string, PropertyGetter>> m_property_handlers;
+
+    void initializePropertyHandlers_unlocked();
+
     // Error handling and logging
     void logMethodCall_unlocked(const std::string& interface_name, const std::string& method_name);
     void logError_unlocked(const std::string& context, const std::string& error_message);
