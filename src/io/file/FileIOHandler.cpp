@@ -1686,13 +1686,13 @@ bool FileIOHandler::retryFileOperation(std::function<bool()> operation_func, con
         }
         
         // Check if error is recoverable
-        if (!isFileErrorRecoverable(m_error, operation_name)) {
-            Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed with non-recoverable error: ", m_error, ", not retrying");
+        if (!isFileErrorRecoverable(m_error.load(), operation_name)) {
+            Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed with non-recoverable error: ", m_error.load(), ", not retrying");
             break;
         }
         
         retry_count++;
-        Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed (error: ", m_error, "), retrying (", retry_count, "/", max_retries, ")");
+        Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed (error: ", m_error.load(), "), retrying (", retry_count, "/", max_retries, ")");
         
         // Wait before retrying (exponential backoff)
         int delay = retry_delay_ms * (1 << (retry_count - 1)); // Exponential backoff
