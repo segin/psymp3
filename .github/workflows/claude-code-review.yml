@@ -18,6 +18,8 @@ jobs:
     #   github.event.pull_request.user.login == 'new-developer' ||
     #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
     
+    # Allow this job to fail without blocking the PR (due to API credit issues)
+    continue-on-error: true
     runs-on: ubuntu-latest
     permissions:
       contents: write
