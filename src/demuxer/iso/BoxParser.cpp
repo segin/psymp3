@@ -128,7 +128,13 @@ bool BoxParser::ValidateBoxSize(const BoxHeader& header, uint64_t containerSize)
 }
 
 bool BoxParser::ParseBoxRecursively(uint64_t offset, uint64_t size, 
-                                   std::function<bool(const BoxHeader&, uint64_t)> handler) {
+                                   std::function<bool(const BoxHeader&, uint64_t)> handler, uint32_t depth) {
+    // Check recursion depth to prevent stack overflow
+    if (depth > MAX_BOX_DEPTH) {
+        Debug::log("iso", "Max recursion depth exceeded in BoxParser: ", depth);
+        return false;
+    }
+
     uint64_t currentOffset = offset;
     uint64_t endOffset = offset + size;
     uint32_t boxCount = 0;
@@ -317,9 +323,9 @@ bool BoxParser::SkipUnknownBox(const BoxHeader& header) {
     return true;
 }
 
-bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
+bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size, uint32_t depth) {
     // Parse movie box recursively to find tracks
-    return ParseBoxRecursively(offset, size, [this](const BoxHeader& header, uint64_t boxOffset) {
+    return ParseBoxRecursively(offset, size, [this, depth](const BoxHeader& header, uint64_t boxOffset) {
         switch (header.type) {
             case BOX_MVHD:
                 // Movie header - contains duration and timescale
@@ -333,15 +339,15 @@ bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size) {
             default:
                 return SkipUnknownBox(header);
         }
-    });
+    }, depth);
 }
 
-bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Parse track box recursively to extract audio track information
     bool foundAudio = false;
     SampleTableInfo sampleTables;
     
-    ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &sampleTables](const BoxHeader& header, uint64_t boxOffset) {
+    ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &sampleTables, depth](const BoxHeader& header, uint64_t boxOffset) {
         switch (header.type) {
             case BOX_TKHD:
                 // Track header - contains track ID
@@ -354,11 +360,11 @@ bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
                 // Media box - contains handler and media info
                 return ParseMediaBoxWithSampleTables(boxOffset + (header.dataOffset - boxOffset), 
                                                    header.size - (header.dataOffset - boxOffset), 
-                                                   track, foundAudio, sampleTables);
+                                                   track, foundAudio, sampleTables, depth + 1);
             default:
                 return SkipUnknownBox(header);
         }
-    });
+    }, depth);
     
     // If we found audio and have sample tables, store them in the track
     if (foundAudio && !sampleTables.chunkOffsets.empty()) {
@@ -370,7 +376,7 @@ bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
     return foundAudio;
 }
 
-bool BoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables) {
+bool BoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, uint32_t depth) {
     // Parse sample table box recursively to extract all sample table atoms
     bool hasRequiredTables = false;
     bool hasStts = false, hasStsc = false, hasStsz = false, hasStco = false;
@@ -409,7 +415,7 @@ bool BoxParser::ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableI
             default:
                 return SkipUnknownBox(header);
         }
-    });
+    }, depth);
     
     // Validate that we have all required sample tables
     hasRequiredTables = hasStts && hasStsc && hasStsz && hasStco;
@@ -465,16 +471,16 @@ bool BoxParser::ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& co
     return true;
 }
 
-bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio) {
+bool BoxParser::ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, uint32_t depth) {
     SampleTableInfo dummyTables; // Not used in this version
-    return ParseMediaBoxWithSampleTables(offset, size, track, foundAudio, dummyTables);
+    return ParseMediaBoxWithSampleTables(offset, size, track, foundAudio, dummyTables, depth);
 }
 
-bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables) {
+bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables, uint32_t depth) {
     std::string handlerType;
     bool handlerParsed = false;
     
-    return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType, &handlerParsed, &sampleTables](const BoxHeader& header, uint64_t boxOffset) {
+    return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType, &handlerParsed, &sampleTables, depth](const BoxHeader& header, uint64_t boxOffset) {
         switch (header.type) {
             case BOX_MDHD:
                 // Media header - contains timescale and duration
@@ -505,8 +511,9 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
                 // Media information - only process if this is an audio track
                 if (handlerParsed && handlerType == "soun") {
                     foundAudio = true;
+                    // MINF parsing is recursive
                     return ParseBoxRecursively(header.dataOffset, header.size - (header.dataOffset - boxOffset),
-                        [this, &track, &sampleTables](const BoxHeader& minfHeader, uint64_t minfOffset) {
+                        [this, &track, &sampleTables, depth](const BoxHeader& minfHeader, uint64_t minfOffset) {
                             switch (minfHeader.type) {
                                 case BOX_SMHD:
                                     // Sound media header - confirms this is audio
@@ -516,24 +523,25 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
                                     return true;
                                 case BOX_STBL:
                                     // Sample table box - parse for codec information and sample tables
+                                    // STBL parsing is recursive, increasing depth
                                     return ParseBoxRecursively(minfHeader.dataOffset, minfHeader.size - (minfHeader.dataOffset - minfOffset),
-                                        [this, &track, &sampleTables](const BoxHeader& stblHeader, uint64_t stblOffset) {
+                                        [this, &track, &sampleTables, depth](const BoxHeader& stblHeader, uint64_t stblOffset) {
                                             if (stblHeader.type == BOX_STSD) {
                                                 // Sample description - contains codec information
                                                 return ParseSampleDescriptionBox(stblHeader.dataOffset,
                                                                                 stblHeader.size - (stblHeader.dataOffset - stblOffset),
-                                                                                track);
+                                                                                track, depth + 3);
                                             } else {
                                                 // Parse sample table boxes
                                                 return ParseSampleTableBox(stblHeader.dataOffset,
                                                                           stblHeader.size - (stblHeader.dataOffset - stblOffset),
-                                                                          sampleTables);
+                                                                          sampleTables, depth + 3);
                                             }
-                                        });
+                                        }, depth + 2);
                                 default:
                                     return SkipUnknownBox(minfHeader);
                             }
-                        });
+                        }, depth + 1);
                 } else {
                     // Not an audio track, skip
                     return SkipUnknownBox(header);
@@ -541,7 +549,7 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
             default:
                 return SkipUnknownBox(header);
         }
-    });
+    }, depth);
 }
 
 bool BoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType) {
@@ -597,7 +605,7 @@ bool BoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::string& han
     return true;
 }
 
-bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     if (size < 16) {
         return false;
     }
@@ -639,13 +647,13 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 if (entrySize > 36) {
                     // Parse additional boxes within the sample entry
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
-                        [this, &track](const BoxHeader& header, uint64_t boxOffset) {
+                        [this, &track, depth](const BoxHeader& header, uint64_t boxOffset) {
                             if (header.type == FOURCC('e','s','d','s')) {
                                 // Elementary stream descriptor - contains AAC config
-                                return ParseAACConfiguration(header.dataOffset, header.size - (header.dataOffset - boxOffset), track);
+                                return ParseAACConfiguration(header.dataOffset, header.size - (header.dataOffset - boxOffset), track, depth + 1);
                             }
                             return true;
-                        });
+                        }, depth);
                 }
                 break;
             case CODEC_ALAC:
@@ -653,15 +661,15 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 // Look for alac box for ALAC magic cookie
                 if (entrySize > 36) {
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
-                        [this, &track](const BoxHeader& header, uint64_t boxOffset) {
+                        [this, &track, depth](const BoxHeader& header, uint64_t boxOffset) {
                             if (header.type == CODEC_ALAC) {
                                 // ALAC magic cookie
                                 return ParseALACConfiguration(header.dataOffset,
                                                             header.size - (header.dataOffset - boxOffset),
-                                                            track);
+                                                            track, depth + 1);
                             }
                             return true;
-                        });
+                        }, depth);
                 }
                 break;
             case CODEC_FLAC:
@@ -669,15 +677,15 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 // Look for dfLa box for FLAC configuration
                 if (entrySize > 36) {
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
-                        [this, &track](const BoxHeader& header, uint64_t boxOffset) {
+                        [this, &track, depth](const BoxHeader& header, uint64_t boxOffset) {
                             if (header.type == FOURCC('d','f','L','a')) {
                                 // FLAC configuration box
                                 return ParseFLACConfiguration(header.dataOffset,
                                                             header.size - (header.dataOffset - boxOffset),
-                                                            track);
+                                                            track, depth + 1);
                             }
                             return true;
-                        });
+                        }, depth);
                 }
                 break;
             case CODEC_ULAW:
@@ -950,21 +958,21 @@ bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
     }
 }
 
-bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Placeholder for AAC configuration parsing
     // This would parse the Elementary Stream Descriptor (ESDS) box
     // to extract AAC-specific configuration data
     return true;
 }
 
-bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Placeholder for ALAC configuration parsing
     // This would parse the ALAC magic cookie to extract
     // ALAC-specific configuration data
     return true;
 }
 
-bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Parse FLAC configuration from dfLa box (FLAC-in-MP4 specification)
     // The dfLa box contains FLAC metadata blocks without the 'fLaC' signature
     
