@@ -616,6 +616,19 @@ test_demuxer_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
+# Metadata Extractor unit tests
+check_PROGRAMS += test_metadata_extractor
+test_metadata_extractor_SOURCES = test_metadata_extractor.cpp
+test_metadata_extractor_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
 test_media_factory_unit_SOURCES = test_media_factory_unit.cpp
 test_media_factory_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/stream.o \
