@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include "SpectrumColors.h"
 
 std::atomic<bool> Player::guiRunning{false};
 
@@ -518,22 +519,10 @@ void Player::precomputeSpectrumColors() {
     }
     Debug::log("player", "graph is valid.");
 
-    m_spectrum_colors.resize(320);
-    for (uint16_t x = 0; x < 320; ++x) {
+    m_spectrum_colors.resize(SpectrumColorConfig::TOTAL_BINS);
+    for (uint16_t x = 0; x < SpectrumColorConfig::TOTAL_BINS; ++x) {
         uint8_t r, g, b;
-        if (x > 213) {
-            r = static_cast<uint8_t>((x - 214) * 2.4);
-            g = 0;
-            b = 255;
-        } else if (x < 106) {
-            r = 128;
-            g = 255;
-            b = static_cast<uint8_t>(x * 2.398);
-        } else {
-            r = static_cast<uint8_t>(128 - ((x - 106) * 1.1962615));
-            g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
-            b = 255;
-        }
+        SpectrumColorConfig::getRGB(x, r, g, b);
         // Debug::log("player", "x: ", x, " r: ", (int)r, " g: ", (int)g, " b: ", (int)b);
         m_spectrum_colors[x] = graph->MapRGBA(r, g, b, 255);
     }
