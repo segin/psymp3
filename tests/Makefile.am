@@ -422,7 +422,7 @@ endif
 # G711 codec tests (both A-law and μ-law)
 if HAVE_G711
   # A-law tests
-  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties test_wav_g711
+  check_PROGRAMS += test_alaw_table_verification test_alaw_sample_conversion test_alaw_conversion_accuracy test_alaw_codec_properties test_wav_g711 test_wav_stream
   # μ-law tests
   check_PROGRAMS += test_mulaw_conversion_accuracy
   # Combined codec selection tests
@@ -1270,6 +1270,23 @@ test_mulaw_conversion_accuracy_LDADD = $(AM_LDFLAGS)
 # WAV G.711 conversion test
 test_wav_g711_SOURCES = test_wav_g711.cpp
 test_wav_g711_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
+
+# WAV Stream unit test
+test_wav_stream_SOURCES = test_wav_stream.cpp
+test_wav_stream_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/stream.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/demuxer/riff/libpsymp3-demuxer-riff.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(TAGLIB_LIBS) \
+	$(AM_LDFLAGS)
 
 # Codec selection and validation test (simple)
 test_codec_selection_validation_simple_SOURCES = test_codec_selection_validation_simple.cpp
