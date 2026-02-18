@@ -163,6 +163,7 @@ private:
     // Permission and access validation
     bool m_write_access_checked = false;    // Whether write access has been validated
     bool m_has_write_access = false;        // Whether file has write access (for future extensions)
+    bool m_path_secure = false;             // Whether path security has been validated
     
     /**
      * @brief Validate that the file handle is in a usable state
