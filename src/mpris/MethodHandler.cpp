@@ -1100,6 +1100,9 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
   dbus_message_iter_init_append(reply, &args);
   dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict_iter);
 
+  // Declare iterators at top level to ensure they are available in all scopes
+  DBusMessageIter entry_iter, variant_iter;
+
   if (interface_name == MPRIS_PLAYER_INTERFACE) {
     // Add all Player interface properties
     std::vector<std::string> properties = {
@@ -1109,7 +1112,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
 
     auto all_properties = m_properties->getAllProperties();
     for (const auto &prop_name : properties) {
-      DBusMessageIter entry_iter, variant_iter;
       dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
                                        nullptr, &entry_iter);
 
@@ -1141,13 +1143,12 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
+      }
 
-        dbus_message_iter_close_container(&dict_iter, &entry_iter);
+      dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
   } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
     // Add MediaPlayer2 interface properties
-    DBusMessageIter entry_iter, variant_iter;
 
     // Identity property
     dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr,
