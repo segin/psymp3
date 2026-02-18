@@ -1605,7 +1605,6 @@ void Player::Run(const PlayerOptions& options) {
         synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     }
     bool done = false;
-    // if (system) system->progressState(TBPF_NORMAL);
     if (m_automated_test_mode) {
         Debug::log("test", "Automated test mode enabled.");
     }
