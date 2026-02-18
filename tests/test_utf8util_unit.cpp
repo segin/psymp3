@@ -301,6 +301,31 @@ protected:
         const uint8_t overlong[] = {0xC0, 0x80, 0}; // Overlong NUL
         std::string repaired2 = UTF8Util::decodeSafe(overlong, 3);
         ASSERT_EQUALS(UTF8Util::replacementCharacter(), repaired2, "Overlong NUL repaired to single replacement char");
+
+        // Truncated sequence (valid start byte but missing continuation bytes)
+        const uint8_t truncated[] = {'H', static_cast<uint8_t>('\xE0'), static_cast<uint8_t>('\xA0'), 0}; // 3-byte start, 1 continuation, missing 3rd byte
+        std::string repaired3 = UTF8Util::decodeSafe(truncated, 3);
+        ASSERT_TRUE(repaired3.find("\xEF\xBF\xBD") != std::string::npos, "Truncated sequence replaced with replacement char");
+
+        // Invalid continuation byte
+        const uint8_t invalid_cont[] = {'H', static_cast<uint8_t>('\xE0'), static_cast<uint8_t>('\x20'), static_cast<uint8_t>('\x80'), 0}; // 2nd byte is not 0x80-0xBF
+        std::string repaired4 = UTF8Util::decodeSafe(invalid_cont, 4);
+        ASSERT_TRUE(repaired4.find("\xEF\xBF\xBD") != std::string::npos, "Invalid continuation byte replaced");
+
+        // Surrogate pair (invalid in UTF-8)
+        const uint8_t surrogate[] = {static_cast<uint8_t>('\xED'), static_cast<uint8_t>('\xA0'), static_cast<uint8_t>('\x80'), 0}; // U+D800
+        std::string repaired5 = UTF8Util::decodeSafe(surrogate, 3);
+        ASSERT_TRUE(repaired5.find("\xEF\xBF\xBD") != std::string::npos, "Surrogate pair replaced");
+
+        // Max valid codepoint (U+10FFFF)
+        const uint8_t max_cp[] = {static_cast<uint8_t>('\xF4'), static_cast<uint8_t>('\x8F'), static_cast<uint8_t>('\xBF'), static_cast<uint8_t>('\xBF'), 0};
+        std::string valid_max = UTF8Util::decodeSafe(max_cp, 4);
+        ASSERT_EQUALS(UTF8Util::encodeCodepoint(0x10FFFF), valid_max, "Max valid codepoint preserved");
+
+        // Invalid start byte (0xFF)
+        const uint8_t invalid_start[] = {static_cast<uint8_t>('\xFF'), 0};
+        std::string repaired6 = UTF8Util::decodeSafe(invalid_start, 1);
+        ASSERT_TRUE(repaired6.find("\xEF\xBF\xBD") != std::string::npos, "Invalid start byte replaced");
     }
 };
 
