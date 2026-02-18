@@ -7,7 +7,15 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif
+
+#include "core/utility/XMLUtil.h"
+#include <sstream>
+#include <cctype>
+#include <stdexcept>
+#include <algorithm>
 
 namespace PsyMP3 {
 namespace Core {
