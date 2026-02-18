@@ -256,6 +256,17 @@ debug_dual_flac_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
+test_boxparser_comprehensive_SOURCES = test_boxparser_comprehensive.cpp
+test_boxparser_comprehensive_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
 debug_bit_extraction_SOURCES = debug_bit_extraction.cpp
 debug_bit_extraction_LDADD = $(AM_LDFLAGS)
 
@@ -320,7 +331,7 @@ test_flac_frame_indexing_LDADD = \
 	$(AM_LDFLAGS)
 
 # Individual test executables
-check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union opusout \
+check_PROGRAMS = test_boxparser_comprehensive test_rect_area_validation test_rect_containment test_rect_intersection test_rect_union opusout \
 	test_rect_centering \
 	test_rect_centering_overflow \
 	test_rect_expansion \
