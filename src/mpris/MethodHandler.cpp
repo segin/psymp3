@@ -11,6 +11,16 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <cmath>
+#include <cstring>
+#include <utility>
+
 namespace PsyMP3 {
 namespace MPRIS {
 
@@ -1013,7 +1023,7 @@ void MethodHandler::appendVariantToIter_unlocked(
 void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args;
-  DBusMessageIter variant_iter;
+  DBusMessageIter variant_iter; // Declare variant_iter
   dbus_message_iter_init_append(reply, &args);
 
   if (property_name == "PlaybackStatus") {
@@ -1141,10 +1151,9 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
-      }
+      } // Correctly close catch block
 
-      dbus_message_iter_close_container(&dict_iter, &entry_iter);
+      dbus_message_iter_close_container(&dict_iter, &entry_iter); // Correctly inside for loop
     }
   } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
     // Add MediaPlayer2 interface properties
