@@ -968,6 +968,9 @@ bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrac
     // Parse FLAC configuration from dfLa box (FLAC-in-MP4 specification)
     // The dfLa box contains FLAC metadata blocks without the 'fLaC' signature
     
+    // SEC-02: Limit metadata size to prevent OOM
+    static const size_t MAX_FLAC_METADATA_SIZE = 32 * 1024 * 1024; // 32MB
+
     if (size < 4) {
         Debug::log("iso", "ISODemuxerBoxParser: dfLa box too small: ", size, " bytes");
         return false;
@@ -997,6 +1000,12 @@ bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrac
         
         // Remaining data contains FLAC metadata blocks
         size_t metadataSize = size - 4; // Subtract version + flags
+
+        if (metadataSize > MAX_FLAC_METADATA_SIZE) {
+            Debug::log("iso", "ISODemuxerBoxParser: FLAC metadata too large: ", metadataSize, " bytes (limit: ", MAX_FLAC_METADATA_SIZE, ")");
+            return false;
+        }
+
         if (metadataSize == 0) {
             Debug::log("iso", "ISODemuxerBoxParser: No FLAC metadata in dfLa box");
             return false;
