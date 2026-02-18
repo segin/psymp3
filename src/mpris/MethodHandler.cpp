@@ -509,6 +509,7 @@ MethodHandler::handleSetPosition_unlocked(DBusConnection *connection,
 
 // Stub implementations when D-Bus is not available
 
+// Use C++17 attribute to suppress unused parameter warnings
 MethodHandler::MethodHandler([[maybe_unused]] Player *player,
                              [[maybe_unused]] PropertyManager *properties)
     : m_player(player), m_properties(properties), m_initialized(false) {}
