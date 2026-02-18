@@ -1014,6 +1014,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
+  DBusMessageIter variant_iter;
 
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
@@ -1130,18 +1131,16 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
         }
       } catch (const std::exception &e) {
-          logError_unlocked("appendAllPropertiesToMessage",
-                            "Failed to get property " + prop_name + ": " +
-                                e.what());
-          // Add empty variant as fallback
-          dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
-                                           &variant_iter);
-          const char *empty_str = "";
-          dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                         &empty_str);
-          dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
-        dbus_message_unref(temp_msg);
+        logError_unlocked("appendAllPropertiesToMessage",
+                          "Failed to get property " + prop_name + ": " +
+                              e.what());
+        // Add empty variant as fallback
+        dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
+                                         &variant_iter);
+        const char *empty_str = "";
+        dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
+                                       &empty_str);
+        dbus_message_iter_close_container(&entry_iter, &variant_iter);
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
