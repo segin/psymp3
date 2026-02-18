@@ -1014,6 +1014,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
+  DBusMessageIter variant_iter;
 
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
@@ -1140,10 +1141,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
-        }
-        dbus_message_unref(temp_msg);
       }
-
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
   } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
