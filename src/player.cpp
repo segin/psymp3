@@ -1450,13 +1450,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
     return false; // Do not exit
 }
 
-/**
- * @brief The main entry point and run loop for the Player.
- * This function initializes SDL and all major components (display, fonts, UI),
- * starts the main event loop, and handles cleanup on exit.
- * @param args The vector of command-line arguments passed to the application.
- */
-void Player::Run(const PlayerOptions& options) {
+bool Player::Initialize(const PlayerOptions& options) {
     // Apply settings from the parsed options.
     scalefactor = options.scalefactor;
     decayfactor = options.decayfactor;
@@ -1468,7 +1462,7 @@ void Player::Run(const PlayerOptions& options) {
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
     {
         printf( "Unable to init SDL: %s\n", SDL_GetError() );
-        return;
+        return false;
     }
 
 
@@ -1604,6 +1598,10 @@ void Player::Run(const PlayerOptions& options) {
         // Force one GUI update to show the initial empty state
         synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     }
+    return true;
+}
+
+void Player::EventLoop() {
     bool done = false;
     // if (system) system->progressState(TBPF_NORMAL);
     if (m_automated_test_mode) {
@@ -1717,6 +1715,9 @@ void Player::Run(const PlayerOptions& options) {
     } // end main loop
 
     SDL_RemoveTimer(timer);
+}
+
+void Player::Cleanup() {
 #ifdef _WIN32
     if (system) system->progressState(TBPF_NOPROGRESS);
     if (system) system->updateProgress(0, 0);
@@ -1726,7 +1727,20 @@ void Player::Run(const PlayerOptions& options) {
     // all is well ;)
     Debug::log("player", "Exited cleanly");
     SDL_Quit();
-    return;
+}
+
+/**
+ * @brief The main entry point and run loop for the Player.
+ * This function initializes SDL and all major components (display, fonts, UI),
+ * starts the main event loop, and handles cleanup on exit.
+ * @param args The vector of command-line arguments passed to the application.
+ */
+void Player::Run(const PlayerOptions& options) {
+    if (!Initialize(options)) {
+        return;
+    }
+    EventLoop();
+    Cleanup();
 }
 
 /**
