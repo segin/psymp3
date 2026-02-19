@@ -549,10 +549,6 @@ bool BoxParser::ParseHandlerBox(uint64_t offset, uint64_t size, std::string& han
         return false;
     }
     
-    // Read version/flags to ensure proper parsing (currently not used but reserved for future)
-    // uint32_t versionFlags = ReadUInt32BE(offset);
-    // uint8_t version = (versionFlags >> 24) & 0xFF;
-    
     // Skip version/flags (4 bytes) and pre_defined (4 bytes)
     uint32_t handler = ReadUInt32BE(offset + 8);
     
@@ -1013,8 +1009,7 @@ bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrac
         if (metadataSize >= 34) { // Minimum STREAMINFO size
             // FLAC metadata block header (4 bytes)
             uint8_t blockType = metadataBlocks[0] & 0x7F; // Remove last-metadata-block flag
-            // bool isLastBlock = (metadataBlocks[0] & 0x80) != 0; // Not used in current implementation
-            
+
             // Block length (24-bit big-endian)
             uint32_t blockLength = (static_cast<uint32_t>(metadataBlocks[1]) << 16) |
                                   (static_cast<uint32_t>(metadataBlocks[2]) << 8) |
@@ -1025,12 +1020,6 @@ bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrac
                 const uint8_t* streamInfo = metadataBlocks.data() + 4;
                 
                 // Extract key parameters from STREAMINFO
-                // Minimum block size (16-bit) - not used but part of STREAMINFO structure
-                // uint16_t minBlockSize = (static_cast<uint16_t>(streamInfo[0]) << 8) | streamInfo[1];
-                
-                // Maximum block size (16-bit) - not used but part of STREAMINFO structure
-                // uint16_t maxBlockSize = (static_cast<uint16_t>(streamInfo[2]) << 8) | streamInfo[3];
-                
                 // Sample rate (20-bit, bits 96-115)
                 uint32_t sampleRate = (static_cast<uint32_t>(streamInfo[10]) << 12) |
                                      (static_cast<uint32_t>(streamInfo[11]) << 4) |
