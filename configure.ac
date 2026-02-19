@@ -329,6 +329,10 @@ if test -n "$SANITIZER_FLAGS"; then
   AC_SUBST([LDFLAGS])
 fi
 
+# Security Hardening Flags
+CXXFLAGS="$CXXFLAGS -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE"
+LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now -pie"
+
 AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
 AM_CONDITIONAL([ENABLE_UBSAN], [test "x$enable_ubsan" = "xyes"])
 AM_CONDITIONAL([ENABLE_TSAN], [test "x$enable_tsan" = "xyes"])
