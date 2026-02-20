@@ -10,6 +10,7 @@
 class Player;
 struct DBusConnection;
 struct DBusMessage;
+struct DBusMessageIter;
 
 namespace PsyMP3 {
 namespace MPRIS {
