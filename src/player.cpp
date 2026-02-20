@@ -791,6 +791,7 @@ bool Player::updateGUI()
 #endif
 
     // --- Lyrics Widget Update ---
+    // Note: Rendering is handled by the widget system (ApplicationWidget::BlitTo)
     if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
         m_lyrics_widget->updatePosition(current_pos_ms);
     }
