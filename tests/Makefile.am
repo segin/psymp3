@@ -3954,6 +3954,17 @@ fuzz_utf8util_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
+# URI Parsing tests
+check_PROGRAMS += test_uri
+test_uri_SOURCES = test_uri.cpp
+test_uri_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(TAGLIB_LIBS) \
+	$(AM_LDFLAGS)
+
 
 # Run all check programs
 TESTS = $(check_PROGRAMS)
