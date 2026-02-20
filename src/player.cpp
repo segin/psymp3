@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include <utility>
 
 std::atomic<bool> Player::guiRunning{false};
 
@@ -311,9 +312,9 @@ void Player::toggleMPRISErrorNotifications() {
     showToast("MPRIS Errors: " + state);
 }
 
-void Player::showMPRISError(const std::string& message) {
-    auto* msg_ptr = new std::string(message);
-    synthesizeUserEvent(SHOW_MPRIS_ERROR, msg_ptr, nullptr);
+void Player::showNotification(const std::string& message, NotificationType type) {
+    auto* data = new std::pair<std::string, NotificationType>(message, type);
+    synthesizeUserEvent(SHOW_NOTIFICATION, data, nullptr);
 }
 
 /**
@@ -1406,14 +1407,39 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             }
             break;
         }
-        case SHOW_MPRIS_ERROR:
+        case SHOW_NOTIFICATION:
         {
-            std::string* msg_ptr = static_cast<std::string*>(event.data1);
-            if (msg_ptr) {
-                if (m_show_mpris_errors) {
-                    showToast("MPRIS Error:\n" + *msg_ptr, 4000);
+            auto* data = static_cast<std::pair<std::string, NotificationType>*>(event.data1);
+            if (data) {
+                std::string msg = data->first;
+                NotificationType type = data->second;
+
+                bool show = true;
+                Uint32 duration = 2000;
+                std::string prefix = "";
+
+                switch (type) {
+                    case NotificationType::Info:
+                        break;
+                    case NotificationType::Warning:
+                        prefix = "Warning: ";
+                        duration = 3000;
+                        break;
+                    case NotificationType::Error:
+                        prefix = "Error: ";
+                        duration = 4000;
+                        break;
+                    case NotificationType::MPRISError:
+                        if (!m_show_mpris_errors) show = false;
+                        prefix = "MPRIS Error:\n";
+                        duration = 4000;
+                        break;
                 }
-                delete msg_ptr;
+
+                if (show) {
+                    showToast(prefix + msg, duration);
+                }
+                delete data;
             }
             break;
         }

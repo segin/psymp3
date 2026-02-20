@@ -749,7 +749,7 @@ void MPRISManager::reportErrorToPlayer_unlocked(const MPRISError& error) {
         logError_unlocked("reportErrorToPlayer", "User notification: " + user_message);
         
         if (m_player) {
-            m_player->showMPRISError(user_message);
+            m_player->showNotification(user_message, Player::NotificationType::MPRISError);
         }
     }
 }
