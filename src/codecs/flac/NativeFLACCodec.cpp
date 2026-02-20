@@ -22,6 +22,8 @@
  */
 
 #include "psymp3.h"
+#include <chrono>
+#include <algorithm>
 
 #ifdef HAVE_NATIVE_FLAC
 
@@ -43,12 +45,16 @@ FLACCodec::FLACCodec(const StreamInfo& stream_info)
     , m_consecutive_errors(0)
     , m_has_seek_table(false)
     , m_has_streaminfo(false)
-    , m_md5_validation_enabled(true) {
+    , m_md5_validation_enabled(true)
+    , m_stats() {
     
     Debug::log("flac_codec", "[NativeFLACCodec] Creating native FLAC codec for stream: ",
               stream_info.codec_name, ", ", stream_info.sample_rate, "Hz, ",
               stream_info.channels, " channels, ", stream_info.bits_per_sample, " bits");
     
+    // Explicitly initialize stats (although default constructor does this)
+    m_stats.min_frame_decode_time_us = UINT64_MAX;
+
     // Pre-allocate buffers for performance (Requirement 65)
     m_input_buffer.reserve(INPUT_BUFFER_SIZE);  // 64KB input buffer
     
@@ -198,9 +204,26 @@ uint64_t FLACCodec::getCurrentSample() const {
 }
 
 FLACCodecStats FLACCodec::getStats() const {
-    std::lock_guard<std::mutex> lock(m_state_mutex);
-    FLACCodecStats stats;
-    // TODO: Populate stats from internal metrics
+    // Acquire all locks in documented order to ensure thread safety when reading stats
+    // and vector capacities. This prevents race conditions with decode() and other threads.
+    // Note: We use scoped locking for thread safety across all members.
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+
+    // Create a copy of current stats
+    FLACCodecStats stats = m_stats;
+
+    // Update memory usage estimate (snapshot)
+    stats.memory_usage_bytes = m_input_buffer.capacity() * sizeof(uint8_t);
+    for (size_t i = 0; i < MAX_CHANNELS; i++) {
+        stats.memory_usage_bytes += m_decode_buffer[i].capacity() * sizeof(int32_t);
+    }
+    stats.memory_usage_bytes += m_output_buffer.capacity() * sizeof(int16_t);
+
+    // Add component memory estimates if available
+    // (This is a basic estimate, components allocate their own memory)
+
     return stats;
 }
 
@@ -376,8 +399,11 @@ bool FLACCodec::initialize_unlocked() {
 }
 
 AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoding chunk with ", chunk.data.size(), " bytes");
     
+    m_stats.total_bytes_processed += chunk.data.size();
+
     // Validate decoder state - attempt recovery if in ERROR state
     if (!m_initialized || m_state == DecoderState::DECODER_ERROR) {
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoder not initialized or in error state, attempting recovery");
@@ -610,6 +636,29 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
         // Update current sample position
         m_current_sample.fetch_add(header.block_size);
         
+        // Update stats
+        auto end_time = std::chrono::high_resolution_clock::now();
+        uint64_t duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+
+        m_stats.frames_decoded++;
+        m_stats.samples_decoded += header.block_size;
+        m_stats.conversion_operations++; // Assuming one conversion op per frame
+        m_stats.total_decode_time_us += duration_us;
+        m_stats.max_frame_decode_time_us = std::max(m_stats.max_frame_decode_time_us, duration_us);
+        if (m_stats.min_frame_decode_time_us == UINT64_MAX) {
+             m_stats.min_frame_decode_time_us = duration_us;
+        } else {
+             m_stats.min_frame_decode_time_us = std::min(m_stats.min_frame_decode_time_us, duration_us);
+        }
+
+        // Update efficiency metrics
+        if (m_stats.frames_decoded > 0) {
+             m_stats.average_frame_size = static_cast<double>(m_stats.total_bytes_processed) / m_stats.frames_decoded;
+        }
+        if (m_stats.total_decode_time_us > 0) {
+             m_stats.decode_efficiency = (static_cast<double>(m_stats.samples_decoded) * 1000000.0) / m_stats.total_decode_time_us;
+        }
+
         // Create AudioFrame
         AudioFrame frame;
         frame.sample_rate = header.sample_rate;
@@ -637,6 +686,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
                   " (", e.getErrorName(), ")");
         m_last_error = e.getError();
         m_consecutive_errors++;
+        m_stats.error_count++;
         
         if (m_consecutive_errors >= MAX_CONSECUTIVE_ERRORS) {
             handleUnrecoverableError();
@@ -647,6 +697,7 @@ AudioFrame FLACCodec::decode_unlocked(const MediaChunk& chunk) {
     } catch (const std::exception& e) {
         Debug::log("flac_codec", "[NativeFLACCodec::decode_unlocked] Decoding exception: ", e.what());
         m_consecutive_errors++;
+        m_stats.error_count++;
         
         if (m_consecutive_errors >= MAX_CONSECUTIVE_ERRORS) {
             handleUnrecoverableError();
@@ -1193,6 +1244,8 @@ std::string getCodecInfo() {
 bool FLACCodec::recoverFromSyncLoss() {
     Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSyncLoss] Attempting to recover from sync loss");
     
+    m_stats.sync_errors++;
+
     // Search for next valid frame sync pattern (Requirement 11.1)
     // Try multiple times with limited search window to prevent infinite loops
     const size_t MAX_SEARCH_ATTEMPTS = 100;
@@ -1251,6 +1304,8 @@ void FLACCodec::recoverFromSubframeError(int32_t* channel_buffer, uint32_t sampl
     Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSubframeError] Outputting silence for ",
               sample_count, " samples");
     
+    m_stats.error_count++;
+
     // Fill channel buffer with silence (zeros) (Requirement 11.3)
     std::memset(channel_buffer, 0, sample_count * sizeof(int32_t));
     
@@ -1265,6 +1320,9 @@ bool FLACCodec::recoverFromCRCError(FLACError error_type) {
     Debug::log("flac_codec", "[NativeFLACCodec::recoverFromCRCError] Handling CRC error: ",
               (error_type == FLACError::CRC_MISMATCH ? "CRC_MISMATCH" : "UNKNOWN"));
     
+    m_stats.crc_errors++;
+    m_stats.error_count++;
+
     // RFC 9639 allows using data even with CRC mismatch (Requirement 11.4)
     // Log error but attempt to use decoded data
     
@@ -1295,6 +1353,9 @@ bool FLACCodec::recoverFromCRCError(FLACError error_type) {
 void FLACCodec::recoverFromMemoryError() {
     Debug::log("flac_codec", "[NativeFLACCodec::recoverFromMemoryError] Handling memory allocation failure");
     
+    m_stats.memory_errors++;
+    m_stats.error_count++;
+
     // Clean up partially allocated resources (Requirement 11.6)
     
     // Clear all buffers to free memory
@@ -1318,6 +1379,8 @@ void FLACCodec::recoverFromMemoryError() {
 void FLACCodec::handleUnrecoverableError() {
     Debug::log("flac_codec", "[NativeFLACCodec::handleUnrecoverableError] Handling unrecoverable error");
     
+    // Note: m_stats.error_count is incremented by caller (exception handler or recover function)
+
     // Transition to ERROR state (Requirement 11.8)
     m_state = DecoderState::DECODER_ERROR;
     m_last_error = FLACError::UNRECOVERABLE_ERROR;
