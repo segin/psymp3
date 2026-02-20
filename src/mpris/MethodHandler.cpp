@@ -1014,6 +1014,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args, variant_iter;
   dbus_message_iter_init_append(reply, &args);
+  DBusMessageIter variant_iter;
 
   DBusMessageIter variant_iter;
 

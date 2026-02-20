@@ -25,6 +25,14 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include <algorithm>
+#include <vector>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <atomic>
+#include <future>
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
@@ -43,7 +51,7 @@ bool OggDemuxer::registerDemuxer() {
 
 OggDemuxer::OggDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler)
     : Demuxer(std::move(handler)), m_primary_serial(0), m_has_primary_serial(false), m_eof(false),
-      m_duration_calculated(false), m_cached_duration(0) {
+      m_duration_calculated(false), m_cached_duration(0), m_calculating_duration(false) {
 
   // Demuxer base class owns the IOHandler.
   // OggSyncManager takes a raw pointer to use it.
@@ -304,23 +312,49 @@ bool OggDemuxer::isEOF() const {
 }
 
 uint64_t OggDemuxer::getDuration() const {
+  // Fast path check without lock (atomics)
+  if (m_duration_calculated) {
+    return m_cached_duration;
+  }
+
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
 
   if (m_duration_calculated) {
     return m_cached_duration;
   }
 
-  if (!m_has_primary_serial || m_streams.empty())
-    return 0;
+  if (!m_calculating_duration) {
+    if (!m_has_primary_serial || m_streams.empty())
+      return 0;
 
-  // Use seeking engine to calculate
-  auto it = m_streams.find(m_primary_serial);
-  if (it == m_streams.end())
-    return 0;
+    m_calculating_duration = true;
 
-  OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
-  m_cached_duration = static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
-  m_duration_calculated = true;
+    // Launch async calculation
+    m_duration_future = std::async(std::launch::async, [this]() {
+      std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
+
+      // Re-verify state inside lock
+      if (m_duration_calculated) {
+        m_calculating_duration = false;
+        return;
+      }
+
+      if (!m_has_primary_serial || m_streams.empty()) {
+        m_calculating_duration = false;
+        return;
+      }
+
+      auto it = m_streams.find(m_primary_serial);
+      if (it != m_streams.end()) {
+        OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
+        double duration = engine.calculateDuration();
+        m_cached_duration = static_cast<uint64_t>(duration * 1000.0);
+        m_duration_calculated = true;
+      }
+      m_calculating_duration = false;
+    });
+  }
+
   return m_cached_duration;
 }
 
