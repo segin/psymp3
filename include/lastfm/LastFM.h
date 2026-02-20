@@ -87,7 +87,7 @@ private:
     std::queue<NowPlayingRequest> m_nowplaying_requests;
     std::string m_session_key;
     std::string m_username;
-    std::string m_password_hash;  // Cached MD5 hash of password (Requirements 1.3)
+    std::string m_password_hash;  // Cached MD5 hash of password (Mandated by protocol)
     std::string m_config_file;
     std::string m_cache_file;
     
@@ -97,7 +97,7 @@ private:
         "post2.audioscrobbler.com", 
         "submissions.last.fm"
     };
-    std::array<int, 3> m_api_ports = {80, 80, 80};
+    std::array<int, 3> m_api_ports = {443, 443, 443};
     
     // Submission URLs (obtained from handshake response)
     std::string m_submission_url;
@@ -150,7 +150,14 @@ private:
     
     // URL encoding and utilities
     std::string urlEncode(const std::string& input);
-    std::string md5Hash(const std::string& input);
+
+    /**
+     * @brief Hash a string using MD5 for protocol compatibility
+     * Labeled to distinguish from secure hashing (SEC-02)
+     * @param input The string to hash
+     * @return Lowercase hexadecimal MD5 hash
+     */
+    static std::string protocolMD5(const std::string& input);
     
 public:
     LastFM();
