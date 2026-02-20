@@ -1987,7 +1987,7 @@ void Player::toggleTestWindowH()
         showToast("Test Window H: Closed");
     } else {
         // Open the window (client area is 160x120)
-        m_test_window_h = std::make_unique<WindowFrameWidget>(160, 120, "Test Window H");
+        m_test_window_h = std::make_unique<WindowFrameWidget>(160, 120, "Test Window H", font.get());
         
         // Only set position, keep the calculated size from constructor
         Rect calculated_size = m_test_window_h->getPos();
@@ -2045,7 +2045,7 @@ void Player::toggleTestWindowB()
         showToast("Test Window B: Closed");
     } else {
         // Open the window (client area is 160x60)
-        m_test_window_b = std::make_unique<WindowFrameWidget>(160, 60, "Test Window B");
+        m_test_window_b = std::make_unique<WindowFrameWidget>(160, 60, "Test Window B", font.get());
         m_test_window_b->setResizable(false); // Make window B non-resizable (triggers refresh)
         
         // Only set position, keep the calculated size from setResizable(false)
@@ -2102,7 +2102,7 @@ void Player::createRandomWindows()
         
         // Create WindowFrameWidget directly like H and B windows
         std::string title = "Random Window " + std::to_string(++m_random_window_counter);
-        auto window = std::make_unique<WindowFrameWidget>(client_width, client_height, title);
+        auto window = std::make_unique<WindowFrameWidget>(client_width, client_height, title, font.get());
         window->setPos(Rect(x, y, client_width + 8, client_height + 27)); // Include frame borders
         
         // Set up callbacks using the WindowFrameWidget system like H/B windows
