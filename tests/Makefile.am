@@ -3955,5 +3955,21 @@ fuzz_utf8util_LDADD = \
 	$(AM_LDFLAGS)
 
 
+# Playlist load test
+check_PROGRAMS += test_playlist_load
+test_playlist_load_SOURCES = test_playlist_load.cpp
+test_playlist_load_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/playlist.o \
+	$(top_builddir)/src/track.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/system.o \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(AM_LDFLAGS)
+
 # Run all check programs
 TESTS = $(check_PROGRAMS)
