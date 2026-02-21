@@ -1027,6 +1027,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   DBusMessageIter args;
   DBusMessageIter variant_iter;
 
+
   dbus_message_iter_init_append(reply, &args);
 
   if (property_name == "PlaybackStatus") {
