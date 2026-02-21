@@ -122,10 +122,18 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    // Speex decoder state would go here
-    // For now, this is a placeholder that returns silence
+    // Speex decoder state
+    void* m_decoder_state = nullptr;
+    void* m_bits = nullptr;        // SpeexBits*
+    void* m_stereo_state = nullptr; // SpeexStereoState*
+
+    // Config
+    uint32_t m_sample_rate = 0;
+    uint16_t m_channels = 0;
+    uint32_t m_frame_size = 160;  // Default Speex frame size (nb_samples)
+
+    // Initialization state
     bool m_initialized_speex = false;
-    uint32_t m_frame_size = 160;  // Default Speex frame size
 };
 
 #endif // OGGCODECS_H

@@ -1132,6 +1132,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
 void MethodHandler::appendAllPropertiesToMessage_unlocked(
     DBusMessage *reply, const std::string &interface_name) {
   DBusMessageIter args, dict_iter;
+  DBusMessageIter variant_iter; // Declare variant_iter for use in this scope
   dbus_message_iter_init_append(reply, &args);
   dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict_iter);
 
