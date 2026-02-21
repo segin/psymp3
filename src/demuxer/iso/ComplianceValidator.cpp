@@ -486,22 +486,73 @@ ComplianceValidationResult ComplianceValidator::GetComplianceReport() const {
 }
 
 bool ComplianceValidator::ValidateBoxNesting(uint32_t parentType, uint32_t childType) {
-    // Define valid parent-child relationships
-    static const std::map<uint32_t, std::vector<uint32_t>> validNesting = {
-        {BOX_MOOV, {BOX_MVHD, BOX_TRAK, BOX_UDTA, BOX_META, BOX_IODS}},
-        {BOX_TRAK, {BOX_TKHD, BOX_TREF, BOX_EDTS, BOX_MDIA}},
-        {BOX_MDIA, {BOX_MDHD, BOX_HDLR, BOX_MINF}},
-        {BOX_MINF, {BOX_VMHD, BOX_SMHD, BOX_HMHD, BOX_NMHD, BOX_DINF, BOX_STBL}},
-        {BOX_STBL, {BOX_STSD, BOX_STTS, BOX_CTTS, BOX_STSC, BOX_STSZ, BOX_STZ2, BOX_STCO, BOX_CO64, BOX_STSS}}
-    };
-    
-    auto it = validNesting.find(parentType);
-    if (it == validNesting.end()) {
-        return true; // Unknown parent, allow for extensibility
+    // Define valid parent-child relationships using nested switches for performance
+    switch (parentType) {
+        case BOX_MOOV:
+            switch (childType) {
+                case BOX_MVHD:
+                case BOX_TRAK:
+                case BOX_UDTA:
+                case BOX_META:
+                case BOX_IODS:
+                    return true;
+                default:
+                    return false;
+            }
+
+        case BOX_TRAK:
+            switch (childType) {
+                case BOX_TKHD:
+                case BOX_TREF:
+                case BOX_EDTS:
+                case BOX_MDIA:
+                    return true;
+                default:
+                    return false;
+            }
+
+        case BOX_MDIA:
+            switch (childType) {
+                case BOX_MDHD:
+                case BOX_HDLR:
+                case BOX_MINF:
+                    return true;
+                default:
+                    return false;
+            }
+
+        case BOX_MINF:
+            switch (childType) {
+                case BOX_VMHD:
+                case BOX_SMHD:
+                case BOX_HMHD:
+                case BOX_NMHD:
+                case BOX_DINF:
+                case BOX_STBL:
+                    return true;
+                default:
+                    return false;
+            }
+
+        case BOX_STBL:
+            switch (childType) {
+                case BOX_STSD:
+                case BOX_STTS:
+                case BOX_CTTS:
+                case BOX_STSC:
+                case BOX_STSZ:
+                case BOX_STZ2:
+                case BOX_STCO:
+                case BOX_CO64:
+                case BOX_STSS:
+                    return true;
+                default:
+                    return false;
+            }
+
+        default:
+            return true; // Unknown parent, allow for extensibility
     }
-    
-    const auto& validChildren = it->second;
-    return std::find(validChildren.begin(), validChildren.end(), childType) != validChildren.end();
 }
 
 std::string ComplianceValidator::BoxTypeToString(uint32_t boxType) {
