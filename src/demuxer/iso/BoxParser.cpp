@@ -563,14 +563,11 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
                                     return SkipUnknownBox(minfHeader);
                             }
                         }, boxDepth);
-                                    return SkipUnknownBox(minfHeader);
-                            }
-                        }, depth + 1);
->>>>>>> origin/fix-boxparser-recursion-overflow-9219235390022348766
                 } else {
                     // Not an audio track, skip
                     return SkipUnknownBox(header);
                 }
+                return true;
             default:
                 return SkipUnknownBox(header);
         }
@@ -668,11 +665,11 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 if (entrySize > 36) {
                     // Parse additional boxes within the sample entry
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
-                        [this, &track](const BoxHeader& header, uint64_t boxOffset, [[maybe_unused]] uint32_t boxDepth) {
+                        [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
 
                             if (header.type == FOURCC('e','s','d','s')) {
                                 // Elementary stream descriptor - contains AAC config
-                                return ParseAACConfiguration(header.dataOffset, header.size - (header.dataOffset - boxOffset), track, depth + 1);
+                                return ParseAACConfiguration(header.dataOffset, header.size - (header.dataOffset - boxOffset), track, boxDepth);
                             }
                             return true;
                         }, depth);
@@ -683,13 +680,13 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 // Look for alac box for ALAC magic cookie
                 if (entrySize > 36) {
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
-                        [this, &track](const BoxHeader& header, uint64_t boxOffset, [[maybe_unused]] uint32_t boxDepth) {
+                        [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
 
                             if (header.type == CODEC_ALAC) {
                                 // ALAC magic cookie
                                 return ParseALACConfiguration(header.dataOffset,
                                                             header.size - (header.dataOffset - boxOffset),
-                                                            track, depth + 1);
+                                                            track, boxDepth);
                             }
                             return true;
                         }, depth);
@@ -700,13 +697,13 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 // Look for dfLa box for FLAC configuration
                 if (entrySize > 36) {
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
-                        [this, &track](const BoxHeader& header, uint64_t boxOffset, [[maybe_unused]] uint32_t boxDepth) {
+                        [this, &track](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
 
                             if (header.type == FOURCC('d','f','L','a')) {
                                 // FLAC configuration box
                                 return ParseFLACConfiguration(header.dataOffset,
                                                             header.size - (header.dataOffset - boxOffset),
-                                                            track, depth + 1);
+                                                            track, boxDepth);
                             }
                             return true;
                         }, depth);

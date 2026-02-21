@@ -449,6 +449,12 @@ test_boxparser_vulnerability_LDADD = $(COMMON_TEST_LIBS) \
  $(RAPIDCHECK_LIBS) \
  $(top_builddir)/src/debug.o
 
+check_PROGRAMS += test_boxparser_recursion
+test_boxparser_recursion_SOURCES = test_boxparser_recursion.cpp
+test_boxparser_recursion_LDADD = $(COMMON_TEST_LIBS) \
+    $(top_builddir)/src/debug.o \
+    $(AM_LDFLAGS)
+
 test_opus_codec_property_SOURCES = test_opus_codec_property.cpp
 test_opus_codec_property_LDADD = \
 	$(FULL_CODEC_LIBS) \
@@ -3908,8 +3914,5 @@ test_playlist_shuffle_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(AM_LDFLAGS)
 
-# Security regression test for BoxParser recursion stack overflow
-check_PROGRAMS += test_boxparser_recursion
-test_boxparser_recursion_SOURCES = test_boxparser_recursion.cpp
-test_boxparser_recursion_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 
