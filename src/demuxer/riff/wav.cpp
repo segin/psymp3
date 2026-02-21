@@ -109,7 +109,7 @@ void WaveStream::parseHeaders() {
         uint32_t chunk_size = read_le<uint32_t>(m_handler.get());
         if (m_handler->eof()) break;
 
-        long chunk_start_pos = m_handler->tell();
+        off_t chunk_start_pos = m_handler->tell();
 
         if (chunk_id == FMT_ID) {
             uint16_t format_tag = read_le<uint16_t>(m_handler.get());
@@ -145,7 +145,10 @@ void WaveStream::parseHeaders() {
             found_fmt = true;
         } else if (chunk_id == DATA_ID) {
             if (!found_fmt) throw BadFormatException("WAVE 'data' chunk found before 'fmt ' chunk.");
-            m_data_chunk_offset = chunk_start_pos;
+            if (chunk_start_pos > std::numeric_limits<uint32_t>::max()) {
+                throw BadFormatException("WAVE data chunk offset too large for 32-bit parser.");
+            }
+            m_data_chunk_offset = static_cast<uint32_t>(chunk_start_pos);
             m_data_chunk_size = chunk_size;
             m_slength = m_data_chunk_size / (m_channels * m_bytes_per_sample);
             m_length = (m_slength * 1000) / m_rate;
@@ -154,7 +157,12 @@ void WaveStream::parseHeaders() {
         }
 
         // Seek to the next chunk, accounting for padding byte if chunk size is odd.
-        m_handler->seek(chunk_start_pos + chunk_size, SEEK_SET);
+        off_t next_chunk_pos = chunk_start_pos + chunk_size;
+        if (next_chunk_pos < chunk_start_pos) {
+            throw BadFormatException("WAVE chunk size causes overflow.");
+        }
+
+        m_handler->seek(next_chunk_pos, SEEK_SET);
         if (chunk_size % 2 != 0)
             m_handler->seek(1, SEEK_CUR);
     }
