@@ -77,17 +77,10 @@ void LastFM::readConfig()
         } else if (key == "password") {
             // Legacy password entry - migrate to hash
             if (!value.empty()) {
-                m_password_hash = md5Hash(value);
-
-                // Securely erase plaintext password from memory (Requirements 7.5, Security Directive)
-                OPENSSL_cleanse(&value[0], value.length());
-                if (line.length() > equals + 1) {
-                    OPENSSL_cleanse(&line[equals + 1], line.length() - (equals + 1));
-                }
-
+                m_password_hash = protocolMD5(value);
                 DEBUG_LOG_LAZY("lastfm", "Legacy password loaded and migrated to hash");
 
-                // Securely clear the plain-text password from memory
+                // Securely clear the plain-text password from memory (Requirements 7.5, Security Directive)
                 OPENSSL_cleanse(&value[0], value.length());
                 OPENSSL_cleanse(&line[0], line.length());
             }
@@ -182,13 +175,14 @@ bool LastFM::performHandshake(int host_index)
     // Use cached password hash to avoid redundant computation (Requirements 1.3)
     time_t timestamp = time(nullptr);
     
-    std::string auth_token = md5Hash(m_password_hash + std::to_string(timestamp));
+    std::string auth_token = protocolMD5(m_password_hash + std::to_string(timestamp));
     
     // Build handshake URL using efficient string concatenation (Requirements 2.3)
+    // Use HTTPS for security (SEC-04)
     std::string url;
     url.reserve(256);  // Pre-allocate reasonable size for URL
     
-    url += "http://";
+    url += "https://";
     url += m_api_hosts[host_index];
     url += ":";
     url += std::to_string(m_api_ports[host_index]);
@@ -513,7 +507,7 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     postData += HTTPClient::urlEncode(album);
     postData += "&n[0]=";   // Track number (empty)
     postData += "&m[0]=";
-    postData += md5Hash(artist + title);  // MusicBrainz ID (using hash as fallback)
+    postData += protocolMD5(artist + title);  // MusicBrainz ID (using hash as fallback)
     
     // Use submission URL from handshake response
     if (m_submission_url.empty()) {
@@ -648,7 +642,7 @@ bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
     postData += std::to_string(request.length);
     postData += "&n=";  // Track number (empty)
     postData += "&m=";
-    postData += md5Hash(request.artist + request.title);  // MusicBrainz ID fallback
+    postData += protocolMD5(request.artist + request.title);  // MusicBrainz ID fallback
     
     if (m_nowplaying_url.empty()) {
         DEBUG_LOG_LAZY("lastfm", "No now playing URL available");
@@ -746,25 +740,20 @@ std::string LastFM::urlEncode(const std::string& input)
     return HTTPClient::urlEncode(input);
 }
 
-std::string LastFM::md5Hash(const std::string& input)
+std::string LastFM::protocolMD5(const std::string& input)
 {
-    // Optimized MD5 implementation using lookup table for hex conversion
-    // instead of iostream formatting (Requirements 1.1, 1.2)
+    // Optimized MD5 implementation for protocol compatibility.
+    // Labeled to distinguish from secure hashing. (SEC-02)
     static constexpr char hex_chars[] = "0123456789abcdef";
-    
-    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
-    if (!ctx) return "";
     
     unsigned char hash[EVP_MAX_MD_SIZE];
     unsigned int hash_len = 0;
     
-    if (EVP_DigestInit_ex(ctx, EVP_md5(), nullptr) &&
-        EVP_DigestUpdate(ctx, input.c_str(), input.length()) &&
-        EVP_DigestFinal_ex(ctx, hash, &hash_len)) {
+    if (EVP_Digest(input.c_str(), input.length(), hash, &hash_len, EVP_md5(), nullptr)) {
         
-        // Pre-allocate output string (MD5 is always 16 bytes = 32 hex chars)
+        // Pre-allocate output string (MD5 is 16 bytes = 32 hex chars)
         std::string result;
-        result.reserve(32);
+        result.reserve(hash_len * 2);
         
         // Convert bytes to hex using lookup table and bit shifting
         for (unsigned int i = 0; i < hash_len; i++) {
@@ -772,16 +761,15 @@ std::string LastFM::md5Hash(const std::string& input)
             result += hex_chars[hash[i] & 0x0F];
         }
         
-        // Securely clear the hash from memory
+        // Securely clear the hash from memory (Requirements 7.5, Security Directive)
         OPENSSL_cleanse(hash, sizeof(hash));
 
-        EVP_MD_CTX_free(ctx);
         return result;
     }
     
-    EVP_MD_CTX_free(ctx);
     return "";
 }
+
 
 } // namespace LastFM
 } // namespace PsyMP3
