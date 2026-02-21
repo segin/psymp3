@@ -290,7 +290,7 @@ private:
     /**
      * @brief Parse movie box and extract audio tracks
      */
-    bool ParseMovieBoxWithTracks(uint64_t offset, uint64_t size);
+    bool ParseMovieBoxWithTracks(uint64_t offset, uint64_t size, uint32_t depth = 0);
     
     /**
      * @brief Extract sample data from mdat boxes using sample tables

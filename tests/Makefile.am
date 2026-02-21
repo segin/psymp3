@@ -3907,3 +3907,9 @@ test_playlist_shuffle_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(AM_LDFLAGS)
+
+# Security regression test for BoxParser recursion stack overflow
+check_PROGRAMS += test_boxparser_recursion
+test_boxparser_recursion_SOURCES = test_boxparser_recursion.cpp
+test_boxparser_recursion_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
