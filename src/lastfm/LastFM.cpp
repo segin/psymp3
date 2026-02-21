@@ -86,6 +86,10 @@ void LastFM::readConfig()
                 }
 
                 DEBUG_LOG_LAZY("lastfm", "Legacy password loaded and migrated to hash");
+
+                // Securely clear the plain-text password from memory
+                OPENSSL_cleanse(&value[0], value.length());
+                OPENSSL_cleanse(&line[0], line.length());
             }
         } else if (key == "password_hash") {
             m_password_hash = value;
@@ -768,6 +772,9 @@ std::string LastFM::md5Hash(const std::string& input)
             result += hex_chars[hash[i] & 0x0F];
         }
         
+        // Securely clear the hash from memory
+        OPENSSL_cleanse(hash, sizeof(hash));
+
         EVP_MD_CTX_free(ctx);
         return result;
     }
