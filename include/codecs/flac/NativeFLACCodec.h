@@ -33,6 +33,22 @@ namespace Codec {
 namespace FLAC {
 
 /**
+ * @brief Minimal FLAC types needed for RFC validation tests
+ */
+typedef int32_t FLAC__int32;
+
+struct FLAC__FrameHeader {
+    uint32_t blocksize;
+    uint32_t sample_rate;
+    uint32_t channels;
+    uint32_t bits_per_sample;
+};
+
+struct FLAC__Frame {
+    FLAC__FrameHeader header;
+};
+
+/**
  * @brief Native FLAC decoder implementation without libFLAC dependency
  * 
  * This codec implements a complete FLAC decoder following RFC 9639 specification
@@ -252,6 +268,23 @@ public:
      */
     bool checkMD5Validation() const;
     
+    // Test methods for RFC 9639 validation
+    bool testValidateBitDepthRFC9639(uint16_t bits_per_sample) const;
+    bool testValidateSampleFormatConsistency(const FLAC__Frame* frame) const;
+    bool testValidateReservedBitDepthValues(uint16_t bits_per_sample) const;
+    FLAC__int32 testApplyProperSignExtension(FLAC__int32 sample, uint16_t source_bits) const;
+    bool testValidateBitPerfectReconstruction(const FLAC__int32* original, 
+                                            const int16_t* converted, 
+                                            size_t sample_count, 
+                                            uint16_t source_bits) const;
+    AudioQualityMetrics testCalculateAudioQualityMetrics(const int16_t* samples, 
+                                                       size_t sample_count, 
+                                                       const FLAC__int32* reference = nullptr,
+                                                       uint16_t reference_bits = 16) const;
+    int16_t testConvert8BitTo16Bit(FLAC__int32 sample) const;
+    int16_t testConvert24BitTo16Bit(FLAC__int32 sample) const;
+    int16_t testConvert32BitTo16Bit(FLAC__int32 sample) const;
+    
 private:
     // State management enum (must be defined before methods that use it)
     enum class DecoderState {
@@ -466,6 +499,42 @@ private:
     FLACCodec(const FLACCodec&) = delete;
     FLACCodec& operator=(const FLACCodec&) = delete;
 };
+
+/**
+ * @brief Support functionality for the native FLAC codec
+ */
+namespace FLACCodecSupport {
+    /**
+     * @brief Register the native FLAC codec with the AudioCodecFactory
+     */
+    void registerCodec();
+    
+    /**
+     * @brief Create a native FLAC codec instance
+     * @param stream_info Stream parameters for the new codec
+     * @return Unique pointer to the new codec, or nullptr if stream not supported
+     */
+    std::unique_ptr<AudioCodec> createCodec(const StreamInfo& stream_info);
+    
+    /**
+     * @brief Check if a StreamInfo represents a FLAC stream
+     * @param stream_info Stream information to check
+     * @return true if it's a FLAC stream, false otherwise
+     */
+    bool isFLACStream(const StreamInfo& stream_info);
+    
+    /**
+     * @brief Get information about the native FLAC codec
+     * @return Human-readable info string
+     */
+    std::string getCodecInfo();
+    
+    /**
+     * @brief Check if the native FLAC codec is available
+     * @return true (always true if this header is used)
+     */
+    inline constexpr bool isAvailable() { return true; }
+}
 
 } // namespace FLAC
 } // namespace Codec

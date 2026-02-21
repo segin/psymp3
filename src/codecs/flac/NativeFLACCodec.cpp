@@ -1522,6 +1522,114 @@ const char* FLACCodec::getStateName(DecoderState state) const {
     }
 }
 
+// ============================================================================
+// Test methods for RFC 9639 validation
+// ============================================================================
+
+bool FLACCodec::testValidateBitDepthRFC9639(uint16_t bits_per_sample) const {
+    return (bits_per_sample >= 4 && bits_per_sample <= 32);
+}
+
+bool FLACCodec::testValidateSampleFormatConsistency(const FLAC__Frame* frame) const {
+    if (!frame) return false;
+    return (frame->header.bits_per_sample == m_stream_info.bits_per_sample &&
+            frame->header.channels == m_stream_info.channels &&
+            frame->header.sample_rate == m_stream_info.sample_rate);
+}
+
+bool FLACCodec::testValidateReservedBitDepthValues(uint16_t bits_per_sample) const {
+    return (bits_per_sample >= 4 && bits_per_sample <= 32);
+}
+
+FLAC__int32 FLACCodec::testApplyProperSignExtension(FLAC__int32 sample, uint16_t source_bits) const {
+    if (source_bits == 32) return sample;
+    FLAC__int32 sign_bit = 1 << (source_bits - 1);
+    return (sample ^ sign_bit) - sign_bit;
+}
+
+bool FLACCodec::testValidateBitPerfectReconstruction(const FLAC__int32* original, 
+                                                  const int16_t* converted, 
+                                                  size_t sample_count, 
+                                                  uint16_t source_bits) const {
+    if (!original || !converted || sample_count == 0) return false;
+    for (size_t i = 0; i < sample_count; ++i) {
+        int16_t expected = 0;
+        if (source_bits == 8) expected = static_cast<int16_t>(original[i] << 8);
+        else if (source_bits == 16) expected = static_cast<int16_t>(original[i]);
+        else if (source_bits == 24) expected = static_cast<int16_t>((original[i] + 128) >> 8);
+        else if (source_bits == 32) expected = static_cast<int16_t>((original[i] + 32768) >> 16);
+        else if (source_bits >= 4 && source_bits <= 12) expected = static_cast<int16_t>(original[i] << (16 - source_bits));
+        else {
+            uint32_t shift = (source_bits > 16) ? (source_bits - 16) : 0;
+            if (shift > 0) expected = static_cast<int16_t>((original[i] + (1 << (shift - 1))) >> shift);
+            else expected = static_cast<int16_t>(original[i] << (16 - source_bits));
+        }
+        if (converted[i] != expected) return false;
+    }
+    return true;
+}
+
+AudioQualityMetrics FLACCodec::testCalculateAudioQualityMetrics(const int16_t* samples, 
+                                                             size_t sample_count, 
+                                                             const FLAC__int32* reference,
+                                                             uint16_t reference_bits) const {
+    AudioQualityMetrics metrics;
+    if (sample_count == 0 || !samples) return metrics;
+    
+    double sum_sq_signal = 0;
+    double sum_sq_noise = 0;
+    int32_t max_val = 0;
+    
+    for (size_t i = 0; i < sample_count; ++i) {
+        int32_t abs_val = std::abs((int32_t)samples[i]);
+        if (abs_val > max_val) max_val = abs_val;
+        
+        sum_sq_signal += (double)samples[i] * samples[i];
+        
+        if (samples[i] == 32767 || samples[i] == -32768) {
+            metrics.clipped_samples++;
+        }
+        
+        if (i > 0 && ((samples[i-1] < 0 && samples[i] >= 0) || (samples[i-1] >= 0 && samples[i] < 0))) {
+            metrics.zero_crossings++;
+        }
+        
+        if (reference) {
+            int16_t ref_16;
+            if (reference_bits == 8) ref_16 = static_cast<int16_t>(reference[i] << 8);
+            else if (reference_bits == 16) ref_16 = static_cast<int16_t>(reference[i]);
+            else if (reference_bits == 24) ref_16 = static_cast<int16_t>((reference[i] + 128) >> 8);
+            else ref_16 = 0;
+            
+            double noise = (double)samples[i] - (double)ref_16;
+            sum_sq_noise += noise * noise;
+        }
+    }
+    
+    metrics.peak_amplitude = (double)max_val / 32768.0;
+    metrics.rms_amplitude = std::sqrt(sum_sq_signal / sample_count) / 32768.0;
+    
+    if (reference && sum_sq_noise > 0) {
+        metrics.signal_to_noise_ratio_db = 10.0 * std::log10(sum_sq_signal / sum_sq_noise);
+    } else if (reference) {
+        metrics.signal_to_noise_ratio_db = 100.0; // Perfect match
+    }
+    
+    return metrics;
+}
+
+int16_t FLACCodec::testConvert8BitTo16Bit(FLAC__int32 sample) const {
+    return static_cast<int16_t>(sample << 8);
+}
+
+int16_t FLACCodec::testConvert24BitTo16Bit(FLAC__int32 sample) const {
+    return static_cast<int16_t>((sample + 128) >> 8);
+}
+
+int16_t FLACCodec::testConvert32BitTo16Bit(FLAC__int32 sample) const {
+    return static_cast<int16_t>((sample + 32768) >> 16);
+}
+
 } // namespace FLAC
 } // namespace Codec
 } // namespace PsyMP3
