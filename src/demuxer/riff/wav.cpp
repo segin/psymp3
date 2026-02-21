@@ -82,6 +82,20 @@ WaveStream::WaveStream(const TagLib::String& path) : Stream(path) {
 }
 
 /**
+ * @brief Constructs a WaveStream object from an existing IOHandler.
+ *
+ * This takes ownership of the IOHandler and immediately calls parseHeaders() to
+ * validate the RIFF/WAVE format. Useful for testing or when the IOHandler is
+ * already created (e.g., MemoryIOHandler).
+ * @param handler Unique pointer to the IOHandler.
+ */
+WaveStream::WaveStream(std::unique_ptr<IOHandler> handler) : Stream(TagLib::String("memory://stream")) {
+    m_handler = std::move(handler);
+    parseHeaders();
+    m_eof = false;
+}
+
+/**
  * @brief Destroys the WaveStream object.
  *
  * Ensures that the file handle is properly closed if it was opened.
