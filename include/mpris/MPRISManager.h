@@ -68,8 +68,9 @@ public:
      * @param artist Artist name
      * @param title Track title
      * @param album Album name
+     * @param length_us Track length in microseconds (0 if unknown)
      */
-    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album);
+    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us = 0);
     
     /**
      * Update playback status
@@ -178,7 +179,7 @@ private:
     
     PsyMP3::MPRIS::Result<void> initialize_unlocked();
     void shutdown_unlocked();
-    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album);
+    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us);
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);

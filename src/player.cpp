@@ -1245,7 +1245,8 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                     m_mpris_manager->updateMetadata(
                         stream->getArtist().to8Bit(true), 
                         stream->getTitle().to8Bit(true), 
-                        stream->getAlbum().to8Bit(true)
+                        stream->getAlbum().to8Bit(true),
+                        static_cast<uint64_t>(stream->getLength()) * 1000
                     );
                 }
             }

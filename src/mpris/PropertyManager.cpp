@@ -34,9 +34,10 @@ PropertyManager::~PropertyManager() {
 
 void PropertyManager::updateMetadata(const std::string &artist,
                                      const std::string &title,
-                                     const std::string &album) {
+                                     const std::string &album,
+                                     uint64_t length_us) {
   std::lock_guard<std::mutex> lock(m_mutex);
-  updateMetadata_unlocked(artist, title, album);
+  updateMetadata_unlocked(artist, title, album, length_us);
 }
 
 void PropertyManager::updatePlaybackStatus(
@@ -116,7 +117,8 @@ PropertyManager::getAllProperties() const {
 
 void PropertyManager::updateMetadata_unlocked(const std::string &artist,
                                               const std::string &title,
-                                              const std::string &album) {
+                                              const std::string &album,
+                                              uint64_t length_us) {
   m_artist = artist;
   m_title = title;
   m_album = album;
@@ -131,8 +133,7 @@ void PropertyManager::updateMetadata_unlocked(const std::string &artist,
     m_track_id.clear();
   }
 
-  // TODO: In a real implementation, we might query the Player for track length
-  // For now, we'll leave m_length_us as is or set it separately
+  m_length_us = length_us;
 }
 
 void PropertyManager::updatePlaybackStatus_unlocked(
