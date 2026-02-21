@@ -32,51 +32,8 @@ using Foundation::DrawableWidget;
 
 namespace {
 
-// 16x16 NWSE (NorthWest-SouthEast) Cursor Bitmap
-// 0 = white/transparent, 1 = black/opaque
-// Data: 1=black, 0=white
-// Mask: 1=opaque, 0=transparent
-// Hotspot: (7, 7)
-
-const Uint8 cursor_nwse_data[] = {
-    0b11000000, 0b00000000, // XX
-    0b11000000, 0b00000000, // XX
-    0b01100000, 0b00000000, // .XX
-    0b00110000, 0b00000000, //  .XX
-    0b00011000, 0b00000000, //   .XX
-    0b00001100, 0b00000000, //    .XX
-    0b00000110, 0b00000000, //     .XX
-    0b00000011, 0b00000000, //      .XX
-    0b00000001, 0b10000000, //       .XX
-    0b00000000, 0b11000000, //        .XX
-    0b00000000, 0b01100000, //         .XX
-    0b00000000, 0b00110000, //          .XX
-    0b00000000, 0b00011000, //           .XX
-    0b00000000, 0b00001100, //            XX
-    0b00000000, 0b00000000, //
-    0b00000000, 0b00000000  //
-};
-
-const Uint8 cursor_nwse_mask[] = {
-    0b11000000, 0b00000000, // XX
-    0b11100000, 0b00000000, // XX.
-    0b11110000, 0b00000000, // .XX.
-    0b01111000, 0b00000000, //  .XX.
-    0b00111100, 0b00000000, //   .XX.
-    0b00011110, 0b00000000, //    .XX.
-    0b00001111, 0b00000000, //     .XX.
-    0b00000111, 0b10000000, //      .XX.
-    0b00000011, 0b11000000, //       .XX.
-    0b00000001, 0b11100000, //        .XX.
-    0b00000000, 0b11110000, //         .XX.
-    0b00000000, 0b01111000, //          .XX
-    0b00000000, 0b00111100, //           .XX
-    0b00000000, 0b00011100, //            XX
-    0b00000000, 0b00000000, //
-    0b00000000, 0b00000000  //
-};
-
 } // namespace
+
 
 int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
@@ -148,6 +105,7 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     }
     if (!s_cursor_nesw) {
         s_cursor_nesw = nullptr;
+
     }
 }
 
