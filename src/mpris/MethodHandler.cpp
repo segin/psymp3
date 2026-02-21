@@ -555,7 +555,7 @@ MethodHandler::handleGetProperty_unlocked(DBusConnection *connection,
   DBusMessage *reply = dbus_message_new_method_return(message);
   if (!reply) {
     logError_unlocked("handleGetProperty", "Failed to create reply message");
-    return DBUS_HANDLER_RESULT_NEED_MEMORY;
+    return DBUS_HANDLER_RESULT_HANDLED;
   }
 
   try {
@@ -733,7 +733,7 @@ MethodHandler::handleGetAllProperties_unlocked(DBusConnection *connection,
   if (!reply) {
     logError_unlocked("handleGetAllProperties",
                       "Failed to create reply message");
-    return DBUS_HANDLER_RESULT_NEED_MEMORY;
+    return DBUS_HANDLER_RESULT_HANDLED;
   }
 
   try {
