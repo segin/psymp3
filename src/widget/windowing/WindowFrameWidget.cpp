@@ -30,6 +30,54 @@ namespace Windowing {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+namespace {
+
+// 16x16 NWSE (NorthWest-SouthEast) Cursor Bitmap
+// 0 = white/transparent, 1 = black/opaque
+// Data: 1=black, 0=white
+// Mask: 1=opaque, 0=transparent
+// Hotspot: (7, 7)
+
+const Uint8 cursor_nwse_data[] = {
+    0b11000000, 0b00000000, // XX
+    0b11000000, 0b00000000, // XX
+    0b01100000, 0b00000000, // .XX
+    0b00110000, 0b00000000, //  .XX
+    0b00011000, 0b00000000, //   .XX
+    0b00001100, 0b00000000, //    .XX
+    0b00000110, 0b00000000, //     .XX
+    0b00000011, 0b00000000, //      .XX
+    0b00000001, 0b10000000, //       .XX
+    0b00000000, 0b11000000, //        .XX
+    0b00000000, 0b01100000, //         .XX
+    0b00000000, 0b00110000, //          .XX
+    0b00000000, 0b00011000, //           .XX
+    0b00000000, 0b00001100, //            XX
+    0b00000000, 0b00000000, //
+    0b00000000, 0b00000000  //
+};
+
+const Uint8 cursor_nwse_mask[] = {
+    0b11000000, 0b00000000, // XX
+    0b11100000, 0b00000000, // XX.
+    0b11110000, 0b00000000, // .XX.
+    0b01111000, 0b00000000, //  .XX.
+    0b00111100, 0b00000000, //   .XX.
+    0b00011110, 0b00000000, //    .XX.
+    0b00001111, 0b00000000, //     .XX.
+    0b00000111, 0b10000000, //      .XX.
+    0b00000011, 0b11000000, //       .XX.
+    0b00000001, 0b11100000, //        .XX.
+    0b00000000, 0b11110000, //         .XX.
+    0b00000000, 0b01111000, //          .XX
+    0b00000000, 0b00111100, //           .XX
+    0b00000000, 0b00011100, //            XX
+    0b00000000, 0b00000000, //
+    0b00000000, 0b00000000  //
+};
+
+} // namespace
+
 int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
@@ -95,51 +143,10 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     // Manage cursor resources
     s_instance_count++;
     if (!s_cursor_nwse) {
-        // SDL 1.2 doesn't support SDL_CreateSystemCursor.
-        // Implement custom cursor for SDL 1.2 using SDL_CreateCursor
-
-        // 16x16 NWSE arrow cursor mask (shape)
-        // 1 = opaque, 0 = transparent
-        static const Uint8 cursor_nwse_mask[] = {
-            // Row 0-15 (16 rows, 2 bytes each)
-            // MSB first
-            0x80, 0x00, // 10000000 00000000 (Top-left start)
-            0xC0, 0x00, // 11000000 00000000
-            0xE0, 0x00, // 11100000 00000000
-            0xF0, 0x00, // 11110000 00000000
-            0xD8, 0x00, // 11011000 00000000
-            0x8C, 0x00, // 10001100 00000000
-            0x06, 0x00, // 00000110 00000000
-            0x03, 0x00, // 00000011 00000000
-            0x00, 0xC0, // 00000000 11000000
-            0x00, 0x60, // 00000000 01100000
-            0x00, 0x31, // 00000000 00110001
-            0x00, 0x1B, // 00000000 00011011
-            0x00, 0x0F, // 00000000 00001111
-            0x00, 0x07, // 00000000 00000111
-            0x00, 0x03, // 00000000 00000011
-            0x00, 0x01  // 00000000 00000001 (Bottom-right end)
-        };
-
-        // Cursor color data (black=1, white=0)
-        // Using all zeros produces a white cursor where mask is 1
-        static const Uint8 cursor_nwse_data[] = {
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0
-        };
-
-        // SDL 1.2 Cursor:
-        // Mask=1, Data=0 => White
-        // Mask=1, Data=1 => Black
-        // Mask=0 => Transparent
-        s_cursor_nwse = SDL_CreateCursor(const_cast<Uint8*>(cursor_nwse_data),
-                                         const_cast<Uint8*>(cursor_nwse_mask),
-                                         16, 16, 7, 7);
+        // SDL 1.2 doesn't support SDL_CreateSystemCursor, so we create a custom cursor
+        s_cursor_nwse = SDL_CreateCursor(const_cast<Uint8*>(cursor_nwse_data), const_cast<Uint8*>(cursor_nwse_mask), 16, 16, 7, 7);
     }
     if (!s_cursor_nesw) {
-        // s_cursor_nesw = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENESW);
         s_cursor_nesw = nullptr;
     }
 }
