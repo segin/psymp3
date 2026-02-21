@@ -10,6 +10,14 @@
 #ifndef ISODEMUXER_H
 #define ISODEMUXER_H
 
+#ifdef FINAL_BUILD
+#include <cstdint>
+#include <vector>
+#include <string>
+#include <map>
+#include <memory>
+#endif
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {

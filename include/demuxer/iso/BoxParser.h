@@ -10,9 +10,23 @@
 #ifndef BOXPARSER_H
 #define BOXPARSER_H
 
+#ifdef FINAL_BUILD
+#include <cstdint>
+#include <string>
+#include <memory>
+#include <stack>
+#include <functional>
+#include <vector>
+#include "io/IOHandler.h"
+#endif
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
+
+// Forward declarations
+struct AudioTrackInfo;
+struct SampleTableInfo;
 
 // No direct includes - all includes should be in psymp3.h
 
@@ -33,7 +47,7 @@ struct BoxHeader {
  */
 class BoxParser {
 public:
-    explicit BoxParser(std::shared_ptr<IOHandler> io);
+    explicit BoxParser(std::shared_ptr<PsyMP3::IO::IOHandler> io);
     ~BoxParser() = default;
     
     bool ParseMovieBox(uint64_t offset, uint64_t size);
@@ -77,7 +91,7 @@ public:
     bool SkipUnknownBox(const BoxHeader& header);
     
 private:
-    std::shared_ptr<IOHandler> io;
+    std::shared_ptr<PsyMP3::IO::IOHandler> io;
     std::stack<BoxHeader> boxStack;
     uint64_t fileSize;
     

@@ -7,14 +7,31 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include "demuxer/iso/BoxParser.h"
+#include "demuxer/iso/ISODemuxer.h"
+#include "io/IOHandler.h"
+#include "debug.h"
+#include <iostream>
+#include <vector>
+#include <string>
+#include <cstdint>
+#include <functional>
+#include <stack>
+#include <cstring>
+#include <algorithm>
+#include <memory>
+#endif
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
 
 static const uint32_t MAX_SAMPLES_PER_TRACK = 10000000; // 10 million samples
 
-BoxParser::BoxParser(std::shared_ptr<IOHandler> io) : io(io), fileSize(0) {
+BoxParser::BoxParser(std::shared_ptr<PsyMP3::IO::IOHandler> io) : io(io), fileSize(0) {
     // Get file size for validation
     if (io) {
         io->seek(0, SEEK_END);
