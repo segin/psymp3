@@ -26,6 +26,7 @@
 #include <vector>
 #include <cassert>
 #include <cstdint>
+#include <cstdio>
 #include <random>
 #include <cstdio>
 #include <curl/curl.h>
@@ -58,7 +59,7 @@ std::string urlEncode(const std::string& input) {
         curl_easy_cleanup(curl);
     }
     
-    // Fallback - use safe manual encoding
+    // Fallback - use a safe, manual encoding to avoid security risks of returning unencoded input.
     // RFC 3986 unreserved characters
 
     std::string result;
