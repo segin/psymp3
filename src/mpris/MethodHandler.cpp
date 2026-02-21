@@ -1016,6 +1016,8 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   DBusMessageIter args, variant_iter;
   dbus_message_iter_init_append(reply, &args);
 
+  DBusMessageIter variant_iter;
+
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus()));
