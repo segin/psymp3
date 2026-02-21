@@ -266,6 +266,7 @@ bool ISODemuxer::parseContainer() {
                         // Movie box - extract track information
                         foundMovie = ParseMovieBoxWithTracks(header.dataOffset, 
                                                            header.size - (header.dataOffset - boxOffset), boxDepth);
+
                         return foundMovie;
                     case BOX_MOOF:
                         // Movie fragment box - process with FragmentHandler
@@ -802,6 +803,7 @@ uint64_t ISODemuxer::getPosition() const {
 bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size, uint32_t depth) {
     bool success = boxParser->ParseBoxRecursively(offset, size, 
         [this](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
+
             // Validate box nesting compliance within movie box
             if (complianceValidator && !complianceValidator->ValidateBoxNesting(header.type, BOX_MOOV)) {
                 std::string boxTypeStr = complianceValidator->BoxTypeToString(header.type);
@@ -819,6 +821,7 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size, uint32_
                         if (boxParser->ParseTrackBox(header.dataOffset, 
                                                    header.size - (header.dataOffset - boxOffset), 
                                                    track, boxDepth)) {
+
                             // Validate track compliance
                             bool trackValidation = complianceValidator->ValidateTrackCompliance(track);
                             if (!trackValidation) {
@@ -848,7 +851,7 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size, uint32_
                 default:
                     return boxParser->SkipUnknownBox(header);
             }
-        });
+        }, depth);
     
     // After parsing all tracks, build sample tables for the first audio track
     if (success && !audioTracks.empty()) {

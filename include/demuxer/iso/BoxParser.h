@@ -70,11 +70,12 @@ public:
     bool ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables, uint32_t depth = 0);
     bool ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType);
     bool ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth = 0);
+
     
     // Codec-specific configuration parsing
-    bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    bool ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth);
+    bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth);
+    bool ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth);
     
     // Telephony codec configuration and validation
     bool ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType);

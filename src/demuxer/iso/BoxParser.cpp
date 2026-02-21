@@ -342,6 +342,7 @@ bool BoxParser::SkipUnknownBox(const BoxHeader& header) {
 bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size, uint32_t depth) {
     // Parse movie box recursively to find tracks
     return ParseBoxRecursively(offset, size, [this](const BoxHeader& header, uint64_t boxOffset, [[maybe_unused]] uint32_t boxDepth) {
+
         switch (header.type) {
             case BOX_MVHD:
                 // Movie header - contains duration and timescale
@@ -355,7 +356,7 @@ bool BoxParser::ParseMovieBox(uint64_t offset, uint64_t size, uint32_t depth) {
             default:
                 return SkipUnknownBox(header);
         }
-    });
+    }, depth);
 }
 
 bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
@@ -364,6 +365,7 @@ bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
     SampleTableInfo sampleTables;
     
     ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &sampleTables](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
+
         switch (header.type) {
             case BOX_TKHD:
                 // Track header - contains track ID
@@ -377,6 +379,7 @@ bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
                 return ParseMediaBoxWithSampleTables(boxOffset + (header.dataOffset - boxOffset), 
                                                    header.size - (header.dataOffset - boxOffset), 
                                                    track, foundAudio, sampleTables, boxDepth);
+
             default:
                 return SkipUnknownBox(header);
         }
@@ -497,6 +500,7 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
     bool handlerParsed = false;
     
     return ParseBoxRecursively(offset, size, [this, &track, &foundAudio, &handlerType, &handlerParsed, &sampleTables](const BoxHeader& header, uint64_t boxOffset, uint32_t boxDepth) {
+
         switch (header.type) {
             case BOX_MDHD:
                 // Media header - contains timescale and duration
@@ -527,8 +531,10 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
                 // Media information - only process if this is an audio track
                 if (handlerParsed && handlerType == "soun") {
                     foundAudio = true;
+                    // MINF parsing is recursive
                     return ParseBoxRecursively(header.dataOffset, header.size - (header.dataOffset - boxOffset),
                         [this, &track, &sampleTables](const BoxHeader& minfHeader, uint64_t minfOffset, uint32_t minfDepth) {
+
                             switch (minfHeader.type) {
                                 case BOX_SMHD:
                                     // Sound media header - confirms this is audio
@@ -538,6 +544,7 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
                                     return true;
                                 case BOX_STBL:
                                     // Sample table box - parse for codec information and sample tables
+                                    // STBL parsing is recursive, increasing depth
                                     return ParseBoxRecursively(minfHeader.dataOffset, minfHeader.size - (minfHeader.dataOffset - minfOffset),
                                         [this, &track, &sampleTables](const BoxHeader& stblHeader, uint64_t stblOffset, uint32_t stblDepth) {
                                             if (stblHeader.type == BOX_STSD) {
@@ -556,6 +563,10 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
                                     return SkipUnknownBox(minfHeader);
                             }
                         }, boxDepth);
+                                    return SkipUnknownBox(minfHeader);
+                            }
+                        }, depth + 1);
+>>>>>>> origin/fix-boxparser-recursion-overflow-9219235390022348766
                 } else {
                     // Not an audio track, skip
                     return SkipUnknownBox(header);
@@ -658,9 +669,10 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                     // Parse additional boxes within the sample entry
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
                         [this, &track](const BoxHeader& header, uint64_t boxOffset, [[maybe_unused]] uint32_t boxDepth) {
+
                             if (header.type == FOURCC('e','s','d','s')) {
                                 // Elementary stream descriptor - contains AAC config
-                                return ParseAACConfiguration(header.dataOffset, header.size - (header.dataOffset - boxOffset), track);
+                                return ParseAACConfiguration(header.dataOffset, header.size - (header.dataOffset - boxOffset), track, depth + 1);
                             }
                             return true;
                         }, depth);
@@ -672,11 +684,12 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 if (entrySize > 36) {
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
                         [this, &track](const BoxHeader& header, uint64_t boxOffset, [[maybe_unused]] uint32_t boxDepth) {
+
                             if (header.type == CODEC_ALAC) {
                                 // ALAC magic cookie
                                 return ParseALACConfiguration(header.dataOffset,
                                                             header.size - (header.dataOffset - boxOffset),
-                                                            track);
+                                                            track, depth + 1);
                             }
                             return true;
                         }, depth);
@@ -688,11 +701,12 @@ bool BoxParser::ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioT
                 if (entrySize > 36) {
                     ParseBoxRecursively(audioEntryOffset + 20, entrySize - 36,
                         [this, &track](const BoxHeader& header, uint64_t boxOffset, [[maybe_unused]] uint32_t boxDepth) {
+
                             if (header.type == FOURCC('d','f','L','a')) {
                                 // FLAC configuration box
                                 return ParseFLACConfiguration(header.dataOffset,
                                                             header.size - (header.dataOffset - boxOffset),
-                                                            track);
+                                                            track, depth + 1);
                             }
                             return true;
                         }, depth);
@@ -968,21 +982,21 @@ bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
     }
 }
 
-bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Placeholder for AAC configuration parsing
     // This would parse the Elementary Stream Descriptor (ESDS) box
     // to extract AAC-specific configuration data
     return true;
 }
 
-bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Placeholder for ALAC configuration parsing
     // This would parse the ALAC magic cookie to extract
     // ALAC-specific configuration data
     return true;
 }
 
-bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track) {
+bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
     // Parse FLAC configuration from dfLa box (FLAC-in-MP4 specification)
     // The dfLa box contains FLAC metadata blocks without the 'fLaC' signature
     
