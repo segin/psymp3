@@ -3753,6 +3753,20 @@ generate_picture_corpus_LDADD = \
 	$(AM_LDFLAGS)
 
 # ============================================================================
+# Base64 Tests
+# ============================================================================
+
+check_PROGRAMS += test_base64_unit
+
+test_base64_unit_SOURCES = test_base64_unit.cpp
+test_base64_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+# ============================================================================
 # UTF8Util Tests
 # ============================================================================
 
