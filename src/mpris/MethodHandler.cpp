@@ -1021,9 +1021,8 @@ void MethodHandler::appendVariantToIter_unlocked(
 
 void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
-  DBusMessageIter args, variant_iter;
+  DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
-  DBusMessageIter variant_iter;
 
 
   if (property_name == "PlaybackStatus") {
@@ -1037,7 +1036,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   } else if (property_name == "Position") {
     DBusMessageIter variant_iter;
     uint64_t position = m_properties->getPosition();
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "x",
                                      &variant_iter);
     dbus_int64_t position_val = static_cast<dbus_int64_t>(position);
@@ -1048,7 +1046,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   } else if (property_name == "CanGoNext") {
     DBusMessageIter variant_iter;
     bool can_go_next = m_properties->canGoNext();
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
                                      &variant_iter);
     dbus_bool_t bool_val = can_go_next ? TRUE : FALSE;
@@ -1058,7 +1055,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   } else if (property_name == "CanGoPrevious") {
     DBusMessageIter variant_iter;
     bool can_go_previous = m_properties->canGoPrevious();
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
                                      &variant_iter);
     dbus_bool_t bool_val = can_go_previous ? TRUE : FALSE;
@@ -1068,7 +1064,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   } else if (property_name == "CanSeek") {
     DBusMessageIter variant_iter;
     bool can_seek = m_properties->canSeek();
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
                                      &variant_iter);
     dbus_bool_t bool_val = can_seek ? TRUE : FALSE;
@@ -1078,7 +1073,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   } else if (property_name == "CanControl") {
     DBusMessageIter variant_iter;
     bool can_control = m_properties->canControl();
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
                                      &variant_iter);
     dbus_bool_t bool_val = can_control ? TRUE : FALSE;
@@ -1088,7 +1082,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   } else if (property_name == "Volume") {
     DBusMessageIter variant_iter;
     double volume = m_player ? m_player->getVolume() : 1.0;
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "d",
                                      &variant_iter);
     dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE, &volume);
@@ -1097,7 +1090,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   } else if (property_name == "LoopStatus") {
     DBusMessageIter variant_iter;
     std::string loop_status = PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus());
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s",
                                      &variant_iter);
     const char *loop_status_cstr = loop_status.c_str();
@@ -1109,7 +1101,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessageIter variant_iter;
     // Default to false since Player doesn't have shuffle control yet
     dbus_bool_t shuffle = FALSE;
-    DBusMessageIter variant_iter;
     dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
                                      &variant_iter);
     dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &shuffle);
@@ -1123,7 +1114,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
 void MethodHandler::appendAllPropertiesToMessage_unlocked(
     DBusMessage *reply, const std::string &interface_name) {
   DBusMessageIter args, dict_iter;
-  DBusMessageIter variant_iter; // Declare variant_iter for use in this scope
   dbus_message_iter_init_append(reply, &args);
   dbus_message_iter_open_container(&args, DBUS_TYPE_ARRAY, "{sv}", &dict_iter);
 

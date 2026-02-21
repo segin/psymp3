@@ -407,7 +407,6 @@ test_compression_lz77_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(LDADD)
 
-<<<<<<< HEAD
 repro_ogg_duration_perf_SOURCES = repro_ogg_duration_perf.cpp
 repro_ogg_duration_perf_LDADD = \
 	libtest_utilities.a \
@@ -427,13 +426,13 @@ repro_ogg_duration_perf_LDADD = \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
-=======
+
 test_compression_lz77_edge_cases_SOURCES = test_compression_lz77_edge_cases.cpp
 test_compression_lz77_edge_cases_LDADD = \
 	$(top_builddir)/src/core/compression/libpsymp3-core-compression.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(LDADD)
->>>>>>> origin/add-lz77-edge-case-tests-9970203084208614879
+
 endif
 
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
@@ -3861,7 +3860,16 @@ test_uri_LDADD = \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(TAGLIB_LIBS) \
+	$(TAGLIB_LIBS)
+
+# Spectrum Config tests
+check_PROGRAMS += test_spectrum_config
+test_spectrum_config_SOURCES = test_spectrum_config.cpp
+test_spectrum_config_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o
+
 	$(AM_LDFLAGS)
 
 

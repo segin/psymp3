@@ -23,6 +23,8 @@
 
 #include "psymp3.h"
 #include <utility>
+#include "core/SpectrumConfig.h"
+
 
 std::atomic<bool> Player::guiRunning{false};
 
@@ -536,27 +538,15 @@ void Player::precomputeSpectrumColors() {
     }
     Debug::log("player", "graph is valid.");
 
-    m_spectrum_colors.resize(320);
-    for (uint16_t x = 0; x < 320; ++x) {
-        uint8_t r, g, b;
-        if (x > 213) {
-            r = static_cast<uint8_t>((x - 214) * 2.4);
-            g = 0;
-            b = 255;
-        } else if (x < 106) {
-            r = 128;
-            g = 255;
-            b = static_cast<uint8_t>(x * 2.398);
-        } else {
-            r = static_cast<uint8_t>(128 - ((x - 106) * 1.1962615));
-            g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
-            b = 255;
-        }
-        // Debug::log("player", "x: ", x, " r: ", (int)r, " g: ", (int)g, " b: ", (int)b);
-        m_spectrum_colors[x] = graph->MapRGBA(r, g, b, 255);
+    m_spectrum_colors.resize(PsyMP3::Core::SpectrumConfig::NumBands);
+    for (uint16_t x = 0; x < PsyMP3::Core::SpectrumConfig::NumBands; ++x) {
+        auto color = PsyMP3::Core::SpectrumConfig::getBarColor(x);
+        // Debug::log("player", "x: ", x, " r: ", (int)color.r, " g: ", (int)color.g, " b: ", (int)color.b);
+        m_spectrum_colors[x] = graph->MapRGBA(color.r, color.g, color.b, 255);
     }
     Debug::log("player", "precomputeSpectrumColors finished.");
 }
+
 
 
 /**
@@ -687,6 +677,15 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
                 }
             }
         }
+
+        // Update spectrum data in the widget - it will render itself via the widget tree
+        float *spectrum = fft->getFFT();
+        if (m_spectrum_widget) {
+            // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
+            // Pass live scalefactor and decayfactor values so keypress changes propagate
+            m_spectrum_widget->updateSpectrum(spectrum, PsyMP3::Core::SpectrumConfig::NumBands, scalefactor, decayfactor);
+        }
+
     }
 }
 
