@@ -26,17 +26,15 @@
 
 std::atomic<bool> Player::guiRunning{false};
 
-static std::string convertInt(long number) {
-   std::stringstream ss;
-   ss << number;
-   return ss.str();
-}
-
-static std::string convertInt2(long number) {
+static std::string convertInt(long number, int width = 0) {
     std::stringstream ss;
-    ss << std::setw(2) << std::setfill('0') << number;
+    if (width > 0) {
+        ss << std::setw(width) << std::setfill('0');
+    }
+    ss << number;
     return ss.str();
 }
+
 
 Player::Player() {
     Debug::log("player", "PsyMP3 version ", PSYMP3_VERSION, ".");
@@ -852,11 +850,11 @@ bool Player::updateGUI()
     // Now use the copied data for rendering, outside the lock.
     if(current_stream) {
         m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
-                                + ":" + convertInt2((current_pos_ms / 1000) % 60)
-                                + "." + convertInt2((current_pos_ms / 10) % 100)
+                                + ":" + convertInt((current_pos_ms / 1000) % 60, 2)
+                                + "." + convertInt((current_pos_ms / 10) % 100, 2)
                                 + "/" + convertInt(total_len_ms / 60000)
-                                + ":" + convertInt2((total_len_ms / 1000) % 60)
-                                + "." + convertInt2((total_len_ms / 10) % 100));
+                                + ":" + convertInt((total_len_ms / 1000) % 60, 2)
+                                + "." + convertInt((total_len_ms / 10) % 100, 2));
         screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
                         (std::string) " -:[ " + artist.to8Bit(true) + " ] :-" + " -- -:[ " +
                         title.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
