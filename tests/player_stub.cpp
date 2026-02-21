@@ -34,6 +34,14 @@ void Player::prevTrack() {
     // Do nothing for testing
 }
 
+bool Player::canGoNext(void) const {
+    return true; // Always return true for testing
+}
+
+bool Player::canGoPrev(void) const {
+    return true; // Always return true for testing
+}
+
 void Player::seekTo(unsigned long position_ms) {
     (void)position_ms; // Suppress unused parameter warning
     // Do nothing for testing

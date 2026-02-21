@@ -87,7 +87,7 @@ bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::Strin
  * @brief Gets the current playback position (index) in the playlist.
  * @return The zero-based index of the currently playing or selected track.
  */
-long Playlist::getPosition(void)
+long Playlist::getPosition(void) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_position;
@@ -97,7 +97,7 @@ long Playlist::getPosition(void)
  * @brief Gets the total number of tracks in the playlist.
  * @return The total number of entries.
  */
-long Playlist::entries(void)
+long Playlist::entries(void) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return tracks.size();

@@ -190,8 +190,6 @@ private:
     std::chrono::steady_clock::time_point m_position_timestamp;
     
     // Control capabilities cache
-    bool m_can_go_next;
-    bool m_can_go_previous;
     bool m_can_seek;
     bool m_can_control;
     
