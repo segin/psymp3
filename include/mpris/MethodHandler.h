@@ -35,6 +35,8 @@ enum DBusHandlerResult {
     DBUS_HANDLER_RESULT_NOT_YET_HANDLED,
     DBUS_HANDLER_RESULT_NEED_MEMORY
 };
+// Forward declarations for types used in member functions
+struct DBusMessageIter;
 #endif
 
 /**
