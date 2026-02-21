@@ -11,9 +11,12 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include "mpris/MethodHandler.h"
+
 #ifdef HAVE_DBUS
 #include <dbus/dbus.h>
 #endif
+
 
 namespace PsyMP3 {
 namespace MPRIS {
@@ -516,6 +519,7 @@ MethodHandler::handleSetPosition_unlocked(DBusConnection *connection,
 // Use C++17 attribute to suppress unused parameter warnings
 MethodHandler::MethodHandler([[maybe_unused]] Player *player,
                              [[maybe_unused]] PropertyManager *properties)
+
     : m_player(player), m_properties(properties), m_initialized(false) {}
 
 MethodHandler::~MethodHandler() {}
@@ -1019,6 +1023,7 @@ void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args, variant_iter;
   dbus_message_iter_init_append(reply, &args);
+  DBusMessageIter variant_iter;
 
 
   if (property_name == "PlaybackStatus") {
@@ -1166,8 +1171,8 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
       }
-
         dbus_message_iter_close_container(&dict_iter, &entry_iter);
+
     }
   } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
     // Add MediaPlayer2 interface properties
@@ -1239,3 +1244,8 @@ void MethodHandler::logValidationError_unlocked(
   std::cerr << "MPRIS MethodHandler Validation Error [" << method_name << "."
             << parameter << "]: " << error_message << std::endl;
 }
+
+#endif // HAVE_DBUS
+
+} // namespace MPRIS
+} // namespace PsyMP3
