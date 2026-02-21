@@ -330,7 +330,8 @@ void System::InitializeTaskbar() {
 #if defined(_WIN32) && defined(WIN_OPTIONAL)
   HRESULT hr =
       CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
-                       IID_ITaskbarList3, reinterpret_cast<void**>(&m_taskbar));
+                       IID_ITaskbarList3, reinterpret_cast<void **>(&m_taskbar));
+
 
   if (SUCCEEDED(hr)) {
     std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar
