@@ -45,6 +45,8 @@ class Playlist
         TagLib::String prev();
         TagLib::String peekNext() const;
         const track* getTrackInfo(long position) const;
+        void setShuffle(bool enabled);
+        bool isShuffle() const;
         static std::unique_ptr<Playlist> loadPlaylist(TagLib::String path);
         void savePlaylist(TagLib::String path);
     protected:
@@ -54,9 +56,16 @@ class Playlist
         // to prevent deadlocks and improve performance
         bool setPosition_unlocked(long position);
         TagLib::String getTrack_unlocked(long position) const;
+        void repopulateShuffleIndices();
         
         std::vector<track> tracks;
         long m_position = 0;
+
+        // Shuffle support
+        bool m_shuffle = false;
+        std::vector<long> m_shuffled_indices;
+        long m_shuffle_index = 0;
+
         mutable std::recursive_mutex m_mutex;
 };
 

@@ -18,6 +18,7 @@ PropertyManager::PropertyManager(Player *player)
     : m_player(player), m_length_us(0),
       m_status(PsyMP3::MPRIS::PlaybackStatus::Stopped),
       m_loop_status(PsyMP3::MPRIS::LoopStatus::None),
+      m_shuffle(false),
       m_position_us(0),
       m_position_timestamp(std::chrono::steady_clock::now()),
       m_can_seek(false),
@@ -56,6 +57,11 @@ void PropertyManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
   updateLoopStatus_unlocked(status);
 }
 
+void PropertyManager::updateShuffle(bool shuffle) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  updateShuffle_unlocked(shuffle);
+}
+
 std::string PropertyManager::getPlaybackStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getPlaybackStatus_unlocked();
@@ -75,6 +81,11 @@ uint64_t PropertyManager::getPosition() const {
 PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getLoopStatus_unlocked();
+}
+
+bool PropertyManager::getShuffle() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getShuffle_unlocked();
 }
 
 uint64_t PropertyManager::getLength() const {
@@ -154,6 +165,10 @@ void PropertyManager::updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status
   m_loop_status = status;
 }
 
+void PropertyManager::updateShuffle_unlocked(bool shuffle) {
+  m_shuffle = shuffle;
+}
+
 std::string PropertyManager::getPlaybackStatus_unlocked() const {
   return PsyMP3::MPRIS::playbackStatusToString(
       m_status.load(std::memory_order_relaxed));
@@ -171,6 +186,10 @@ uint64_t PropertyManager::getPosition_unlocked() const {
 
 PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus_unlocked() const {
   return m_loop_status;
+}
+
+bool PropertyManager::getShuffle_unlocked() const {
+  return m_shuffle;
 }
 
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
@@ -224,9 +243,9 @@ PropertyManager::getAllProperties_unlocked() const {
   properties.insert(
       std::make_pair(std::string("Rate"), PsyMP3::MPRIS::DBusVariant(1.0)));
 
-  // Shuffle (not implemented, always false)
+  // Shuffle
   properties.insert(std::make_pair(std::string("Shuffle"),
-                                   PsyMP3::MPRIS::DBusVariant(false)));
+                                   PsyMP3::MPRIS::DBusVariant(getShuffle_unlocked())));
 
   // Metadata
   auto metadata_dict = getMetadata_unlocked();

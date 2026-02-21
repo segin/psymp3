@@ -77,6 +77,11 @@ void MPRISManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
     updateLoopStatus_unlocked(status);
 }
 
+void MPRISManager::updateShuffle(bool shuffle) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    updateShuffle_unlocked(shuffle);
+}
+
 void MPRISManager::notifySeeked(uint64_t position_us) {
     std::lock_guard<std::mutex> lock(m_mutex);
     notifySeeked_unlocked(position_us);
@@ -294,6 +299,26 @@ void MPRISManager::updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status) {
             MPRISError::Severity::Error,
             "Failed to update loop status: " + std::string(e.what()),
             "updateLoopStatus",
+            MPRISError::RecoveryStrategy::Retry
+        );
+        handleError_unlocked(error);
+    }
+}
+
+void MPRISManager::updateShuffle_unlocked(bool shuffle) {
+    if (!isInitialized_unlocked() || !m_properties) {
+        return;
+    }
+
+    try {
+        m_properties->updateShuffle(shuffle);
+        emitPropertyChanges_unlocked();
+    } catch (const std::exception& e) {
+        MPRISError error(
+            MPRISError::Category::PlayerState,
+            MPRISError::Severity::Error,
+            "Failed to update shuffle status: " + std::string(e.what()),
+            "updateShuffle",
             MPRISError::RecoveryStrategy::Retry
         );
         handleError_unlocked(error);
@@ -910,6 +935,7 @@ void MPRISManager::shutdown() {}
 void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&, uint64_t) {}
 void MPRISManager::updatePlaybackStatus(PlaybackStatus) {}
 void MPRISManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus) {}
+void MPRISManager::updateShuffle(bool) {}
 void MPRISManager::updatePosition(uint64_t) {}
 void MPRISManager::notifySeeked(uint64_t) {}
 bool MPRISManager::isInitialized() const { return false; }

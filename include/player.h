@@ -152,6 +152,9 @@ class Player
         void setVolume(double volume);
         double getVolume() const;
 
+        void setShuffle(bool shuffle);
+        bool getShuffle() const;
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;

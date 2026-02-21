@@ -331,6 +331,16 @@ void Player::nextTrack(size_t advance_count) {
         return;
     }
 
+    if (playlist->isShuffle()) {
+        TagLib::String next_path;
+        for (size_t i = 0; i < advance_count; ++i) {
+            next_path = playlist->next();
+        }
+        m_skip_attempts = 0;
+        requestTrackLoad(next_path);
+        return;
+    }
+
     long new_pos = playlist->getPosition();
     for (size_t i = 0; i < advance_count; ++i) {
         new_pos++;
@@ -361,6 +371,15 @@ void Player::nextTrack(size_t advance_count) {
  */
 void Player::prevTrack(void) {
     m_navigation_direction = -1;
+    if (!playlist || playlist->entries() == 0) return;
+
+    if (playlist->isShuffle()) {
+        TagLib::String prev_path = playlist->prev();
+        m_skip_attempts = 0;
+        requestTrackLoad(prev_path);
+        return;
+    }
+
     long new_pos = playlist->getPosition() - 1;
 
     if (new_pos < 0) {
@@ -2175,6 +2194,28 @@ void Player::setVolume(double volume) {
 
 double Player::getVolume() const {
     return static_cast<double>(m_volume);
+}
+
+void Player::setShuffle(bool shuffle) {
+    if (playlist) {
+        playlist->setShuffle(shuffle);
+    }
+
+    std::string msg = shuffle ? "Shuffle: On" : "Shuffle: Off";
+    showToast(msg);
+
+#ifdef HAVE_DBUS
+    if (m_mpris_manager) {
+        m_mpris_manager->updateShuffle(shuffle);
+    }
+#endif
+}
+
+bool Player::getShuffle() const {
+    if (playlist) {
+        return playlist->isShuffle();
+    }
+    return false;
 }
 
 void Player::processDeferredDeletions() {
