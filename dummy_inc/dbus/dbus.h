@@ -47,6 +47,7 @@ enum DBusHandlerResult {
 };
 
 // Function mocks (declarations only for syntax check)
+extern "C" {
 const char *dbus_message_get_interface(DBusMessage *message);
 const char *dbus_message_get_member(DBusMessage *message);
 DBusMessage *dbus_message_new_method_return(DBusMessage *method_call);
@@ -62,5 +63,7 @@ int dbus_message_iter_get_arg_type(DBusMessageIter *iter);
 void dbus_message_iter_get_basic(DBusMessageIter *iter, void *value);
 int dbus_message_iter_next(DBusMessageIter *iter);
 void dbus_message_iter_recurse(DBusMessageIter *iter, DBusMessageIter *sub);
+}
 
 #endif
+

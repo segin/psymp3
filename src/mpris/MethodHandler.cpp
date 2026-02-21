@@ -1025,15 +1025,7 @@ void MethodHandler::appendVariantToIter_unlocked(
 void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args;
-<<<<<<< HEAD
-
-=======
-  DBusMessageIter variant_iter;
->>>>>>> origin/fix-sdl12-cursor-todo-15687457848310791100
   dbus_message_iter_init_append(reply, &args);
-  DBusMessageIter variant_iter;
-
-
 
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
@@ -1171,6 +1163,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
       }
+
 
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);

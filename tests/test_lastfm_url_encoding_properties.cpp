@@ -60,6 +60,7 @@ std::string urlEncode(const std::string& input) {
     
     // Fallback - use safe manual encoding
     // RFC 3986 unreserved characters
+
     std::string result;
     result.reserve(input.length() * 3);
     for (unsigned char c : input) {
