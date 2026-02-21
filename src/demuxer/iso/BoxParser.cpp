@@ -30,6 +30,7 @@ namespace Demuxer {
 namespace ISO {
 
 static const uint32_t MAX_SAMPLES_PER_TRACK = 10000000; // 10 million samples
+static const size_t MAX_FLAC_CONFIG_SIZE = 16 * 1024 * 1024; // 16 MB limit for FLAC configuration
 
 BoxParser::BoxParser(std::shared_ptr<PsyMP3::IO::IOHandler> io) : io(io), fileSize(0) {
     // Get file size for validation
@@ -1015,6 +1016,12 @@ bool BoxParser::ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrac
             return false;
         }
         
+        // SEC-02: Prevent OOM by validating metadata size against limit
+        if (metadataSize > MAX_FLAC_CONFIG_SIZE) {
+            Debug::log("iso", "ISODemuxerBoxParser: dfLa metadata too large: ", metadataSize, " bytes (max ", MAX_FLAC_CONFIG_SIZE, ")");
+            return false;
+        }
+
         // Read FLAC metadata blocks
         std::vector<uint8_t> metadataBlocks(metadataSize);
         if (io->read(metadataBlocks.data(), 1, metadataSize) != metadataSize) {

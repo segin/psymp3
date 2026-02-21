@@ -520,7 +520,7 @@ endif
 
 # FLAC demuxer compatibility tests (conditional on HAVE_FLAC)
 if HAVE_FLAC
-check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_real_files \
+check_PROGRAMS += test_flac_demuxer_simple test_flac_parser_vulnerability test_flac_real_file test_streaminfo_real_files \
 	test_streaminfo_recovery test_streaminfo_debug test_flac_diagnostic test_iohandler_deadlock \
 	test_flac_demuxer_compatibility test_flac_demuxer_performance test_flac_compatibility_integration \
 	test_flac_demuxer_thread_safety test_flac_backward_compatibility_validation \
@@ -1959,6 +1959,19 @@ test_flac_demuxer_simple_LDADD = \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(FLAC_LIBS) $(OPENSSL_LIBS) \
+	$(AM_LDFLAGS)
+
+# FLAC parser vulnerability test
+test_flac_parser_vulnerability_SOURCES = test_flac_parser_vulnerability.cpp
+test_flac_parser_vulnerability_LDADD = \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 
 # FLAC demuxer real file test
