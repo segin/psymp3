@@ -34,11 +34,11 @@ void Player::prevTrack() {
     // Do nothing for testing
 }
 
-bool Player::canGoNext(void) const {
+bool Player::canGoNext() const {
     return true; // Always return true for testing
 }
 
-bool Player::canGoPrev(void) const {
+bool Player::canGoPrevious() const {
     return true; // Always return true for testing
 }
 

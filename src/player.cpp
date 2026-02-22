@@ -396,24 +396,37 @@ void Player::prevTrack(void) {
     requestTrackLoad(playlist->getTrack(new_pos));
 }
 
-/**
- * @brief Checks if it is possible to go to the next track.
- * @return `true` if next track is available or looping is enabled.
- */
-bool Player::canGoNext(void) const {
+bool Player::canGoPrevious() const {
     if (!playlist || playlist->entries() == 0) return false;
+
     if (m_loop_mode == LoopMode::All) return true;
-    return playlist->getPosition() < playlist->entries() - 1;
+
+    if (playlist->getPosition() > 0) return true;
+
+    // At position 0, LoopMode::None.
+    // Check if we can seek to 0 (restart).
+    // This requires a stream.
+    if (mutex) {
+        std::lock_guard<std::mutex> lock(*mutex);
+        return stream != nullptr;
+    }
+
+    return false;
 }
 
-/**
- * @brief Checks if it is possible to go to the previous track.
- * @return `true` if previous track is available or looping is enabled.
- */
-bool Player::canGoPrev(void) const {
+bool Player::canGoNext() const {
     if (!playlist || playlist->entries() == 0) return false;
-    return true;
+
+    if (m_loop_mode == LoopMode::All) return true;
+
+    // LoopMode::None
+    if (playlist->getPosition() < playlist->entries() - 1) return true;
+
+    // At last track. Next stops playback.
+    return false;
 }
+
+
 
 /**
  * @brief Stops playback completely.

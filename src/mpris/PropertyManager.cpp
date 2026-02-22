@@ -195,13 +195,12 @@ bool PropertyManager::getShuffle_unlocked() const {
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
 
 bool PropertyManager::canGoNext_unlocked() const {
-  if (!m_player) return false;
-  return m_player->canGoNext();
+  return m_player && m_player->canGoNext();
 }
 
 bool PropertyManager::canGoPrevious_unlocked() const {
-  if (!m_player) return false;
-  return m_player->canGoPrev();
+  return m_player && m_player->canGoPrevious();
+}
 }
 
 bool PropertyManager::canSeek_unlocked() const {
