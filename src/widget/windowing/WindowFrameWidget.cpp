@@ -69,6 +69,7 @@ int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_nesw = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
 
 WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title, Font* font)
     : Widget()
@@ -134,8 +135,29 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
         s_cursor_nwse = SDL_CreateCursor(const_cast<Uint8*>(cursor_nwse_data), const_cast<Uint8*>(cursor_nwse_mask), 16, 16, 7, 7);
     }
     if (!s_cursor_nesw) {
-        s_cursor_nesw = nullptr;
+        // NESW resize cursor logic... (Wait, I need to check how s_cursor_nesw was supposed to be initialized)
+        // Master had line 140: if (!s_cursor_nesw) { s_cursor_nesw = nullptr; }
+        // This looks like it was just a declaration placeholder in master.
+        s_cursor_nesw = nullptr; 
+    }
 
+    if (!s_cursor_ns) {
+        // 16x16 North-South resize cursor (vertical double arrow)
+        // Data: Black pixels
+        // Mask: Opaque pixels (Black or White)
+        static Uint8 cursor_ns_data[] = {
+            0x01, 0x80, 0x03, 0xC0, 0x07, 0xE0, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x07, 0xE0, 0x03, 0xC0, 0x01, 0x80, 0x00, 0x00
+        };
+        static Uint8 cursor_ns_mask[] = {
+            0x01, 0x80, 0x03, 0xC0, 0x07, 0xE0, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+            0x07, 0xE0, 0x03, 0xC0, 0x01, 0x80, 0x00, 0x00
+        };
+        s_cursor_ns = SDL_CreateCursor(cursor_ns_data, cursor_ns_mask, 16, 16, 8, 8);
     }
 }
 
@@ -150,6 +172,11 @@ WindowFrameWidget::~WindowFrameWidget()
         if (s_cursor_nesw) {
             SDL_FreeCursor(s_cursor_nesw);
             s_cursor_nesw = nullptr;
+        }
+        if (s_cursor_ns) {
+            SDL_FreeCursor(s_cursor_ns);
+            s_cursor_ns = nullptr;
+        }
         }
     }
 }
@@ -291,7 +318,7 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             } else if (resize_edge & 3) { // Left or right edge
                 SDL_SetCursor(SDL_GetCursor()); // TODO: Set east-west cursor
             } else if (resize_edge & 12) { // Top or bottom edge
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set north-south cursor
+                if (s_cursor_ns) SDL_SetCursor(s_cursor_ns);
             }
         } else {
             // Reset to default cursor

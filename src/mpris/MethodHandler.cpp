@@ -1166,6 +1166,9 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
       }
     }
   } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
+      }
+    }
+  } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
     // Add MediaPlayer2 interface properties
     DBusMessageIter entry_iter, variant_iter;
 
