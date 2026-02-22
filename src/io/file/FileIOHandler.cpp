@@ -59,6 +59,17 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     std::string normalized_path = normalizePath(path.to8Bit(false));
     Debug::log("io", "FileIOHandler::FileIOHandler() - Normalized path: ", normalized_path);
     
+    // Security check: Validate file path for directory traversal attacks
+    // Performed once in constructor to avoid overhead in every I/O operation
+    if (normalized_path.find("..") != std::string::npos) {
+        m_path_secure = false;
+        std::string errorMsg = "Potential directory traversal attack detected in path: " + normalized_path;
+        Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
+        m_error = EACCES;
+        throw InvalidMediaException(errorMsg);
+    }
+    m_path_secure = true;
+
     // Platform-specific file opening with Unicode support using RAII
 #ifdef _WIN32
     // Windows: Use wide character API for proper Unicode support
@@ -897,23 +908,9 @@ bool FileIOHandler::validateFileHandle() const {
     }
 #endif
     
-    // Additional check: verify the file handle hasn't been corrupted
-    // by checking if we can get the current position
-    off_t current_pos;
-#ifdef _WIN32
-    current_pos = _ftelli64(m_file_handle.get());
-    if (current_pos < 0 && errno != 0) {
-        DWORD win_error = GetLastError();
-        Debug::log("io", "FileIOHandler::validateFileHandle() - File handle appears corrupted on Windows, cannot get position: ", strerror(errno), ", Windows error: ", win_error);
-        return false;
-    }
-#else
-    current_pos = ftello(m_file_handle.get());
-    if (current_pos < 0 && errno != 0) {
-        Debug::log("io", "FileIOHandler::validateFileHandle() - File handle appears corrupted, cannot get position: ", strerror(errno));
-        return false;
-    }
-#endif
+    // NOTE: Removed expensive ftello/current_pos check here for performance.
+    // Standard I/O operations will fail if the handle is corrupted, which is sufficient
+    // for validation during high-frequency operations like read().
 
     
     return true;
@@ -1457,18 +1454,14 @@ bool FileIOHandler::validateOperationParameters(const void* buffer, size_t size,
     }
     
     // Validate file path for security (prevent directory traversal attacks)
-    std::string path_str = m_file_path.to8Bit(false);
-    if (path_str.find("..") != std::string::npos) {
-        // Check for directory traversal attempts
-        std::string normalized = normalizePath(path_str);
-        if (normalized.find("..") != std::string::npos) {
-            m_error = EACCES;
-            std::string error_msg = getFileOperationErrorMessage(EACCES, operation_name, 
-                "potential directory traversal attack detected in path: " + path_str);
-            Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
-            safeErrorPropagation(EACCES, error_msg);
-            return false;
-        }
+    // Optimized: Path is validated in constructor, check flag here
+    if (!m_path_secure) {
+        m_error = EACCES;
+        std::string error_msg = getFileOperationErrorMessage(EACCES, operation_name,
+            "path security validation failed");
+        Debug::log("io", "FileIOHandler::validateOperationParameters() - ", error_msg);
+        safeErrorPropagation(EACCES, error_msg);
+        return false;
     }
     
     // Check for timeout conditions on network file systems and slow storage
@@ -1703,13 +1696,13 @@ bool FileIOHandler::retryFileOperation(std::function<bool()> operation_func, con
         }
         
         // Check if error is recoverable
-        if (!isFileErrorRecoverable(m_error, operation_name)) {
-            Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed with non-recoverable error: ", m_error, ", not retrying");
+        if (!isFileErrorRecoverable(m_error.load(), operation_name)) {
+            Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed with non-recoverable error: ", m_error.load(), ", not retrying");
             break;
         }
         
         retry_count++;
-        Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed (error: ", m_error, "), retrying (", retry_count, "/", max_retries, ")");
+        Debug::log("io", "FileIOHandler::retryFileOperation() - ", operation_name, " failed (error: ", m_error.load(), "), retrying (", retry_count, "/", max_retries, ")");
         
         // Wait before retrying (exponential backoff)
         int delay = retry_delay_ms * (1 << (retry_count - 1)); // Exponential backoff
