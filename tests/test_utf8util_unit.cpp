@@ -361,6 +361,105 @@ protected:
 };
 
 // ============================================================================
+// UTF-8 DecodeSafe Comprehensive Tests
+// ============================================================================
+
+class UTF8DecodeSafeComprehensiveTest : public TestCase {
+public:
+    UTF8DecodeSafeComprehensiveTest() : TestCase("UTF8Util::decodeSafe (Comprehensive)") {}
+
+protected:
+    void runTest() override {
+        // 1. Truncated Multi-byte Sequences
+        // ---------------------------------
+
+        // Truncated 2-byte sequence (first byte only)
+        // U+00E9 (é) is 0xC3 0xA9
+        const uint8_t trunc2[] = {0xC3};
+        ASSERT_EQUALS("\xEF\xBF\xBD", UTF8Util::decodeSafe(trunc2, 1), "Truncated 2-byte sequence");
+
+        // Truncated 3-byte sequence (1 and 2 bytes)
+        // U+20AC (€) is 0xE2 0x82 0xAC
+        const uint8_t trunc3_1[] = {0xE2};
+        ASSERT_EQUALS("\xEF\xBF\xBD", UTF8Util::decodeSafe(trunc3_1, 1), "Truncated 3-byte sequence (1 byte)");
+
+        const uint8_t trunc3_2[] = {0xE2, 0x82};
+        ASSERT_EQUALS("\xEF\xBF\xBD\xEF\xBF\xBD", UTF8Util::decodeSafe(trunc3_2, 2), "Truncated 3-byte sequence (2 bytes)");
+
+        // Truncated 4-byte sequence (1, 2, and 3 bytes)
+        // U+1F0A0 (🂠) is 0xF0 0x9F 0x82 0xA0
+        const uint8_t trunc4_1[] = {0xF0};
+        ASSERT_EQUALS("\xEF\xBF\xBD", UTF8Util::decodeSafe(trunc4_1, 1), "Truncated 4-byte sequence (1 byte)");
+
+        const uint8_t trunc4_2[] = {0xF0, 0x9F};
+        ASSERT_EQUALS("\xEF\xBF\xBD\xEF\xBF\xBD", UTF8Util::decodeSafe(trunc4_2, 2), "Truncated 4-byte sequence (2 bytes)");
+
+        const uint8_t trunc4_3[] = {0xF0, 0x9F, 0x82};
+        ASSERT_EQUALS("\xEF\xBF\xBD\xEF\xBF\xBD\xEF\xBF\xBD", UTF8Util::decodeSafe(trunc4_3, 3), "Truncated 4-byte sequence (3 bytes)");
+
+        // 2. Invalid Continuation Bytes
+        // -----------------------------
+
+        // Valid start followed by invalid continuation (ASCII)
+        // 0xC3 0x41 ('A') -> Replacement char + 'A'
+        const uint8_t bad_cont[] = {0xC3, 0x41};
+        ASSERT_EQUALS("\xEF\xBF\xBD" "A", UTF8Util::decodeSafe(bad_cont, 2), "Invalid continuation byte (ASCII)");
+
+        // Valid start followed by another start byte
+        const uint8_t double_start[] = {0xC3, 0xC3};
+        ASSERT_EQUALS("\xEF\xBF\xBD\xEF\xBF\xBD", UTF8Util::decodeSafe(double_start, 2), "Invalid continuation byte (Start byte)");
+
+        // 3. Overlong Encodings
+        // ---------------------
+        // These are well-formed but non-shortest forms, forbidden by RFC 3629
+
+        // Overlong ASCII '/' (0x2F). Encoded as 2 bytes: 0xC0 0xAF
+        // Consumed=2, Result=0xFFFD (one replacement char)
+        const uint8_t overlong2[] = {0xC0, 0xAF};
+        ASSERT_EQUALS("\xEF\xBF\xBD", UTF8Util::decodeSafe(overlong2, 2), "Overlong 2-byte sequence");
+
+        // Overlong 3-byte sequence (for U+00E9 'é' which should be 2 bytes)
+        // 0xE0 0x83 0xA9
+        // Consumed=3, Result=0xFFFD
+        const uint8_t overlong3[] = {0xE0, 0x83, 0xA9};
+        ASSERT_EQUALS("\xEF\xBF\xBD", UTF8Util::decodeSafe(overlong3, 3), "Overlong 3-byte sequence");
+
+        // 4. Surrogate Pairs (Invalid in UTF-8)
+        // -------------------------------------
+        // High surrogate U+D800: 0xED 0xA0 0x80
+        // Consumed=3, Result=0xFFFD
+        const uint8_t surrogate[] = {0xED, 0xA0, 0x80};
+        ASSERT_EQUALS("\xEF\xBF\xBD", UTF8Util::decodeSafe(surrogate, 3), "Surrogate pair (invalid in UTF-8)");
+
+        // 5. Max Codepoint Boundary
+        // -------------------------
+        // U+10FFFF (Max Valid): 0xF4 0x8F 0xBF 0xBF
+        const uint8_t max_valid[] = {0xF4, 0x8F, 0xBF, 0xBF};
+        std::string max_valid_str(reinterpret_cast<const char*>(max_valid), 4);
+        ASSERT_EQUALS(max_valid_str, UTF8Util::decodeSafe(max_valid, 4), "Max valid codepoint U+10FFFF");
+
+        // U+110000 (First Invalid): 0xF4 0x90 0x80 0x80
+        // Consumed=4, Result=0xFFFD
+        const uint8_t first_invalid[] = {0xF4, 0x90, 0x80, 0x80};
+        ASSERT_EQUALS("\xEF\xBF\xBD", UTF8Util::decodeSafe(first_invalid, 4), "Codepoint U+110000 (invalid)");
+
+        // 6. Null Terminator Variants
+        // ---------------------------
+        // Null terminator early
+        const uint8_t null_early[] = {'A', 0, 'B'};
+        ASSERT_EQUALS("A", UTF8Util::decodeSafe(null_early, 3), "Null terminator early");
+
+        // Null terminator at end
+        const uint8_t null_end[] = {'A', 'B', 0};
+        ASSERT_EQUALS("AB", UTF8Util::decodeSafe(null_end, 3), "Null terminator at end");
+
+        // No null terminator
+        const uint8_t no_null[] = {'A', 'B', 'C'};
+        ASSERT_EQUALS("ABC", UTF8Util::decodeSafe(no_null, 3), "No null terminator");
+    }
+};
+
+// ============================================================================
 // Test Registration
 // ============================================================================
 
@@ -379,6 +478,7 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<StringUtilitiesTest>());
     suite.addTest(std::make_unique<UTF8DecodeSafeTest>());
     suite.addTest(std::make_unique<EdgeCasesTest>());
+    suite.addTest(std::make_unique<UTF8DecodeSafeComprehensiveTest>());
     
     auto results = suite.runAll();
     suite.printResults(results);
