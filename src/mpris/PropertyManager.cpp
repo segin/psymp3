@@ -62,6 +62,12 @@ void PropertyManager::updateShuffle(bool shuffle) {
   updateShuffle_unlocked(shuffle);
 }
 
+bool PropertyManager::updateVolume(double volume) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return updateVolume_unlocked(volume);
+}
+}
+
 std::string PropertyManager::getPlaybackStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getPlaybackStatus_unlocked();
@@ -86,6 +92,12 @@ PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus() const {
 bool PropertyManager::getShuffle() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getShuffle_unlocked();
+}
+
+double PropertyManager::getVolume() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getVolume_unlocked();
+}
 }
 
 uint64_t PropertyManager::getLength() const {
@@ -169,6 +181,19 @@ void PropertyManager::updateShuffle_unlocked(bool shuffle) {
   m_shuffle = shuffle;
 }
 
+bool PropertyManager::updateVolume_unlocked(double volume) {
+  if (volume < 0.0) volume = 0.0;
+  if (volume > 1.0) volume = 1.0;
+
+  if (std::abs(m_volume - volume) < 1e-6) {
+    return false;
+  }
+
+  m_volume = volume;
+  return true;
+}
+}
+
 std::string PropertyManager::getPlaybackStatus_unlocked() const {
   return PsyMP3::MPRIS::playbackStatusToString(
       m_status.load(std::memory_order_relaxed));
@@ -188,8 +213,9 @@ PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus_unlocked() const {
   return m_loop_status;
 }
 
-bool PropertyManager::getShuffle_unlocked() const {
-  return m_shuffle;
+bool PropertyManager::getShuffle_unlocked() const { return m_shuffle; }
+
+double PropertyManager::getVolume_unlocked() const { return m_volume; }
 }
 
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
@@ -253,9 +279,9 @@ PropertyManager::getAllProperties_unlocked() const {
   properties.insert(std::make_pair(std::string("Metadata"),
                                    PsyMP3::MPRIS::DBusVariant(metadata_dict)));
 
-  // Volume (not implemented, use 1.0)
+  // Volume
   properties.insert(
-      std::make_pair(std::string("Volume"), PsyMP3::MPRIS::DBusVariant(1.0)));
+      std::make_pair(std::string("Volume"), PsyMP3::MPRIS::DBusVariant(getVolume_unlocked())));
 
   // Position
   properties.insert(std::make_pair(
