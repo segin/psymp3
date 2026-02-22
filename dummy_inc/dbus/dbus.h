@@ -3,10 +3,6 @@
 
 #include <cstdint>
 
-#define DBUS_HANDLER_RESULT_HANDLED ((DBusHandlerResult)0)
-#define DBUS_HANDLER_RESULT_NOT_YET_HANDLED ((DBusHandlerResult)1)
-#define DBUS_HANDLER_RESULT_NEED_MEMORY ((DBusHandlerResult)2)
-
 #define DBUS_TYPE_STRING 's'
 #define DBUS_TYPE_VARIANT 'v'
 #define DBUS_TYPE_INT64 'x'
@@ -24,9 +20,10 @@ typedef uint32_t dbus_bool_t;
 typedef int64_t dbus_int64_t;
 typedef uint64_t dbus_uint64_t;
 
-struct DBusConnection;
-struct DBusMessage;
-struct DBusMessageIter {
+typedef struct DBusConnection DBusConnection;
+typedef struct DBusMessage DBusMessage;
+
+typedef struct DBusMessageIter {
     void *dummy1;
     void *dummy2;
     uint32_t dummy3;
@@ -36,17 +33,20 @@ struct DBusMessageIter {
     int dummy7;
     int dummy8;
     int dummy9;
-    int dummy10;
-    int dummy11;
+    void *dummy10;
+    void *dummy11;
     int dummy12;
     void *dummy13;
-};
+    void *dummy14;
+} DBusMessageIter;
 
-enum DBusHandlerResult {
-    DBUS_HANDLER_RESULT_HANDLED_ENUM = 0
+enum {
+    DBUS_HANDLER_RESULT_HANDLED,
+    DBUS_HANDLER_RESULT_NOT_YET_HANDLED,
+    DBUS_HANDLER_RESULT_NEED_MEMORY
 };
+typedef int DBusHandlerResult;
 
-// Function mocks (declarations only for syntax check)
 extern "C" {
 const char *dbus_message_get_interface(DBusMessage *message);
 const char *dbus_message_get_member(DBusMessage *message);
@@ -66,4 +66,3 @@ void dbus_message_iter_recurse(DBusMessageIter *iter, DBusMessageIter *sub);
 }
 
 #endif
-

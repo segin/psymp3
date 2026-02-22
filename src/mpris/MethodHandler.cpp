@@ -677,11 +677,11 @@ MethodHandler::handleSetProperty_unlocked(DBusConnection *connection,
     std::cout << "MPRIS: Setting loop status to " << loop_str << std::endl;
 
     // Map MPRIS string to LoopMode
-    LoopMode mode = LoopMode::None;
+    ::LoopMode mode = ::LoopMode::None;
     if (loop_str == "Track") {
-        mode = LoopMode::One;
+        mode = ::LoopMode::One;
     } else if (loop_str == "Playlist") {
-        mode = LoopMode::All;
+        mode = ::LoopMode::All;
     }
 
     if (m_player) {
