@@ -171,14 +171,14 @@ void Test_ParseRecursively() {
     bool foundTrak = false;
     bool foundTkhd = false;
 
-    parser->ParseBoxRecursively(0, data.size(), [&](const BoxHeader& header, uint64_t offset) -> bool {
+    parser->ParseBoxRecursively(0, data.size(), [&](const BoxHeader& header, uint64_t offset, uint32_t depth) -> bool {
         boxCount++;
         if (header.type == BOX_MOOV) {
             foundMoov = true;
-            return parser->ParseBoxRecursively(header.dataOffset, header.size - 8, [&](const BoxHeader& subHeader, uint64_t subOffset) -> bool {
+            return parser->ParseBoxRecursively(header.dataOffset, header.size - 8, [&](const BoxHeader& subHeader, uint64_t subOffset, uint32_t subDepth) -> bool {
                  if (subHeader.type == BOX_TRAK) {
                      foundTrak = true;
-                     return parser->ParseBoxRecursively(subHeader.dataOffset, subHeader.size - 8, [&](const BoxHeader& subSubHeader, uint64_t subSubOffset) -> bool {
+                     return parser->ParseBoxRecursively(subHeader.dataOffset, subHeader.size - 8, [&](const BoxHeader& subSubHeader, uint64_t subSubOffset, uint32_t subSubDepth) -> bool {
                          if (subSubHeader.type == BOX_TKHD) {
                              foundTkhd = true;
                          }
@@ -290,7 +290,7 @@ void Test_ParseFLACConfiguration() {
     auto parser = createParser(data);
     AudioTrackInfo track;
 
-    bool result = parser->ParseFLACConfiguration(0, data.size(), track);
+    bool result = parser->ParseFLACConfiguration(0, data.size(), track, 0);
 
     ASSERT_TRUE(result, "ParseFLACConfiguration failed");
     ASSERT_EQUALS(44100ULL, (uint64_t)track.sampleRate, "Sample rate mismatch");
