@@ -93,6 +93,12 @@ private:
      */
     void createTagFromMetadata_unlocked();
 
+    /**
+     * @brief Calculate duration during container parsing
+     * Runs on loader thread to prevent UI blocking
+     */
+    void calculateInitialDuration_unlocked();
+
 public:
     // --- Legacy / Testing members required by unit tests ---
     

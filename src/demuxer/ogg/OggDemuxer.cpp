@@ -80,6 +80,10 @@ bool OggDemuxer::parseContainer() {
     if (result != 1) {
       Debug::log("ogg", "OggDemuxer::parseContainer() failed after ",
                  page_count, " pages, streams found: ", m_streams.size());
+      if (!m_streams.empty()) {
+          createTagFromMetadata_unlocked();
+          calculateInitialDuration_unlocked();
+      }
       return !m_streams.empty(); // OK if we found at least one stream
     }
     page_count++;
@@ -201,6 +205,7 @@ bool OggDemuxer::parseContainer() {
   // Create tag from parsed VorbisComment data
   if (!m_streams.empty()) {
     createTagFromMetadata_unlocked();
+    calculateInitialDuration_unlocked();
   }
 
   return !m_streams.empty();
@@ -243,6 +248,20 @@ void OggDemuxer::createTagFromMetadata_unlocked() {
     );
     
     Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: VorbisCommentTag created successfully");
+}
+
+void OggDemuxer::calculateInitialDuration_unlocked() {
+    // Pre-calculate duration to avoid blocking UI thread later
+    if (m_has_primary_serial && !m_streams.empty()) {
+        auto it = m_streams.find(m_primary_serial);
+        if (it != m_streams.end()) {
+            Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: Calculating duration...");
+            OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
+            m_cached_duration = static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
+            m_duration_calculated = true;
+            Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: Calculated duration: ", m_cached_duration, "ms");
+        }
+    }
 }
 
 std::vector<StreamInfo> OggDemuxer::getStreams() const {
@@ -318,43 +337,8 @@ uint64_t OggDemuxer::getDuration() const {
   }
 
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
-
-  if (m_duration_calculated) {
-    return m_cached_duration;
-  }
-
-  if (!m_calculating_duration) {
-    if (!m_has_primary_serial || m_streams.empty())
-      return 0;
-
-    m_calculating_duration = true;
-
-    // Launch async calculation
-    m_duration_future = std::async(std::launch::async, [this]() {
-      std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
-
-      // Re-verify state inside lock
-      if (m_duration_calculated) {
-        m_calculating_duration = false;
-        return;
-      }
-
-      if (!m_has_primary_serial || m_streams.empty()) {
-        m_calculating_duration = false;
-        return;
-      }
-
-      auto it = m_streams.find(m_primary_serial);
-      if (it != m_streams.end()) {
-        OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
-        double duration = engine.calculateDuration();
-        m_cached_duration = static_cast<uint64_t>(duration * 1000.0);
-        m_duration_calculated = true;
-      }
-      m_calculating_duration = false;
-    });
-  }
-
+  // Duration is pre-calculated in parseContainer() to avoid blocking
+  return m_cached_duration;
   return m_cached_duration;
 }
 
