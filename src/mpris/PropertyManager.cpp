@@ -204,8 +204,8 @@ bool PropertyManager::canGoPrevious_unlocked() const {
 }
 
 bool PropertyManager::canSeek_unlocked() const {
-  // TODO: In a real implementation, check if current stream supports seeking
-  return m_can_seek;
+  // Check if current stream supports seeking via Player
+  return m_player && m_player->canSeek();
 }
 
 bool PropertyManager::canControl_unlocked() const { return m_can_control; }

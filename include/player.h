@@ -126,6 +126,7 @@ class Player
         LoopMode getLoopMode() const;
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
+        bool canSeek() const;
         static std::atomic<bool> guiRunning;
         
         // MPRIS Error Notification
