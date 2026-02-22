@@ -25,6 +25,7 @@
 #define OGGCODECS_H
 
 // No direct includes - all includes should be in psymp3.h
+#include <memory>
 
 // Forward declarations for namespaced codec types
 namespace PsyMP3 {
@@ -76,9 +77,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class FlacDecoder* m_flac_stream = nullptr;      // Forward declaration
-    std::vector<uint8_t> m_buffer;                  // Accumulated data buffer
-    bool m_headers_written = false;
+    std::unique_ptr<AudioCodec> m_flac_codec;
 };
 
 /**
