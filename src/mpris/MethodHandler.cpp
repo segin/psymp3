@@ -914,54 +914,184 @@ void MethodHandler::appendVariantToMessage_unlocked(
     DBusMessage *reply, const PsyMP3::MPRIS::DBusVariant &variant) {
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
-  appendVariantToDBusIter(&args, variant);
+  appendVariantToIter_unlocked(&args, variant);
+}
+
+void MethodHandler::appendVariantToIter_unlocked(
+    DBusMessageIter *iter, const PsyMP3::MPRIS::DBusVariant &variant) {
+  DBusMessageIter variant_iter;
+
+  switch (variant.type) {
+  case PsyMP3::MPRIS::DBusVariant::String: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "s",
+                                     &variant_iter);
+    const std::string &str_val = variant.get<std::string>();
+    const char *str_cstr = str_val.c_str();
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING, &str_cstr);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  case PsyMP3::MPRIS::DBusVariant::StringArray: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "as",
+                                     &variant_iter);
+    DBusMessageIter array_iter;
+    dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY, "s",
+                                     &array_iter);
+
+    const auto &str_array = variant.get<std::vector<std::string>>();
+    for (const auto &str : str_array) {
+      const char *str_cstr = str.c_str();
+      dbus_message_iter_append_basic(&array_iter, DBUS_TYPE_STRING, &str_cstr);
+    }
+
+    dbus_message_iter_close_container(&variant_iter, &array_iter);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  case PsyMP3::MPRIS::DBusVariant::Int64: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "x",
+                                     &variant_iter);
+    dbus_int64_t int_val = static_cast<dbus_int64_t>(variant.get<int64_t>());
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_INT64, &int_val);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  case PsyMP3::MPRIS::DBusVariant::UInt64: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "t",
+                                     &variant_iter);
+    dbus_uint64_t uint_val =
+        static_cast<dbus_uint64_t>(variant.get<uint64_t>());
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_UINT64, &uint_val);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  case PsyMP3::MPRIS::DBusVariant::Double: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "d",
+                                     &variant_iter);
+    double double_val = variant.get<double>();
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE,
+                                   &double_val);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  case PsyMP3::MPRIS::DBusVariant::Boolean: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "b",
+                                     &variant_iter);
+    dbus_bool_t bool_val = variant.get<bool>() ? TRUE : FALSE;
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  case PsyMP3::MPRIS::DBusVariant::Dictionary: {
+    dbus_message_iter_open_container(iter, DBUS_TYPE_VARIANT, "a{sv}",
+                                     &variant_iter);
+    DBusMessageIter dict_iter;
+    dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY, "{sv}",
+                                     &dict_iter);
+
+    const auto &dict =
+        *variant.get<std::shared_ptr<PsyMP3::MPRIS::DBusDictionary>>();
+    for (const auto &[key, value] : dict) {
+      DBusMessageIter entry_iter;
+      dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
+                                       nullptr, &entry_iter);
+
+      const char *key_cstr = key.c_str();
+      dbus_message_iter_append_basic(&entry_iter, DBUS_TYPE_STRING, &key_cstr);
+
+      // Recursive call for the value variant
+      appendVariantToIter_unlocked(&entry_iter, value);
+
+      dbus_message_iter_close_container(&dict_iter, &entry_iter);
+    }
+
+    dbus_message_iter_close_container(&variant_iter, &dict_iter);
+    dbus_message_iter_close_container(iter, &variant_iter);
+    break;
+  }
+  default:
+    throw std::runtime_error("Unknown variant type");
+  }
 }
 
 void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args;
+  DBusMessageIter variant_iter;
   dbus_message_iter_init_append(reply, &args);
 
   if (property_name == "PlaybackStatus") {
-    appendVariantToDBusIter(
+    appendVariantToIter_unlocked(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus()));
 
   } else if (property_name == "Metadata") {
-    appendVariantToDBusIter(
+    appendVariantToIter_unlocked(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getMetadata()));
 
   } else if (property_name == "Position") {
     uint64_t position = m_properties->getPosition();
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(position));
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "x",
+                                     &variant_iter);
+    dbus_int64_t position_val = static_cast<dbus_int64_t>(position);
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_INT64,
+                                   &position_val);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "CanGoNext") {
     bool can_go_next = m_properties->canGoNext();
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(can_go_next));
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                     &variant_iter);
+    dbus_bool_t bool_val = can_go_next ? TRUE : FALSE;
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "CanGoPrevious") {
     bool can_go_previous = m_properties->canGoPrevious();
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(can_go_previous));
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                     &variant_iter);
+    dbus_bool_t bool_val = can_go_previous ? TRUE : FALSE;
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "CanSeek") {
     bool can_seek = m_properties->canSeek();
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(can_seek));
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                     &variant_iter);
+    dbus_bool_t bool_val = can_seek ? TRUE : FALSE;
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "CanControl") {
     bool can_control = m_properties->canControl();
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(can_control));
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                     &variant_iter);
+    dbus_bool_t bool_val = can_control ? TRUE : FALSE;
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &bool_val);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "Volume") {
     double volume = m_player ? m_player->getVolume() : 1.0;
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(volume));
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "d",
+                                     &variant_iter);
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_DOUBLE, &volume);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "LoopStatus") {
-    std::string loop_status =
-        PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus());
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(loop_status));
+    std::string loop_status = PsyMP3::MPRIS::loopStatusToString(m_properties->getLoopStatus());
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "s",
+                                     &variant_iter);
+    const char *loop_status_cstr = loop_status.c_str();
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
+                                   &loop_status_cstr);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else if (property_name == "Shuffle") {
     // Default to false since Player doesn't have shuffle control yet
-    appendVariantToDBusIter(&args, PsyMP3::MPRIS::DBusVariant(false));
+    dbus_bool_t shuffle = FALSE;
+    dbus_message_iter_open_container(&args, DBUS_TYPE_VARIANT, "b",
+                                     &variant_iter);
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN, &shuffle);
+    dbus_message_iter_close_container(&args, &variant_iter);
 
   } else {
     throw std::runtime_error("Unknown property: " + property_name);
@@ -994,7 +1124,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
       try {
         auto it = all_properties.find(prop_name);
         if (it != all_properties.end()) {
-          appendVariantToDBusIter(&entry_iter, it->second);
+          appendVariantToIter_unlocked(&entry_iter, it->second);
         } else {
           // Fallback - this should not happen if all properties are in the map
           dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
@@ -1005,16 +1135,16 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
         }
       } catch (const std::exception &e) {
-        logError_unlocked("appendAllPropertiesToMessage",
-                          "Failed to get property " + prop_name + ": " +
-                              e.what());
-        // Add empty variant as fallback
-        dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
-                                         &variant_iter);
-        const char *empty_str = "";
-        dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
-                                       &empty_str);
-        dbus_message_iter_close_container(&entry_iter, &variant_iter);
+          logError_unlocked("appendAllPropertiesToMessage",
+                            "Failed to get property " + prop_name + ": " +
+                                e.what());
+          // Add empty variant as fallback
+          dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
+                                           &variant_iter);
+          const char *empty_str = "";
+          dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_STRING,
+                                         &empty_str);
+          dbus_message_iter_close_container(&entry_iter, &variant_iter);
       }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);

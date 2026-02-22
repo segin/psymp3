@@ -9,6 +9,9 @@
 // Stub implementations for Player methods used by MethodHandler
 // These are only used for testing and don't need to do anything meaningful
 
+// Global variable to track loop mode for testing
+LoopMode g_last_loop_mode = LoopMode::None;
+
 bool Player::play() {
     return true; // Always succeed for testing
 }
@@ -25,7 +28,7 @@ bool Player::playPause() {
     return true; // Always succeed for testing
 }
 
-void Player::nextTrack(unsigned long count) {
+void Player::nextTrack(size_t count) {
     (void)count; // Suppress unused parameter warning
     // Do nothing for testing
 }
@@ -66,5 +69,9 @@ void Player::showMPRISError(const std::string& error) {
 }
 
 void Player::setLoopMode(LoopMode mode) {
-    (void)mode;
+    g_last_loop_mode = mode;
+}
+
+LoopMode Player::getLoopMode() const {
+    return g_last_loop_mode;
 }
