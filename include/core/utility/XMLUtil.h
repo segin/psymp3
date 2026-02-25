@@ -24,6 +24,10 @@
 #ifndef XMLUTIL_H
 #define XMLUTIL_H
 
+#include <string>
+#include <vector>
+#include <map>
+
 namespace PsyMP3 {
 namespace Core {
 namespace Utility {

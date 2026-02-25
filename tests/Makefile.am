@@ -4003,6 +4003,22 @@ fuzz_utf8util_LDADD = \
 	$(AM_LDFLAGS)
 
 
+# ============================================================================
+# XMLUtil Tests
+# ============================================================================
+
+check_PROGRAMS += test_xmlutil
+
+# XMLUtil unit tests
+test_xmlutil_SOURCES = test_xmlutil.cpp
+test_xmlutil_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
+
 # Run all check programs
 TESTS = $(check_PROGRAMS)
 
