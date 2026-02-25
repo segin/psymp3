@@ -39,6 +39,11 @@ enum DBusHandlerResult {
 struct DBusMessageIter;
 #endif
 
+#ifdef HAVE_DBUS
+// Forward declaration for DBusMessageIter when HAVE_DBUS is defined but header might not be fully available in all contexts
+struct DBusMessageIter;
+#endif
+
 /**
  * MethodHandler - Processes incoming D-Bus method calls with proper error handling
  * 
@@ -127,6 +132,9 @@ private:
     
     // Property value serialization for D-Bus responses
     void appendVariantToMessage_unlocked(DBusMessage* reply, const PsyMP3::MPRIS::DBusVariant& variant);
+#ifdef HAVE_DBUS
+    void appendVariantToIter_unlocked(DBusMessageIter* iter, const PsyMP3::MPRIS::DBusVariant& variant);
+#endif
     void appendPropertyToMessage_unlocked(DBusMessage* reply, const std::string& property_name);
     void appendAllPropertiesToMessage_unlocked(DBusMessage* reply, const std::string& interface_name);
     

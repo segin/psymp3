@@ -75,7 +75,6 @@ public:
      */
     void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
 
-    /**
     void updateShuffle(bool shuffle);
     bool updateVolume(double volume);
 
@@ -103,7 +102,6 @@ public:
      */
     PsyMP3::MPRIS::LoopStatus getLoopStatus() const;
 
-    /**
     bool getShuffle() const;
     double getVolume() const;
     
