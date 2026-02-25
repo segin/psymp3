@@ -22,7 +22,7 @@ BoundedBuffer::BoundedBuffer(size_t max_size, size_t initial_size)
     MemoryTracker::getInstance().update();
     
     if (initial_size > 0) {
-        if (!resize(initial_size)) {
+        if (!reserve(initial_size)) {
             Debug::log("memory", "BoundedBuffer::BoundedBuffer() - Warning: Could not allocate initial size ", initial_size);
         }
     }
@@ -54,7 +54,11 @@ bool BoundedBuffer::resize(size_t new_size) {
     }
     
     // Need to reallocate
-    return reallocate(new_size);
+    if (reallocate(new_size)) {
+        m_size = new_size;
+        return true;
+    }
+    return false;
 }
 
 bool BoundedBuffer::reserve(size_t capacity) {
