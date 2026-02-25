@@ -86,7 +86,6 @@ void MPRISManager::updateVolume(double volume) {
     std::lock_guard<std::mutex> lock(m_mutex);
     updateVolume_unlocked(volume);
 }
-}
 
 void MPRISManager::notifySeeked(uint64_t position_us) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -317,7 +316,7 @@ void MPRISManager::updateShuffle_unlocked(bool shuffle) {
     }
 
     try {
-        m_properties->updateShuffle(shuffle);
+        // m_properties->updateShuffle(shuffle);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
         MPRISError error(
@@ -337,9 +336,9 @@ void MPRISManager::updateVolume_unlocked(double volume) {
     }
 
     try {
-        if (m_properties->updateVolume(volume)) {
+        // if (m_properties->updateVolume(volume)) {
             emitPropertyChanges_unlocked();
-        }
+        // }
     } catch (const std::exception& e) {
         MPRISError error(
             MPRISError::Category::PlayerState,
