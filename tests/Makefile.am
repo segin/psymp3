@@ -389,6 +389,17 @@ repro_ogg_duration_perf_LDADD = \
 	$(AM_LDFLAGS)
 endif
 
+check_PROGRAMS += test_path_security
+test_path_security_SOURCES = test_path_security.cpp
+test_path_security_LDADD = \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/util/libpsymp3-util.a \
+	$(SDL_LIBS) \
+	$(TAGLIB_LIBS) \
+	$(OPENSSL_LIBS) \
+	$(CURL_LIBS) \
+	$(AM_LDFLAGS)
+
 # RapidCheck property-based testing setup (conditional on HAVE_RAPIDCHECK)
 if HAVE_RAPIDCHECK
 check_PROGRAMS += test_boxparser_vulnerability \
@@ -4039,7 +4050,5 @@ test_issue_ogg_duration_LDADD = \
 	$(VORBIS_LIBS) \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
-	$(AM_LDFLAGS)
-endif
 	$(AM_LDFLAGS)
 endif

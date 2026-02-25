@@ -7,7 +7,7 @@
 class Debug {
 public:
     template<typename... Args>
-    static void log(const std::string& category, Args... args) {
+    static void log(const std::string& category, const Args&... args) {
         // Suppress logging for benchmark
     }
 };
