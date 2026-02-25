@@ -11,6 +11,19 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include "mpris/MPRISManager.h"
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <algorithm>
+
+#include "player.h"
+#include "mpris/MPRISTypes.h"
+#include "mpris/DBusConnectionManager.h"
+#include "mpris/PropertyManager.h"
+#include "mpris/MethodHandler.h"
+#include "mpris/SignalEmitter.h"
+
 namespace PsyMP3 {
 namespace MPRIS {
 
@@ -86,7 +99,6 @@ void MPRISManager::updateVolume(double volume) {
     std::lock_guard<std::mutex> lock(m_mutex);
     updateVolume_unlocked(volume);
 }
-}
 
 void MPRISManager::notifySeeked(uint64_t position_us) {
     std::lock_guard<std::mutex> lock(m_mutex);
@@ -138,7 +150,7 @@ ErrorLogger::ErrorStats MPRISManager::getErrorStats() const {
     return getErrorStats_unlocked();
 }
 
-ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats() const {
+ErrorRecovery::RecoveryStats MPRISManager::getRecoveryStats() const {
     std::lock_guard<std::mutex> lock(m_mutex);
     return getRecoveryStats_unlocked();
 }
@@ -741,7 +753,7 @@ ErrorLogger::ErrorStats MPRISManager::getErrorStats_unlocked() const {
     return ErrorLogger::getInstance().getErrorStats();
 }
 
-ErrorRecoveryManager::RecoveryStats MPRISManager::getRecoveryStats_unlocked() const {
+ErrorRecovery::RecoveryStats MPRISManager::getRecoveryStats_unlocked() const {
     return m_recovery_manager.getRecoveryStats();
 }
 
