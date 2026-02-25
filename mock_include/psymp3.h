@@ -8,6 +8,8 @@
 #include <shared_mutex>
 #include <atomic>
 #include <thread>
+#include <queue>
+#include <condition_variable>
 #include <iostream>
 #include <algorithm>
 #include <cstring>
@@ -27,6 +29,75 @@
 
 // Types
 typedef off_t filesize_t;
+
+enum {
+    QUIT_APPLICATION = 100
+};
+
+enum class LoopMode {
+    None,
+    One,
+    All
+};
+
+enum class PlayerState {
+    Stopped,
+    Playing,
+    Paused
+};
+
+enum class FFTMode {
+    Original
+};
+
+class LastFM {};
+
+typedef uint32_t Uint32;
+typedef uint16_t Uint16;
+typedef int SDLKey;
+typedef uint32_t SDL_TimerID;
+
+struct SDL_keysym {
+    int sym;
+};
+
+struct SDL_MouseButtonEvent {
+    int button;
+};
+
+struct SDL_MouseMotionEvent {
+    int x;
+    int y;
+};
+
+struct SDL_UserEvent {
+    int type;
+};
+
+union SDL_Event {
+    uint32_t type;
+    SDL_UserEvent user;
+};
+
+class Display {};
+class Surface {};
+class Playlist {
+public:
+    bool canGoNext() const { return true; }
+    bool canGoPrevious() const { return true; }
+};
+class Font {};
+class FastFourier {};
+class Audio {};
+class System {};
+class Stream {};
+class Widget {};
+class Label {};
+class SpectrumAnalyzerWidget {};
+class PlayerProgressBarWidget {};
+class LyricsWidget {};
+class FadingWidget {};
+class WindowFrameWidget {};
 
 // Forward declarations
 namespace PsyMP3 {
