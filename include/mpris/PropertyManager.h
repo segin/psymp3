@@ -75,11 +75,9 @@ public:
      */
     void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
 
-    /**
     void updateShuffle(bool shuffle);
     bool updateVolume(double volume);
 
-    /**
      * Get current playback status as string for D-Bus
      * @return Playback status string ("Playing", "Paused", "Stopped")
      */
@@ -103,7 +101,6 @@ public:
      */
     PsyMP3::MPRIS::LoopStatus getLoopStatus() const;
 
-    /**
     bool getShuffle() const;
     double getVolume() const;
     
