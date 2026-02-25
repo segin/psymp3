@@ -9,6 +9,7 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
+#include "mpris/MPRISTypes.h"
 #endif // !FINAL_BUILD
 
 namespace PsyMP3 {
