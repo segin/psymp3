@@ -4041,5 +4041,3 @@ test_issue_ogg_duration_LDADD = \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)
 endif
-	$(AM_LDFLAGS)
-endif
