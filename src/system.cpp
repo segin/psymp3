@@ -495,9 +495,9 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
   if (pSetThreadDescription) {
     // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API
     int size_needed =
-        MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), nullptr, 0);
+        MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), nullptr, 0);
     std::wstring wname(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), &wname[0],
+    MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), &wname[0],
                         size_needed);
 
     pSetThreadDescription(GetCurrentThread(), wname.c_str());
