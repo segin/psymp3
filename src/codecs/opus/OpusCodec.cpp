@@ -617,9 +617,9 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
 
     
     // Performance Optimization: Use instance variables for frame size tracking
-    if (m_output_buffer.size() < 5760 * (size_t)m_channels) {
+    if (m_output_buffer.size() < 5760 * static_cast<size_t>(m_channels)) {
        // Ensure buffer is large enough
-       m_output_buffer.resize(5760 * (size_t)m_channels); 
+       m_output_buffer.resize(5760 * static_cast<size_t>(m_channels));
     }
 
     int samples_decoded = 0;
