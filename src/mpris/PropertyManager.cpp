@@ -66,7 +66,6 @@ bool PropertyManager::updateVolume(double volume) {
   std::lock_guard<std::mutex> lock(m_mutex);
   return updateVolume_unlocked(volume);
 }
-}
 
 std::string PropertyManager::getPlaybackStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -97,7 +96,6 @@ bool PropertyManager::getShuffle() const {
 double PropertyManager::getVolume() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getVolume_unlocked();
-}
 }
 
 uint64_t PropertyManager::getLength() const {
@@ -192,7 +190,6 @@ bool PropertyManager::updateVolume_unlocked(double volume) {
   m_volume = volume;
   return true;
 }
-}
 
 std::string PropertyManager::getPlaybackStatus_unlocked() const {
   return PsyMP3::MPRIS::playbackStatusToString(
@@ -216,7 +213,6 @@ PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus_unlocked() const {
 bool PropertyManager::getShuffle_unlocked() const { return m_shuffle; }
 
 double PropertyManager::getVolume_unlocked() const { return m_volume; }
-}
 
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
 
@@ -226,7 +222,6 @@ bool PropertyManager::canGoNext_unlocked() const {
 
 bool PropertyManager::canGoPrevious_unlocked() const {
   return m_player && m_player->canGoPrevious();
-}
 }
 
 bool PropertyManager::canSeek_unlocked() const {
