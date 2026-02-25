@@ -78,6 +78,7 @@ public:
     void updateShuffle(bool shuffle);
     bool updateVolume(double volume);
 
+    /**
      * Get current playback status as string for D-Bus
      * @return Playback status string ("Playing", "Paused", "Stopped")
      */
