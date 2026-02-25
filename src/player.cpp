@@ -1485,7 +1485,7 @@ bool Player::Initialize(const PlayerOptions& options) {
     // initialize SDL video
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
     {
-        printf( "Unable to init SDL: %s\n", SDL_GetError() );
+        Debug::log("system", "Unable to init SDL: ", SDL_GetError());
         return false;
     }
 
