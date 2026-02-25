@@ -39,30 +39,26 @@ uint64_t SeekingEngine::BinarySearchTimeToSample(double timestamp, const std::ve
         return 0;
     }
     
-    // Convert timestamp to comparable units (assuming samples have timestamp info)
-    // This is a simplified binary search - in practice, we'd use the time table
-    size_t left = 0;
-    size_t right = samples.size() - 1;
+    // Calculate target time in milliseconds (consistent with SampleTableManager)
+    uint64_t targetTimeMs = static_cast<uint64_t>(timestamp * 1000.0);
+    uint64_t currentTimeMs = 0;
     
-    while (left <= right) {
-        size_t mid = left + (right - left) / 2;
+    // Linear scan to find the sample containing the target timestamp
+    // Note: This is O(N) because SampleInfo only contains duration, not absolute timestamp.
+    // For O(log N) seeking, SampleTableManager::TimeToSample should be used with optimized tables.
+    for (size_t i = 0; i < samples.size(); ++i) {
+        uint32_t duration = samples[i].duration;
         
-        // For this implementation, we'll use sample index as a proxy for time
-        // In a real implementation, we'd compare against actual timestamps
-        double sampleTime = static_cast<double>(mid) / samples.size();
-        
-        if (sampleTime <= timestamp) {
-            if (mid == samples.size() - 1 || static_cast<double>(mid + 1) / samples.size() > timestamp) {
-                return mid;
-            }
-            left = mid + 1;
-        } else {
-            if (mid == 0) break;
-            right = mid - 1;
+        // If target time falls within this sample's duration
+        if (targetTimeMs >= currentTimeMs && targetTimeMs < currentTimeMs + duration) {
+            return i;
         }
+
+        currentTimeMs += duration;
     }
     
-    return left;
+    // If timestamp is beyond total duration, return the last sample
+    return samples.size() - 1;
 }
 
 uint64_t SeekingEngine::FindNearestSyncSample(uint64_t targetSampleIndex, SampleTableManager& sampleTables) {
