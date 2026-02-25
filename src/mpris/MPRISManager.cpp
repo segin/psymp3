@@ -11,6 +11,8 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include "mpris/MPRISTypes.h"
+
 namespace PsyMP3 {
 namespace MPRIS {
 
@@ -85,7 +87,6 @@ void MPRISManager::updateShuffle(bool shuffle) {
 void MPRISManager::updateVolume(double volume) {
     std::lock_guard<std::mutex> lock(m_mutex);
     updateVolume_unlocked(volume);
-}
 }
 
 void MPRISManager::notifySeeked(uint64_t position_us) {
