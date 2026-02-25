@@ -920,14 +920,18 @@ MethodHandler::parsePropertyArguments_unlocked(DBusMessage *message) {
 
 // Property value serialization for D-Bus responses
 
+// Forward declaration of the helper function to fix circular dependency
+void appendVariantToIter_unlocked_impl(DBusMessageIter *iter, const PsyMP3::MPRIS::DBusVariant &variant);
+
 void MethodHandler::appendVariantToMessage_unlocked(
     DBusMessage *reply, const PsyMP3::MPRIS::DBusVariant &variant) {
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
-  appendVariantToIter_unlocked(&args, variant);
+  appendVariantToIter_unlocked_impl(&args, variant);
 }
 
-void MethodHandler::appendVariantToIter_unlocked(
+// Helper function implementation
+void appendVariantToIter_unlocked_impl(
     DBusMessageIter *iter, const PsyMP3::MPRIS::DBusVariant &variant) {
   DBusMessageIter variant_iter;
 
@@ -1010,7 +1014,7 @@ void MethodHandler::appendVariantToIter_unlocked(
       dbus_message_iter_append_basic(&entry_iter, DBUS_TYPE_STRING, &key_cstr);
 
       // Recursive call for the value variant
-      appendVariantToIter_unlocked(&entry_iter, value);
+      appendVariantToIter_unlocked_impl(&entry_iter, value);
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
@@ -1027,21 +1031,19 @@ void MethodHandler::appendVariantToIter_unlocked(
 void MethodHandler::appendPropertyToMessage_unlocked(
     DBusMessage *reply, const std::string &property_name) {
   DBusMessageIter args;
-  DBusMessageIter variant_iter;
+  DBusMessageIter variant_iter; // Keep one declaration
   dbus_message_iter_init_append(reply, &args);
-  DBusMessageIter variant_iter;
 
   if (property_name == "PlaybackStatus") {
-    appendVariantToIter_unlocked(
+    appendVariantToIter_unlocked_impl(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus()));
 
   } else if (property_name == "Metadata") {
-    appendVariantToIter_unlocked(
+    appendVariantToIter_unlocked_impl(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getMetadata()));
 
   } else {
     // For scalar types wrapped manually
-    DBusMessageIter variant_iter;
 
     if (property_name == "Position") {
       uint64_t position = m_properties->getPosition();
@@ -1142,7 +1144,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
       try {
         auto it = all_properties.find(prop_name);
         if (it != all_properties.end()) {
-          appendVariantToIter_unlocked(&entry_iter, it->second);
+          appendVariantToIter_unlocked_impl(&entry_iter, it->second);
         } else {
           // Fallback - this should not happen if all properties are in the map
           dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
