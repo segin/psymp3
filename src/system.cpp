@@ -489,8 +489,8 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
   // The SetThreadDescription API is available on Windows 10 1607+
   // We dynamically load it to maintain compatibility with older systems.
   using SetThreadDescription_t = HRESULT(WINAPI *)(HANDLE, PCWSTR);
-  auto pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(
-      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription");
+  auto pSetThreadDescription = reinterpret_cast<SetThreadDescription_t>(GetProcAddress(
+      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"));
 
   if (pSetThreadDescription) {
     // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API
