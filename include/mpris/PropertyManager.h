@@ -75,8 +75,8 @@ public:
      */
     void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
 
-//    void updateShuffle(bool shuffle);
-//    bool updateVolume(double volume);
+    void updateShuffle(bool shuffle);
+    bool updateVolume(double volume);
 
     /**
      * Get current playback status as string for D-Bus
@@ -102,8 +102,8 @@ public:
      */
     PsyMP3::MPRIS::LoopStatus getLoopStatus() const;
 
-//    bool getShuffle() const;
-//    double getVolume() const;
+    bool getShuffle() const;
+    double getVolume() const;
     
     /**
      * Get track length in microseconds
