@@ -1029,7 +1029,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   DBusMessageIter args;
   DBusMessageIter variant_iter;
   dbus_message_iter_init_append(reply, &args);
-  DBusMessageIter variant_iter;
 
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
@@ -1041,7 +1040,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
 
   } else {
     // For scalar types wrapped manually
-    DBusMessageIter variant_iter;
 
     if (property_name == "Position") {
       uint64_t position = m_properties->getPosition();
@@ -1168,7 +1166,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
     }
   } else if (interface_name == MPRIS_MEDIAPLAYER2_INTERFACE) {
     // Add MediaPlayer2 interface properties
-    DBusMessageIter entry_iter, variant_iter;
 
     // Identity property
     dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY, nullptr,
