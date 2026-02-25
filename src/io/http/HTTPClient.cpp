@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include "io/http/HTTPClient.h"
 #include <cstdio>
 #include <string>
 #include <vector>
