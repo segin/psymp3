@@ -55,6 +55,10 @@ if HAVE_OPUS
 AM_CPPFLAGS += $(OPUS_CFLAGS)
 endif
 
+if HAVE_SPEEX
+AM_CPPFLAGS += $(SPEEX_CFLAGS)
+endif
+
 if HAVE_OGG
 AM_CPPFLAGS += $(OGG_CFLAGS)
 endif
@@ -172,6 +176,10 @@ endif
 
 if HAVE_OPUS
 psymp3_LDADD += $(OPUS_LIBS)
+endif
+
+if HAVE_SPEEX
+psymp3_LDADD += $(SPEEX_LIBS)
 endif
 
 if HAVE_OGG
