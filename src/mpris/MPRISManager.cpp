@@ -86,7 +86,6 @@ void MPRISManager::updateVolume(double volume) {
     std::lock_guard<std::mutex> lock(m_mutex);
     updateVolume_unlocked(volume);
 }
-}
 
 void MPRISManager::notifySeeked(uint64_t position_us) {
     std::lock_guard<std::mutex> lock(m_mutex);

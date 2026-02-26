@@ -177,7 +177,6 @@ WindowFrameWidget::~WindowFrameWidget()
             SDL_FreeCursor(s_cursor_ns);
             s_cursor_ns = nullptr;
         }
-        }
     }
 }
 
