@@ -502,6 +502,10 @@ void MemoryPoolManager::createPool(size_t size, size_t max_buffers, size_t pre_a
     // Pre-allocate buffers
     pre_allocate = std::min(pre_allocate, max_buffers);
     
+    if (pre_allocate > 0) {
+        pool.free_buffers.reserve(pool.free_buffers.size() + pre_allocate);
+    }
+
     for (size_t i = 0; i < pre_allocate; i++) {
         try {
             uint8_t* buffer = new uint8_t[size];

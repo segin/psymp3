@@ -113,7 +113,7 @@ int16_t SampleReconstructor::convertTo16Bit(int32_t sample,
     } else {
       // Downscale by appropriate amount
       uint32_t shift_amount = source_bit_depth - 16;
-      int32_t rounding = 1 << (shift_amount - 1);
+      int32_t rounding = (shift_amount > 0 && shift_amount < 32) ? (1 << (shift_amount - 1)) : 0;
       return static_cast<int16_t>((sample + rounding) >> shift_amount);
     }
   }
