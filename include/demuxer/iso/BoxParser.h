@@ -10,9 +10,23 @@
 #ifndef BOXPARSER_H
 #define BOXPARSER_H
 
+#ifdef FINAL_BUILD
+#include <cstdint>
+#include <string>
+#include <memory>
+#include <stack>
+#include <functional>
+#include <vector>
+#include "io/IOHandler.h"
+#endif
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
+
+// Forward declarations
+struct AudioTrackInfo;
+struct SampleTableInfo;
 
 // No direct includes - all includes should be in psymp3.h
 
@@ -33,31 +47,35 @@ struct BoxHeader {
  */
 class BoxParser {
 public:
-    explicit BoxParser(std::shared_ptr<IOHandler> io);
+    static constexpr uint32_t MAX_BOX_DEPTH = 32;
+
+    explicit BoxParser(std::shared_ptr<PsyMP3::IO::IOHandler> io);
+
     ~BoxParser() = default;
     
-    bool ParseMovieBox(uint64_t offset, uint64_t size);
-    bool ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    bool ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables);
+    bool ParseMovieBox(uint64_t offset, uint64_t size, uint32_t depth = 0);
+    bool ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth = 0);
+    bool ParseSampleTableBox(uint64_t offset, uint64_t size, SampleTableInfo& tables, uint32_t depth = 0);
     bool ParseFragmentBox(uint64_t offset, uint64_t size);
     
     // Core box parsing functionality
     BoxHeader ReadBoxHeader(uint64_t offset);
     bool ValidateBoxSize(const BoxHeader& header, uint64_t containerSize);
     bool ParseBoxRecursively(uint64_t offset, uint64_t size, 
-                            std::function<bool(const BoxHeader&, uint64_t)> handler);
+                            std::function<bool(const BoxHeader&, uint64_t, uint32_t)> handler, uint32_t depth = 0);
     
     // Additional parsing methods for file type and movie box parsing
     bool ParseFileTypeBox(uint64_t offset, uint64_t size, std::string& containerType);
-    bool ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio);
-    bool ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables);
+    bool ParseMediaBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, uint32_t depth = 0);
+    bool ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, AudioTrackInfo& track, bool& foundAudio, SampleTableInfo& sampleTables, uint32_t depth = 0);
     bool ParseHandlerBox(uint64_t offset, uint64_t size, std::string& handlerType);
-    bool ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    bool ParseSampleDescriptionBox(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth = 0);
+
     
     // Codec-specific configuration parsing
-    bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
-    bool ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track);
+    bool ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth);
+    bool ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth);
+    bool ParseFLACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth);
     
     // Telephony codec configuration and validation
     bool ConfigureTelephonyCodec(AudioTrackInfo& track, const std::string& codecType);
@@ -77,7 +95,7 @@ public:
     bool SkipUnknownBox(const BoxHeader& header);
     
 private:
-    std::shared_ptr<IOHandler> io;
+    std::shared_ptr<PsyMP3::IO::IOHandler> io;
     std::stack<BoxHeader> boxStack;
     uint64_t fileSize;
     

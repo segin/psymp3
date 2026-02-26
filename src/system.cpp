@@ -84,8 +84,8 @@ System::~System() {
 
 #ifdef _WIN32
 void System::InitializeIPC(Player *player) {
-  WNDCLASSEXW wcx = {0};
-  wcx.cbSize = sizeof(wcx);
+  WNDCLASSEXW wcx{};
+  wcx.cbSize = sizeof(WNDCLASSEXW);
   wcx.lpfnWndProc = System::ipcWndProc;
   wcx.hInstance = GetModuleHandleW(nullptr);
   wcx.lpszClassName = L"Winamp v1.x";
@@ -331,6 +331,8 @@ void System::InitializeTaskbar() {
   HRESULT hr =
       CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
                        IID_ITaskbarList3, reinterpret_cast<void **>(&m_taskbar));
+
+
 
   if (SUCCEEDED(hr)) {
     std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar
