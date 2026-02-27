@@ -64,8 +64,8 @@ double Player::getVolume() const {
     return 1.0; // Return dummy volume (1.0 = 100%)
 }
 
-void Player::showMPRISError(const std::string& error) {
-    (void)error;
+void Player::showNotification(const std::string& message, NotificationType type) {
+    (void)message; (void)type;
 }
 
 void Player::setLoopMode(LoopMode mode) {
