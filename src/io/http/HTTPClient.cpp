@@ -508,12 +508,8 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
     }
 
     // Cleanup is handled automatically by CurlHandleGuard destructor
-#else
-    response.success = false;
-    response.statusMessage = "Compiled without libcurl support";
-#endif
-    return response;
 #endif // HTTP_CLIENT_NO_CURL
+    return response;
 }
 
 std::string HTTPClient::urlEncode(const std::string& input) {

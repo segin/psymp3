@@ -20,23 +20,14 @@
 #include <utility>
 #endif // !FINAL_BUILD
 
-
-#endif
-#ifdef HAVE_DBUS
-#include "mpris/MPRISTypes.h"
-#include "mpris/MethodHandler.h"
-#include "mpris/PropertyManager.h"
 #include "player.h"
-#include <cmath>
-#include <cstring>
+#include "mpris/MethodHandler.h"
+#include "mpris/MPRISTypes.h"
+#include "mpris/PropertyManager.h"
+
+#ifdef HAVE_DBUS
 #include <dbus/dbus.h>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
+#endif
 
 namespace PsyMP3 {
 namespace MPRIS {
