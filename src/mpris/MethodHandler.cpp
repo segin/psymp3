@@ -1043,7 +1043,6 @@ void MethodHandler::appendPropertyToMessage_unlocked(
 
   } else {
     // For scalar types wrapped manually
-    DBusMessageIter variant_iter;
 
     if (property_name == "Position") {
       uint64_t position = m_properties->getPosition();
