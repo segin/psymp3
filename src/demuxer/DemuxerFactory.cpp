@@ -253,7 +253,7 @@ std::string DemuxerFactory::probeFormat(IOHandler* handler) {
     // Check for ID3v2 tag and skip past it to find actual audio format
     // ID3 tags can be prepended to FLAC, MP3, and other formats
     if (bytes_read >= 10 && header[0] == 'I' && header[1] == 'D' && header[2] == '3') {
-        size_t id3_size = PsyMP3::Tag::ID3v2Tag::getTagSize(header.data());
+        size_t id3_size = PsyMP3::Tag::PsyMP3::Tag::ID3v2Tag::getTagSize(header.data());
         
         if (id3_size > 0) {
             Debug::log("demuxer", "DemuxerFactory::probeFormat: Found ID3v2 tag, size: ", id3_size);

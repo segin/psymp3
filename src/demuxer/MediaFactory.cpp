@@ -833,7 +833,7 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     
     if (bytes_read >= 10 && buffer[0] == 'I' && buffer[1] == 'D' && buffer[2] == '3') {
         has_id3_tag = true;
-        size_t id3_size = PsyMP3::Tag::ID3v2Tag::getTagSize(buffer);
+        size_t id3_size = PsyMP3::Tag::PsyMP3::Tag::ID3v2Tag::getTagSize(buffer);
         
         if (id3_size > 0) {
             Debug::log("loader", "MediaFactory::detectByMagicBytes found ID3v2 tag, size: ", id3_size);
