@@ -82,6 +82,7 @@ class Stream
         virtual unsigned int getBitrate(); // bitrate in bits per second!
         virtual size_t getData(size_t len, void *buf) = 0;
         virtual void seekTo(unsigned long pos) = 0;
+        virtual bool canSeek() const;
         virtual bool eof() = 0;
     protected:
         void *          m_handle; // any handle type

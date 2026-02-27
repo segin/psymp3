@@ -27,6 +27,16 @@ public:
     //  but this provides a foundation for future integration)
 };
 
+// Stub implementations of Player methods used by PropertyManager
+// These are safe to call even with reinterpret_cast because they don't access members
+bool Player::canGoNext() const {
+    return false;
+}
+
+bool Player::canGoPrevious() const {
+    return false;
+}
+
 class PropertyManagerTest : public TestFramework::TestCase {
 public:
     PropertyManagerTest(const std::string& name) : TestCase(name) {}
@@ -299,6 +309,51 @@ public:
     }
 };
 
+// Test volume property
+class TestVolume : public PropertyManagerTest {
+public:
+    TestVolume() : PropertyManagerTest("Volume") {}
+
+    void runTest() override {
+        // Test initial volume
+        double volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 1.0, "Initial volume should be 1.0");
+
+        // Test updating volume
+        bool changed = m_property_manager->updateVolume(0.5);
+        ASSERT_TRUE(changed, "Volume update should return true when changed");
+        volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 0.5, "Volume should be 0.5 after update");
+
+        // Test updating to same volume
+        changed = m_property_manager->updateVolume(0.5);
+        ASSERT_FALSE(changed, "Volume update should return false when unchanged");
+
+        // Test volume clamping (lower bound)
+        changed = m_property_manager->updateVolume(-0.5);
+        ASSERT_TRUE(changed, "Volume update should return true when clamped value is different");
+        volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 0.0, "Volume should be clamped to 0.0");
+
+        // Test volume clamping (upper bound)
+        changed = m_property_manager->updateVolume(1.5);
+        ASSERT_TRUE(changed, "Volume update should return true when clamped value is different");
+        volume = m_property_manager->getVolume();
+        ASSERT_EQUALS(volume, 1.0, "Volume should be clamped to 1.0");
+
+        // Test getAllProperties contains Volume
+        auto properties = m_property_manager->getAllProperties();
+        ASSERT_TRUE(properties.find("Volume") != properties.end(), "Volume should be present in all properties");
+        ASSERT_EQUALS(properties["Volume"].get<double>(), 1.0, "Volume in properties map should be 1.0");
+
+        // Update again and verify map
+        changed = m_property_manager->updateVolume(0.75);
+        ASSERT_TRUE(changed, "Volume update should return true when changed");
+        properties = m_property_manager->getAllProperties();
+        ASSERT_EQUALS(properties["Volume"].get<double>(), 0.75, "Volume in properties map should be 0.75");
+    }
+};
+
 int main() {
     TestFramework::TestSuite suite("PropertyManager Tests");
     
@@ -309,6 +364,7 @@ int main() {
     suite.addTest(std::make_unique<TestThreadSafety>());
     suite.addTest(std::make_unique<TestAllProperties>());
     suite.addTest(std::make_unique<TestEdgeCases>());
+    suite.addTest(std::make_unique<TestVolume>());
     
     // Run all tests
     auto results = suite.runAll();

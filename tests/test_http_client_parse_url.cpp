@@ -88,6 +88,7 @@ protected:
         // 12. Invalid port (empty after colon)
         ASSERT_FALSE(HTTPClient::parseURL("http://example.com:/path", host, port, path, isHttps), "URL with empty port after colon should return false");
 
+
         // 13. Edge case: Empty URL
         ASSERT_FALSE(HTTPClient::parseURL("", host, port, path, isHttps), "Empty URL should return false");
 
@@ -119,6 +120,29 @@ protected:
         // We won't assert correctness here as we know it's a limitation, but we ensure it parses.
         ASSERT_TRUE(HTTPClient::parseURL("http://example.com?q=1", host, port, path, isHttps), "URL with query but no slash should parse");
         // We don't assert host value here because we know it captures query string currently.
+
+        // 13. Port limits (0)
+        ASSERT_TRUE(HTTPClient::parseURL("http://example.com:0/path", host, port, path, isHttps), "URL with port 0 should be parsed");
+        ASSERT_EQUALS(0, port, "Port should be 0");
+
+        // 14. Port limits (65535)
+        ASSERT_TRUE(HTTPClient::parseURL("http://example.com:65535/path", host, port, path, isHttps), "URL with port 65535 should be parsed");
+        ASSERT_EQUALS(65535, port, "Port should be 65535");
+
+        // 15. Port overflow (valid integer but invalid port, currently accepted by parser logic as it just does stoi)
+        // Ideally this should fail if logic was stricter, but we test current behavior.
+        ASSERT_TRUE(HTTPClient::parseURL("http://example.com:65536/path", host, port, path, isHttps), "URL with port 65536 should be parsed (current behavior)");
+        ASSERT_EQUALS(65536, port, "Port should be 65536");
+
+        // 16. Basic Auth (currently fails)
+        ASSERT_FALSE(HTTPClient::parseURL("http://user:pass@example.com/path", host, port, path, isHttps), "Basic Auth URLs are not currently supported");
+
+        // 17. IPv6 (currently fails)
+        ASSERT_FALSE(HTTPClient::parseURL("http://[::1]:8080/path", host, port, path, isHttps), "IPv6 URLs are not currently supported");
+
+        // 18. Empty scheme
+        ASSERT_FALSE(HTTPClient::parseURL("://example.com", host, port, path, isHttps), "Empty scheme should fail");
+
     }
 };
 

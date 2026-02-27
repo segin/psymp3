@@ -105,7 +105,7 @@ void writeConfigFile(const std::string& filename, const ConfigData& config) {
     
     file << "# Last.fm configuration\n";
     file << "username=" << config.username << "\n";
-    file << "password_hash=" << config.password_hash << "\n";
+    // password_hash is not persisted for security reasons
     file << "session_key=" << config.session_key << "\n";
     file << "now_playing_url=" << config.now_playing_url << "\n";
     file << "submission_url=" << config.submission_url << "\n";
@@ -190,6 +190,14 @@ void test_property_config_roundtrip() {
             
             test_count++;
             
+            // password_hash is not persisted, so clear it from original for comparison
+            // and verify parsed version has empty hash
+            if (!parsed.password_hash.empty()) {
+                std::cerr << "  SECURITY VIOLATION: password_hash was persisted!" << std::endl;
+                assert(false && "password_hash should not be persisted");
+            }
+            original.password_hash.clear();
+
             // Verify round-trip succeeded
             if (original == parsed) {
                 passed_count++;
@@ -241,6 +249,10 @@ void test_property_config_roundtrip() {
         
         writeConfigFile(temp_file, minimal);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        minimal.password_hash.clear();
+
         assert(minimal == parsed);
         std::cout << "    Minimal configuration (username + password) ✓" << std::endl;
     }
@@ -256,6 +268,10 @@ void test_property_config_roundtrip() {
         
         writeConfigFile(temp_file, special);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        special.password_hash.clear();
+
         assert(special == parsed);
         std::cout << "    Configuration with special characters ✓" << std::endl;
     }
@@ -271,6 +287,10 @@ void test_property_config_roundtrip() {
         
         writeConfigFile(temp_file, long_config);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        long_config.password_hash.clear();
+
         assert(long_config == parsed);
         std::cout << "    Configuration with long values ✓" << std::endl;
     }
@@ -286,6 +306,10 @@ void test_property_config_roundtrip() {
         
         writeConfigFile(temp_file, url_config);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        url_config.password_hash.clear();
+
         assert(url_config == parsed);
         std::cout << "    Configuration with URL query parameters ✓" << std::endl;
     }
@@ -325,7 +349,8 @@ void test_property_config_format_consistency() {
             
             // Verify all required keys are present
             assert(content.find("username=") != std::string::npos);
-            assert(content.find("password_hash=") != std::string::npos);
+            // password_hash must NOT be present
+            assert(content.find("password_hash=") == std::string::npos);
             assert(content.find("session_key=") != std::string::npos);
             assert(content.find("now_playing_url=") != std::string::npos);
             assert(content.find("submission_url=") != std::string::npos);
@@ -375,7 +400,8 @@ void test_property_config_value_preservation() {
             
             // Verify each field is preserved exactly
             assert(original.username == parsed.username);
-            assert(original.password_hash == parsed.password_hash);
+            // password_hash is NOT preserved (security)
+            assert(parsed.password_hash.empty());
             assert(original.session_key == parsed.session_key);
             assert(original.now_playing_url == parsed.now_playing_url);
             assert(original.submission_url == parsed.submission_url);

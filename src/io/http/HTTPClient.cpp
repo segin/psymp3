@@ -38,6 +38,17 @@ public:
 #endif
 
 #include <cstdio>
+#include <string>
+#include <vector>
+#include <map>
+#include <mutex>
+#include <atomic>
+#include <thread>
+#include <chrono>
+#include <iostream>
+#include <sstream>
+#include <algorithm>
+#include <cstring>
 
 namespace PsyMP3 {
 namespace IO {
@@ -245,33 +256,46 @@ static size_t headerCallback(void *contents, size_t size, size_t nmemb, void *us
 }
 #endif // HTTP_CLIENT_NO_CURL
 
-HTTPClient::Response HTTPClient::get(const std::string& url,
-                                    const std::map<std::string, std::string>& headers,
-                                    int timeoutSeconds) {
+HTTPClient::Response HTTPClient::get([[maybe_unused]] const std::string& url,
+                                    [[maybe_unused]] const std::map<std::string, std::string>& headers,
+                                    [[maybe_unused]] int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     return performRequest("GET", url, "", headers, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
-HTTPClient::Response HTTPClient::post(const std::string& url,
-                                     const std::string& data,
-                                     const std::string& contentType,
-                                     const std::map<std::string, std::string>& headers,
-                                     int timeoutSeconds) {
+HTTPClient::Response HTTPClient::post([[maybe_unused]] const std::string& url,
+                                     [[maybe_unused]] const std::string& data,
+                                     [[maybe_unused]] const std::string& contentType,
+                                     [[maybe_unused]] const std::map<std::string, std::string>& headers,
+                                     [[maybe_unused]] int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     std::map<std::string, std::string> postHeaders = headers;
     postHeaders["Content-Type"] = contentType;
     return performRequest("POST", url, data, postHeaders, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
-HTTPClient::Response HTTPClient::head(const std::string& url,
-                                     const std::map<std::string, std::string>& headers,
-                                     int timeoutSeconds) {
+HTTPClient::Response HTTPClient::head([[maybe_unused]] const std::string& url,
+                                     [[maybe_unused]] const std::map<std::string, std::string>& headers,
+                                     [[maybe_unused]] int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     return performRequest("HEAD", url, "", headers, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
-HTTPClient::Response HTTPClient::getRange(const std::string& url,
-                                         long start_byte,
-                                         long end_byte,
-                                         const std::map<std::string, std::string>& headers,
-                                         int timeoutSeconds) {
+HTTPClient::Response HTTPClient::getRange([[maybe_unused]] const std::string& url,
+                                         [[maybe_unused]] long start_byte,
+                                         [[maybe_unused]] long end_byte,
+                                         [[maybe_unused]] const std::map<std::string, std::string>& headers,
+                                         [[maybe_unused]] int timeoutSeconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     std::map<std::string, std::string> range_headers = headers;
     if (end_byte >= 0) {
         range_headers["Range"] = "bytes=" + std::to_string(start_byte) + "-" + std::to_string(end_byte);
@@ -279,15 +303,21 @@ HTTPClient::Response HTTPClient::getRange(const std::string& url,
         range_headers["Range"] = "bytes=" + std::to_string(start_byte) + "-";
     }
     return performRequest("GET", url, "", range_headers, timeoutSeconds);
+#else
+    return Response{};
+#endif
 }
 
-HTTPClient::Response HTTPClient::performRequest(const std::string& method,
-                                               const std::string& url,
-                                               const std::string& postData,
-                                               const std::map<std::string, std::string>& headers,
-                                               int timeoutSeconds) {
+HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::string& method,
+                                               [[maybe_unused]] const std::string& url,
+                                               [[maybe_unused]] const std::string& postData,
+                                               [[maybe_unused]] const std::map<std::string, std::string>& headers,
+                                               [[maybe_unused]] int timeoutSeconds) {
     Response response;
+
     
+
+
 #ifndef HTTP_CLIENT_NO_CURL
     // Check if curl was initialized properly
     if (!CurlLifecycleManager::isInitialized()) {
@@ -478,6 +508,10 @@ HTTPClient::Response HTTPClient::performRequest(const std::string& method,
     }
 
     // Cleanup is handled automatically by CurlHandleGuard destructor
+#else
+    response.success = false;
+    response.statusMessage = "Compiled without libcurl support";
+#endif
     return response;
 #endif // HTTP_CLIENT_NO_CURL
 }
@@ -511,7 +545,7 @@ std::string HTTPClient::urlEncode(const std::string& input) {
 #endif
     
     // Fallback if curl is not initialized, failed to init, or failed to escape.
-    // Use a safe, manual encoding to avoid security risks of returning unencoded input.
+    // Use a safe, manual encoding (RFC 3986 compliant) to avoid security risks of returning unencoded input.
     Debug::log("http", "HTTPClient::urlEncode() - libcurl encoding failed or unavailable, using fallback encoder");
     
     std::string result;
@@ -596,10 +630,12 @@ void HTTPClient::closeAllConnections() {
 #endif
 }
 
-void HTTPClient::setConnectionTimeout(int timeout_seconds) {
+void HTTPClient::setConnectionTimeout([[maybe_unused]] int timeout_seconds) {
+#ifndef HTTP_CLIENT_NO_CURL
     // This would be stored in a static variable for use in performRequest
     // For now, we use the default 10 second connect timeout
     Debug::log("http", "HTTPClient::setConnectionTimeout() - Connection timeout set to ", timeout_seconds, " seconds");
+#endif
 }
 
 std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
@@ -620,7 +656,10 @@ std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
         stats["pool_hosts"] = static_cast<int>(CurlLifecycleManager::s_connection_pool.size());
     }
 #endif
+
     
+
+
     return stats;
 }
 
