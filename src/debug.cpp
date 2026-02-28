@@ -7,7 +7,20 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include <iostream>
+#include <fstream>
+#include <mutex>
+#include <unordered_set>
+#include <string>
+#include <vector>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include "debug.h"
+#endif
 
 // Initialize static members
 std::ofstream Debug::m_logfile;

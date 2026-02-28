@@ -1,14 +1,5 @@
-/*
- * test_enhanced_buffer_pool.cpp - Unit tests for EnhancedBufferPool
- * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
- *
- * PsyMP3 is free software. You may redistribute and/or modify it under
- * the terms of the ISC License <https://opensource.org/licenses/ISC>
- */
-
-#include "psymp3.h"
 #include "test_framework.h"
+#include "psymp3.h"
 #include "io/EnhancedBufferPool.h"
 #include <vector>
 #include <cstring>
@@ -16,168 +7,147 @@
 #include <chrono>
 
 using namespace PsyMP3::IO;
-using namespace TestFramework;
 
-// Helper to reset the pool state as much as possible
-void resetPool() {
-    auto& pool = EnhancedBufferPool::getInstance();
-    pool.clear();
-    pool.setMemoryPressure(0);
-}
-
-class SingletonTest : public TestCase {
+class EnhancedBufferPoolTest : public TestFramework::TestCase {
 public:
-    SingletonTest() : TestCase("EnhancedBufferPool::getInstance") {}
+    EnhancedBufferPoolTest(const std::string& name) : TestCase(name) {}
 
-    void runTest() override {
-        auto& instance1 = EnhancedBufferPool::getInstance();
-        auto& instance2 = EnhancedBufferPool::getInstance();
+    void setUp() override {
+        // Clear the pool before each test
+        EnhancedBufferPool::getInstance().clear();
+        EnhancedBufferPool::getInstance().setMemoryPressure(0);
+    }
 
-        ASSERT_EQUALS(&instance1, &instance2, "getInstance should return the same instance");
+    void tearDown() override {
+        EnhancedBufferPool::getInstance().clear();
     }
 };
 
-class BasicAllocationTest : public TestCase {
+class SingletonTest : public EnhancedBufferPoolTest {
 public:
-    BasicAllocationTest() : TestCase("EnhancedBufferPool::getBuffer/returnBuffer") {}
-
-    void setUp() override {
-        resetPool();
-    }
-
+    SingletonTest() : EnhancedBufferPoolTest("SingletonTest") {}
     void runTest() override {
-        auto& pool = EnhancedBufferPool::getInstance();
-        size_t size = 1024;
-
-        // 1. Get a buffer
-        auto buffer1 = pool.getBuffer(size);
-        size_t capacity1 = buffer1.capacity();
-        ASSERT_TRUE(capacity1 >= size, "Buffer capacity should be at least requested size");
-
-        // 2. Return the buffer
-        pool.returnBuffer(std::move(buffer1));
-
-        // 3. Get another buffer of same size
-        auto buffer2 = pool.getBuffer(size);
-
-        // 4. Verify reuse (capacity should match)
-        ASSERT_EQUALS(capacity1, buffer2.capacity(), "Should reuse buffer of same capacity");
+        EnhancedBufferPool& pool1 = EnhancedBufferPool::getInstance();
+        EnhancedBufferPool& pool2 = EnhancedBufferPool::getInstance();
+        ASSERT_EQUALS(&pool1, &pool2, "getInstance() should return the same instance");
     }
 };
 
-class BufferCategoriesTest : public TestCase {
+class BasicAllocationTest : public EnhancedBufferPoolTest {
 public:
-    BufferCategoriesTest() : TestCase("EnhancedBufferPool Categories") {}
-
-    void setUp() override {
-        resetPool();
-    }
-
+    BasicAllocationTest() : EnhancedBufferPoolTest("BasicAllocationTest") {}
     void runTest() override {
-        auto& pool = EnhancedBufferPool::getInstance();
+        EnhancedBufferPool& pool = EnhancedBufferPool::getInstance();
 
-        // Small buffer (< 16KB)
-        auto small = pool.getBuffer(1024);
-        ASSERT_TRUE(small.capacity() >= 1024, "Small buffer capacity");
-        pool.returnBuffer(std::move(small));
+        // Test small buffer
+        auto buf1 = pool.getBuffer(1024);
+        ASSERT_TRUE(buf1.capacity() >= 1024, "Buffer capacity should be at least requested size");
 
-        // Medium buffer (16KB - 128KB)
-        auto medium = pool.getBuffer(32 * 1024);
-        ASSERT_TRUE(medium.capacity() >= 32 * 1024, "Medium buffer capacity");
-        pool.returnBuffer(std::move(medium));
+        // Test medium buffer
+        auto buf2 = pool.getBuffer(32 * 1024);
+        ASSERT_TRUE(buf2.capacity() >= 32 * 1024, "Buffer capacity should be at least requested size");
 
-        // Large buffer (> 128KB)
-        auto large = pool.getBuffer(256 * 1024);
-        ASSERT_TRUE(large.capacity() >= 256 * 1024, "Large buffer capacity");
-        pool.returnBuffer(std::move(large));
+        // Test large buffer
+        auto buf3 = pool.getBuffer(256 * 1024);
+        ASSERT_TRUE(buf3.capacity() >= 256 * 1024, "Buffer capacity should be at least requested size");
+    }
+};
 
-        // Verify they are pooled
+class BufferReuseTest : public EnhancedBufferPoolTest {
+public:
+    BufferReuseTest() : EnhancedBufferPoolTest("BufferReuseTest") {}
+    void runTest() override {
+        EnhancedBufferPool& pool = EnhancedBufferPool::getInstance();
+
+        // Initial state - clear might not reset hit/miss counts, so we take baseline
         auto stats = pool.getStats();
-        ASSERT_TRUE(stats.total_buffers >= 3, "Should have at least 3 buffers pooled");
-    }
-};
+        size_t initial_hits = stats.buffer_hits;
 
-class MemoryPressureTest : public TestCase {
-public:
-    MemoryPressureTest() : TestCase("EnhancedBufferPool Memory Pressure") {}
+        // Get a buffer
+        size_t size = 4096;
+        auto buf = pool.getBuffer(size);
+        size_t capacity = buf.capacity();
 
-    void setUp() override {
-        resetPool();
-    }
-
-    void runTest() override {
-        auto& pool = EnhancedBufferPool::getInstance();
-
-        // Set high pressure
-        pool.setMemoryPressure(100);
-        ASSERT_EQUALS(100, pool.getMemoryPressure(), "Pressure should be 100");
-
-        // Under high pressure (100%), max buffer size drops to 256KB
-        // Try to pool a large buffer > 256KB (e.g. 512KB)
-
-        // Use a manually created vector to verify returnBuffer logic directly
-        // because getBuffer might not even allocate it via pool logic if strictly following max size limits
-        size_t huge_size = 512 * 1024;
-        std::vector<uint8_t> huge_buffer;
-        huge_buffer.reserve(huge_size);
-
-        size_t initial_count = pool.getStats().total_buffers;
-
-        // Return it - should be rejected due to high pressure constraints on size
-        pool.returnBuffer(std::move(huge_buffer));
-
-        ASSERT_EQUALS(initial_count, pool.getStats().total_buffers, "Huge buffer should not be pooled under high pressure");
-
-        // Lower pressure
-        pool.setMemoryPressure(0);
-        // Now it should be poolable (if < 1MB, which 512KB is)
-
-        std::vector<uint8_t> acceptable_buffer;
-        acceptable_buffer.reserve(huge_size);
-
-        pool.returnBuffer(std::move(acceptable_buffer));
-        ASSERT_EQUALS(initial_count + 1, pool.getStats().total_buffers, "Buffer should be pooled under low pressure");
-    }
-};
-
-class StatsTest : public TestCase {
-public:
-    StatsTest() : TestCase("EnhancedBufferPool::getStats") {}
-
-    void setUp() override {
-        resetPool();
-    }
-
-    void runTest() override {
-        auto& pool = EnhancedBufferPool::getInstance();
-        pool.clear(); // Ensure 0 buffers
-
-        auto stats = pool.getStats();
-        ASSERT_EQUALS((size_t)0, stats.total_buffers, "Should have 0 buffers initially");
-
-        auto buf = pool.getBuffer(1024);
+        // Return it
         pool.returnBuffer(std::move(buf));
 
+        // Verify it's in the pool
         stats = pool.getStats();
-        ASSERT_EQUALS((size_t)1, stats.total_buffers, "Should have 1 buffer after return");
-        ASSERT_TRUE(stats.total_memory_bytes >= 1024, "Total memory should track buffer size");
+        ASSERT_EQUALS(size_t(1), stats.total_buffers, "Pool should have 1 buffer");
+
+        // Get another buffer of same size
+        auto buf2 = pool.getBuffer(size);
+
+        // Verify reuse
+        stats = pool.getStats();
+        ASSERT_TRUE(stats.buffer_hits > initial_hits, "Buffer hits should increase");
+        ASSERT_EQUALS(capacity, buf2.capacity(), "Should get the same capacity buffer");
     }
 };
 
-int main(int argc, char* argv[]) {
-    (void)argc;
-    (void)argv;
+class MemoryPressureTest : public EnhancedBufferPoolTest {
+public:
+    MemoryPressureTest() : EnhancedBufferPoolTest("MemoryPressureTest") {}
+    void runTest() override {
+        EnhancedBufferPool& pool = EnhancedBufferPool::getInstance();
 
-    TestSuite suite("EnhancedBufferPool Unit Tests");
+        // Fill pool with some buffers
+        std::vector<std::vector<uint8_t>> buffers;
+        for (int i = 0; i < 10; ++i) {
+            buffers.push_back(pool.getBuffer(1024));
+        }
+
+        // Return them all
+        for (auto& buf : buffers) {
+            pool.returnBuffer(std::move(buf));
+        }
+
+        auto stats = pool.getStats();
+        ASSERT_EQUALS(size_t(10), stats.total_buffers, "Should have 10 buffers");
+
+        // Increase memory pressure
+        pool.setMemoryPressure(80);
+
+        // Verify pressure is set
+        ASSERT_EQUALS(80, pool.getMemoryPressure(), "Memory pressure should be 80");
+
+        // The pool clears buffers immediately if pressure > 70
+
+        stats = pool.getStats();
+        ASSERT_TRUE(stats.total_buffers < 10, "Pool size should reduce under pressure");
+    }
+};
+
+class StatsTest : public EnhancedBufferPoolTest {
+public:
+    StatsTest() : EnhancedBufferPoolTest("StatsTest") {}
+    void runTest() override {
+        EnhancedBufferPool& pool = EnhancedBufferPool::getInstance();
+
+        // Initial check - should be empty because setUp clears it
+        auto stats = pool.getStats();
+        ASSERT_EQUALS(size_t(0), stats.total_buffers, "Should have 0 buffers initially");
+
+        // Get and return a buffer
+        pool.returnBuffer(pool.getBuffer(1024));
+
+        stats = pool.getStats();
+        ASSERT_EQUALS(size_t(1), stats.total_buffers, "Should have 1 buffer");
+        ASSERT_TRUE(stats.total_memory_bytes >= 1024, "Total memory should be tracked");
+    }
+};
+
+int main() {
+    TestFramework::TestSuite suite("EnhancedBufferPool Tests");
 
     suite.addTest(std::make_unique<SingletonTest>());
     suite.addTest(std::make_unique<BasicAllocationTest>());
-    suite.addTest(std::make_unique<BufferCategoriesTest>());
+    suite.addTest(std::make_unique<BufferReuseTest>());
     suite.addTest(std::make_unique<MemoryPressureTest>());
     suite.addTest(std::make_unique<StatsTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
 
-    return suite.getFailureCount(results) > 0 ? 1 : 0;
+    return suite.getFailureCount(results) == 0 ? 0 : 1;
 }
