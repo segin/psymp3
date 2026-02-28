@@ -3547,6 +3547,16 @@ generate_picture_corpus_LDADD = \
 # Utility Tests
 # ============================================================================
 
+check_PROGRAMS += test_logarithmic_scale
+
+test_logarithmic_scale_SOURCES = test_logarithmic_scale.cpp
+test_logarithmic_scale_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 check_PROGRAMS += test_utility_unit
 
 test_utility_unit_SOURCES = test_utility_unit.cpp
