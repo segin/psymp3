@@ -70,11 +70,6 @@ int unit_tests() {
         
         std::string result(output.begin(), output.end());
         ASSERT_EQ(s, result);
-        
-        // Check if compression actually happened (simple check, might not compress for very short strings due to overhead)
-        // "bananabanana" (12 bytes) -> "banana" (6) + <dist:6, len:6> (2 bytes) + flags
-        // It SHOULD be smaller or equal.
-        // std::cout << "Original: " << input.size() << ", Compressed: " << compressed.size() << "\n";
     }
 
     // Test 3: No repetition
@@ -104,20 +99,97 @@ int unit_tests() {
         }
         
         // Should be significantly compressed
-        ASSERT_TRUE(compressed.size() < 100); 
+        // With max match length 18, we expect ~130 bytes for 1000 chars.
+        // 1000 / 18 = 55 matches. 55 * 2 bytes = 110 bytes. + Overhead.
+        ASSERT_TRUE(compressed.size() < 200);
     }
 
     std::cout << "[UNIT] Passed.\n";
     return 0;
 }
 
+// Edge Case Tests
+int edge_case_tests() {
+    std::cout << "[EDGE] Running edge case tests...\n";
+
+    LZ77Decompressor decompressor;
+
+    // 1. Truncated Literal (Flags says literal, but no data)
+    {
+        // Flags: 0 (all literals). Data: empty.
+        // Expected: Empty output.
+        std::vector<uint8_t> input = {0x00};
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // 2. Truncated Literal Partial (Flags says 8 literals, but only 1 byte provided)
+    {
+        // Flags: 0. Data: 1 byte.
+        // Expected: 1 byte output.
+        std::vector<uint8_t> input = {0x00, 0x41}; // 'A'
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 1);
+        ASSERT_EQ(output[0], 0x41);
+    }
+
+    // 3. Truncated Reference (Flags says Ref, but no data)
+    {
+        // Flags: 1 (Ref at bit 0). Data: empty.
+        std::vector<uint8_t> input = {0x01};
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0);
+    }
+
+    // 4. Truncated Reference Partial (Flags says Ref, but only 1 byte provided)
+    {
+        // Flags: 1. Data: 1 byte.
+        std::vector<uint8_t> input = {0x01, 0x00};
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 0); // Should break before reading 2nd byte
+    }
+
+    // 5. Invalid Distance (Backreference underrun)
+    {
+        // Flags: 0 (Literal 'A'), 1 (Ref).
+        // Literal 'A'. Then Ref with large distance.
+        // Input: [Flags, 'A', DistHigh, DistLow+Len]
+        // Flags: Bit 0=0, Bit 1=1. -> 0x02.
+        // Data: 'A' (0x41).
+        // Ref: Dist=100. Len=3.
+        // Dist 100 -> 0x064.
+        // b1 = (100 >> 4) = 6.
+        // b2 = ((100 & 0xF) << 4) | (0). = 0x40.
+
+        std::vector<uint8_t> input = {0x02, 0x41, 0x06, 0x40};
+        auto output = decompressor.decompress(input.data(), input.size());
+
+        // Expected: 'A'. Then Ref 100 clamped to 1 (size).
+        // Start = 1 - 1 = 0. Length 3.
+        // Copy 'A', 'A', 'A'.
+        // Total: 'A', 'A', 'A', 'A'. Size 4.
+
+        ASSERT_EQ(output.size(), 4);
+        for(auto b : output) ASSERT_EQ(b, 0x41);
+    }
+
+    // 6. Input ending mid-block (e.g. 8 items flags, but only 2 items provided)
+    {
+        // Flags: 0 (8 literals).
+        // Data: 'A', 'B'.
+        std::vector<uint8_t> input = {0x00, 0x41, 0x42};
+        auto output = decompressor.decompress(input.data(), input.size());
+        ASSERT_EQ(output.size(), 2);
+        ASSERT_EQ(output[0], 0x41);
+        ASSERT_EQ(output[1], 0x42);
+    }
+
+    std::cout << "[EDGE] Passed.\n";
+    return 0;
+}
+
 // Property Tests
 int property_tests() {
-    #ifdef HAVE_RAPIDCHECK
-    // If we had RapidCheck enabled, we would use it here.
-    // For now, implementing a manual random property test.
-    #endif
-    
     std::cout << "[PROP] Running property tests (Round-trip integrity)...\n";
     
     LZ77Compressor compressor;
@@ -201,6 +273,7 @@ int fuzzer_tests() {
 
 int main(int argc, char** argv) {
     if (unit_tests() != 0) return 1;
+    if (edge_case_tests() != 0) return 1;
     if (property_tests() != 0) return 1;
     if (fuzzer_tests() != 0) return 1;
     

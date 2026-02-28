@@ -41,7 +41,7 @@ ToastWidget::ToastWidget(const std::string& message, Font* font, int duration_ms
     // Set Z-order to maximum (always on top)
     setZOrder(ZOrder::MAX);
     
-    // Set dark background color to match original Android-style toast (ignore alpha, focus on RGB)
+    // Set dark background color to match original Android Toast notification style (ignore alpha, focus on RGB)
     setBackgroundColor(50, 50, 50);  // Original inner background color
     
     // Enable rounded corners
@@ -94,7 +94,7 @@ void ToastWidget::draw(Surface& surface)
     
     const int corner_radius = 8;
     
-    // Step 3: Draw outer border background with original Android-style toast colors
+    // Step 3: Draw outer border background with original Toast style colors
     drawSimpleRoundedRect(surface, 0, 0, window_width, window_height, corner_radius, 100, 100, 100, 255);
     
     // Step 4: Draw inner background area (2px smaller, offset by 1px) with original colors

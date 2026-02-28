@@ -56,7 +56,7 @@ enum {
     DO_SET_LOOP_MODE,
     QUIT_APPLICATION,
     AUTOMATED_SKIP_TRACK,
-    SHOW_MPRIS_ERROR
+    SHOW_NOTIFICATION
 };
 
 enum class PlayerState {

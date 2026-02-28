@@ -26,6 +26,10 @@
 
 using namespace TestFramework;
 
+#ifdef HAVE_NATIVE_FLAC
+namespace FLACCodecSupport = PsyMP3::Codec::FLAC::FLACCodecSupport;
+#endif
+
 #ifdef HAVE_FLAC
 #include <FLAC++/decoder.h>
 
@@ -45,30 +49,43 @@ protected:
 
 private:
     void testFLACLibraryAvailability() {
-        // Test that FLAC libraries are properly linked and available
-        ASSERT_TRUE(true, "FLAC libraries should be available when HAVE_FLAC is defined");
+        // Test that FLAC support is properly enabled
+        ASSERT_TRUE(true, "FLAC support should be available when HAVE_FLAC is defined");
         
-        // Test FLAC version information is accessible
+#ifdef HAVE_NATIVE_FLAC
+        // Test Native FLAC version information
+        std::string info = FLACCodecSupport::getCodecInfo();
+        ASSERT_TRUE(!info.empty(), "Native FLAC codec info should be available");
+        ASSERT_TRUE(info.find("Native FLAC") != std::string::npos, "Codec info should mention Native FLAC");
+#else
+        // Test libFLAC version information is accessible
         const char* version = FLAC__VERSION_STRING;
         ASSERT_TRUE(version != nullptr, "FLAC version string should be available");
         ASSERT_TRUE(strlen(version) > 0, "FLAC version string should not be empty");
+#endif
     }
 
     void testFLACDecoderCreation() {
-        // Test that FLAC decoder constants and enums are available
+#ifdef HAVE_NATIVE_FLAC
+        // Native implementation uses its own state management
+        // Just verify we can instantiate the support class
+        ASSERT_TRUE(FLACCodecSupport::isAvailable(), "Native FLAC codec should be available");
+#else
+        // Test that libFLAC decoder constants and enums are available
         FLAC__StreamDecoderState uninitialized_state = FLAC__STREAM_DECODER_UNINITIALIZED;
         ASSERT_TRUE(uninitialized_state == FLAC__STREAM_DECODER_UNINITIALIZED, 
                    "FLAC decoder state constants should be available");
         
-        // Test that FLAC decoder read status constants are available
+        // Test that libFLAC decoder read status constants are available
         FLAC__StreamDecoderReadStatus continue_status = FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
         ASSERT_TRUE(continue_status == FLAC__STREAM_DECODER_READ_STATUS_CONTINUE,
                    "FLAC decoder read status constants should be available");
         
-        // Test that FLAC decoder write status constants are available  
+        // Test that libFLAC decoder write status constants are available  
         FLAC__StreamDecoderWriteStatus write_continue = FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
         ASSERT_TRUE(write_continue == FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE,
                    "FLAC decoder write status constants should be available");
+#endif
     }
 };
 

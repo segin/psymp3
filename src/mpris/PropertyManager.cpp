@@ -18,9 +18,10 @@ PropertyManager::PropertyManager(Player *player)
     : m_player(player), m_length_us(0),
       m_status(PsyMP3::MPRIS::PlaybackStatus::Stopped),
       m_loop_status(PsyMP3::MPRIS::LoopStatus::None),
+      m_shuffle(false),
       m_position_us(0),
       m_position_timestamp(std::chrono::steady_clock::now()),
-      m_can_go_next(false), m_can_go_previous(false), m_can_seek(false),
+      m_can_seek(false),
       m_can_control(true) // Generally true for media players
       ,
       m_metadata_valid(false) {
@@ -34,9 +35,10 @@ PropertyManager::~PropertyManager() {
 
 void PropertyManager::updateMetadata(const std::string &artist,
                                      const std::string &title,
-                                     const std::string &album) {
+                                     const std::string &album,
+                                     uint64_t length_us) {
   std::lock_guard<std::mutex> lock(m_mutex);
-  updateMetadata_unlocked(artist, title, album);
+  updateMetadata_unlocked(artist, title, album, length_us);
 }
 
 void PropertyManager::updatePlaybackStatus(
@@ -53,6 +55,16 @@ void PropertyManager::updatePosition(uint64_t position_us) {
 void PropertyManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
   std::lock_guard<std::mutex> lock(m_mutex);
   updateLoopStatus_unlocked(status);
+}
+
+void PropertyManager::updateShuffle(bool shuffle) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  updateShuffle_unlocked(shuffle);
+}
+
+bool PropertyManager::updateVolume(double volume) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return updateVolume_unlocked(volume);
 }
 
 std::string PropertyManager::getPlaybackStatus() const {
@@ -74,6 +86,16 @@ uint64_t PropertyManager::getPosition() const {
 PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
   return getLoopStatus_unlocked();
+}
+
+bool PropertyManager::getShuffle() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getShuffle_unlocked();
+}
+
+double PropertyManager::getVolume() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getVolume_unlocked();
 }
 
 uint64_t PropertyManager::getLength() const {
@@ -116,7 +138,8 @@ PropertyManager::getAllProperties() const {
 
 void PropertyManager::updateMetadata_unlocked(const std::string &artist,
                                               const std::string &title,
-                                              const std::string &album) {
+                                              const std::string &album,
+                                              uint64_t length_us) {
   m_artist = artist;
   m_title = title;
   m_album = album;
@@ -131,8 +154,7 @@ void PropertyManager::updateMetadata_unlocked(const std::string &artist,
     m_track_id.clear();
   }
 
-  // TODO: In a real implementation, we might query the Player for track length
-  // For now, we'll leave m_length_us as is or set it separately
+  m_length_us = length_us;
 }
 
 void PropertyManager::updatePlaybackStatus_unlocked(
@@ -151,6 +173,22 @@ void PropertyManager::updatePosition_unlocked(uint64_t position_us) {
 
 void PropertyManager::updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status) {
   m_loop_status = status;
+}
+
+void PropertyManager::updateShuffle_unlocked(bool shuffle) {
+  m_shuffle = shuffle;
+}
+
+bool PropertyManager::updateVolume_unlocked(double volume) {
+  if (volume < 0.0) volume = 0.0;
+  if (volume > 1.0) volume = 1.0;
+
+  if (std::abs(m_volume - volume) < 1e-6) {
+    return false;
+  }
+
+  m_volume = volume;
+  return true;
 }
 
 std::string PropertyManager::getPlaybackStatus_unlocked() const {
@@ -172,23 +210,23 @@ PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus_unlocked() const {
   return m_loop_status;
 }
 
+bool PropertyManager::getShuffle_unlocked() const { return m_shuffle; }
+
+double PropertyManager::getVolume_unlocked() const { return m_volume; }
+
 uint64_t PropertyManager::getLength_unlocked() const { return m_length_us; }
 
 bool PropertyManager::canGoNext_unlocked() const {
-  // TODO: In a real implementation, query the Player/Playlist for next track
-  // availability
-  return m_can_go_next;
+  return m_player && m_player->canGoNext();
 }
 
 bool PropertyManager::canGoPrevious_unlocked() const {
-  // TODO: In a real implementation, query the Player/Playlist for previous
-  // track availability
-  return m_can_go_previous;
+  return m_player && m_player->canGoPrevious();
 }
 
 bool PropertyManager::canSeek_unlocked() const {
-  // TODO: In a real implementation, check if current stream supports seeking
-  return m_can_seek;
+  // Check if current stream supports seeking via Player
+  return m_player && m_player->canSeek();
 }
 
 bool PropertyManager::canControl_unlocked() const { return m_can_control; }
@@ -225,18 +263,20 @@ PropertyManager::getAllProperties_unlocked() const {
   properties.insert(
       std::make_pair(std::string("Rate"), PsyMP3::MPRIS::DBusVariant(1.0)));
 
-  // Shuffle (not implemented, always false)
+  // Shuffle
   properties.insert(std::make_pair(std::string("Shuffle"),
-                                   PsyMP3::MPRIS::DBusVariant(false)));
+                                   PsyMP3::MPRIS::DBusVariant(getShuffle_unlocked())));
 
   // Metadata
   auto metadata_dict = getMetadata_unlocked();
+  // Note: metadata_dict is a std::map<string, DBusVariant> which converts to a Dictionary variant.
+  // This supports the "dict-in-dict" structure required by MPRIS Metadata.
   properties.insert(std::make_pair(std::string("Metadata"),
                                    PsyMP3::MPRIS::DBusVariant(metadata_dict)));
 
-  // Volume (not implemented, use 1.0)
+  // Volume
   properties.insert(
-      std::make_pair(std::string("Volume"), PsyMP3::MPRIS::DBusVariant(1.0)));
+      std::make_pair(std::string("Volume"), PsyMP3::MPRIS::DBusVariant(getVolume_unlocked())));
 
   // Position
   properties.insert(std::make_pair(
