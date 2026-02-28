@@ -22,6 +22,8 @@
  */
 
 #include "psymp3.h"
+#include <filesystem>
+#include <algorithm>
 
 namespace PsyMP3 {
 namespace IO {
@@ -61,7 +63,40 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     
     // Security check: Validate file path for directory traversal attacks
     // Performed once in constructor to avoid overhead in every I/O operation
-    if (normalized_path.find("..") != std::string::npos) {
+    std::filesystem::path fs_path(normalized_path);
+    bool traversal_attempt = false;
+
+    // Explicitly block all ".." components
+    for (const auto& component : fs_path) {
+        if (component == "..") {
+            traversal_attempt = true;
+            break;
+        }
+    }
+
+    // For relative paths, confine to CWD hierarchy
+    if (!traversal_attempt && fs_path.is_relative()) {
+        std::error_code ec;
+        std::filesystem::path canonical_path = std::filesystem::weakly_canonical(fs_path, ec);
+
+        if (!ec) {
+            std::filesystem::path cwd = std::filesystem::current_path(ec);
+            if (!ec) {
+                // Enforce relative path confinement using 4-argument std::mismatch
+                auto [it1, it2] = std::mismatch(cwd.begin(), cwd.end(), canonical_path.begin(), canonical_path.end());
+                if (it1 != cwd.end()) {
+                    traversal_attempt = true;
+                }
+            } else {
+                traversal_attempt = true;
+            }
+        } else {
+            // If path can't be canonicalized securely, treat it as a potential attack
+            traversal_attempt = true;
+        }
+    }
+
+    if (traversal_attempt) {
         m_path_secure = false;
         std::string errorMsg = "Potential directory traversal attack detected in path: " + normalized_path;
         Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
