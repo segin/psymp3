@@ -131,7 +131,8 @@ void System::broadcastMsnMessage(const std::wstring &message) {
   cds.dwData = 1351; // Magic number for MSN Now Playing IPC
   // The size is the total number of bytes, including the final null terminator.
   cds.cbData = (message.length() + 1) * sizeof(wchar_t);
-  cds.lpData = (PVOID)message.c_str();
+  cds.lpData =
+      const_cast<PVOID>(reinterpret_cast<const void *>(message.c_str()));
 
   HWND msgr_hwnd = nullptr;
   // Loop through all top-level windows to find all messenger instances.
