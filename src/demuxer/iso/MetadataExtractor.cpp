@@ -19,11 +19,15 @@ std::map<std::string, std::string> MetadataExtractor::ExtractMetadata(std::share
     }
     
     // Parse udta box recursively to find metadata
-    ParseUdtaBox(io, udtaOffset, size, metadata);
+    ParseUdtaBox(io, udtaOffset, size, metadata, 0);
     return metadata;
 }
 
-bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
+bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata, int depth) {
+    if (depth > MAX_RECURSION_DEPTH) {
+        return false;
+    }
+
     uint64_t currentOffset = offset;
     uint64_t endOffset = offset + size;
     
@@ -57,7 +61,7 @@ bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t off
         switch (boxType) {
             case BOX_META:
                 // Metadata box - contains ilst
-                ParseMetaBox(io, boxDataOffset, boxDataSize, metadata);
+                ParseMetaBox(io, boxDataOffset, boxDataSize, metadata, depth + 1);
                 break;
             case BOX_ILST:
                 // Item list - contains actual metadata items
@@ -75,7 +79,7 @@ bool MetadataExtractor::ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t off
     return true;
 }
 
-bool MetadataExtractor::ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
+bool MetadataExtractor::ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata, int depth) {
     if (size < 4) {
         return false;
     }
@@ -85,7 +89,7 @@ bool MetadataExtractor::ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t off
     uint64_t dataSize = size - 4;
     
     // Parse meta box contents recursively
-    return ParseUdtaBox(io, dataOffset, dataSize, metadata);
+    return ParseUdtaBox(io, dataOffset, dataSize, metadata, depth);
 }
 
 bool MetadataExtractor::ParseIlstBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata) {
