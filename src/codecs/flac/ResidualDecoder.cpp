@@ -7,7 +7,15 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include <cstdint>
+#include <vector>
+#include "debug.h"
+#include "codecs/flac/ResidualDecoder.h"
+#include "codecs/flac/BitstreamReader.h"
+#endif
 
 namespace PsyMP3 {
 namespace Codec {
