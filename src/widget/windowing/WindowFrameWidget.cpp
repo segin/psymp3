@@ -30,13 +30,111 @@ namespace Windowing {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+namespace {
+    // 16x16 NWSE arrow cursor mask (shape)
+    // 1 = opaque, 0 = transparent
+    static const Uint8 cursor_nwse_mask[] = {
+        // Row 0-15 (16 rows, 2 bytes each)
+        // MSB first
+        0x80, 0x00, // 10000000 00000000 (Top-left start)
+        0xC0, 0x00, // 11000000 00000000
+        0xE0, 0x00, // 11100000 00000000
+        0xF0, 0x00, // 11110000 00000000
+        0xD8, 0x00, // 11011000 00000000
+        0x8C, 0x00, // 10001100 00000000
+        0x06, 0x00, // 00000110 00000000
+        0x03, 0x00, // 00000011 00000000
+        0x00, 0xC0, // 00000000 11000000
+        0x00, 0x60, // 00000000 01100000
+        0x00, 0x31, // 00000000 00110001
+        0x00, 0x1B, // 00000000 00011011
+        0x00, 0x0F, // 00000000 00001111
+        0x00, 0x07, // 00000000 00000111
+        0x00, 0x03, // 00000000 00000011
+        0x00, 0x01  // 00000000 00000001 (Bottom-right end)
+    };
+
+    // Cursor color data (black=1, white=0)
+    // Using all zeros produces a white cursor where mask is 1
+    static const Uint8 cursor_nwse_data[] = {
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0
+    };
+} // namespace
+
+
 int WindowFrameWidget::s_next_z_order = 1;
 int WindowFrameWidget::s_instance_count = 0;
 SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_nesw = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_ew = nullptr;
+SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
 
-WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title)
+namespace {
+// 16x16 standard cursor definitions
+// NS: Double-headed vertical arrow
+const Uint8 cursor_ns_data[] = {
+    0x00, 0x00, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+    0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0xff, 0xff,
+    0x01, 0x80, 0x01, 0x80, 0x01, 0x80, 0x01, 0x80,
+    0x01, 0x80, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_ns_mask[] = {
+    0x01, 0x80, 0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0,
+    0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0, 0xff, 0xff,
+    0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0, 0x03, 0xc0,
+    0x03, 0xc0, 0x01, 0x80, 0x00, 0x00, 0x00, 0x00
+};
+
+// EW: Double-headed horizontal arrow
+const Uint8 cursor_ew_data[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x10,
+    0x0c, 0x30, 0x0e, 0x70, 0xff, 0xff, 0x0e, 0x70,
+    0x0c, 0x30, 0x08, 0x10, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_ew_mask[] = {
+    0x00, 0x00, 0x00, 0x00, 0x0c, 0x30, 0x1c, 0x38,
+    0x1e, 0x78, 0x1f, 0xf8, 0xff, 0xff, 0x1f, 0xf8,
+    0x1e, 0x78, 0x1c, 0x38, 0x0c, 0x30, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+// NWSE: Diagonal
+const Uint8 cursor_nwse_data[] = {
+    0x00, 0x00, 0x00, 0x00, 0xfe, 0x00, 0x7c, 0x00,
+    0x38, 0x00, 0x11, 0x00, 0x00, 0x88, 0x00, 0x44,
+    0x00, 0x22, 0x00, 0x11, 0x00, 0x38, 0x00, 0x7c,
+    0x00, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_nwse_mask[] = {
+    0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0x7e, 0x00,
+    0x3c, 0x00, 0x1b, 0x80, 0x01, 0xdc, 0x00, 0xee,
+    0x00, 0x77, 0x00, 0x3b, 0x00, 0x7e, 0x00, 0xff,
+    0x00, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+// NESW: Diagonal
+const Uint8 cursor_nesw_data[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x3e,
+    0x00, 0x1c, 0x00, 0x88, 0x11, 0x00, 0x22, 0x00,
+    0x44, 0x00, 0x88, 0x00, 0x1c, 0x00, 0x3e, 0x00,
+    0x7f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+};
+const Uint8 cursor_nesw_mask[] = {
+    0x00, 0x00, 0x00, 0xff, 0x00, 0xff, 0x00, 0x7e,
+    0x00, 0x3c, 0x01, 0xd8, 0x3b, 0x80, 0x77, 0x00,
+    0xee, 0x00, 0xdc, 0x00, 0x3c, 0x00, 0x7e, 0x00,
+    0xff, 0x00, 0x00, 0xff, 0x00, 0x00, 0x00, 0x00
+};
+}
+
+WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const std::string& title, Font* font)
     : Widget()
     , m_title(title)
+    , m_font(font)
     , m_client_width(client_width)
     , m_client_height(client_height)
     , m_z_order(s_next_z_order++)
@@ -94,9 +192,11 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     s_instance_count++;
     if (!s_cursor_nwse) {
         // SDL 1.2 doesn't support SDL_CreateSystemCursor.
-        // TODO: Implement custom cursor for SDL 1.2 using SDL_CreateCursor
-        // s_cursor_nwse = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENWSE);
-        s_cursor_nwse = nullptr;
+        // Create custom cursors for SDL 1.2 using SDL_CreateCursor
+        s_cursor_nwse = SDL_CreateCursor(const_cast<Uint8*>(cursor_nwse_data), const_cast<Uint8*>(cursor_nwse_mask), 16, 16, 7, 7);
+        s_cursor_nesw = SDL_CreateCursor(const_cast<Uint8*>(cursor_nesw_data), const_cast<Uint8*>(cursor_nesw_mask), 16, 16, 8, 8);
+        s_cursor_ew = SDL_CreateCursor(const_cast<Uint8*>(cursor_ew_data), const_cast<Uint8*>(cursor_ew_mask), 16, 16, 8, 8);
+        s_cursor_ns = SDL_CreateCursor(const_cast<Uint8*>(cursor_ns_data), const_cast<Uint8*>(cursor_ns_mask), 16, 16, 8, 8);
     }
 }
 
@@ -107,6 +207,18 @@ WindowFrameWidget::~WindowFrameWidget()
         if (s_cursor_nwse) {
             SDL_FreeCursor(s_cursor_nwse);
             s_cursor_nwse = nullptr;
+        }
+        if (s_cursor_nesw) {
+            SDL_FreeCursor(s_cursor_nesw);
+            s_cursor_nesw = nullptr;
+        }
+        if (s_cursor_ew) {
+            SDL_FreeCursor(s_cursor_ew);
+            s_cursor_ew = nullptr;
+        }
+        if (s_cursor_ns) {
+            SDL_FreeCursor(s_cursor_ns);
+            s_cursor_ns = nullptr;
         }
     }
 }
@@ -240,15 +352,15 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
             if ((resize_edge & 1) && (resize_edge & 4)) { // Top-left corner
                 if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if ((resize_edge & 2) && (resize_edge & 4)) { // Top-right corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
             } else if ((resize_edge & 1) && (resize_edge & 8)) { // Bottom-left corner
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set northeast-southwest cursor
+                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
             } else if ((resize_edge & 2) && (resize_edge & 8)) { // Bottom-right corner
                 if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
             } else if (resize_edge & 3) { // Left or right edge
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set east-west cursor
+                if (s_cursor_ew) SDL_SetCursor(s_cursor_ew);
             } else if (resize_edge & 12) { // Top or bottom edge
-                SDL_SetCursor(SDL_GetCursor()); // TODO: Set north-south cursor
+                if (s_cursor_ns) SDL_SetCursor(s_cursor_ns);
             }
         } else {
             // Reset to default cursor
@@ -558,7 +670,19 @@ void WindowFrameWidget::rebuildSurface()
         frame_surface->hline(inner_x2, outer_x2, bottom_notch_y, 0, 0, 0, 255);
     }
     
-    // TODO: Add title text rendering when font access is available
+    // Render title text
+    if (m_font && !m_title.empty()) {
+        auto text_surface = m_font->Render(TagLib::String(m_title), 255, 255, 255);
+        if (text_surface) {
+            // Center horizontally in the titlebar area
+            int text_x = content_x + (content_width - text_surface->width()) / 2;
+
+            // Center vertically in the titlebar
+            int text_y = content_y + (TITLEBAR_HEIGHT - text_surface->height()) / 2;
+
+            frame_surface->Blit(*text_surface, Rect(text_x, text_y, text_surface->width(), text_surface->height()));
+        }
+    }
     
     // Draw window control buttons
     drawWindowControls(*frame_surface);
