@@ -9,15 +9,25 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <cmath>
+#include <cstring>
+#include <utility>
 #endif // !FINAL_BUILD
 
-#include "mpris/MethodHandler.h"
-#include "mpris/PropertyManager.h"
-#include "mpris/MPRISTypes.h"
 #include "player.h"
-#include <iostream>
-#include <vector>
-#include <stdexcept>
+#include "mpris/MethodHandler.h"
+#include "mpris/MPRISTypes.h"
+#include "mpris/PropertyManager.h"
+
+#ifdef HAVE_DBUS
+#include <dbus/dbus.h>
+#endif
 
 namespace PsyMP3 {
 namespace MPRIS {
@@ -678,8 +688,7 @@ MethodHandler::handleSetPosition_unlocked(DBusConnection *connection,
 
 // Stub implementations when D-Bus is not available
 
-MethodHandler::MethodHandler([[maybe_unused]] Player *player,
-                             [[maybe_unused]] PropertyManager *properties)
+MethodHandler::MethodHandler(Player *player, PropertyManager *properties)
     : m_player(player), m_properties(properties), m_initialized(false) {}
 
 MethodHandler::~MethodHandler() {}
@@ -1218,6 +1227,17 @@ void MethodHandler::appendVariantToIter_unlocked(
   }
 }
 
+    dbus_bool_t can_raise_val = TRUE;
+    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN,
+                                   &can_raise_val);
+    dbus_message_iter_close_container(&entry_iter, &variant_iter);
+    dbus_message_iter_close_container(&dict_iter, &entry_iter);
+  }
+
+  dbus_message_iter_close_container(&args, &dict_iter);
+}
+
+>>>>>>> master
 // Error handling and logging
 
 void MethodHandler::logMethodCall_unlocked(const std::string &interface_name,

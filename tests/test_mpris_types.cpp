@@ -282,32 +282,6 @@ bool test_metadata_partial_data() {
     return true;
 }
 
-// Main test runner
-int main() {
-    std::cout << "Running MPRIS Types unit tests..." << std::endl;
-    
-    bool all_passed = true;
-    
-    all_passed &= test_dbus_variant_construction();
-    all_passed &= test_dbus_variant_to_string();
-    all_passed &= test_mpris_metadata();
-    all_passed &= test_playback_status_conversions();
-    all_passed &= test_loop_status_conversions();
-    all_passed &= test_result_template();
-    all_passed &= test_result_void();
-    all_passed &= test_raii_deleters();
-    all_passed &= test_metadata_partial_data();
-    all_passed &= test_dbus_variant_dictionary();
-    
-    if (all_passed) {
-        std::cout << "All MPRIS Types tests PASSED!" << std::endl;
-        return 0;
-    } else {
-        std::cout << "Some MPRIS Types tests FAILED!" << std::endl;
-        return 1;
-    }
-}
-
 // Test DBusVariant with dictionary (nested)
 bool test_dbus_variant_dictionary() {
     std::cout << "Testing DBusVariant dictionary..." << std::endl;
@@ -340,6 +314,32 @@ bool test_dbus_variant_dictionary() {
     ASSERT_TRUE(s_outer.find("\"title\": \"Test Title\"") != std::string::npos);
 
     return true;
+}
+
+// Main test runner
+int main() {
+    std::cout << "Running MPRIS Types unit tests..." << std::endl;
+    
+    bool all_passed = true;
+    
+    all_passed &= test_dbus_variant_construction();
+    all_passed &= test_dbus_variant_to_string();
+    all_passed &= test_mpris_metadata();
+    all_passed &= test_playback_status_conversions();
+    all_passed &= test_loop_status_conversions();
+    all_passed &= test_result_template();
+    all_passed &= test_result_void();
+    all_passed &= test_raii_deleters();
+    all_passed &= test_metadata_partial_data();
+    all_passed &= test_dbus_variant_dictionary();
+    
+    if (all_passed) {
+        std::cout << "All MPRIS Types tests PASSED!" << std::endl;
+        return 0;
+    } else {
+        std::cout << "Some MPRIS Types tests FAILED!" << std::endl;
+        return 1;
+    }
 }
 
 #else // !HAVE_DBUS
