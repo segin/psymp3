@@ -74,7 +74,7 @@ DecodeResult decodeFile(const std::string& filename, const std::string& format) 
         }
         
         // Get stream info
-        StreamInfo streamInfo = demuxer->getStreamInfo();
+        StreamInfo streamInfo = demuxer->getStreams()[0];
         result.sample_rate = streamInfo.sample_rate;
         result.channels = streamInfo.channels;
         result.bit_depth = streamInfo.bits_per_sample;
@@ -86,7 +86,7 @@ DecodeResult decodeFile(const std::string& filename, const std::string& format) 
         }
         
         // Decode all frames
-        MediaChunk chunk = demuxer->getNextChunk();
+        MediaChunk chunk = demuxer->readChunk(demuxer->getStreams()[0].stream_id);
         bool capturedFirstSamples = false;
         
         while (!chunk.data.empty()) {
@@ -113,7 +113,7 @@ DecodeResult decodeFile(const std::string& filename, const std::string& format) 
                 }
             }
             
-            chunk = demuxer->getNextChunk();
+            chunk = demuxer->readChunk(demuxer->getStreams()[0].stream_id);
         }
         
         result.success = true;

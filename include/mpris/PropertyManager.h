@@ -53,8 +53,9 @@ public:
      * @param artist Artist name
      * @param title Track title  
      * @param album Album name
+     * @param length_us Track length in microseconds (0 if unknown)
      */
-    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album);
+    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us = 0);
     
     /**
      * Update cached playback status
@@ -73,6 +74,9 @@ public:
      * @param status New loop status
      */
     void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
+
+    void updateShuffle(bool shuffle);
+    bool updateVolume(double volume);
 
     /**
      * Get current playback status as string for D-Bus
@@ -97,6 +101,9 @@ public:
      * @return Current loop status
      */
     PsyMP3::MPRIS::LoopStatus getLoopStatus() const;
+
+    bool getShuffle() const;
+    double getVolume() const;
     
     /**
      * Get track length in microseconds
@@ -142,15 +149,19 @@ public:
 private:
     // Private implementations - assume locks are already held
     
-    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album);
+    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us);
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
     void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);
+    void updateShuffle_unlocked(bool shuffle);
+    bool updateVolume_unlocked(double volume);
     
     std::string getPlaybackStatus_unlocked() const;
     std::map<std::string, PsyMP3::MPRIS::DBusVariant> getMetadata_unlocked() const;
     uint64_t getPosition_unlocked() const;
     PsyMP3::MPRIS::LoopStatus getLoopStatus_unlocked() const;
+    bool getShuffle_unlocked() const;
+    double getVolume_unlocked() const;
     uint64_t getLength_unlocked() const;
     
     bool canGoNext_unlocked() const;
@@ -185,13 +196,14 @@ private:
     // Loop status
     PsyMP3::MPRIS::LoopStatus m_loop_status;
 
+    bool m_shuffle;
+    double m_volume{1.0};
+
     // Position tracking with timestamp-based interpolation
     uint64_t m_position_us;
     std::chrono::steady_clock::time_point m_position_timestamp;
     
     // Control capabilities cache
-    bool m_can_go_next;
-    bool m_can_go_previous;
     bool m_can_seek;
     bool m_can_control;
     

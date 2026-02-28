@@ -25,6 +25,14 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include <algorithm>
+#include <vector>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <atomic>
+#include <future>
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
@@ -43,7 +51,7 @@ bool OggDemuxer::registerDemuxer() {
 
 OggDemuxer::OggDemuxer(std::unique_ptr<PsyMP3::IO::IOHandler> handler)
     : Demuxer(std::move(handler)), m_primary_serial(0), m_has_primary_serial(false), m_eof(false),
-      m_duration_calculated(false), m_cached_duration(0) {
+      m_duration_calculated(false), m_cached_duration(0), m_calculating_duration(false) {
 
   // Demuxer base class owns the IOHandler.
   // OggSyncManager takes a raw pointer to use it.
@@ -72,6 +80,10 @@ bool OggDemuxer::parseContainer() {
     if (result != 1) {
       Debug::log("ogg", "OggDemuxer::parseContainer() failed after ",
                  page_count, " pages, streams found: ", m_streams.size());
+      if (!m_streams.empty()) {
+          createTagFromMetadata_unlocked();
+          calculateInitialDuration_unlocked();
+      }
       return !m_streams.empty(); // OK if we found at least one stream
     }
     page_count++;
@@ -193,6 +205,7 @@ bool OggDemuxer::parseContainer() {
   // Create tag from parsed VorbisComment data
   if (!m_streams.empty()) {
     createTagFromMetadata_unlocked();
+    calculateInitialDuration_unlocked();
   }
 
   return !m_streams.empty();
@@ -235,6 +248,20 @@ void OggDemuxer::createTagFromMetadata_unlocked() {
     );
     
     Debug::log("ogg", "OggDemuxer::createTagFromMetadata_unlocked: VorbisCommentTag created successfully");
+}
+
+void OggDemuxer::calculateInitialDuration_unlocked() {
+    // Pre-calculate duration to avoid blocking UI thread later
+    if (m_has_primary_serial && !m_streams.empty()) {
+        auto it = m_streams.find(m_primary_serial);
+        if (it != m_streams.end()) {
+            Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: Calculating duration...");
+            OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
+            m_cached_duration = static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
+            m_duration_calculated = true;
+            Debug::log("ogg", "OggDemuxer::calculateInitialDuration_unlocked: Calculated duration: ", m_cached_duration, "ms");
+        }
+    }
 }
 
 std::vector<StreamInfo> OggDemuxer::getStreams() const {
@@ -304,23 +331,14 @@ bool OggDemuxer::isEOF() const {
 }
 
 uint64_t OggDemuxer::getDuration() const {
-  std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
-
+  // Fast path check without lock (atomics)
   if (m_duration_calculated) {
     return m_cached_duration;
   }
 
-  if (!m_has_primary_serial || m_streams.empty())
-    return 0;
-
-  // Use seeking engine to calculate
-  auto it = m_streams.find(m_primary_serial);
-  if (it == m_streams.end())
-    return 0;
-
-  OggSeekingEngine engine(*m_sync, *it->second, getSampleRate());
-  m_cached_duration = static_cast<uint64_t>(engine.calculateDuration() * 1000.0);
-  m_duration_calculated = true;
+  std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
+  // Duration is pre-calculated in parseContainer() to avoid blocking
+  return m_cached_duration;
   return m_cached_duration;
 }
 
