@@ -732,100 +732,23 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
     }
 }
 
-void Player::renderSpectrum()
-{
-    // Update spectrum data in the widget - it will render itself via the widget tree
-    float *spectrum = fft->getFFT();
-    if (m_spectrum_widget) {
-        // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
-        // Pass live scalefactor and decayfactor values so keypress changes propagate
-        m_spectrum_widget->updateSpectrum(spectrum, 320, scalefactor, decayfactor);
-    }
-}
-
-void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
-{
-    // --- Lyrics Widget Update ---
-    // Note: Rendering is handled by the widget system (ApplicationWidget::BlitTo)
-    if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
-        m_lyrics_widget->updatePosition(current_pos_ms);
-    }
-
-    // --- Pause Indicator Rendering ---
-    // This should be drawn after the toast so it appears on top if both are active.
-    if (m_pause_indicator) {
-        // Center the indicator in the graph area
-        const Rect& current_pos = m_pause_indicator->getPos();
-        Rect new_pos = current_pos;
-        new_pos.x((graph->width() - current_pos.width()) / 2);
-        new_pos.y((350 - current_pos.height()) / 2); // Center in the 350px FFT area
-        m_pause_indicator->setPos(new_pos);
-        m_pause_indicator->BlitTo(*graph);
-    }
-
-    // --- UI Widget Tree Rendering ---
-    // Clear areas where UI widgets will render to prevent ghosting
-    // Note: Don't clear spectrum area (0,0,640,350) - SpectrumAnalyzerWidget handles its own background
-    // Bottom area for track info labels (below spectrum area)
-    graph->box(0, 350, 640, 400, 0, 0, 0, 255);
-    // Top-right area for debug labels (over spectrum area)  
-    graph->box(545, 0, 640, 48, 0, 0, 0, 255);
-    
-    // Render ApplicationWidget hierarchy (background + windows)
-    if (m_ui_root) {
-        m_ui_root->BlitTo(*graph);
-    }
-    
-    // --- Window Rendering ---
-    // Update windows (handle auto-dismiss for toasts, etc.)
-    ApplicationWidget::getInstance().updateWindows();
-    // Render floating windows on top of everything else
-    renderWindows();
-}
-
-/**
- * @brief The main GUI update function, called on every frame.
- * This function is responsible for orchestrating all rendering. It locks shared data,
- * renders the spectrum, updates and renders overlay widgets (toasts, pause indicators),
- * handles pre-loading logic, draws the progress bar, and finally composes the scene
- * and flips the screen buffer.
- * @return `true` if the current track has ended, `false` otherwise.
- */
-bool Player::updateGUI()
-{
-    Player::guiRunning = true;
-    unsigned long current_pos_ms = 0;
-    unsigned long total_len_ms = 0;
-    TagLib::String artist = "";
-    TagLib::String title = "";
-    Stream* current_stream = nullptr; // Declare here
-
-    // --- GUI Update Logic ---
-    // --- Start of critical section ---
-    // Lock the mutex only while accessing shared data (stream, fft).
-    {
-        std::lock_guard<std::mutex> lock(*mutex);
-
-        updateState(current_stream, current_pos_ms, total_len_ms, artist, title);
-        renderSpectrum();
-    }
-    // --- End of critical section ---
-
-    renderOverlay(current_stream, current_pos_ms);
+    // Now use the copied data for rendering, outside the lock.
+    if(current_stream) {
+        renderOverlay(current_stream, current_pos_ms);
 
 #ifdef HAVE_DBUS
-    // Update MPRIS position (outside of Player mutex to avoid deadlocks)
-    if (m_mpris_manager && current_stream && state == PlayerState::Playing) {
-        // Update position periodically (convert ms to microseconds)
-        static Uint32 last_position_update = 0;
-        Uint32 current_time = SDL_GetTicks();
-        if (current_time - last_position_update > 1000) { // Update every second
-            m_mpris_manager->updatePosition(static_cast<uint64_t>(current_pos_ms) * 1000);
-            last_position_update = current_time;
+        // Update MPRIS position (outside of Player mutex to avoid deadlocks)
+        if (m_mpris_manager && state == PlayerState::Playing) {
+            // Update position periodically (convert ms to microseconds)
+            static Uint32 last_position_update = 0;
+            Uint32 current_time = SDL_GetTicks();
+            if (current_time - last_position_update > 1000) { // Update every second
+                m_mpris_manager->updatePosition(static_cast<uint64_t>(current_pos_ms) * 1000);
+                last_position_update = current_time;
+            }
         }
-    }
 #endif
-
+    }
     // Now use the copied data for rendering, outside the lock.
     if(current_stream) {
         m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
