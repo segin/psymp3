@@ -44,5 +44,4 @@ libpsymp3_widget_ui_a_SOURCES = \
 	SpectrumAnalyzerWidget.cpp \
 	Label.cpp \
 	LyricsWidget.cpp \
-	ToastWidget.cpp \
-	ToastNotification.cpp
+	ToastWidget.cpp

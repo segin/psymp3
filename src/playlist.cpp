@@ -51,6 +51,9 @@ bool Playlist::addFile(TagLib::String path)
     try {
         // Construct track directly in the vector. The track constructor will handle tag loading.
         tracks.emplace_back(path);
+        if (m_shuffle) {
+            m_shuffled_indices.push_back(tracks.size() - 1);
+        }
         Debug::log("playlist", "Playlist::addFile(): Successfully added file: ", path.to8Bit(true));
         return true;
     } catch (const std::exception& e) {
@@ -77,6 +80,9 @@ bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::Strin
     // Construct track directly in the vector, passing EXTINF data.
     // The track constructor will handle creating TagLib::FileRef if needed.
     tracks.emplace_back(path, artist, title, duration);
+    if (m_shuffle) {
+        m_shuffled_indices.push_back(tracks.size() - 1);
+    }
     return true;
 }
 
@@ -87,7 +93,7 @@ bool Playlist::addFile(TagLib::String path, TagLib::String artist, TagLib::Strin
  * @brief Gets the current playback position (index) in the playlist.
  * @return The zero-based index of the currently playing or selected track.
  */
-long Playlist::getPosition(void)
+long Playlist::getPosition(void) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_position;
@@ -97,7 +103,7 @@ long Playlist::getPosition(void)
  * @brief Gets the total number of tracks in the playlist.
  * @return The total number of entries.
  */
-long Playlist::entries(void)
+long Playlist::entries(void) const
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return tracks.size();
@@ -149,9 +155,22 @@ TagLib::String Playlist::next()
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (tracks.empty()) return "";
-    m_position++;
-    if (static_cast<size_t>(m_position) >= tracks.size()) {
-        m_position = 0; // Wrap around to the beginning
+
+    if (m_shuffle) {
+        if (m_shuffled_indices.size() != tracks.size()) {
+            repopulateShuffleIndices();
+        }
+
+        m_shuffle_index++;
+        if (static_cast<size_t>(m_shuffle_index) >= m_shuffled_indices.size()) {
+            m_shuffle_index = 0; // Wrap around
+        }
+        m_position = m_shuffled_indices[m_shuffle_index];
+    } else {
+        m_position++;
+        if (static_cast<size_t>(m_position) >= tracks.size()) {
+            m_position = 0; // Wrap around to the beginning
+        }
     }
     return getTrack_unlocked(m_position);
 }
@@ -166,10 +185,24 @@ TagLib::String Playlist::prev()
 {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (tracks.empty()) return "";
-    if (m_position > 0) {
-        m_position--;
+
+    if (m_shuffle) {
+        if (m_shuffled_indices.size() != tracks.size()) {
+            repopulateShuffleIndices();
+        }
+
+        if (m_shuffle_index > 0) {
+            m_shuffle_index--;
+        } else {
+            m_shuffle_index = m_shuffled_indices.size() - 1; // Wrap around
+        }
+        m_position = m_shuffled_indices[m_shuffle_index];
     } else {
-        m_position = tracks.size() - 1; // Wrap around to the end
+        if (m_position > 0) {
+            m_position--;
+        } else {
+            m_position = tracks.size() - 1; // Wrap around to the end
+        }
     }
     return getTrack_unlocked(m_position);
 }
@@ -187,12 +220,58 @@ TagLib::String Playlist::peekNext() const
         return "";
     }
 
-    long next_pos = m_position + 1;
-    if (static_cast<size_t>(next_pos) >= tracks.size()) {
-        next_pos = 0; // Wrap around
+    long next_pos;
+    if (m_shuffle && m_shuffled_indices.size() == tracks.size()) {
+        long next_shuffle_idx = m_shuffle_index + 1;
+        if (static_cast<size_t>(next_shuffle_idx) >= m_shuffled_indices.size()) {
+            next_shuffle_idx = 0; // Wrap around
+        }
+        next_pos = m_shuffled_indices[next_shuffle_idx];
+    } else {
+        next_pos = m_position + 1;
+        if (static_cast<size_t>(next_pos) >= tracks.size()) {
+            next_pos = 0; // Wrap around
+        }
     }
     
     return getTrack_unlocked(next_pos);
+}
+
+void Playlist::setShuffle(bool enabled)
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    if (m_shuffle == enabled) return;
+
+    m_shuffle = enabled;
+    if (m_shuffle) {
+        repopulateShuffleIndices();
+        // Find current track in shuffled list to maintain continuity
+        if (!tracks.empty()) {
+            auto it = std::find(m_shuffled_indices.begin(), m_shuffled_indices.end(), m_position);
+            if (it != m_shuffled_indices.end()) {
+                m_shuffle_index = std::distance(m_shuffled_indices.begin(), it);
+            } else {
+                m_shuffle_index = 0;
+            }
+        }
+    }
+}
+
+bool Playlist::isShuffle() const
+{
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+    return m_shuffle;
+}
+
+void Playlist::repopulateShuffleIndices()
+{
+    // Assumes mutex is held
+    m_shuffled_indices.resize(tracks.size());
+    std::iota(m_shuffled_indices.begin(), m_shuffled_indices.end(), 0);
+
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(m_shuffled_indices.begin(), m_shuffled_indices.end(), g);
 }
 
 /**
