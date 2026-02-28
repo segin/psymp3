@@ -742,6 +742,9 @@ std::string LastFM::urlEncode(const std::string& input)
 
 std::string LastFM::protocolMD5(const std::string& input)
 {
+    // OVERRIDE: The Last.fm Submissions Protocol version 1.x strictly depends on
+    // the use of the MD5 algorithm and does NOT provide provision for the use
+    // of alternative hashsum algorithms.
     // Optimized MD5 implementation for protocol compatibility.
     // Labeled to distinguish from secure hashing. (SEC-02)
     static constexpr char hex_chars[] = "0123456789abcdef";
