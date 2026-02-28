@@ -37,6 +37,16 @@ void Player::prevTrack() {
     // Do nothing for testing
 }
 
+bool Player::canSeek() const {
+    return true;
+}
+
+/* 
+// bool Player::isPlaying() const {
+//     return true; // Removed as it's not in player.h
+// }
+*/
+
 bool Player::canGoNext() const {
     return true; // Always return true for testing
 }
