@@ -57,9 +57,9 @@ void MPRISManager::shutdown() {
     shutdown_unlocked();
 }
 
-void MPRISManager::updateMetadata(const std::string& artist, const std::string& title, const std::string& album) {
+void MPRISManager::updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us) {
     std::lock_guard<std::mutex> lock(m_mutex);
-    updateMetadata_unlocked(artist, title, album);
+    updateMetadata_unlocked(artist, title, album, length_us);
 }
 
 void MPRISManager::updatePlaybackStatus(PlaybackStatus status) {
@@ -75,6 +75,16 @@ void MPRISManager::updatePosition(uint64_t position_us) {
 void MPRISManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
     std::lock_guard<std::mutex> lock(m_mutex);
     updateLoopStatus_unlocked(status);
+}
+
+void MPRISManager::updateShuffle(bool shuffle) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    updateShuffle_unlocked(shuffle);
+}
+
+void MPRISManager::updateVolume(double volume) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    updateVolume_unlocked(volume);
 }
 
 void MPRISManager::notifySeeked(uint64_t position_us) {
@@ -225,7 +235,7 @@ void MPRISManager::shutdown_unlocked() {
     logInfo_unlocked("MPRIS system shutdown complete");
 }
 
-void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album) {
+void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us) {
     MPRIS_MEASURE_LOCK("MPRISManager::updateMetadata");
     
     if (!isInitialized_unlocked() || !m_properties) {
@@ -239,10 +249,10 @@ void MPRISManager::updateMetadata_unlocked(const std::string& artist, const std:
         return; // Feature disabled due to degradation
     }
     
-    MPRIS_LOG_TRACE("MPRISManager", "Updating metadata: artist='" + artist + "', title='" + title + "', album='" + album + "'");
+    MPRIS_LOG_TRACE("MPRISManager", "Updating metadata: artist='" + artist + "', title='" + title + "', album='" + album + "', length='" + std::to_string(length_us) + "'");
     
     try {
-        m_properties->updateMetadata(artist, title, album);
+        m_properties->updateMetadata(artist, title, album, length_us);
         emitPropertyChanges_unlocked();
         MPRIS_LOG_DEBUG("MPRISManager", "Metadata updated successfully");
     } catch (const std::exception& e) {
@@ -294,6 +304,47 @@ void MPRISManager::updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status) {
             MPRISError::Severity::Error,
             "Failed to update loop status: " + std::string(e.what()),
             "updateLoopStatus",
+            MPRISError::RecoveryStrategy::Retry
+        );
+        handleError_unlocked(error);
+    }
+}
+
+void MPRISManager::updateShuffle_unlocked(bool shuffle) {
+    if (!isInitialized_unlocked() || !m_properties) {
+        return;
+    }
+
+    try {
+        m_properties->updateShuffle(shuffle);
+        emitPropertyChanges_unlocked();
+    } catch (const std::exception& e) {
+        MPRISError error(
+            MPRISError::Category::PlayerState,
+            MPRISError::Severity::Error,
+            "Failed to update shuffle status: " + std::string(e.what()),
+            "updateShuffle",
+            MPRISError::RecoveryStrategy::Retry
+        );
+        handleError_unlocked(error);
+    }
+}
+
+void MPRISManager::updateVolume_unlocked(double volume) {
+    if (!isInitialized_unlocked() || !m_properties) {
+        return;
+    }
+
+    try {
+        if (m_properties->updateVolume(volume)) {
+            emitPropertyChanges_unlocked();
+        }
+    } catch (const std::exception& e) {
+        MPRISError error(
+            MPRISError::Category::PlayerState,
+            MPRISError::Severity::Error,
+            "Failed to update volume: " + std::string(e.what()),
+            "updateVolume",
             MPRISError::RecoveryStrategy::Retry
         );
         handleError_unlocked(error);
@@ -749,7 +800,7 @@ void MPRISManager::reportErrorToPlayer_unlocked(const MPRISError& error) {
         logError_unlocked("reportErrorToPlayer", "User notification: " + user_message);
         
         if (m_player) {
-            m_player->showMPRISError(user_message);
+            m_player->showNotification(user_message, Player::NotificationType::MPRISError);
         }
     }
 }
@@ -907,9 +958,11 @@ Result<void> MPRISManager::initialize() {
 }
 
 void MPRISManager::shutdown() {}
-void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&) {}
+void MPRISManager::updateMetadata(const std::string&, const std::string&, const std::string&, uint64_t) {}
 void MPRISManager::updatePlaybackStatus(PlaybackStatus) {}
 void MPRISManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus) {}
+void MPRISManager::updateShuffle(bool) {}
+void MPRISManager::updateVolume(double) {}
 void MPRISManager::updatePosition(uint64_t) {}
 void MPRISManager::notifySeeked(uint64_t) {}
 bool MPRISManager::isInitialized() const { return false; }

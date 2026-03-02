@@ -22,7 +22,7 @@
  */
 
 #include "psymp3.h"
-#include "SpectrumColors.h"
+#include "core/SpectrumConfig.h"
 
 namespace PsyMP3 {
 namespace Widget {
@@ -257,11 +257,8 @@ uint32_t SpectrumAnalyzerWidget::getSpectrumColor(float value, int position, Sur
         case 0: // Original spectrum colors (exact old renderSpectrum algorithm)
             {
                 // Use position directly (should be 0-319 for 320 bands)
-                // Use the refactored SpectrumColorConfig
-                uint8_t r, g, b;
-                // Since SpectrumColorConfig::getRGB takes uint16_t, verify bounds or just cast
-                SpectrumColorConfig::getRGB(static_cast<uint16_t>(position), r, g, b);
-                return surface.MapRGB(r, g, b);
+                auto color = PsyMP3::Core::SpectrumConfig::getBarColor(static_cast<uint16_t>(position));
+                return surface.MapRGB(color.r, color.g, color.b);
             }
         case 1: // Simple position-based rainbow (not amplitude-based)
             {

@@ -22,21 +22,21 @@
  */
 
 #include "psymp3.h"
-#include "SpectrumColors.h"
+#include <utility>
+#include "core/SpectrumConfig.h"
+
 
 std::atomic<bool> Player::guiRunning{false};
 
-static std::string convertInt(long number) {
-   std::stringstream ss;
-   ss << number;
-   return ss.str();
-}
-
-static std::string convertInt2(long number) {
+static std::string convertInt(long number, int width = 0) {
     std::stringstream ss;
-    ss << std::setw(2) << std::setfill('0') << number;
+    if (width > 0) {
+        ss << std::setw(width) << std::setfill('0');
+    }
+    ss << number;
     return ss.str();
 }
+
 
 Player::Player() {
     Debug::log("player", "PsyMP3 version ", PSYMP3_VERSION, ".");
@@ -312,9 +312,9 @@ void Player::toggleMPRISErrorNotifications() {
     showToast("MPRIS Errors: " + state);
 }
 
-void Player::showMPRISError(const std::string& message) {
-    auto* msg_ptr = new std::string(message);
-    synthesizeUserEvent(SHOW_MPRIS_ERROR, msg_ptr, nullptr);
+void Player::showNotification(const std::string& message, NotificationType type) {
+    auto* data = new std::pair<std::string, NotificationType>(message, type);
+    synthesizeUserEvent(SHOW_NOTIFICATION, data, nullptr);
 }
 
 /**
@@ -328,6 +328,16 @@ void Player::nextTrack(size_t advance_count) {
     if (advance_count == 0) advance_count = 1;
     if (!playlist || playlist->entries() == 0) {
         stop();
+        return;
+    }
+
+    if (playlist->isShuffle()) {
+        TagLib::String next_path;
+        for (size_t i = 0; i < advance_count; ++i) {
+            next_path = playlist->next();
+        }
+        m_skip_attempts = 0;
+        requestTrackLoad(next_path);
         return;
     }
 
@@ -361,6 +371,15 @@ void Player::nextTrack(size_t advance_count) {
  */
 void Player::prevTrack(void) {
     m_navigation_direction = -1;
+    if (!playlist || playlist->entries() == 0) return;
+
+    if (playlist->isShuffle()) {
+        TagLib::String prev_path = playlist->prev();
+        m_skip_attempts = 0;
+        requestTrackLoad(prev_path);
+        return;
+    }
+
     long new_pos = playlist->getPosition() - 1;
 
     if (new_pos < 0) {
@@ -376,6 +395,38 @@ void Player::prevTrack(void) {
     m_skip_attempts = 0; // Reset skip counter for new navigation
     requestTrackLoad(playlist->getTrack(new_pos));
 }
+
+bool Player::canGoPrevious() const {
+    if (!playlist || playlist->entries() == 0) return false;
+
+    if (m_loop_mode == LoopMode::All) return true;
+
+    if (playlist->getPosition() > 0) return true;
+
+    // At position 0, LoopMode::None.
+    // Check if we can seek to 0 (restart).
+    // This requires a stream.
+    if (mutex) {
+        std::lock_guard<std::mutex> lock(*mutex);
+        return stream != nullptr;
+    }
+
+    return false;
+}
+
+bool Player::canGoNext() const {
+    if (!playlist || playlist->entries() == 0) return false;
+
+    if (m_loop_mode == LoopMode::All) return true;
+
+    // LoopMode::None
+    if (playlist->getPosition() < playlist->entries() - 1) return true;
+
+    // At last track. Next stops playback.
+    return false;
+}
+
+
 
 /**
  * @brief Stops playback completely.
@@ -508,6 +559,17 @@ void Player::seekTo(unsigned long pos)
 }
 
 /**
+ * @brief Checks if the current stream supports seeking.
+ * This is a thread-safe operation.
+ * @return true if seeking is supported, false otherwise.
+ */
+bool Player::canSeek() const
+{
+    std::lock_guard<std::mutex> lock(*mutex);
+    return stream && stream->canSeek();
+}
+
+/**
  * @brief Pre-calculates the color gradient for the spectrum analyzer.
  * This is done once at startup to avoid expensive color calculations in the main render loop.
  */
@@ -519,91 +581,16 @@ void Player::precomputeSpectrumColors() {
     }
     Debug::log("player", "graph is valid.");
 
-    m_spectrum_colors.resize(SpectrumColorConfig::TOTAL_BINS);
-    for (uint16_t x = 0; x < SpectrumColorConfig::TOTAL_BINS; ++x) {
-        uint8_t r, g, b;
-        SpectrumColorConfig::getRGB(x, r, g, b);
-        // Debug::log("player", "x: ", x, " r: ", (int)r, " g: ", (int)g, " b: ", (int)b);
-        m_spectrum_colors[x] = graph->MapRGBA(r, g, b, 255);
+    m_spectrum_colors.resize(PsyMP3::Core::SpectrumConfig::NumBands);
+    for (uint16_t x = 0; x < PsyMP3::Core::SpectrumConfig::NumBands; ++x) {
+        auto color = PsyMP3::Core::SpectrumConfig::getBarColor(x);
+        // Debug::log("player", "x: ", x, " r: ", (int)color.r, " g: ", (int)color.g, " b: ", (int)color.b);
+        m_spectrum_colors[x] = graph->MapRGBA(color.r, color.g, color.b, 255);
     }
     Debug::log("player", "precomputeSpectrumColors finished.");
 }
 
-/**
- * @brief Renders the spectrum analyzer visualization onto a given surface.
- * This includes the falling-bar visualization and the "ghosting" or fade effect,
- * which is achieved by blitting a semi-transparent black rectangle over the previous frame.
- * @param graph The destination surface to draw the spectrum on.
- */
-void Player::renderSpectrum(Surface *graph) {
-    float *spectrum = fft->getFFT();
-    
-    // DEBUG: Print some spectrum values to understand the data range
-    static int debug_counter = 0;
-    if (debug_counter++ % 60 == 0) { // Print every 60 frames (~1 second at 60fps)
-        std::stringstream ss;
-        ss << "DEBUG: Spectrum values [0-9]: ";
-        for (int i = 0; i < 10; i++) {
-            ss << spectrum[i] << " ";
-        }
-        ss << "| scale=" << scalefactor;
-        Debug::log("spectrum", ss.str());
-    }
 
-    // --- Fade effect implementation ---
-    static std::unique_ptr<Surface> fade_surface_ptr; // Declared static to persist across calls
-    static uint8_t cached_fade_alpha = 255; // Cache the last alpha value to avoid redundant SetAlpha calls
-    
-    // The fade surface is created once and reused. It's filled with opaque black
-    // only upon creation, avoiding a FillRect call on every frame.
-    if (!fade_surface_ptr || fade_surface_ptr->width() != 640 || fade_surface_ptr->height() != 350) {
-        fade_surface_ptr = std::make_unique<Surface>(640, 350); // Creates a 32-bit surface for FFT area only
-        // Fill the surface with opaque black. This only needs to be done once.
-        fade_surface_ptr->FillRect(fade_surface_ptr->MapRGBA(0, 0, 0, 255));
-        cached_fade_alpha = 255; // Reset cache when surface is recreated
-    }
-    Surface& fade_surface = *fade_surface_ptr;
-
-    // Calculate alpha for the fade (0-255). decayfactor from 0.5 to 2.0
-    uint8_t fade_alpha = (uint8_t)(255 * (decayfactor / 8.0f)); // Reduced fade strength: divisor increased from 4.0 to 8.0
-
-    // Only call SetAlpha if the fade_alpha has changed to avoid redundant SDL calls
-    if (fade_alpha != cached_fade_alpha) {
-        fade_surface.SetAlpha(SDL_SRCALPHA, fade_alpha);
-        cached_fade_alpha = fade_alpha;
-    }
-    
-    // Use static rect to avoid repeated object construction
-    static const Rect blit_dest_rect(0, 0, 640, 350); // Blit only to the FFT area
-    graph->Blit(fade_surface, blit_dest_rect); // This will blend if SDL_SRCALPHA is set on src
-
-    // --- End Fade effect implementation ---
-
-    // Cache constants to reduce repeated calculations
-    constexpr int16_t spectrum_height = 350;
-    constexpr int16_t spectrum_bottom = 349; // Bottom of the FFT area (0-349 for 350 pixels)
-    constexpr uint16_t spectrum_bins = 320;
-    
-    for(uint16_t x = 0; x < spectrum_bins; x++) {
-        // Calculate the bar's height with fewer intermediate calculations
-        // Apply gain to amplify weak signals before logarithmic scaling
-        const float gained_amplitude = spectrum[x] * 5.0f; // Amplify by 5x
-        const float scaled_amplitude = Util::logarithmicScale(scalefactor, gained_amplitude);
-        const int16_t y_start = static_cast<int16_t>(spectrum_bottom - scaled_amplitude * spectrum_height);
-        const int16_t x_pos = x * 2;
-        
-        // DEBUG: Print some bar calculations
-        if (debug_counter % 60 == 1 && x < 5) { // Different frame to avoid overlap, first 5 bars
-            Debug::log("spectrum", "DEBUG bar ", x, ": raw=", spectrum[x], 
-                      " gained=", gained_amplitude,
-                      " scaled=", scaled_amplitude, 
-                      " y_start=", y_start);
-        }
-        
-        // Use box() instead of rectangle() for better performance (SDL_FillRect vs hline loop)
-        graph->box(x_pos, y_start, x_pos + 1, spectrum_bottom, m_spectrum_colors[x]);
-    };
-}
 
 /**
  * @brief Updates the text of all on-screen labels.
@@ -648,110 +635,88 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
     m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
 }
 
-/**
- * @brief The main GUI update function, called on every frame.
- * This function is responsible for orchestrating all rendering. It locks shared data,
- * renders the spectrum, updates and renders overlay widgets (toasts, pause indicators),
- * handles pre-loading logic, draws the progress bar, and finally composes the scene
- * and flips the screen buffer.
- * @return `true` if the current track has ended, `false` otherwise.
- */
-bool Player::updateGUI()
+void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title)
 {
-    Player::guiRunning = true;
-    unsigned long current_pos_ms = 0;
-    unsigned long total_len_ms = 0;
-    TagLib::String artist = "";
-    TagLib::String title = "";
-    Stream* current_stream = nullptr; // Declare here
+    // Don't clear the graph surface - widgets will draw their own backgrounds
 
-    // --- GUI Update Logic ---
-    // --- Start of critical section ---
-    // Lock the mutex only while accessing shared data (stream, fft).
-    {
-        std::lock_guard<std::mutex> lock(*mutex);
-
-        // Don't clear the graph surface - widgets will draw their own backgrounds
-
-        // Copy data from stream object while locked
-        if (audio && audio->getCurrentStream()) {
-            current_stream = audio->getCurrentStream(); // Assign here
-            // During a keyboard seek, we use our manually-controlled position for
-            // instant visual feedback. Otherwise, get the position from the stream.
-            if (m_seek_direction != 0) {
-                current_pos_ms = m_seek_position_ms;
+    // Copy data from stream object while locked
+    if (audio && audio->getCurrentStream()) {
+        current_stream = audio->getCurrentStream(); // Assign here
+        // During a keyboard seek, we use our manually-controlled position for
+        // instant visual feedback. Otherwise, get the position from the stream.
+        if (m_seek_direction != 0) {
+            current_pos_ms = m_seek_position_ms;
+        } else {
+            if (audio) {
+                current_pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
             } else {
-                if (audio) {
-                    current_pos_ms = (audio->getSamplesPlayed() * 1000) / audio->getRate();
-                } else {
-                    current_pos_ms = 0;
-                }
-                Debug::log("player", "Player: User visible position=", current_pos_ms, "ms, total_len=", current_stream->getLength(), "ms");
+                current_pos_ms = 0;
             }
-            total_len_ms = current_stream->getLength();
-            artist = current_stream->getArtist();
-            title = current_stream->getTitle();
-            
-            // Check if we should scrobble this track (only check every 30 seconds to avoid spam)
-            if (state == PlayerState::Playing) {
-                static Uint32 last_scrobble_check = 0;
-                Uint32 current_time = SDL_GetTicks();
-                if (current_time - last_scrobble_check > 30000) { // Check every 30 seconds
-                    checkScrobbling();
-                    last_scrobble_check = current_time;
-                }
-            }
+            Debug::log("player", "Player: User visible position=", current_pos_ms, "ms, total_len=", current_stream->getLength(), "ms");
+        }
+        total_len_ms = current_stream->getLength();
+        artist = current_stream->getArtist();
+        title = current_stream->getTitle();
 
-            // Trigger preloading when near the end of the track (last 10 seconds)
-            if (!m_next_stream && !m_preloading_track && total_len_ms > 0 && 
-                (total_len_ms - current_pos_ms) < 10000 && playlist && 
-                playlist->getPosition() < playlist->entries() - 1) {
+        // Check if we should scrobble this track (only check every 30 seconds to avoid spam)
+        if (state == PlayerState::Playing) {
+            static Uint32 last_scrobble_check = 0;
+            Uint32 current_time = SDL_GetTicks();
+            if (current_time - last_scrobble_check > 30000) { // Check every 30 seconds
+                checkScrobbling();
+                last_scrobble_check = current_time;
+            }
+        }
+
+        // Trigger preloading when near the end of the track (last 10 seconds)
+        if (!m_next_stream && !m_preloading_track && total_len_ms > 0 &&
+            (total_len_ms - current_pos_ms) < 10000 && playlist &&
+            playlist->getPosition() < playlist->entries() - 1) {
+
+            // Look ahead for sequences of short tracks and automatically chain them
+            std::vector<TagLib::String> short_track_chain;
+            long current_playlist_pos = playlist->getPosition();
+            long look_ahead_pos = current_playlist_pos + 1;
+
+            // Scan ahead for consecutive short tracks (< 10 seconds each)
+            while (look_ahead_pos < playlist->entries()) {
+                TagLib::String candidate_path = playlist->getTrack(look_ahead_pos);
+                if (candidate_path.isEmpty()) break;
                 
-                // Look ahead for sequences of short tracks and automatically chain them
-                std::vector<TagLib::String> short_track_chain;
-                long current_playlist_pos = playlist->getPosition();
-                long look_ahead_pos = current_playlist_pos + 1;
-                
-                // Scan ahead for consecutive short tracks (< 10 seconds each)
-                while (look_ahead_pos < playlist->entries()) {
-                    TagLib::String candidate_path = playlist->getTrack(look_ahead_pos);
-                    if (candidate_path.isEmpty()) break;
-                    
-                    // Use cached track metadata instead of blocking MediaFile::open()
-                    const track* track_info = playlist->getTrackInfo(look_ahead_pos);
-                    if (track_info) {
-                        long track_length = track_info->GetLen() * 1000; // Convert seconds to milliseconds
-                        if (track_length > 0 && track_length < 10000) {
-                            // Track is short, add to chain
-                            short_track_chain.push_back(candidate_path);
-                            look_ahead_pos++;
-                        } else if (track_length > 0) {
-                            // Found a normal-length track - include it to complete the transition
-                            short_track_chain.push_back(candidate_path);
-                            break;
-                        } else {
-                            // Unknown length (cached metadata may be unavailable), stop scanning to be safe
-                            break;
-                        }
+                // Use cached track metadata instead of blocking MediaFile::open()
+                const track* track_info = playlist->getTrackInfo(look_ahead_pos);
+                if (track_info) {
+                    long track_length = track_info->GetLen() * 1000; // Convert seconds to milliseconds
+                    if (track_length > 0 && track_length < 10000) {
+                        // Track is short, add to chain
+                        short_track_chain.push_back(candidate_path);
+                        look_ahead_pos++;
+                    } else if (track_length > 0) {
+                        // Found a normal-length track - include it to complete the transition
+                        short_track_chain.push_back(candidate_path);
+                        break;
                     } else {
-                        // No track info available, stop scanning
+                        // Unknown length (cached metadata may be unavailable), stop scanning to be safe
                         break;
                     }
-                }
-                
-                if (short_track_chain.size() >= 2) {
-                    // Use ChainedStream for sequences of 2+ tracks
-                    Debug::log("playlist", "Detected sequence of ", short_track_chain.size(), 
-                              " tracks for chaining, starting with: ", 
-                              short_track_chain[0].to8Bit(true));
-                    requestChainedStreamLoad(short_track_chain);
                 } else {
-                    // Single track or no short tracks found, use normal preloading
-                    TagLib::String next_path = playlist->peekNext();
-                    if (!next_path.isEmpty()) {
-                        Debug::log("loader", "Preloading next track for seamless transition: ", next_path.to8Bit(true));
-                        requestTrackPreload(next_path);
-                    }
+                    // No track info available, stop scanning to be safe
+                    break;
+                }
+            }
+
+            if (short_track_chain.size() >= 2) {
+                // Use ChainedStream for sequences of 2+ tracks
+                Debug::log("playlist", "Detected sequence of ", short_track_chain.size(),
+                          " tracks for chaining, starting with: ",
+                          short_track_chain[0].to8Bit(true));
+                requestChainedStreamLoad(short_track_chain);
+            } else {
+                // Single track or no short tracks found, use normal preloading
+                TagLib::String next_path = playlist->peekNext();
+                if (!next_path.isEmpty()) {
+                    Debug::log("loader", "Preloading next track for seamless transition: ", next_path.to8Bit(true));
+                    requestTrackPreload(next_path);
                 }
             }
         }
@@ -761,70 +726,37 @@ bool Player::updateGUI()
         if (m_spectrum_widget) {
             // Use 320 bands like the original renderSpectrum (first 320 of 512 FFT values)
             // Pass live scalefactor and decayfactor values so keypress changes propagate
-            m_spectrum_widget->updateSpectrum(spectrum, 320, scalefactor, decayfactor);
+            m_spectrum_widget->updateSpectrum(spectrum, PsyMP3::Core::SpectrumConfig::NumBands, scalefactor, decayfactor);
         }
+
     }
-
-#ifdef HAVE_DBUS
-    // Update MPRIS position (outside of Player mutex to avoid deadlocks)
-    if (m_mpris_manager && current_stream && state == PlayerState::Playing) {
-        // Update position periodically (convert ms to microseconds)
-        static Uint32 last_position_update = 0;
-        Uint32 current_time = SDL_GetTicks();
-        if (current_time - last_position_update > 1000) { // Update every second
-            m_mpris_manager->updatePosition(static_cast<uint64_t>(current_pos_ms) * 1000);
-            last_position_update = current_time;
-        }
-    }
-#endif
-
-    // --- Lyrics Widget Update ---
-    if (m_lyrics_widget && m_lyrics_widget->hasLyrics() && current_stream) {
-        m_lyrics_widget->updatePosition(current_pos_ms);
-    }
-
-    // --- Pause Indicator Rendering ---
-    // This should be drawn after the toast so it appears on top if both are active.
-    if (m_pause_indicator) {
-        // Center the indicator in the graph area
-        const Rect& current_pos = m_pause_indicator->getPos();
-        Rect new_pos = current_pos;
-        new_pos.x((graph->width() - current_pos.width()) / 2);
-        new_pos.y((350 - current_pos.height()) / 2); // Center in the 350px FFT area
-        m_pause_indicator->setPos(new_pos);
-        m_pause_indicator->BlitTo(*graph);
-    }
-
-    // --- UI Widget Tree Rendering ---
-    // Clear areas where UI widgets will render to prevent ghosting
-    // Note: Don't clear spectrum area (0,0,640,350) - SpectrumAnalyzerWidget handles its own background
-    // Bottom area for track info labels (below spectrum area)
-    graph->box(0, 350, 640, 400, 0, 0, 0, 255);
-    // Top-right area for debug labels (over spectrum area)  
-    graph->box(545, 0, 640, 48, 0, 0, 0, 255);
-    
-    // Render ApplicationWidget hierarchy (background + windows)
-    if (m_ui_root) {
-        m_ui_root->BlitTo(*graph);
-    }
-    
-    // --- Window Rendering ---
-    // Update windows (handle auto-dismiss for toasts, etc.)
-    ApplicationWidget::getInstance().updateWindows();
-    // Render floating windows on top of everything else
-    renderWindows();
-
-
-    // --- End of critical section ---
+}
 
     // Now use the copied data for rendering, outside the lock.
     if(current_stream) {
+        renderOverlay(current_stream, current_pos_ms);
+
+#ifdef HAVE_DBUS
+        // Update MPRIS position (outside of Player mutex to avoid deadlocks)
+        if (m_mpris_manager && state == PlayerState::Playing) {
+            // Update position periodically (convert ms to microseconds)
+            static Uint32 last_position_update = 0;
+            Uint32 current_time = SDL_GetTicks();
+            if (current_time - last_position_update > 1000) { // Update every second
+                m_mpris_manager->updatePosition(static_cast<uint64_t>(current_pos_ms) * 1000);
+                last_position_update = current_time;
+            }
+        }
+#endif
+    }
+    // Now use the copied data for rendering, outside the lock.
+    if(current_stream) {
         m_labels.at("position")->setText("Position: " + convertInt(current_pos_ms / 60000)
-                                + ":" + convertInt2((current_pos_ms / 1000) % 60)
-                                + "." + convertInt2((current_pos_ms / 10) % 100)
+                                + ":" + convertInt((current_pos_ms / 1000) % 60, 2)
+                                + "." + convertInt((current_pos_ms / 10) % 100, 2)
                                 + "/" + convertInt(total_len_ms / 60000)
-                                + ":" + convertInt2((total_len_ms / 1000) % 60)
-                                + "." + convertInt2((total_len_ms / 10) % 100));
+                                + ":" + convertInt((total_len_ms / 1000) % 60, 2)
+                                + "." + convertInt((total_len_ms / 10) % 100, 2));
         screen->SetCaption("PsyMP3 " PSYMP3_VERSION +
                         (std::string) " -:[ " + artist.to8Bit(true) + " ] :-" + " -- -:[ " +
                         title.to8Bit(true) + " ] :-", "PsyMP3 " PSYMP3_VERSION);
@@ -1278,7 +1210,8 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
                     m_mpris_manager->updateMetadata(
                         stream->getArtist().to8Bit(true), 
                         stream->getTitle().to8Bit(true), 
-                        stream->getAlbum().to8Bit(true)
+                        stream->getAlbum().to8Bit(true),
+                        static_cast<uint64_t>(stream->getLength()) * 1000
                     );
                 }
             }
@@ -1395,14 +1328,39 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
             }
             break;
         }
-        case SHOW_MPRIS_ERROR:
+        case SHOW_NOTIFICATION:
         {
-            std::string* msg_ptr = static_cast<std::string*>(event.data1);
-            if (msg_ptr) {
-                if (m_show_mpris_errors) {
-                    showToast("MPRIS Error:\n" + *msg_ptr, 4000);
+            auto* data = static_cast<std::pair<std::string, NotificationType>*>(event.data1);
+            if (data) {
+                std::string msg = data->first;
+                NotificationType type = data->second;
+
+                bool show = true;
+                Uint32 duration = 2000;
+                std::string prefix = "";
+
+                switch (type) {
+                    case NotificationType::Info:
+                        break;
+                    case NotificationType::Warning:
+                        prefix = "Warning: ";
+                        duration = 3000;
+                        break;
+                    case NotificationType::Error:
+                        prefix = "Error: ";
+                        duration = 4000;
+                        break;
+                    case NotificationType::MPRISError:
+                        if (!m_show_mpris_errors) show = false;
+                        prefix = "MPRIS Error:\n";
+                        duration = 4000;
+                        break;
                 }
-                delete msg_ptr;
+
+                if (show) {
+                    showToast(prefix + msg, duration);
+                }
+                delete data;
             }
             break;
         }
@@ -1439,13 +1397,7 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
     return false; // Do not exit
 }
 
-/**
- * @brief The main entry point and run loop for the Player.
- * This function initializes SDL and all major components (display, fonts, UI),
- * starts the main event loop, and handles cleanup on exit.
- * @param args The vector of command-line arguments passed to the application.
- */
-void Player::Run(const PlayerOptions& options) {
+bool Player::Initialize(const PlayerOptions& options) {
     // Apply settings from the parsed options.
     scalefactor = options.scalefactor;
     decayfactor = options.decayfactor;
@@ -1457,7 +1409,7 @@ void Player::Run(const PlayerOptions& options) {
     if ( SDL_Init( SDL_INIT_EVERYTHING ) < 0 )
     {
         printf( "Unable to init SDL: %s\n", SDL_GetError() );
-        return;
+        return false;
     }
 
 
@@ -1593,15 +1545,19 @@ void Player::Run(const PlayerOptions& options) {
         // Force one GUI update to show the initial empty state
         synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     }
-    bool done = false;
-    // if (system) system->progressState(TBPF_NORMAL);
     if (m_automated_test_mode) {
         Debug::log("test", "Automated test mode enabled.");
     }
-    SDL_TimerID timer = SDL_AddTimer(33, Player::AppLoopTimer, nullptr);
+    m_app_loop_timer_id = SDL_AddTimer(33, Player::AppLoopTimer, nullptr);
     if (m_automated_test_mode) {
         m_automated_test_timer_id = SDL_AddTimer(1000, Player::AutomatedTestTimer, this);
     }
+
+    return true;
+}
+
+void Player::EventLoop() {
+    bool done = false;
     while (!done) {
         // message processing loop
         SDL_Event event;
@@ -1704,8 +1660,12 @@ void Player::Run(const PlayerOptions& options) {
         } // end of message processing
 
     } // end main loop
+}
 
-    SDL_RemoveTimer(timer);
+void Player::Cleanup() {
+    if (m_app_loop_timer_id) {
+        SDL_RemoveTimer(m_app_loop_timer_id);
+    }
 #ifdef _WIN32
     if (system) system->progressState(TBPF_NOPROGRESS);
     if (system) system->updateProgress(0, 0);
@@ -1715,7 +1675,19 @@ void Player::Run(const PlayerOptions& options) {
     // all is well ;)
     Debug::log("player", "Exited cleanly");
     SDL_Quit();
-    return;
+}
+
+/**
+ * @brief The main entry point and run loop for the Player.
+ * This function initializes SDL and all major components (display, fonts, UI),
+ * starts the main event loop, and handles cleanup on exit.
+ * @param args The vector of command-line arguments passed to the application.
+ */
+void Player::Run(const PlayerOptions& options) {
+    if (Initialize(options)) {
+        EventLoop();
+        Cleanup();
+    }
 }
 
 /**
@@ -1949,7 +1921,7 @@ void Player::toggleTestWindowH()
         showToast("Test Window H: Closed");
     } else {
         // Open the window (client area is 160x120)
-        m_test_window_h = std::make_unique<WindowFrameWidget>(160, 120, "Test Window H");
+        m_test_window_h = std::make_unique<WindowFrameWidget>(160, 120, "Test Window H", font.get());
         
         // Only set position, keep the calculated size from constructor
         Rect calculated_size = m_test_window_h->getPos();
@@ -2007,7 +1979,7 @@ void Player::toggleTestWindowB()
         showToast("Test Window B: Closed");
     } else {
         // Open the window (client area is 160x60)
-        m_test_window_b = std::make_unique<WindowFrameWidget>(160, 60, "Test Window B");
+        m_test_window_b = std::make_unique<WindowFrameWidget>(160, 60, "Test Window B", font.get());
         m_test_window_b->setResizable(false); // Make window B non-resizable (triggers refresh)
         
         // Only set position, keep the calculated size from setResizable(false)
@@ -2064,7 +2036,7 @@ void Player::createRandomWindows()
         
         // Create WindowFrameWidget directly like H and B windows
         std::string title = "Random Window " + std::to_string(++m_random_window_counter);
-        auto window = std::make_unique<WindowFrameWidget>(client_width, client_height, title);
+        auto window = std::make_unique<WindowFrameWidget>(client_width, client_height, title, font.get());
         window->setPos(Rect(x, y, client_width + 8, client_height + 27)); // Include frame borders
         
         // Set up callbacks using the WindowFrameWidget system like H/B windows
@@ -2160,13 +2132,36 @@ void Player::setVolume(double volume) {
     showToast("Volume: " + std::to_string(percentage) + "%");
 
 #ifdef HAVE_DBUS
-    // TODO: Notify MPRIS about volume change (PropertiesChanged signal)
-    // For now, MPRIS clients polling the property will see the new value
+    if (m_mpris_manager) {
+        m_mpris_manager->updateVolume(static_cast<double>(m_volume));
+    }
 #endif
 }
 
 double Player::getVolume() const {
     return static_cast<double>(m_volume);
+}
+
+void Player::setShuffle(bool shuffle) {
+    if (playlist) {
+        playlist->setShuffle(shuffle);
+    }
+
+    std::string msg = shuffle ? "Shuffle: On" : "Shuffle: Off";
+    showToast(msg);
+
+#ifdef HAVE_DBUS
+    if (m_mpris_manager) {
+        m_mpris_manager->updateShuffle(shuffle);
+    }
+#endif
+}
+
+bool Player::getShuffle() const {
+    if (playlist) {
+        return playlist->isShuffle();
+    }
+    return false;
 }
 
 void Player::processDeferredDeletions() {
