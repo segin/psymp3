@@ -358,7 +358,7 @@ void DemuxedStream::fillChunkBuffer() {
         // Log buffer stats
         Debug::log("demux", "DemuxedStream: Buffer stats - items: ", temp_buffer.size(),
                   ", bytes: ", temp_buffer_bytes,
-                  ", fullness: ", (float)temp_buffer.size() / max_chunks * 100, "%");
+                  ", fullness: ", static_cast<float>(temp_buffer.size()) / max_chunks * 100, "%");
     }
     
     // Transfer chunks from temp buffer to our queue (thread-safe)
