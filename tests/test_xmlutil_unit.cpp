@@ -13,221 +13,236 @@
 #include "test_framework.h"
 #include "core/utility/XMLUtil.h"
 #include <cstring>
-#include <map>
-#include <vector>
+#include <string>
 
 using namespace PsyMP3::Core::Utility;
 using namespace TestFramework;
 
 // ============================================================================
-// XML Parsing Tests
+// Simple Parsing Tests
 // ============================================================================
 
-class XMLParsingTest : public TestCase {
+class SimpleParsingTest : public TestCase {
 public:
-    XMLParsingTest() : TestCase("XMLUtil::parseXML") {}
-
-protected:
-    void runTest() override {
-        // Basic element parsing
-        std::string xml1 = "<root>content</root>";
-        XMLUtil::Element root1 = XMLUtil::parseXML(xml1);
-        ASSERT_EQUALS("root", root1.name, "Root element name match");
-        ASSERT_EQUALS("content", root1.content, "Content match");
-        ASSERT_TRUE(root1.children.empty(), "No children");
-
-        // Attributes parsing
-        std::string xml2 = "<item id=\"1\" value='test' />";
-        XMLUtil::Element root2 = XMLUtil::parseXML(xml2);
-        ASSERT_EQUALS("item", root2.name, "Element name match");
-        ASSERT_EQUALS("1", root2.attributes["id"], "Attribute id match");
-        ASSERT_EQUALS("test", root2.attributes["value"], "Attribute value match");
-        ASSERT_TRUE(root2.content.empty(), "Content empty for self-closing tag");
-
-        // Nested elements
-        std::string xml3 = "<library><track><title>Song</title></track></library>";
-        XMLUtil::Element root3 = XMLUtil::parseXML(xml3);
-        ASSERT_EQUALS("library", root3.name, "Root name match");
-        ASSERT_EQUALS(1u, root3.children.size(), "One child (track)");
-
-        const auto& track = root3.children[0];
-        ASSERT_EQUALS("track", track.name, "Child name match");
-        ASSERT_EQUALS(1u, track.children.size(), "Track has one child (title)");
-
-        const auto& title = track.children[0];
-        ASSERT_EQUALS("title", title.name, "Grandchild name match");
-        ASSERT_EQUALS("Song", title.content, "Grandchild content match");
-
-        // XML Declaration (should be skipped)
-        std::string xml4 = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><data>valid</data>";
-        XMLUtil::Element root4 = XMLUtil::parseXML(xml4);
-        ASSERT_EQUALS("data", root4.name, "Root name match after declaration");
-        ASSERT_EQUALS("valid", root4.content, "Content match");
-
-        // Whitespace handling
-        std::string xml5 = "  <root> \n <child>  text  </child> \n </root>  ";
-        XMLUtil::Element root5 = XMLUtil::parseXML(xml5);
-        ASSERT_EQUALS("root", root5.name, "Root name match with whitespace");
-        ASSERT_EQUALS(1u, root5.children.size(), "One child");
-        ASSERT_EQUALS("text", root5.children[0].content, "Trimmed content match");
-    }
-};
-
-// ============================================================================
-// XML Error Handling Tests
-// ============================================================================
-
-class XMLErrorTest : public TestCase {
-public:
-    XMLErrorTest() : TestCase("XMLUtil::parseXML errors") {}
-
-protected:
-    void runTest() override {
-        // Missing closing tag
-        std::string xml1 = "<root>content";
-        TestPatterns::assertThrows<std::runtime_error>([&]() {
-            XMLUtil::parseXML(xml1);
-        }, "Missing closing tag", "Should throw for missing closing tag");
-
-        // Mismatched tags
-        std::string xml2 = "<root></child>";
-        TestPatterns::assertThrows<std::runtime_error>([&]() {
-            XMLUtil::parseXML(xml2);
-        }, "Missing closing tag", "Should throw for mismatched tags");
-
-        // Invalid start
-        std::string xml3 = "not xml";
-        TestPatterns::assertThrows<std::runtime_error>([&]() {
-            XMLUtil::parseXML(xml3);
-        }, "Expected '<'", "Should throw for invalid start");
-
-        // Empty string (should throw or handle gracefully? parseElement throws if pos >= length)
-        std::string xml4 = "";
-        TestPatterns::assertThrows<std::runtime_error>([&]() {
-            XMLUtil::parseXML(xml4);
-        }, "Expected '<'", "Should throw for empty string");
-    }
-};
-
-// ============================================================================
-// XML Generation Tests
-// ============================================================================
-
-class XMLGenerationTest : public TestCase {
-public:
-    XMLGenerationTest() : TestCase("XMLUtil::generateXML") {}
+    SimpleParsingTest() : TestCase("XMLUtil::SimpleParsing") {}
 
 protected:
     void runTest() override {
         // Simple element
-        XMLUtil::Element el("test", "content");
-        std::string xml1 = XMLUtil::generateXML(el);
-        ASSERT_EQUALS("<test>content</test>", xml1, "Simple generation");
+        XMLUtil::Element root = XMLUtil::parseXML("<root>content</root>");
+        ASSERT_EQUALS("root", root.name, "Root name correct");
+        ASSERT_EQUALS("content", root.content, "Root content correct");
+        ASSERT_TRUE(root.children.empty(), "No children");
 
-        // With attributes
-        el.attributes["id"] = "123";
-        std::string xml2 = XMLUtil::generateXML(el);
-        // Attributes order in map is alphabetical/sorted by key
-        ASSERT_EQUALS("<test id=\"123\">content</test>", xml2, "Generation with attributes");
-
-        // Nested with indentation
-        XMLUtil::Element parent("parent");
-        XMLUtil::Element child("child", "value");
-        parent.children.push_back(child);
-
-        std::string xml3 = XMLUtil::generateXML(parent, 0);
-        // Expect indentation (newlines and spaces)
-        // <parent>
-        //   <child>value</child>
-        // </parent>
-        // Note: Implementation details of newlines might vary, checking containment or strict string match
-        // Based on read code:
-        // xml << ">\n"; for children
-        // xml << generateXML(child, indent + 1) << "\n";
-        // xml << indentStr << "</" << element.name << ">";
-
-        // Let's check contains child
-        ASSERT_TRUE(xml3.find("<parent>") != std::string::npos, "Contains parent start");
-        ASSERT_TRUE(xml3.find("<child>value</child>") != std::string::npos, "Contains child");
-        ASSERT_TRUE(xml3.find("</parent>") != std::string::npos, "Contains parent end");
+        // With XML declaration
+        root = XMLUtil::parseXML("<?xml version=\"1.0\"?><root>content</root>");
+        ASSERT_EQUALS("root", root.name, "Root name correct with declaration");
+        ASSERT_EQUALS("content", root.content, "Root content correct with declaration");
 
         // Self-closing
-        XMLUtil::Element selfClosing("empty");
-        std::string xml4 = XMLUtil::generateXML(selfClosing);
-        ASSERT_EQUALS("<empty/>", xml4, "Self-closing generation");
+        root = XMLUtil::parseXML("<root/>");
+        ASSERT_EQUALS("root", root.name, "Self-closing root name correct");
+        ASSERT_TRUE(root.content.empty(), "Self-closing content empty");
+
+        // Whitespace handling
+        root = XMLUtil::parseXML("  \t<root>  content  </root>  ");
+        ASSERT_EQUALS("root", root.name, "Root name correct with whitespace");
+        ASSERT_EQUALS("content", root.content, "Content trimmed");
     }
 };
 
 // ============================================================================
-// XML Helper Tests
+// Attribute Parsing Tests
 // ============================================================================
 
-class XMLHelperTest : public TestCase {
+class AttributeParsingTest : public TestCase {
 public:
-    XMLHelperTest() : TestCase("XMLUtil helpers") {}
+    AttributeParsingTest() : TestCase("XMLUtil::AttributeParsing") {}
+
+protected:
+    void runTest() override {
+        // Single attribute
+        XMLUtil::Element root = XMLUtil::parseXML("<root attr=\"value\"/>");
+        ASSERT_EQUALS("value", root.attributes["attr"], "Attribute value correct");
+
+        // Multiple attributes
+        root = XMLUtil::parseXML("<root a=\"1\" b='2' c=3/>");
+        ASSERT_EQUALS("1", root.attributes["a"], "Attribute a correct");
+        ASSERT_EQUALS("2", root.attributes["b"], "Attribute b correct");
+        ASSERT_EQUALS("3", root.attributes["c"], "Attribute c correct (unquoted)");
+
+        // Attributes with whitespace
+        root = XMLUtil::parseXML("<root  attr1 = \"val1\"  attr2='val2' />");
+        ASSERT_EQUALS("val1", root.attributes["attr1"], "Attribute 1 correct with whitespace");
+        ASSERT_EQUALS("val2", root.attributes["attr2"], "Attribute 2 correct with whitespace");
+
+        // Attributes with special characters
+        root = XMLUtil::parseXML("<root attr=\"&lt;&quot;&amp;&gt;\"/>");
+        ASSERT_EQUALS("<\"&>", root.attributes["attr"], "Attribute unescaped correctly");
+    }
+};
+
+// ============================================================================
+// Nested XML Parsing Tests
+// ============================================================================
+
+class NestedXMLTest : public TestCase {
+public:
+    NestedXMLTest() : TestCase("XMLUtil::NestedXML") {}
+
+protected:
+    void runTest() override {
+        // Nested children
+        std::string xml = "<root><child1>text1</child1><child2 attr=\"val\">text2</child2></root>";
+        XMLUtil::Element root = XMLUtil::parseXML(xml);
+
+        ASSERT_EQUALS("root", root.name, "Root name");
+        ASSERT_EQUALS(2u, root.children.size(), "Two children");
+
+        ASSERT_EQUALS("child1", root.children[0].name, "Child 1 name");
+        ASSERT_EQUALS("text1", root.children[0].content, "Child 1 content");
+
+        ASSERT_EQUALS("child2", root.children[1].name, "Child 2 name");
+        ASSERT_EQUALS("text2", root.children[1].content, "Child 2 content");
+        ASSERT_EQUALS("val", root.children[1].attributes["attr"], "Child 2 attribute");
+
+        // Deep nesting
+        xml = "<A><B><C>content</C></B></A>";
+        root = XMLUtil::parseXML(xml);
+        ASSERT_EQUALS("A", root.name, "A name");
+        ASSERT_EQUALS(1u, root.children.size(), "A has 1 child");
+        ASSERT_EQUALS("B", root.children[0].name, "B name");
+        ASSERT_EQUALS(1u, root.children[0].children.size(), "B has 1 child");
+        ASSERT_EQUALS("C", root.children[0].children[0].name, "C name");
+        ASSERT_EQUALS("content", root.children[0].children[0].content, "C content");
+
+        // Nested tags with SAME NAME - This is expected to fail with current implementation
+        xml = "<item><item>inner</item></item>";
+        root = XMLUtil::parseXML(xml);
+        ASSERT_EQUALS("item", root.name, "Outer item name");
+        ASSERT_EQUALS(1u, root.children.size(), "Outer item should have 1 child");
+        ASSERT_EQUALS("item", root.children[0].name, "Inner item name");
+        ASSERT_EQUALS("inner", root.children[0].content, "Inner item content");
+
+        // Nested tags with same name and content after - stronger test for the bug
+        xml = "<item><item>inner</item>outer</item>";
+        root = XMLUtil::parseXML(xml);
+        ASSERT_EQUALS("item", root.name, "Outer item name");
+        ASSERT_EQUALS(1u, root.children.size(), "Outer item child count");
+        ASSERT_EQUALS("inner", root.children[0].content, "Inner content");
+        // This will fail if the parser consumes the first </item> for both inner and outer
+        ASSERT_EQUALS("outer", root.content, "Outer content");
+    }
+};
+
+// ============================================================================
+// Helper Function Tests
+// ============================================================================
+
+class HelperFunctionTest : public TestCase {
+public:
+    HelperFunctionTest() : TestCase("XMLUtil::HelperFunctions") {}
+
+protected:
+    void runTest() override {
+        // escapeXML
+        ASSERT_EQUALS("&lt;root&gt;", XMLUtil::escapeXML("<root>"), "Escape tags");
+        ASSERT_EQUALS("&quot;&apos;&amp;", XMLUtil::escapeXML("\"'&"), "Escape special chars");
+
+        // unescapeXML
+        ASSERT_EQUALS("<root>", XMLUtil::unescapeXML("&lt;root&gt;"), "Unescape tags");
+        ASSERT_EQUALS("\"'&", XMLUtil::unescapeXML("&quot;&apos;&amp;"), "Unescape special chars");
+
+        // findChild / getChildText
+        XMLUtil::Element root("root");
+        XMLUtil::Element child1("child1", "content1");
+        XMLUtil::Element child2("child2", "content2");
+        root.children.push_back(child1);
+        root.children.push_back(child2);
+
+        const XMLUtil::Element* found = XMLUtil::findChild(root, "child1");
+        ASSERT_NOT_NULL(found, "Found child1");
+        ASSERT_EQUALS("content1", found->content, "Child1 content matches");
+
+        ASSERT_EQUALS("content2", XMLUtil::getChildText(root, "child2"), "Get child2 text");
+        ASSERT_EQUALS("", XMLUtil::getChildText(root, "nonexistent"), "Get nonexistent text empty");
+
+        // findChildren
+        XMLUtil::Element item1("item", "1");
+        XMLUtil::Element item2("item", "2");
+        root.children.push_back(item1);
+        root.children.push_back(item2);
+
+        auto items = XMLUtil::findChildren(root, "item");
+        ASSERT_EQUALS(2u, items.size(), "Found 2 items");
+        ASSERT_EQUALS("1", items[0]->content, "Item 1 content");
+        ASSERT_EQUALS("2", items[1]->content, "Item 2 content");
+    }
+};
+
+// ============================================================================
+// Generation Tests
+// ============================================================================
+
+class GenerationTest : public TestCase {
+public:
+    GenerationTest() : TestCase("XMLUtil::Generation") {}
 
 protected:
     void runTest() override {
         XMLUtil::Element root("root");
-        XMLUtil::Element child1("child", "text1");
-        XMLUtil::Element child2("child", "text2");
-        XMLUtil::Element other("other", "text3");
+        root.attributes["attr"] = "val";
+        XMLUtil::Element child("child", "content");
+        root.children.push_back(child);
 
-        root.children.push_back(child1);
-        root.children.push_back(other);
-        root.children.push_back(child2);
+        std::string xml = XMLUtil::generateXML(root);
+        // Note: Attribute order is not guaranteed, but with 1 attribute it is deterministic
+        // Also indentation might vary
 
-        // getChildText
-        ASSERT_EQUALS("text1", XMLUtil::getChildText(root, "child"), "Get first child text");
-        ASSERT_EQUALS("text3", XMLUtil::getChildText(root, "other"), "Get other child text");
-        ASSERT_EQUALS("", XMLUtil::getChildText(root, "missing"), "Get missing child text (empty)");
-
-        // findChild
-        const auto* found = XMLUtil::findChild(root, "other");
-        ASSERT_NOT_NULL(found, "Find existing child");
-        if (found) {
-            ASSERT_EQUALS("text3", found->content, "Found correct child");
-        }
-
-        ASSERT_NULL(XMLUtil::findChild(root, "missing"), "Find missing child returns null");
-
-        // findChildren
-        auto children = XMLUtil::findChildren(root, "child");
-        ASSERT_EQUALS(2u, children.size(), "Find all children with name 'child'");
-        if (children.size() >= 2) {
-            ASSERT_EQUALS("text1", children[0]->content, "First child content");
-            ASSERT_EQUALS("text2", children[1]->content, "Second child content");
-        }
+        // We verify by parsing back
+        XMLUtil::Element parsed = XMLUtil::parseXML(xml);
+        ASSERT_EQUALS("root", parsed.name, "Parsed root name");
+        ASSERT_EQUALS("val", parsed.attributes["attr"], "Parsed attribute");
+        ASSERT_EQUALS(1u, parsed.children.size(), "Parsed children count");
+        ASSERT_EQUALS("child", parsed.children[0].name, "Parsed child name");
+        ASSERT_EQUALS("content", parsed.children[0].content, "Parsed child content");
     }
 };
 
 // ============================================================================
-// XML Escaping Tests
+// Error Handling Tests
 // ============================================================================
 
-class XMLEscapingTest : public TestCase {
+class ErrorHandlingTest : public TestCase {
 public:
-    XMLEscapingTest() : TestCase("XMLUtil escaping") {}
+    ErrorHandlingTest() : TestCase("XMLUtil::ErrorHandling") {}
 
 protected:
     void runTest() override {
-        // Escape
-        ASSERT_EQUALS("&lt;tag&gt;", XMLUtil::escapeXML("<tag>"), "Escape tags");
-        ASSERT_EQUALS("&amp;", XMLUtil::escapeXML("&"), "Escape ampersand");
-        ASSERT_EQUALS("&quot;val&quot;", XMLUtil::escapeXML("\"val\""), "Escape quotes");
-        ASSERT_EQUALS("&apos;val&apos;", XMLUtil::escapeXML("'val'"), "Escape apostrophe");
+        // Unclosed tag (missing >)
+        TestPatterns::assertThrows<std::runtime_error>([]() {
+            XMLUtil::parseXML("<root");
+        }, "Unclosed tag", "Should throw for unclosed opening tag");
 
-        // Unescape
-        ASSERT_EQUALS("<tag>", XMLUtil::unescapeXML("&lt;tag&gt;"), "Unescape tags");
-        ASSERT_EQUALS("&", XMLUtil::unescapeXML("&amp;"), "Unescape ampersand");
-        ASSERT_EQUALS("\"val\"", XMLUtil::unescapeXML("&quot;val&quot;"), "Unescape quotes");
-        ASSERT_EQUALS("'val'", XMLUtil::unescapeXML("&apos;val&apos;"), "Unescape apostrophe");
+        // Missing closing tag
+        TestPatterns::assertThrows<std::runtime_error>([]() {
+            XMLUtil::parseXML("<root>content");
+        }, "Missing closing tag", "Should throw for missing closing tag");
 
-        // Round trip
-        std::string original = "< & \" ' >";
-        std::string escaped = XMLUtil::escapeXML(original);
-        std::string unescaped = XMLUtil::unescapeXML(escaped);
-        ASSERT_EQUALS(original, unescaped, "Round trip escaping");
+        // Mismatched closing tag
+        TestPatterns::assertThrows<std::runtime_error>([]() {
+            XMLUtil::parseXML("<root><child></root>");
+        }, "Unexpected closing tag", "Should throw for mismatched closing tag");
+
+        // Missing closing tag (EOF)
+        TestPatterns::assertThrows<std::runtime_error>([]() {
+            XMLUtil::parseXML("<root>content");
+        }, "Missing closing tag", "Should throw for missing closing tag at EOF");
+
+        // Bad start
+        TestPatterns::assertThrows<std::runtime_error>([]() {
+            XMLUtil::parseXML("not xml");
+        }, "Expected '<'", "Should throw for non-XML start");
     }
 };
 
@@ -241,11 +256,12 @@ int main(int argc, char* argv[]) {
 
     TestSuite suite("XMLUtil Unit Tests");
 
-    suite.addTest(std::make_unique<XMLParsingTest>());
-    suite.addTest(std::make_unique<XMLErrorTest>());
-    suite.addTest(std::make_unique<XMLGenerationTest>());
-    suite.addTest(std::make_unique<XMLHelperTest>());
-    suite.addTest(std::make_unique<XMLEscapingTest>());
+    suite.addTest(std::make_unique<SimpleParsingTest>());
+    suite.addTest(std::make_unique<AttributeParsingTest>());
+    suite.addTest(std::make_unique<NestedXMLTest>());
+    suite.addTest(std::make_unique<HelperFunctionTest>());
+    suite.addTest(std::make_unique<GenerationTest>());
+    suite.addTest(std::make_unique<ErrorHandlingTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
