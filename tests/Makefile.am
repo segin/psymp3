@@ -3680,6 +3680,17 @@ fuzz_utf8util_LDADD = \
 	$(AM_LDFLAGS)
 
 
+# XMLUtil unit tests
+check_PROGRAMS += test_xmlutil_unit
+
+test_xmlutil_unit_SOURCES = test_xmlutil_unit.cpp
+test_xmlutil_unit_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(AM_LDFLAGS)
+
 # Base64 Tests
 # ============================================================================
 
