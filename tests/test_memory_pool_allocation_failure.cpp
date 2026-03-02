@@ -1,5 +1,5 @@
 /*
- * test_memory_pool_allocation_failure.cpp - Test for MemoryPoolManager allocation failure handling
+ * test_memory_pool_allocation_failure.cpp - Test memory allocation failure handling in MemoryPoolManager
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
@@ -7,169 +7,145 @@
 #include "psymp3.h"
 #include <iostream>
 #include <new>
-#include <atomic>
-#include <vector>
 #include <cstdlib>
+#include <vector>
 #include <string>
-#include <map>
-
-// Global flags to control allocation failure
-std::atomic<bool> g_should_fail_allocation{false};
-std::atomic<size_t> g_fail_size{0};
-
-// Custom operator new[] to simulate failure
-void* operator new[](std::size_t size) {
-    if (g_should_fail_allocation && size == g_fail_size) {
-        throw std::bad_alloc();
-    }
-    void* p = std::malloc(size);
-    if (!p) throw std::bad_alloc();
-    return p;
-}
-
-void operator delete[](void* p) noexcept {
-    std::free(p);
-}
-
-// We also need to override scalar new/delete to avoid linker errors about missing symbols if we only override array new
-void* operator new(std::size_t size) {
-    void* p = std::malloc(size);
-    if (!p) throw std::bad_alloc();
-    return p;
-}
-
-void operator delete(void* p) noexcept {
-    std::free(p);
-}
-
-// Ensure scalar delete(void*, size_t) is also defined for C++14 compliance
-void operator delete(void* p, std::size_t) noexcept {
-    std::free(p);
-}
-void operator delete[](void* p, std::size_t) noexcept {
-    std::free(p);
-}
 
 using namespace PsyMP3::IO;
+
+// Global flags to control memory allocation failure
+bool g_simulate_bad_alloc = false;
+size_t g_target_alloc_size = 0;
+
+// Overload global operator new to simulate allocation failure
+void* operator new(size_t size) {
+    if (g_simulate_bad_alloc && size == g_target_alloc_size) {
+        throw std::bad_alloc();
+    }
+    void* ptr = std::malloc(size);
+    if (!ptr) {
+        throw std::bad_alloc();
+    }
+    return ptr;
+}
+
+void operator delete(void* ptr) noexcept {
+    std::free(ptr);
+}
+
+void operator delete(void* ptr, size_t) noexcept {
+    std::free(ptr);
+}
+
+// Ensure array new/delete match
+void* operator new[](size_t size) {
+    return ::operator new(size);
+}
+
+void operator delete[](void* ptr) noexcept {
+    ::operator delete(ptr);
+}
+
+void operator delete[](void* ptr, size_t) noexcept {
+    ::operator delete(ptr);
+}
 
 void test_pool_allocation_failure() {
     std::cout << "Testing pool allocation failure handling..." << std::endl;
 
-    // Get the singleton
-    auto& manager = MemoryPoolManager::getInstance();
+    MemoryPoolManager& manager = MemoryPoolManager::getInstance();
     manager.initializePools();
 
-    // Target pool size: 4KB (4096 bytes)
-    const size_t TARGET_SIZE = 4096;
-    const std::string COMPONENT = "test_failure";
+    // Target a specific pool size
+    const size_t pool_size = 64 * 1024;
+    const std::string component = "test_failure";
 
-    // Step 1: Drain the pool dynamically
-    std::vector<uint8_t*> initial_buffers;
+    // 1. Drain the pool
+    std::cout << "Draining pool of size " << pool_size << "..." << std::endl;
+    std::vector<uint8_t*> allocated_buffers;
 
-    // Helper lambda to get free buffers count
-    auto get_free_buffers = [&]() -> size_t {
-        auto stats = manager.getMemoryStats();
-        for (const auto& pair : stats) {
-            if (pair.first.find("pool_") == 0 && pair.first.find("_size") != std::string::npos) {
-                if (pair.second == TARGET_SIZE) {
-                    std::string prefix = pair.first.substr(0, pair.first.find("_size") + 1);
-                    return stats[prefix + "free_buffers"];
-                }
-            }
-        }
-        return 0; // Should not happen if pool exists
-    };
-
-    size_t free_bufs = get_free_buffers();
-    std::cout << "Initial free buffers: " << free_bufs << std::endl;
-
-    while (free_bufs > 0) {
-        uint8_t* buf = manager.allocateBuffer(TARGET_SIZE, COMPONENT);
-        if (buf) {
-            initial_buffers.push_back(buf);
-        } else {
-            std::cerr << "Failed to allocate initial buffer while draining pool" << std::endl;
-            exit(1);
-        }
-        free_bufs = get_free_buffers();
-    }
-
-    std::cout << "Allocated " << initial_buffers.size() << " initial buffers. Pool should be empty of free buffers." << std::endl;
-
-    // Step 2: Trigger allocation failure
-    // The next allocation will try to create a new buffer because allocated_buffers < max_buffers (assuming max > pre-allocated).
-    // Note: If pre-allocated == max_buffers, then this test won't trigger the specific path (it will go to direct allocation immediately).
-    // But default config is 16 max, 4 pre-allocated.
-
-    g_fail_size = TARGET_SIZE;
-    g_should_fail_allocation = true;
-
-    std::cout << "Triggering allocation failure for size " << TARGET_SIZE << "..." << std::endl;
-
-    uint8_t* fallback_buffer = nullptr;
-    try {
-        // This should trigger the failure in the pool logic, catch it, log it,
-        // and fall back to direct allocation (which will also fail because our mock fails for that size).
-        fallback_buffer = manager.allocateBuffer(TARGET_SIZE, COMPONENT);
-
-    } catch (const std::exception& e) {
-        std::cerr << "Unexpected exception during test: " << e.what() << std::endl;
-    }
-
-    g_should_fail_allocation = false;
-
-    if (fallback_buffer == nullptr) {
-        std::cout << "Allocation returned nullptr as expected (both pool and direct allocation failed)." << std::endl;
-    } else {
-        std::cout << "Allocation succeeded unexpectedly." << std::endl;
-    }
-
-    // Step 3: Verify stats
-    auto stats = manager.getMemoryStats();
-
-    // We need to find the pool index for 4096.
-    bool found_pool = false;
-    size_t misses = 0;
-
-    for (const auto& pair : stats) {
-        if (pair.first.find("pool_") == 0 && pair.first.find("_size") != std::string::npos) {
-            if (pair.second == TARGET_SIZE) {
-                // Found the pool. Get the prefix.
-                std::string prefix = pair.first.substr(0, pair.first.find("_size") + 1); // "pool_X_"
-                std::string misses_key = prefix + "misses";
-                if (stats.count(misses_key)) {
-                    misses = stats[misses_key];
-                    found_pool = true;
-                    std::cout << "Pool " << prefix << " misses: " << misses << std::endl;
-                }
-                break;
-            }
+    // We allocate 16 buffers to ensure we exhaust pre-allocated ones
+    // and potentially hit the limit or at least ensure next allocation tries `new`
+    for (int i = 0; i < 16; ++i) {
+        // We stop if we hit the limit where allocations start failing naturally (if any)
+        // or just allocate a few.
+        // Default max buffers is 16. Pre-allocated is 4.
+        // We allocate 4 to drain pre-allocated.
+        if (i < 4) {
+            uint8_t* buf = manager.allocateBuffer(pool_size, component);
+            if (buf) allocated_buffers.push_back(buf);
         }
     }
 
-    if (!found_pool) {
-        std::cerr << "Could not find pool for size " << TARGET_SIZE << std::endl;
+    auto stats_before = manager.getMemoryStats();
+
+    // Find the pool index for our size
+    int target_pool_idx = -1;
+    for (int i = 0; i < 20; ++i) {
+        std::string size_key = "pool_" + std::to_string(i) + "_size";
+        if (stats_before.count(size_key) && stats_before[size_key] == pool_size) {
+            target_pool_idx = i;
+            break;
+        }
+    }
+
+    if (target_pool_idx == -1) {
+        std::cerr << "Could not find pool for size " << pool_size << std::endl;
         exit(1);
     }
 
-    if (misses > 0) {
-        std::cout << "✓ SUCCESS: Pool misses incremented, indicating the bad_alloc catch block was executed." << std::endl;
+    std::string misses_key = "pool_" + std::to_string(target_pool_idx) + "_misses";
+    size_t misses_before = stats_before[misses_key];
+
+    // 2. Setup failure simulation
+    std::cout << "Simulating allocation failure..." << std::endl;
+    g_target_alloc_size = pool_size;
+    g_simulate_bad_alloc = true;
+
+    // 3. Trigger allocation
+    // This should try to create a new buffer for the pool, FAIL, catch exception,
+    // increment misses, and then try direct allocation (which will also fail because size matches).
+
+    uint8_t* result = manager.allocateBuffer(pool_size, component);
+
+    g_simulate_bad_alloc = false;
+
+    if (result == nullptr) {
+        std::cout << "Allocation correctly returned nullptr after failure." << std::endl;
     } else {
-        std::cerr << "✗ FAILURE: Pool misses did not increment." << std::endl;
+        std::cerr << "Allocation returned a buffer! Unexpected." << std::endl;
+        // Clean up if it did return something
+        manager.releaseBuffer(result, pool_size, component);
         exit(1);
     }
 
-    // Cleanup
-    for (auto* buf : initial_buffers) {
-        manager.releaseBuffer(buf, TARGET_SIZE, COMPONENT);
+    // 4. Verify side effects (misses increased)
+    auto stats_after = manager.getMemoryStats();
+    size_t misses_after = stats_after[misses_key];
+
+    std::cout << "Misses before: " << misses_before << ", after: " << misses_after << std::endl;
+
+    if (misses_after > misses_before) {
+         std::cout << "Verified misses incremented." << std::endl;
+    } else {
+         std::cerr << "Misses did not increment!" << std::endl;
+         exit(1);
     }
+
+    // Clean up
+    for (uint8_t* buf : allocated_buffers) {
+        manager.releaseBuffer(buf, pool_size, component);
+    }
+
+    std::cout << "Test passed!" << std::endl;
 }
 
 int main() {
     try {
         test_pool_allocation_failure();
         return 0;
-    } catch (...) {
+    } catch (const std::exception& e) {
+        std::cerr << "Test failed with exception: " << e.what() << std::endl;
         return 1;
     }
 }

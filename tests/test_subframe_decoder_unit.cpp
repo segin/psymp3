@@ -4,13 +4,19 @@
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include <cstdint>
+#include <vector>
+#include <cstring>
+#include <iostream>
+#endif
+
 #include "test_framework.h"
 #include "codecs/flac/SubframeDecoder.h"
 #include "codecs/flac/BitstreamReader.h"
 #include "codecs/flac/ResidualDecoder.h"
-#include <cstring>
-#include <vector>
 
 using namespace PsyMP3::Codec::FLAC;
 using namespace TestFramework;
@@ -72,8 +78,8 @@ void test_verbatim_subframe() {
     ASSERT_EQUALS(4, output[3], "Sample 3 should be 4");
 }
 
-// Test FIXED predictor order 0
-void test_fixed_predictor_order_0() {
+// Test FIXED predictor order 0 (Full decoding)
+void test_fixed_predictor_order_0_full() {
     // FIXED order 0 is just the residuals (no prediction)
     BitstreamReader reader;
     ResidualDecoder residual(&reader);
@@ -83,36 +89,83 @@ void test_fixed_predictor_order_0() {
     // Subframe header: 0|001000|0 = 0x10
     // No warm-up samples for order 0
     // Residuals follow
+
+    // Residuals: 1 (zigzag 2->001), -1 (zigzag 1->01), 0 (zigzag 0->1), 2 (zigzag 4->00001)
+    // Bits: 001 01 1 00001. Total 11 bits.
+    // Header bits: Method 0 (00), PartOrder 0 (0000), RiceParam 0 (0000). Total 10 bits.
+    // Total bits: 21 bits.
+    // Bytes:
+    // Byte 0: 0x10 (Subframe Header)
+    // Residual Header + Residuals:
+    // 00 0000 0000 001 01 1 00001 000 (padding)
+    // 0000 0000 -> 0x00
+    // 0000 1011 -> 0x0B
+    // 0000 1000 -> 0x08
+
     uint8_t data[] = {
         0x10,  // Subframe header (FIXED order 0)
-        // Residual coding would follow here
-        // For this test, we're just testing the structure
+        0x00,  // Method, Order, Param (part 1)
+        0x0B,  // Param (part 2), Res 0, Res 1, Res 2
+        0x08   // Res 3, padding
     };
     reader.feedData(data, sizeof(data));
     
-    // The decoder should recognize FIXED order 0
-    // (Full test would require valid residual data)
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode FIXED order 0 subframe");
+
+    ASSERT_EQUALS(1, output[0], "Sample 0 should be 1");
+    ASSERT_EQUALS(-1, output[1], "Sample 1 should be -1");
+    ASSERT_EQUALS(0, output[2], "Sample 2 should be 0");
+    ASSERT_EQUALS(2, output[3], "Sample 3 should be 2");
 }
 
-// Test FIXED predictor order 1
-void test_fixed_predictor_order_1() {
-    // FIXED order 1: s[i] = residual[i] + s[i-1]
+// Test FIXED predictor order 1 (Full decoding)
+void test_fixed_predictor_full_decoding() {
     BitstreamReader reader;
     ResidualDecoder residual(&reader);
     SubframeDecoder decoder(&reader, &residual);
     
     // FIXED order 1: type=001001 (9), wasted_bits=0
     // Subframe header: 0|001001|0 = 0x12
-    // 1 warm-up sample
-    // Residuals follow
+    // Warm-up sample: 10 (0x000A)
+    // Residuals: Method 0 (4-bit Rice), PartOrder 0 (1 part), RiceParam 0
+    // Residuals: 1 (zigzag 2->001), -1 (zigzag 1->01), 0 (zigzag 0->1)
+    // Bits: 00 0000 0000 001 01 1. Total 16 bits.
+    // Padding: 0000. Total 20 bits. Next byte boundary: 24 bits.
+    // Bytes:
+    // Header: 0x12
+    // Warm-up: 0x00, 0x0A
+    // Residuals: 0000 0000 -> 0x00.
+    // Residuals + Padding: 0000 1011 -> 0x0B.
+
     uint8_t data[] = {
         0x12,        // Subframe header (FIXED order 1)
         0x00, 0x0A,  // Warm-up sample: 10
-        // Residual coding would follow
+        0x00,        // Residual header (Method 0, PartOrder 0) + RiceParam (0)
+        0x0B         // Residuals: 001 (1), 01 (-1), 1 (0) + Padding
     };
     reader.feedData(data, sizeof(data));
     
-    // The decoder should recognize FIXED order 1 and read warm-up sample
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    // Block size 4, bit depth 16
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode FIXED subframe");
+
+    // Expected output:
+    // s[0] = 10
+    // s[1] = 10 + 1 = 11
+    // s[2] = 11 + (-1) = 10
+    // s[3] = 10 + 0 = 10
+
+    ASSERT_EQUALS(10, output[0], "Sample 0 should be 10");
+    ASSERT_EQUALS(11, output[1], "Sample 1 should be 11");
+    ASSERT_EQUALS(10, output[2], "Sample 2 should be 10");
+    ASSERT_EQUALS(10, output[3], "Sample 3 should be 10");
 }
 
 // Test wasted bits handling
@@ -190,6 +243,61 @@ void test_lpc_predictor_structure() {
     // (Full test would require complete LPC data)
 }
 
+// Test full LPC subframe decoding with residuals
+void test_lpc_subframe_decoding() {
+    BitstreamReader reader;
+
+    // Construct bitstream
+    std::vector<uint8_t> data;
+
+    // Header: 0 (zero bit) | 100000 (LPC order 1) | 0 (wasted bits)
+    // 01000000 = 0x40
+    data.push_back(0x40);
+
+    // Warm-up sample: 10 (0x000A) - 16 bits
+    data.push_back(0x00);
+    data.push_back(0x0A);
+
+    // LPC parameters and residuals
+    // Precision (4): 0011 (3 -> 4 bits precision)
+    // Shift (5): 00000 (0)
+    // Coeffs (4): 0010 (2)
+    // Method (2): 00 (Rice 4-bit)
+    // Partition order (4): 0000 (0)
+    // Rice param (4): 0000 (0)
+    // Residual 0 (1): 1
+    // Residual -1 (2): 01
+    // Residual 1 (3): 001
+
+    // Bytes: 0x30, 0x10, 0x01, 0x48 (verified in repro_lpc_decode.cpp)
+    data.push_back(0x30);
+    data.push_back(0x10);
+    data.push_back(0x01);
+    data.push_back(0x48);
+
+    reader.feedData(data.data(), data.size());
+
+    ResidualDecoder residual(&reader);
+    SubframeDecoder decoder(&reader, &residual);
+
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode LPC subframe");
+
+    // Expected output:
+    // Sample 0: 10 (Warm-up)
+    // Sample 1: Pred(10*2 >> 0) + Res(0) = 20 + 0 = 20
+    // Sample 2: Pred(20*2 >> 0) + Res(-1) = 40 - 1 = 39
+    // Sample 3: Pred(39*2 >> 0) + Res(1) = 78 + 1 = 79
+
+    ASSERT_EQUALS(10, output[0], "Sample 0 check");
+    ASSERT_EQUALS(20, output[1], "Sample 1 check");
+    ASSERT_EQUALS(39, output[2], "Sample 2 check");
+    ASSERT_EQUALS(79, output[3], "Sample 3 check");
+}
+
 // Test subframe type detection
 void test_subframe_type_detection() {
     // Test that different subframe types are correctly identified
@@ -213,18 +321,87 @@ void test_subframe_type_detection() {
     ASSERT_EQUALS(48, 0b110000, "LPC order 32 type bits");
 }
 
+// Test LPC subframe decoding (Order 1, Coeff 1, Shift 0)
+// Effectively same as FIXED order 1: s[i] = s[i-1] + residual
+void test_lpc_subframe_full() {
+    BitstreamReader reader;
+    ResidualDecoder residual(&reader);
+    SubframeDecoder decoder(&reader, &residual);
+
+    // Header: 100000 (LPC 1) | wasted 0 | bitdepth ...
+    // Byte 0: 0x40 (0100 0000)
+    // Warm-up: 10 (0x000A) -> Byte 1, 2: 0x00 0x0A
+    // LPC Params:
+    // Prec: 0011 (4 bits). Shift: 00000 (5 bits). Coeff: 0001 (4 bits).
+    // Stream: 0011 0000 0 0001 -> 00110000 00001...
+    // Residuals: Method 0 (00), PartOrder 0 (0000), RiceParam 0 (0000).
+    // Stream: ... 00 0000 0000
+    // Residuals data: 001 (1), 01 (-1), 1 (0).
+    // Stream: ... 001 01 1
+    // Padding: 000
+    // Bytes: 0x30, 0x08, 0x00, 0x2C
+
+    uint8_t data[] = {
+        0x40,        // Subframe header (LPC order 1)
+        0x00, 0x0A,  // Warm-up sample: 10
+        0x30,        // Prec(4) + Shift(high 4)
+        0x08,        // Shift(low 1) + Coeff(4) + Method(high 3)
+                     // Wait:
+                     // Prec: 0011
+                     // Shift: 00000
+                     // Coeff: 0001
+                     // 0011 0000 0 0001
+                     // Byte 3: 00110000 = 0x30
+                     // Next bits: 00001...
+                     // Method: 00
+                     // Part: 0000
+                     // Param: 0000
+                     // Res: 001 01 1
+                     // Stream after 0x30:
+                     // 0 0001 00 0000 0000 001 01 1 000
+                     // 0000 1000 -> 0x08
+                     // 0000 0000 -> 0x00
+                     // Residual 0 (001) starts at bit 23.
+                     // Bit 23: 0. (Last bit of Byte 2)
+                     // Byte 2 = 0x00.
+                     // Byte 3: 01 (Rest of Res 0) 01 (Res 1) 1 (Res 2) 000 (Pad)
+                     // 01 01 1 000 -> 0101 1000 -> 0x58.
+        0x00,        // Param(low 4) + Res(partial)
+        0x58         // Res(rest) + Padding
+    };
+
+    reader.feedData(data, sizeof(data));
+
+    int32_t output[4];
+    memset(output, 0, sizeof(output));
+
+    ASSERT_TRUE(decoder.decodeSubframe(output, 4, 16, false),
+                "Should decode LPC subframe");
+
+    // Expected output same as fixed order 1: 10, 11, 10, 10
+    ASSERT_EQUALS(10, output[0], "Sample 0");
+    ASSERT_EQUALS(11, output[1], "Sample 1");
+    ASSERT_EQUALS(10, output[2], "Sample 2");
+    ASSERT_EQUALS(10, output[3], "Sample 3");
+}
+
 int main() {
+    // Enable debug logging
+    // Debug::init("", {"subframe_decoder", "residual_decoder"});
+
     // Create test suite
     TestSuite suite("SubframeDecoder Unit Tests");
     
     // Add test functions
     suite.addTest("CONSTANT Subframe", test_constant_subframe);
     suite.addTest("VERBATIM Subframe", test_verbatim_subframe);
-    suite.addTest("FIXED Predictor Order 0", test_fixed_predictor_order_0);
-    suite.addTest("FIXED Predictor Order 1", test_fixed_predictor_order_1);
+    suite.addTest("FIXED Predictor Order 0 Full", test_fixed_predictor_order_0_full);
+    suite.addTest("FIXED Predictor Order 1 Full", test_fixed_predictor_full_decoding);
     suite.addTest("Wasted Bits", test_wasted_bits);
     suite.addTest("Side Channel Bit Depth", test_side_channel_bit_depth);
     suite.addTest("LPC Predictor Structure", test_lpc_predictor_structure);
+    suite.addTest("LPC Subframe Decoding", test_lpc_subframe_decoding);
+    suite.addTest("LPC Subframe Full", test_lpc_subframe_full);
     suite.addTest("Subframe Type Detection", test_subframe_type_detection);
     
     // Run all tests

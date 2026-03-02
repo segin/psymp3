@@ -116,6 +116,8 @@ class Player
 
         void nextTrack(size_t advance_count = 1);
         void prevTrack(void);
+        bool canGoNext() const;
+        bool canGoPrevious() const;
         bool stop(void);
         bool pause(void);
         bool play(void);
@@ -124,11 +126,20 @@ class Player
         LoopMode getLoopMode() const;
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
+        bool canSeek() const;
         static std::atomic<bool> guiRunning;
         
         // MPRIS Error Notification
         void toggleMPRISErrorNotifications();
-        void showMPRISError(const std::string& message);
+
+        enum class NotificationType {
+            Info,
+            Warning,
+            Error,
+            MPRISError
+        };
+
+        void showNotification(const std::string& message, NotificationType type);
 
         // Robust playlist handling
         bool handleUnplayableTrack();
@@ -142,12 +153,19 @@ class Player
         void setVolume(double volume);
         double getVolume() const;
 
+        void setShuffle(bool shuffle);
+        bool getShuffle() const;
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
-        void renderSpectrum(Surface *graph);
         void precomputeSpectrumColors();
     private:
+
+        void updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title);
+        void renderSpectrum();
+        void renderOverlay(Stream* current_stream, unsigned long current_pos_ms);
+
         bool updateGUI();
         bool handleKeyPress(const SDL_keysym& keysym);
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
@@ -158,6 +176,11 @@ class Player
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
         
+        // Initialization and cleanup
+        bool Initialize(const PlayerOptions& options);
+        void EventLoop();
+        void Cleanup();
+
         // Window management methods
         void renderWindows();
         void handleWindowMouseEvents(const SDL_Event& event);
@@ -241,7 +264,8 @@ class Player
         int m_automated_test_track_count;
         SDL_TimerID m_automated_test_timer_id = 0;
         SDL_TimerID m_automated_quit_timer_id = 0;
-        
+        SDL_TimerID m_app_loop_timer_id = 0;
+
         // Test windows
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;

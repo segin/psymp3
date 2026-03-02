@@ -109,7 +109,7 @@ void writeConfigFile(const std::string& filename, const ConfigData& config) {
     
     file << "# Last.fm configuration\n";
     file << "username=" << config.username << "\n";
-    file << "password_hash=" << config.password_hash << "\n";
+    // password_hash is not persisted for security reasons
     file << "session_key=" << config.session_key << "\n";
     file << "now_playing_url=" << config.now_playing_url << "\n";
     file << "submission_url=" << config.submission_url << "\n";
@@ -138,7 +138,16 @@ bool test_parse_existing_config_format() {
         original.now_playing_url = "http://post.audioscrobbler.com/np_1.2";
         original.submission_url = "http://post.audioscrobbler.com/1.2";
         
-        writeConfigFile(temp_file, original);
+        // Manually write config file with password_hash to verify we can still read legacy files
+        {
+            std::ofstream file(temp_file);
+            file << "# Last.fm configuration\n";
+            file << "username=" << original.username << "\n";
+            file << "password_hash=" << original.password_hash << "\n";
+            file << "session_key=" << original.session_key << "\n";
+            file << "now_playing_url=" << original.now_playing_url << "\n";
+            file << "submission_url=" << original.submission_url << "\n";
+        }
         
         // Parse it back
         ConfigData parsed = parseConfigFile(temp_file);
@@ -194,18 +203,25 @@ bool test_write_config_maintains_format() {
         
         // Verify format contains expected keys
         assert(content.find("username=") != std::string::npos);
-        assert(content.find("password_hash=") != std::string::npos);
+        // password_hash must NOT be present
+        assert(content.find("password_hash=") == std::string::npos);
         assert(content.find("session_key=") != std::string::npos);
         assert(content.find("now_playing_url=") != std::string::npos);
         assert(content.find("submission_url=") != std::string::npos);
         
         // Verify values are present
         assert(content.find("myuser") != std::string::npos);
-        assert(content.find("mypassword") != std::string::npos);
+        // Password hash value should NOT be present
+        assert(content.find("mypassword") == std::string::npos);
         assert(content.find("session123") != std::string::npos);
         
         // Parse it back to verify round-trip
         ConfigData parsed = parseConfigFile(temp_file);
+
+        // password_hash is not persisted
+        assert(parsed.password_hash.empty());
+        original.password_hash.clear();
+
         assert(parsed == original);
         
         std::cout << "  ✓ Written config file maintains standard format" << std::endl;
@@ -288,7 +304,8 @@ bool test_handle_special_characters() {
         
         // Verify special characters are preserved
         assert(parsed.username == original.username);
-        assert(parsed.password_hash == original.password_hash);
+        // password_hash is not persisted
+        assert(parsed.password_hash.empty());
         assert(parsed.session_key == original.session_key);
         assert(parsed.now_playing_url == original.now_playing_url);
         
