@@ -333,6 +333,7 @@ void System::InitializeTaskbar() {
                        IID_ITaskbarList3, reinterpret_cast<void **>(&m_taskbar));
 
 
+
   if (SUCCEEDED(hr)) {
     std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar
               << std::endl;
