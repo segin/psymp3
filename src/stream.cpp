@@ -372,6 +372,19 @@ unsigned int Stream::getEncoding()
 }
 
 /**
+ * @brief Checks if the stream supports seeking.
+ *
+ * The default implementation checks if the stream has a known length.
+ * Derived classes may override this to provide more specific logic.
+ * @return true if seeking is supported, false otherwise.
+ */
+bool Stream::canSeek() const
+{
+    // Use const_cast because getLength is not const, but we know it doesn't modify state
+    return const_cast<Stream*>(this)->getLength() > 0;
+}
+
+/**
  * @brief Gets the current playback position in milliseconds.
  * 
  * This value is updated by the derived class's `getData` method.
