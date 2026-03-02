@@ -75,17 +75,7 @@ public:
      */
     void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
 
-    /**
-     * Update shuffle status
-     * @param shuffle New shuffle status
-     */
     void updateShuffle(bool shuffle);
-
-    /**
-     * Update volume
-     * @param volume New volume level
-     * @return true if updated
-     */
     bool updateVolume(double volume);
 
     /**
@@ -112,16 +102,7 @@ public:
      */
     PsyMP3::MPRIS::LoopStatus getLoopStatus() const;
 
-    /**
-     * Get current shuffle status
-     * @return true if shuffle is enabled
-     */
     bool getShuffle() const;
-
-    /**
-     * Get current volume level
-     * @return Volume level (0.0 - 1.0+)
-     */
     double getVolume() const;
     
     /**
