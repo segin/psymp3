@@ -32,7 +32,6 @@ DemuxerPluginManager& DemuxerPluginManager::getInstance() {
 DemuxerPluginManager::DemuxerPluginManager() {
     // Initialize default search paths
     m_search_paths = {
-        "./plugins",
         "/usr/local/lib/psymp3/plugins",
         "/usr/lib/psymp3/plugins"
     };

@@ -333,6 +333,7 @@ void System::InitializeTaskbar() {
                        IID_ITaskbarList3, reinterpret_cast<void **>(&m_taskbar));
 
 
+
   if (SUCCEEDED(hr)) {
     std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar
               << std::endl;
@@ -489,15 +490,15 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
   // The SetThreadDescription API is available on Windows 10 1607+
   // We dynamically load it to maintain compatibility with older systems.
   using SetThreadDescription_t = HRESULT(WINAPI *)(HANDLE, PCWSTR);
-  auto pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(
-      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription");
+  auto pSetThreadDescription = reinterpret_cast<SetThreadDescription_t>(GetProcAddress(
+      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"));
 
   if (pSetThreadDescription) {
     // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API
     int size_needed =
-        MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), nullptr, 0);
+        MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), nullptr, 0);
     std::wstring wname(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), &wname[0],
+    MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), &wname[0],
                         size_needed);
 
     pSetThreadDescription(GetCurrentThread(), wname.c_str());
