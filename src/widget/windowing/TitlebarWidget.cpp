@@ -29,8 +29,9 @@ namespace Windowing {
 
 using Foundation::Widget;
 
-TitlebarWidget::TitlebarWidget(int width, int height, const std::string& title)
+TitlebarWidget::TitlebarWidget(int width, int height, Font* font, const std::string& title)
     : Widget()
+    , m_font(font)
     , m_title(title)
     , m_width(width)
     , m_height(height)
@@ -114,8 +115,18 @@ void TitlebarWidget::rebuildSurface()
     // Add a border effect (darker gray outline)
     titlebar_surface->box(0, 0, m_width - 1, m_height - 1, 64, 64, 64, 255);
     
-    // TODO: Add title text rendering when font access is available
-    // For now, the titlebar is just a solid colored bar
+    // Render title text
+    if (m_font && !m_title.empty()) {
+        auto text_sfc = m_font->Render(TagLib::String(m_title, TagLib::String::UTF8), 255, 255, 255);
+        if (text_sfc && text_sfc->isValid()) {
+             // Center vertically
+             int text_y = (m_height - text_sfc->height()) / 2;
+             // Center horizontally
+             int text_x = (m_width - text_sfc->width()) / 2;
+
+             titlebar_surface->Blit(*text_sfc, Rect(text_x, text_y, text_sfc->width(), text_sfc->height()));
+        }
+    }
     
     // Set the surface
     setSurface(std::move(titlebar_surface));
