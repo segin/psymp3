@@ -11,6 +11,8 @@
 
 #ifdef HAVE_OGGDEMUXER
 
+using PsyMP3::Demuxer::Ogg::OggDemuxer;
+
 #include "test_framework.h"
 #include <memory>
 #include <vector>

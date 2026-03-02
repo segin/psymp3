@@ -31,14 +31,14 @@ using Foundation::Widget;
 
 int WindowWidget::s_next_z_order = 1;
 
-WindowWidget::WindowWidget(int client_width, int client_height, const std::string& title)
+WindowWidget::WindowWidget(int client_width, int client_height, const std::string& title, Font* font)
     : Widget()
     , m_client_width(client_width)
     , m_client_height(client_height)
     , m_z_order(s_next_z_order++)
 {
     // Create WindowFrameWidget that will handle all the system decorations
-    m_frame_widget_owned = std::make_unique<WindowFrameWidget>(client_width, client_height, title);
+    m_frame_widget_owned = std::make_unique<WindowFrameWidget>(client_width, client_height, title, font);
     m_frame_widget = m_frame_widget_owned.get();
     
     // Set up frame widget callbacks to forward events to our event handlers

@@ -21,7 +21,9 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#if !defined(FINAL_BUILD) && !defined(UNIT_TESTING)
 #include "psymp3.h"
+#endif
 
 #ifdef HAVE_MP3
 
