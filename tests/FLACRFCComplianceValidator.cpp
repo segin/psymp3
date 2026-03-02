@@ -24,6 +24,8 @@
 // Comprehensive RFC 9639 compliance validator - testing version
 // This is the full-featured validator for testing and debugging
 
+#include "psymp3.h"
+
 #include <vector>
 #include <string>
 #include <memory>
@@ -42,7 +44,7 @@
 #include "FLACRFCComplianceValidator.h"
 
 // Minimal Debug implementation for testing
-namespace Debug {
+namespace LocalDebug {
     void log(const std::string& channel, const std::string& message) {
         std::cout << "[" << channel << "] " << message << std::endl;
     }
@@ -834,18 +836,18 @@ FLACRFCComplianceValidator::FLACRFCComplianceValidator()
     , m_validation_start_time(std::chrono::high_resolution_clock::now())
     , m_total_validation_time_us(0) {
     
-    Debug::log("flac_rfc_validator", "[FLACRFCComplianceValidator] Initialized RFC 9639 compliance validator");
+    LocalDebug::log("flac_rfc_validator", "[FLACRFCComplianceValidator] Initialized RFC 9639 compliance validator");
 }
 
 FLACRFCComplianceValidator::~FLACRFCComplianceValidator() {
-    Debug::log("flac_rfc_validator", "[FLACRFCComplianceValidator] Destroyed RFC 9639 compliance validator");
+    LocalDebug::log("flac_rfc_validator", "[FLACRFCComplianceValidator] Destroyed RFC 9639 compliance validator");
 }
 
 void FLACRFCComplianceValidator::setRealTimeValidation(bool enabled, uint64_t performance_impact_threshold_us) {
     m_real_time_validation_enabled = enabled;
     m_performance_threshold_us = performance_impact_threshold_us;
     
-    Debug::log("flac_rfc_validator", "[setRealTimeValidation] Real-time validation ", 
+    LocalDebug::log("flac_rfc_validator", "[setRealTimeValidation] Real-time validation ", 
               (enabled ? "ENABLED" : "DISABLED"), 
               ", threshold: ", performance_impact_threshold_us, " μs");
 }
@@ -878,7 +880,7 @@ FrameComplianceAnalysis FLACRFCComplianceValidator::validateFrame(const uint8_t*
         m_total_validation_time_us += validation_time_us;
         
         if (validation_time_us > m_performance_threshold_us) {
-            Debug::log("flac_rfc_validator", "[validateFrame] Slow validation: ", validation_time_us, 
+            LocalDebug::log("flac_rfc_validator", "[validateFrame] Slow validation: ", validation_time_us, 
                       " μs for frame ", frame_number, " (threshold: ", m_performance_threshold_us, " μs)");
         }
     }
@@ -996,7 +998,7 @@ void FLACRFCComplianceValidator::addViolation(const RFCViolationReport& violatio
     }
     
     // Log violation immediately for debugging
-    Debug::log("flac_rfc_validator", "[RFC_VIOLATION] ", violation.toString());
+    LocalDebug::log("flac_rfc_validator", "[RFC_VIOLATION] ", violation.toString());
 }
 
 // ============================================================================
@@ -1093,7 +1095,7 @@ FrameComplianceAnalysis FLACRFCComplianceValidator::validateSamples(const int16_
 void FLACRFCComplianceValidator::clearViolationHistory() {
     std::lock_guard<std::mutex> lock(m_violation_mutex);
     m_violation_history.clear();
-    Debug::log("flac_rfc_validator", "[clearViolationHistory] Cleared all violation history");
+    LocalDebug::log("flac_rfc_validator", "[clearViolationHistory] Cleared all violation history");
 }
 
 void FLACRFCComplianceValidator::setMaxViolationHistory(size_t max_violations) {
@@ -1106,7 +1108,7 @@ void FLACRFCComplianceValidator::setMaxViolationHistory(size_t max_violations) {
                                  m_violation_history.begin() + (m_violation_history.size() - max_violations));
     }
     
-    Debug::log("flac_rfc_validator", "[setMaxViolationHistory] Set maximum violation history to ", max_violations);
+    LocalDebug::log("flac_rfc_validator", "[setMaxViolationHistory] Set maximum violation history to ", max_violations);
 }
 
 void FLACRFCComplianceValidator::setValidationCategories(bool frame_header,
@@ -1122,7 +1124,7 @@ void FLACRFCComplianceValidator::setValidationCategories(bool frame_header,
     m_validate_sample_format = sample_format;
     m_monitor_performance = performance_monitoring;
     
-    Debug::log("flac_rfc_validator", "[setValidationCategories] Updated validation categories: ",
+    LocalDebug::log("flac_rfc_validator", "[setValidationCategories] Updated validation categories: ",
               "header=", (frame_header ? "ON" : "OFF"),
               ", subframes=", (subframes ? "ON" : "OFF"),
               ", channels=", (channel_reconstruction ? "ON" : "OFF"),
@@ -1132,7 +1134,7 @@ void FLACRFCComplianceValidator::setValidationCategories(bool frame_header,
 }
 
 bool FLACRFCComplianceValidator::createRFCComplianceTestSuite(const std::string& output_directory) {
-    Debug::log("flac_rfc_validator", "[createRFCComplianceTestSuite] Creating RFC 9639 compliance test suite in ", output_directory);
+    LocalDebug::log("flac_rfc_validator", "[createRFCComplianceTestSuite] Creating RFC 9639 compliance test suite in ", output_directory);
     
     bool success = true;
     
@@ -1144,9 +1146,9 @@ bool FLACRFCComplianceValidator::createRFCComplianceTestSuite(const std::string&
     success &= generateSampleFormatTests(output_directory);
     
     if (success) {
-        Debug::log("flac_rfc_validator", "[createRFCComplianceTestSuite] Successfully created RFC compliance test suite");
+        LocalDebug::log("flac_rfc_validator", "[createRFCComplianceTestSuite] Successfully created RFC compliance test suite");
     } else {
-        Debug::log("flac_rfc_validator", "[createRFCComplianceTestSuite] Failed to create some test cases");
+        LocalDebug::log("flac_rfc_validator", "[createRFCComplianceTestSuite] Failed to create some test cases");
     }
     
     return success;
@@ -1251,61 +1253,61 @@ bool FLACRFCComplianceValidator::validateFrameNumberEncoding(const uint8_t* data
 }
 
 bool FLACRFCComplianceValidator::generateSyncPatternTests(const std::string& output_dir) {
-    Debug::log("flac_rfc_validator", "[generateSyncPatternTests] Generating sync pattern test cases in ", output_dir);
+    LocalDebug::log("flac_rfc_validator", "[generateSyncPatternTests] Generating sync pattern test cases in ", output_dir);
     
     // This would generate test files with various sync pattern scenarios
     // For now, just log that we would create these tests
-    Debug::log("flac_rfc_validator", "  - Valid sync pattern (0x3FFE) test");
-    Debug::log("flac_rfc_validator", "  - Invalid sync pattern tests");
-    Debug::log("flac_rfc_validator", "  - Reserved bit violation tests");
+    LocalDebug::log("flac_rfc_validator", "  - Valid sync pattern (0x3FFE) test");
+    LocalDebug::log("flac_rfc_validator", "  - Invalid sync pattern tests");
+    LocalDebug::log("flac_rfc_validator", "  - Reserved bit violation tests");
     
     return true; // Simplified for now
 }
 
 bool FLACRFCComplianceValidator::generateFrameHeaderTests(const std::string& output_dir) {
-    Debug::log("flac_rfc_validator", "[generateFrameHeaderTests] Generating frame header test cases in ", output_dir);
+    LocalDebug::log("flac_rfc_validator", "[generateFrameHeaderTests] Generating frame header test cases in ", output_dir);
     
-    Debug::log("flac_rfc_validator", "  - Block size encoding tests (RFC 9639 Table 1)");
-    Debug::log("flac_rfc_validator", "  - Sample rate encoding tests (RFC 9639 Table 2)");
-    Debug::log("flac_rfc_validator", "  - Channel assignment tests (RFC 9639 Table 3)");
-    Debug::log("flac_rfc_validator", "  - Sample size encoding tests (RFC 9639 Table 4)");
-    Debug::log("flac_rfc_validator", "  - Reserved value violation tests");
+    LocalDebug::log("flac_rfc_validator", "  - Block size encoding tests (RFC 9639 Table 1)");
+    LocalDebug::log("flac_rfc_validator", "  - Sample rate encoding tests (RFC 9639 Table 2)");
+    LocalDebug::log("flac_rfc_validator", "  - Channel assignment tests (RFC 9639 Table 3)");
+    LocalDebug::log("flac_rfc_validator", "  - Sample size encoding tests (RFC 9639 Table 4)");
+    LocalDebug::log("flac_rfc_validator", "  - Reserved value violation tests");
     
     return true; // Simplified for now
 }
 
 bool FLACRFCComplianceValidator::generateSubframeTests(const std::string& output_dir) {
-    Debug::log("flac_rfc_validator", "[generateSubframeTests] Generating subframe test cases in ", output_dir);
+    LocalDebug::log("flac_rfc_validator", "[generateSubframeTests] Generating subframe test cases in ", output_dir);
     
-    Debug::log("flac_rfc_validator", "  - CONSTANT subframe tests (RFC 9639 Section 9.2.1)");
-    Debug::log("flac_rfc_validator", "  - VERBATIM subframe tests (RFC 9639 Section 9.2.2)");
-    Debug::log("flac_rfc_validator", "  - FIXED predictor tests (RFC 9639 Section 9.2.3)");
-    Debug::log("flac_rfc_validator", "  - LPC subframe tests (RFC 9639 Section 9.2.4)");
-    Debug::log("flac_rfc_validator", "  - Wasted bits handling tests");
-    Debug::log("flac_rfc_validator", "  - Side-channel processing tests");
+    LocalDebug::log("flac_rfc_validator", "  - CONSTANT subframe tests (RFC 9639 Section 9.2.1)");
+    LocalDebug::log("flac_rfc_validator", "  - VERBATIM subframe tests (RFC 9639 Section 9.2.2)");
+    LocalDebug::log("flac_rfc_validator", "  - FIXED predictor tests (RFC 9639 Section 9.2.3)");
+    LocalDebug::log("flac_rfc_validator", "  - LPC subframe tests (RFC 9639 Section 9.2.4)");
+    LocalDebug::log("flac_rfc_validator", "  - Wasted bits handling tests");
+    LocalDebug::log("flac_rfc_validator", "  - Side-channel processing tests");
     
     return true; // Simplified for now
 }
 
 bool FLACRFCComplianceValidator::generateCRCTests(const std::string& output_dir) {
-    Debug::log("flac_rfc_validator", "[generateCRCTests] Generating CRC validation test cases in ", output_dir);
+    LocalDebug::log("flac_rfc_validator", "[generateCRCTests] Generating CRC validation test cases in ", output_dir);
     
-    Debug::log("flac_rfc_validator", "  - CRC-8 frame header tests");
-    Debug::log("flac_rfc_validator", "  - CRC-16 frame footer tests");
-    Debug::log("flac_rfc_validator", "  - CRC mismatch handling tests");
-    Debug::log("flac_rfc_validator", "  - CRC calculation boundary tests");
+    LocalDebug::log("flac_rfc_validator", "  - CRC-8 frame header tests");
+    LocalDebug::log("flac_rfc_validator", "  - CRC-16 frame footer tests");
+    LocalDebug::log("flac_rfc_validator", "  - CRC mismatch handling tests");
+    LocalDebug::log("flac_rfc_validator", "  - CRC calculation boundary tests");
     
     return true; // Simplified for now
 }
 
 bool FLACRFCComplianceValidator::generateSampleFormatTests(const std::string& output_dir) {
-    Debug::log("flac_rfc_validator", "[generateSampleFormatTests] Generating sample format test cases in ", output_dir);
+    LocalDebug::log("flac_rfc_validator", "[generateSampleFormatTests] Generating sample format test cases in ", output_dir);
     
-    Debug::log("flac_rfc_validator", "  - Bit depth conversion tests (4-32 bits)");
-    Debug::log("flac_rfc_validator", "  - Sign extension validation tests");
-    Debug::log("flac_rfc_validator", "  - Overflow protection tests");
-    Debug::log("flac_rfc_validator", "  - Bit-perfect reconstruction tests");
-    Debug::log("flac_rfc_validator", "  - Sample range validation tests");
+    LocalDebug::log("flac_rfc_validator", "  - Bit depth conversion tests (4-32 bits)");
+    LocalDebug::log("flac_rfc_validator", "  - Sign extension validation tests");
+    LocalDebug::log("flac_rfc_validator", "  - Overflow protection tests");
+    LocalDebug::log("flac_rfc_validator", "  - Bit-perfect reconstruction tests");
+    LocalDebug::log("flac_rfc_validator", "  - Sample range validation tests");
     
     return true; // Simplified for now
 }

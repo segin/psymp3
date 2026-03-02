@@ -161,6 +161,7 @@ class Player
         PlayerState m_state_before_seek;
         void precomputeSpectrumColors();
     private:
+
         void updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title);
         void renderSpectrum();
         void renderOverlay(Stream* current_stream, unsigned long current_pos_ms);
