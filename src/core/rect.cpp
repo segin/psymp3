@@ -799,18 +799,18 @@ Rect Rect::normalized() const
 void Rect::normalize()
 {
     // Handle negative width
-    if (static_cast<int32_t>(m_width) < 0) {
+    if (static_cast<int16_t>(m_width) < 0) {
         // Convert to signed for calculation
-        int32_t signed_width = static_cast<int32_t>(m_width);
+        int32_t signed_width = static_cast<int32_t>(static_cast<int16_t>(m_width));
         // Adjust position and make width positive
         m_x = safeAdd(m_x, static_cast<int16_t>(signed_width));
         m_width = static_cast<uint16_t>(-signed_width);
     }
     
     // Handle negative height
-    if (static_cast<int32_t>(m_height) < 0) {
+    if (static_cast<int16_t>(m_height) < 0) {
         // Convert to signed for calculation
-        int32_t signed_height = static_cast<int32_t>(m_height);
+        int32_t signed_height = static_cast<int32_t>(static_cast<int16_t>(m_height));
         // Adjust position and make height positive
         m_y = safeAdd(m_y, static_cast<int16_t>(signed_height));
         m_height = static_cast<uint16_t>(-signed_height);
