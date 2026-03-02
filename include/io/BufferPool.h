@@ -36,22 +36,24 @@ namespace IO {
  * to reduce allocation/deallocation overhead and memory fragmentation.
  */
 class IOBufferPool {
+private:
+    struct PoolEntry; // Forward declaration
+
 public:
     /**
      * @brief Buffer handle for RAII management
      */
     class Buffer {
     public:
-        Buffer() : m_data(nullptr), m_size(0), m_pool(nullptr) {}
-        Buffer(uint8_t* data, size_t size, IOBufferPool* pool) 
-            : m_data(data), m_size(size), m_pool(pool) {}
+        Buffer() : m_data(nullptr), m_size(0) {}
+        Buffer(uint8_t* data, size_t size, std::shared_ptr<PoolEntry> entry)
+            : m_data(data), m_size(size), m_entry(std::move(entry)) {}
         
         // Move constructor
         Buffer(Buffer&& other) noexcept 
-            : m_data(other.m_data), m_size(other.m_size), m_pool(other.m_pool) {
+            : m_data(other.m_data), m_size(other.m_size), m_entry(std::move(other.m_entry)) {
             other.m_data = nullptr;
             other.m_size = 0;
-            other.m_pool = nullptr;
         }
         
         // Move assignment
@@ -60,10 +62,9 @@ public:
                 release();
                 m_data = other.m_data;
                 m_size = other.m_size;
-                m_pool = other.m_pool;
+                m_entry = std::move(other.m_entry);
                 other.m_data = nullptr;
                 other.m_size = 0;
-                other.m_pool = nullptr;
             }
             return *this;
         }
@@ -85,7 +86,7 @@ public:
     private:
         uint8_t* m_data;
         size_t m_size;
-        IOBufferPool* m_pool;
+        std::shared_ptr<PoolEntry> m_entry;
     };
     
     /**
@@ -202,6 +203,12 @@ public:
     float getMemoryUsagePercent() const;
 
 private:
+    /**
+     * @brief Update current pool size with thread-local batching
+     * @param delta Bytes to add (can be negative)
+     */
+    void updateCurrentSize(int64_t delta);
+
     IOBufferPool();
     ~IOBufferPool();
     
@@ -212,11 +219,24 @@ private:
     struct PoolEntry {
         std::vector<uint8_t*> available_buffers;
         size_t buffer_size;
-        size_t total_allocated;
-        size_t pool_hits;
-        size_t pool_misses;
+        std::atomic<size_t> total_allocated;
+        std::atomic<size_t> pool_hits;
+        std::atomic<size_t> pool_misses;
+        mutable std::mutex mutex; // Fine-grained lock for this pool entry
+        IOBufferPool* pool_instance; // Back pointer to pool instance
         
-        PoolEntry(size_t size) : buffer_size(size), total_allocated(0), pool_hits(0), pool_misses(0) {}
+        PoolEntry(size_t size, IOBufferPool* instance)
+            : buffer_size(size), total_allocated(0), pool_hits(0), pool_misses(0), pool_instance(instance) {}
+
+        // Disable copy/move because mutex is not copyable/movable
+        PoolEntry(const PoolEntry&) = delete;
+        PoolEntry& operator=(const PoolEntry&) = delete;
+
+        /**
+         * @brief Return a buffer to this pool entry
+         * @param data Buffer data to return
+         */
+        void returnBuffer(uint8_t* data);
         
         /**
          * @brief Calculate hit rate for this pool entry
@@ -225,20 +245,20 @@ private:
         double getHitRate() const;
     };
     
-    mutable std::mutex m_mutex;
-    std::map<size_t, PoolEntry> m_pools;
-    size_t m_max_pool_size = 16 * 1024 * 1024;     // 16MB default max pool size
-    size_t m_max_buffers_per_size = 8;             // 8 buffers per size default
-    size_t m_current_pool_size = 0;                // Current total pooled memory
+    mutable std::shared_mutex m_pools_mutex; // Replaces m_mutex with read/write lock
+    std::map<size_t, std::shared_ptr<PoolEntry>> m_pools; // Use shared_ptr for thread-local caching and lifetime management
+    std::atomic<size_t> m_max_pool_size{16 * 1024 * 1024};     // 16MB default max pool size
+    std::atomic<size_t> m_max_buffers_per_size{8};             // 8 buffers per size default
+    std::atomic<size_t> m_current_pool_size{0};                // Current total pooled memory
     
     // Memory pressure monitoring
-    MemoryPressureLevel m_memory_pressure_level;   // Current memory pressure level
+    std::atomic<MemoryPressureLevel> m_memory_pressure_level;   // Current memory pressure level
     std::thread m_monitoring_thread;               // Memory monitoring thread
     std::atomic<bool> m_monitoring_active{false};  // Flag to control monitoring thread
     
     // Adaptive pool parameters based on memory pressure
-    size_t m_effective_max_pool_size = 16 * 1024 * 1024;  // Effective max pool size
-    size_t m_effective_max_buffers_per_size = 8;          // Effective max buffers per size
+    std::atomic<size_t> m_effective_max_pool_size{16 * 1024 * 1024};  // Effective max pool size
+    std::atomic<size_t> m_effective_max_buffers_per_size{8};          // Effective max buffers per size
     
     // Common buffer sizes for pre-allocation
     std::vector<size_t> m_common_sizes;

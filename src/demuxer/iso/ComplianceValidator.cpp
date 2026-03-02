@@ -8,6 +8,9 @@
  */
 
 #include "psymp3.h"
+#include <algorithm>
+#include <iterator>
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
@@ -486,22 +489,30 @@ ComplianceValidationResult ComplianceValidator::GetComplianceReport() const {
 }
 
 bool ComplianceValidator::ValidateBoxNesting(uint32_t parentType, uint32_t childType) {
-    // Define valid parent-child relationships
-    static const std::map<uint32_t, std::vector<uint32_t>> validNesting = {
-        {BOX_MOOV, {BOX_MVHD, BOX_TRAK, BOX_UDTA, BOX_META, BOX_IODS}},
-        {BOX_TRAK, {BOX_TKHD, BOX_TREF, BOX_EDTS, BOX_MDIA}},
-        {BOX_MDIA, {BOX_MDHD, BOX_HDLR, BOX_MINF}},
-        {BOX_MINF, {BOX_VMHD, BOX_SMHD, BOX_HMHD, BOX_NMHD, BOX_DINF, BOX_STBL}},
-        {BOX_STBL, {BOX_STSD, BOX_STTS, BOX_CTTS, BOX_STSC, BOX_STSZ, BOX_STZ2, BOX_STCO, BOX_CO64, BOX_STSS}}
-    };
-    
-    auto it = validNesting.find(parentType);
-    if (it == validNesting.end()) {
-        return true; // Unknown parent, allow for extensibility
+    switch (parentType) {
+        case BOX_MOOV: {
+            static const uint32_t children[] = {BOX_MVHD, BOX_TRAK, BOX_UDTA, BOX_META, BOX_IODS};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_TRAK: {
+            static const uint32_t children[] = {BOX_TKHD, BOX_TREF, BOX_EDTS, BOX_MDIA};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_MDIA: {
+            static const uint32_t children[] = {BOX_MDHD, BOX_HDLR, BOX_MINF};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_MINF: {
+            static const uint32_t children[] = {BOX_VMHD, BOX_SMHD, BOX_HMHD, BOX_NMHD, BOX_DINF, BOX_STBL};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_STBL: {
+            static const uint32_t children[] = {BOX_STSD, BOX_STTS, BOX_CTTS, BOX_STSC, BOX_STSZ, BOX_STZ2, BOX_STCO, BOX_CO64, BOX_STSS};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        default:
+            return true; // Unknown parent, allow for extensibility
     }
-    
-    const auto& validChildren = it->second;
-    return std::find(validChildren.begin(), validChildren.end(), childType) != validChildren.end();
 }
 
 std::string ComplianceValidator::BoxTypeToString(uint32_t boxType) {
