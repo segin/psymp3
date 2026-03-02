@@ -163,29 +163,12 @@ IOBufferPool::Buffer IOBufferPool::acquire(size_t size) {
     }
     
     // Need to allocate new buffer
-    // If entry existed but was empty, we allocate and return with that entry (for return later)
-    // If entry didn't exist, we need to create it
-
     try {
         uint8_t* data = new uint8_t[pool_size];
         
-        if (entry) {
-            // Entry exists, update stats
-            // We need to lock entry to update stats safely?
-            // Yes, concurrent access to pool_misses
-            std::lock_guard<std::mutex> entry_lock(entry->mutex);
-            entry->total_allocated++;
-            entry->pool_misses++;
-
-            Debug::log("memory", "BufferPool::acquire() - Allocated new buffer of size ", pool_size,
-                  " (total allocated: ", entry->total_allocated, ", pool misses: ", entry->pool_misses, ")");
-
-            return Buffer(data, pool_size, entry);
-        }
-        
-        // Entry did not exist. Create it.
-        // Needs exclusive lock on map
-        {
+        if (!entry) {
+            // Entry did not exist. Create it.
+            // Needs exclusive lock on map
             std::unique_lock<std::shared_mutex> write_lock(m_pools_mutex);
             // Double check
             auto it = m_pools.find(pool_size);
@@ -196,40 +179,35 @@ IOBufferPool::Buffer IOBufferPool::acquire(size_t size) {
                 entry = it->second;
             }
 
-            // Update cache since we are here
+            // Update cache
             t_cached_entry = entry;
             t_cached_size = pool_size;
         }
         
-        // Now we have entry (either created or found)
+        // Update stats
         {
             std::lock_guard<std::mutex> entry_lock(entry->mutex);
             entry->total_allocated++;
             entry->pool_misses++;
         }
 
-        Debug::log("memory", "BufferPool::acquire() - Allocated new buffer of size ", pool_size, " (new pool created)");
+        Debug::log("memory", "BufferPool::acquire() - Allocated new buffer of size ", pool_size,
+                  " (total allocated: ", entry->total_allocated, ", pool misses: ", entry->pool_misses, ")");
 
         return Buffer(data, pool_size, entry);
         
     } catch (const std::bad_alloc& e) {
         Debug::log("memory", "BufferPool::acquire() - Allocation failed for size ", pool_size, ": ", e.what());
         
-        evictIfNeededInternal(); // Lock handled internally
-        enforceBoundedLimits(); // Lock handled internally
+        evictIfNeeded(); 
+        enforceBoundedLimits(); 
         
         try {
             uint8_t* data = new uint8_t[pool_size];
-            // Just return it, if we failed to create pool entry, treat as direct allocation?
-            // But we prefer to have an entry if possible.
-            // If we failed allocation, we likely didn't create the entry yet or we have it.
-            // If we have 'entry', use it.
-
             if (entry) {
                 return Buffer(data, pool_size, entry);
             }
             return Buffer(data, pool_size, nullptr);
-            
         } catch (const std::bad_alloc& e2) {
             Debug::log("memory", "BufferPool::acquire() - Allocation still failed: ", e2.what());
             return Buffer();
@@ -283,7 +261,6 @@ std::map<std::string, size_t> IOBufferPool::getStats() const {
     
     for (const auto& pool : m_pools) {
         std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
-
         total_allocated += pool.second->total_allocated;
         total_pool_hits += pool.second->pool_hits;
         total_pool_misses += pool.second->pool_misses;
@@ -309,13 +286,6 @@ void IOBufferPool::clear() {
     
     size_t total_freed = 0;
     for (auto& pool : m_pools) {
-        // We hold exclusive lock on map.
-        // We can access entries without their mutex because no one can find them?
-        // Wait, shared_ptrs might be held by Buffers or Thread Caches!
-        // So we MUST lock entry mutex to be safe, or just clear the buffers.
-        // But if a Buffer returns to this pool later, it will find it empty.
-        // We are just clearing available buffers.
-
         std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
         for (uint8_t* buffer : pool.second->available_buffers) {
             delete[] buffer;
@@ -331,11 +301,13 @@ void IOBufferPool::clear() {
 
 void IOBufferPool::setMaxPoolSize(size_t max_bytes) {
     std::unique_lock<std::shared_mutex> write_lock(m_pools_mutex);
-
     m_max_pool_size = max_bytes;
     
     Debug::log("memory", "BufferPool::setMaxPoolSize() - Set max pool size to ", max_bytes, " bytes");
     
+    // Update effective limits immediately
+    adjustPoolParametersForMemoryPressure();
+
     // Evict if current size exceeds new limit
     if (m_current_pool_size > m_max_pool_size) {
         evictIfNeededInternal();
@@ -347,11 +319,13 @@ void IOBufferPool::setMaxPoolSize(size_t max_bytes) {
 
 void IOBufferPool::setMaxBuffersPerSize(size_t max_buffers) {
     std::unique_lock<std::shared_mutex> write_lock(m_pools_mutex);
-
     m_max_buffers_per_size = max_buffers;
     
     Debug::log("memory", "BufferPool::setMaxBuffersPerSize() - Set max buffers per size to ", max_buffers);
     
+    // Update effective limits immediately
+    adjustPoolParametersForMemoryPressure();
+
     // Trim existing pools if they exceed new limit
     for (auto& pool : m_pools) {
         std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
@@ -404,10 +378,6 @@ void IOBufferPool::evictIfNeededInternal() {
     // Enhanced eviction strategy based on memory pressure and usage patterns
     std::vector<std::pair<size_t, PoolEntry*>> pool_entries; // (buffer_size, pool_entry)
     for (auto& pool_pair : m_pools) {
-        // Need to check without lock? Or assume consistent enough?
-        // We are in write lock of map, but others might hold entry mutex via cache/buffer.
-        // We should just collect pointers and then process?
-        // But eviction logic reads available_buffers.size().
         pool_entries.emplace_back(pool_pair.first, pool_pair.second.get());
     }
     
@@ -843,7 +813,7 @@ void IOBufferPool::compactMemory() {
     }
     
     Debug::log("memory", "BufferPool::compactMemory() - Compaction complete: freed ", freed_bytes, 
-              " bytes (", initial_pool_size, " -> ", m_current_pool_size.load(), ")");
+              " bytes (", static_cast<size_t>(initial_pool_size), " -> ", m_current_pool_size.load(), ")");
 }
 
 void IOBufferPool::defragmentPools() {
@@ -940,7 +910,7 @@ void IOBufferPool::enforceBoundedLimitsInternal() {
         // Clear all pools immediately
         size_t freed_bytes = 0;
         for (auto& pool : m_pools) {
-            std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
+        std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
             for (uint8_t* buffer : pool.second->available_buffers) {
                 delete[] buffer;
                 freed_bytes += pool.second->buffer_size;
@@ -959,7 +929,7 @@ void IOBufferPool::enforceBoundedLimitsInternal() {
         // Remove 90% of all buffers
         size_t freed_bytes = 0;
         for (auto& pool : m_pools) {
-            std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
+        std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
             size_t to_remove = (pool.second->available_buffers.size() * 9) / 10; // 90%
             
             for (size_t i = 0; i < to_remove && !pool.second->available_buffers.empty(); ++i) {
@@ -980,7 +950,7 @@ void IOBufferPool::enforceBoundedLimitsInternal() {
         // Remove 50% of all buffers
         size_t freed_bytes = 0;
         for (auto& pool : m_pools) {
-            std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
+        std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
             size_t to_remove = pool.second->available_buffers.size() / 2; // 50%
             
             for (size_t i = 0; i < to_remove && !pool.second->available_buffers.empty(); ++i) {
@@ -1001,7 +971,7 @@ void IOBufferPool::enforceBoundedLimitsInternal() {
         // Remove 25% of all buffers
         size_t freed_bytes = 0;
         for (auto& pool : m_pools) {
-            std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
+        std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
             size_t to_remove = pool.second->available_buffers.size() / 4; // 25%
             
             for (size_t i = 0; i < to_remove && !pool.second->available_buffers.empty(); ++i) {
@@ -1025,7 +995,7 @@ void IOBufferPool::enforceBoundedLimitsInternal() {
         // Emergency cleanup - clear everything
         size_t freed_bytes = 0;
         for (auto& pool : m_pools) {
-            std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
+        std::lock_guard<std::mutex> entry_lock(pool.second->mutex);
             for (uint8_t* buffer : pool.second->available_buffers) {
                 delete[] buffer;
                 freed_bytes += pool.second->buffer_size;

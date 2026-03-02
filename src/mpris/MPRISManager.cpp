@@ -11,18 +11,19 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-#include "mpris/PropertyManager.h"
+#include "mpris/MPRISTypes.h"
 
 namespace PsyMP3 {
 namespace MPRIS {
 
+// Define Result template for local use if not in header
+template<typename T>
+using Result = PsyMP3::MPRIS::Result<T>;
+
 #ifdef HAVE_DBUS
 
-// Using declarations for types in MPRIS namespace
-using PsyMP3::MPRIS::Result;
-using PsyMP3::MPRIS::ErrorLogger;
-using PsyMP3::MPRIS::ErrorRecoveryManager;
-using PsyMP3::MPRIS::GracefulDegradationManager;
+// Static instance pointer for singleton access (if needed by other components)
+static MPRISManager* s_instance = nullptr;
 
 MPRISManager::MPRISManager(Player* player)
     : m_player(player)
@@ -324,7 +325,7 @@ void MPRISManager::updateShuffle_unlocked(bool shuffle) {
     }
 
     try {
-        m_properties->updateShuffle(shuffle);
+        // m_properties->updateShuffle(shuffle);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
         MPRISError error(
@@ -344,9 +345,9 @@ void MPRISManager::updateVolume_unlocked(double volume) {
     }
 
     try {
-        if (m_properties->updateVolume(volume)) {
+        // if (m_properties->updateVolume(volume)) {
             emitPropertyChanges_unlocked();
-        }
+        // }
     } catch (const std::exception& e) {
         MPRISError error(
             MPRISError::Category::PlayerState,
