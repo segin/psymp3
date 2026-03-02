@@ -1545,6 +1545,7 @@ bool Player::Initialize(const PlayerOptions& options) {
         // Force one GUI update to show the initial empty state
         synthesizeUserEvent(RUN_GUI_ITERATION, nullptr, nullptr);
     }
+
     if (m_automated_test_mode) {
         Debug::log("test", "Automated test mode enabled.");
     }
