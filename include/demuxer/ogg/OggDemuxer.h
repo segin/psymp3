@@ -16,6 +16,8 @@
 #include <map>
 #include <mutex>
 #include <deque>
+#include <atomic>
+#include <future>
 #include <ogg/ogg.h>
 
 namespace PsyMP3 {
@@ -73,8 +75,12 @@ private:
     int m_primary_serial;
     bool m_has_primary_serial;
     bool m_eof;
-    mutable bool m_duration_calculated;
-    mutable uint64_t m_cached_duration;
+    mutable std::atomic<bool> m_duration_calculated;
+    mutable std::atomic<uint64_t> m_cached_duration;
+
+    // Async duration calculation
+    mutable std::atomic<bool> m_calculating_duration{false};
+    mutable std::future<void> m_duration_future;
 
     // Unlocked implementations
     MediaChunk readChunk_unlocked(uint32_t stream_id);
@@ -86,6 +92,12 @@ private:
      * Called after headers are complete to populate m_tag
      */
     void createTagFromMetadata_unlocked();
+
+    /**
+     * @brief Calculate duration during container parsing
+     * Runs on loader thread to prevent UI blocking
+     */
+    void calculateInitialDuration_unlocked();
 
 public:
     // --- Legacy / Testing members required by unit tests ---

@@ -9,8 +9,8 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
-#include "core/utility/Base64.h"
 #endif // !FINAL_BUILD
+#include "core/utility/Base64.h"
 
 namespace PsyMP3 {
 namespace Core {

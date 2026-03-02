@@ -46,7 +46,7 @@ namespace ZOrder {
     /// High priority windows: Modal dialogs, error messages
     constexpr int HIGH = 100;
     
-    /// Maximum priority: ToastNotification (always on top, mouse-transparent)
+    /// Maximum priority: ToastWidget (always on top, mouse-transparent)
     constexpr int MAX = 999;
 }
 

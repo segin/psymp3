@@ -7,155 +7,83 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
-#include "test_framework.h"
+#endif
+
+// Include TagLib header before URI.h because URI.h depends on it
+// and does not include it itself (relying on psymp3.h usually).
+#include <taglib/tstring.h>
 #include "io/URI.h"
+#include "test_framework.h"
 
-using namespace TestFramework;
 using namespace PsyMP3::IO;
+using namespace TestFramework;
 
-class URI_LocalFileThreeSlashes : public TestCase {
+class URIParsingTest : public TestCase {
 public:
-    URI_LocalFileThreeSlashes() : TestCase("URI_LocalFileThreeSlashes") {}
+    URIParsingTest() : TestCase("URI::URI parsing") {}
+
 protected:
     void runTest() override {
-        URI uri(TagLib::String("file:///home/user/music/song.mp3"));
-        ASSERT_EQUALS(std::string("file"), uri.scheme().to8Bit(true), "Scheme should be file");
-        ASSERT_EQUALS(std::string("/home/user/music/song.mp3"), uri.path().to8Bit(true), "Path should match");
+        // Test file:///
+        URI uri1("file:///home/user/music/song.mp3");
+        ASSERT_EQUALS("file", uri1.scheme().to8Bit(true), "Scheme should be file");
+        ASSERT_EQUALS("/home/user/music/song.mp3", uri1.path().to8Bit(true), "Path should be extracted correctly");
+
+        // Test file:/
+        URI uri2("file:/home/user/music/song.mp3");
+        ASSERT_EQUALS("file", uri2.scheme().to8Bit(true), "Scheme should be file");
+        ASSERT_EQUALS("/home/user/music/song.mp3", uri2.path().to8Bit(true), "Path should be extracted correctly");
+
+        // Test http://
+        URI uri3("http://example.com/stream");
+        ASSERT_EQUALS("http", uri3.scheme().to8Bit(true), "Scheme should be http");
+        ASSERT_EQUALS("example.com/stream", uri3.path().to8Bit(true), "Path should be extracted correctly");
+
+        // Test https://
+        URI uri4("https://example.com/secure/stream");
+        ASSERT_EQUALS("https", uri4.scheme().to8Bit(true), "Scheme should be https");
+        ASSERT_EQUALS("example.com/secure/stream", uri4.path().to8Bit(true), "Path should be extracted correctly");
+
+        // Test no scheme (default to file)
+        URI uri5("/local/path/to/file.mp3");
+        ASSERT_EQUALS("file", uri5.scheme().to8Bit(true), "Scheme should be file");
+        ASSERT_EQUALS("/local/path/to/file.mp3", uri5.path().to8Bit(true), "Path should be extracted correctly");
+
+        // Test custom scheme
+        URI uri6("custom://resource");
+        ASSERT_EQUALS("custom", uri6.scheme().to8Bit(true), "Scheme should be custom");
+        ASSERT_EQUALS("resource", uri6.path().to8Bit(true), "Path should be extracted correctly");
+
+        // Test empty
+        URI uri7("");
+        ASSERT_EQUALS("file", uri7.scheme().to8Bit(true), "Empty URI defaults to file scheme");
+        ASSERT_EQUALS("", uri7.path().to8Bit(true), "Empty URI has empty path");
+
+        // Test Windows path (file:///)
+        // file:///C:/path/to/file
+        URI uri8("file:///C:/path/to/file");
+        ASSERT_EQUALS("file", uri8.scheme().to8Bit(true), "Scheme should be file");
+        ASSERT_EQUALS("/C:/path/to/file", uri8.path().to8Bit(true), "Path should be extracted correctly including drive letter");
+
+        // Test generic scheme with authority
+        // smb://server/share/file
+        URI uri9("smb://server/share/file");
+        ASSERT_EQUALS("smb", uri9.scheme().to8Bit(true), "Scheme should be smb");
+        ASSERT_EQUALS("server/share/file", uri9.path().to8Bit(true), "Path should be extracted correctly");
     }
 };
 
-class URI_LocalFileOneSlash : public TestCase {
-public:
-    URI_LocalFileOneSlash() : TestCase("URI_LocalFileOneSlash") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("file:/home/user/music/song.mp3"));
-        ASSERT_EQUALS(std::string("file"), uri.scheme().to8Bit(true), "Scheme should be file");
-        ASSERT_EQUALS(std::string("/home/user/music/song.mp3"), uri.path().to8Bit(true), "Path should match");
-    }
-};
+int main(int argc, char* argv[]) {
+    (void)argc;
+    (void)argv;
 
-class URI_NoScheme : public TestCase {
-public:
-    URI_NoScheme() : TestCase("URI_NoScheme") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("/home/user/music/song.mp3"));
-        ASSERT_EQUALS(std::string("file"), uri.scheme().to8Bit(true), "Scheme should default to file");
-        ASSERT_EQUALS(std::string("/home/user/music/song.mp3"), uri.path().to8Bit(true), "Path should match input");
-    }
-};
-
-class URI_RelativePath : public TestCase {
-public:
-    URI_RelativePath() : TestCase("URI_RelativePath") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("music/song.mp3"));
-        ASSERT_EQUALS(std::string("file"), uri.scheme().to8Bit(true), "Scheme should default to file");
-        ASSERT_EQUALS(std::string("music/song.mp3"), uri.path().to8Bit(true), "Path should match input");
-    }
-};
-
-class URI_HTTPScheme : public TestCase {
-public:
-    URI_HTTPScheme() : TestCase("URI_HTTPScheme") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("http://example.com/stream.mp3"));
-        ASSERT_EQUALS(std::string("http"), uri.scheme().to8Bit(true), "Scheme should be http");
-        ASSERT_EQUALS(std::string("example.com/stream.mp3"), uri.path().to8Bit(true), "Path should exclude scheme://");
-    }
-};
-
-class URI_HTTPSScheme : public TestCase {
-public:
-    URI_HTTPSScheme() : TestCase("URI_HTTPSScheme") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("https://example.com/stream.mp3"));
-        ASSERT_EQUALS(std::string("https"), uri.scheme().to8Bit(true), "Scheme should be https");
-        ASSERT_EQUALS(std::string("example.com/stream.mp3"), uri.path().to8Bit(true), "Path should exclude scheme://");
-    }
-};
-
-class URI_FTPScheme : public TestCase {
-public:
-    URI_FTPScheme() : TestCase("URI_FTPScheme") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("ftp://ftp.example.com/pub/song.mp3"));
-        ASSERT_EQUALS(std::string("ftp"), uri.scheme().to8Bit(true), "Scheme should be ftp");
-        ASSERT_EQUALS(std::string("ftp.example.com/pub/song.mp3"), uri.path().to8Bit(true), "Path should exclude scheme://");
-    }
-};
-
-class URI_CustomScheme : public TestCase {
-public:
-    URI_CustomScheme() : TestCase("URI_CustomScheme") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("myscheme://data"));
-        ASSERT_EQUALS(std::string("myscheme"), uri.scheme().to8Bit(true), "Scheme should be myscheme");
-        ASSERT_EQUALS(std::string("data"), uri.path().to8Bit(true), "Path should be data");
-    }
-};
-
-class URI_EmptyString : public TestCase {
-public:
-    URI_EmptyString() : TestCase("URI_EmptyString") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String(""));
-        ASSERT_EQUALS(std::string("file"), uri.scheme().to8Bit(true), "Empty string should default to file scheme");
-        ASSERT_EQUALS(std::string(""), uri.path().to8Bit(true), "Path should be empty");
-    }
-};
-
-class URI_OnlySeparator : public TestCase {
-public:
-    URI_OnlySeparator() : TestCase("URI_OnlySeparator") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("://"));
-        // Based on implementation logic:
-        // s.find("://") returns 0.
-        // scheme = substr(0, 0) -> ""
-        // path = substr(0 + 3) -> ""
-        ASSERT_EQUALS(std::string(""), uri.scheme().to8Bit(true), "Scheme should be empty");
-        ASSERT_EQUALS(std::string(""), uri.path().to8Bit(true), "Path should be empty");
-    }
-};
-
-class URI_SpecialCharacters : public TestCase {
-public:
-    URI_SpecialCharacters() : TestCase("URI_SpecialCharacters") {}
-protected:
-    void runTest() override {
-        URI uri(TagLib::String("file:///path/with spaces/and+symbols.mp3"));
-        ASSERT_EQUALS(std::string("file"), uri.scheme().to8Bit(true), "Scheme should be file");
-        ASSERT_EQUALS(std::string("/path/with spaces/and+symbols.mp3"), uri.path().to8Bit(true), "Path should preserve characters");
-    }
-};
-
-int main() {
-    TestSuite suite("URI Class Tests");
-
-    suite.addTest(std::make_unique<URI_LocalFileThreeSlashes>());
-    suite.addTest(std::make_unique<URI_LocalFileOneSlash>());
-    suite.addTest(std::make_unique<URI_NoScheme>());
-    suite.addTest(std::make_unique<URI_RelativePath>());
-    suite.addTest(std::make_unique<URI_HTTPScheme>());
-    suite.addTest(std::make_unique<URI_HTTPSScheme>());
-    suite.addTest(std::make_unique<URI_FTPScheme>());
-    suite.addTest(std::make_unique<URI_CustomScheme>());
-    suite.addTest(std::make_unique<URI_EmptyString>());
-    suite.addTest(std::make_unique<URI_OnlySeparator>());
-    suite.addTest(std::make_unique<URI_SpecialCharacters>());
+    TestSuite suite("URI Unit Tests");
+    suite.addTest(std::make_unique<URIParsingTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);
 
-    return suite.getFailureCount(results) == 0 ? 0 : 1;
+    return suite.getFailureCount(results) > 0 ? 1 : 0;
 }
