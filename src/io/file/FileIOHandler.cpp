@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include <filesystem>
 
 namespace PsyMP3 {
 namespace IO {
@@ -59,11 +60,54 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
     std::string normalized_path = normalizePath(path.to8Bit(false));
     Debug::log("io", "FileIOHandler::FileIOHandler() - Normalized path: ", normalized_path);
     
-    // Security check: Validate file path for directory traversal attacks
-    // Performed once in constructor to avoid overhead in every I/O operation
-    if (normalized_path.find("..") != std::string::npos) {
+    // Security check: Validate file path for directory traversal attacks using robust C++17 filesystem API.
+    // This resolves all ".." components and symbolic links to prevent bypasses.
+    try {
+        std::filesystem::path p(path.to8Bit(false));
+
+        // Resolve the path to its absolute and canonical (no ".." or symlinks) form.
+        // weakly_canonical is used because the file might not exist yet in some scenarios.
+        std::filesystem::path canonical_path = std::filesystem::weakly_canonical(p);
+
+        // If the path is relative, ensure it doesn't escape the current working directory
+        // hierarchy if it uses ".." or symlinks to point outside.
+        // Note: Absolute paths provided by the user (e.g., from command line) are allowed
+        // as they represent explicit intent, but we still validate them for ".." traversal.
+        if (p.is_relative()) {
+            std::filesystem::path cwd = std::filesystem::current_path();
+            auto [it_cwd, it_path] = std::mismatch(cwd.begin(), cwd.end(), canonical_path.begin(), canonical_path.end());
+
+            if (it_cwd != cwd.end()) {
+                m_path_secure = false;
+                std::string errorMsg = "Potential directory traversal attack detected in relative path: " + normalized_path;
+                Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
+                m_error = EACCES;
+                throw InvalidMediaException(errorMsg);
+            }
+        }
+
+        // Additionally, check if any component of the path is ".." to prevent obfuscation.
+        // This maintains backward compatibility with the previous check but is more robust.
+        for (const auto& component : p) {
+            if (component == "..") {
+                m_path_secure = false;
+                std::string errorMsg = "Directory traversal component '..' detected in path: " + normalized_path;
+                Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
+                m_error = EACCES;
+                throw InvalidMediaException(errorMsg);
+            }
+        }
+    } catch (const std::filesystem::filesystem_error& e) {
         m_path_secure = false;
-        std::string errorMsg = "Potential directory traversal attack detected in path: " + normalized_path;
+        std::string errorMsg = "Filesystem error during path validation: ";
+        errorMsg += e.what();
+        Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
+        m_error = EACCES;
+        throw InvalidMediaException(errorMsg);
+    } catch (const std::exception& e) {
+        m_path_secure = false;
+        std::string errorMsg = "Error during path validation: ";
+        errorMsg += e.what();
         Debug::log("io", "FileIOHandler::FileIOHandler() - ", errorMsg);
         m_error = EACCES;
         throw InvalidMediaException(errorMsg);
