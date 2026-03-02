@@ -1227,17 +1227,7 @@ void MethodHandler::appendVariantToIter_unlocked(
   }
 }
 
-    dbus_bool_t can_raise_val = TRUE;
-    dbus_message_iter_append_basic(&variant_iter, DBUS_TYPE_BOOLEAN,
-                                   &can_raise_val);
-    dbus_message_iter_close_container(&entry_iter, &variant_iter);
-    dbus_message_iter_close_container(&dict_iter, &entry_iter);
-  }
 
-  dbus_message_iter_close_container(&args, &dict_iter);
-}
-
->>>>>>> master
 // Error handling and logging
 
 void MethodHandler::logMethodCall_unlocked(const std::string &interface_name,
