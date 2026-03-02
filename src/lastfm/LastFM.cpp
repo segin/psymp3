@@ -761,9 +761,10 @@ std::string LastFM::protocolMD5(const std::string& input)
             result += hex_chars[hash[i] & 0x0F];
         }
         
-        // Securely clear the hash from memory (Requirements 7.5, Security Directive)
+        // Securely clear the raw hash from stack memory
         OPENSSL_cleanse(hash, sizeof(hash));
 
+        EVP_MD_CTX_free(ctx);
         return result;
     }
     
