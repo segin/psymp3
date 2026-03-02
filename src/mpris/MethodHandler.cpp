@@ -9,7 +9,26 @@
 
 #ifndef FINAL_BUILD
 #include "psymp3.h"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <map>
+#include <memory>
+#include <stdexcept>
+#include <cmath>
+#include <cstring>
+#include <utility>
 #endif // !FINAL_BUILD
+
+#include "mpris/MethodHandler.h"
+#include "mpris/PropertyManager.h"
+#include "mpris/MPRISTypes.h"
+#include "player.h"
+
+// Needed for non-FINAL_BUILD if psymp3.h doesn't include everything
+#ifdef HAVE_DBUS
+#include <dbus/dbus.h>
+#endif
 
 namespace PsyMP3 {
 namespace MPRIS {
@@ -1015,6 +1034,8 @@ void MethodHandler::appendPropertyToMessage_unlocked(
   DBusMessageIter args;
   dbus_message_iter_init_append(reply, &args);
 
+  DBusMessageIter variant_iter;
+
   if (property_name == "PlaybackStatus") {
     appendVariantToIter_unlocked(
         &args, PsyMP3::MPRIS::DBusVariant(m_properties->getPlaybackStatus()));
@@ -1108,7 +1129,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
 
     auto all_properties = m_properties->getAllProperties();
     for (const auto &prop_name : properties) {
-      DBusMessageIter entry_iter, variant_iter;
+      DBusMessageIter entry_iter;
       dbus_message_iter_open_container(&dict_iter, DBUS_TYPE_DICT_ENTRY,
                                        nullptr, &entry_iter);
 
@@ -1122,6 +1143,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
           appendVariantToIter_unlocked(&entry_iter, it->second);
         } else {
           // Fallback - this should not happen if all properties are in the map
+          DBusMessageIter variant_iter;
           dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
                                            &variant_iter);
           const char *empty_str = "";
@@ -1134,6 +1156,7 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                             "Failed to get property " + prop_name + ": " +
                                 e.what());
           // Add empty variant as fallback
+          DBusMessageIter variant_iter;
           dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT, "s",
                                            &variant_iter);
           const char *empty_str = "";
@@ -1141,8 +1164,6 @@ void MethodHandler::appendAllPropertiesToMessage_unlocked(
                                          &empty_str);
           dbus_message_iter_close_container(&entry_iter, &variant_iter);
         }
-        dbus_message_unref(temp_msg);
-      }
 
       dbus_message_iter_close_container(&dict_iter, &entry_iter);
     }
