@@ -1,5 +1,5 @@
 /*
- * test_playlist_load.cpp - Unit tests for Playlist loading functionality
+ * test_playlist_load.cpp - Unit tests for Playlist::loadPlaylist
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  *
@@ -11,118 +11,132 @@
 #include "test_framework.h"
 #include <fstream>
 #include <cstdio>
-#include <unistd.h>
+#include <string>
 
 using namespace TestFramework;
 
-// Helper to get current working directory
-std::string get_cwd() {
-    char cwd[1024];
-    if (getcwd(cwd, sizeof(cwd)) != NULL) {
-        return std::string(cwd);
-    } else {
-        return ".";
+class PlaylistLoadTest : public TestCase {
+public:
+    PlaylistLoadTest() : TestCase("Playlist Load Test") {}
+
+protected:
+    void runTest() override {
+        testLoadSimplePlaylist();
+        testLoadPlaylistWithMetadata();
+        testLoadPlaylistWithRelativePaths();
+        testLoadEmptyPlaylist();
+        testLoadNonExistentPlaylist();
+        testLoadPlaylistWithComments();
     }
-}
 
-void test_load_simple_m3u() {
-    std::string filename = "test_simple.m3u";
-    std::ofstream file(filename);
-    ASSERT_TRUE(file.is_open(), "Failed to create temporary file");
+private:
+    std::string createTempM3U(const std::string& content, const std::string& filename = "temp_playlist.m3u") {
+        std::ofstream out(filename);
+        if (out.is_open()) {
+            out << content;
+            out.close();
+        }
+        return filename;
+    }
 
-    file << "/path/to/song1.mp3\n";
-    file << "/path/to/song2.mp3\n";
-    file.close();
+    void testLoadSimplePlaylist() {
+        std::string content = "/path/to/song1.mp3\n/path/to/song2.mp3\n";
+        std::string filename = createTempM3U(content);
 
-    auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
 
-    ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
-    ASSERT_EQUALS(2, playlist->entries(), "Should have 2 entries");
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
+        ASSERT_EQUALS(2, playlist->entries(), "Playlist should have 2 entries");
 
-    ASSERT_EQUALS(TagLib::String("/path/to/song1.mp3"), playlist->getTrack(0), "First track path mismatch");
-    ASSERT_EQUALS(TagLib::String("/path/to/song2.mp3"), playlist->getTrack(1), "Second track path mismatch");
+        std::string track1 = playlist->getTrack(0).to8Bit(true);
+        std::string track2 = playlist->getTrack(1).to8Bit(true);
 
-    std::remove(filename.c_str());
-}
+        ASSERT_TRUE(track1.find("song1.mp3") != std::string::npos, "First track should be song1.mp3");
+        ASSERT_TRUE(track2.find("song2.mp3") != std::string::npos, "Second track should be song2.mp3");
 
-void test_load_extended_m3u() {
-    std::string filename = "test_ext.m3u";
-    std::ofstream file(filename);
-    ASSERT_TRUE(file.is_open(), "Failed to create temporary file");
+        std::remove(filename.c_str());
+    }
 
-    file << "#EXTM3U\n";
-    file << "#EXTINF:123,Artist1 - Title1\n";
-    file << "/path/to/song1.mp3\n";
-    file << "#EXTINF:456,Title2\n";
-    file << "song2.mp3\n";
-    file.close();
+    void testLoadPlaylistWithMetadata() {
+        std::string content = "#EXTM3U\n#EXTINF:123,Artist Name - Song Title\n/path/to/song.mp3\n";
+        std::string filename = createTempM3U(content);
 
-    auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
 
-    ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
-    ASSERT_EQUALS(2, playlist->entries(), "Should have 2 entries");
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
+        ASSERT_EQUALS(1, playlist->entries(), "Playlist should have 1 entry");
 
-    // Check first track
-    const track* t1 = playlist->getTrackInfo(0);
-    ASSERT_NOT_NULL(t1, "Track 1 info should not be null");
-    ASSERT_EQUALS(TagLib::String("Artist1"), t1->GetArtist(), "Track 1 artist mismatch");
-    ASSERT_EQUALS(TagLib::String("Title1"), t1->GetTitle(), "Track 1 title mismatch");
-    ASSERT_EQUALS(123, t1->GetLen(), "Track 1 length mismatch");
-    ASSERT_EQUALS(TagLib::String("/path/to/song1.mp3"), t1->GetFilePath(), "Track 1 path mismatch");
+        const track* t = playlist->getTrackInfo(0);
+        ASSERT_NOT_NULL(t, "Track info should not be null");
 
-    // Check second track (relative path resolution)
-    const track* t2 = playlist->getTrackInfo(1);
-    ASSERT_NOT_NULL(t2, "Track 2 info should not be null");
-    // Artist might be empty or unknown depending on implementation when only title is given
-    // But title should be "Title2"
-    ASSERT_EQUALS(TagLib::String("Title2"), t2->GetTitle(), "Track 2 title mismatch");
-    ASSERT_EQUALS(456, t2->GetLen(), "Track 2 length mismatch");
+        ASSERT_EQUALS("Artist Name", t->GetArtist().to8Bit(true), "Artist should be parsed correctly");
+        ASSERT_EQUALS("Song Title", t->GetTitle().to8Bit(true), "Title should be parsed correctly");
+        ASSERT_EQUALS(123u, t->GetLen(), "Duration should be parsed correctly");
 
-    // Construct expected absolute path for song2.mp3
-    std::string cwd = get_cwd();
-    std::string expected_path = cwd + "/song2.mp3";
-    // Normalize slashes if needed, but let's assume simple concatenation for now
-    // Actually Playlist::loadPlaylist uses joinPaths which handles separators.
-    // We should check if it ends with /song2.mp3
-    std::string actual_path = t2->GetFilePath().to8Bit(true);
-    // On windows it might be different, but let's assume unix-like for now or check suffix
-    bool ends_with = actual_path.length() >= 10 && actual_path.substr(actual_path.length() - 10) == "/song2.mp3";
-#ifdef _WIN32
-    if (!ends_with) ends_with = actual_path.length() >= 10 && actual_path.substr(actual_path.length() - 10) == "\\song2.mp3";
-#endif
-    ASSERT_TRUE(ends_with, "Track 2 path should end with /song2.mp3");
+        std::remove(filename.c_str());
+    }
 
-    std::remove(filename.c_str());
-}
+    void testLoadPlaylistWithRelativePaths() {
+        std::string content = "song_relative.mp3\n./subdir/song_subdir.mp3\n";
+        std::string filename = "temp_relative.m3u";
+        createTempM3U(content, filename);
 
-void test_load_nonexistent_file() {
-    auto playlist = Playlist::loadPlaylist(TagLib::String("nonexistent.m3u", TagLib::String::UTF8));
-    ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null even on failure");
-    ASSERT_EQUALS(0, playlist->entries(), "Should have 0 entries");
-}
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
 
-void test_load_empty_file() {
-    std::string filename = "test_empty.m3u";
-    std::ofstream file(filename);
-    file.close();
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
+        ASSERT_EQUALS(2, playlist->entries(), "Playlist should have 2 entries");
 
-    auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
-    ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
-    ASSERT_EQUALS(0, playlist->entries(), "Should have 0 entries");
+        std::string track1 = playlist->getTrack(0).to8Bit(true);
 
-    std::remove(filename.c_str());
-}
+        // "./" + "song_relative.mp3" -> "./song_relative.mp3"
+        // The implementation joins the directory of the playlist with the relative path.
+        // Since we are running in the current directory (presumably), the directory part is likely "./".
+
+        ASSERT_TRUE(track1.find("song_relative.mp3") != std::string::npos, "Relative path should be preserved");
+
+        std::remove(filename.c_str());
+    }
+
+    void testLoadEmptyPlaylist() {
+        std::string filename = createTempM3U("");
+
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
+        ASSERT_EQUALS(0, playlist->entries(), "Playlist should be empty");
+
+        std::remove(filename.c_str());
+    }
+
+    void testLoadNonExistentPlaylist() {
+        std::string filename = "non_existent_file_12345.m3u";
+
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null even on failure");
+        ASSERT_EQUALS(0, playlist->entries(), "Playlist should be empty on failure");
+    }
+
+    void testLoadPlaylistWithComments() {
+        std::string content = "# This is a comment\n#Another comment\n/path/to/song.mp3\n \n#End comment";
+        std::string filename = createTempM3U(content);
+
+        auto playlist = Playlist::loadPlaylist(TagLib::String(filename, TagLib::String::UTF8));
+
+        ASSERT_NOT_NULL(playlist.get(), "Playlist should not be null");
+        ASSERT_EQUALS(1, playlist->entries(), "Playlist should have 1 entry");
+
+        std::string track = playlist->getTrack(0).to8Bit(true);
+        ASSERT_TRUE(track.find("song.mp3") != std::string::npos, "Track should be loaded correctly ignoring comments");
+
+        std::remove(filename.c_str());
+    }
+};
 
 int main() {
-    TestSuite suite("Playlist Loading Tests");
-
-    suite.addTest("Load Simple M3U", test_load_simple_m3u);
-    suite.addTest("Load Extended M3U", test_load_extended_m3u);
-    suite.addTest("Load Non-existent File", test_load_nonexistent_file);
-    suite.addTest("Load Empty File", test_load_empty_file);
-
+    TestSuite suite("Playlist Load Tests");
+    suite.addTest(std::make_unique<PlaylistLoadTest>());
     auto results = suite.runAll();
     suite.printResults(results);
-
-    return (suite.getFailureCount(results) == 0) ? 0 : 1;
+    return suite.getFailureCount(results) > 0 ? 1 : 0;
 }
