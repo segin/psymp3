@@ -1,147 +1,170 @@
-/*
- * test_mp3_codec.cpp - Unit tests for MP3Codec (Libmpg123 wrapper)
- * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
- */
+#define HAVE_MP3
+#define UNIT_TESTING
 
-#include "psymp3.h"
-
-// Standard headers for test
 #include <iostream>
-#include <memory>
 #include <vector>
-#include <algorithm>
-#include <cstring>
+#include <string>
+#include <memory>
 #include <stdexcept>
+#include <functional>
 
-#ifdef HAVE_MP3
-#include "codecs/mp3/MP3Codec.h"
+// Mocks
+#include "mocks/taglib/tstring.h"
+#include "mocks/mpg123.h"
+#include "mocks/io/IOHandler.h"
+#include "mocks/stream.h"
+#include "mocks/io/FileIOHandler.h"
+#include "mocks/io/URI.h"
 
-struct IOHandlerState {
-    bool read_called = false;
-    bool seek_called = false;
-    bool tell_called = false;
-    bool close_called = false;
+// Mock Debug class
+class Debug {
+public:
+    template<typename... Args>
+    static void log(Args&&... args) {}
 };
 
-// Mock IOHandler to verify callbacks
-class MockIOHandler : public PsyMP3::IO::IOHandler {
+// Mock Exceptions
+namespace PsyMP3 {
+namespace Core {
+    class InvalidMediaException : public std::runtime_error {
+    public:
+        InvalidMediaException(const std::string& msg) : std::runtime_error(msg) {}
+    };
+    class BadFormatException : public std::runtime_error {
+    public:
+        BadFormatException(const std::string& msg) : std::runtime_error(msg) {}
+    };
+}
+}
+using PsyMP3::Core::InvalidMediaException;
+using PsyMP3::Core::BadFormatException;
+
+// Include the header
+#include "../include/codecs/mp3/MP3Codec.h"
+// Include the source file directly
+#include "../src/codecs/mp3/MP3Codec.cpp"
+
+// Mock mpg123 implementation
+static void (*s_cleanup_callback)(void*) = nullptr;
+static void* s_cleanup_handle = nullptr;
+static bool s_mpg123_new_fail = false;
+
+mpg123_handle *mpg123_new(const char *decoder, int *error) {
+    if (s_mpg123_new_fail) {
+        if (error) *error = MPG123_ERR;
+        return nullptr;
+    }
+    if (error) *error = MPG123_OK;
+    return (mpg123_handle*)1; // Return dummy non-null handle
+}
+void mpg123_delete(mpg123_handle *mh) {}
+int mpg123_param(mpg123_handle *mh, long type, long value, double fvalue) { return MPG123_OK; }
+
+int mpg123_open_handle(mpg123_handle *mh, void *iohandle) {
+    s_cleanup_handle = iohandle;
+    return MPG123_OK;
+}
+
+int mpg123_replace_reader_handle(mpg123_handle *mh, ssize_t (*r_read) (void *, void *, size_t), off_t (*r_lseek) (void *, off_t, int), void (*cleanup) (void *)) {
+    s_cleanup_callback = cleanup;
+    return MPG123_OK;
+}
+
+int mpg123_getformat(mpg123_handle *mh, long *rate, int *channels, int *encoding) {
+    if (rate) *rate = 44100;
+    if (channels) *channels = 2;
+    if (encoding) *encoding = MPG123_ENC_SIGNED_16;
+    return MPG123_OK;
+}
+int mpg123_format_none(mpg123_handle *mh) { return MPG123_OK; }
+int mpg123_format(mpg123_handle *mh, long rate, int channels, int encodings) { return MPG123_OK; }
+
+int mpg123_close(mpg123_handle *mh) {
+    if (s_cleanup_callback && s_cleanup_handle) {
+        s_cleanup_callback(s_cleanup_handle);
+    }
+    return MPG123_OK;
+}
+
+off_t mpg123_length(mpg123_handle *mh) { return 0; }
+off_t mpg123_tell(mpg123_handle *mh) { return 0; }
+int mpg123_read(mpg123_handle *mh, unsigned char *outmemory, size_t outmemsize, size_t *done) {
+    if (done) *done = 0;
+    return MPG123_DONE; // EOF
+}
+off_t mpg123_seek(mpg123_handle *mh, off_t sampleoff, int whence) { return 0; }
+const char* mpg123_plain_strerror(int errcode) { return "Mock Error"; }
+
+
+// Test Mock IOHandler
+class MockIOHandler : public IOHandler {
 public:
-    MockIOHandler(IOHandlerState& state) : PsyMP3::IO::IOHandler(), m_state(state) {
-        // Minimal MP3 frame header
-        unsigned char header[] = { 0xFF, 0xFB, 0x90, 0x64 };
-        m_data.assign(header, header + sizeof(header));
-        m_data.resize(4096, 0);
-    }
+    bool* closed_flag;
 
-    ~MockIOHandler() override = default;
+    MockIOHandler(bool* flag) : closed_flag(flag) {}
 
-    size_t read(void* buffer, size_t size, size_t count) override {
-        m_state.read_called = true;
-        size_t bytes_requested = size * count;
-        if (m_pos >= m_data.size()) return 0;
-
-        size_t bytes_available = m_data.size() - m_pos;
-        size_t bytes_to_copy = std::min(bytes_requested, bytes_available);
-
-        std::memcpy(buffer, m_data.data() + m_pos, bytes_to_copy);
-        m_pos += bytes_to_copy;
-
-        return bytes_to_copy / size;
-    }
-
-    int seek(off_t offset, int whence) override {
-        m_state.seek_called = true;
-        if (whence == SEEK_SET) {
-            m_pos = offset;
-        } else if (whence == SEEK_CUR) {
-            m_pos += offset;
-        } else if (whence == SEEK_END) {
-            m_pos = m_data.size() + offset;
-        }
-        if (m_pos > m_data.size()) m_pos = m_data.size();
-        return 0;
-    }
-
-    off_t tell() override {
-        m_state.tell_called = true;
-        return m_pos;
-    }
-
+    size_t read(void* buffer, size_t size, size_t count) override { return 0; }
+    int seek(off_t offset, int whence) override { return 0; }
+    off_t tell() override { return 0; }
     int close() override {
-        m_state.close_called = true;
+        if (closed_flag) *closed_flag = true;
         return 0;
     }
-
-    bool eof() override {
-        return m_pos >= m_data.size();
-    }
-
-    off_t getFileSize() override {
-        return m_data.size();
-    }
-
-private:
-    std::vector<unsigned char> m_data;
-    size_t m_pos = 0;
-    IOHandlerState& m_state;
 };
 
 int main() {
-    std::cout << "Running MP3Codec (Libmpg123) tests..." << std::endl;
+    std::cout << "Running MP3Codec Test..." << std::endl;
 
-    bool all_passed = true;
+    // Reset global state
+    s_cleanup_callback = nullptr;
+    s_cleanup_handle = nullptr;
 
-    // Test 1: Constructor and Cleanup
-    std::cout << "1. Testing constructor and cleanup callback..." << std::endl;
-    {
-        IOHandlerState state;
+    bool was_closed = false;
 
-        try {
-            auto mock_handler = std::make_unique<MockIOHandler>(state);
+    try {
+        auto mock_handler = std::make_unique<MockIOHandler>(&was_closed);
 
-            // Instantiate Libmpg123
-            PsyMP3::Codec::MP3::Libmpg123 decoder(std::move(mock_handler));
+        // Scope for Libmpg123 to trigger destructor
+        {
+            PsyMP3::Codec::MP3::Libmpg123 mp3(std::move(mock_handler));
 
-            std::cout << "   ✓ Libmpg123 instantiated successfully" << std::endl;
-
-            if (state.read_called) {
-                std::cout << "   ✓ read() called during initialization" << std::endl;
-            } else {
-                 std::cout << "   - read() not called during initialization (might be delayed)" << std::endl;
+            // Verify initialization
+            if (!s_cleanup_callback) {
+                std::cerr << "FAIL: cleanup callback not registered" << std::endl;
+                return 1;
             }
-
-        } catch (const std::exception& e) {
-            std::cerr << "   ✗ Exception during instantiation: " << e.what() << std::endl;
-            all_passed = false;
+            if (s_cleanup_handle == nullptr) {
+                std::cerr << "FAIL: cleanup handle not set" << std::endl;
+                return 1;
+            }
         }
+        // Destructor called here -> mpg123_close -> cleanup_callback -> IOHandler::close
 
-        // Verify close was called via cleanup_callback
-        if (state.close_called) {
-            std::cout << "   ✓ close() called upon destruction (cleanup_callback working)" << std::endl;
+        if (was_closed) {
+            std::cout << "SUCCESS: IOHandler::close() was called." << std::endl;
         } else {
-            // Only consider it a failure if we expected success
-            if (all_passed) {
-                 std::cerr << "   ✗ close() NOT called upon destruction" << std::endl;
-                 all_passed = false;
-            }
+            std::cerr << "FAIL: IOHandler::close() was NOT called." << std::endl;
+            return 1;
         }
-    }
 
-    if (all_passed) {
-        std::cout << "\nAll MP3Codec tests PASSED!" << std::endl;
-        return 0;
-    } else {
-        std::cerr << "\nSome MP3Codec tests FAILED!" << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Exception during test: " << e.what() << std::endl;
         return 1;
     }
-}
 
-#else // !HAVE_MP3
+    std::cout << "Running Constructor Error Test..." << std::endl;
+    s_mpg123_new_fail = true;
+    try {
+        auto mock_handler = std::make_unique<MockIOHandler>(nullptr);
+        PsyMP3::Codec::MP3::Libmpg123 mp3(std::move(mock_handler));
+        std::cerr << "FAIL: Constructor should have thrown exception" << std::endl;
+        return 1;
+    } catch (const std::runtime_error& e) {
+        std::cout << "SUCCESS: Caught expected exception: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "FAIL: Caught unexpected exception type" << std::endl;
+        return 1;
+    }
 
-int main() {
-    std::cout << "MP3 support not enabled, skipping tests." << std::endl;
     return 0;
 }
-
-#endif // HAVE_MP3

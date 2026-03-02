@@ -122,7 +122,6 @@
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/SpectrumAnalyzerWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/PlayerProgressBarWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/ToastWidget.cpp`
-  - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/ToastNotification.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/VolumeWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/PlaylistWidget.cpp`
   - Add `PsyMP3::Widget::UI` namespace to `src/widget/ui/LyricsWidget.cpp`
