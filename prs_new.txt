@@ -1,0 +1,52 @@
+175	🔒 Document mandatory MD5 hashing in Last.fm protocol	security-fix-md5-documentation-10627204432418425617	OPEN	2026-02-28T03:24:49Z
+174	🔒 Fix unsafe plugin search path (DLL Hijacking)	security/fix-unsafe-plugin-search-path-1962559244591747808	OPEN	2026-02-28T03:18:27Z
+173	Refactor C-style casts in NativeFLACCodec	refactor-native-flac-casts-468433841319859146	OPEN	2026-02-25T20:32:39Z
+172	🧹 Code Health: Remove unused variable comment in FLACHeaderParser and fix build	jules-7486975076429254079-88990bc2	OPEN	2026-02-25T20:29:13Z
+171	🧪 Add test for HTTPClient fallback URL encoding	test-http-client-fallback-16719598024511522250	OPEN	2026-02-25T20:29:01Z
+170	🧪 Refactor SeekingEngine time logic and add unit test	fix-seeking-engine-test-8156424630773807530	OPEN	2026-02-25T20:28:38Z
+169	⚡ Optimize FLAC validation to avoid redundant copy	optimize-flac-validation-copy-16065177912010639813	OPEN	2026-02-25T20:23:58Z
+168	🧪 Add tests for XMLUtil and fix header dependencies	test/xmlutil-coverage-16857770069494901067	OPEN	2026-02-25T20:23:58Z
+167	⚡ Optimize BufferPool roundToPoolSize with CLZ	perf/buffer-pool-clz-4088150009400659663	OPEN	2026-02-25T20:22:15Z
+166	Refactor C-style cast to static_cast in DemuxedStream.cpp and fix build system	code-health-demuxedstream-static-cast-10537920387640091579	OPEN	2026-02-25T20:21:27Z
+165	Refactor: Replace printf with Debug::log in Player::Initialize	refactor/replace-printf-with-debug-log-12777999897550607191	OPEN	2026-02-25T20:21:02Z
+164	Refactor C-style cast in src/system.cpp	refactor/system-cpp-cast-3409498905428147992	OPEN	2026-02-25T20:20:16Z
+163	🔒 Fix unsafe relative plugin search path (DLL Hijacking)	fix-unsafe-plugin-path-8255176202220428307	OPEN	2026-02-25T20:20:14Z
+162	Refactor: Replace C-style cast with reinterpret_cast in system.cpp	refactor-system-cpp-cast-15603497335657821922	OPEN	2026-02-25T20:18:30Z
+161	Refactor C-style casts in src/system.cpp	refactor-casts-system-cpp-308588068016133449	OPEN	2026-02-25T20:18:28Z
+160	🧹 Replace C-style casts with static_cast in OpusCodec	opus-cast-fix-8404019900318225503	OPEN	2026-02-25T20:17:36Z
+159	🧪 [testing improvement] Add unit tests for BoundedBuffer and BoundedCircularBuffer	testing-improvement-bounded-buffer-13246734736416948973	OPEN	2026-02-25T20:14:16Z
+158	Implement Shuffle Control in MPRIS Player	feature-mpris-shuffle-control-7978059397992676535	OPEN	2026-02-25T20:14:11Z
+157	🧹 [code health] Remove commented-out system call in Player::Initialize	cleanup-player-comment-5007397557266428793	OPEN	2026-02-25T20:13:53Z
+156	⚡ Optimized redundant queue cleanup in StreamingManager	perf-streaming-manager-queue-cleanup-17722630304717438387	OPEN	2026-02-25T20:13:37Z
+155	🔒 Fix directory traversal vulnerability in FileIOHandler	fix-path-traversal-vulnerability-8501634263965767237	OPEN	2026-02-25T20:12:33Z
+147	🧪 Add unit tests for Playlist::loadPlaylist	test-playlist-load-18229861882498596701	OPEN	2026-02-18T08:43:54Z
+139	🔒 [Security] Fix unchecked memory allocation in FLAC parser	security/flac-metadata-limit-1723679682164594985	OPEN	2026-02-18T08:34:42Z
+138	🧪 tests: Add allocation failure test for MemoryPoolManager	test/memory-pool-alloc-failure-17701947541136888055	OPEN	2026-02-18T08:34:40Z
+136	Tests: Add MP3Codec cleanup callback verification	test-mp3-codec-cleanup-5653014721127158984	OPEN	2026-02-18T08:33:27Z
+134	test: Add unit tests for URI parser class	test-uri-coverage-7164920377295633782	OPEN	2026-02-18T08:33:09Z
+131	🧪 Add unit tests for XMLUtil	test-xmlutil-unit-5978345807042544437	OPEN	2026-02-18T08:31:33Z
+125	Refactor Player::updateGUI for readability	refactor-update-gui-8230446690365709130	OPEN	2026-02-18T08:29:51Z
+123	Refactor hardcoded spectrum colors to SpectrumColorConfig	refactor/spectrum-colors-17218757319437239077	OPEN	2026-02-18T08:29:44Z
+121	🧹 Refactor MethodHandler to use data-driven property handling	refactor-methodhandler-properties-3357694411041577495	OPEN	2026-02-18T08:28:36Z
+119	Refactor Player::Run into Initialize, EventLoop, and Cleanup methods	refactor-player-run-11229237996875564250	OPEN	2026-02-18T08:28:02Z
+116	🔒 Fix insecure credential storage in Last.fm configuration	security-fix-lastfm-credentials-9282425072162241783	OPEN	2026-02-18T08:25:39Z
+105	🧪 Add tests for Playlist::loadPlaylist	test/playlist-load-17288396375429147840	OPEN	2026-02-17T06:44:06Z
+103	🧪 Add XMLUtil unit tests and fix nested parsing bug	test-xmlutil-improvement-3144757242532301980	OPEN	2026-02-17T06:43:40Z
+97	🧪 Add isolated unit tests for MP3Codec wrapper	test-mp3-codec-wrapper-960121134637687991	OPEN	2026-02-17T06:42:12Z
+94	🧪 Add unit tests for WaveStream (WAV decoding)	wav-stream-tests-7004965342943192305	OPEN	2026-02-17T06:41:08Z
+92	🔒 Fix unchecked memory allocation in FLAC parser (SEC-02)	security-fix-flac-parser-oom-6972084009383351730	OPEN	2026-02-17T06:40:14Z
+90	🧪 Add tests for IOBufferPool and fix limit update behavior	test/io-buffer-pool-coverage-12320664240351852662	OPEN	2026-02-17T06:40:10Z
+87	test: Add MemoryPoolManager allocation failure verification	test-memory-pool-bad-alloc-12960226510945404777	OPEN	2026-02-17T06:39:38Z
+86	🔒 Fix: Secure password memory handling in LastFM	security-fix-lastfm-md5-7625796609224107167	OPEN	2026-02-17T06:39:23Z
+84	🔒 Securely clear legacy password from memory in LastFM	security-fix-lastfm-password-memory-5832599163347364369	OPEN	2026-02-17T06:38:57Z
+81	Refactor MPRIS MethodHandler to use map-based property handlers	refactor-mpris-property-handling-6493567439624181974	OPEN	2026-02-17T06:38:38Z
+80	Add unit tests for EnhancedBufferPool	test-enhanced-buffer-pool-16417265274989509300	OPEN	2026-02-17T06:38:35Z
+71	🧹 Refactor duplicate integer conversion in player.cpp	refactor-convert-int-5781989647666049881	OPEN	2026-02-17T06:37:51Z
+64	Add test for MemoryPoolManager allocation failure handling	test-memory-pool-allocation-failure-3874162107758019101	OPEN	2026-02-17T06:37:04Z
+59	🔒 Securely clear legacy password from memory	secure-lastfm-password-cleanup-18278281324476089584	OPEN	2026-02-17T06:36:22Z
+56	🧪 Improve G.711 conversion testing	test-improvement-wav-g711-12416241156725456873	OPEN	2026-02-17T06:36:08Z
+52	Refactor Player::updateGUI for better readability	refactor-update-gui-6558717790460156297	OPEN	2026-02-17T06:35:39Z
+50	Remove unused ToastNotification class	remove-toast-notification-dead-code-12489489327508972292	OPEN	2026-02-17T06:35:38Z
+48	🧪 Add unit tests for logarithmicScale utility	test-logarithmic-scale-5076164707074979904	OPEN	2026-02-17T06:35:32Z
+40	⚡ Optimize ValidateBoxNesting with switch/arrays	perf/optimize-validate-box-nesting-1368876167992075339	OPEN	2026-02-17T06:33:52Z
+39	Implement custom resize cursors for WindowFrameWidget	set-east-west-resize-cursor-4952849333129530145	OPEN	2026-02-17T06:33:43Z

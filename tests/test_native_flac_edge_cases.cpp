@@ -100,20 +100,20 @@ bool testHighlyCompressed() {
             
             if (!demuxer->parseContainer()) continue;
             
-            StreamInfo streamInfo = demuxer->getStreamInfo();
+            StreamInfo streamInfo = demuxer->getStreams()[0];
             auto codec = CodecRegistry::createCodec(streamInfo);
             if (!codec) continue;
             
             // Decode a few frames to test compression handling
             uint32_t framesDecoded = 0;
-            MediaChunk chunk = demuxer->getNextChunk();
+            MediaChunk chunk = demuxer->readChunk(demuxer->getStreams()[0].stream_id);
             
             while (!chunk.data.empty() && framesDecoded < 10) {
                 AudioFrame frame = codec->decode(chunk);
                 if (!frame.samples.empty()) {
                     framesDecoded++;
                 }
-                chunk = demuxer->getNextChunk();
+                chunk = demuxer->readChunk(demuxer->getStreams()[0].stream_id);
             }
             
             if (framesDecoded > 0) {

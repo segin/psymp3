@@ -21,6 +21,7 @@
 // Forward declarations for D-Bus types
 struct DBusConnection;
 struct DBusMessage;
+struct DBusMessageIter;
 
 namespace PsyMP3 {
 namespace MPRIS {
@@ -531,6 +532,11 @@ PlaybackStatus stringToPlaybackStatus(const std::string& str);
 
 std::string loopStatusToString(LoopStatus status);
 LoopStatus stringToLoopStatus(const std::string& str);
+
+#ifdef HAVE_DBUS
+// Append a DBusVariant to a DBusMessageIter recursively
+void appendVariantToDBusIter(struct DBusMessageIter* iter, const DBusVariant& variant);
+#endif
 
 } // namespace MPRIS
 } // namespace PsyMP3

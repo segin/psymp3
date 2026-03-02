@@ -7,7 +7,14 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif
+
+#include "core/utility/XMLUtil.h"
+#include <sstream>
+#include <cctype>
+#include <stdexcept>
 
 namespace PsyMP3 {
 namespace Core {
@@ -188,26 +195,30 @@ XMLUtil::Element XMLUtil::parseElement(const std::string& xml, size_t& pos) {
     
     // Parse content and children
     std::string closingTag = "</" + tagName + ">";
-    size_t closingPos = xml.find(closingTag, pos);
-    
-    if (closingPos == std::string::npos) {
-        throw std::runtime_error("Missing closing tag for: " + tagName);
-    }
     
     // Parse content between opening and closing tags
-    while (pos < closingPos) {
-        skipWhitespace(xml, pos);
-        
-        if (pos >= closingPos) break;
+    while (pos < xml.length()) {
+        // Check for closing tag
+        if (xml.compare(pos, closingTag.length(), closingTag) == 0) {
+            pos += closingTag.length();
+            return element;
+        }
         
         if (xml[pos] == '<') {
+            // Check for unexpected closing tag
+            if (pos + 1 < xml.length() && xml[pos+1] == '/') {
+                size_t closeEnd = xml.find('>', pos);
+                std::string foundClose = (closeEnd != std::string::npos) ? xml.substr(pos, closeEnd - pos + 1) : "EOF";
+                throw std::runtime_error("Unexpected closing tag: " + foundClose + ", expected: " + closingTag);
+            }
+
             // Child element
             element.children.push_back(parseElement(xml, pos));
         } else {
             // Text content
             size_t textEnd = xml.find('<', pos);
-            if (textEnd == std::string::npos || textEnd > closingPos) {
-                textEnd = closingPos;
+            if (textEnd == std::string::npos) {
+                textEnd = xml.length();
             }
             
             std::string text = xml.substr(pos, textEnd - pos);
@@ -223,8 +234,7 @@ XMLUtil::Element XMLUtil::parseElement(const std::string& xml, size_t& pos) {
         }
     }
     
-    pos = closingPos + closingTag.length();
-    return element;
+    throw std::runtime_error("Missing closing tag for: " + tagName);
 }
 
 void XMLUtil::skipWhitespace(const std::string& xml, size_t& pos) {
