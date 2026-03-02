@@ -7,7 +7,36 @@
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifdef HTTP_CLIENT_STANDALONE
+#define HTTP_CLIENT_NO_CURL
+#include <string>
+#include <vector>
+#include <map>
+#include <iostream>
+#include <sstream>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <algorithm>
+#include <unordered_map>
+#include "io/http/HTTPClient.h"
+
+// Mock Debug
+class Debug {
+public:
+    template<typename... Args>
+    static void log(const std::string& channel, Args&&... args) {
+        // Optional: print to stderr for debugging tests
+        // std::cerr << "[DEBUG] " << channel << ": ";
+        // ((std::cerr << args), ...);
+        // std::cerr << std::endl;
+    }
+};
+
+#else
 #include "psymp3.h"
+#endif
+
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -285,12 +314,17 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
                                                [[maybe_unused]] const std::map<std::string, std::string>& headers,
                                                [[maybe_unused]] int timeoutSeconds) {
     Response response;
+
+    
+
+
 #ifndef HTTP_CLIENT_NO_CURL
     // Check if curl was initialized properly
     if (!CurlLifecycleManager::isInitialized()) {
         response.statusMessage = "libcurl initialization failed";
         return response;
     }
+#endif
     
     // Extract host from URL for connection pooling
     std::string host;
@@ -301,7 +335,14 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
         response.statusMessage = "Failed to parse URL";
         return response;
     }
-    
+
+#ifdef HTTP_CLIENT_NO_CURL
+    // Mock implementation for testing without curl
+    response.statusMessage = "HTTPClient compiled without curl support";
+    response.success = false;
+    Debug::log("http", "HTTPClient::performRequest() - HTTP_CLIENT_NO_CURL defined, request mocked");
+    return response;
+#else
     // Thread-safe connection acquisition
     CURL *curl = CurlLifecycleManager::acquireConnection(host);
     if (!curl) {
@@ -467,10 +508,7 @@ HTTPClient::Response HTTPClient::performRequest([[maybe_unused]] const std::stri
     }
 
     // Cleanup is handled automatically by CurlHandleGuard destructor
-#else
-    response.success = false;
-    response.statusMessage = "Compiled without libcurl support";
-#endif
+#endif // HTTP_CLIENT_NO_CURL
     return response;
 }
 
@@ -544,12 +582,16 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
     port = isHttps ? 443 : 80;
     
     size_t hostStart = schemeEnd + 3;
-    size_t pathStart = url.find('/', hostStart);
+    size_t pathStart = url.find_first_of("/?#", hostStart);
     if (pathStart == std::string::npos) {
         pathStart = url.length();
         path = "/";
     } else {
         path = url.substr(pathStart);
+        // Ensure path starts with / if it was just a query or fragment
+        if (!path.empty() && path[0] != '/') {
+            path = "/" + path;
+        }
     }
     
     std::string hostPort = url.substr(hostStart, pathStart - hostStart);
@@ -557,7 +599,14 @@ bool HTTPClient::parseURL(const std::string& url, std::string& host, int& port,
     if (portPos != std::string::npos) {
         host = hostPort.substr(0, portPos);
         try {
-            port = std::stoi(hostPort.substr(portPos + 1));
+            size_t pos = 0;
+            std::string portStr = hostPort.substr(portPos + 1);
+            if (portStr.empty()) return false;
+
+            port = std::stoi(portStr, &pos);
+            if (pos != portStr.length()) {
+                return false;
+            }
         } catch (...) {
             return false;
         }
@@ -603,6 +652,10 @@ std::map<std::string, int> HTTPClient::getConnectionPoolStats() {
         stats["pool_hosts"] = static_cast<int>(CurlLifecycleManager::s_connection_pool.size());
     }
 #endif
+
+    
+
+
     return stats;
 }
 

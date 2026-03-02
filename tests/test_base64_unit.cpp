@@ -12,9 +12,11 @@
 #endif
 #include "test_framework.h"
 #include "core/utility/Base64.h"
+
 #include <string>
 #include <vector>
 #include <memory>
+#include <sstream>
 
 using namespace PsyMP3::Core::Utility;
 using namespace TestFramework;
@@ -69,7 +71,25 @@ private:
 };
 
 // ============================================================================
-// Round-trip Tests
+// Base64 Encoding Tests (Additional Binary Data)
+// ============================================================================
+
+class Base64EncodingTest : public TestCase {
+public:
+    Base64EncodingTest() : TestCase("Base64::encode extra") {}
+
+protected:
+    void runTest() override {
+        // Binary data
+        std::vector<uint8_t> binary = {0x00, 0x01, 0x02, 0xFF, 0xFE, 0xFD};
+        // 000000 000000 000100 000010 111111 111111 111011 111101
+        // A      A      E      C      /      /      7      9
+        ASSERT_EQUALS("AAEC//79", Base64::encode(binary), "Binary data encoding");
+    }
+};
+
+// ============================================================================
+// Base64 Round-trip Tests
 // ============================================================================
 
 class Base64RoundTripTest : public TestCase {
@@ -78,7 +98,7 @@ public:
 
 protected:
     void runTest() override {
-        // Test with various binary data
+        // Test with all byte values
         std::vector<uint8_t> data;
         for (int i = 0; i < 256; ++i) {
             data.push_back(static_cast<uint8_t>(i));
@@ -142,6 +162,7 @@ int main(int argc, char* argv[]) {
     TestSuite suite("Base64 Unit Tests");
 
     suite.addTest(std::make_unique<Base64RFCTest>());
+    suite.addTest(std::make_unique<Base64EncodingTest>());
     suite.addTest(std::make_unique<Base64RoundTripTest>());
     suite.addTest(std::make_unique<Base64RobustnessTest>());
 
