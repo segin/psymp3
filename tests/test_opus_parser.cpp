@@ -100,7 +100,7 @@ int main() {
     int total = 0;
     
     if (PsyMP3::Demuxer::Ogg::testIDHeader()) passed++; total++;
-    if (testFullSequence()) passed++; total++;
+    if (PsyMP3::Demuxer::Ogg::testFullSequence()) passed++; total++;
     
     if (passed == total) {
         std::cout << "All tests PASSED!" << std::endl;
