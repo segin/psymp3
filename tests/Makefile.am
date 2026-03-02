@@ -491,7 +491,8 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 	test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation \
 	test_flac_bit_depth_validation_simple test_flac_security_validation \
 	test_flac_sample_format_rfc9639_compliance test_flac_audio_output test_flac_seeking_crash \
-	test_flac_audio_output_debug test_flac_codec_simple_debug
+	test_flac_audio_output_debug test_flac_codec_simple_debug \
+	test_flac_parser_vulnerability
 endif
 
 # Test program sources and dependencies
@@ -2937,6 +2938,16 @@ test_flac_codec_simple_debug_SOURCES = test_flac_codec_simple_debug.cpp
 test_flac_codec_simple_debug_LDADD = \
 	$(FULL_CODEC_LIBS) \
 	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
+# FLAC parser vulnerability test (SEC-02)
+test_flac_parser_vulnerability_SOURCES = test_flac_parser_vulnerability.cpp
+test_flac_parser_vulnerability_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
 
 # FLAC streamable subset real files test
