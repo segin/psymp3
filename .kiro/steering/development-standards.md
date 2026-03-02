@@ -38,7 +38,7 @@ Each major subsystem should be organized as follows:
 Organized into three layers:
 - **Foundation** (`widget/foundation/`): Base widget classes (Widget, DrawableWidget, LayoutWidget, FadingWidget)
 - **Windowing** (`widget/windowing/`): Window management (TitlebarWidget, WindowFrameWidget, WindowWidget, TransparentWindowWidget)
-- **UI** (`widget/ui/`): UI components (ButtonWidget, SpectrumAnalyzerWidget, PlayerProgressBarWidget, ToastWidget, ToastNotification, etc.)
+- **UI** (`widget/ui/`): UI components (ButtonWidget, SpectrumAnalyzerWidget, PlayerProgressBarWidget, ToastWidget, etc.)
 
 **Namespace**: `PsyMP3::Widget::Foundation::`, `PsyMP3::Widget::Windowing::`, `PsyMP3::Widget::UI::`
 
