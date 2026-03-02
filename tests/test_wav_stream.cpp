@@ -1,319 +1,207 @@
 /*
- * test_wav_stream.cpp - Test WaveStream implementation
+ * test_wav_stream.cpp - Unit tests for WaveStream
  * This file is part of PsyMP3.
  * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
  */
 
 #include "psymp3.h"
+#include "test_framework.h"
 #include "demuxer/riff/wav.h"
-#include "core/utility/G711.h"
-
-#include <iostream>
-#include <fstream>
+#include "io/MemoryIOHandler.h"
 #include <vector>
-#include <cmath>
 #include <cstring>
-#include <cstdint>
-#include <algorithm>
-#include <unistd.h>
-#include <sys/stat.h>
+#include <cmath>
+#include <iostream>
 
 using namespace PsyMP3::Demuxer::RIFF;
-using namespace PsyMP3::Core::Utility::G711;
+using namespace PsyMP3::IO;
+using namespace TestFramework;
 
 // Helper to write little-endian values
-void write_le_u32(std::ofstream& out, uint32_t value) {
-    uint8_t buf[4];
-    buf[0] = value & 0xFF;
-    buf[1] = (value >> 8) & 0xFF;
-    buf[2] = (value >> 16) & 0xFF;
-    buf[3] = (value >> 24) & 0xFF;
-    out.write(reinterpret_cast<char*>(buf), 4);
-}
-
-void write_le_u16(std::ofstream& out, uint16_t value) {
-    uint8_t buf[2];
-    buf[0] = value & 0xFF;
-    buf[1] = (value >> 8) & 0xFF;
-    out.write(reinterpret_cast<char*>(buf), 2);
-}
-
-// RIFF constants
-constexpr uint32_t RIFF_ID = 0x46464952; // "RIFF"
-constexpr uint32_t WAVE_ID = 0x45564157; // "WAVE"
-constexpr uint32_t FMT_ID  = 0x20746d66; // "fmt "
-constexpr uint32_t DATA_ID = 0x61746164; // "data"
-
-// WAVE format tags
-constexpr uint16_t FORMAT_PCM = 0x0001;
-constexpr uint16_t FORMAT_FLOAT = 0x0003;
-constexpr uint16_t FORMAT_ALAW = 0x0006;
-constexpr uint16_t FORMAT_MULAW = 0x0007;
-
-struct WavHeader {
-    uint16_t audio_format;
-    uint16_t num_channels;
-    uint32_t sample_rate;
-    uint32_t byte_rate;
-    uint16_t block_align;
-    uint16_t bits_per_sample;
-};
-
-void create_wav_file(const std::string& filename, const WavHeader& header, const std::vector<uint8_t>& data) {
-    std::ofstream out(filename, std::ios::binary);
-    if (!out) {
-        std::cerr << "Failed to open " << filename << " for writing." << std::endl;
-        exit(1);
-    }
-
-    uint32_t data_chunk_size = data.size();
-    // 4 (WAVE) + 8 (fmt header) + 16 (fmt body) + 8 (data header) + data size
-    uint32_t riff_chunk_size = 4 + (8 + 16) + (8 + data_chunk_size);
-    if (data_chunk_size % 2 != 0) riff_chunk_size++; // padding
-
-    write_le_u32(out, RIFF_ID);
-    write_le_u32(out, riff_chunk_size);
-    write_le_u32(out, WAVE_ID);
-
-    write_le_u32(out, FMT_ID);
-    write_le_u32(out, 16); // fmt chunk size
-    write_le_u16(out, header.audio_format);
-    write_le_u16(out, header.num_channels);
-    write_le_u32(out, header.sample_rate);
-    write_le_u32(out, header.byte_rate);
-    write_le_u16(out, header.block_align);
-    write_le_u16(out, header.bits_per_sample);
-
-    write_le_u32(out, DATA_ID);
-    write_le_u32(out, data_chunk_size);
-    out.write(reinterpret_cast<const char*>(data.data()), data.size());
-
-    if (data_chunk_size % 2 != 0) {
-        char pad = 0;
-        out.write(&pad, 1);
+template <typename T>
+void write_le(std::vector<uint8_t>& buffer, T value) {
+    size_t size = sizeof(T);
+    for (size_t i = 0; i < size; ++i) {
+        buffer.push_back(static_cast<uint8_t>((value >> (i * 8)) & 0xFF));
     }
 }
 
-class FileDeleter {
-    std::string m_path;
-public:
-    FileDeleter(std::string path) : m_path(std::move(path)) {}
-    ~FileDeleter() { unlink(m_path.c_str()); }
-};
+// Helper to create WAV data
+std::vector<uint8_t> createWavData(uint16_t format, uint16_t channels, uint32_t rate, uint16_t bits, const std::vector<uint8_t>& data) {
+    std::vector<uint8_t> wav;
 
-#define ASSERT_TRUE(cond, msg) \
-    if (!(cond)) { \
-        std::cerr << "FAIL: " << msg << std::endl; \
-        return 1; \
-    }
+    // RIFF Header
+    write_le<uint32_t>(wav, 0x46464952); // "RIFF"
+    uint32_t subchunk2Size = data.size();
+    uint32_t chunkSize = 36 + subchunk2Size;
+    write_le<uint32_t>(wav, chunkSize);
+    write_le<uint32_t>(wav, 0x45564157); // "WAVE"
 
-int test_pcm_8bit() {
-    std::cout << "Testing PCM 8-bit..." << std::endl;
-    std::string filename = "test_pcm_8.wav";
-    FileDeleter deleter(filename);
+    // fmt Chunk
+    write_le<uint32_t>(wav, 0x20746d66); // "fmt "
+    write_le<uint32_t>(wav, 16); // Subchunk1Size (16 for PCM)
+    write_le<uint16_t>(wav, format);
+    write_le<uint16_t>(wav, channels);
+    write_le<uint32_t>(wav, rate);
+    uint32_t byteRate = rate * channels * bits / 8;
+    write_le<uint32_t>(wav, byteRate);
+    uint16_t blockAlign = channels * bits / 8;
+    write_le<uint16_t>(wav, blockAlign);
+    write_le<uint16_t>(wav, bits);
 
-    // 8-bit PCM is unsigned 0..255, center at 128
-    WavHeader header = {FORMAT_PCM, 1, 44100, 44100, 1, 8};
-    std::vector<uint8_t> data = {128, 0, 255};
-    create_wav_file(filename, header, data);
+    // data Chunk
+    write_le<uint32_t>(wav, 0x61746164); // "data"
+    write_le<uint32_t>(wav, subchunk2Size);
+    wav.insert(wav.end(), data.begin(), data.end());
 
-    try {
-        WaveStream stream((TagLib::String(filename)));
-        ASSERT_TRUE(stream.getChannels() == 1, "Channels mismatch");
-        ASSERT_TRUE(stream.getRate() == 44100, "Rate mismatch");
-
-        int16_t buffer[3];
-        size_t read = stream.getData(6, buffer); // 3 samples * 2 bytes
-        ASSERT_TRUE(read == 6, "Read size mismatch");
-
-        // 128 -> 0
-        // 0 -> -32768
-        // 255 -> 32512 ( (255-128)<<8 = 127<<8 = 32512 )
-
-        ASSERT_TRUE(buffer[0] == 0, "Sample 0 mismatch (128 -> 0)");
-        ASSERT_TRUE(buffer[1] == -32768, "Sample 1 mismatch (0 -> -32768)");
-        ASSERT_TRUE(buffer[2] == 32512, "Sample 2 mismatch (255 -> 32512)");
-
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        return 1;
-    }
-    return 0;
+    return wav;
 }
 
-int test_pcm_16bit() {
+void testPCM16() {
     std::cout << "Testing PCM 16-bit..." << std::endl;
-    std::string filename = "test_pcm_16.wav";
-    FileDeleter deleter(filename);
+    // 16-bit signed PCM (Little Endian)
+    // 2 samples: 0x1000, 0xF000 (-4096)
+    std::vector<uint8_t> pcmData = {0x00, 0x10, 0x00, 0xF0};
 
-    WavHeader header = {FORMAT_PCM, 2, 48000, 48000 * 4, 4, 16};
-    std::vector<uint8_t> data(4 * 2); // 2 samples, stereo (4 bytes per frame)
-    int16_t* ptr = reinterpret_cast<int16_t*>(data.data());
-    ptr[0] = 0;      // L
-    ptr[1] = -32768; // R
-    ptr[2] = 32767;  // L
-    ptr[3] = -1;     // R
+    auto wavData = createWavData(1, 1, 44100, 16, pcmData);
+    auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+    WaveStream stream(std::move(handler));
 
-    create_wav_file(filename, header, data);
+    ASSERT_EQUALS(1, stream.getChannels(), "Channels should be 1");
+    ASSERT_EQUALS(44100, stream.getRate(), "Rate should be 44100");
 
-    try {
-        WaveStream stream((TagLib::String(filename)));
-        ASSERT_TRUE(stream.getChannels() == 2, "Channels mismatch");
-        ASSERT_TRUE(stream.getRate() == 48000, "Rate mismatch");
+    int16_t buffer[2];
+    size_t bytesRead = stream.getData(4, buffer);
 
-        int16_t buffer[4];
-        size_t read = stream.getData(8, buffer);
-        ASSERT_TRUE(read == 8, "Read size mismatch");
-
-        ASSERT_TRUE(buffer[0] == 0, "Sample 0 mismatch");
-        ASSERT_TRUE(buffer[1] == -32768, "Sample 1 mismatch");
-        ASSERT_TRUE(buffer[2] == 32767, "Sample 2 mismatch");
-        ASSERT_TRUE(buffer[3] == -1, "Sample 3 mismatch");
-
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        return 1;
-    }
-    return 0;
+    ASSERT_EQUALS(4, bytesRead, "Should read 4 bytes");
+    ASSERT_EQUALS(0x1000, buffer[0], "First sample mismatch");
+    ASSERT_EQUALS((int16_t)0xF000, buffer[1], "Second sample mismatch");
 }
 
-int test_float_32bit() {
-    std::cout << "Testing IEEE Float 32-bit..." << std::endl;
-    std::string filename = "test_float_32.wav";
-    FileDeleter deleter(filename);
+void testPCM8() {
+    std::cout << "Testing PCM 8-bit..." << std::endl;
+    // 8-bit unsigned PCM
+    // 0x80 (128) -> 0 (silence)
+    // 0xFF (255) -> 32512 (approx max positive)
+    // 0x00 (0)   -> -32768 (min negative)
+    std::vector<uint8_t> pcmData = {0x80, 0xFF, 0x00};
 
-    WavHeader header = {FORMAT_FLOAT, 1, 44100, 44100 * 4, 4, 32};
-    std::vector<uint8_t> data(4 * 2); // 2 samples
-    float* ptr = reinterpret_cast<float*>(data.data());
-    ptr[0] = 0.0f;
-    ptr[1] = 1.0f;
+    auto wavData = createWavData(1, 1, 44100, 8, pcmData);
+    auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+    WaveStream stream(std::move(handler));
 
-    create_wav_file(filename, header, data);
+    int16_t buffer[3];
+    size_t bytesRead = stream.getData(6, buffer);
 
-    try {
-        WaveStream stream((TagLib::String(filename)));
-
-        int16_t buffer[2];
-        size_t read = stream.getData(4, buffer);
-        ASSERT_TRUE(read == 4, "Read size mismatch");
-
-        // 0.0f -> 0
-        // 1.0f -> 32767
-
-        ASSERT_TRUE(buffer[0] == 0, "Sample 0 mismatch");
-        ASSERT_TRUE(buffer[1] == 32767, "Sample 1 mismatch");
-
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        return 1;
-    }
-    return 0;
+    ASSERT_EQUALS(6, bytesRead, "Should read 6 bytes");
+    ASSERT_EQUALS(0, buffer[0], "0x80 should be 0");
+    // (255 - 128) << 8 = 127 * 256 = 32512
+    ASSERT_EQUALS(32512, buffer[1], "0xFF conversion mismatch");
+    // (0 - 128) << 8 = -128 * 256 = -32768
+    ASSERT_EQUALS(-32768, buffer[2], "0x00 conversion mismatch");
 }
 
-int test_alaw() {
-    std::cout << "Testing ALAW..." << std::endl;
-    std::string filename = "test_alaw.wav";
-    FileDeleter deleter(filename);
+void testFloat32() {
+    std::cout << "Testing Float 32-bit..." << std::endl;
+    // 32-bit float
+    // 1.0f, -0.5f
+    float samples[] = {1.0f, -0.5f};
+    std::vector<uint8_t> pcmData(sizeof(samples));
+    std::memcpy(pcmData.data(), samples, sizeof(samples));
 
-    WavHeader header = {FORMAT_ALAW, 1, 8000, 8000, 1, 8};
-    // 0x55 -> +0, 0xD5 -> -0 in ALAW
-    std::vector<uint8_t> data = {0x55, 0xD5};
-    create_wav_file(filename, header, data);
+    auto wavData = createWavData(3, 1, 44100, 32, pcmData); // Format 3 = IEEE Float
+    auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+    WaveStream stream(std::move(handler));
 
-    try {
-        WaveStream stream((TagLib::String(filename)));
+    int16_t buffer[2];
+    size_t bytesRead = stream.getData(4, buffer);
 
-        int16_t buffer[2];
-        size_t read = stream.getData(4, buffer);
-        ASSERT_TRUE(read == 4, "Read size mismatch");
-
-        ASSERT_TRUE(buffer[0] == 0, "Sample 0 mismatch (0x55 -> 0)");
-        ASSERT_TRUE(buffer[1] == 0, "Sample 1 mismatch (0xD5 -> 0)");
-
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        return 1;
-    }
-    return 0;
+    ASSERT_EQUALS(4, bytesRead, "Should read 4 bytes");
+    // 1.0 * 32767 = 32767
+    ASSERT_EQUALS(32767, buffer[0], "1.0f conversion mismatch");
+    // -0.5 * 32767 = -16383.5 -> -16383
+    ASSERT_EQUALS(-16383, buffer[1], "-0.5f conversion mismatch");
 }
 
-int test_mulaw() {
-    std::cout << "Testing MULAW..." << std::endl;
-    std::string filename = "test_mulaw.wav";
-    FileDeleter deleter(filename);
+void testALaw() {
+    std::cout << "Testing A-Law..." << std::endl;
+    // A-law
+    // 0xD5 (silence) -> 0
+    std::vector<uint8_t> data = {0xD5};
+    auto wavData = createWavData(6, 1, 8000, 8, data); // Format 6 = ALAW
+    auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+    WaveStream stream(std::move(handler));
 
-    WavHeader header = {FORMAT_MULAW, 1, 8000, 8000, 1, 8};
-    // 0xFF and 0x7F decode to 0 in mu-law
-    std::vector<uint8_t> data = {0xFF, 0x7F};
-    create_wav_file(filename, header, data);
-
-    try {
-        WaveStream stream((TagLib::String(filename)));
-
-        int16_t buffer[2];
-        size_t read = stream.getData(4, buffer);
-        ASSERT_TRUE(read == 4, "Read size mismatch");
-
-        ASSERT_TRUE(buffer[0] == 0, "Sample 0 mismatch (0xFF -> 0)");
-        ASSERT_TRUE(buffer[1] == 0, "Sample 1 mismatch (0x7F -> 0)");
-
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-        return 1;
-    }
-    return 0;
+    int16_t buffer[1];
+    stream.getData(2, buffer);
+    ASSERT_EQUALS(0, buffer[0], "A-Law silence mismatch");
 }
 
-int test_malformed_header() {
-    std::cout << "Testing Malformed Header (missing data chunk)..." << std::endl;
-    std::string filename = "test_malformed.wav";
-    FileDeleter deleter(filename);
+void testMuLaw() {
+    std::cout << "Testing Mu-Law..." << std::endl;
+    // Mu-law
+    // 0xFF (silence) -> 0
+    std::vector<uint8_t> data = {0xFF};
+    auto wavData = createWavData(7, 1, 8000, 8, data); // Format 7 = MULAW
+    auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+    WaveStream stream(std::move(handler));
 
-    std::ofstream out(filename, std::ios::binary);
+    int16_t buffer[1];
+    stream.getData(2, buffer);
+    ASSERT_EQUALS(0, buffer[0], "Mu-Law silence mismatch");
+}
 
-    // Header without data chunk
-    write_le_u32(out, RIFF_ID);
-    write_le_u32(out, 4 + 8 + 16); // size
-    write_le_u32(out, WAVE_ID);
-    write_le_u32(out, FMT_ID);
-    write_le_u32(out, 16);
-    write_le_u16(out, FORMAT_PCM);
-    write_le_u16(out, 1);
-    write_le_u32(out, 44100);
-    write_le_u32(out, 44100);
-    write_le_u16(out, 1);
-    write_le_u16(out, 8);
-    out.close();
+void testInvalidHeader() {
+    std::cout << "Testing Invalid Header..." << std::endl;
+    std::vector<uint8_t> data = {0x00}; // Too short
+    auto handler = std::make_unique<MemoryIOHandler>(data.data(), data.size());
 
-    bool caught = false;
+    bool exceptionThrown = false;
     try {
-        WaveStream stream((TagLib::String(filename)));
-    } catch (const BadFormatException& e) {
-        caught = true;
-        std::cout << "Caught expected exception: " << e.what() << std::endl;
-    } catch (const std::exception& e) {
-        std::cout << "Caught unexpected exception: " << e.what() << std::endl;
+        WaveStream stream(std::move(handler));
+    } catch (const std::exception&) {
+        exceptionThrown = true;
     }
+    ASSERT_TRUE(exceptionThrown, "Should throw on invalid header");
+}
 
-    ASSERT_TRUE(caught, "Should catch BadFormatException for missing data chunk");
-    return 0;
+void testSeek() {
+     std::cout << "Testing Seek..." << std::endl;
+     // 16-bit stereo, 44100Hz
+     // 1 second of data = 44100 * 2 (channels) * 2 (bytes) = 176400 bytes
+     std::vector<uint8_t> pcmData(176400, 0);
+     // Mark a sample at 500ms
+     // 500ms = 22050 samples
+     // Offset = 22050 * 4 bytes = 88200
+     pcmData[88200] = 0xAA;
+     pcmData[88201] = 0xBB; // 0xBBAA sample for Left channel
+
+     auto wavData = createWavData(1, 2, 44100, 16, pcmData);
+     auto handler = std::make_unique<MemoryIOHandler>(wavData.data(), wavData.size());
+     WaveStream stream(std::move(handler));
+
+     stream.seekTo(500); // Seek to 500ms
+
+     int16_t buffer[2]; // L, R
+     stream.getData(4, buffer);
+
+     ASSERT_EQUALS((int16_t)0xBBAA, buffer[0], "Seek failed or data mismatch");
 }
 
 int main() {
-    int failed = 0;
+    try {
+        testPCM16();
+        testPCM8();
+        testFloat32();
+        testALaw();
+        testMuLaw();
+        testInvalidHeader();
+        testSeek();
 
-    if (test_pcm_8bit() != 0) failed++;
-    if (test_pcm_16bit() != 0) failed++;
-    if (test_float_32bit() != 0) failed++;
-    if (test_alaw() != 0) failed++;
-    if (test_mulaw() != 0) failed++;
-    if (test_malformed_header() != 0) failed++;
-
-    if (failed == 0) {
         std::cout << "All tests passed!" << std::endl;
         return 0;
-    } else {
-        std::cout << failed << " tests failed." << std::endl;
+    } catch (const std::exception& e) {
+        std::cerr << "Test failed: " << e.what() << std::endl;
         return 1;
     }
 }
