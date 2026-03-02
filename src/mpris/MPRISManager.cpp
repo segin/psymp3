@@ -11,11 +11,7 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
-// Explicitly include MPRISTypes.h for Result, ErrorLogger, etc.
-// This is needed for non-final builds where psymp3.h might not include it
 #include "mpris/MPRISTypes.h"
-// Also include PropertyManager.h to ensure full visibility of methods
-#include "mpris/PropertyManager.h"
 
 namespace PsyMP3 {
 namespace MPRIS {
