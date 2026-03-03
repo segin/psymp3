@@ -341,6 +341,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_psymp3_system_integration \
 	test_api_consistency \
 	test_demuxer_unit \
+	test_seeking_engine \
 	test_demuxer_factory_unit \
 	test_media_factory_unit \
 	test_demuxed_stream_unit \
@@ -636,6 +637,19 @@ test_demuxer_unit_SOURCES = test_demuxer_unit.cpp
 test_demuxer_unit_LDADD = libtest_utilities.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(AM_LDFLAGS)
+
+test_seeking_engine_SOURCES = test_seeking_engine.cpp
+test_seeking_engine_LDADD = libtest_utilities.a \
+	$(top_builddir)/src/demuxer/iso/libpsymp3-demuxer-iso.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
