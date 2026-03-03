@@ -42,7 +42,6 @@
 - ✅ `src/widget/windowing/TitlebarWidget.cpp` - `PsyMP3::Widget::Windowing` ✓ verified
 - ✅ `src/widget/windowing/TransparentWindowWidget.cpp` - `PsyMP3::Widget::Windowing` ✓ verified
 - ✅ `src/widget/ui/ButtonWidget.cpp` - `PsyMP3::Widget::UI`
-- ✅ `src/widget/ui/ToastNotification.cpp` - `PsyMP3::Widget::UI` ✓ verified
 
 ## Files Needing Namespace Migration
 

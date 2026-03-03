@@ -75,7 +75,7 @@ void testDecodeFile(const TestFile& testFile) {
         }
         
         // Get stream info
-        StreamInfo streamInfo = demuxer->getStreamInfo();
+        StreamInfo streamInfo = demuxer->getStreams()[0];
         
         // Verify stream parameters
         std::cout << "  Stream info:" << std::endl;
@@ -114,7 +114,7 @@ void testDecodeFile(const TestFile& testFile) {
         // Decode all frames
         uint64_t totalSamples = 0;
         uint32_t frameCount = 0;
-        MediaChunk chunk = demuxer->getNextChunk();
+        MediaChunk chunk = demuxer->readChunk(demuxer->getStreams()[0].stream_id);
         
         while (!chunk.data.empty()) {
             AudioFrame frame = codec->decode(chunk);
@@ -124,7 +124,7 @@ void testDecodeFile(const TestFile& testFile) {
                 frameCount++;
             }
             
-            chunk = demuxer->getNextChunk();
+            chunk = demuxer->readChunk(demuxer->getStreams()[0].stream_id);
         }
         
         std::cout << "  Decoded successfully:" << std::endl;

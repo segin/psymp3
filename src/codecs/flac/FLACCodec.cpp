@@ -2001,24 +2001,14 @@ void FLACCodec::handleWriteCallback_unlocked(const FLAC__Frame* frame, const FLA
         }
         
         // RFC 9639 sample format endianness validation
-        size_t total_samples = static_cast<size_t>(frame->header.blocksize) * frame->header.channels;
-        std::vector<FLAC__int32> flattened_samples;
-        flattened_samples.reserve(total_samples);
-        
-        // Flatten the channel-separated samples for validation
-        for (uint32_t sample = 0; sample < frame->header.blocksize; ++sample) {
-            for (uint16_t channel = 0; channel < frame->header.channels; ++channel) {
-                flattened_samples.push_back(buffer[channel][sample]);
-            }
-        }
-        
-        if (!validateSampleFormatEndianness_unlocked(flattened_samples.data(), total_samples, frame->header.bits_per_sample)) [[unlikely]] {
+        // Optimized to validate directly on channel buffers without flattening
+        if (!validateSampleFormatEndianness_unlocked(buffer, frame->header.blocksize, frame->header.channels, frame->header.bits_per_sample)) [[unlikely]] {
             Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] RFC 9639 sample format endianness validation failed");
             m_stats.error_count++;
             // Continue processing despite endianness issues - they may be recoverable
         }
         
-        if (!validateSampleFormatRanges_unlocked(flattened_samples.data(), total_samples, frame->header.bits_per_sample)) [[unlikely]] {
+        if (!validateSampleFormatRanges_unlocked(buffer, frame->header.blocksize, frame->header.channels, frame->header.bits_per_sample)) [[unlikely]] {
             Debug::log("flac_codec", "[FLACCodec::handleWriteCallback_unlocked] RFC 9639 sample format range validation failed");
             m_stats.error_count++;
             // Continue processing despite range issues - they may be recoverable
@@ -10495,13 +10485,14 @@ bool FLACCodec::validateReservedBitDepthValues_unlocked(uint16_t bits_per_sample
     return true; // All values 4-32 are currently valid per RFC 9639
 }
 
-bool FLACCodec::validateSampleFormatEndianness_unlocked(const FLAC__int32* samples, 
-                                                        size_t sample_count, 
+bool FLACCodec::validateSampleFormatEndianness_unlocked(const FLAC__int32* const buffer[],
+                                                        uint32_t block_size,
+                                                        uint32_t channels,
                                                         uint16_t source_bits) const {
     // RFC 9639 Section 9.2: FLAC samples are stored in big-endian format in the bitstream
     // but libFLAC provides them in host byte order. Validate proper endianness handling.
     
-    if (!samples || sample_count == 0) {
+    if (!buffer || block_size == 0 || channels == 0) {
         Debug::log("flac_codec", "[validateSampleFormatEndianness_unlocked] RFC 9639 validation failed - Invalid parameters");
         return false;
     }
@@ -10518,39 +10509,44 @@ bool FLACCodec::validateSampleFormatEndianness_unlocked(const FLAC__int32* sampl
     
     size_t out_of_range_count = 0;
     size_t endianness_issues = 0;
+    size_t sample_count = static_cast<size_t>(block_size) * channels;
     
-    for (size_t i = 0; i < sample_count; ++i) {
-        FLAC__int32 sample = samples[i];
-        
-        // Apply proper sign extension per RFC 9639
-        FLAC__int32 sign_extended = applyProperSignExtension_unlocked(sample, source_bits);
-        
-        // Validate sample is within expected range for bit depth
-        if (sign_extended < min_value || sign_extended > max_value) {
-            out_of_range_count++;
+    // Iterate through samples in interleaved order to match original behavior
+    for (uint32_t sample_idx = 0; sample_idx < block_size; ++sample_idx) {
+        for (uint32_t channel = 0; channel < channels; ++channel) {
+            FLAC__int32 sample = buffer[channel][sample_idx];
+            size_t i = static_cast<size_t>(sample_idx) * channels + channel;
             
-            // Check for potential endianness issues
-            // If the sample appears to be byte-swapped, it might indicate endianness problems
-            if (source_bits >= 16) {
-                // Try byte-swapping to see if it produces a valid value
-                uint32_t swapped = 0;
-                if (source_bits == 16) {
-                    uint16_t val = static_cast<uint16_t>(sample);
-                    swapped = ((val & 0xFF) << 8) | ((val >> 8) & 0xFF);
-                } else if (source_bits == 24) {
-                    uint32_t val = static_cast<uint32_t>(sample) & 0xFFFFFF;
-                    swapped = ((val & 0xFF) << 16) | (val & 0xFF00) | ((val >> 16) & 0xFF);
-                } else if (source_bits == 32) {
-                    uint32_t val = static_cast<uint32_t>(sample);
-                    swapped = ((val & 0xFF) << 24) | (((val >> 8) & 0xFF) << 16) | 
-                             (((val >> 16) & 0xFF) << 8) | ((val >> 24) & 0xFF);
-                }
+            // Apply proper sign extension per RFC 9639
+            FLAC__int32 sign_extended = applyProperSignExtension_unlocked(sample, source_bits);
+
+            // Validate sample is within expected range for bit depth
+            if (sign_extended < min_value || sign_extended > max_value) {
+                out_of_range_count++;
                 
-                FLAC__int32 swapped_extended = applyProperSignExtension_unlocked(static_cast<FLAC__int32>(swapped), source_bits);
-                if (swapped_extended >= min_value && swapped_extended <= max_value) {
-                    endianness_issues++;
-                    Debug::log("flac_codec", "[validateSampleFormatEndianness_unlocked] RFC 9639 potential endianness issue at sample ", 
-                              i, ": original=0x", std::hex, sample, ", swapped=0x", swapped, std::dec);
+                // Check for potential endianness issues
+                // If the sample appears to be byte-swapped, it might indicate endianness problems
+                if (source_bits >= 16) {
+                    // Try byte-swapping to see if it produces a valid value
+                    uint32_t swapped = 0;
+                    if (source_bits == 16) {
+                        uint16_t val = static_cast<uint16_t>(sample);
+                        swapped = ((val & 0xFF) << 8) | ((val >> 8) & 0xFF);
+                    } else if (source_bits == 24) {
+                        uint32_t val = static_cast<uint32_t>(sample) & 0xFFFFFF;
+                        swapped = ((val & 0xFF) << 16) | (val & 0xFF00) | ((val >> 16) & 0xFF);
+                    } else if (source_bits == 32) {
+                        uint32_t val = static_cast<uint32_t>(sample);
+                        swapped = ((val & 0xFF) << 24) | (((val >> 8) & 0xFF) << 16) |
+                                 (((val >> 16) & 0xFF) << 8) | ((val >> 24) & 0xFF);
+                    }
+
+                    FLAC__int32 swapped_extended = applyProperSignExtension_unlocked(static_cast<FLAC__int32>(swapped), source_bits);
+                    if (swapped_extended >= min_value && swapped_extended <= max_value) {
+                        endianness_issues++;
+                        Debug::log("flac_codec", "[validateSampleFormatEndianness_unlocked] RFC 9639 potential endianness issue at sample ",
+                                  i, ": original=0x", std::hex, sample, ", swapped=0x", swapped, std::dec);
+                    }
                 }
             }
         }
@@ -10577,13 +10573,14 @@ bool FLACCodec::validateSampleFormatEndianness_unlocked(const FLAC__int32* sampl
     return true;
 }
 
-bool FLACCodec::validateSampleFormatRanges_unlocked(const FLAC__int32* samples, 
-                                                   size_t sample_count, 
+bool FLACCodec::validateSampleFormatRanges_unlocked(const FLAC__int32* const buffer[],
+                                                   uint32_t block_size,
+                                                   uint32_t channels,
                                                    uint16_t source_bits) const {
     // RFC 9639 Section 9.2: Validate that all samples are within the valid range for their bit depth
     // This ensures proper sign extension and range validation per RFC requirements
     
-    if (!samples || sample_count == 0) {
+    if (!buffer || block_size == 0 || channels == 0) {
         Debug::log("flac_codec", "[validateSampleFormatRanges_unlocked] RFC 9639 validation failed - Invalid parameters");
         return false;
     }
@@ -10602,39 +10599,44 @@ bool FLACCodec::validateSampleFormatRanges_unlocked(const FLAC__int32* samples,
     size_t sign_extension_errors = 0;
     int32_t min_found = INT32_MAX;
     int32_t max_found = INT32_MIN;
+    size_t sample_count = static_cast<size_t>(block_size) * channels;
     
-    for (size_t i = 0; i < sample_count; ++i) {
-        FLAC__int32 sample = samples[i];
-        
-        // Apply proper sign extension per RFC 9639
-        FLAC__int32 sign_extended = applyProperSignExtension_unlocked(sample, source_bits);
-        
-        // Track actual range
-        min_found = std::min(min_found, sign_extended);
-        max_found = std::max(max_found, sign_extended);
-        
-        // Validate sample is within expected range for bit depth
-        if (sign_extended < min_value || sign_extended > max_value) {
-            range_violations++;
+    // Iterate through samples in interleaved order
+    for (uint32_t sample_idx = 0; sample_idx < block_size; ++sample_idx) {
+        for (uint32_t channel = 0; channel < channels; ++channel) {
+            FLAC__int32 sample = buffer[channel][sample_idx];
+            size_t i = static_cast<size_t>(sample_idx) * channels + channel;
+
+            // Apply proper sign extension per RFC 9639
+            FLAC__int32 sign_extended = applyProperSignExtension_unlocked(sample, source_bits);
             
-            if (range_violations <= 10) { // Log first 10 violations for debugging
-                Debug::log("flac_codec", "[validateSampleFormatRanges_unlocked] RFC 9639 range violation at sample ", 
-                          i, ": value=", sign_extended, " (valid range: ", min_value, " to ", max_value, ")");
+            // Track actual range
+            min_found = std::min(min_found, sign_extended);
+            max_found = std::max(max_found, sign_extended);
+
+            // Validate sample is within expected range for bit depth
+            if (sign_extended < min_value || sign_extended > max_value) {
+                range_violations++;
+
+                if (range_violations <= 10) { // Log first 10 violations for debugging
+                    Debug::log("flac_codec", "[validateSampleFormatRanges_unlocked] RFC 9639 range violation at sample ",
+                              i, ": value=", sign_extended, " (valid range: ", min_value, " to ", max_value, ")");
+                }
             }
-        }
-        
-        // Check if sign extension was applied correctly
-        if (sample != sign_extended) {
-            // Verify the sign extension was necessary and correct
-            uint32_t valid_bits_mask = (1U << source_bits) - 1;
-            uint32_t masked_original = static_cast<uint32_t>(sample) & valid_bits_mask;
             
-            if (masked_original != (static_cast<uint32_t>(sign_extended) & valid_bits_mask)) {
-                sign_extension_errors++;
+            // Check if sign extension was applied correctly
+            if (sample != sign_extended) {
+                // Verify the sign extension was necessary and correct
+                uint32_t valid_bits_mask = (1U << source_bits) - 1;
+                uint32_t masked_original = static_cast<uint32_t>(sample) & valid_bits_mask;
                 
-                if (sign_extension_errors <= 5) { // Log first 5 errors for debugging
-                    Debug::log("flac_codec", "[validateSampleFormatRanges_unlocked] RFC 9639 sign extension error at sample ", 
-                              i, ": original=0x", std::hex, sample, ", extended=0x", sign_extended, std::dec);
+                if (masked_original != (static_cast<uint32_t>(sign_extended) & valid_bits_mask)) {
+                    sign_extension_errors++;
+
+                    if (sign_extension_errors <= 5) { // Log first 5 errors for debugging
+                        Debug::log("flac_codec", "[validateSampleFormatRanges_unlocked] RFC 9639 sign extension error at sample ",
+                                  i, ": original=0x", std::hex, sample, ", extended=0x", sign_extended, std::dec);
+                    }
                 }
             }
         }
