@@ -35,6 +35,9 @@ public:
 
 #else
 #include "psymp3.h"
+#else
+#include "psymp3.h"
+#include "io/http/HTTPClient.h"
 #endif
 
 #include <cstdio>
