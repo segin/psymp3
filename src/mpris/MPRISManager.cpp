@@ -11,10 +11,19 @@
 #include "psymp3.h"
 #endif // !FINAL_BUILD
 
+#include "mpris/MPRISTypes.h"
+
 namespace PsyMP3 {
 namespace MPRIS {
 
+// Define Result template for local use if not in header
+template<typename T>
+using Result = PsyMP3::MPRIS::Result<T>;
+
 #ifdef HAVE_DBUS
+
+// Static instance pointer for singleton access (if needed by other components)
+static MPRISManager* s_instance = nullptr;
 
 MPRISManager::MPRISManager(Player* player)
     : m_player(player)

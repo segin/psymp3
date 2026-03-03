@@ -57,15 +57,15 @@ void PropertyManager::updateLoopStatus(PsyMP3::MPRIS::LoopStatus status) {
   updateLoopStatus_unlocked(status);
 }
 
-// void PropertyManager::updateShuffle(bool shuffle) {
-//   std::lock_guard<std::mutex> lock(m_mutex);
-//   updateShuffle_unlocked(shuffle);
-// }
+void PropertyManager::updateShuffle(bool shuffle) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  updateShuffle_unlocked(shuffle);
+}
 
-// bool PropertyManager::updateVolume(double volume) {
-//   std::lock_guard<std::mutex> lock(m_mutex);
-//   return updateVolume_unlocked(volume);
-// }
+bool PropertyManager::updateVolume(double volume) {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return updateVolume_unlocked(volume);
+}
 
 std::string PropertyManager::getPlaybackStatus() const {
   std::lock_guard<std::mutex> lock(m_mutex);
@@ -88,15 +88,15 @@ PsyMP3::MPRIS::LoopStatus PropertyManager::getLoopStatus() const {
   return getLoopStatus_unlocked();
 }
 
-// bool PropertyManager::getShuffle() const {
-//   std::lock_guard<std::mutex> lock(m_mutex);
-//   return getShuffle_unlocked();
-// }
+bool PropertyManager::getShuffle() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getShuffle_unlocked();
+}
 
-// double PropertyManager::getVolume() const {
-//   std::lock_guard<std::mutex> lock(m_mutex);
-//   return getVolume_unlocked();
-// }
+double PropertyManager::getVolume() const {
+  std::lock_guard<std::mutex> lock(m_mutex);
+  return getVolume_unlocked();
+}
 
 uint64_t PropertyManager::getLength() const {
   std::lock_guard<std::mutex> lock(m_mutex);

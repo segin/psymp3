@@ -37,6 +37,16 @@ void Player::prevTrack() {
     // Do nothing for testing
 }
 
+bool Player::canSeek() const {
+    return true;
+}
+
+/* 
+// bool Player::isPlaying() const {
+//     return true; // Removed as it's not in player.h
+// }
+*/
+
 bool Player::canGoNext() const {
     return true; // Always return true for testing
 }
@@ -64,8 +74,8 @@ double Player::getVolume() const {
     return 1.0; // Return dummy volume (1.0 = 100%)
 }
 
-void Player::showMPRISError(const std::string& error) {
-    (void)error;
+void Player::showNotification(const std::string& message, NotificationType type) {
+    (void)message; (void)type;
 }
 
 void Player::setLoopMode(LoopMode mode) {
