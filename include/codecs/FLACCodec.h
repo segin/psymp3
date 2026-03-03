@@ -1389,8 +1389,9 @@ private:
      * per RFC 9639 requirements. FLAC samples are stored in big-endian format
      * in the bitstream but libFLAC provides them in host byte order.
      * 
-     * @param samples Array of FLAC samples to validate
-     * @param sample_count Number of samples in the array
+     * @param buffer Channel-separated buffer of FLAC samples to validate
+     * @param block_size Number of samples per channel
+     * @param channels Number of channels
      * @param source_bits Bit depth of the source samples (4-32 bits)
      * @return true if endianness handling is correct, false on validation failure
      * 
@@ -1405,8 +1406,9 @@ private:
      * @see applyProperSignExtension_unlocked() for sign extension
      * @see validateSampleFormatRanges_unlocked() for range validation
      */
-    bool validateSampleFormatEndianness_unlocked(const FLAC__int32* samples, 
-                                                size_t sample_count, 
+    bool validateSampleFormatEndianness_unlocked(const FLAC__int32* const buffer[],
+                                                uint32_t block_size,
+                                                uint32_t channels,
                                                 uint16_t source_bits) const;
     
     /**
@@ -1415,8 +1417,9 @@ private:
      * Validates that all samples are within the valid range for their bit depth
      * and that sign extension has been applied correctly per RFC 9639 requirements.
      * 
-     * @param samples Array of FLAC samples to validate
-     * @param sample_count Number of samples in the array
+     * @param buffer Channel-separated buffer of FLAC samples to validate
+     * @param block_size Number of samples per channel
+     * @param channels Number of channels
      * @param source_bits Bit depth of the source samples (4-32 bits)
      * @return true if all samples are within valid ranges, false on validation failure
      * 
@@ -1431,8 +1434,9 @@ private:
      * @see applyProperSignExtension_unlocked() for sign extension
      * @see validateBitDepthRFC9639_unlocked() for bit depth validation
      */
-    bool validateSampleFormatRanges_unlocked(const FLAC__int32* samples, 
-                                           size_t sample_count, 
+    bool validateSampleFormatRanges_unlocked(const FLAC__int32* const buffer[],
+                                           uint32_t block_size,
+                                           uint32_t channels,
                                            uint16_t source_bits) const;
     
     /**

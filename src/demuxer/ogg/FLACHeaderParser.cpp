@@ -47,10 +47,6 @@ bool FLACHeaderParser::parseHeader(ogg_packet* packet) {
         // Version 1.0 (major=1)
         if (data[5] != 1) return false;
         
-        // Number of header packets (bytes 7-8) - big endian
-        // int num_headers = (data[7] << 8) | data[8];
-        // We accept any number for now (usually non-zero)
-        
         // "fLaC" signature (bytes 9-12)
         if (memcmp(data + 9, "fLaC", 4) != 0) return false;
         

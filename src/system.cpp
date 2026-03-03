@@ -131,7 +131,8 @@ void System::broadcastMsnMessage(const std::wstring &message) {
   cds.dwData = 1351; // Magic number for MSN Now Playing IPC
   // The size is the total number of bytes, including the final null terminator.
   cds.cbData = (message.length() + 1) * sizeof(wchar_t);
-  cds.lpData = (PVOID)message.c_str();
+  cds.lpData =
+      const_cast<PVOID>(reinterpret_cast<const void *>(message.c_str()));
 
   HWND msgr_hwnd = nullptr;
   // Loop through all top-level windows to find all messenger instances.
@@ -490,15 +491,15 @@ void System::setThisThreadName([[maybe_unused]] const std::string &name) {
   // The SetThreadDescription API is available on Windows 10 1607+
   // We dynamically load it to maintain compatibility with older systems.
   using SetThreadDescription_t = HRESULT(WINAPI *)(HANDLE, PCWSTR);
-  auto pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(
-      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription");
+  auto pSetThreadDescription = reinterpret_cast<SetThreadDescription_t>(GetProcAddress(
+      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"));
 
   if (pSetThreadDescription) {
     // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API
     int size_needed =
-        MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), nullptr, 0);
+        MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), nullptr, 0);
     std::wstring wname(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), &wname[0],
+    MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), &wname[0],
                         size_needed);
 
     pSetThreadDescription(GetCurrentThread(), wname.c_str());
