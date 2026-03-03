@@ -177,7 +177,7 @@ public:
     
 private:
     mutable std::mutex m_mutex;
-    std::vector<std::string> m_search_paths = {"./plugins", "/usr/local/lib/psymp3/plugins"};
+    std::vector<std::string> m_search_paths = {"/usr/local/lib/psymp3/plugins"};
     std::set<std::string> m_registered_formats;
     PluginStats m_stats;
 };
