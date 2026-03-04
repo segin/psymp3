@@ -559,6 +559,9 @@ test_rect_pair_variants_LDADD = libtest_utilities.a $(top_builddir)/src/core/lib
 
 test_widget_rect_integration_SOURCES = test_widget_rect_integration.cpp
 test_widget_rect_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)
+test_widget_hierarchy_properties_SOURCES = test_widget_hierarchy_properties.cpp
+test_widget_hierarchy_properties_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(top_builddir)/src/widget/foundation/libpsymp3-widget-foundation.a $(AM_LDFLAGS)
+
 
 test_harness_integration_SOURCES = test_harness_integration.cpp
 test_harness_integration_LDADD = libtest_utilities.a $(top_builddir)/src/core/libpsymp3-core.a $(AM_LDFLAGS)

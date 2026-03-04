@@ -28,6 +28,12 @@
 
 std::atomic<bool> Player::guiRunning{false};
 
+/**
+ * @brief Converts an integer to a zero-padded decimal string.
+ * @param number Number to format.
+ * @param width  Minimum field width; 0 means no padding.
+ * @return Formatted string.
+ */
 static std::string convertInt(long number, int width = 0) {
     std::stringstream ss;
     if (width > 0) {
@@ -38,6 +44,14 @@ static std::string convertInt(long number, int width = 0) {
 }
 
 
+/**
+ * @brief Constructs the Player object.
+ *
+ * Starts the background track-loader thread, initialises the Last.fm
+ * scrobbler, and on D-Bus builds, creates the MPRIS manager. The
+ * application window and audio subsystem are not created until
+ * `Initialize()` is called.
+ */
 Player::Player() {
     Debug::log("player", "PsyMP3 version ", PSYMP3_VERSION, ".");
 
@@ -68,6 +82,13 @@ Player::Player() {
 #endif
 }
 
+/**
+ * @brief Destroys the Player object.
+ *
+ * Resets the `Audio` subsystem (joining the audio thread), shuts down MPRIS,
+ * joins the loader and playlist-populator threads, and clears the Windows
+ * now-playing status.
+ */
 Player::~Player() {
     // Stop audio first to join decoder threads before deleting other members
     audio.reset();
@@ -306,12 +327,26 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
     }
 }
 
+/**
+ * @brief Toggles whether MPRIS D-Bus errors are shown as on-screen toast notifications.
+ *
+ * Flips `m_show_mpris_errors` and shows a confirmation toast.
+ */
 void Player::toggleMPRISErrorNotifications() {
     m_show_mpris_errors = !m_show_mpris_errors;
     std::string state = m_show_mpris_errors ? "ON" : "OFF";
     showToast("MPRIS Errors: " + state);
 }
 
+/**
+ * @brief Queues a notification message to be displayed on the main thread.
+ *
+ * The message is heap-allocated and handed to the SDL event queue as a
+ * `SHOW_NOTIFICATION` user event.  The main thread frees the allocation.
+ *
+ * @param message Message text.
+ * @param type    Severity / category (`Info`, `Warning`, `Error`, `MPRISError`).
+ */
 void Player::showNotification(const std::string& message, NotificationType type) {
     auto* data = new std::pair<std::string, NotificationType>(message, type);
     synthesizeUserEvent(SHOW_NOTIFICATION, data, nullptr);
@@ -396,6 +431,14 @@ void Player::prevTrack(void) {
     requestTrackLoad(playlist->getTrack(new_pos));
 }
 
+/**
+ * @brief Returns whether the "Previous" navigation action is possible.
+ *
+ * Returns `false` if the playlist is empty. Otherwise, depends on
+ * `m_loop_mode` and current position.
+ *
+ * @return `true` if going to the previous track is possible.
+ */
 bool Player::canGoPrevious() const {
     if (!playlist || playlist->entries() == 0) return false;
 
@@ -414,6 +457,14 @@ bool Player::canGoPrevious() const {
     return false;
 }
 
+/**
+ * @brief Returns whether the "Next" navigation action is possible.
+ *
+ * Returns `false` if the playlist is empty. In `LoopMode::All`, always true.
+ * In `LoopMode::None`, false when on the last track.
+ *
+ * @return `true` if moving to the next track is possible.
+ */
 bool Player::canGoNext() const {
     if (!playlist || playlist->entries() == 0) return false;
 
@@ -635,6 +686,19 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
     m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
 }
 
+/**
+ * @brief Updates all dynamic state (stream position, lyrics, MPRIS, preloading) for one GUI frame.
+ *
+ * Called within `updateGUI()` while the player mutex is held. Copies position
+ * and metadata from the stream, triggers preloading when near the end of the
+ * track, feeds the FFT widget, and updates MPRIS position and Last.fm status.
+ *
+ * @param current_stream  Reference to the current stream pointer (updated in place).
+ * @param current_pos_ms  Reference to the current position in ms (updated in place).
+ * @param total_len_ms    Reference to the total length in ms (updated in place).
+ * @param artist          Reference to the artist string (updated in place).
+ * @param title           Reference to the title string (updated in place).
+ */
 void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title)
 {
     // Don't clear the graph surface - widgets will draw their own backgrounds
@@ -1397,6 +1461,16 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
     return false; // Do not exit
 }
 
+/**
+ * @brief Initialises SDL and all subsystems, builds the UI widget tree, and starts background threads.
+ *
+ * Must be called once before `EventLoop()`. Returns `false` and logs an error
+ * if SDL initialisation fails. On success, the main window is visible and the
+ * playlist populator thread is running.
+ *
+ * @param options Parsed command-line / configuration options.
+ * @return `true` on success, `false` if any critical initialisation step failed.
+ */
 bool Player::Initialize(const PlayerOptions& options) {
     // Apply settings from the parsed options.
     scalefactor = options.scalefactor;
@@ -1557,6 +1631,13 @@ bool Player::Initialize(const PlayerOptions& options) {
     return true;
 }
 
+/**
+ * @brief Runs the SDL main event loop until the application is requested to quit.
+ *
+ * Processes `SDL_KEYDOWN`, `SDL_KEYUP`, `SDL_MOUSEBUTTON*`, `SDL_MOUSEMOTION`,
+ * `SDL_USEREVENT`, and `SDL_QUIT` events, dispatching them to the appropriate
+ * handlers. Calls `processDeferredDeletions()` after each event.
+ */
 void Player::EventLoop() {
     bool done = false;
     while (!done) {
@@ -1663,6 +1744,12 @@ void Player::EventLoop() {
     } // end main loop
 }
 
+/**
+ * @brief Performs final cleanup after the event loop exits.
+ *
+ * Removes the GUI timer, resets Windows taskbar progress, stops audio,
+ * logs the clean-exit message, and calls `SDL_Quit()`.
+ */
 void Player::Cleanup() {
     if (m_app_loop_timer_id) {
         SDL_RemoveTimer(m_app_loop_timer_id);
@@ -1710,6 +1797,16 @@ LoopMode Player::getLoopMode() const {
 }
 
 // Static member function definitions for automated testing
+/**
+ * @brief SDL timer callback used in automated testing: skips to the next track.
+ *
+ * Fires at a fixed interval in automated-test mode. After 5 invocations,
+ * removes itself and installs `AutomatedQuitTimer`.
+ *
+ * @param interval The timer interval in ms.
+ * @param param    Pointer to the `Player` instance.
+ * @return The interval for the next callback.
+ */
 Uint32 Player::AutomatedTestTimer(Uint32 interval, void* param) {
     Player* player = static_cast<Player*>(param);
     if (player) {
@@ -1724,6 +1821,16 @@ Uint32 Player::AutomatedTestTimer(Uint32 interval, void* param) {
     return interval;
 }
 
+/**
+ * @brief SDL timer callback used in automated testing: terminates the application.
+ *
+ * Fires once (after `AutomatedTestTimer` arms it) to synthesise a
+ * `QUIT_APPLICATION` event.
+ *
+ * @param interval The timer interval in ms.
+ * @param param    Pointer to the `Player` instance.
+ * @return The interval for the next callback.
+ */
 Uint32 Player::AutomatedQuitTimer(Uint32 interval, void* param) {
     Player* player = static_cast<Player*>(param);
     if (player) {
@@ -1732,6 +1839,15 @@ Uint32 Player::AutomatedQuitTimer(Uint32 interval, void* param) {
     return interval;
 }
 
+/**
+ * @brief Handles the case where the current track cannot be played.
+ *
+ * Increments `m_skip_attempts` and requests the next (or previous) track
+ * depending on `m_navigation_direction`. Respects `m_loop_mode`. Returns
+ * `false` when all tracks have been attempted without success.
+ *
+ * @return `true` if another track has been requested, `false` if nothing more can be tried.
+ */
 bool Player::handleUnplayableTrack() {
     if (!playlist || playlist->entries() == 0) {
         return false; // No playlist
@@ -1780,6 +1896,14 @@ bool Player::handleUnplayableTrack() {
     return true; // Continue trying
 }
 
+/**
+ * @brief Scans the playlist from position 0 for the first track that `MediaFile::open` accepts.
+ *
+ * Used at startup (after a `START_FIRST_TRACK` event) to skip over any
+ * unreadable entries and begin playback at the first valid track.
+ *
+ * @return `true` if a playable track was found and loading was requested.
+ */
 bool Player::findFirstPlayableTrack() {
     if (!playlist || playlist->entries() == 0) {
         return false; // No playlist
@@ -2025,6 +2149,13 @@ void Player::toggleTestWindowB()
     }
 }
 
+/**
+ * @brief Creates five randomly-placed, randomly-sized `WindowFrameWidget` test windows.
+ *
+ * Pressing `J` in the running player spawns a batch of five windows with
+ * randomised positions and sizes. Each window has close and drag callbacks
+ * set up to maintain the `m_random_windows` vector.
+ */
 void Player::createRandomWindows()
 {
     // Create 5 random windows each time J is pressed
@@ -2070,6 +2201,13 @@ void Player::createRandomWindows()
     showToast("Created 5 random windows (Total: " + std::to_string(m_random_window_counter) + ")");
 }
 
+/**
+ * @brief Checks whether the Last.fm scrobble threshold has been reached for the current track.
+ *
+ * Scrobbles when the track has been playing for at least the lesser of
+ * 50 % of its duration or 4 minutes, and only for tracks longer than 30 s.
+ * Called inside the GUI-update loop approximately every 30 s.
+ */
 void Player::checkScrobbling()
 {
     if (!stream || !m_lastfm || m_track_scrobbled || m_track_start_time == 0) {
@@ -2096,6 +2234,12 @@ void Player::checkScrobbling()
     }
 }
 
+/**
+ * @brief Starts scrobbling tracking for the current track.
+ *
+ * Records the start time and clears the `m_track_scrobbled` flag, then
+ * calls `submitNowPlaying()` to update the Last.fm "Now Playing" status.
+ */
 void Player::startTrackScrobbling()
 {
     m_track_start_time = SDL_GetTicks();
@@ -2105,6 +2249,11 @@ void Player::startTrackScrobbling()
     submitNowPlaying();
 }
 
+/**
+ * @brief Submits the currently playing track as the Last.fm "Now Playing" status.
+ *
+ * Does nothing if there is no active stream or Last.fm manager.
+ */
 void Player::submitNowPlaying()
 {
     if (!stream || !m_lastfm) {
@@ -2119,6 +2268,14 @@ void Player::submitNowPlaying()
     m_lastfm->setNowPlaying(now_playing_track);
 }
 
+/**
+ * @brief Sets the player volume (0.0 = mute, 1.0 = full).
+ *
+ * Clamps the value to [0.0, 1.0], forwards it to the `Audio` object if
+ * active, shows a volume-level toast, and notifies MPRIS.
+ *
+ * @param volume Desired volume level.
+ */
 void Player::setVolume(double volume) {
     if (volume < 0.0) volume = 0.0;
     if (volume > 1.0) volume = 1.0;
@@ -2139,10 +2296,21 @@ void Player::setVolume(double volume) {
 #endif
 }
 
+/**
+ * @brief Returns the current player volume.
+ * @return Volume level in [0.0, 1.0].
+ */
 double Player::getVolume() const {
     return static_cast<double>(m_volume);
 }
 
+/**
+ * @brief Enables or disables shuffle mode and shows a confirmation toast.
+ *
+ * Delegates to `Playlist::setShuffle()` and notifies MPRIS.
+ *
+ * @param shuffle `true` to enable shuffle, `false` to disable.
+ */
 void Player::setShuffle(bool shuffle) {
     if (playlist) {
         playlist->setShuffle(shuffle);
@@ -2158,6 +2326,10 @@ void Player::setShuffle(bool shuffle) {
 #endif
 }
 
+/**
+ * @brief Returns whether shuffle mode is currently active.
+ * @return `true` if shuffle is on.
+ */
 bool Player::getShuffle() const {
     if (playlist) {
         return playlist->isShuffle();
@@ -2165,10 +2337,24 @@ bool Player::getShuffle() const {
     return false;
 }
 
+/**
+ * @brief Clears the list of deferred-deletion widgets.
+ *
+ * Called at the end of each event loop iteration to safely destroy widgets
+ * whose lifetime must outlast the event that triggered their removal.
+ */
 void Player::processDeferredDeletions() {
     m_deferred_widgets.clear();
 }
 
+/**
+ * @brief Moves a widget into the deferred-deletion queue.
+ *
+ * The widget's destructor is deferred until `processDeferredDeletions()` is
+ * called at the end of the current event-loop iteration.
+ *
+ * @param widget Widget to defer-delete; must be non-null.
+ */
 void Player::deferWidgetDeletion(std::unique_ptr<Widget> widget) {
     if (widget) {
         m_deferred_widgets.push_back(std::move(widget));

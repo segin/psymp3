@@ -24,17 +24,36 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Default constructor — creates a Surface with a null handle.
+ */
 Surface::Surface() : m_handle(nullptr, SDL_FreeSurface)
 {
     // Default constructor creates a null handle.
 }
 
+/**
+ * @brief Wraps an existing, non-owned SDL_Surface pointer.
+ *
+ * A no-op deleter is used so that `SDL_FreeSurface` is never called on the
+ * wrapped pointer; the caller retains ownership.
+ *
+ * @param non_owned_sfc Pointer to an existing SDL_Surface that must outlive this object.
+ */
 Surface::Surface(SDL_Surface *non_owned_sfc) : m_handle(non_owned_sfc, [](SDL_Surface*){ /* do nothing */ })
 {
     // This constructor wraps a pointer but does not take ownership.
     // The custom empty deleter ensures SDL_FreeSurface is not called on it.
 }
 
+/**
+ * @brief Creates a new 32-bit RGBA software surface of the given dimensions.
+ *
+ * Throws `SDLException` if SDL cannot allocate the surface.
+ *
+ * @param width  Width in pixels.
+ * @param height Height in pixels.
+ */
 Surface::Surface(int width, int height)
     : m_handle(SDL_CreateRGBSurface(SDL_SWSURFACE | SDL_SRCALPHA, width, height, 32, 0, 0, 0, 0), SDL_FreeSurface)
 {
@@ -43,6 +62,16 @@ Surface::Surface(int width, int height)
     }
 }
 
+/**
+ * @brief Creates a new 32-bit RGBA software surface optimised for text rendering.
+ *
+ * When `for_text` is `true`, endian-correct RGBA channel masks are used so
+ * that FreeType alpha blending produces correct results on all platforms.
+ *
+ * @param width    Width in pixels.
+ * @param height   Height in pixels.
+ * @param for_text If `true`, use endian-aware RGBA masks; otherwise use SDL defaults.
+ */
 Surface::Surface(int width, int height, bool for_text)
     : m_handle(nullptr, SDL_FreeSurface)
 {
@@ -72,11 +101,24 @@ Surface::Surface(int width, int height, bool for_text)
     }
 }
 
+/**
+ * @brief Loads a BMP image from a `std::string` path into a new Surface.
+ * @param a_file Path to the BMP file.
+ * @return A owning `unique_ptr` to the new Surface.
+ */
 std::unique_ptr<Surface> Surface::FromBMP(std::string a_file)
 {
     return FromBMP(a_file.c_str());
 }
 
+/**
+ * @brief Loads a BMP image from a C-string path into a new Surface.
+ *
+ * Throws `SDLException` if SDL cannot load the file.
+ *
+ * @param a_file Null-terminated path to the BMP file.
+ * @return An owning `unique_ptr` to the new Surface.
+ */
 std::unique_ptr<Surface> Surface::FromBMP(const char *a_file)
 {
     auto sfc_handle = SDL_LoadBMP(a_file);
@@ -86,12 +128,22 @@ std::unique_ptr<Surface> Surface::FromBMP(const char *a_file)
     return std::make_unique<Surface>(sfc_handle);
 }
 
+/**
+ * @brief Sets the per-surface alpha (transparency) value.
+ * @param flags SDL alpha flags (e.g., `SDL_SRCALPHA`).
+ * @param alpha 0 = fully transparent, 255 = fully opaque.
+ */
 void Surface::SetAlpha(uint32_t flags, uint8_t alpha)
 {
     if (!m_handle) return;
     SDL_SetAlpha(m_handle.get(), flags, alpha);
 }
 
+/**
+ * @brief Blits `src` onto this surface at the position given by `rect`.
+ * @param src  Source Surface to blit from.
+ * @param rect Destination position and (ignored) size  on this surface.
+ */
 void Surface::Blit(Surface& src, const Rect& rect) // Changed to const Rect&
 {
     if (!m_handle) return;
@@ -99,35 +151,72 @@ void Surface::Blit(Surface& src, const Rect& rect) // Changed to const Rect&
     SDL_BlitSurface(src.getHandle(), nullptr, m_handle.get(), &r);
 }
 
+/**
+ * @brief Checks whether the underlying SDL surface handle is non-null.
+ * @return `true` if the surface is valid, `false` if the handle is null.
+ */
 bool Surface::isValid()
 {
     if (m_handle) return true; else return false;
 }
 
+/**
+ * @brief Maps RGB component values to a packed pixel colour for this surface's format.
+ * @param r Red component (0–255).
+ * @param g Green component (0–255).
+ * @param b Blue component (0–255).
+ * @return Packed pixel colour, or `(uint32_t)-1` if the handle is null.
+ */
 uint32_t Surface::MapRGB(uint8_t r, uint8_t g, uint8_t b)
 {
     if (!m_handle) return -1;
     return SDL_MapRGB(m_handle->format, r, g, b);
 }
 
+/**
+ * @brief Maps RGBA component values to a packed pixel colour for this surface's format.
+ * @param r Red component (0–255).
+ * @param g Green component (0–255).
+ * @param b Blue component (0–255).
+ * @param a Alpha component (0–255, 0 = transparent).
+ * @return Packed pixel colour, or `(uint32_t)-1` if the handle is null.
+ */
 uint32_t Surface::MapRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return -1;
     return SDL_MapRGBA(m_handle->format, r, g, b, a);
 }
 
+/**
+ * @brief Fills the entire surface with a packed pixel colour.
+ * @param color The packed pixel colour produced by `MapRGB` or `MapRGBA`.
+ */
 void Surface::FillRect(uint32_t color)
 {
     if (!m_handle) return;
     SDL_FillRect(m_handle.get(), 0, color);
 }
 
+/**
+ * @brief Flips the display surface to the screen (double-buffer swap).
+ *
+ * Calls `SDL_Flip`. Only meaningful for the primary display surface.
+ */
 void Surface::Flip()
 {
     if (!m_handle) return;
     SDL_Flip(m_handle.get());
 }
 
+/**
+ * @brief Writes a single pixel at (x, y) without locking the surface.
+ *
+ * The surface @e must already be locked by the caller. No bounds checking.
+ *
+ * @param x     Pixel x-coordinate.
+ * @param y     Pixel y-coordinate.
+ * @param color Packed pixel colour appropriate for the surface's format.
+ */
 void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
 {
     // No bounds checking here, expecting caller to handle it.
@@ -161,6 +250,15 @@ void Surface::put_pixel_unlocked(int16_t x, int16_t y, uint32_t color)
     }
 }
 
+/**
+ * @brief Draws a single pixel at (x, y) with automatic surface locking.
+ *
+ * Silently does nothing if the handle is null or coordinates are out of bounds.
+ *
+ * @param x     Pixel x-coordinate.
+ * @param y     Pixel y-coordinate.
+ * @param color Packed pixel colour.
+ */
 void Surface::pixel(int16_t x, int16_t y, uint32_t color)
 {
     if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
@@ -170,6 +268,15 @@ void Surface::pixel(int16_t x, int16_t y, uint32_t color)
     put_pixel_unlocked(x, y, color);
 }
 
+/**
+ * @brief Draws a single RGBA-coloured pixel at (x, y) with automatic surface locking.
+ * @param x Pixel x-coordinate.
+ * @param y Pixel y-coordinate.
+ * @param r Red component (0–255).
+ * @param g Green component (0–255).
+ * @param b Blue component (0–255).
+ * @param a Alpha component (0–255).
+ */
 void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
@@ -178,6 +285,16 @@ void Surface::pixel(int16_t x, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8
     pixel(x, y, MapRGBA(r, g, b, a));
 }
 
+/**
+ * @brief Draws a horizontal line without locking the surface.
+ *
+ * Surface @e must already be locked by the caller. Clips to surface bounds.
+ *
+ * @param x1    Left x-coordinate (inclusive).
+ * @param x2    Right x-coordinate (inclusive).
+ * @param y     Vertical position.
+ * @param color Packed pixel colour.
+ */
 void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 {
     // No surface lock/unlock, expecting caller to handle it.
@@ -209,6 +326,16 @@ void Surface::hline_unlocked(int16_t x1, int16_t x2, int16_t y, uint32_t color)
     }
 }
 
+/**
+ * @brief Draws a vertical line without locking the surface.
+ *
+ * Surface @e must already be locked by the caller. Clips to surface bounds.
+ *
+ * @param x     Horizontal position.
+ * @param y1    Top y-coordinate (inclusive).
+ * @param y2    Bottom y-coordinate (inclusive).
+ * @param color Packed pixel colour.
+ */
 void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 {
     // No surface lock/unlock, expecting caller to handle it.
@@ -232,6 +359,13 @@ void Surface::vline_unlocked(int16_t x, int16_t y1, int16_t y2, uint32_t color)
     }
 }
 
+/**
+ * @brief Draws a horizontal line with automatic surface locking.
+ * @param x1    Left x-coordinate.
+ * @param x2    Right x-coordinate.
+ * @param y     Vertical position.
+ * @param color Packed pixel colour.
+ */
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint32_t color)
 {
     if (!m_handle) return;
@@ -239,12 +373,33 @@ void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint32_t color)
     hline_unlocked(x1, x2, y, color);
 }
 
+/**
+ * @brief Draws an RGBA-coloured horizontal line with automatic surface locking.
+ * @param x1 Left x-coordinate.
+ * @param x2 Right x-coordinate.
+ * @param y  Vertical position.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::hline(int16_t x1, int16_t x2, int16_t y, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
     hline(x1, x2, y, MapRGBA(r, g, b, a));
 }
 
+/**
+ * @brief Draws a rectangle outline without locking the surface.
+ *
+ * Surface @e must already be locked by the caller.
+ *
+ * @param x1    Left x-coordinate.
+ * @param y1    Top y-coordinate.
+ * @param x2    Right x-coordinate.
+ * @param y2    Bottom y-coordinate.
+ * @param color Packed pixel colour.
+ */
 void Surface::rectangle_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     // Draw rectangle outline using unlocked line methods
@@ -258,6 +413,14 @@ void Surface::rectangle_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2,
     vline_unlocked(x2, y1, y2, color);     // Right
 }
 
+/**
+ * @brief Draws a rectangle outline with automatic surface locking.
+ * @param x1 Left x-coordinate.
+ * @param y1 Top y-coordinate.
+ * @param x2 Right x-coordinate.
+ * @param y2 Bottom y-coordinate.
+ * @param color Packed pixel colour.
+ */
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
@@ -265,12 +428,34 @@ void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t
     rectangle_unlocked(x1, y1, x2, y2, color);
 }
 
+/**
+ * @brief Draws an RGBA-coloured rectangle outline with automatic surface locking.
+ * @param x1 Left x-coordinate.
+ * @param y1 Top y-coordinate.
+ * @param x2 Right x-coordinate.
+ * @param y2 Bottom y-coordinate.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::rectangle(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
     rectangle(x1, y1, x2, y2, MapRGBA(r, g, b, a));
 }
 
+/**
+ * @brief Fills an axis-aligned rectangle without locking the surface.
+ *
+ * Surface @e must already be locked by the caller.
+ *
+ * @param x1    Left x-coordinate.
+ * @param y1    Top y-coordinate.
+ * @param x2    Right x-coordinate.
+ * @param y2    Bottom y-coordinate.
+ * @param color Packed pixel colour.
+ */
 void Surface::box_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     // Fill rectangle using horizontal lines - assumes surface is already locked
@@ -282,6 +467,18 @@ void Surface::box_unlocked(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint3
     }
 }
 
+/**
+ * @brief Fills an axis-aligned rectangle with automatic surface locking.
+ *
+ * Uses `SDL_FillRect` for surfaces that do not require locking, falling back
+ * to the scanline method for surfaces that do.
+ *
+ * @param x1    Left x-coordinate.
+ * @param y1    Top y-coordinate.
+ * @param x2    Right x-coordinate.
+ * @param y2    Bottom y-coordinate.
+ * @param color Packed pixel colour.
+ */
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
@@ -299,12 +496,30 @@ void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint32_t color
     }
 }
 
+/**
+ * @brief Fills an RGBA-coloured rectangle with automatic surface locking.
+ * @param x1 Left x-coordinate.
+ * @param y1 Top y-coordinate.
+ * @param x2 Right x-coordinate.
+ * @param y2 Bottom y-coordinate.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::box(int16_t x1, int16_t y1, int16_t x2, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
     box(x1, y1, x2, y2, MapRGBA(r, g, b, a));
 }
 
+/**
+ * @brief Draws a vertical line with automatic surface locking.
+ * @param x  Horizontal position.
+ * @param y1 Top y-coordinate.
+ * @param y2 Bottom y-coordinate.
+ * @param color Packed pixel colour.
+ */
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint32_t color)
 {
     if (!m_handle) return;
@@ -312,12 +527,33 @@ void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint32_t color)
     vline_unlocked(x, y1, y2, color);
 }
 
+/**
+ * @brief Draws an RGBA-coloured vertical line with automatic surface locking.
+ * @param x  Horizontal position.
+ * @param y1 Top y-coordinate.
+ * @param y2 Bottom y-coordinate.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::vline(int16_t x, int16_t y1, int16_t y2, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 {
     if (!m_handle) return;
     vline(x, y1, y2, MapRGBA(r, g, b, a));
 }
 
+/**
+ * @brief Draws a line using Bresenham's algorithm without locking the surface.
+ *
+ * Surface @e must already be locked by the caller.
+ *
+ * @param x1 Start x-coordinate.
+ * @param y1 Start y-coordinate.
+ * @param x2 End x-coordinate.
+ * @param y2 End y-coordinate.
+ * @param color Packed pixel colour.
+ */
 void Surface::line_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, uint32_t color)
 {
     // Bresenham's line algorithm - assumes surface is already locked
@@ -345,6 +581,17 @@ void Surface::line_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, uint32_t
     }
 }
 
+/**
+ * @brief Draws an RGBA-coloured line with automatic surface locking.
+ * @param x1 Start x-coordinate.
+ * @param y1 Start y-coordinate.
+ * @param x2 End x-coordinate.
+ * @param y2 End y-coordinate.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle) return;
@@ -353,6 +600,16 @@ void Surface::line(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Uint8 r, Uint8 g,
     line_unlocked(x1, y1, x2, y2, color);
 }
 
+/**
+ * @brief Draws a filled convex polygon using a scanline algorithm without locking the surface.
+ *
+ * Surface @e must already be locked by the caller.
+ *
+ * @param vx    Array of x-coordinates for each vertex.
+ * @param vy    Array of y-coordinates for each vertex.
+ * @param n     Number of vertices (must be ≥ 3).
+ * @param color Packed pixel colour.
+ */
 void Surface::filledPolygon_unlocked(const Sint16* vx, const Sint16* vy, int n, uint32_t color)
 {
     if (n < 3) return;
@@ -394,6 +651,16 @@ void Surface::filledPolygon_unlocked(const Sint16* vx, const Sint16* vy, int n, 
     }
 }
 
+/**
+ * @brief Draws a filled convex polygon with automatic surface locking.
+ * @param vx Array of x-coordinates for each vertex.
+ * @param vy Array of y-coordinates for each vertex.
+ * @param n  Number of vertices (must be ≥ 3).
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::filledPolygon(const Sint16* vx, const Sint16* vy, int n, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle || n < 3) return;
@@ -403,6 +670,19 @@ void Surface::filledPolygon(const Sint16* vx, const Sint16* vy, int n, Uint8 r, 
     filledPolygon_unlocked(vx, vy, n, color);
 }
 
+/**
+ * @brief Draws a filled triangle without locking the surface.
+ *
+ * Delegates to `filledPolygon_unlocked`. Surface @e must already be locked.
+ *
+ * @param x1 x-coordinate of vertex 1.
+ * @param y1 y-coordinate of vertex 1.
+ * @param x2 x-coordinate of vertex 2.
+ * @param y2 y-coordinate of vertex 2.
+ * @param x3 x-coordinate of vertex 3.
+ * @param y3 y-coordinate of vertex 3.
+ * @param color Packed pixel colour.
+ */
 void Surface::filledTriangle_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, uint32_t color)
 {
     // Use the general polygon algorithm for triangles - assumes surface is already locked
@@ -411,6 +691,19 @@ void Surface::filledTriangle_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2
     filledPolygon_unlocked(vx, vy, 3, color);
 }
 
+/**
+ * @brief Draws a filled triangle with automatic surface locking.
+ * @param x1 x-coordinate of vertex 1.
+ * @param y1 y-coordinate of vertex 1.
+ * @param x2 x-coordinate of vertex 2.
+ * @param y2 y-coordinate of vertex 2.
+ * @param x3 x-coordinate of vertex 3.
+ * @param y3 y-coordinate of vertex 3.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::filledTriangle(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 x3, Sint16 y3, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle) return;
@@ -419,6 +712,16 @@ void Surface::filledTriangle(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 
     filledTriangle_unlocked(x1, y1, x2, y2, x3, y3, color);
 }
 
+/**
+ * @brief Draws a filled circle without locking the surface.
+ *
+ * Uses integer scanline arithmetic. Surface @e must already be locked.
+ *
+ * @param x     Centre x-coordinate.
+ * @param y     Centre y-coordinate.
+ * @param rad   Radius in pixels.
+ * @param color Packed pixel colour.
+ */
 void Surface::filledCircleRGBA_unlocked(Sint16 x, Sint16 y, Sint16 rad, uint32_t color)
 {
     if (rad <= 0) return;
@@ -431,6 +734,16 @@ void Surface::filledCircleRGBA_unlocked(Sint16 x, Sint16 y, Sint16 rad, uint32_t
     }
 }
 
+/**
+ * @brief Draws a filled RGBA-coloured circle with automatic surface locking.
+ * @param x Centre x-coordinate.
+ * @param y Centre y-coordinate.
+ * @param rad Radius in pixels.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle) return;
@@ -441,6 +754,19 @@ void Surface::filledCircleRGBA(Sint16 x, Sint16 y, Sint16 rad, Uint8 r, Uint8 g,
     filledCircleRGBA_unlocked(x, y, rad, color);
 }
 
+/**
+ * @brief Draws a filled rounded rectangle without locking the surface.
+ *
+ * Composed of several box_unlocked and filledCircleRGBA_unlocked calls.
+ * Surface @e must already be locked.
+ *
+ * @param x1  Left x-coordinate.
+ * @param y1  Top y-coordinate.
+ * @param x2  Right x-coordinate.
+ * @param y2  Bottom y-coordinate.
+ * @param rad Corner radius in pixels.
+ * @param color Packed pixel colour.
+ */
 void Surface::roundedBoxRGBA_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, uint32_t color)
 {
     if (rad < 0) return;
@@ -479,6 +805,18 @@ void Surface::roundedBoxRGBA_unlocked(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2
     filledCircleRGBA_unlocked(x2 - rad, y2 - rad, rad, color);
 }
 
+/**
+ * @brief Draws a filled RGBA-coloured rounded rectangle with automatic surface locking.
+ * @param x1 Left x-coordinate.
+ * @param y1 Top y-coordinate.
+ * @param x2 Right x-coordinate.
+ * @param y2 Bottom y-coordinate.
+ * @param rad Corner radius.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle || rad < 0) return;
@@ -487,6 +825,15 @@ void Surface::roundedBoxRGBA(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 
     roundedBoxRGBA_unlocked(x1, y1, x2, y2, rad, color);
 }
 
+/**
+ * @brief Draws a filled rounded rectangle using a packed colour with automatic surface locking.
+ * @param x1 Left x-coordinate.
+ * @param y1 Top y-coordinate.
+ * @param x2 Right x-coordinate.
+ * @param y2 Bottom y-coordinate.
+ * @param rad Corner radius.
+ * @param color Packed pixel colour.
+ */
 void Surface::roundedBox(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad, uint32_t color)
 {
     if (!m_handle || rad < 0) return;
@@ -494,23 +841,44 @@ void Surface::roundedBox(Sint16 x1, Sint16 y1, Sint16 x2, Sint16 y2, Sint16 rad,
     roundedBoxRGBA_unlocked(x1, y1, x2, y2, rad, color);
 }
     
+/**
+ * @brief Returns the surface height in pixels.
+ * @return Height in pixels, or 0 if the handle is null.
+ */
 int16_t Surface::height()
 {
     if (!m_handle) return 0;
     return m_handle->h;
 }
 
+/**
+ * @brief Returns the surface width in pixels.
+ * @return Width in pixels, or 0 if the handle is null.
+ */
 int16_t Surface::width()
 {
     if (!m_handle) return 0;
     return m_handle->w;
 }
 
+/**
+ * @brief Returns the raw `SDL_Surface*` handle.
+ * @return Pointer to the underlying SDL surface, or `nullptr` if not valid.
+ */
 SDL_Surface * Surface::getHandle()
 {
     return m_handle.get();
 }
 
+/**
+ * @brief Reads a pixel colour at (x, y) without locking the surface.
+ *
+ * Surface @e must already be locked by the caller.
+ *
+ * @param x Pixel x-coordinate.
+ * @param y Pixel y-coordinate.
+ * @return Packed pixel colour, or 0 if out of bounds or handle is null.
+ */
 uint32_t Surface::get_pixel_unlocked(int16_t x, int16_t y)
 {
     if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
@@ -537,6 +905,17 @@ uint32_t Surface::get_pixel_unlocked(int16_t x, int16_t y)
     return 0;
 }
 
+/**
+ * @brief Performs a stack-based flood fill without locking the surface.
+ *
+ * Replaces all connected pixels of `original_color` reachable from (x, y)
+ * with `new_color` using 4-connectivity. Surface @e must already be locked.
+ *
+ * @param x              Seed x-coordinate.
+ * @param y              Seed y-coordinate.
+ * @param new_color      Replacement packed pixel colour.
+ * @param original_color The colour to replace (pixels not matching this value stop the fill).
+ */
 void Surface::floodFill_unlocked(Sint16 x, Sint16 y, uint32_t new_color, uint32_t original_color)
 {
     // Stack-based flood fill to avoid recursion stack overflow - assumes surface is already locked
@@ -565,6 +944,18 @@ void Surface::floodFill_unlocked(Sint16 x, Sint16 y, uint32_t new_color, uint32_
     }
 }
 
+/**
+ * @brief Performs a flood fill at (x, y) using an RGBA colour with automatic surface locking.
+ *
+ * Does nothing if the fill would be a no-op (target colour equals seed colour).
+ *
+ * @param x Seed x-coordinate.
+ * @param y Seed y-coordinate.
+ * @param r Red component of the fill colour.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ */
 void Surface::floodFill(Sint16 x, Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
 {
     if (!m_handle || x < 0 || x >= m_handle->w || y < 0 || y >= m_handle->h) {
@@ -584,6 +975,15 @@ void Surface::floodFill(Sint16 x, Sint16 y, Uint8 r, Uint8 g, Uint8 b, Uint8 a)
     floodFill_unlocked(x, y, new_color, original_color);
 }
 
+/**
+ * @brief Renders a Bézier curve without locking the surface.
+ *
+ * Uses De Casteljau's algorithm. Surface @e must already be locked.
+ *
+ * @param points Control points as (x, y) pairs.
+ * @param color  Packed pixel colour.
+ * @param step   Parameter increment per iteration (smaller = smoother, default 0.01).
+ */
 void Surface::bezierCurve_unlocked(const std::vector<std::pair<double, double>>& points, uint32_t color, double step)
 {
     if (points.size() < 2) return;
@@ -616,6 +1016,15 @@ void Surface::bezierCurve_unlocked(const std::vector<std::pair<double, double>>&
     }
 }
 
+/**
+ * @brief Renders an RGBA-coloured Bézier curve with automatic surface locking.
+ * @param points Control points as (x, y) pairs.
+ * @param r Red component.
+ * @param g Green component.
+ * @param b Blue component.
+ * @param a Alpha component.
+ * @param step Parameter increment per iteration.
+ */
 void Surface::bezierCurve(const std::vector<std::pair<double, double>>& points, Uint8 r, Uint8 g, Uint8 b, Uint8 a, double step)
 {
     if (!m_handle || points.size() < 2) return;

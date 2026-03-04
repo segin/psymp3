@@ -8,33 +8,32 @@ This implementation plan covers the complete Widget and Windowing System for Psy
 
 ### Task 1.1: Implement Widget Base Class with Hierarchy
 
-- [ ] 1.1.1 Create Widget base class header and implementation
+- [-] 1.1.1 Create Widget base class header and implementation
   - Define Widget class with private member variables (m_parent, m_children, m_z_order, m_visible, m_enabled, m_mouse_transparent, m_bounds, m_surface, m_dirty)
   - Implement constructor and destructor
   - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.7, 15.1_
 
-- [ ] 1.1.2 Implement child management methods
+- [~] 1.1.2 Implement child management methods
   - Implement add_child() and remove_child() with ownership transfer
   - Implement destroy() for recursive cleanup
   - _Requirements: 1.2, 1.7_
 
-- [ ] 1.1.3 Implement property accessors
+- [~] 1.1.3 Implement property accessors
   - Implement get_bounds(), set_bounds(), get_z_order(), set_z_order()
   - Implement is_visible(), set_visible(), is_mouse_transparent(), set_mouse_transparent()
   - _Requirements: 1.4, 15.1_
 
-- [ ] 1.1.4 Implement rendering infrastructure
+- [~] 1.1.4 Implement rendering infrastructure
   - Implement render() and invalidate() public methods
   - Implement render_unlocked() and invalidate_unlocked() private methods
   - _Requirements: 1.3, 1.6, 15.1_
 
-- [ ] 1.1.5 Implement event handling infrastructure
-  - Implement handle_event() public method
-  - Implement handle_event_unlocked() private method (pure virtual)
-  - Implement hit_test() and transform_coordinates() methods
+- [x] 1.1.5 Implement event handling infrastructure
+  - Implement handleEvent() public method
+  - Implement hitTest() and transformCoordinates() methods
   - _Requirements: 1.5, 3.4, 3.5_
 
-- [ ] 1.1.6 Write property test for widget hierarchy
+- [-] 1.1.6 Write property test for widget hierarchy
   - **Property 1: Hierarchy integrity**
   - **Validates: Requirements 1.1, 1.2, 1.7**
   - Test that parent-child relationships are maintained correctly

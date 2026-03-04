@@ -767,7 +767,6 @@ std::string LastFM::protocolMD5(const std::string& input)
         // Securely clear the raw hash from stack memory
         OPENSSL_cleanse(hash, sizeof(hash));
 
-        EVP_MD_CTX_free(ctx);
         return result;
     }
     

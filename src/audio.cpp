@@ -175,19 +175,42 @@ void Audio::unlock(void) {
     SDL_UnlockAudio();
 }
 
+/**
+ * @brief Clears the decoded audio buffer and resets the samples-played counter.
+ *
+ * Thread-safe; acquires `m_buffer_mutex` internally.
+ */
 void Audio::resetBuffer() {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     resetBuffer_unlocked();
 }
 
+/**
+ * @brief Returns the total number of audio frames decoded and consumed by SDL since the last reset.
+ * @return Sample frame count (one frame = all channels together).
+ */
 uint64_t Audio::getSamplesPlayed() const {
     return m_samples_played.load();
 }
 
+/**
+ * @brief Overrides the samples-played counter to a specific value.
+ *
+ * Typically called after a seek to update the position accurately.
+ *
+ * @param samples The new sample frame count.
+ */
 void Audio::setSamplesPlayed(uint64_t samples) {
     m_samples_played.store(samples);
 }
 
+/**
+ * @brief Returns the estimated audio latency due to the decoded samples held in the buffer.
+ *
+ * Thread-safe; acquires `m_buffer_mutex` internally.
+ *
+ * @return Latency in milliseconds, or 0 if the sample rate is unknown.
+ */
 uint64_t Audio::getBufferLatencyMs() const {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     return getBufferLatencyMs_unlocked();
@@ -406,12 +429,25 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     }
 }
 
+/**
+ * @brief Sets the software playback volume.
+ *
+ * The value is clamped to the range [0.0, 1.0]. The SDL audio callback applies
+ * this as a linear amplitude multiplier to each sample before outputting to
+ * the sound card.
+ *
+ * @param volume Desired volume in the range [0.0 (mute), 1.0 (full volume)].
+ */
 void Audio::setVolume(float volume) {
     if (volume < 0.0f) volume = 0.0f;
     if (volume > 1.0f) volume = 1.0f;
     m_volume.store(volume);
 }
 
+/**
+ * @brief Returns the current software playback volume.
+ * @return Volume in the range [0.0, 1.0].
+ */
 float Audio::getVolume() const {
     return m_volume.load();
 }

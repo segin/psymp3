@@ -24,6 +24,10 @@
 #ifndef WIDGET_H
 #define WIDGET_H
 
+#include <mutex>
+#include <vector>
+#include <memory>
+
 namespace PsyMP3 {
 namespace Widget {
 namespace Foundation {
@@ -40,7 +44,9 @@ namespace Foundation {
  * - Mouse event handling with capture and transparency support
  * - Surface-based rendering with automatic child widget blitting
  * - Position and bounds management
- * - Move semantics for efficient widget management
+ * - Z-order management for proper layering
+ * - Visibility and enabled state management
+ * - Thread safety using Public/Private Lock Pattern
  * 
  * @see DrawableWidget for widgets that require custom drawing
  * @see LayoutWidget for container widgets without subclassing
@@ -150,6 +156,21 @@ class Widget : public Surface
          * @param child Unique pointer to the child widget to add
          */
         void addChild(std::unique_ptr<Widget> child);
+        
+        /**
+         * @brief Removes a child widget from this widget.
+         * 
+         * @param child Pointer to the child widget to remove
+         */
+        void removeChild(Widget* child);
+        
+        /**
+         * @brief Destroys this widget and all its children recursively.
+         * 
+         * This method safely removes the widget from its parent and
+         * recursively destroys all child widgets.
+         */
+        void destroy();
         
         /**
          * @brief Marks this widget as needing a repaint and notifies parent.
@@ -276,6 +297,109 @@ class Widget : public Surface
          * @param parent_absolute_pos The absolute position of the parent widget
          */
         virtual void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos);
+        
+        /**
+         * @brief Generic event handler that processes all event types.
+         * 
+         * This method provides a unified interface for handling different types of events
+         * (mouse, keyboard, window events). It delegates to specific event handlers based
+         * on the event type.
+         * 
+         * @param event SDL event to process
+         * @param relative_x X coordinate relative to this widget's position
+         * @param relative_y Y coordinate relative to this widget's position
+         * @return true if the event was handled, false otherwise
+         */
+        bool handleEvent(const SDL_Event& event, int relative_x, int relative_y);
+        
+        /**
+         * @brief Hit test to determine if a point is within this widget's bounds.
+         * 
+         * @param x X coordinate to test (relative to widget position)
+         * @param y Y coordinate to test (relative to widget position)
+         * @return true if the point is within this widget's bounds
+         */
+        bool hitTest(int x, int y) const;
+        
+        /**
+         * @brief Transforms coordinates from parent space to widget space.
+         * 
+         * @param parent_x X coordinate in parent space
+         * @param parent_y Y coordinate in parent space
+         * @return std::pair containing coordinates relative to this widget
+         */
+        std::pair<int, int> transformCoordinates(int parent_x, int parent_y) const;
+        
+        /**
+         * @brief Gets the bounds rectangle for this widget.
+         * 
+         * @return Const reference to the widget's bounds rectangle
+         */
+        const Rect& getBounds() const { return m_pos; }
+        
+        /**
+         * @brief Sets the bounds rectangle for this widget.
+         * 
+         * @param bounds New bounds rectangle
+         */
+        void setBounds(const Rect& bounds) { m_pos = bounds; }
+        
+        /**
+         * @brief Gets the Z-order level of this widget.
+         * 
+         * @return Z-order level
+         */
+        virtual int getZOrder() const { return m_z_order; }
+        
+        /**
+         * @brief Sets the Z-order level of this widget.
+         * 
+         * @param z_order New Z-order level
+         */
+        virtual void setZOrder(int z_order) { m_z_order = z_order; }
+        
+        /**
+         * @brief Checks if this widget is visible.
+         * 
+         * @return true if the widget is visible
+         */
+        virtual bool isVisible() const { return m_visible; }
+        
+        /**
+         * @brief Sets the visibility state of this widget.
+         * 
+         * @param visible true to make the widget visible
+         */
+        virtual void setVisible(bool visible) { m_visible = visible; }
+        
+        /**
+         * @brief Checks if this widget is enabled.
+         * 
+         * @return true if the widget is enabled
+         */
+        virtual bool isEnabled() const { return m_enabled; }
+        
+        /**
+         * @brief Sets the enabled state of this widget.
+         * 
+         * @param enabled true to enable the widget
+         */
+        virtual void setEnabled(bool enabled) { m_enabled = enabled; }
+        
+        /**
+         * @brief Gets the parent widget.
+         * 
+         * @return Pointer to parent widget or nullptr if root
+         */
+        Widget* getParent() const { return m_parent; }
+        
+        /**
+         * @brief Gets the list of child widgets.
+         * 
+         * @return Const reference to the children vector
+         */
+        const std::vector<std::unique_ptr<Widget>>& getChildren() const { return m_children; }
+        
     protected:
         
         /**
@@ -314,6 +438,27 @@ class Widget : public Surface
         Widget* m_parent;
         
         /**
+         * @brief Z-order level for layering widgets.
+         * 
+         * Higher values appear on top of lower values.
+         */
+        int m_z_order;
+        
+        /**
+         * @brief Visibility flag.
+         * 
+         * When false, the widget is not rendered.
+         */
+        bool m_visible;
+        
+        /**
+         * @brief Enabled flag.
+         * 
+         * When false, the widget doesn't process events.
+         */
+        bool m_enabled;
+        
+        /**
          * @brief Flag indicating if this widget is transparent to mouse events.
          * 
          * When true, this widget is skipped during hit testing, allowing
@@ -329,7 +474,29 @@ class Widget : public Surface
          * regardless of mouse position.
          */
         static Widget* s_mouse_captured_widget;
+        
+        /**
+         * @brief Mutex for thread safety (Public/Private Lock Pattern).
+         * 
+         * Public methods acquire this lock before calling private _unlocked methods.
+         */
+        mutable std::mutex m_mutex;
+        
     private:
+        // Private unlocked methods - assume lock is already held
+        
+        void render_unlocked();
+        void invalidate_unlocked();
+        void invalidateArea_unlocked(const Rect& area);
+        void renderChildren_unlocked();
+        
+        bool handleEvent_unlocked(const SDL_Event& event, int relative_x, int relative_y);
+        bool hitTest_unlocked(int x, int y) const;
+        std::pair<int, int> transformCoordinates_unlocked(int parent_x, int parent_y) const;
+        
+        void addChild_unlocked(std::unique_ptr<Widget> child);
+        void removeChild_unlocked(Widget* child);
+        void destroy_unlocked();
 };
 
 } // namespace Foundation

@@ -28,6 +28,17 @@ std::mutex Debug::m_mutex;
 std::unordered_set<std::string> Debug::m_enabled_channels;
 bool Debug::m_log_to_file = false;
 
+/**
+ * @brief Initialises the debug subsystem.
+ *
+ * Enables a set of named debug channels. If `logfile` is non-empty, all
+ * subsequent debug output is appended to that file instead of stdout.
+ * Calling this function again replaces the previous configuration entirely.
+ *
+ * @param logfile  Path to a log file, or an empty string to write to stdout.
+ * @param channels List of channel names to enable (e.g., `{"audio", "ogg"}`).
+ *                 Specifying `"all"` enables every channel.
+ */
 void Debug::init(const std::string& logfile, const std::vector<std::string>& channels) {
     std::lock_guard<std::mutex> lock(m_mutex);
     
@@ -48,6 +59,12 @@ void Debug::init(const std::string& logfile, const std::vector<std::string>& cha
     m_enabled_channels.insert(channels.begin(), channels.end());
 }
 
+/**
+ * @brief Shuts down the debug subsystem.
+ *
+ * Clears all enabled channels and closes the log file if one is open.
+ * After this call, all `Debug::log` calls are silent.
+ */
 void Debug::shutdown() {
     std::lock_guard<std::mutex> lock(m_mutex);
     if (m_logfile.is_open()) {
@@ -57,6 +74,20 @@ void Debug::shutdown() {
     m_log_to_file = false;
 }
 
+/**
+ * @brief Returns whether the given debug channel is currently enabled.
+ *
+ * The lookup rules are:
+ * - The special channel `"all"` enables everything.
+ * - An exact match to a channel name enables that channel.
+ * - A sub-channel (e.g., `"flac:frame"`) is enabled if its parent
+ *   (`"flac"`) is enabled.
+ * - A parent channel is **not** implicitly enabled if only specific
+ *   sub-channels are enabled.
+ *
+ * @param channel The channel identifier to test (e.g., `"audio"`, `"flac:frame"`).
+ * @return `true` if the channel is enabled.
+ */
 bool Debug::isChannelEnabled(const std::string& channel) {
     // A global "all" channel can enable all logging.
     if (m_enabled_channels.count("all") > 0) {
@@ -99,6 +130,19 @@ bool Debug::isChannelEnabled(const std::string& channel) {
     return false;
 }
 
+/**
+ * @brief Writes a formatted debug message to the configured output.
+ *
+ * Prepends a timestamp (`HH:MM:SS.microseconds`), the channel name, and
+ * optionally the source function name and line number. This is the low-level
+ * implementation used by the `log()` template methods and `DEBUG_LOG` macros.
+ * Thread-safe; acquires `m_mutex` internally.
+ *
+ * @param channel  Name of the debug channel.
+ * @param function Name of the calling function (may be empty).
+ * @param line     Source line number (0 means not available).
+ * @param message  The formatted message string to write.
+ */
 void Debug::write(const std::string& channel, const std::string& function, int line, const std::string& message) {
     std::lock_guard<std::mutex> lock(m_mutex);
     

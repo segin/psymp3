@@ -27,14 +27,23 @@
 // RAII wrapper for libmpg123 initialization and cleanup.
 // A single static instance of this class ensures that mpg123_init() is called
 // once at program startup and mpg123_exit() is called once at program termination.
+/**
+ * @brief RAII wrapper that manages the lifetime of the libmpg123 library.
+ *
+ * The constructor calls `mpg123_init()` and the destructor calls `mpg123_exit()`,
+ * ensuring the library is initialised exactly once before any MP3 decoding
+ * takes place and cleaned up when the process exits.
+ */
 class Mpg123LifecycleManager {
 public:
+    /** @brief Initialises libmpg123. Throws `std::runtime_error` on failure. */
     Mpg123LifecycleManager() {
         if (mpg123_init() != MPG123_OK) {
             // Throwing an exception is a clear way to signal a fatal startup error.
             throw std::runtime_error("Failed to initialize libmpg123.");
         }
     }
+    /** @brief Shuts down libmpg123 by calling `mpg123_exit()`. */
     ~Mpg123LifecycleManager() {
         mpg123_exit();
     }
@@ -43,6 +52,12 @@ public:
 
 // RAII wrapper for Windows Winsock initialization and cleanup
 #ifdef _WIN32
+/**
+ * @brief RAII wrapper that manages Winsock initialisation and cleanup (Windows only).
+ *
+ * Calls `WSAStartup` in the constructor and `WSACleanup` in the destructor,
+ * ensuring Winsock is active for the lifetime of the process.
+ */
 class WinsockLifecycleManager {
 public:
     WinsockLifecycleManager() {
@@ -64,6 +79,29 @@ static WinsockLifecycleManager winsock_manager;
 static Mpg123LifecycleManager mpg123_manager;
 #endif
 
+/**
+ * @brief Application entry point.
+ *
+ * Parses command-line options (FFT mode, scale, decay, debug channels, log
+ * file, test mode, version, help), initialises the debug subsystem, collects
+ * non-option file-path arguments, and then creates and runs the `Player`.
+ *
+ * Long options:
+ *   - `--fft <mat-og|vibe-1|neomat-in|neomat-out>` – select FFT visualisation
+ *   - `--scale <N>` – FFT scale factor
+ *   - `--decay <F>` – FFT decay factor
+ *   - `--debug <channels>` – comma-separated debug channels (or `all`)
+ *   - `--logfile <path>` – redirect debug output to a file
+ *   - `--test` – enable automated test mode
+ *   - `--unattended-quit` – exit after the playlist finishes
+ *   - `--no-mpris-errors` – suppress MPRIS error messages
+ *   - `-v` / `--version` – print version info and exit
+ *   - `-h` / `--help` – print usage and exit
+ *
+ * @param argc Number of command-line arguments.
+ * @param argv Array of command-line argument strings.
+ * @return 0 on normal exit, 1 on invalid option.
+ */
 int main(int argc, char *argv[]) {
     // --- Argument Parsing ---
     PlayerOptions options;
