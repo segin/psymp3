@@ -588,14 +588,16 @@ double SampleTableManager::SampleToTime(uint64_t sampleIndex) {
     }
     
     // Find the time entry that contains this sample
-    for (const auto& entry : optimizedTimeTable) {
-        if (sampleIndex >= entry.sampleIndex && 
-            sampleIndex < entry.sampleIndex + entry.sampleRange) {
-            // Sample is within this range
-            uint64_t sampleOffset = sampleIndex - entry.sampleIndex;
-            uint64_t timestamp = entry.timestamp + (sampleOffset * entry.duration);
-            return static_cast<double>(timestamp) / 1000.0; // Convert to seconds
-        }
+    auto it = std::lower_bound(optimizedTimeTable.begin(), optimizedTimeTable.end(), sampleIndex,
+        [](const OptimizedTimeEntry& entry, uint64_t idx) {
+            return entry.sampleIndex + entry.sampleRange <= idx;
+        });
+
+    if (it != optimizedTimeTable.end() && sampleIndex >= it->sampleIndex && sampleIndex < it->sampleIndex + it->sampleRange) {
+        // Sample is within this range
+        uint64_t sampleOffset = sampleIndex - it->sampleIndex;
+        uint64_t timestamp = it->timestamp + (sampleOffset * it->duration);
+        return static_cast<double>(timestamp) / 1000.0; // Convert to seconds
     }
     
     // Sample not found - return approximate time
@@ -789,11 +791,15 @@ void SampleTableManager::CalculateMemoryFootprint() const {
 
 // Private helper methods
 const SampleTableManager::CompressedChunkInfo* SampleTableManager::FindCompressedChunkForSample(uint64_t sampleIndex) const {
-    for (const auto& chunk : compressedChunkTable) {
-        if (sampleIndex >= chunk.firstSample && 
-            sampleIndex < chunk.firstSample + chunk.totalSamples) {
-            return &chunk;
-        }
+    if (compressedChunkTable.empty()) return nullptr;
+
+    auto it = std::lower_bound(compressedChunkTable.begin(), compressedChunkTable.end(), sampleIndex,
+        [](const CompressedChunkInfo& chunk, uint64_t idx) {
+            return chunk.firstSample + chunk.totalSamples <= idx;
+        });
+
+    if (it != compressedChunkTable.end() && sampleIndex >= it->firstSample && sampleIndex < it->firstSample + it->totalSamples) {
+        return &(*it);
     }
     return nullptr;
 }
@@ -804,11 +810,17 @@ uint32_t SampleTableManager::GetSampleSize(uint64_t sampleIndex) const {
 
 uint32_t SampleTableManager::GetSampleDuration(uint64_t sampleIndex) const {
     // Find duration from optimized time table
-    for (const auto& entry : optimizedTimeTable) {
-        if (sampleIndex >= entry.sampleIndex && 
-            sampleIndex < entry.sampleIndex + entry.sampleRange) {
-            return entry.duration;
-        }
+    if (optimizedTimeTable.empty()) {
+        return 1024; // Default duration
+    }
+
+    auto it = std::lower_bound(optimizedTimeTable.begin(), optimizedTimeTable.end(), sampleIndex,
+        [](const OptimizedTimeEntry& entry, uint64_t idx) {
+            return entry.sampleIndex + entry.sampleRange <= idx;
+        });
+
+    if (it != optimizedTimeTable.end() && sampleIndex >= it->sampleIndex && sampleIndex < it->sampleIndex + it->sampleRange) {
+        return it->duration;
     }
     
     return 1024; // Default duration
