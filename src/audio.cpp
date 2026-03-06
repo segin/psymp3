@@ -95,7 +95,7 @@ void Audio::setup() {
         // throw;
     } else {
         // Log what SDL actually gave us
-        Debug::log("audio", "Audio::setup: Obtained format - rate: ", obtained.freq, "Hz, channels: ", (int)obtained.channels, 
+        Debug::log("audio", "Audio::setup: Obtained format - rate: ", obtained.freq, "Hz, channels: ", static_cast<int>(obtained.channels),
                   ", format: ", (obtained.format == AUDIO_S16 ? "AUDIO_S16" : "OTHER"), ", samples: ", obtained.samples);
         
         // Check for format mismatch
@@ -103,7 +103,7 @@ void Audio::setup() {
             Debug::log("audio", "WARNING: Sample rate mismatch! Requested ", desired.freq, "Hz but got ", obtained.freq, "Hz");
         }
         if (obtained.channels != desired.channels) {
-            Debug::log("audio", "WARNING: Channel count mismatch! Requested ", (int)desired.channels, " but got ", (int)obtained.channels);
+            Debug::log("audio", "WARNING: Channel count mismatch! Requested ", static_cast<int>(desired.channels), " but got ", static_cast<int>(obtained.channels));
         }
         if (obtained.format != desired.format) {
             Debug::log("audio", "WARNING: Audio format mismatch! Requested AUDIO_S16 but got format ", obtained.format);
@@ -414,7 +414,7 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     // Perform FFT on the data we are sending to the sound card
     if (bytes_copied > 0) { // FIXED: Always compute FFT, regardless of GUI state
         std::lock_guard<std::mutex> lock(*self->m_player_mutex);
-        toFloat(self->m_channels, (int16_t *)buf, self->m_fft->getTimeDom());
+        toFloat(self->m_channels, reinterpret_cast<int16_t*>(buf), self->m_fft->getTimeDom());
         self->m_fft->doFFT();
     }
 
