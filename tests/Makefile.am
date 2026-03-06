@@ -354,7 +354,8 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_http_client_fallback \
 	test_bounded_buffer \
 	test_io_buffer_pool \
-	test_enhanced_buffer_pool
+	test_enhanced_buffer_pool \
+	test_surface_from_bmp_error
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
@@ -869,7 +870,16 @@ test_enhanced_buffer_pool_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(top_builddir)/src/debug.o \
 	$(AM_LDFLAGS)
->>>>>>> master
+
+test_surface_from_bmp_error_SOURCES = test_surface_from_bmp_error.cpp
+test_surface_from_bmp_error_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/surface.o \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(SDL_LIBS) \
+	$(AM_LDFLAGS)
+
 # OggDemuxer page extraction test
 if HAVE_OGGDEMUXER
 test_ogg_page_extraction_SOURCES = test_ogg_page_extraction.cpp
