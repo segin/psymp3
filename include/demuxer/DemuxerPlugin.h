@@ -192,6 +192,8 @@ struct ExtendedMetadata {
      */
     std::vector<std::string> getAllKeys() const {
         std::vector<std::string> keys;
+        keys.reserve(string_metadata.size() + numeric_metadata.size() +
+                     binary_metadata.size() + float_metadata.size());
         for (const auto& [key, value] : string_metadata) keys.push_back(key);
         for (const auto& [key, value] : numeric_metadata) keys.push_back(key);
         for (const auto& [key, value] : binary_metadata) keys.push_back(key);
