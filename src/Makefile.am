@@ -30,7 +30,7 @@ datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories - only built in regular mode (final build includes all sources directly)
 if !FINAL_BUILD
-SUBDIRS = codecs lastfm mpris util io demuxer widget tag
+SUBDIRS = codecs lastfm mpris util io demuxer widget
 endif
 
 # Include path for psymp3.h and other headers
@@ -135,7 +135,6 @@ psymp3_LDADD = \
 	lastfm/liblastfm.a \
 	mpris/libmpris.a \
 	util/libutil.a \
-	tag/libpsymp3-tag.a \
 	codecs/libcodecs.a \
 	$(CODEC_LIBS) \
 	$(DEMUXER_LIBS) \

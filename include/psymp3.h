@@ -299,13 +299,13 @@ typedef struct bio_st BIO;
 
 // Local project headers (in dependency order where possible)
 #include "debug.h"
-#include "exceptions.h"
-#include "rect.h"
+#include "core/exceptions.h"
+#include "core/rect.h"
 #include "surface.h"
 #include "display.h"
 #include "font.h"
 #include "truetype.h"
-#include "lyrics.h"
+#include "core/lyrics.h"
 
 // Widget system - Foundation
 #include "widget/foundation/Widget.h"
