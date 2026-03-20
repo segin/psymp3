@@ -8,10 +8,6 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/CodecHeaderParser.h"
-#include <iostream>
-#include <vector>
-#include <cstring>
 #include <cassert>
 
 using namespace PsyMP3::Demuxer::Ogg;

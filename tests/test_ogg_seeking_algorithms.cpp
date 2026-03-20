@@ -13,17 +13,13 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/OggDemuxer.h"
-#include "demuxer/ogg/OggSeekingEngine.h"
-#include <iostream>
-#include <vector>
-#include <memory>
-#include <cstring>
 #include <cassert>
 #include <limits>
 #include <algorithm>
 
-using namespace PsyMP3::Demuxer::Ogg;
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Ogg {
 
 // ============================================================================
 // Granule Arithmetic Tests (OggSeekingEngine)
@@ -287,6 +283,10 @@ bool testBisectionSeeking() {
 }
 #endif
 
+} // namespace Ogg
+} // namespace Demuxer
+} // namespace PsyMP3
+
 int main() {
     // Enable debug logging
     // Assuming framework has a Debug class
@@ -307,13 +307,14 @@ int main() {
     bool all_passed = true;
     
     // Arithmetic
-    all_passed &= testSafeGranuleAdd();
-    all_passed &= testSafeGranuleSub();
-    all_passed &= testIsValidGranule();
+    all_passed &= PsyMP3::Demuxer::Ogg::testSafeGranuleAdd();
+    all_passed &= PsyMP3::Demuxer::Ogg::testSafeGranuleAdd();
+    all_passed &= PsyMP3::Demuxer::Ogg::testSafeGranuleSub();
+    all_passed &= PsyMP3::Demuxer::Ogg::testIsValidGranule();
     
     // Seeking
 #ifdef HAVE_OPUS
-    all_passed &= testBisectionSeeking();
+    all_passed &= PsyMP3::Demuxer::Ogg::testBisectionSeeking();
 #else
     std::cout << "Skipping bisection seeking test (Opus not enabled)" << std::endl;
 #endif

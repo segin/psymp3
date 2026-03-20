@@ -1,7 +1,7 @@
 /*
  * IOHandler.cpp - Base I/O handler interface implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -297,7 +297,7 @@ std::string IOHandler::getErrorMessage(int error_code, const std::string& contex
         if (win_error != 0) {
             LPSTR messageBuffer = nullptr;
             size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-                                       NULL, win_error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, NULL);
+                                       nullptr, win_error, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&messageBuffer, 0, nullptr);
             if (size > 0 && messageBuffer) {
                 std::string win_msg(messageBuffer, size);
                 // Remove trailing newlines

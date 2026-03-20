@@ -34,7 +34,7 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libopuscodec.a
+noinst_LIBRARIES = libpsymp3-codec-opus.a
 
-libopuscodec_a_SOURCES = \
+libpsymp3_codec_opus_a_SOURCES = \
 	OpusCodec.cpp

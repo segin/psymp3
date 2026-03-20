@@ -9,8 +9,9 @@
 #define HAS_OGGSEEKINGENGINE_H
 
 #include <cstdint>
-#include "OggSyncManager.h"
-#include "OggStreamManager.h"
+#include "io/IOHandler.h"
+#include "demuxer/ogg/OggSyncManager.h"
+#include "demuxer/ogg/OggStreamManager.h"
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -44,6 +45,11 @@ private:
     OggSyncManager& m_sync;
     OggStreamManager& m_stream;
     long m_sample_rate;
+    
+    // Duration caching to prevent state corruption during playback
+    // The first call to getLastGranule() scans the file; subsequent calls return cached value
+    int64_t m_cached_last_granule = -1;
+    bool m_duration_cached = false;
     
     // Internal bisection helper
     bool bisectForward(int64_t target_granule, int64_t begin, int64_t end);

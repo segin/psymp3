@@ -2,9 +2,43 @@
 
 This document provides comprehensive information about testing PsyMP3, including the test harness capabilities and individual test execution methods.
 
-## Test Harness Overview
+## Quick Start
 
-PsyMP3 includes a unified test harness that provides automatic test discovery, execution, and reporting. The test harness is built when you configure with `--enable-test-harness` (enabled by default).
+**Run all tests:**
+```bash
+make check
+```
+
+This will build all test executables and run them through the test harness, providing a comprehensive report.
+
+## Test Harness Options
+
+The test harness is located in `tests/test-harness` (built automatically).
+
+**Basic Usage:**
+```bash
+cd tests && ./test-harness -v                # Run with verbose output
+cd tests && ./test-harness -l                # List available tests
+```
+
+**Filtering:**
+```bash
+cd tests && ./test-harness -f "*rect*"       # Run only rectangle tests
+```
+
+**Output Formats:**
+```bash
+cd tests && ./test-harness -o xml > results.xml    # XML output for CI
+cd tests && ./test-harness -o json > results.json  # JSON output
+```
+
+## Troubleshooting Build Issues
+
+If `make check` fails:
+1. Ensure `autoconf-archive` is installed if building from git.
+2. Verify all dependencies (SDL, taglib, etc.) are present.
+3. Check `config.log` for configuration errors.
+s automatic test discovery, execution, and reporting. The test harness is built when you configure with `--enable-test-harness` (enabled by default).
 
 ## Running Tests
 

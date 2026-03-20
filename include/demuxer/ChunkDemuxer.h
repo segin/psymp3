@@ -79,27 +79,27 @@ public:
     /**
      * @brief Check if this is a WAVE file
      */
-    bool isWaveFile() const { return m_form_type == 0x45564157; } // "WAVE"
+    bool isWaveFile() const { return m_form_type == WAVE_FOURCC; }
     
     /**
      * @brief Check if this is an AIFF file
      */
-    bool isAiffFile() const { return m_form_type == 0x46464941; } // "AIFF"
+    bool isAiffFile() const { return m_form_type == AIFF_FOURCC; }
     
 private:
-    // Container FourCC constants
-    static constexpr uint32_t FORM_FOURCC = 0x4D524F46; // "FORM" (big-endian)
-    static constexpr uint32_t RIFF_FOURCC = 0x46464952; // "RIFF" (little-endian)
-    static constexpr uint32_t LIST_FOURCC = 0x5453494C; // "LIST" (little-endian)
+    // Container FourCC constants (Always read as Big-Endian)
+    static constexpr uint32_t FORM_FOURCC = 0x464F524D; // "FORM"
+    static constexpr uint32_t RIFF_FOURCC = 0x52494646; // "RIFF"
+    static constexpr uint32_t LIST_FOURCC = 0x4C495354; // "LIST"
     
-    // Format type constants
-    static constexpr uint32_t WAVE_FOURCC = 0x45564157; // "WAVE" (little-endian)
-    static constexpr uint32_t AIFF_FOURCC = 0x46464941; // "AIFF" (big-endian)
+    // Format type constants (Read using container endianness)
+    static constexpr uint32_t WAVE_FOURCC = 0x45564157; // "WAVE" (read as little-endian)
+    static constexpr uint32_t AIFF_FOURCC = 0x41494646; // "AIFF" (read as big-endian)
     
-    // RIFF/WAV chunk constants (little-endian)
-    static constexpr uint32_t FMT_FOURCC  = 0x20746d66; // "fmt "
-    static constexpr uint32_t DATA_FOURCC = 0x61746164; // "data"
-    static constexpr uint32_t FACT_FOURCC = 0x74636166; // "fact"
+    // RIFF/WAV chunk constants (FourCC always read as Big-Endian)
+    static constexpr uint32_t FMT_FOURCC  = 0x666d7420; // "fmt "
+    static constexpr uint32_t DATA_FOURCC = 0x64617461; // "data"
+    static constexpr uint32_t FACT_FOURCC = 0x66616374; // "fact"
     
     // AIFF chunk constants (big-endian)
     static constexpr uint32_t COMM_FOURCC = 0x434F4D4D; // "COMM"

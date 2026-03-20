@@ -32,6 +32,7 @@ namespace RIFF {
 class WaveStream : public Stream {
 public:
     explicit WaveStream(const TagLib::String& path);
+    explicit WaveStream(std::unique_ptr<IOHandler> handler);
     ~WaveStream() override;
 
     size_t getData(size_t len, void *buf) override;

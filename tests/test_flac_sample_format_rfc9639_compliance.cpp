@@ -15,6 +15,9 @@
 #include <random>
 #include <climits>
 
+using PsyMP3::Codec::FLAC::FLAC__int32;
+using PsyMP3::Codec::FLAC::FLAC__Frame;
+
 /**
  * @brief Test RFC 9639 sample format and bit depth compliance
  * 

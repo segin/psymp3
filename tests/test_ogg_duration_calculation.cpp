@@ -12,9 +12,16 @@
 #ifdef HAVE_OGGDEMUXER
 
 #include "test_framework.h"
+#include "demuxer/ogg/OggDemuxer.h"
 #include <memory>
 #include <vector>
 #include <cstring>
+#include <algorithm>
+
+using namespace PsyMP3;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
+using namespace PsyMP3::IO;
 
 // Mock IOHandler for testing
 class MockIOHandler : public IOHandler {

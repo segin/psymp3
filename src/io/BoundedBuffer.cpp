@@ -1,7 +1,7 @@
 /*
  * BoundedBuffer.cpp - Bounded buffer implementation for memory-safe I/O operations
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -22,7 +22,7 @@ BoundedBuffer::BoundedBuffer(size_t max_size, size_t initial_size)
     MemoryTracker::getInstance().update();
     
     if (initial_size > 0) {
-        if (!resize(initial_size)) {
+        if (!reserve(initial_size)) {
             Debug::log("memory", "BoundedBuffer::BoundedBuffer() - Warning: Could not allocate initial size ", initial_size);
         }
     }
@@ -54,7 +54,11 @@ bool BoundedBuffer::resize(size_t new_size) {
     }
     
     // Need to reallocate
-    return reallocate(new_size);
+    if (reallocate(new_size)) {
+        m_size = new_size;
+        return true;
+    }
+    return false;
 }
 
 bool BoundedBuffer::reserve(size_t capacity) {

@@ -1,7 +1,7 @@
 /*
  * track.cpp - class implementation for track class
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -25,6 +25,18 @@
 
 TagLib::String track::nullstr;
 
+/**
+ * @brief Constructs a track from a file path and optional EXTINF metadata.
+ *
+ * If EXTINF artist, title, or duration data is provided it takes priority over
+ * tag data embedded in the file. Any missing fields are subsequently filled
+ * in from the file's embedded tags via `loadTags()`.
+ *
+ * @param a_FilePath      Filesystem path to the audio file.
+ * @param extinf_artist   Artist string from EXTINF (may be empty).
+ * @param extinf_title    Title string from EXTINF (may be empty).
+ * @param extinf_duration Duration in seconds from EXTINF (0 means unknown).
+ */
 track::track(const TagLib::String& a_FilePath, const TagLib::String& extinf_artist, const TagLib::String& extinf_title, long extinf_duration)
     : m_FilePath(a_FilePath), m_Len(extinf_duration)
 {
@@ -37,6 +49,14 @@ track::track(const TagLib::String& a_FilePath, const TagLib::String& extinf_arti
     loadTags();
 }
 
+/**
+ * @brief Loads ID/tag metadata from the audio file using TagLib.
+ *
+ * Creates a `FileIOHandler`-backed `TagLib::FileRef` for the track's file path
+ * and populates `m_Artist`, `m_Title`, `m_Album`, and `m_Len` from the embedded
+ * tags, only overwriting fields that were not already supplied via EXTINF.
+ * Does nothing if `m_FilePath` is empty.
+ */
 void track::loadTags() { 
     // Skip tag loading if no file path provided (e.g., scrobbling metadata-only tracks)
     if (m_FilePath.isEmpty()) {

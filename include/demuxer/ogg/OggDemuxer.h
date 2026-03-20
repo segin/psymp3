@@ -8,17 +8,40 @@
 #ifndef OGGDEMUXER_H
 #define OGGDEMUXER_H
 
-#include "../../../include/demuxer/Demuxer.h"
+#include "demuxer/Demuxer.h"
 #include "OggSyncManager.h"
 #include "OggStreamManager.h"
 #include "CodecHeaderParser.h"
 #include <memory>
 #include <map>
 #include <mutex>
+#include <deque>
+#include <atomic>
+#include <future>
+#include <ogg/ogg.h>
 
 namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
+
+struct OggPacket {
+    std::vector<uint8_t> data;
+    uint64_t granule_position;
+    bool is_keyframe;
+};
+
+struct OggStream {
+    uint32_t serial_number;
+    std::string codec_name;
+    std::string codec_type;
+    uint32_t sample_rate;
+    uint16_t channels;
+    uint64_t pre_skip = 0;
+    bool headers_complete = false;
+    bool headers_sent = false;
+    std::deque<ogg_packet> m_packet_queue; // Using libogg's ogg_packet
+    std::vector<std::vector<uint8_t>> header_packets;
+};
 
 class OggDemuxer : public Demuxer {
 public:
@@ -50,12 +73,58 @@ private:
     std::map<int, std::unique_ptr<OggStreamManager>> m_streams;
     std::map<int, std::unique_ptr<CodecHeaderParser>> m_parsers;
     int m_primary_serial;
+    bool m_has_primary_serial;
     bool m_eof;
+    mutable std::atomic<bool> m_duration_calculated;
+    mutable std::atomic<uint64_t> m_cached_duration;
+
+    // Async duration calculation
+    mutable std::atomic<bool> m_calculating_duration{false};
+    mutable std::future<void> m_duration_future;
 
     // Unlocked implementations
     MediaChunk readChunk_unlocked(uint32_t stream_id);
     bool seekTo_unlocked(uint64_t timestamp_ms);
     long getSampleRate() const;
+    
+    /**
+     * @brief Create VorbisCommentTag from parsed header data
+     * Called after headers are complete to populate m_tag
+     */
+    void createTagFromMetadata_unlocked();
+
+    /**
+     * @brief Calculate duration during container parsing
+     * Runs on loader thread to prevent UI blocking
+     */
+    void calculateInitialDuration_unlocked();
+
+public:
+    // --- Legacy / Testing members required by unit tests ---
+    
+    std::map<uint32_t, OggStream>& getStreamsForTesting() { return m_test_streams; }
+
+    uint64_t granuleToMs(uint64_t granule, uint32_t stream_id) const;
+    uint64_t msToGranule(uint64_t timestamp_ms, uint32_t stream_id) const;
+
+    int fetchAndProcessPacket();
+    void fillPacketQueue(uint32_t stream_id);
+
+    // Enhanced memory safety (Testing/Internal)
+    bool performMemoryAudit();
+    void enforceMemoryLimits();
+    bool validateLiboggStructures();
+    void performPeriodicMaintenance();
+
+    bool performMemoryAudit_unlocked();
+    void enforceMemoryLimits_unlocked();
+    bool validateLiboggStructures_unlocked();
+    void performPeriodicMaintenance_unlocked();
+
+    static constexpr size_t MAX_PACKET_QUEUE_SIZE = 100;
+
+private:
+    std::map<uint32_t, OggStream> m_test_streams;
 };
 
 } // namespace Ogg

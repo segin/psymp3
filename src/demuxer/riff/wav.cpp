@@ -1,7 +1,7 @@
 /*
  * wav.cpp - RIFF WAVE format decoder implementation.
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -22,9 +22,14 @@
  */
 
 #include "psymp3.h"
+#include "core/utility/G711.h"
+#include <limits>
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace RIFF {
+
+using namespace PsyMP3::Core::Utility::G711;
 
 // RIFF FourCC codes (in little-endian)
 constexpr uint32_t RIFF_ID = 0x46464952; // "RIFF"
@@ -55,46 +60,6 @@ T read_le(IOHandler* handler)
     return value;
 }
 
-/**
- * @brief Converts an 8-bit A-law sample to a 16-bit linear PCM sample.
- * @param alawbyte The 8-bit A-law encoded sample.
- * @return The 16-bit signed linear PCM sample.
- */
-static int16_t alaw2linear(uint8_t alawbyte)
-{
-	int16_t sign, exponent, mantissa, sample;
-
-	alawbyte ^= 0x55;
-	sign = (alawbyte & 0x80);
-	exponent = (alawbyte >> 4) & 0x07;
-	mantissa = alawbyte & 0x0F;
-	if(exponent == 0)
-		sample = mantissa << 4;
-	else
-		sample = ( (mantissa << 4) | 0x100 ) << (exponent - 1);
-
-	if(sign == 0)
-		sample = -sample;
-
-	return sample;
-}
-
-/**
- * @brief Converts an 8-bit mu-law sample to a 16-bit linear PCM sample.
- * @param ulawbyte The 8-bit mu-law encoded sample.
- * @return The 16-bit signed linear PCM sample.
- */
-static int16_t ulaw2linear(uint8_t ulawbyte)
-{
-	static int exp_lut[8] = {0,132,396,924,1980,4092,8316,16764};
-	int sign, exponent, mantissa, sample;
-	ulawbyte = ~ulawbyte;
-	sign = (ulawbyte & 0x80);
-	exponent = (ulawbyte >> 4) & 0x07;
-	mantissa = ulawbyte & 0x0F;
-	sample = exp_lut[exponent] + (mantissa << (exponent + 3));
-	return sign ? -sample : sample;
-}
 
 /**
  * @brief Constructs a WaveStream object from a file path.
@@ -113,6 +78,20 @@ WaveStream::WaveStream(const TagLib::String& path) : Stream(path) {
         throw InvalidMediaException("Unsupported URI scheme for WAVE: " + uri.scheme());
     }
 
+    parseHeaders();
+    m_eof = false;
+}
+
+/**
+ * @brief Constructs a WaveStream object from an existing IOHandler.
+ *
+ * This takes ownership of the IOHandler and immediately calls parseHeaders() to
+ * validate the RIFF/WAVE format. Useful for testing or when the IOHandler is
+ * already created (e.g., MemoryIOHandler).
+ * @param handler Unique pointer to the IOHandler.
+ */
+WaveStream::WaveStream(std::unique_ptr<IOHandler> handler) : Stream(TagLib::String("memory://stream")) {
+    m_handler = std::move(handler);
     parseHeaders();
     m_eof = false;
 }
@@ -145,7 +124,9 @@ void WaveStream::parseHeaders() {
         uint32_t chunk_size = read_le<uint32_t>(m_handler.get());
         if (m_handler->eof()) break;
 
-        long chunk_start_pos = m_handler->tell();
+        off_t chunk_start_pos = m_handler->tell();
+        if (chunk_start_pos == -1) throw IOException("Failed to get file position.");
+
 
         if (chunk_id == FMT_ID) {
             uint16_t format_tag = read_le<uint16_t>(m_handler.get());
@@ -181,7 +162,10 @@ void WaveStream::parseHeaders() {
             found_fmt = true;
         } else if (chunk_id == DATA_ID) {
             if (!found_fmt) throw BadFormatException("WAVE 'data' chunk found before 'fmt ' chunk.");
-            m_data_chunk_offset = chunk_start_pos;
+            if (chunk_start_pos > std::numeric_limits<uint32_t>::max()) {
+                throw BadFormatException("WAVE data chunk offset too large for 32-bit parser.");
+            }
+            m_data_chunk_offset = static_cast<uint32_t>(chunk_start_pos);
             m_data_chunk_size = chunk_size;
             m_slength = m_data_chunk_size / (m_channels * m_bytes_per_sample);
             m_length = (m_slength * 1000) / m_rate;
@@ -190,9 +174,28 @@ void WaveStream::parseHeaders() {
         }
 
         // Seek to the next chunk, accounting for padding byte if chunk size is odd.
-        m_handler->seek(chunk_start_pos + chunk_size, SEEK_SET);
-        if (chunk_size % 2 != 0)
-            m_handler->seek(1, SEEK_CUR);
+        // Check if chunk_size fits in off_t (positive) to prevent implementation-defined behavior
+        if (chunk_size > static_cast<uint64_t>(std::numeric_limits<off_t>::max())) {
+            throw BadFormatException("Chunk size too large (exceeds platform limits).");
+        }
+
+        off_t signed_chunk_size = static_cast<off_t>(chunk_size);
+        off_t padding = (chunk_size % 2);
+
+        // Check for overflow: pos + size + padding
+        if (signed_chunk_size > std::numeric_limits<off_t>::max() - chunk_start_pos - padding) {
+            throw BadFormatException("Chunk size too large (overflow).");
+        }
+
+        off_t next_chunk_pos = chunk_start_pos + signed_chunk_size + padding;
+
+        off_t file_size = m_handler->getFileSize();
+        if (file_size != -1 && next_chunk_pos > file_size) {
+            throw BadFormatException("Chunk extends beyond file end.");
+        }
+
+        m_handler->seek(next_chunk_pos, SEEK_SET);
+
     }
     throw BadFormatException("WAVE file is missing 'data' chunk.");
 }

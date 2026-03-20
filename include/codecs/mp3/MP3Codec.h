@@ -39,6 +39,12 @@ class Libmpg123 : public Stream
         Libmpg123(TagLib::String name);
         /** Default destructor */
         virtual ~Libmpg123();
+        /**
+         * @brief Constructor with IOHandler
+         * Takes ownership of the handler.
+         */
+        Libmpg123(std::unique_ptr<IOHandler> handler);
+
         virtual void open(TagLib::String name);
         virtual unsigned int getPosition(); // in msec!
         virtual unsigned long long getSPosition(); // in samples!

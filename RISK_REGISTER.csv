@@ -1,0 +1,8 @@
+ID,Title,Severity,Effort,Status
+ID-001,Fix UB in FLAC SampleReconstructor,Critical,Low,Open
+ID-002,Fix Broken Loops in Audio.cpp,High,Low,Open
+ID-003,Add Compiler Security Flags,High,Low,Open
+ID-004,Refactor Audio Pointer Casts,Medium,Medium,Open
+ID-005,Secure Last.fm Password Storage,Medium,Medium,Open
+ID-006,Migrate to SDL 2.0,Low,High,Open
+ID-007,Address 24 TODOs,Low,Medium,Open

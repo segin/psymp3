@@ -1,7 +1,7 @@
 /*
  * Demuxer.cpp - Generic container demuxer base class implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -11,6 +11,9 @@
 
 namespace PsyMP3 {
 namespace Demuxer {
+
+// Static NullTag instance for returning when no tag is available
+static const PsyMP3::Tag::NullTag s_null_tag;
 
 Demuxer::Demuxer(std::unique_ptr<IOHandler> handler) 
     : m_handler(std::move(handler)) {
@@ -26,6 +29,14 @@ Demuxer::Demuxer(std::unique_ptr<IOHandler> handler)
         reportError("Initialization", "IOHandler tell() failed during initialization");
         throw std::runtime_error("IOHandler is not functional");
     }
+}
+
+const PsyMP3::Tag::Tag& Demuxer::getTag() const {
+    // Return the extracted tag if available, otherwise return NullTag
+    if (m_tag) {
+        return *m_tag;
+    }
+    return s_null_tag;
 }
 
 // BufferPool implementation

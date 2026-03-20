@@ -25,6 +25,7 @@
 #define OGGCODECS_H
 
 // No direct includes - all includes should be in psymp3.h
+#include <memory>
 
 // Forward declarations for namespaced codec types
 namespace PsyMP3 {
@@ -76,9 +77,7 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    class FlacDecoder* m_flac_stream = nullptr;      // Forward declaration
-    std::vector<uint8_t> m_buffer;                  // Accumulated data buffer
-    bool m_headers_written = false;
+    std::unique_ptr<AudioCodec> m_flac_codec;
 };
 
 /**
@@ -122,10 +121,18 @@ public:
     bool canDecode(const StreamInfo& stream_info) const override;
     
 private:
-    // Speex decoder state would go here
-    // For now, this is a placeholder that returns silence
+    // Speex decoder state
+    void* m_decoder_state = nullptr;
+    void* m_bits = nullptr;        // SpeexBits*
+    void* m_stereo_state = nullptr; // SpeexStereoState*
+
+    // Config
+    uint32_t m_sample_rate = 0;
+    uint16_t m_channels = 0;
+    uint32_t m_frame_size = 160;  // Default Speex frame size (nb_samples)
+
+    // Initialization state
     bool m_initialized_speex = false;
-    uint32_t m_frame_size = 160;  // Default Speex frame size
 };
 
 #endif // OGGCODECS_H

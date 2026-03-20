@@ -42,6 +42,7 @@ struct PlayerOptions {
     FFTMode fft_mode = FFTMode::Original;
     bool automated_test_mode = false;
     bool unattended_quit = false;
+    bool show_mpris_errors = true;
     std::vector<std::string> files;
 };
 
@@ -115,14 +116,31 @@ class Player
 
         void nextTrack(size_t advance_count = 1);
         void prevTrack(void);
+        bool canGoNext() const;
+        bool canGoPrevious() const;
         bool stop(void);
         bool pause(void);
         bool play(void);
         bool playPause(void);
+        void setLoopMode(LoopMode mode);
+        LoopMode getLoopMode() const;
         void openTrack(TagLib::String path);
         void seekTo(unsigned long pos);
-        static bool guiRunning;
+        bool canSeek() const;
+        static std::atomic<bool> guiRunning;
         
+        // MPRIS Error Notification
+        void toggleMPRISErrorNotifications();
+
+        enum class NotificationType {
+            Info,
+            Warning,
+            Error,
+            MPRISError
+        };
+
+        void showNotification(const std::string& message, NotificationType type);
+
         // Robust playlist handling
         bool handleUnplayableTrack();
         bool findFirstPlayableTrack();
@@ -131,12 +149,23 @@ class Player
         void checkScrobbling();
         void startTrackScrobbling();
         void submitNowPlaying(); 
+
+        void setVolume(double volume);
+        double getVolume() const;
+
+        void setShuffle(bool shuffle);
+        bool getShuffle() const;
+
     protected:
         PlayerState state;
         PlayerState m_state_before_seek;
-        void renderSpectrum(Surface *graph);
         void precomputeSpectrumColors();
     private:
+
+        void updateState(Stream*& current_stream, unsigned long& current_pos_ms, unsigned long& total_len_ms, TagLib::String& artist, TagLib::String& title);
+        void renderSpectrum();
+        void renderOverlay(Stream* current_stream, unsigned long current_pos_ms);
+
         bool updateGUI();
         bool handleKeyPress(const SDL_keysym& keysym);
         void handleMouseButtonDown(const SDL_MouseButtonEvent& event);
@@ -147,6 +176,11 @@ class Player
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
         
+        // Initialization and cleanup
+        bool Initialize(const PlayerOptions& options);
+        void EventLoop();
+        void Cleanup();
+
         // Window management methods
         void renderWindows();
         void handleWindowMouseEvents(const SDL_Event& event);
@@ -165,9 +199,9 @@ class Player
         size_t m_num_tracks_in_next_stream = 0; // How many playlist entries the next stream represents
         size_t m_num_tracks_in_current_stream = 0; // How many playlist entries the current stream represents
 
-        std::unique_ptr<Audio> audio;
-        std::unique_ptr<FastFourier> fft;
         std::unique_ptr<std::mutex> mutex;
+        std::unique_ptr<FastFourier> fft;
+        std::unique_ptr<Audio> audio;
         std::unique_ptr<System> system;
 #ifdef HAVE_DBUS
         std::unique_ptr<PsyMP3::MPRIS::MPRISManager> m_mpris_manager;  // MPRIS integration for desktop media controls
@@ -202,46 +236,66 @@ class Player
         PlayerProgressBarWidget* m_progress_widget;
 
         // Overlay widgets
-        std::unique_ptr<ToastNotification> m_toast;
-        // Toast queue for smooth replacement transitions
-        struct PendingToast {
-            std::string message;
-            Uint32 duration_ms;
-        };
-        std::queue<PendingToast> m_toast_queue;
-        static constexpr size_t MAX_TOAST_QUEUE_SIZE = 10;
-        std::unique_ptr<LyricsWidget> m_lyrics_widget;
+        LyricsWidget* m_lyrics_widget = nullptr;
         std::unique_ptr<Label> m_pause_indicator;
         FadingWidget* m_seek_left_indicator = nullptr;
         FadingWidget* m_seek_right_indicator = nullptr;
 
         // Loader thread members
         std::thread m_loader_thread;
-        bool m_loader_active;
+        std::atomic<bool> m_loader_active;
         std::queue<TrackLoadRequest> m_loader_queue;
         std::mutex m_loader_queue_mutex;
         std::condition_variable m_loader_queue_cv;
-        bool m_loading_track;
-        bool m_preloading_track;
+        std::atomic<bool> m_loading_track;
+        std::atomic<bool> m_preloading_track;
         std::thread m_playlist_populator_thread;
         int m_navigation_direction = 1;
         int m_skip_attempts = 0;
-        LoopMode m_loop_mode;
+        std::atomic<LoopMode> m_loop_mode;
         std::vector<Uint32> m_spectrum_colors;
         bool m_use_widget_mouse_handling = true;
+        float m_volume = 1.0f;
 
         // Automated testing members
         bool m_automated_test_mode;
         bool m_unattended_quit;
+        bool m_show_mpris_errors;
         int m_automated_test_track_count;
         SDL_TimerID m_automated_test_timer_id = 0;
         SDL_TimerID m_automated_quit_timer_id = 0;
-        
+        SDL_TimerID m_app_loop_timer_id = 0;
+
         // Test windows
         std::unique_ptr<WindowFrameWidget> m_test_window_h;
         std::unique_ptr<WindowFrameWidget> m_test_window_b;
         std::vector<std::unique_ptr<WindowFrameWidget>> m_random_windows;
         int m_random_window_counter = 0;
+
+        // Deferred widget deletion
+        std::vector<std::unique_ptr<Widget>> m_deferred_widgets;
+        void processDeferredDeletions();
+        void deferWidgetDeletion(std::unique_ptr<Widget> widget);
+        
+        /**
+         * @brief Defer deletion of a widget owned by a unique_ptr member.
+         * 
+         * This method safely moves the widget from the specified unique_ptr into
+         * the deferred deletion queue. The unique_ptr is reset to nullptr immediately,
+         * but the actual deletion is deferred until the end of the current event loop
+         * iteration, preventing use-after-free when a widget's callback triggers its
+         * own destruction.
+         * 
+         * @tparam T Widget type (must derive from Widget)
+         * @param ptr Reference to the unique_ptr member to be released
+         */
+        template<typename T>
+        void deferDelete(std::unique_ptr<T>& ptr) {
+            if (ptr) {
+                // Move to deferred queue for safe deletion later
+                m_deferred_widgets.push_back(std::move(ptr));
+            }
+        }
 };
 
 #endif // PLAYER_H

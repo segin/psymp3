@@ -26,6 +26,8 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+class Font;
+
 namespace PsyMP3 {
 namespace Widget {
 namespace Windowing {
@@ -42,9 +44,10 @@ public:
      * @brief Constructor for TitlebarWidget.
      * @param width Titlebar width
      * @param height Titlebar height (typically 24px)
+     * @param font Font to use for rendering title text
      * @param title Title text to display
      */
-    TitlebarWidget(int width, int height, const std::string& title = "");
+    TitlebarWidget(int width, int height, Font* font, const std::string& title = "");
     
     /**
      * @brief Virtual destructor.
@@ -120,6 +123,7 @@ private:
      */
     void rebuildSurface();
     
+    Font* m_font;
     std::string m_title;
     int m_width;
     int m_height;

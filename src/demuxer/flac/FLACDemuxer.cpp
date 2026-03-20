@@ -1,7 +1,7 @@
 /*
  * FLACDemuxer.cpp - FLAC container demuxer implementation (RFC 9639 compliant)
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -211,6 +211,10 @@ bool FLACDemuxer::parseContainer_unlocked()
     // Requirements 20.1-20.5: Check streamable subset constraints
     // This must be called after STREAMINFO and VORBIS_COMMENT are parsed
     validateStreamableSubset_unlocked();
+    
+    // Create VorbisCommentTag from parsed metadata
+    // Requirements 8.2, 8.4: Extract VorbisComment metadata and store in m_tag
+    createTagFromMetadata_unlocked();
     
     m_container_parsed = true;
     m_current_offset = m_audio_data_offset;
@@ -1288,6 +1292,67 @@ void FLACDemuxer::validateStreamableSubset_unlocked()
         FLAC_DEBUG("[validateStreamableSubset] Stream does NOT conform to streamable subset");
         FLAC_DEBUG("[validateStreamableSubset] Note: Non-streamable streams are still playable, "
                    "but may not be suitable for streaming without seeking capability");
+    }
+}
+
+// ============================================================================
+// Tag Creation from Parsed Metadata (Requirements 8.2, 8.4)
+// ============================================================================
+
+void FLACDemuxer::createTagFromMetadata_unlocked()
+{
+    FLAC_DEBUG("[createTagFromMetadata] Creating VorbisCommentTag from parsed metadata");
+    
+    // Check if we have any metadata to create a tag from
+    if (m_vorbis_comments.empty() && m_pictures.empty()) {
+        FLAC_DEBUG("[createTagFromMetadata] No VorbisComment metadata or pictures found, m_tag remains null");
+        return;
+    }
+    
+    // Convert m_vorbis_comments (single-valued) to multi-valued format for VorbisCommentTag
+    std::map<std::string, std::vector<std::string>> fields;
+    for (const auto& [key, value] : m_vorbis_comments) {
+        fields[key].push_back(value);
+    }
+    
+    // Convert FLACPicture to Tag::Picture
+    std::vector<PsyMP3::Tag::Picture> pictures;
+    pictures.reserve(m_pictures.size());
+    
+    for (const auto& flac_pic : m_pictures) {
+        PsyMP3::Tag::Picture pic;
+        pic.type = static_cast<PsyMP3::Tag::PictureType>(flac_pic.type);
+        pic.mime_type = flac_pic.media_type;
+        pic.description = flac_pic.description;
+        pic.width = flac_pic.width;
+        pic.height = flac_pic.height;
+        pic.color_depth = flac_pic.color_depth;
+        pic.colors_used = flac_pic.indexed_colors;
+        pic.data = flac_pic.data;
+        pictures.push_back(std::move(pic));
+    }
+    
+    // Create the VorbisCommentTag
+    // Note: FLAC doesn't store a vendor string in the same way as Ogg VorbisComment,
+    // so we use a default vendor string
+    std::string vendor = "PsyMP3 FLAC Demuxer";
+    
+    m_tag = std::make_unique<PsyMP3::Tag::VorbisCommentTag>(vendor, fields, pictures);
+    
+    FLAC_DEBUG("[createTagFromMetadata] Created VorbisCommentTag with ", fields.size(), 
+               " fields and ", pictures.size(), " pictures");
+    
+    // Log some common metadata fields if present
+    if (m_tag) {
+        if (!m_tag->title().empty()) {
+            FLAC_DEBUG("[createTagFromMetadata] Title: ", m_tag->title());
+        }
+        if (!m_tag->artist().empty()) {
+            FLAC_DEBUG("[createTagFromMetadata] Artist: ", m_tag->artist());
+        }
+        if (!m_tag->album().empty()) {
+            FLAC_DEBUG("[createTagFromMetadata] Album: ", m_tag->album());
+        }
     }
 }
 

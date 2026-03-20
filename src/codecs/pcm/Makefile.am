@@ -33,9 +33,9 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libpcmcodecs.a
+noinst_LIBRARIES = libpsymp3-codec-pcm.a
 
-libpcmcodecs_a_SOURCES = \
+libpsymp3_codec_pcm_a_SOURCES = \
 	PCMCodecs.cpp \
 	ALawCodec.cpp \
 	MuLawCodec.cpp

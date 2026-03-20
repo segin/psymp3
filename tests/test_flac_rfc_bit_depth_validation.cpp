@@ -31,6 +31,9 @@
 #include <random>
 #include <cmath>
 
+using PsyMP3::Codec::FLAC::FLAC__int32;
+using PsyMP3::Codec::FLAC::FLAC__Frame;
+
 /**
  * @brief Test RFC 9639 bit depth validation
  * 
@@ -268,11 +271,11 @@ void test_bit_perfect_reconstruction() {
     
     // Test 24-bit to 16-bit reconstruction (downscaling)
     {
-        std::vector<FLAC__int32> original_24bit = {-8388608, -4194304, 0, 4194303, 8388607};
+        std::vector<PsyMP3::Codec::FLAC::FLAC__int32> original_24bit = {-8388608, -4194304, 0, 4194303, 8388607};
         std::vector<int16_t> converted_16bit;
         
         // Convert using the codec's conversion function
-        for (FLAC__int32 sample : original_24bit) {
+        for (PsyMP3::Codec::FLAC::FLAC__int32 sample : original_24bit) {
             converted_16bit.push_back(codec.testConvert24BitTo16Bit(sample));
         }
         

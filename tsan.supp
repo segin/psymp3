@@ -1,0 +1,26 @@
+# ThreadSanitizer Suppression File for PsyMP3
+# These suppressions filter out known false positives from external libraries
+# that are outside PsyMP3's control.
+
+# Mesa Gallium driver (llvmpipe software renderer) - WSL2/WSLg races
+# These are internal driver threading issues, not application bugs.
+race:libgallium*
+race:llvmpipe*
+
+# SDL2 internal mutex/threading operations
+# SDL2 has its own internal threading model that TSan may misinterpret.
+race:libSDL2*
+deadlock:libSDL2*
+
+# Mesa/EGL initialization races
+race:libEGL*
+race:libGL*
+
+# PulseAudio/ALSA threading (common false positives)
+race:libpulse*
+race:libasound*
+
+# X11/Wayland display server communication
+race:libX11*
+race:libwayland*
+race:libxcb*

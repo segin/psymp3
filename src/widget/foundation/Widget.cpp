@@ -1,7 +1,7 @@
 /*
  * Widget.cpp - Extensible widget class, extends Surface.
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -57,14 +57,20 @@ static std::string getWidgetTypeName(const Widget* widget) {
 }
 
 Widget::Widget()
-    : m_parent(nullptr), m_mouse_transparent(false)
+    : m_parent(nullptr), m_z_order(0), m_visible(true), m_enabled(true), m_mouse_transparent(false)
 {
     //ctor
 }
 
 Widget::~Widget()
 {
-    //dtor
+    // Release mouse capture if this widget holds it
+    if (s_mouse_captured_widget == this) {
+        s_mouse_captured_widget = nullptr;
+    }
+    
+    // Destroy all children
+    destroy_unlocked();
 }
 
 // Move constructor: takes ownership of the Surface's internal SDL_Surface*
@@ -72,6 +78,9 @@ Widget::Widget(Surface&& other) :
     Surface(std::move(other)), // Move the base Surface part
     m_pos(0, 0),
     m_parent(nullptr),
+    m_z_order(0),
+    m_visible(true),
+    m_enabled(true),
     m_mouse_transparent(false)
 {
 }
@@ -81,6 +90,9 @@ Widget::Widget(Surface&& other, const Rect& position) :
     Surface(std::move(other)), // Move the base Surface part
     m_pos(position),
     m_parent(nullptr),
+    m_z_order(0),
+    m_visible(true),
+    m_enabled(true),
     m_mouse_transparent(false)
 {
 }
@@ -352,6 +364,183 @@ void Widget::invalidateArea(const Rect& area)
         m_parent->invalidateArea(parent_area);
     }
     // For root widgets, this would trigger a repaint of the specified area
+}
+
+// Event handling infrastructure methods
+
+bool Widget::handleEvent(const SDL_Event& event, int relative_x, int relative_y)
+{
+    // Delegate to specific event handlers based on event type
+    switch (event.type) {
+        case SDL_MOUSEBUTTONDOWN:
+            return handleMouseDown(event.button, relative_x, relative_y);
+        case SDL_MOUSEBUTTONUP:
+            return handleMouseUp(event.button, relative_x, relative_y);
+        case SDL_MOUSEMOTION:
+            return handleMouseMotion(event.motion, relative_x, relative_y);
+        default:
+            // Event not handled by this widget
+            return false;
+    }
+}
+
+bool Widget::hitTest(int x, int y) const
+{
+    // Check if the point is within this widget's bounds
+    return m_pos.contains(x, y);
+}
+
+std::pair<int, int> Widget::transformCoordinates(int parent_x, int parent_y) const
+{
+    // Transform from parent space to widget space
+    int widget_x = parent_x - m_pos.x();
+    int widget_y = parent_y - m_pos.y();
+    return std::make_pair(widget_x, widget_y);
+}
+
+
+// New methods for thread safety and additional functionality
+
+void Widget::render()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    render_unlocked();
+}
+
+void Widget::render_unlocked()
+{
+    // Render this widget's content
+    if (m_visible && isValid()) {
+        // The actual rendering is done by BlitTo which is called by parent
+        // This method is for internal rendering logic
+    }
+}
+
+void Widget::invalidate()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    invalidate_unlocked();
+}
+
+void Widget::invalidate_unlocked()
+{
+    // If we have a parent, notify it that we need repainting
+    if (m_parent) {
+        m_parent->invalidateArea_unlocked(m_pos);
+    }
+    // For root widgets (like ApplicationWidget), mark as needing full repaint
+    // This will be handled at the application level
+}
+
+void Widget::invalidateArea(const Rect& area)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    invalidateArea_unlocked(area);
+}
+
+void Widget::invalidateArea_unlocked(const Rect& area)
+{
+    // If we have a parent, propagate the invalidation upward
+    if (m_parent) {
+        // Transform area coordinates to parent's coordinate system
+        Rect parent_area(m_pos.x() + area.x(), m_pos.y() + area.y(), 
+                        area.width(), area.height());
+        m_parent->invalidateArea_unlocked(parent_area);
+    }
+    // For root widgets, this would trigger a repaint of the specified area
+}
+
+void Widget::renderChildren_unlocked()
+{
+    // Render children in order (first added = bottom, last added = top)
+    for (const auto& child : m_children) {
+        if (child->isVisible()) {
+            child->render_unlocked();
+        }
+    }
+}
+
+bool Widget::handleEvent_unlocked(const SDL_Event& event, int relative_x, int relative_y)
+{
+    // Delegate to specific event handlers based on event type
+    switch (event.type) {
+        case SDL_MOUSEBUTTONDOWN:
+            return handleMouseDown(event.button, relative_x, relative_y);
+        case SDL_MOUSEBUTTONUP:
+            return handleMouseUp(event.button, relative_x, relative_y);
+        case SDL_MOUSEMOTION:
+            return handleMouseMotion(event.motion, relative_x, relative_y);
+        default:
+            // Event not handled by this widget
+            return false;
+    }
+}
+
+bool Widget::hitTest_unlocked(int x, int y) const
+{
+    // Check if the point is within this widget's bounds
+    return m_pos.contains(x, y);
+}
+
+std::pair<int, int> Widget::transformCoordinates_unlocked(int parent_x, int parent_y) const
+{
+    // Transform from parent space to widget space
+    int widget_x = parent_x - m_pos.x();
+    int widget_y = parent_y - m_pos.y();
+    return std::make_pair(widget_x, widget_y);
+}
+
+void Widget::addChild(std::unique_ptr<Widget> child)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    addChild_unlocked(std::move(child));
+}
+
+void Widget::addChild_unlocked(std::unique_ptr<Widget> child)
+{
+    if (child) {
+        child->m_parent = this; // Set parent pointer before taking ownership
+        m_children.push_back(std::move(child));
+    }
+}
+
+void Widget::removeChild(Widget* child)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    removeChild_unlocked(child);
+}
+
+void Widget::removeChild_unlocked(Widget* child)
+{
+    if (child) {
+        auto it = std::find_if(m_children.begin(), m_children.end(),
+            [child](const std::unique_ptr<Widget>& c) { return c.get() == child; });
+        if (it != m_children.end()) {
+            m_children.erase(it);
+        }
+    }
+}
+
+void Widget::destroy()
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    destroy_unlocked();
+}
+
+void Widget::destroy_unlocked()
+{
+    // Remove from parent first
+    if (m_parent) {
+        m_parent->removeChild_unlocked(this);
+    }
+    
+    // Destroy all children
+    for (auto& child : m_children) {
+        child->destroy_unlocked();
+    }
+    
+    // Clear children list
+    m_children.clear();
 }
 
 } // namespace Foundation

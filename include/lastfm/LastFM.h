@@ -66,13 +66,28 @@ namespace LastFM {
  * - Submission thread exits cleanly
  * - Pending scrobbles are saved to cache before destruction
  */
+/**
+ * @brief Request to update now-playing status
+ */
+struct NowPlayingRequest {
+    std::string artist;
+    std::string title;
+    std::string album;
+    int length;
+    bool is_clear;  // true to clear now-playing, false to set it
+    
+    NowPlayingRequest() : length(0), is_clear(true) {}
+    NowPlayingRequest(const std::string& a, const std::string& t, const std::string& al, int len)
+        : artist(a), title(t), album(al), length(len), is_clear(false) {}
+};
+
 class LastFM {
 private:
     std::queue<Scrobble> m_scrobbles;
+    std::queue<NowPlayingRequest> m_nowplaying_requests;
     std::string m_session_key;
     std::string m_username;
-    std::string m_password;
-    std::string m_password_hash;  // Cached MD5 hash of password (Requirements 1.3)
+    std::string m_password_hash;  // Cached MD5 hash of password (Mandated by protocol)
     std::string m_config_file;
     std::string m_cache_file;
     
@@ -82,7 +97,7 @@ private:
         "post2.audioscrobbler.com", 
         "submissions.last.fm"
     };
-    std::array<int, 3> m_api_ports = {80, 80, 80};
+    std::array<int, 3> m_api_ports = {443, 443, 443};
     
     // Submission URLs (obtained from handshake response)
     std::string m_submission_url;
@@ -94,6 +109,7 @@ private:
     std::condition_variable m_submission_cv;
     std::atomic<bool> m_shutdown = false;
     std::atomic<bool> m_submission_active = false;
+    std::atomic<bool> m_has_nowplaying_request = false;  // Fast check without lock
     int m_handshake_attempts = 0;
     bool m_handshake_permanently_failed = false;
     
@@ -121,6 +137,8 @@ private:
     // Background thread functions
     void submissionThreadLoop();
     void submitSavedScrobbles();
+    void processNowPlayingRequests();  // Process pending now-playing requests
+    bool submitNowPlayingRequest(const NowPlayingRequest& request);  // Actually perform HTTP POST
     bool performHandshake(int host_index);
     
     // Queue access helpers (assumes lock is held)
@@ -132,7 +150,14 @@ private:
     
     // URL encoding and utilities
     std::string urlEncode(const std::string& input);
-    std::string md5Hash(const std::string& input);
+
+    /**
+     * @brief Hash a string using MD5 for protocol compatibility
+     * Labeled to distinguish from secure hashing (SEC-02)
+     * @param input The string to hash
+     * @return Lowercase hexadecimal MD5 hash
+     */
+    static std::string protocolMD5(const std::string& input);
     
 public:
     LastFM();

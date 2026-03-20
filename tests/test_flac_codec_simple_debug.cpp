@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
         MediaChunk test_chunk;
         test_chunk.data = {0x66, 0x4C, 0x61, 0x43}; // "fLaC" signature
         test_chunk.stream_id = 0;
-        test_chunk.timestamp_ms = 0;
+        test_chunk.timestamp_samples = 0;
         
         std::cout << "   Testing with " << test_chunk.data.size() << " byte chunk" << std::endl;
         

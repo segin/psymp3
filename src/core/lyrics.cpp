@@ -1,7 +1,7 @@
 /*
  * lyrics.cpp - Implementation for lyrics file support
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -21,7 +21,9 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace Core {

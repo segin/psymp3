@@ -1,7 +1,7 @@
 /*
  * ChunkDemuxer.cpp - Universal chunk-based demuxer implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -14,7 +14,7 @@ namespace Demuxer {
 
 ChunkDemuxer::ChunkDemuxer(std::unique_ptr<IOHandler> handler) 
     : Demuxer(std::move(handler)) {
-    m_current_stream_id = 0;
+    m_current_stream_id = 1;
     m_current_sample = 0;
     m_eof = false;
 }
@@ -211,7 +211,9 @@ std::vector<StreamInfo> ChunkDemuxer::getStreams() const {
         } else if (audio_data.bytes_per_frame > 0) {
             // Calculate from data size
             info.duration_samples = audio_data.data_size / audio_data.bytes_per_frame;
-            info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
+            if (audio_data.sample_rate > 0) {
+                info.duration_ms = (info.duration_samples * 1000ULL) / audio_data.sample_rate;
+            }
         }
         
         streams.push_back(info);
@@ -394,7 +396,7 @@ Chunk ChunkDemuxer::readChunkHeader() {
 
 bool ChunkDemuxer::parseWaveFormat(const Chunk& chunk) {
     AudioStreamData stream_data;
-    stream_data.stream_id = 0; // WAVE files typically have one audio stream
+    stream_data.stream_id = 1; // WAVE files typically have one audio stream, start at 1
     
     // Read format header (WAVE always uses little-endian)
     stream_data.format_tag = readLE<uint16_t>();
@@ -528,12 +530,11 @@ std::string ChunkDemuxer::aiffCompressionToCodecName(uint32_t compression) const
 
 bool ChunkDemuxer::parseAiffCommon(const Chunk& chunk) {
     AudioStreamData stream_data;
-    stream_data.stream_id = 0; // AIFF files typically have one audio stream
+    stream_data.stream_id = 1; // AIFF files typically have one audio stream, start at 1
     
     // Read COMM chunk (all AIFF data is big-endian)
     stream_data.channels = readBE<uint16_t>();
-    uint32_t num_sample_frames = readBE<uint32_t>();
-    (void)num_sample_frames;
+    [[maybe_unused]] uint32_t num_sample_frames = readBE<uint32_t>();
     stream_data.bits_per_sample = readBE<uint16_t>();
     
     // Read IEEE 80-bit extended precision sample rate
@@ -626,7 +627,7 @@ double ChunkDemuxer::ieee80ToDouble(const uint8_t ieee80[10]) const {
     
     // Convert to double
     double result = static_cast<double>(mantissa) / (1ULL << 63);
-    result *= std::pow(2.0, static_cast<int>(exponent) - 16383 - 63);
+    result *= std::pow(2.0, static_cast<int>(exponent) - 16383);
     
     return sign ? -result : result;
 }

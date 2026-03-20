@@ -129,14 +129,35 @@ else
   have_opus=no
 fi
 
+# Check for Speex (Ogg container required)
+AC_ARG_ENABLE([speex],
+  [AS_HELP_STRING([--enable-speex], [Enable Speex support @<:@default=yes@:>@])],
+  [enable_speex=$enableval], [enable_speex=yes])
+
+have_speex=no
+if test "x$enable_speex" = "xyes"; then
+  if test "x$have_ogg" = "xyes"; then
+    PKG_CHECK_MODULES([SPEEX], [speex >= 1.2], [have_speex=yes], [have_speex=no])
+    if test "x$have_speex" = "xyes"; then
+      AC_DEFINE([HAVE_SPEEX], [1], [Define to 1 if Speex support is enabled])
+    fi
+  else
+    have_speex=no
+    AC_MSG_WARN([Speex support disabled: libogg not found])
+  fi
+else
+  have_speex=no
+fi
+
 # Determine if OggDemuxer should be built
 # OggDemuxer is built if:
 # - Both Vorbis and Opus are enabled, OR
 # - Only Vorbis is enabled, OR  
 # - Only Opus is enabled, OR
+# - Speex is enabled, OR
 # - FLAC is enabled and libogg is available (for Ogg FLAC support)
 have_oggdemuxer=no
-if test "x$have_vorbis" = "xyes" || test "x$have_opus" = "xyes"; then
+if test "x$have_vorbis" = "xyes" || test "x$have_opus" = "xyes" || test "x$have_speex" = "xyes"; then
   have_oggdemuxer=yes
 elif test "x$have_flac" = "xyes" && test "x$have_ogg" = "xyes"; then
   have_oggdemuxer=yes
@@ -193,6 +214,7 @@ AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
+AM_CONDITIONAL([HAVE_SPEEX], [test "x$have_speex" = "xyes"])
 AM_CONDITIONAL([HAVE_ALAW], [test "x$have_alaw" = "xyes"])
 AM_CONDITIONAL([HAVE_MULAW], [test "x$have_mulaw" = "xyes"])
 
@@ -242,7 +264,14 @@ if test "x$enable_rapidcheck" != "xno"; then
     AC_SUBST([RAPIDCHECK_LIBS])
   else
     if test "x$enable_rapidcheck" = "xyes"; then
-      AC_MSG_ERROR([RapidCheck was requested but not found. Install librapidcheck-dev or use --disable-rapidcheck])
+      case "$host_os" in
+        freebsd*|dragonfly*|openbsd*|netbsd*|minix*)
+          AC_MSG_ERROR([RapidCheck was requested but not found. Install devel/rapidcheck or use --disable-rapidcheck])
+          ;;
+        *)
+          AC_MSG_ERROR([RapidCheck was requested but not found. Install librapidcheck-dev or use --disable-rapidcheck])
+          ;;
+      esac
     fi
   fi
 fi
@@ -317,7 +346,14 @@ if test -n "$SANITIZER_FLAGS"; then
   CXXFLAGS="$CXXFLAGS $SANITIZER_FLAGS"
   CFLAGS="$CFLAGS $SANITIZER_FLAGS"
   LDFLAGS="$LDFLAGS $SANITIZER_FLAGS"
+  AC_SUBST([CXXFLAGS])
+  AC_SUBST([CFLAGS])
+  AC_SUBST([LDFLAGS])
 fi
+
+# Security Hardening Flags
+CXXFLAGS="$CXXFLAGS -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE"
+LDFLAGS="$LDFLAGS -Wl,-z,relro,-z,now -pie"
 
 AM_CONDITIONAL([ENABLE_ASAN], [test "x$enable_asan" = "xyes"])
 AM_CONDITIONAL([ENABLE_UBSAN], [test "x$enable_ubsan" = "xyes"])
@@ -394,7 +430,7 @@ PKG_CHECK_MODULES([DEPENDS], [taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
-AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/lastfm/Makefile src/mpris/Makefile src/util/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile res/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/lastfm/Makefile src/mpris/Makefile src/util/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/core/Makefile src/core/utility/Makefile src/core/compression/Makefile res/Makefile tests/Makefile])
 
 # Print configuration summary
 echo ""
@@ -419,6 +455,7 @@ else
 fi
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
+echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"
 echo ""

@@ -68,8 +68,9 @@ public:
      * @param artist Artist name
      * @param title Track title
      * @param album Album name
+     * @param length_us Track length in microseconds (0 if unknown)
      */
-    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album);
+    void updateMetadata(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us = 0);
     
     /**
      * Update playback status
@@ -82,7 +83,25 @@ public:
      * @param position_us Position in microseconds
      */
     void updatePosition(uint64_t position_us);
+
+    /**
+     * Update loop status
+     * @param status New loop status
+     */
+    void updateLoopStatus(PsyMP3::MPRIS::LoopStatus status);
+
+    /**
+     * Update volume
+     * @param volume Volume level (0.0 to 1.0)
+     */
+    void updateVolume(double volume);
     
+    /**
+     * Update shuffle status
+     * @param shuffle New shuffle status
+     */
+    void updateShuffle(bool shuffle);
+
     /**
      * Notify that seeking occurred (emits Seeked signal)
      * @param position_us New position in microseconds
@@ -172,9 +191,12 @@ private:
     
     PsyMP3::MPRIS::Result<void> initialize_unlocked();
     void shutdown_unlocked();
-    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album);
+    void updateMetadata_unlocked(const std::string& artist, const std::string& title, const std::string& album, uint64_t length_us);
     void updatePlaybackStatus_unlocked(PsyMP3::MPRIS::PlaybackStatus status);
     void updatePosition_unlocked(uint64_t position_us);
+    void updateLoopStatus_unlocked(PsyMP3::MPRIS::LoopStatus status);
+    void updateShuffle_unlocked(bool shuffle);
+    void updateVolume_unlocked(double volume);
     void notifySeeked_unlocked(uint64_t position_us);
     bool isInitialized_unlocked() const;
     bool isConnected_unlocked() const;

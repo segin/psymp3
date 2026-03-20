@@ -37,14 +37,14 @@
 
 struct ConfigData {
     std::string username;
-    std::string password;
+    std::string password_hash;
     std::string session_key;
     std::string now_playing_url;
     std::string submission_url;
     
     bool operator==(const ConfigData& other) const {
         return username == other.username &&
-               password == other.password &&
+               password_hash == other.password_hash &&
                session_key == other.session_key &&
                now_playing_url == other.now_playing_url &&
                submission_url == other.submission_url;
@@ -80,7 +80,10 @@ ConfigData parseConfigFile(const std::string& filename) {
         if (key == "username") {
             config.username = value;
         } else if (key == "password") {
-            config.password = value;
+            // Mock legacy migration for transition verification
+            config.password_hash = "hashed_" + value;
+        } else if (key == "password_hash") {
+            config.password_hash = value;
         } else if (key == "session_key") {
             config.session_key = value;
         } else if (key == "now_playing_url") {
@@ -102,7 +105,7 @@ void writeConfigFile(const std::string& filename, const ConfigData& config) {
     
     file << "# Last.fm configuration\n";
     file << "username=" << config.username << "\n";
-    file << "password=" << config.password << "\n";
+    // password_hash is not persisted for security reasons
     file << "session_key=" << config.session_key << "\n";
     file << "now_playing_url=" << config.now_playing_url << "\n";
     file << "submission_url=" << config.submission_url << "\n";
@@ -144,7 +147,7 @@ std::string generateRandomString(size_t max_length) {
 ConfigData generateRandomConfig() {
     ConfigData config;
     config.username = generateRandomString(50);
-    config.password = generateRandomString(100);
+    config.password_hash = generateRandomString(100);
     config.session_key = generateRandomString(50);
     config.now_playing_url = generateRandomString(200);
     config.submission_url = generateRandomString(200);
@@ -187,6 +190,14 @@ void test_property_config_roundtrip() {
             
             test_count++;
             
+            // password_hash is not persisted, so clear it from original for comparison
+            // and verify parsed version has empty hash
+            if (!parsed.password_hash.empty()) {
+                std::cerr << "  SECURITY VIOLATION: password_hash was persisted!" << std::endl;
+                assert(false && "password_hash should not be persisted");
+            }
+            original.password_hash.clear();
+
             // Verify round-trip succeeded
             if (original == parsed) {
                 passed_count++;
@@ -194,8 +205,8 @@ void test_property_config_roundtrip() {
                 std::cerr << "  MISMATCH at iteration " << i << ":" << std::endl;
                 std::cerr << "    Original username: '" << original.username << "'" << std::endl;
                 std::cerr << "    Parsed username:   '" << parsed.username << "'" << std::endl;
-                std::cerr << "    Original password: '" << original.password << "'" << std::endl;
-                std::cerr << "    Parsed password:   '" << parsed.password << "'" << std::endl;
+                std::cerr << "    Original password_hash: '" << original.password_hash << "'" << std::endl;
+                std::cerr << "    Parsed password_hash:   '" << parsed.password_hash << "'" << std::endl;
                 std::cerr << "    Original session_key: '" << original.session_key << "'" << std::endl;
                 std::cerr << "    Parsed session_key:   '" << parsed.session_key << "'" << std::endl;
                 assert(false && "Configuration round-trip mismatch");
@@ -216,7 +227,7 @@ void test_property_config_roundtrip() {
     {
         ConfigData empty;
         empty.username = "";
-        empty.password = "";
+        empty.password_hash = "";
         empty.session_key = "";
         empty.now_playing_url = "";
         empty.submission_url = "";
@@ -231,13 +242,17 @@ void test_property_config_roundtrip() {
     {
         ConfigData minimal;
         minimal.username = "testuser";
-        minimal.password = "testpass";
+        minimal.password_hash = "testpass";
         minimal.session_key = "";
         minimal.now_playing_url = "";
         minimal.submission_url = "";
         
         writeConfigFile(temp_file, minimal);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        minimal.password_hash.clear();
+
         assert(minimal == parsed);
         std::cout << "    Minimal configuration (username + password) ✓" << std::endl;
     }
@@ -246,13 +261,17 @@ void test_property_config_roundtrip() {
     {
         ConfigData special;
         special.username = "user@example.com";
-        special.password = "p@ss!word#123$%^&*()";
+        special.password_hash = "p@ss!word#123$%^&*()";
         special.session_key = "abc-123_def.456~!@#$%";
         special.now_playing_url = "http://post.audioscrobbler.com/np_1.2?param=value&other=123";
         special.submission_url = "http://post.audioscrobbler.com/1.2";
         
         writeConfigFile(temp_file, special);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        special.password_hash.clear();
+
         assert(special == parsed);
         std::cout << "    Configuration with special characters ✓" << std::endl;
     }
@@ -261,13 +280,17 @@ void test_property_config_roundtrip() {
     {
         ConfigData long_config;
         long_config.username = std::string(100, 'a');
-        long_config.password = std::string(200, 'b');
+        long_config.password_hash = std::string(200, 'b');
         long_config.session_key = std::string(100, 'c');
         long_config.now_playing_url = std::string(300, 'd');
         long_config.submission_url = std::string(300, 'e');
         
         writeConfigFile(temp_file, long_config);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        long_config.password_hash.clear();
+
         assert(long_config == parsed);
         std::cout << "    Configuration with long values ✓" << std::endl;
     }
@@ -276,13 +299,17 @@ void test_property_config_roundtrip() {
     {
         ConfigData url_config;
         url_config.username = "testuser";
-        url_config.password = "testpass";
+        url_config.password_hash = "testpass";
         url_config.session_key = "session123";
         url_config.now_playing_url = "http://post.audioscrobbler.com/np_1.2?api_key=abc123&format=json";
         url_config.submission_url = "http://post.audioscrobbler.com/1.2?api_key=abc123&format=json";
         
         writeConfigFile(temp_file, url_config);
         ConfigData parsed = parseConfigFile(temp_file);
+
+        assert(parsed.password_hash.empty());
+        url_config.password_hash.clear();
+
         assert(url_config == parsed);
         std::cout << "    Configuration with URL query parameters ✓" << std::endl;
     }
@@ -322,7 +349,8 @@ void test_property_config_format_consistency() {
             
             // Verify all required keys are present
             assert(content.find("username=") != std::string::npos);
-            assert(content.find("password=") != std::string::npos);
+            // password_hash must NOT be present
+            assert(content.find("password_hash=") == std::string::npos);
             assert(content.find("session_key=") != std::string::npos);
             assert(content.find("now_playing_url=") != std::string::npos);
             assert(content.find("submission_url=") != std::string::npos);
@@ -372,7 +400,8 @@ void test_property_config_value_preservation() {
             
             // Verify each field is preserved exactly
             assert(original.username == parsed.username);
-            assert(original.password == parsed.password);
+            // password_hash is NOT preserved (security)
+            assert(parsed.password_hash.empty());
             assert(original.session_key == parsed.session_key);
             assert(original.now_playing_url == parsed.now_playing_url);
             assert(original.submission_url == parsed.submission_url);

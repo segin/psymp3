@@ -9,6 +9,9 @@
 // Stub implementations for Player methods used by MethodHandler
 // These are only used for testing and don't need to do anything meaningful
 
+// Global variable to track loop mode for testing
+LoopMode g_last_loop_mode = LoopMode::None;
+
 bool Player::play() {
     return true; // Always succeed for testing
 }
@@ -25,13 +28,31 @@ bool Player::playPause() {
     return true; // Always succeed for testing
 }
 
-void Player::nextTrack(unsigned long count) {
+void Player::nextTrack(size_t count) {
     (void)count; // Suppress unused parameter warning
     // Do nothing for testing
 }
 
 void Player::prevTrack() {
     // Do nothing for testing
+}
+
+bool Player::canSeek() const {
+    return true;
+}
+
+/* 
+// bool Player::isPlaying() const {
+//     return true; // Removed as it's not in player.h
+// }
+*/
+
+bool Player::canGoNext() const {
+    return true; // Always return true for testing
+}
+
+bool Player::canGoPrevious() const {
+    return true; // Always return true for testing
 }
 
 void Player::seekTo(unsigned long position_ms) {
@@ -42,4 +63,25 @@ void Player::seekTo(unsigned long position_ms) {
 void Player::synthesizeUserEvent(int event_type, void* data1, void* data2) {
     (void)event_type; (void)data1; (void)data2; // Suppress unused parameter warnings
     // Do nothing for testing
+}
+
+void Player::setVolume(double volume) {
+    (void)volume; // Suppress unused parameter warning
+    // Do nothing for testing
+}
+
+double Player::getVolume() const {
+    return 1.0; // Return dummy volume (1.0 = 100%)
+}
+
+void Player::showNotification(const std::string& message, NotificationType type) {
+    (void)message; (void)type;
+}
+
+void Player::setLoopMode(LoopMode mode) {
+    g_last_loop_mode = mode;
+}
+
+LoopMode Player::getLoopMode() const {
+    return g_last_loop_mode;
 }

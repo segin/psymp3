@@ -1,13 +1,21 @@
 /*
  * ResidualDecoder.cpp - FLAC residual decoding implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include <cstdint>
+#include <vector>
+#include "debug.h"
+#include "codecs/flac/ResidualDecoder.h"
+#include "codecs/flac/BitstreamReader.h"
+#endif
 
 namespace PsyMP3 {
 namespace Codec {

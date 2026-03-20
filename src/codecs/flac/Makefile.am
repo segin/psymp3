@@ -36,9 +36,9 @@ endif
 
 if HAVE_NATIVE_FLAC
 # Native FLAC decoder (no libFLAC dependency)
-noinst_LIBRARIES = libnativeflac.a
+noinst_LIBRARIES = libpsymp3-codec-flac.a
 
-libnativeflac_a_SOURCES = \
+libpsymp3_codec_flac_a_SOURCES = \
 	BitstreamReader.cpp \
 	CRCValidator.cpp \
 	FLACPerformanceBenchmark.cpp \
@@ -54,12 +54,12 @@ libnativeflac_a_SOURCES = \
 	NativeFLACCodec.cpp
 else
 # libFLAC wrapper
-noinst_LIBRARIES = libflaccodec.a
+noinst_LIBRARIES = libpsymp3-codec-flac.a
 
 # Add FLAC flags for libFLAC wrapper
 AM_CPPFLAGS += $(FLAC_CFLAGS)
 
-libflaccodec_a_SOURCES = \
+libpsymp3_codec_flac_a_SOURCES = \
 	FLACCodec.cpp \
 	FLACRFCValidator.cpp \
 	LibFLACWrapper.cpp

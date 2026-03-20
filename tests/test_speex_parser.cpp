@@ -7,12 +7,10 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/SpeexHeaderParser.h"
-#include <iostream>
-#include <vector>
-#include <cstring>
 
-using namespace PsyMP3::Demuxer::Ogg;
+namespace PsyMP3 {
+namespace Demuxer {
+namespace Ogg {
 
 // Helper
 ogg_packet createSpeexIDHeader(int channels, long rate) {
@@ -68,12 +66,16 @@ bool testIDHeader() {
     return true;
 }
 
+} // namespace Ogg
+} // namespace Demuxer
+} // namespace PsyMP3
+
 int main() {
     std::cout << "Running SpeexHeaderParser Tests..." << std::endl;
     int passed = 0;
     int total = 0;
     
-    if (testIDHeader()) passed++; total++;
+    if (PsyMP3::Demuxer::Ogg::testIDHeader()) passed++; total++;
     
     if (passed == total) {
         std::cout << "All tests PASSED!" << std::endl;

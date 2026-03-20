@@ -1,7 +1,7 @@
 /*
  * OpusCodec.cpp - Container-agnostic Opus audio codec implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -278,7 +278,7 @@ AudioFrame OpusCodec::flush()
     Debug::log("opus", "OpusCodec::flush called");
     
     // If we've already flushed, return empty frame
-    // Opus decoders don't buffer audio internally, so calling opus_decode(NULL)
+    // Opus decoders don't buffer audio internally, so calling opus_decode(nullptr)
     // produces PLC (Packet Loss Concealment) audio, not actual data.
     // We only want to check/output any buffered frames once, not generate fake audio.
     if (m_flushed) {
@@ -297,7 +297,7 @@ AudioFrame OpusCodec::flush()
     }
     
     // Note: Opus decoders don't buffer audio internally like some other codecs.
-    // Calling opus_decode with NULL packet produces PLC (Packet Loss Concealment)
+    // Calling opus_decode with nullptr packet produces PLC (Packet Loss Concealment)
     // samples, which are placeholder audio for missing packets, NOT actual remaining data.
     // Therefore, we should NOT call opus_decode(nullptr) here for flushing.
     // The decoder is already fully flushed after the last successful decode.
@@ -617,9 +617,9 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
 
     
     // Performance Optimization: Use instance variables for frame size tracking
-    if (m_output_buffer.size() < 5760 * (size_t)m_channels) {
+    if (m_output_buffer.size() < 5760 * static_cast<size_t>(m_channels)) {
        // Ensure buffer is large enough
-       m_output_buffer.resize(5760 * (size_t)m_channels); 
+       m_output_buffer.resize(5760 * static_cast<size_t>(m_channels));
     }
 
     int samples_decoded = 0;

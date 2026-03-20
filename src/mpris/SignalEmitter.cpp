@@ -1,13 +1,15 @@
 /*
  * SignalEmitter.cpp - MPRIS D-Bus signal emission
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace MPRIS {
@@ -75,11 +77,9 @@ void SignalEmitter::resetStatistics() {
 // Private implementations - assume locks are already held
 
 Result<void> SignalEmitter::emitPropertiesChanged_unlocked(
-    const std::string &interface_name,
-    const std::map<std::string, DBusVariant> &changed_properties) {
+    [[maybe_unused]] const std::string &interface_name,
+    [[maybe_unused]] const std::map<std::string, DBusVariant> &changed_properties) {
 #ifndef HAVE_DBUS
-  (void)interface_name;
-  (void)changed_properties;
   return Result<void>::error("D-Bus support not compiled in");
 #else
   if (changed_properties.empty()) {
@@ -104,9 +104,8 @@ Result<void> SignalEmitter::emitPropertiesChanged_unlocked(
 #endif
 }
 
-Result<void> SignalEmitter::emitSeeked_unlocked(uint64_t position_us) {
+Result<void> SignalEmitter::emitSeeked_unlocked([[maybe_unused]] uint64_t position_us) {
 #ifndef HAVE_DBUS
-  (void)position_us;
   return Result<void>::error("D-Bus support not compiled in");
 #else
   if (!isRunning_unlocked()) {
@@ -275,11 +274,9 @@ void SignalEmitter::processBatchedSignals_unlocked() { flushBatch_unlocked(); }
 // Signal creation helpers
 
 Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
-    const std::string &interface_name,
-    const std::map<std::string, DBusVariant> &changed_properties) {
+    [[maybe_unused]] const std::string &interface_name,
+    [[maybe_unused]] const std::map<std::string, DBusVariant> &changed_properties) {
 #ifndef HAVE_DBUS
-  (void)interface_name;
-  (void)changed_properties;
   return Result<DBusMessagePtr>::error("D-Bus support not compiled in");
 #else
   // Create PropertiesChanged signal message
@@ -332,105 +329,18 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
     }
 
     // Add value (variant)
-    const char *variant_signature;
-    switch (variant.type) {
-    case DBusVariant::String:
-      variant_signature = "s";
-      break;
-    case DBusVariant::StringArray:
-      variant_signature = "as";
-      break;
-    case DBusVariant::Int64:
-      variant_signature = "x";
-      break;
-    case DBusVariant::UInt64:
-      variant_signature = "t";
-      break;
-    case DBusVariant::Double:
-      variant_signature = "d";
-      break;
-    case DBusVariant::Boolean:
-      variant_signature = "b";
-      break;
-    default:
+    try {
+      appendVariantToDBusIter(&entry_iter, variant);
+    } catch (const std::exception &e) {
       return Result<DBusMessagePtr>::error(
-          "Unsupported variant type in PropertiesChanged signal");
+          "Failed to append variant in PropertiesChanged signal: " +
+          std::string(e.what()));
     }
 
-    if (!dbus_message_iter_open_container(&entry_iter, DBUS_TYPE_VARIANT,
-                                          variant_signature, &variant_iter)) {
+    // Close dict entry
+    if (!dbus_message_iter_close_container(&dict_iter, &entry_iter)) {
       return Result<DBusMessagePtr>::error(
-          "Failed to open variant in PropertiesChanged signal");
-    }
-
-    // Append variant value based on type
-    bool append_success = false;
-    switch (variant.type) {
-    case DBusVariant::String: {
-      const auto &str_val = variant.get<std::string>();
-      const char *str_cstr = str_val.c_str();
-      append_success = dbus_message_iter_append_basic(
-          &variant_iter, DBUS_TYPE_STRING, &str_cstr);
-      break;
-    }
-    case DBusVariant::StringArray: {
-      const auto &arr_val = variant.get<std::vector<std::string>>();
-      DBusMessageIter array_iter_inner;
-      if (dbus_message_iter_open_container(&variant_iter, DBUS_TYPE_ARRAY, "s",
-                                           &array_iter_inner)) {
-        append_success = true;
-        for (const auto &str : arr_val) {
-          const char *str_cstr = str.c_str();
-          if (!dbus_message_iter_append_basic(&array_iter_inner,
-                                              DBUS_TYPE_STRING, &str_cstr)) {
-            append_success = false;
-            break;
-          }
-        }
-        if (append_success) {
-          append_success = dbus_message_iter_close_container(&variant_iter,
-                                                             &array_iter_inner);
-        }
-      }
-      break;
-    }
-    case DBusVariant::Int64: {
-      auto int_val = variant.get<int64_t>();
-      append_success = dbus_message_iter_append_basic(
-          &variant_iter, DBUS_TYPE_INT64, &int_val);
-      break;
-    }
-    case DBusVariant::UInt64: {
-      auto uint_val = variant.get<uint64_t>();
-      append_success = dbus_message_iter_append_basic(
-          &variant_iter, DBUS_TYPE_UINT64, &uint_val);
-      break;
-    }
-    case DBusVariant::Double: {
-      auto double_val = variant.get<double>();
-      append_success = dbus_message_iter_append_basic(
-          &variant_iter, DBUS_TYPE_DOUBLE, &double_val);
-      break;
-    }
-    case DBusVariant::Boolean: {
-      auto bool_val = variant.get<bool>();
-      dbus_bool_t dbus_bool = bool_val ? TRUE : FALSE;
-      append_success = dbus_message_iter_append_basic(
-          &variant_iter, DBUS_TYPE_BOOLEAN, &dbus_bool);
-      break;
-    }
-    }
-
-    if (!append_success) {
-      return Result<DBusMessagePtr>::error(
-          "Failed to append variant value in PropertiesChanged signal");
-    }
-
-    // Close variant and dict entry
-    if (!dbus_message_iter_close_container(&entry_iter, &variant_iter) ||
-        !dbus_message_iter_close_container(&dict_iter, &entry_iter)) {
-      return Result<DBusMessagePtr>::error(
-          "Failed to close containers in PropertiesChanged signal");
+          "Failed to close dict entry in PropertiesChanged signal");
     }
   }
 
@@ -453,9 +363,8 @@ Result<DBusMessagePtr> SignalEmitter::createPropertiesChangedMessage_unlocked(
 }
 
 Result<DBusMessagePtr>
-SignalEmitter::createSeekedMessage_unlocked(uint64_t position_us) {
+SignalEmitter::createSeekedMessage_unlocked([[maybe_unused]] uint64_t position_us) {
 #ifndef HAVE_DBUS
-  (void)position_us;
   return Result<DBusMessagePtr>::error("D-Bus support not compiled in");
 #else
   // Create Seeked signal message
@@ -483,9 +392,8 @@ SignalEmitter::createSeekedMessage_unlocked(uint64_t position_us) {
 
 // D-Bus message sending
 
-Result<void> SignalEmitter::sendSignalMessage_unlocked(DBusMessage *message) {
+Result<void> SignalEmitter::sendSignalMessage_unlocked([[maybe_unused]] DBusMessage *message) {
 #ifndef HAVE_DBUS
-  (void)message;
   return Result<void>::error("D-Bus support not compiled in");
 #else
   if (!message) {

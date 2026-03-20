@@ -122,7 +122,7 @@ private:
     mutable std::mutex m_mutex;
     
     // Memory pressure tracking
-    int m_memory_pressure;
+    std::atomic<int> m_memory_pressure;
     
     // Usage statistics
     size_t m_buffer_hits;

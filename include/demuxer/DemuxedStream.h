@@ -96,6 +96,9 @@ public:
     virtual TagLib::String getTitle() override;
     virtual TagLib::String getAlbum() override;
     
+    // Override getTag() to return demuxer's tag
+    virtual const PsyMP3::Tag::Tag& getTag() const override;
+    
 private:
     std::unique_ptr<Demuxer> m_demuxer;
     std::unique_ptr<AudioCodec> m_codec;

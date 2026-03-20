@@ -10,6 +10,8 @@
 noinst_LIBRARIES = libpsymp3-core-utility.a
 
 libpsymp3_core_utility_a_SOURCES = \
+	UTF8Util.cpp \
+	Base64.cpp \
 	XMLUtil.cpp \
 	utility.cpp
 

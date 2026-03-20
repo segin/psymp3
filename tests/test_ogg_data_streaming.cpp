@@ -12,17 +12,30 @@
 #ifdef HAVE_OGGDEMUXER
 
 #include "test_framework.h"
+#include "demuxer/ogg/OggDemuxer.h"
 #include <fstream>
 #include <memory>
+#include <cstring>
+#include <vector>
+
+using namespace PsyMP3;
+using namespace PsyMP3::IO;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
+
+using namespace PsyMP3;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
+using namespace PsyMP3::IO;
 
 // Memory-based IOHandler for testing
-class MemoryIOHandler : public IOHandler {
+class LocalMemoryIOHandler : public IOHandler {
 private:
     std::vector<uint8_t> m_data;
     size_t m_position;
     
 public:
-    MemoryIOHandler(const std::vector<uint8_t>& data) : m_data(data), m_position(0) {}
+    LocalMemoryIOHandler(const std::vector<uint8_t>& data) : m_data(data), m_position(0) {}
     
     size_t read(void* buffer, size_t size, size_t count) override {
         size_t bytes_to_read = size * count;
@@ -91,7 +104,7 @@ private:
         try {
             // Create a simple test Ogg file with Vorbis data
             std::vector<uint8_t> test_data = createTestOggVorbisData();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container first
@@ -122,7 +135,7 @@ private:
         try {
             // Create test data with multiple packets
             std::vector<uint8_t> test_data = createTestOggVorbisDataWithMultiplePackets();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container
@@ -154,7 +167,7 @@ private:
         try {
             // Create test Ogg Vorbis data
             std::vector<uint8_t> test_data = createTestOggVorbisData();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container
@@ -205,7 +218,7 @@ private:
         try {
             // Create test data with many packets
             std::vector<uint8_t> test_data = createTestOggVorbisDataWithManyPackets();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container
@@ -238,7 +251,7 @@ private:
         try {
             // Create test data with simulated packet holes
             std::vector<uint8_t> test_data = createTestOggDataWithHoles();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container
@@ -259,7 +272,7 @@ private:
         try {
             // Create test data with packets spanning multiple pages
             std::vector<uint8_t> test_data = createTestOggDataWithSpanningPackets();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container
@@ -296,7 +309,7 @@ private:
         try {
             // Create test data with known granule positions
             std::vector<uint8_t> test_data = createTestOggVorbisDataWithGranules();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container
@@ -331,7 +344,7 @@ private:
         try {
             // Create comprehensive test data
             std::vector<uint8_t> test_data = createTestOggVorbisData();
-            auto handler = std::make_unique<MemoryIOHandler>(test_data);
+            auto handler = std::unique_ptr<LocalMemoryIOHandler>(new LocalMemoryIOHandler(test_data));
             OggDemuxer demuxer(std::move(handler));
             
             // Parse container

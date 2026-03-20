@@ -1,7 +1,7 @@
 /*
  * StreamingManager.cpp - Advanced streaming management with memory optimization
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -351,25 +351,14 @@ void StreamingManager::handleMemoryPressure(int pressure_level) {
             Debug::log("streaming", "StreamingManager: High memory pressure - removing ", 
                       to_remove, " oldest chunks");
             
-            // Remove oldest chunks (we'll need to pop and push back the ones we want to keep)
-            std::vector<MediaChunk> keep_chunks;
+            // Remove oldest chunks to reduce to half
             MediaChunk chunk;
             
-            // Skip the chunks we want to remove
+            // Discard the oldest chunks
             for (size_t i = 0; i < to_remove; i++) {
                 if (m_chunk_queue.tryPop(chunk)) {
                     // Just discard these chunks
                 }
-            }
-            
-            // Keep the remaining chunks
-            while (m_chunk_queue.tryPop(chunk)) {
-                keep_chunks.push_back(std::move(chunk));
-            }
-            
-            // Push back the chunks we want to keep
-            for (auto& keep_chunk : keep_chunks) {
-                m_chunk_queue.tryPush(std::move(keep_chunk));
             }
         }
     }

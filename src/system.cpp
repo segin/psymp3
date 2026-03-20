@@ -1,7 +1,7 @@
 /*
  * system.cpp - Operating system interfaces and misc. functions.
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -61,6 +61,12 @@ static std::wstring percentEncodeW(const std::wstring &input) {
   return encoded.str();
 }
 
+/**
+ * @brief Constructs the System object.
+ *
+ * On Windows, initialises the taskbar progress interface via
+ * `InitializeTaskbar()`. No-op on other platforms.
+ */
 System::System() {
 #ifdef _WIN32
   // Initialize m_taskbar to nullptr only if it's a member (i.e., on Windows)
@@ -70,6 +76,12 @@ System::System() {
 #endif
 }
 
+/**
+ * @brief Destroys the System object.
+ *
+ * On Windows, destroys the Winamp IPC window and releases the
+ * `ITaskbarList3` COM object if they were created.
+ */
 System::~System() {
 #if defined(_WIN32)
   if (m_ipc_hwnd) {
@@ -83,11 +95,20 @@ System::~System() {
 }
 
 #ifdef _WIN32
+/**
+ * @brief Initialises the Winamp-compatible IPC window for inter-process communication (Windows only).
+ *
+ * Registers a hidden window class `"Winamp v1.x"` and creates a hidden window.
+ * Other applications (e.g., KVIrc, Windows Messenger) can send `WM_USER` or
+ * `WM_COMMAND` messages to this window to control playback or retrieve metadata.
+ *
+ * @param player Pointer to the `Player` instance, stored in the window's user data.
+ */
 void System::InitializeIPC(Player *player) {
-  WNDCLASSEXW wcx = {0};
+  WNDCLASSEXW wcx{};
   wcx.cbSize = sizeof(WNDCLASSEXW);
   wcx.lpfnWndProc = System::ipcWndProc;
-  wcx.hInstance = GetModuleHandleW(NULL);
+  wcx.hInstance = GetModuleHandleW(nullptr);
   wcx.lpszClassName = L"Winamp v1.x";
 
   if (!RegisterClassExW(&wcx)) {
@@ -106,9 +127,9 @@ void System::InitializeIPC(Player *player) {
                       L"PsyMP3 Winamp Interface", // Window text
                       0,                          // Window style (not visible)
                       0, 0, 0, 0,                 // Position and size (hidden)
-                      NULL,                       // Parent window
-                      NULL,                       // Menu
-                      GetModuleHandleW(NULL),     // Instance handle
+                      nullptr,                    // Parent window
+                      nullptr,                    // Menu
+                      GetModuleHandleW(nullptr),  // Instance handle
                       player // Additional application data (the Player pointer)
       );
 
@@ -131,17 +152,18 @@ void System::broadcastMsnMessage(const std::wstring &message) {
   cds.dwData = 1351; // Magic number for MSN Now Playing IPC
   // The size is the total number of bytes, including the final null terminator.
   cds.cbData = (message.length() + 1) * sizeof(wchar_t);
-  cds.lpData = (PVOID)message.c_str();
+  cds.lpData =
+      const_cast<PVOID>(reinterpret_cast<const void *>(message.c_str()));
 
-  HWND msgr_hwnd = NULL;
+  HWND msgr_hwnd = nullptr;
   // Loop through all top-level windows to find all messenger instances.
   do {
-    msgr_hwnd = FindWindowExW(NULL, msgr_hwnd, L"MsnMsgrUIManager", NULL);
+    msgr_hwnd = FindWindowExW(nullptr, msgr_hwnd, L"MsnMsgrUIManager", nullptr);
     if (msgr_hwnd) {
       // Using SendMessage for synchronous delivery.
       SendMessage(msgr_hwnd, WM_COPYDATA, (WPARAM)getHwnd(), (LPARAM)&cds);
     }
-  } while (msgr_hwnd != NULL);
+  } while (msgr_hwnd != nullptr);
 }
 
 /**
@@ -176,6 +198,19 @@ void System::clearNowPlaying() {
 #endif
 
 #ifdef _WIN32
+/**
+ * @brief Win32 window procedure for the Winamp-compatible IPC window (Windows only).
+ *
+ * Handles `WM_COMMAND` (transport controls), `WM_USER` (Winamp IPC queries
+ * and KVIrc metadata transfer), and forwards all other messages to
+ * `DefWindowProc`.
+ *
+ * @param hWnd  Handle to the IPC window.
+ * @param uMsg  Windows message identifier.
+ * @param wParam Message-specific parameter.
+ * @param lParam Message-specific parameter.
+ * @return Message-specific return value.
+ */
 LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
                                     LPARAM lParam) {
   // On first creation, store the Player pointer passed in CreateWindowEx
@@ -326,11 +361,19 @@ LRESULT CALLBACK System::ipcWndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
 }
 #endif
 
+/**
+ * @brief Initialises the Windows Taskbar progress overlay (Windows only).
+ *
+ * Attempts to create an `ITaskbarList3` COM object. If successful, calls
+ * `HrInit()` to initialise it. Does nothing if `WIN_OPTIONAL` is not defined.
+ */
 void System::InitializeTaskbar() {
 #if defined(_WIN32) && defined(WIN_OPTIONAL)
   HRESULT hr =
       CoCreateInstance(CLSID_TaskbarList, nullptr, CLSCTX_INPROC_SERVER,
-                       IID_ITaskbarList3, (void **)&m_taskbar);
+                       IID_ITaskbarList3, reinterpret_cast<void **>(&m_taskbar));
+
+
 
   if (SUCCEEDED(hr)) {
     std::cout << "ITaskbarList3 COM object: " << std::hex << m_taskbar
@@ -347,6 +390,13 @@ void System::InitializeTaskbar() {
 #endif
 }
 
+/**
+ * @brief Returns the current OS username.
+ *
+ * On Windows uses `GetUserNameW`; on POSIX reads the `USER` environment variable.
+ *
+ * @return Username as a `TagLib::String`.
+ */
 TagLib::String System::getUser() {
 #ifdef _WIN32
   WCHAR user[48];
@@ -373,6 +423,15 @@ TagLib::String System::getUser() {
  * break binary compatibility with anything earlier than Vista.
  */
 
+/**
+ * @brief Returns the current user's home directory path.
+ *
+ * On Windows, tries (in order): the `HOME` env var, `USERPROFILE`, a
+ * registry query for the "My Documents" path, and finally falls back to
+ * `C:\My Documents`. On POSIX, reads the `HOME` environment variable.
+ *
+ * @return Home directory path as a `TagLib::String`.
+ */
 TagLib::String System::getHome() {
 #ifdef _WIN32
   WCHAR env_buffer[1024];
@@ -392,7 +451,7 @@ TagLib::String System::getHome() {
                     L"hell Folders",
                     0, KEY_READ, &hKey) == ERROR_SUCCESS) {
     DWORD buffer_size = sizeof(env_buffer);
-    if (RegQueryValueExW(hKey, L"Personal", NULL, NULL, (LPBYTE)env_buffer,
+    if (RegQueryValueExW(hKey, L"Personal", nullptr, nullptr, (LPBYTE)env_buffer,
                          &buffer_size) == ERROR_SUCCESS) {
       RegCloseKey(hKey);
       return TagLib::String(env_buffer);
@@ -411,6 +470,14 @@ TagLib::String System::getHome() {
  * environment variable on Unix.
  */
 
+/**
+ * @brief Returns the path where PsyMP3 stores its configuration and data.
+ *
+ * On Windows: `%%APPDATA%%\PsyMP3`. On POSIX: `$XDG_CONFIG_HOME/psymp3`
+ * (or `~/.config/psymp3` if `XDG_CONFIG_HOME` is unset).
+ *
+ * @return Storage path as a `TagLib::String`.
+ */
 TagLib::String System::getStoragePath() {
 #ifdef _WIN32
   TagLib::String spath;
@@ -434,11 +501,19 @@ TagLib::String System::getStoragePath() {
  * not already exist.
  */
 
+/**
+ * @brief Creates the storage path directory if it does not already exist.
+ *
+ * Uses `CreateDirectoryW` on Windows and `mkdir` on POSIX. Returns `true`
+ * both on successful creation and when the directory already exists.
+ *
+ * @return `true` if the directory exists or was created, `false` on other errors.
+ */
 bool System::createStoragePath() {
   TagLib::String path = getStoragePath();
 #ifdef _WIN32
   // CreateDirectoryW returns non-zero on success.
-  return CreateDirectoryW(path.toWString().c_str(), NULL) ||
+  return CreateDirectoryW(path.toWString().c_str(), nullptr) ||
          (GetLastError() == ERROR_ALREADY_EXISTS);
 #else
   // mkdir returns 0 on success.
@@ -447,6 +522,10 @@ bool System::createStoragePath() {
 }
 
 #ifdef _WIN32
+/**
+ * @brief Returns the Win32 `HWND` of the SDL application window (Windows only).
+ * @return The window handle, or 0 if it cannot be retrieved.
+ */
 HWND System::getHwnd() {
   SDL_SysWMinfo wmi;
   SDL_VERSION(&wmi.version);
@@ -457,6 +536,11 @@ HWND System::getHwnd() {
   return wmi.window;
 }
 
+/**
+ * @brief Updates the Windows taskbar progress bar value (Windows only).
+ * @param now Current progress value.
+ * @param max Maximum progress value.
+ */
 void System::updateProgress(ULONGLONG now, ULONGLONG max) {
   if (m_taskbar)
     m_taskbar->SetProgressValue(getHwnd(), now, max);
@@ -464,6 +548,10 @@ void System::updateProgress(ULONGLONG now, ULONGLONG max) {
     std::cerr << "System::updateProgress(): No ITaskbarList3 OLE interface!"
               << std::endl;
 }
+/**
+ * @brief Sets the Windows taskbar button progress indicator state (Windows only).
+ * @param status One of the `TBPFLAG` values (e.g., `TBPF_NORMAL`, `TBPF_INDETERMINATE`).
+ */
 void System::progressState(TBPFLAG status) {
   std::cout << "System::updateProgress(): Called." << std::endl;
   if (m_taskbar)
@@ -475,7 +563,17 @@ void System::progressState(TBPFLAG status) {
 
 #endif
 
-void System::setThisThreadName(const std::string &name) {
+/**
+ * @brief Sets the OS-level name of the calling thread.
+ *
+ * On Linux, uses `prctl(PR_SET_NAME)`; on FreeBSD, `pthread_set_name_np()`;
+ * on Windows 10+, `SetThreadDescription` (loaded dynamically for compatibility),
+ * with an MSVC debugger fallback. Names are truncated to 15 characters on
+ * Linux and FreeBSD. No-op on unrecognised platforms.
+ *
+ * @param name Desired thread name (UTF-8).
+ */
+void System::setThisThreadName([[maybe_unused]] const std::string &name) {
 #if defined(__linux__)
   // Linux limits thread names to 16 bytes (including null terminator).
   std::string truncated_name = name.substr(0, 15);
@@ -488,15 +586,15 @@ void System::setThisThreadName(const std::string &name) {
   // The SetThreadDescription API is available on Windows 10 1607+
   // We dynamically load it to maintain compatibility with older systems.
   using SetThreadDescription_t = HRESULT(WINAPI *)(HANDLE, PCWSTR);
-  auto pSetThreadDescription = (SetThreadDescription_t)GetProcAddress(
-      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription");
+  auto pSetThreadDescription = reinterpret_cast<SetThreadDescription_t>(GetProcAddress(
+      GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"));
 
   if (pSetThreadDescription) {
     // Convert std::string (UTF-8) to std::wstring (UTF-16) for the Unicode API
     int size_needed =
-        MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), NULL, 0);
+        MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), nullptr, 0);
     std::wstring wname(size_needed, 0);
-    MultiByteToWideChar(CP_UTF8, 0, &name[0], (int)name.size(), &wname[0],
+    MultiByteToWideChar(CP_UTF8, 0, &name[0], static_cast<int>(name.size()), &wname[0],
                         size_needed);
 
     pSetThreadDescription(GetCurrentThread(), wname.c_str());
@@ -519,7 +617,6 @@ void System::setThisThreadName(const std::string &name) {
   }
 #else
   // No-op for other platforms.
-  (void)name;
 #endif
 }
 
@@ -528,38 +625,47 @@ void System::setThisThreadName(const std::string &name) {
 // standard library std::to_string in the single compilation unit.
 #ifndef FINAL_BUILD
 namespace std {
+/// @brief `std::to_string` overload returning a `TagLib::String` for `int`.
 TagLib::String to_string(int value) { return TagLib::String::number(value); }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `long`.
 TagLib::String to_string(long value) { return TagLib::String::number(value); }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `long long`.
 TagLib::String to_string(long long value) {
   return TagLib::String::number(static_cast<long>(value));
 }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `unsigned`.
 TagLib::String to_string(unsigned value) {
   return TagLib::String::number(static_cast<int>(value));
 }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `unsigned long`.
 TagLib::String to_string(unsigned long value) {
   return TagLib::String::number(static_cast<long>(value));
 }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `unsigned long long`.
 TagLib::String to_string(unsigned long long value) {
   return TagLib::String::number(static_cast<long>(value));
 }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `float`.
 TagLib::String to_string(float value) {
   std::ostringstream oss;
   oss << value;
   return TagLib::String(oss.str());
 }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `double`.
 TagLib::String to_string(double value) {
   std::ostringstream oss;
   oss << value;
   return TagLib::String(oss.str());
 }
 
+/// @brief `std::to_string` overload returning a `TagLib::String` for `long double`.
 TagLib::String to_string(long double value) {
   std::ostringstream oss;
   oss << value;

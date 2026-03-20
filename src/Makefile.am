@@ -30,7 +30,7 @@ datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories - only built in regular mode (final build includes all sources directly)
 if !FINAL_BUILD
-SUBDIRS = codecs lastfm mpris util io demuxer widget
+SUBDIRS = codecs lastfm mpris util io demuxer widget core
 endif
 
 # Include path for psymp3.h and other headers
@@ -55,6 +55,10 @@ if HAVE_OPUS
 AM_CPPFLAGS += $(OPUS_CFLAGS)
 endif
 
+if HAVE_SPEEX
+AM_CPPFLAGS += $(SPEEX_CFLAGS)
+endif
+
 if HAVE_OGG
 AM_CPPFLAGS += $(OGG_CFLAGS)
 endif
@@ -68,28 +72,28 @@ CODEC_LIBS =
 DEMUXER_LIBS =
 
 if HAVE_FLAC
-DEMUXER_LIBS += demuxer/flac/libflacdemuxer.a
+DEMUXER_LIBS += demuxer/flac/libpsymp3-demuxer-flac.a
 if HAVE_NATIVE_FLAC
-CODEC_LIBS += codecs/flac/libnativeflac.a
+CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
 else
-CODEC_LIBS += codecs/flac/libflaccodec.a
+CODEC_LIBS += codecs/flac/libpsymp3-codec-flac.a
 endif
 endif
 
 if HAVE_MP3
-CODEC_LIBS += codecs/mp3/libmp3codec.a
+CODEC_LIBS += codecs/mp3/libpsymp3-codec-mp3.a
 endif
 
 if HAVE_VORBIS
-CODEC_LIBS += codecs/vorbis/libvorbiscodec.a
+CODEC_LIBS += codecs/vorbis/libpsymp3-codec-vorbis.a
 endif
 
 if HAVE_OPUS
-CODEC_LIBS += codecs/opus/libopuscodec.a
+CODEC_LIBS += codecs/opus/libpsymp3-codec-opus.a
 endif
 
 if HAVE_OGGDEMUXER
-DEMUXER_LIBS += demuxer/ogg/liboggdemuxer.a
+DEMUXER_LIBS += demuxer/ogg/libpsymp3-demuxer-ogg.a
 endif
 
 bin_PROGRAMS = psymp3
@@ -109,41 +113,42 @@ psymp3_LDADD = \
 else
 # Regular build mode - individual source files
 psymp3_SOURCES = \
- about.cpp audio.cpp \
+ audio.cpp \
  debug.cpp display.cpp \
- exceptions.cpp fft.cpp fft_draw.cpp \
  font.cpp \
- lyrics.cpp \
  main.cpp mediafile.cpp \
- persistentstorage.cpp player.cpp playlist.cpp \
- rect.cpp \
- song.cpp stream.cpp surface.cpp \
+ player.cpp playlist.cpp \
+ stream.cpp surface.cpp \
  system.cpp \
- track.cpp truetype.cpp utility.cpp
+ track.cpp truetype.cpp
 
 # Link static libraries from subdirectories FIRST (regular build only)
 # Order matters: our convenience libraries must come BEFORE system libraries
 # that they depend on (GNU ld resolves symbols left-to-right)
 psymp3_LDADD = \
-	widget/ui/libwidgetui.a \
-	widget/windowing/libwidgetwindowing.a \
-	widget/foundation/libwidgetfoundation.a \
-	demuxer/libdemuxer.a \
-	io/http/libhttpio.a \
-	io/file/libfileio.a \
-	io/libio.a \
-	lastfm/liblastfm.a \
-	mpris/libmpris.a \
+	widget/ui/libpsymp3-widget-ui.a \
+	widget/windowing/libpsymp3-widget-windowing.a \
+	widget/foundation/libpsymp3-widget-foundation.a \
+	demuxer/libpsymp3-demuxer.a \
+	codecs/libpsymp3-codecs.a \
+	codecs/pcm/libpsymp3-codec-pcm.a \
+	lastfm/libpsymp3-lastfm.a \
+	mpris/libpsymp3-mpris.a \
 	util/libutil.a \
-	codecs/libcodecs.a \
 	$(CODEC_LIBS) \
+	demuxer/libpsymp3-demuxer.a \
 	$(DEMUXER_LIBS) \
-	demuxer/iso/libisodemuxer.a \
-	demuxer/riff/libriffdemuxer.a \
-	demuxer/raw/librawdemuxer.a \
-	demuxer/libdemuxer.a \
-	codecs/pcm/libpcmcodecs.a \
-	codecs/libcodecs.a
+	demuxer/iso/libpsymp3-demuxer-iso.a \
+	demuxer/riff/libpsymp3-demuxer-riff.a \
+	demuxer/raw/libpsymp3-demuxer-raw.a \
+	io/http/libpsymp3-io-http.a \
+	io/file/libpsymp3-io-file.a \
+	io/libpsymp3-io.a \
+	tag/libpsymp3-tag.a \
+	core/libpsymp3-core.a \
+	util/libpsymp3-util.a \
+	core/compression/libpsymp3-core-compression.a \
+	core/utility/libpsymp3-core-utility.a
 endif
 
 # System libraries (must come AFTER our convenience libraries)
@@ -172,6 +177,10 @@ endif
 
 if HAVE_OPUS
 psymp3_LDADD += $(OPUS_LIBS)
+endif
+
+if HAVE_SPEEX
+psymp3_LDADD += $(SPEEX_LIBS)
 endif
 
 if HAVE_OGG

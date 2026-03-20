@@ -33,7 +33,7 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libflacdemuxer.a
+noinst_LIBRARIES = libpsymp3-demuxer-flac.a
 
-libflacdemuxer_a_SOURCES = \
+libpsymp3_demuxer_flac_a_SOURCES = \
 	FLACDemuxer.cpp

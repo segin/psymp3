@@ -21,6 +21,7 @@
 // Forward declarations for D-Bus types
 struct DBusConnection;
 struct DBusMessage;
+struct DBusMessageIter;
 
 namespace PsyMP3 {
 namespace MPRIS {
@@ -368,6 +369,9 @@ enum class LoopStatus {
     Playlist
 };
 
+struct DBusVariant;
+using DBusDictionary = std::map<std::string, DBusVariant>;
+
 // DBus variant type for property values
 struct DBusVariant {
     enum Type { 
@@ -376,10 +380,11 @@ struct DBusVariant {
         Int64 = 2, 
         UInt64 = 3, 
         Double = 4, 
-        Boolean = 5 
+        Boolean = 5,
+        Dictionary = 6
     } type;
     
-    std::variant<std::string, std::vector<std::string>, int64_t, uint64_t, double, bool> value;
+    std::variant<std::string, std::vector<std::string>, int64_t, uint64_t, double, bool, std::shared_ptr<DBusDictionary>> value;
     
     // Default constructor
     DBusVariant() : type(String), value(std::string{}) {}
@@ -391,6 +396,7 @@ struct DBusVariant {
     explicit DBusVariant(uint64_t u) : type(UInt64), value(u) {}
     explicit DBusVariant(double d) : type(Double), value(d) {}
     explicit DBusVariant(bool b) : type(Boolean), value(b) {}
+    explicit DBusVariant(const DBusDictionary& dict) : type(Dictionary), value(std::make_shared<DBusDictionary>(dict)) {}
     
     // Type-safe getters
     template<typename T>
@@ -526,6 +532,11 @@ PlaybackStatus stringToPlaybackStatus(const std::string& str);
 
 std::string loopStatusToString(LoopStatus status);
 LoopStatus stringToLoopStatus(const std::string& str);
+
+#ifdef HAVE_DBUS
+// Append a DBusVariant to a DBusMessageIter recursively
+void appendVariantToDBusIter(struct DBusMessageIter* iter, const DBusVariant& variant);
+#endif
 
 } // namespace MPRIS
 } // namespace PsyMP3

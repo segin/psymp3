@@ -1,13 +1,16 @@
 /*
  * ISODemuxerComplianceValidator.cpp - ISO compliance validation implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
 #include "psymp3.h"
+#include <algorithm>
+#include <iterator>
+
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
@@ -354,7 +357,7 @@ bool ComplianceValidator::ValidateSampleDistribution(const SampleTableInfo& samp
 
 bool ComplianceValidator::ValidateContainerFormat(const std::string& brand) {
     // Validate known container brands
-    const std::vector<std::string> validBrands = {
+    static const std::vector<std::string> validBrands = {
         "isom", "mp41", "mp42", "M4A ", "M4V ", "qt  ", 
         "3gp4", "3gp5", "3gp6", "3g2a"
     };
@@ -381,7 +384,7 @@ bool ComplianceValidator::IsValidBoxType(uint32_t boxType) {
 }
 
 bool ComplianceValidator::IsContainerBox(uint32_t boxType) {
-    const std::vector<uint32_t> containerBoxes = {
+    static const std::vector<uint32_t> containerBoxes = {
         BOX_MOOV, BOX_TRAK, BOX_MDIA, BOX_MINF, BOX_STBL, BOX_UDTA, BOX_META
     };
     
@@ -444,7 +447,7 @@ bool ComplianceValidator::ValidateSampleRate(uint32_t sampleRate, const std::str
     // Codec-specific sample rate validation
     if (codecType == "aac") {
         // AAC supports a wide range of sample rates
-        const std::vector<uint32_t> validRates = {
+        static const std::vector<uint32_t> validRates = {
             8000, 11025, 12000, 16000, 22050, 24000, 
             32000, 44100, 48000, 64000, 88200, 96000
         };
@@ -475,7 +478,7 @@ bool ComplianceValidator::ValidateBitsPerSample(uint16_t bits, const std::string
     }
     
     // Common bit depths
-    const std::vector<uint16_t> validBits = {8, 16, 24, 32};
+    static const std::vector<uint16_t> validBits = {8, 16, 24, 32};
     return std::find(validBits.begin(), validBits.end(), bits) != validBits.end();
 }
 
@@ -486,22 +489,30 @@ ComplianceValidationResult ComplianceValidator::GetComplianceReport() const {
 }
 
 bool ComplianceValidator::ValidateBoxNesting(uint32_t parentType, uint32_t childType) {
-    // Define valid parent-child relationships
-    const std::map<uint32_t, std::vector<uint32_t>> validNesting = {
-        {BOX_MOOV, {BOX_MVHD, BOX_TRAK, BOX_UDTA, BOX_META, BOX_IODS}},
-        {BOX_TRAK, {BOX_TKHD, BOX_TREF, BOX_EDTS, BOX_MDIA}},
-        {BOX_MDIA, {BOX_MDHD, BOX_HDLR, BOX_MINF}},
-        {BOX_MINF, {BOX_VMHD, BOX_SMHD, BOX_HMHD, BOX_NMHD, BOX_DINF, BOX_STBL}},
-        {BOX_STBL, {BOX_STSD, BOX_STTS, BOX_CTTS, BOX_STSC, BOX_STSZ, BOX_STZ2, BOX_STCO, BOX_CO64, BOX_STSS}}
-    };
-    
-    auto it = validNesting.find(parentType);
-    if (it == validNesting.end()) {
-        return true; // Unknown parent, allow for extensibility
+    switch (parentType) {
+        case BOX_MOOV: {
+            static const uint32_t children[] = {BOX_MVHD, BOX_TRAK, BOX_UDTA, BOX_META, BOX_IODS};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_TRAK: {
+            static const uint32_t children[] = {BOX_TKHD, BOX_TREF, BOX_EDTS, BOX_MDIA};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_MDIA: {
+            static const uint32_t children[] = {BOX_MDHD, BOX_HDLR, BOX_MINF};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_MINF: {
+            static const uint32_t children[] = {BOX_VMHD, BOX_SMHD, BOX_HMHD, BOX_NMHD, BOX_DINF, BOX_STBL};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        case BOX_STBL: {
+            static const uint32_t children[] = {BOX_STSD, BOX_STTS, BOX_CTTS, BOX_STSC, BOX_STSZ, BOX_STZ2, BOX_STCO, BOX_CO64, BOX_STSS};
+            return std::find(std::begin(children), std::end(children), childType) != std::end(children);
+        }
+        default:
+            return true; // Unknown parent, allow for extensibility
     }
-    
-    const auto& validChildren = it->second;
-    return std::find(validChildren.begin(), validChildren.end(), childType) != validChildren.end();
 }
 
 std::string ComplianceValidator::BoxTypeToString(uint32_t boxType) {

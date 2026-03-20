@@ -1,7 +1,7 @@
 /*
  * truetype.cpp - FreeType2 TrueType font initialization
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -11,6 +11,12 @@
 
 FT_Library TrueType::m_library;
 
+/**
+ * @brief Initialises the global FreeType library instance.
+ *
+ * Must be called once before any `Font` objects are created. Throws
+ * `std::runtime_error` if FreeType initialisation fails.
+ */
 void TrueType::Init() {
   Debug::log("font", "TrueType::Init() called.");
   FT_Error error = FT_Init_FreeType(&m_library);
@@ -23,12 +29,25 @@ void TrueType::Init() {
   Debug::log("font", "TrueType::Init() successful.");
 }
 
+/**
+ * @brief Shuts down the global FreeType library instance, releasing all resources.
+ *
+ * Should only be called after all `Font` objects have been destroyed.
+ */
 void TrueType::Done() { FT_Done_FreeType(m_library); }
 
-// RAII wrapper for TrueType initialization and cleanup.
+/**
+ * @brief RAII wrapper that manages the lifetime of the global FreeType library.
+ *
+ * Its constructor calls `TrueType::Init()` and its destructor calls
+ * `TrueType::Done()`, ensuring the library is initialised before any use
+ * and cleaned up on process exit.
+ */
 class TrueTypeLifecycleManager {
 public:
+  /** @brief Initialises FreeType by calling `TrueType::Init()`. */
   TrueTypeLifecycleManager() { TrueType::Init(); }
+  /** @brief Shuts down FreeType by calling `TrueType::Done()`. */
   ~TrueTypeLifecycleManager() { TrueType::Done(); }
 };
 

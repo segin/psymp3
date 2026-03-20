@@ -39,6 +39,7 @@
 // ============================================================================
 // Utility
 // ============================================================================
+#include "core/utility/UTF8Util.cpp"
 #include "core/utility/XMLUtil.cpp"
 #include "core/utility/utility.cpp"
 
@@ -208,7 +209,6 @@
 #include "widget/ui/ProgressBarBracketWidget.cpp"
 #include "widget/ui/ProgressBarFrameWidget.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
-#include "widget/ui/ToastNotification.cpp"
 #include "widget/ui/ToastWidget.cpp"
 
 // ============================================================================
@@ -216,6 +216,12 @@
 // ============================================================================
 #include "tag/Tag.cpp"
 #include "tag/NullTag.cpp"
+#include "tag/VorbisCommentTag.cpp"
+#include "tag/ID3v1Tag.cpp"
+#include "tag/ID3v2Utils.cpp"
+#include "tag/ID3v2Tag.cpp"
+#include "tag/MergedID3Tag.cpp"
+#include "tag/TagFactory.cpp"
 
 // ============================================================================
 // Last.fm Scrobbling

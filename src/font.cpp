@@ -1,7 +1,7 @@
 /*
  * font.cpp - wrapper for SDL_ttf's TTF_Font type, class implementation.
  * This file is part of PsyMP3.
- * Copyright © 2011-2020 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -25,6 +25,15 @@
 
 #include "psymp3.h"
 
+/**
+ * @brief Constructs a Font object by loading a TrueType or OpenType font face.
+ *
+ * Opens the font file at the specified path using the FreeType library and sets
+ * the requested pixel size. Throws `std::runtime_error` if the font cannot be loaded.
+ *
+ * @param file The filesystem path to the font file.
+ * @param ptsize The desired glyph pixel height.
+ */
 Font::Font(const TagLib::String& file, int ptsize)
 {
     Debug::log("font", "Font constructor called for file: ", file.to8Bit(true), ", ptsize: ", ptsize);
@@ -37,12 +46,29 @@ Font::Font(const TagLib::String& file, int ptsize)
     Debug::log("font", "FT_Set_Pixel_Sizes successful.");
 }
 
+/**
+ * @brief Destroys the Font object and releases the underlying FreeType face.
+ */
 Font::~Font()
 {
     Debug::log("font", "Font destructor called.");
     FT_Done_Face(m_face);
 }
 
+/**
+ * @brief Renders a UTF-8 text string into a new Surface using FreeType.
+ *
+ * Performs a two-pass rendering: the first pass measures the total advance
+ * width of all glyphs; the second pass draws each glyph bitmap into an
+ * RGBA surface. The resulting surface uses alpha blending and the supplied
+ * RGB colour as the text colour.
+ *
+ * @param text The text string to render.
+ * @param r    Red component of the text colour (0–255).
+ * @param g    Green component of the text colour (0–255).
+ * @param b    Blue component of the text colour (0–255).
+ * @return A new Surface containing the rendered text, or `nullptr` on failure.
+ */
 std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uint8_t g, uint8_t b)
 {
     if (!m_face) {
@@ -107,6 +133,10 @@ std::unique_ptr<Surface> Font::Render(const TagLib::String& text, uint8_t r, uin
     return sfc;
 }
 
+/**
+ * @brief Returns whether the Font was loaded successfully.
+ * @return `true` if the underlying FreeType face is valid, `false` otherwise.
+ */
 bool Font::isValid()
 {
     return m_face != nullptr;

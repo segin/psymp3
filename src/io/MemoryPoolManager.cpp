@@ -1,7 +1,7 @@
 /*
  * MemoryPoolManager.cpp - Memory pool management for I/O operations
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -132,8 +132,8 @@ uint8_t* MemoryPoolManager::allocateBuffer_unlocked(size_t size, const std::stri
     auto& usage = m_component_usage[component_name];
     usage.allocations++;
     
-    // Try to find a suitable pool
-    auto pool_it = findBestPool(size);
+    // Try to find a suitable pool - only if we should pool this size
+    auto pool_it = shouldPool(size) ? findBestPool(size) : m_pools.end();
     if (pool_it != m_pools.end()) {
         auto& pool = pool_it->second;
         
@@ -502,6 +502,10 @@ void MemoryPoolManager::createPool(size_t size, size_t max_buffers, size_t pre_a
     // Pre-allocate buffers
     pre_allocate = std::min(pre_allocate, max_buffers);
     
+    if (pre_allocate > 0) {
+        pool.free_buffers.reserve(pool.free_buffers.size() + pre_allocate);
+    }
+
     for (size_t i = 0; i < pre_allocate; i++) {
         try {
             uint8_t* buffer = new uint8_t[size];
@@ -660,12 +664,7 @@ bool MemoryPoolManager::shouldPool(size_t size) const {
         }
     }
     
-    // Under high memory pressure, be more selective
-    if (m_memory_pressure_level > 70 && size > 64 * 1024) {
-        return false;
-    }
-    
-    return true;
+    return false;
 }
 
 size_t MemoryPoolManager::getMaxBuffersPerPool() const {

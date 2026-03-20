@@ -19,10 +19,20 @@ public:
     bool parseHeader(ogg_packet* packet) override;
     bool isHeadersComplete() const override;
     CodecInfo getCodecInfo() const override;
+    OggVorbisComment getVorbisComment() const override;
 
 private:
     int m_headers_count;
     CodecInfo m_info;
+    OggVorbisComment m_comment;
+    
+    /**
+     * @brief Parse VorbisComment data from OpusTags header packet
+     * @param data Pointer to comment data (after "OpusTags" signature)
+     * @param size Size of comment data
+     * @return true if parsed successfully
+     */
+    bool parseOpusTags(const unsigned char* data, size_t size);
 };
 
 } // namespace Ogg

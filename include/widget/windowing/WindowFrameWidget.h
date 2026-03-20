@@ -26,6 +26,8 @@
 
 // No direct includes - all includes should be in psymp3.h
 
+class Font;
+
 namespace PsyMP3 {
 namespace Widget {
 namespace Windowing {
@@ -43,8 +45,9 @@ public:
      * @param client_width Width of the client area
      * @param client_height Height of the client area
      * @param title Window title displayed in the titlebar
+     * @param font Font used for the titlebar text
      */
-    WindowFrameWidget(int client_width, int client_height, const std::string& title = "");
+    WindowFrameWidget(int client_width, int client_height, const std::string& title = "", Font* font = nullptr);
     
     /**
      * @brief Sets whether the window is resizable.
@@ -82,7 +85,7 @@ public:
     /**
      * @brief Virtual destructor.
      */
-    virtual ~WindowFrameWidget() = default;
+    virtual ~WindowFrameWidget();
     
     /**
      * @brief Handles mouse button down events.
@@ -241,6 +244,7 @@ private:
     static constexpr int TRIANGLE_SIZE = 3;
     
     std::string m_title;
+    Font* m_font;
     int m_client_width;
     int m_client_height;
     
@@ -250,6 +254,11 @@ private:
     // Z-order for window layering
     int m_z_order;
     static int s_next_z_order;
+    static int s_instance_count;
+    static SDL_Cursor* s_cursor_nwse;
+    static SDL_Cursor* s_cursor_nesw;
+    static SDL_Cursor* s_cursor_ew;
+    static SDL_Cursor* s_cursor_ns;
     
     // Drag state
     bool m_is_dragging;

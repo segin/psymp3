@@ -20,14 +20,16 @@
 
 // Local struct definitions for testing purposes
 // These mirror the internal structures used by OggDemuxer
-struct OggPacket {
+// Local struct definitions for testing purposes
+// These mirror the internal structures used by OggDemuxer
+struct TestOggPacket {
     uint32_t stream_id = 0;
     std::vector<uint8_t> data;
     int64_t granule_position = 0;
     bool is_first_packet = false;
 };
 
-struct OggStream {
+struct TestOggStream {
     uint32_t serial_number = 0;
     std::string codec_name;
     std::string codec_type;
@@ -38,7 +40,7 @@ struct OggStream {
     std::string artist;
     std::string title;
     std::string album;
-    std::vector<OggPacket> header_packets;
+    std::vector<TestOggPacket> header_packets;
     bool headers_complete = false;
 };
 

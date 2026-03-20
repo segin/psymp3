@@ -27,8 +27,10 @@ public:
     std::map<std::string, std::string> ExtractMetadata(std::shared_ptr<IOHandler> io, uint64_t udtaOffset, uint64_t size);
     
 private:
-    bool ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
-    bool ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
+    static constexpr int MAX_RECURSION_DEPTH = 32;
+
+    bool ParseUdtaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata, int depth = 0);
+    bool ParseMetaBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata, int depth = 0);
     bool ParseIlstBox(std::shared_ptr<IOHandler> io, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
     bool ParseiTunesMetadataAtom(std::shared_ptr<IOHandler> io, uint32_t atomType, uint64_t offset, uint64_t size, std::map<std::string, std::string>& metadata);
     

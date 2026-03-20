@@ -1,7 +1,7 @@
 /*
  * audio.cpp - Audio class implementation
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -36,6 +36,7 @@ Audio::Audio(std::unique_ptr<Stream> stream_to_own, FastFourier *fft, std::mutex
       m_current_stream_raw_ptr(m_owned_stream.get()),
       m_fft(fft),
       m_player_mutex(player_mutex),
+      m_volume(1.0f),
       m_playing(false)
 {
     if (!m_owned_stream) {
@@ -94,7 +95,7 @@ void Audio::setup() {
         // throw;
     } else {
         // Log what SDL actually gave us
-        Debug::log("audio", "Audio::setup: Obtained format - rate: ", obtained.freq, "Hz, channels: ", (int)obtained.channels, 
+        Debug::log("audio", "Audio::setup: Obtained format - rate: ", obtained.freq, "Hz, channels: ", static_cast<int>(obtained.channels),
                   ", format: ", (obtained.format == AUDIO_S16 ? "AUDIO_S16" : "OTHER"), ", samples: ", obtained.samples);
         
         // Check for format mismatch
@@ -102,7 +103,7 @@ void Audio::setup() {
             Debug::log("audio", "WARNING: Sample rate mismatch! Requested ", desired.freq, "Hz but got ", obtained.freq, "Hz");
         }
         if (obtained.channels != desired.channels) {
-            Debug::log("audio", "WARNING: Channel count mismatch! Requested ", (int)desired.channels, " but got ", (int)obtained.channels);
+            Debug::log("audio", "WARNING: Channel count mismatch! Requested ", static_cast<int>(desired.channels), " but got ", static_cast<int>(obtained.channels));
         }
         if (obtained.format != desired.format) {
             Debug::log("audio", "WARNING: Audio format mismatch! Requested AUDIO_S16 but got format ", obtained.format);
@@ -174,19 +175,42 @@ void Audio::unlock(void) {
     SDL_UnlockAudio();
 }
 
+/**
+ * @brief Clears the decoded audio buffer and resets the samples-played counter.
+ *
+ * Thread-safe; acquires `m_buffer_mutex` internally.
+ */
 void Audio::resetBuffer() {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     resetBuffer_unlocked();
 }
 
+/**
+ * @brief Returns the total number of audio frames decoded and consumed by SDL since the last reset.
+ * @return Sample frame count (one frame = all channels together).
+ */
 uint64_t Audio::getSamplesPlayed() const {
     return m_samples_played.load();
 }
 
+/**
+ * @brief Overrides the samples-played counter to a specific value.
+ *
+ * Typically called after a seek to update the position accurately.
+ *
+ * @param samples The new sample frame count.
+ */
 void Audio::setSamplesPlayed(uint64_t samples) {
     m_samples_played.store(samples);
 }
 
+/**
+ * @brief Returns the estimated audio latency due to the decoded samples held in the buffer.
+ *
+ * Thread-safe; acquires `m_buffer_mutex` internally.
+ *
+ * @return Latency in milliseconds, or 0 if the sample rate is unknown.
+ */
 uint64_t Audio::getBufferLatencyMs() const {
     std::lock_guard<std::mutex> lock(m_buffer_mutex);
     return getBufferLatencyMs_unlocked();
@@ -390,9 +414,42 @@ void Audio::callback(void *userdata, Uint8 *buf, int len) {
     // Perform FFT on the data we are sending to the sound card
     if (bytes_copied > 0) { // FIXED: Always compute FFT, regardless of GUI state
         std::lock_guard<std::mutex> lock(*self->m_player_mutex);
-        toFloat(self->m_channels, (int16_t *)buf, self->m_fft->getTimeDom());
+        toFloat(self->m_channels, reinterpret_cast<int16_t*>(buf), self->m_fft->getTimeDom());
         self->m_fft->doFFT();
     }
+
+    // Apply volume scaling
+    float volume = self->m_volume.load();
+    if (bytes_copied > 0 && volume < 1.0f) {
+        int16_t* samples = reinterpret_cast<int16_t*>(buf);
+        size_t count = bytes_copied / sizeof(int16_t);
+        for (size_t i = 0; i < count; ++i) {
+            samples[i] = static_cast<int16_t>(samples[i] * volume);
+        }
+    }
+}
+
+/**
+ * @brief Sets the software playback volume.
+ *
+ * The value is clamped to the range [0.0, 1.0]. The SDL audio callback applies
+ * this as a linear amplitude multiplier to each sample before outputting to
+ * the sound card.
+ *
+ * @param volume Desired volume in the range [0.0 (mute), 1.0 (full volume)].
+ */
+void Audio::setVolume(float volume) {
+    if (volume < 0.0f) volume = 0.0f;
+    if (volume > 1.0f) volume = 1.0f;
+    m_volume.store(volume);
+}
+
+/**
+ * @brief Returns the current software playback volume.
+ * @return Volume in the range [0.0, 1.0].
+ */
+float Audio::getVolume() const {
+    return m_volume.load();
 }
 
 /**

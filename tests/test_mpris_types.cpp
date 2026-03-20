@@ -282,6 +282,40 @@ bool test_metadata_partial_data() {
     return true;
 }
 
+// Test DBusVariant with dictionary (nested)
+bool test_dbus_variant_dictionary() {
+    std::cout << "Testing DBusVariant dictionary..." << std::endl;
+
+    DBusDictionary dict;
+    dict["title"] = DBusVariant(std::string("Test Title"));
+    dict["artist"] = DBusVariant(std::vector<std::string>{"Artist 1", "Artist 2"});
+    dict["year"] = DBusVariant(static_cast<int64_t>(2025));
+
+    DBusVariant var{dict};
+    ASSERT_EQ(DBusVariant::Dictionary, var.type);
+
+    auto retrieved_ptr = var.get<std::shared_ptr<DBusDictionary>>();
+    ASSERT_TRUE(retrieved_ptr != nullptr);
+    ASSERT_EQ(3u, retrieved_ptr->size());
+    ASSERT_EQ(std::string("Test Title"), (*retrieved_ptr)["title"].get<std::string>());
+
+    // Test toString
+    std::string s = var.toString();
+    ASSERT_TRUE(s.find("\"title\": \"Test Title\"") != std::string::npos);
+    ASSERT_TRUE(s.find("\"year\": 2025") != std::string::npos);
+
+    // Test nesting
+    DBusDictionary outer;
+    outer["Metadata"] = var;
+    DBusVariant outer_var{outer};
+
+    std::string s_outer = outer_var.toString();
+    ASSERT_TRUE(s_outer.find("\"Metadata\": {") != std::string::npos);
+    ASSERT_TRUE(s_outer.find("\"title\": \"Test Title\"") != std::string::npos);
+
+    return true;
+}
+
 // Main test runner
 int main() {
     std::cout << "Running MPRIS Types unit tests..." << std::endl;
@@ -297,6 +331,7 @@ int main() {
     all_passed &= test_result_void();
     all_passed &= test_raii_deleters();
     all_passed &= test_metadata_partial_data();
+    all_passed &= test_dbus_variant_dictionary();
     
     if (all_passed) {
         std::cout << "All MPRIS Types tests PASSED!" << std::endl;

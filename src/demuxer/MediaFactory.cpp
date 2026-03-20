@@ -1,13 +1,14 @@
 /*
  * MediaFactory.cpp - Modern extensible media factory implementation
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
  */
 
 #include "psymp3.h"
+#include "tag/ID3v2Tag.h"
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -809,20 +810,6 @@ std::string MediaFactory::probeOggCodec(const uint8_t* buffer, size_t buffer_siz
     return ""; // No codec detected
 }
 
-// Stub: ID3v2 tag size calculation (TODO: move to shared utility)
-#ifndef FINAL_BUILD
-namespace {
-static size_t calculateID3v2TagSize(const uint8_t* buffer, size_t buffer_size) {
-    if (buffer_size < 10) return 0;
-    if (buffer[0] != 'I' || buffer[1] != 'D' || buffer[2] != '3') return 0;
-    size_t size = ((buffer[6] & 0x7F) << 21) |
-                  ((buffer[7] & 0x7F) << 14) |
-                  ((buffer[8] & 0x7F) << 7) |
-                  (buffer[9] & 0x7F);
-    return 10 + size;
-}
-} // anonymous namespace
-#endif
 
 ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler) {
     ContentInfo info;
@@ -846,11 +833,7 @@ ContentInfo MediaFactory::detectByMagicBytes(std::unique_ptr<IOHandler>& handler
     
     if (bytes_read >= 10 && buffer[0] == 'I' && buffer[1] == 'D' && buffer[2] == '3') {
         has_id3_tag = true;
-#ifdef FINAL_BUILD
-        size_t id3_size = calculateID3v2Size(buffer, bytes_read);
-#else
-        size_t id3_size = calculateID3v2TagSize(buffer, bytes_read);
-#endif
+        size_t id3_size = PsyMP3::Tag::ID3v2Tag::getTagSize(buffer);
         
         if (id3_size > 0) {
             Debug::log("loader", "MediaFactory::detectByMagicBytes found ID3v2 tag, size: ", id3_size);

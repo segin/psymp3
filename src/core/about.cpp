@@ -1,7 +1,7 @@
 /*
  * about.cpp - Print about info to either dialog box or console
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -21,7 +21,9 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#endif // !FINAL_BUILD
 
 namespace PsyMP3 {
 namespace Core {
@@ -29,10 +31,10 @@ namespace Core {
 
 static char _about_message[] = "This is PsyMP3 version " PSYMP3_VERSION ".\n"\
             "\n"
-            "Copyright © 2009-2025 Kirn Gill II <segin2005@gmail.com>\n"
-            "Copyright © 2010-2025 Mattis Michel <sic_zer0@hotmail.com>\n"
+            "Copyright © 2009-2026 Kirn Gill II <segin2005@gmail.com>\n"
+            "Copyright © 2010-2026 Mattis Michel <sic_zer0@hotmail.com>\n"
             "Copyright (c) 2009-2025 Rajesh Rajan <seanawake@gmail.com>\n"
-            "Font \"Droid Sans Fallback\" is Copyright © 2006-2025 Google, Inc.\n"
+            "Font \"Droid Sans Fallback\" is Copyright © 2006-2026 Google, Inc.\n"
             "\n"
             "PsyMP3 is free software. You may redistribute and/or modify it under\n"
             "the terms of the ISC License <https://opensource.org/licenses/ISC>\n"
@@ -83,7 +85,8 @@ void print_help()
     std::cout << "      --debug=CHANNELS    enable debug output for specified channels\n";
     std::cout << "                          (comma-separated list or 'all')\n";
     std::cout << "      --logfile=FILE      write debug output to specified file\n";
-    std::cout << "      --unattended-quit   quit automatically when playback ends\n\n";
+    std::cout << "      --unattended-quit   quit automatically when playback ends\n";
+    std::cout << "      --no-mpris-errors   disable on-screen notifications for MPRIS errors\n\n";
     
     std::cout << "Available debug channels:\n";
     std::cout << "  HTTPIOHandler, audio, chunk, codec, compliance, demux, demuxer,\n";
@@ -116,7 +119,7 @@ void about_windows() {
 #ifdef UNICODE
     // Use modern C++ vector for buffer management instead of malloc/free.
     // First, determine the required buffer size for the wide string.
-    int required_size = MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, NULL, 0);
+    int required_size = MultiByteToWideChar(CP_UTF8, 0, _about_message, -1, nullptr, 0);
     if (required_size > 0) {
         std::vector<wchar_t> wide_buffer(required_size);
         // Now, perform the actual conversion.

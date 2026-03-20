@@ -1,7 +1,7 @@
 /*
  * libmpg123.cpp - Extends the Stream base class to decode MP3s.
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -21,7 +21,9 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#if !defined(FINAL_BUILD) && !defined(UNIT_TESTING)
 #include "psymp3.h"
+#endif
 
 #ifdef HAVE_MP3
 
@@ -65,6 +67,41 @@ Libmpg123::Libmpg123(TagLib::String name) : Stream(name), m_mpg_handle(nullptr)
     }
     mpg123_param(m_mpg_handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0);
     open(name);
+}
+
+Libmpg123::Libmpg123(std::unique_ptr<IOHandler> handler) : Stream(), m_mpg_handle(nullptr)
+{
+    int err = MPG123_OK;
+    m_mpg_handle = mpg123_new(nullptr, &err);
+    if (!m_mpg_handle) {
+        throw std::runtime_error("mpg123_new() failed: " + std::string(mpg123_plain_strerror(err)));
+    }
+    mpg123_param(m_mpg_handle, MPG123_ADD_FLAGS, MPG123_QUIET, 0);
+
+    // Initialize with provided handler
+    m_handler = std::move(handler);
+
+    // Replace the default I/O with our callback-based reader
+    mpg123_replace_reader_handle(m_mpg_handle, read_callback, lseek_callback, cleanup_callback);
+
+    // "Open" the handle
+    int ret = mpg123_open_handle(m_mpg_handle, m_handler.get());
+    if (ret != MPG123_OK) {
+        throw InvalidMediaException("mpg123_open_handle() failed: " + TagLib::String(mpg123_plain_strerror(ret)));
+    }
+
+    // Get format
+    ret = mpg123_getformat(m_mpg_handle, &m_rate, &m_channels, &m_encoding);
+    if (ret != MPG123_OK) {
+        // If we can't get format immediately (empty stream?), that's fine, we might need to feed more data
+        // But mpg123 usually needs enough data to determine format.
+        // For passthrough codec, we might create this only when we have enough data.
+    }
+
+    // Configure format
+    mpg123_format_none(m_mpg_handle);
+    mpg123_format(m_mpg_handle, m_rate, m_channels, MPG123_ENC_SIGNED_16);
+    m_eof = false;
 }
 
 Libmpg123::~Libmpg123()

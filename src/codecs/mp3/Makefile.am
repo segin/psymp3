@@ -33,7 +33,7 @@ if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
 endif
 
-noinst_LIBRARIES = libmp3codec.a
+noinst_LIBRARIES = libpsymp3-codec-mp3.a
 
-libmp3codec_a_SOURCES = \
+libpsymp3_codec_mp3_a_SOURCES = \
 	MP3Codec.cpp

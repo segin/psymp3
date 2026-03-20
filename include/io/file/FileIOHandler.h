@@ -151,7 +151,7 @@ private:
     bool m_sequential_access = false;       // Detected sequential access pattern
     
     // Seeking optimization
-    off_t m_cached_file_size = -1;          // Cached file size to avoid repeated fstat calls
+    std::atomic<off_t> m_cached_file_size{-1};          // Cached file size to avoid repeated fstat calls
     
     // Error handling and recovery
     int m_retry_count = 0;                  // Current retry count for operations
@@ -163,6 +163,7 @@ private:
     // Permission and access validation
     bool m_write_access_checked = false;    // Whether write access has been validated
     bool m_has_write_access = false;        // Whether file has write access (for future extensions)
+    bool m_path_secure = false;             // Whether path security has been validated
     
     /**
      * @brief Validate that the file handle is in a usable state

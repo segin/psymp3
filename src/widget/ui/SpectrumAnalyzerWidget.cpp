@@ -1,7 +1,7 @@
 /*
  * SpectrumAnalyzerWidget.cpp - Implementation for spectrum analyzer widget
  * This file is part of PsyMP3.
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2025-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -22,6 +22,7 @@
  */
 
 #include "psymp3.h"
+#include "core/SpectrumConfig.h"
 
 namespace PsyMP3 {
 namespace Widget {
@@ -72,6 +73,22 @@ void SpectrumAnalyzerWidget::updateSpectrum(const float* spectrum_data, int num_
     }
 }
 
+void SpectrumAnalyzerWidget::precomputeColors(Surface& surface)
+{
+    int num_bands = m_spectrum_data.size();
+    if (num_bands <= 0) {
+        m_precomputed_colors.clear();
+        return;
+    }
+
+    m_precomputed_colors.clear(); // Ensure cache is not used during calculation
+    std::vector<uint32_t> new_colors(num_bands);
+    for (int i = 0; i < num_bands; ++i) {
+        new_colors[i] = getSpectrumColor(0.0f, i, surface);
+    }
+    m_precomputed_colors = std::move(new_colors);
+}
+
 void SpectrumAnalyzerWidget::setVisualizationMode(int mode)
 {
     if (m_visualization_mode != mode) {
@@ -84,6 +101,7 @@ void SpectrumAnalyzerWidget::setColorScheme(int color_scheme)
 {
     if (m_color_scheme != color_scheme) {
         m_color_scheme = color_scheme;
+        m_precomputed_colors.clear(); // Force re-precomputation
         invalidate();
     }
 }
@@ -108,6 +126,9 @@ void SpectrumAnalyzerWidget::draw(Surface& surface)
     if (!spectrum_surface_ptr || spectrum_surface_ptr->width() != width || spectrum_surface_ptr->height() != height) {
         spectrum_surface_ptr = std::make_unique<Surface>(width, height);
         spectrum_surface_ptr->FillRect(spectrum_surface_ptr->MapRGB(0, 0, 0)); // Start with black
+        precomputeColors(*spectrum_surface_ptr);
+    } else if (m_precomputed_colors.size() != m_spectrum_data.size() || m_precomputed_colors.empty()) {
+        precomputeColors(*spectrum_surface_ptr);
     }
     Surface& spectrum_surface = *spectrum_surface_ptr;
     
@@ -179,27 +200,11 @@ void SpectrumAnalyzerWidget::drawBars(Surface& surface)
         
         int x = spacing + i * (bar_width + spacing);
         
-        // Get color components directly (like the old code did)
-        uint8_t r, g, b;
-        if (i > 213) {
-            // Zone 3: x > 213
-            r = static_cast<uint8_t>((i - 214) * 2.4);
-            g = 0;
-            b = 255;
-        } else if (i < 106) {
-            // Zone 1: x < 106
-            r = 128;
-            g = 255;
-            b = static_cast<uint8_t>(i * 2.398);
-        } else {
-            // Zone 2: 106 <= x <= 213
-            r = static_cast<uint8_t>(128 - ((i - 106) * 1.1962615));
-            g = static_cast<uint8_t>(255 - ((i - 106) * 2.383177));
-            b = 255;
-        }
+        // Use precomputed color
+        uint32_t color = m_precomputed_colors[i];
         
         // Draw rectangle from y_start down to bottom (like original rectangle call)
-        surface.box(x, y_start, x + bar_width - 1, height - 1, r, g, b, 255);
+        surface.box(x, y_start, x + bar_width - 1, height - 1, color);
     }
 }
 
@@ -243,30 +248,17 @@ uint32_t SpectrumAnalyzerWidget::getSpectrumColor(float value, int position, Sur
     // FIXED: Color should be based on POSITION (frequency), not amplitude value
     // This matches the original renderSpectrum behavior with precomputed colors
     
+    // Check cache first (unless we are currently precomputing)
+    if (!m_precomputed_colors.empty() && position >= 0 && position < static_cast<int>(m_precomputed_colors.size())) {
+        return m_precomputed_colors[position];
+    }
+
     switch (m_color_scheme) {
         case 0: // Original spectrum colors (exact old renderSpectrum algorithm)
             {
                 // Use position directly (should be 0-319 for 320 bands)
-                int x = position;
-                uint8_t r, g, b;
-                
-                if (x > 213) {
-                    // Zone 3: x > 213
-                    r = static_cast<uint8_t>((x - 214) * 2.4);
-                    g = 0;
-                    b = 255;
-                } else if (x < 106) {
-                    // Zone 1: x < 106
-                    r = 128;
-                    g = 255;
-                    b = static_cast<uint8_t>(x * 2.398);
-                } else {
-                    // Zone 2: 106 <= x <= 213
-                    r = static_cast<uint8_t>(128 - ((x - 106) * 1.1962615));
-                    g = static_cast<uint8_t>(255 - ((x - 106) * 2.383177));
-                    b = 255;
-                }
-                return surface.MapRGB(r, g, b);
+                auto color = PsyMP3::Core::SpectrumConfig::getBarColor(static_cast<uint16_t>(position));
+                return surface.MapRGB(color.r, color.g, color.b);
             }
         case 1: // Simple position-based rainbow (not amplitude-based)
             {

@@ -1,7 +1,7 @@
 /*
  * utility.cpp - General utility functions implementation.
  * This file is part of PsyMP3.
- * Copyright © 2011-2025 Kirn Gill <segin2005@gmail.com>
+ * Copyright © 2011-2026 Kirn Gill <segin2005@gmail.com>
  *
  * PsyMP3 is free software. You may redistribute and/or modify it under
  * the terms of the ISC License <https://opensource.org/licenses/ISC>
@@ -21,12 +21,39 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#ifndef FINAL_BUILD
 #include "psymp3.h"
+#else
+#include <algorithm>
+#include <cmath>
+#include "core/utility/utility.h"
+#endif
 
 float PsyMP3::Core::Utility::logarithmicScale(const int f, float x) {
   x = std::clamp(x, 0.0f, 1.0f);
-  if (f)
-    for (auto i = 0; i < f; i++)
-      x = std::log10(1.0f + 9.0f * x);
+  if (f <= 0) return x;
+
+  constexpr int LUT_COUNT = 5;
+  constexpr int LUT_SIZE = 16384;
+  static float luts[LUT_COUNT][LUT_SIZE];
+  static bool initialized = []() {
+    for (int i = 0; i < LUT_SIZE; ++i) {
+      float val = static_cast<float>(i) / (LUT_SIZE - 1);
+      luts[0][i] = val;
+      for (int f_idx = 1; f_idx < LUT_COUNT; ++f_idx) {
+        luts[f_idx][i] = std::log10(1.0f + 9.0f * luts[f_idx - 1][i]);
+      }
+    }
+    return true;
+  }();
+
+  if (f < LUT_COUNT) {
+    int index = static_cast<int>(x * (LUT_SIZE - 1) + 0.5f);
+    return luts[f][index];
+  }
+
+  // Fallback for f >= 5
+  for (auto i = 0; i < f; i++)
+    x = std::log10(1.0f + 9.0f * x);
   return x;
 }

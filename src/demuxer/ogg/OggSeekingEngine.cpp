@@ -1,11 +1,32 @@
 /*
  * OggSeekingEngine.cpp - Seeking and Granule Arithmetic
- * Copyright © 2025 Kirn Gill <segin2005@gmail.com>
+ * This file is part of PsyMP3.
+ * Copyright © 2025-2026 Kirn Gill II <segin2005@gmail.com>
+ *
+ * PsyMP3 is free software. You may redistribute and/or modify it under
+ * the terms of the ISC License <https://opensource.org/licenses/ISC>
+ *
+ * Permission to use, copy, modify, and/or distribute this software for
+ * any purpose with or without fee is hereby granted, provided that
+ * the above copyright notice and this permission notice appear in all
+ * copies.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL
+ * WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE
+ * AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
+ * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA
+ * OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+ * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+ * PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include "demuxer/ogg/OggSeekingEngine.h"
+#ifndef FINAL_BUILD
+#include "psymp3.h"
+#endif // !FINAL_BUILD
+
+#include <cstdint>
 #include <limits>
-#include <cmath>
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -56,35 +77,65 @@ int64_t OggSeekingEngine::timeToGranule(double time_seconds) const {
 // --- Duration Calculation ---
 
 int64_t OggSeekingEngine::getLastGranule() {
-    // Save current position
-    int64_t saved_pos = m_sync.getPosition();
+    // Return cached value if already calculated (prevents state corruption during playback)
+    if (m_duration_cached) {
+        Debug::log("ogg", "OggSeekingEngine::getLastGranule() returning cached granule: ", m_cached_last_granule);
+        return m_cached_last_granule;
+    }
+    
+    Debug::log("ogg", "OggSeekingEngine::getLastGranule() scanning file for duration...");
+    
+    // Save current logical position
+    int64_t saved_pos = m_sync.getLogicalPosition();
+    int serial = m_stream.getSerialNumber();
     
     // Seek to end
     int64_t file_size = m_sync.getFileSize();
     if (file_size <= 0) return -1;
     
-    // Seek backward from end to find last page
-    int64_t search_pos = file_size - 65536; // Last 64KB
-    if (search_pos < 0) search_pos = 0;
-    
-    m_sync.seek(search_pos);
-    
-    ogg_page page;
+    // Progressive search from end to find last page
+    int64_t search_size = 65536; // Start with 64KB
     int64_t last_granule = -1;
     
-    // Scan forward to find last page with valid granule
-    while (m_sync.getNextPage(&page) == 1) {
-        int64_t gp = ogg_page_granulepos(&page);
-        if (gp >= 0) {
-            last_granule = gp;
+    while (search_size <= 1024 * 1024) { // Up to 1MB logic, but also handles small files
+        int64_t search_pos = file_size - search_size;
+        if (search_pos < 0) search_pos = 0;
+        
+        m_sync.seek(search_pos);
+        
+        ogg_page page;
+        bool found_any_gp = false;
+        
+        // Scan forward to find last page with valid granule for our stream
+        while (m_sync.getNextPage(&page) == 1) {
+            if (ogg_page_serialno(&page) == serial) {
+                int64_t gp = ogg_page_granulepos(&page);
+                if (gp >= 0) {
+                    last_granule = gp;
+                    found_any_gp = true;
+                }
+            }
         }
+        
+        if (found_any_gp || search_pos == 0) {
+            break;
+        }
+        
+        search_size *= 2; // Expand search window
     }
     
     // Restore position
     m_sync.seek(saved_pos);
     
+    // Cache the result so we never re-scan during playback
+    m_cached_last_granule = last_granule;
+    m_duration_cached = true;
+    
+    Debug::log("ogg", "OggSeekingEngine::getLastGranule() found and cached granule: ", last_granule);
+    
     return last_granule;
 }
+
 
 double OggSeekingEngine::calculateDuration() {
     int64_t last = getLastGranule();
@@ -109,45 +160,90 @@ bool OggSeekingEngine::seekToTime(double time_seconds) {
 }
 
 bool OggSeekingEngine::bisectForward(int64_t target_granule, int64_t begin, int64_t end) {
-    // Simple bisection search implementation
-    // This is a simplified version; production would need more refinement
-    
     const int MAX_ITERATIONS = 50;
     int iterations = 0;
+    int serial = m_stream.getSerialNumber();
     
-    while (end - begin > 8192 && iterations < MAX_ITERATIONS) {
+    while (end - begin > 2048 && iterations < MAX_ITERATIONS) {
         int64_t mid = begin + (end - begin) / 2;
         
         m_sync.seek(mid);
         
         ogg_page page;
-        if (m_sync.getNextPage(&page) != 1) {
-            // Failed to get page, try a bit later
-            begin = mid + 1;
+        bool found_stream_page = false;
+        
+        // Find first page for our stream after mid
+        while (m_sync.getNextPage(&page) == 1) {
+            if (ogg_page_serialno(&page) == serial) {
+                found_stream_page = true;
+                break;
+            }
+        }
+        
+        if (!found_stream_page) {
+            // Failed to find target stream in this half, move end closer
+            end = mid;
             iterations++;
             continue;
         }
         
         int64_t gp = ogg_page_granulepos(&page);
         if (gp < 0) {
-            // Page has no granule, try next
-            begin = mid + 1;
+            // Page has no granule, search further forward
+            // (A better implementation would look for the next page with a GP)
+            // But for now, we'll treat it as unknown and move begin.
+            begin = m_sync.getLogicalPosition(); 
             iterations++;
             continue;
         }
         
         if (gp < target_granule) {
-            begin = mid;
+            begin = m_sync.getLogicalPosition();
         } else {
             end = mid;
         }
         iterations++;
     }
     
-    // Final positioning: seek to begin and find the exact page
+    // Linear refinement: Ensure we are exactly at the right page
+    // The bisection might have left us at 'begin', which could be a few pages before the target.
     m_sync.seek(begin);
+    m_stream.reset();
     
-    // Reset stream state
+    ogg_page page;
+    int64_t best_offset = begin;
+    
+    // Scan forward up to a reasonable limit or until we find the page
+    // (In case file is huge and bisection failed oddly, don't scan forever, 
+    // but typically we are very close).
+    // The previous loop ensures we are within a small range of the target.
+    
+    while (m_sync.getNextPage(&page) == 1) {
+        if (ogg_page_serialno(&page) == serial) {
+            int64_t gp = ogg_page_granulepos(&page);
+            if (gp != -1) {
+                if (gp < target_granule) {
+                    // This page is entirely before the target.
+                    // The next page *might* be the one.
+                    // Update best_offset to the *end* of this page (current logical pos)
+                    best_offset = m_sync.getLogicalPosition();
+                } else {
+                    // This page contains the target (or is the first one after).
+                    // We want to start processing FROM this page.
+                    // The 'best_offset' should be the start of THIS page.
+                    // But wait, 'getLogicalPosition' returns offset AFTER the page we just read.
+                    // We need the offset of the page we just read.
+                    // OggSyncManager doesn't easily convert "current page" to "start offset" 
+                    // unless we tracked it.
+                    // However, 'best_offset' tracked the end of the *previous* page.
+                    // So if we seek to 'best_offset', we will read this page next.
+                    break;
+                }
+            }
+        }
+    }
+    
+    m_sync.seek(best_offset);
     m_stream.reset();
     
     return true;

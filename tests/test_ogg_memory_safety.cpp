@@ -19,6 +19,11 @@
 #include <vector>
 #include <fstream>
 
+using namespace PsyMP3;
+using namespace PsyMP3::IO;
+using namespace PsyMP3::Demuxer;
+using namespace PsyMP3::Demuxer::Ogg;
+
 // Test IOHandler implementations
 class TestIOHandler : public IOHandler {
 private:
@@ -446,7 +451,7 @@ private:
             }
             
             // Test memory audit functionality
-            bool audit_result = demuxer.performMemoryAudit_unlocked();
+            bool audit_result = demuxer.performMemoryAudit();
             
             Debug::log("test", "Memory audit test completed with result: ", audit_result);
             return true;
@@ -470,7 +475,7 @@ private:
             }
             
             // Test memory limit enforcement
-            demuxer.enforceMemoryLimits_unlocked();
+            demuxer.enforceMemoryLimits();
             
             Debug::log("test", "Memory limit enforcement test completed");
             return true;
@@ -494,7 +499,7 @@ private:
             }
             
             // Test structure validation
-            bool validation_result = demuxer.validateLiboggStructures_unlocked();
+            bool validation_result = demuxer.validateLiboggStructures();
             
             Debug::log("test", "libogg structure validation test completed with result: ", validation_result);
             return true;
@@ -518,7 +523,7 @@ private:
             }
             
             // Test periodic maintenance
-            demuxer.performPeriodicMaintenance_unlocked();
+            demuxer.performPeriodicMaintenance();
             
             Debug::log("test", "Periodic maintenance test completed");
             return true;
@@ -561,8 +566,8 @@ private:
                         for (int j = 0; j < operations_per_thread; j++) {
                             // Perform various operations that access memory
                             MediaChunk chunk = demuxer.readChunk(streams[0].stream_id);
-                            demuxer.performMemoryAudit_unlocked();
-                            demuxer.enforceMemoryLimits_unlocked();
+                            demuxer.performMemoryAudit();
+                            demuxer.enforceMemoryLimits();
                             operations_completed.fetch_add(1);
                         }
                     } catch (const std::exception& e) {
@@ -623,7 +628,7 @@ private:
                 
                 // Periodically check memory limits
                 if (chunks_read % 50 == 0) {
-                    demuxer.enforceMemoryLimits_unlocked();
+                    demuxer.enforceMemoryLimits();
                 }
             }
             

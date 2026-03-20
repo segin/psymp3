@@ -7,12 +7,7 @@
 
 #ifdef HAVE_OGGDEMUXER
 
-#include "demuxer/ogg/OggSyncManager.h"
-#include "demuxer/ogg/OggStreamManager.h"
-#include "demuxer/ogg/OggSeekingEngine.h"
-#include <iostream>
 #include <thread>
-#include <vector>
 #include <atomic>
 #include <chrono>
 
