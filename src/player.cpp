@@ -694,6 +694,11 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
  */
 void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
 {
+    // Update lyrics widget with current playback position
+    if (m_lyrics_widget) {
+        m_lyrics_widget->updatePosition(static_cast<unsigned int>(current_pos_ms));
+    }
+
     // Render the main widget tree
     if (m_ui_root) {
         m_ui_root->BlitTo(*graph);
