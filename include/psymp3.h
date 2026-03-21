@@ -81,6 +81,16 @@ enum class LoopMode {
     All
 };
 
+// Stream operator for LoopMode (for testing)
+inline std::ostream& operator<<(std::ostream& os, LoopMode mode) {
+    switch (mode) {
+        case LoopMode::None: return os << "None";
+        case LoopMode::One: return os << "One";
+        case LoopMode::All: return os << "All";
+        default: return os << "Unknown";
+    }
+}
+
 // C++ Standard Library
 #include <algorithm>
 #include <atomic>
@@ -259,6 +269,12 @@ typedef struct bio_st BIO;
 #include <SDL/SDL_mutex.h>
 #else
 #include <SDL.h>
+
+#ifdef HAVE_SPEEX
+#include <speex/speex.h>
+#include <speex/speex_header.h>
+#include <speex/speex_stereo.h>
+#endif
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #endif

@@ -18,6 +18,8 @@
 #include <cmath>
 #include <functional>
 #include <chrono>
+#include <complex>
+#include <sstream>
 
 // Expose private members for testing
 #define private public

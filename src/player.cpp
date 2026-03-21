@@ -686,6 +686,33 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
     m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
 }
 
+
+/**
+ * @brief Renders the overlay elements (pause indicator, seek indicators, windows) to the graph surface.
+ * @param current_stream The current stream pointer.
+ * @param current_pos_ms The current playback position in milliseconds.
+ */
+void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
+{
+    // Render the main widget tree
+    if (m_ui_root) {
+        m_ui_root->BlitTo(*graph);
+    }
+    
+    // Render the pause indicator if we're paused
+    if (state == PlayerState::Paused && m_pause_indicator) {
+        // Center the pause indicator in the FFT area (0,0 to 640,350)
+        Rect pos = m_pause_indicator->getPos();
+        pos.x((640 - pos.width()) / 2);
+        pos.y((350 - pos.height()) / 2);
+        m_pause_indicator->setPos(pos);
+        m_pause_indicator->BlitTo(*graph);
+    }
+    
+    // Render floating windows (test windows)
+    renderWindows();
+}
+
 /**
  * @brief Updates all dynamic state (stream position, lyrics, MPRIS, preloading) for one GUI frame.
  *
@@ -795,6 +822,24 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
 
     }
 }
+
+/**
+ * @brief Main GUI update function, called periodically from the event loop.
+ * Orchestrates state updates and UI thread rendering.
+ * @return true if the current track has finished, false otherwise.
+ */
+bool Player::updateGUI()
+{
+    Stream* current_stream = nullptr;
+    unsigned long current_pos_ms = 0;
+    unsigned long total_len_ms = 0;
+    TagLib::String artist = "";
+    TagLib::String title = "";
+
+    {
+        std::lock_guard<std::mutex> lock(*mutex);
+        updateState(current_stream, current_pos_ms, total_len_ms, artist, title);
+    }
 
     // Now use the copied data for rendering, outside the lock.
     if(current_stream) {

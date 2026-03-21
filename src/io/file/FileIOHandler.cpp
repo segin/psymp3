@@ -73,9 +73,16 @@ FileIOHandler::FileIOHandler(const TagLib::String& path) : m_file_path(path) {
         // hierarchy if it uses ".." or symlinks to point outside.
         // Note: Absolute paths provided by the user (e.g., from command line) are allowed
         // as they represent explicit intent, but we still validate them for ".." traversal.
-        if (p.is_relative()) {
+        if (p.is_relative() && canonical_path.is_absolute()) {
             std::filesystem::path cwd = std::filesystem::current_path();
-            auto [it_cwd, it_path] = std::mismatch(cwd.begin(), cwd.end(), canonical_path.begin(), canonical_path.end());
+            // Using a more robust prefix check for canonical paths
+            auto it_cwd = cwd.begin();
+            auto it_path = canonical_path.begin();
+            
+            while (it_cwd != cwd.end() && it_path != canonical_path.end() && *it_cwd == *it_path) {
+                ++it_cwd;
+                ++it_path;
+            }
 
             if (it_cwd != cwd.end()) {
                 m_path_secure = false;

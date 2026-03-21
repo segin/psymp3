@@ -12,6 +12,14 @@
 // Global variable to track loop mode for testing
 LoopMode g_last_loop_mode = LoopMode::None;
 
+Player::Player() {
+    // Dummy constructor for testing
+}
+
+Player::~Player() {
+    // Dummy destructor for testing
+}
+
 bool Player::play() {
     return true; // Always succeed for testing
 }

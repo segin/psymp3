@@ -9,6 +9,7 @@
 
 #include "psymp3.h"
 #include "test_framework.h"
+#include "codecs/CodecRegistration.h"
 
 using namespace TestFramework;
 using namespace PsyMP3::Demuxer;
@@ -444,6 +445,7 @@ protected:
 };
 
 int main() {
+    registerAllDemuxers();
     TestSuite suite("MediaFactory Integration Tests");
     
     // Add all test cases

@@ -30,7 +30,7 @@ datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories - only built in regular mode (final build includes all sources directly)
 if !FINAL_BUILD
-SUBDIRS = codecs lastfm mpris util io demuxer widget core
+SUBDIRS = codecs lastfm mpris util io demuxer widget core tag
 endif
 
 # Include path for psymp3.h and other headers
