@@ -59,6 +59,25 @@ void Label::setText(const TagLib::String& text)
     invalidate();
 }
 
+void Label::BlitTo(Surface& target)
+{
+    if (this->isValid()) {
+        // Clear the label's background area to prevent ghosting.
+        // Without this, alpha-blended text accumulates on the persistent
+        // graph surface, causing old text to remain visible underneath.
+        target.box(m_pos.x(), m_pos.y(),
+                   m_pos.x() + m_pos.width() - 1,
+                   m_pos.y() + m_pos.height() - 1,
+                   target.MapRGB(0, 0, 0));
+        target.Blit(*this, m_pos);
+    }
+
+    // Blit children (if any)
+    for (const auto& child : m_children) {
+        child->recursiveBlitTo(target, m_pos);
+    }
+}
+
 } // namespace UI
 } // namespace Widget
 } // namespace PsyMP3

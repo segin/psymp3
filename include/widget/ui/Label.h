@@ -37,6 +37,7 @@ class Label : public Widget
         virtual ~Label() = default;
 
         void setText(const TagLib::String& text);
+        void BlitTo(Surface& target) override;
 
     private:
         Font* m_font; // Non-owning pointer to the global font
