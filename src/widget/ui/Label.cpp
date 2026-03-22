@@ -61,21 +61,49 @@ void Label::setText(const TagLib::String& text)
 
 void Label::BlitTo(Surface& target)
 {
-    if (this->isValid()) {
-        // Clear the label's background area to prevent ghosting.
-        // Without this, alpha-blended text accumulates on the persistent
-        // graph surface, causing old text to remain visible underneath.
-        target.box(m_pos.x(), m_pos.y(),
-                   m_pos.x() + m_pos.width() - 1,
-                   m_pos.y() + m_pos.height() - 1,
-                   target.MapRGB(0, 0, 0));
-        target.Blit(*this, m_pos);
-    }
+    blitWithBackgroundClear(target, m_pos);
 
     // Blit children (if any)
     for (const auto& child : m_children) {
         child->recursiveBlitTo(target, m_pos);
     }
+}
+
+void Label::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    Rect absolute_pos(parent_absolute_pos.x() + m_pos.x(),
+                      parent_absolute_pos.y() + m_pos.y(),
+                      m_pos.width(), m_pos.height());
+
+    blitWithBackgroundClear(target, absolute_pos);
+
+    // Blit children (if any)
+    for (const auto& child : m_children) {
+        child->recursiveBlitTo(target, absolute_pos);
+    }
+}
+
+void Label::blitWithBackgroundClear(Surface& target, const Rect& absolute_pos)
+{
+    if (!this->isValid()) {
+        return;
+    }
+
+    // Labels render onto a persistent graph surface, so the old glyph bounds
+    // must be cleared before alpha-blending the newly rendered text.
+    int clear_w = std::max({static_cast<int>(absolute_pos.width()), m_last_drawn_width,
+                            m_text_surface ? static_cast<int>(m_text_surface->width()) : 0});
+    int clear_h = std::max({static_cast<int>(absolute_pos.height()), m_last_drawn_height,
+                            m_text_surface ? static_cast<int>(m_text_surface->height()) : 0});
+
+    target.box(absolute_pos.x(), absolute_pos.y(),
+               absolute_pos.x() + clear_w - 1,
+               absolute_pos.y() + clear_h - 1,
+               target.MapRGB(0, 0, 0));
+    target.Blit(*this, absolute_pos);
+
+    m_last_drawn_width = m_text_surface ? m_text_surface->width() : 0;
+    m_last_drawn_height = m_text_surface ? m_text_surface->height() : 0;
 }
 
 } // namespace UI
