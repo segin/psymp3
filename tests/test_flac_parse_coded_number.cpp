@@ -213,6 +213,8 @@ int main() {
 
 #else
 
+#include <iostream>
+
 int main() {
     std::cout << "FLAC support not available - skipping FLACRFC9639::parseCodedNumber tests" << std::endl;
     return 0;
