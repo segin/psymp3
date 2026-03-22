@@ -148,9 +148,16 @@ private:
     // Scrobble queue operations (assumes lock is held)
     void scrobbleTrack_unlocked(Scrobble&& scrobble);
     
-    // URL encoding and utilities
-    std::string urlEncode(const std::string& input);
+public:
+    /**
+     * @brief URL encode a string for use in Last.fm API requests
+     * Follows RFC 3986 unreserved character set.
+     * @param input The string to encode
+     * @return URL-encoded string
+     */
+    static std::string urlEncode(const std::string& input);
 
+private:
     /**
      * @brief Hash a string using MD5 for protocol compatibility
      * Labeled to distinguish from secure hashing (SEC-02)
