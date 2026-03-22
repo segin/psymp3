@@ -13,6 +13,8 @@
 
 #include "ogg/ogg.h"
 
+#ifdef HAVE_RAPIDCHECK
+
 // Helper to create a valid Ogg page manually (rfc3533)
 std::vector<uint8_t> createOggPage(uint8_t version, uint8_t header_type,
                                    int64_t granule_pos, int32_t serial_no,
@@ -331,3 +333,14 @@ int main() {
 
     return 0;
 }
+
+#else
+
+#include <iostream>
+
+int main() {
+    std::cout << "RapidCheck not available. Skipping test_ogg_fuzzing tests." << std::endl;
+    return 0;
+}
+
+#endif // HAVE_RAPIDCHECK
