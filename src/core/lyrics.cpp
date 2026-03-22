@@ -53,7 +53,91 @@ struct TimestampResult {
   bool valid{false};
 };
 
-// Parse LRC timestamp: [mm:ss.xx] or [m:ss.xx]
+[[nodiscard]] std::string utf8FromCodePoint(uint32_t code_point) {
+  std::string result;
+
+  if (code_point <= 0x7F) {
+    result.push_back(static_cast<char>(code_point));
+  } else if (code_point <= 0x7FF) {
+    result.push_back(static_cast<char>(0xC0 | (code_point >> 6)));
+    result.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+  } else if (code_point <= 0xFFFF) {
+    result.push_back(static_cast<char>(0xE0 | (code_point >> 12)));
+    result.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
+    result.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+  } else {
+    result.push_back(static_cast<char>(0xF0 | (code_point >> 18)));
+    result.push_back(static_cast<char>(0x80 | ((code_point >> 12) & 0x3F)));
+    result.push_back(static_cast<char>(0x80 | ((code_point >> 6) & 0x3F)));
+    result.push_back(static_cast<char>(0x80 | (code_point & 0x3F)));
+  }
+
+  return result;
+}
+
+[[nodiscard]] std::string decodeUtf16(std::string_view raw_bytes,
+                                      bool little_endian) {
+  std::string decoded;
+  decoded.reserve(raw_bytes.size());
+
+  for (size_t i = 0; i + 1 < raw_bytes.size();) {
+    auto read_u16 = [&](size_t offset) -> uint16_t {
+      const auto first = static_cast<uint8_t>(raw_bytes[offset]);
+      const auto second = static_cast<uint8_t>(raw_bytes[offset + 1]);
+      if (little_endian) {
+        return static_cast<uint16_t>(first | (second << 8));
+      }
+      return static_cast<uint16_t>((first << 8) | second);
+    };
+
+    uint16_t word = read_u16(i);
+    i += 2;
+
+    if (word == 0xFEFF) {
+      continue;
+    }
+    if (word == 0x0000) {
+      continue;
+    }
+
+    uint32_t code_point = word;
+    if (word >= 0xD800 && word <= 0xDBFF && i + 1 < raw_bytes.size()) {
+      const uint16_t low = read_u16(i);
+      if (low >= 0xDC00 && low <= 0xDFFF) {
+        code_point = 0x10000 + (((word - 0xD800) << 10) | (low - 0xDC00));
+        i += 2;
+      }
+    }
+
+    decoded += utf8FromCodePoint(code_point);
+  }
+
+  return decoded;
+}
+
+[[nodiscard]] std::string normalizeLyricsContent(std::string_view raw_bytes) {
+  if (raw_bytes.size() >= 3 &&
+      static_cast<uint8_t>(raw_bytes[0]) == 0xEF &&
+      static_cast<uint8_t>(raw_bytes[1]) == 0xBB &&
+      static_cast<uint8_t>(raw_bytes[2]) == 0xBF) {
+    return std::string(raw_bytes.substr(3));
+  }
+
+  if (raw_bytes.size() >= 2) {
+    const auto first = static_cast<uint8_t>(raw_bytes[0]);
+    const auto second = static_cast<uint8_t>(raw_bytes[1]);
+    if (first == 0xFF && second == 0xFE) {
+      return decodeUtf16(raw_bytes.substr(2), true);
+    }
+    if (first == 0xFE && second == 0xFF) {
+      return decodeUtf16(raw_bytes.substr(2), false);
+    }
+  }
+
+  return std::string(raw_bytes);
+}
+
+// Parse LRC timestamp: [mm:ss], [mm:ss.xx], [mm:ss.xxx], or [m:ss.xx]
 [[nodiscard]] TimestampResult parseLRCTimestamp(std::string_view line,
                                                 size_t start) noexcept {
   TimestampResult result;
@@ -95,20 +179,35 @@ struct TimestampResult {
   const int seconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
   pos += 2;
 
-  // Expect '.'
-  if (pos >= line.size() || line[pos] != '.') {
-    return result;
-  }
-  ++pos;
+  int milliseconds = 0;
+  if (pos < line.size() && (line[pos] == '.' || line[pos] == ':')) {
+    ++pos;
 
-  // Parse centiseconds (exactly 2 digits)
-  if (pos + 2 > line.size() ||
-      !std::isdigit(static_cast<unsigned char>(line[pos])) ||
-      !std::isdigit(static_cast<unsigned char>(line[pos + 1]))) {
-    return result;
+    const size_t frac_start = pos;
+    while (pos < line.size() &&
+           std::isdigit(static_cast<unsigned char>(line[pos])) &&
+           pos - frac_start < 3) {
+      ++pos;
+    }
+
+    const size_t frac_digits = pos - frac_start;
+    if (frac_digits == 0) {
+      return result;
+    }
+
+    int fraction = 0;
+    for (size_t i = frac_start; i < pos; ++i) {
+      fraction = fraction * 10 + (line[i] - '0');
+    }
+
+    if (frac_digits == 1) {
+      milliseconds = fraction * 100;
+    } else if (frac_digits == 2) {
+      milliseconds = fraction * 10;
+    } else {
+      milliseconds = fraction;
+    }
   }
-  const int centiseconds = (line[pos] - '0') * 10 + (line[pos + 1] - '0');
-  pos += 2;
 
   // Expect ']'
   if (pos >= line.size() || line[pos] != ']') {
@@ -117,7 +216,7 @@ struct TimestampResult {
   ++pos;
 
   result.time = std::chrono::milliseconds((minutes * 60 + seconds) * 1000 +
-                                          centiseconds * 10);
+                                          milliseconds);
   result.end_pos = pos;
   result.valid = true;
   return result;
@@ -306,7 +405,9 @@ bool LyricsFile::loadFromFile(std::string_view file_path) {
                  " bytes): ", file_path);
     }
 
-    const std::string_view content(buffer.data(), bytes_read);
+    const std::string normalized_content =
+        normalizeLyricsContent(std::string_view(buffer.data(), bytes_read));
+    const std::string_view content(normalized_content);
 
     // Determine format by extension
     const auto ext = toLower(getExtension(file_path));
@@ -375,10 +476,25 @@ bool LyricsFile::parseLRC(std::string_view content) {
       continue;
     }
 
+    std::vector<std::chrono::milliseconds> timestamps;
+    size_t timestamp_end = 0;
+
+    while (true) {
+      auto ts = parseLRCTimestamp(line, timestamp_end);
+      if (!ts.valid) {
+        break;
+      }
+
+      timestamps.push_back(ts.time);
+      timestamp_end = ts.end_pos;
+    }
+
     // Try timestamp format
-    if (auto ts = parseLRCTimestamp(line, 0); ts.valid) {
-      auto lyric_text = LyricsUtils::trim(line.substr(ts.end_pos));
-      m_lines.emplace_back(ts.time, std::string(lyric_text), true);
+    if (!timestamps.empty()) {
+      auto lyric_text = LyricsUtils::trim(line.substr(timestamp_end));
+      for (const auto& timestamp : timestamps) {
+        m_lines.emplace_back(timestamp, std::string(lyric_text), true);
+      }
       found_lyrics = true;
       m_has_timing = true;
     }

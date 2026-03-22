@@ -15,6 +15,7 @@ namespace Demuxer {
 DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id) 
     : Stream(), m_current_stream_id(preferred_stream_id) {
     m_path = path;
+    loadLyrics();
     
     if (!initialize()) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
@@ -24,6 +25,7 @@ DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stre
 DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id) 
     : Stream(), m_current_stream_id(preferred_stream_id) {
     m_path = path;
+    loadLyrics();
     
     if (!initializeWithHandler(std::move(handler))) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
