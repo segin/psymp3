@@ -149,3 +149,4 @@ tests/simple_*
 
 tests/test-harness
 test-driver
+tests/repro_wav_overflow
