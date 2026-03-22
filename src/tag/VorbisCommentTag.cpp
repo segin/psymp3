@@ -37,6 +37,16 @@ static uint32_t readLE32(const uint8_t* data) {
            (static_cast<uint32_t>(data[3]) << 24);
 }
 
+/**
+ * @brief Read a 32-bit big-endian unsigned integer
+ */
+static uint32_t readBE32(const uint8_t* data) {
+    return (static_cast<uint32_t>(data[0]) << 24) |
+           (static_cast<uint32_t>(data[1]) << 16) |
+           (static_cast<uint32_t>(data[2]) << 8) |
+           static_cast<uint32_t>(data[3]);
+}
+
 
 
 // ============================================================================
@@ -65,13 +75,10 @@ VorbisCommentTag::VorbisCommentTag(const std::string& vendor,
 
 VorbisCommentTag::~VorbisCommentTag() = default;
 
-std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, size_t size) {
-    if (!data || size < 8) {
-        Debug::log("tag", "VorbisComment: Insufficient data for header (need 8, got ", size, ")");
-        return nullptr;
+bool VorbisCommentTag::parseVendorString(const uint8_t* data, size_t size, size_t& offset, std::string& vendor) {
+    if (offset + 4 > size) {
+        return false;
     }
-    
-    size_t offset = 0;
     
     // Parse vendor string length (little-endian)
     uint32_t vendor_len = readLE32(data + offset);
@@ -80,26 +87,30 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     // Sanity check vendor length (prevent huge allocations)
     if (vendor_len > TagConstants::MAX_VENDOR_STRING_SIZE) { 
         Debug::log("tag", "VorbisComment: Vendor string length ", vendor_len, " exceeds maximum");
-        return nullptr;
+        return false;
     }
     
     if (vendor_len > size - offset) {
         Debug::log("tag", "VorbisComment: Vendor string length ", vendor_len, 
                    " exceeds remaining data ", (size - offset));
-        return nullptr;
+        return false;
     }
     
     // Parse vendor string (UTF-8)
-    std::string vendor;
     if (vendor_len > 0) {
         vendor = ID3v2Utils::decodeUTF8Safe(data + offset, vendor_len);
     }
     offset += vendor_len;
     
-    // Parse field count
+    return true;
+}
+
+bool VorbisCommentTag::parseUserComments(const uint8_t* data, size_t size, size_t& offset,
+                                         std::map<std::string, std::vector<std::string>>& fields,
+                                         std::vector<Picture>& pictures) {
     if (offset + 4 > size) {
         Debug::log("tag", "VorbisComment: Insufficient data for field count");
-        return nullptr;
+        return false;
     }
     
     uint32_t field_count = readLE32(data + offset);
@@ -108,14 +119,10 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
     // Sanity check field count (prevent huge allocations)
     if (field_count > TagConstants::MAX_FIELD_COUNT) {
         Debug::log("tag", "VorbisComment: Field count ", field_count, " exceeds maximum");
-        return nullptr;
+        return false;
     }
     
-    Debug::log("tag", "VorbisComment: vendor='", vendor, "', field_count=", field_count);
-    
-    // Parse all fields
-    std::map<std::string, std::vector<std::string>> fields;
-    std::vector<Picture> pictures;
+    Debug::log("tag", "VorbisComment: field_count=", field_count);
     
     for (uint32_t i = 0; i < field_count; i++) {
         if (offset + 4 > size) {
@@ -187,6 +194,29 @@ std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, s
         Debug::log("tag", "VorbisComment: ", name, "=", value);
     }
     
+    return true;
+}
+
+std::unique_ptr<VorbisCommentTag> VorbisCommentTag::parse(const uint8_t* data, size_t size) {
+    if (!data || size < 8) {
+        Debug::log("tag", "VorbisComment: Insufficient data for header (need 8, got ", size, ")");
+        return nullptr;
+    }
+
+    size_t offset = 0;
+    std::string vendor;
+
+    if (!parseVendorString(data, size, offset, vendor)) {
+        return nullptr;
+    }
+
+    std::map<std::string, std::vector<std::string>> fields;
+    std::vector<Picture> pictures;
+
+    if (!parseUserComments(data, size, offset, fields, pictures)) {
+        return nullptr;
+    }
+
     return std::make_unique<VorbisCommentTag>(vendor, fields, pictures);
 }
 
@@ -203,18 +233,12 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     Picture pic;
     
     // Picture type (32-bit big-endian)
-    uint32_t type = (static_cast<uint32_t>(data[offset]) << 24) |
-                    (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                    (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                    static_cast<uint32_t>(data[offset + 3]);
+    uint32_t type = readBE32(data.data() + offset);
     pic.type = static_cast<PictureType>(type);
     offset += 4;
     
     // MIME type length (32-bit big-endian)
-    uint32_t mime_len = (static_cast<uint32_t>(data[offset]) << 24) |
-                        (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                        (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                        static_cast<uint32_t>(data[offset + 3]);
+    uint32_t mime_len = readBE32(data.data() + offset);
     offset += 4;
     
     // Sanity check MIME type length
@@ -238,10 +262,7 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     }
     
     // Description length (32-bit big-endian)
-    uint32_t desc_len = (static_cast<uint32_t>(data[offset]) << 24) |
-                        (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                        (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                        static_cast<uint32_t>(data[offset + 3]);
+    uint32_t desc_len = readBE32(data.data() + offset);
     offset += 4;
     
     // Sanity check description length
@@ -265,38 +286,23 @@ std::optional<Picture> VorbisCommentTag::parsePictureField(const std::string& ba
     }
     
     // Width (32-bit big-endian)
-    pic.width = (static_cast<uint32_t>(data[offset]) << 24) |
-                (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                static_cast<uint32_t>(data[offset + 3]);
+    pic.width = readBE32(data.data() + offset);
     offset += 4;
     
     // Height (32-bit big-endian)
-    pic.height = (static_cast<uint32_t>(data[offset]) << 24) |
-                 (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                 (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                 static_cast<uint32_t>(data[offset + 3]);
+    pic.height = readBE32(data.data() + offset);
     offset += 4;
     
     // Color depth (32-bit big-endian)
-    pic.color_depth = (static_cast<uint32_t>(data[offset]) << 24) |
-                      (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                      (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                      static_cast<uint32_t>(data[offset + 3]);
+    pic.color_depth = readBE32(data.data() + offset);
     offset += 4;
     
     // Colors used (32-bit big-endian)
-    pic.colors_used = (static_cast<uint32_t>(data[offset]) << 24) |
-                      (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                      (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                      static_cast<uint32_t>(data[offset + 3]);
+    pic.colors_used = readBE32(data.data() + offset);
     offset += 4;
     
     // Picture data length (32-bit big-endian)
-    uint32_t pic_len = (static_cast<uint32_t>(data[offset]) << 24) |
-                       (static_cast<uint32_t>(data[offset + 1]) << 16) |
-                       (static_cast<uint32_t>(data[offset + 2]) << 8) |
-                       static_cast<uint32_t>(data[offset + 3]);
+    uint32_t pic_len = readBE32(data.data() + offset);
     offset += 4;
     
     // Sanity check picture data length
