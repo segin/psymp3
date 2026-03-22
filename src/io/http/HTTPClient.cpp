@@ -26,10 +26,6 @@ class Debug {
 public:
     template<typename... Args>
     static void log(const std::string& channel, Args&&... args) {
-        // Optional: print to stderr for debugging tests
-        // std::cerr << "[DEBUG] " << channel << ": ";
-        // ((std::cerr << args), ...);
-        // std::cerr << std::endl;
     }
 };
 
