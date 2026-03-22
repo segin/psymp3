@@ -45,6 +45,7 @@ static uint32_t readLE32(const uint8_t* data) {
 
 std::string VorbisCommentTag::normalizeFieldName(const std::string& name) {
     std::string normalized = name;
+
     for (char& c : normalized) {
         c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
     }
