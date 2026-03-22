@@ -86,8 +86,7 @@ bool FLACHeaderParser::parseHeader(ogg_packet* packet) {
         int channels_minus_1 = (streaminfo[12] >> 1) & 0x07;
         m_info.channels = channels_minus_1 + 1;
         
-        // Bits Per Sample: 5 bits (bit 0 of 12, top 4 of 13)
-        
+
         m_streaminfo_found = true;
         m_headers_count = 1;
         

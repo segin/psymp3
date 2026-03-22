@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include <algorithm>
 
 namespace PsyMP3 {
 namespace Demuxer {
@@ -727,26 +728,33 @@ std::map<std::string, std::string> extractURIParameters(const std::string& uri) 
     size_t query_pos = uri.find('?');
     if (query_pos != std::string::npos && query_pos + 1 < uri.length()) {
         std::string query = uri.substr(query_pos + 1);
-        return parseConfigString(query.replace(query.find('&'), 1, ";"));
+        std::replace(query.begin(), query.end(), '&', ';');
+        return parseConfigString(query);
     }
     
     return params;
 }
 
 std::string buildURIWithParameters(const std::string& base_uri,
-                                  const std::map<std::string, std::string>& params) {
-    if (params.empty()) {
+                                  const std::map<std::string, std::string>& parameters) {
+    if (parameters.empty()) {
         return base_uri;
     }
     
     std::string result = base_uri;
+    char last_char = result.empty() ? '\0' : result.back();
+
     if (result.find('?') == std::string::npos) {
-        result += "?";
+        if (last_char != '?') {
+            result += "?";
+        }
     } else {
-        result += "&";
+        if (last_char != '?' && last_char != '&') {
+            result += "&";
+        }
     }
     
-    std::string param_str = formatConfigString(params);
+    std::string param_str = formatConfigString(parameters);
     std::replace(param_str.begin(), param_str.end(), ';', '&');
     result += param_str;
     
