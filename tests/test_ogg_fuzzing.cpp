@@ -6,9 +6,14 @@
  */
 
 #include "psymp3.h"
+
+#ifdef HAVE_RAPIDCHECK
 #include <rapidcheck.h>
+#endif // HAVE_RAPIDCHECK
 
 #include "ogg/ogg.h"
+
+#ifdef HAVE_RAPIDCHECK
 
 // Helper to create a valid Ogg page manually (rfc3533)
 std::vector<uint8_t> createOggPage(uint8_t version, uint8_t header_type,
@@ -103,6 +108,7 @@ private:
 };
 
 int main() {
+#ifdef HAVE_RAPIDCHECK
     // 1. OggSyncManager Resilience: Random Bytes
     // Should never crash, regardless of input.
     rc::check("OggSyncManager: Random Byte Stream Resilience", [](const std::vector<uint8_t>& data) {
@@ -321,6 +327,20 @@ int main() {
         }
     });
 
+#else
+    std::cout << "RapidCheck not available. Skipping Ogg fuzzing property tests." << std::endl;
+#endif // HAVE_RAPIDCHECK
 
     return 0;
 }
+
+#else
+
+#include <iostream>
+
+int main() {
+    std::cout << "RapidCheck not available. Skipping test_ogg_fuzzing tests." << std::endl;
+    return 0;
+}
+
+#endif // HAVE_RAPIDCHECK

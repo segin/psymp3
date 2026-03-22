@@ -12,4 +12,6 @@
 #include <windows.h>
 #include <shobjidl.h>
 
-// TODO: reference additional headers your program requires here
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>

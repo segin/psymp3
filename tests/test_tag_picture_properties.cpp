@@ -431,8 +431,8 @@ int main(int argc, char* argv[]) {
     
     auto runTest = [&](TestCase& test) {
         try {
-            TestCaseInfo info = test.run();
-            if (info.result == TestResult::PASSED) {
+            auto info = test.run();
+            if (info.result == TestFramework::TestResult::PASSED) {
                 passed++;
                 std::cout << "  " << info.name << ": PASSED\n";
             } else {

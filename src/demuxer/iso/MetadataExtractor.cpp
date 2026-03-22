@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include <cstring>
 namespace PsyMP3 {
 namespace Demuxer {
 namespace ISO {
@@ -223,23 +224,27 @@ std::string MetadataExtractor::ExtractTextMetadata(std::shared_ptr<IOHandler> io
     }
     
     // Convert to string, handling UTF-8 and null termination
-    std::string result;
-    result.reserve(bytesRead);
+    const uint8_t* start_ptr = buffer.data();
+    const uint8_t* end_ptr = static_cast<const uint8_t*>(std::memchr(start_ptr, 0, bytesRead));
+    size_t len = end_ptr ? static_cast<size_t>(end_ptr - start_ptr) : bytesRead;
     
-    for (size_t i = 0; i < bytesRead; i++) {
-        if (buffer[i] == 0) {
-            break; // Null terminator
-        }
-        result += static_cast<char>(buffer[i]);
+    // Find first non-whitespace
+    size_t start = 0;
+    while (start < len && (start_ptr[start] == ' ' || start_ptr[start] == '\t' || start_ptr[start] == '\r' || start_ptr[start] == '\n')) {
+        start++;
     }
     
-    // Trim whitespace
-    size_t start = result.find_first_not_of(" \t\r\n");
-    if (start == std::string::npos) {
+    if (start == len) {
         return "";
     }
-    size_t end = result.find_last_not_of(" \t\r\n");
-    return result.substr(start, end - start + 1);
+
+    // Find last non-whitespace
+    size_t end = len - 1;
+    while (end > start && (start_ptr[end] == ' ' || start_ptr[end] == '\t' || start_ptr[end] == '\r' || start_ptr[end] == '\n')) {
+        end--;
+    }
+
+    return std::string(reinterpret_cast<const char*>(start_ptr + start), end - start + 1);
 }
 
 uint32_t MetadataExtractor::ReadUInt32BE(std::shared_ptr<IOHandler> io, uint64_t offset) {

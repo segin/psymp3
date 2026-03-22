@@ -292,7 +292,7 @@ void Player::loaderThreadLoop() {
  * appear immediately on startup, without waiting for file system access.
  * @param args The vector of command-line arguments passed to the application.
  */
-void Player::playlistPopulatorLoop(std::vector<std::string> args) {
+void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
     System::setThisThreadName("playlist-populator");
 
     if (args.empty()) return; // Nothing to do
@@ -327,6 +327,118 @@ void Player::playlistPopulatorLoop(std::vector<std::string> args) {
             Debug::log("playlist", "Player::playlistPopulatorLoop(): Failed to add file ", args[i], ": ", e.what());
         }
     }
+}
+
+void Player::handleTrackSeamlessSwapEvent() {
+    // This event is triggered when a track ends and a preloaded track is ready.
+    // Check if we need to recreate the Audio object or can reuse it
+    bool recreate_audio = (!audio || (m_next_stream &&
+        (static_cast<unsigned int>(audio->getRate()) != m_next_stream->getRate() ||
+         static_cast<unsigned int>(audio->getChannels()) != m_next_stream->getChannels())));
+
+    if (recreate_audio) {
+        // Different audio format, need to recreate Audio object
+        Debug::log("audio", "Audio format changed, recreating Audio object for seamless transition.");
+        audio.reset();
+        auto owned_stream = std::move(m_next_stream);
+        audio = std::make_unique<Audio>(std::move(owned_stream), fft.get(), mutex.get());
+        audio->setVolume(m_volume);
+    } else {
+        // Same audio format, can seamlessly switch streams
+        Debug::log("audio", "Performing seamless stream transition.");
+        auto owned_stream = std::move(m_next_stream);
+        audio->setStream(std::move(owned_stream));
+    }
+
+    // Advance the playlist for the track(s) that just finished
+    for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
+        playlist->next();
+    }
+    m_num_tracks_in_current_stream = 0;
+
+    // Update stream pointer and start scrobbling for new track
+    stream = audio->getCurrentStream();
+    startTrackScrobbling();
+
+    // Update GUI and lyrics for the new stream
+    updateInfo(false, "");
+    if (m_lyrics_widget) {
+        if (stream) {
+            m_lyrics_widget->setLyrics(stream->getLyrics());
+        } else {
+            m_lyrics_widget->clearLyrics();
+        }
+    }
+}
+
+void Player::handleDoSavePlaylistEvent() {
+    if (playlist) {
+        System::createStoragePath(); // Ensure the directory exists before writing.
+        TagLib::String save_path = System::getStoragePath() + "/playlist.m3u";
+        playlist->savePlaylist(save_path);
+        showToast("Current playlist saved!");
+    }
+}
+
+void Player::handleShowNotificationEvent(std::pair<std::string, NotificationType>* data) {
+    if (data) {
+        std::string msg = data->first;
+        NotificationType type = data->second;
+
+        bool show = true;
+        Uint32 duration = 2000;
+        std::string prefix = "";
+
+        switch (type) {
+            case NotificationType::Info:
+                break;
+            case NotificationType::Warning:
+                prefix = "Warning: ";
+                duration = 3000;
+                break;
+            case NotificationType::Error:
+                prefix = "Error: ";
+                duration = 4000;
+                break;
+            case NotificationType::MPRISError:
+                if (!m_show_mpris_errors) show = false;
+                prefix = "MPRIS Error:\n";
+                duration = 4000;
+                break;
+        }
+
+        if (show) {
+            showToast(prefix + msg, duration);
+        }
+        delete data;
+    }
+}
+
+void Player::handleDoSetLoopModeEvent(LoopMode mode) {
+    m_loop_mode = mode;
+    std::string toastMsg = "Loop: ";
+    std::string mprisStatus;
+    PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+    switch(m_loop_mode) {
+        case LoopMode::None:
+            toastMsg += "None";
+            mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
+            break;
+        case LoopMode::One:
+            toastMsg += "One";
+            mprisEnum = PsyMP3::MPRIS::LoopStatus::Track;
+            break;
+        case LoopMode::All:
+            toastMsg += "All";
+            mprisEnum = PsyMP3::MPRIS::LoopStatus::Playlist;
+            break;
+    }
+    showToast(toastMsg);
+#ifdef HAVE_DBUS
+    if (m_mpris_manager) {
+         m_mpris_manager->updateLoopStatus(mprisEnum);
+    }
+#endif
 }
 
 /**
@@ -1252,263 +1364,41 @@ bool Player::handleUserEvent(const SDL_UserEvent& event)
 {
     switch(event.code) {
         case START_FIRST_TRACK: 
-        {
-            if (playlist->entries() > 0) {
-                // Use findFirstPlayableTrack to locate the first playable track
-                if (!findFirstPlayableTrack()) {
-                    // No playable tracks found
-                    stop();
-                    updateInfo(false, "No playable tracks found in playlist.");
-                }
-            }
+            handleStartFirstTrackEvent();
             break;
-        }
         case DO_NEXT_TRACK: 
-        {
-            nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
+            handleDoNextTrackEvent();
             break;
-        }
         case DO_PREV_TRACK:
-        {
-            prevTrack();
+            handleDoPrevTrackEvent();
             break;
-        }
         case TRACK_LOAD_SUCCESS: 
-        {
-            Debug::log("loader", "Player::handleUserEvent(TRACK_LOAD_SUCCESS) called.");
-            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
-            m_skip_attempts = 0; // Reset skip counter on a successful load.
-            Stream* new_stream = result->stream;
-            m_num_tracks_in_current_stream = result->num_chained_tracks;
-            delete result; // Free the result struct
-
-            m_loading_track = false; // Loading complete
-
-            // If we were stopped, audio is null. If playing, check if format changed.
-            // Per request, always re-initialize the audio object on a new track.
-            // This is simpler and more robust than trying to reuse it.
-            audio.reset();
-
-            // Take ownership of the new stream from the loader thread.
-            std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
-
-            // Create a new audio object, which takes ownership of the stream.
-            audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
-            audio->setVolume(m_volume);
-
-            // Update the player's current stream pointer to reflect the one now owned by Audio
-            // This is a raw pointer, for read-only access by Player.
-            
-            // Update lyrics widget with new track's lyrics
-            if (m_lyrics_widget && new_stream) {
-                auto lyrics = new_stream->getLyrics();
-                if (lyrics && lyrics->hasLyrics()) {
-                    Debug::log("lyrics", "Player: Setting lyrics widget with ", lyrics->getLines().size(), " lyric lines");
-                } else {
-                    Debug::log("lyrics", "Player: No lyrics available for current track");
-                }
-                m_lyrics_widget->setLyrics(lyrics);
-            }
-            stream = audio->getCurrentStream();
-
-            updateInfo();
-            // Ensure audio is unpaused after everything is set up
-            if (audio) audio->play(true);
-            state = PlayerState::Playing;
-            
-            // Start scrobbling for the new track
-            startTrackScrobbling();
-            
-#ifdef HAVE_DBUS
-            if (m_mpris_manager) {
-                m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
-                if (stream) {
-                    m_mpris_manager->updateMetadata(
-                        stream->getArtist().to8Bit(true), 
-                        stream->getTitle().to8Bit(true), 
-                        stream->getAlbum().to8Bit(true),
-                        static_cast<uint64_t>(stream->getLength()) * 1000
-                    );
-                }
-            }
-#endif
-#ifdef _WIN32
-            if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
-#endif
+            handleTrackLoadSuccessEvent(static_cast<TrackLoadResult*>(event.data1));
             break;
-        }
         case TRACK_LOAD_FAILURE:
-        {
-            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
-            TagLib::String error_msg = result->error_message;
-            delete result; // Free the result struct
-
-            m_loading_track = false; // Loading complete
-
-            Debug::log("loader", "Player: Failed to load track: ", error_msg.to8Bit(true));
-
-            // Robust playlist handling: skip unplayable tracks
-            if (!handleUnplayableTrack()) {
-                // All tracks exhausted or stopping due to end of playlist
-                stop();
-                updateInfo(false, "All tracks in playlist are unplayable.");
-            }
+            handleTrackLoadFailureEvent(static_cast<TrackLoadResult*>(event.data1));
             break;
-        }
         case TRACK_PRELOAD_SUCCESS:
-        {
-            // Store the preloaded stream for seamless transition
-            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
-            m_preloading_track = false;
-            m_next_stream.reset(result->stream); // Take ownership of the preloaded stream
-            Debug::log("loader", "Track preloaded successfully for seamless transition.");
-            delete result; // Free the result struct but keep the stream
+            handleTrackPreloadSuccessEvent(static_cast<TrackLoadResult*>(event.data1));
             break;
-        }
         case TRACK_PRELOAD_FAILURE:
-        {
-            // Handle preload failure - no seamless transition possible
-            TrackLoadResult* result = static_cast<TrackLoadResult*>(event.data1);
-            m_preloading_track = false;
-            Debug::log("loader", "Failed to preload track: ", result->error_message.to8Bit(true));
-            delete result;
+            handleTrackPreloadFailureEvent(static_cast<TrackLoadResult*>(event.data1));
             break;
-        }
         case RUN_GUI_ITERATION:
-        {
-            if (updateGUI()) {
-                // Track has ended.
-                if (m_loop_mode == LoopMode::One) {
-                    // Loop current track by seeking to the beginning.
-                    seekTo(0);
-                } else if (m_next_stream) {
-                    // A track was preloaded, perform seamless swap.
-                    synthesizeUserEvent(TRACK_SEAMLESS_SWAP, nullptr, nullptr);
-                } else {
-                    // No preloaded track, use the old method.
-                    nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
-                }
-            }
+            handleRunGuiIterationEvent();
             break;
-        }
         case TRACK_SEAMLESS_SWAP:
-        {
-            // This event is triggered when a track ends and a preloaded track is ready.
-            // Check if we need to recreate the Audio object or can reuse it
-            bool recreate_audio = (!audio || (m_next_stream && 
-                (static_cast<unsigned int>(audio->getRate()) != m_next_stream->getRate() || 
-                 static_cast<unsigned int>(audio->getChannels()) != m_next_stream->getChannels())));
-
-            if (recreate_audio) {
-                // Different audio format, need to recreate Audio object
-                Debug::log("audio", "Audio format changed, recreating Audio object for seamless transition.");
-                audio.reset();
-                auto owned_stream = std::move(m_next_stream);
-                audio = std::make_unique<Audio>(std::move(owned_stream), fft.get(), mutex.get());
-                audio->setVolume(m_volume);
-            } else {
-                // Same audio format, can seamlessly switch streams
-                Debug::log("audio", "Performing seamless stream transition.");
-                auto owned_stream = std::move(m_next_stream);
-                audio->setStream(std::move(owned_stream));
-            }
-
-            // Advance the playlist for the track(s) that just finished
-            for (size_t i = 0; i < (m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1); ++i) {
-                playlist->next();
-            }
-            m_num_tracks_in_current_stream = 0;
-            
-            // Update stream pointer and start scrobbling for new track
-            stream = audio->getCurrentStream();
-            startTrackScrobbling();
-
-            // Update GUI and lyrics for the new stream
-            updateInfo(false, "");
-            if (m_lyrics_widget) {
-                if (stream) {
-                    m_lyrics_widget->setLyrics(stream->getLyrics());
-                } else {
-                    m_lyrics_widget->clearLyrics();
-                }
-            }
+            handleTrackSeamlessSwapEvent();
             break;
-        }
         case DO_SAVE_PLAYLIST:
-        {
-            if (playlist) {
-                System::createStoragePath(); // Ensure the directory exists before writing.
-                TagLib::String save_path = System::getStoragePath() + "/playlist.m3u";
-                playlist->savePlaylist(save_path);
-                showToast("Current playlist saved!");
-            }
+            handleDoSavePlaylistEvent();
             break;
-        }
         case SHOW_NOTIFICATION:
-        {
-            auto* data = static_cast<std::pair<std::string, NotificationType>*>(event.data1);
-            if (data) {
-                std::string msg = data->first;
-                NotificationType type = data->second;
-
-                bool show = true;
-                Uint32 duration = 2000;
-                std::string prefix = "";
-
-                switch (type) {
-                    case NotificationType::Info:
-                        break;
-                    case NotificationType::Warning:
-                        prefix = "Warning: ";
-                        duration = 3000;
-                        break;
-                    case NotificationType::Error:
-                        prefix = "Error: ";
-                        duration = 4000;
-                        break;
-                    case NotificationType::MPRISError:
-                        if (!m_show_mpris_errors) show = false;
-                        prefix = "MPRIS Error:\n";
-                        duration = 4000;
-                        break;
-                }
-
-                if (show) {
-                    showToast(prefix + msg, duration);
-                }
-                delete data;
-            }
+            handleShowNotificationEvent(static_cast<std::pair<std::string, NotificationType>*>(event.data1));
             break;
-        }
         case DO_SET_LOOP_MODE:
-        {
-            LoopMode mode = static_cast<LoopMode>(reinterpret_cast<intptr_t>(event.data1));
-            m_loop_mode = mode;
-            std::string toastMsg = "Loop: ";
-            std::string mprisStatus;
-            PsyMP3::MPRIS::LoopStatus mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
-            switch(m_loop_mode) {
-                case LoopMode::None:
-                    toastMsg += "None";
-                    mprisEnum = PsyMP3::MPRIS::LoopStatus::None;
-                    break;
-                case LoopMode::One:
-                    toastMsg += "One";
-                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Track;
-                    break;
-                case LoopMode::All:
-                    toastMsg += "All";
-                    mprisEnum = PsyMP3::MPRIS::LoopStatus::Playlist;
-                    break;
-            }
-            showToast(toastMsg);
-#ifdef HAVE_DBUS
-            if (m_mpris_manager) {
-                 m_mpris_manager->updateLoopStatus(mprisEnum);
-            }
-#endif
+            handleDoSetLoopModeEvent(static_cast<LoopMode>(reinterpret_cast<intptr_t>(event.data1)));
             break;
-        }
     }
     return false; // Do not exit
 }
@@ -1654,6 +1544,58 @@ bool Player::Initialize(const PlayerOptions& options) {
     auto lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
     m_lyrics_widget = lyrics_widget.get();
     app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
+
+    // Create the "H" demo window with classic Win3.x controls.
+    auto h_window = std::make_unique<WindowWidget>(170, 112, "H", font.get());
+    h_window->setPos(Rect(434, 72, h_window->getPos().width(), h_window->getPos().height()));
+    if (auto* frame = h_window->getFrameWidget()) {
+        frame->setResizable(false);
+        frame->setMinimizable(false);
+        frame->setMaximizable(false);
+        frame->refresh();
+    }
+
+    auto h_client = std::make_unique<LayoutWidget>(170, 112, false);
+    h_client->setBackgroundColor(255, 255, 255);
+
+    auto status_label = std::make_unique<Label>(
+        font.get(), Rect(12, 10, 120, 14), TagLib::String("Checked: No"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* status_label_ptr = status_label.get();
+    h_client->addChild(std::move(status_label));
+
+    auto scroll_label = std::make_unique<Label>(
+        font.get(), Rect(12, 25, 120, 14), TagLib::String("Scroll: 50%"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* scroll_label_ptr = scroll_label.get();
+    h_client->addChild(std::move(scroll_label));
+
+    auto checkbox = std::make_unique<CheckboxWidget>(110, 18, font.get(), TagLib::String("Enable H"), false);
+    auto* checkbox_ptr = checkbox.get();
+    checkbox->setPos(Rect(12, 48, 110, 18));
+    checkbox->setOnToggle([status_label_ptr](bool checked) {
+        status_label_ptr->setText(TagLib::String(checked ? "Checked: Yes" : "Checked: No"));
+    });
+    h_client->addChild(std::move(checkbox));
+
+    auto button = std::make_unique<ButtonWidget>(72, 22);
+    button->setText(TagLib::String("Apply"), font.get());
+    button->setPos(Rect(12, 76, 72, 22));
+    button->setOnClick([checkbox_ptr]() {
+        checkbox_ptr->setChecked(!checkbox_ptr->isChecked());
+    });
+    h_client->addChild(std::move(button));
+
+    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 94, ScrollbarOrientation::Vertical);
+    scrollbar->setPos(Rect(142, 10, 16, 94));
+    scrollbar->setOnChange([scroll_label_ptr](double value) {
+        int percent = static_cast<int>(std::round(value * 100.0));
+        scroll_label_ptr->setText(TagLib::String("Scroll: " + std::to_string(percent) + "%"));
+    });
+    h_client->addChild(std::move(scrollbar));
+
+    h_window->setClientArea(std::move(h_client));
+    app_widget.addWindow(std::move(h_window), ZOrder::UI);
 
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
@@ -1992,6 +1934,11 @@ void Player::renderWindows()
     // Sort windows by z-order (lowest to highest)
     std::vector<WindowFrameWidget*> sorted_windows;
     
+    size_t capacity_needed = m_random_windows.size();
+    if (m_test_window_h) capacity_needed++;
+    if (m_test_window_b) capacity_needed++;
+    sorted_windows.reserve(capacity_needed);
+
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }
@@ -2001,6 +1948,7 @@ void Player::renderWindows()
     }
     
     // Add all random windows
+    sorted_windows.reserve(sorted_windows.size() + m_random_windows.size());
     for (const auto& window : m_random_windows) {
         sorted_windows.push_back(window.get());
     }
@@ -2025,6 +1973,11 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
     // Create list of windows sorted by z-order (highest first for event handling)
     std::vector<WindowFrameWidget*> sorted_windows;
     
+    size_t capacity_needed = m_random_windows.size();
+    if (m_test_window_h) capacity_needed++;
+    if (m_test_window_b) capacity_needed++;
+    sorted_windows.reserve(capacity_needed);
+
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }
@@ -2034,6 +1987,7 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
     }
     
     // Add all random windows
+    sorted_windows.reserve(sorted_windows.size() + m_random_windows.size());
     for (const auto& window : m_random_windows) {
         sorted_windows.push_back(window.get());
     }
@@ -2410,5 +2364,133 @@ void Player::processDeferredDeletions() {
 void Player::deferWidgetDeletion(std::unique_ptr<Widget> widget) {
     if (widget) {
         m_deferred_widgets.push_back(std::move(widget));
+    }
+}
+
+void Player::handleStartFirstTrackEvent() {
+    if (playlist->entries() > 0) {
+        // Use findFirstPlayableTrack to locate the first playable track
+        if (!findFirstPlayableTrack()) {
+            // No playable tracks found
+            stop();
+            updateInfo(false, "No playable tracks found in playlist.");
+        }
+    }
+}
+
+void Player::handleDoNextTrackEvent() {
+    nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
+}
+
+void Player::handleDoPrevTrackEvent() {
+    prevTrack();
+}
+
+void Player::handleTrackLoadSuccessEvent(TrackLoadResult* result) {
+    Debug::log("loader", "Player::handleUserEvent(TRACK_LOAD_SUCCESS) called.");
+    m_skip_attempts = 0; // Reset skip counter on a successful load.
+    Stream* new_stream = result->stream;
+    m_num_tracks_in_current_stream = result->num_chained_tracks;
+    delete result; // Free the result struct
+
+    m_loading_track = false; // Loading complete
+
+    // If we were stopped, audio is null. If playing, check if format changed.
+    // Per request, always re-initialize the audio object on a new track.
+    // This is simpler and more robust than trying to reuse it.
+    audio.reset();
+
+    // Take ownership of the new stream from the loader thread.
+    std::unique_ptr<Stream> owned_new_stream(new_stream); // Take ownership immediately
+
+    // Create a new audio object, which takes ownership of the stream.
+    audio = std::make_unique<Audio>(std::move(owned_new_stream), fft.get(), mutex.get());
+    audio->setVolume(m_volume);
+
+    // Update the player's current stream pointer to reflect the one now owned by Audio
+    // This is a raw pointer, for read-only access by Player.
+
+    // Update lyrics widget with new track's lyrics
+    if (m_lyrics_widget && new_stream) {
+        auto lyrics = new_stream->getLyrics();
+        if (lyrics && lyrics->hasLyrics()) {
+            Debug::log("lyrics", "Player: Setting lyrics widget with ", lyrics->getLines().size(), " lyric lines");
+        } else {
+            Debug::log("lyrics", "Player: No lyrics available for current track");
+        }
+        m_lyrics_widget->setLyrics(lyrics);
+    }
+    stream = audio->getCurrentStream();
+
+    updateInfo();
+    // Ensure audio is unpaused after everything is set up
+    if (audio) audio->play(true);
+    state = PlayerState::Playing;
+
+    // Start scrobbling for the new track
+    startTrackScrobbling();
+
+#ifdef HAVE_DBUS
+    if (m_mpris_manager) {
+        m_mpris_manager->updatePlaybackStatus(PsyMP3::MPRIS::PlaybackStatus::Playing);
+        if (stream) {
+            m_mpris_manager->updateMetadata(
+                stream->getArtist().to8Bit(true),
+                stream->getTitle().to8Bit(true),
+                stream->getAlbum().to8Bit(true),
+                static_cast<uint64_t>(stream->getLength()) * 1000
+            );
+        }
+    }
+#endif
+#ifdef _WIN32
+    if (system) system->announceNowPlaying(stream->getArtist(), stream->getTitle(), stream->getAlbum());
+#endif
+}
+
+void Player::handleTrackLoadFailureEvent(TrackLoadResult* result) {
+    TagLib::String error_msg = result->error_message;
+    delete result; // Free the result struct
+
+    m_loading_track = false; // Loading complete
+
+    Debug::log("loader", "Player: Failed to load track: ", error_msg.to8Bit(true));
+
+    // Robust playlist handling: skip unplayable tracks
+    if (!handleUnplayableTrack()) {
+        // All tracks exhausted or stopping due to end of playlist
+        stop();
+        updateInfo(false, "All tracks in playlist are unplayable.");
+    }
+}
+
+void Player::handleTrackPreloadSuccessEvent(TrackLoadResult* result) {
+    // Store the preloaded stream for seamless transition
+    m_preloading_track = false;
+    m_next_stream.reset(result->stream); // Take ownership of the preloaded stream
+    Debug::log("loader", "Track preloaded successfully for seamless transition.");
+    delete result; // Free the result struct but keep the stream
+}
+
+void Player::handleTrackPreloadFailureEvent(TrackLoadResult* result) {
+    // Handle preload failure - no seamless transition possible
+    m_preloading_track = false;
+    Debug::log("loader", "Failed to preload track: ", result->error_message.to8Bit(true));
+    delete result;
+}
+
+void Player::handleRunGuiIterationEvent() {
+    if (updateGUI()) {
+        // Track has ended.
+        if (m_loop_mode == LoopMode::One) {
+            // Loop current track by seeking to the beginning.
+            seekTo(0);
+        } else if (m_next_stream) {
+            // A track was preloaded, perform seamless swap.
+            synthesizeUserEvent(TRACK_SEAMLESS_SWAP, nullptr, nullptr);
+        } else {
+            // No preloaded track, use the old method.
+            nextTrack(m_num_tracks_in_current_stream > 0 ? m_num_tracks_in_current_stream : 1);
+        }
     }
 }

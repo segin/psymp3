@@ -116,6 +116,7 @@ public:
      * @param enabled If false, button appears grayed out and doesn't respond to clicks
      */
     void setEnabled(bool enabled);
+    void setText(const TagLib::String& text, Font* font);
     
     /**
      * @brief Gets whether the button is enabled.
@@ -141,6 +142,8 @@ private:
     bool m_hovered;
     bool m_enabled;
     bool m_global_mouse_tracking;
+    Font* m_font;
+    TagLib::String m_text;
     std::function<void()> m_on_click;
     
     /**
@@ -162,6 +165,7 @@ private:
      * @param enabled Whether button is enabled (affects symbol color)
      */
     void drawButtonSymbol(Surface& surface, ButtonSymbol symbol, bool enabled);
+    void drawButtonText(Surface& surface, bool enabled);
 };
 
 } // namespace UI
