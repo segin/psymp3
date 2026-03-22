@@ -112,7 +112,7 @@ class Player
         void requestTrackPreload(const TagLib::String& path);
         void requestChainedStreamLoad(const std::vector<TagLib::String>& paths);
         void loaderThreadLoop();
-        void playlistPopulatorLoop(std::vector<std::string> args);
+        void playlistPopulatorLoop(const std::vector<std::string>& args);
 
         void nextTrack(size_t advance_count = 1);
         void prevTrack(void);
@@ -172,6 +172,18 @@ class Player
         void handleMouseMotion(const SDL_MouseMotionEvent& event);
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
         bool handleUserEvent(const SDL_UserEvent& event);
+        void handleStartFirstTrackEvent();
+        void handleDoNextTrackEvent();
+        void handleDoPrevTrackEvent();
+        void handleTrackLoadSuccessEvent(TrackLoadResult* result);
+        void handleTrackLoadFailureEvent(TrackLoadResult* result);
+        void handleTrackPreloadSuccessEvent(TrackLoadResult* result);
+        void handleTrackPreloadFailureEvent(TrackLoadResult* result);
+        void handleRunGuiIterationEvent();
+        void handleTrackSeamlessSwapEvent();
+        void handleDoSavePlaylistEvent();
+        void handleShowNotificationEvent(std::pair<std::string, NotificationType>* data);
+        void handleDoSetLoopModeEvent(LoopMode mode);
         void handleKeyUp(const SDL_keysym& keysym);
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");

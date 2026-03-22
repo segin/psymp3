@@ -6,9 +6,10 @@
  */
 
 #include "psymp3.h"
+
 #ifdef HAVE_RAPIDCHECK
 #include <rapidcheck.h>
-#endif
+#endif // HAVE_RAPIDCHECK
 
 #include "ogg/ogg.h"
 
@@ -323,9 +324,10 @@ int main() {
              (void)seek_success;
         }
     });
+
 #else
-    std::cout << "Skipping ogg fuzzing tests because rapidcheck is not available." << std::endl;
-#endif
+    std::cout << "RapidCheck not available. Skipping Ogg fuzzing property tests." << std::endl;
+#endif // HAVE_RAPIDCHECK
 
     return 0;
 }

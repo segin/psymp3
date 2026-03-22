@@ -1522,18 +1522,17 @@ bool FLACDemuxer::parseSeekTableBlock_unlocked(const FLACMetadataBlock& block)
  * @param name The field name to validate
  * @return true if the field name is valid, false otherwise
  */
-static bool isValidVorbisFieldName(const std::string& name)
+bool FLACDemuxer::isValidVorbisFieldName(const std::string& name)
 {
     if (name.empty()) {
         return false;
     }
     
-    // Requirement 13.8: Validate field names use printable ASCII 0x20-0x7E except 0x3D
+    // Requirement 13.8: Validate field names use printable ASCII 0x20-0x7D except 0x3D
     // RFC 9639 Section 8.6: "The field name is ASCII 0x20 through 0x7D, 0x3D ('=') excluded"
-    // Note: RFC says 0x7D but this appears to be a typo - should be 0x7E (tilde)
     for (unsigned char c : name) {
-        // Must be in range 0x20-0x7E (space through tilde)
-        if (c < 0x20 || c > 0x7E) {
+        // Must be in range 0x20-0x7D (space through right brace)
+        if (c < 0x20 || c > 0x7D) {
             return false;
         }
         // Must not be equals sign (0x3D)

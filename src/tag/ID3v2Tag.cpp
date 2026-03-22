@@ -48,32 +48,9 @@ std::unique_ptr<ID3v2Tag> ID3v2Tag::parse(const uint8_t* data, size_t size) {
         return nullptr;
     }
     
-    // Skip extended header if present
-    size_t frame_data_offset = HEADER_SIZE;
-    if (tag->hasExtendedHeader()) {
-        size_t ext_header_size = tag->skipExtendedHeader(data + HEADER_SIZE, tag_size - HEADER_SIZE);
-        if (ext_header_size == 0) {
-            Debug::log("tag", "ID3v2Tag::parse: Failed to skip extended header");
-            return nullptr;
-        }
-        frame_data_offset += ext_header_size;
+    if (!tag->parseBody(data, size, tag_size)) {
+        return nullptr;
     }
-    
-    // Parse frames
-    size_t frame_data_size = tag_size - frame_data_offset;
-    if (tag->hasFooter()) {
-        frame_data_size -= 10; // Footer is 10 bytes
-    }
-    
-    if (frame_data_size > 0) {
-        if (!tag->parseFrames(data + frame_data_offset, frame_data_size)) {
-            Debug::log("tag", "ID3v2Tag::parse: Failed to parse frames");
-            // Don't return nullptr - partial parsing is acceptable
-        }
-    }
-    
-    // Extract pictures from APIC/PIC frames
-    tag->extractPictures();
     
     Debug::log("tag", "ID3v2Tag::parse: Successfully parsed ID3v", 
                static_cast<int>(tag->m_major_version), ".", static_cast<int>(tag->m_minor_version),
@@ -145,6 +122,37 @@ size_t ID3v2Tag::getTagSize(const uint8_t* header) {
 // ============================================================================
 // Header parsing implementation
 // ============================================================================
+
+bool ID3v2Tag::parseBody(const uint8_t* data, size_t /*size*/, size_t tag_size) {
+    // Skip extended header if present
+    size_t frame_data_offset = HEADER_SIZE;
+    if (hasExtendedHeader()) {
+        size_t ext_header_size = skipExtendedHeader(data + HEADER_SIZE, tag_size - HEADER_SIZE);
+        if (ext_header_size == 0) {
+            Debug::log("tag", "ID3v2Tag::parse: Failed to skip extended header");
+            return false;
+        }
+        frame_data_offset += ext_header_size;
+    }
+
+    // Parse frames
+    size_t frame_data_size = tag_size - frame_data_offset;
+    if (hasFooter()) {
+        frame_data_size -= 10; // Footer is 10 bytes
+    }
+
+    if (frame_data_size > 0) {
+        if (!parseFrames(data + frame_data_offset, frame_data_size)) {
+            Debug::log("tag", "ID3v2Tag::parse: Failed to parse frames");
+            // Don't return false - partial parsing is acceptable
+        }
+    }
+
+    // Extract pictures from APIC/PIC frames
+    extractPictures();
+
+    return true;
+}
 
 bool ID3v2Tag::parseHeader(const uint8_t* data, size_t size) {
     if (!data || size < HEADER_SIZE) {
@@ -640,13 +648,10 @@ uint32_t ID3v2Tag::parseYear(const std::string& text) {
 }
 
 std::string ID3v2Tag::normalizeKey(const std::string& key) {
-    std::string normalized;
-    normalized.reserve(key.size());
-    
-    for (char c : key) {
-        normalized += static_cast<char>(std::toupper(c));
+    std::string normalized = key;
+    for (char& c : normalized) {
+        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
     }
-    
     return normalized;
 }
 
