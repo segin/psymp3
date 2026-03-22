@@ -431,17 +431,21 @@ int main(int argc, char* argv[]) {
     
     auto runTest = [&](TestCase& test) {
         try {
-            test.run();
-            if (test.passed()) {
+            auto info = test.run();
+            if (info.result == TestFramework::TestResult::PASSED) {
                 passed++;
-                std::cout << "  " << test.name() << ": PASSED\n";
+                std::cout << "  " << test.getName() << ": PASSED\n";
             } else {
                 failed++;
-                std::cout << "  " << test.name() << ": FAILED - " << test.failureMessage() << "\n";
+                std::cout << "  " << test.getName() << ": FAILED";
+                if (!info.failure_message.empty()) {
+                    std::cout << " - " << info.failure_message;
+                }
+                std::cout << "\n";
             }
         } catch (const std::exception& e) {
             failed++;
-            std::cout << "  " << test.name() << ": EXCEPTION - " << e.what() << "\n";
+            std::cout << "  " << test.getName() << ": EXCEPTION - " << e.what() << "\n";
         }
     };
     
