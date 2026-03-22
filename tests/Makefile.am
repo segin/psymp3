@@ -264,7 +264,7 @@ opusout_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OPUS_LIBS) $(OGG_LIBS) \
 	-lvorbis -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS)
+	$(AM_LDFLAGS) $(FLAC_LIBS) $(TAGLIB_LIBS) $(AAC_LIBS)
 endif
 
 debug_dual_flac_SOURCES = debug_dual_flac.cpp
@@ -3163,7 +3163,7 @@ flacout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(FLAC_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
+	$(AM_LDFLAGS) $(AAC_LIBS)
 endif
 
 # ============================================================================
@@ -3210,7 +3210,7 @@ vorbisout_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(VORBIS_LIBS) \
 	-logg -lopus -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS) $(FLAC_LIBS)
+	$(AM_LDFLAGS) $(FLAC_LIBS) $(AAC_LIBS)
 endif
 
 # ============================================================================
@@ -3256,7 +3256,7 @@ mp3out_LDADD = \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(LIBMPG123_LIBS) \
 	-logg -lvorbis -lvorbisenc -lopus -lmpg123 -lcurl -lssl -lcrypto \
-	$(AM_LDFLAGS)
+	$(AM_LDFLAGS) $(AAC_LIBS)
 endif
 
 
