@@ -94,7 +94,9 @@ Player::~Player() {
     audio.reset();
 
     // Notify all windows that the application is shutting down
-    ApplicationWidget::getInstance().notifyShutdown();
+    if (ApplicationWidget::isInitialized()) {
+        ApplicationWidget::getInstance().notifyShutdown();
+    }
     
 #ifdef HAVE_DBUS
     if (m_mpris_manager) {
