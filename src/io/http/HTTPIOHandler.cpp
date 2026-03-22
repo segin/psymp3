@@ -10,7 +10,6 @@
 #include "psymp3.h"
 #include <random>
 #include <algorithm>
-
 namespace PsyMP3 {
 namespace IO {
 namespace HTTP {
