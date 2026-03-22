@@ -55,7 +55,6 @@ bool FLACHeaderParser::parseHeader(ogg_packet* packet) {
         if (packet->bytes < 13 + 4) return false; // Header + Block Header
         
         unsigned char* block_header = data + 13;
-        // bool is_last = (block_header[0] & 0x80) != 0;
         int type = block_header[0] & 0x7F;
         
         if (type != 0) return false; // First block must be STREAMINFO
@@ -88,7 +87,6 @@ bool FLACHeaderParser::parseHeader(ogg_packet* packet) {
         m_info.channels = channels_minus_1 + 1;
         
         // Bits Per Sample: 5 bits (bit 0 of 12, top 4 of 13)
-        // int bps_minus_1 = ((streaminfo[12] & 0x01) << 4) | ((streaminfo[13] >> 4) & 0x0F);
         
         m_streaminfo_found = true;
         m_headers_count = 1;
