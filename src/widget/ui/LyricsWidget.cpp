@@ -53,7 +53,12 @@ void LyricsWidget::setLyrics(std::shared_ptr<LyricsFile> lyrics)
     
     if (!hasLyrics()) {
         clearLyrics();
+        return;
     }
+
+    updateDisplayedText(0);
+    rebuildSurface();
+    m_needs_redraw = false;
 }
 
 void LyricsWidget::updatePosition(unsigned int current_time_ms)
@@ -68,26 +73,8 @@ void LyricsWidget::updatePosition(unsigned int current_time_ms)
     }
     
     m_last_update_time = current_time_ms;
-    
-    // Get current lyric line
-    const LyricLine* current_line = m_lyrics->getCurrentLine(current_time_ms);
-    std::string new_current_text = current_line ? current_line->text : "";
-    
-    // Get upcoming lines for context
-    auto upcoming_lines = m_lyrics->getUpcomingLines(current_time_ms, 3);
-    std::vector<std::string> new_preview_lines;
-    
-    // Skip the current line and add the next ones
-    for (size_t i = 1; i < upcoming_lines.size(); ++i) {
-        if (!upcoming_lines[i]->text.empty()) {
-            new_preview_lines.push_back(upcoming_lines[i]->text);
-        }
-    }
-    
-    // Check if we need to redraw
-    if (new_current_text != m_current_line_text || new_preview_lines != m_preview_lines) {
-        m_current_line_text = new_current_text;
-        m_preview_lines = new_preview_lines;
+
+    if (updateDisplayedText(current_time_ms)) {
         m_needs_redraw = true;
     }
     
@@ -107,6 +94,7 @@ void LyricsWidget::clearLyrics()
     m_lyrics.reset();
     m_current_line_text.clear();
     m_preview_lines.clear();
+    m_needs_redraw = false;
     
     // Create a minimal empty surface
     setSurface(std::make_unique<Surface>(1, 1, true));
@@ -120,7 +108,7 @@ void LyricsWidget::clearLyrics()
 
 void LyricsWidget::BlitTo(Surface& target)
 {
-    if (!hasLyrics() || m_current_line_text.empty()) {
+    if (!hasLyrics() || !hasDisplayText()) {
         return; // Don't draw anything if no lyrics
     }
     
@@ -150,45 +138,46 @@ void LyricsWidget::rebuildSurface()
 
 std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
 {
-    if (!m_font || (!hasLyrics() && m_current_line_text.empty())) {
+    if (!m_font || !hasLyrics() || !hasDisplayText()) {
         return std::make_unique<::Surface>(1, 1, true);
     }
     
     const int LINE_SPACING = 6;
     const int PADDING = 12;
-    
-    // Render current line (highlighted)
-    SDL_Color current_color = {255, 255, 255, 255}; // White
-    auto current_surface = m_font->Render(TagLib::String(m_current_line_text, TagLib::String::UTF8), 
-                                         current_color.r, current_color.g, current_color.b);
-    
-    if (!current_surface || !current_surface->isValid()) {
+
+    std::vector<std::unique_ptr<Surface>> line_surfaces;
+    std::vector<uint8_t> line_alphas;
+
+    auto render_line = [&](const std::string& text, SDL_Color color, uint8_t alpha) {
+        if (text.empty()) {
+            return;
+        }
+
+        auto surface = m_font->Render(TagLib::String(text, TagLib::String::UTF8),
+                                      color.r, color.g, color.b);
+        if (surface && surface->isValid()) {
+            line_alphas.push_back(alpha);
+            line_surfaces.push_back(std::move(surface));
+        }
+    };
+
+    render_line(m_current_line_text, SDL_Color{255, 255, 255, 255}, 255);
+    for (const auto& line : m_preview_lines) {
+        render_line(line, SDL_Color{180, 180, 180, 255}, 180);
+    }
+
+    if (line_surfaces.empty()) {
         return std::make_unique<Surface>(1, 1, true);
     }
-    
-    // Render preview lines (dimmed)
-    SDL_Color preview_color = {180, 180, 180, 255}; // Light gray
-    std::vector<std::unique_ptr<Surface>> preview_surfaces;
-    
-    for (const auto& line : m_preview_lines) {
-        if (!line.empty()) {
-            auto surface = m_font->Render(TagLib::String(line, TagLib::String::UTF8),
-                                        preview_color.r, preview_color.g, preview_color.b);
-            if (surface && surface->isValid()) {
-                preview_surfaces.push_back(std::move(surface));
-            }
+
+    int max_width = 0;
+    int total_height = 0;
+    for (size_t i = 0; i < line_surfaces.size(); ++i) {
+        max_width = std::max(max_width, static_cast<int>(line_surfaces[i]->width()));
+        total_height += static_cast<int>(line_surfaces[i]->height());
+        if (i + 1 < line_surfaces.size()) {
+            total_height += LINE_SPACING;
         }
-    }
-    
-    // Calculate total dimensions
-    int max_width = current_surface->width();
-    for (const auto& surface : preview_surfaces) {
-        max_width = std::max(max_width, static_cast<int>(surface->width()));
-    }
-    
-    int total_height = current_surface->height();
-    for (const auto& surface : preview_surfaces) {
-        total_height += surface->height() + LINE_SPACING;
     }
     
     // Add padding
@@ -204,23 +193,18 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
     // Draw semi-transparent background
     final_surface->roundedBoxRGBA(0, 0, surface_width - 1, surface_height - 1, 8, 0, 0, 0, 160);
     
-    // Position and blit current line
     int y_offset = PADDING;
-    int x_offset = (surface_width - current_surface->width()) / 2;
-    
-    Rect current_rect(x_offset, y_offset, 0, 0);
-    current_surface->SetAlpha(SDL_SRCALPHA, 255);
-    final_surface->Blit(*current_surface, current_rect);
-    
-    y_offset += current_surface->height() + LINE_SPACING;
-    
-    // Position and blit preview lines
-    for (const auto& surface : preview_surfaces) {
-        x_offset = (surface_width - surface->width()) / 2;
+
+    for (size_t i = 0; i < line_surfaces.size(); ++i) {
+        auto& surface = line_surfaces[i];
+        int x_offset = (surface_width - surface->width()) / 2;
         Rect rect(x_offset, y_offset, 0, 0);
-        surface->SetAlpha(SDL_SRCALPHA, 180); // More transparent for preview
+        surface->SetAlpha(SDL_SRCALPHA, line_alphas[i]);
         final_surface->Blit(*surface, rect);
-        y_offset += surface->height() + LINE_SPACING;
+        y_offset += surface->height();
+        if (i + 1 < line_surfaces.size()) {
+            y_offset += LINE_SPACING;
+        }
     }
     
     return final_surface;
@@ -228,7 +212,7 @@ std::unique_ptr<::Surface> LyricsWidget::createLyricsSurface()
 
 int LyricsWidget::calculateRequiredHeight()
 {
-    if (!m_font || m_current_line_text.empty()) {
+    if (!m_font || !hasDisplayText()) {
         return 0;
     }
     
@@ -240,6 +224,53 @@ int LyricsWidget::calculateRequiredHeight()
     int lines_to_show = 1 + std::min(static_cast<int>(m_preview_lines.size()), 2);
     
     return (font_height * lines_to_show) + (LINE_SPACING * (lines_to_show - 1)) + (PADDING * 2);
+}
+
+bool LyricsWidget::updateDisplayedText(unsigned int current_time_ms)
+{
+    std::string new_current_text;
+    std::vector<std::string> new_preview_lines;
+
+    const LyricLine* current_line = m_lyrics->getCurrentLine(current_time_ms);
+    if (current_line && !current_line->text.empty()) {
+        new_current_text = current_line->text;
+
+        auto upcoming_lines = m_lyrics->getUpcomingLines(current_time_ms, 3);
+        for (size_t i = 1; i < upcoming_lines.size(); ++i) {
+            if (!upcoming_lines[i]->text.empty()) {
+                new_preview_lines.push_back(upcoming_lines[i]->text);
+            }
+        }
+    } else {
+        // Before the first synced timestamp, show the first few non-empty lines as preview
+        // so the widget becomes visible instead of waiting for the first active lyric line.
+        for (const auto& line : m_lyrics->getLines()) {
+            if (!line.text.empty()) {
+                new_preview_lines.push_back(line.text);
+            }
+            if (new_preview_lines.size() == 3) {
+                break;
+            }
+        }
+    }
+
+    if (new_current_text == m_current_line_text && new_preview_lines == m_preview_lines) {
+        return false;
+    }
+
+    m_current_line_text = std::move(new_current_text);
+    m_preview_lines = std::move(new_preview_lines);
+    return true;
+}
+
+bool LyricsWidget::hasDisplayText() const
+{
+    if (!m_current_line_text.empty()) {
+        return true;
+    }
+
+    return std::any_of(m_preview_lines.begin(), m_preview_lines.end(),
+                       [](const std::string& line) { return !line.empty(); });
 }
 
 } // namespace UI

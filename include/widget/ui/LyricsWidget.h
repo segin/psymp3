@@ -99,6 +99,19 @@ private:
      * @brief Rebuilds the widget surface with current lyrics.
      */
     void rebuildSurface();
+
+    /**
+     * @brief Refreshes the current and preview lyric text for a playback position.
+     * @param current_time_ms Current playback time in milliseconds
+     * @return true if the visible lyric content changed
+     */
+    bool updateDisplayedText(unsigned int current_time_ms);
+
+    /**
+     * @brief Checks whether there is any text available to render.
+     * @return true if either the current line or preview lines contain text
+     */
+    bool hasDisplayText() const;
     
     /**
      * @brief Creates a surface with the current and upcoming lyrics.
