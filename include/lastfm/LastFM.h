@@ -87,7 +87,7 @@ private:
     std::queue<NowPlayingRequest> m_nowplaying_requests;
     std::string m_session_key;
     std::string m_username;
-    std::string m_password_hash;  // Cached MD5 hash of password (Mandated by protocol)
+    std::string m_password_hash;  // Cached MD5 hash of password (Mandated by protocol). Memory is explicitly cleansed on destruction.
     std::string m_config_file;
     std::string m_cache_file;
     
