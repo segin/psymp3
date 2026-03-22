@@ -1431,7 +1431,7 @@ bool FLACCodec::initializeFLACDecoder_unlocked() {
         // Initialize decoder state and prepare for high-performance frame processing
         Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Preparing for high-performance frame processing");
         
-        // CRITICAL FIX: Provide STREAMINFO metadata to libFLAC
+        // Provide STREAMINFO metadata to libFLAC
         // The demuxer has already parsed metadata, but libFLAC needs STREAMINFO to decode frames
         if (!provideSyntheticStreamInfo_unlocked()) {
             Debug::log("flac_codec", "[FLACCodec::initializeFLACDecoder_unlocked] Failed to provide synthetic STREAMINFO");
@@ -1511,7 +1511,7 @@ bool FLACCodec::provideSyntheticStreamInfo_unlocked() {
     Debug::log("flac_codec", "[FLACCodec::provideSyntheticStreamInfo_unlocked] Creating synthetic FLAC stream header");
     
     try {
-        // CRITICAL FIX: libFLAC stream decoder expects a complete FLAC stream starting with
+        // libFLAC stream decoder expects a complete FLAC stream starting with
         // the "fLaC" marker and STREAMINFO metadata block. Since the demuxer has already
         // parsed and removed this, we need to synthesize it and feed it to the decoder.
         
@@ -2663,7 +2663,7 @@ void FLACCodec::resetDecoderState_unlocked() {
             // the decoder sees the 'fLaC' marker immediately.
             m_decoder->clearInputBuffer();
 
-            // CRITICAL FIX: After any reset, the libFLAC decoder returns to SEARCH_FOR_METADATA state.
+            // After any reset, the libFLAC decoder returns to SEARCH_FOR_METADATA state.
             // We must re-provide the synthetic header so it can transition back to decoding state.
             if (!provideSyntheticStreamInfo_unlocked()) {
                 Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Warning: Failed to provide synthetic STREAMINFO");

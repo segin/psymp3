@@ -356,7 +356,7 @@ MethodHandler::handleRaise_unlocked(DBusConnection *connection,
   // Bring the media player to the foreground
   // For PsyMP3, this might mean focusing the window or just logging
   std::cout << "MPRIS: Received Raise command - bringing player to foreground"
-            << std::endl;
+            << '\n';
 
   sendMethodReturn_unlocked(connection, message);
   return DBUS_HANDLER_RESULT_HANDLED;
@@ -365,7 +365,7 @@ MethodHandler::handleRaise_unlocked(DBusConnection *connection,
 DBusHandlerResult MethodHandler::handleQuit_unlocked(DBusConnection *connection,
                                                      DBusMessage *message) {
   std::cout << "MPRIS: Received Quit command - shutting down player"
-            << std::endl;
+            << '\n';
 
   // Send reply before triggering quit to ensure client gets response
   sendMethodReturn_unlocked(connection, message);
@@ -386,7 +386,7 @@ DBusHandlerResult MethodHandler::handleQuit_unlocked(DBusConnection *connection,
 
 DBusHandlerResult MethodHandler::handlePlay_unlocked(DBusConnection *connection,
                                                      DBusMessage *message) {
-  std::cout << "MPRIS: Received Play command" << std::endl;
+  std::cout << "MPRIS: Received Play command" << '\n';
 
   if (!m_player) {
     sendErrorReply_unlocked(connection, message,
@@ -415,7 +415,7 @@ DBusHandlerResult MethodHandler::handlePlay_unlocked(DBusConnection *connection,
 DBusHandlerResult
 MethodHandler::handlePause_unlocked(DBusConnection *connection,
                                     DBusMessage *message) {
-  std::cout << "MPRIS: Received Pause command" << std::endl;
+  std::cout << "MPRIS: Received Pause command" << '\n';
 
   if (!m_player) {
     sendErrorReply_unlocked(connection, message,
@@ -443,7 +443,7 @@ MethodHandler::handlePause_unlocked(DBusConnection *connection,
 
 DBusHandlerResult MethodHandler::handleStop_unlocked(DBusConnection *connection,
                                                      DBusMessage *message) {
-  std::cout << "MPRIS: Received Stop command" << std::endl;
+  std::cout << "MPRIS: Received Stop command" << '\n';
 
   if (!m_player) {
     sendErrorReply_unlocked(connection, message,
@@ -472,7 +472,7 @@ DBusHandlerResult MethodHandler::handleStop_unlocked(DBusConnection *connection,
 DBusHandlerResult
 MethodHandler::handlePlayPause_unlocked(DBusConnection *connection,
                                         DBusMessage *message) {
-  std::cout << "MPRIS: Received PlayPause command" << std::endl;
+  std::cout << "MPRIS: Received PlayPause command" << '\n';
 
   if (!m_player) {
     sendErrorReply_unlocked(connection, message,
@@ -500,7 +500,7 @@ MethodHandler::handlePlayPause_unlocked(DBusConnection *connection,
 
 DBusHandlerResult MethodHandler::handleNext_unlocked(DBusConnection *connection,
                                                      DBusMessage *message) {
-  std::cout << "MPRIS: Received Next command" << std::endl;
+  std::cout << "MPRIS: Received Next command" << '\n';
 
   if (!m_player) {
     sendErrorReply_unlocked(connection, message,
@@ -530,7 +530,7 @@ DBusHandlerResult MethodHandler::handleNext_unlocked(DBusConnection *connection,
 DBusHandlerResult
 MethodHandler::handlePrevious_unlocked(DBusConnection *connection,
                                        DBusMessage *message) {
-  std::cout << "MPRIS: Received Previous command" << std::endl;
+  std::cout << "MPRIS: Received Previous command" << '\n';
 
   if (!m_player) {
     sendErrorReply_unlocked(connection, message,
@@ -586,7 +586,7 @@ DBusHandlerResult MethodHandler::handleSeek_unlocked(DBusConnection *connection,
   }
 
   std::cout << "MPRIS: Received Seek command with offset: " << offset_us
-            << " microseconds" << std::endl;
+            << " microseconds" << '\n';
 
   // Calculate new absolute position (current position + offset)
   uint64_t current_position_us = m_properties->getPosition();
@@ -665,7 +665,7 @@ MethodHandler::handleSetPosition_unlocked(DBusConnection *connection,
   }
 
   std::cout << "MPRIS: Received SetPosition command for track " << track_id
-            << " to position " << position_us << " microseconds" << std::endl;
+            << " to position " << position_us << " microseconds" << '\n';
 
   if (!m_player) {
     sendErrorReply_unlocked(connection, message,
@@ -751,7 +751,7 @@ MethodHandler::handleGetProperty_unlocked(DBusConnection *connection,
   auto [interface_name, property_name] = args_result.getValue();
 
   std::cout << "MPRIS: Received Get property " << property_name
-            << " on interface " << interface_name << std::endl;
+            << " on interface " << interface_name << '\n';
 
   auto interface_it = m_property_handlers.find(interface_name);
   if (interface_it == m_property_handlers.end()) {
@@ -835,7 +835,7 @@ MethodHandler::handleSetProperty_unlocked(DBusConnection *connection,
   dbus_message_iter_recurse(&args, &variant_iter);
 
   std::cout << "MPRIS: Received Set property " << property_name
-            << " on interface " << interface_name << std::endl;
+            << " on interface " << interface_name << '\n';
 
   auto interface_it = m_property_handlers.find(interface_name);
   if (interface_it == m_property_handlers.end()) {
@@ -904,7 +904,7 @@ MethodHandler::handleGetAllProperties_unlocked(DBusConnection *connection,
   dbus_message_iter_get_basic(&args, &interface_name);
 
   std::cout << "MPRIS: Received GetAll properties for interface "
-            << interface_name << std::endl;
+            << interface_name << '\n';
 
   auto interface_it = m_property_handlers.find(interface_name);
   if (interface_it == m_property_handlers.end()) {
@@ -1233,20 +1233,20 @@ void MethodHandler::appendVariantToIter_unlocked(
 void MethodHandler::logMethodCall_unlocked(const std::string &interface_name,
                                            const std::string &method_name) {
   std::cout << "MPRIS MethodHandler: " << interface_name << "." << method_name
-            << std::endl;
+            << '\n';
 }
 
 void MethodHandler::logError_unlocked(const std::string &context,
                                       const std::string &error_message) {
   std::cerr << "MPRIS MethodHandler Error [" << context
-            << "]: " << error_message << std::endl;
+            << "]: " << error_message << '\n';
 }
 
 void MethodHandler::logValidationError_unlocked(
     const std::string &method_name, const std::string &parameter,
     const std::string &error_message) {
   std::cerr << "MPRIS MethodHandler Validation Error [" << method_name << "."
-            << parameter << "]: " << error_message << std::endl;
+            << parameter << "]: " << error_message << '\n';
 }
 
 #endif // HAVE_DBUS
