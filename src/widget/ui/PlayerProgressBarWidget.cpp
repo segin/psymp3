@@ -125,6 +125,19 @@ bool PlayerProgressBarWidget::handleMouseUp(const SDL_MouseButtonEvent& event, i
     return false;
 }
 
+void PlayerProgressBarWidget::BlitTo(Surface& target)
+{
+    blitWithBackgroundClear(target, m_pos);
+}
+
+void PlayerProgressBarWidget::recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos)
+{
+    Rect absolute_pos(parent_absolute_pos.x() + m_pos.x(),
+                      parent_absolute_pos.y() + m_pos.y(),
+                      m_pos.width(), m_pos.height());
+    blitWithBackgroundClear(target, absolute_pos);
+}
+
 void PlayerProgressBarWidget::setProgress(double progress)
 {
     // Clamp progress to valid range
@@ -170,6 +183,25 @@ void PlayerProgressBarWidget::rebuildSurface()
     
     // Set the surface
     setSurface(std::move(progress_surface));
+}
+
+void PlayerProgressBarWidget::blitWithBackgroundClear(Surface& target, const Rect& absolute_pos)
+{
+    if (!this->isValid()) {
+        return;
+    }
+
+    int clear_w = std::max(static_cast<int>(absolute_pos.width()), m_last_drawn_width);
+    int clear_h = std::max(static_cast<int>(absolute_pos.height()), m_last_drawn_height);
+
+    target.box(absolute_pos.x(), absolute_pos.y(),
+               absolute_pos.x() + clear_w - 1,
+               absolute_pos.y() + clear_h - 1,
+               target.MapRGB(0, 0, 0));
+    target.Blit(*this, absolute_pos);
+
+    m_last_drawn_width = static_cast<int>(absolute_pos.width());
+    m_last_drawn_height = static_cast<int>(absolute_pos.height());
 }
 
 void PlayerProgressBarWidget::drawFrame(Surface& surface) const

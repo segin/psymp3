@@ -87,6 +87,7 @@ bool FadingWidget::isHidden() const
 void FadingWidget::BlitTo(Surface& target)
 {
     if (m_state == FadeState::Hidden) {
+        clearLastDrawnArea(target);
         return; // Don't draw if hidden.
     }
 
@@ -100,6 +101,7 @@ void FadingWidget::BlitTo(Surface& target)
     }
     if (m_state == FadeState::FadingOut && now >= m_state_change_time + m_fade_duration) {
         m_state = FadeState::Hidden;
+        clearLastDrawnArea(target);
         return; // Became hidden this frame, so don't draw.
     }
 
@@ -117,7 +119,26 @@ void FadingWidget::BlitTo(Surface& target)
     // Apply calculated alpha and blit
     // Target the internal Surface object for alpha modification.
     getSurface().SetAlpha(SDL_SRCALPHA, static_cast<Uint8>(alpha_f)); // This will now work
+    clearLastDrawnArea(target);
     Widget::BlitTo(target); // Call base class blit
+
+    m_last_drawn_width = getPos().width();
+    m_last_drawn_height = getPos().height();
+    m_has_last_drawn_area = true;
+}
+
+void FadingWidget::clearLastDrawnArea(Surface& target)
+{
+    if (!m_has_last_drawn_area || m_last_drawn_width <= 0 || m_last_drawn_height <= 0) {
+        return;
+    }
+
+    Rect pos = getPos();
+    target.box(pos.x(), pos.y(),
+               pos.x() + m_last_drawn_width - 1,
+               pos.y() + m_last_drawn_height - 1,
+               target.MapRGB(0, 0, 0));
+    m_has_last_drawn_area = false;
 }
 
 } // namespace Foundation

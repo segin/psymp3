@@ -76,6 +76,8 @@ public:
      * @return true if the event was handled
      */
     virtual bool handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y) override;
+    void BlitTo(Surface& target) override;
+    void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
     
     /**
      * @brief Sets the current progress (0.0 to 1.0).
@@ -120,11 +122,15 @@ public:
     void setOnSeekEnd(std::function<void(double progress)> callback) { m_on_seek_end = callback; }
 
 private:
+    void blitWithBackgroundClear(Surface& target, const Rect& absolute_pos);
+
     int m_width;
     int m_height;
     double m_progress;          // Actual progress (0.0 to 1.0)
     double m_drag_progress;     // Visual progress during drag (0.0 to 1.0)
     bool m_is_dragging;
+    int m_last_drawn_width = 0;
+    int m_last_drawn_height = 0;
     
     // Seek callbacks
     std::function<void(double progress)> m_on_seek_start;

@@ -91,6 +91,11 @@ bool LyricsWidget::hasLyrics() const
 
 void LyricsWidget::clearLyrics()
 {
+    Rect pos = getPos();
+    m_last_drawn_width = pos.width();
+    m_last_drawn_height = pos.height();
+    m_has_last_drawn_area = (m_last_drawn_width > 0 && m_last_drawn_height > 0);
+
     m_lyrics.reset();
     m_current_line_text.clear();
     m_preview_lines.clear();
@@ -100,7 +105,6 @@ void LyricsWidget::clearLyrics()
     setSurface(std::make_unique<Surface>(1, 1, true));
     
     // Set position to indicate no lyrics
-    Rect pos = getPos();
     pos.width(0);
     pos.height(0);
     setPos(pos);
@@ -109,10 +113,17 @@ void LyricsWidget::clearLyrics()
 void LyricsWidget::BlitTo(Surface& target)
 {
     if (!hasLyrics() || !hasDisplayText()) {
+        clearLastDrawnArea(target);
         return; // Don't draw anything if no lyrics
     }
-    
+
+    clearLastDrawnArea(target);
     Widget::BlitTo(target);
+
+    Rect pos = getPos();
+    m_last_drawn_width = pos.width();
+    m_last_drawn_height = pos.height();
+    m_has_last_drawn_area = true;
 }
 
 void LyricsWidget::rebuildSurface()
@@ -271,6 +282,28 @@ bool LyricsWidget::hasDisplayText() const
 
     return std::any_of(m_preview_lines.begin(), m_preview_lines.end(),
                        [](const std::string& line) { return !line.empty(); });
+}
+
+void LyricsWidget::clearLastDrawnArea(Surface& target)
+{
+    if (!m_has_last_drawn_area || m_last_drawn_width <= 0 || m_last_drawn_height <= 0) {
+        return;
+    }
+
+    Rect pos = getPos();
+    int clear_x = pos.x();
+    int clear_y = pos.y();
+
+    if (pos.width() == 0 || pos.height() == 0) {
+        clear_x = (m_widget_width - m_last_drawn_width) / 2;
+        clear_y = 50;
+    }
+
+    target.box(clear_x, clear_y,
+               clear_x + m_last_drawn_width - 1,
+               clear_y + m_last_drawn_height - 1,
+               target.MapRGB(0, 0, 0));
+    m_has_last_drawn_area = false;
 }
 
 } // namespace UI
