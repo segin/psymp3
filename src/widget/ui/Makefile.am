@@ -36,6 +36,7 @@ noinst_LIBRARIES = libpsymp3-widget-ui.a
 
 libpsymp3_widget_ui_a_SOURCES = \
 	ButtonWidget.cpp \
+	CheckboxWidget.cpp \
 	MainUIWidget.cpp \
 	ApplicationWidget.cpp \
 	PlayerProgressBarWidget.cpp \
@@ -44,4 +45,5 @@ libpsymp3_widget_ui_a_SOURCES = \
 	SpectrumAnalyzerWidget.cpp \
 	Label.cpp \
 	LyricsWidget.cpp \
+	ScrollbarWidget.cpp \
 	ToastWidget.cpp
