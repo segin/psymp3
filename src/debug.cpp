@@ -163,8 +163,8 @@ void Debug::write(const std::string& channel, const std::string& function, int l
     ss << ": " << message;
 
     if (m_log_to_file && m_logfile.is_open()) {
-        m_logfile << ss.str() << std::endl;
+        m_logfile << ss.str() << '\n';
     } else {
-        std::cout << ss.str() << std::endl;
+        std::cout << ss.str() << '\n';
     }
 }
