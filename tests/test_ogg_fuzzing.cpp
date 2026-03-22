@@ -6,7 +6,9 @@
  */
 
 #include "psymp3.h"
+#ifdef HAVE_RAPIDCHECK
 #include <rapidcheck.h>
+#endif
 
 #include "ogg/ogg.h"
 
@@ -103,6 +105,7 @@ private:
 };
 
 int main() {
+#ifdef HAVE_RAPIDCHECK
     // 1. OggSyncManager Resilience: Random Bytes
     // Should never crash, regardless of input.
     rc::check("OggSyncManager: Random Byte Stream Resilience", [](const std::vector<uint8_t>& data) {
@@ -320,7 +323,9 @@ int main() {
              (void)seek_success;
         }
     });
-
+#else
+    std::cout << "Skipping ogg fuzzing tests because rapidcheck is not available." << std::endl;
+#endif
 
     return 0;
 }
