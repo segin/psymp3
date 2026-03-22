@@ -325,7 +325,6 @@ void MPRISManager::updateShuffle_unlocked(bool shuffle) {
     }
 
     try {
-        // m_properties->updateShuffle(shuffle);
         emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
         MPRISError error(
@@ -345,9 +344,7 @@ void MPRISManager::updateVolume_unlocked(double volume) {
     }
 
     try {
-        // if (m_properties->updateVolume(volume)) {
-            emitPropertyChanges_unlocked();
-        // }
+        emitPropertyChanges_unlocked();
     } catch (const std::exception& e) {
         MPRISError error(
             MPRISError::Category::PlayerState,
