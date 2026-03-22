@@ -1100,6 +1100,52 @@ protected:
 };
 
 // ============================================================================
+// ID3v2Utils::decodeSynchsafeBytes Tests
+// ============================================================================
+
+class ID3v2Utils_DecodeSynchsafeBytes_ValidValues : public TestCase {
+public:
+    ID3v2Utils_DecodeSynchsafeBytes_ValidValues() : TestCase("ID3v2Utils_DecodeSynchsafeBytes_ValidValues") {}
+protected:
+    void runTest() override {
+        uint8_t bytes1[] = {0x00, 0x00, 0x00, 0x00};
+        ASSERT_EQUALS(0u, ID3v2Utils::decodeSynchsafeBytes(bytes1), "Decoding 0");
+
+        uint8_t bytes2[] = {0x00, 0x00, 0x01, 0x7F}; // 1 * 128 + 127 = 255
+        ASSERT_EQUALS(255u, ID3v2Utils::decodeSynchsafeBytes(bytes2), "Decoding 255");
+
+        uint8_t bytes3[] = {0x7F, 0x7F, 0x7F, 0x7F}; // Max value
+        ASSERT_EQUALS(0x0FFFFFFFu, ID3v2Utils::decodeSynchsafeBytes(bytes3), "Decoding max value");
+    }
+};
+
+class ID3v2Utils_DecodeSynchsafeBytes_NullPointer : public TestCase {
+public:
+    ID3v2Utils_DecodeSynchsafeBytes_NullPointer() : TestCase("ID3v2Utils_DecodeSynchsafeBytes_NullPointer") {}
+protected:
+    void runTest() override {
+        ASSERT_EQUALS(0u, ID3v2Utils::decodeSynchsafeBytes(nullptr), "Decoding nullptr should return 0");
+    }
+};
+
+class ID3v2Utils_DecodeSynchsafeBytes_MasksHighBits : public TestCase {
+public:
+    ID3v2Utils_DecodeSynchsafeBytes_MasksHighBits() : TestCase("ID3v2Utils_DecodeSynchsafeBytes_MasksHighBits") {}
+protected:
+    void runTest() override {
+        // The codebase actually masks high bits `& 0x7F`
+        uint8_t bytes[] = {0x80, 0x80, 0x81, 0xFF};
+
+        // 0x80 -> 0x00
+        // 0x80 -> 0x00
+        // 0x81 -> 0x01
+        // 0xFF -> 0x7F
+        // Result is (0 << 21) | (0 << 14) | (1 << 7) | 0x7F = 255
+        ASSERT_EQUALS(255u, ID3v2Utils::decodeSynchsafeBytes(bytes), "Decoding ignores high bits by masking");
+    }
+};
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -1185,6 +1231,11 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<ID3v2Tag_GetFrame_NonexistentFrame>());
     suite.addTest(std::make_unique<ID3v2Tag_GetFrameIds>());
     
+    // Utils tests
+    suite.addTest(std::make_unique<ID3v2Utils_DecodeSynchsafeBytes_ValidValues>());
+    suite.addTest(std::make_unique<ID3v2Utils_DecodeSynchsafeBytes_NullPointer>());
+    suite.addTest(std::make_unique<ID3v2Utils_DecodeSynchsafeBytes_MasksHighBits>());
+
     auto results = suite.runAll();
     suite.printResults(results);
     

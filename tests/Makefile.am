@@ -395,7 +395,7 @@ if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
-	test_ogg_fuzzing test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
+	test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
 	test_compression_lz77 repro_ogg_duration_perf
 
 test_compression_lz77_SOURCES = test_compression_lz77.cpp
@@ -799,6 +799,8 @@ test_surface_from_bmp_error_LDADD = \
 if HAVE_OGGDEMUXER
 test_ogg_page_extraction_SOURCES = test_ogg_page_extraction.cpp
 
+if HAVE_RAPIDCHECK
+check_PROGRAMS += test_ogg_fuzzing
 test_ogg_fuzzing_SOURCES = test_ogg_fuzzing.cpp
 test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
@@ -820,6 +822,7 @@ test_ogg_fuzzing_LDADD = libtest_utilities.a \
 	$(FREETYPE_LIBS) \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
+endif
 
 test_ogg_multiplexed_seeking_SOURCES = test_ogg_multiplexed_seeking.cpp
 test_ogg_multiplexed_seeking_LDADD = libtest_utilities.a \
@@ -884,7 +887,7 @@ test_ogg_aggressive_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_stream_manager test_ogg_fuzzing test_ogg_aggressive
+check_PROGRAMS += test_stream_manager test_ogg_aggressive
 test_stream_manager_SOURCES = test_stream_manager.cpp
 test_stream_manager_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
