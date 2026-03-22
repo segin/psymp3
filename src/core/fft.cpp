@@ -30,9 +30,6 @@ namespace PsyMP3 {
 namespace Core {
 
 
-// Define I for float complex
-static const std::complex<float> I_f(0.0f, 1.0f);
-
 /**
  * @brief Constructs an FFT object for a given size.
  * @param size The number of samples for the FFT, which must be a power of two.
