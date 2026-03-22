@@ -187,7 +187,7 @@ bool LastFM::performHandshake(int host_index)
     url += ":";
     url += std::to_string(m_api_ports[host_index]);
     url += "/?hs=true&p=1.2.1&c=psy&v=3.0&u=";
-    url += HTTPClient::urlEncode(m_username);
+    url += urlEncode(m_username);
     url += "&t=";
     url += std::to_string(timestamp);
     url += "&a=";
@@ -492,11 +492,11 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     postData.reserve(512);  // Pre-allocate reasonable size for POST data
     
     postData += "s=";
-    postData += HTTPClient::urlEncode(m_session_key);
+    postData += urlEncode(m_session_key);
     postData += "&a[0]=";
-    postData += HTTPClient::urlEncode(artist);
+    postData += urlEncode(artist);
     postData += "&t[0]=";
-    postData += HTTPClient::urlEncode(title);
+    postData += urlEncode(title);
     postData += "&i[0]=";
     postData += std::to_string(timestamp);
     postData += "&o[0]=P";  // Source: P = chosen by user
@@ -504,7 +504,7 @@ bool LastFM::submitScrobble(const std::string& artist, const std::string& title,
     postData += "&l[0]=";
     postData += std::to_string(length);
     postData += "&b[0]=";
-    postData += HTTPClient::urlEncode(album);
+    postData += urlEncode(album);
     postData += "&n[0]=";   // Track number (empty)
     postData += "&m[0]=";
     postData += protocolMD5(artist + title);  // MusicBrainz ID (using hash as fallback)
@@ -631,13 +631,13 @@ bool LastFM::submitNowPlayingRequest(const NowPlayingRequest& request)
     postData.reserve(512);
     
     postData += "s=";
-    postData += HTTPClient::urlEncode(m_session_key);
+    postData += urlEncode(m_session_key);
     postData += "&a=";
-    postData += HTTPClient::urlEncode(request.artist);
+    postData += urlEncode(request.artist);
     postData += "&t=";
-    postData += HTTPClient::urlEncode(request.title);
+    postData += urlEncode(request.title);
     postData += "&b=";
-    postData += HTTPClient::urlEncode(request.album);
+    postData += urlEncode(request.album);
     postData += "&l=";
     postData += std::to_string(request.length);
     postData += "&n=";  // Track number (empty)
@@ -737,7 +737,18 @@ bool LastFM::isConfigured() const
 
 std::string LastFM::urlEncode(const std::string& input)
 {
-    return HTTPClient::urlEncode(input);
+    std::string output = "";
+    char buffer[4];
+    for (size_t i = 0; i < input.length(); i++) {
+        unsigned char c = input[i];
+        if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') {
+            output += c;
+        } else {
+            snprintf(buffer, sizeof(buffer), "%%%02X", c);
+            output += buffer;
+        }
+    }
+    return output;
 }
 
 std::string LastFM::protocolMD5(const std::string& input)
