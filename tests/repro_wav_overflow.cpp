@@ -76,14 +76,20 @@ public:
             }
 
             // Seek to the next chunk, accounting for padding byte if chunk size is odd.
-            // FIX: Check for overflow
-            simulated_long padding = chunk_size % 2;
-            if (chunk_size > std::numeric_limits<simulated_long>::max() - chunk_start_pos - padding) {
+            if (chunk_size > static_cast<uint32_t>(std::numeric_limits<simulated_long>::max())) {
                  std::cout << "Overflow check triggered!" << std::endl;
                  throw BadFormatException("WAVE chunk size causes overflow.");
             }
-            simulated_long next_chunk_pos = chunk_start_pos + chunk_size + padding;
+            
+            simulated_long s_chunk_size = static_cast<simulated_long>(chunk_size);
+            simulated_long padding = static_cast<simulated_long>(chunk_size % 2);
 
+            if (s_chunk_size > std::numeric_limits<simulated_long>::max() - chunk_start_pos - padding) {
+                 std::cout << "Overflow check triggered!" << std::endl;
+                 throw BadFormatException("WAVE chunk size causes overflow.");
+            }
+
+            simulated_long next_chunk_pos = chunk_start_pos + s_chunk_size + padding;
             m_handler->seek(next_chunk_pos, SEEK_SET);
 
             // Break loop for repro purposes (only need one iteration)
