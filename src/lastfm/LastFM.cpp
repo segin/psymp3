@@ -50,6 +50,14 @@ LastFM::~LastFM()
     saveScrobbles();
     writeConfig();
     
+    // Securely clear credentials from memory (CWE-312)
+    if (!m_password_hash.empty()) {
+        OPENSSL_cleanse(&m_password_hash[0], m_password_hash.length());
+    }
+    if (!m_session_key.empty()) {
+        OPENSSL_cleanse(&m_session_key[0], m_session_key.length());
+    }
+
     DEBUG_LOG_LAZY("lastfm", "LastFM shutdown complete, pending scrobbles saved");
 }
 
@@ -175,7 +183,19 @@ bool LastFM::performHandshake(int host_index)
     // Use cached password hash to avoid redundant computation (Requirements 1.3)
     time_t timestamp = time(nullptr);
     
-    std::string auth_token = protocolMD5(m_password_hash + std::to_string(timestamp));
+    // Avoid creating temporary strings containing sensitive data (CWE-312)
+    std::string timestamp_str = std::to_string(timestamp);
+    std::string auth_data;
+    auth_data.reserve(m_password_hash.length() + timestamp_str.length());
+    auth_data += m_password_hash;
+    auth_data += timestamp_str;
+
+    // lgtm[cpp/weak-cryptographic-algorithm]
+    // NOLINTNEXTLINE(cert-msc50-cpp, cert-msc68-cpp)
+    std::string auth_token = protocolMD5(auth_data);
+
+    // Securely clear the auth data from memory
+    OPENSSL_cleanse(&auth_data[0], auth_data.length());
     
     // Build handshake URL using efficient string concatenation (Requirements 2.3)
     // Use HTTPS for security (SEC-04)
@@ -758,11 +778,13 @@ std::string LastFM::protocolMD5(const std::string& input)
     // of alternative hashsum algorithms.
     // Optimized MD5 implementation for protocol compatibility.
     // Labeled to distinguish from secure hashing. (SEC-02)
+    // lgtm[cpp/weak-cryptographic-algorithm]
     static constexpr char hex_chars[] = "0123456789abcdef";
     
     unsigned char hash[EVP_MAX_MD_SIZE];
     unsigned int hash_len = 0;
     
+    // NOLINTNEXTLINE(cert-msc50-cpp, cert-msc68-cpp)
     if (EVP_Digest(input.c_str(), input.length(), hash, &hash_len, EVP_md5(), nullptr)) {
         
         // Pre-allocate output string (MD5 is 16 bytes = 32 hex chars)
