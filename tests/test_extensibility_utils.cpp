@@ -65,13 +65,44 @@ protected:
         ASSERT_EQUALS("value", p2["key"], "Parameter value mismatch");
 
         // Test multiple parameters
-        // Current implementation: query.replace(query.find('&'), 1, ";")
-        // It only replaces ONE ampersand.
         auto p3 = extractURIParameters("http://example.com?a=1&b=2&c=3");
         ASSERT_EQUALS(3, p3.size(), "Should extract all 3 parameters");
         ASSERT_EQUALS("1", p3["a"], "a mismatch");
         ASSERT_EQUALS("2", p3["b"], "b mismatch");
         ASSERT_EQUALS("3", p3["c"], "c mismatch");
+    }
+};
+
+class FormatConfigStringTest : public TestCase {
+public:
+    FormatConfigStringTest() : TestCase("ExtensibilityUtils::formatConfigString") {}
+
+protected:
+    void runTest() override {
+        // Empty
+        std::map<std::string, std::string> empty_map;
+        ASSERT_EQUALS("", formatConfigString(empty_map), "Empty map should return empty string");
+
+        // Single
+        std::map<std::string, std::string> single_map = {{"key1", "value1"}};
+        ASSERT_EQUALS("key1=value1", formatConfigString(single_map), "Single pair map formatting failed");
+
+        // Multiple
+        std::map<std::string, std::string> multi_map = {
+            {"key1", "value1"},
+            {"key2", "value2"},
+            {"key3", "value3"}
+        };
+        ASSERT_EQUALS("key1=value1;key2=value2;key3=value3", formatConfigString(multi_map), "Multiple pair map formatting failed");
+
+        // Special chars
+        std::map<std::string, std::string> special_map = {
+            {"key with spaces", "value with spaces"},
+            {"key=with=equals", "value;with;semicolons"},
+            {"", "empty_key"}
+        };
+        ASSERT_EQUALS("=empty_key;key with spaces=value with spaces;key=with=equals=value;with;semicolons", 
+            formatConfigString(special_map), "Special characters map formatting failed");
     }
 };
 
@@ -103,6 +134,7 @@ int main(int argc, char* argv[]) {
     TestSuite suite("ExtensibilityUtils Unit Tests");
     suite.addTest(std::make_unique<BuildURITest>());
     suite.addTest(std::make_unique<ExtractParamsTest>());
+    suite.addTest(std::make_unique<FormatConfigStringTest>());
     suite.addTest(std::make_unique<ConfigStringRoundTripTest>());
 
     auto results = suite.runAll();

@@ -392,13 +392,21 @@ test_aac_integration_SOURCES = test_aac_integration.cpp
 test_aac_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
+check_PROGRAMS += test_extensibility_utils
+test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
+test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
 	test_ogg_data_streaming test_ogg_memory_safety test_ogg_demuxer_integration \
 	test_oggdemuxer_performance test_oggdemuxer_comprehensive test_ogg_comprehensive_integration \
-	test_ogg_fuzzing test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
+	test_ogg_multiplexed_seeking 	test_ogg_seeking_stress \
 	test_compression_lz77 repro_ogg_duration_perf
+
+if HAVE_RAPIDCHECK
+check_PROGRAMS += test_ogg_fuzzing
+endif
 
 test_compression_lz77_SOURCES = test_compression_lz77.cpp
 test_compression_lz77_LDADD = \
@@ -897,7 +905,7 @@ test_ogg_aggressive_LDADD = libtest_utilities.a \
 	$(DBUS_LIBS) \
 	$(OPUS_LIBS)
 
-check_PROGRAMS += test_stream_manager test_ogg_fuzzing test_ogg_aggressive
+check_PROGRAMS += test_stream_manager test_ogg_aggressive
 test_stream_manager_SOURCES = test_stream_manager.cpp
 test_stream_manager_LDADD = libtest_utilities.a \
 	../src/demuxer/ogg/libpsymp3-demuxer-ogg.a \
