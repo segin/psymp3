@@ -292,7 +292,7 @@ void Player::loaderThreadLoop() {
  * appear immediately on startup, without waiting for file system access.
  * @param args The vector of command-line arguments passed to the application.
  */
-void Player::playlistPopulatorLoop(std::vector<std::string> args) {
+void Player::playlistPopulatorLoop(const std::vector<std::string>& args) {
     System::setThisThreadName("playlist-populator");
 
     if (args.empty()) return; // Nothing to do
