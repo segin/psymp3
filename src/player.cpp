@@ -2058,6 +2058,7 @@ void Player::renderWindows()
     }
     
     // Add all random windows
+    sorted_windows.reserve(sorted_windows.size() + m_random_windows.size());
     for (const auto& window : m_random_windows) {
         sorted_windows.push_back(window.get());
     }
@@ -2096,6 +2097,7 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
     }
     
     // Add all random windows
+    sorted_windows.reserve(sorted_windows.size() + m_random_windows.size());
     for (const auto& window : m_random_windows) {
         sorted_windows.push_back(window.get());
     }
