@@ -383,6 +383,7 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
 	test_surface_from_bmp_error \
+	test_extensibility_utils \
 	test_lastfm_url_encode_unit
 
 if HAVE_AAC
@@ -794,6 +795,17 @@ test_surface_from_bmp_error_LDADD = \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(SDL_LIBS) \
+	$(AM_LDFLAGS)
+
+test_extensibility_utils_SOURCES = test_extensibility_utils.cpp
+test_extensibility_utils_LDADD = \
+	libtest_utilities.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
 	$(AM_LDFLAGS)
 
 # OggDemuxer page extraction test
