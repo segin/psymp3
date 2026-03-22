@@ -1992,6 +1992,11 @@ void Player::renderWindows()
     // Sort windows by z-order (lowest to highest)
     std::vector<WindowFrameWidget*> sorted_windows;
     
+    size_t capacity_needed = m_random_windows.size();
+    if (m_test_window_h) capacity_needed++;
+    if (m_test_window_b) capacity_needed++;
+    sorted_windows.reserve(capacity_needed);
+
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }
@@ -2025,6 +2030,11 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
     // Create list of windows sorted by z-order (highest first for event handling)
     std::vector<WindowFrameWidget*> sorted_windows;
     
+    size_t capacity_needed = m_random_windows.size();
+    if (m_test_window_h) capacity_needed++;
+    if (m_test_window_b) capacity_needed++;
+    sorted_windows.reserve(capacity_needed);
+
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }
