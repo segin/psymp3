@@ -972,6 +972,30 @@ bool runRapidCheckTests() {
     });
     if (!result51) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
     
+    // Property: decodeUTF8Safe handles specific malformed sequences correctly
+    std::cout << "  ID3v2_DecodeUTF8Safe_Malformed: ";
+    auto result51b = rc::check("decodeUTF8Safe handles specific malformed sequences correctly", []() {
+        // Test null and empty
+        RC_ASSERT(ID3v2Utils::decodeUTF8Safe(nullptr, 10) == "");
+        RC_ASSERT(ID3v2Utils::decodeUTF8Safe(reinterpret_cast<const uint8_t*>("data"), 0) == "");
+
+        std::vector<std::vector<uint8_t>> malformed_sequences = {
+            {0xFF}, // Invalid start byte
+            {0xC0, 0x80}, // Overlong encoding
+            {0xC2}, // Missing continuation byte
+            {0xE0, 0xA0}, // Missing continuation byte
+            {0xF0, 0x90, 0x80}, // Missing continuation byte
+            {0xED, 0xA0, 0x80}, // Surrogate pair
+            {0xF4, 0x90, 0x80, 0x80}, // Out of bounds (> U+10FFFF)
+        };
+
+        for (const auto& seq : malformed_sequences) {
+            std::string result = ID3v2Utils::decodeUTF8Safe(seq.data(), seq.size());
+            RC_ASSERT(ID3v2Utils::isValidUTF8(result));
+        }
+    });
+    if (!result51b) { all_passed = false; std::cout << "FAILED\n"; } else { std::cout << "PASSED\n"; }
+
     // Property: TagFactory never crashes on corrupted data
     std::cout << "  TagFactory_NeverCrashesOnCorruptedData: ";
     auto result52 = rc::check("TagFactory never crashes on corrupted data", []() {
@@ -2032,6 +2056,38 @@ protected:
     }
 };
 
+class ID3v2_DecodeUTF8Safe_Malformed : public TestCase {
+public:
+    ID3v2_DecodeUTF8Safe_Malformed()
+        : TestCase("ID3v2_DecodeUTF8Safe_Malformed") {}
+protected:
+    void runTest() override {
+        // Test null pointer
+        std::string result = ID3v2Utils::decodeUTF8Safe(nullptr, 10);
+        ASSERT_EQUALS(std::string(""), result, "decodeUTF8Safe with nullptr should return empty string");
+
+        // Test zero size
+        result = ID3v2Utils::decodeUTF8Safe(reinterpret_cast<const uint8_t*>("data"), 0);
+        ASSERT_EQUALS(std::string(""), result, "decodeUTF8Safe with size 0 should return empty string");
+
+        // Specific malformed sequences
+        std::vector<std::vector<uint8_t>> malformed_sequences = {
+            {0xFF}, // Invalid start byte
+            {0xC0, 0x80}, // Overlong encoding
+            {0xC2}, // Missing continuation byte
+            {0xE0, 0xA0}, // Missing continuation byte
+            {0xF0, 0x90, 0x80}, // Missing continuation byte
+            {0xED, 0xA0, 0x80}, // Surrogate pair
+            {0xF4, 0x90, 0x80, 0x80}, // Out of bounds (> U+10FFFF)
+        };
+
+        for (const auto& seq : malformed_sequences) {
+            std::string res = ID3v2Utils::decodeUTF8Safe(seq.data(), seq.size());
+            ASSERT_TRUE(ID3v2Utils::isValidUTF8(res), "Repaired sequence should be valid UTF-8");
+        }
+    }
+};
+
 class CorruptedData_TagFactory_NeverCrashesOnCorruptedData : public TestCase {
 public:
     CorruptedData_TagFactory_NeverCrashesOnCorruptedData() 
@@ -2116,6 +2172,7 @@ int main(int argc, char* argv[]) {
     suite.addTest(std::make_unique<CorruptedData_ID3v2_HandlesInvalidFrameSizes>());
     suite.addTest(std::make_unique<CorruptedData_ID3v2_APIC_HandlesCorruptedPictureData>());
     suite.addTest(std::make_unique<CorruptedData_InvalidUTF8_HandledGracefully>());
+    suite.addTest(std::make_unique<ID3v2_DecodeUTF8Safe_Malformed>());
     suite.addTest(std::make_unique<CorruptedData_TagFactory_NeverCrashesOnCorruptedData>());
     
     auto results = suite.runAll();
