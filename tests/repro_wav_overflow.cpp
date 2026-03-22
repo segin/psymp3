@@ -80,7 +80,7 @@ public:
                  std::cout << "Overflow check triggered!" << std::endl;
                  throw BadFormatException("WAVE chunk size causes overflow.");
             }
-
+            
             simulated_long s_chunk_size = static_cast<simulated_long>(chunk_size);
             simulated_long padding = static_cast<simulated_long>(chunk_size % 2);
 
