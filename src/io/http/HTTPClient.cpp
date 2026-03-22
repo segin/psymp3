@@ -543,6 +543,9 @@ std::string HTTPClient::urlEncode(const std::string& input) {
     
     std::string result;
     result.reserve(input.length() * 3);
+
+    static const char hex_chars[] = "0123456789ABCDEF";
+
     for (unsigned char c : input) {
         if ((c >= '0' && c <= '9') ||
             (c >= 'A' && c <= 'Z') ||
@@ -550,9 +553,9 @@ std::string HTTPClient::urlEncode(const std::string& input) {
             c == '-' || c == '.' || c == '_' || c == '~') {
             result += c;
         } else {
-            char buf[4];
-            snprintf(buf, sizeof(buf), "%%%02X", c);
-            result += buf;
+            result += '%';
+            result += hex_chars[c >> 4];
+            result += hex_chars[c & 15];
         }
     }
     return result;
