@@ -172,6 +172,18 @@ class Player
         void handleMouseMotion(const SDL_MouseMotionEvent& event);
         void handleMouseButtonUp(const SDL_MouseButtonEvent& event);
         bool handleUserEvent(const SDL_UserEvent& event);
+        void handleStartFirstTrackEvent();
+        void handleDoNextTrackEvent();
+        void handleDoPrevTrackEvent();
+        void handleTrackLoadSuccessEvent(TrackLoadResult* result);
+        void handleTrackLoadFailureEvent(TrackLoadResult* result);
+        void handleTrackPreloadSuccessEvent(TrackLoadResult* result);
+        void handleTrackPreloadFailureEvent(TrackLoadResult* result);
+        void handleRunGuiIterationEvent();
+        void handleTrackSeamlessSwapEvent();
+        void handleDoSavePlaylistEvent();
+        void handleShowNotificationEvent(std::pair<std::string, NotificationType>* data);
+        void handleDoSetLoopModeEvent(LoopMode mode);
         void handleKeyUp(const SDL_keysym& keysym);
         void showToast(const std::string& message, Uint32 duration_ms = 2000);
         void updateInfo(bool is_loading = false, const TagLib::String& error_msg = "");
