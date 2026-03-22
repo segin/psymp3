@@ -33,10 +33,12 @@ namespace UI {
 class Label : public Widget
 {
     public:
-        Label(Font* font, const Rect& position, const TagLib::String& initial_text = "", SDL_Color color = {255, 255, 255, 255});
+        Label(Font* font, const Rect& position, const TagLib::String& initial_text = "",
+              SDL_Color color = {255, 255, 255, 255}, SDL_Color background_color = {0, 0, 0, 255});
         virtual ~Label() = default;
 
         void setText(const TagLib::String& text);
+        void setBackgroundColor(SDL_Color background_color);
         void BlitTo(Surface& target) override;
         void recursiveBlitTo(Surface& target, const Rect& parent_absolute_pos) override;
 
@@ -46,6 +48,7 @@ class Label : public Widget
         Font* m_font; // Non-owning pointer to the global font
         TagLib::String m_text;
         SDL_Color m_color;
+        SDL_Color m_background_color;
         std::unique_ptr<Surface> m_text_surface;
         int m_last_drawn_width{0};
         int m_last_drawn_height{0};

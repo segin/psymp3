@@ -432,7 +432,7 @@ int main(int argc, char* argv[]) {
     auto runTest = [&](TestCase& test) {
         try {
             auto info = test.run();
-            if (info.result == TestResult::PASSED) {
+            if (info.result == TestFramework::TestResult::PASSED) {
                 passed++;
                 std::cout << "  " << info.name << ": PASSED\n";
             } else {
@@ -441,7 +441,7 @@ int main(int argc, char* argv[]) {
             }
         } catch (const std::exception& e) {
             failed++;
-            std::cout << "  [Test Exception]: " << e.what() << "\n";
+            std::cout << "  " << test.getName() << ": EXCEPTION - " << e.what() << "\n";
         }
     };
     

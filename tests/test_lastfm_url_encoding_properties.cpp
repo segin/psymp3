@@ -28,24 +28,20 @@
 #include <cstdint>
 #include <cstdio>
 #include <random>
-#include <cstdio>
 #include <curl/curl.h>
+
+#include "psymp3.h"
+#include "lastfm/LastFM.h"
 
 // ========================================
 // URL ENCODING/DECODING IMPLEMENTATIONS FOR TESTING
 // ========================================
 
 /**
- * URL encode a string using libcurl (same as HTTPClient::urlEncode)
+ * URL encode a string using libcurl
  */
-std::string urlEncode(const std::string& input) {
+std::string urlEncodeLibCurl(const std::string& input) {
     if (input.empty()) return "";
-
-    // Limit input size to prevent excessive memory allocation
-    const size_t MAX_URL_COMPONENT_SIZE = 1 * 1024 * 1024; // 1MB limit
-    if (input.length() > MAX_URL_COMPONENT_SIZE) {
-        return "";
-    }
 
     CURL *curl = curl_easy_init();
     if (curl) {
@@ -58,25 +54,14 @@ std::string urlEncode(const std::string& input) {
         }
         curl_easy_cleanup(curl);
     }
-    
-    // Fallback - use a safe, manual encoding to avoid security risks of returning unencoded input.
-    // RFC 3986 unreserved characters
+    return "";
+}
 
-    std::string result;
-    result.reserve(input.length() * 3);
-    for (unsigned char c : input) {
-        if ((c >= '0' && c <= '9') ||
-            (c >= 'A' && c <= 'Z') ||
-            (c >= 'a' && c <= 'z') ||
-            c == '-' || c == '.' || c == '_' || c == '~') {
-            result += c;
-        } else {
-            char buf[4];
-            snprintf(buf, sizeof(buf), "%%%02X", c);
-            result += buf;
-        }
-    }
-    return result;
+/**
+ * URL encode a string using LastFM::urlEncode
+ */
+std::string urlEncode(const std::string& input) {
+    return PsyMP3::LastFM::LastFM::urlEncode(input);
 }
 
 /**
@@ -162,9 +147,10 @@ void test_property_url_encoding_round_trip() {
     
     for (const auto& input : test_vectors) {
         std::string encoded = urlEncode(input);
+        std::string expected_encoded = urlEncodeLibCurl(input);
         std::string decoded = urlDecode(encoded);
         
-        if (decoded == input) {
+        if (decoded == input && (expected_encoded.empty() || encoded == expected_encoded)) {
             passed++;
             std::string display = input.length() > 30 ? input.substr(0, 27) + "..." : input;
             // Replace control characters for display
@@ -208,9 +194,10 @@ void test_property_url_encoding_round_trip() {
         
         // Perform round-trip
         std::string encoded = urlEncode(random_input);
+        std::string expected_encoded = urlEncodeLibCurl(random_input);
         std::string decoded = urlDecode(encoded);
         
-        if (decoded == random_input) {
+        if (decoded == random_input && (expected_encoded.empty() || encoded == expected_encoded)) {
             random_passed++;
         } else {
             random_failed++;

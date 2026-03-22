@@ -1,0 +1,209 @@
+Making check in res
+make[1]: Entering directory '/app/res'
+make[1]: Nothing to be done for 'check'.
+make[1]: Leaving directory '/app/res'
+Making check in src
+make[1]: Entering directory '/app/src'
+Making check in codecs
+make[2]: Entering directory '/app/src/codecs'
+Making check in pcm
+make[3]: Entering directory '/app/src/codecs/pcm'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/codecs/pcm'
+Making check in flac
+make[3]: Entering directory '/app/src/codecs/flac'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/codecs/flac'
+Making check in opus
+make[3]: Entering directory '/app/src/codecs/opus'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/codecs/opus'
+Making check in vorbis
+make[3]: Entering directory '/app/src/codecs/vorbis'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/codecs/vorbis'
+Making check in mp3
+make[3]: Entering directory '/app/src/codecs/mp3'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/codecs/mp3'
+make[3]: Entering directory '/app/src/codecs'
+make[3]: Nothing to be done for 'check-am'.
+make[3]: Leaving directory '/app/src/codecs'
+make[2]: Leaving directory '/app/src/codecs'
+Making check in lastfm
+make[2]: Entering directory '/app/src/lastfm'
+make[2]: Nothing to be done for 'check'.
+make[2]: Leaving directory '/app/src/lastfm'
+Making check in mpris
+make[2]: Entering directory '/app/src/mpris'
+make[2]: Nothing to be done for 'check'.
+make[2]: Leaving directory '/app/src/mpris'
+Making check in io
+make[2]: Entering directory '/app/src/io'
+Making check in file
+make[3]: Entering directory '/app/src/io/file'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/io/file'
+Making check in http
+make[3]: Entering directory '/app/src/io/http'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/io/http'
+make[3]: Entering directory '/app/src/io'
+make[3]: Nothing to be done for 'check-am'.
+make[3]: Leaving directory '/app/src/io'
+make[2]: Leaving directory '/app/src/io'
+Making check in demuxer
+make[2]: Entering directory '/app/src/demuxer'
+Making check in iso
+make[3]: Entering directory '/app/src/demuxer/iso'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/demuxer/iso'
+Making check in riff
+make[3]: Entering directory '/app/src/demuxer/riff'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/demuxer/riff'
+Making check in raw
+make[3]: Entering directory '/app/src/demuxer/raw'
+make[3]: Nothing to be done for 'check'.
+make[3]: Leaving directory '/app/src/demuxer/raw'
+Making check in flac
+make[3]: Entering directory '/app/src/demuxer/flac'
+depbase=`echo FLACDemuxer.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT FLACDemuxer.o -MD -MP -MF $depbase.Tpo -c -o FLACDemuxer.o FLACDemuxer.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+rm -f libpsymp3-demuxer-flac.a
+ar cru libpsymp3-demuxer-flac.a FLACDemuxer.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+ranlib libpsymp3-demuxer-flac.a
+make[3]: Leaving directory '/app/src/demuxer/flac'
+Making check in ogg
+make[3]: Entering directory '/app/src/demuxer/ogg'
+depbase=`echo OggDemuxer.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT OggDemuxer.o -MD -MP -MF $depbase.Tpo -c -o OggDemuxer.o OggDemuxer.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo OggSyncManager.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT OggSyncManager.o -MD -MP -MF $depbase.Tpo -c -o OggSyncManager.o OggSyncManager.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo OggStreamManager.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT OggStreamManager.o -MD -MP -MF $depbase.Tpo -c -o OggStreamManager.o OggStreamManager.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo CodecHeaderParser.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT CodecHeaderParser.o -MD -MP -MF $depbase.Tpo -c -o CodecHeaderParser.o CodecHeaderParser.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo VorbisHeaderParser.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT VorbisHeaderParser.o -MD -MP -MF $depbase.Tpo -c -o VorbisHeaderParser.o VorbisHeaderParser.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo OpusHeaderParser.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT OpusHeaderParser.o -MD -MP -MF $depbase.Tpo -c -o OpusHeaderParser.o OpusHeaderParser.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo FLACHeaderParser.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT FLACHeaderParser.o -MD -MP -MF $depbase.Tpo -c -o FLACHeaderParser.o FLACHeaderParser.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo SpeexHeaderParser.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT SpeexHeaderParser.o -MD -MP -MF $depbase.Tpo -c -o SpeexHeaderParser.o SpeexHeaderParser.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo OggSeekingEngine.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT OggSeekingEngine.o -MD -MP -MF $depbase.Tpo -c -o OggSeekingEngine.o OggSeekingEngine.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+rm -f libpsymp3-demuxer-ogg.a
+ar cru libpsymp3-demuxer-ogg.a OggDemuxer.o OggSyncManager.o OggStreamManager.o CodecHeaderParser.o VorbisHeaderParser.o OpusHeaderParser.o FLACHeaderParser.o SpeexHeaderParser.o OggSeekingEngine.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+ranlib libpsymp3-demuxer-ogg.a
+make[3]: Leaving directory '/app/src/demuxer/ogg'
+make[3]: Entering directory '/app/src/demuxer'
+depbase=`echo ChainedStream.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT ChainedStream.o -MD -MP -MF $depbase.Tpo -c -o ChainedStream.o ChainedStream.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo ChunkDemuxer.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT ChunkDemuxer.o -MD -MP -MF $depbase.Tpo -c -o ChunkDemuxer.o ChunkDemuxer.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo Demuxer.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT Demuxer.o -MD -MP -MF $depbase.Tpo -c -o Demuxer.o Demuxer.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo DemuxedStream.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT DemuxedStream.o -MD -MP -MF $depbase.Tpo -c -o DemuxedStream.o DemuxedStream.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo DemuxerExtensibility.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT DemuxerExtensibility.o -MD -MP -MF $depbase.Tpo -c -o DemuxerExtensibility.o DemuxerExtensibility.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo DemuxerFactory.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT DemuxerFactory.o -MD -MP -MF $depbase.Tpo -c -o DemuxerFactory.o DemuxerFactory.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo DemuxerPlugin.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT DemuxerPlugin.o -MD -MP -MF $depbase.Tpo -c -o DemuxerPlugin.o DemuxerPlugin.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo DemuxerRegistry.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT DemuxerRegistry.o -MD -MP -MF $depbase.Tpo -c -o DemuxerRegistry.o DemuxerRegistry.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo MediaFactory.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT MediaFactory.o -MD -MP -MF $depbase.Tpo -c -o MediaFactory.o MediaFactory.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo ModernStream.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../include  -I../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include  -I/usr/include/opus    -I/usr/include/x86_64-linux-gnu  -Wall -Werror   -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT ModernStream.o -MD -MP -MF $depbase.Tpo -c -o ModernStream.o ModernStream.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+rm -f libpsymp3-demuxer.a
+ar cru libpsymp3-demuxer.a ChainedStream.o ChunkDemuxer.o Demuxer.o DemuxedStream.o DemuxerExtensibility.o DemuxerFactory.o DemuxerPlugin.o DemuxerRegistry.o MediaFactory.o ModernStream.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+ranlib libpsymp3-demuxer.a
+make[3]: Leaving directory '/app/src/demuxer'
+make[2]: Leaving directory '/app/src/demuxer'
+Making check in widget
+make[2]: Entering directory '/app/src/widget'
+Making check in foundation
+make[3]: Entering directory '/app/src/widget/foundation'
+depbase=`echo Widget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT Widget.o -MD -MP -MF $depbase.Tpo -c -o Widget.o Widget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo DrawableWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT DrawableWidget.o -MD -MP -MF $depbase.Tpo -c -o DrawableWidget.o DrawableWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo FadingWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT FadingWidget.o -MD -MP -MF $depbase.Tpo -c -o FadingWidget.o FadingWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo LayoutWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT LayoutWidget.o -MD -MP -MF $depbase.Tpo -c -o LayoutWidget.o LayoutWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+rm -f libpsymp3-widget-foundation.a
+ar cru libpsymp3-widget-foundation.a Widget.o DrawableWidget.o FadingWidget.o LayoutWidget.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+ranlib libpsymp3-widget-foundation.a
+make[3]: Leaving directory '/app/src/widget/foundation'
+Making check in windowing
+make[3]: Entering directory '/app/src/widget/windowing'
+depbase=`echo WindowWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT WindowWidget.o -MD -MP -MF $depbase.Tpo -c -o WindowWidget.o WindowWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo WindowFrameWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT WindowFrameWidget.o -MD -MP -MF $depbase.Tpo -c -o WindowFrameWidget.o WindowFrameWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo TransparentWindowWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT TransparentWindowWidget.o -MD -MP -MF $depbase.Tpo -c -o TransparentWindowWidget.o TransparentWindowWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo TitlebarWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT TitlebarWidget.o -MD -MP -MF $depbase.Tpo -c -o TitlebarWidget.o TitlebarWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+rm -f libpsymp3-widget-windowing.a
+ar cru libpsymp3-widget-windowing.a WindowWidget.o WindowFrameWidget.o TransparentWindowWidget.o TitlebarWidget.o
+ar: `u' modifier ignored since `D' is the default (see `U')
+ranlib libpsymp3-widget-windowing.a
+make[3]: Leaving directory '/app/src/widget/windowing'
+Making check in ui
+make[3]: Entering directory '/app/src/widget/ui'
+depbase=`echo ButtonWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT ButtonWidget.o -MD -MP -MF $depbase.Tpo -c -o ButtonWidget.o ButtonWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo MainUIWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT MainUIWidget.o -MD -MP -MF $depbase.Tpo -c -o MainUIWidget.o MainUIWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo ApplicationWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT ApplicationWidget.o -MD -MP -MF $depbase.Tpo -c -o ApplicationWidget.o ApplicationWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo PlayerProgressBarWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT PlayerProgressBarWidget.o -MD -MP -MF $depbase.Tpo -c -o PlayerProgressBarWidget.o PlayerProgressBarWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo ProgressBarBracketWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT ProgressBarBracketWidget.o -MD -MP -MF $depbase.Tpo -c -o ProgressBarBracketWidget.o ProgressBarBracketWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
+depbase=`echo ProgressBarFrameWidget.o | sed 's|[^/]*$|.deps/&|;s|\.o$||'`;\
+g++ -DHAVE_CONFIG_H -I. -I../../../include  -I../../../include -I/usr/include/SDL -D_GNU_SOURCE=1 -D_REENTRANT  -I/usr/include/taglib  -I/usr/include/freetype2 -I/usr/include/libpng16   -I/usr/include/x86_64-linux-gnu  -Wall -Werror -I/usr/include/x86_64-linux-gnu   -I/usr/include/opus   -I/usr/include/dbus-1.0 -I/usr/lib/x86_64-linux-gnu/dbus-1.0/include    -g -O2 -Wno-psabi -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIE -MT ProgressBarFrameWidget.o -MD -MP -MF $depbase.Tpo -c -o ProgressBarFrameWidget.o ProgressBarFrameWidget.cpp &&\
+mv -f $depbase.Tpo $depbase.Po
