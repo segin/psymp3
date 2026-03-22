@@ -112,7 +112,7 @@ class Player
         void requestTrackPreload(const TagLib::String& path);
         void requestChainedStreamLoad(const std::vector<TagLib::String>& paths);
         void loaderThreadLoop();
-        void playlistPopulatorLoop(std::vector<std::string> args);
+        void playlistPopulatorLoop(const std::vector<std::string>& args);
 
         void nextTrack(size_t advance_count = 1);
         void prevTrack(void);

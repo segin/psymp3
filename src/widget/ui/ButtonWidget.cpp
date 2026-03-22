@@ -37,6 +37,7 @@ ButtonWidget::ButtonWidget(int width, int height, ButtonSymbol symbol)
     , m_hovered(false)
     , m_enabled(true)
     , m_global_mouse_tracking(false)
+    , m_font(nullptr)
 {
     // Set button size
     Rect button_rect(0, 0, width, height);
@@ -136,6 +137,17 @@ void ButtonWidget::setEnabled(bool enabled)
     }
 }
 
+void ButtonWidget::setText(const TagLib::String& text, Font* font)
+{
+    if (m_text == text && m_font == font) {
+        return;
+    }
+
+    m_text = text;
+    m_font = font;
+    rebuildSurface();
+}
+
 void ButtonWidget::rebuildSurface()
 {
     Rect pos = getPos();
@@ -145,7 +157,11 @@ void ButtonWidget::rebuildSurface()
     drawButtonBackground(*surface, m_pressed);
     
     // Draw button symbol
-    drawButtonSymbol(*surface, m_symbol, m_enabled);
+    if (!m_text.isEmpty() && m_font != nullptr) {
+        drawButtonText(*surface, m_enabled);
+    } else {
+        drawButtonSymbol(*surface, m_symbol, m_enabled);
+    }
     
     setSurface(std::move(surface));
 }
@@ -296,6 +312,24 @@ void ButtonWidget::drawButtonSymbol(Surface& surface, ButtonSymbol symbol, bool 
             }
             break;
     }
+}
+
+void ButtonWidget::drawButtonText(Surface& surface, bool enabled)
+{
+    if (m_font == nullptr || m_text.isEmpty()) {
+        return;
+    }
+
+    auto text_surface = m_font->Render(m_text, enabled ? 0 : 128, enabled ? 0 : 128, enabled ? 0 : 128);
+    if (!text_surface) {
+        return;
+    }
+
+    Rect pos = getPos();
+    const int offset = m_pressed ? 1 : 0;
+    const int text_x = std::max(2, (pos.width() - text_surface->width()) / 2 + offset);
+    const int text_y = std::max(2, (pos.height() - text_surface->height()) / 2 + offset);
+    surface.Blit(*text_surface, Rect(text_x, text_y, text_surface->width(), text_surface->height()));
 }
 
 } // namespace UI

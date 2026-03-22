@@ -209,12 +209,14 @@
 // ============================================================================
 #include "widget/ui/ApplicationWidget.cpp"
 #include "widget/ui/ButtonWidget.cpp"
+#include "widget/ui/CheckboxWidget.cpp"
 #include "widget/ui/Label.cpp"
 #include "widget/ui/LyricsWidget.cpp"
 #include "widget/ui/MainUIWidget.cpp"
 #include "widget/ui/PlayerProgressBarWidget.cpp"
 #include "widget/ui/ProgressBarBracketWidget.cpp"
 #include "widget/ui/ProgressBarFrameWidget.cpp"
+#include "widget/ui/ScrollbarWidget.cpp"
 #include "widget/ui/SpectrumAnalyzerWidget.cpp"
 #include "widget/ui/ToastWidget.cpp"
 
