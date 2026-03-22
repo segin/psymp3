@@ -640,13 +640,10 @@ uint32_t ID3v2Tag::parseYear(const std::string& text) {
 }
 
 std::string ID3v2Tag::normalizeKey(const std::string& key) {
-    std::string normalized;
-    normalized.reserve(key.size());
-    
-    for (char c : key) {
-        normalized += static_cast<char>(std::toupper(c));
+    std::string normalized = key;
+    for (char& c : normalized) {
+        c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
     }
-    
     return normalized;
 }
 
