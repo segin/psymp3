@@ -91,6 +91,31 @@ void test_32bit_downscaling() {
     ASSERT_EQUALS(2, static_cast<int>(output[1]), "32-bit downscaled");
 }
 
+// Test 24-bit and 32-bit peak handling does not wrap before clipping
+void test_peak_saturation_without_wrap() {
+    SampleReconstructor reconstructor;
+
+    int32_t peak24[] = {8388607, -8388608};
+    int32_t* peak24_channels[] = {peak24};
+    int16_t peak24_output[2];
+    memset(peak24_output, 0, sizeof(peak24_output));
+
+    reconstructor.reconstructSamples(peak24_output, peak24_channels, 2, 1, 24);
+
+    ASSERT_EQUALS(32767, static_cast<int>(peak24_output[0]), "24-bit positive peak should saturate to INT16_MAX");
+    ASSERT_EQUALS(-32768, static_cast<int>(peak24_output[1]), "24-bit negative peak should saturate to INT16_MIN");
+
+    int32_t peak32[] = {2147483647, static_cast<int32_t>(0x80000000u)};
+    int32_t* peak32_channels[] = {peak32};
+    int16_t peak32_output[2];
+    memset(peak32_output, 0, sizeof(peak32_output));
+
+    reconstructor.reconstructSamples(peak32_output, peak32_channels, 2, 1, 32);
+
+    ASSERT_EQUALS(32767, static_cast<int>(peak32_output[0]), "32-bit positive peak should saturate to INT16_MAX");
+    ASSERT_EQUALS(-32768, static_cast<int>(peak32_output[1]), "32-bit negative peak should saturate to INT16_MIN");
+}
+
 // Test 20-bit to 16-bit downscaling
 void test_20bit_downscaling() {
     SampleReconstructor reconstructor;
@@ -186,6 +211,7 @@ int main() {
     suite.addTest("8-bit Upscaling", test_8bit_upscaling);
     suite.addTest("24-bit Downscaling", test_24bit_downscaling);
     suite.addTest("32-bit Downscaling", test_32bit_downscaling);
+    suite.addTest("Peak Saturation Without Wrap", test_peak_saturation_without_wrap);
     suite.addTest("20-bit Downscaling", test_20bit_downscaling);
     suite.addTest("Stereo Interleaving", test_stereo_interleaving);
     suite.addTest("Multi-Channel Interleaving", test_multi_channel_interleaving);

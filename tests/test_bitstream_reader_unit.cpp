@@ -238,6 +238,27 @@ void test_position_tracking() {
     ASSERT_EQUALS(2u, reader.getBytePosition(), "Byte position should be 2");
 }
 
+// Test explicit position restore used by FLAC recovery paths
+void test_set_bit_position() {
+    BitstreamReader reader;
+
+    uint8_t data[] = {0xAA, 0xBB, 0xCC};
+    reader.feedData(data, 3);
+
+    uint32_t value;
+    ASSERT_TRUE(reader.readBits(value, 12), "Read 12 bits before restoring position");
+    ASSERT_EQUALS(0xAABu, value, "First 12 bits should match");
+
+    ASSERT_TRUE(reader.setBitPosition(8), "Should restore to second byte boundary");
+    ASSERT_EQUALS(8u, reader.getBitPosition(), "Bit position should be restored to 8");
+    ASSERT_EQUALS(1u, reader.getBytePosition(), "Byte position should be restored to 1");
+
+    ASSERT_TRUE(reader.readBits(value, 8), "Read restored byte");
+    ASSERT_EQUALS(0xBBu, value, "Restored read should return second byte");
+
+    ASSERT_FALSE(reader.setBitPosition(25), "Should reject restoring past end of buffer");
+}
+
 // Test edge case: reading 32 bits at once
 void test_read_32_bits() {
     BitstreamReader reader;
@@ -293,6 +314,7 @@ int main() {
     suite.addTest("Buffer Management", test_buffer_management);
     suite.addTest("Byte Alignment", test_byte_alignment);
     suite.addTest("Position Tracking", test_position_tracking);
+    suite.addTest("Set Bit Position", test_set_bit_position);
     suite.addTest("Read 32 Bits", test_read_32_bits);
     suite.addTest("Buffer Underflow", test_buffer_underflow);
     suite.addTest("Skip Bits", test_skip_bits);

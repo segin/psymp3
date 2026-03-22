@@ -17,38 +17,39 @@ SampleReconstructor::SampleReconstructor() {}
 
 SampleReconstructor::~SampleReconstructor() {}
 
-int16_t SampleReconstructor::upscale8To16(int32_t sample) {
+int32_t SampleReconstructor::upscale8To16(int32_t sample) {
   // Requirement 9.2: Left-shift by 8 bits to scale to 16-bit range
-  return static_cast<int16_t>(sample << 8);
+  return sample << 8;
 }
 
-int16_t SampleReconstructor::downscale24To16(int32_t sample) {
+int32_t SampleReconstructor::downscale24To16(int32_t sample) {
   // Requirement 9.3: Right-shift by 8 bits with rounding
-  // Add 0.5 LSB (128) before shifting for proper rounding
-  int32_t rounded = sample + 128;
-  return static_cast<int16_t>(rounded >> 8);
+  // Use symmetric rounding so negative peaks do not bias upward.
+  int64_t rounded = sample >= 0 ? static_cast<int64_t>(sample) + 128
+                                : static_cast<int64_t>(sample) - 128;
+  return static_cast<int32_t>(rounded >> 8);
 }
 
-int16_t SampleReconstructor::downscale32To16(int32_t sample) {
+int32_t SampleReconstructor::downscale32To16(int32_t sample) {
   // Requirement 9.4: Right-shift by 16 bits with rounding
-  // Add 0.5 LSB (32768) before shifting for proper rounding
-  int32_t rounded = sample + 32768;
-  return static_cast<int16_t>(rounded >> 16);
+  int64_t rounded = sample >= 0 ? static_cast<int64_t>(sample) + 32768
+                                : static_cast<int64_t>(sample) - 32768;
+  return static_cast<int32_t>(rounded >> 16);
 }
 
-int16_t SampleReconstructor::downscale20To16(int32_t sample) {
+int32_t SampleReconstructor::downscale20To16(int32_t sample) {
   // Requirement 9.6: Right-shift by 4 bits with rounding
-  // Add 0.5 LSB (8) before shifting for proper rounding
-  int32_t rounded = sample + 8;
-  return static_cast<int16_t>(rounded >> 4);
+  int64_t rounded = sample >= 0 ? static_cast<int64_t>(sample) + 8
+                                : static_cast<int64_t>(sample) - 8;
+  return static_cast<int32_t>(rounded >> 4);
 }
 
-int16_t SampleReconstructor::upscaleTo16(int32_t sample,
+int32_t SampleReconstructor::upscaleTo16(int32_t sample,
                                          uint32_t source_bit_depth) {
   // Requirement 9.5: Left-shift to 16-bit range with proper scaling
   // For bit depths 4-12, left-shift to fill 16-bit range
   uint32_t shift_amount = 16 - source_bit_depth;
-  return static_cast<int16_t>(sample << shift_amount);
+  return sample << shift_amount;
 }
 
 int16_t SampleReconstructor::validateAndClip(int32_t sample) {
@@ -70,14 +71,14 @@ int16_t SampleReconstructor::validateAndClip(int32_t sample) {
   return static_cast<int16_t>(sample);
 }
 
-int16_t SampleReconstructor::convertTo16Bit(int32_t sample,
+int32_t SampleReconstructor::convertTo16Bit(int32_t sample,
                                             uint32_t source_bit_depth) {
   // Requirement 9: Bit depth conversion
 
   switch (source_bit_depth) {
   case 16:
     // Requirement 9.1: 16-bit passthrough (no conversion)
-    return static_cast<int16_t>(sample);
+    return sample;
 
   case 8:
     // Requirement 9.2: 8-bit to 16-bit upscaling
@@ -113,8 +114,10 @@ int16_t SampleReconstructor::convertTo16Bit(int32_t sample,
     } else {
       // Downscale by appropriate amount
       uint32_t shift_amount = source_bit_depth - 16;
-      int32_t rounding = (shift_amount > 0 && shift_amount < 32) ? (1 << (shift_amount - 1)) : 0;
-      return static_cast<int16_t>((sample + rounding) >> shift_amount);
+      int64_t rounding = (shift_amount > 0 && shift_amount < 32) ? (1LL << (shift_amount - 1)) : 0;
+      int64_t adjusted = sample >= 0 ? static_cast<int64_t>(sample) + rounding
+                                     : static_cast<int64_t>(sample) - rounding;
+      return static_cast<int32_t>(adjusted >> shift_amount);
     }
   }
 }
@@ -157,7 +160,7 @@ void SampleReconstructor::reconstructSamples(int16_t *output,
 
       // Convert to 16-bit with bit depth conversion
       // Requirement 9: Bit depth conversion
-      int16_t converted = convertTo16Bit(sample, source_bit_depth);
+      int32_t converted = convertTo16Bit(sample, source_bit_depth);
 
       // Validate and clip to prevent overflow
       // Requirement 10.5: Ensure values are within valid 16-bit range

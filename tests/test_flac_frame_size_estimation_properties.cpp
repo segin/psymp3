@@ -73,45 +73,19 @@ struct TestFLACFrame {
  * Frame size estimation function matching the implementation in FLACDemuxer
  * 
  * Implements Requirements 21.1, 21.2, 21.5, 25.1, 25.4:
- * - Requirement 21.1: Use STREAMINFO minimum frame size as primary estimate
- * - Requirement 21.2: For fixed block size streams, use minimum directly without scaling
+ * - Requirement 21.1: Use STREAMINFO sizing data as the primary estimate
+ * - Requirement 21.2: Prefer safe complete-frame reads over optimistic scaling
  * - Requirement 21.5: Handle highly compressed streams with frames as small as 14 bytes
  * - Requirement 25.1: Avoid complex theoretical calculations
  * - Requirement 25.4: Prioritize minimum frame size over complex scaling algorithms
  */
 uint32_t calculateFrameSize(const TestStreamInfo& streaminfo, const TestFLACFrame& frame) {
-    // Method 1: Use STREAMINFO minimum frame size (preferred)
+    // Method 1: Use STREAMINFO bounds directly when available.
     if (streaminfo.isValid() && streaminfo.min_frame_size > 0) {
         uint32_t estimated_size = streaminfo.min_frame_size;
-        
-        // For fixed block size streams, use minimum directly
-        if (streaminfo.min_block_size == streaminfo.max_block_size) {
-            // Ensure minimum valid frame size (14 bytes)
-            if (estimated_size < 14) {
-                estimated_size = 14;
-            }
-            return estimated_size;
-        }
-        
-        // Variable block size stream - use linear interpolation
-        if (frame.block_size > 0 && streaminfo.max_frame_size > 0) {
-            if (frame.block_size <= streaminfo.min_block_size) {
-                return streaminfo.min_frame_size;
-            }
-            
-            if (frame.block_size >= streaminfo.max_block_size) {
-                return streaminfo.max_frame_size;
-            }
-            
-            // Linear interpolation
-            uint32_t block_range = streaminfo.max_block_size - streaminfo.min_block_size;
-            uint32_t frame_range = streaminfo.max_frame_size - streaminfo.min_frame_size;
-            
-            if (block_range > 0) {
-                uint32_t block_offset = frame.block_size - streaminfo.min_block_size;
-                uint32_t frame_offset_estimate = (block_offset * frame_range) / block_range;
-                estimated_size = streaminfo.min_frame_size + frame_offset_estimate;
-            }
+
+        if (streaminfo.max_frame_size > 0) {
+            estimated_size = std::max(streaminfo.max_frame_size, streaminfo.min_frame_size);
         }
         
         // Ensure minimum valid frame size
@@ -157,12 +131,12 @@ uint32_t calculateFrameSize(const TestStreamInfo& streaminfo, const TestFLACFram
 // **Feature: flac-demuxer, Property 18: Frame Size Estimation**
 // **Validates: Requirements 21.1**
 //
-// For any FLAC stream with valid STREAMINFO, the frame size estimation 
-// SHALL use the STREAMINFO minimum frame size as the primary estimate.
+// For any FLAC stream with valid STREAMINFO, the frame size estimation
+// SHALL use the STREAMINFO bounds conservatively so reads do not truncate frames.
 
 void test_property_frame_size_estimation() {
     std::cout << "\n=== Property 18: Frame Size Estimation ===" << std::endl;
-    std::cout << "Testing that STREAMINFO minimum frame size is used as primary estimate..." << std::endl;
+    std::cout << "Testing that STREAMINFO frame size bounds are used conservatively..." << std::endl;
     
     int tests_passed = 0;
     int tests_run = 0;
@@ -171,9 +145,9 @@ void test_property_frame_size_estimation() {
     std::mt19937 gen(rd());
     
     // ----------------------------------------
-    // Test 1: Fixed block size streams use min_frame_size directly
+    // Test 1: Known maximum frame sizes are preferred to avoid truncation
     // ----------------------------------------
-    std::cout << "\n  Test 1: Fixed block size streams use min_frame_size directly..." << std::endl;
+    std::cout << "\n  Test 1: Known maximum frame sizes are preferred..." << std::endl;
     {
         std::uniform_int_distribution<uint32_t> block_size_dist(16, 65535);
         std::uniform_int_distribution<uint32_t> frame_size_dist(14, 100000);
@@ -201,21 +175,22 @@ void test_property_frame_size_estimation() {
             tests_run++;
             
             uint32_t estimated = calculateFrameSize(streaminfo, frame);
-            uint32_t expected = std::max(streaminfo.min_frame_size, 14u);
+            uint32_t expected = std::max(streaminfo.max_frame_size, streaminfo.min_frame_size);
+            expected = std::max(expected, 14u);
             
             if (estimated == expected) {
                 tests_passed++;
             } else {
                 std::cerr << "    FAILED: Fixed block size stream, expected " << expected 
                           << ", got " << estimated << std::endl;
-                assert(false && "Fixed block size should use min_frame_size directly");
+                assert(false && "Known maximum frame size should be used when available");
             }
         }
-        std::cout << "    100 fixed block size tests passed ✓" << std::endl;
+        std::cout << "    100 maximum frame size tests passed ✓" << std::endl;
     }
     
     // ----------------------------------------
-    // Test 2: Highly compressed streams (small min_frame_size)
+    // Test 2: Highly compressed streams still prefer the known safe upper bound
     // ----------------------------------------
     std::cout << "\n  Test 2: Highly compressed streams with small frame sizes..." << std::endl;
     {
@@ -241,11 +216,12 @@ void test_property_frame_size_estimation() {
             tests_run++;
             
             uint32_t estimated = calculateFrameSize(streaminfo, frame);
-            uint32_t expected = std::max(min_frame, 14u);
+            uint32_t expected = std::max(streaminfo.max_frame_size, 14u);
             
             if (estimated == expected) {
                 tests_passed++;
-                std::cout << "    min_frame_size=" << min_frame << " -> estimated=" << estimated << " ✓" << std::endl;
+                std::cout << "    min_frame_size=" << min_frame << ", max_frame_size="
+                          << streaminfo.max_frame_size << " -> estimated=" << estimated << " ✓" << std::endl;
             } else {
                 std::cerr << "    FAILED: min_frame_size=" << min_frame 
                           << ", expected " << expected << ", got " << estimated << std::endl;
@@ -255,9 +231,9 @@ void test_property_frame_size_estimation() {
     }
     
     // ----------------------------------------
-    // Test 3: Variable block size streams use interpolation
+    // Test 3: Variable block size streams still use the known safe upper bound
     // ----------------------------------------
-    std::cout << "\n  Test 3: Variable block size streams use interpolation..." << std::endl;
+    std::cout << "\n  Test 3: Variable block size streams use maximum frame size..." << std::endl;
     {
         TestStreamInfo streaminfo;
         streaminfo.min_block_size = 1024;
@@ -278,11 +254,11 @@ void test_property_frame_size_estimation() {
             
             tests_run++;
             uint32_t estimated = calculateFrameSize(streaminfo, frame);
-            if (estimated == streaminfo.min_frame_size) {
+            if (estimated == streaminfo.max_frame_size) {
                 tests_passed++;
                 std::cout << "    At min_block_size: estimated=" << estimated << " ✓" << std::endl;
             } else {
-                std::cerr << "    FAILED: At min_block_size, expected " << streaminfo.min_frame_size 
+                std::cerr << "    FAILED: At min_block_size, expected " << streaminfo.max_frame_size 
                           << ", got " << estimated << std::endl;
             }
         }
@@ -316,13 +292,12 @@ void test_property_frame_size_estimation() {
             
             tests_run++;
             uint32_t estimated = calculateFrameSize(streaminfo, frame);
-            // Should be between min and max
-            if (estimated >= streaminfo.min_frame_size && estimated <= streaminfo.max_frame_size) {
+            if (estimated == streaminfo.max_frame_size) {
                 tests_passed++;
-                std::cout << "    At midpoint: estimated=" << estimated << " (in range) ✓" << std::endl;
+                std::cout << "    At midpoint: estimated=" << estimated << " ✓" << std::endl;
             } else {
-                std::cerr << "    FAILED: At midpoint, expected in range [" << streaminfo.min_frame_size 
-                          << ", " << streaminfo.max_frame_size << "], got " << estimated << std::endl;
+                std::cerr << "    FAILED: At midpoint, expected " << streaminfo.max_frame_size
+                          << ", got " << estimated << std::endl;
             }
         }
     }
