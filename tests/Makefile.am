@@ -2190,6 +2190,12 @@ test_flac_codec_unit_minimal_LDADD = \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
+test_flac_parse_coded_number_SOURCES = test_flac_parse_coded_number.cpp
+test_flac_parse_coded_number_LDADD = \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
 endif
 
 # IOHandler thread safety comprehensive test
@@ -2928,7 +2934,7 @@ if HAVE_NATIVE_FLAC
 check_PROGRAMS += test_bitstream_reader_unit test_frame_parser_unit test_subframe_decoder_unit \
 	test_residual_decoder_unit test_channel_decorrelator_unit test_sample_reconstructor_unit \
 	test_native_flac_real_files test_native_flac_containers test_native_flac_edge_cases \
-	test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading \
+	test_native_flac_performance_benchmark test_native_flac_memory_usage test_native_flac_threading test_flac_parse_coded_number \
 	test_flac_rfc9639_compliance_validator
 
 # BitstreamReader unit tests
