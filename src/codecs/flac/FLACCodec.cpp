@@ -10457,13 +10457,6 @@ bool FLACCodec::validateReservedBitDepthValues_unlocked(uint16_t bits_per_sample
     // Currently no reserved bit depth values in RFC 9639
     // All values from 4 to 32 bits are valid per the specification
     
-    // Future reserved values could be added here as the specification evolves
-    // For example, if certain bit depths become deprecated or reserved:
-    // if (bits_per_sample == FUTURE_RESERVED_VALUE) {
-    //     Debug::log("flac_codec", "[validateReservedBitDepthValues_unlocked] Reserved bit depth: ", bits_per_sample);
-    //     return false;
-    // }
-    
     // Check for unusual bit depths that might indicate encoding issues
     // While not reserved, these are uncommon and may indicate problems
     static const uint16_t common_depths[] = {8, 16, 24, 32};
