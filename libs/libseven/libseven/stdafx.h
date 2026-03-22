@@ -11,3 +11,7 @@
 // Windows Header Files:
 #include <windows.h>
 #include <shobjidl.h>
+
+#include <stdlib.h>
+#include <string.h>
+#include <wchar.h>
