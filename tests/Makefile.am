@@ -390,6 +390,10 @@ test_aac_integration_SOURCES = test_aac_integration.cpp
 test_aac_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
 endif
 
+check_PROGRAMS += test_extensibility_utils
+test_extensibility_utils_SOURCES = test_extensibility_utils.cpp $(top_srcdir)/src/demuxer/DemuxerExtensibility.cpp
+test_extensibility_utils_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
 check_PROGRAMS += test_ogg_page_extraction test_ogg_duration_calculation test_ogg_time_conversion \
