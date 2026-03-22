@@ -97,7 +97,7 @@ std::vector<const XMLUtil::Element*> XMLUtil::findChildren(const Element& parent
 
 std::string XMLUtil::escapeXML(const std::string& text) {
     std::string result;
-    result.reserve(text.length() * 1.1); // Slight overallocation
+    result.reserve(text.length() * 1.5); // Optimistic reserve
     
     for (char c : text) {
         switch (c) {
