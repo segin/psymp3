@@ -542,7 +542,7 @@ namespace ExtensibilityUtils {
      * @brief Build URI with parameters
      */
     std::string buildURIWithParameters(const std::string& base_uri,
-                                      const std::map<std::string, std::string>& params);
+                                      const std::map<std::string, std::string>& parameters);
     
     /**
      * @brief Get default configuration for format

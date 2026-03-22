@@ -1655,6 +1655,58 @@ bool Player::Initialize(const PlayerOptions& options) {
     m_lyrics_widget = lyrics_widget.get();
     app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
 
+    // Create the "H" demo window with classic Win3.x controls.
+    auto h_window = std::make_unique<WindowWidget>(170, 112, "H", font.get());
+    h_window->setPos(Rect(434, 72, h_window->getPos().width(), h_window->getPos().height()));
+    if (auto* frame = h_window->getFrameWidget()) {
+        frame->setResizable(false);
+        frame->setMinimizable(false);
+        frame->setMaximizable(false);
+        frame->refresh();
+    }
+
+    auto h_client = std::make_unique<LayoutWidget>(170, 112, false);
+    h_client->setBackgroundColor(255, 255, 255);
+
+    auto status_label = std::make_unique<Label>(
+        font.get(), Rect(12, 10, 120, 14), TagLib::String("Checked: No"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* status_label_ptr = status_label.get();
+    h_client->addChild(std::move(status_label));
+
+    auto scroll_label = std::make_unique<Label>(
+        font.get(), Rect(12, 25, 120, 14), TagLib::String("Scroll: 50%"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* scroll_label_ptr = scroll_label.get();
+    h_client->addChild(std::move(scroll_label));
+
+    auto checkbox = std::make_unique<CheckboxWidget>(110, 18, font.get(), TagLib::String("Enable H"), false);
+    auto* checkbox_ptr = checkbox.get();
+    checkbox->setPos(Rect(12, 48, 110, 18));
+    checkbox->setOnToggle([status_label_ptr](bool checked) {
+        status_label_ptr->setText(TagLib::String(checked ? "Checked: Yes" : "Checked: No"));
+    });
+    h_client->addChild(std::move(checkbox));
+
+    auto button = std::make_unique<ButtonWidget>(72, 22);
+    button->setText(TagLib::String("Apply"), font.get());
+    button->setPos(Rect(12, 76, 72, 22));
+    button->setOnClick([checkbox_ptr]() {
+        checkbox_ptr->setChecked(!checkbox_ptr->isChecked());
+    });
+    h_client->addChild(std::move(button));
+
+    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 94, ScrollbarOrientation::Vertical);
+    scrollbar->setPos(Rect(142, 10, 16, 94));
+    scrollbar->setOnChange([scroll_label_ptr](double value) {
+        int percent = static_cast<int>(std::round(value * 100.0));
+        scroll_label_ptr->setText(TagLib::String("Scroll: " + std::to_string(percent) + "%"));
+    });
+    h_client->addChild(std::move(scrollbar));
+
+    h_window->setClientArea(std::move(h_client));
+    app_widget.addWindow(std::move(h_window), ZOrder::UI);
+
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
     
@@ -1992,6 +2044,11 @@ void Player::renderWindows()
     // Sort windows by z-order (lowest to highest)
     std::vector<WindowFrameWidget*> sorted_windows;
     
+    size_t capacity_needed = m_random_windows.size();
+    if (m_test_window_h) capacity_needed++;
+    if (m_test_window_b) capacity_needed++;
+    sorted_windows.reserve(capacity_needed);
+
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }
@@ -2025,6 +2082,11 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
     // Create list of windows sorted by z-order (highest first for event handling)
     std::vector<WindowFrameWidget*> sorted_windows;
     
+    size_t capacity_needed = m_random_windows.size();
+    if (m_test_window_h) capacity_needed++;
+    if (m_test_window_b) capacity_needed++;
+    sorted_windows.reserve(capacity_needed);
+
     if (m_test_window_h) {
         sorted_windows.push_back(m_test_window_h.get());
     }

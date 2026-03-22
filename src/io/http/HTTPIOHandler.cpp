@@ -9,6 +9,7 @@
 
 #include "psymp3.h"
 #include <random>
+#include <algorithm>
 namespace PsyMP3 {
 namespace IO {
 namespace HTTP {
@@ -1121,12 +1122,15 @@ HTTPClient::Response HTTPIOHandler::retryNetworkOperation(std::function<HTTPClie
         Debug::log("http", "HTTPIOHandler::retryNetworkOperation() - ", operation_name, " failed (HTTP ", response.statusCode, ": ", response.statusMessage, "), retrying (", retry_count, "/", max_retries, ")");
         
         // Calculate delay with exponential backoff and jitter
-        int delay = base_delay_ms * (1 << (retry_count - 1)); // Exponential backoff
+        // Limit retry_count to prevent integer overflow
+        int backoff_exponent = std::min(retry_count - 1, 14); // 2^14 * 1000 is ~16 seconds
+        int delay = base_delay_ms * (1 << backoff_exponent); // Exponential backoff
         
         // Add jitter to prevent thundering herd
-        static thread_local std::mt19937 generator(std::random_device{}());
-        std::uniform_int_distribution<int> distribution(0, delay / 4);
-        int jitter = distribution(generator); // Up to 25% jitter
+        static thread_local std::random_device rd;
+        static thread_local std::mt19937 gen(rd());
+        std::uniform_int_distribution<int> dis(0, delay / 4);
+        int jitter = dis(gen); // Up to 25% jitter
         delay += jitter;
         
         // Cap maximum delay at 30 seconds
