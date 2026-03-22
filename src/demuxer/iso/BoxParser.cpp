@@ -31,6 +31,58 @@ namespace ISO {
 
 static const uint32_t MAX_SAMPLES_PER_TRACK = 10000000; // 10 million samples
 static const size_t MAX_FLAC_CONFIG_SIZE = 16 * 1024 * 1024; // 16 MB limit for FLAC configuration
+static const size_t MAX_AAC_CONFIG_SIZE = 64 * 1024; // esds boxes are small, but allow room for extension descriptors
+
+namespace {
+
+bool readDescriptorLength(const std::vector<uint8_t>& data, size_t& offset, size_t& length) {
+    length = 0;
+
+    for (int i = 0; i < 4; ++i) {
+        if (offset >= data.size()) {
+            return false;
+        }
+
+        const uint8_t byte = data[offset++];
+        length = (length << 7) | (byte & 0x7f);
+        if ((byte & 0x80) == 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool skipOptionalESDescriptorFields(const std::vector<uint8_t>& data, size_t& offset, uint8_t flags) {
+    if ((flags & 0x80) != 0) {
+        if (offset + 2 > data.size()) {
+            return false;
+        }
+        offset += 2;
+    }
+
+    if ((flags & 0x40) != 0) {
+        if (offset >= data.size()) {
+            return false;
+        }
+        const uint8_t url_length = data[offset++];
+        if (offset + url_length > data.size()) {
+            return false;
+        }
+        offset += url_length;
+    }
+
+    if ((flags & 0x20) != 0) {
+        if (offset + 2 > data.size()) {
+            return false;
+        }
+        offset += 2;
+    }
+
+    return true;
+}
+
+} // namespace
 
 BoxParser::BoxParser(std::shared_ptr<PsyMP3::IO::IOHandler> io) : io(io), fileSize(0) {
     // Get file size for validation
@@ -980,10 +1032,69 @@ bool BoxParser::ParseFragmentBox(uint64_t offset, uint64_t size) {
 }
 
 bool BoxParser::ParseAACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {
-    // Placeholder for AAC configuration parsing
-    // This would parse the Elementary Stream Descriptor (ESDS) box
-    // to extract AAC-specific configuration data
-    return true;
+    (void)depth;
+
+    if (size < 8 || size > MAX_AAC_CONFIG_SIZE) {
+        Debug::log("iso", "ISODemuxerBoxParser: invalid esds payload size: ", size);
+        return false;
+    }
+
+    std::vector<uint8_t> esds(static_cast<size_t>(size));
+    io->seek(static_cast<long>(offset), SEEK_SET);
+    if (io->read(esds.data(), 1, esds.size()) != esds.size()) {
+        Debug::log("iso", "ISODemuxerBoxParser: failed to read esds payload");
+        return false;
+    }
+
+    size_t cursor = 4; // Skip version/flags
+    while (cursor + 2 <= esds.size()) {
+        const uint8_t tag = esds[cursor++];
+        size_t descriptor_length = 0;
+        if (!readDescriptorLength(esds, cursor, descriptor_length) ||
+            cursor + descriptor_length > esds.size()) {
+            Debug::log("iso", "ISODemuxerBoxParser: malformed esds descriptor");
+            return false;
+        }
+
+        const size_t descriptor_end = cursor + descriptor_length;
+        if (tag == 0x03) {
+            if (cursor + 3 > descriptor_end) {
+                Debug::log("iso", "ISODemuxerBoxParser: truncated ES_Descriptor");
+                return false;
+            }
+
+            cursor += 2; // ES_ID
+            const uint8_t flags = esds[cursor++];
+            if (!skipOptionalESDescriptorFields(esds, cursor, flags) || cursor > descriptor_end) {
+                Debug::log("iso", "ISODemuxerBoxParser: malformed ES_Descriptor flags");
+                return false;
+            }
+            continue;
+        }
+
+        if (tag == 0x04) {
+            if (cursor + 13 > descriptor_end) {
+                Debug::log("iso", "ISODemuxerBoxParser: truncated DecoderConfigDescriptor");
+                return false;
+            }
+
+            cursor += 13; // objectTypeIndication + streamType + bufferSizeDB + max/avg bitrate
+            continue;
+        }
+
+        if (tag == 0x05) {
+            track.codecConfig.assign(esds.begin() + static_cast<std::ptrdiff_t>(cursor),
+                                     esds.begin() + static_cast<std::ptrdiff_t>(descriptor_end));
+            Debug::log("iso", "ISODemuxerBoxParser: extracted AAC AudioSpecificConfig of ",
+                       track.codecConfig.size(), " bytes");
+            return !track.codecConfig.empty();
+        }
+
+        cursor = descriptor_end;
+    }
+
+    Debug::log("iso", "ISODemuxerBoxParser: esds missing DecoderSpecificInfo");
+    return false;
 }
 
 bool BoxParser::ParseALACConfiguration(uint64_t offset, uint64_t size, AudioTrackInfo& track, uint32_t depth) {

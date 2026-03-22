@@ -55,6 +55,10 @@ if HAVE_OPUS
 AM_CPPFLAGS += $(OPUS_CFLAGS)
 endif
 
+if HAVE_AAC
+AM_CPPFLAGS += $(AAC_CFLAGS)
+endif
+
 if HAVE_SPEEX
 AM_CPPFLAGS += $(SPEEX_CFLAGS)
 endif
@@ -90,6 +94,10 @@ endif
 
 if HAVE_OPUS
 CODEC_LIBS += codecs/opus/libpsymp3-codec-opus.a
+endif
+
+if HAVE_AAC
+CODEC_LIBS += codecs/aac/libpsymp3-codec-aac.a
 endif
 
 if HAVE_OGGDEMUXER
@@ -177,6 +185,10 @@ if HAVE_OPUS
 psymp3_LDADD += $(OPUS_LIBS)
 endif
 
+if HAVE_AAC
+psymp3_LDADD += $(AAC_LIBS)
+endif
+
 if HAVE_SPEEX
 psymp3_LDADD += $(SPEEX_LIBS)
 endif
@@ -193,4 +205,3 @@ endif
 if HAVE_WINDRES
 psymp3_LDADD += ../res/psymp3.res
 endif
-

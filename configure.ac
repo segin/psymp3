@@ -75,12 +75,17 @@ AC_ARG_ENABLE([opus],
   [AS_HELP_STRING([--enable-opus], [Enable Opus support @<:@default=yes@:>@])],
   [enable_opus=$enableval], [enable_opus=yes])
 
+AC_ARG_ENABLE([aac],
+  [AS_HELP_STRING([--enable-aac], [Enable AAC support via faad2 @<:@default=yes@:>@])],
+  [enable_aac=$enableval], [enable_aac=yes])
+
 # Check for optional codec libraries
 have_flac=no
 have_native_flac=no
 have_mp3=no
 have_vorbis=no
 have_opus=no
+have_aac=no
 
 # Native FLAC decoder - no external library dependency
 if test "x$enable_flac" = "xyes"; then
@@ -127,6 +132,17 @@ if test "x$enable_opus" = "xyes"; then
   fi
 else
   have_opus=no
+fi
+
+if test "x$enable_aac" = "xyes"; then
+  PKG_CHECK_MODULES([AAC], [faad2], [have_aac=yes], [have_aac=no])
+  if test "x$have_aac" = "xyes"; then
+    AC_DEFINE([HAVE_AAC], [1], [Define to 1 if AAC support is enabled])
+  else
+    AC_MSG_WARN([AAC support disabled: faad2 not found])
+  fi
+else
+  have_aac=no
 fi
 
 # Check for Speex (Ogg container required)
@@ -212,6 +228,7 @@ AM_CONDITIONAL([HAVE_NATIVE_FLAC], [test "x$have_native_flac" = "xyes"])
 AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
+AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
 AM_CONDITIONAL([HAVE_SPEEX], [test "x$have_speex" = "xyes"])
@@ -430,7 +447,7 @@ PKG_CHECK_MODULES([DEPENDS], [taglib >= 1.6 openssl >= 1.0 libcurl >= 7.20.0])
 
 AC_CONFIG_SRCDIR([src])
 AC_CONFIG_HEADERS([include/config.h])
-AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/lastfm/Makefile src/mpris/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/tag/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/core/Makefile src/core/utility/Makefile src/core/compression/Makefile res/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile src/codecs/Makefile src/codecs/pcm/Makefile src/codecs/flac/Makefile src/codecs/opus/Makefile src/codecs/vorbis/Makefile src/codecs/mp3/Makefile src/codecs/aac/Makefile src/lastfm/Makefile src/mpris/Makefile src/io/Makefile src/io/file/Makefile src/io/http/Makefile src/demuxer/Makefile src/demuxer/iso/Makefile src/demuxer/riff/Makefile src/demuxer/raw/Makefile src/demuxer/flac/Makefile src/demuxer/ogg/Makefile src/tag/Makefile src/widget/Makefile src/widget/foundation/Makefile src/widget/windowing/Makefile src/widget/ui/Makefile src/core/Makefile src/core/utility/Makefile src/core/compression/Makefile res/Makefile tests/Makefile])
 
 # Print configuration summary
 echo ""
@@ -455,6 +472,7 @@ else
 fi
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
+echo "  AAC (faad2):       $have_aac"
 echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"

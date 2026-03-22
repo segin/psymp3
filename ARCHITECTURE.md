@@ -9,7 +9,7 @@ This section provides a high-level overview of the project's directory and file 
 ```
 [Project Root]/
 ├── src/            # Main source code for PsyMP3
-│   ├── codecs/     # Audio codec implementations (FLAC, MP3, Opus, Vorbis, PCM)
+│   ├── codecs/     # Audio codec implementations (AAC, FLAC, MP3, Opus, Vorbis, PCM)
 │   ├── demuxer/    # Container demuxer implementations (Ogg, ISO, RIFF, FLAC, Raw)
 │   ├── io/         # I/O abstraction layer (File, HTTP)
 │   ├── widget/     # UI widget system
@@ -57,12 +57,12 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 
 ### 3.1. Codec Subsystem (`src/codecs/`)
 - **Name**: Audio Codecs
-- **Description**: Responsible for decoding compressed audio data into raw PCM frames. Implements wrappers for external libraries (`libmpg123`, `libvorbis`, `libopus`) and native decoders (RFC 9639 FLAC, PCM, G.711).
-- **Technologies**: C++, `libmpg123`, `libvorbis`, `libopus`.
+- **Description**: Responsible for decoding compressed audio data into raw PCM frames. Implements wrappers for external libraries (`faad2`, `libmpg123`, `libvorbis`, `libopus`) and native decoders (RFC 9639 FLAC, PCM, G.711). AAC-in-MP4 uses `StreamInfo.codec_data` to carry the ISO `esds` AudioSpecificConfig from the demuxer into the decoder.
+- **Technologies**: C++, `faad2`, `libmpg123`, `libvorbis`, `libopus`.
 
 ### 3.2. Demuxer Subsystem (`src/demuxer/`)
 - **Name**: Container Demuxers
-- **Description**: Parses media container formats to extract raw metadata (`StreamInfo`) and compressed data chunks (`MediaChunk`). Supports Ogg, ISO Base Media (MP4/M4A), RIFF (WAV), native FLAC, and raw streams.
+- **Description**: Parses media container formats to extract raw metadata (`StreamInfo`) and compressed data chunks (`MediaChunk`). Supports Ogg, ISO Base Media (MP4/M4A), RIFF (WAV), native FLAC, and raw streams. The ISO demuxer now extracts AAC `DecoderSpecificInfo` from `esds` boxes and stores it in `StreamInfo.codec_data` for the AAC decoder.
 - **Technologies**: C++, `libogg`.
 
 ### 3.3. I/O Layer (`src/io/`)
@@ -120,7 +120,7 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 - **Project Name**: PsyMP3
 - **Repository URL**: https://github.com/segin/psymp3
 - **Primary Contact/Team**: Kirn Gill II <segin2005@gmail.com>
-- **Date of Last Update**: 2026-03-20
+- **Date of Last Update**: 2026-03-21
 
 ## 11. Glossary / Acronyms
 

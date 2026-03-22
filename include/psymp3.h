@@ -288,6 +288,9 @@ typedef struct bio_st BIO;
 #ifdef HAVE_MP3
 #include <mpg123.h>
 #endif
+#ifdef HAVE_AAC
+#include <neaacdec.h>
+#endif
 #ifdef HAVE_OGGDEMUXER
 #include <vorbis/vorbisfile.h>
 #endif
@@ -489,6 +492,10 @@ using PsyMP3::Codec::Vorbis::VorbisCodec;
 #include "codecs/opus/OpusCodec.h"
 using PsyMP3::Codec::Opus::OpusCodec;
 using PsyMP3::Codec::Opus::OpusHeader;
+#endif
+#ifdef HAVE_AAC
+#include "codecs/aac/AACCodec.h"
+using PsyMP3::Codec::AAC::AACCodec;
 #endif
 
 // Demuxer subsystem - Ogg

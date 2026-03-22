@@ -18,7 +18,7 @@
 SUBDIRS = .
 
 # Common flags for all test programs
-AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(FLAC_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS)
+AM_CPPFLAGS = -I$(top_srcdir)/include $(SDL_CFLAGS) $(TAGLIB_CFLAGS) $(FREETYPE_CFLAGS) $(OPENSSL_CFLAGS) $(CURL_CFLAGS) $(OPUS_CFLAGS) $(VORBIS_CFLAGS) $(OGG_CFLAGS) $(FLAC_CFLAGS) $(LIBMPG123_CFLAGS) $(SPEEX_CFLAGS) $(AAC_CFLAGS)
 
 if HAVE_DBUS
 AM_CPPFLAGS += $(DBUS_CFLAGS)
@@ -52,6 +52,10 @@ if HAVE_OPUS
 CODEC_LIBS += $(top_builddir)/src/codecs/opus/libpsymp3-codec-opus.a
 endif
 
+if HAVE_AAC
+CODEC_LIBS += $(top_builddir)/src/codecs/aac/libpsymp3-codec-aac.a
+endif
+
 if HAVE_OGGDEMUXER
 DEMUXER_LIBS += $(top_builddir)/src/demuxer/ogg/libpsymp3-demuxer-ogg.a
 endif
@@ -70,6 +74,7 @@ SYSTEM_LIBS = \
 	$(LIBMPG123_LIBS) \
 	$(VORBIS_LIBS) \
 	$(OGG_LIBS) \
+	$(AAC_LIBS) \
 	$(SPEEX_LIBS) \
 	-latomic
 
@@ -378,6 +383,12 @@ check_PROGRAMS = test_rect_area_validation test_rect_containment test_rect_inter
 	test_io_buffer_pool \
 	test_enhanced_buffer_pool \
 	test_surface_from_bmp_error
+
+if HAVE_AAC
+check_PROGRAMS += test_aac_integration
+test_aac_integration_SOURCES = test_aac_integration.cpp
+test_aac_integration_LDADD = $(COMMON_TEST_LIBS) $(AM_LDFLAGS)
+endif
 
 # OggDemuxer tests (conditional on HAVE_OGGDEMUXER)
 if HAVE_OGGDEMUXER
