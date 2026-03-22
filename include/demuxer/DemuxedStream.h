@@ -106,6 +106,7 @@ private:
     
     // Bounded buffer management for memory efficiency
     std::queue<MediaChunk> m_chunk_buffer;
+    std::queue<MediaChunk> m_temp_chunk_buffer;
     AudioFrame m_current_frame;
     size_t m_current_frame_offset = 0;  // Byte offset within current frame
     
@@ -116,10 +117,12 @@ private:
     static constexpr size_t MAX_CHUNK_BUFFER_SIZE = 8;      // Max chunks in buffer
     static constexpr size_t MAX_CHUNK_BUFFER_BYTES = 256 * 1024; // Max 256KB total
     size_t m_current_buffer_bytes = 0;                      // Current buffer memory usage
+    size_t m_temp_buffer_bytes = 0;
     
     // Position tracking based on audio consumption, not packet timestamps
     uint64_t m_samples_consumed = 0;
     bool m_eof_reached = false;
+    static constexpr size_t MAX_EMPTY_FRAME_RETRIES = 32;
     
     /**
      * @brief Initialize demuxer and codec

@@ -216,6 +216,20 @@ void BitstreamReader::resetPosition() {
   m_total_bits_read = 0;
 }
 
+bool BitstreamReader::setBitPosition(uint64_t bit_position) {
+  if (bit_position > (m_buffer.size() * 8)) {
+    return false;
+  }
+
+  m_byte_position = 0;
+  m_bit_position = 0;
+  m_bit_cache = 0;
+  m_cache_bits = 0;
+  m_total_bits_read = 0;
+
+  return skipBits(static_cast<uint32_t>(bit_position));
+}
+
 int32_t BitstreamReader::unfoldSigned(uint32_t folded) {
   // Zigzag decoding: even values are positive, odd values are negative
   // 0 -> 0, 1 -> -1, 2 -> 1, 3 -> -2, 4 -> 2, etc.

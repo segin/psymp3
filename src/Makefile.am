@@ -30,7 +30,7 @@ datadir=$(prefix)/share/psymp3/data
 
 # Subdirectories - only built in regular mode (final build includes all sources directly)
 if !FINAL_BUILD
-SUBDIRS = codecs lastfm mpris util io demuxer widget tag core
+SUBDIRS = codecs lastfm mpris io demuxer widget core tag
 endif
 
 # Include path for psymp3.h and other headers
@@ -53,6 +53,10 @@ endif
 
 if HAVE_OPUS
 AM_CPPFLAGS += $(OPUS_CFLAGS)
+endif
+
+if HAVE_AAC
+AM_CPPFLAGS += $(AAC_CFLAGS)
 endif
 
 if HAVE_SPEEX
@@ -90,6 +94,10 @@ endif
 
 if HAVE_OPUS
 CODEC_LIBS += codecs/opus/libpsymp3-codec-opus.a
+endif
+
+if HAVE_AAC
+CODEC_LIBS += codecs/aac/libpsymp3-codec-aac.a
 endif
 
 if HAVE_OGGDEMUXER
@@ -145,7 +153,6 @@ psymp3_LDADD = \
 	io/libpsymp3-io.a \
 	tag/libpsymp3-tag.a \
 	core/libpsymp3-core.a \
-	util/libpsymp3-util.a \
 	core/compression/libpsymp3-core-compression.a \
 	core/utility/libpsymp3-core-utility.a
 endif
@@ -178,6 +185,10 @@ if HAVE_OPUS
 psymp3_LDADD += $(OPUS_LIBS)
 endif
 
+if HAVE_AAC
+psymp3_LDADD += $(AAC_LIBS)
+endif
+
 if HAVE_SPEEX
 psymp3_LDADD += $(SPEEX_LIBS)
 endif
@@ -194,4 +205,3 @@ endif
 if HAVE_WINDRES
 psymp3_LDADD += ../res/psymp3.res
 endif
-

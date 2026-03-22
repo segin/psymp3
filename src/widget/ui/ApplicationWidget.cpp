@@ -249,6 +249,9 @@ Widget* ApplicationWidget::findWindowAt(int x, int y) const
 
 void ApplicationWidget::BlitTo(Surface& target)
 {
+    // Process scheduled window removals and toast expirations before rendering
+    updateWindows();
+
     // ApplicationWidget acts as the desktop - render all child widgets first
     // This includes spectrum analyzer, progress bar, labels, etc.
     Widget::BlitTo(target); // This will render all child widgets in the hierarchy

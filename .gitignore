@@ -45,6 +45,8 @@ tests/.deps/**
 **/.deps/**
 **/*.Po
 **/*.a
+**/*.trs
+**/*.E
 
 # Non-tests/ directory test artifacts
 test_centering_simple
@@ -85,10 +87,10 @@ tests/*.tmp
 tests/*.out
 tests/*.csv
 tests/*.dat
+tests/*_report.txt
+tests/*_report.html
 tests/integration_test.txt
-tests/static_analysis_report.txt
-tests/final_validation_report.html
-tests/mpris_regression_report.txt
+tests/test-suite.log
 
 # Core executable in different locations
 psymp3

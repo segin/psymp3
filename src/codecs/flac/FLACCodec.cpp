@@ -555,9 +555,15 @@ AudioFrame FLACCodec::flush() {
 }
 
 void FLACCodec::reset() {
-    Debug::log("flac_codec", "[FLACCodec::reset] [ENTRY] Acquiring state lock");
-    std::lock_guard<std::mutex> lock(m_state_mutex);
-    Debug::log("flac_codec", "[FLACCodec::reset] [LOCKED] State lock acquired, calling unlocked implementation");
+    Debug::log("flac_codec", "[FLACCodec::reset] [ENTRY] Acquiring locks for reset");
+    // Acquire locks in documented order to prevent deadlocks:
+    // 1. state_mutex
+    // 4. decoder_mutex
+    // 5. buffer_mutex
+    std::lock_guard<std::mutex> state_lock(m_state_mutex);
+    std::lock_guard<std::mutex> decoder_lock(m_decoder_mutex);
+    std::lock_guard<std::mutex> buffer_lock(m_buffer_mutex);
+    Debug::log("flac_codec", "[FLACCodec::reset] [LOCKED] All necessary locks acquired");
     
     try {
         reset_unlocked();
@@ -1801,8 +1807,14 @@ bool FLACCodec::processFrameData_unlocked(const uint8_t* data, size_t size) {
                 } else {
                     // For other error states, try to reset and continue
                     Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Decoder error state, attempting reset");
-                    if (!m_decoder->reset()) {
-                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Decoder reset failed");
+
+                    // resetDecoderState_unlocked handles both the libFLAC reset and
+                    // re-providing the synthetic STREAMINFO header.
+                    resetDecoderState_unlocked();
+
+                    // Re-feed the current data chunk after reset to attempt recovery
+                    if (!feedDataToDecoder_unlocked(data, size)) {
+                        Debug::log("flac_codec", "[FLACCodec::processFrameData_unlocked] Failed to re-feed data after reset");
                         return false;
                     }
                 }
@@ -2647,8 +2659,15 @@ void FLACCodec::resetDecoderState_unlocked() {
                 Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] libFLAC reset successful");
             }
             
-            // Clear input buffer regardless of reset success
+            // Clear input buffer before providing synthetic header to ensure
+            // the decoder sees the 'fLaC' marker immediately.
             m_decoder->clearInputBuffer();
+
+            // CRITICAL FIX: After any reset, the libFLAC decoder returns to SEARCH_FOR_METADATA state.
+            // We must re-provide the synthetic header so it can transition back to decoding state.
+            if (!provideSyntheticStreamInfo_unlocked()) {
+                Debug::log("flac_codec", "[FLACCodec::resetDecoderState_unlocked] Warning: Failed to provide synthetic STREAMINFO");
+            }
             
             // Clear decoder error state
             m_decoder->clearError();
@@ -10456,13 +10475,6 @@ bool FLACCodec::validateReservedBitDepthValues_unlocked(uint16_t bits_per_sample
     
     // Currently no reserved bit depth values in RFC 9639
     // All values from 4 to 32 bits are valid per the specification
-    
-    // Future reserved values could be added here as the specification evolves
-    // For example, if certain bit depths become deprecated or reserved:
-    // if (bits_per_sample == FUTURE_RESERVED_VALUE) {
-    //     Debug::log("flac_codec", "[validateReservedBitDepthValues_unlocked] Reserved bit depth: ", bits_per_sample);
-    //     return false;
-    // }
     
     // Check for unusual bit depths that might indicate encoding issues
     // While not reserved, these are uncommon and may indicate problems

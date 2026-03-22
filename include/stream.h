@@ -101,6 +101,7 @@ class Stream
         
         // Lyrics support
         std::shared_ptr<LyricsFile> m_lyrics;
+        void loadLyrics();
         
         // Tag framework integration - stores metadata tag for this stream
         std::unique_ptr<PsyMP3::Tag::Tag> m_tag;
@@ -108,9 +109,6 @@ class Stream
     private:
         std::unique_ptr<TagLib::FileRef> m_tags;
         std::unique_ptr<TagLibIOHandlerAdapter> m_taglib_stream;
-        
-        // Helper method to load lyrics for this stream
-        void loadLyrics();
 };
 
 #endif // STREAM_H

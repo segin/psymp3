@@ -1252,12 +1252,17 @@ bool FLACCodec::recoverFromSyncLoss() {
     
     for (size_t attempt = 0; attempt < MAX_SEARCH_ATTEMPTS; attempt++) {
         if (m_frame_parser->findSync()) {
+            const uint64_t sync_position = m_bitstream_reader->getBitPosition();
             Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSyncLoss] Found sync pattern after ",
                       attempt + 1, " attempts");
             
             // Validate that this is a genuine sync by checking frame header
             FrameHeader test_header;
             if (m_frame_parser->parseFrameHeader(test_header)) {
+                if (!m_bitstream_reader->setBitPosition(sync_position)) {
+                    Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSyncLoss] Failed to restore sync position after validation");
+                    return false;
+                }
                 Debug::log("flac_codec", "[NativeFLACCodec::recoverFromSyncLoss] Sync recovery successful");
                 m_consecutive_errors = 0;  // Reset error counter on successful recovery
                 return true;

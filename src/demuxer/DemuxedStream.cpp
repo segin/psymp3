@@ -15,6 +15,7 @@ namespace Demuxer {
 DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stream_id) 
     : Stream(), m_current_stream_id(preferred_stream_id) {
     m_path = path;
+    loadLyrics();
     
     if (!initialize()) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
@@ -24,6 +25,7 @@ DemuxedStream::DemuxedStream(const TagLib::String& path, uint32_t preferred_stre
 DemuxedStream::DemuxedStream(std::unique_ptr<IOHandler> handler, const TagLib::String& path, uint32_t preferred_stream_id) 
     : Stream(), m_current_stream_id(preferred_stream_id) {
     m_path = path;
+    loadLyrics();
     
     if (!initializeWithHandler(std::move(handler))) {
         throw InvalidMediaException("Failed to initialize demuxed stream for: " + path);
@@ -150,6 +152,7 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
     
     uint8_t* output_buf = static_cast<uint8_t*>(buf);
     size_t bytes_written = 0;
+    size_t consecutive_empty_frames = 0;
     
     while (bytes_written < len && !m_eof_reached) {
         // If we have a current frame with remaining data, use it
@@ -190,6 +193,15 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
                 std::lock_guard<std::mutex> lock(m_buffer_mutex);
                 buffer_empty = m_chunk_buffer.empty();
             }
+
+            consecutive_empty_frames++;
+            if (consecutive_empty_frames >= MAX_EMPTY_FRAME_RETRIES) {
+                Debug::log("demux", "DemuxedStream::getData: Aborting after ", consecutive_empty_frames,
+                           " consecutive empty frames without reaching EOF");
+                m_eof_reached = true;
+                m_eof = true;
+                break;
+            }
             
             if (buffer_empty && m_demuxer && m_demuxer->isEOF()) {
                 // Truly at EOF - no more chunks and demuxer is done
@@ -212,6 +224,8 @@ size_t DemuxedStream::getData(size_t len, void *buf) {
                 continue;
             }
         }
+
+        consecutive_empty_frames = 0;
     }
     
     // Position is updated when we process new frames (see above)
@@ -315,10 +329,8 @@ AudioFrame DemuxedStream::getNextFrame() {
 
 void DemuxedStream::fillChunkBuffer() {
     // Use simple bounded buffering with memory pressure awareness
-    static std::queue<MediaChunk> temp_buffer;
-    static size_t temp_buffer_bytes = 0;
-    static size_t max_chunks = MAX_CHUNK_BUFFER_SIZE;
-    static size_t max_bytes = MAX_CHUNK_BUFFER_BYTES;
+    size_t max_chunks = MAX_CHUNK_BUFFER_SIZE;
+    size_t max_bytes = MAX_CHUNK_BUFFER_BYTES;
     
     // Check if we need to update memory pressure
     int memory_pressure = MemoryTracker::getInstance().getMemoryPressureLevel();
@@ -338,7 +350,7 @@ void DemuxedStream::fillChunkBuffer() {
         // Check if we have room for another chunk (estimate size)
         // Use max_frame_size from FLAC as estimate, or a reasonable default
         static constexpr size_t ESTIMATED_CHUNK_OVERHEAD = sizeof(MediaChunk) + 8192;
-        if (temp_buffer.size() >= max_chunks || temp_buffer_bytes + ESTIMATED_CHUNK_OVERHEAD > max_bytes) {
+        if (m_temp_chunk_buffer.size() >= max_chunks || m_temp_buffer_bytes + ESTIMATED_CHUNK_OVERHEAD > max_bytes) {
             Debug::log("demux", "DemuxedStream: Bounded buffer full, will refill later");
             break; // Buffer is full - don't read more, we'll refill when there's space
         }
@@ -352,24 +364,24 @@ void DemuxedStream::fillChunkBuffer() {
         
         // Add chunk to temp buffer - we already checked bounds above
         size_t chunk_size = sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t);
-        temp_buffer_bytes += chunk_size;
-        temp_buffer.push(std::move(chunk));
+        m_temp_buffer_bytes += chunk_size;
+        m_temp_chunk_buffer.push(std::move(chunk));
         
         // Log buffer stats
-        Debug::log("demux", "DemuxedStream: Buffer stats - items: ", temp_buffer.size(),
-                  ", bytes: ", temp_buffer_bytes,
-                  ", fullness: ", static_cast<float>(temp_buffer.size()) / max_chunks * 100, "%");
+        Debug::log("demux", "DemuxedStream: Buffer stats - items: ", m_temp_chunk_buffer.size(),
+                  ", bytes: ", m_temp_buffer_bytes,
+                  ", fullness: ", static_cast<float>(m_temp_chunk_buffer.size()) / max_chunks * 100, "%");
     }
     
     // Transfer chunks from temp buffer to our queue (thread-safe)
     {
         std::lock_guard<std::mutex> lock(m_buffer_mutex);
-        while (!temp_buffer.empty()) {
-            MediaChunk chunk = std::move(temp_buffer.front());
-            temp_buffer.pop();
+        while (!m_temp_chunk_buffer.empty()) {
+            MediaChunk chunk = std::move(m_temp_chunk_buffer.front());
+            m_temp_chunk_buffer.pop();
             
             size_t chunk_size = chunk.data.size();
-            temp_buffer_bytes -= (sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t));
+            m_temp_buffer_bytes -= (sizeof(MediaChunk) + chunk.data.capacity() * sizeof(uint8_t));
             m_current_buffer_bytes += chunk_size;
             m_chunk_buffer.push(std::move(chunk));
         }
@@ -403,7 +415,11 @@ void DemuxedStream::seekTo(unsigned long pos) {
         while (!m_chunk_buffer.empty()) {
             m_chunk_buffer.pop();
         }
+        while (!m_temp_chunk_buffer.empty()) {
+            m_temp_chunk_buffer.pop();
+        }
         m_current_buffer_bytes = 0; // Reset memory tracking
+        m_temp_buffer_bytes = 0;
         m_current_frame = AudioFrame{};
         m_current_frame_offset = 0;
     }

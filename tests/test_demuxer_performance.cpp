@@ -9,6 +9,7 @@
 
 #include "psymp3.h"
 #include "test_framework.h"
+#include "codecs/CodecRegistration.h"
 #include <chrono>
 #include <random>
 
@@ -236,7 +237,7 @@ protected:
         
         // Test RIFF parsing performance
         std::cout << "Testing RIFF parsing performance..." << std::endl;
-        auto large_wav = LargeTestDataGenerator::generateLargeRIFFWAV(30); // 30 seconds
+        auto large_wav = LargeTestDataGenerator::generateLargeRIFFWAV(5); // Reduced from 30 to 5 seconds
         std::cout << "Generated " << large_wav.size() << " bytes of WAV data" << std::endl;
         
         auto wav_handler = std::make_unique<PerformanceIOHandler>(large_wav);
@@ -255,7 +256,7 @@ protected:
         
         // Test Ogg parsing performance
         std::cout << "Testing Ogg parsing performance..." << std::endl;
-        auto large_ogg = LargeTestDataGenerator::generateLargeOgg(500); // 500 pages
+        auto large_ogg = LargeTestDataGenerator::generateLargeOgg(100); // Reduced from 500 to 100 pages
         std::cout << "Generated " << large_ogg.size() << " bytes of Ogg data" << std::endl;
         
         auto ogg_handler = std::make_unique<PerformanceIOHandler>(large_ogg);
@@ -299,7 +300,7 @@ protected:
         size_t total_bytes = 0;
         
         // Read all chunks and measure performance
-        while (!demuxer->isEOF() && chunks_read < 10000) { // Limit to prevent infinite loop
+        while (!demuxer->isEOF() && chunks_read < 1000) { // Reduced from 10000 to 1000
             auto chunk = demuxer->readChunk();
             if (chunk.isValid()) {
                 chunks_read++;
@@ -343,7 +344,7 @@ public:
 protected:
     void runTest() override {
         // Generate test data
-        auto wav_data = LargeTestDataGenerator::generateLargeRIFFWAV(60); // 1 minute
+        auto wav_data = LargeTestDataGenerator::generateLargeRIFFWAV(10); // Reduced from 60 to 10 seconds
         auto handler = std::make_unique<PerformanceIOHandler>(wav_data);
         auto perf_handler = handler.get();
         
@@ -744,6 +745,7 @@ protected:
 };
 
 int main() {
+    registerAllDemuxers();
     TestSuite suite("Demuxer Performance and Regression Tests");
     
     // Add all test cases

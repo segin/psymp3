@@ -58,6 +58,12 @@ public:
     static ApplicationWidget& getInstance();
     
     /**
+     * @brief Checks if the singleton has been initialized.
+     * @return true if initialized
+     */
+    static bool isInitialized() { return s_instance != nullptr; }
+    
+    /**
      * @brief Virtual destructor.
      */
     virtual ~ApplicationWidget() = default;

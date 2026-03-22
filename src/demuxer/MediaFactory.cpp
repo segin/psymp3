@@ -162,17 +162,23 @@ ContentInfo MediaFactory::analyzeContent(const std::string& uri) {
     // Start with extension-based detection (quick and often accurate)
     Debug::log("loader", "MediaFactory::analyzeContent trying extension-based detection for: ", uri);
     auto ext_result = detectByExtension(uri);
-    if (ext_result.confidence > best_confidence) {
-        best_match = ext_result;
-        best_confidence = ext_result.confidence;
+    best_match = ext_result;
+    best_confidence = ext_result.confidence;
+    
+    if (!ext_result.detected_format.empty()) {
         Debug::log("loader", "MediaFactory::analyzeContent extension detection found format: ", 
                   ext_result.detected_format, ", confidence: ", ext_result.confidence);
     }
     
     // Try content analysis with IOHandler for more detailed detection
     Debug::log("loader", "MediaFactory::analyzeContent trying content-based detection for: ", uri);
-    auto handler = createIOHandler(uri);
-    auto content_result = analyzeContent(handler);
+    ContentInfo content_result;
+    try {
+        auto handler = createIOHandler(uri);
+        content_result = analyzeContent(handler);
+    } catch (const std::exception& e) {
+        Debug::log("loader", "MediaFactory::analyzeContent - content-based detection failed: ", e.what());
+    }
     
     // Combine results - prefer higher confidence, but merge metadata
     if (content_result.confidence > best_confidence) {
@@ -316,7 +322,9 @@ bool MediaFactory::supportsFormat(const std::string& format_id) {
     if (!s_initialized) {
         initializeDefaultFormats();
     }
-    return s_formats.find(format_id) != s_formats.end();
+    std::string lower_id = format_id;
+    std::transform(lower_id.begin(), lower_id.end(), lower_id.begin(), ::tolower);
+    return s_formats.find(lower_id) != s_formats.end();
 }
 
 bool MediaFactory::supportsExtension(const std::string& extension) {
@@ -325,7 +333,7 @@ bool MediaFactory::supportsExtension(const std::string& extension) {
         initializeDefaultFormats();
     }
     std::string ext = extension;
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::toupper);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     return s_extension_to_format.find(ext) != s_extension_to_format.end();
 }
 
@@ -349,7 +357,7 @@ std::string MediaFactory::extensionToMimeType(const std::string& extension) {
     }
     
     std::string ext = extension;
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::toupper);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     
     auto it = s_extension_to_format.find(ext);
     if (it != s_extension_to_format.end()) {
@@ -400,7 +408,7 @@ std::vector<std::string> MediaFactory::getMimeTypesForExtension(const std::strin
     }
     
     std::string ext = extension;
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::toupper);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
     
     auto it = s_extension_to_format.find(ext);
     if (it != s_extension_to_format.end()) {
@@ -433,9 +441,9 @@ std::string MediaFactory::extractExtension(const std::string& uri) {
     
     // Find last dot
     size_t dot_pos = path.find_last_of('.');
-    if (dot_pos != std::string::npos && dot_pos < path.length() - 1) {
+    if (dot_pos != std::string::npos && dot_pos > 0 && dot_pos < path.length() - 1) {
         std::string ext = path.substr(dot_pos + 1);
-        std::transform(ext.begin(), ext.end(), ext.begin(), ::toupper);
+        std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
         Debug::log("loader", "MediaFactory::extractExtension found extension: ", ext);
         return ext;
     }
@@ -445,12 +453,19 @@ std::string MediaFactory::extractExtension(const std::string& uri) {
 }
 
 bool MediaFactory::isHttpUri(const std::string& uri) {
-    // Support both HTTP and HTTPS
-    return uri.substr(0, 7) == "http://" || uri.substr(0, 8) == "https://";
+    // Support both HTTP and HTTPS with length safety
+    if (uri.length() < 7) return false;
+    if (uri.compare(0, 7, "http://") == 0) return true;
+    if (uri.length() < 8) return false;
+    return uri.compare(0, 8, "https://") == 0;
 }
 
 bool MediaFactory::isLocalFile(const std::string& uri) {
-    return !isHttpUri(uri) && uri.find("://") == std::string::npos;
+    if (isHttpUri(uri)) return false;
+    size_t scheme_pos = uri.find("://");
+    if (scheme_pos == std::string::npos) return true;
+    // file:// is considered local
+    return uri.compare(0, 7, "file://") == 0;
 }
 
 void MediaFactory::initializeDefaultFormats() {
@@ -597,7 +612,7 @@ void MediaFactory::initializeDefaultFormats() {
     if (DemuxerRegistry::getInstance().isFormatSupported("riff")) {
         // RIFF/WAVE formats - standardized extension mappings
         MediaFormat wave_format;
-        wave_format.format_id = "wave";
+        wave_format.format_id = "riff";
         wave_format.display_name = "WAVE";
         wave_format.extensions = {"WAV", "WAVE", "BWF"};
         // Comprehensive MIME type support for WAVE
@@ -698,8 +713,10 @@ void MediaFactory::rebuildLookupTables() {
     for (const auto& [format_id, registration] : s_formats) {
         // Build extension lookup
         for (const auto& ext : registration.format.extensions) {
-            s_extension_to_format[ext] = format_id;
-            Debug::log("loader", "MediaFactory::rebuildLookupTables registered extension ", ext, " -> ", format_id);
+            std::string lower_ext = ext;
+            std::transform(lower_ext.begin(), lower_ext.end(), lower_ext.begin(), ::tolower);
+            s_extension_to_format[lower_ext] = format_id;
+            Debug::log("loader", "MediaFactory::rebuildLookupTables registered extension ", lower_ext, " -> ", format_id);
         }
         
         // Build MIME type lookup
@@ -717,11 +734,11 @@ ContentInfo MediaFactory::detectByExtension(const std::string& uri) {
     Debug::log("loader", "MediaFactory::detectByExtension extracted extension: ", ext.empty() ? "none" : ext);
     
     if (!ext.empty()) {
+        info.file_extension = ext;
         std::lock_guard<std::mutex> lock(s_factory_mutex);
         auto it = s_extension_to_format.find(ext);
         if (it != s_extension_to_format.end()) {
             info.detected_format = it->second;
-            info.file_extension = ext;
             info.confidence = 0.7f; // Medium confidence for extension-based detection
             
             Debug::log("loader", "MediaFactory::detectByExtension matched extension ", ext, " to format: ", it->second);

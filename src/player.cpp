@@ -94,7 +94,9 @@ Player::~Player() {
     audio.reset();
 
     // Notify all windows that the application is shutting down
-    ApplicationWidget::getInstance().notifyShutdown();
+    if (ApplicationWidget::isInitialized()) {
+        ApplicationWidget::getInstance().notifyShutdown();
+    }
     
 #ifdef HAVE_DBUS
     if (m_mpris_manager) {
@@ -686,6 +688,38 @@ void Player::updateInfo(bool is_loading, const TagLib::String& error_msg)
     m_labels.at("fft_mode")->setText("FFT Mode: " + fft->getFFTModeName());
 }
 
+
+/**
+ * @brief Renders the overlay elements (pause indicator, seek indicators, windows) to the graph surface.
+ * @param current_stream The current stream pointer.
+ * @param current_pos_ms The current playback position in milliseconds.
+ */
+void Player::renderOverlay(Stream* current_stream, unsigned long current_pos_ms)
+{
+    // Update lyrics widget with current playback position
+    if (m_lyrics_widget) {
+        m_lyrics_widget->updatePosition(static_cast<unsigned int>(current_pos_ms));
+    }
+
+    // Render the main widget tree
+    if (m_ui_root) {
+        m_ui_root->BlitTo(*graph);
+    }
+    
+    // Render the pause indicator if we're paused
+    if (state == PlayerState::Paused && m_pause_indicator) {
+        // Center the pause indicator in the FFT area (0,0 to 640,350)
+        Rect pos = m_pause_indicator->getPos();
+        pos.x((640 - pos.width()) / 2);
+        pos.y((350 - pos.height()) / 2);
+        m_pause_indicator->setPos(pos);
+        m_pause_indicator->BlitTo(*graph);
+    }
+    
+    // Render floating windows (test windows)
+    renderWindows();
+}
+
 /**
  * @brief Updates all dynamic state (stream position, lyrics, MPRIS, preloading) for one GUI frame.
  *
@@ -795,6 +829,24 @@ void Player::updateState(Stream*& current_stream, unsigned long& current_pos_ms,
 
     }
 }
+
+/**
+ * @brief Main GUI update function, called periodically from the event loop.
+ * Orchestrates state updates and UI thread rendering.
+ * @return true if the current track has finished, false otherwise.
+ */
+bool Player::updateGUI()
+{
+    Stream* current_stream = nullptr;
+    unsigned long current_pos_ms = 0;
+    unsigned long total_len_ms = 0;
+    TagLib::String artist = "";
+    TagLib::String title = "";
+
+    {
+        std::lock_guard<std::mutex> lock(*mutex);
+        updateState(current_stream, current_pos_ms, total_len_ms, artist, title);
+    }
 
     // Now use the copied data for rendering, outside the lock.
     if(current_stream) {
@@ -1602,6 +1654,58 @@ bool Player::Initialize(const PlayerOptions& options) {
     auto lyrics_widget = std::make_unique<LyricsWidget>(font.get(), 640);
     m_lyrics_widget = lyrics_widget.get();
     app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
+
+    // Create the "H" demo window with classic Win3.x controls.
+    auto h_window = std::make_unique<WindowWidget>(170, 112, "H", font.get());
+    h_window->setPos(Rect(434, 72, h_window->getPos().width(), h_window->getPos().height()));
+    if (auto* frame = h_window->getFrameWidget()) {
+        frame->setResizable(false);
+        frame->setMinimizable(false);
+        frame->setMaximizable(false);
+        frame->refresh();
+    }
+
+    auto h_client = std::make_unique<LayoutWidget>(170, 112, false);
+    h_client->setBackgroundColor(255, 255, 255);
+
+    auto status_label = std::make_unique<Label>(
+        font.get(), Rect(12, 10, 120, 14), TagLib::String("Checked: No"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* status_label_ptr = status_label.get();
+    h_client->addChild(std::move(status_label));
+
+    auto scroll_label = std::make_unique<Label>(
+        font.get(), Rect(12, 25, 120, 14), TagLib::String("Scroll: 50%"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* scroll_label_ptr = scroll_label.get();
+    h_client->addChild(std::move(scroll_label));
+
+    auto checkbox = std::make_unique<CheckboxWidget>(110, 18, font.get(), TagLib::String("Enable H"), false);
+    auto* checkbox_ptr = checkbox.get();
+    checkbox->setPos(Rect(12, 48, 110, 18));
+    checkbox->setOnToggle([status_label_ptr](bool checked) {
+        status_label_ptr->setText(TagLib::String(checked ? "Checked: Yes" : "Checked: No"));
+    });
+    h_client->addChild(std::move(checkbox));
+
+    auto button = std::make_unique<ButtonWidget>(72, 22);
+    button->setText(TagLib::String("Apply"), font.get());
+    button->setPos(Rect(12, 76, 72, 22));
+    button->setOnClick([checkbox_ptr]() {
+        checkbox_ptr->setChecked(!checkbox_ptr->isChecked());
+    });
+    h_client->addChild(std::move(button));
+
+    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 94, ScrollbarOrientation::Vertical);
+    scrollbar->setPos(Rect(142, 10, 16, 94));
+    scrollbar->setOnChange([scroll_label_ptr](double value) {
+        int percent = static_cast<int>(std::round(value * 100.0));
+        scroll_label_ptr->setText(TagLib::String("Scroll: " + std::to_string(percent) + "%"));
+    });
+    h_client->addChild(std::move(scrollbar));
+
+    h_window->setClientArea(std::move(h_client));
+    app_widget.addWindow(std::move(h_window), ZOrder::UI);
 
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.

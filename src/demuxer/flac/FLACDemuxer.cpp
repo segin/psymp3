@@ -338,6 +338,8 @@ StreamInfo FLACDemuxer::getStreamInfo_unlocked(uint32_t stream_id) const
 MediaChunk FLACDemuxer::readChunk_unlocked()
 {
     FLAC_DEBUG("[readChunk] Starting frame read");
+    static constexpr int MAX_CORRUPTED_FRAME_RECOVERIES = 8;
+    int corrupted_frame_recoveries = 0;
     
     if (!m_container_parsed) {
         FLAC_DEBUG("[readChunk] Container not parsed");
@@ -355,6 +357,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     // Requirement 24.4: Resynchronize to next valid sync code on sync loss
     // ========================================================================
     
+retry_frame_read:
     FLACFrame frame;
     int resync_attempts = 0;
     static constexpr int MAX_RESYNC_ATTEMPTS = 3;
@@ -397,9 +400,12 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     if (estimated_frame_size == 0) {
         FLAC_DEBUG("[readChunk] Invalid frame size estimate: 0");
         // Requirement 24.4: Try to skip this frame and continue
-        if (skipCorruptedFrame_unlocked(frame.file_offset)) {
-            FLAC_DEBUG("[readChunk] Skipped corrupted frame, retrying");
-            return readChunk_unlocked();  // Recursive retry (limited by resync attempts)
+        if (corrupted_frame_recoveries < MAX_CORRUPTED_FRAME_RECOVERIES &&
+            skipCorruptedFrame_unlocked(frame.file_offset)) {
+            corrupted_frame_recoveries++;
+            FLAC_DEBUG("[readChunk] Skipped corrupted frame, retrying (attempt ",
+                       corrupted_frame_recoveries, "/", MAX_CORRUPTED_FRAME_RECOVERIES, ")");
+            goto retry_frame_read;
         }
         updateEOF_unlocked(true);
         return MediaChunk{};
@@ -472,6 +478,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
     // ========================================================================
     
     uint32_t actual_frame_size = static_cast<uint32_t>(bytes_read);
+    bool found_next_sync = false;
     
     // Search for next sync code starting after the minimum frame header size
     // Minimum frame: sync(2) + header(2) + coded_number(1) + CRC-8(1) + subframe(1) + CRC-16(2) = 9 bytes
@@ -484,7 +491,7 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
         search_start = m_streaminfo.min_frame_size;
     }
     
-    if (bytes_read > search_start) {
+    while (bytes_read > search_start) {
         // Search for next sync code (0xFF followed by 0xF8 or 0xF9)
         // Ensure we have enough bytes to check data[i+2]
         for (size_t i = search_start; i < bytes_read - 16; ++i) { // Ensure enough buffer for header max size
@@ -601,11 +608,45 @@ MediaChunk FLACDemuxer::readChunk_unlocked()
                 
                 // Found potential next frame sync code with valid CRC
                 actual_frame_size = static_cast<uint32_t>(i);
+                found_next_sync = true;
                 FLAC_DEBUG("[readChunk] Found next sync code at offset ", i, 
                            " - actual frame size: ", actual_frame_size, " bytes");
                 break;
             }
         }
+
+        if (found_next_sync) {
+            break;
+        }
+
+        if (data.size() >= MAX_FRAME_SIZE) {
+            break;
+        }
+
+        if (m_file_size > 0 && frame.file_offset + data.size() >= m_file_size) {
+            break;
+        }
+
+        const size_t extension_size = std::min<size_t>(65536, MAX_FRAME_SIZE - data.size());
+        const size_t previous_size = data.size();
+        data.resize(previous_size + extension_size);
+
+        if (m_handler->seek(static_cast<off_t>(frame.file_offset + previous_size), SEEK_SET) != 0) {
+            data.resize(previous_size);
+            break;
+        }
+
+        const size_t additional_bytes = m_handler->read(data.data() + previous_size, 1, extension_size);
+        if (additional_bytes == 0) {
+            data.resize(previous_size);
+            break;
+        }
+
+        bytes_read = previous_size + additional_bytes;
+        data.resize(bytes_read);
+        actual_frame_size = static_cast<uint32_t>(bytes_read);
+        search_start = previous_size > 16 ? previous_size - 16 : MIN_FRAME_SIZE;
+        FLAC_DEBUG("[readChunk] Extended frame read window to ", bytes_read, " bytes while searching for next sync");
     }
     
     // Resize data to actual frame size
@@ -3742,9 +3783,9 @@ uint32_t FLACDemuxer::calculateFrameSize_unlocked(const FLACFrame& frame) const
     FLAC_DEBUG("[calculateFrameSize] Estimating frame size for frame at offset ", frame.file_offset);
     
     // ========================================================================
-    // Method 1: Use STREAMINFO minimum frame size (preferred)
-    // Requirement 21.1: Use STREAMINFO minimum frame size as primary estimate
-    // Requirement 25.4: Prioritize minimum frame size over complex scaling algorithms
+    // Method 1: Use STREAMINFO frame size bounds when available
+    // Requirement 21.1: Prefer STREAMINFO-provided sizing over theoretical estimates
+    // Requirement 25.4: Avoid complex scaling algorithms that can under-read frames
     // ========================================================================
     
     if (m_streaminfo.isValid() && m_streaminfo.min_frame_size > 0) {
@@ -3755,80 +3796,10 @@ uint32_t FLACDemuxer::calculateFrameSize_unlocked(const FLACFrame& frame) const
         FLAC_DEBUG("[calculateFrameSize] STREAMINFO min_block_size: ", m_streaminfo.min_block_size, " samples");
         FLAC_DEBUG("[calculateFrameSize] STREAMINFO max_block_size: ", m_streaminfo.max_block_size, " samples");
         
-        // ====================================================================
-        // Requirement 21.2: For fixed block size streams, use MAXIMUM frame size
-        // Fixed block size streams have min_block_size == max_block_size, but
-        // individual FRAME sizes can still vary based on compression efficiency.
-        // Using max_frame_size ensures we always read complete frame data.
-        // ====================================================================
-        
-        if (m_streaminfo.min_block_size == m_streaminfo.max_block_size) {
-            // Fixed block size stream - use maximum frame size to avoid truncation
-            // Even though block size is fixed, frame size can vary due to compression
-            estimated_size = m_streaminfo.max_frame_size > 0 ? m_streaminfo.max_frame_size : m_streaminfo.min_frame_size;
-            FLAC_DEBUG("[calculateFrameSize] Fixed block size detected (", m_streaminfo.min_block_size, 
-                       " samples), using maximum frame size for safety: ", estimated_size, " bytes");
-            
-            // Requirement 21.5: Handle highly compressed streams with frames as small as 14 bytes
-            // The minimum valid FLAC frame is approximately:
-            // - Sync code: 2 bytes
-            // - Frame header: 4-7 bytes (varies with coded number length)
-            // - CRC-8: 1 byte
-            // - Minimal subframe: ~2 bytes per channel
-            // - CRC-16: 2 bytes
-            // Total minimum: ~14 bytes for mono, ~16 bytes for stereo
-            
-            if (estimated_size < 14) {
-                FLAC_DEBUG("[calculateFrameSize] WARNING: min_frame_size (", estimated_size, 
-                           ") is below theoretical minimum (14 bytes), using 14 bytes");
-                estimated_size = 14;
-            }
-            
-            return estimated_size;
-        }
-        
-        // ====================================================================
-        // Variable block size stream - use conservative estimate
-        // Requirement 25.1: Avoid complex theoretical calculations
-        // ====================================================================
-        
-        FLAC_DEBUG("[calculateFrameSize] Variable block size stream detected");
-        FLAC_DEBUG("[calculateFrameSize] Frame block_size: ", frame.block_size, " samples");
-        
-        // For variable block size, we use a simple approach:
-        // - If the frame's block size matches min_block_size, use min_frame_size
-        // - If the frame's block size matches max_block_size, use max_frame_size
-        // - Otherwise, use a linear interpolation between min and max
-        
-        if (frame.block_size > 0 && m_streaminfo.max_frame_size > 0) {
-            if (frame.block_size <= m_streaminfo.min_block_size) {
-                // Frame is at or below minimum block size - use minimum frame size
-                FLAC_DEBUG("[calculateFrameSize] Frame block_size <= min_block_size, using min_frame_size: ", 
-                           m_streaminfo.min_frame_size, " bytes");
-                return m_streaminfo.min_frame_size;
-            }
-            
-            if (frame.block_size >= m_streaminfo.max_block_size) {
-                // Frame is at or above maximum block size - use maximum frame size
-                FLAC_DEBUG("[calculateFrameSize] Frame block_size >= max_block_size, using max_frame_size: ", 
-                           m_streaminfo.max_frame_size, " bytes");
-                return m_streaminfo.max_frame_size;
-            }
-            
-            // Linear interpolation between min and max frame sizes
-            // This is a simple, conservative approach that avoids complex calculations
-            uint32_t block_range = m_streaminfo.max_block_size - m_streaminfo.min_block_size;
-            uint32_t frame_range = m_streaminfo.max_frame_size - m_streaminfo.min_frame_size;
-            
-            if (block_range > 0) {
-                uint32_t block_offset = frame.block_size - m_streaminfo.min_block_size;
-                uint32_t frame_offset_estimate = (block_offset * frame_range) / block_range;
-                estimated_size = m_streaminfo.min_frame_size + frame_offset_estimate;
-                
-                FLAC_DEBUG("[calculateFrameSize] Linear interpolation: ", estimated_size, " bytes");
-                FLAC_DEBUG("[calculateFrameSize]   block_offset: ", block_offset, 
-                           ", frame_range: ", frame_range, ", block_range: ", block_range);
-            }
+        if (m_streaminfo.max_frame_size > 0) {
+            estimated_size = std::max(m_streaminfo.max_frame_size, m_streaminfo.min_frame_size);
+            FLAC_DEBUG("[calculateFrameSize] Using STREAMINFO maximum frame size for safe complete-frame reads: ",
+                       estimated_size, " bytes");
         }
         
         // Ensure minimum valid frame size

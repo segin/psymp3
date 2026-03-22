@@ -81,6 +81,18 @@ void registerAllCodecs() {
     Debug::log("codec", "registerAllCodecs: Opus codec disabled at compile time");
 #endif
 
+#ifdef HAVE_AAC
+    PsyMP3::Codec::AAC::AACCodecSupport::registerCodec();
+    Debug::log("codec", "registerAllCodecs: Registered AAC codec with AudioCodecFactory");
+
+    CodecRegistry::registerCodec("aac", [](const StreamInfo& info) {
+        return std::make_unique<PsyMP3::Codec::AAC::AACCodec>(info);
+    });
+    Debug::log("codec", "registerAllCodecs: Registered AAC codec with CodecRegistry");
+#else
+    Debug::log("codec", "registerAllCodecs: AAC codec disabled at compile time");
+#endif
+
     // FLAC codec registration
 #ifdef HAVE_FLAC
     // Register native FLAC codec for native FLAC files
@@ -133,7 +145,7 @@ void registerAllDemuxers() {
     }, "MP4/ISO", {"mp4", "m4a", "mov"});
     Debug::log("demuxer", "registerAllDemuxers: Registered MP4/ISO demuxer");
     
-    DemuxerRegistry::getInstance().registerDemuxer("raw_audio", [](std::unique_ptr<IOHandler> handler) {
+    DemuxerRegistry::getInstance().registerDemuxer("raw", [](std::unique_ptr<IOHandler> handler) {
         // Note: RawAudioDemuxer needs file path for format detection
         // This factory will need to be enhanced when MediaFactory is updated
         return std::make_unique<PsyMP3::Demuxer::Raw::RawAudioDemuxer>(std::move(handler), "");

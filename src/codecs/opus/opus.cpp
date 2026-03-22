@@ -30,6 +30,7 @@
 OpusFile::OpusFile(TagLib::String name) : Stream()
 {
     m_path = name; // Set path manually to avoid TagLib FileRef creation
+    loadLyrics();
     
     // Create a DemuxedStream to handle all parsing (container + metadata)
     m_demuxed_stream = std::make_unique<DemuxedStream>(name);

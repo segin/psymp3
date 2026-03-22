@@ -81,6 +81,16 @@ enum class LoopMode {
     All
 };
 
+// Stream operator for LoopMode (for testing)
+inline std::ostream& operator<<(std::ostream& os, LoopMode mode) {
+    switch (mode) {
+        case LoopMode::None: return os << "None";
+        case LoopMode::One: return os << "One";
+        case LoopMode::All: return os << "All";
+        default: return os << "Unknown";
+    }
+}
+
 // C++ Standard Library
 #include <algorithm>
 #include <atomic>
@@ -259,6 +269,12 @@ typedef struct bio_st BIO;
 #include <SDL/SDL_mutex.h>
 #else
 #include <SDL.h>
+
+#ifdef HAVE_SPEEX
+#include <speex/speex.h>
+#include <speex/speex_header.h>
+#include <speex/speex_stereo.h>
+#endif
 #include <SDL_thread.h>
 #include <SDL_mutex.h>
 #endif
@@ -271,6 +287,9 @@ typedef struct bio_st BIO;
 #endif
 #ifdef HAVE_MP3
 #include <mpg123.h>
+#endif
+#ifdef HAVE_AAC
+#include <neaacdec.h>
 #endif
 #ifdef HAVE_OGGDEMUXER
 #include <vorbis/vorbisfile.h>
@@ -306,12 +325,12 @@ typedef struct bio_st BIO;
 // Local project headers (in dependency order where possible)
 #include "debug.h"
 #include "core/exceptions.h"
+#include "core/rect.h"
 using PsyMP3::Core::BadFormatException;
 using PsyMP3::Core::InvalidMediaException;
 using PsyMP3::Core::IOException;
 using PsyMP3::Core::SDLException;
 using PsyMP3::Core::WrongFormatException;
-#include "core/rect.h"
 using PsyMP3::Core::Rect;
 #include "surface.h"
 #include "display.h"
@@ -336,6 +355,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 
 // Widget system - UI
 #include "widget/ui/ButtonWidget.h"
+#include "widget/ui/CheckboxWidget.h"
 #include "widget/ui/SpectrumAnalyzerWidget.h"
 #include "widget/ui/PlayerProgressBarWidget.h"
 #include "widget/ui/ProgressBarFrameWidget.h"
@@ -344,6 +364,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 #include "widget/ui/ApplicationWidget.h"
 #include "widget/ui/ToastWidget.h"
 #include "widget/ui/LyricsWidget.h"
+#include "widget/ui/ScrollbarWidget.h"
 
 using PsyMP3::Widget::Foundation::Widget;
 using PsyMP3::Widget::Foundation::DrawableWidget;
@@ -356,7 +377,10 @@ using PsyMP3::Widget::Windowing::WindowEvent;
 using PsyMP3::Widget::Windowing::WindowEventData;
 using PsyMP3::Widget::Windowing::TransparentWindowWidget;
 using PsyMP3::Widget::UI::ButtonWidget;
+using PsyMP3::Widget::UI::CheckboxWidget;
 using PsyMP3::Widget::UI::ButtonSymbol;
+using PsyMP3::Widget::UI::ScrollbarOrientation;
+using PsyMP3::Widget::UI::ScrollbarWidget;
 using PsyMP3::Widget::UI::SpectrumAnalyzerWidget;
 using PsyMP3::Widget::UI::PlayerProgressBarWidget;
 using PsyMP3::Widget::UI::ProgressBarFrameWidget;
@@ -473,6 +497,10 @@ using PsyMP3::Codec::Vorbis::VorbisCodec;
 #include "codecs/opus/OpusCodec.h"
 using PsyMP3::Codec::Opus::OpusCodec;
 using PsyMP3::Codec::Opus::OpusHeader;
+#endif
+#ifdef HAVE_AAC
+#include "codecs/aac/AACCodec.h"
+using PsyMP3::Codec::AAC::AACCodec;
 #endif
 
 // Demuxer subsystem - Ogg

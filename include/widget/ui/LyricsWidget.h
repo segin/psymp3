@@ -94,11 +94,33 @@ private:
     std::string m_current_line_text;            ///< Currently displayed line text
     std::vector<std::string> m_preview_lines;  ///< Upcoming lines for context
     bool m_needs_redraw;                        ///< Whether the surface needs to be redrawn
+    int m_last_drawn_width = 0;                 ///< Width of last visible lyric surface
+    int m_last_drawn_height = 0;                ///< Height of last visible lyric surface
+    bool m_has_last_drawn_area = false;         ///< Whether a previous lyric region needs clearing
     
     /**
      * @brief Rebuilds the widget surface with current lyrics.
      */
     void rebuildSurface();
+
+    /**
+     * @brief Refreshes the current and preview lyric text for a playback position.
+     * @param current_time_ms Current playback time in milliseconds
+     * @return true if the visible lyric content changed
+     */
+    bool updateDisplayedText(unsigned int current_time_ms);
+
+    /**
+     * @brief Checks whether there is any text available to render.
+     * @return true if either the current line or preview lines contain text
+     */
+    bool hasDisplayText() const;
+
+    /**
+     * @brief Clears the previous lyric region before redrawing translucent content.
+     * @param target Surface to clear on
+     */
+    void clearLastDrawnArea(Surface& target);
     
     /**
      * @brief Creates a surface with the current and upcoming lyrics.

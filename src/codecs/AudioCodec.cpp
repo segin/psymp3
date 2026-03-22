@@ -52,6 +52,13 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
             return std::move(codec);
         }
 #endif
+#ifdef HAVE_AAC
+    } else if (stream_info.codec_name == "aac") {
+        auto codec = std::make_unique<PsyMP3::Codec::AAC::AACCodec>(stream_info);
+        if (codec->canDecode(stream_info)) {
+            return std::move(codec);
+        }
+#endif
 #ifdef HAVE_OGGDEMUXER
     } else if (stream_info.codec_name == "vorbis") {
         // Use the new container-agnostic VorbisCodec
@@ -103,4 +110,3 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
 void AudioCodecFactory::registerCodec(const std::string& codec_name, CodecFactoryFunc factory_func) {
     s_codec_factories[codec_name] = factory_func;
 }
-

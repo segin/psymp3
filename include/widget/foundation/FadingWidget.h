@@ -41,6 +41,8 @@ public:
     [[nodiscard]] bool isHidden() const;
 
 private:
+    void clearLastDrawnArea(Surface& target);
+
     enum class FadeState {
         FadingIn,
         Visible,
@@ -51,6 +53,9 @@ private:
     FadeState m_state = FadeState::Hidden;
     Uint32 m_fade_duration = 250;
     Uint32 m_state_change_time = 0;
+    int m_last_drawn_width = 0;
+    int m_last_drawn_height = 0;
+    bool m_has_last_drawn_area = false;
 };
 
 } // namespace Foundation

@@ -54,6 +54,7 @@ public:
     uint64_t getBitPosition() const;
     uint64_t getBytePosition() const;
     void resetPosition();
+    bool setBitPosition(uint64_t bit_position);
     
     // State queries
     bool hasData() const;

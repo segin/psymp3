@@ -49,7 +49,7 @@ private:
      * 
      * Requirements: 9
      */
-    int16_t convertTo16Bit(int32_t sample, uint32_t source_bit_depth);
+    int32_t convertTo16Bit(int32_t sample, uint32_t source_bit_depth);
     
     /**
      * Upscale 8-bit sample to 16-bit
@@ -57,7 +57,7 @@ private:
      * 
      * Requirements: 9.2
      */
-    int16_t upscale8To16(int32_t sample);
+    int32_t upscale8To16(int32_t sample);
     
     /**
      * Downscale 24-bit sample to 16-bit with rounding
@@ -65,7 +65,7 @@ private:
      * 
      * Requirements: 9.3
      */
-    int16_t downscale24To16(int32_t sample);
+    int32_t downscale24To16(int32_t sample);
     
     /**
      * Downscale 32-bit sample to 16-bit with rounding
@@ -73,7 +73,7 @@ private:
      * 
      * Requirements: 9.4
      */
-    int16_t downscale32To16(int32_t sample);
+    int32_t downscale32To16(int32_t sample);
     
     /**
      * Downscale 20-bit sample to 16-bit with rounding
@@ -81,7 +81,7 @@ private:
      * 
      * Requirements: 9.6
      */
-    int16_t downscale20To16(int32_t sample);
+    int32_t downscale20To16(int32_t sample);
     
     /**
      * Upscale samples from 4-12 bit depths to 16-bit
@@ -89,7 +89,7 @@ private:
      * 
      * Requirements: 9.5
      */
-    int16_t upscaleTo16(int32_t sample, uint32_t source_bit_depth);
+    int32_t upscaleTo16(int32_t sample, uint32_t source_bit_depth);
     
     /**
      * Validate sample is within 16-bit range and prevent clipping

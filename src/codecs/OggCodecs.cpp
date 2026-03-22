@@ -14,11 +14,6 @@
 // OggCodecs are built if any Ogg-based codec is enabled
 #ifdef HAVE_OGGDEMUXER
 
-#ifdef HAVE_SPEEX
-#include <speex/speex.h>
-#include <speex/speex_header.h>
-#endif
-
 #ifdef HAVE_VORBIS
 // VorbisPassthroughCodec implementation - now redirects to VorbisCodec
 VorbisPassthroughCodec::VorbisPassthroughCodec(const StreamInfo& stream_info) 

@@ -8,6 +8,7 @@
  */
 
 #include "psymp3.h"
+#include "codecs/CodecRegistration.h"
 #include "test_framework.h"
 
 using namespace TestFramework;
@@ -394,6 +395,9 @@ protected:
 };
 
 int main() {
+    // Initialise demuxers
+    registerAllDemuxers();
+    
     TestSuite suite("DemuxerFactory Unit Tests");
     
     // Add all test cases

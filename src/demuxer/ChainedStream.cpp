@@ -88,6 +88,7 @@ ChainedStream::ChainedStream(std::vector<TagLib::String> paths)
 
     // The base class path should be the first track's path for identification
     m_path = m_paths.front();
+    loadLyrics();
 
     // Open the first track in the chain.
     if (!openNextTrack()) {
