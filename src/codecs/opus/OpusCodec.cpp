@@ -202,8 +202,10 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         return getBufferedFrame_unlocked();
     }
     
-    // Handle empty packets and end-of-stream conditions
-    if (chunk.data.empty()) {
+    // Packet loss chunks are valid even with empty payload because they drive PLC.
+    if (chunk.packet_lost) {
+        Debug::log("opus", "Lost packet received - routing to PLC path");
+    } else if (chunk.data.empty()) {
         Debug::log("opus", "Empty chunk received - checking for buffered frames");
         if (hasBufferedFrames_unlocked()) {
             return getBufferedFrame_unlocked();
@@ -560,11 +562,6 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     
     AudioFrame frame;
     
-    if (packet_data.empty()) {
-        Debug::log("opus", "Empty packet, returning empty frame");
-        return frame;
-    }
-    
     // Check for error state
     if (m_error_state.load()) {
         Debug::log("opus", "Codec in error state, returning empty frame");
@@ -594,16 +591,27 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
         return frame; // Headers don't produce audio
     }
     
+    // Empty packet data is only meaningful after headers as Opus PLC input.
+    if (packet_data.empty() && m_header_packets_received < 2) {
+        Debug::log("opus", "Empty packet before audio stage, returning empty frame");
+        return frame;
+    }
+
     // Process audio packet
     if (!m_decoder_initialized || (!m_opus_decoder && !m_opus_ms_decoder)) {
         Debug::log("opus", "Decoder not initialized, skipping packet");
         return frame;
     }
-    
-    // Comprehensive input parameter validation (Requirement 8.6)
-    if (!validateInputParameters_unlocked(packet_data)) {
-        reportDetailedError_unlocked("Input Validation", "Invalid input parameters");
-        return frame;
+
+    const bool plc_decode = packet_data.empty();
+    if (plc_decode) {
+        Debug::log("opus", "Empty audio packet received after headers - using libopus PLC");
+    } else {
+        // Comprehensive input parameter validation (Requirement 8.6)
+        if (!validateInputParameters_unlocked(packet_data)) {
+            reportDetailedError_unlocked("Input Validation", "Invalid input parameters");
+            return frame;
+        }
     }
     
     // Validate decoder state before processing
@@ -616,13 +624,13 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     }
     
     // Validate packet before decoding
-    if (!packet_data.empty() && !validateOpusPacket_unlocked(packet_data)) {
+    if (!plc_decode && !validateOpusPacket_unlocked(packet_data)) {
         reportDetailedError_unlocked("Packet Validation", "Invalid Opus packet structure");
         return frame;
     }
     
     // Validate TOC if not empty
-    if (!packet_data.empty()) {
+    if (!plc_decode) {
         OpusTOC toc = OpusTOC::parse(packet_data[0], packet_data.size());
         // Verify stereo flag matches channel count (Requirement 17.3)
         // Note: Opus can code mono as stereo and vice versa, but we should at least check validity
@@ -639,6 +647,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     }
 
     int samples_decoded = 0;
+    const int decode_frame_size = (plc_decode && m_last_frame_size > 0) ? m_last_frame_size : 5760;
     
     // Call the appropriate decoder
     if (m_use_multistream) {
@@ -647,7 +656,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
             packet_data.empty() ? nullptr : packet_data.data(),
             packet_data.size(),
             m_output_buffer.data(),
-            5760, // Max frame size
+            decode_frame_size,
             0 // No FEC for now
         );
     } else {
@@ -656,7 +665,7 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
             packet_data.empty() ? nullptr : packet_data.data(),
             packet_data.size(),
             m_output_buffer.data(),
-            5760, // Max frame size
+            decode_frame_size,
             0 // No FEC for now
         );
     }
@@ -697,25 +706,25 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
     // Handle Packet Loss Concealment (PLC) - Requirement 20
     if (chunk.packet_lost) {
         Debug::log("opus", "Packet loss detected - generating PLC audio");
-        // Pass empty vector to trigger PLC in lower-level function (or nullptr logic)
-        // But our lower-level function takes vector reference, so we can pass empty vector
-        // and rely on emptiness check, or we need to pass a flag.
-        // Actually, existing implementation checks .empty().
-        // So passing empty data triggers PLC?
-        // Let's verify opus_decode usage in the legacy function.
-        // It passes nullptr if data is empty.
         std::vector<uint8_t> empty_data;
-        AudioFrame frames = decodeAudioPacket_unlocked(empty_data);
-        // PLC generates samples, but we must respect duration if known
-        // For now, let libopus guess or we could constrain it if we knew duration
-        return frames;
+        AudioFrame frame = decodeAudioPacket_unlocked(empty_data);
+        if (!frame.samples.empty()) {
+            uint64_t expected_output_samples =
+                (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
+            uint64_t emitted_sample_frames = frame.getSampleFrameCount();
+            frame.timestamp_samples =
+                (expected_output_samples >= emitted_sample_frames)
+                    ? (expected_output_samples - emitted_sample_frames)
+                    : 0;
+            frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / 48000ULL;
+        }
+        return frame;
     }
     
     // Normal decoding
     AudioFrame frame = decodeAudioPacket_unlocked(chunk.data);
     
     frame.timestamp_samples = chunk.timestamp_samples;
-    frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / 48000ULL;
 
     applyPreSkip_unlocked(frame);
     applyOutputGain_unlocked(frame);
@@ -743,10 +752,15 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
                 total_output_samples = expected_output_samples;
             }
         }
+
+        frame.timestamp_samples =
+            (expected_output_samples >= emitted_sample_frames)
+                ? (expected_output_samples - emitted_sample_frames)
+                : 0;
     }
 
+    frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / 48000ULL;
     m_samples_decoded.store(total_output_samples);
-    m_frames_processed.fetch_add(1);
 
     return frame;
 }
@@ -1797,10 +1811,8 @@ void OpusCodec::applyOutputGain_unlocked(AudioFrame& frame)
     
     Debug::log("opus", "Applying output gain: ", m_output_gain, " (Q7.8 format) to ", frame.samples.size(), " samples");
     
-    // Convert Q7.8 format gain to floating point factor
-    // Q7.8 format: output_gain / 256.0 gives the actual gain multiplier
-    // Range: -128.0 dB to +127.996 dB (approximately)
-    const float gain_factor = static_cast<float>(m_output_gain) / 256.0f;
+    const float gain_db = static_cast<float>(m_output_gain) / 256.0f;
+    const float gain_factor = std::pow(10.0f, gain_db / 20.0f);
     
     // Apply gain to all samples with proper clamping to prevent artifacts
     for (int16_t& sample : frame.samples) {
@@ -1820,7 +1832,7 @@ void OpusCodec::applyOutputGain_unlocked(AudioFrame& frame)
         }
     }
     
-    Debug::log("opus", "Output gain applied successfully - factor: ", gain_factor, 
+    Debug::log("opus", "Output gain applied successfully - factor: ", gain_factor,
               ", processed ", frame.samples.size(), " samples");
 }
 

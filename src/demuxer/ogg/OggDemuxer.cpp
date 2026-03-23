@@ -83,6 +83,9 @@ bool OggDemuxer::parseContainer() {
       if (!m_streams.empty()) {
           createTagFromMetadata_unlocked();
           calculateInitialDuration_unlocked();
+      } else {
+          reportError("Format", "Could not find a valid Ogg bitstream",
+                      result, DemuxerErrorRecovery::NONE);
       }
       return !m_streams.empty(); // OK if we found at least one stream
     }
@@ -344,8 +347,11 @@ uint64_t OggDemuxer::getDuration() const {
 
 uint64_t OggDemuxer::getPosition() const {
   std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
-  // Return position of primary stream
-  return getGranulePosition(m_primary_serial);
+  if (!m_has_primary_serial) {
+    return 0;
+  }
+
+  return granuleToMs(getGranulePosition(m_primary_serial), m_primary_serial);
 }
 
 uint64_t OggDemuxer::getGranulePosition(uint32_t stream_id) const {
@@ -432,6 +438,10 @@ long OggDemuxer::getSampleRate() const {
 
 uint64_t OggDemuxer::granuleToMs(uint64_t granule, uint32_t stream_id) const {
     std::lock_guard<std::recursive_mutex> lock(m_ogg_mutex);
+
+    if (granule == static_cast<uint64_t>(-1)) {
+        return 0;
+    }
     
     // Check legacy test streams first
     auto tit = m_test_streams.find(stream_id);

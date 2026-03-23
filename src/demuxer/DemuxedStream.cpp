@@ -286,21 +286,23 @@ AudioFrame DemuxedStream::getNextFrame() {
         
         AudioFrame frame = m_codec->decode(chunk);
         if (!frame.samples.empty()) {
-            // Correct timestamp calculation for Ogg
-            // For Ogg Vorbis, granule position is only valid on the last packet of each page
-            // Most packets have granule -1, so we need to track samples incrementally
-            if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
-                // Valid granule position - this is the sample count at END of this packet
-                // So timestamp at start of packet = granule - samples_in_this_frame
-                frame.timestamp_samples = chunk.granule_position - frame.getSampleFrameCount();
-                // Update our tracking to match the authoritative granule position
-                m_samples_consumed = chunk.granule_position;
+            if (m_codec->getCodecName() == "opus") {
+                if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
+                    m_samples_consumed = frame.timestamp_samples + frame.getSampleFrameCount();
+                } else {
+                    frame.timestamp_samples = m_samples_consumed;
+                    m_samples_consumed += frame.getSampleFrameCount();
+                }
             } else {
-                // No valid granule - use incremental tracking
-                // timestamp_samples is where this frame STARTS
-                frame.timestamp_samples = m_samples_consumed;
-                // Update consumed count by adding samples from this frame
-                m_samples_consumed += frame.getSampleFrameCount();
+                // Correct timestamp calculation for non-Opus Ogg codecs.
+                // For Ogg Vorbis, granule position is only valid on the last packet of each page.
+                if (chunk.granule_position != 0 && chunk.granule_position != static_cast<uint64_t>(-1)) {
+                    frame.timestamp_samples = chunk.granule_position - frame.getSampleFrameCount();
+                    m_samples_consumed = chunk.granule_position;
+                } else {
+                    frame.timestamp_samples = m_samples_consumed;
+                    m_samples_consumed += frame.getSampleFrameCount();
+                }
             }
             frame.timestamp_ms = (frame.timestamp_samples * 1000) / m_rate;
             
