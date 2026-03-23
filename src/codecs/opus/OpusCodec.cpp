@@ -493,21 +493,37 @@ bool OpusCodec::setupInternalBuffers_unlocked()
         // Initialize state variables
         m_sample_rate = 48000;  // Opus always outputs at 48kHz
         
-        // Use channel count from StreamInfo if available (demuxer already parsed headers)
-        // Otherwise, set to 0 and wait for header packets
-        if (m_stream_info.channels > 0 && m_stream_info.channels <= 255) {
-            m_channels = m_stream_info.channels;
-            // Demuxer already parsed headers, mark as received
-            m_header_packets_received = 2;
-            Debug::log("opus", "Using channel count from StreamInfo: ", m_channels, " (headers pre-parsed by demuxer)");
-        } else {
-            m_channels = 0;         // Will be set from identification header
-            m_header_packets_received = 0;
+        m_channels = 0;
+        m_header_packets_received = 0;
+        m_pre_skip = 0;
+        m_output_gain = 0;
+        m_channel_mapping_family = 0;  // Default to family 0 (mono/stereo)
+
+        // Only skip Opus header processing when we actually have an OpusHead packet.
+        // A bare StreamInfo channel count is just a container hint and is not enough
+        // for multistream decoder setup because mapping-family information lives in OpusHead.
+        if (!m_stream_info.codec_data.empty()) {
+            OpusHeader parsed_header = OpusHeader::parseFromPacket(m_stream_info.codec_data);
+            if (parsed_header.isValid()) {
+                m_channels = parsed_header.channel_count;
+                m_pre_skip = parsed_header.pre_skip;
+                m_output_gain = parsed_header.output_gain;
+                m_channel_mapping_family = parsed_header.channel_mapping_family;
+                m_stream_count = parsed_header.stream_count;
+                m_coupled_stream_count = parsed_header.coupled_stream_count;
+                m_channel_mapping = parsed_header.channel_mapping;
+                m_header_packets_received = 2;
+
+                Debug::log("opus", "Using pre-parsed OpusHead from StreamInfo codec_data: channels=",
+                           m_channels, ", mapping_family=", m_channel_mapping_family);
+            }
         }
         
-        m_pre_skip = 0;         // Will be set from identification header (or use 0 if not available)
-        m_output_gain = 0;      // Will be set from identification header (or use 0 if not available)
-        m_channel_mapping_family = 0;  // Default to family 0 (mono/stereo)
+        if (m_channels == 0 && m_stream_info.channels > 0 && m_stream_info.channels <= 255) {
+            m_channels = m_stream_info.channels;
+            Debug::log("opus", "Using channel count from StreamInfo as a hint: ", m_channels,
+                       " (waiting for OpusHead before decoder initialization)");
+        }
         
         // Initialize decoder if we have channel info
         m_decoder_initialized = false;
@@ -673,10 +689,6 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const std::vector<uint8_t>& pac
     frame.channels = m_channels;
     frame.samples.assign(m_output_buffer.begin(), m_output_buffer.begin() + total_samples);
     
-    // Update internal state
-    m_samples_decoded += samples_decoded;
-    m_frames_processed++;
-    
     return frame;
 }
 
@@ -702,45 +714,40 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
     // Normal decoding
     AudioFrame frame = decodeAudioPacket_unlocked(chunk.data);
     
+    frame.timestamp_samples = chunk.timestamp_samples;
+    frame.timestamp_ms = (chunk.timestamp_samples * 1000ULL) / 48000ULL;
+
+    applyPreSkip_unlocked(frame);
+    applyOutputGain_unlocked(frame);
+
+    size_t emitted_sample_frames = frame.getSampleFrameCount();
+    uint64_t total_output_samples = m_samples_decoded.load() + emitted_sample_frames;
+
     // End Trimming Support (Requirement 18)
-    // If granule position is set, we can trim the end of the stream
-    if (chunk.granule_position > 0 && frame.samples.size() > 0) {
-        uint64_t current_total_samples = m_samples_decoded.load();
-        
-        // Granule position is the absolute sample count at the end of this page/packet
-        // It includes pre-skip.
-        // Expected total output samples = granule_position - pre_skip
-        
-        // However, m_samples_decoded also includes everything we've decoded so far (post-preskip? No, raw decoded)
-        // Wait, m_samples_decoded is raw total from decoder.
-        // m_samples_to_skip is handled in applyPreSkip_unlocked.
-        // So granule position should be compared against (m_samples_decoded).
-        
-        // RFC 7845: "The granule position of an audio data page is in units of PCM audio samples 
-        // at a fixed rate of 48 kHz... It represents the number of samples ... up to the end of 
-        // the last packet on the page."
-        
-        // So if granule_pos < m_samples_decoded, we decoded too much and need to trim.
-        // But only if this is the *last* packet? The RFC says we should always trim if we exceed granule pos.
-        // But intermediate pages might have granule pos too.
-        
-        if (current_total_samples > chunk.granule_position) {
-            uint64_t excess_samples = current_total_samples - chunk.granule_position;
-            size_t samples_in_frame = frame.samples.size() / m_channels;
-            
-            if (excess_samples > 0 && excess_samples <= samples_in_frame) {
-                Debug::log("opus", "End trimming: removing ", excess_samples, " samples (Granule: ", 
-                          chunk.granule_position, ", Decoded: ", current_total_samples, ")");
-                
-                size_t samples_to_keep = samples_in_frame - excess_samples;
+    // Ogg Opus granule positions include the initial pre-skip.
+    if (chunk.granule_position > 0 && emitted_sample_frames > 0) {
+        uint64_t expected_output_samples =
+            (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
+
+        if (total_output_samples > expected_output_samples) {
+            uint64_t excess_samples = total_output_samples - expected_output_samples;
+
+            if (excess_samples > 0 && excess_samples <= emitted_sample_frames) {
+                Debug::log("opus", "End trimming: removing ", excess_samples, " samples (granule=",
+                          chunk.granule_position, ", expected_output=", expected_output_samples,
+                          ", emitted_total=", total_output_samples, ")");
+
+                size_t samples_to_keep = emitted_sample_frames - excess_samples;
                 frame.samples.resize(samples_to_keep * m_channels);
-                
-                // Adjust total count
-                m_samples_decoded -= excess_samples;
+                emitted_sample_frames = samples_to_keep;
+                total_output_samples = expected_output_samples;
             }
         }
     }
-    
+
+    m_samples_decoded.store(total_output_samples);
+    m_frames_processed.fetch_add(1);
+
     return frame;
 }
 

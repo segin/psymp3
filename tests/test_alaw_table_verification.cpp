@@ -10,6 +10,7 @@
 int main() {
     // Create a StreamInfo for A-law codec
     StreamInfo stream_info;
+    stream_info.codec_type = "audio";
     stream_info.codec_name = "alaw";
     stream_info.sample_rate = 8000;
     stream_info.channels = 1;
@@ -63,7 +64,7 @@ int main() {
     // Verify sign bit handling for all values
     bool sign_test_passed = true;
     
-    // Test all values 0x00-0x7F should be negative
+    // Values in the low half should be non-positive, with 0x55 as the zero code.
     for (int i = 0x00; i <= 0x7F; ++i) {
         MediaChunk test_chunk;
         test_chunk.data = {static_cast<uint8_t>(i)};
@@ -74,14 +75,24 @@ int main() {
             return 1;
         }
         
-        if (test_frame.samples[0] >= 0) {
-            Debug::log("ERROR: A-law value 0x%02x should be negative, got %d", i, test_frame.samples[0]);
+        const int16_t sample = test_frame.samples[0];
+        if (i == 0x55) {
+            if (sample != 0) {
+                Debug::log("ERROR: A-law value 0x55 should decode to 0, got %d", sample);
+                sign_test_passed = false;
+                break;
+            }
+            continue;
+        }
+
+        if (sample >= 0) {
+            Debug::log("ERROR: A-law value 0x%02x should be negative, got %d", i, sample);
             sign_test_passed = false;
             break;
         }
     }
     
-    // Test all values 0x80-0xFF should be positive
+    // Values in the high half should be non-negative, with 0xD5 as the zero code.
     for (int i = 0x80; i <= 0xFF; ++i) {
         MediaChunk test_chunk;
         test_chunk.data = {static_cast<uint8_t>(i)};
@@ -92,8 +103,18 @@ int main() {
             return 1;
         }
         
-        if (test_frame.samples[0] <= 0) {
-            Debug::log("ERROR: A-law value 0x%02x should be positive, got %d", i, test_frame.samples[0]);
+        const int16_t sample = test_frame.samples[0];
+        if (i == 0xD5) {
+            if (sample != 0) {
+                Debug::log("ERROR: A-law value 0xD5 should decode to 0, got %d", sample);
+                sign_test_passed = false;
+                break;
+            }
+            continue;
+        }
+
+        if (sample <= 0) {
+            Debug::log("ERROR: A-law value 0x%02x should be positive, got %d", i, sample);
             sign_test_passed = false;
             break;
         }

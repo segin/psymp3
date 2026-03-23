@@ -339,51 +339,22 @@ void ALawCodec::initializeALawTable() {
     try {
         Debug::log("codec", "ALawCodec: Computing ITU-T G.711 A-law lookup table at runtime");
         
-        // Compute all 256 A-law values using ITU-T G.711 A-law algorithm
+        // Compute all 256 A-law values from the shared G.711 reference helper.
         for (int i = 0; i < 256; ++i) {
             uint8_t alaw_sample = static_cast<uint8_t>(i);
-            
-            // ITU-T G.711 A-law decoding algorithm
-            // Step 1: Invert all bits (XOR with 0x55 for even-bit inversion)
-            uint8_t complement = alaw_sample ^ 0x55;
-            
-            // Step 2: Extract sign bit (bit 7)
-            bool sign = (complement & 0x80) != 0;
-            
-            // Step 3: Extract exponent (bits 6-4)
-            uint8_t exponent = (complement & 0x70) >> 4;
-            
-            // Step 4: Extract mantissa (bits 3-0)
-            uint8_t mantissa = complement & 0x0F;
-            
-            // Step 5: Compute linear value
-            int16_t linear;
-            if (exponent == 0) {
-                // Segment 0: linear region
-                linear = 8 * (2 * mantissa + 1);
-            } else {
-                // Segments 1-7: logarithmic regions
-                linear = (8 * (2 * mantissa + 33)) << (exponent - 1);
-            }
-            
-            // Step 6: Apply sign
-            if (!sign) {
-                linear = -linear;
-            }
-            
-            // Store in lookup table
-            ALAW_TO_PCM[i] = linear;
+
+            ALAW_TO_PCM[i] = PsyMP3::Core::Utility::G711::alaw2linear(alaw_sample);
         }
         
         // Validate critical values for ITU-T G.711 compliance
         Debug::log("codec", "ALawCodec: Validating computed A-law values");
         
-        // A-law closest-to-silence value (0x55) should map to -8
-        if (ALAW_TO_PCM[0x55] != -8) {
-            Debug::log("codec", "ALawCodec: Warning - A-law closest-to-silence value (0x55) computed as ", ALAW_TO_PCM[0x55], ", expected -8");
+        // A-law has a zero code in each sign half.
+        if (ALAW_TO_PCM[0x55] != 0 || ALAW_TO_PCM[0xD5] != 0) {
+            Debug::log("codec", "ALawCodec: Warning - expected zero codes (0x55=", ALAW_TO_PCM[0x55], ", 0xD5=", ALAW_TO_PCM[0xD5], ")");
         }
         
-        // Validate sign bit handling - values with bit 7 clear (0x00-0x7F) should be negative
+        // Validate sign bit handling around representative non-zero values.
         if (ALAW_TO_PCM[0x00] >= 0 || ALAW_TO_PCM[0x7F] >= 0) {
             Debug::log("codec", "ALawCodec: Warning - A-law sign bit handling incorrect for negative range (0x00=", ALAW_TO_PCM[0x00], ", 0x7F=", ALAW_TO_PCM[0x7F], ")");
         }

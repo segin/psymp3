@@ -25,6 +25,37 @@
 
 TagLib::String track::nullstr;
 
+namespace {
+bool isKnownRawAudioExtension(const TagLib::String& path)
+{
+    std::string utf8_path = path.to8Bit(true);
+    std::string::size_type dot = utf8_path.find_last_of('.');
+    if (dot == std::string::npos) {
+        return false;
+    }
+
+    std::string extension = utf8_path.substr(dot);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
+    static const std::unordered_set<std::string> kRawExtensions = {
+        ".ulaw", ".ul", ".mulaw", ".alaw", ".al", ".pcm", ".s8", ".u8",
+        ".s16le", ".s16be", ".s24le", ".s24be", ".s32le", ".s32be",
+        ".f32le", ".f32be", ".f64le", ".f64be"
+    };
+
+    return kRawExtensions.find(extension) != kRawExtensions.end();
+}
+
+bool shouldCreateTagLibRefForPath(const TagLib::String& path)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    return !isKnownRawAudioExtension(path);
+}
+}
+
 /**
  * @brief Constructs a track from a file path and optional EXTINF metadata.
  *
@@ -62,6 +93,10 @@ void track::loadTags() {
     if (m_FilePath.isEmpty()) {
         return;
     }
+
+    if (!shouldCreateTagLibRefForPath(m_FilePath)) {
+        return;
+    }
     
     if (!m_FileRef) {
         try {
@@ -80,6 +115,11 @@ void track::loadTags() {
             m_TagLibStream = nullptr;
         }
     }
+
+    if (!m_FileRef || m_FileRef->isNull() || !m_FileRef->tag() || !m_FileRef->audioProperties()) {
+        return;
+    }
+
     if (m_FileRef && m_FileRef->tag() && m_FileRef->audioProperties()) {
         // Only set if not already set by EXTINF data
         if (m_Artist.isEmpty()) m_Artist = m_FileRef->tag()->artist();

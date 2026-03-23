@@ -26,6 +26,37 @@
 // Static NullTag instance for returning when no tag is available
 static const PsyMP3::Tag::NullTag s_stream_null_tag;
 
+namespace {
+bool isKnownRawAudioExtension(const TagLib::String& path)
+{
+    std::string utf8_path = path.to8Bit(true);
+    std::string::size_type dot = utf8_path.find_last_of('.');
+    if (dot == std::string::npos) {
+        return false;
+    }
+
+    std::string extension = utf8_path.substr(dot);
+    std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+
+    static const std::unordered_set<std::string> kRawExtensions = {
+        ".ulaw", ".ul", ".mulaw", ".alaw", ".al", ".pcm", ".s8", ".u8",
+        ".s16le", ".s16be", ".s24le", ".s24be", ".s32le", ".s32be",
+        ".f32le", ".f32be", ".f64le", ".f64be"
+    };
+
+    return kRawExtensions.find(extension) != kRawExtensions.end();
+}
+
+bool shouldCreateTagLibRefForPath(const TagLib::String& path)
+{
+    if (path.isEmpty()) {
+        return false;
+    }
+
+    return !isKnownRawAudioExtension(path);
+}
+}
+
 /**
  * @brief Default constructor for the Stream base class.
  */
@@ -69,6 +100,12 @@ Stream::Stream(TagLib::String name)
       m_eof(false)
 {
     try {
+        if (!shouldCreateTagLibRefForPath(name)) {
+            Debug::log("stream", "Stream constructor: Skipping TagLib for raw audio path: ", name.to8Bit(true));
+            loadLyrics();
+            return;
+        }
+
         // Create IOHandler-based stream for TagLib to ensure consistent file access
         auto io_handler = std::make_unique<FileIOHandler>(name);
         m_taglib_stream = std::make_unique<TagLibIOHandlerAdapter>(

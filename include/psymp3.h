@@ -325,6 +325,7 @@ typedef struct bio_st BIO;
 // Local project headers (in dependency order where possible)
 #include "debug.h"
 #include "core/exceptions.h"
+#include "core/utility/G711.h"
 #include "core/rect.h"
 using PsyMP3::Core::BadFormatException;
 using PsyMP3::Core::InvalidMediaException;

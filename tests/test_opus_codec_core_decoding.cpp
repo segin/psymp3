@@ -413,15 +413,8 @@ protected:
         
         // First few frames might be affected by pre-skip
         AudioFrame first_frame = codec.decode(audio_chunk);
-        
-        if (!first_frame.samples.empty()) {
-            ASSERT_EQUALS(2u, first_frame.channels, "First frame should have correct channels");
-            ASSERT_EQUALS(48000u, first_frame.sample_rate, "First frame should have correct sample rate");
-            
-            // Pre-skip should reduce the number of samples in early frames
-            // The exact behavior depends on the implementation, but we should get some samples
-            ASSERT_TRUE(first_frame.samples.size() > 0, "First frame should have some samples after pre-skip");
-        }
+        ASSERT_TRUE(first_frame.samples.empty(),
+                    "First frame should be fully consumed when pre-skip exceeds one 20ms packet");
         
         // Subsequent frames should have normal sample counts
         AudioFrame second_frame = codec.decode(audio_chunk);
@@ -429,6 +422,16 @@ protected:
         if (!second_frame.samples.empty()) {
             ASSERT_EQUALS(2u, second_frame.channels, "Second frame should have correct channels");
             ASSERT_EQUALS(48000u, second_frame.sample_rate, "Second frame should have correct sample rate");
+            ASSERT_TRUE(second_frame.samples.size() < 960u * 2u,
+                        "Second frame should still be shortened by the remaining pre-skip");
+        }
+
+        AudioFrame third_frame = codec.decode(audio_chunk);
+        if (!third_frame.samples.empty()) {
+            ASSERT_EQUALS(2u, third_frame.channels, "Third frame should have correct channels");
+            ASSERT_EQUALS(48000u, third_frame.sample_rate, "Third frame should have correct sample rate");
+            ASSERT_TRUE(third_frame.samples.size() >= second_frame.samples.size(),
+                        "Third frame should not be shorter than the partially skipped second frame");
         }
     }
 };
