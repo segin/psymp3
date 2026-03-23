@@ -454,10 +454,42 @@ bool DemuxedStream::eof() {
 }
 
 unsigned int DemuxedStream::getLength() {
+    if (m_length) {
+        return m_length;
+    }
     if (m_demuxer) {
-        return static_cast<unsigned int>(m_demuxer->getDuration());
+        m_length = static_cast<unsigned int>(m_demuxer->getDuration());
+        return m_length;
     }
     return 0;
+}
+
+unsigned long long DemuxedStream::getSLength() {
+    if (m_slength) {
+        return m_slength;
+    }
+
+    if (m_rate == 0) {
+        getRate();
+    }
+
+    if (m_length != 0 && m_rate != 0) {
+        m_slength = (static_cast<unsigned long long>(m_length) * m_rate) / 1000ULL;
+    }
+
+    return m_slength;
+}
+
+unsigned int DemuxedStream::getChannels() {
+    return m_channels;
+}
+
+unsigned int DemuxedStream::getRate() {
+    return m_rate;
+}
+
+unsigned int DemuxedStream::getBitrate() {
+    return m_bitrate;
 }
 
 std::vector<StreamInfo> DemuxedStream::getAvailableStreams() const {
@@ -592,9 +624,8 @@ TagLib::String DemuxedStream::getArtist() {
     if (!stream_info.artist.empty()) {
         return TagLib::String(stream_info.artist, TagLib::String::UTF8);
     }
-    
-    // Fall back to base class implementation (TagLib)
-    return Stream::getArtist();
+
+    return TagLib::String();
 }
 
 TagLib::String DemuxedStream::getTitle() {
@@ -616,9 +647,8 @@ TagLib::String DemuxedStream::getTitle() {
     if (!stream_info.title.empty()) {
         return TagLib::String(stream_info.title, TagLib::String::UTF8);
     }
-    
-    // Fall back to base class implementation (TagLib)
-    return Stream::getTitle();
+
+    return TagLib::String();
 }
 
 TagLib::String DemuxedStream::getAlbum() {
@@ -640,9 +670,8 @@ TagLib::String DemuxedStream::getAlbum() {
     if (!stream_info.album.empty()) {
         return TagLib::String(stream_info.album, TagLib::String::UTF8);
     }
-    
-    // Fall back to base class implementation (TagLib)
-    return Stream::getAlbum();
+
+    return TagLib::String();
 }
 
 } // namespace Demuxer

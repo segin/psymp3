@@ -2047,9 +2047,9 @@ void Player::toggleTestWindowH()
         m_test_window_h.reset();
         showToast("Test Window H: Closed");
     } else {
-        // Open the window using the same WindowFrameWidget path as the other test windows.
+        // Open the window using the same WindowFrameWidget path as the other test windows,
+        // but preserve H's normal resizable window behavior.
         m_test_window_h = std::make_unique<WindowFrameWidget>(170, 112, "H", font.get());
-        m_test_window_h->setResizable(false);
         m_test_window_h->setMinimizable(false);
         m_test_window_h->setMaximizable(false);
         m_test_window_h->setClientArea(createTestWindowHClient(font.get()));

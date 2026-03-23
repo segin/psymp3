@@ -14,6 +14,7 @@ namespace Demuxer {
 
 ModernStream::ModernStream(const TagLib::String& name) 
     : Stream(name), m_file_name(name) {
+    open(name);
 }
 
 ModernStream::~ModernStream() {
@@ -21,6 +22,8 @@ ModernStream::~ModernStream() {
 
 void ModernStream::open(TagLib::String name) {
     m_file_name = name;
+    m_demuxed_stream.reset();
+    m_opened = false;
     m_opened = initializeAudioChain(name);
     if (!m_opened) {
         throw InvalidMediaException("Failed to initialize audio chain for: " + name);
@@ -44,6 +47,46 @@ size_t ModernStream::getData(size_t len, void *buf) {
     }
     
     return m_demuxed_stream->getData(len, buf);
+}
+
+unsigned int ModernStream::getLength() {
+    if (!m_opened || !m_demuxed_stream) {
+        return 0;
+    }
+
+    return m_demuxed_stream->getLength();
+}
+
+unsigned long long ModernStream::getSLength() {
+    if (!m_opened || !m_demuxed_stream) {
+        return 0;
+    }
+
+    return m_demuxed_stream->getSLength();
+}
+
+unsigned int ModernStream::getChannels() {
+    if (!m_opened || !m_demuxed_stream) {
+        return 0;
+    }
+
+    return m_demuxed_stream->getChannels();
+}
+
+unsigned int ModernStream::getRate() {
+    if (!m_opened || !m_demuxed_stream) {
+        return 0;
+    }
+
+    return m_demuxed_stream->getRate();
+}
+
+unsigned int ModernStream::getBitrate() {
+    if (!m_opened || !m_demuxed_stream) {
+        return 0;
+    }
+
+    return m_demuxed_stream->getBitrate();
 }
 
 unsigned int ModernStream::getPosition() {
@@ -76,6 +119,38 @@ bool ModernStream::eof() {
     }
     
     return m_demuxed_stream->eof();
+}
+
+TagLib::String ModernStream::getArtist() {
+    if (!m_opened || !m_demuxed_stream) {
+        return TagLib::String();
+    }
+
+    return m_demuxed_stream->getArtist();
+}
+
+TagLib::String ModernStream::getTitle() {
+    if (!m_opened || !m_demuxed_stream) {
+        return TagLib::String();
+    }
+
+    return m_demuxed_stream->getTitle();
+}
+
+TagLib::String ModernStream::getAlbum() {
+    if (!m_opened || !m_demuxed_stream) {
+        return TagLib::String();
+    }
+
+    return m_demuxed_stream->getAlbum();
+}
+
+const PsyMP3::Tag::Tag& ModernStream::getTag() const {
+    if (!m_opened || !m_demuxed_stream) {
+        return Stream::getTag();
+    }
+
+    return m_demuxed_stream->getTag();
 }
 
 } // namespace Demuxer

@@ -63,6 +63,10 @@ public:
     void seekTo(unsigned long pos) override;
     bool eof() override;
     unsigned int getLength() override;
+    unsigned long long getSLength() override;
+    unsigned int getChannels() override;
+    unsigned int getRate() override;
+    unsigned int getBitrate() override;
     
     /**
      * @brief Get information about all available streams
