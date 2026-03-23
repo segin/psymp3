@@ -55,6 +55,9 @@ struct AudioTrackInfo {
     uint16_t channelCount;
     uint16_t bitsPerSample;
     uint32_t avgBitrate;
+    std::string artist;
+    std::string title;
+    std::string album;
     
     // Codec-specific configuration
     std::vector<uint8_t> codecConfig;  // AAC: AudioSpecificConfig, ALAC: magic cookie
@@ -459,6 +462,9 @@ private:
     bool HandleMemoryAllocationFailureWithFallback(size_t requestedSize, 
                                                    const std::string& context,
                                                    std::function<bool()> fallbackStrategy = nullptr);
+
+    AudioTrackInfo* findTrackById(uint32_t trackId);
+    const AudioTrackInfo* findTrackById(uint32_t trackId) const;
 };
 
 

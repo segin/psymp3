@@ -28,6 +28,9 @@ std::vector<StreamInfo> StreamManager::GetStreamInfos() const {
         info.bits_per_sample = track.bitsPerSample;
         info.bitrate = track.avgBitrate;
         info.codec_data = track.codecConfig;
+        info.artist = track.artist;
+        info.title = track.title;
+        info.album = track.album;
         
         // Calculate duration with special handling for telephony codecs
         if (track.codecType == "ulaw" || track.codecType == "alaw") {

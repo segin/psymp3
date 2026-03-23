@@ -94,7 +94,7 @@ unsigned int ModernStream::getPosition() {
         return 0;
     }
     
-    return static_cast<unsigned int>(m_demuxed_stream->getSPosition() / 1000);
+    return m_demuxed_stream->getPosition();
 }
 
 unsigned long long ModernStream::getSPosition() {

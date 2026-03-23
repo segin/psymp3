@@ -350,6 +350,25 @@ bool ISODemuxer::parseContainer() {
         
         // Validate and repair sample tables for all tracks
         for (auto& track : audioTracks) {
+            if (track.artist.empty()) {
+                auto it = m_metadata.find("artist");
+                if (it != m_metadata.end()) {
+                    track.artist = it->second;
+                }
+            }
+            if (track.title.empty()) {
+                auto it = m_metadata.find("title");
+                if (it != m_metadata.end()) {
+                    track.title = it->second;
+                }
+            }
+            if (track.album.empty()) {
+                auto it = m_metadata.find("album");
+                if (it != m_metadata.end()) {
+                    track.album = it->second;
+                }
+            }
+
             if (!ValidateAndRepairSampleTables(track)) {
                 reportError("SampleTableValidation", "Sample table validation failed for track " + 
                            std::to_string(track.trackId));
@@ -477,12 +496,7 @@ MediaChunk ISODemuxer::readChunk() {
 }
 
 MediaChunk ISODemuxer::readChunk(uint32_t stream_id) {
-    if (!streamManager) {
-        reportError("ReadChunk", "StreamManager not initialized");
-        return MediaChunk{};
-    }
-    
-    AudioTrackInfo* track = streamManager->GetTrack(stream_id);
+    AudioTrackInfo* track = findTrackById(stream_id);
     if (!track) {
         reportError("ReadChunk", "Track not found: " + std::to_string(stream_id));
         return MediaChunk{};
@@ -786,6 +800,22 @@ bool ISODemuxer::seekTo(uint64_t timestamp_ms) {
     }
     
     return success;
+}
+
+AudioTrackInfo* ISODemuxer::findTrackById(uint32_t trackId) {
+    auto it = std::find_if(audioTracks.begin(), audioTracks.end(),
+                           [trackId](const AudioTrackInfo& track) {
+                               return track.trackId == trackId;
+                           });
+    return it != audioTracks.end() ? &(*it) : nullptr;
+}
+
+const AudioTrackInfo* ISODemuxer::findTrackById(uint32_t trackId) const {
+    auto it = std::find_if(audioTracks.begin(), audioTracks.end(),
+                           [trackId](const AudioTrackInfo& track) {
+                               return track.trackId == trackId;
+                           });
+    return it != audioTracks.end() ? &(*it) : nullptr;
 }
 
 bool ISODemuxer::isEOF() const {

@@ -1542,12 +1542,19 @@ bool Player::Initialize(const PlayerOptions& options) {
     spectrum_widget->setPos(Rect(0, 0, 640, 350));
     m_spectrum_widget = spectrum_widget.get(); // Keep raw pointer for updates
     app_widget.addChild(std::move(spectrum_widget)); // ApplicationWidget takes ownership
+
+    // Group the lower HUD under a solid black panel so the entire strip is
+    // cleared together before any labels or progress elements repaint.
+    auto hud_panel = std::make_unique<LayoutWidget>(640, 50, false);
+    hud_panel->setPos(Rect(0, 350, 640, 50));
+    hud_panel->setBackgroundColor(0, 0, 0);
+    auto* hud_panel_ptr = hud_panel.get();
     
-    // Create progress bar frame widget with hierarchical structure and add to ApplicationWidget
+    // Create progress bar frame widget with hierarchical structure inside the HUD panel
     auto progress_frame_widget = std::make_unique<ProgressBarFrameWidget>();
-    progress_frame_widget->setPos(Rect(399, 370, 222, 16)); // Original frame position
+    progress_frame_widget->setPos(Rect(399, 20, 222, 16));
     m_progress_widget = progress_frame_widget->getProgressBar(); // Get nested progress bar
-    app_widget.addChild(std::move(progress_frame_widget)); // ApplicationWidget takes ownership
+    hud_panel_ptr->addChild(std::move(progress_frame_widget));
     
     // Set up progress bar callbacks for seeking
     m_progress_widget->setOnSeekStart([this](double progress) {
@@ -1571,21 +1578,22 @@ bool Player::Initialize(const PlayerOptions& options) {
         m_is_dragging = false;
     });
     
-    // Helper lambda to reduce boilerplate when creating labels and adding them to ApplicationWidget
-    auto add_label = [&](const std::string& key, const Rect& pos) {
+    auto add_label = [&](Widget& parent, const std::string& key, const Rect& pos) {
         auto label = std::make_unique<Label>(font.get(), pos);
         m_labels[key] = label.get(); // Store non-owning pointer in map
-        app_widget.addChild(std::move(label)); // ApplicationWidget takes ownership
+        parent.addChild(std::move(label));
     };
 
-    add_label("artist",   Rect(1, 354, 200, 16));
-    add_label("title",    Rect(1, 369, 200, 16));
-    add_label("album",    Rect(1, 384, 200, 16));
-    add_label("playlist", Rect(270, 354, 120, 16));
-    add_label("position", Rect(400, 353, 150, 16));
-    add_label("scale",    Rect(545, 0, 95, 16));
-    add_label("decay",    Rect(545, 15, 95, 16));
-    add_label("fft_mode", Rect(545, 30, 95, 16));
+    add_label(*hud_panel_ptr, "artist",   Rect(1, 4, 200, 16));
+    add_label(*hud_panel_ptr, "title",    Rect(1, 19, 200, 16));
+    add_label(*hud_panel_ptr, "album",    Rect(1, 34, 200, 16));
+    add_label(*hud_panel_ptr, "playlist", Rect(270, 4, 120, 16));
+    add_label(*hud_panel_ptr, "position", Rect(400, 3, 150, 16));
+    add_label(app_widget,     "scale",    Rect(545, 0, 95, 16));
+    add_label(app_widget,     "decay",    Rect(545, 15, 95, 16));
+    add_label(app_widget,     "fft_mode", Rect(545, 30, 95, 16));
+
+    app_widget.addChild(std::move(hud_panel));
     m_loop_mode = LoopMode::None; // Default loop mode on startup
 
     // Initialize lyrics widget and add to application window system
