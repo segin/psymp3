@@ -192,8 +192,9 @@ uint32_t SampleTableManager::LazyLoadedSampleSizes::GetSize(uint64_t sampleIndex
     return fixedSize > 0 ? fixedSize : 1024; // Default fallback
 }
 
-bool SampleTableManager::BuildSampleTables(const SampleTableInfo& rawTables) {
+bool SampleTableManager::BuildSampleTables(const SampleTableInfo& rawTables, uint32_t timescale) {
     // Build optimized sample tables with memory efficiency (Requirements 8.1, 8.2, 8.3)
+    timeUnitsPerSecond = (timescale > 0) ? timescale : 1000;
     
     // Build compressed sample-to-chunk mapping (Requirement 8.2)
     if (!BuildOptimizedChunkTable(rawTables)) {
@@ -529,7 +530,7 @@ uint64_t SampleTableManager::TimeToSample(double timestamp) {
     }
     
     // Enhanced binary search with hierarchical index (Requirement 8.3)
-    uint64_t timestampUnits = static_cast<uint64_t>(timestamp * 1000); // Convert to milliseconds
+    uint64_t timestampUnits = static_cast<uint64_t>(timestamp * static_cast<double>(timeUnitsPerSecond));
     
     // Use hierarchical index for large tables
     auto searchStart = optimizedTimeTable.begin();
@@ -558,35 +559,38 @@ uint64_t SampleTableManager::TimeToSample(double timestamp) {
     }
     
     // Binary search in narrowed range
-    auto it = std::lower_bound(searchStart, searchEnd, timestampUnits,
-        [](const OptimizedTimeEntry& entry, uint64_t ts) {
-            return entry.timestamp < ts;
+    auto it = std::upper_bound(searchStart, searchEnd, timestampUnits,
+        [](uint64_t ts, const OptimizedTimeEntry& entry) {
+            return ts < entry.timestamp;
         });
-    
-    if (it == optimizedTimeTable.end()) {
-        // Timestamp is beyond the last sample
-        if (!optimizedTimeTable.empty()) {
-            const auto& lastEntry = optimizedTimeTable.back();
-            return lastEntry.sampleIndex + lastEntry.sampleRange - 1;
+
+    if (it == searchStart) {
+        const auto& firstEntry = *searchStart;
+        if (timestampUnits <= firstEntry.timestamp || firstEntry.duration == 0) {
+            return firstEntry.sampleIndex;
         }
-        return 0;
+
+        const uint64_t offsetInRange = timestampUnits - firstEntry.timestamp;
+        const uint64_t sampleOffset = std::min<uint64_t>(
+            offsetInRange / firstEntry.duration,
+            firstEntry.sampleRange > 0 ? firstEntry.sampleRange - 1 : 0);
+        return firstEntry.sampleIndex + sampleOffset;
     }
-    
-    if (it == optimizedTimeTable.begin()) {
+
+    --it;
+
+    if (it->duration == 0) {
         return it->sampleIndex;
     }
-    
-    // Check if we need to interpolate within the range
-    --it; // Go to the entry that contains our timestamp
-    
-    if (timestampUnits >= it->timestamp && 
-        timestampUnits < it->timestamp + (it->duration * it->sampleRange)) {
-        // Timestamp is within this range
-        uint64_t offsetInRange = timestampUnits - it->timestamp;
-        uint32_t sampleOffset = static_cast<uint32_t>(offsetInRange / it->duration);
+
+    if (timestampUnits >= it->timestamp) {
+        const uint64_t offsetInRange = timestampUnits - it->timestamp;
+        const uint64_t sampleOffset = std::min<uint64_t>(
+            offsetInRange / it->duration,
+            it->sampleRange > 0 ? it->sampleRange - 1 : 0);
         return it->sampleIndex + sampleOffset;
     }
-    
+
     return it->sampleIndex;
 }
 
@@ -605,7 +609,7 @@ double SampleTableManager::SampleToTime(uint64_t sampleIndex) {
         // Sample is within this range
         uint64_t sampleOffset = sampleIndex - it->sampleIndex;
         uint64_t timestamp = it->timestamp + (sampleOffset * it->duration);
-        return static_cast<double>(timestamp) / 1000.0; // Convert to seconds
+        return static_cast<double>(timestamp) / static_cast<double>(timeUnitsPerSecond);
     }
     
     // Sample not found - return approximate time
@@ -616,7 +620,7 @@ double SampleTableManager::SampleToTime(uint64_t sampleIndex) {
             uint64_t extraSamples = sampleIndex - (lastEntry.sampleIndex + lastEntry.sampleRange);
             uint64_t timestamp = lastEntry.timestamp + (lastEntry.sampleRange * lastEntry.duration) + 
                                 (extraSamples * lastEntry.duration);
-            return static_cast<double>(timestamp) / 1000.0;
+            return static_cast<double>(timestamp) / static_cast<double>(timeUnitsPerSecond);
         }
     }
     

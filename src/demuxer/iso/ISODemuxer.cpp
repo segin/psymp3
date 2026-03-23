@@ -895,7 +895,7 @@ bool ISODemuxer::ParseMovieBoxWithTracks(uint64_t offset, uint64_t size, uint32_
                 // Continue with building - may still be usable
             }
             
-            if (!sampleTables->BuildSampleTables(firstTrack.sampleTableInfo)) {
+            if (!sampleTables->BuildSampleTables(firstTrack.sampleTableInfo, firstTrack.timescale)) {
                 // Sample table validation failed
                 return false;
             }
@@ -909,7 +909,13 @@ MediaChunk ISODemuxer::ExtractSampleData(uint32_t stream_id, const AudioTrackInf
                                          const SampleTableManager::SampleInfo& sampleInfo) {
     MediaChunk chunk;
     chunk.stream_id = stream_id;
-    chunk.timestamp_samples = track.currentSampleIndex;
+    if (track.timescale > 0 && track.sampleRate > 0 &&
+        track.currentSampleIndex < track.sampleTableInfo.sampleTimes.size()) {
+        const uint64_t trackTime = track.sampleTableInfo.sampleTimes[track.currentSampleIndex];
+        chunk.timestamp_samples = (trackTime * track.sampleRate) / track.timescale;
+    } else {
+        chunk.timestamp_samples = track.currentSampleIndex;
+    }
     chunk.is_keyframe = sampleInfo.isKeyframe;
     chunk.file_offset = sampleInfo.offset;
     
@@ -1368,7 +1374,8 @@ bool ISODemuxer::HandleProgressiveDownload() {
     }
     
     // Build sample tables for selected track
-    if (!sampleTables->BuildSampleTables(audioTracks[selectedTrackIndex].sampleTableInfo)) {
+    if (!sampleTables->BuildSampleTables(audioTracks[selectedTrackIndex].sampleTableInfo,
+                                         audioTracks[selectedTrackIndex].timescale)) {
         Debug::log("iso", "ISODemuxer: Failed to build sample tables");
         return false;
     }

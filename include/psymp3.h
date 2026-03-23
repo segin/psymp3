@@ -364,6 +364,7 @@ namespace LyricsUtils = PsyMP3::Core::LyricsUtils;
 #include "widget/ui/ApplicationWidget.h"
 #include "widget/ui/ToastWidget.h"
 #include "widget/ui/LyricsWidget.h"
+#include "widget/ui/TextInputWidget.h"
 #include "widget/ui/ScrollbarWidget.h"
 
 using PsyMP3::Widget::Foundation::Widget;
@@ -390,6 +391,7 @@ using PsyMP3::Widget::UI::MainUIWidget;
 using PsyMP3::Widget::UI::ApplicationWidget;
 using PsyMP3::Widget::UI::ToastWidget;
 using PsyMP3::Widget::UI::LyricsWidget;
+using PsyMP3::Widget::UI::TextInputWidget;
 
 #include "widget/ui/Label.h"
 

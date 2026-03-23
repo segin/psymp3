@@ -38,6 +38,7 @@ SDL_Cursor* WindowFrameWidget::s_cursor_nwse = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_nesw = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_ew = nullptr;
 SDL_Cursor* WindowFrameWidget::s_cursor_ns = nullptr;
+SDL_Cursor* WindowFrameWidget::s_default_cursor = nullptr;
 
 namespace {
 // 16x16 standard cursor definitions
@@ -158,6 +159,7 @@ WindowFrameWidget::WindowFrameWidget(int client_width, int client_height, const 
     // Manage cursor resources
     s_instance_count++;
     if (!s_cursor_nwse) {
+        s_default_cursor = SDL_GetCursor();
         // SDL 1.2 doesn't support SDL_CreateSystemCursor.
         // Create custom cursors for SDL 1.2 using SDL_CreateCursor
         s_cursor_nwse = SDL_CreateCursor(const_cast<Uint8*>(cursor_nwse_data), const_cast<Uint8*>(cursor_nwse_mask), 16, 16, 7, 7);
@@ -171,6 +173,7 @@ WindowFrameWidget::~WindowFrameWidget()
 {
     s_instance_count--;
     if (s_instance_count == 0) {
+        restoreDefaultCursor();
         if (s_cursor_nwse) {
             SDL_FreeCursor(s_cursor_nwse);
             s_cursor_nwse = nullptr;
@@ -187,6 +190,7 @@ WindowFrameWidget::~WindowFrameWidget()
             SDL_FreeCursor(s_cursor_ns);
             s_cursor_ns = nullptr;
         }
+        s_default_cursor = SDL_GetCursor();
     }
 }
 
@@ -310,22 +314,23 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
         if (resize_edge != 0) {
             // Set resize cursor based on edge
             if ((resize_edge & 1) && (resize_edge & 4)) { // Top-left corner
-                if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
+                setCursorShape(s_cursor_nwse);
             } else if ((resize_edge & 2) && (resize_edge & 4)) { // Top-right corner
-                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
+                setCursorShape(s_cursor_nesw);
             } else if ((resize_edge & 1) && (resize_edge & 8)) { // Bottom-left corner
-                if (s_cursor_nesw) SDL_SetCursor(s_cursor_nesw);
+                setCursorShape(s_cursor_nesw);
             } else if ((resize_edge & 2) && (resize_edge & 8)) { // Bottom-right corner
-                if (s_cursor_nwse) SDL_SetCursor(s_cursor_nwse);
+                setCursorShape(s_cursor_nwse);
             } else if (resize_edge & 3) { // Left or right edge
-                if (s_cursor_ew) SDL_SetCursor(s_cursor_ew);
+                setCursorShape(s_cursor_ew);
             } else if (resize_edge & 12) { // Top or bottom edge
-                if (s_cursor_ns) SDL_SetCursor(s_cursor_ns);
+                setCursorShape(s_cursor_ns);
             }
         } else {
-            // Reset to default cursor
-            SDL_SetCursor(SDL_GetCursor());
+            restoreDefaultCursor();
         }
+    } else if (!m_is_dragging && !m_is_resizing) {
+        restoreDefaultCursor();
     }
     
     if (m_is_dragging) {
@@ -719,6 +724,18 @@ void WindowFrameWidget::updateLayout()
                        m_client_width,   // Width: client area width
                        m_client_height); // Height: client area height
         m_client_area->setPos(client_pos);
+    }
+}
+
+void WindowFrameWidget::restoreDefaultCursor()
+{
+    setCursorShape(s_default_cursor ? s_default_cursor : SDL_GetCursor());
+}
+
+void WindowFrameWidget::setCursorShape(SDL_Cursor* cursor)
+{
+    if (cursor) {
+        SDL_SetCursor(cursor);
     }
 }
 

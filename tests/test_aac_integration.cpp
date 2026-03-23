@@ -10,6 +10,7 @@
 #include "psymp3.h"
 #include "test_framework.h"
 #include "io/MemoryIOHandler.h"
+#include <cmath>
 
 #ifdef HAVE_AAC
 
@@ -274,7 +275,7 @@ protected:
         tables.sampleTimes = {0, 1024, 2048};
 
         SampleTableManager manager;
-        ASSERT_TRUE(manager.BuildSampleTables(tables),
+        ASSERT_TRUE(manager.BuildSampleTables(tables, 44100),
                     "Sample tables should build for variable-size AAC samples");
 
         auto first = manager.GetSampleInfo(0);
@@ -289,6 +290,37 @@ protected:
     }
 };
 
+class AACSampleTimeConversionTest : public TestCase {
+public:
+    AACSampleTimeConversionTest() : TestCase("AAC Sample Time Conversion Test") {}
+
+protected:
+    void runTest() override {
+        SampleTableInfo tables;
+        tables.chunkOffsets = {44};
+        tables.sampleToChunkEntries.push_back({0, 45, 1});
+        tables.sampleSizes.assign(45, 128);
+
+        uint64_t currentTime = 0;
+        for (int i = 0; i < 45; ++i) {
+            tables.sampleTimes.push_back(currentTime);
+            currentTime += 1024;
+        }
+
+        SampleTableManager manager;
+        ASSERT_TRUE(manager.BuildSampleTables(tables, 44100),
+                    "Sample tables should retain the track timescale");
+
+        const uint64_t seekIndex = manager.TimeToSample(1.0);
+        ASSERT_EQUALS(43ull, seekIndex,
+                      "Seeking to 1.0s should land on the AAC access unit covering that time");
+
+        const double sampleTime = manager.SampleToTime(43);
+        ASSERT_TRUE(std::abs(sampleTime - (43.0 * 1024.0 / 44100.0)) < 0.0001,
+                    "Sample-to-time conversion should use the AAC track timescale");
+    }
+};
+
 } // namespace
 
 int main() {
@@ -297,6 +329,7 @@ int main() {
     suite.addTest(std::make_unique<AACCodecInitializationTest>());
     suite.addTest(std::make_unique<AACISOMediaParsingTest>());
     suite.addTest(std::make_unique<AACSampleOffsetCalculationTest>());
+    suite.addTest(std::make_unique<AACSampleTimeConversionTest>());
 
     auto results = suite.runAll();
     suite.printResults(results);

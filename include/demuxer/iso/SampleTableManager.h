@@ -31,7 +31,7 @@ public:
     SampleTableManager() = default;
     ~SampleTableManager() = default;
     
-    bool BuildSampleTables(const SampleTableInfo& rawTables);
+    bool BuildSampleTables(const SampleTableInfo& rawTables, uint32_t timescale = 1000);
     SampleInfo GetSampleInfo(uint64_t sampleIndex);
     uint64_t TimeToSample(double timestamp);
     double SampleToTime(uint64_t sampleIndex);
@@ -135,6 +135,7 @@ private:
     
     // Memory usage tracking
     mutable size_t estimatedMemoryUsage = 0;
+    uint32_t timeUnitsPerSecond = 1000;
     
     // Private helper methods for building and managing sample tables
     bool BuildOptimizedChunkTable(const SampleTableInfo& rawTables);

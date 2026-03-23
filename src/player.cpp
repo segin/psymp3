@@ -30,9 +30,21 @@ std::atomic<bool> Player::guiRunning{false};
 
 namespace {
 
+bool widgetBelongsToWindow(const Widget* candidate, const WindowFrameWidget* window)
+{
+    const Widget* current = candidate;
+    while (current) {
+        if (current == window) {
+            return true;
+        }
+        current = current->getParent();
+    }
+    return false;
+}
+
 std::unique_ptr<Widget> createTestWindowHClient(Font* font)
 {
-    auto client = std::make_unique<LayoutWidget>(170, 112, false);
+    auto client = std::make_unique<LayoutWidget>(170, 142, false);
     client->setBackgroundColor(255, 255, 255);
 
     auto status_label = std::make_unique<Label>(
@@ -47,9 +59,32 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
     auto* scroll_label_ptr = scroll_label.get();
     client->addChild(std::move(scroll_label));
 
+    auto input_label = std::make_unique<Label>(
+        font, Rect(12, 40, 120, 14), TagLib::String("Input:"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    client->addChild(std::move(input_label));
+
+    auto input_status_label = std::make_unique<Label>(
+        font, Rect(12, 124, 120, 14), TagLib::String("Text: PsyMP3"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* input_status_label_ptr = input_status_label.get();
+    client->addChild(std::move(input_status_label));
+
+    auto text_input = std::make_unique<TextInputWidget>(118, 20, font, TagLib::String("PsyMP3"));
+    text_input->setPos(Rect(12, 56, 118, 20));
+    text_input->setPlaceholder(TagLib::String("Type here"));
+    text_input->setOnChange([input_status_label_ptr](const TagLib::String& text) {
+        std::string rendered = text.to8Bit(true);
+        if (rendered.empty()) {
+            rendered = "<empty>";
+        }
+        input_status_label_ptr->setText(TagLib::String("Text: " + rendered));
+    });
+    client->addChild(std::move(text_input));
+
     auto checkbox = std::make_unique<CheckboxWidget>(110, 18, font, TagLib::String("Enable H"), false);
     auto* checkbox_ptr = checkbox.get();
-    checkbox->setPos(Rect(12, 48, 110, 18));
+    checkbox->setPos(Rect(12, 82, 110, 18));
     checkbox->setOnToggle([status_label_ptr](bool checked) {
         status_label_ptr->setText(TagLib::String(checked ? "Checked: Yes" : "Checked: No"));
     });
@@ -57,14 +92,14 @@ std::unique_ptr<Widget> createTestWindowHClient(Font* font)
 
     auto button = std::make_unique<ButtonWidget>(72, 22);
     button->setText(TagLib::String("Apply"), font);
-    button->setPos(Rect(12, 76, 72, 22));
+    button->setPos(Rect(12, 104, 72, 22));
     button->setOnClick([checkbox_ptr]() {
         checkbox_ptr->setChecked(!checkbox_ptr->isChecked());
     });
     client->addChild(std::move(button));
 
-    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 94, ScrollbarOrientation::Vertical);
-    scrollbar->setPos(Rect(142, 10, 16, 94));
+    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 124, ScrollbarOrientation::Vertical);
+    scrollbar->setPos(Rect(142, 10, 16, 124));
     scrollbar->setOnChange([scroll_label_ptr](double value) {
         int percent = static_cast<int>(std::round(value * 100.0));
         scroll_label_ptr->setText(TagLib::String("Scroll: " + std::to_string(percent) + "%"));
@@ -1104,6 +1139,10 @@ bool Player::updateGUI()
  */
 bool Player::handleKeyPress(const SDL_keysym& keysym)
 {
+    if (TextInputWidget::handleFocusedKeyPress(keysym)) {
+        return false;
+    }
+
     switch (keysym.sym) {
         case SDLK_ESCAPE: // NOLINT(bugprone-branch-clone)
         case SDLK_q:
@@ -1475,6 +1514,7 @@ bool Player::Initialize(const PlayerOptions& options) {
         Debug::log("system", "Unable to init SDL: ", SDL_GetError());
         return false;
     }
+    SDL_EnableUNICODE(1);
 
 
 
@@ -1974,6 +2014,10 @@ void Player::renderWindows()
  */
 void Player::handleWindowMouseEvents(const SDL_Event& event)
 {
+    if (event.type == SDL_MOUSEBUTTONDOWN) {
+        TextInputWidget::clearFocusedWidget();
+    }
+
     // Create list of windows sorted by z-order (highest first for event handling)
     std::vector<WindowFrameWidget*> sorted_windows;
     
@@ -2001,6 +2045,8 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
                   return a->getZOrder() > b->getZOrder();
               });
     
+    bool handled_any_window = false;
+
     // Handle events for windows (front to back)
     for (auto* window : sorted_windows) {
         if (!window) continue;
@@ -2020,7 +2066,7 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
         }
         
         // Check if this window has mouse capture or if mouse is within window bounds
-        bool has_capture = (Widget::getMouseCapturedWidget() == window);
+        bool has_capture = widgetBelongsToWindow(Widget::getMouseCapturedWidget(), window);
         bool in_bounds = (mouse_x >= window_rect.x() && mouse_x < window_rect.x() + window_rect.width() &&
                          mouse_y >= window_rect.y() && mouse_y < window_rect.y() + window_rect.height());
         
@@ -2039,9 +2085,14 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
             }
             
             if (handled) {
+                handled_any_window = true;
                 break; // Event consumed by this window
             }
         }
+    }
+
+    if (event.type == SDL_MOUSEMOTION && !handled_any_window && Widget::getMouseCapturedWidget() == nullptr) {
+        WindowFrameWidget::restoreDefaultCursor();
     }
 }
 
@@ -2057,7 +2108,7 @@ void Player::toggleTestWindowH()
     } else {
         // Open the window using the same WindowFrameWidget path as the other test windows,
         // but preserve H's normal resizable window behavior.
-        m_test_window_h = std::make_unique<WindowFrameWidget>(170, 112, "H", font.get());
+        m_test_window_h = std::make_unique<WindowFrameWidget>(170, 142, "H", font.get());
         m_test_window_h->setMinimizable(false);
         m_test_window_h->setMaximizable(false);
         m_test_window_h->setClientArea(createTestWindowHClient(font.get()));
