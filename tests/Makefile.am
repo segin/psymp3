@@ -1697,25 +1697,31 @@ test_mulaw_alaw_error_state_consistency_LDADD = $(AM_LDFLAGS)
 # **Validates: Requirements 2.2**
 test_lastfm_url_encode_unit_SOURCES = test_lastfm_url_encode_unit.cpp
 test_lastfm_url_encode_unit_LDADD = \
+	libtest_utilities.a \
 	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(SYSTEM_LIBS) \
 	$(AM_LDFLAGS)
 
 test_lastfm_url_encoding_properties_SOURCES = test_lastfm_url_encoding_properties.cpp
 test_lastfm_url_encoding_properties_LDADD = \
+	libtest_utilities.a \
 	$(top_builddir)/src/lastfm/libpsymp3-lastfm.a \
 	$(top_builddir)/src/io/http/libpsymp3-io-http.a \
 	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
 	$(top_builddir)/src/io/libpsymp3-io.a \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(top_builddir)/src/system.o \
 	$(top_builddir)/src/debug.o \
 	$(top_builddir)/src/core/libpsymp3-core.a \
-	-lcurl $(AM_LDFLAGS)
+	$(SYSTEM_LIBS) \
+	$(AM_LDFLAGS)
 
 # Last.fm exponential backoff property-based tests (standalone, minimal dependencies)
 # **Feature: lastfm-performance-optimization, Property 5: Exponential Backoff Progression**

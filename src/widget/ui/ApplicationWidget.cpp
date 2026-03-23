@@ -30,6 +30,15 @@ namespace UI {
 using Foundation::Widget;
 using Foundation::DrawableWidget;
 
+namespace {
+
+bool isAlwaysOnTopWindow(const Widget* window)
+{
+    return dynamic_cast<const ToastWidget*>(window) != nullptr;
+}
+
+}
+
 // Static instance for singleton
 std::unique_ptr<ApplicationWidget> ApplicationWidget::s_instance = nullptr;
 
@@ -223,10 +232,22 @@ void ApplicationWidget::bringWindowToFront(Widget* window)
                           [window](const std::unique_ptr<Widget>& w) { return w.get() == window; });
     
     if (it != m_windows.end()) {
-        // Move the window to the end of the vector (top of z-order)
         auto window_ptr = std::move(*it);
         m_windows.erase(it);
-        m_windows.push_back(std::move(window_ptr));
+
+        if (isAlwaysOnTopWindow(window_ptr.get())) {
+            // Toasts stay above every other window.
+            m_windows.push_back(std::move(window_ptr));
+        } else {
+            // Ordinary windows can come to the front, but never above toasts.
+            auto first_always_on_top = std::find_if(
+                m_windows.begin(), m_windows.end(),
+                [](const std::unique_ptr<Widget>& candidate) {
+                    return isAlwaysOnTopWindow(candidate.get());
+                });
+            m_windows.insert(first_always_on_top, std::move(window_ptr));
+        }
+
         rebuildSurface();
     }
 }

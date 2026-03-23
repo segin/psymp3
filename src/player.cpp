@@ -28,6 +28,54 @@
 
 std::atomic<bool> Player::guiRunning{false};
 
+namespace {
+
+std::unique_ptr<Widget> createTestWindowHClient(Font* font)
+{
+    auto client = std::make_unique<LayoutWidget>(170, 112, false);
+    client->setBackgroundColor(255, 255, 255);
+
+    auto status_label = std::make_unique<Label>(
+        font, Rect(12, 10, 120, 14), TagLib::String("Checked: No"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* status_label_ptr = status_label.get();
+    client->addChild(std::move(status_label));
+
+    auto scroll_label = std::make_unique<Label>(
+        font, Rect(12, 25, 120, 14), TagLib::String("Scroll: 50%"),
+        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
+    auto* scroll_label_ptr = scroll_label.get();
+    client->addChild(std::move(scroll_label));
+
+    auto checkbox = std::make_unique<CheckboxWidget>(110, 18, font, TagLib::String("Enable H"), false);
+    auto* checkbox_ptr = checkbox.get();
+    checkbox->setPos(Rect(12, 48, 110, 18));
+    checkbox->setOnToggle([status_label_ptr](bool checked) {
+        status_label_ptr->setText(TagLib::String(checked ? "Checked: Yes" : "Checked: No"));
+    });
+    client->addChild(std::move(checkbox));
+
+    auto button = std::make_unique<ButtonWidget>(72, 22);
+    button->setText(TagLib::String("Apply"), font);
+    button->setPos(Rect(12, 76, 72, 22));
+    button->setOnClick([checkbox_ptr]() {
+        checkbox_ptr->setChecked(!checkbox_ptr->isChecked());
+    });
+    client->addChild(std::move(button));
+
+    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 94, ScrollbarOrientation::Vertical);
+    scrollbar->setPos(Rect(142, 10, 16, 94));
+    scrollbar->setOnChange([scroll_label_ptr](double value) {
+        int percent = static_cast<int>(std::round(value * 100.0));
+        scroll_label_ptr->setText(TagLib::String("Scroll: " + std::to_string(percent) + "%"));
+    });
+    client->addChild(std::move(scrollbar));
+
+    return client;
+}
+
+}
+
 /**
  * @brief Converts an integer to a zero-padded decimal string.
  * @param number Number to format.
@@ -1545,58 +1593,6 @@ bool Player::Initialize(const PlayerOptions& options) {
     m_lyrics_widget = lyrics_widget.get();
     app_widget.addWindow(std::move(lyrics_widget), ZOrder::UI);
 
-    // Create the "H" demo window with classic Win3.x controls.
-    auto h_window = std::make_unique<WindowWidget>(170, 112, "H", font.get());
-    h_window->setPos(Rect(434, 72, h_window->getPos().width(), h_window->getPos().height()));
-    if (auto* frame = h_window->getFrameWidget()) {
-        frame->setResizable(false);
-        frame->setMinimizable(false);
-        frame->setMaximizable(false);
-        frame->refresh();
-    }
-
-    auto h_client = std::make_unique<LayoutWidget>(170, 112, false);
-    h_client->setBackgroundColor(255, 255, 255);
-
-    auto status_label = std::make_unique<Label>(
-        font.get(), Rect(12, 10, 120, 14), TagLib::String("Checked: No"),
-        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
-    auto* status_label_ptr = status_label.get();
-    h_client->addChild(std::move(status_label));
-
-    auto scroll_label = std::make_unique<Label>(
-        font.get(), Rect(12, 25, 120, 14), TagLib::String("Scroll: 50%"),
-        SDL_Color{0, 0, 0, 255}, SDL_Color{255, 255, 255, 255});
-    auto* scroll_label_ptr = scroll_label.get();
-    h_client->addChild(std::move(scroll_label));
-
-    auto checkbox = std::make_unique<CheckboxWidget>(110, 18, font.get(), TagLib::String("Enable H"), false);
-    auto* checkbox_ptr = checkbox.get();
-    checkbox->setPos(Rect(12, 48, 110, 18));
-    checkbox->setOnToggle([status_label_ptr](bool checked) {
-        status_label_ptr->setText(TagLib::String(checked ? "Checked: Yes" : "Checked: No"));
-    });
-    h_client->addChild(std::move(checkbox));
-
-    auto button = std::make_unique<ButtonWidget>(72, 22);
-    button->setText(TagLib::String("Apply"), font.get());
-    button->setPos(Rect(12, 76, 72, 22));
-    button->setOnClick([checkbox_ptr]() {
-        checkbox_ptr->setChecked(!checkbox_ptr->isChecked());
-    });
-    h_client->addChild(std::move(button));
-
-    auto scrollbar = std::make_unique<ScrollbarWidget>(16, 94, ScrollbarOrientation::Vertical);
-    scrollbar->setPos(Rect(142, 10, 16, 94));
-    scrollbar->setOnChange([scroll_label_ptr](double value) {
-        int percent = static_cast<int>(std::round(value * 100.0));
-        scroll_label_ptr->setText(TagLib::String("Scroll: " + std::to_string(percent) + "%"));
-    });
-    h_client->addChild(std::move(scrollbar));
-
-    h_window->setClientArea(std::move(h_client));
-    app_widget.addWindow(std::move(h_window), ZOrder::UI);
-
     // Set up the shared data struct for the audio thread.
     // The stream pointer will be null initially.
     
@@ -2042,7 +2038,7 @@ void Player::handleWindowMouseEvents(const SDL_Event& event)
 }
 
 /**
- * @brief Toggles the test window H (160x120 white window).
+ * @brief Toggles the test window H with the Win3 control demo content.
  */
 void Player::toggleTestWindowH()
 {
@@ -2051,12 +2047,17 @@ void Player::toggleTestWindowH()
         m_test_window_h.reset();
         showToast("Test Window H: Closed");
     } else {
-        // Open the window (client area is 160x120)
-        m_test_window_h = std::make_unique<WindowFrameWidget>(160, 120, "Test Window H", font.get());
+        // Open the window using the same WindowFrameWidget path as the other test windows.
+        m_test_window_h = std::make_unique<WindowFrameWidget>(170, 112, "H", font.get());
+        m_test_window_h->setResizable(false);
+        m_test_window_h->setMinimizable(false);
+        m_test_window_h->setMaximizable(false);
+        m_test_window_h->setClientArea(createTestWindowHClient(font.get()));
+        m_test_window_h->refresh();
         
-        // Only set position, keep the calculated size from constructor
+        // Only set position, keep the calculated size from refresh
         Rect calculated_size = m_test_window_h->getPos();
-        m_test_window_h->setPos(Rect(150, 150, calculated_size.width(), calculated_size.height()));
+        m_test_window_h->setPos(Rect(434, 72, calculated_size.width(), calculated_size.height()));
         
         // Set up drag callbacks
         m_test_window_h->setOnDrag([this](int dx, int dy) {
@@ -2076,26 +2077,26 @@ void Player::toggleTestWindowH()
                 deferWidgetDeletion(std::move(m_test_window_h));
                 m_test_window_h = nullptr;
             }
-            showToast("Test Window H: Closed");
+            showToast("H Window: Closed");
         });
         
         m_test_window_h->setOnMinimize([this]() {
-            showToast("Test Window H: Minimized");
+            showToast("H Window: Minimized");
         });
         
         m_test_window_h->setOnMaximize([this]() {
-            showToast("Test Window H: Maximized");
+            showToast("H Window: Maximized");
         });
         
         m_test_window_h->setOnControlMenu([this]() {
-            showToast("Test Window H: Control Menu");
+            showToast("H Window: Control Menu");
         });
         
         m_test_window_h->setOnResize([this](int new_width, int new_height) {
-            showToast("Test Window H: Resized to " + std::to_string(new_width) + "x" + std::to_string(new_height));
+            showToast("H Window: Resized to " + std::to_string(new_width) + "x" + std::to_string(new_height));
         });
         
-        showToast("Test Window H: Opened");
+        showToast("H Window: Opened");
     }
 }
 
