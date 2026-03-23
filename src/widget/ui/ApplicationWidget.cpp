@@ -103,13 +103,13 @@ bool ApplicationWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
 {
     // Handle mouse capture first
     if (s_mouse_captured_widget) {
-        // Find the captured widget and forward the event directly
+        // Ask each top-level window to route the captured event through its subtree.
         for (const auto& window : m_windows) {
-            if (window.get() == s_mouse_captured_widget) {
-                Rect window_pos = window->getPos();
-                int window_relative_x = relative_x - window_pos.x();
-                int window_relative_y = relative_y - window_pos.y();
-                return window->handleMouseMotion(event, window_relative_x, window_relative_y);
+            Rect window_pos = window->getPos();
+            int window_relative_x = relative_x - window_pos.x();
+            int window_relative_y = relative_y - window_pos.y();
+            if (window->handleMouseMotion(event, window_relative_x, window_relative_y)) {
+                return true;
             }
         }
         
@@ -145,13 +145,13 @@ bool ApplicationWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
 {
     // Handle mouse capture first
     if (s_mouse_captured_widget) {
-        // Find the captured widget and forward the event directly
+        // Ask each top-level window to route the captured event through its subtree.
         for (const auto& window : m_windows) {
-            if (window.get() == s_mouse_captured_widget) {
-                Rect window_pos = window->getPos();
-                int window_relative_x = relative_x - window_pos.x();
-                int window_relative_y = relative_y - window_pos.y();
-                return window->handleMouseUp(event, window_relative_x, window_relative_y);
+            Rect window_pos = window->getPos();
+            int window_relative_x = relative_x - window_pos.x();
+            int window_relative_y = relative_y - window_pos.y();
+            if (window->handleMouseUp(event, window_relative_x, window_relative_y)) {
+                return true;
             }
         }
         

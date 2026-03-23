@@ -285,18 +285,11 @@ bool WindowFrameWidget::handleMouseDown(const SDL_MouseButtonEvent& event, int r
             }
         }
         
-        // Otherwise, bring window to front and forward to client area
+        // Otherwise, bring window to front and let the widget tree route to the client area
         bringToFront();
-        
-        // Check if click is in client area
-        if (m_client_area) {
-            Rect client_pos = m_client_area->getPos();
-            if (relative_x >= client_pos.x() && relative_x < client_pos.x() + client_pos.width() &&
-                relative_y >= client_pos.y() && relative_y < client_pos.y() + client_pos.height()) {
-                
-                // Forward to client area (if it has mouse handling)
-                return true;
-            }
+
+        if (Widget::handleMouseDown(event, relative_x, relative_y)) {
+            return true;
         }
     }
     
@@ -440,7 +433,7 @@ bool WindowFrameWidget::handleMouseMotion(const SDL_MouseMotionEvent& event, int
         return true;
     }
     
-    return false;
+    return Widget::handleMouseMotion(event, relative_x, relative_y);
 }
 
 bool WindowFrameWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int relative_x, int relative_y)
@@ -460,7 +453,7 @@ bool WindowFrameWidget::handleMouseUp(const SDL_MouseButtonEvent& event, int rel
         }
     }
     
-    return false;
+    return Widget::handleMouseUp(event, relative_x, relative_y);
 }
 
 void WindowFrameWidget::setTitle(const std::string& title)

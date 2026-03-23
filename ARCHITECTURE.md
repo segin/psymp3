@@ -75,6 +75,11 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 - **Description**: `mpris/` provides D-Bus integration for Linux desktop environments to control playback natively. `lastfm/` provides background scrobbling of played tracks to the Last.fm service, including offline caching.
 - **Technologies**: C++, D-Bus, HTTP/libcurl, OpenSSL.
 
+### 3.5. Widget Input Routing (`src/widget/`)
+- **Name**: Hierarchical Widget Event Dispatch
+- **Description**: Mouse input is routed top-down through the widget tree using parent-relative coordinates. Hit testing against children must use the parent-visible intersection of each child, but child-local coordinates must still be computed from the child’s true origin so partially clipped widgets receive correct local positions. Mouse capture is global, yet dispatch remains hierarchical: ancestors route motion and button-up events to the captured descendant by translating coordinates through the full parent chain, and `ApplicationWidget` first identifies the containing top-level window before handing control back to that window subtree. `WindowFrameWidget` owns titlebar/resize behavior, then delegates remaining input to its client-area child via the normal widget tree rather than swallowing those events itself.
+- **Technologies**: C++, SDL 1.2, custom widget foundation/windowing layers.
+
 ## 4. Data Stores
 
 ### 4.1. Local Caching
@@ -120,7 +125,7 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 - **Project Name**: PsyMP3
 - **Repository URL**: https://github.com/segin/psymp3
 - **Primary Contact/Team**: Kirn Gill II <segin2005@gmail.com>
-- **Date of Last Update**: 2026-03-21
+- **Date of Last Update**: 2026-03-23
 
 ## 11. Glossary / Acronyms
 
