@@ -238,6 +238,7 @@ bool SampleTableManager::BuildOptimizedChunkTable(const SampleTableInfo& rawTabl
     
     compressedChunkTable.clear();
     compressedChunkTable.reserve(rawTables.sampleToChunkEntries.size());
+    chunkOffsets = rawTables.chunkOffsets;
     
     uint32_t currentSample = 0;
     
@@ -265,6 +266,7 @@ bool SampleTableManager::BuildOptimizedChunkTable(const SampleTableInfo& rawTabl
         // Create compressed chunk info with enhanced compression
         CompressedChunkInfo compressedInfo;
         compressedInfo.baseOffset = rawTables.chunkOffsets[firstChunk];
+        compressedInfo.firstChunkIndex = firstChunk;
         compressedInfo.chunkCount = chunkCount;
         compressedInfo.samplesPerChunk = entry.samplesPerChunk;
         compressedInfo.firstSample = currentSample;
@@ -442,18 +444,9 @@ bool SampleTableManager::BuildLazyLoadedSampleSizeTable(const SampleTableInfo& r
         sampleSizes.isCompressed = false;
         sampleSizes.fixedSize = 0;
         sampleSizes.sampleCount = static_cast<uint32_t>(rawTables.sampleSizes.size());
-        
-        if (lazyLoadingEnabled) {
-            // Don't load immediately - will be loaded on demand
-            sampleSizes.isLoaded = false;
-            // Note: In a real implementation, we would store the file offset
-            // where the sample size table is located for lazy loading
-            sampleSizes.tableOffset = 0; // Would be set from parsing context
-        } else {
-            // Load immediately
-            sampleSizes.variableSizes = rawTables.sampleSizes;
-            sampleSizes.isLoaded = true;
-        }
+        sampleSizes.tableOffset = 0;
+        sampleSizes.variableSizes = rawTables.sampleSizes;
+        sampleSizes.isLoaded = true;
     }
     
     return true;
@@ -503,11 +496,26 @@ SampleTableManager::SampleInfo SampleTableManager::GetSampleInfo(uint64_t sample
     uint64_t sampleInRange = sampleIndex - chunkInfo->firstSample;
     uint32_t chunkInRange = static_cast<uint32_t>(sampleInRange / chunkInfo->samplesPerChunk);
     uint32_t sampleInChunk = static_cast<uint32_t>(sampleInRange % chunkInfo->samplesPerChunk);
-    
-    // Calculate chunk offset (this is simplified - real implementation would need chunk offset table)
-    info.offset = chunkInfo->baseOffset + (chunkInRange * GetSampleSize(sampleIndex) * chunkInfo->samplesPerChunk) + 
-                  (sampleInChunk * GetSampleSize(sampleIndex));
-    
+
+    uint64_t chunkOffset = chunkInfo->baseOffset;
+    const uint32_t absoluteChunkIndex = chunkInfo->firstChunkIndex + chunkInRange;
+    if (absoluteChunkIndex < chunkOffsets.size()) {
+        chunkOffset = chunkOffsets[absoluteChunkIndex];
+    } else {
+        chunkOffset += static_cast<uint64_t>(chunkInRange) * chunkInfo->averageChunkSize;
+    }
+
+    uint64_t intraChunkOffset = 0;
+    if (sampleInChunk != 0) {
+        const uint64_t firstSampleInChunk =
+            chunkInfo->firstSample + (static_cast<uint64_t>(chunkInRange) * chunkInfo->samplesPerChunk);
+        for (uint32_t i = 0; i < sampleInChunk; ++i) {
+            intraChunkOffset += GetSampleSize(firstSampleInChunk + i);
+        }
+    }
+
+    info.offset = chunkOffset + intraChunkOffset;
+
     info.size = GetSampleSize(sampleIndex);
     info.duration = GetSampleDuration(sampleIndex);
     info.isKeyframe = IsSyncSample(sampleIndex);

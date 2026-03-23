@@ -62,7 +62,7 @@ PsyMP3 utilizes a VLC-style on-demand decoding pipeline. Decoded audio is NOT fu
 
 ### 3.2. Demuxer Subsystem (`src/demuxer/`)
 - **Name**: Container Demuxers
-- **Description**: Parses media container formats to extract raw metadata (`StreamInfo`) and compressed data chunks (`MediaChunk`). Supports Ogg, ISO Base Media (MP4/M4A), RIFF (WAV), native FLAC, and raw streams. The ISO demuxer now extracts AAC `DecoderSpecificInfo` from `esds` boxes and stores it in `StreamInfo.codec_data` for the AAC decoder.
+- **Description**: Parses media container formats to extract raw metadata (`StreamInfo`) and compressed data chunks (`MediaChunk`). Supports Ogg, ISO Base Media (MP4/M4A), RIFF (WAV), native FLAC, and raw streams. The ISO demuxer now extracts AAC `DecoderSpecificInfo` from `esds` boxes and stores it in `StreamInfo.codec_data` for the AAC decoder. Its sample-table path must preserve exact `stco`/`co64` chunk offsets and exact `stsz` per-sample sizes so codecs receive individual access units rather than chunk-aligned aggregates or approximated offsets.
 - **Technologies**: C++, `libogg`.
 
 ### 3.3. I/O Layer (`src/io/`)

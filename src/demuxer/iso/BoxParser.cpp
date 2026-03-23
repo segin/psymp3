@@ -421,9 +421,20 @@ bool BoxParser::ParseTrackBox(uint64_t offset, uint64_t size, AudioTrackInfo& tr
         switch (header.type) {
             case BOX_TKHD:
                 // Track header - contains track ID
-                if (header.size >= 32) {
-                    // Skip version/flags (4 bytes) and creation/modification times (8 bytes each)
-                    track.trackId = ReadUInt32BE(header.dataOffset + 20);
+                if (header.size >= 24) {
+                    uint8_t version = 0;
+                    io->seek(header.dataOffset, SEEK_SET);
+                    if (io->read(&version, 1, 1) == 1) {
+                        if (version == 1) {
+                            if (header.size >= 36) {
+                                // version/flags (4) + creation (8) + modification (8)
+                                track.trackId = ReadUInt32BE(header.dataOffset + 20);
+                            }
+                        } else {
+                            // version/flags (4) + creation (4) + modification (4)
+                            track.trackId = ReadUInt32BE(header.dataOffset + 12);
+                        }
+                    }
                 }
                 return true;
             case BOX_MDIA:
@@ -556,21 +567,23 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
         switch (header.type) {
             case BOX_MDHD:
                 // Media header - contains timescale and duration
-                if (header.size >= 32) {
+                if (header.size >= 24) {
                     // Read version to determine header format
                     uint8_t version = 0;
                     io->seek(header.dataOffset, SEEK_SET);
                     if (io->read(&version, 1, 1) == 1) {
                         if (version == 1) {
                             // Version 1 - 64-bit times
-                            if (header.size >= 44) {
-                                track.timescale = ReadUInt32BE(header.dataOffset + 28);
-                                track.duration = ReadUInt64BE(header.dataOffset + 32);
+                            if (header.size >= 36) {
+                                // version/flags (4) + creation (8) + modification (8)
+                                track.timescale = ReadUInt32BE(header.dataOffset + 20);
+                                track.duration = ReadUInt64BE(header.dataOffset + 24);
                             }
                         } else {
                             // Version 0 - 32-bit times
-                            track.timescale = ReadUInt32BE(header.dataOffset + 20);
-                            track.duration = ReadUInt32BE(header.dataOffset + 24);
+                            // version/flags (4) + creation (4) + modification (4)
+                            track.timescale = ReadUInt32BE(header.dataOffset + 12);
+                            track.duration = ReadUInt32BE(header.dataOffset + 16);
                         }
                     }
                 }
@@ -596,21 +609,31 @@ bool BoxParser::ParseMediaBoxWithSampleTables(uint64_t offset, uint64_t size, Au
                                     return true;
                                 case BOX_STBL:
                                     // Sample table box - parse for codec information and sample tables
-                                    // STBL parsing is recursive, increasing depth
-                                    return ParseBoxRecursively(minfHeader.dataOffset, minfHeader.size - (minfHeader.dataOffset - minfOffset),
-                                        [this, &track, &sampleTables](const BoxHeader& stblHeader, uint64_t stblOffset, uint32_t stblDepth) {
-                                            if (stblHeader.type == BOX_STSD) {
-                                                // Sample description - contains codec information
-                                                return ParseSampleDescriptionBox(stblHeader.dataOffset,
-                                                                                stblHeader.size - (stblHeader.dataOffset - stblOffset),
-                                                                                track, stblDepth);
-                                            } else {
-                                                // Parse sample table boxes
-                                                return ParseSampleTableBox(stblHeader.dataOffset,
-                                                                          stblHeader.size - (stblHeader.dataOffset - stblOffset),
-                                                                          sampleTables, stblDepth);
-                                            }
-                                        }, minfDepth);
+                                    {
+                                        const uint64_t stblOffset = minfHeader.dataOffset;
+                                        const uint64_t stblSize = minfHeader.size - (minfHeader.dataOffset - minfOffset);
+                                        bool sampleDescriptionParsed = true;
+
+                                        sampleDescriptionParsed = ParseBoxRecursively(
+                                            stblOffset,
+                                            stblSize,
+                                            [this, &track](const BoxHeader& stblHeader,
+                                                           uint64_t childOffset,
+                                                           uint32_t stblDepth) {
+                                                if (stblHeader.type == BOX_STSD) {
+                                                    return ParseSampleDescriptionBox(
+                                                        stblHeader.dataOffset,
+                                                        stblHeader.size - (stblHeader.dataOffset - childOffset),
+                                                        track,
+                                                        stblDepth);
+                                                }
+                                                return true;
+                                            },
+                                            minfDepth);
+
+                                        return sampleDescriptionParsed &&
+                                               ParseSampleTableBox(stblOffset, stblSize, sampleTables, minfDepth);
+                                    }
                                 default:
                                     return SkipUnknownBox(minfHeader);
                             }
