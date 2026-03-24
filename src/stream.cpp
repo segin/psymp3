@@ -40,6 +40,7 @@ bool isKnownRawAudioExtension(const TagLib::String& path)
 
     static const std::unordered_set<std::string> kRawExtensions = {
         ".ulaw", ".ul", ".mulaw", ".alaw", ".al", ".pcm", ".s8", ".u8",
+        ".g722", ".722",
         ".s16le", ".s16be", ".s24le", ".s24be", ".s32le", ".s32be",
         ".f32le", ".f32be", ".f64le", ".f64be"
     };

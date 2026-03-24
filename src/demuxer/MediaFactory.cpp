@@ -674,12 +674,12 @@ void MediaFactory::initializeDefaultFormats() {
         MediaFormat raw_format;
         raw_format.format_id = "raw_audio";
         raw_format.display_name = "Raw Audio";
-        raw_format.extensions = {"PCM", "RAW", "AL", "ALAW", "UL", "ULAW", "MULAW", "AU", "SND"};
-        raw_format.mime_types = {"audio/pcm", "audio/raw", "audio/alaw", "audio/ulaw", "audio/basic"};
+        raw_format.extensions = {"PCM", "RAW", "AL", "ALAW", "UL", "ULAW", "MULAW", "G722", "722", "AU", "SND"};
+        raw_format.mime_types = {"audio/pcm", "audio/raw", "audio/alaw", "audio/ulaw", "audio/basic", "audio/g722", "audio/G722"};
         raw_format.priority = 90; // Lower priority since no magic signature
         raw_format.supports_streaming = true;
         raw_format.supports_seeking = true;
-        raw_format.description = "Raw PCM/A-law/μ-law audio";
+        raw_format.description = "Raw PCM/A-law/μ-law/G.722 audio";
         
         registerFormatInternal(raw_format, [](const std::string& uri, const ContentInfo& info) {
             return std::make_unique<ModernStream>(TagLib::String(uri.c_str()));

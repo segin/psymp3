@@ -39,15 +39,21 @@ struct RawAudioConfig {
     uint16_t channels;         // Default channels (usually 1 for telephony)
     uint16_t bits_per_sample;  // Bits per sample
     bool little_endian;        // Byte order for multi-byte formats
+    uint16_t bytes_per_frame;  // Encoded bytes per transport frame
+    uint16_t decoded_samples_per_frame; // PCM sample frames produced per transport frame
     
     // Constructor with telephony defaults
     RawAudioConfig(const std::string& codec = "mulaw", 
                    uint32_t rate = 8000, 
                    uint16_t ch = 1, 
                    uint16_t bits = 8, 
-                   bool le = true)
+                   bool le = true,
+                   uint16_t frame_bytes = 0,
+                   uint16_t decoded_samples = 1)
         : codec_name(codec), sample_rate(rate), channels(ch), 
-          bits_per_sample(bits), little_endian(le) {}
+          bits_per_sample(bits), little_endian(le),
+          bytes_per_frame(frame_bytes != 0 ? frame_bytes : static_cast<uint16_t>(std::max<uint32_t>(1, ch * (bits / 8)))),
+          decoded_samples_per_frame(decoded_samples) {}
 };
 
 /**
@@ -56,6 +62,7 @@ struct RawAudioConfig {
  * This handles raw audio streams commonly found in telephony/VoIP:
  * - .ulaw/.ul files (8kHz, mono, mu-law)
  * - .alaw/.al files (8kHz, mono, A-law)  
+ * - .g722/.722 files (16kHz mono PCM output from 64kbps G.722)
  * - .pcm files (various sample rates and bit depths)
  * - .s16le/.s16be files (16-bit signed PCM)
  * - .f32le files (32-bit float PCM)

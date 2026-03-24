@@ -112,6 +112,10 @@
 #include "codecs/pcm/MuLawCodec.cpp"
 #endif
 
+#ifdef HAVE_G722
+#include "codecs/pcm/G722Codec.cpp"
+#endif
+
 // ============================================================================
 // Optional Codec/Demuxer: Ogg container (Vorbis, Opus, FLAC)
 // ============================================================================

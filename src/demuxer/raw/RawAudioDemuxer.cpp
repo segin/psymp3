@@ -20,6 +20,8 @@ const std::map<std::string, RawAudioConfig> RawAudioDetector::s_extension_map = 
     {".mulaw", RawAudioConfig("mulaw", 8000, 1, 8)},
     {".alaw", RawAudioConfig("alaw", 8000, 1, 8)},
     {".al",   RawAudioConfig("alaw", 8000, 1, 8)},
+    {".g722", RawAudioConfig("g722", 16000, 1, 8, true, 1, 2)},
+    {".722",  RawAudioConfig("g722", 16000, 1, 8, true, 1, 2)},
     
     // PCM formats - common telephony and broadcast rates
     {".pcm",   RawAudioConfig("pcm", 8000, 1, 16, true)},  // Default 8kHz 16-bit
@@ -64,7 +66,7 @@ bool RawAudioDemuxer::parseContainer() {
         }
         
         // Calculate bytes per frame
-        m_bytes_per_frame = m_config.channels * (m_config.bits_per_sample / 8);
+        m_bytes_per_frame = m_config.bytes_per_frame;
         if (m_bytes_per_frame == 0) {
             return false;
         }
@@ -80,7 +82,8 @@ bool RawAudioDemuxer::parseContainer() {
         stream_info.sample_rate = m_config.sample_rate;
         stream_info.channels = m_config.channels;
         stream_info.bits_per_sample = m_config.bits_per_sample;
-        stream_info.duration_samples = m_file_size / m_bytes_per_frame;
+        stream_info.duration_samples =
+            (m_file_size / m_bytes_per_frame) * m_config.decoded_samples_per_frame;
         stream_info.duration_ms = m_duration_ms;
         
         // Calculate average bitrate
@@ -147,9 +150,8 @@ MediaChunk RawAudioDemuxer::readChunk(uint32_t stream_id) {
     }
     
     // Calculate timestamps
-    size_t bytes_per_sample = m_streams[0].bits_per_sample / 8;
-    if (bytes_per_sample == 0) bytes_per_sample = 1; // Avoid division by zero
-    chunk.timestamp_samples = m_current_offset / bytes_per_sample;
+    chunk.timestamp_samples =
+        (m_current_offset / m_bytes_per_frame) * m_config.decoded_samples_per_frame;
     
     // Update position
     m_current_offset += bytes_read;
@@ -223,7 +225,8 @@ void RawAudioDemuxer::calculateDuration() {
         return;
     }
     
-    uint64_t total_samples = m_file_size / m_bytes_per_frame;
+    uint64_t total_samples =
+        (m_file_size / m_bytes_per_frame) * m_config.decoded_samples_per_frame;
     m_duration_ms = (total_samples * 1000ULL) / m_config.sample_rate;
 }
 
@@ -232,7 +235,8 @@ uint64_t RawAudioDemuxer::byteOffsetToMs(uint64_t byte_offset) const {
         return 0;
     }
     
-    uint64_t samples = byte_offset / m_bytes_per_frame;
+    uint64_t samples =
+        (byte_offset / m_bytes_per_frame) * m_config.decoded_samples_per_frame;
     return (samples * 1000ULL) / m_config.sample_rate;
 }
 
@@ -242,7 +246,8 @@ uint64_t RawAudioDemuxer::msToByteOffset(uint64_t timestamp_ms) const {
     }
     
     uint64_t samples = (timestamp_ms * m_config.sample_rate) / 1000ULL;
-    return samples * m_bytes_per_frame;
+    uint64_t frames = samples / m_config.decoded_samples_per_frame;
+    return frames * m_bytes_per_frame;
 }
 
 std::optional<RawAudioConfig> RawAudioDetector::detectRawAudio(const std::string& file_path, 

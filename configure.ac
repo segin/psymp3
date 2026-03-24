@@ -79,6 +79,10 @@ AC_ARG_ENABLE([aac],
   [AS_HELP_STRING([--enable-aac], [Enable AAC support via faad2 @<:@default=yes@:>@])],
   [enable_aac=$enableval], [enable_aac=yes])
 
+AC_ARG_ENABLE([g722],
+  [AS_HELP_STRING([--enable-g722], [Enable G.722 support via spandsp @<:@default=yes@:>@])],
+  [enable_g722=$enableval], [enable_g722=yes])
+
 # Check for optional codec libraries
 have_flac=no
 have_native_flac=no
@@ -86,6 +90,7 @@ have_mp3=no
 have_vorbis=no
 have_opus=no
 have_aac=no
+have_g722=no
 
 # Native FLAC decoder - no external library dependency
 if test "x$enable_flac" = "xyes"; then
@@ -143,6 +148,17 @@ if test "x$enable_aac" = "xyes"; then
   fi
 else
   have_aac=no
+fi
+
+if test "x$enable_g722" = "xyes"; then
+  PKG_CHECK_MODULES([G722], [spandsp], [have_g722=yes], [have_g722=no])
+  if test "x$have_g722" = "xyes"; then
+    AC_DEFINE([HAVE_G722], [1], [Define to 1 if G.722 support is enabled])
+  else
+    AC_MSG_WARN([G.722 support disabled: spandsp not found])
+  fi
+else
+  have_g722=no
 fi
 
 # Check for Speex (Ogg container required)
@@ -229,6 +245,7 @@ AM_CONDITIONAL([HAVE_MP3], [test "x$have_mp3" = "xyes"])
 AM_CONDITIONAL([HAVE_VORBIS], [test "x$have_vorbis" = "xyes"])
 AM_CONDITIONAL([HAVE_OPUS], [test "x$have_opus" = "xyes"])
 AM_CONDITIONAL([HAVE_AAC], [test "x$have_aac" = "xyes"])
+AM_CONDITIONAL([HAVE_G722], [test "x$have_g722" = "xyes"])
 AM_CONDITIONAL([HAVE_OGG], [test "x$have_ogg" = "xyes"])
 AM_CONDITIONAL([HAVE_OGGDEMUXER], [test "x$have_oggdemuxer" = "xyes"])
 AM_CONDITIONAL([HAVE_SPEEX], [test "x$have_speex" = "xyes"])
@@ -473,6 +490,7 @@ fi
 echo "  Vorbis:            $have_vorbis"
 echo "  Opus:              $have_opus"
 echo "  AAC (faad2):       $have_aac"
+echo "  G.722 (spandsp):   $have_g722"
 echo "  Speex:             $have_speex"
 echo "  A-law (G.711):     $have_alaw"
 echo "  μ-law (G.711):     $have_mulaw"

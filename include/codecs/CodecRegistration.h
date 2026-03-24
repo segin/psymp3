@@ -34,6 +34,7 @@
  * - PCM codec (8-bit, 16-bit, 24-bit, 32-bit integer and float)
  * - A-law codec (ITU-T G.711)
  * - μ-law codec (ITU-T G.711)
+ * - G.722 codec (wideband ADPCM, when spandsp is available)
  * 
  * Conditionally registered (based on #ifdef):
  * - Vorbis codec and passthrough (HAVE_VORBIS)
@@ -61,6 +62,7 @@ void registerAllCodecs();
  * - AIFF demuxer (for AIFF containers) - uses ChunkDemuxer  
  * - MP4/ISO demuxer (for MP4, M4A, MOV containers) - uses ISODemuxer
  * - Raw audio demuxer (for PCM, A-law, μ-law files) - uses RawAudioDemuxer
+ * - Raw audio demuxer also recognizes G.722 raw bitstreams
  * 
  * Conditionally registered (based on #ifdef):
  * - Ogg demuxer (HAVE_VORBIS || HAVE_OPUS || (HAVE_FLAC && HAVE_OGG)) - uses OggDemuxer
@@ -100,6 +102,10 @@ void registerMuLawCodec();
  * - "g711_alaw" - ITU-T G.711 A-law identifier
  */
 void registerALawCodec();
+#endif
+
+#ifdef HAVE_G722
+void registerG722Codec();
 #endif
 
 #endif // CODECREGISTRATION_H

@@ -484,6 +484,10 @@ using PsyMP3::Codec::PCM::MuLawCodec;
 #include "codecs/pcm/ALawCodec.h"
 using PsyMP3::Codec::PCM::ALawCodec;
 #endif
+#ifdef HAVE_G722
+#include "codecs/pcm/G722Codec.h"
+using PsyMP3::Codec::PCM::G722Codec;
+#endif
 #include "demuxer/DemuxedStream.h"
 
 // Demuxer subsystem - Raw Audio
