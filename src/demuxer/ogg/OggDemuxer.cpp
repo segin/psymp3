@@ -46,7 +46,96 @@ void populateCodecData(const CodecHeaderParser& parser,
     }
 }
 
+uint64_t computeTimestampSamples(const CodecInfo& codec_info,
+                                 uint64_t granule_position)
+{
+    if (granule_position == static_cast<uint64_t>(-1)) {
+        return 0;
+    }
+
+    std::string codec = codec_info.codec_name;
+    std::transform(codec.begin(), codec.end(), codec.begin(), ::tolower);
+
+    if (codec == "opus") {
+        if (granule_position <= codec_info.pre_skip) {
+            return 0;
+        }
+        return granule_position - codec_info.pre_skip;
+    }
+
+    return granule_position;
+}
+
 } // namespace
+
+bool OggDemuxer::resetForPlayback_unlocked() {
+  if (!m_sync->seek(0)) {
+    Debug::log("ogg", "OggDemuxer::resetForPlayback_unlocked() failed to seek to start");
+    return false;
+  }
+
+  for (auto& pair : m_streams) {
+    pair.second->reset();
+  }
+
+  std::map<int, size_t> headers_remaining;
+  for (const auto& pair : m_parsers) {
+    headers_remaining[pair.first] = pair.second->getHeaderPackets().size();
+  }
+
+  ogg_page page;
+  while (true) {
+    bool all_headers_consumed = true;
+    for (const auto& pair : headers_remaining) {
+      if (pair.second != 0) {
+        all_headers_consumed = false;
+        break;
+      }
+    }
+
+    if (all_headers_consumed) {
+      auto primary = m_streams.find(m_primary_serial);
+      if (primary == m_streams.end()) {
+        break;
+      }
+
+      ogg_packet packet{};
+      if (primary->second->peekPacket(&packet) == 1) {
+        break;
+      }
+    }
+
+    int result = m_sync->getNextPage(&page);
+    if (result != 1) {
+      break;
+    }
+
+    int serial = ogg_page_serialno(&page);
+    auto stream_it = m_streams.find(serial);
+    if (stream_it == m_streams.end()) {
+      continue;
+    }
+
+    stream_it->second->submitPage(&page);
+
+    auto remaining_it = headers_remaining.find(serial);
+    if (remaining_it == headers_remaining.end()) {
+      continue;
+    }
+
+    while (remaining_it->second > 0) {
+      ogg_packet packet{};
+      int packet_result = stream_it->second->getPacket(&packet);
+      if (packet_result != 1) {
+        break;
+      }
+      remaining_it->second--;
+    }
+  }
+
+  m_eof = false;
+  return true;
+}
 
 // Note: Registration is handled by registerAllDemuxers() called from main().
 // Do NOT use static auto-registration here as it causes initialization order
@@ -220,6 +309,7 @@ bool OggDemuxer::parseContainer() {
   if (!m_streams.empty()) {
     createTagFromMetadata_unlocked();
     calculateInitialDuration_unlocked();
+    resetForPlayback_unlocked();
   }
 
   return !m_streams.empty();
@@ -397,7 +487,26 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
   // Initialize to zero to avoid maybe-uninitialized warning in unity builds
   ogg_packet packet = {};
 
-  while (!sit->second->getPacket(&packet)) {
+  while (true) {
+    int packet_result = sit->second->getPacket(&packet);
+    if (packet_result == 1) {
+      break;
+    }
+
+    if (packet_result < 0) {
+      chunk.stream_id = stream_id;
+      chunk.packet_lost = true;
+      chunk.granule_position = getGranulePosition(stream_id);
+
+      auto pit = m_parsers.find(stream_id);
+      if (pit != m_parsers.end()) {
+        chunk.timestamp_samples =
+            computeTimestampSamples(pit->second->getCodecInfo(), chunk.granule_position);
+      }
+
+      return chunk;
+    }
+
     // Need more data - read next page
     ogg_page page;
     int result = m_sync->getNextPage(&page);
@@ -412,16 +521,21 @@ MediaChunk OggDemuxer::readChunk_unlocked(uint32_t stream_id) {
       it->second->submitPage(&page);
     }
 
-    // Check for EOS
-    if (ogg_page_eos(&page) && serial == static_cast<int>(stream_id)) {
-      m_eof = true;
-    }
   }
 
   // Got a packet - copy data to chunk
   chunk.data.assign(packet.packet, packet.packet + packet.bytes);
   chunk.stream_id = stream_id;
-  chunk.granule_position = packet.granulepos;
+  chunk.granule_position =
+      (packet.granulepos >= 0) ? static_cast<uint64_t>(packet.granulepos)
+                               : static_cast<uint64_t>(-1);
+  chunk.end_of_stream = packet.e_o_s != 0;
+
+  auto pit = m_parsers.find(stream_id);
+  if (pit != m_parsers.end()) {
+    chunk.timestamp_samples =
+        computeTimestampSamples(pit->second->getCodecInfo(), chunk.granule_position);
+  }
 
   return chunk;
 }

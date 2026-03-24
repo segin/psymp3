@@ -189,6 +189,7 @@ struct MediaChunk {
     uint64_t timestamp_samples = 0;   ///< Timestamp in sample frames (for non-Ogg formats)
     bool is_keyframe = true;          ///< Whether this is a keyframe (usually true for audio)
     bool packet_lost = false;         ///< Indicates if this chunk represents a lost packet (gap)
+    bool end_of_stream = false;       ///< True when this chunk is the stream's terminal packet
     uint64_t file_offset = 0;         ///< Original file offset (used for seeking optimization)
     
     // Constructors
@@ -253,6 +254,7 @@ struct MediaChunk {
         timestamp_samples = 0;
         is_keyframe = true;
         packet_lost = false;
+        end_of_stream = false;
         file_offset = 0;
     }
 };
@@ -932,4 +934,3 @@ private:
 // DemuxerFactory class moved to DemuxerFactory.h
 
 #endif // DEMUXER_H
-

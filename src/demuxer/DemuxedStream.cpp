@@ -359,7 +359,7 @@ void DemuxedStream::fillChunkBuffer() {
         
         MediaChunk chunk = m_demuxer->readChunk(m_current_stream_id);
         
-        if (chunk.data.empty()) {
+        if (!chunk.isValid()) {
             Debug::log("demux", "DemuxedStream: Got empty chunk, stopping chunk buffering");
             break; // No more data
         }

@@ -220,22 +220,11 @@ AudioFrame OpusCodec::decode(const MediaChunk& chunk)
         return AudioFrame();
     }
     
-    // Handle partial packet data gracefully (Requirement 7.3)
-    if (!handlePartialPacketData_unlocked(chunk.data)) {
-        Debug::log("opus", "Partial packet handling failed - returning buffered frame if available");
-        if (hasBufferedFrames_unlocked()) {
-            return getBufferedFrame_unlocked();
-        }
-        return AudioFrame();
-    }
-    
-    // If partial packet handling consumed the data, return buffered frame
+    // MediaChunk objects from demuxers already represent whole container
+    // packets. Any stale partial fragment state is invalid in this path.
     if (!m_partial_packet_buffer.empty()) {
-        Debug::log("opus", "Packet data buffered for partial handling - returning existing buffered frame");
-        if (hasBufferedFrames_unlocked()) {
-            return getBufferedFrame_unlocked();
-        }
-        return AudioFrame();
+        Debug::log("opus", "Clearing stale partial packet buffer before decoding a demuxed packet");
+        m_partial_packet_buffer.clear();
     }
     
     // Process the new packet
@@ -724,17 +713,29 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
     // Normal decoding
     AudioFrame frame = decodeAudioPacket_unlocked(chunk.data);
     
-    frame.timestamp_samples = chunk.timestamp_samples;
-
     applyPreSkip_unlocked(frame);
     applyOutputGain_unlocked(frame);
 
     size_t emitted_sample_frames = frame.getSampleFrameCount();
     uint64_t total_output_samples = m_samples_decoded.load() + emitted_sample_frames;
+    bool has_granule = chunk.granule_position != 0 &&
+                       chunk.granule_position != static_cast<uint64_t>(-1);
 
-    // End Trimming Support (Requirement 18)
-    // Ogg Opus granule positions include the initial pre-skip.
-    if (chunk.granule_position > 0 && emitted_sample_frames > 0) {
+    if (has_granule && emitted_sample_frames > 0) {
+        uint64_t expected_output_samples =
+            (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
+        frame.timestamp_samples =
+            (expected_output_samples >= emitted_sample_frames)
+                ? (expected_output_samples - emitted_sample_frames)
+                : 0;
+    } else {
+        frame.timestamp_samples = chunk.timestamp_samples;
+    }
+
+    // End trimming is only valid for the terminal packet of the stream.
+    // Ordinary page-ending Opus packets can carry granules too, but those
+    // granules must not cause PCM to be discarded during normal playback.
+    if (chunk.end_of_stream && has_granule && emitted_sample_frames > 0) {
         uint64_t expected_output_samples =
             (chunk.granule_position > m_pre_skip) ? (chunk.granule_position - m_pre_skip) : 0;
 
@@ -752,11 +753,6 @@ AudioFrame OpusCodec::decodeAudioPacket_unlocked(const MediaChunk& chunk)
                 total_output_samples = expected_output_samples;
             }
         }
-
-        frame.timestamp_samples =
-            (expected_output_samples >= emitted_sample_frames)
-                ? (expected_output_samples - emitted_sample_frames)
-                : 0;
     }
 
     frame.timestamp_ms = (frame.timestamp_samples * 1000ULL) / 48000ULL;
@@ -1844,10 +1840,10 @@ bool OpusCodec::validateOpusPacket_unlocked(const std::vector<uint8_t>& packet_d
         return false;
     }
     
-    // Opus packets should not be excessively large
-    // Maximum theoretical packet size is around 1275 bytes for standard configurations
-    // Allow some headroom for unusual configurations
-    if (packet_data.size() > 2000) {
+    // Opus packet size in containers can legitimately exceed 1275 bytes when
+    // multiple frames are packed together. Keep the hard upper bound aligned
+    // with the broader input validator instead of rejecting real-world packets.
+    if (packet_data.size() > 65535) {
         Debug::log("opus", "Packet validation failed: suspiciously large packet: ", packet_data.size(), " bytes");
         return false;
     }
@@ -3139,13 +3135,12 @@ bool OpusCodec::isValidPartialPacket_unlocked(const std::vector<uint8_t>& packet
         return false;
     }
     
-    // For Opus packets, we can do some basic validation:
-    // - Minimum size check (Opus packets are at least 1 byte)
-    // - Maximum size check (Opus packets are typically under 1275 bytes)
-    // - TOC byte validation (first byte contains configuration)
+    // For Opus packets, do only lightweight framing checks here. Demuxed
+    // packets are usually complete already, and valid container packets can
+    // exceed 1275 bytes when they carry multiple coded frames.
     
     constexpr size_t MIN_OPUS_PACKET_SIZE = 1;
-    constexpr size_t MAX_OPUS_PACKET_SIZE = 1275;
+    constexpr size_t MAX_OPUS_PACKET_SIZE = 65535;
     
     if (packet_data.size() < MIN_OPUS_PACKET_SIZE) {
         Debug::log("opus", "Packet too small: ", packet_data.size(), " bytes");

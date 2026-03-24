@@ -592,6 +592,128 @@ bool test_ogg_demuxer_preserves_opus_setup_headers() {
     }
 }
 
+bool test_ogg_demuxer_marks_terminal_opus_packet() {
+    Debug::log("test", "=== Testing OggDemuxer terminal Opus packet marker ===");
+
+    try {
+        std::vector<uint8_t> bytes;
+        OggStreamBuilder builder(0x50535A);
+
+        if (!builder.packetIn(OpusIntegrationTest::createOpusIdHeader(), 0, 0, true, false)) {
+            Debug::log("test", "FAIL: Could not create OpusHead packet");
+            return false;
+        }
+        builder.flushAll(bytes);
+
+        if (!builder.packetIn(OpusIntegrationTest::createOpusCommentHeader(), 0, 1, false, false)) {
+            Debug::log("test", "FAIL: Could not create OpusTags packet");
+            return false;
+        }
+        builder.flushAll(bytes);
+
+        if (!builder.packetIn(OpusIntegrationTest::createOpusAudioPacket(), 960, 2, false, true)) {
+            Debug::log("test", "FAIL: Could not create terminal Opus audio packet");
+            return false;
+        }
+        builder.flushAll(bytes);
+
+        auto io = std::make_unique<MemoryIOHandler>(std::move(bytes));
+        PsyMP3::Demuxer::Ogg::OggDemuxer demuxer(std::move(io));
+        if (!demuxer.parseContainer()) {
+            Debug::log("test", "FAIL: OggDemuxer could not parse minimal Opus stream");
+            return false;
+        }
+
+        auto streams = demuxer.getStreams();
+        if (streams.empty()) {
+            Debug::log("test", "FAIL: No streams discovered in minimal Opus Ogg stream");
+            return false;
+        }
+
+        MediaChunk chunk = demuxer.readChunk(streams.front().stream_id);
+        if (!chunk.end_of_stream) {
+            Debug::log("test", "FAIL: Terminal Opus packet should be marked end_of_stream");
+            return false;
+        }
+
+        if (chunk.timestamp_samples != 648) {
+            Debug::log("test", "FAIL: Terminal Opus packet timestamp should subtract pre-skip, got ", chunk.timestamp_samples);
+            return false;
+        }
+
+        Debug::log("test", "PASS: OggDemuxer terminal Opus packet marker test");
+        return true;
+
+    } catch (const std::exception& e) {
+        Debug::log("test", "FAIL: Exception in terminal Opus packet test: ", e.what());
+        return false;
+    }
+}
+
+bool test_ogg_demuxer_drains_all_packets_from_terminal_page() {
+    Debug::log("test", "=== Testing OggDemuxer terminal-page packet draining ===");
+
+    try {
+        std::vector<uint8_t> bytes;
+        OggStreamBuilder builder(0x50535B);
+
+        if (!builder.packetIn(OpusIntegrationTest::createOpusIdHeader(), 0, 0, true, false)) {
+            Debug::log("test", "FAIL: Could not create OpusHead packet");
+            return false;
+        }
+        builder.flushAll(bytes);
+
+        if (!builder.packetIn(OpusIntegrationTest::createOpusCommentHeader(), 0, 1, false, false)) {
+            Debug::log("test", "FAIL: Could not create OpusTags packet");
+            return false;
+        }
+        builder.flushAll(bytes);
+
+        if (!builder.packetIn(OpusIntegrationTest::createOpusAudioPacket(), 960, 2, false, false) ||
+            !builder.packetIn(OpusIntegrationTest::createOpusAudioPacket(), 1920, 3, false, false) ||
+            !builder.packetIn(OpusIntegrationTest::createOpusAudioPacket(), 2880, 4, false, true)) {
+            Debug::log("test", "FAIL: Could not queue terminal-page Opus audio packets");
+            return false;
+        }
+        builder.flushAll(bytes);
+
+        auto io = std::make_unique<MemoryIOHandler>(std::move(bytes));
+        PsyMP3::Demuxer::Ogg::OggDemuxer demuxer(std::move(io));
+        if (!demuxer.parseContainer()) {
+            Debug::log("test", "FAIL: OggDemuxer could not parse terminal-page Opus stream");
+            return false;
+        }
+
+        auto streams = demuxer.getStreams();
+        if (streams.empty()) {
+            Debug::log("test", "FAIL: No streams discovered in terminal-page Opus stream");
+            return false;
+        }
+
+        size_t packets_read = 0;
+        while (true) {
+            MediaChunk chunk = demuxer.readChunk(streams.front().stream_id);
+            if (!chunk.isValid()) {
+                break;
+            }
+            packets_read++;
+        }
+
+        if (packets_read != 3) {
+            Debug::log("test", "FAIL: Expected to drain all 3 audio packets from terminal page, got ",
+                      packets_read);
+            return false;
+        }
+
+        Debug::log("test", "PASS: OggDemuxer terminal-page packet draining test");
+        return true;
+
+    } catch (const std::exception& e) {
+        Debug::log("test", "FAIL: Exception in terminal-page packet draining test: ", e.what());
+        return false;
+    }
+}
+
 /**
  * @brief Test error handling in integration scenarios
  */
@@ -735,6 +857,8 @@ bool run_opus_integration_tests() {
     all_passed &= test_seeking_support_through_reset();
     all_passed &= test_integration_with_demuxed_stream_bridge();
     all_passed &= test_ogg_demuxer_preserves_opus_setup_headers();
+    all_passed &= test_ogg_demuxer_marks_terminal_opus_packet();
+    all_passed &= test_ogg_demuxer_drains_all_packets_from_terminal_page();
     all_passed &= test_integration_error_handling();
     all_passed &= test_multichannel_opus_integration();
     

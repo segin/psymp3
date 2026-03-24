@@ -207,6 +207,44 @@ int64_t meanAbsoluteSample(const AudioFrame& frame)
     return total / static_cast<int64_t>(frame.samples.size());
 }
 
+std::vector<uint8_t> createLargeEncodedOpusPacket(size_t minimum_size = 1276)
+{
+    int opus_error = OPUS_OK;
+    OpusEncoder* encoder = opus_encoder_create(48000, 2, OPUS_APPLICATION_AUDIO, &opus_error);
+    if (!encoder || opus_error != OPUS_OK) {
+        if (encoder) {
+            opus_encoder_destroy(encoder);
+        }
+        return {};
+    }
+
+    opus_encoder_ctl(encoder, OPUS_SET_BITRATE(OPUS_BITRATE_MAX));
+    opus_encoder_ctl(encoder, OPUS_SET_COMPLEXITY(10));
+    opus_encoder_ctl(encoder, OPUS_SET_VBR(0));
+
+    const int frame_size = 5760; // 120 ms at 48 kHz
+    std::vector<opus_int16> pcm(static_cast<size_t>(frame_size) * 2);
+    for (size_t i = 0; i < pcm.size(); ++i) {
+        pcm[i] = static_cast<opus_int16>(((i * 1103u) + 97u) % 65536u - 32768);
+    }
+
+    std::vector<uint8_t> packet(8192);
+    int encoded = opus_encode(encoder, pcm.data(), frame_size, packet.data(),
+                              static_cast<opus_int32>(packet.size()));
+    opus_encoder_destroy(encoder);
+
+    if (encoded <= 0) {
+        return {};
+    }
+
+    packet.resize(static_cast<size_t>(encoded));
+    if (packet.size() < minimum_size) {
+        return {};
+    }
+
+    return packet;
+}
+
 // ========== Test Cases ==========
 
 /**
@@ -525,6 +563,7 @@ protected:
         MediaChunk first_audio_chunk;
         first_audio_chunk.data = createOpusAudioPacket(2, true);
         first_audio_chunk.granule_position = packet_sample_frames;
+        first_audio_chunk.timestamp_samples = 0;
 
         AudioFrame first_frame = decodeFirstNonEmptyFrame(codec, first_audio_chunk);
         ASSERT_FALSE(first_frame.samples.empty(), "First timed frame should decode");
@@ -538,13 +577,14 @@ protected:
         MediaChunk second_audio_chunk;
         second_audio_chunk.data = createOpusAudioPacket(2, true);
         second_audio_chunk.granule_position = 2 * packet_sample_frames;
+        second_audio_chunk.timestamp_samples = first_frame.getSampleFrameCount();
 
         AudioFrame second_frame = decodeFirstNonEmptyFrame(codec, second_audio_chunk);
         ASSERT_FALSE(second_frame.samples.empty(), "Second timed frame should decode");
         ASSERT_EQUALS(packet_sample_frames, second_frame.getSampleFrameCount(),
                       "Second frame should no longer be shortened once pre-skip is exhausted");
         ASSERT_EQUALS(first_frame.getSampleFrameCount(), second_frame.timestamp_samples,
-                      "Second Opus frame should start immediately after the shortened first frame");
+                      "Second Opus frame should preserve the caller-provided sample timestamp");
         ASSERT_EQUALS((first_frame.getSampleFrameCount() * 1000u) / 48000u, second_frame.timestamp_ms,
                       "Second Opus frame should report the audible offset, not decoded sample count");
     }
@@ -630,6 +670,71 @@ protected:
                       "PLC output should preserve sample rate");
         ASSERT_EQUALS(decoded_frame.getSampleFrameCount(), concealed_frame.getSampleFrameCount(),
                       "PLC output should preserve the inferred frame duration");
+    }
+};
+
+class TestOpusNonTerminalGranuleDoesNotTrim : public TestCase {
+public:
+    TestOpusNonTerminalGranuleDoesNotTrim()
+        : TestCase("Opus Non-Terminal Granule Does Not Trim") {}
+
+protected:
+    void runTest() override {
+        StreamInfo info = createOpusStreamInfo(2);
+        OpusCodec codec(info);
+
+        ASSERT_TRUE(initializeOpusCodecForAudio(codec, 2, 0, 0),
+                    "Codec should initialize through the Opus headers");
+
+        MediaChunk first_chunk;
+        first_chunk.data = createOpusAudioPacket(2, true);
+        first_chunk.timestamp_samples = 0;
+        first_chunk.granule_position = 960;
+
+        AudioFrame first_frame = decodeFirstNonEmptyFrame(codec, first_chunk);
+        ASSERT_FALSE(first_frame.samples.empty(),
+                     "First Opus audio packet should decode to PCM");
+
+        MediaChunk second_chunk;
+        second_chunk.data = createOpusAudioPacket(2, true);
+        second_chunk.timestamp_samples = first_frame.getSampleFrameCount();
+        second_chunk.granule_position = 960;
+        second_chunk.end_of_stream = false;
+
+        AudioFrame second_frame = decodeFirstNonEmptyFrame(codec, second_chunk);
+        ASSERT_FALSE(second_frame.samples.empty(),
+                     "A non-terminal Opus packet must not be trimmed away by a stale granule");
+        ASSERT_EQUALS(first_frame.getSampleFrameCount(),
+                      second_frame.getSampleFrameCount(),
+                      "Non-terminal granule-bearing packets should preserve the decoded frame size");
+    }
+};
+
+class TestOpusLargePacketPassesValidation : public TestCase {
+public:
+    TestOpusLargePacketPassesValidation()
+        : TestCase("Opus Large Packet Passes Validation") {}
+
+protected:
+    void runTest() override {
+        StreamInfo info = createOpusStreamInfo(2);
+        OpusCodec codec(info);
+
+        ASSERT_TRUE(initializeOpusCodecForAudio(codec, 2, 0, 0),
+                    "Codec should initialize for audio decoding");
+
+        std::vector<uint8_t> packet = createLargeEncodedOpusPacket();
+        ASSERT_TRUE(!packet.empty(), "Test must generate a valid oversized Opus packet");
+        ASSERT_TRUE(packet.size() > 1275u, "Regression packet must exceed the old packet-size limit");
+
+        MediaChunk chunk;
+        chunk.data = packet;
+
+        AudioFrame frame = decodeFirstNonEmptyFrame(codec, chunk, 2);
+        ASSERT_FALSE(frame.samples.empty(),
+                     "Valid oversized Opus packets should decode instead of being rejected");
+        ASSERT_EQUALS(48000u, frame.sample_rate, "Decoded frame should keep the Opus output rate");
+        ASSERT_EQUALS(2u, frame.channels, "Decoded frame should preserve channel count");
     }
 };
 
@@ -719,6 +824,8 @@ int main()
     suite.addTest(std::make_unique<TestOpusGranuleTimestampProcessing>());
     suite.addTest(std::make_unique<TestOpusOutputGainProcessing>());
     suite.addTest(std::make_unique<TestOpusPacketLossConcealment>());
+    suite.addTest(std::make_unique<TestOpusNonTerminalGranuleDoesNotTrim>());
+    suite.addTest(std::make_unique<TestOpusLargePacketPassesValidation>());
     suite.addTest(std::make_unique<TestOpusMultiChannelConfigurations>());
     
     // Run all tests
