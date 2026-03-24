@@ -1283,6 +1283,7 @@ test_ogg_demuxer_integration_LDADD = \
 	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
 	$(OGG_LIBS) \
 	$(VORBIS_LIBS) \
+	-lvorbisenc \
 	$(OPUS_LIBS) \
 	$(FLAC_LIBS) \
 	$(AM_LDFLAGS)

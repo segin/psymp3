@@ -202,13 +202,10 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
             
         case 5: // Setup Header
             if (m_headers_count != 2) return false; // Must follow Comment header
-            
-            // Check framing bit
-            if (!(data[packet->bytes - 1] & 1)) {
-                Debug::log("ogg", "VorbisHeaderParser: setup header missing framing bit");
-                return false;
-            }
-            
+
+            // The setup header ends with a single framing bit in a bit-packed
+            // structure; it is not required to be the last byte's low bit.
+            // Leave full validation to libvorbis during decoder initialization.
             storeHeaderPacket(packet);
             m_headers_count = 3;
             return true;

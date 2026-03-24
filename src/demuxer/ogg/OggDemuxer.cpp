@@ -66,6 +66,16 @@ uint64_t computeTimestampSamples(const CodecInfo& codec_info,
     return granule_position;
 }
 
+bool codecKeepsHeadersInBand(const CodecHeaderParser& parser)
+{
+    std::string codec = parser.getCodecInfo().codec_name;
+    std::transform(codec.begin(), codec.end(), codec.begin(), ::tolower);
+
+    // Vorbis decoding still expects the three setup packets to arrive through
+    // the normal chunk stream before audio packets.
+    return codec == "vorbis";
+}
+
 } // namespace
 
 bool OggDemuxer::resetForPlayback_unlocked() {
@@ -80,7 +90,8 @@ bool OggDemuxer::resetForPlayback_unlocked() {
 
   std::map<int, size_t> headers_remaining;
   for (const auto& pair : m_parsers) {
-    headers_remaining[pair.first] = pair.second->getHeaderPackets().size();
+    headers_remaining[pair.first] =
+        codecKeepsHeadersInBand(*pair.second) ? 0 : pair.second->getHeaderPackets().size();
   }
 
   ogg_page page;
