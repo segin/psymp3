@@ -108,20 +108,24 @@ std::vector<uint8_t> generateMinimalFLAC() {
     data.push_back(0x00);
     data.push_back(0x00);
     
-    // sample_rate (20 bits), channels-1 (3 bits), bits_per_sample-1 (5 bits)
-    // 44100 Hz, 2 channels, 16 bits
-    uint32_t sr_ch_bps = (44100 << 12) | ((2 - 1) << 9) | (16 - 1);
-    data.push_back((sr_ch_bps >> 16) & 0xFF);
-    data.push_back((sr_ch_bps >> 8) & 0xFF);
-    data.push_back(sr_ch_bps & 0xFF);
-    
-    // total_samples (36 bits) - 44100 samples (1 second)
-    uint64_t total_samples = 44100;
-    data.push_back((total_samples >> 28) & 0xFF);
-    data.push_back((total_samples >> 20) & 0xFF);
-    data.push_back((total_samples >> 12) & 0xFF);
-    data.push_back((total_samples >> 4) & 0xFF);
-    data.push_back((total_samples << 4) & 0xF0);
+    // sample_rate (20 bits), channels-1 (3 bits), bits_per_sample-1 (5 bits),
+    // then total_samples (36 bits) packed per RFC 9639 Section 8.2.
+    const uint32_t sample_rate = 44100;
+    const uint8_t channels_minus_one = 1;
+    const uint8_t bits_per_sample_minus_one = 15;
+    const uint64_t total_samples = 44100;
+
+    data.push_back(static_cast<uint8_t>((sample_rate >> 12) & 0xFF));
+    data.push_back(static_cast<uint8_t>((sample_rate >> 4) & 0xFF));
+    data.push_back(static_cast<uint8_t>(((sample_rate & 0x0F) << 4) |
+                                        ((channels_minus_one & 0x07) << 1) |
+                                        ((bits_per_sample_minus_one >> 4) & 0x01)));
+    data.push_back(static_cast<uint8_t>(((bits_per_sample_minus_one & 0x0F) << 4) |
+                                        ((total_samples >> 32) & 0x0F)));
+    data.push_back(static_cast<uint8_t>((total_samples >> 24) & 0xFF));
+    data.push_back(static_cast<uint8_t>((total_samples >> 16) & 0xFF));
+    data.push_back(static_cast<uint8_t>((total_samples >> 8) & 0xFF));
+    data.push_back(static_cast<uint8_t>(total_samples & 0xFF));
     
     // MD5 signature (16 bytes) - all zeros
     for (int i = 0; i < 16; i++) {
@@ -163,8 +167,9 @@ bool testBasicFunctionality() {
     // Test position
     SIMPLE_ASSERT(demuxer->getPosition() == 0, "Initial position should be 0");
     
-    // Test EOF
-    SIMPLE_ASSERT(!demuxer->isEOF(), "Should not be EOF initially");
+    // This synthetic fixture contains metadata only and no audio frames,
+    // so the demuxer is already at EOF after parsing.
+    SIMPLE_ASSERT(demuxer->isEOF(), "Metadata-only FLAC fixture should report EOF");
     
     std::cout << "Basic functionality test PASSED" << std::endl;
     return true;

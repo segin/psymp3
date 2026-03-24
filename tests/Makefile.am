@@ -563,6 +563,7 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 	test_flac_bit_depth_validation_simple test_flac_security_validation \
 	test_flac_sample_format_rfc9639_compliance test_flac_audio_output test_flac_seeking_crash \
 	test_flac_audio_output_debug test_flac_codec_simple_debug \
+	test_flac_demuxer_rfc9639_regressions \
 	test_flac_parser_vulnerability
 endif
 
@@ -1925,6 +1926,20 @@ test_conditional_codec_compilation_LDADD = libtest_utilities.a \
 if HAVE_FLAC
 test_flac_demuxer_simple_SOURCES = test_flac_demuxer_simple.cpp
 test_flac_demuxer_simple_LDADD = \
+	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
+	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
+	$(top_builddir)/src/tag/libpsymp3-tag.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/io/file/libpsymp3-io-file.a \
+	$(top_builddir)/src/io/libpsymp3-io.a \
+	$(top_builddir)/src/debug.o \
+	$(top_builddir)/src/core/libpsymp3-core.a \
+	$(top_builddir)/src/core/utility/libpsymp3-core-utility.a \
+	$(FLAC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_flac_demuxer_rfc9639_regressions_SOURCES = test_flac_demuxer_rfc9639_regressions.cpp
+test_flac_demuxer_rfc9639_regressions_LDADD = \
 	$(top_builddir)/src/demuxer/flac/libpsymp3-demuxer-flac.a \
 	$(top_builddir)/src/demuxer/libpsymp3-demuxer.a \
 	$(top_builddir)/src/tag/libpsymp3-tag.a \

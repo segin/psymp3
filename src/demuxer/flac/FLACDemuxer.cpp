@@ -187,6 +187,10 @@ bool FLACDemuxer::parseContainer_unlocked()
     // Parse metadata blocks (RFC 9639 Section 8)
     // Requirement 24.2: Skip corrupted metadata blocks and continue
     bool metadata_ok = parseMetadataBlocks_unlocked();
+
+    if (!metadata_ok) {
+        return false;
+    }
     
     // Verify STREAMINFO is valid
     if (!m_streaminfo.isValid()) {
@@ -211,6 +215,27 @@ bool FLACDemuxer::parseContainer_unlocked()
     // Requirements 20.1-20.5: Check streamable subset constraints
     // This must be called after STREAMINFO and VORBIS_COMMENT are parsed
     validateStreamableSubset_unlocked();
+
+    // Probe the first frame header so header-level subset violations are
+    // reflected before reporting final parse state.
+    {
+        const uint64_t saved_offset = m_current_offset;
+        const uint64_t saved_sample = m_current_sample;
+        const bool saved_eof = m_eof;
+
+        if (m_handler->seek(static_cast<off_t>(m_audio_data_offset), SEEK_SET) == 0) {
+            m_current_offset = m_audio_data_offset;
+            FLACFrame first_frame;
+            if (!findNextFrame_unlocked(first_frame)) {
+                FLAC_DEBUG("[parseContainer] Unable to confirm streamable subset from first frame header");
+            }
+        }
+
+        m_handler->seek(static_cast<off_t>(saved_offset), SEEK_SET);
+        m_current_offset = saved_offset;
+        updateCurrentSample_unlocked(saved_sample);
+        updateEOF_unlocked(saved_eof);
+    }
     
     // Create VorbisCommentTag from parsed metadata
     // Requirements 8.2, 8.4: Extract VorbisComment metadata and store in m_tag
@@ -658,7 +683,34 @@ retry_frame_read:
     frame.frame_size = actual_frame_size;
     
     // ========================================================================
-    // Step 4.5: Add frame to index for future seeking
+    // Step 4.5: Validate completed frame boundary and footer
+    // ========================================================================
+
+    if (frame.block_size < 16 && found_next_sync) {
+        FLAC_DEBUG("[readChunk] Rejecting non-final frame with block size ", frame.block_size,
+                   " (< 16 samples is only legal for the final frame)");
+        if (corrupted_frame_recoveries < MAX_CORRUPTED_FRAME_RECOVERIES &&
+            skipCorruptedFrame_unlocked(frame.file_offset)) {
+            corrupted_frame_recoveries++;
+            goto retry_frame_read;
+        }
+        updateEOF_unlocked(true);
+        return MediaChunk{};
+    }
+
+    if (!validateFrameFooterCRC_unlocked(data.data(), actual_frame_size, frame.file_offset)) {
+        FLAC_DEBUG("[readChunk] Frame footer CRC-16 validation failed");
+        if (corrupted_frame_recoveries < MAX_CORRUPTED_FRAME_RECOVERIES &&
+            skipCorruptedFrame_unlocked(frame.file_offset)) {
+            corrupted_frame_recoveries++;
+            goto retry_frame_read;
+        }
+        updateEOF_unlocked(true);
+        return MediaChunk{};
+    }
+
+    // ========================================================================
+    // Step 4.6: Add frame to index for future seeking
     // Requirement 22.4: Build frame index during initial parsing
     // ========================================================================
     
@@ -973,12 +1025,8 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
             if (block.type != FLACMetadataType::STREAMINFO) {
                 FLAC_DEBUG("First metadata block is not STREAMINFO (type=", 
                            static_cast<int>(raw_type), ")");
-                // Requirement 24.2: Don't reject immediately, try to continue
-                // We'll derive parameters from frame headers later if needed
-                FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.2: Continuing despite missing STREAMINFO");
-                skipMetadataBlock_unlocked(block);
-                is_first_block = false;
-                continue;
+                reportError("Format", "First metadata block is not STREAMINFO");
+                return false;
             }
         }
         
@@ -998,10 +1046,8 @@ bool FLACDemuxer::parseMetadataBlocks_unlocked()
         switch (block.type) {
             case FLACMetadataType::STREAMINFO:
                 if (found_streaminfo) {
-                    // Requirement 24.2: Skip duplicate STREAMINFO instead of failing
-                    FLAC_DEBUG("[parseMetadataBlocks] Requirement 24.2: Skipping duplicate STREAMINFO");
-                    skipMetadataBlock_unlocked(block);
-                    block_parsed_ok = true;
+                    reportError("Format", "Duplicate STREAMINFO metadata block");
+                    return false;
                 } else {
                     block_parsed_ok = parseStreamInfoBlock_unlocked(block);
                     if (block_parsed_ok) {
@@ -2747,9 +2793,9 @@ bool FLACDemuxer::parseFrameHeader_unlocked(FLACFrame& frame, const uint8_t* buf
     // Requirement 8.10, 8.11: Reserved bit at bit 0 of byte 3 must be 0
     // RFC 9639 Section 9.1.4: "A reserved bit. It MUST have value 0"
     if (reserved_bit != 0) {
-        FLAC_DEBUG("[parseFrameHeader] WARNING: Reserved bit is non-zero (", 
-                   static_cast<int>(reserved_bit), ") - continuing per Requirement 8.11");
-        // Per Requirement 8.11: Log warning and continue processing
+        FLAC_DEBUG("[parseFrameHeader] REJECTED: Reserved bit is non-zero (",
+                   static_cast<int>(reserved_bit), ")");
+        return false;
     }
     
     // ========================================================================
@@ -3518,9 +3564,9 @@ bool FLACDemuxer::parseBitDepthBits_unlocked(uint8_t bits, uint8_t reserved_bit,
     // Requirement 8.10, 8.11: Validate reserved bit at bit 0 of frame byte 3
     // RFC 9639 Section 9.1.4: "A reserved bit. It MUST have value 0"
     if (reserved_bit != 0) {
-        FLAC_DEBUG("[parseBitDepthBits] WARNING: Reserved bit is non-zero (",
-                   static_cast<int>(reserved_bit), ") - continuing per Requirement 8.11");
-        // Per Requirement 8.11: Log warning and continue processing
+        FLAC_DEBUG("[parseBitDepthBits] REJECTED: Reserved bit is non-zero (",
+                   static_cast<int>(reserved_bit), ")");
+        return false;
     }
     
     // Requirement 8.5: Reserved bit depth pattern 0b011
