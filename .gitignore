@@ -150,3 +150,5 @@ tests/simple_*
 tests/test-harness
 test-driver
 tests/repro_wav_overflow
+vgcore.2578017
+tests/repro_ogg_duration_perf
