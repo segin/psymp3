@@ -22,6 +22,114 @@
  */
 
 #include "psymp3.h"
+#include "ogg/ogg.h"
+
+#include <algorithm>
+#include <cstring>
+
+namespace {
+
+class MemoryIOHandler : public PsyMP3::IO::IOHandler {
+public:
+    explicit MemoryIOHandler(std::vector<uint8_t> data)
+        : m_data(std::move(data))
+    {
+    }
+
+    size_t read(void* ptr, size_t size, size_t count) override
+    {
+        if (size == 0 || m_pos >= m_data.size()) {
+            return 0;
+        }
+
+        size_t bytes_requested = size * count;
+        size_t available = m_data.size() - m_pos;
+        size_t to_read = std::min(bytes_requested, available);
+        std::memcpy(ptr, m_data.data() + m_pos, to_read);
+        m_pos += to_read;
+        return to_read / size;
+    }
+
+    int seek(off_t offset, int origin) override
+    {
+        if (origin == SEEK_SET) {
+            m_pos = static_cast<size_t>(std::max<off_t>(0, offset));
+        } else if (origin == SEEK_CUR) {
+            off_t target = static_cast<off_t>(m_pos) + offset;
+            m_pos = static_cast<size_t>(std::max<off_t>(0, target));
+        } else if (origin == SEEK_END) {
+            off_t target = static_cast<off_t>(m_data.size()) + offset;
+            m_pos = static_cast<size_t>(std::max<off_t>(0, target));
+        }
+
+        if (m_pos > m_data.size()) {
+            m_pos = m_data.size();
+        }
+        return 0;
+    }
+
+    off_t tell() override { return static_cast<off_t>(m_pos); }
+    off_t getFileSize() override { return static_cast<off_t>(m_data.size()); }
+    bool eof() override { return m_pos >= m_data.size(); }
+
+private:
+    std::vector<uint8_t> m_data;
+    size_t m_pos = 0;
+};
+
+class OggStreamBuilder {
+public:
+    explicit OggStreamBuilder(int32_t serial)
+        : m_initialized(ogg_stream_init(&m_stream, serial) == 0)
+    {
+    }
+
+    ~OggStreamBuilder()
+    {
+        if (m_initialized) {
+            ogg_stream_clear(&m_stream);
+        }
+    }
+
+    bool packetIn(const std::vector<uint8_t>& packet,
+                  int64_t granule_pos,
+                  int64_t packet_no,
+                  bool bos,
+                  bool eos)
+    {
+        if (!m_initialized) {
+            return false;
+        }
+
+        ogg_packet ogg_packet_data{};
+        ogg_packet_data.packet = const_cast<unsigned char*>(packet.data());
+        ogg_packet_data.bytes = static_cast<long>(packet.size());
+        ogg_packet_data.b_o_s = bos ? 1 : 0;
+        ogg_packet_data.e_o_s = eos ? 1 : 0;
+        ogg_packet_data.granulepos = granule_pos;
+        ogg_packet_data.packetno = packet_no;
+        return ogg_stream_packetin(&m_stream, &ogg_packet_data) == 0;
+    }
+
+    void flushAll(std::vector<uint8_t>& out)
+    {
+        if (!m_initialized) {
+            return;
+        }
+
+        ogg_page page{};
+        while (ogg_stream_flush(&m_stream, &page) != 0) {
+            out.insert(out.end(), page.header, page.header + page.header_len);
+            out.insert(out.end(), page.body, page.body + page.body_len);
+        }
+    }
+
+private:
+    ogg_stream_state m_stream{};
+    bool m_initialized = false;
+};
+
+} // namespace
 
 #ifdef HAVE_OGGDEMUXER
 
@@ -138,6 +246,26 @@ public:
         chunk.data = data;
         chunk.is_keyframe = true;
         return chunk;
+    }
+
+    static std::vector<uint8_t> createMinimalOggOpusStream() {
+        std::vector<uint8_t> bytes;
+        OggStreamBuilder builder(0x505359);
+
+        auto id_header = createOpusIdHeader();
+        auto tags_header = createOpusCommentHeader();
+
+        if (!builder.packetIn(id_header, 0, 0, true, false)) {
+            return {};
+        }
+        builder.flushAll(bytes);
+
+        if (!builder.packetIn(tags_header, 0, 1, false, false)) {
+            return {};
+        }
+        builder.flushAll(bytes);
+
+        return bytes;
     }
 };
 
@@ -411,6 +539,59 @@ bool test_integration_with_demuxed_stream_bridge() {
     }
 }
 
+bool test_ogg_demuxer_preserves_opus_setup_headers() {
+    Debug::log("test", "=== Testing OggDemuxer Opus setup-header preservation ===");
+
+    try {
+        auto ogg_bytes = OpusIntegrationTest::createMinimalOggOpusStream();
+        if (ogg_bytes.empty()) {
+            Debug::log("test", "FAIL: Failed to build minimal Ogg Opus stream");
+            return false;
+        }
+
+        auto io = std::make_unique<MemoryIOHandler>(std::move(ogg_bytes));
+        PsyMP3::Demuxer::Ogg::OggDemuxer demuxer(std::move(io));
+
+        if (!demuxer.parseContainer()) {
+            Debug::log("test", "FAIL: OggDemuxer should parse minimal Opus headers");
+            return false;
+        }
+
+        auto streams = demuxer.getStreams();
+        if (streams.empty()) {
+            Debug::log("test", "FAIL: OggDemuxer should expose an Opus stream");
+            return false;
+        }
+
+        StreamInfo stream_info = demuxer.getStreamInfo(streams.front().stream_id);
+        if (stream_info.codec_name != "opus") {
+            Debug::log("test", "FAIL: Expected opus codec_name, got: ", stream_info.codec_name);
+            return false;
+        }
+
+        auto expected_id_header = OpusIntegrationTest::createOpusIdHeader();
+        auto expected_tags_header = OpusIntegrationTest::createOpusCommentHeader();
+        size_t expected_size = expected_id_header.size() + expected_tags_header.size();
+
+        if (stream_info.codec_data.size() < expected_size) {
+            Debug::log("test", "FAIL: codec_data should contain Opus setup headers, got size ",
+                      stream_info.codec_data.size(), ", expected at least ", expected_size);
+            return false;
+        }
+
+        if (!std::equal(expected_id_header.begin(), expected_id_header.end(), stream_info.codec_data.begin())) {
+            Debug::log("test", "FAIL: codec_data should begin with OpusHead");
+            return false;
+        }
+
+        Debug::log("test", "PASS: OggDemuxer Opus setup-header preservation test");
+        return true;
+    } catch (const std::exception& e) {
+        Debug::log("test", "FAIL: Exception in OggDemuxer Opus header preservation test: ", e.what());
+        return false;
+    }
+}
+
 /**
  * @brief Test error handling in integration scenarios
  */
@@ -553,6 +734,7 @@ bool run_opus_integration_tests() {
     all_passed &= test_media_chunk_processing_and_audio_frame_output();
     all_passed &= test_seeking_support_through_reset();
     all_passed &= test_integration_with_demuxed_stream_bridge();
+    all_passed &= test_ogg_demuxer_preserves_opus_setup_headers();
     all_passed &= test_integration_error_handling();
     all_passed &= test_multichannel_opus_integration();
     

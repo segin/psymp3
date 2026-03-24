@@ -66,9 +66,26 @@ public:
     virtual OggVorbisComment getVorbisComment() const { return OggVorbisComment{}; }
 
     /**
+     * @brief Get raw setup/header packets consumed during parsing
+     * @return Header packets in parse order
+     */
+    const std::vector<std::vector<uint8_t>>& getHeaderPackets() const { return m_header_packets; }
+
+    /**
      * @brief Factory method: Identify codec from BOS packet
      */
     static std::unique_ptr<CodecHeaderParser> create(ogg_packet* bos_packet);
+
+protected:
+    void storeHeaderPacket(const ogg_packet* packet) {
+        if (!packet || !packet->packet || packet->bytes <= 0) {
+            return;
+        }
+        m_header_packets.emplace_back(packet->packet, packet->packet + packet->bytes);
+    }
+
+private:
+    std::vector<std::vector<uint8_t>> m_header_packets;
 };
 
 // Derived classes will be implemented in .cpp or separate headers if large

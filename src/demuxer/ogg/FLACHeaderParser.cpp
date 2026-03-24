@@ -87,6 +87,7 @@ bool FLACHeaderParser::parseHeader(ogg_packet* packet) {
         m_info.channels = channels_minus_1 + 1;
         
 
+        storeHeaderPacket(packet);
         m_streaminfo_found = true;
         m_headers_count = 1;
         
@@ -106,6 +107,7 @@ bool FLACHeaderParser::parseHeader(ogg_packet* packet) {
     // Yes.
     // We only validate the first header packet here for identification.
     
+    storeHeaderPacket(packet);
     m_headers_count++;
     return true;
 }

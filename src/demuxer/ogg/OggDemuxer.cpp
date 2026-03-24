@@ -37,6 +37,17 @@ namespace PsyMP3 {
 namespace Demuxer {
 namespace Ogg {
 
+namespace {
+void populateCodecData(const CodecHeaderParser& parser,
+                       StreamInfo& info)
+{
+    for (const auto& header : parser.getHeaderPackets()) {
+        info.codec_data.insert(info.codec_data.end(), header.begin(), header.end());
+    }
+}
+
+} // namespace
+
 // Note: Registration is handled by registerAllDemuxers() called from main().
 // Do NOT use static auto-registration here as it causes initialization order
 // issues.
@@ -284,6 +295,11 @@ std::vector<StreamInfo> OggDemuxer::getStreams() const {
     info.codec_type = "audio"; // All currently supported Ogg codecs are audio
     info.channels = ci.channels;
     info.sample_rate = ci.rate;
+    info.duration_ms = m_cached_duration.load();
+    if (info.duration_ms > 0 && info.sample_rate > 0) {
+      info.duration_samples = (info.duration_ms * info.sample_rate) / 1000;
+    }
+    populateCodecData(*pair.second, info);
     result.push_back(info);
   }
 
@@ -310,6 +326,11 @@ StreamInfo OggDemuxer::getStreamInfo(uint32_t stream_id) const {
   info.codec_type = "audio"; // All currently supported Ogg codecs are audio
   info.channels = ci.channels;
   info.sample_rate = ci.rate;
+  info.duration_ms = m_cached_duration.load();
+  if (info.duration_ms > 0 && info.sample_rate > 0) {
+    info.duration_samples = (info.duration_ms * info.sample_rate) / 1000;
+  }
+  populateCodecData(*pit->second, info);
   return info;
 }
 

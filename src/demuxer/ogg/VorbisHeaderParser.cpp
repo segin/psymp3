@@ -178,6 +178,7 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
             // But we typically trust if we got this far.
             if (!(data[29] & 1)) return false; // Formatting bit must be set
             
+            storeHeaderPacket(packet);
             m_headers_count = 1;
             return true;
             
@@ -195,6 +196,7 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
                 return false;
             }
             
+            storeHeaderPacket(packet);
             m_headers_count = 2;
             return true;
             
@@ -207,6 +209,7 @@ bool VorbisHeaderParser::parseHeader(ogg_packet* packet) {
                 return false;
             }
             
+            storeHeaderPacket(packet);
             m_headers_count = 3;
             return true;
             

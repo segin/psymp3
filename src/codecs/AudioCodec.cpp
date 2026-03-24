@@ -90,10 +90,15 @@ std::unique_ptr<AudioCodec> AudioCodecFactory::createCodec(const StreamInfo& str
         }
 #endif
     } else if (stream_info.codec_name == "opus") {
-        Debug::log("loader", "AudioCodecFactory: Creating OpusPassthroughCodec for codec: opus");
-        auto codec = std::make_unique<OpusPassthroughCodec>(stream_info);
+        Debug::log("loader", "AudioCodecFactory: Creating OpusCodec for codec: opus");
+        auto codec = std::make_unique<PsyMP3::Codec::Opus::OpusCodec>(stream_info);
         if (codec->canDecode(stream_info)) {
             return std::move(codec);
+        }
+        Debug::log("loader", "AudioCodecFactory: Falling back to OpusPassthroughCodec for codec: opus");
+        auto passthrough_codec = std::make_unique<OpusPassthroughCodec>(stream_info);
+        if (passthrough_codec->canDecode(stream_info)) {
+            return std::move(passthrough_codec);
         }
     } else if (stream_info.codec_name == "speex") {
         Debug::log("loader", "AudioCodecFactory: Creating SpeexCodec for codec: speex");

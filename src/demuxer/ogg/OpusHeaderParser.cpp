@@ -163,6 +163,7 @@ bool OpusHeaderParser::parseHeader(ogg_packet* packet) {
         // Gain (byte 16-17)
         // Mapping Family (byte 18)
         
+        storeHeaderPacket(packet);
         m_headers_count = 1;
         return true;
     }
@@ -176,6 +177,7 @@ bool OpusHeaderParser::parseHeader(ogg_packet* packet) {
             parseOpusTags(data + 8, packet->bytes - 8);
         }
         
+        storeHeaderPacket(packet);
         m_headers_count = 2;
         return true;
     }
