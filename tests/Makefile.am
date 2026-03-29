@@ -562,6 +562,7 @@ check_PROGRAMS += test_flac_demuxer_simple test_flac_real_file test_streaminfo_r
 	test_flac_rfc_entropy_coding_validation test_entropy_coding_compilation \
 	test_flac_test_data_validation test_flac_crc_validation test_flac_rfc_bit_depth_validation \
 	test_flac_bit_depth_validation_simple test_flac_security_validation \
+	test_flac_rfc_block_size_sample_rate_validation \
 	test_flac_sample_format_rfc9639_compliance test_flac_audio_output test_flac_seeking_crash \
 	test_flac_audio_output_debug test_flac_codec_simple_debug \
 	test_flac_demuxer_rfc9639_regressions \
@@ -2462,6 +2463,12 @@ test_flac_codec_error_handling_LDADD = \
 
 test_flac_rfc9639_error_handling_SOURCES = test_flac_rfc9639_error_handling.cpp
 test_flac_rfc9639_error_handling_LDADD = \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
+	$(AM_LDFLAGS)
+
+test_flac_rfc_block_size_sample_rate_validation_SOURCES = test_flac_rfc_block_size_sample_rate_validation.cpp
+test_flac_rfc_block_size_sample_rate_validation_LDADD = \
 	$(FULL_CODEC_LIBS) \
 	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)

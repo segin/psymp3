@@ -167,7 +167,7 @@ int main() {
     
     // Test 5: Maximum values
     total++;
-    if (testValues(655350, 8, 32, 0xFFFFFFFFFULL, "Maximum Values (655.35kHz, 32-bit, 8-channel)")) {
+    if (testValues(1048575, 8, 32, 0xFFFFFFFFFULL, "Maximum Values (1048.575kHz, 32-bit, 8-channel)")) {
         passed++;
     }
     

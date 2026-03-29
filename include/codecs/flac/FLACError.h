@@ -66,7 +66,7 @@ enum class FLACError {
     /**
      * @brief Subframe decoding failed
      * 
-     * Recovery: Output silence for affected channel
+     * Recovery: Reject frame and continue
      * Requirements: 11.3
      */
     INVALID_SUBFRAME,
@@ -74,7 +74,7 @@ enum class FLACError {
     /**
      * @brief Residual decoding failed
      * 
-     * Recovery: Output silence for affected channel
+     * Recovery: Reject frame and continue
      * Requirements: 11.3
      */
     INVALID_RESIDUAL,
@@ -82,7 +82,7 @@ enum class FLACError {
     /**
      * @brief CRC checksum validation failed
      * 
-     * Recovery: Log error and attempt to use data (RFC allows)
+     * Recovery: Reject frame and continue
      * Requirements: 11.4
      */
     CRC_MISMATCH,

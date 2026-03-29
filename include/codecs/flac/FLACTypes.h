@@ -37,7 +37,7 @@
  */
 struct FLACFrameInfo {
     uint32_t block_size = 0;         ///< Number of samples in this frame (16-65535 per RFC 9639)
-    uint32_t sample_rate = 0;        ///< Sample rate for this frame (1-655350 Hz per RFC 9639)
+    uint32_t sample_rate = 0;        ///< Sample rate for this frame (1-1048575 Hz per RFC 9639)
     uint16_t channels = 0;           ///< Number of channels in this frame (1-8 per RFC 9639)
     uint16_t bits_per_sample = 0;    ///< Bits per sample in this frame (4-32 per RFC 9639)
     uint64_t sample_number = 0;      ///< Starting sample number for this frame
@@ -49,7 +49,7 @@ struct FLACFrameInfo {
      */
     bool isValid() const {
         return block_size >= 16 && block_size <= 65535 &&
-               sample_rate >= 1 && sample_rate <= 655350 &&
+               sample_rate >= 1 && sample_rate <= 1048575 &&
                channels >= 1 && channels <= 8 && 
                bits_per_sample >= 4 && bits_per_sample <= 32;
     }

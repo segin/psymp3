@@ -34,7 +34,7 @@
 struct TimeDifferentialConstants {
     static constexpr int64_t TOLERANCE_MS = 250;
     static constexpr uint32_t MIN_SAMPLE_RATE = 8000;    // 8 kHz minimum
-    static constexpr uint32_t MAX_SAMPLE_RATE = 655350;  // RFC 9639 maximum
+    static constexpr uint32_t MAX_SAMPLE_RATE = 1048575;  // RFC 9639 maximum
 };
 
 /**
@@ -479,4 +479,3 @@ int main() {
         return 1;
     }
 }
-

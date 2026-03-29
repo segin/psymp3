@@ -285,9 +285,11 @@ bool FLACCodec::initialize_unlocked() {
         return false;
     }
     
-    if (m_stream_info.bits_per_sample > 32) {
+    if (m_stream_info.bits_per_sample != 0 &&
+        (m_stream_info.bits_per_sample < 4 || m_stream_info.bits_per_sample > 32)) {
         Debug::log("flac_codec", "[NativeFLACCodec::initialize_unlocked] Invalid bit depth: ",
-                  m_stream_info.bits_per_sample, " (RFC 9639 max: 32 bits)");
+                  m_stream_info.bits_per_sample,
+                  " (RFC 9639 valid range: 4-32 bits, or 0 placeholder)");
         m_state = DecoderState::DECODER_ERROR;
         return false;
     }
@@ -809,8 +811,10 @@ bool FLACCodec::canDecode_unlocked(const StreamInfo& stream_info) const {
         return false;
     }
     
-    if (stream_info.bits_per_sample > 32) {
-        Debug::log("flac_codec", "[NativeFLACCodec::canDecode_unlocked] Bit depth out of range: ", stream_info.bits_per_sample);
+    if (stream_info.bits_per_sample != 0 &&
+        (stream_info.bits_per_sample < 4 || stream_info.bits_per_sample > 32)) {
+        Debug::log("flac_codec", "[NativeFLACCodec::canDecode_unlocked] Bit depth out of range: ",
+                  stream_info.bits_per_sample);
         return false;
     }
     
