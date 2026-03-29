@@ -2456,9 +2456,8 @@ test_flac_codec_unit_comprehensive_LDADD = \
 # FLAC codec error handling tests
 test_flac_codec_error_handling_SOURCES = test_flac_codec_error_handling.cpp
 test_flac_codec_error_handling_LDADD = \
-	libtest_utilities.a \
-	$(top_builddir)/src/core/libpsymp3-core.a \
-	$(FLAC_LIBS) \
+	$(FULL_CODEC_LIBS) \
+	$(COMMON_CODEC_LIBS) \
 	$(AM_LDFLAGS)
 
 test_flac_rfc9639_error_handling_SOURCES = test_flac_rfc9639_error_handling.cpp

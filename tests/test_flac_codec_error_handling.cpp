@@ -21,6 +21,8 @@
  * PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include "psymp3.h"
+
 #include <iostream>
 #include <vector>
 #include <cstdint>
@@ -31,6 +33,10 @@
 #endif
 
 #ifdef HAVE_FLAC
+
+#ifdef HAVE_NATIVE_FLAC
+using PsyMP3::Codec::FLAC::FLACCodec;
+#endif
 
 /**
  * @brief Test FLAC frame validation and error detection

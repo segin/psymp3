@@ -715,7 +715,7 @@ AudioFrame FLACCodec::flush_unlocked() {
         !MD5Validator::isZeroMD5(m_streaminfo.md5_sum) && m_md5_validator) {
         if (!checkMD5Validation_unlocked()) {
             Debug::log("flac_codec", "[NativeFLACCodec::flush_unlocked] MD5 validation failed at end of stream");
-            m_last_error = FLACError::MD5_MISMATCH;
+            m_last_error = FLACError::CORRUPTED_DATA;
             m_stats.error_count++;
             transitionState(DecoderState::DECODER_ERROR);
             return AudioFrame();
