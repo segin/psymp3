@@ -25,8 +25,7 @@
 
 TagLib::String track::nullstr;
 
-namespace {
-bool isKnownRawAudioExtension(const TagLib::String& path)
+bool track::isKnownRawAudioExtension(const TagLib::String& path)
 {
     std::string utf8_path = path.to8Bit(true);
     std::string::size_type dot = utf8_path.find_last_of('.');
@@ -47,14 +46,13 @@ bool isKnownRawAudioExtension(const TagLib::String& path)
     return kRawExtensions.find(extension) != kRawExtensions.end();
 }
 
-bool shouldCreateTagLibRefForPath(const TagLib::String& path)
+bool track::shouldCreateTagLibRefForPath(const TagLib::String& path)
 {
     if (path.isEmpty()) {
         return false;
     }
 
     return !isKnownRawAudioExtension(path);
-}
 }
 
 /**
